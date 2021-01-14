@@ -13,18 +13,28 @@ library MerkleLib {
         uint256 count;
     }
 
+    function branchRoot(
+        bytes32 item,
+        bytes32[32] memory branch,
+        uint256 index,
+        bytes32[TREE_DEPTH] storage zero_hashes
+    ) internal view returns (bytes32 node) {
+        uint256 idx = index;
+        node = item;
+        for (uint256 i = 0; i < TREE_DEPTH; i++) {
+            if ((idx & 1) == 1)
+                node = sha256(abi.encodePacked(branch[i], node));
+            else node = sha256(abi.encodePacked(node, zero_hashes[i]));
+            idx /= 2;
+        }
+    }
+
     function root(Tree storage _tree, bytes32[TREE_DEPTH] storage zero_hashes)
         internal
         view
         returns (bytes32 node)
     {
-        uint256 size = _tree.count;
-        for (uint256 i = 0; i < TREE_DEPTH; i++) {
-            if ((size & 1) == 1)
-                node = sha256(abi.encodePacked(_tree.branch[i], node));
-            else node = sha256(abi.encodePacked(node, zero_hashes[i]));
-            size /= 2;
-        }
+        return branchRoot(bytes32(0), _tree.branch, _tree.count, zero_hashes);
     }
 
     function insert(Tree storage _tree, bytes32 node) internal {

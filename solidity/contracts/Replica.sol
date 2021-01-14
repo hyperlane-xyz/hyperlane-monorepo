@@ -11,6 +11,8 @@ contract Replica is Common {
     bytes32 pending;
     uint256 confirmAt;
 
+    uint256 lastProcessed;
+
     event DoubleUpdate();
 
     constructor(
@@ -18,11 +20,13 @@ contract Replica is Common {
         uint32 _ownSLIP44,
         address _updater,
         uint256 _optimisticSeconds,
-        bytes32 _start
+        bytes32 _start,
+        uint256 _lastProcessed
     ) Common(_originSLIP44, _updater) {
         ownSLIP44 = _ownSLIP44;
         optimisticSeconds = _optimisticSeconds;
         current = _start;
+        lastProcessed = _lastProcessed;
     }
 
     function fail() internal override {
