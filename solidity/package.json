@@ -1,0 +1,26 @@
+{
+  "name": "@celo-org/optics-sol",
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@openzeppelin/contracts": "^3.3.0",
+    "ethereum-waffle": "^3.2.1",
+    "ethers": "^5.0.25",
+    "hardhat": "^2.0.7",
+    "prettier": "2.2.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.3"
+  },
+  "version": "0.0.0",
+  "description": "Optimistic Interchain Communications",
+  "main": " ",
+  "directories": {
+    "test": "test"
+  },
+  "dependencies": {},
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test"
+  },
+  "author": "James Prestwich",
+  "license": "MIT OR Apache-2.0"
+}
