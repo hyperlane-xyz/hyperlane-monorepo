@@ -18,6 +18,7 @@
   },
   "dependencies": {},
   "scripts": {
+    "prettier": "prettier --write 'contracts/**/*.sol'",
     "compile": "hardhat compile",
     "test": "hardhat test"
   },
