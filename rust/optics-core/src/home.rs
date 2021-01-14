@@ -1,7 +1,10 @@
-use ethers_core::types::H256;
+use ethers_core::types::{Address, H256};
 use std::{collections::VecDeque, io::Write};
 
-use crate::{accumulator::*, *};
+use crate::{
+    accumulator::{hash, incremental::IncrementalMerkle},
+    SignedUpdate, Update,
+};
 
 #[derive(Default, Debug, Clone)]
 pub struct Waiting {
@@ -108,7 +111,7 @@ impl Home<Waiting> {
 
     pub fn enqueue(&mut self, sender: H256, destination: u32, recipient: H256, body: &[u8]) {
         let message = format_message(self.origin, sender, destination, recipient, body);
-        let message_hash = keccak256(message);
+        let message_hash = hash(&message);
         self.state.accumulator.ingest(message_hash);
         self.state.queue.push_back(self.state.accumulator.root());
     }

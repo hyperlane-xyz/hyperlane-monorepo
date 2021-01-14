@@ -1,6 +1,5 @@
 pub mod accumulator;
 pub mod home;
-mod merkle;
 pub mod replica;
 
 use ethers_core::types::{Address, Signature, H256};
@@ -23,17 +22,13 @@ impl Encode for Signature {
     }
 }
 
-fn keccak256(buf: impl AsRef<[u8]>) -> H256 {
-    H256::from_slice(Keccak256::digest(buf.as_ref()).as_slice())
-}
-
 fn domain_hash(origin_slip44_id: u32) -> H256 {
     H256::from_slice(
         Keccak256::new()
             .chain(origin_slip44_id.to_be_bytes())
             .chain("OPTICS".as_bytes())
             .finalize()
-            .as_slice()
+            .as_slice(),
     )
 }
 
