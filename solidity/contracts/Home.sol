@@ -12,12 +12,25 @@ contract Home is MerkleTreeManager, QueueManager {
 
     enum States {WAITING, FAILED}
 
+    uint256 constant BOND_SIZE = 50 ether;
+
     States public state;
     uint32 public immutable originSLIP44;
     bytes32 public immutable DOMAIN_HASH;
     address public updater;
-    event DoubleUpdate();
+
     event ImproperUpdate();
+    event DoubleUpdate(
+        bytes32[2] _oldRoot,
+        bytes32[2] _newRoot,
+        bytes _signature,
+        bytes _signature2
+    );
+    event Update(
+        bytes32 indexed _oldRoot,
+        bytes32 indexed _newRoot,
+        bytes signature
+    );
 
     modifier notFailed() {
         require(state == States.WAITING);
@@ -25,9 +38,11 @@ contract Home is MerkleTreeManager, QueueManager {
     }
 
     constructor(uint32 _originSLIP44, address _updater)
+        payable
         MerkleTreeManager()
         QueueManager()
     {
+        require(msg.value >= BOND_SIZE, "insufficient bond");
         DOMAIN_HASH = keccak256(abi.encodePacked(_originSLIP44, "OPTICS"));
         updater = _updater;
         originSLIP44 = _originSLIP44;
@@ -37,7 +52,7 @@ contract Home is MerkleTreeManager, QueueManager {
     // TODO
     function fail() internal {
         state = States.FAILED;
-        require(false, "not implemented: slashing");
+        msg.sender.transfer(address(this).balance / 2);
     }
 
     function checkSig(
@@ -81,6 +96,7 @@ contract Home is MerkleTreeManager, QueueManager {
             bytes32 next = queue.dequeue();
             if (next == _newRoot) break;
         }
+        emit Update(_oldRoot, _newRoot, _signature);
     }
 
     function doubleUpdate(
@@ -95,7 +111,7 @@ contract Home is MerkleTreeManager, QueueManager {
             (_newRoot[0] != _newRoot[1] || _oldRoot[0] != _oldRoot[1])
         ) {
             fail();
-            emit DoubleUpdate();
+            emit DoubleUpdate(_oldRoot, _newRoot, _signature, _signature2);
         }
     }
 
