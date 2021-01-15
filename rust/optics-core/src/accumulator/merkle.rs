@@ -1,7 +1,8 @@
 use ethers_core::types::H256;
+use lazy_static::lazy_static;
 use thiserror::Error;
 
-use crate::accumulator::{hash_concat, EMPTY_SLICE, ZERO_HASHES, ZERO_NODES};
+use crate::accumulator::{hash_concat, EMPTY_SLICE, TREE_DEPTH, ZERO_HASHES};
 
 // Some code has been derived from
 // https://github.com/sigp/lighthouse/blob/c6baa0eed131c5e8ecc5860778ffc7d4a4c18d2d/consensus/merkle_proof/src/lib.rs#L25
@@ -11,6 +12,13 @@ use crate::accumulator::{hash_concat, EMPTY_SLICE, ZERO_HASHES, ZERO_NODES};
 //    - use keccak256
 //    - remove ring dependency
 // In accordance with its license terms, the apache2 license is reproduced below
+
+lazy_static! {
+    /// Zero nodes to act as "synthetic" left and right subtrees of other zero nodes.
+    pub static ref ZERO_NODES: Vec<MerkleTree> = {
+        (0..=TREE_DEPTH).map(MerkleTree::Zero).collect()
+    };
+}
 
 /// Right-sparse Merkle tree.
 ///
@@ -28,18 +36,19 @@ pub enum MerkleTree {
     Zero(usize),
 }
 
+/// Error type for merkle tree ops.
 #[derive(Debug, PartialEq, Clone, Error)]
 pub enum MerkleTreeError {
-    // Trying to push in a leaf
+    /// Trying to push in a leaf
     #[error("Trying to push in a leaf")]
     LeafReached,
-    // No more space in the MerkleTree
+    /// No more space in the MerkleTree
     #[error("No more space in the MerkleTree")]
     MerkleTreeFull,
-    // MerkleTree is invalid
+    /// MerkleTree is invalid
     #[error("MerkleTree is invalid")]
     Invalid,
-    // Incorrect Depth provided
+    /// Incorrect Depth provided
     #[error("Incorrect Depth provided")]
     DepthTooSmall,
 }
@@ -206,7 +215,12 @@ pub fn verify_merkle_proof(
 }
 
 /// Compute a root hash from a leaf and a Merkle proof.
-fn merkle_root_from_branch(leaf: H256, branch: &[H256], depth: usize, index: usize) -> H256 {
+pub(crate) fn merkle_root_from_branch(
+    leaf: H256,
+    branch: &[H256],
+    depth: usize,
+    index: usize,
+) -> H256 {
     assert_eq!(branch.len(), depth, "proof length should equal depth");
 
     let mut merkle_root = leaf;

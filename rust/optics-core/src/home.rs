@@ -3,15 +3,17 @@ use std::{collections::VecDeque, io::Write};
 
 use crate::{
     accumulator::{hash, incremental::IncrementalMerkle},
-    SignedUpdate, Update,
+    OpticsError, SignedUpdate, Update,
 };
 
+/// Waiting state
 #[derive(Default, Debug, Clone)]
 pub struct Waiting {
     queue: VecDeque<H256>,
     accumulator: IncrementalMerkle,
 }
 
+/// Failed state
 #[derive(Debug, Clone)]
 pub struct Failed {
     queue: VecDeque<H256>,
@@ -19,20 +21,24 @@ pub struct Failed {
 }
 
 impl Waiting {
+    /// Return a reference to the root queue
     pub fn queue(&self) -> &VecDeque<H256> {
         &self.queue
     }
 
+    /// Return a reference to the incremental merkle tree
     pub fn accumulator(&self) -> &IncrementalMerkle {
         &self.accumulator
     }
 }
 
 impl Failed {
+    /// Return a reference to the root queue
     pub fn queue(&self) -> &VecDeque<H256> {
         &self.queue
     }
 
+    /// Return a reference to the incremental merkle tree
     pub fn accumulator(&self) -> &IncrementalMerkle {
         &self.accumulator
     }
@@ -54,6 +60,7 @@ fn format_message(
     buf
 }
 
+/// The Home-chain Optics object
 #[derive(Debug, Clone)]
 pub struct Home<S> {
     origin: u32,
@@ -63,25 +70,23 @@ pub struct Home<S> {
 }
 
 impl<S> Home<S> {
+    /// SLIP-44 id of the Home chain
     pub fn origin(&self) -> u32 {
         self.origin
     }
 
+    /// Ethereum address of the updater
     pub fn updater(&self) -> Address {
         self.updater
     }
 
+    /// Current state
     pub fn state(&self) -> &S {
         &self.state
     }
 
-    fn check_sig(&self, update: &SignedUpdate) -> Result<(), ()> {
-        let signer = update.recover()?;
-        if signer == self.updater {
-            Ok(())
-        } else {
-            Err(())
-        }
+    fn check_sig(&self, update: &SignedUpdate) -> Result<(), OpticsError> {
+        update.verify(self.updater)
     }
 }
 
@@ -100,6 +105,12 @@ impl From<Home<Waiting>> for Home<Failed> {
 }
 
 impl Home<Waiting> {
+    /// Get the current accumulator root
+    pub fn root(&self) -> H256 {
+        self.state().accumulator().root()
+    }
+
+    /// Instantiate a new Home.
     pub fn init(origin: u32, updater: Address) -> Home<Waiting> {
         Self {
             origin,
@@ -109,6 +120,7 @@ impl Home<Waiting> {
         }
     }
 
+    /// Enqueue a message
     pub fn enqueue(&mut self, sender: H256, destination: u32, recipient: H256, body: &[u8]) {
         let message = format_message(self.origin, sender, destination, recipient, body);
         let message_hash = hash(&message);
@@ -116,9 +128,12 @@ impl Home<Waiting> {
         self.state.queue.push_back(self.state.accumulator.root());
     }
 
-    fn _update(&mut self, update: &Update) -> Result<(), ()> {
+    fn _update(&mut self, update: &Update) -> Result<(), OpticsError> {
         if update.previous_root != self.current_root {
-            return Err(());
+            return Err(OpticsError::WrongCurrentRoot {
+                actual: update.previous_root,
+                expected: self.current_root,
+            });
         }
 
         if self.state.queue.contains(&update.new_root) {
@@ -130,14 +145,25 @@ impl Home<Waiting> {
             }
         }
 
-        Err(())
+        Err(OpticsError::UnknownNewRoot(update.new_root))
     }
 
-    pub fn update(&mut self, update: &SignedUpdate) -> Result<(), ()> {
+    /// Produce an update from the current root to the new root.
+    pub fn produce_update(&self) -> Update {
+        Update {
+            origin_chain: self.origin,
+            previous_root: self.current_root,
+            new_root: self.state.accumulator.root(),
+        }
+    }
+
+    /// Update the root
+    pub fn update(&mut self, update: &SignedUpdate) -> Result<(), OpticsError> {
         self.check_sig(update)?;
         self._update(&update.update)
     }
 
+    /// Notify the Home of a double update, and set failed.
     pub fn double_update(
         self,
         first: &SignedUpdate,
@@ -150,6 +176,7 @@ impl Home<Waiting> {
         }
     }
 
+    /// Notify the Home of an improper update, and set failed.
     pub fn improper_update(self, update: &SignedUpdate) -> Result<Home<Failed>, Home<Waiting>> {
         if self.check_sig(update).is_err() || self.state.queue.contains(&update.update.new_root) {
             Err(self)

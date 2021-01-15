@@ -1,12 +1,49 @@
+//! Optics. OPTimistic Interchain Communication
+//!
+
+#![forbid(unsafe_code)]
+#![warn(missing_docs)]
+#![warn(unused_extern_crates)]
+
+/// Accumulator management
 pub mod accumulator;
+
+/// A simple Home chain Optics implementation
 pub mod home;
+
+/// A simple Replica chain Optics implementation
 pub mod replica;
 
-use ethers_core::types::{Address, Signature, H256};
+use ethers_core::{
+    types::{Address, Signature, H256},
+    utils::hash_message,
+};
 use ethers_signers::Signer;
 use sha3::{Digest, Keccak256};
 
+/// Error types for Optics
+#[derive(Debug, thiserror::Error)]
+pub enum OpticsError {
+    /// Signature Error pasthrough
+    #[error(transparent)]
+    SignatureError(#[from] ethers_core::types::SignatureError),
+    /// Update does not build off the current root
+    #[error("Update has wrong current root. Expected: {expected}. Got: {actual}.")]
+    WrongCurrentRoot {
+        /// The provided root
+        actual: H256,
+        /// The current root
+        expected: H256,
+    },
+    /// Update specifies a new root that is not in the queue. This is an
+    /// improper update and is slashable
+    #[error("Update has unknown new root: {0}")]
+    UnknownNewRoot(H256),
+}
+
+/// Simple trait for types with a canonical encoding
 pub trait Encode {
+    /// Write the canonical encoding to the writer
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: std::io::Write;
@@ -18,7 +55,7 @@ impl Encode for Signature {
         W: std::io::Write,
     {
         writer.write_all(&self.to_vec())?;
-        Ok(64)
+        Ok(65)
     }
 }
 
@@ -32,6 +69,7 @@ fn domain_hash(origin_slip44_id: u32) -> H256 {
     )
 }
 
+/// An Optics message between chains
 #[derive(Debug, Clone)]
 pub struct Message {
     origin: u32,      // 4   SLIP-44 ID
@@ -56,11 +94,15 @@ impl Encode for Message {
     }
 }
 
+/// An Optics update message
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub struct Update {
-    origin_chain: u32,
-    previous_root: H256,
-    new_root: H256,
+    /// The origin chain
+    pub origin_chain: u32,
+    /// The previous root
+    pub previous_root: H256,
+    /// The new root
+    pub new_root: H256,
 }
 
 impl Encode for Update {
@@ -89,7 +131,12 @@ impl Update {
         )
     }
 
-    pub async fn sign_update<S>(self, signer: S) -> Result<SignedUpdate, S::Error>
+    fn prepended_hash(&self) -> H256 {
+        hash_message(self.signing_hash())
+    }
+
+    /// Sign an update using the specified signer
+    pub async fn sign_with<S>(self, signer: &S) -> Result<SignedUpdate, S::Error>
     where
         S: Signer,
     {
@@ -101,12 +148,13 @@ impl Update {
     }
 }
 
-// 129 bytes.
-// serialized as tightly-packed, sig in RSV format
+/// A Signed Optics Update
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct SignedUpdate {
-    update: Update,
-    signature: Signature,
+    /// The update
+    pub update: Update,
+    /// The signature
+    pub signature: Signature,
 }
 
 impl Encode for SignedUpdate {
@@ -122,9 +170,44 @@ impl Encode for SignedUpdate {
 }
 
 impl SignedUpdate {
-    pub fn recover(&self) -> Result<Address, ()> {
-        self.signature
-            .recover(self.update.signing_hash())
-            .map_err(|_| ())
+    /// Recover the Ethereum address of the signer
+    pub fn recover(&self) -> Result<Address, OpticsError> {
+        dbg!(self.update.prepended_hash());
+        Ok(self.signature.recover(self.update.prepended_hash())?)
+    }
+
+    /// Check whether a message was signed by a specific address
+    pub fn verify(&self, signer: Address) -> Result<(), OpticsError> {
+        Ok(self
+            .signature
+            .verify(self.update.prepended_hash(), signer)?)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn it_sign() {
+        let t = async {
+            let signer: ethers_signers::LocalWallet =
+                "1111111111111111111111111111111111111111111111111111111111111111"
+                    .parse()
+                    .unwrap();
+            let message = Update {
+                origin_chain: 5,
+                new_root: H256::repeat_byte(1),
+                previous_root: H256::repeat_byte(2),
+            };
+
+            let signed = message.sign_with(&signer).await.expect("!sign_with");
+            signed.verify(signer.address()).expect("!verify");
+        };
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(t)
     }
 }

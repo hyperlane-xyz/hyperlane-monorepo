@@ -12,3 +12,10 @@ ethers-signers = { git = "https://github.com/gakonst/ethers-rs" }
 sha3 = "0.9.1"
 lazy_static = "*"
 thiserror = "*"
+
+[dev-dependencies]
+tokio = {version = "1.0.1", features = ["rt", "time"]}
+
+[[example]]
+name = "toy"
+path = "./bin/toy.rs"

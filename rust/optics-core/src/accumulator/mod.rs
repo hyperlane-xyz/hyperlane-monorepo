@@ -1,7 +1,13 @@
+/// A lightweight incremental merkle, suitable for running on-chain. Stores O
+/// (1) data
 pub mod incremental;
+/// A full incremental merkle. Suitable for running off-chain.
 pub mod merkle;
+/// A wrapper around an incremental and a full merkle, with added safety and
+/// convenience. Useful for producing proofs that either may verify.
 pub mod prover;
 
+/// Use the prover where possible :)
 pub use prover::Prover;
 
 use ethers_core::types::H256;
@@ -25,11 +31,7 @@ pub(super) fn hash_concat(left: impl AsRef<[u8]>, right: impl AsRef<[u8]>) -> H2
 }
 
 lazy_static! {
-    /// Zero nodes to act as "synthetic" left and right subtrees of other zero nodes.
-    pub static ref ZERO_NODES: Vec<merkle::MerkleTree> = {
-        (0..=TREE_DEPTH).map(merkle::MerkleTree::Zero).collect()
-    };
-
+    /// A cache of the zero hashes for each layer of the tree.
     pub static ref ZERO_HASHES: [H256; TREE_DEPTH + 1] = {
         let mut hashes = [H256::zero(); TREE_DEPTH + 1];
         for i in 0..TREE_DEPTH {

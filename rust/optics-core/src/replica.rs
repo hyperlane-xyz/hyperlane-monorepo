@@ -1,11 +1,13 @@
-use crate::SignedUpdate;
+use crate::{OpticsError, SignedUpdate};
 use ethers_core::types::{Address, H256, U256};
 
+/// Waiting state
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Waiting {
     root: H256,
 }
 
+/// Pending update state
 #[derive(Debug, Clone, Copy)]
 pub struct Pending {
     root: H256,
@@ -13,9 +15,11 @@ pub struct Pending {
     timeout: U256,
 }
 
+/// Failed state
 #[derive(Debug, Clone, Copy)]
 pub struct Failed {}
 
+/// The Replica-chain Optics object
 #[derive(Debug, Clone, Copy, Default)]
 pub struct Replica<S> {
     origin: u32,
@@ -26,35 +30,37 @@ pub struct Replica<S> {
 }
 
 impl<S> Replica<S> {
+    /// SLIP-44 id of the Home chain
     pub fn origin(&self) -> u32 {
         self.origin
     }
 
+    /// SLIP-44 id of this Replica chain
     pub fn local(&self) -> u32 {
         self.local
     }
+
+    /// Ethereum address of the updater
 
     pub fn updater(&self) -> Address {
         self.updater
     }
 
+    /// The number of seconds to wait before optimistically accepting an update
     pub fn wait(&self) -> U256 {
         self.optimistic_wait
     }
 
+    /// Current state
     pub fn state(&self) -> &S {
         &self.state
     }
 
-    fn check_sig(&self, update: &SignedUpdate) -> Result<(), ()> {
-        let signer = update.recover()?;
-        if signer == self.updater {
-            Ok(())
-        } else {
-            Err(())
-        }
+    fn check_sig(&self, update: &SignedUpdate) -> Result<(), OpticsError> {
+        update.verify(self.updater)
     }
 
+    /// Notify Replica of double update, and set to failed
     pub fn double_update(
         self,
         first: &SignedUpdate,
@@ -75,6 +81,12 @@ impl<S> Replica<S> {
 }
 
 impl Replica<Waiting> {
+    /// Get the current root
+    pub fn root(&self) -> H256 {
+        self.state().root
+    }
+
+    /// Instantiate a new Replica.
     pub fn init(origin: u32, local: u32, updater: Address, optimistic_wait: U256) -> Self {
         Self {
             origin,
@@ -85,11 +97,12 @@ impl Replica<Waiting> {
         }
     }
 
+    /// Queue a pending update
     pub fn update(
         self,
         update: &SignedUpdate,
         now: impl FnOnce() -> U256,
-    ) -> Result<Replica<Pending>, Replica<Waiting>> {
+    ) -> Result<Replica<Pending>, Self> {
         if self.check_sig(update).is_err() {
             return Err(self);
         }
@@ -109,8 +122,15 @@ impl Replica<Waiting> {
 }
 
 impl Replica<Pending> {
+    /// Get the current root
+    pub fn root(&self) -> H256 {
+        self.state().root
+    }
+
+    /// Confirm a queued update after the timer has elapsed
     pub fn confirm_update(self, now: impl FnOnce() -> U256) -> Result<Replica<Waiting>, Self> {
-        if self.state.timeout < now() {
+        if now() < self.state.timeout {
+            // timeout hasn't elapsed
             return Err(self);
         }
 

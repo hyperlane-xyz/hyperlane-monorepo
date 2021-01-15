@@ -1,19 +1,12 @@
-use crate::accumulator::{TREE_DEPTH, ZERO_HASHES};
 use ethers_core::types::H256;
-use sha3::{Digest, Keccak256};
+
+use crate::accumulator::{hash_concat, TREE_DEPTH, ZERO_HASHES};
 
 #[derive(Debug, Clone, Copy)]
+/// An incremental merkle tree, modeled on the eth2 deposit contract
 pub struct IncrementalMerkle {
     branch: [H256; TREE_DEPTH],
-    count: u32,
-}
-
-fn hash_concat(left: impl AsRef<[u8]>, right: impl AsRef<[u8]>) -> H256 {
-    let mut k = Keccak256::new();
-    k.update(left.as_ref());
-    k.update(right.as_ref());
-    let digest = k.finalize();
-    H256::from_slice(digest.as_slice())
+    count: usize,
 }
 
 impl Default for IncrementalMerkle {
@@ -28,8 +21,10 @@ impl Default for IncrementalMerkle {
 }
 
 impl IncrementalMerkle {
+    /// Ingest a leaf into the tree.
     pub fn ingest(&mut self, element: H256) {
         let mut node = element;
+        assert!(self.count < u32::MAX as usize);
         self.count += 1;
         let mut size = self.count;
         for i in 0..TREE_DEPTH {
@@ -43,6 +38,7 @@ impl IncrementalMerkle {
         unreachable!()
     }
 
+    /// Calculate the current tree root
     pub fn root(&self) -> H256 {
         let mut node: H256 = Default::default();
         let mut size = self.count;
@@ -59,10 +55,12 @@ impl IncrementalMerkle {
         node
     }
 
-    pub fn count(&self) -> u32 {
+    /// Get the number of items in the tree
+    pub fn count(&self) -> usize {
         self.count
     }
 
+    /// Get the leading-edge branch.
     pub fn branch(&self) -> &[H256; TREE_DEPTH] {
         &self.branch
     }
