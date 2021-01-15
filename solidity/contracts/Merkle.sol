@@ -56,20 +56,26 @@ library MerkleLib {
     }
 }
 
-contract MerkleTreeManager {
-    using MerkleLib for MerkleLib.Tree;
+contract HasZeroHashes {
     uint256 constant TREE_DEPTH = 32;
-
     bytes32[TREE_DEPTH] internal zero_hashes;
-    MerkleLib.Tree public tree;
 
     constructor() {
         // Compute hashes in empty sparse Merkle tree
-        for (uint256 i = 0; i < MerkleLib.TREE_DEPTH - 1; i++)
+        for (uint256 i = 0; i < MerkleLib.TREE_DEPTH - 1; i++) {
             zero_hashes[i + 1] = sha256(
                 abi.encodePacked(zero_hashes[i], zero_hashes[i])
             );
+        }
     }
+}
+
+contract MerkleTreeManager is HasZeroHashes {
+    using MerkleLib for MerkleLib.Tree;
+
+    MerkleLib.Tree public tree;
+
+    constructor() HasZeroHashes() {}
 
     function root() public view returns (bytes32) {
         return tree.root(zero_hashes);
