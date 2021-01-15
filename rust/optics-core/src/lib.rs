@@ -8,11 +8,8 @@
 /// Accumulator management
 pub mod accumulator;
 
-/// A simple Home chain Optics implementation
-pub mod home;
-
-/// A simple Replica chain Optics implementation
-pub mod replica;
+/// Model instantatiations of the on-chain structures
+pub mod models;
 
 use ethers_core::{
     types::{Address, Signature, H256},

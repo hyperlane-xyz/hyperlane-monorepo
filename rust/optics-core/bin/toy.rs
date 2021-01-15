@@ -3,7 +3,7 @@ use ethers_signers::LocalWallet;
 use std::time::Duration;
 use tokio::time::interval;
 
-use optics_core::{home::Home, replica::Replica};
+use optics_core::models::{home::Home, replica::Replica};
 
 fn main() {
     tokio::runtime::Builder::new_current_thread()
