@@ -13,7 +13,7 @@ contract Home is MerkleTreeManager, QueueManager, Common {
 
     uint256 constant BOND_SIZE = 50 ether;
 
-    event Message(
+    event Dispatch(
         uint32 indexed destination,
         uint32 indexed sequence,
         // the message is after this root. Some future update will contain it.
@@ -49,20 +49,18 @@ contract Home is MerkleTreeManager, QueueManager, Common {
         sequences[destination] = sequence;
 
         bytes32 _digest =
-            keccak256(
-                abi.encodePacked(
-                    originSLIP44,
-                    bytes32(uint256(uint160(msg.sender))),
-                    sequence,
-                    destination,
-                    recipient,
-                    body
-                )
+            Message.messageHash(
+                originSLIP44,
+                bytes32(uint256(uint160(msg.sender))),
+                sequence,
+                destination,
+                recipient,
+                body
             );
 
         tree.insert(_digest);
         queue.enqueue(root());
-        emit Message(destination, sequence, current, body);
+        emit Dispatch(destination, sequence, current, body);
     }
 
     function update(

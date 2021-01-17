@@ -66,6 +66,7 @@ contract ProcessingReplica is Replica, HasZeroHashes {
     using MerkleLib for MerkleLib.Tree;
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
+    using Message for bytes29;
 
     bytes32 previous; // to smooth over witness invalidation
     uint256 lastProcessed;
@@ -98,9 +99,8 @@ contract ProcessingReplica is Replica, HasZeroHashes {
     {
         bytes29 _m = _message.ref(0);
 
-        uint32 _destination = uint32(_m.indexUint(36, 4));
-        uint32 _sequence = uint32(_m.indexUint(72, 4));
-        require(_destination == ownSLIP44, "other destination");
+        uint32 _sequence = _m.sequence();
+        require(_m.destination() == ownSLIP44, "other destination");
         require(_sequence == lastProcessed + 1, "out of sequence");
         require(
             messages[keccak256(_message)] == MessageStatus.Pending,
@@ -110,10 +110,10 @@ contract ProcessingReplica is Replica, HasZeroHashes {
         messages[_m.keccak()] = MessageStatus.Processed;
 
         // recipient address starts at the 52nd byte. 4 + 36 + 4 + 12
-        address recipient = _m.indexAddress(52);
-        // TODO: assembly this to avoid the clone?
-        bytes memory payload = _m.slice(76, _m.len() - 76, 0).clone();
+        address recipient = address(uint160(uint256(_m.recipient())));
 
+        // TODO: assembly this to avoid the clone?
+        bytes memory payload = _m.body().clone();
         // results intentionally ignored
         return recipient.call(payload);
     }

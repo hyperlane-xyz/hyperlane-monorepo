@@ -2,6 +2,76 @@
 pragma solidity >=0.6.11;
 
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import "@summa-tx/memview-sol/contracts/TypedMemView.sol";
+
+library Message {
+    using TypedMemView for bytes;
+    using TypedMemView for bytes29;
+
+    function formatMessage(
+        uint32 _origin,
+        bytes32 _sender,
+        uint32 _sequence,
+        uint32 _destination,
+        bytes32 _recipient,
+        bytes memory _body
+    ) internal pure returns (bytes memory) {
+        return
+            abi.encodePacked(
+                _origin,
+                _sender,
+                _sequence,
+                _destination,
+                _recipient,
+                _body
+            );
+    }
+
+    function messageHash(
+        uint32 _origin,
+        bytes32 _sender,
+        uint32 _sequence,
+        uint32 _destination,
+        bytes32 _recipient,
+        bytes memory _body
+    ) internal pure returns (bytes32) {
+        return
+            keccak256(
+                formatMessage(
+                    _origin,
+                    _sender,
+                    _sequence,
+                    _destination,
+                    _recipient,
+                    _body
+                )
+            );
+    }
+
+    function origin(bytes29 _message) internal pure returns (uint32) {
+        return uint32(_message.indexUint(0, 4));
+    }
+
+    function sender(bytes29 _message) internal pure returns (bytes32) {
+        return _message.index(4, 32);
+    }
+
+    function sequence(bytes29 _message) internal pure returns (uint32) {
+        return uint32(_message.indexUint(32, 4));
+    }
+
+    function destination(bytes29 _message) internal pure returns (uint32) {
+        return uint32(_message.indexUint(36, 4));
+    }
+
+    function recipient(bytes29 _message) internal pure returns (bytes32) {
+        return _message.index(40, 32);
+    }
+
+    function body(bytes29 _message) internal pure returns (bytes29) {
+        return _message.slice(72, _message.len() - 72, 0);
+    }
+}
 
 abstract contract Common {
     enum States {ACTIVE, FAILED}
