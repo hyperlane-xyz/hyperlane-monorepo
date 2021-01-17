@@ -5,7 +5,7 @@ import "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import "./Common.sol";
 import "./Merkle.sol";
 
-contract Replica is Common {
+abstract contract Replica is Common {
     uint32 public immutable ownSLIP44;
     uint256 public optimisticSeconds;
 
@@ -31,6 +31,12 @@ contract Replica is Common {
         _setFailed();
     }
 
+    /// Hook for tasks
+    function _beforeConfirm() internal virtual;
+
+    /// Hook for tasks
+    function _beforeUpdate() internal virtual;
+
     function update(
         bytes32 _newRoot,
         bytes32 _oldRoot,
@@ -39,6 +45,8 @@ contract Replica is Common {
         require(current == _oldRoot, "Not current update");
         require(Common.checkSig(_newRoot, _oldRoot, _signature), "Bad sig");
 
+        _beforeUpdate();
+
         confirmAt = block.timestamp + optimisticSeconds;
         pending = _newRoot;
     }
@@ -46,6 +54,9 @@ contract Replica is Common {
     function confirm() external notFailed {
         require(confirmAt != 0, "No pending");
         require(block.timestamp >= confirmAt, "Not yet");
+
+        _beforeConfirm();
+
         current = pending;
         delete pending;
         delete confirmAt;
@@ -57,6 +68,7 @@ contract ProcessingReplica is Replica, HasZeroHashes {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
 
+    bytes32 previous; // to smooth over witness invalidation
     uint256 lastProcessed;
     mapping(bytes32 => MessageStatus) public messages;
     enum MessageStatus {None, Pending, Processed}
@@ -75,11 +87,17 @@ contract ProcessingReplica is Replica, HasZeroHashes {
         lastProcessed = _lastProcessed;
     }
 
-    function process(bytes calldata _message) external {
-        bytes29 m = _message.ref(0);
+    function _beforeConfirm() internal override {
+        previous = current;
+    }
 
-        uint32 _destination = uint32(m.indexUint(36, 4));
-        uint32 _sequence = uint32(m.indexUint(72, 4));
+    function _beforeUpdate() internal override {}
+
+    function process(bytes calldata _message) public {
+        bytes29 _m = _message.ref(0);
+
+        uint32 _destination = uint32(_m.indexUint(36, 4));
+        uint32 _sequence = uint32(_m.indexUint(72, 4));
         require(_destination == ownSLIP44, "other destination");
         require(_sequence == lastProcessed + 1, "out of sequence");
         require(
@@ -87,12 +105,12 @@ contract ProcessingReplica is Replica, HasZeroHashes {
             "not pending"
         );
         lastProcessed = _sequence;
-        messages[keccak256(_message)] = MessageStatus.Processed;
+        messages[_m.keccak()] = MessageStatus.Processed;
 
         // recipient address starts at the 52nd byte. 4 + 36 + 4 + 12
-        address recipient = m.indexAddress(52);
+        address recipient = _m.indexAddress(52);
         // TODO: assembly this to avoid the clone?
-        bytes memory payload = m.slice(76, m.len() - 76, 0).clone();
+        bytes memory payload = _m.slice(76, _m.len() - 76, 0).clone();
 
         // results intentionally ignored
         recipient.call(payload);
@@ -102,11 +120,23 @@ contract ProcessingReplica is Replica, HasZeroHashes {
         bytes32 leaf,
         bytes32[32] calldata proof,
         uint256 index
-    ) external returns (bool) {
-        if (MerkleLib.branchRoot(leaf, proof, index, zero_hashes) == current) {
+    ) public returns (bool) {
+        bytes32 actual = MerkleLib.branchRoot(leaf, proof, index, zero_hashes);
+
+        if (actual == current || actual == previous) {
             messages[leaf] = MessageStatus.Pending;
             return true;
         }
         return false;
+    }
+
+    function proveAndProcess(
+        bytes32 leaf,
+        bytes32[32] calldata proof,
+        uint256 index,
+        bytes calldata message
+    ) external {
+        require(prove(leaf, proof, index), "!prove");
+        process(message);
     }
 }
