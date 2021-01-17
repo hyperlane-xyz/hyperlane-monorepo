@@ -7,10 +7,11 @@ abstract contract Common {
     enum States {ACTIVE, FAILED}
 
     uint32 public immutable originSLIP44;
-    address public updater;
     bytes32 public immutable DOMAIN_HASH;
 
+    address public updater;
     States public state;
+    bytes32 public current;
 
     event Update(
         bytes32 indexed _oldRoot,
@@ -24,9 +25,14 @@ abstract contract Common {
         bytes _signature2
     );
 
-    constructor(uint32 _originSLIP44, address _updater) {
+    constructor(
+        uint32 _originSLIP44,
+        address _updater,
+        bytes32 _current
+    ) {
         originSLIP44 = _originSLIP44;
         updater = _updater;
+        current = _current;
         DOMAIN_HASH = keccak256(abi.encodePacked(_originSLIP44, "OPTICS"));
         state = States.ACTIVE;
     }

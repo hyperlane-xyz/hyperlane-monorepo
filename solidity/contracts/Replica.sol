@@ -9,7 +9,6 @@ abstract contract Replica is Common {
     uint32 public immutable ownSLIP44;
     uint256 public optimisticSeconds;
 
-    bytes32 current;
     bytes32 pending;
     uint256 confirmAt;
 
@@ -20,11 +19,11 @@ abstract contract Replica is Common {
         uint32 _ownSLIP44,
         address _updater,
         uint256 _optimisticSeconds,
-        bytes32 _start
-    ) Common(_originSLIP44, _updater) {
+        bytes32 _current
+    ) Common(_originSLIP44, _updater, _current) {
         ownSLIP44 = _ownSLIP44;
         optimisticSeconds = _optimisticSeconds;
-        current = _start;
+        current = _current;
     }
 
     function fail() internal override {
@@ -93,7 +92,10 @@ contract ProcessingReplica is Replica, HasZeroHashes {
 
     function _beforeUpdate() internal override {}
 
-    function process(bytes calldata _message) public {
+    function process(bytes memory _message)
+        public
+        returns (bool, bytes memory)
+    {
         bytes29 _m = _message.ref(0);
 
         uint32 _destination = uint32(_m.indexUint(36, 4));
@@ -113,7 +115,7 @@ contract ProcessingReplica is Replica, HasZeroHashes {
         bytes memory payload = _m.slice(76, _m.len() - 76, 0).clone();
 
         // results intentionally ignored
-        recipient.call(payload);
+        return recipient.call(payload);
     }
 
     function prove(
@@ -134,7 +136,7 @@ contract ProcessingReplica is Replica, HasZeroHashes {
         bytes32 leaf,
         bytes32[32] calldata proof,
         uint256 index,
-        bytes calldata message
+        bytes memory message
     ) external {
         require(prove(leaf, proof, index), "!prove");
         process(message);
