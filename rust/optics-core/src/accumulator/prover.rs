@@ -1,5 +1,4 @@
 use crate::accumulator::{
-    incremental::IncrementalMerkle,
     merkle::{merkle_root_from_branch, MerkleTree, MerkleTreeError},
     TREE_DEPTH,
 };
@@ -19,8 +18,8 @@ pub struct Proof {
 /// elements.
 #[derive(Debug)]
 pub struct Prover {
-    light: IncrementalMerkle,
-    full: MerkleTree,
+    count: usize,
+    tree: MerkleTree,
 }
 
 /// Prover Errors
@@ -52,9 +51,11 @@ pub enum ProverError {
 
 impl Default for Prover {
     fn default() -> Self {
-        let light = IncrementalMerkle::default();
         let full = MerkleTree::create(&[], TREE_DEPTH);
-        Self { light, full }
+        Self {
+            count: 0,
+            tree: full,
+        }
     }
 }
 
@@ -63,20 +64,18 @@ impl Prover {
     ///
     /// This will fail if the underlying tree is full.
     pub fn ingest(&mut self, element: H256) -> Result<H256, ProverError> {
-        self.light.ingest(element);
-        self.full.push_leaf(element, TREE_DEPTH)?;
-        debug_assert_eq!(self.light.root(), self.full.hash());
-        Ok(self.full.hash())
+        self.tree.push_leaf(element, TREE_DEPTH)?;
+        Ok(self.tree.hash())
     }
 
     /// Return the current root hash of the tree
     pub fn root(&self) -> H256 {
-        self.full.hash()
+        self.tree.hash()
     }
 
     /// Return the number of leaves that have been ingested
     pub fn count(&self) -> usize {
-        self.light.count()
+        self.count
     }
 
     /// Create a proof of a leaf in this tree.
@@ -91,7 +90,7 @@ impl Prover {
             return Err(ProverError::ZeroProof { index, count });
         }
 
-        let (leaf, hashes) = self.full.generate_proof(index, TREE_DEPTH);
+        let (leaf, hashes) = self.tree.generate_proof(index, TREE_DEPTH);
         let mut path = [H256::zero(); 32];
         path.copy_from_slice(&hashes[..32]);
         Ok(Proof { leaf, index, path })
@@ -105,6 +104,37 @@ impl Prover {
             Ok(())
         } else {
             Err(ProverError::VerificationFailed { expected, actual })
+        }
+    }
+}
+
+impl<T> From<T> for Prover
+where
+    T: AsRef<[H256]>,
+{
+    fn from(t: T) -> Self {
+        let slice = t.as_ref();
+        Self {
+            count: slice.len(),
+            tree: MerkleTree::create(slice, TREE_DEPTH),
+        }
+    }
+}
+
+impl std::iter::FromIterator<H256> for Prover {
+    /// Will panic if the tree fills
+    fn from_iter<I: IntoIterator<Item = H256>>(iter: I) -> Self {
+        let mut prover = Self::default();
+        prover.extend(iter);
+        prover
+    }
+}
+
+impl std::iter::Extend<H256> for Prover {
+    /// Will panic if the tree fills
+    fn extend<I: IntoIterator<Item = H256>>(&mut self, iter: I) {
+        for i in iter {
+            self.ingest(i).expect("!tree full");
         }
     }
 }
