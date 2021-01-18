@@ -62,7 +62,7 @@ abstract contract Replica is Common {
     }
 }
 
-contract ProcessingReplica is Replica, HasZeroHashes {
+contract ProcessingReplica is Replica {
     using MerkleLib for MerkleLib.Tree;
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
@@ -80,10 +80,7 @@ contract ProcessingReplica is Replica, HasZeroHashes {
         uint256 _optimisticSeconds,
         bytes32 _start,
         uint256 _lastProcessed
-    )
-        HasZeroHashes()
-        Replica(_originSLIP44, _ownSLIP44, _updater, _optimisticSeconds, _start)
-    {
+    ) Replica(_originSLIP44, _ownSLIP44, _updater, _optimisticSeconds, _start) {
         lastProcessed = _lastProcessed;
     }
 
@@ -123,7 +120,7 @@ contract ProcessingReplica is Replica, HasZeroHashes {
         bytes32[32] calldata proof,
         uint256 index
     ) public returns (bool) {
-        bytes32 actual = MerkleLib.branchRoot(leaf, proof, index, zero_hashes);
+        bytes32 actual = MerkleLib.branchRoot(leaf, proof, index);
 
         if (actual == current || actual == previous) {
             messages[leaf] = MessageStatus.Pending;
