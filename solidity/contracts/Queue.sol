@@ -14,6 +14,7 @@ library QueueLib {
         }
     }
 
+    // NB: this is unfortunately expensive
     function contains(Queue storage _q, bytes32 _item)
         internal
         view

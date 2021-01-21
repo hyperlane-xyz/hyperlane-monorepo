@@ -36,6 +36,7 @@ abstract contract Replica is Common {
     /// Hook for tasks
     function _beforeUpdate() internal virtual;
 
+    // TODO: refactor to queue
     function update(
         bytes32 _newRoot,
         bytes32 _oldRoot,
@@ -102,8 +103,8 @@ contract ProcessingReplica is Replica {
         bytes29 _m = _message.ref(0);
 
         uint32 _sequence = _m.sequence();
-        require(_m.destination() == ownSLIP44, "other destination");
-        require(_sequence == lastProcessed + 1, "out of sequence");
+        require(_m.destination() == ownSLIP44, "!destination");
+        require(_sequence == lastProcessed + 1, "!sequence");
         require(
             messages[keccak256(_message)] == MessageStatus.Pending,
             "not pending"
@@ -111,10 +112,9 @@ contract ProcessingReplica is Replica {
         lastProcessed = _sequence;
         messages[_m.keccak()] = MessageStatus.Processed;
 
-        address recipient = _m.recipientAddress();
-
         // TODO: assembly this to avoid the clone?
         bytes memory payload = _m.body().clone();
+        address recipient = _m.recipientAddress();
 
         // NB:
         // A call running out of gas TYPICALLY errors the whole tx. We want to
@@ -136,6 +136,9 @@ contract ProcessingReplica is Replica {
     ) public returns (bool) {
         bytes32 actual = MerkleLib.branchRoot(leaf, proof, index);
 
+        // NB:
+        // For convenience, we allow proving against the previous root.
+        // This means that witnesses don't need to be updated for the new root
         if (actual == current || actual == previous) {
             messages[leaf] = MessageStatus.Pending;
             return true;
