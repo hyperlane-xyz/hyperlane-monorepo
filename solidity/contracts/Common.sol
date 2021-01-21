@@ -68,6 +68,14 @@ library Message {
         return _message.index(40, 32);
     }
 
+    function recipientAddress(bytes29 _message)
+        internal
+        pure
+        returns (address)
+    {
+        return address(uint160(uint256(recipient(_message))));
+    }
+
     function body(bytes29 _message) internal pure returns (bytes29) {
         return _message.slice(72, _message.len() - 72, 0);
     }

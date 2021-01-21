@@ -68,6 +68,11 @@ contract ProcessingReplica is Replica {
     using TypedMemView for bytes29;
     using Message for bytes29;
 
+    // minimum gas for message processing
+    uint256 PROCESS_GAS = 500000;
+    // reserved gas (to ensure tx completes in case message processing runs out)
+    uint256 RESERVE_GAS = 10000;
+
     bytes32 previous; // to smooth over witness invalidation
     uint256 lastProcessed;
     mapping(bytes32 => MessageStatus) public messages;
@@ -106,13 +111,22 @@ contract ProcessingReplica is Replica {
         lastProcessed = _sequence;
         messages[_m.keccak()] = MessageStatus.Processed;
 
-        // recipient address starts at the 52nd byte. 4 + 36 + 4 + 12
-        address recipient = address(uint160(uint256(_m.recipient())));
+        address recipient = _m.recipientAddress();
 
         // TODO: assembly this to avoid the clone?
         bytes memory payload = _m.body().clone();
-        // results intentionally ignored
-        return recipient.call(payload);
+
+        // NB:
+        // A call running out of gas TYPICALLY errors the whole tx. We want to
+        // a) ensure the call has a sufficient amount of gas to make a
+        //    meaningful state change.
+        // b) ensure that if the subcall runs out of gas, that the tx as a whole
+        //    does not revert (i.e. we still mark the message processed)
+        // To do this, we require that we have enough gas to process
+        // and still return. We then delegate only the minimum processing gas.
+        require(gasleft() >= PROCESS_GAS + RESERVE_GAS, "!gas");
+        // transparently return.
+        return recipient.call{gas: PROCESS_GAS}(payload);
     }
 
     function prove(
