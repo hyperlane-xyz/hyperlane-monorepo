@@ -2,12 +2,15 @@
 slip44 = 52752
 address = "0x0000000000000000000000000000000000000000"
 chain = "Ethereum"
-connection = { type = "Http", url = "http://localhost:8545" }
+    [home.config]
+    signer = "380eb0f3d505f087e438eca80bc4df9a7faa24f868e69fc0440261a0fc0567dc"
+    connection = { type = "Http", url = "http://localhost:8545" }
 
 [replicas]
-    [replicas.Celo]
+    [replicas.Ethereum]
     slip44 = 60
     address = "0x0000000000000000000000000000000000000000"
     chain = "Ethereum"
-    connection = { type = "Ws", url = "wss://" }
+        [replicas.Ethereum.config]
+        connection = { type = "Ws", url = "wss://"}
 

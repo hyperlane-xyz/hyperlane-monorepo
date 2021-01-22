@@ -14,6 +14,8 @@ serde = "1.0.120"
 serde_json = { version = "1.0.61", default-features = false }
 
 ethers = { git = "https://github.com/gakonst/ethers-rs" }
+ethers-signers = { git = "https://github.com/gakonst/ethers-rs" }
+ethers-middleware = { git = "https://github.com/gakonst/ethers-rs" }
 ethers-core = { git = "https://github.com/gakonst/ethers-rs" }
 ethers-providers = { git = "https://github.com/gakonst/ethers-rs" }
 ethers-contract = { git = "https://github.com/gakonst/ethers-rs", features = ["abigen"] }

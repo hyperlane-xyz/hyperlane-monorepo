@@ -11,8 +11,11 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-mod abis;
-mod settings;
+/// Interfaces to the ethereum contracts
+pub mod abis;
+
+/// Settings and configuration from file
+pub mod settings;
 
 use optics_core::traits::{Home, Replica};
 use std::collections::HashMap;

@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-use ethers_contract::abigen;
 use ethers_core::types::{Address, H256, U256};
 use std::sync::Arc;
 
@@ -8,17 +7,24 @@ use optics_core::{
     Encode, Message, SignedUpdate, Update,
 };
 
-abigen!(
-    ReplicaContractInternal,
-    "optics-base/src/abis/ProcessingReplica.abi.json"
-);
+#[allow(missing_docs)]
+mod contracts {
+    use ethers_contract::abigen;
+    abigen!(
+        ReplicaContractInternal,
+        "optics-base/src/abis/ProcessingReplica.abi.json"
+    );
 
+    abigen!(HomeContractInternal, "optics-base/src/abis/Home.abi.json");
+}
+
+/// A struct that provides access to an Ethereum replica contract
 #[derive(Debug)]
 pub struct ReplicaContract<M>
 where
     M: ethers_providers::Middleware,
 {
-    contract: ReplicaContractInternal<M>,
+    contract: contracts::ReplicaContractInternal<M>,
     slip44: u32,
 }
 
@@ -26,9 +32,11 @@ impl<M> ReplicaContract<M>
 where
     M: ethers_providers::Middleware,
 {
+    /// Create a reference to a Replica at a specific Ethereum address on some
+    /// chain
     pub fn at(slip44: u32, address: Address, provider: Arc<M>) -> Self {
         Self {
-            contract: ReplicaContractInternal::new(address, provider),
+            contract: contracts::ReplicaContractInternal::new(address, provider),
             slip44,
         }
     }
@@ -170,14 +178,13 @@ where
     }
 }
 
-abigen!(HomeContractInternal, "optics-base/src/abis/Home.abi.json");
-
+/// A reference to a Home contract on some Ethereum chain
 #[derive(Debug)]
 pub struct HomeContract<M>
 where
     M: ethers_providers::Middleware,
 {
-    contract: HomeContractInternal<M>,
+    contract: contracts::HomeContractInternal<M>,
     slip44: u32,
 }
 
@@ -185,9 +192,11 @@ impl<M> HomeContract<M>
 where
     M: ethers_providers::Middleware,
 {
+    /// Create a reference to a Home at a specific Ethereum address on some
+    /// chain
     pub fn at(slip44: u32, address: Address, provider: Arc<M>) -> Self {
         Self {
-            contract: HomeContractInternal::new(address, provider),
+            contract: contracts::HomeContractInternal::new(address, provider),
             slip44,
         }
     }
