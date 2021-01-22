@@ -44,13 +44,13 @@ impl From<TransactionReceipt> for TxOutcome {
 /// Error type for chain communication
 pub enum ChainCommunicationError {
     /// Provider Error
-    #[error(transparent)]
+    #[error("{0}")]
     ProviderError(#[from] ethers_providers::ProviderError),
     /// Contract Error
-    #[error(transparent)]
+    #[error("{0}")]
     ContractError(Box<dyn std::error::Error>),
     /// Custom error or contract error
-    #[error(transparent)]
+    #[error("{0}")]
     CustomError(#[from] Box<dyn std::error::Error>),
 }
 
@@ -62,15 +62,6 @@ where
         Self::ContractError(Box::new(e))
     }
 }
-
-// impl<M> From<ethers_contract::ContractError<M>> for ChainCommunicationError
-// where
-//     M: ethers_providers::Middleware + 'static,
-// {
-//     fn from(e: ethers_contract::ContractError<M>) -> Self {
-//         Self::ContractError(Box::new(e))
-//     }
-// }
 
 /// Interface for attributes shared by Home and Replica
 #[async_trait]

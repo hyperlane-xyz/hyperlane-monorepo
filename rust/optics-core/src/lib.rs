@@ -4,6 +4,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
+#![forbid(where_clauses_object_safety)]
 
 /// Accumulator management
 pub mod accumulator;
@@ -17,11 +18,12 @@ pub mod traits;
 mod utils;
 
 use ethers_core::{
-    types::{Address, Signature, H256},
+    types::{Address, Signature, SignatureError, H256},
     utils::hash_message,
 };
 use ethers_signers::Signer;
 use sha3::{Digest, Keccak256};
+use std::convert::TryFrom;
 
 use crate::utils::*;
 
@@ -60,6 +62,18 @@ pub trait Encode {
     }
 }
 
+/// Simple trait for types with a canonical encoding
+pub trait Decode {
+    /// Error type
+    type Error;
+
+    /// Try to read from some source
+    fn read_from<R>(reader: &mut R) -> Result<Self, Self::Error>
+    where
+        R: std::io::Read,
+        Self: Sized;
+}
+
 impl Encode for Signature {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
@@ -67,6 +81,24 @@ impl Encode for Signature {
     {
         writer.write_all(&self.to_vec())?;
         Ok(65)
+    }
+}
+
+impl Decode for Signature {
+    type Error = SignatureError;
+    fn read_from<R>(reader: &mut R) -> Result<Self, Self::Error>
+    where
+        R: std::io::Read,
+    {
+        let mut buf = [0u8; 65];
+        let len = reader
+            .read(&mut buf)
+            .map_err(|_| SignatureError::InvalidLength(0))?;
+        if len != 65 {
+            Err(SignatureError::InvalidLength(len))
+        } else {
+            Self::try_from(buf.as_ref())
+        }
     }
 }
 
@@ -98,6 +130,50 @@ impl Encode for Message {
         writer.write_all(self.recipient.as_ref())?;
         writer.write_all(&self.sequence.to_be_bytes())?;
         Ok(36 + 36 + 4 + self.body.len())
+    }
+}
+
+impl Decode for Message {
+    type Error = std::io::Error;
+    fn read_from<R>(reader: &mut R) -> Result<Self, Self::Error>
+    where
+        R: std::io::Read,
+    {
+        let mut origin = [0u8; 4];
+        reader.read_exact(&mut origin)?;
+
+        let mut sender = H256::zero();
+        reader.read_exact(sender.as_mut())?;
+
+        let mut destination = [0u8; 4];
+        reader.read_exact(&mut destination)?;
+
+        let mut recipient = H256::zero();
+        reader.read_exact(recipient.as_mut())?;
+
+        let mut sequence = [0u8; 4];
+        reader.read_exact(&mut sequence)?;
+
+        let mut body = vec![];
+        reader.read_to_end(&mut body)?;
+
+        Ok(Self {
+            origin: u32::from_be_bytes(origin),
+            sender,
+            destination: u32::from_be_bytes(destination),
+            recipient,
+            sequence: u32::from_be_bytes(sequence),
+            body,
+        })
+    }
+}
+
+impl Message {
+    /// Convert the message to a leaf
+    pub fn to_leaf(&self) -> H256 {
+        let mut k = Keccak256::new();
+        self.write_to(&mut k).expect("!write");
+        H256::from_slice(k.finalize().as_slice())
     }
 }
 

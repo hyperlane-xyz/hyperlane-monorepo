@@ -38,7 +38,7 @@
       {
         "indexed": true,
         "internalType": "bytes32",
-        "name": "current",
+        "name": "leaf",
         "type": "bytes32"
       },
       {

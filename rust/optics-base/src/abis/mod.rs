@@ -280,7 +280,7 @@ impl<M> Home for HomeContract<M>
 where
     M: ethers_providers::Middleware + 'static,
 {
-    async fn lookup_message(
+    async fn raw_message_by_sequence(
         &self,
         destination: u32,
         sequence: u32,
@@ -292,6 +292,15 @@ where
             .topic2(U256::from(sequence))
             .query()
             .await?;
+
+        Ok(filters.into_iter().next().map(|f| f.message))
+    }
+
+    async fn raw_message_by_leaf(
+        &self,
+        leaf: H256,
+    ) -> Result<Option<Vec<u8>>, ChainCommunicationError> {
+        let filters = self.contract.dispatch_filter().topic3(leaf).query().await?;
 
         Ok(filters.into_iter().next().map(|f| f.message))
     }
