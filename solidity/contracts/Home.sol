@@ -16,8 +16,7 @@ contract Home is MerkleTreeManager, QueueManager, Common {
     event Dispatch(
         uint32 indexed destination,
         uint32 indexed sequence,
-        // the message is after this root. Some future update will contain it.
-        bytes32 indexed current,
+        bytes32 indexed leaf,
         bytes message
     );
     event ImproperUpdate();
@@ -48,8 +47,8 @@ contract Home is MerkleTreeManager, QueueManager, Common {
         uint32 sequence = sequences[destination] + 1;
         sequences[destination] = sequence;
 
-        bytes32 _digest =
-            Message.messageHash(
+        bytes memory _message =
+            Message.formatMessage(
                 originSLIP44,
                 bytes32(uint256(uint160(msg.sender))),
                 sequence,
@@ -57,10 +56,11 @@ contract Home is MerkleTreeManager, QueueManager, Common {
                 recipient,
                 body
             );
+        bytes32 _leaf = keccak256(_message);
 
-        tree.insert(_digest);
+        tree.insert(_leaf);
         queue.enqueue(root());
-        emit Dispatch(destination, sequence, current, body);
+        emit Dispatch(destination, sequence, _leaf, _message);
     }
 
     function update(
