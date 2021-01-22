@@ -124,12 +124,8 @@ impl<M> Replica for ReplicaContract<M>
 where
     M: ethers_providers::Middleware + 'static,
 {
-    async fn pending(&self) -> Result<Option<(H256, U256)>, ChainCommunicationError> {
-        let pending = self.contract.pending();
-        let confirm_at = self.contract.confirm_at();
-
-        let res = tokio::try_join!(pending.call(), confirm_at.call());
-        let (pending, confirm_at) = res?;
+    async fn next_pending(&self) -> Result<Option<(H256, U256)>, ChainCommunicationError> {
+        let (pending, confirm_at) = self.contract.next_pending().call().await?;
 
         if confirm_at.is_zero() {
             Ok(None)

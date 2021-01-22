@@ -138,7 +138,13 @@
     "type": "function"
   },
   {
-    "inputs": [],
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
     "name": "confirmAt",
     "outputs": [
       {
@@ -225,6 +231,24 @@
   },
   {
     "inputs": [],
+    "name": "next_pending",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_pending",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_confirmAt",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "optimisticSeconds",
     "outputs": [
       {
@@ -257,19 +281,6 @@
         "internalType": "uint32",
         "name": "",
         "type": "uint32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "pending",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
       }
     ],
     "stateMutability": "view",

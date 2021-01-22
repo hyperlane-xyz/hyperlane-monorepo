@@ -10,7 +10,7 @@ use crate::{
 #[async_trait]
 pub trait Replica: Common {
     /// Return the pending root and time, if any
-    async fn pending(&self) -> Result<Option<(H256, U256)>, ChainCommunicationError>;
+    async fn next_pending(&self) -> Result<Option<(H256, U256)>, ChainCommunicationError>;
 
     /// Confirm the next pending root (after its timer has elapsed);
     async fn confirm(&self) -> Result<TxOutcome, ChainCommunicationError>;

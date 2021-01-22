@@ -4,13 +4,15 @@ pragma solidity >=0.6.11;
 import "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import "./Common.sol";
 import "./Merkle.sol";
+import "./Queue.sol";
 
-abstract contract Replica is Common {
+abstract contract Replica is Common, QueueManager {
+    using QueueLib for QueueLib.Queue;
+
     uint32 public immutable ownSLIP44;
     uint256 public optimisticSeconds;
 
-    bytes32 public pending;
-    uint256 public confirmAt;
+    mapping(bytes32 => uint256) public confirmAt;
 
     constructor(
         uint32 _originSLIP44,
@@ -18,7 +20,7 @@ abstract contract Replica is Common {
         address _updater,
         uint256 _optimisticSeconds,
         bytes32 _current
-    ) Common(_originSLIP44, _updater, _current) {
+    ) Common(_originSLIP44, _updater, _current) QueueManager() {
         ownSLIP44 = _ownSLIP44;
         optimisticSeconds = _optimisticSeconds;
         current = _current;
@@ -34,30 +36,53 @@ abstract contract Replica is Common {
     /// Hook for tasks
     function _beforeUpdate() internal virtual;
 
+    function next_pending()
+        external
+        view
+        returns (bytes32 _pending, uint256 _confirmAt)
+    {
+        if (queue.length() != 0) {
+            _pending = queue.peek();
+            _confirmAt = confirmAt[_pending];
+        }
+    }
+
     // TODO: refactor to queue
     function update(
         bytes32 _oldRoot,
         bytes32 _newRoot,
         bytes memory _signature
     ) external notFailed {
-        require(current == _oldRoot, "Not current update");
+        if (queue.length() > 0) {
+            require(_oldRoot == queue.lastItem(), "Not end of queue");
+        } else {
+            require(current == _oldRoot, "Not current update");
+        }
         require(Common.checkSig(_newRoot, _oldRoot, _signature), "Bad sig");
 
         _beforeUpdate();
 
-        confirmAt = block.timestamp + optimisticSeconds;
-        pending = _newRoot;
+        confirmAt[_newRoot] = block.timestamp + optimisticSeconds;
+        queue.enqueue(_newRoot);
     }
 
     function confirm() external notFailed {
-        require(confirmAt != 0, "No pending");
-        require(block.timestamp >= confirmAt, "Not yet");
+        require(queue.length() != 0, "No pending");
+
+        bytes32 _pending;
+        uint256 _now = block.timestamp;
+        while (_now >= confirmAt[queue.peek()]) {
+            _pending = queue.dequeue();
+            delete confirmAt[_pending];
+        }
+
+        // This condition is hit if the while loop is never executed, because
+        // the first queue item has not hit its timer yet
+        require(_pending != bytes32(0), "Not time");
 
         _beforeConfirm();
 
-        current = pending;
-        delete pending;
-        delete confirmAt;
+        current = _pending;
     }
 }
 
