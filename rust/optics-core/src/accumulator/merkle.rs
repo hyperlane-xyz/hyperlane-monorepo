@@ -400,7 +400,7 @@ mod tests {
 
     #[test]
     fn big_test() {
-        let leaves: Vec<_> = (0..64).map(|i| H256::from_low_u64_be(i)).collect();
+        let leaves: Vec<_> = (0..64).map(H256::from_low_u64_be).collect();
 
         let mut tree = MerkleTree::create(&[], 32);
         leaves.iter().for_each(|leaf| {

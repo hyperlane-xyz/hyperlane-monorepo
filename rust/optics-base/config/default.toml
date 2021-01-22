@@ -1,10 +1,13 @@
 [home]
-chain = "Ethereum"
-http = "http://localhost:8545"
+slip44 = 52752
 address = "0x0000000000000000000000000000000000000000"
+chain = "Ethereum"
+connection = { type = "Http", url = "http://localhost:8545" }
 
 [replicas]
     [replicas.Celo]
-    chain = "Ethereum"
+    slip44 = 60
     address = "0x0000000000000000000000000000000000000000"
-    ws = "wss://"
+    chain = "Ethereum"
+    connection = { type = "Ws", url = "wss://" }
+

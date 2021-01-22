@@ -1,0 +1,6 @@
+[workspace]
+
+members = [
+    "optics-core",
+    "optics-base"
+]
