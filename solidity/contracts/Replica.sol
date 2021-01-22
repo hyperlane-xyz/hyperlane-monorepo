@@ -12,8 +12,6 @@ abstract contract Replica is Common {
     bytes32 pending;
     uint256 confirmAt;
 
-    event DoubleUpdate();
-
     constructor(
         uint32 _originSLIP44,
         uint32 _ownSLIP44,
@@ -38,8 +36,8 @@ abstract contract Replica is Common {
 
     // TODO: refactor to queue
     function update(
-        bytes32 _newRoot,
         bytes32 _oldRoot,
+        bytes32 _newRoot,
         bytes memory _signature
     ) external notFailed {
         require(current == _oldRoot, "Not current update");
@@ -70,9 +68,9 @@ contract ProcessingReplica is Replica {
     using Message for bytes29;
 
     // minimum gas for message processing
-    uint256 PROCESS_GAS = 500000;
+    uint256 public constant PROCESS_GAS = 500000;
     // reserved gas (to ensure tx completes in case message processing runs out)
-    uint256 RESERVE_GAS = 10000;
+    uint256 public constant RESERVE_GAS = 10000;
 
     bytes32 previous; // to smooth over witness invalidation
     uint256 lastProcessed;

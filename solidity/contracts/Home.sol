@@ -64,8 +64,8 @@ contract Home is MerkleTreeManager, QueueManager, Common {
     }
 
     function update(
-        bytes32 _newRoot,
         bytes32 _oldRoot,
+        bytes32 _newRoot,
         bytes memory _signature
     ) external notFailed {
         if (improperUpdate(_newRoot, _oldRoot, _signature)) return;
@@ -77,8 +77,8 @@ contract Home is MerkleTreeManager, QueueManager, Common {
     }
 
     function improperUpdate(
-        bytes32 _newRoot,
         bytes32 _oldRoot,
+        bytes32 _newRoot,
         bytes memory _signature
     ) public notFailed returns (bool) {
         require(Common.checkSig(_newRoot, _oldRoot, _signature), "bad sig");
@@ -89,5 +89,9 @@ contract Home is MerkleTreeManager, QueueManager, Common {
             return true;
         }
         return false;
+    }
+
+    function suggestUpdate() external view returns (bytes32, bytes32) {
+        return (current, queue.lastItem());
     }
 }

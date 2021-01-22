@@ -11,12 +11,19 @@ pub mod accumulator;
 /// Model instantatiations of the on-chain structures
 pub mod models;
 
+/// Async Traits for Homes & Replicas for use in applications
+pub mod traits;
+
+mod utils;
+
 use ethers_core::{
     types::{Address, Signature, H256},
     utils::hash_message,
 };
 use ethers_signers::Signer;
 use sha3::{Digest, Keccak256};
+
+use crate::utils::*;
 
 /// Error types for Optics
 #[derive(Debug, thiserror::Error)]
@@ -44,6 +51,13 @@ pub trait Encode {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: std::io::Write;
+
+    /// Serialize to a vec
+    fn to_vec(&self) -> Vec<u8> {
+        let mut buf = vec![];
+        self.write_to(&mut buf).expect("!alloc");
+        buf
+    }
 }
 
 impl Encode for Signature {
@@ -56,25 +70,21 @@ impl Encode for Signature {
     }
 }
 
-fn domain_hash(origin_slip44_id: u32) -> H256 {
-    H256::from_slice(
-        Keccak256::new()
-            .chain(origin_slip44_id.to_be_bytes())
-            .chain("OPTICS".as_bytes())
-            .finalize()
-            .as_slice(),
-    )
-}
-
 /// An Optics message between chains
 #[derive(Debug, Clone)]
 pub struct Message {
-    origin: u32,      // 4   SLIP-44 ID
-    sender: H256,     // 32  Address in origin convention
-    destination: u32, // 4   SLIP-44 ID
-    recipient: H256,  // 32  Address in destination convention
-    sequence: u32,    // 4   Count of all previous messages to destination
-    body: Vec<u8>,    // 0+  Message contents
+    /// 4   SLIP-44 ID
+    pub origin: u32,
+    /// 32  Address in origin convention
+    pub sender: H256,
+    /// 4   SLIP-44 ID
+    pub destination: u32,
+    /// 32  Address in destination convention
+    pub recipient: H256,
+    /// 4   Count of all previous messages to destination
+    pub sequence: u32,
+    /// 0+  Message contents
+    pub body: Vec<u8>,
 }
 
 impl Encode for Message {

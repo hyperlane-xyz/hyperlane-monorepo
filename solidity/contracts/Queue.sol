@@ -28,6 +28,10 @@ library QueueLib {
         return false;
     }
 
+    function lastItem(Queue storage _q) internal view returns (bytes32) {
+        return _q.queue[_q.last];
+    }
+
     function enqueue(Queue storage _q, bytes32 _item) internal {
         uint256 _last = _q.last + 1;
         _q.last = _last;

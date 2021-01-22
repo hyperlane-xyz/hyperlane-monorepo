@@ -127,8 +127,8 @@ abstract contract Common {
     }
 
     function checkSig(
-        bytes32 _newRoot,
         bytes32 _oldRoot,
+        bytes32 _newRoot,
         bytes memory _signature
     ) internal view returns (bool) {
         bytes32 _digest =
@@ -138,8 +138,8 @@ abstract contract Common {
     }
 
     function doubleUpdate(
-        bytes32[2] calldata _newRoot,
         bytes32[2] calldata _oldRoot,
+        bytes32[2] calldata _newRoot,
         bytes calldata _signature,
         bytes calldata _signature2
     ) external notFailed {

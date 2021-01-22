@@ -415,6 +415,17 @@ mod tests {
     }
 }
 
+#[cfg(test)]
+mod test {
+    use super::*;
+    #[test]
+    fn it() {
+        ZERO_HASHES.iter().for_each(|e| {
+            dbg!(e);
+        });
+    }
+}
+
 /*
                                  Apache License
                            Version 2.0, January 2004

@@ -9,9 +9,12 @@ edition = "2018"
 [dependencies]
 ethers-core = { git = "https://github.com/gakonst/ethers-rs" }
 ethers-signers = { git = "https://github.com/gakonst/ethers-rs" }
+ethers-contract = { git = "https://github.com/gakonst/ethers-rs" }
+ethers-providers = { git = "https://github.com/gakonst/ethers-rs" }
 sha3 = "0.9.1"
 lazy_static = "*"
 thiserror = "*"
+async-trait = { version = "0.1.42", default-features = false }
 
 [dev-dependencies]
 tokio = {version = "1.0.1", features = ["rt", "time"]}

@@ -1,0 +1,10 @@
+[home]
+chain = "Ethereum"
+http = "http://localhost:8545"
+address = "0x0000000000000000000000000000000000000000"
+
+[replicas]
+    [replicas.Celo]
+    chain = "Ethereum"
+    address = "0x0000000000000000000000000000000000000000"
+    ws = "wss://"
