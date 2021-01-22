@@ -22,6 +22,18 @@ where
     slip44: u32,
 }
 
+impl<M> ReplicaContract<M>
+where
+    M: ethers_providers::Middleware,
+{
+    pub fn at(slip44: u32, address: Address, provider: Arc<M>) -> Self {
+        Self {
+            contract: ReplicaContractInternal::new(address, provider),
+            slip44,
+        }
+    }
+}
+
 #[async_trait]
 impl<M> Common for ReplicaContract<M>
 where
@@ -108,9 +120,8 @@ where
         let pending = self.contract.pending();
         let confirm_at = self.contract.confirm_at();
 
-        let (pending, confirm_at) = tokio::join!(pending.call(), confirm_at.call());
-        let pending = pending?;
-        let confirm_at = confirm_at?;
+        let res = tokio::try_join!(pending.call(), confirm_at.call());
+        let (pending, confirm_at) = res?;
 
         if confirm_at.is_zero() {
             Ok(None)
