@@ -9,8 +9,8 @@ abstract contract Replica is Common {
     uint32 public immutable ownSLIP44;
     uint256 public optimisticSeconds;
 
-    bytes32 pending;
-    uint256 confirmAt;
+    bytes32 public pending;
+    uint256 public confirmAt;
 
     constructor(
         uint32 _originSLIP44,
@@ -72,8 +72,8 @@ contract ProcessingReplica is Replica {
     // reserved gas (to ensure tx completes in case message processing runs out)
     uint256 public constant RESERVE_GAS = 10000;
 
-    bytes32 previous; // to smooth over witness invalidation
-    uint256 lastProcessed;
+    bytes32 public previous; // to smooth over witness invalidation
+    uint256 public lastProcessed;
     mapping(bytes32 => MessageStatus) public messages;
     enum MessageStatus {None, Pending, Processed}
 
