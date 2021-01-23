@@ -6,7 +6,6 @@ pub mod replica;
 
 use async_trait::async_trait;
 use ethers_core::types::{TransactionReceipt, H256};
-use thiserror::Error;
 
 use crate::{utils::domain_hash, SignedUpdate};
 
@@ -41,28 +40,8 @@ impl From<TransactionReceipt> for TxOutcome {
     }
 }
 
-#[derive(Debug, Error)]
-/// Error type for chain communication
-pub enum ChainCommunicationError {
-    /// Provider Error
-    #[error(transparent)]
-    ProviderError(#[from] ethers_providers::ProviderError),
-    /// Contract Error
-    #[error(transparent)]
-    ContractError(Box<dyn std::error::Error>),
-    /// Custom error or contract error
-    #[error(transparent)]
-    CustomError(#[from] Box<dyn std::error::Error>),
-}
-
-impl<M> From<ethers_contract::ContractError<M>> for ChainCommunicationError
-where
-    M: ethers_providers::Middleware + 'static,
-{
-    fn from(e: ethers_contract::ContractError<M>) -> Self {
-        Self::ContractError(Box::new(e))
-    }
-}
+/// ChainCommunicationError is a type-erased, thread safe, std error
+pub type ChainCommunicationError = Box<dyn std::error::Error + Send + Sync>;
 
 /// Interface for attributes shared by Home and Replica
 #[async_trait]

@@ -30,10 +30,7 @@ pub trait Home: Common + Send + Sync + std::fmt::Debug {
     ) -> Result<Option<Message>, ChainCommunicationError> {
         self.raw_message_by_sequence(destination, sequence)
             .await?
-            .map(|buf| {
-                Message::read_from(&mut &buf[..])
-                    .map_err(|e| ChainCommunicationError::CustomError(Box::new(e)))
-            })
+            .map(|buf| Message::read_from(&mut &buf[..]).map_err(Into::into))
             .transpose()
     }
 
@@ -52,10 +49,7 @@ pub trait Home: Common + Send + Sync + std::fmt::Debug {
     ) -> Result<Option<Message>, ChainCommunicationError> {
         self.raw_message_by_leaf(leaf)
             .await?
-            .map(|buf| {
-                Message::read_from(&mut &buf[..])
-                    .map_err(|e| ChainCommunicationError::CustomError(Box::new(e)))
-            })
+            .map(|buf| Message::read_from(&mut &buf[..]).map_err(Into::into))
             .transpose()
     }
 

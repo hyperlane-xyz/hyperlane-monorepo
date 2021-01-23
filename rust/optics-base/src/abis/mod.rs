@@ -53,7 +53,7 @@ where
             .client()
             .get_transaction_receipt(txid)
             .await
-            .map_err(|e| ChainCommunicationError::CustomError(Box::new(e)))?;
+            .map_err(Box::new)?;
 
         Ok(receipt_opt.map(Into::into))
     }
@@ -209,7 +209,7 @@ where
             .client()
             .get_transaction_receipt(txid)
             .await
-            .map_err(|e| ChainCommunicationError::CustomError(Box::new(e)))?;
+            .map_err(Box::new)?;
 
         Ok(receipt_opt.map(Into::into))
     }

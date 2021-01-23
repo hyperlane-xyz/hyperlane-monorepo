@@ -7,16 +7,16 @@ rpc-style = "Ethereum"
     connection = { type = "Http", url = "http://localhost:8545" }
 
 [replicas]
-    [replicas.Ethereum]
+    [replicas.EthereumMainnet]
     slip44 = 60
     address = "0x0000000000000000000000000000000000000000"
     rpc-style = "Ethereum"
-        [replicas.Ethereum.config]
+        [replicas.EthereumMainnet.config]
         connection = { type = "Ws", url = "ws://localhost:8545"}
 
-    [replicas.EthClassic]
+    [replicas.EthereumClassic]
     slip44 = 61
     address = "0x0000000000000000000000000000000000000000"
     rpc-style = "Ethereum"
-        [replicas.EthClassic.config]
-        connection = { type = "Ws", url = ""}
+        [replicas.EthereumClassic.config]
+        connection = { type = "Ws", url = "ws://localhost:8545"}

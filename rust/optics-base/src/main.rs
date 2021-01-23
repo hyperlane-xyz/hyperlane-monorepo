@@ -19,7 +19,10 @@ pub mod settings;
 
 use optics_core::traits::{Home, Replica};
 
-use color_eyre::{eyre::WrapErr, Result};
+use color_eyre::{
+    eyre::{eyre, WrapErr},
+    Result,
+};
 use std::collections::HashMap;
 
 /// The global app context.
@@ -54,15 +57,16 @@ impl ChainConnections {
             );
         }
 
-        let app = ChainConnections { home, replicas };
-        Ok(app)
+        Ok(ChainConnections { home, replicas })
     }
 }
 
 async fn _main(settings: settings::Settings) -> Result<()> {
     let app = ChainConnections::try_from_settings(&settings).await?;
 
-    println!("\n{:#?}", &app);
+    let current = app.home.current_root().await.map_err(|e| eyre!(e))?;
+
+    println!("current is {}", &current);
 
     Ok(())
 }
