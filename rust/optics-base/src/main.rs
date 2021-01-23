@@ -19,7 +19,7 @@ pub mod settings;
 
 use optics_core::traits::{Home, Replica};
 
-use jane_eyre::{eyre::WrapErr, Result};
+use color_eyre::{eyre::WrapErr, Result};
 use std::collections::HashMap;
 
 /// The global app context.
@@ -59,20 +59,24 @@ impl ChainConnections {
     }
 }
 
-async fn _main(settings: settings::Settings) {
-    println!("{:?}", &settings);
-
-    let app = ChainConnections::try_from_settings(&settings).await;
+async fn _main(settings: settings::Settings) -> Result<()> {
+    let app = ChainConnections::try_from_settings(&settings).await?;
 
     println!("\n{:#?}", &app);
+
+    Ok(())
 }
 
-fn main() {
+fn main() -> Result<()> {
+    color_eyre::install()?;
+
     let settings = settings::Settings::new().expect("!config");
 
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
-        .block_on(_main(settings))
+        .block_on(_main(settings))?;
+
+    Ok(())
 }

@@ -1,5 +1,5 @@
+use color_eyre::Report;
 use config::{Config, ConfigError, Environment, File};
-use jane_eyre::Report;
 use std::{collections::HashMap, env};
 
 use optics_core::traits::{Home, Replica};

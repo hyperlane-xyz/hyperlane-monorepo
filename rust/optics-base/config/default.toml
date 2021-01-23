@@ -19,4 +19,4 @@ rpc-style = "Ethereum"
     address = "0x0000000000000000000000000000000000000000"
     rpc-style = "Ethereum"
         [replicas.EthClassic.config]
-        connection = { type = "Ws", url = "ws://localhost:8545"}
+        connection = { type = "Ws", url = ""}
