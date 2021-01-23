@@ -1,5 +1,7 @@
 //! Optics. OPTimistic Interchain Communication
 //!
+//! This crate contains core primitives, traits, and types for Optics
+//! implementations.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -25,7 +27,7 @@ use ethers_signers::Signer;
 use sha3::{Digest, Keccak256};
 use std::convert::TryFrom;
 
-use crate::utils::*;
+use crate::{traits::ChainCommunicationError, utils::*};
 
 /// Error types for Optics
 #[derive(Debug, thiserror::Error)]
@@ -45,6 +47,12 @@ pub enum OpticsError {
     /// improper update and is slashable
     #[error("Update has unknown new root: {0}")]
     UnknownNewRoot(H256),
+    /// IO error from Read/Write usage
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+    /// ChainCommunicationError
+    #[error(transparent)]
+    ChainCommunicationError(#[from] ChainCommunicationError),
 }
 
 /// Simple trait for types with a canonical encoding
@@ -64,11 +72,8 @@ pub trait Encode {
 
 /// Simple trait for types with a canonical encoding
 pub trait Decode {
-    /// Error type
-    type Error;
-
     /// Try to read from some source
-    fn read_from<R>(reader: &mut R) -> Result<Self, Self::Error>
+    fn read_from<R>(reader: &mut R) -> Result<Self, OpticsError>
     where
         R: std::io::Read,
         Self: Sized;
@@ -85,19 +90,16 @@ impl Encode for Signature {
 }
 
 impl Decode for Signature {
-    type Error = SignatureError;
-    fn read_from<R>(reader: &mut R) -> Result<Self, Self::Error>
+    fn read_from<R>(reader: &mut R) -> Result<Self, OpticsError>
     where
         R: std::io::Read,
     {
         let mut buf = [0u8; 65];
-        let len = reader
-            .read(&mut buf)
-            .map_err(|_| SignatureError::InvalidLength(0))?;
+        let len = reader.read(&mut buf)?;
         if len != 65 {
-            Err(SignatureError::InvalidLength(len))
+            Err(SignatureError::InvalidLength(len).into())
         } else {
-            Self::try_from(buf.as_ref())
+            Ok(Self::try_from(buf.as_ref())?)
         }
     }
 }
@@ -134,8 +136,7 @@ impl Encode for Message {
 }
 
 impl Decode for Message {
-    type Error = std::io::Error;
-    fn read_from<R>(reader: &mut R) -> Result<Self, Self::Error>
+    fn read_from<R>(reader: &mut R) -> Result<Self, OpticsError>
     where
         R: std::io::Read,
     {

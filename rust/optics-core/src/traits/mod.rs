@@ -44,13 +44,13 @@ impl From<TransactionReceipt> for TxOutcome {
 /// Error type for chain communication
 pub enum ChainCommunicationError {
     /// Provider Error
-    #[error("{0}")]
+    #[error(transparent)]
     ProviderError(#[from] ethers_providers::ProviderError),
     /// Contract Error
-    #[error("{0}")]
+    #[error(transparent)]
     ContractError(Box<dyn std::error::Error>),
     /// Custom error or contract error
-    #[error("{0}")]
+    #[error(transparent)]
     CustomError(#[from] Box<dyn std::error::Error>),
 }
 
