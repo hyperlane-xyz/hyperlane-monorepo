@@ -23,3 +23,5 @@ ethers-contract = { git = "https://github.com/gakonst/ethers-rs", features = ["a
 thiserror = { version = "1.0.22", default-features = false }
 async-trait = { version = "0.1.42", default-features = false }
 url = { version = "2.2.0", default-features = false }
+
+jane-eyre = "0.3.0"

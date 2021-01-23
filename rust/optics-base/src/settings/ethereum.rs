@@ -1,6 +1,7 @@
 use std::convert::TryFrom;
 
 use ethers_core::types::Address;
+use jane_eyre::Report;
 
 use optics_core::traits::{Home, Replica};
 
@@ -43,9 +44,7 @@ macro_rules! construct_box_contract {
 
 macro_rules! construct_ws_box_contract {
     ($contract:ident, $slip44:expr, $address:expr, $url:expr, $signer:expr) => {{
-        let ws = ethers_providers::Ws::connect($url)
-            .await
-            .map_err(|_| "!ws connect")?;
+        let ws = ethers_providers::Ws::connect($url).await?;
         let provider = ethers_providers::Provider::new(ws);
         construct_box_contract!($contract, $slip44, $address, provider, $signer)
     }};
@@ -54,8 +53,7 @@ macro_rules! construct_ws_box_contract {
 macro_rules! construct_http_box_contract {
     ($contract:ident, $slip44:expr, $address:expr, $url:expr, $signer:expr) => {{
         let provider =
-            ethers_providers::Provider::<ethers_providers::Http>::try_from($url.as_ref())
-                .map_err(|_| "!url")?;
+            ethers_providers::Provider::<ethers_providers::Http>::try_from($url.as_ref())?;
 
         construct_box_contract!($contract, $slip44, $address, provider, $signer)
     }};
@@ -78,7 +76,7 @@ impl EthereumConf {
         &self,
         slip44: u32,
         address: Address,
-    ) -> Result<Box<dyn Home>, String> {
+    ) -> Result<Box<dyn Home>, Report> {
         let b: Box<dyn Home> = match &self.connection {
             EthereumConnection::Http { url } => {
                 construct_http_box_contract!(HomeContract, slip44, address, url, self.signer())
@@ -95,7 +93,7 @@ impl EthereumConf {
         &self,
         slip44: u32,
         address: Address,
-    ) -> Result<Box<dyn Replica>, String> {
+    ) -> Result<Box<dyn Replica>, Report> {
         let b: Box<dyn Replica> = match &self.connection {
             EthereumConnection::Http { url } => {
                 construct_http_box_contract!(ReplicaContract, slip44, address, url, self.signer())

@@ -1,7 +1,7 @@
 [home]
 slip44 = 52752
 address = "0x0000000000000000000000000000000000000000"
-chain = "Ethereum"
+rpc-style = "Ethereum"
     [home.config]
     signer = "380eb0f3d505f087e438eca80bc4df9a7faa24f868e69fc0440261a0fc0567dc"
     connection = { type = "Http", url = "http://localhost:8545" }
@@ -10,7 +10,13 @@ chain = "Ethereum"
     [replicas.Ethereum]
     slip44 = 60
     address = "0x0000000000000000000000000000000000000000"
-    chain = "Ethereum"
+    rpc-style = "Ethereum"
         [replicas.Ethereum.config]
-        connection = { type = "Ws", url = "wss://"}
+        connection = { type = "Ws", url = "ws://localhost:8545"}
 
+    [replicas.EthClassic]
+    slip44 = 61
+    address = "0x0000000000000000000000000000000000000000"
+    rpc-style = "Ethereum"
+        [replicas.EthClassic.config]
+        connection = { type = "Ws", url = "ws://localhost:8545"}

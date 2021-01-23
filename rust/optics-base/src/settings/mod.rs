@@ -1,4 +1,5 @@
 use config::{Config, ConfigError, Environment, File};
+use jane_eyre::Report;
 use std::{collections::HashMap, env};
 
 use optics_core::traits::{Home, Replica};
@@ -13,7 +14,7 @@ use ethereum::EthereumConf;
 /// Specify the chain name (enum variant) in toml under the `chain` key
 /// Specify the connection details as a toml object under the `connection` key.
 #[derive(Debug, serde::Deserialize)]
-#[serde(tag = "chain", content = "config")]
+#[serde(tag = "rpc-style", content = "config")]
 pub enum ChainConf {
     /// Ethereum configuration
     Ethereum(EthereumConf),
@@ -31,20 +32,19 @@ pub struct ChainSetup {
 
 impl ChainSetup {
     /// Try to convert the chain setting into a Home contract
-    pub async fn try_into_home(&self) -> Result<Box<dyn Home>, String> {
+    pub async fn try_into_home(&self) -> Result<Box<dyn Home>, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => {
-                conf.try_into_home(self.slip44, self.address.parse().map_err(|_| "!address")?)
-                    .await
+                conf.try_into_home(self.slip44, self.address.parse()?).await
             }
         }
     }
 
     /// Try to convert the chain setting into a replica contract
-    pub async fn try_into_replica(&self) -> Result<Box<dyn Replica>, String> {
+    pub async fn try_into_replica(&self) -> Result<Box<dyn Replica>, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => {
-                conf.try_into_replica(self.slip44, self.address.parse().map_err(|_| "!address")?)
+                conf.try_into_replica(self.slip44, self.address.parse()?)
                     .await
             }
         }

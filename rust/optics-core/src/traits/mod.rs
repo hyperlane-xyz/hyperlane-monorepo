@@ -27,8 +27,9 @@ pub enum State {
 pub struct TxOutcome {
     /// The txid
     pub txid: H256,
-    /// True if executed, false otherwise
+    /// True if executed, false otherwise (reverted, etc.)
     pub executed: bool,
+    // TODO: more? What can be abstracted across all chains?
 }
 
 impl From<TransactionReceipt> for TxOutcome {

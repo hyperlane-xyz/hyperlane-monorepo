@@ -18,12 +18,14 @@ pub mod abis;
 pub mod settings;
 
 use optics_core::traits::{Home, Replica};
+
+use jane_eyre::{eyre::WrapErr, Result};
 use std::collections::HashMap;
 
 /// The global app context.
 ///
 /// We erase all type info to allow easier abstraction across chains without
-/// managing insanely large type systems.
+/// managing insanely large, annoying type systems.
 ///
 /// Usually this will be bundled in a larger
 #[derive(Debug)]
@@ -32,23 +34,37 @@ struct ChainConnections {
     replicas: HashMap<String, Box<dyn Replica>>,
 }
 
+impl ChainConnections {
+    pub async fn try_from_settings(settings: &settings::Settings) -> Result<Self> {
+        let home = settings
+            .home
+            .try_into_home()
+            .await
+            .wrap_err("failed to instantiate Home")?;
+
+        let mut replicas = HashMap::new();
+        // TODO: parallelize if this becomes expensive
+        for (key, value) in settings.replicas.iter() {
+            replicas.insert(
+                key.clone(),
+                value
+                    .try_into_replica()
+                    .await
+                    .wrap_err_with(|| format!("Failed to instantiate replica named {}", key))?,
+            );
+        }
+
+        let app = ChainConnections { home, replicas };
+        Ok(app)
+    }
+}
+
 async fn _main(settings: settings::Settings) {
     println!("{:?}", &settings);
 
-    let home = settings.home.try_into_home().await.expect("!home");
+    let app = ChainConnections::try_from_settings(&settings).await;
 
-    let mut replicas = HashMap::new();
-    // TODO: parallelize if this becomes expensive
-    for (key, value) in settings.replicas.iter() {
-        replicas.insert(
-            key.clone(),
-            value.try_into_replica().await.expect("!replica"),
-        );
-    }
-
-    let app = ChainConnections { home, replicas };
-
-    println!("{:?}", &app);
+    println!("\n{:#?}", &app);
 }
 
 fn main() {
