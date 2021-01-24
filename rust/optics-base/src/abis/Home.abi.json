@@ -8,13 +8,8 @@
       },
       {
         "internalType": "address",
-        "name": "_updater",
+        "name": "_sortition",
         "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_current",
-        "type": "bytes32"
       }
     ],
     "stateMutability": "payable",

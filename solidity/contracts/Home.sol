@@ -4,6 +4,7 @@ pragma solidity >=0.6.11;
 import "./Common.sol";
 import "./Merkle.sol";
 import "./Queue.sol";
+import "./Sortition.sol";
 
 contract Home is MerkleTreeManager, QueueManager, Common {
     using QueueLib for QueueLib.Queue;
@@ -11,7 +12,7 @@ contract Home is MerkleTreeManager, QueueManager, Common {
 
     mapping(uint32 => uint32) public sequences;
 
-    uint256 constant BOND_SIZE = 50 ether;
+    ISortition sortition;
 
     event Dispatch(
         uint32 indexed destination,
@@ -21,22 +22,19 @@ contract Home is MerkleTreeManager, QueueManager, Common {
     );
     event ImproperUpdate();
 
-    constructor(
-        uint32 _originSLIP44,
-        address _updater,
-        bytes32 _current
-    )
+    constructor(uint32 _originSLIP44, address _sortition)
         payable
         MerkleTreeManager()
         QueueManager()
-        Common(_originSLIP44, _updater, _current)
+        Common(_originSLIP44, address(0), bytes32(0))
     {
-        require(msg.value >= BOND_SIZE, "insufficient bond");
+        sortition = ISortition(_sortition);
+        updater = sortition.current();
     }
 
     function fail() internal override {
         _setFailed();
-        msg.sender.transfer(address(this).balance / 2);
+        sortition.slash(msg.sender);
     }
 
     function enqueue(
