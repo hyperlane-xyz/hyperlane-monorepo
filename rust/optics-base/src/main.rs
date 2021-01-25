@@ -17,13 +17,14 @@ pub mod abis;
 /// Settings and configuration from file
 pub mod settings;
 
-use optics_core::traits::{Home, Replica};
-
 use color_eyre::{
     eyre::{eyre, WrapErr},
     Result,
 };
 use std::collections::HashMap;
+use tokio::task::JoinHandle;
+
+use optics_core::traits::{Home, Replica};
 
 /// The global app context.
 ///
@@ -35,6 +36,12 @@ use std::collections::HashMap;
 struct ChainConnections {
     home: Box<dyn Home>,
     replicas: HashMap<String, Box<dyn Replica>>,
+}
+
+#[derive(Debug)]
+struct App {
+    home: JoinHandle<Result<()>>,
+    replicas: HashMap<String, JoinHandle<Result<()>>>,
 }
 
 impl ChainConnections {
@@ -58,6 +65,35 @@ impl ChainConnections {
         }
 
         Ok(ChainConnections { home, replicas })
+    }
+}
+
+impl App {
+    pub async fn try_from_settings(settings: settings::Settings) -> Self {
+        let (tx, _) = tokio::sync::broadcast::channel::<()>(16);
+
+        let replicas = settings
+            .replicas
+            .into_iter()
+            .map(|(k, v)| {
+                let mut rx = tx.subscribe();
+                (
+                    k,
+                    tokio::spawn(async move {
+                        let replica = v.try_into_replica().await?;
+
+                        loop {
+                            let _ = rx.recv().await?;
+                        }
+                        Ok(())
+                    }),
+                )
+            })
+            .collect();
+
+        let home = tokio::spawn(async move { Ok(()) });
+
+        Self { home, replicas }
     }
 }
 
