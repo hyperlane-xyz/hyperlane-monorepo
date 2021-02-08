@@ -95,11 +95,47 @@ extendEnvironment((hre) => {
   const getReplicaFactory = async (...args) =>
     ethers.getContractFactory('ProcessingReplica', ...args);
 
+  const formatMessage = (
+    originSlip44,
+    senderAddr,
+    sequence,
+    destinationSlip44,
+    recipientAddr,
+    body,
+  ) => {
+    senderAddr = optics.ethersAddressToBytes32(senderAddr);
+    recipientAddr = optics.ethersAddressToBytes32(recipientAddr);
+
+    return ethers.utils.solidityPack(
+      ['uint32', 'bytes32', 'uint32', 'uint32', 'bytes32', 'bytes'],
+      [
+        originSlip44,
+        senderAddr,
+        sequence,
+        destinationSlip44,
+        recipientAddr,
+        body,
+      ],
+    );
+  };
+
+  const ethersAddressToBytes32 = (address) => {
+    return ethers.utils.hexZeroPad(ethers.utils.hexStripZeros(address), 32);
+  };
+
+  const increaseTimestampBy = async (provider, increaseTime) => {
+    await provider.send('evm_increaseTime', [increaseTime]);
+    await provider.send('evm_mine');
+  };
+
   hre.optics = {
     Common,
     Home,
     Replica,
     Updater,
+    formatMessage,
+    ethersAddressToBytes32,
+    increaseTimestampBy,
     getHomeFactory,
     getReplicaFactory,
     deployHome: async (signer, ...args) => {
