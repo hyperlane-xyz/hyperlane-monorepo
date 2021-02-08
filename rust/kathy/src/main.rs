@@ -1,30 +1,27 @@
-//! The updater signs updates and submits them to the home chain.
-//!
-//! This updater polls the Home for queued updates at a regular interval.
-//! It signs them and submits them back to the home chain.
+//! Kathy is chatty. She sends random messages to random recipients
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+mod kathy;
 mod settings;
-mod updater;
 
 use color_eyre::{eyre::eyre, Result};
 
+use kathy::ChatGenerator;
 use optics_base::{agent::OpticsAgent, settings::log::Style};
 
-use crate::{settings::Settings, updater::Updater};
+use crate::{kathy::Kathy, settings::Settings};
 
 async fn _main(settings: Settings) -> Result<()> {
-    let signer = settings.updater.try_into_wallet()?;
     let home = settings.base.home.try_into_home("home").await?;
 
-    let updater = Updater::new(signer, settings.polling_interval);
+    let kathy = Kathy::new(settings.message_interval, ChatGenerator::Default);
 
     // Normally we would run_from_settings
     // but for an empty replica vector that would do nothing
-    updater.run(home.into(), None).await?;
+    kathy.run(home.into(), None).await?;
 
     Ok(())
 }

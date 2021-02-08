@@ -2,15 +2,14 @@
 use config::{Config, ConfigError, Environment, File};
 use std::env;
 
-use optics_base::settings::{ethereum::EthereumSigner, Settings as BaseSettings};
+use optics_base::settings::Settings as BaseSettings;
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub struct Settings {
     #[serde(flatten)]
     pub(crate) base: BaseSettings,
-    pub(crate) updater: EthereumSigner,
-    pub(crate) polling_interval: u64,
+    pub(crate) message_interval: u64,
 }
 
 impl Settings {
@@ -23,9 +22,9 @@ impl Settings {
         let env = env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
         s.merge(File::with_name(&format!("config/{}", env)).required(false))?;
 
-        // Add in settings from the environment (with a prefix of OPT_UPDATER)
-        // Eg.. `OPT_UPDATER_DEBUG=1 would set the `debug` key
-        s.merge(Environment::with_prefix("OPT_UPDATER"))?;
+        // Add in settings from the environment (with a prefix of OPT_KATHY)
+        // Eg.. `OPT_KATHY_DEBUG=1 would set the `debug` key
+        s.merge(Environment::with_prefix("OPT_KATHY"))?;
 
         s.try_into()
     }
