@@ -10,3 +10,16 @@ pub(crate) fn domain_hash(origin_slip44_id: u32) -> H256 {
             .as_slice(),
     )
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    // Prints domain hashes used in solidity/test/domainHashTestCases.sol
+    fn output_domain_hashes() {
+        for n in 1..=3 {
+            println!("Domain hash for originSlip44 of {}: {:?}", n, domain_hash(n));
+        }
+    }
+}
