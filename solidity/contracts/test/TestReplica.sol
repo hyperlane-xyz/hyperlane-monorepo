@@ -38,4 +38,8 @@ contract TestReplica is ProcessingReplica {
         bytes29 _m = _message.ref(0);
         messages[_m.keccak()] = MessageStatus.Pending;
     }
+
+    function setCurrentRoot(bytes32 _newRoot) external {
+        current = _newRoot;
+    }
 }

@@ -6,6 +6,17 @@ const HomeAbi = require('./Home.abi.json');
 const ReplicaAbi = require('./ProcessingReplica.abi.json');
 
 extendEnvironment((hre) => {
+  const State = {
+    ACTIVE: 0,
+    FAILED: 1,
+  };
+
+  const MessageStatus = {
+    NONE: 0,
+    PENDING: 1,
+    PROCESSED: 2,
+  };
+
   class Common extends ethers.Contract {
     constructor(address, abi, providerOrSigner) {
       super(address, abi, providerOrSigner);
@@ -120,22 +131,20 @@ extendEnvironment((hre) => {
   };
 
   const ethersAddressToBytes32 = (address) => {
-    return ethers.utils.hexZeroPad(ethers.utils.hexStripZeros(address), 32);
-  };
-
-  const increaseTimestampBy = async (provider, increaseTime) => {
-    await provider.send('evm_increaseTime', [increaseTime]);
-    await provider.send('evm_mine');
+    return ethers.utils
+      .hexZeroPad(ethers.utils.hexStripZeros(address), 32)
+      .toLowerCase();
   };
 
   hre.optics = {
+    State,
+    MessageStatus,
     Common,
     Home,
     Replica,
     Updater,
     formatMessage,
     ethersAddressToBytes32,
-    increaseTimestampBy,
     getHomeFactory,
     getReplicaFactory,
     deployHome: async (signer, ...args) => {

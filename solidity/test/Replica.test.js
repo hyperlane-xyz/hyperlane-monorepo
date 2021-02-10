@@ -3,8 +3,9 @@ const { provider, deployMockContract } = waffle;
 const { expect } = require('chai');
 const MockRecipient = require('../artifacts/contracts/test/MockRecipient.sol/MockRecipient.json');
 
-const ACTIVE = 0;
-const FAILED = 1;
+const testUtils = require('./utils');
+const { testCases } = require('./Merkle/merkleTestCases.json');
+
 const originSLIP44 = 1000;
 const ownSLIP44 = 2000;
 const optimisticSeconds = 3;
@@ -49,7 +50,7 @@ describe('Replica', async () => {
 
   it('Halts on fail', async () => {
     await replica.setFailed();
-    expect(await replica.state()).to.equal(FAILED);
+    expect(await replica.state()).to.equal(optics.State.FAILED);
 
     const newRoot = ethers.utils.formatBytes32String('new root');
     await expect(enqueueValidUpdate(newRoot)).to.be.revertedWith(
@@ -141,14 +142,14 @@ describe('Replica', async () => {
       ),
     ).to.emit(replica, 'DoubleUpdate');
 
-    expect(await replica.state()).to.equal(FAILED);
+    expect(await replica.state()).to.equal(optics.State.FAILED);
   });
 
   it('Confirms a ready update', async () => {
     const newRoot = ethers.utils.formatBytes32String('new root');
     await enqueueValidUpdate(newRoot);
 
-    await optics.increaseTimestampBy(provider, optimisticSeconds);
+    await testUtils.increaseTimestampBy(provider, optimisticSeconds);
 
     await replica.confirm();
     expect(await replica.current()).to.equal(newRoot);
@@ -162,7 +163,7 @@ describe('Replica', async () => {
     await enqueueValidUpdate(secondNewRoot);
 
     // Increase time enough for both updates to be confirmable
-    await optics.increaseTimestampBy(provider, optimisticSeconds * 2);
+    await testUtils.increaseTimestampBy(provider, optimisticSeconds * 2);
 
     await replica.confirm();
     expect(await replica.current()).to.equal(secondNewRoot);
@@ -175,9 +176,41 @@ describe('Replica', async () => {
     // Don't increase time enough for update to be confirmable.
     // Note that we use optimisticSeconds - 2 because the call to enqueue
     // the valid root has already increased the timestamp by 1.
-    await optics.increaseTimestampBy(provider, optimisticSeconds - 2);
+    await testUtils.increaseTimestampBy(provider, optimisticSeconds - 2);
 
     await expect(replica.confirm()).to.be.revertedWith('not time');
+  });
+
+  it('Proves a valid message', async () => {
+    // Use 1st proof of 1st merkle vector test case
+    const testCase = testCases[0];
+    let { leaf, index, path } = testCase.proofs[0];
+
+    await replica.setCurrentRoot(testCase.expectedRoot);
+
+    // Ensure proper static call return value
+    expect(await replica.callStatic.prove(leaf, path, index)).to.be.true;
+
+    await replica.prove(leaf, path, index);
+    expect(await replica.messages(leaf)).to.equal(optics.MessageStatus.PENDING);
+  });
+
+  it('Rejects invalid message proof', async () => {
+    // Use 1st proof of 1st merkle vector test case
+    const testCase = testCases[0];
+    let { leaf, index, path } = testCase.proofs[0];
+
+    // Switch ordering of proof hashes
+    const firstHash = path[0];
+    path[0] = path[1];
+    path[1] = firstHash;
+
+    await replica.setCurrentRoot(testCase.expectedRoot);
+
+    expect(await replica.callStatic.prove(leaf, path, index)).to.be.false;
+
+    await replica.prove(leaf, path, index);
+    expect(await replica.messages(leaf)).to.equal(optics.MessageStatus.NONE);
   });
 
   it('Processes a proved message', async () => {
@@ -206,13 +239,12 @@ describe('Replica', async () => {
     // Set message status to Message.Pending
     await replica.setMessagePending(formattedMessage);
 
-    // Static call doesn't change state, only tests return value of external call
+    // Ensure proper static call return value
     let [success, ret] = await replica.callStatic.process(formattedMessage);
     [ret] = ethers.utils.defaultAbiCoder.decode(['string'], ret);
     expect(success).to.be.true;
     expect(ret).to.equal(mockRecipientMessageString);
 
-    // Now test call with state changes
     await replica.process(formattedMessage);
     expect(await replica.lastProcessed()).to.equal(sequence);
   });
@@ -231,9 +263,49 @@ describe('Replica', async () => {
       body,
     );
 
-    // Don't set message status to Message.Pending
     await expect(replica.process(formattedMessage)).to.be.revertedWith(
       'not pending',
+    );
+  });
+
+  it('Fails to process out-of-order message', async () => {
+    const [sender, recipient] = provider.getWallets();
+
+    // Skip sequence ordering by adding 2 to lastProcessed
+    const sequence = (await replica.lastProcessed()).add(2);
+    const body = ethers.utils.formatBytes32String('message');
+
+    const formattedMessage = optics.formatMessage(
+      originSLIP44,
+      sender.address,
+      sequence,
+      ownSLIP44,
+      recipient.address,
+      body,
+    );
+
+    await expect(replica.process(formattedMessage)).to.be.revertedWith(
+      '!sequence',
+    );
+  });
+
+  it('Fails to process message with wrong destination slip44', async () => {
+    const [sender, recipient] = provider.getWallets();
+    const sequence = (await replica.lastProcessed()).add(1);
+    const body = ethers.utils.formatBytes32String('message');
+
+    const formattedMessage = optics.formatMessage(
+      originSLIP44,
+      sender.address,
+      sequence,
+      // Wrong destination slip44
+      ownSLIP44 + 5,
+      recipient.address,
+      body,
+    );
+
+    await expect(replica.process(formattedMessage)).to.be.revertedWith(
+      '!destination',
     );
   });
 });

@@ -4,9 +4,8 @@ const { expect } = require('chai');
 
 const { testCases } = require('../../vectors/domainHashTestCases.json');
 
-const ACTIVE = 0;
-const FAILED = 1;
-const originSLIP44 = 1234;
+const originSLIP44 = 1000;
+const ownSLIP44 = 2000;
 
 describe('Common', async () => {
   let common, signer, fakeSigner, updater, fakeUpdater, initialRoot;
@@ -63,7 +62,7 @@ describe('Common', async () => {
       common.doubleUpdate(oldRoot, [newRoot, newRoot2], signature, signature2),
     ).to.emit(common, 'DoubleUpdate');
 
-    expect(await common.state()).to.equal(FAILED);
+    expect(await common.state()).to.equal(optics.State.FAILED);
   });
 
   it('Calculates domain hashes from originSLIP44', async () => {
