@@ -1,10 +1,10 @@
 const { waffle, ethers } = require('hardhat');
 const { provider, deployMockContract } = waffle;
 const { expect } = require('chai');
-const MockRecipient = require('../artifacts/contracts/test/MockRecipient.sol/MockRecipient.json');
 
 const testUtils = require('./utils');
-const { testCases } = require('./Merkle/merkleTestCases.json');
+const { testCases } = require('../../vectors/merkleTestCases.json');
+const MockRecipient = require('../artifacts/contracts/test/MockRecipient.sol/MockRecipient.json');
 
 const originSLIP44 = 1000;
 const ownSLIP44 = 2000;
