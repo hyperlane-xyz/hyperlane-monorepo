@@ -4,7 +4,7 @@ use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
 
 use optics_core::{
     traits::{ChainCommunicationError, Common, Home, Replica, State, TxOutcome},
-    Encode, Message, SignedUpdate, Update,
+    Encode, Message, SignedUpdate, StampedMessage, Update,
 };
 
 #[allow(missing_docs)]
@@ -182,7 +182,10 @@ where
     }
 
     #[tracing::instrument(err)]
-    async fn process(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
+    async fn process(
+        &self,
+        message: &StampedMessage,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
         Ok(self
             .contract
             .process(message.to_vec())
@@ -195,7 +198,7 @@ where
     #[tracing::instrument(err)]
     async fn prove_and_process(
         &self,
-        message: &Message,
+        message: &StampedMessage,
         proof: [H256; 32],
         index: u32,
     ) -> Result<TxOutcome, ChainCommunicationError> {
