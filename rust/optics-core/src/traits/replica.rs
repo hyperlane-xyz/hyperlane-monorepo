@@ -42,13 +42,8 @@ pub trait Replica: Common + Send + Sync + std::fmt::Debug {
         proof: [H256; 32],
         index: u32,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        self
-            .prove(message.to_leaf(), proof, index)
-            .await?;
+        self.prove(message.to_leaf(), proof, index).await?;
 
-        Ok(self
-            .process(message)
-            .await?
-            .into())
+        Ok(self.process(message).await?)
     }
 }
