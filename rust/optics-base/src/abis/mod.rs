@@ -1,11 +1,12 @@
 use async_trait::async_trait;
 use ethers::core::types::{Address, Signature, H256, U256};
-use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
-
 use optics_core::{
     traits::{ChainCommunicationError, Common, Home, Replica, State, TxOutcome},
     Encode, Message, SignedUpdate, StampedMessage, Update,
 };
+use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
+
+use crate::utils::*;
 
 #[allow(missing_docs)]
 mod contracts {
@@ -447,11 +448,12 @@ where
         destination: u32,
         sequence: u32,
     ) -> Result<Option<Vec<u8>>, ChainCommunicationError> {
+        let dest_and_seq = destination_and_sequence(destination, sequence);
+
         let events = self
             .contract
             .dispatch_filter()
-            .topic1(U256::from(destination))
-            .topic2(U256::from(sequence))
+            .topic1(U256::from(dest_and_seq))
             .query()
             .await?;
 
@@ -466,6 +468,20 @@ where
         let events = self.contract.dispatch_filter().topic3(leaf).query().await?;
 
         Ok(events.into_iter().next().map(|f| f.message))
+    }
+
+    async fn leaf_by_tree_index(
+        &self,
+        tree_index: usize,
+    ) -> Result<Option<H256>, ChainCommunicationError> {
+        Ok(self
+            .contract
+            .dispatch_filter()
+            .topic1(U256::from(tree_index))
+            .query()
+            .await?
+            .first()
+            .map(|event| event.leaf.into()))
     }
 
     #[tracing::instrument(err)]

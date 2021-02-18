@@ -1,5 +1,4 @@
 use async_trait::async_trait;
-
 use ethers::core::types::H256;
 
 use crate::{
@@ -63,6 +62,17 @@ pub trait Home: Common + Send + Sync + std::fmt::Debug {
             .transpose()
             .map_err(Into::into)
     }
+
+    /// Fetch the tree_index-th leaf inserted into the merkle tree.
+    /// Returns `Ok(None)` if no leaf exists for given `tree_size` (`Ok(None)`
+    /// serves as the return value for an index error). If tree_index == 0,
+    /// this will return the first enqueued leaf.  This is because the Home
+    /// emits the index at which the leaf was inserted in (`tree.count() - 1`),
+    /// thus the first enqueued leaf has an index of 0.
+    async fn leaf_by_tree_index(
+        &self,
+        tree_index: usize,
+    ) -> Result<Option<H256>, ChainCommunicationError>;
 
     /// Fetch the sequence
     async fn sequences(&self, destination: u32) -> Result<u32, ChainCommunicationError>;
