@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {OpticsHandlerI} from "../Replica.sol";
+import {OpticsHandlerI} from "../UsingOptics.sol";
 
 contract MockRecipient is OpticsHandlerI {
     constructor() {}
@@ -10,7 +10,7 @@ contract MockRecipient is OpticsHandlerI {
         uint32,
         bytes32,
         bytes memory
-    ) external override returns (bytes memory) {
+    ) external pure override returns (bytes memory) {
         return bytes(message());
     }
 
