@@ -2,7 +2,7 @@ const { waffle, ethers } = require('hardhat');
 const { provider, deployMockContract } = waffle;
 const { expect } = require('chai');
 
-const { testCases } = require('../../vectors/domainHashTestCases.json');
+const { testCases } = require('../../../vectors/domainHashTestCases.json');
 
 const originDomain = 1000;
 const ownDomain = 2000;

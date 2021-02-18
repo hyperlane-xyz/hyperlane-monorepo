@@ -37,10 +37,11 @@ contract Home is MerkleTreeManager, QueueManager, Common {
         sortition.slash(msg.sender);
     }
 
-    function calcDestinationAndSequence(
-        uint32 _destination,
-        uint32 _sequence
-    ) internal pure returns (uint64) {
+    function calcDestinationAndSequence(uint32 _destination, uint32 _sequence)
+        internal
+        pure
+        returns (uint64)
+    {
         return (uint64(_destination) << 32) & _sequence;
     }
 
@@ -69,9 +70,10 @@ contract Home is MerkleTreeManager, QueueManager, Common {
         // leafIndex is count() - 1 since new leaf has already been inserted
         emit Dispatch(
             count() - 1,
-            calcDestinationAndSequence(destination, sequence), 
-            _leaf, 
-            _message);
+            calcDestinationAndSequence(destination, sequence),
+            _leaf,
+            _message
+        );
     }
 
     function update(

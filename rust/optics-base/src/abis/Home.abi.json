@@ -21,7 +21,7 @@
       {
         "indexed": true,
         "internalType": "uint256",
-        "name": "treeSize",
+        "name": "leafIndex",
         "type": "uint256"
       },
       {
@@ -81,25 +81,6 @@
     "anonymous": false,
     "inputs": [],
     "name": "ImproperUpdate",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "currentRoot",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "leaf",
-        "type": "bytes32"
-      }
-    ],
-    "name": "NewLeaf",
     "type": "event"
   },
   {

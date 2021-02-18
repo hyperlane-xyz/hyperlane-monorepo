@@ -3,7 +3,7 @@ const { provider, deployMockContract } = waffle;
 const { expect } = require('chai');
 
 const testUtils = require('./utils');
-const { testCases } = require('../../vectors/merkleTestCases.json');
+const { testCases } = require('../../../vectors/merkleTestCases.json');
 const MockRecipient = require('../artifacts/contracts/test/MockRecipient.sol/MockRecipient.json');
 
 const originDomain = 1000;
