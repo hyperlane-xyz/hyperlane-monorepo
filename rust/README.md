@@ -11,7 +11,7 @@
   - generate documentation and open it in a web browser
 - `cargo build`
   - compile the project
-- `cargo run`
+- `cargo run --example example`
   - run the default executable for the current project
 - `cargo test`
   - run the tests
@@ -19,7 +19,7 @@
 ### Useful cargo extensions
 
 - tree
-  - show the dependency tree. Allows searchign for specific packages
+  - show the dependency tree. Allows searching for specific packages
   - install: `cargo install cargo-tree`
   - invoke: `cargo tree`
 - clippy
