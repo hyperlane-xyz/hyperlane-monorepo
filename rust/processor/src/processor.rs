@@ -123,7 +123,7 @@ impl OpticsAgent for Processor {
         let sync_task = tokio::spawn(sync.poll_updates(self.interval_seconds));
 
         let mut futs: Vec<_> = replicas
-            .into_iter()
+            .iter()
             .map(|replica| self.run_report_error(replica))
             .collect();
 

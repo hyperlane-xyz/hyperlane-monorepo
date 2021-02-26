@@ -270,7 +270,7 @@ impl OpticsAgent for Watcher {
         let (tx, rx) = mpsc::channel(200);
         let handler = UpdateHandler::new(rx, Default::default(), self.home()).spawn();
 
-        for name in replicas.into_iter() {
+        for name in replicas.iter() {
             let replica = self
                 .replica_by_name(name)
                 .ok_or_else(|| eyre!("No replica named {}", name))?;
