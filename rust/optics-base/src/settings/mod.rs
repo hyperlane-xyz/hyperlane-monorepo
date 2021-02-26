@@ -111,10 +111,9 @@ impl Settings {
 
     /// Try to generate an agent core
     pub async fn try_into_core(&self) -> Result<AgentCore, Report> {
-        Ok(AgentCore {
-            home: Arc::new(self.try_home().await?),
-            replicas: self.try_replicas().await?,
-        })
+        let home = Arc::new(self.try_home().await?);
+        let replicas = self.try_replicas().await?;
+        Ok(AgentCore { home, replicas })
     }
 
     /// Read settings from the config file
