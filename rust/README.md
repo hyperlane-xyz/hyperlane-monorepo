@@ -4,6 +4,8 @@
 
 - install `rustup`
   - [link here](https://rustup.rs/)
+- setup pre-commit hooks: `cp ../pre-commit.sh ../.git/hooks/pre-commit`
+  - Note: To bypass pre-commit hooks, pass `--no-verify` after commit message
 
 ### Useful cargo commands
 

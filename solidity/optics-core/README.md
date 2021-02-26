@@ -6,6 +6,7 @@ On-chain implementations of Optics in Solidity.
 
 - `npm install --dev`
 - `brew install jq` &nbsp; OR &nbsp; `sudo apt-get install jq`
+- `npm install -g solhint`, check it is installed using `solhint --version`
 
 ### Build
 

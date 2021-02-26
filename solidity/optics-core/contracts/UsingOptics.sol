@@ -16,8 +16,9 @@ interface OpticsHandlerI {
 
 abstract contract UsingOptics is Ownable {
     mapping(address => uint32) public replicas;
-    Home home;
+    Home public home;
 
+    // solhint-disable-next-line no-empty-blocks
     constructor() Ownable() {}
 
     function isReplica(address _replica) internal view returns (bool) {
@@ -65,6 +66,7 @@ library TypeCasts {
             _slen++;
         }
 
+        // solhint-disable-next-line no-inline-assembly
         assembly {
             _newStr := mload(0x40)
             mstore(0x40, add(_newStr, 0x40)) // may end up with extra
