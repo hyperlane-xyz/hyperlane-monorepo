@@ -3,6 +3,10 @@ const { provider, deployMockContract } = waffle;
 const { expect } = require('chai');
 const NoSortition = require('../artifacts/contracts/Sortition.sol/NoSortition.json');
 
+const {
+  testCases,
+} = require('../../../vectors/destinationSequenceTestCases.json');
+
 const originDomain = 1000;
 const destDomain = 2000;
 
@@ -57,10 +61,11 @@ describe('Home', async () => {
     const sequence = (await home.sequences(originDomain)) + 1;
 
     // Format data that will be emitted from Dispatch event
-    const destinationAndSequence = optics.calcDestinationAndSequence(
+    const destinationAndSequence = optics.destinationAndSequence(
       destDomain,
       sequence,
     );
+
     const formattedMessage = optics.formatMessage(
       originDomain,
       signer.address,
@@ -83,7 +88,7 @@ describe('Home', async () => {
         ),
     )
       .to.emit(home, 'Dispatch')
-      .withArgs(destinationAndSequence, leafIndex, leaf, formattedMessage);
+      .withArgs(leafIndex, destinationAndSequence, leaf, formattedMessage);
   });
 
   it('Suggests current root and latest root on suggestUpdate', async () => {
@@ -173,5 +178,20 @@ describe('Home', async () => {
     ).to.emit(home, 'DoubleUpdate');
 
     expect(await home.state()).to.equal(optics.State.FAILED);
+  });
+
+  it('Correctly calculates destinationAndSequence', async () => {
+    for (let testCase of testCases) {
+      let { destination, sequence, expectedDestinationAndSequence } = testCase;
+
+      const solidityDestinationAndSequence = await home.testDestinationAndSequence(
+        destination,
+        sequence,
+      );
+
+      expect(solidityDestinationAndSequence).to.equal(
+        expectedDestinationAndSequence,
+      );
+    }
   });
 });
