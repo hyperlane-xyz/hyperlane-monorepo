@@ -139,9 +139,9 @@ impl ProverSync {
     ) -> Result<Vec<H256>, ProverSyncError> {
         let mut leaves: Vec<H256> = Vec::new();
 
-        // Create clone of ProverSync's incremental so we can easily discard
+        // Create copy of ProverSync's incremental so we can easily discard
         // changes in case of bad update
-        let mut incremental = self.incremental.clone();
+        let mut incremental = self.incremental;
         let mut local_root = local_root;
 
         while local_root != new_root {

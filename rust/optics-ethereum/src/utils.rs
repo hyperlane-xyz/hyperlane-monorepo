@@ -10,22 +10,23 @@ mod test {
     use serde_json::{json, Value};
 
     use super::*;
-    use std::{fs::{OpenOptions}, io::Write};
+    use std::{fs::OpenOptions, io::Write};
 
     // Outputs combined destination and sequence test cases in /vector/
     // destinationSequenceTestCases.json
+    #[allow(dead_code)]
     fn output_destination_and_sequences() {
         let test_cases: Vec<Value> = (1..=5)
-            .map(|i| json!({
-                "destination": i,
-                "sequence": i + 1,
-                "expectedDestinationAndSequence": destination_and_sequence(i, i + 1)
-            }))
+            .map(|i| {
+                json!({
+                    "destination": i,
+                    "sequence": i + 1,
+                    "expectedDestinationAndSequence": destination_and_sequence(i, i + 1)
+                })
+            })
             .collect();
 
-        let json = json!({
-            "testCases": test_cases
-        }).to_string();
+        let json = json!({ "testCases": test_cases }).to_string();
 
         let mut file = OpenOptions::new()
             .write(true)
@@ -34,6 +35,7 @@ mod test {
             .open("../../vectors/destinationSequenceTestCases.json")
             .expect("Failed to open/create file");
 
-        file.write_all(json.as_bytes()).expect("Failed to write to file");
+        file.write_all(json.as_bytes())
+            .expect("Failed to write to file");
     }
 }

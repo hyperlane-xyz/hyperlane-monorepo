@@ -75,7 +75,7 @@ pub trait Home: Common + Send + Sync + std::fmt::Debug {
     ) -> Result<Option<CommittedMessage>, ChainCommunicationError> {
         self.raw_message_by_sequence(destination, sequence)
             .await?
-            .map(|raw| CommittedMessage::try_from(raw))
+            .map(CommittedMessage::try_from)
             .transpose()
             .map_err(Into::into)
     }
@@ -95,7 +95,7 @@ pub trait Home: Common + Send + Sync + std::fmt::Debug {
     ) -> Result<Option<CommittedMessage>, ChainCommunicationError> {
         self.raw_message_by_leaf(leaf)
             .await?
-            .map(|raw| CommittedMessage::try_from(raw))
+            .map(CommittedMessage::try_from)
             .transpose()
             .map_err(Into::into)
     }

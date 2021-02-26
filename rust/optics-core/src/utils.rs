@@ -16,20 +16,21 @@ mod test {
     use serde_json::{json, Value};
 
     use super::*;
-    use std::{fs::{OpenOptions}, io::Write};
+    use std::{fs::OpenOptions, io::Write};
 
     // Outputs domain hash test cases in /vector/domainHashTestCases.json
+    #[allow(dead_code)]
     fn output_domain_hashes() {
         let test_cases: Vec<Value> = (1..=3)
-            .map(|i| json!({
-                "originDomain": i,
-                "expectedDomainHash": domain_hash(i)
-            }))
+            .map(|i| {
+                json!({
+                    "originDomain": i,
+                    "expectedDomainHash": domain_hash(i)
+                })
+            })
             .collect();
 
-        let json = json!({
-            "testCases": test_cases
-        }).to_string();
+        let json = json!({ "testCases": test_cases }).to_string();
 
         let mut file = OpenOptions::new()
             .write(true)
@@ -38,6 +39,7 @@ mod test {
             .open("../../vectors/domainHashTestCases.json")
             .expect("Failed to open/create file");
 
-        file.write_all(json.as_bytes()).expect("Failed to write to file");
+        file.write_all(json.as_bytes())
+            .expect("Failed to write to file");
     }
 }
