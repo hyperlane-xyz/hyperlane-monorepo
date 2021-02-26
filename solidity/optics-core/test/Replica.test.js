@@ -3,8 +3,14 @@ const { provider, deployMockContract } = waffle;
 const { expect } = require('chai');
 
 const testUtils = require('./utils');
-const { testCases } = require('../../../vectors/merkleTestCases.json');
 const MockRecipient = require('../artifacts/contracts/test/MockRecipient.sol/MockRecipient.json');
+
+const {
+  testCases: merkleTestCases,
+} = require('../../../vectors/merkleTestCases.json');
+const {
+  testCases: proveAndProcessTestCases,
+} = require('../../../vectors/proveAndProcessTestCases.json');
 
 const originDomain = 1000;
 const ownDomain = 2000;
@@ -80,6 +86,12 @@ describe('Replica', async () => {
     expect(confirmAt).to.equal(beforeTimestamp.add(optimisticSeconds));
   });
 
+  it('Returns empty update values when queue is empty', async () => {
+    const [pending, confirmAt] = await replica.nextPending();
+    expect(pending).to.equal(ethers.utils.formatBytes32String(0));
+    expect(confirmAt).to.equal(0);
+  });
+
   it('Rejects update with invalid signature', async () => {
     const firstNewRoot = ethers.utils.formatBytes32String('first new root');
     await enqueueValidUpdate(firstNewRoot);
@@ -150,6 +162,7 @@ describe('Replica', async () => {
 
     await testUtils.increaseTimestampBy(provider, optimisticSeconds);
 
+    expect(await replica.canConfirm()).to.be.true;
     await replica.confirm();
     expect(await replica.current()).to.equal(newRoot);
   });
@@ -164,8 +177,16 @@ describe('Replica', async () => {
     // Increase time enough for both updates to be confirmable
     await testUtils.increaseTimestampBy(provider, optimisticSeconds * 2);
 
+    expect(await replica.canConfirm()).to.be.true;
     await replica.confirm();
     expect(await replica.current()).to.equal(secondNewRoot);
+  });
+
+  it('Rejects confirmation attempt on empty queue', async () => {
+    const length = await replica.queueLength();
+    expect(length).to.equal(0);
+
+    await expect(replica.confirm()).to.be.revertedWith('no pending');
   });
 
   it('Rejects an early confirmation attempt', async () => {
@@ -177,12 +198,13 @@ describe('Replica', async () => {
     // the valid root has already increased the timestamp by 1.
     await testUtils.increaseTimestampBy(provider, optimisticSeconds - 2);
 
+    expect(await replica.canConfirm()).to.be.false;
     await expect(replica.confirm()).to.be.revertedWith('not time');
   });
 
   it('Proves a valid message', async () => {
     // Use 1st proof of 1st merkle vector test case
-    const testCase = testCases[0];
+    const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
     await replica.setCurrentRoot(testCase.expectedRoot);
@@ -195,7 +217,7 @@ describe('Replica', async () => {
   });
 
   it('Rejects an already-proven message', async () => {
-    const testCase = testCases[0];
+    const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
     await replica.setCurrentRoot(testCase.expectedRoot);
@@ -212,7 +234,7 @@ describe('Replica', async () => {
 
   it('Rejects invalid message proof', async () => {
     // Use 1st proof of 1st merkle vector test case
-    const testCase = testCases[0];
+    const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
     // Switch ordering of proof hashes
@@ -236,11 +258,9 @@ describe('Replica', async () => {
     );
 
     const mockVal = '0x1234abcd';
-
     await mockRecipient.mock.handle.returns(mockVal);
 
     const sequence = (await replica.lastProcessed()).add(1);
-
     const formattedMessage = optics.formatMessage(
       originDomain,
       sender.address,
@@ -320,5 +340,125 @@ describe('Replica', async () => {
     await expect(replica.process(formattedMessage)).to.be.revertedWith(
       '!destination',
     );
+  });
+
+  it('Fails to process an undergased transaction', async () => {
+    const [sender, recipient] = provider.getWallets();
+    const sequence = (await replica.lastProcessed()).add(1);
+    const body = ethers.utils.formatBytes32String('message');
+
+    const formattedMessage = optics.formatMessage(
+      originDomain,
+      sender.address,
+      sequence,
+      ownDomain,
+      recipient.address,
+      body,
+    );
+
+    // Set message status to MessageStatus.Pending
+    await replica.setMessagePending(formattedMessage);
+
+    // Required gas is >= 510,000 (we provide 500,000)
+    await expect(
+      replica.process(formattedMessage, { gasLimit: 500000 }),
+    ).to.be.revertedWith('!gas');
+  });
+
+  it('Returns false when processing message for bad handler function', async () => {
+    const [sender, recipient] = provider.getWallets();
+    const mockRecipient = await deployMockContract(
+      recipient,
+      MockRecipient.abi,
+    );
+
+    // Recipient handler function reverts
+    await mockRecipient.mock.handle.reverts();
+
+    const sequence = (await replica.lastProcessed()).add(1);
+    const formattedMessage = optics.formatMessage(
+      originDomain,
+      sender.address,
+      sequence,
+      ownDomain,
+      mockRecipient.address,
+      '0x',
+    );
+
+    // Set message status to MessageStatus.Pending
+    await replica.setMessagePending(formattedMessage);
+
+    // Ensure bad handler function causes process to return false
+    let [success, _] = await replica.callStatic.process(formattedMessage);
+    expect(success).to.be.false;
+  });
+
+  it('Proves and processes a message', async () => {
+    const [sender, recipient] = provider.getWallets();
+    const mockRecipient = await deployMockContract(
+      recipient,
+      MockRecipient.abi,
+    );
+
+    const mockVal = '0x1234abcd';
+    await mockRecipient.mock.handle.returns(mockVal);
+
+    const sequence = (await replica.lastProcessed()).add(1);
+
+    // Note that hash of this message specifically matches leaf of 1st
+    // proveAndProcess test case
+    const formattedMessage = optics.formatMessage(
+      originDomain,
+      sender.address,
+      sequence,
+      ownDomain,
+      mockRecipient.address,
+      '0x',
+    );
+
+    // Assert above message and test case have matching leaves
+    const { leaf, path, index } = proveAndProcessTestCases[0];
+    const messageLeaf = optics.messageToLeaf(formattedMessage);
+    expect(messageLeaf).to.equal(leaf);
+
+    // Set replica's current root to match root given by proof
+    const proofRoot = await replica.testBranchRoot(leaf, path, index);
+    await replica.setCurrentRoot(proofRoot);
+
+    await replica.proveAndProcess(formattedMessage, path, index);
+    expect;
+    expect(await replica.messages(leaf)).to.equal(
+      optics.MessageStatus.PROCESSED,
+    );
+    expect(await replica.lastProcessed()).to.equal(sequence);
+  });
+
+  it('Has proveAndProcess fail if prove fails', async () => {
+    const [sender, recipient] = provider.getWallets();
+    const sequence = (await replica.lastProcessed()).add(1);
+
+    // Use 1st proof of 1st merkle vector test case
+    const testCase = merkleTestCases[0];
+    let { leaf, index, path } = testCase.proofs[0];
+
+    // Create arbitrary message (contents not important)
+    const formattedMessage = optics.formatMessage(
+      originDomain,
+      sender.address,
+      sequence,
+      ownDomain,
+      recipient.address,
+      '0x',
+    );
+
+    // Ensure root given in proof and actual root don't match so that
+    // replica.prove(...) will fail
+    const actualRoot = await replica.current();
+    const proofRoot = await replica.testBranchRoot(leaf, path, index);
+    expect(proofRoot).to.not.equal(actualRoot);
+
+    await expect(
+      replica.proveAndProcess(formattedMessage, path, index),
+    ).to.be.revertedWith('!prove');
   });
 });
