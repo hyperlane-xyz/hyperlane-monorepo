@@ -1,165 +1,54 @@
 use async_trait::async_trait;
 use color_eyre::{
-    eyre::{ensure, eyre},
+    eyre::{bail, eyre},
     Result,
 };
 use ethers::core::types::H256;
-use futures_util::future::{join_all, select_all};
+use futures_util::future::join_all;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
-    sync::RwLock,
+    sync::{mpsc, RwLock},
+    task::JoinHandle,
     time::{interval, Interval},
 };
 
-use optics_base::agent::OpticsAgent;
+use optics_base::{
+    agent::{AgentCore, OpticsAgent},
+    cancel_task, decl_agent, reset_loop_if,
+};
 use optics_core::{
-    traits::{DoubleUpdate, Home, Replica},
+    traits::{ChainCommunicationError, Common, DoubleUpdate, Home, TxOutcome},
     SignedUpdate,
 };
 
-/// A watcher agent
+use crate::settings::Settings;
+
 #[derive(Debug)]
-pub struct Watcher {
+pub struct ContractWatcher<C>
+where
+    C: Common + ?Sized + 'static,
+{
     interval_seconds: u64,
-    history: RwLock<HashMap<H256, SignedUpdate>>,
+    from: H256,
+    tx: mpsc::Sender<SignedUpdate>,
+    contract: Arc<Box<C>>,
 }
 
-macro_rules! reset_loop {
-    ($interval:ident) => {{
-        $interval.tick().await;
-        continue;
-    }};
-}
-
-macro_rules! reset_loop_if {
-    ($condition:expr, $interval:ident) => {
-        if $condition {
-            reset_loop!($interval);
-        }
-    };
-    ($condition:expr, $interval:ident, $($arg:tt)*) => {
-        if $condition {
-            tracing::info!($($arg)*);
-            reset_loop!($interval);
-        }
-    };
-}
-
-#[allow(clippy::unit_arg)]
-impl Watcher {
-    /// Instantiate a new watcher.
-    pub fn new(interval_seconds: u64) -> Self {
+impl<C> ContractWatcher<C>
+where
+    C: Common + ?Sized + 'static,
+{
+    pub fn new(
+        interval_seconds: u64,
+        from: H256,
+        tx: mpsc::Sender<SignedUpdate>,
+        contract: Arc<Box<C>>,
+    ) -> Self {
         Self {
             interval_seconds,
-            history: RwLock::new(HashMap::new()),
-        }
-    }
-
-    /// Check that signed update received by Home or Replica isn't a double
-    /// update. If update is new, add to local history. If update already exists
-    /// in history and has a different `new_root` than the current signed
-    /// update, try to submit double update proof.
-    async fn check_double_update(&self, signed_update: &SignedUpdate) -> Result<(), DoubleUpdate> {
-        let old_root = signed_update.update.previous_root;
-        let new_root = signed_update.update.new_root;
-
-        let mut history = self.history.write().await;
-
-        if !history.contains_key(&old_root) {
-            history.insert(old_root, signed_update.to_owned());
-            return Ok(());
-        }
-
-        let existing = history.get(&old_root).expect("!contains");
-        if existing.update.new_root == new_root {
-            Ok(())
-        } else {
-            Err(DoubleUpdate(existing.to_owned(), signed_update.to_owned()))
-        }
-    }
-
-    /// Ensures that Replica's update is not fraudulent by submitting
-    /// update to Home. `home.update` interally calls `improperUpdate` and
-    /// will slash the updater if the replica's update is indeed fraudulent.
-    /// If the replica is running behind the Home and receives a "fraudulent
-    /// update," this will be flagged as a double update.
-    async fn check_fraudulent_update(
-        &self,
-        home: &Arc<Box<dyn Home>>,
-        signed_update: &SignedUpdate,
-    ) -> Result<()> {
-        let old_root = signed_update.update.previous_root;
-        if old_root == home.current_root().await? {
-            // It is okay if tx reverts
-            let _ = home.update(signed_update).await;
-        }
-
-        Ok(())
-    }
-
-    #[tracing::instrument(err)]
-    /// Polls home for signed updates and checks for double update fraud.
-    async fn watch_home(&self, home: Arc<Box<dyn Home>>) -> Result<()> {
-        let mut interval = self.interval();
-
-        loop {
-            let update_opt = home.poll_signed_update().await?;
-            reset_loop_if!(update_opt.is_none(), interval);
-            let new_update = update_opt.unwrap();
-
-            let double_update_res = self.check_double_update(&new_update).await;
-            reset_loop_if!(double_update_res.is_ok(), interval);
-
-            let double = double_update_res.unwrap_err();
-            home.double_update(&double).await?;
-            color_eyre::eyre::bail!("Detected double update");
-
-            // TODO: bubble this up and submit to ALL replicas
-            // // loop always resets early unless there's a double update.
-            // return Ok(double_update_res.unwrap_err());
-        }
-    }
-
-    /// Polls replica for signed updates and checks for both double update
-    /// fraud and fraudulent updates.
-    async fn watch_replica(
-        &self,
-        home: Arc<Box<dyn Home>>,
-        replica: Arc<Box<dyn Replica>>,
-    ) -> Result<()> {
-        let mut interval = self.interval();
-
-        loop {
-            let update_opt = replica.poll_signed_update().await?;
-            reset_loop_if!(update_opt.is_none(), interval);
-            let new_update = update_opt.unwrap();
-
-            self.check_fraudulent_update(&home, &new_update).await?;
-
-            let double_update_res = self.check_double_update(&new_update).await;
-            reset_loop_if!(double_update_res.is_ok(), interval);
-
-            let double = double_update_res.unwrap_err();
-
-            let results = join_all(vec![
-                home.double_update(&double),
-                replica.double_update(&double),
-            ])
-            .await;
-
-            // Report each error. Temporary solution
-            results
-                .into_iter()
-                .filter(Result::is_err)
-                .map(Result::unwrap_err)
-                .for_each(|err| {
-                    tracing::error!("Error submitting double update: {}", err);
-                });
-            color_eyre::eyre::bail!("Detected double update");
-
-            // TODO: bubble this up and submit to ALL replicas
-            // // loop always resets early unless there's a double update.
-            // return Ok(double_update_res.unwrap_err());
+            from,
+            tx,
+            contract,
         }
     }
 
@@ -167,41 +56,264 @@ impl Watcher {
     fn interval(&self) -> Interval {
         interval(std::time::Duration::from_secs(self.interval_seconds))
     }
+
+    #[tracing::instrument]
+    fn spawn(self) -> JoinHandle<Result<()>> {
+        tokio::spawn(async move {
+            let mut interval = self.interval();
+            let mut current_root = self.from;
+            loop {
+                let update_opt = self
+                    .contract
+                    .signed_update_by_old_root(current_root)
+                    .await?;
+                reset_loop_if!(update_opt.is_none(), interval);
+                let new_update = update_opt.unwrap();
+
+                current_root = new_update.update.new_root;
+                self.tx.send(new_update).await?;
+            }
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct HistorySync<C>
+where
+    C: Common + ?Sized + 'static,
+{
+    interval_seconds: u64,
+    from: H256,
+    tx: mpsc::Sender<SignedUpdate>,
+    contract: Arc<Box<C>>,
+}
+
+impl<C> HistorySync<C>
+where
+    C: Common + ?Sized + 'static,
+{
+    pub fn new(
+        interval_seconds: u64,
+        from: H256,
+        tx: mpsc::Sender<SignedUpdate>,
+        contract: Arc<Box<C>>,
+    ) -> Self {
+        Self {
+            from,
+            tx,
+            contract,
+            interval_seconds,
+        }
+    }
+
+    #[doc(hidden)]
+    fn interval(&self) -> Interval {
+        interval(std::time::Duration::from_secs(self.interval_seconds))
+    }
+
+    #[tracing::instrument]
+    fn spawn(self) -> JoinHandle<Result<()>> {
+        tokio::spawn(async move {
+            let mut interval = self.interval();
+
+            let mut current_root = self.from;
+            loop {
+                let previous_update = self
+                    .contract
+                    .signed_update_by_new_root(current_root)
+                    .await?;
+                if previous_update.is_none() {
+                    // Task finished
+                    break;
+                }
+
+                // Dispatch to the handler
+                let previous_update = previous_update.unwrap();
+
+                // set up for next loop iteration
+                current_root = previous_update.update.previous_root;
+                self.tx.send(previous_update).await?;
+                if current_root.is_zero() {
+                    // Task finished
+                    break;
+                }
+                interval.tick().await;
+            }
+            Ok(())
+        })
+    }
+}
+
+#[derive(Debug)]
+pub struct UpdateHandler {
+    rx: mpsc::Receiver<SignedUpdate>,
+    history: HashMap<H256, SignedUpdate>,
+    home: Arc<Box<dyn Home>>,
+}
+
+impl UpdateHandler {
+    pub fn new(
+        rx: mpsc::Receiver<SignedUpdate>,
+        history: HashMap<H256, SignedUpdate>,
+        home: Arc<Box<dyn Home>>,
+    ) -> Self {
+        Self { rx, history, home }
+    }
+
+    #[tracing::instrument]
+    fn spawn(mut self) -> JoinHandle<Result<DoubleUpdate>> {
+        tokio::spawn(async move {
+            loop {
+                let update = self.rx.recv().await;
+                // channel is closed
+                if update.is_none() {
+                    bail!("Channel closed.")
+                }
+
+                let update = update.unwrap();
+                let old_root = update.update.previous_root;
+                let new_root = update.update.new_root;
+
+                if old_root == self.home.current_root().await? {
+                    // It is okay if tx reverts
+                    let _ = self.home.update(&update).await;
+                }
+
+                if !self.history.contains_key(&old_root) {
+                    self.history.insert(old_root, update.to_owned());
+                    continue;
+                }
+
+                let existing = self.history.get(&old_root).expect("!contains");
+                if existing.update.new_root != new_root {
+                    return Ok(DoubleUpdate(existing.to_owned(), update.to_owned()));
+                }
+            }
+        })
+    }
+}
+
+decl_agent!(
+    /// A watcher agent
+    Watcher {
+        interval_seconds: u64,
+        sync_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
+        watch_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
+    }
+);
+
+#[allow(clippy::unit_arg)]
+impl Watcher {
+    /// Instantiate a new watcher.
+    pub fn new(interval_seconds: u64, core: AgentCore) -> Self {
+        Self {
+            interval_seconds,
+            core,
+            sync_tasks: Default::default(),
+            watch_tasks: Default::default(),
+        }
+    }
+
+    async fn shutdown(&self) {
+        for (_, v) in self.watch_tasks.write().await.drain() {
+            cancel_task!(v);
+        }
+        for (_, v) in self.sync_tasks.write().await.drain() {
+            cancel_task!(v);
+        }
+    }
+
+    // Handle a double-update once it has been detected.
+    #[tracing::instrument]
+    async fn handle_double_update(
+        &self,
+        double: &DoubleUpdate,
+    ) -> Vec<Result<TxOutcome, ChainCommunicationError>> {
+        tracing::info!(
+            "Dispatching double-update notifications to home and {} replicas",
+            self.replicas().len()
+        );
+
+        let mut futs: Vec<_> = self
+            .replicas()
+            .values()
+            .map(|replica| replica.double_update(&double))
+            .collect();
+        futs.push(self.core.home.double_update(double));
+        join_all(futs).await
+    }
 }
 
 #[async_trait]
 #[allow(clippy::unit_arg)]
 impl OpticsAgent for Watcher {
-    async fn run(&self, home: Arc<Box<dyn Home>>, replica: Option<Box<dyn Replica>>) -> Result<()> {
-        ensure!(replica.is_some(), "Watcher must have replica.");
-        let replica = Arc::new(replica.unwrap());
+    type Settings = Settings;
 
-        // TODO: handle double update
-        let _double = self.watch_replica(home, replica).await?;
-
-        Ok(())
+    #[tracing::instrument(err)]
+    async fn from_settings(settings: Self::Settings) -> Result<Self>
+    where
+        Self: Sized,
+    {
+        Ok(Self::new(
+            settings.polling_interval,
+            settings.as_ref().try_into_core().await?,
+        ))
     }
 
-    async fn run_many(&self, home: Box<dyn Home>, replicas: Vec<Box<dyn Replica>>) -> Result<()> {
-        let home = Arc::new(home);
+    #[tracing::instrument(err)]
+    async fn run(&self, _name: &str) -> Result<()> {
+        bail!("Watcher::run should not be called. Always call run_many");
+    }
 
-        let mut futs: Vec<_> = replicas
-            .into_iter()
-            .map(|replica| self.run_report_error(home.clone(), Some(replica)))
-            .collect();
+    #[tracing::instrument(err)]
+    async fn run_many(&self, replicas: &[&str]) -> Result<()> {
+        let (tx, rx) = mpsc::channel(200);
+        let handler = UpdateHandler::new(rx, Default::default(), self.home()).spawn();
 
-        let home_fut = self.watch_home(home.clone());
-        futs.push(Box::pin(home_fut));
+        for name in replicas.into_iter() {
+            let replica = self
+                .replica_by_name(name)
+                .ok_or_else(|| eyre!("No replica named {}", name))?;
+            let from = replica.current_root().await?;
 
-        loop {
-            let (res, _, remaining) = select_all(futs).await;
-            if res.is_err() {
-                tracing::error!("Home or replica shut down: {:#}", res.unwrap_err());
-            }
-            futs = remaining;
-            if futs.is_empty() {
-                return Err(eyre!("Home and replicas have shut down"));
-            }
+            self.watch_tasks.write().await.insert(
+                (*name).to_owned(),
+                ContractWatcher::new(self.interval_seconds, from, tx.clone(), replica.clone())
+                    .spawn(),
+            );
+            self.sync_tasks.write().await.insert(
+                (*name).to_owned(),
+                HistorySync::new(self.interval_seconds, from, tx.clone(), replica).spawn(),
+            );
         }
+
+        let home = self.home();
+        let from = home.current_root().await?;
+
+        let home_watcher =
+            ContractWatcher::new(self.interval_seconds, from, tx.clone(), home.clone()).spawn();
+        let home_sync = HistorySync::new(self.interval_seconds, from, tx.clone(), home).spawn();
+
+        let join_result = handler.await;
+
+        tracing::info!("Update handler has resolved. Cancelling all other tasks");
+        cancel_task!(home_watcher);
+        cancel_task!(home_sync);
+        self.shutdown().await;
+
+        let res = join_result??;
+
+        tracing::error!("Double update detected! Notifying all contracts!");
+        self.handle_double_update(&res)
+            .await
+            .iter()
+            .for_each(|res| tracing::info!("{:#?}", res));
+        bail!(
+            r#"
+            Double update detected!
+            All contracts notified!
+            Watcher has been shut down!
+        "#
+        )
     }
 }
