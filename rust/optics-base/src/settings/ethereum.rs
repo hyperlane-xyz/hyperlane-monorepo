@@ -82,7 +82,6 @@ impl Default for EthereumSigner {
 }
 
 impl EthereumSigner {
-    // TODO: allow ledger or other signer traits?
     /// Try to convert the ethereum signer to a local wallet
     #[tracing::instrument(err)]
     pub fn try_into_wallet(&self) -> Result<LocalWallet> {
