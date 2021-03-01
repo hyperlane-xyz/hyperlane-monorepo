@@ -1,5 +1,10 @@
 use async_trait::async_trait;
+use ethers::core::types::H256;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use tokio::time::{interval, Interval};
+
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 
 use color_eyre::Result;
 
@@ -11,13 +16,10 @@ use optics_core::Message;
 
 use crate::settings::Settings;
 
-decl_agent!(
-    /// Chatty Kathy
-    Kathy {
-        interval_seconds: u64,
-        generator: ChatGenerator,
-    }
-);
+decl_agent!(Kathy {
+    interval_seconds: u64,
+    generator: ChatGenerator,
+});
 
 impl Kathy {
     pub fn new(interval_seconds: u64, generator: ChatGenerator, core: AgentCore) -> Self {
@@ -41,8 +43,8 @@ impl OpticsAgent for Kathy {
     async fn from_settings(settings: Settings) -> Result<Self> {
         Ok(Self::new(
             settings.message_interval,
-            ChatGenerator::Default,
-            settings.as_ref().try_into_core().await?,
+            settings.chat_gen.into(),
+            settings.base.try_into_core().await?,
         ))
     }
 
@@ -50,18 +52,32 @@ impl OpticsAgent for Kathy {
         let mut interval = self.interval();
 
         loop {
-            let message = self.generator.gen_chat();
-            self.home().enqueue(&message).await?;
+            if let Some(message) = self.generator.gen_chat() {
+                self.home().enqueue(&message).await?;
+            } else {
+                return Ok(());
+            }
+
             interval.tick().await;
         }
     }
 }
 
 /// Generators for messages
-#[derive(Copy, Clone, Debug, serde::Deserialize, serde::Serialize)]
-#[serde(rename_all = "kebab-case")]
+#[derive(Debug)]
 pub enum ChatGenerator {
-    #[serde(other)]
+    Static {
+        destination: u32,
+        recipient: H256,
+        message: String,
+    },
+    OrderedList {
+        messages: Vec<String>,
+        counter: AtomicUsize,
+    },
+    Random {
+        length: usize,
+    },
     Default,
 }
 
@@ -72,9 +88,47 @@ impl Default for ChatGenerator {
 }
 
 impl ChatGenerator {
-    pub fn gen_chat(&self) -> Message {
+    fn rand_string(length: usize) -> String {
+        thread_rng()
+            .sample_iter(&Alphanumeric)
+            .take(length)
+            .map(char::from)
+            .collect()
+    }
+
+    pub fn gen_chat(&self) -> Option<Message> {
         match self {
-            ChatGenerator::Default => Default::default(),
+            ChatGenerator::Default => Some(Default::default()),
+            ChatGenerator::Static {
+                destination,
+                recipient,
+                message,
+            } => Some(Message {
+                destination: destination.to_owned(),
+                recipient: recipient.to_owned(),
+                body: message.clone().into(),
+            }),
+            ChatGenerator::OrderedList { messages, counter } => {
+                if counter.load(Ordering::SeqCst) >= messages.len() {
+                    return None;
+                }
+
+                let msg = Message {
+                    destination: Default::default(),
+                    recipient: Default::default(),
+                    body: messages[counter.load(Ordering::SeqCst)].clone().into(),
+                };
+
+                // Increment counter to next message in list
+                counter.fetch_add(1, Ordering::SeqCst);
+
+                Some(msg)
+            }
+            ChatGenerator::Random { length } => Some(Message {
+                destination: Default::default(),
+                recipient: Default::default(),
+                body: Self::rand_string(*length).into(),
+            }),
         }
     }
 }
