@@ -11,7 +11,7 @@ task('deploy-home', 'Deploy a home.')
   )
   .setAction(async (args) => {
     let address = ethers.utils.getAddress(args.sortition);
-    let signer = ethers.getSigner();
+    let [signer] = await ethers.getSigners();
     let home = await optics.deployHome(signer, args.domain, address);
     console.log(home.address);
   });
@@ -49,7 +49,7 @@ task('deploy-replica', 'Deploy a replica.')
       throw new Error('current must be a 32-byte 0x prefixed hex string');
     }
 
-    let signer = ethers.getSigner();
+    let [signer] = await ethers.getSigners();
 
     await optics.deployReplica(
       signer,
