@@ -160,6 +160,24 @@ impl UpdateHandler {
         Self { rx, history, home }
     }
 
+    fn check_double_update(&mut self, update: &SignedUpdate) -> Result<(), DoubleUpdate> {
+        let old_root = update.update.previous_root;
+        let new_root = update.update.new_root;
+
+        #[allow(clippy::map_entry)]
+        if !self.history.contains_key(&old_root) {
+            self.history.insert(old_root, update.to_owned());
+            return Ok(());
+        }
+
+        let existing = self.history.get(&old_root).expect("!contains");
+        if existing.update.new_root != new_root {
+            return Err(DoubleUpdate(existing.to_owned(), update.to_owned()));
+        }
+
+        Ok(())
+    }
+
     #[tracing::instrument]
     fn spawn(mut self) -> JoinHandle<Result<DoubleUpdate>> {
         tokio::spawn(async move {
@@ -172,22 +190,14 @@ impl UpdateHandler {
 
                 let update = update.unwrap();
                 let old_root = update.update.previous_root;
-                let new_root = update.update.new_root;
 
                 if old_root == self.home.current_root().await? {
                     // It is okay if tx reverts
                     let _ = self.home.update(&update).await;
                 }
 
-                #[allow(clippy::map_entry)]
-                if !self.history.contains_key(&old_root) {
-                    self.history.insert(old_root, update.to_owned());
-                    continue;
-                }
-
-                let existing = self.history.get(&old_root).expect("!contains");
-                if existing.update.new_root != new_root {
-                    return Ok(DoubleUpdate(existing.to_owned(), update.to_owned()));
+                if let Err(double_update) = self.check_double_update(&update) {
+                    return Ok(double_update);
                 }
             }
         })
@@ -316,5 +326,81 @@ impl OpticsAgent for Watcher {
             Watcher has been shut down!
         "#
         )
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::sync::Arc;
+    use tokio::sync::mpsc;
+
+    use ethers::core::types::H256;
+    use ethers::signers::LocalWallet;
+
+    use super::*;
+    use optics_core::{traits::DoubleUpdate, Update};
+    use optics_test::mocks::MockHomeContract;
+
+    #[tokio::test]
+    async fn update_handler_detects_double_update() {
+        let signer: LocalWallet =
+            "1111111111111111111111111111111111111111111111111111111111111111"
+                .parse()
+                .unwrap();
+
+        let first_root = H256::from([1; 32]);
+        let second_root = H256::from([2; 32]);
+        let third_root = H256::from([3; 32]);
+        let bad_third_root = H256::from([4; 32]);
+
+        let first_update = Update {
+            origin_domain: 1,
+            previous_root: first_root,
+            new_root: second_root,
+        }
+        .sign_with(&signer)
+        .await
+        .expect("!sign");
+
+        let second_update = Update {
+            origin_domain: 1,
+            previous_root: second_root,
+            new_root: third_root,
+        }
+        .sign_with(&signer)
+        .await
+        .expect("!sign");
+
+        let bad_second_update = Update {
+            origin_domain: 1,
+            previous_root: second_root,
+            new_root: bad_third_root,
+        }
+        .sign_with(&signer)
+        .await
+        .expect("!sign");
+
+        let (_tx, rx) = mpsc::channel(200);
+        let mut handler = UpdateHandler {
+            rx,
+            history: Default::default(),
+            home: Arc::new(Box::new(MockHomeContract::new())),
+        };
+
+        let _first_update_ret = handler
+            .check_double_update(&first_update)
+            .expect("Update should have been valid");
+
+        let _second_update_ret = handler
+            .check_double_update(&second_update)
+            .expect("Update should have been valid");
+
+        let bad_second_update_ret = handler
+            .check_double_update(&bad_second_update)
+            .expect_err("Update should have been invalid");
+        assert_eq!(
+            bad_second_update_ret,
+            DoubleUpdate(second_update, bad_second_update)
+        );
     }
 }
