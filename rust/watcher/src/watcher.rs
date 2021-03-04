@@ -52,7 +52,6 @@ where
         }
     }
 
-    #[doc(hidden)]
     fn interval(&self) -> Interval {
         interval(std::time::Duration::from_secs(self.interval_seconds))
     }
@@ -106,7 +105,6 @@ where
         }
     }
 
-    #[doc(hidden)]
     fn interval(&self) -> Interval {
         interval(std::time::Duration::from_secs(self.interval_seconds))
     }
@@ -271,9 +269,11 @@ impl OpticsAgent for Watcher {
         ))
     }
 
-    #[tracing::instrument(err)]
-    async fn run(&self, _name: &str) -> Result<()> {
-        bail!("Watcher::run should not be called. Always call run_many");
+    #[tracing::instrument]
+    fn run(&self, _name: &str) -> JoinHandle<Result<()>> {
+        tokio::spawn(
+            async move { bail!("Watcher::run should not be called. Always call run_many") },
+        )
     }
 
     #[tracing::instrument(err)]
@@ -337,9 +337,10 @@ mod test {
     use ethers::core::types::H256;
     use ethers::signers::LocalWallet;
 
-    use super::*;
     use optics_core::{traits::DoubleUpdate, Update};
     use optics_test::mocks::MockHomeContract;
+
+    use super::*;
 
     #[tokio::test]
     async fn update_handler_detects_double_update() {
