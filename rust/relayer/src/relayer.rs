@@ -6,8 +6,12 @@ use tokio::{
     time::{interval, Interval},
 };
 
-use optics_base::agent::{AgentCore, OpticsAgent};
-use optics_core::traits::{Home, Replica};
+use optics_base::{
+    agent::{AgentCore, OpticsAgent},
+    home::Homes,
+    replica::Replicas,
+};
+use optics_core::traits::{Common, Replica};
 
 use crate::settings::Settings;
 
@@ -35,7 +39,7 @@ impl Relayer {
     }
 
     #[tracing::instrument(err)]
-    async fn poll_updates(home: Arc<Box<dyn Home>>, replica: Arc<Box<dyn Replica>>) -> Result<()> {
+    async fn poll_updates(home: Arc<Homes>, replica: Arc<Replicas>) -> Result<()> {
         // Get replica's current root
         let old_root = replica.current_root().await?;
 
@@ -51,7 +55,7 @@ impl Relayer {
     }
 
     #[tracing::instrument(err)]
-    async fn poll_confirms(replica: Arc<Box<dyn Replica>>) -> Result<()> {
+    async fn poll_confirms(replica: Arc<Replicas>) -> Result<()> {
         // Check for pending update that can be confirmed
         let can_confirm = replica.can_confirm().await?;
 
