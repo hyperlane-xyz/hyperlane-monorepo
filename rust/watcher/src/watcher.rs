@@ -1,8 +1,10 @@
 use async_trait::async_trait;
 use color_eyre::{
     eyre::{bail, eyre},
-    Result,
+    Report, Result,
 };
+use thiserror::Error;
+
 use ethers::core::types::H256;
 use futures_util::future::join_all;
 use std::{collections::HashMap, sync::Arc};
@@ -16,7 +18,6 @@ use optics_base::{
     agent::{AgentCore, OpticsAgent},
     cancel_task, decl_agent,
     home::Homes,
-    reset_loop_if,
 };
 use optics_core::{
     traits::{ChainCommunicationError, Common, DoubleUpdate, TxOutcome},
@@ -25,13 +26,19 @@ use optics_core::{
 
 use crate::settings::Settings;
 
+#[derive(Debug, Error)]
+enum WatcherError {
+    #[error("Syncing finished")]
+    SyncingFinished,
+}
+
 #[derive(Debug)]
 pub struct ContractWatcher<C>
 where
     C: Common + ?Sized + 'static,
 {
     interval_seconds: u64,
-    from: H256,
+    current_root: H256,
     tx: mpsc::Sender<SignedUpdate>,
     contract: Arc<C>,
 }
@@ -48,7 +55,7 @@ where
     ) -> Self {
         Self {
             interval_seconds,
-            from,
+            current_root: from,
             tx,
             contract,
         }
@@ -58,21 +65,31 @@ where
         interval(std::time::Duration::from_secs(self.interval_seconds))
     }
 
+    async fn poll_and_send_update(&mut self) -> Result<()> {
+        let update_opt = self
+            .contract
+            .signed_update_by_old_root(self.current_root)
+            .await?;
+
+        if update_opt.is_none() {
+            return Ok(());
+        }
+
+        let new_update = update_opt.unwrap();
+        self.current_root = new_update.update.new_root;
+
+        self.tx.send(new_update).await?;
+        Ok(())
+    }
+
     #[tracing::instrument]
-    fn spawn(self) -> JoinHandle<Result<()>> {
+    fn spawn(mut self) -> JoinHandle<Result<()>> {
         tokio::spawn(async move {
             let mut interval = self.interval();
-            let mut current_root = self.from;
-            loop {
-                let update_opt = self
-                    .contract
-                    .signed_update_by_old_root(current_root)
-                    .await?;
-                reset_loop_if!(update_opt.is_none(), interval);
-                let new_update = update_opt.unwrap();
 
-                current_root = new_update.update.new_root;
-                self.tx.send(new_update).await?;
+            loop {
+                self.poll_and_send_update().await?;
+                interval.tick().await;
             }
         })
     }
@@ -84,7 +101,7 @@ where
     C: Common + ?Sized + 'static,
 {
     interval_seconds: u64,
-    from: H256,
+    current_root: H256,
     tx: mpsc::Sender<SignedUpdate>,
     contract: Arc<C>,
 }
@@ -100,7 +117,7 @@ where
         contract: Arc<C>,
     ) -> Self {
         Self {
-            from,
+            current_root: from,
             tx,
             contract,
             interval_seconds,
@@ -111,34 +128,46 @@ where
         interval(std::time::Duration::from_secs(self.interval_seconds))
     }
 
+    async fn update_history(&mut self) -> Result<()> {
+        let previous_update = self
+            .contract
+            .signed_update_by_new_root(self.current_root)
+            .await?;
+
+        if previous_update.is_none() {
+            // Task finished
+            return Err(Report::new(WatcherError::SyncingFinished));
+        }
+
+        // Dispatch to the handler
+        let previous_update = previous_update.unwrap();
+
+        // set up for next loop iteration
+        self.current_root = previous_update.update.previous_root;
+        self.tx.send(previous_update).await?;
+        if self.current_root.is_zero() {
+            // Task finished
+            return Err(Report::new(WatcherError::SyncingFinished));
+        }
+
+        Ok(())
+    }
+
     #[tracing::instrument]
-    fn spawn(self) -> JoinHandle<Result<()>> {
+    fn spawn(mut self) -> JoinHandle<Result<()>> {
         tokio::spawn(async move {
             let mut interval = self.interval();
 
-            let mut current_root = self.from;
             loop {
-                let previous_update = self
-                    .contract
-                    .signed_update_by_new_root(current_root)
-                    .await?;
-                if previous_update.is_none() {
-                    // Task finished
+                let res = self.update_history().await;
+                if res.is_err() {
+                    // Syncing done
                     break;
                 }
 
-                // Dispatch to the handler
-                let previous_update = previous_update.unwrap();
-
-                // set up for next loop iteration
-                current_root = previous_update.update.previous_root;
-                self.tx.send(previous_update).await?;
-                if current_root.is_zero() {
-                    // Task finished
-                    break;
-                }
                 interval.tick().await;
             }
+
             Ok(())
         })
     }
@@ -343,6 +372,136 @@ mod test {
     use optics_test::mocks::MockHomeContract;
 
     use super::*;
+
+    #[tokio::test]
+    async fn contract_watcher_polls_and_sends_update() {
+        let signer: LocalWallet =
+            "1111111111111111111111111111111111111111111111111111111111111111"
+                .parse()
+                .unwrap();
+
+        let first_root = H256::from([1; 32]);
+        let second_root = H256::from([2; 32]);
+
+        let signed_update = Update {
+            origin_domain: 1,
+            previous_root: first_root,
+            new_root: second_root,
+        }
+        .sign_with(&signer)
+        .await
+        .expect("!sign");
+
+        let mut mock_home = MockHomeContract::new();
+        {
+            let signed_update = signed_update.clone();
+            // home.signed_update_by_old_root called once and
+            // returns mock value signed_update when called with first_root
+            mock_home
+                .expect__signed_update_by_old_root()
+                .withf(move |r: &H256| *r == first_root)
+                .times(1)
+                .return_once(move |_| Ok(Some(signed_update)));
+        }
+
+        let mut home: Arc<Homes> = Arc::new(mock_home.into());
+        let (tx, mut rx) = mpsc::channel(200);
+        {
+            let mut contract_watcher =
+                ContractWatcher::new(3, first_root, tx.clone(), home.clone());
+
+            contract_watcher
+                .poll_and_send_update()
+                .await
+                .expect("Should have received Ok(())");
+
+            assert_eq!(contract_watcher.current_root, second_root);
+            assert_eq!(rx.recv().await.unwrap(), signed_update);
+        }
+
+        let mock_home = Arc::get_mut(&mut home).unwrap();
+        mock_home.checkpoint();
+    }
+
+    #[tokio::test]
+    async fn history_sync_updates_history() {
+        let signer: LocalWallet =
+            "1111111111111111111111111111111111111111111111111111111111111111"
+                .parse()
+                .unwrap();
+
+        let zero_root = H256::zero(); // Original zero root
+        let first_root = H256::from([1; 32]);
+        let second_root = H256::from([2; 32]);
+
+        // Zero root to first root
+        let first_signed_update = Update {
+            origin_domain: 1,
+            previous_root: zero_root,
+            new_root: first_root,
+        }
+        .sign_with(&signer)
+        .await
+        .expect("!sign");
+
+        // First root to second root
+        let second_signed_update = Update {
+            origin_domain: 1,
+            previous_root: first_root,
+            new_root: second_root,
+        }
+        .sign_with(&signer)
+        .await
+        .expect("!sign");
+
+        let mut mock_home = MockHomeContract::new();
+        {
+            let first_signed_update = first_signed_update.clone();
+            let second_signed_update = second_signed_update.clone();
+            // home.signed_update_by_new_root called once with second_root
+            // and returns mock value second_signed_update
+            mock_home
+                .expect__signed_update_by_new_root()
+                .withf(move |r: &H256| *r == second_root)
+                .times(1)
+                .return_once(move |_| Ok(Some(second_signed_update)));
+            // home.signed_update_by_new_root called once with first_root
+            // and returns mock value first_signed_update
+            mock_home
+                .expect__signed_update_by_new_root()
+                .withf(move |r: &H256| *r == first_root)
+                .times(1)
+                .return_once(move |_| Ok(Some(first_signed_update)));
+        }
+
+        let mut home: Arc<Homes> = Arc::new(mock_home.into());
+        let (tx, mut rx) = mpsc::channel(200);
+        {
+            let mut history_sync = HistorySync::new(3, second_root, tx.clone(), home.clone());
+
+            // First update_history call returns first -> second update
+            history_sync
+                .update_history()
+                .await
+                .expect("Should have received Ok(())");
+
+            assert_eq!(history_sync.current_root, first_root);
+            assert_eq!(rx.recv().await.unwrap(), second_signed_update);
+
+            // Second update_history call returns zero -> first update
+            // and should return WatcherError::SyncingFinished
+            history_sync
+                .update_history()
+                .await
+                .expect_err("Should have received WatcherError::SyncingFinished");
+
+            assert_eq!(history_sync.current_root, zero_root);
+            assert_eq!(rx.recv().await.unwrap(), first_signed_update)
+        }
+
+        let mock_home = Arc::get_mut(&mut home).unwrap();
+        mock_home.checkpoint();
+    }
 
     #[tokio::test]
     async fn update_handler_detects_double_update() {
