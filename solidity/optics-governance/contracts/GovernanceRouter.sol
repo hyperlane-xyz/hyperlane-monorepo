@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
+pragma experimental ABIEncoderV2;
 
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
@@ -147,10 +148,10 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
         typeAssert(_msg, GovernanceMessage.Types.Call)
         returns (bytes memory _ret)
     {
-        bytes32 _to = _msg.addr();
-        bytes memory _data = _msg.data();
-
-        _call(_to, _data);
+        GovernanceMessage.Call[] memory _calls = _msg.getCalls();
+        for (uint256 i = 0; i < _calls.length; i++) {
+            _dispatchCall(_calls[i]);
+        }
 
         return hex"";
     }
@@ -192,26 +193,23 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
         (governor is set to 0x0 on non-Governor chains)
     */
 
-    function callLocal(bytes32 _to, bytes memory _data)
+    function callLocal(GovernanceMessage.Call[] calldata calls)
         external
         onlyGovernor
-        returns (bytes memory _ret)
     {
-        _ret = _call(_to, _data);
+        for (uint256 i = 0; i < calls.length; i++) {
+            _dispatchCall(calls[i]);
+        }
     }
 
     function callRemote(
         uint32 _destination,
-        bytes32 _to,
-        bytes memory _data
+        GovernanceMessage.Call[] calldata calls
     ) external onlyGovernor {
         bytes32 _router = mustHaveRouter(_destination);
+        bytes memory _msg = GovernanceMessage.formatCalls(calls);
 
-        home.enqueue(
-            _destination,
-            _router,
-            GovernanceMessage.formatCall(_to, _data)
-        );
+        home.enqueue(_destination, _router, _msg);
     }
 
     function transferGovernor(uint32 _newDomain, address _newGovernor)
@@ -229,7 +227,10 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
         }
 
         bytes memory transferGovernorMessage =
-            GovernanceMessage.formatTransferGovernor(_newDomain, TypeCasts.addressToBytes32(_newGovernor));
+            GovernanceMessage.formatTransferGovernor(
+                _newDomain,
+                TypeCasts.addressToBytes32(_newGovernor)
+            );
 
         _sendToAllRemoteRouters(transferGovernorMessage);
     }
@@ -260,14 +261,14 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
         performed when handling AND dispatching messages
     */
 
-    function _call(bytes32 _to, bytes memory _data)
+    function _dispatchCall(GovernanceMessage.Call memory _call)
         internal
         returns (bytes memory _ret)
     {
-        address _toContract = TypeCasts.bytes32ToAddress(_to);
+        address _toContract = TypeCasts.bytes32ToAddress(_call.to);
 
         bool _success;
-        (_success, _ret) = _toContract.call(_data);
+        (_success, _ret) = _toContract.call(_call.data);
 
         require(_success, "call failed");
     }
