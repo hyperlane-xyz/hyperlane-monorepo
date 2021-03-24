@@ -12,7 +12,7 @@ import {
 
 import {GovernanceMessage} from "./GovernanceMessage.sol";
 
-contract GovernanceRouter is OpticsHandlerI, UsingOptics {
+contract GovernanceRouter is OpticsHandlerI {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using GovernanceMessage for bytes29;
@@ -20,6 +20,7 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
     /*
     --- STATE ---
     */
+    UsingOptics public usingOptics;
 
     uint32 public governorDomain; // domain of Governor chain -- for accepting incoming messages from Governor
     address public governor; // the local entity empowered to call governance functions
@@ -30,7 +31,6 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
     /*
     --- EVENTS ---
     */
-
     event TransferGovernor(
         uint32 previousGovernorDomain,
         uint32 newGovernorDomain,
@@ -46,19 +46,24 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
     /*
     --- CONSTRUCTOR ---
     */
-
-    constructor() {
+    constructor(address _usingOptics) {
         address _governor = msg.sender;
 
         uint32 _localDomain = localDomain();
         bool _isLocalDomain = true;
 
         _transferGovernor(_localDomain, _governor, _isLocalDomain);
+
+        setUsingOptics(_usingOptics);
     }
 
     /*
     --- FUNCTION MODIFIERS ---
     */
+    modifier onlyReplica() {
+        require(usingOptics.isReplica(msg.sender), "!replica");
+        _;
+    }
 
     modifier typeAssert(bytes29 _view, GovernanceMessage.Types _t) {
         _view.assertType(uint40(_t));
@@ -78,17 +83,8 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
     /*
     --- DOMAIN/ADDRESS VALIDATION HELPERS  ---
     */
-
-    function localDomain() internal view returns (uint32 _localDomain) {
-        _localDomain = home.originDomain();
-    }
-
-    function isLocalDomain(uint32 _domain)
-        internal
-        view
-        returns (bool _isLocalDomain)
-    {
-        _isLocalDomain = _domain == localDomain();
+    function setUsingOptics(address _usingOptics) public onlyGovernor {
+        usingOptics = UsingOptics(_usingOptics);
     }
 
     function isGovernorRouter(uint32 _domain, bytes32 _address)
@@ -97,8 +93,8 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
         returns (bool _isGovernorRouter)
     {
         _isGovernorRouter =
-        _domain == governorDomain &&
-        _address == routers[_domain];
+            _domain == governorDomain &&
+            _address == routers[_domain];
     }
 
     function mustHaveRouter(uint32 _domain)
@@ -110,6 +106,18 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
         require(_router != bytes32(0), "!router");
     }
 
+    function localDomain() internal view returns (uint32 _localDomain) {
+        _localDomain = usingOptics.originDomain();
+    }
+
+    function isLocalDomain(uint32 _domain)
+        internal
+        view
+        returns (bool _isLocalDomain)
+    {
+        _isLocalDomain = _domain == localDomain();
+    }
+
     /*
     --- MESSAGE HANDLING ---
         for all non-Governor chains to handle messages
@@ -118,7 +126,6 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
         Governor chain should never receive messages,
         because non-Governor chains are not able to send them
     */
-
     function handle(
         uint32 _origin,
         bytes32 _sender,
@@ -209,7 +216,7 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
         bytes32 _router = mustHaveRouter(_destination);
         bytes memory _msg = GovernanceMessage.formatCalls(calls);
 
-        home.enqueue(_destination, _router, _msg);
+        usingOptics.enqueueHome(_destination, _router, _msg);
     }
 
     function transferGovernor(uint32 _newDomain, address _newGovernor)
@@ -250,7 +257,7 @@ contract GovernanceRouter is OpticsHandlerI, UsingOptics {
     function _sendToAllRemoteRouters(bytes memory _msg) internal {
         for (uint256 i = 0; i < domains.length; i++) {
             if (domains[i] != uint32(0)) {
-                home.enqueue(domains[i], routers[domains[i]], _msg);
+                usingOptics.enqueueHome(domains[i], routers[domains[i]], _msg);
             }
         }
     }
