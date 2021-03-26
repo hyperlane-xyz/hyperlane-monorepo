@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {ISortition} from "../Sortition.sol";
+import {SortitionI} from "../../interfaces/SortitionI.sol";
 
-contract TestSortition is ISortition {
+contract TestSortition is SortitionI {
     address internal updater;
     address internal home;
 

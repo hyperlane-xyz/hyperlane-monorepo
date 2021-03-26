@@ -1,20 +1,21 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {BridgeMessage} from "./Types.sol";
+import {BridgeMessage} from "./BridgeMessage.sol";
 import {TokenRegistry} from "./TokenRegistry.sol";
-import {BridgeTokenI, BridgeToken} from "./BridgeToken.sol";
+import {BridgeToken} from "./BridgeToken.sol";
+import {BridgeTokenI} from "../interfaces/BridgeTokenI.sol";
 
+import {TypeCasts} from "@celo-org/optics-sol/contracts/UsingOptics.sol";
 import {
-    TypeCasts,
-    OpticsHandlerI
-} from "@celo-org/optics-sol/contracts/UsingOptics.sol";
+    MessageRecipientI
+} from "@celo-org/optics-sol/interfaces/MessageRecipientI.sol";
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
 
-contract BridgeRouter is OpticsHandlerI, TokenRegistry {
+contract BridgeRouter is MessageRecipientI, TokenRegistry {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using BridgeMessage for bytes29;

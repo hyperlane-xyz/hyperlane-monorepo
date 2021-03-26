@@ -5,7 +5,7 @@ import "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import "./Common.sol";
 import "./Merkle.sol";
 import "./Queue.sol";
-import {OpticsHandlerI} from "./UsingOptics.sol";
+import {MessageRecipientI} from "../interfaces/MessageRecipientI.sol";
 
 /**
  * @title Replica
@@ -227,7 +227,7 @@ contract ProcessingReplica is Replica {
         // transparently return.
 
         try
-            OpticsHandlerI(recipient).handle{gas: PROCESS_GAS}(
+            MessageRecipientI(recipient).handle{gas: PROCESS_GAS}(
                 _m.origin(),
                 _m.sender(),
                 payload

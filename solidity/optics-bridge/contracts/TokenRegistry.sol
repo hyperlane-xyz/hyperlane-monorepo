@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {BridgeMessage} from "./Types.sol";
-import {BridgeTokenI, BridgeToken} from "./BridgeToken.sol";
+import {BridgeMessage} from "./BridgeMessage.sol";
+import {BridgeToken} from "./BridgeToken.sol";
+import {BridgeTokenI} from "../interfaces/BridgeTokenI.sol";
 
 import {
     UsingOptics,
