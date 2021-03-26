@@ -26,6 +26,7 @@ use ethers::{
     },
     signers::Signer,
 };
+use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 use std::convert::TryFrom;
 
@@ -192,7 +193,7 @@ impl StampedMessage {
 }
 
 /// An Optics update message
-#[derive(Copy, Clone, Debug, Eq, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Update {
     /// The origin chain
     pub origin_domain: u32,
@@ -211,6 +212,29 @@ impl Encode for Update {
         writer.write_all(self.previous_root.as_ref())?;
         writer.write_all(self.new_root.as_ref())?;
         Ok(4 + 32 + 32)
+    }
+}
+
+impl Decode for Update {
+    fn read_from<R>(reader: &mut R) -> Result<Self, OpticsError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        let mut origin_domain = [0u8; 4];
+        reader.read_exact(&mut origin_domain)?;
+
+        let mut previous_root = H256::zero();
+        reader.read_exact(previous_root.as_mut())?;
+
+        let mut new_root = H256::zero();
+        reader.read_exact(new_root.as_mut())?;
+
+        Ok(Self {
+            origin_domain: u32::from_be_bytes(origin_domain),
+            previous_root,
+            new_root,
+        })
     }
 }
 
@@ -246,7 +270,7 @@ impl Update {
 }
 
 /// A Signed Optics Update
-#[derive(Clone, Debug, Eq, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignedUpdate {
     /// The update
     pub update: Update,
@@ -263,6 +287,18 @@ impl Encode for SignedUpdate {
         written += self.update.write_to(writer)?;
         written += self.signature.write_to(writer)?;
         Ok(written)
+    }
+}
+
+impl Decode for SignedUpdate {
+    fn read_from<R>(reader: &mut R) -> Result<Self, OpticsError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        let update = Update::read_from(reader)?;
+        let signature = Signature::read_from(reader)?;
+        Ok(Self { update, signature })
     }
 }
 
