@@ -25,6 +25,7 @@ contract GovernanceRouter is MessageRecipientI {
     */
     UsingOptics public usingOptics;
 
+    uint32 immutable localDomain;
     uint32 public governorDomain; // domain of Governor chain -- for accepting incoming messages from Governor
     address public governor; // the local entity empowered to call governance functions
 
@@ -50,14 +51,16 @@ contract GovernanceRouter is MessageRecipientI {
     --- CONSTRUCTOR ---
     */
     constructor(address _usingOptics) {
-        address _governor = msg.sender;
-
-        uint32 _localDomain = localDomain();
-        bool _isLocalDomain = true;
-
-        _transferGovernor(_localDomain, _governor, _isLocalDomain);
-
         setUsingOptics(_usingOptics);
+
+        // immutable state variables cannot be accessed within the constructor, so we set this variable for use
+        // in _transferGovernor
+        uint32 _localDomain = usingOptics.originDomain();
+        localDomain = _localDomain;
+
+        address _governor = msg.sender;
+        bool _isLocalDomain = true;
+        _transferGovernor(_localDomain, _governor, _isLocalDomain);
     }
 
     /*
@@ -109,16 +112,12 @@ contract GovernanceRouter is MessageRecipientI {
         require(_router != bytes32(0), "!router");
     }
 
-    function localDomain() internal view returns (uint32 _localDomain) {
-        _localDomain = usingOptics.originDomain();
-    }
-
     function isLocalDomain(uint32 _domain)
         internal
         view
         returns (bool _isLocalDomain)
     {
-        _isLocalDomain = _domain == localDomain();
+        _isLocalDomain = _domain == localDomain;
     }
 
     /*
