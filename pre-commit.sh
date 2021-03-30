@@ -1,5 +1,9 @@
 #!/bin/sh
 
+# Stash uncommitted changes
+STASH_NAME="pre-commit-$(date +%s)"
+git stash save -q --keep-index $STASH_NAME
+
 abort()
 {
     echo >&2 '
@@ -54,3 +58,5 @@ echo >&2 '
 *** DONE *** 
 ************
 '
+
+git stash apply stash^{/$STASH_NAME}
