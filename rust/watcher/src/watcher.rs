@@ -7,6 +7,7 @@ use thiserror::Error;
 
 use ethers::core::types::H256;
 use futures_util::future::join_all;
+use rocksdb::DB;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
     sync::{mpsc, RwLock},
@@ -16,8 +17,9 @@ use tokio::{
 
 use optics_base::{
     agent::{AgentCore, OpticsAgent},
-    cancel_task, decl_agent,
+    cancel_task, db, decl_agent,
     home::Homes,
+    persistence::UsingPersistence,
 };
 use optics_core::{
     traits::{ChainCommunicationError, Common, DoubleUpdate, TxOutcome},
@@ -176,32 +178,36 @@ where
 #[derive(Debug)]
 pub struct UpdateHandler {
     rx: mpsc::Receiver<SignedUpdate>,
-    history: HashMap<H256, SignedUpdate>,
+    db: Arc<DB>,
     home: Arc<Homes>,
 }
 
+impl UsingPersistence<H256, SignedUpdate> for UpdateHandler {
+    const KEY_PREFIX: &'static [u8] = "leaf_".as_bytes();
+
+    fn key_to_bytes(key: H256) -> Vec<u8> {
+        key.as_bytes().to_owned()
+    }
+}
+
 impl UpdateHandler {
-    pub fn new(
-        rx: mpsc::Receiver<SignedUpdate>,
-        history: HashMap<H256, SignedUpdate>,
-        home: Arc<Homes>,
-    ) -> Self {
-        Self { rx, history, home }
+    pub fn new(rx: mpsc::Receiver<SignedUpdate>, db: Arc<DB>, home: Arc<Homes>) -> Self {
+        Self { rx, db, home }
     }
 
     fn check_double_update(&mut self, update: &SignedUpdate) -> Result<(), DoubleUpdate> {
         let old_root = update.update.previous_root;
         let new_root = update.update.new_root;
 
-        #[allow(clippy::map_entry)]
-        if !self.history.contains_key(&old_root) {
-            self.history.insert(old_root, update.to_owned());
-            return Ok(());
-        }
-
-        let existing = self.history.get(&old_root).expect("!contains");
-        if existing.update.new_root != new_root {
-            return Err(DoubleUpdate(existing.to_owned(), update.to_owned()));
+        match Self::db_get(&self.db, old_root).expect("!db_get") {
+            Some(existing) => {
+                if existing.update.new_root != new_root {
+                    return Err(DoubleUpdate(existing, update.to_owned()));
+                }
+            }
+            None => {
+                Self::db_put(&self.db, old_root, update.to_owned()).expect("!db_put");
+            }
         }
 
         Ok(())
@@ -237,6 +243,7 @@ decl_agent!(
     /// A watcher agent
     Watcher {
         interval_seconds: u64,
+        db: Arc<DB>,
         sync_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
         watch_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
     }
@@ -245,9 +252,10 @@ decl_agent!(
 #[allow(clippy::unit_arg)]
 impl Watcher {
     /// Instantiate a new watcher.
-    pub fn new(interval_seconds: u64, core: AgentCore) -> Self {
+    pub fn new(interval_seconds: u64, db_path: String, core: AgentCore) -> Self {
         Self {
             interval_seconds,
+            db: Arc::new(db::from_path(db_path)),
             core,
             sync_tasks: Default::default(),
             watch_tasks: Default::default(),
@@ -296,6 +304,7 @@ impl OpticsAgent for Watcher {
     {
         Ok(Self::new(
             settings.polling_interval,
+            settings.db_path.clone(),
             settings.as_ref().try_into_core().await?,
         ))
     }
@@ -310,7 +319,7 @@ impl OpticsAgent for Watcher {
     #[tracing::instrument(err)]
     async fn run_many(&self, replicas: &[&str]) -> Result<()> {
         let (tx, rx) = mpsc::channel(200);
-        let handler = UpdateHandler::new(rx, Default::default(), self.home()).spawn();
+        let handler = UpdateHandler::new(rx, self.db.clone(), self.home()).spawn();
 
         for name in replicas.iter() {
             let replica = self
@@ -369,7 +378,7 @@ mod test {
     use ethers::signers::LocalWallet;
 
     use optics_core::{traits::DoubleUpdate, Update};
-    use optics_test::mocks::MockHomeContract;
+    use optics_test::{mocks::MockHomeContract, test_utils};
 
     use super::*;
 
@@ -505,64 +514,69 @@ mod test {
 
     #[tokio::test]
     async fn update_handler_detects_double_update() {
-        let signer: LocalWallet =
-            "1111111111111111111111111111111111111111111111111111111111111111"
-                .parse()
-                .unwrap();
+        test_utils::run_test_db(|db| async move {
+            let signer: LocalWallet =
+                "1111111111111111111111111111111111111111111111111111111111111111"
+                    .parse()
+                    .unwrap();
 
-        let first_root = H256::from([1; 32]);
-        let second_root = H256::from([2; 32]);
-        let third_root = H256::from([3; 32]);
-        let bad_third_root = H256::from([4; 32]);
+            let first_root = H256::from([1; 32]);
+            let second_root = H256::from([2; 32]);
+            let third_root = H256::from([3; 32]);
+            let bad_third_root = H256::from([4; 32]);
 
-        let first_update = Update {
-            origin_domain: 1,
-            previous_root: first_root,
-            new_root: second_root,
-        }
-        .sign_with(&signer)
+            let first_update = Update {
+                origin_domain: 1,
+                previous_root: first_root,
+                new_root: second_root,
+            }
+            .sign_with(&signer)
+            .await
+            .expect("!sign");
+
+            let second_update = Update {
+                origin_domain: 1,
+                previous_root: second_root,
+                new_root: third_root,
+            }
+            .sign_with(&signer)
+            .await
+            .expect("!sign");
+
+            let bad_second_update = Update {
+                origin_domain: 1,
+                previous_root: second_root,
+                new_root: bad_third_root,
+            }
+            .sign_with(&signer)
+            .await
+            .expect("!sign");
+
+            {
+                let (_tx, rx) = mpsc::channel(200);
+                let mut handler = UpdateHandler {
+                    rx,
+                    db: Arc::new(db),
+                    home: Arc::new(MockHomeContract::new().into()),
+                };
+
+                let _first_update_ret = handler
+                    .check_double_update(&first_update)
+                    .expect("Update should have been valid");
+
+                let _second_update_ret = handler
+                    .check_double_update(&second_update)
+                    .expect("Update should have been valid");
+
+                let bad_second_update_ret = handler
+                    .check_double_update(&bad_second_update)
+                    .expect_err("Update should have been invalid");
+                assert_eq!(
+                    bad_second_update_ret,
+                    DoubleUpdate(second_update, bad_second_update)
+                );
+            }
+        })
         .await
-        .expect("!sign");
-
-        let second_update = Update {
-            origin_domain: 1,
-            previous_root: second_root,
-            new_root: third_root,
-        }
-        .sign_with(&signer)
-        .await
-        .expect("!sign");
-
-        let bad_second_update = Update {
-            origin_domain: 1,
-            previous_root: second_root,
-            new_root: bad_third_root,
-        }
-        .sign_with(&signer)
-        .await
-        .expect("!sign");
-
-        let (_tx, rx) = mpsc::channel(200);
-        let mut handler = UpdateHandler {
-            rx,
-            history: Default::default(),
-            home: Arc::new(MockHomeContract::new().into()),
-        };
-
-        let _first_update_ret = handler
-            .check_double_update(&first_update)
-            .expect("Update should have been valid");
-
-        let _second_update_ret = handler
-            .check_double_update(&second_update)
-            .expect("Update should have been valid");
-
-        let bad_second_update_ret = handler
-            .check_double_update(&bad_second_update)
-            .expect_err("Update should have been invalid");
-        assert_eq!(
-            bad_second_update_ret,
-            DoubleUpdate(second_update, bad_second_update)
-        );
     }
 }
