@@ -59,7 +59,7 @@ impl Default for Level {
 }
 
 impl From<Level> for tracing_subscriber::filter::LevelFilter {
-    fn from(level: &Level) -> tracing_subscriber::filter::LevelFilter {
+    fn from(level: Level) -> tracing_subscriber::filter::LevelFilter {
         match level {
             Level::Off => tracing_subscriber::filter::LevelFilter::OFF,
             Level::Error => tracing_subscriber::filter::LevelFilter::ERROR,
