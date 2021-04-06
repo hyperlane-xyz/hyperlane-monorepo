@@ -46,9 +46,8 @@ async function deployUsingOptics() {
   return optics.deployImplementation('UsingOptics');
 }
 
-async function deployUpdaterManger(updaterAddress) {
-  // TODO: deploy updated UpdaterManager (after Erin updates these contracts)
-  return await optics.deployImplementation('TestSortition', [updaterAddress]);
+async function deployUpdaterManager(updater) {
+  return await optics.deployImplementation('UpdaterManager', [updater]);
 }
 
 async function deployHome(originDomain, updaterManager, controller) {
@@ -90,7 +89,7 @@ async function deployGovernanceRouter(
  * * param origin should be a ChainConfig
  * * param remotes should be an array of ChainConfigs
  * */
-// TODO: #later explore bunding these deploys into a single transaction to a bespoke DeployHelper contract
+// TODO: #later explore bundling these deploys into a single transaction to a bespoke DeployHelper contract
 async function deployOptics(origin, remotes) {
   const { domain: originDomain, updater: originUpdaterAddress } = origin;
 
@@ -98,7 +97,7 @@ async function deployOptics(origin, remotes) {
   // Note: initial owner will be the signer that's deploying
   const upgradeBeaconController = await optics.deployUpgradeBeaconController();
 
-  const updaterManager = await deployUpdaterManger(originUpdaterAddress);
+  const updaterManager = await deployUpdaterManager(originUpdaterAddress);
 
   // Deploy UsingOptics
   // Note: initial owner will be the signer that's deploying
@@ -107,7 +106,7 @@ async function deployOptics(origin, remotes) {
   // Deploy Home and setHome on UsingOptics
   const home = await deployHome(
     originDomain,
-    updaterManager,
+    originUpdaterAddress,
     upgradeBeaconController,
   );
 

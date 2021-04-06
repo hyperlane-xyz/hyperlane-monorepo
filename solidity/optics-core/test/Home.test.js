@@ -1,7 +1,7 @@
 const { waffle, ethers } = require('hardhat');
 const { provider, deployMockContract } = waffle;
 const { expect } = require('chai');
-const TestSortition = require('../artifacts/contracts/test/TestSortition.sol/TestSortition.json');
+const UpdaterManager = require('../artifacts/contracts/UpdaterManager.sol/UpdaterManager.json');
 
 const {
   testCases,
@@ -33,14 +33,17 @@ describe('Home', async () => {
   });
 
   beforeEach(async () => {
-    const mockSortition = await deployMockContract(signer, TestSortition.abi);
-    await mockSortition.mock.current.returns(signer.address);
-    await mockSortition.mock.slash.returns();
+    const mockUpdaterManager = await deployMockContract(
+      signer,
+      UpdaterManager.abi,
+    );
+    await mockUpdaterManager.mock.updater.returns(signer.address);
+    await mockUpdaterManager.mock.slashUpdater.returns();
 
     const { contracts } = await optics.deployUpgradeSetupAndProxy(
       'TestHome',
       [originDomain],
-      [mockSortition.address],
+      [mockUpdaterManager.address],
     );
 
     home = contracts.proxyWithImplementation;
