@@ -1,0 +1,49 @@
+{
+  "replicas": [
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "domain": 60,
+      "name": "ethereum",
+      "rpc-style": "ethereum",
+      "config": {
+        "connection": {
+          "type": "ws",
+          "url": "ws://localhost:8545"
+        },
+        "signer": {
+          "key": "380eb0f3d505f087e438eca80bc4df9a7faa24f868e69fc0440261a0fc0567dc",
+          "type": "hex-key"
+        }
+      }
+    },
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "domain": 61,
+      "name": "eth-classic",
+      "rpc-style": "ethereum",
+      "config": {
+        "connection": {
+          "type": "ws",
+          "url": "ws://localhost:8545"
+        }
+      }
+    }
+  ],
+  "home": {
+    "address": "0x0000000000000000000000000000000000000000",
+    "domain": 52752,
+    "name": "celo",
+    "rpc-style": "ethereum",
+    "config": {
+      "connection": {
+        "type": "http",
+        "url": "http://localhost:8545"
+      }
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "style": "pretty"
+  },
+  "db-path": "db_path"
+}

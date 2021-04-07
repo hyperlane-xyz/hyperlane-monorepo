@@ -52,10 +52,9 @@ impl From<ChatGenConfig> for ChatGenerator {
     }
 }
 
-decl_settings!(
-    Settings {
-        "OPT_KATHY",
-        message_interval: u64,
-        #[serde(default)] chat_gen: ChatGenConfig,
-    }
-);
+decl_settings!(Settings {
+    agent: "kathy",
+    message_interval: u64,
+    #[serde(default)]
+    chat_gen: ChatGenConfig,
+});

@@ -2,11 +2,8 @@
 
 use optics_base::{decl_settings, settings::ethereum::EthereumSigner};
 
-decl_settings!(
-    Settings {
-        "OPT_WATCHER",
-        watcher: EthereumSigner,
-        db_path: String,
-        polling_interval: u64,
-    }
-);
+decl_settings!(Settings {
+    agent: "watcher",
+    watcher: EthereumSigner,
+    polling_interval: u64,
+});
