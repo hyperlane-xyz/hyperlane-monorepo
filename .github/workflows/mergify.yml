@@ -16,9 +16,8 @@ on:
     types:
       - submitted
 
-  check_suite:
-    types:
-      - completed
+  repository_dispatch:
+    types: [rust-tests-successful, solidity-tests-successful]
 
   status: {}
 
@@ -29,11 +28,9 @@ jobs:
 
     steps:
       - name: automerge
-        uses: "pascalgn/automerge-action@v0.13.1"
-        with:
-          args: “--trace”
+        uses: pascalgn/automerge-action@v0.13.1
         env:
-          GITHUB_TOKEN: "${{ secrets.GITHUB_TOKEN }}"
+          GITHUB_TOKEN: "${{ secrets.ACTIONS_PAT }}"
           MERGE_LABELS: "automerge"
           MERGE_REMOVE_LABELS: "automerge"
           MERGE_METHOD: "squash"
