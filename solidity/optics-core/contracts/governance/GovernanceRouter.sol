@@ -4,7 +4,7 @@ pragma experimental ABIEncoderV2;
 
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
-import {XAppConnectionManager, TypeCasts} from "../UsingOptics.sol";
+import {XAppConnectionManager, TypeCasts} from "../XAppConnectionManager.sol";
 import {MessageRecipientI} from "../../interfaces/MessageRecipientI.sol";
 import {GovernanceMessage} from "./GovernanceMessage.sol";
 
@@ -18,7 +18,7 @@ contract GovernanceRouter is MessageRecipientI {
     */
     XAppConnectionManager public xAppConnectionManager;
 
-    uint32 immutable localDomain;
+    uint32 public immutable localDomain;
     uint32 public governorDomain; // domain of Governor chain -- for accepting incoming messages from Governor
     address public governor; // the local entity empowered to call governance functions
 
