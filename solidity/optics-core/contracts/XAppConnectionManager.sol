@@ -91,12 +91,12 @@ contract XAppConnectionManager is Ownable {
         return home.originDomain();
     }
 
-    function enqueueHome(
-        uint32 _destination,
-        bytes32 _recipient,
-        bytes memory _body
-    ) public {
-        home.enqueue(_destination, _recipient, _body);
+    function watcherPermission(address _watcher, uint32 _domain)
+        public
+        view
+        returns (bool)
+    {
+        return watcherPermissions[_watcher][_domain];
     }
 
     function unenrollReplica(address _replica) internal {

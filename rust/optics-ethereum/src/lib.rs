@@ -12,6 +12,10 @@ mod home;
 #[cfg(not(doctest))]
 mod replica;
 
+/// XAppConnectionManager abi
+#[cfg(not(doctest))]
+mod xapp;
+
 /// Base trait for an agent
 mod utils;
 
