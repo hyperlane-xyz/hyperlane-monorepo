@@ -4,7 +4,7 @@ pragma solidity >=0.6.11;
 import "./Common.sol";
 import "./Merkle.sol";
 import "./Queue.sol";
-import "../interfaces/UpdaterManagerI.sol";
+import "../interfaces/IUpdaterManager.sol";
 
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
@@ -22,7 +22,7 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
     /// @notice Mapping of sequence numbers for each destination
     mapping(uint32 => uint32) public sequences;
 
-    UpdaterManagerI public updaterManager;
+    IUpdaterManager public updaterManager;
 
     /**
      * @notice Event emitted when new message is enqueued
@@ -61,16 +61,16 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
      */
     event UpdaterSlashed(address indexed updater, address indexed reporter);
 
-    function initialize(uint32 _originDomain, address _updaterManager)
+    function initialize(uint32 _localDomain, address _updaterManager)
         public
         override
     {
         require(state == States.UNINITIALIZED, "already initialized");
 
-        setOriginDomain(_originDomain);
+        setLocalDomain(_localDomain);
 
-        updaterManager = UpdaterManagerI(_updaterManager);
-        updater = UpdaterManagerI(_updaterManager).updater();
+        updaterManager = IUpdaterManager(_updaterManager);
+        updater = IUpdaterManager(_updaterManager).updater();
 
         queue.initialize();
         state = States.ACTIVE;
@@ -95,7 +95,7 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
             "!contract updaterManager"
         );
 
-        updaterManager = UpdaterManagerI(_updaterManager);
+        updaterManager = IUpdaterManager(_updaterManager);
         emit NewUpdaterManager(_updaterManager);
     }
 
@@ -140,7 +140,7 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
 
         bytes memory _message =
             Message.formatMessage(
-                originDomain,
+                localDomain,
                 bytes32(uint256(uint160(msg.sender))),
                 sequence,
                 destination,
@@ -182,7 +182,7 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
         }
 
         current = _newRoot;
-        emit Update(originDomain, _oldRoot, _newRoot, _signature);
+        emit Update(localDomain, _oldRoot, _newRoot, _signature);
     }
 
     /**
