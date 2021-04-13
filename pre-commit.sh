@@ -19,6 +19,7 @@ trap 'abort' 0
 
 set -e
 git update-index -q --refresh
+
 if ! git diff-index --quiet HEAD -- ./solidity/optics-core; then
     cd solidity/optics-core
     npm test
@@ -33,14 +34,16 @@ if ! git diff-index --quiet HEAD -- ./solidity/optics-bridge; then
     cd ../..
 fi
 
-cd ./rust
-echo '+cargo test'
-cargo test
-echo '+cargo clippy -- -D warnings'
-cargo clippy -- -D warnings
-echo '+cargo fmt -- --check'
-cargo fmt -- --check
-cd ..
+if ! git diff-index --quiet HEAD -- ./rust ./abis; then
+    cd ./rust
+    echo '+cargo test'
+    cargo test
+    echo '+cargo clippy -- -D warnings'
+    cargo clippy -- -D warnings
+    echo '+cargo fmt -- --check'
+    cargo fmt -- --check
+    cd ..
+fi
 
 trap : 0
 
