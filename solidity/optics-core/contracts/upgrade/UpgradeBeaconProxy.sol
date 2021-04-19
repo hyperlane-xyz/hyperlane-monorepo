@@ -45,40 +45,16 @@ contract UpgradeBeaconProxy {
         upgradeBeacon = _upgradeBeacon;
 
         // Validate the implementation is a contract
-        address implementation = _implementation(_upgradeBeacon);
+        address _implementation = _getImplementation(_upgradeBeacon);
 
         require(
-            Address.isContract(implementation),
+            Address.isContract(_implementation),
             "beacon implementation !contract"
         );
 
         // Call the initialization function on the implementation
         if (_initializationCalldata.length > 0) {
-            _initialize(implementation, _initializationCalldata);
-        }
-    }
-
-    /**
-     * @notice Call the initialization function on the implementation
-     * Used at deployment to initialize the proxy
-     * based on the logic for initialization defined at the implementation
-     *
-     * @param implementation - Contract to which the initalization is delegated
-     * @param _initializationCalldata - Calldata supplied when calling the initialization function
-     */
-    function _initialize(
-        address implementation,
-        bytes memory _initializationCalldata
-    ) private {
-        // Delegatecall into the implementation, supplying initialization calldata.
-        (bool ok, ) = implementation.delegatecall(_initializationCalldata);
-
-        // Revert and include revert data if delegatecall to implementation reverts.
-        if (!ok) {
-            assembly {
-                returndatacopy(0, 0, returndatasize())
-                revert(0, returndatasize())
-            }
+            _initialize(_implementation, _initializationCalldata);
         }
     }
 
@@ -98,10 +74,34 @@ contract UpgradeBeaconProxy {
     }
 
     /**
+     * @notice Call the initialization function on the implementation
+     * Used at deployment to initialize the proxy
+     * based on the logic for initialization defined at the implementation
+     *
+     * @param _implementation - Contract to which the initalization is delegated
+     * @param _initializationCalldata - Calldata supplied when calling the initialization function
+     */
+    function _initialize(
+        address _implementation,
+        bytes memory _initializationCalldata
+    ) private {
+        // Delegatecall into the implementation, supplying initialization calldata.
+        (bool _ok, ) = _implementation.delegatecall(_initializationCalldata);
+
+        // Revert and include revert data if delegatecall to implementation reverts.
+        if (!_ok) {
+            assembly {
+                returndatacopy(0, 0, returndatasize())
+                revert(0, returndatasize())
+            }
+        }
+    }
+
+    /**
      * @notice Delegates function calls to the implementation contract returned by the Upgrade Beacon
      */
     function _fallback() private {
-        _delegate(_implementation());
+        _delegate(_getImplementation());
     }
 
     /**
@@ -112,9 +112,9 @@ contract UpgradeBeaconProxy {
      * external caller, reverting and returning the revert data if implementation
      * reverts.
      *
-     * @param implementation - Address to which the function execution is delegated
+     * @param _implementation - Address to which the function execution is delegated
      */
-    function _delegate(address implementation) private {
+    function _delegate(address _implementation) private {
         assembly {
             // Copy msg.data. We take full control of memory in this inline assembly
             // block because it will not return to Solidity code. We overwrite the
@@ -125,7 +125,7 @@ contract UpgradeBeaconProxy {
             // Out and outsize are set to zero - instead, use the return buffer.
             let result := delegatecall(
                 gas(),
-                implementation,
+                _implementation,
                 0,
                 calldatasize(),
                 0,
@@ -149,10 +149,14 @@ contract UpgradeBeaconProxy {
     /**
      * @notice Call the Upgrade Beacon to get the current implementation contract address
      *
-     * @return implementation - Address of the current implementation.
+     * @return _implementation - Address of the current implementation.
      */
-    function _implementation() private view returns (address implementation) {
-        implementation = _implementation(upgradeBeacon);
+    function _getImplementation()
+        private
+        view
+        returns (address _implementation)
+    {
+        _implementation = _getImplementation(upgradeBeacon);
     }
 
     /**
@@ -162,20 +166,20 @@ contract UpgradeBeaconProxy {
      * deployment, when the upgradeBeacon variable hasn't been set yet.
      *
      * @param _upgradeBeacon - Address of the UpgradeBeacon storing the current implementation
-     * @return implementation - Address of the current implementation.
+     * @return _implementation - Address of the current implementation.
      */
-    function _implementation(address _upgradeBeacon)
+    function _getImplementation(address _upgradeBeacon)
         private
         view
-        returns (address implementation)
+        returns (address _implementation)
     {
         // Get the current implementation address from the upgrade beacon.
-        (bool ok, bytes memory returnData) = _upgradeBeacon.staticcall("");
+        (bool _ok, bytes memory _returnData) = _upgradeBeacon.staticcall("");
 
         // Revert and pass along revert message if call to upgrade beacon reverts.
-        require(ok, string(returnData));
+        require(_ok, string(_returnData));
 
         // Set the implementation to the address returned from the upgrade beacon.
-        implementation = abi.decode(returnData, (address));
+        _implementation = abi.decode(_returnData, (address));
     }
 }

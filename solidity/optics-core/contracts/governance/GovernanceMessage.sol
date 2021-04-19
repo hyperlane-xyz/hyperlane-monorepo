@@ -156,7 +156,6 @@ library GovernanceMessage {
 
     /*
         Message Type: CALL
-
         struct Call {
             addr,       // address to call -- 32 bytes
             dataLen,    // call data length -- 32 bytes,
@@ -187,7 +186,6 @@ library GovernanceMessage {
 
     /*
         Message Type: TRANSFER GOVERNOR
-
         struct TransferGovernor {
             identifier, // message ID -- 1 byte
             domain,     // domain of new governor -- 4 bytes
@@ -232,7 +230,6 @@ library GovernanceMessage {
 
     /*
         Message Type: ENROLL ROUTER
-
         struct SetRouter {
             identifier, // message ID -- 1 byte
             domain,     // domain of new router -- 4 bytes

@@ -16,25 +16,25 @@
       {
         "indexed": false,
         "internalType": "bytes32",
-        "name": "_oldRoot",
+        "name": "oldRoot",
         "type": "bytes32"
       },
       {
         "indexed": false,
         "internalType": "bytes32[2]",
-        "name": "_newRoot",
+        "name": "newRoot",
         "type": "bytes32[2]"
       },
       {
         "indexed": false,
         "internalType": "bytes",
-        "name": "_signature",
+        "name": "signature",
         "type": "bytes"
       },
       {
         "indexed": false,
         "internalType": "bytes",
-        "name": "_signature2",
+        "name": "signature2",
         "type": "bytes"
       }
     ],
@@ -47,19 +47,19 @@
       {
         "indexed": true,
         "internalType": "uint32",
-        "name": "_localDomain",
+        "name": "localDomain",
         "type": "uint32"
       },
       {
         "indexed": true,
         "internalType": "bytes32",
-        "name": "_oldRoot",
+        "name": "oldRoot",
         "type": "bytes32"
       },
       {
         "indexed": true,
         "internalType": "bytes32",
-        "name": "_newRoot",
+        "name": "newRoot",
         "type": "bytes32"
       },
       {
@@ -359,17 +359,17 @@
     "inputs": [
       {
         "internalType": "bytes32",
-        "name": "leaf",
+        "name": "_leaf",
         "type": "bytes32"
       },
       {
         "internalType": "bytes32[32]",
-        "name": "proof",
+        "name": "_proof",
         "type": "bytes32[32]"
       },
       {
         "internalType": "uint256",
-        "name": "index",
+        "name": "_index",
         "type": "uint256"
       }
     ],
@@ -388,17 +388,17 @@
     "inputs": [
       {
         "internalType": "bytes",
-        "name": "message",
+        "name": "_message",
         "type": "bytes"
       },
       {
         "internalType": "bytes32[32]",
-        "name": "proof",
+        "name": "_proof",
         "type": "bytes32[32]"
       },
       {
         "internalType": "uint256",
-        "name": "index",
+        "name": "_index",
         "type": "uint256"
       }
     ],

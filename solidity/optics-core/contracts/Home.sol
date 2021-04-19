@@ -67,7 +67,7 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
     {
         require(state == States.UNINITIALIZED, "already initialized");
 
-        setLocalDomain(_localDomain);
+        _setLocalDomain(_localDomain);
 
         updaterManager = IUpdaterManager(_updaterManager);
         updater = IUpdaterManager(_updaterManager).updater();
@@ -102,26 +102,26 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
     /**
      * @notice Formats message, adds its leaf into merkle tree, enqueues new
      * merkle root, and emits `Dispatch` event with data regarding message.
-     * @param destination Domain of destination chain
-     * @param recipient Address or recipient on destination chain
-     * @param body Raw bytes of message
+     * @param _destination Domain of destination chain
+     * @param _recipient Address or recipient on destination chain
+     * @param _body Raw bytes of message
      */
     function enqueue(
-        uint32 destination,
-        bytes32 recipient,
-        bytes memory body
+        uint32 _destination,
+        bytes32 _recipient,
+        bytes memory _body
     ) external notFailed {
-        uint32 sequence = sequences[destination] + 1;
-        sequences[destination] = sequence;
+        uint32 _sequence = sequences[_destination] + 1;
+        sequences[_destination] = _sequence;
 
         bytes memory _message =
             Message.formatMessage(
                 localDomain,
                 bytes32(uint256(uint160(msg.sender))),
-                sequence,
-                destination,
-                recipient,
-                body
+                _sequence,
+                _destination,
+                _recipient,
+                _body
             );
         bytes32 _leaf = keccak256(_message);
 
@@ -131,7 +131,7 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
         // leafIndex is count() - 1 since new leaf has already been inserted
         emit Dispatch(
             count() - 1,
-            destinationAndSequence(destination, sequence),
+            _destinationAndSequence(_destination, _sequence),
             _leaf,
             _message
         );
@@ -153,8 +153,8 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
     ) external notFailed {
         if (improperUpdate(_oldRoot, _newRoot, _signature)) return;
         while (true) {
-            bytes32 next = queue.dequeue();
-            if (next == _newRoot) break;
+            bytes32 _next = queue.dequeue();
+            if (_next == _newRoot) break;
         }
 
         current = _newRoot;
@@ -195,10 +195,13 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
         bytes32 _newRoot,
         bytes memory _signature
     ) public notFailed returns (bool) {
-        require(Common.checkSig(_oldRoot, _newRoot, _signature), "bad sig");
+        require(
+            Common._isUpdaterSignature(_oldRoot, _newRoot, _signature),
+            "bad sig"
+        );
         require(_oldRoot == current, "not a current update");
         if (!queue.contains(_newRoot)) {
-            fail();
+            _fail();
             emit ImproperUpdate();
             return true;
         }
@@ -206,7 +209,7 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
     }
 
     /// @notice Sets contract state to FAILED and slashes updater
-    function fail() internal override {
+    function _fail() internal override {
         _setFailed();
         updaterManager.slashUpdater(msg.sender);
 
@@ -221,7 +224,7 @@ contract Home is Ownable, MerkleTreeManager, QueueManager, Common {
      * @param _sequence Current sequence for given destination chain
      * @return Returns (`_destination` << 32) & `_sequence`
      */
-    function destinationAndSequence(uint32 _destination, uint32 _sequence)
+    function _destinationAndSequence(uint32 _destination, uint32 _sequence)
         internal
         pure
         returns (uint64)

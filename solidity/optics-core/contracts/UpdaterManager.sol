@@ -43,8 +43,7 @@ contract UpdaterManager is IUpdaterManager, Ownable {
      */
     function setUpdater(address _updaterAddress) external onlyOwner {
         _updater = _updaterAddress;
-        Home homeContract = Home(home);
-        homeContract.setUpdater(_updaterAddress);
+        Home(home).setUpdater(_updaterAddress);
     }
 
     /**

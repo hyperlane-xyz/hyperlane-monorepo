@@ -56,7 +56,7 @@ contract Replica is Common, QueueManager {
     ) public {
         require(state == States.UNINITIALIZED, "already initialized");
 
-        setLocalDomain(_localDomain);
+        _setLocalDomain(_localDomain);
 
         queue.initialize();
 
@@ -87,7 +87,10 @@ contract Replica is Common, QueueManager {
         } else {
             require(current == _oldRoot, "not current update");
         }
-        require(Common.checkSig(_oldRoot, _newRoot, _signature), "bad sig");
+        require(
+            Common._isUpdaterSignature(_oldRoot, _newRoot, _signature),
+            "bad sig"
+        );
 
         _beforeUpdate();
 
@@ -107,10 +110,10 @@ contract Replica is Common, QueueManager {
         require(queue.length() != 0, "no pending");
 
         bytes32 _pending;
-        uint256 _now = block.timestamp;
+        uint256 _timestamp = block.timestamp;
 
         uint256 _remaining = queue.length();
-        while (_remaining > 0 && _now >= confirmAt[queue.peek()]) {
+        while (_remaining > 0 && _timestamp >= confirmAt[queue.peek()]) {
             _pending = queue.dequeue();
             delete confirmAt[_pending];
             _remaining -= 1;
@@ -130,17 +133,17 @@ contract Replica is Common, QueueManager {
      * `message`. If the message is successfully proven, then tries to process
      * message.
      * @dev Reverts if `prove` call returns false
-     * @param message Formatted message (refer to Common.sol Message library)
-     * @param proof Merkle proof of inclusion for message's leaf
-     * @param index Index of leaf in home's merkle tree
+     * @param _message Formatted message (refer to Common.sol Message library)
+     * @param _proof Merkle proof of inclusion for message's leaf
+     * @param _index Index of leaf in home's merkle tree
      **/
     function proveAndProcess(
-        bytes memory message,
-        bytes32[32] calldata proof,
-        uint256 index
+        bytes memory _message,
+        bytes32[32] calldata _proof,
+        uint256 _index
     ) external {
-        require(prove(keccak256(message), proof, index), "!prove");
-        process(message);
+        require(prove(keccak256(_message), _proof, _index), "!prove");
+        process(_message);
     }
 
     /**
@@ -204,8 +207,8 @@ contract Replica is Common, QueueManager {
         // fail.
         messages[_m.keccak()] = MessageStatus.Processed;
 
-        bytes memory payload = _m.body().clone();
-        address recipient = _m.recipientAddress();
+        bytes memory _payload = _m.body().clone();
+        address _recipient = _m.recipientAddress();
 
         // NB:
         // A call running out of gas TYPICALLY errors the whole tx. We want to
@@ -219,10 +222,10 @@ contract Replica is Common, QueueManager {
         // transparently return.
 
         try
-            IMessageRecipient(recipient).handle{gas: PROCESS_GAS}(
+            IMessageRecipient(_recipient).handle{gas: PROCESS_GAS}(
                 _m.origin(),
                 _m.sender(),
-                payload
+                _payload
             )
         returns (bytes memory _response) {
             _success = true;
@@ -240,31 +243,31 @@ contract Replica is Common, QueueManager {
      * merkle proof of inclusion for the leaf, and the index of the leaf.
      * @dev Reverts if message's MessageStatus != None (i.e. if message was
      * already proven or processed)
-     * @param leaf Leaf of message to prove
-     * @param proof Merkle proof of inclusion for leaf
-     * @param index Index of leaf in home's merkle tree
+     * @param _leaf Leaf of message to prove
+     * @param _proof Merkle proof of inclusion for leaf
+     * @param _index Index of leaf in home's merkle tree
      * @return Returns true if proof was valid and `prove` call succeeded
      **/
     function prove(
-        bytes32 leaf,
-        bytes32[32] calldata proof,
-        uint256 index
+        bytes32 _leaf,
+        bytes32[32] calldata _proof,
+        uint256 _index
     ) public returns (bool) {
-        require(messages[leaf] == MessageStatus.None, "!MessageStatus.None");
-        bytes32 actual = MerkleLib.branchRoot(leaf, proof, index);
+        require(messages[_leaf] == MessageStatus.None, "!MessageStatus.None");
+        bytes32 _actual = MerkleLib.branchRoot(_leaf, _proof, _index);
 
         // NB:
         // For convenience, we allow proving against the previous root.
         // This means that witnesses don't need to be updated for the new root
-        if (actual == current || actual == previous) {
-            messages[leaf] = MessageStatus.Pending;
+        if (_actual == current || _actual == previous) {
+            messages[_leaf] = MessageStatus.Pending;
             return true;
         }
         return false;
     }
 
     /// @notice Sets contract state to FAILED
-    function fail() internal override {
+    function _fail() internal override {
         _setFailed();
     }
 

@@ -28,37 +28,37 @@ abstract contract Common {
     /**
      * @notice Event emitted when update is made on Home or unconfirmed update
      * root is enqueued on Replica
-     * @param _localDomain Domain of contract's chain
-     * @param _oldRoot Old merkle root
-     * @param _newRoot New merkle root
-     * @param signature Updater's signature on `_oldRoot` and `_newRoot`
+     * @param localDomain Domain of contract's chain
+     * @param oldRoot Old merkle root
+     * @param newRoot New merkle root
+     * @param signature Updater's signature on `oldRoot` and `newRoot`
      **/
     event Update(
-        uint32 indexed _localDomain,
-        bytes32 indexed _oldRoot,
-        bytes32 indexed _newRoot,
+        uint32 indexed localDomain,
+        bytes32 indexed oldRoot,
+        bytes32 indexed newRoot,
         bytes signature
     );
 
     /**
      * @notice Event emitted when valid double update proof is provided to
      * contract
-     * @param _oldRoot Old root shared between two conflicting updates
-     * @param _newRoot Array containing two conflicting new roots
-     * @param _signature Signature on `_oldRoot` and `_newRoot`[0]
-     * @param _signature2 Signature on `_oldRoot` and `_newRoot`[1]
+     * @param oldRoot Old root shared between two conflicting updates
+     * @param newRoot Array containing two conflicting new roots
+     * @param signature Signature on `oldRoot` and `newRoot`[0]
+     * @param signature2 Signature on `oldRoot` and `newRoot`[1]
      **/
     event DoubleUpdate(
-        bytes32 _oldRoot,
-        bytes32[2] _newRoot,
-        bytes _signature,
-        bytes _signature2
+        bytes32 oldRoot,
+        bytes32[2] newRoot,
+        bytes signature,
+        bytes signature2
     );
 
     function initialize(uint32 _localDomain, address _updater) public virtual {
         require(state == States.UNINITIALIZED, "already initialized");
 
-        setLocalDomain(_localDomain);
+        _setLocalDomain(_localDomain);
 
         updater = _updater;
 
@@ -89,11 +89,11 @@ abstract contract Common {
         bytes calldata _signature2
     ) external notFailed {
         if (
-            Common.checkSig(_oldRoot, _newRoot[0], _signature) &&
-            Common.checkSig(_oldRoot, _newRoot[1], _signature2) &&
+            Common._isUpdaterSignature(_oldRoot, _newRoot[0], _signature) &&
+            Common._isUpdaterSignature(_oldRoot, _newRoot[1], _signature2) &&
             _newRoot[0] != _newRoot[1]
         ) {
-            fail();
+            _fail();
             emit DoubleUpdate(_oldRoot, _newRoot, _signature, _signature2);
         }
     }
@@ -103,13 +103,13 @@ abstract contract Common {
         state = States.FAILED;
     }
 
-    function setLocalDomain(uint32 _localDomain) internal {
+    function _setLocalDomain(uint32 _localDomain) internal {
         localDomain = _localDomain;
         domainHash = keccak256(abi.encodePacked(_localDomain, "OPTICS"));
     }
 
     /// @notice Called when a double update or fraudulent update is detected
-    function fail() internal virtual;
+    function _fail() internal virtual;
 
     /**
      * @notice Called internally. Checks that signature is valid (belongs to
@@ -119,7 +119,7 @@ abstract contract Common {
      * @param _signature Signature on `_oldRoot` and `_newRoot`
      * @return Returns true if signature is valid and false if otherwise
      **/
-    function checkSig(
+    function _isUpdaterSignature(
         bytes32 _oldRoot,
         bytes32 _newRoot,
         bytes memory _signature
