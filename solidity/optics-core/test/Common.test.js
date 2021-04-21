@@ -2,7 +2,6 @@ const { waffle, ethers } = require('hardhat');
 const { provider } = waffle;
 const { expect } = require('chai');
 
-const { testCases } = require('../../../vectors/domainHashTestCases.json');
 const {
   testCases: signedUpdateTestCases,
 } = require('../../../vectors/signedUpdateTestCases.json');
@@ -20,8 +19,8 @@ describe('Common', async () => {
   beforeEach(async () => {
     const { contracts } = await optics.deployUpgradeSetupAndProxy(
       'TestCommon',
-      [],
-      [localDomain, updater.signer.address],
+      [localDomain],
+      [updater.signer.address],
     );
 
     common = contracts.proxyWithImplementation;
@@ -32,7 +31,12 @@ describe('Common', async () => {
     const newRoot = ethers.utils.formatBytes32String('new root');
 
     const { signature } = await updater.signUpdate(oldRoot, newRoot);
-    expect(await common.testCheckSig(oldRoot, newRoot, signature)).to.be.true;
+    const isValid = await common.testIsUpdaterSignature(
+      oldRoot,
+      newRoot,
+      signature,
+    );
+    expect(isValid).to.be.true;
   });
 
   it('Rejects non-updater signature', async () => {
@@ -43,8 +47,8 @@ describe('Common', async () => {
       oldRoot,
       newRoot,
     );
-    expect(await common.testCheckSig(oldRoot, newRoot, fakeSignature)).to.be
-      .false;
+    expect(await common.testIsUpdaterSignature(oldRoot, newRoot, fakeSignature))
+      .to.be.false;
   });
 
   it('Fails on valid double update proof', async () => {
@@ -86,15 +90,6 @@ describe('Common', async () => {
     expect(state).to.equal(optics.State.ACTIVE);
   });
 
-  it('Calculates domain hashes from localDomain', async () => {
-    // Compare Rust output in json file to solidity output
-    for (let testCase of testCases) {
-      const { localDomain, expectedDomainHash } = testCase;
-      const solidityDomainHash = await common.testDomainHash(localDomain);
-      expect(solidityDomainHash).to.equal(expectedDomainHash);
-    }
-  });
-
   it('Checks Rust-produced SignedUpdate', async () => {
     // Compare Rust output in json file to solidity output
     for (let testCase of signedUpdateTestCases) {
@@ -104,7 +99,7 @@ describe('Common', async () => {
       await common.setUpdater(signerAddress);
 
       expect(
-        await common.testCheckSig(
+        await common.testIsUpdaterSignature(
           oldRoot,
           newRoot,
           ethers.utils.joinSignature(signature),

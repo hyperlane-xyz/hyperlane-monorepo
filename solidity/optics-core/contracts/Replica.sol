@@ -26,6 +26,9 @@ contract Replica is Common, QueueManager {
     /// @notice Reserved gas (to ensure tx completes in case message processing runs out)
     uint256 public constant RESERVE_GAS = 10000;
 
+    /// @notice Domain of home chain
+    uint32 public remoteDomain;
+
     /// @notice Number of seconds to wait before enqueued root becomes confirmable
     uint256 public optimisticSeconds;
 
@@ -43,12 +46,10 @@ contract Replica is Common, QueueManager {
     /// @notice Mapping of message leaves to MessageStatus
     mapping(bytes32 => MessageStatus) public messages;
 
-    constructor(uint32 _localDomain) {
-        localDomain = _localDomain;
-    }
+    constructor(uint32 _localDomain) Common(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     function initialize(
-        uint32 _localDomain,
+        uint32 _remoteDomain,
         address _updater,
         bytes32 _current,
         uint256 _optimisticSeconds,
@@ -56,7 +57,7 @@ contract Replica is Common, QueueManager {
     ) public {
         require(state == States.UNINITIALIZED, "already initialized");
 
-        _setLocalDomain(_localDomain);
+        remoteDomain = _remoteDomain;
 
         queue.initialize();
 
@@ -97,7 +98,7 @@ contract Replica is Common, QueueManager {
         confirmAt[_newRoot] = block.timestamp + optimisticSeconds;
         queue.enqueue(_newRoot);
 
-        emit Update(localDomain, _oldRoot, _newRoot, _signature);
+        emit Update(remoteDomain, _oldRoot, _newRoot, _signature);
     }
 
     /**
@@ -264,6 +265,11 @@ contract Replica is Common, QueueManager {
             return true;
         }
         return false;
+    }
+
+    /// @notice Hash of `remoteDomain` concatenated with "OPTICS"
+    function signatureDomain() public view override returns (bytes32) {
+        return keccak256(abi.encodePacked(remoteDomain, "OPTICS"));
     }
 
     /// @notice Sets contract state to FAILED

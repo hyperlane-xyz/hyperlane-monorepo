@@ -7,8 +7,14 @@ contract TestHome is Home {
     using QueueLib for QueueLib.Queue;
     using MerkleLib for MerkleLib.Tree;
 
+    constructor(uint32 _localDomain) Home(_localDomain) {} // solhint-disable-line no-empty-blocks
+
     function nextLeafIndex() external view returns (uint256) {
         return count();
+    }
+
+    function testSignatureDomain() external view returns (bytes32) {
+        return signatureDomain();
     }
 
     function testDestinationAndSequence(uint32 _destination, uint32 _sequence)

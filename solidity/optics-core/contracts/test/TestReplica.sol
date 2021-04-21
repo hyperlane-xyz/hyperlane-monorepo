@@ -8,7 +8,7 @@ contract TestReplica is Replica {
     using TypedMemView for bytes29;
     using Message for bytes29;
 
-    constructor(uint32 _remoteDomain) Replica(_remoteDomain) {} // solhint-disable-line no-empty-blocks
+    constructor(uint32 _localDomain) Replica(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     function setFailed() public {
         _setFailed();
@@ -16,6 +16,10 @@ contract TestReplica is Replica {
 
     function setUpdater(address _updater) external {
         updater = _updater;
+    }
+
+    function setRemoteDomain(uint32 _remoteDomain) external {
+        remoteDomain = _remoteDomain;
     }
 
     function setMessagePending(bytes memory _message) external {
@@ -29,6 +33,10 @@ contract TestReplica is Replica {
 
     function timestamp() external view returns (uint256) {
         return block.timestamp;
+    }
+
+    function testSignatureDomain() external view returns (bytes32) {
+        return signatureDomain();
     }
 
     function testBranchRoot(

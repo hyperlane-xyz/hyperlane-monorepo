@@ -151,19 +151,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "domainHash",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -195,7 +182,7 @@
     "inputs": [
       {
         "internalType": "uint32",
-        "name": "_localDomain",
+        "name": "_remoteDomain",
         "type": "uint32"
       },
       {
@@ -226,11 +213,6 @@
   },
   {
     "inputs": [
-      {
-        "internalType": "uint32",
-        "name": "_localDomain",
-        "type": "uint32"
-      },
       {
         "internalType": "address",
         "name": "_updater",
@@ -447,6 +429,32 @@
         "internalType": "uint256",
         "name": "",
         "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "remoteDomain",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "signatureDomain",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
       }
     ],
     "stateMutability": "view",

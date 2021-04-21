@@ -1,5 +1,16 @@
 [
   {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "_localDomain",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "nonpayable",
+    "type": "constructor"
+  },
+  {
     "anonymous": false,
     "inputs": [
       {
@@ -189,19 +200,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "domainHash",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -283,11 +281,6 @@
   },
   {
     "inputs": [
-      {
-        "internalType": "uint32",
-        "name": "_localDomain",
-        "type": "uint32"
-      },
       {
         "internalType": "address",
         "name": "_updaterManager",
@@ -433,6 +426,19 @@
     "name": "setUpdaterManager",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "signatureDomain",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {

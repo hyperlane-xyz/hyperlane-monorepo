@@ -4,11 +4,13 @@ pragma solidity >=0.6.11;
 import "../Common.sol";
 
 contract TestCommon is Common {
+    constructor(uint32 _localDomain) Common(_localDomain) {} // solhint-disable-line no-empty-blocks
+
     function setUpdater(address _updater) external {
         updater = _updater;
     }
 
-    function testCheckSig(
+    function testIsUpdaterSignature(
         bytes32 _oldRoot,
         bytes32 _newRoot,
         bytes memory _signature
@@ -16,12 +18,9 @@ contract TestCommon is Common {
         return _isUpdaterSignature(_oldRoot, _newRoot, _signature);
     }
 
-    function testDomainHash(uint32 _remoteDomain)
-        external
-        pure
-        returns (bytes32)
-    {
-        return keccak256(abi.encodePacked(_remoteDomain, "OPTICS"));
+    /// @notice Hash of `localDomain` concatenated with "OPTICS"
+    function signatureDomain() public view override returns (bytes32) {
+        return keccak256(abi.encodePacked(localDomain, "OPTICS"));
     }
 
     function _fail() internal override {
