@@ -4,7 +4,7 @@ use crate::{Decode, Encode};
 
 /// Identifier type.
 ///
-/// Normall these will map to address types for different networks. For Optics,
+/// Normally these will map to address types for different networks. For Optics,
 /// we choose to _always_ serialize as 32 bytes
 #[derive(Debug, Default, Copy, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct OpticsIdentifier(H256);
@@ -19,6 +19,15 @@ impl OpticsIdentifier {
     /// Cast to an ethereum address by truncating.
     pub fn as_ethereum_address(&self) -> H160 {
         H160::from_slice(&self.0.as_ref()[12..])
+    }
+
+    /// Cast address into local chain size and return array of bytes ref
+    pub fn as_ref_local(&self) -> &[u8] {
+        if self.is_ethereum_address() {
+            self.0[12..].as_ref()
+        } else {
+            self.0.as_ref()
+        }
     }
 }
 
