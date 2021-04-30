@@ -4,8 +4,8 @@ const { expect } = require('chai');
 const UpdaterManager = require('../artifacts/contracts/UpdaterManager.sol/UpdaterManager.json');
 
 const {
-  testCases: signatureDomainTestCases,
-} = require('../../../vectors/signatureDomainTestCases.json');
+  testCases: homeDomainHashTestCases,
+} = require('../../../vectors/homeDomainHashTestCases.json');
 const {
   testCases,
 } = require('../../../vectors/destinationSequenceTestCases.json');
@@ -14,7 +14,13 @@ const localDomain = 1000;
 const destDomain = 2000;
 
 describe('Home', async () => {
-  let home, signer, fakeSigner, updater, fakeUpdater, recipient;
+  let home,
+    signer,
+    fakeSigner,
+    updater,
+    fakeUpdater,
+    recipient,
+    mockUpdaterManager;
 
   // Helper function that enqueues message and returns its root.
   // The message recipient is the same for all messages enqueued.
@@ -33,13 +39,10 @@ describe('Home', async () => {
     [signer, fakeSigner, recipient] = provider.getWallets();
     updater = await optics.Updater.fromSigner(signer, localDomain);
     fakeUpdater = await optics.Updater.fromSigner(fakeSigner, localDomain);
+    mockUpdaterManager = await deployMockContract(signer, UpdaterManager.abi);
   });
 
   beforeEach(async () => {
-    const mockUpdaterManager = await deployMockContract(
-      signer,
-      UpdaterManager.abi,
-    );
     await mockUpdaterManager.mock.updater.returns(signer.address);
     await mockUpdaterManager.mock.slashUpdater.returns();
 
@@ -72,27 +75,20 @@ describe('Home', async () => {
     ).to.be.revertedWith('failed state');
   });
 
-  it('Calculates signatureDomain from localDomain', async () => {
-    const mockUpdaterManager = await deployMockContract(
-      signer,
-      UpdaterManager.abi,
-    );
-    await mockUpdaterManager.mock.updater.returns(signer.address);
-    await mockUpdaterManager.mock.slashUpdater.returns();
-
-    // Compare Rust output in json file to solidity output
-    for (let testCase of signatureDomainTestCases) {
-      const { domain: localDomain, expectedSignatureDomain } = testCase;
-
+  it('Calculated domain hash matches Rust-produced domain hash', async () => {
+    // Compare Rust output in json file to solidity output (json file matches
+    // hash for local domain of 1000)
+    for (let testCase of homeDomainHashTestCases) {
       const { contracts } = await optics.deployUpgradeSetupAndProxy(
         'TestHome',
-        [localDomain],
+        [testCase.domain],
         [mockUpdaterManager.address],
       );
-      const home = contracts.proxyWithImplementation;
+      const tempHome = contracts.proxyWithImplementation;
 
-      const signatureDomain = await home.testSignatureDomain();
-      expect(signatureDomain).to.equal(expectedSignatureDomain);
+      const { expectedHomeDomainHash } = testCase;
+      const homeDomainHash = await tempHome.testHomeDomainHash();
+      expect(homeDomainHash).to.equal(expectedHomeDomainHash);
     }
   });
 

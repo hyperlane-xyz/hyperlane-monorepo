@@ -15,9 +15,9 @@ use optics_core::{
 mock! {
     pub HomeContract {
         // Home
-        pub fn _origin_domain(&self) -> u32 {}
+        pub fn _local_domain(&self) -> u32 {}
 
-        pub fn _domain_hash(&self) -> H256 {}
+        pub fn _home_domain_hash(&self) -> H256 {}
 
         pub fn _raw_message_by_sequence(
             &self,
@@ -87,12 +87,12 @@ impl std::fmt::Debug for MockHomeContract {
 
 #[async_trait]
 impl Home for MockHomeContract {
-    fn origin_domain(&self) -> u32 {
-        self._origin_domain()
+    fn local_domain(&self) -> u32 {
+        self._local_domain()
     }
 
-    fn domain_hash(&self) -> H256 {
-        self._domain_hash()
+    fn home_domain_hash(&self) -> H256 {
+        self._home_domain_hash()
     }
 
     async fn raw_message_by_sequence(

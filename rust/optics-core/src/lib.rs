@@ -187,7 +187,7 @@ impl Signer for Signers {
 pub struct StampedMessage {
     /// 4   SLIP-44 ID
     pub origin: u32,
-    /// 32  Address in origin convention
+    /// 32  Address in home convention
     pub sender: H256,
     /// 4   SLIP-44 ID
     pub destination: u32,
@@ -270,8 +270,8 @@ impl StampedMessage {
 /// An Optics update message
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct Update {
-    /// The origin chain
-    pub origin_domain: u32,
+    /// The home chain
+    pub home_domain: u32,
     /// The previous root
     pub previous_root: H256,
     /// The new root
@@ -283,7 +283,7 @@ impl Encode for Update {
     where
         W: std::io::Write,
     {
-        writer.write_all(&self.origin_domain.to_be_bytes())?;
+        writer.write_all(&self.home_domain.to_be_bytes())?;
         writer.write_all(self.previous_root.as_ref())?;
         writer.write_all(self.new_root.as_ref())?;
         Ok(4 + 32 + 32)
@@ -296,8 +296,8 @@ impl Decode for Update {
         R: std::io::Read,
         Self: Sized,
     {
-        let mut origin_domain = [0u8; 4];
-        reader.read_exact(&mut origin_domain)?;
+        let mut home_domain = [0u8; 4];
+        reader.read_exact(&mut home_domain)?;
 
         let mut previous_root = H256::zero();
         reader.read_exact(previous_root.as_mut())?;
@@ -306,7 +306,7 @@ impl Decode for Update {
         reader.read_exact(new_root.as_mut())?;
 
         Ok(Self {
-            origin_domain: u32::from_be_bytes(origin_domain),
+            home_domain: u32::from_be_bytes(home_domain),
             previous_root,
             new_root,
         })
@@ -316,10 +316,10 @@ impl Decode for Update {
 impl Update {
     fn signing_hash(&self) -> H256 {
         // sign:
-        // domain(origin) || previous_root || new_root
+        // domain(home_domain) || previous_root || new_root
         H256::from_slice(
             Keccak256::new()
-                .chain(domain_hash(self.origin_domain))
+                .chain(home_domain_hash(self.home_domain))
                 .chain(self.previous_root)
                 .chain(self.new_root)
                 .finalize()
@@ -393,7 +393,7 @@ impl SignedUpdate {
 #[derive(Debug)]
 pub struct FailureNotification {
     /// Domain of replica to unenroll
-    pub domain: u32,
+    pub home_domain: u32,
     /// Updater of replica to unenroll
     pub updater: OpticsIdentifier,
 }
@@ -402,8 +402,8 @@ impl FailureNotification {
     fn signing_hash(&self) -> H256 {
         H256::from_slice(
             Keccak256::new()
-                .chain(domain_hash(self.domain))
-                .chain(self.domain.to_be_bytes())
+                .chain(home_domain_hash(self.home_domain))
+                .chain(self.home_domain.to_be_bytes())
                 .chain(self.updater.as_ref_local())
                 .finalize()
                 .as_slice(),
@@ -463,7 +463,7 @@ mod test {
                     .parse()
                     .unwrap();
             let message = Update {
-                origin_domain: 5,
+                home_domain: 5,
                 new_root: H256::repeat_byte(1),
                 previous_root: H256::repeat_byte(2),
             };

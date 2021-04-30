@@ -6,8 +6,8 @@ const testUtils = require('./utils');
 const MockRecipient = require('../artifacts/contracts/test/MockRecipient.sol/MockRecipient.json');
 
 const {
-  testCases: signatureDomainTestCases,
-} = require('../../../vectors/signatureDomainTestCases.json');
+  testCases: homeDomainHashTestCases,
+} = require('../../../vectors/homeDomainHashTestCases.json');
 const {
   testCases: merkleTestCases,
 } = require('../../../vectors/merkleTestCases.json');
@@ -92,13 +92,28 @@ describe('Replica', async () => {
     );
   });
 
-  it('Calculates signatureDomain from remoteDomain', async () => {
-    // Compare Rust output in json file to solidity output
-    for (let testCase of signatureDomainTestCases) {
-      const { domain, expectedSignatureDomain } = testCase;
-      replica.setRemoteDomain(domain);
-      const signatureDomain = await replica.testSignatureDomain();
-      expect(signatureDomain).to.equal(expectedSignatureDomain);
+  it('Calculated domain hash matches Rust-produced domain hash', async () => {
+    // Compare Rust output in json file to solidity output (json file matches
+    // hash for remote domain of 1000)
+    for (let testCase of homeDomainHashTestCases) {
+      const { contracts } = await optics.deployUpgradeSetupAndProxy(
+        'TestReplica',
+        [testCase.domain],
+        [
+          remoteDomain,
+          updater.signer.address,
+          initialCurrentRoot,
+          optimisticSeconds,
+          initialLastProcessed,
+        ],
+        null,
+        'initialize(uint32, address, bytes32, uint256, uint256)',
+      );
+      const tempReplica = contracts.proxyWithImplementation;
+
+      const { expectedHomeDomainHash } = testCase;
+      const homeDomainHash = await tempReplica.testHomeDomainHash();
+      expect(homeDomainHash).to.equal(expectedHomeDomainHash);
     }
   });
 

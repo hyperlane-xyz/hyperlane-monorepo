@@ -129,7 +129,7 @@
       {
         "indexed": true,
         "internalType": "uint32",
-        "name": "localDomain",
+        "name": "homeDomain",
         "type": "uint32"
       },
       {
@@ -248,6 +248,19 @@
     "name": "enqueue",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "homeDomainHash",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -426,19 +439,6 @@
     "name": "setUpdaterManager",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "signatureDomain",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

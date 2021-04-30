@@ -26,13 +26,13 @@ abstract contract Common is Initializable {
     /**
      * @notice Event emitted when update is made on Home or unconfirmed update
      * root is enqueued on Replica
-     * @param localDomain Domain of contract's chain
+     * @param homeDomain Domain of home contract
      * @param oldRoot Old merkle root
      * @param newRoot New merkle root
      * @param signature Updater's signature on `oldRoot` and `newRoot`
      **/
     event Update(
-        uint32 indexed localDomain,
+        uint32 indexed homeDomain,
         bytes32 indexed oldRoot,
         bytes32 indexed newRoot,
         bytes signature
@@ -97,7 +97,16 @@ abstract contract Common is Initializable {
     }
 
     /// @notice Hash of Home domain concatenated with "OPTICS"
-    function signatureDomain() public view virtual returns (bytes32);
+    function homeDomainHash() public view virtual returns (bytes32);
+
+    /// @notice Hash of Home's domain concatenated with "OPTICS"
+    function _homeDomainHash(uint32 homeDomain)
+        internal
+        view
+        returns (bytes32)
+    {
+        return keccak256(abi.encodePacked(homeDomain, "OPTICS"));
+    }
 
     /// @notice Sets contract state to FAILED
     function _setFailed() internal {
@@ -121,7 +130,7 @@ abstract contract Common is Initializable {
         bytes memory _signature
     ) internal view returns (bool) {
         bytes32 _digest =
-            keccak256(abi.encodePacked(signatureDomain(), _oldRoot, _newRoot));
+            keccak256(abi.encodePacked(homeDomainHash(), _oldRoot, _newRoot));
         _digest = ECDSA.toEthSignedMessageHash(_digest);
         return (ECDSA.recover(_digest, _signature) == updater);
     }

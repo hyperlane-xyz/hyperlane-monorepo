@@ -102,7 +102,7 @@ where
                     .expect("chain accepted invalid signature");
 
                 let update = Update {
-                    origin_domain: event.local_domain,
+                    home_domain: event.home_domain,
                     previous_root: event.old_root.into(),
                     new_root: event.new_root.into(),
                 };
@@ -129,7 +129,7 @@ where
                     .expect("chain accepted invalid signature");
 
                 let update = Update {
-                    origin_domain: event.local_domain,
+                    home_domain: event.home_domain,
                     previous_root: event.old_root.into(),
                     new_root: event.new_root.into(),
                 };
@@ -183,7 +183,7 @@ impl<M> Replica for EthereumReplica<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
-    fn destination_domain(&self) -> u32 {
+    fn local_domain(&self) -> u32 {
         self.domain
     }
 
