@@ -14,7 +14,7 @@ contract XAppConnectionManager is Ownable {
 
     Home public home;
 
-    // watcher address => replica domain => has/doesn't have permission
+    // watcher address => replica remote domain => has/doesn't have permission
     mapping(address => mapping(uint32 => bool)) private watcherPermissions;
 
     event ReplicaEnrolled(uint32 indexed domain, address replica);
@@ -37,15 +37,24 @@ contract XAppConnectionManager is Ownable {
 
     function unenrollReplica(
         uint32 _domain,
-        address _updater,
+        bytes32 _updater,
         bytes memory _signature
     ) external {
         address _replica = domainToReplica[_domain];
         require(_replica != address(0), "!replica exists");
-        require(Replica(_replica).updater() == _updater, "!current updater");
+
+        require(
+            Replica(_replica).updater() == TypeCasts.bytes32ToAddress(_updater),
+            "!current updater"
+        );
 
         address _watcher =
-            recoverWatcherFromSig(_domain, _replica, _updater, _signature);
+            recoverWatcherFromSig(
+                _domain,
+                TypeCasts.addressToBytes32(_replica),
+                _updater,
+                _signature
+            );
         require(watcherPermissions[_watcher][_domain], "!valid watcher");
 
         unenrollReplica(_replica);
@@ -109,11 +118,12 @@ contract XAppConnectionManager is Ownable {
 
     function recoverWatcherFromSig(
         uint32 _domain,
-        address _replica,
-        address _updater,
+        bytes32 _replica,
+        bytes32 _updater,
         bytes memory _signature
     ) internal view returns (address) {
-        bytes32 _homeDomainHash = Replica(_replica).homeDomainHash();
+        bytes32 _homeDomainHash =
+            Replica(TypeCasts.bytes32ToAddress(_replica)).homeDomainHash();
 
         bytes32 _digest =
             keccak256(abi.encodePacked(_homeDomainHash, _domain, _updater));

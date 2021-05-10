@@ -3,7 +3,7 @@ use config::{Config, ConfigError, Environment, File};
 use serde::Deserialize;
 use std::{collections::HashMap, env, sync::Arc};
 
-use crate::{db, home::Homes, replica::Replicas};
+use crate::{db, home::Homes, replica::Replicas, xapp::ConnectionManagers};
 
 /// Tracing configuration
 pub mod log;
@@ -51,6 +51,16 @@ impl ChainSetup {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(Replicas::Ethereum(
                 conf.try_into_replica(&self.name, self.domain, self.address.parse()?)
+                    .await?,
+            )),
+        }
+    }
+
+    /// Try to convert chain setting into XAppConnectionManager contract
+    pub async fn try_into_connection_manager(&self) -> Result<ConnectionManagers, Report> {
+        match &self.chain {
+            ChainConf::Ethereum(conf) => Ok(ConnectionManagers::Ethereum(
+                conf.try_into_connection_manager(&self.name, self.domain, self.address.parse()?)
                     .await?,
             )),
         }

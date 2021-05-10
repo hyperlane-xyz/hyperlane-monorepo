@@ -6,7 +6,7 @@ use color_eyre::{
 use thiserror::Error;
 
 use ethers::core::types::H256;
-use futures_util::future::join_all;
+use futures_util::future::{join, join_all};
 use rocksdb::DB;
 use std::{collections::HashMap, sync::Arc};
 use tokio::{
@@ -20,9 +20,10 @@ use optics_base::{
     cancel_task,
     home::Homes,
     persistence::UsingPersistence,
+    xapp::ConnectionManagers,
 };
 use optics_core::{
-    traits::{ChainCommunicationError, Common, DoubleUpdate, Replica, TxOutcome},
+    traits::{ChainCommunicationError, Common, ConnectionManager, DoubleUpdate, Home, TxOutcome},
     FailureNotification, SignedUpdate, Signers,
 };
 
@@ -245,6 +246,7 @@ pub struct Watcher {
     interval_seconds: u64,
     sync_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
     watch_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
+    connection_managers: Vec<ConnectionManagers>,
     core: AgentCore,
 }
 
@@ -257,12 +259,18 @@ impl AsRef<AgentCore> for Watcher {
 #[allow(clippy::unit_arg)]
 impl Watcher {
     /// Instantiate a new watcher.
-    pub fn new(signer: Signers, interval_seconds: u64, core: AgentCore) -> Self {
+    pub fn new(
+        signer: Signers,
+        interval_seconds: u64,
+        connection_managers: Vec<ConnectionManagers>,
+        core: AgentCore,
+    ) -> Self {
         Self {
             signer: Arc::new(signer),
             interval_seconds,
             sync_tasks: Default::default(),
             watch_tasks: Default::default(),
+            connection_managers,
             core,
         }
     }
@@ -278,34 +286,43 @@ impl Watcher {
 
     // Handle a double-update once it has been detected.
     #[tracing::instrument]
-    async fn handle_double_update(
+    async fn handle_failure(
         &self,
         double: &DoubleUpdate,
     ) -> Vec<Result<TxOutcome, ChainCommunicationError>> {
-        tracing::info!(
-            "Dispatching double-update notifications to home and {} replicas",
-            self.core.replicas.len()
-        );
-
-        // TODO: submit signed failure notifications to XAppConnectionManager
-        for replica in self.core.replicas.values() {
-            let _signed = FailureNotification {
-                home_domain: replica.local_domain(),
-                updater: replica.updater().await.unwrap().into(),
-            }
-            .sign_with(self.signer.as_ref())
-            .await
-            .expect("!sign");
-        }
-
-        let mut futs: Vec<_> = self
+        // Create vector of double update futures
+        let mut double_update_futs: Vec<_> = self
             .core
             .replicas
             .values()
             .map(|replica| replica.double_update(&double))
             .collect();
-        futs.push(self.core.home.double_update(double));
-        join_all(futs).await
+        double_update_futs.push(self.core.home.double_update(double));
+
+        // Created signed failure notification
+        let signed_failure = FailureNotification {
+            home_domain: self.home().local_domain(),
+            updater: self.home().updater().await.unwrap().into(),
+        }
+        .sign_with(self.signer.as_ref())
+        .await
+        .expect("!sign");
+
+        // Create vector of futures for unenrolling replicas (one per
+        // connection manager)
+        let mut unenroll_futs = Vec::new();
+        for connection_manager in self.connection_managers.iter() {
+            unenroll_futs.push(connection_manager.unenroll_replica(&signed_failure));
+        }
+
+        // Join both vectors of double update and unenroll futures and
+        // return vector containing all results
+        let (double_update_res, unenroll_res) =
+            join(join_all(double_update_futs), join_all(unenroll_futs)).await;
+        double_update_res
+            .into_iter()
+            .chain(unenroll_res.into_iter())
+            .collect()
     }
 }
 
@@ -319,10 +336,34 @@ impl OpticsAgent for Watcher {
     where
         Self: Sized,
     {
+        let connection_manager_futs: Vec<_> = settings
+            .connection_managers
+            .iter()
+            .map(|chain_setup| chain_setup.try_into_connection_manager())
+            .collect();
+
+        let (connection_managers, errors): (Vec<_>, Vec<_>) = join_all(connection_manager_futs)
+            .await
+            .into_iter()
+            .partition(Result::is_ok);
+
+        // Report any invalid ConnectionManager chain setups
+        errors
+            .into_iter()
+            .for_each(|e| tracing::error!("{:?}", e.unwrap_err()));
+
+        let connection_managers: Vec<_> = connection_managers
+            .into_iter()
+            .map(Result::unwrap)
+            .collect();
+
+        let core = settings.as_ref().try_into_core().await?;
+
         Ok(Self::new(
             settings.watcher.try_into_signer()?,
             settings.polling_interval,
-            settings.as_ref().try_into_core().await?,
+            connection_managers,
+            core,
         ))
     }
 
@@ -369,17 +410,21 @@ impl OpticsAgent for Watcher {
         cancel_task!(home_sync);
         self.shutdown().await;
 
-        let res = join_result??;
+        let double_update = join_result??;
 
-        tracing::error!("Double update detected! Notifying all contracts!");
-        self.handle_double_update(&res)
+        tracing::error!(
+            "Double update detected! Notifying all contracts and unenrolling replicas!"
+        );
+        self.handle_failure(&double_update)
             .await
             .iter()
             .for_each(|res| tracing::info!("{:#?}", res));
+
         bail!(
             r#"
             Double update detected!
             All contracts notified!
+            Replicas unenrolled!
             Watcher has been shut down!
         "#
         )
