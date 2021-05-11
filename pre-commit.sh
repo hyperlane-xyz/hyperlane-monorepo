@@ -89,17 +89,9 @@ else
     echo "+Skipping optics core tests"
 fi
 
-<<<<<<< HEAD
-# Run solidity/optics-bridge tests and lint
-if ! git diff-index --quiet HEAD -- ./solidity/optics-bridge; then
-    echo "+Running optics bridge tests"
-    cd ./solidity/optics-bridge
-=======
 # Run solidity/optics-xapps tests and lint
 if ! git diff-index --quiet HEAD -- ./solidity/optics-xapps; then
     cd ./solidity/optics-xapps
-    npm test
->>>>>>> d84ef94 (Refactor/rename optics-bridge directory to optics-xapps/token-bridge)
     npm run lint
     npm test
     cd ../..
