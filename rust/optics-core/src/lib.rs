@@ -129,15 +129,28 @@ impl From<LocalWallet> for Signers {
 
 #[cfg(feature = "ledger")]
 impl From<Ledger> for Signers {
-    fn from(ledger: Ledger) -> Self {
-        Signers::Ledger(ledger)
+    fn from(ledger_wallet: Ledger) -> Self {
+        Signers::Ledger(ledger_wallet)
     }
 }
 
 #[cfg(feature = "yubi")]
 impl From<YubiWallet> for Signers {
     fn from(yubi_wallet: YubiWallet) -> Self {
-        Signers::Yubi(local_wallet)
+        Signers::Yubi(yubi_wallet)
+    }
+}
+
+impl Signers {
+    /// Set chain_id of signer
+    pub fn set_chain_id<T: Into<u64>>(self, chain_id: T) -> Self {
+        match self {
+            Signers::Local(signer) => signer.set_chain_id(chain_id).into(),
+            #[cfg(feature = "yubi")]
+            Signers::Yubi(signer) => signer.set_chain_id(chain_id).into(),
+            #[cfg(feature = "ledger")]
+            Signers::Ledger(signer) => signer.set_chain_id(chain_id).into(),
+        }
     }
 }
 
