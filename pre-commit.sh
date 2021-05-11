@@ -1,8 +1,7 @@
 #!/bin/sh
 
 # Stash uncommitted changes
-STASH_NAME="pre-commit-$(date +%s)"
-git stash save -q --keep-index $STASH_NAME
+git stash push --keep-index
 
 abort()
 {
@@ -12,7 +11,7 @@ abort()
 ***************
 '
     echo "An error occurred. Please review your code and try again" >&2
-    git stash apply stash^{/$STASH_NAME} -q
+    git stash pop
     exit 1
 }
 
@@ -32,8 +31,8 @@ else
 fi
 
 # Conditionally compile and update optics-xapps abis
-    echo "+Updating xapps ABIs"
 if ! git diff-index --quiet HEAD -- ./solidity/optics-xapps; then
+    echo "+Updating xapps ABIs"
     cd ./solidity/optics-xapps
     npm run compile
     cd ../..
@@ -91,12 +90,13 @@ fi
 
 # Run solidity/optics-xapps tests and lint
 if ! git diff-index --quiet HEAD -- ./solidity/optics-xapps; then
+    echo "+Running optics-xapps tests"
     cd ./solidity/optics-xapps
     npm run lint
     npm test
     cd ../..
 else
-    echo "+Skipping optics bridge tests"
+    echo "+Skipping optics-xapps tests"
 fi
 
 # Git add abis if updated
@@ -129,4 +129,4 @@ echo >&2 '
 ************
 '
 
-git stash apply stash^{/$STASH_NAME} -q
+git stash pop -q
