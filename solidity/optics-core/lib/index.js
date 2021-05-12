@@ -22,6 +22,12 @@ extendEnvironment((hre) => {
     FAILED: 2,
   };
 
+  const GovernanceMessage = {
+    CALL: 1,
+    TRANSFERGOVERNOR: 2,
+    SETROUTER: 3,
+  };
+
   const MessageStatus = {
     NONE: 0,
     PENDING: 1,
@@ -80,6 +86,48 @@ extendEnvironment((hre) => {
         update.oldRoot,
         update.newRoot,
         update.signature,
+      );
+    }
+  }
+
+  class GovernanceRouter {
+    static formatTransferGovernor(newDomain, newAddress) {
+      return ethers.utils.solidityPack(
+        ['bytes1', 'uint32', 'bytes32'],
+        [GovernanceMessage.TRANSFERGOVERNOR, newDomain, newAddress],
+      );
+    }
+
+    static formatSetRouter(domain, address) {
+      return ethers.utils.solidityPack(
+        ['bytes1', 'uint32', 'bytes32'],
+        [GovernanceMessage.SETROUTER, domain, address],
+      );
+    }
+
+    static formatCalls(callsData) {
+      let callBody = '0x';
+      const numCalls = callsData.length;
+
+      for (let i = 0; i < numCalls; i++) {
+        const { to, dataLen, data } = callsData[i];
+
+        if (!to || !dataLen || !data) {
+          throw new Error(`Missing data in Call ${i + 1}: \n  ${callsData[i]}`);
+        }
+
+        let hexBytes = ethers.utils.solidityPack(
+          ['bytes32', 'uint256', 'bytes'],
+          [to, dataLen, data],
+        );
+
+        // remove 0x before appending
+        callBody += hexBytes.slice(2);
+      }
+
+      return ethers.utils.solidityPack(
+        ['bytes1', 'bytes1', 'bytes'],
+        [GovernanceMessage.CALL, numCalls, callBody],
       );
     }
   }
@@ -171,6 +219,7 @@ extendEnvironment((hre) => {
     Common,
     Home,
     Replica,
+    GovernanceRouter,
     Updater,
     formatMessage,
     messageToLeaf,

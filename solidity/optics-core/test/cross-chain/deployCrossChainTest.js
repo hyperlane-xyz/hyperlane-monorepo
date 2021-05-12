@@ -1,3 +1,5 @@
+const { devDeployOptics } = require('../../scripts/deployOpticsUtils');
+
 /*
  * Get the Home contract for the given domain
  *
@@ -38,6 +40,20 @@ function getUpdaterObject(chainDetails, domain) {
 }
 
 /*
+ * Get the GovernanceRouter contract
+ *
+ * @param chainDetails - ChainDetails type
+ * @param replicaDomain - localDomain for the Replica; domain where the Replica contract is deployed
+ * @param homeDomain - remoteDomain for the Replica; domain of the Home contract the Replica "listens" to
+ *
+ * @return governanceRouterContract - ethers contract for interacting with the governanceRouter
+ */
+function getGovernanceRouter(chainDetails, domain) {
+  return chainDetails[domain].contracts.governanceRouter
+    .proxyWithImplementation;
+}
+
+/*
  * Deploy the entire suite of Optics contracts
  * on each chain within the chainConfigs array
  * including the upgradable Home, Replicas, and GovernanceRouter
@@ -63,7 +79,7 @@ async function deployMultipleChains(chainConfigs) {
 
     // deploy contract suite for this chain
     // note: we will be working with a persistent set of contracts across each test
-    const contracts = await optics.deployOptics(local, remotes);
+    const contracts = await devDeployOptics(local, remotes, true);
 
     chainDetails[domain] = {
       ...config,
@@ -111,5 +127,6 @@ module.exports = {
   deployMultipleChains,
   getHome,
   getReplica,
+  getGovernanceRouter,
   getUpdaterObject,
 };
