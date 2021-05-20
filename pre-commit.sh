@@ -114,7 +114,7 @@ else
 fi
 
 # Run rust tests, clippy, and formatting
-if ! git diff-index --quiet HEAD -- ./rust ./abis; then
+if ! git diff-index --quiet HEAD -- ./rust; then
     echo "+Running rust tests"
     cd ./rust
     echo '+cargo fmt -- --check'
@@ -151,9 +151,9 @@ else
 fi
 
 # Git add abis if updated
-if ! git diff-index --quiet HEAD -- ./abis; then
-    echo '+git add ./abis/*'
-    git add ./abis/*
+if ! git diff-index --quiet HEAD -- ./rust/optics-ethereum/abis/; then
+    echo '+git add ./rust/optics-ethereum/abis/*'
+    git add ./rust/optics-ethereum/abis/*
 else
     echo "+Skipping git add ABIs"
 fi
