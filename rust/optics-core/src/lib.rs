@@ -46,6 +46,7 @@ use ethers::{
         utils::hash_message,
     },
     signers::Signer,
+    utils::keccak256,
 };
 
 use ethers::signers::LocalWallet;
@@ -58,6 +59,8 @@ use serde::{Deserialize, Serialize};
 use sha3::{Digest, Keccak256};
 
 use crate::utils::*;
+
+const OPTICS_MESSAGE_PREFIX_LEN: usize = 76;
 
 /// Error types for Optics
 #[derive(Debug, thiserror::Error)]
@@ -198,17 +201,17 @@ impl Signer for Signers {
 
 /// A full Optics message between chains
 #[derive(Debug, Default, Clone)]
-pub struct StampedMessage {
+pub struct OpticsMessage {
     /// 4   SLIP-44 ID
     pub origin: u32,
     /// 32  Address in home convention
     pub sender: H256,
+    /// 4   Count of all previous messages to destination
+    pub sequence: u32,
     /// 4   SLIP-44 ID
     pub destination: u32,
     /// 32  Address in destination convention
     pub recipient: H256,
-    /// 4   Count of all previous messages to destination
-    pub sequence: u32,
     /// 0+  Message contents
     pub body: Vec<u8>,
 }
@@ -224,21 +227,22 @@ pub struct Message {
     pub body: Vec<u8>,
 }
 
-impl Encode for StampedMessage {
+impl Encode for OpticsMessage {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
         W: std::io::Write,
     {
         writer.write_all(&self.origin.to_be_bytes())?;
         writer.write_all(self.sender.as_ref())?;
+        writer.write_all(&self.sequence.to_be_bytes())?;
         writer.write_all(&self.destination.to_be_bytes())?;
         writer.write_all(self.recipient.as_ref())?;
-        writer.write_all(&self.sequence.to_be_bytes())?;
-        Ok(36 + 36 + 4 + self.body.len())
+        writer.write_all(&self.body)?;
+        Ok(OPTICS_MESSAGE_PREFIX_LEN + self.body.len())
     }
 }
 
-impl Decode for StampedMessage {
+impl Decode for OpticsMessage {
     fn read_from<R>(reader: &mut R) -> Result<Self, OpticsError>
     where
         R: std::io::Read,
@@ -272,12 +276,12 @@ impl Decode for StampedMessage {
     }
 }
 
-impl StampedMessage {
+impl OpticsMessage {
     /// Convert the message to a leaf
     pub fn to_leaf(&self) -> H256 {
-        let mut k = Keccak256::new();
-        self.write_to(&mut k).expect("!write");
-        H256::from_slice(k.finalize().as_slice())
+        let mut buf = vec![];
+        self.write_to(&mut buf).expect("!write");
+        keccak256(buf).into()
     }
 }
 

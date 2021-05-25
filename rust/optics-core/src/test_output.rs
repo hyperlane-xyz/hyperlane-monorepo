@@ -1,8 +1,10 @@
 use crate::{
+    accumulator::{merkle::MerkleTree, TREE_DEPTH},
     utils::{destination_and_sequence, home_domain_hash},
-    FailureNotification, Update,
+    FailureNotification, OpticsMessage, Update,
 };
-use ethers::core::types::H256;
+use ethers::core::types::{H160, H256};
+use hex::FromHex;
 
 use serde_json::{json, Value};
 use std::{fs::OpenOptions, io::Write};
@@ -10,7 +12,76 @@ use std::{fs::OpenOptions, io::Write};
 /// Test functions that output json files
 #[cfg(feature = "output")]
 pub mod output_functions {
+    use std::str::FromStr;
+
     use super::*;
+
+    /// Output proof to /vector/messageTestCases.json
+    pub fn output_message_and_leaf() {
+        let optics_message = OpticsMessage {
+            origin: 1000,
+            sender: H256::from(
+                H160::from_str("0x1111111111111111111111111111111111111111").unwrap(),
+            ),
+            sequence: 1,
+            destination: 2000,
+            recipient: H256::from(
+                H160::from_str("0x2222222222222222222222222222222222222222").unwrap(),
+            ),
+            body: Vec::from_hex("1234").unwrap(),
+        };
+
+        let message_json = json!({
+            "origin": optics_message.origin,
+            "sender": optics_message.sender,
+            "destination": optics_message.destination,
+            "recipient": optics_message.recipient,
+            "sequence": optics_message.sequence,
+            "body": optics_message.body,
+            "leaf": optics_message.to_leaf(),
+        });
+        let json = json!({ "testCases": [message_json] }).to_string();
+
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("../../vectors/messageTestCases.json")
+            .expect("Failed to open/create file");
+
+        file.write_all(json.as_bytes())
+            .expect("Failed to write to file");
+    }
+
+    pub fn output_merkle_proof() {
+        let mut tree = MerkleTree::create(&[], TREE_DEPTH);
+
+        let optics_message = OpticsMessage {
+            origin: 1000,
+            sender: H256::from(H160::from_str("0xd753c12650c280383Ce873Cc3a898F6f53973d16").unwrap()),
+            destination: 2000,
+            recipient: H256::from(H160::from_str("0xa779C1D17bC5230c07afdC51376CAC1cb3Dd5314").unwrap()),
+            sequence: 1,
+            body: Vec::from_hex("01010000000000000000000000006b39b761b1b64c8c095bf0e3bb0c6a74705b4788000000000000000000000000000000000000000000000000000000000000004499a88ec400000000000000000000000024432a08869578aaf4d1eada12e1e78f171b1a2b000000000000000000000000f66cfdf074d2ffd6a4037be3a669ed04380aef2b").unwrap(),
+        };
+
+        tree.push_leaf(optics_message.to_leaf(), TREE_DEPTH)
+            .unwrap();
+        let proof = tree.generate_proof(0, TREE_DEPTH);
+
+        let proof_json = json!({ "leaf": proof.0, "path": proof.1 });
+        let json = json!({ "proof": proof_json }).to_string();
+
+        let mut file = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open("../../vectors/proof.json")
+            .expect("Failed to open/create file");
+
+        file.write_all(json.as_bytes())
+            .expect("Failed to write to file");
+    }
 
     /// Outputs domain hash test cases in /vector/domainHashTestCases.json
     pub fn output_home_domain_hashes() {

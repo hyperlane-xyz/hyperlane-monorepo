@@ -8,6 +8,7 @@ edition = "2018"
 
 [dependencies]
 ethers = { git = "https://github.com/gakonst/ethers-rs" }
+hex = "0.4.3"
 sha3 = "0.9.1"
 lazy_static = "*"
 thiserror = "*"
@@ -30,6 +31,10 @@ ledger = ["ethers/ledger"]
 [[example]]
 name = "toy"
 path = "./bin/toy.rs"
+
+[[bin]]
+name = "proof_output"
+path = "bin/proof_output.rs"
 
 [[bin]]
 name = "lib_test_output"
