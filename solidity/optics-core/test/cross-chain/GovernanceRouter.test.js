@@ -2,13 +2,21 @@ const { ethers } = require('hardhat');
 const { provider } = waffle;
 const { expect } = require('chai');
 const { domainsToTestConfigs } = require('./generateTestChainConfigs');
-const { formatOpticsMessage } = require('./crossChainTestUtils');
+const testUtils = require('../utils');
+const {
+  enqueueUpdateToReplica,
+  formatCall,
+  formatOpticsMessage,
+} = require('./crossChainTestUtils');
 const {
   deployMultipleChains,
   getHome,
   getReplica,
   getGovernanceRouter,
+  getUpgradeBeaconController,
+  getUpdaterManager,
 } = require('./deployCrossChainTest');
+const { proof } = require('../../../../vectors/proof.json');
 
 /*
  * Deploy the full Optics suite on two chains
@@ -26,6 +34,7 @@ describe('GovernanceRouter', async () => {
     nonGovernorReplicaOnGovernorChain,
     firstGovernor,
     secondGovernor,
+    secondGovernorSigner,
     updater,
     chainDetails;
 
@@ -48,7 +57,6 @@ describe('GovernanceRouter', async () => {
     chainDetails = await deployMultipleChains(configs);
 
     // set updater
-    let secondGovernorSigner;
     [signer, secondGovernorSigner] = provider.getWallets();
     updater = await optics.Updater.fromSigner(signer, governorDomain);
 
@@ -56,17 +64,7 @@ describe('GovernanceRouter', async () => {
     governorRouter = getGovernanceRouter(chainDetails, governorDomain);
     nonGovernorRouter = getGovernanceRouter(chainDetails, nonGovernorDomain);
 
-    // set remote governance router addresses
-    governorRouter.setRouterAddress(
-      nonGovernorDomain,
-      nonGovernorRouter.address,
-    );
-    nonGovernorRouter.setRouterAddress(governorDomain, governorRouter.address);
-
-    // transfer governorship to governor router on non governor router
     firstGovernor = await governorRouter.governor();
-    nonGovernorRouter.transferGovernor(governorDomain, firstGovernor);
-
     secondGovernor = await secondGovernorSigner.getAddress();
 
     governorHome = getHome(chainDetails, governorDomain);
@@ -226,32 +224,14 @@ describe('GovernanceRouter', async () => {
   });
 
   it('Accepts valid call messages', async () => {
-    // Create address for router to enroll and domain for router
-    const testRecipient = await optics.deployImplementation('TestRecipient');
+    const TestRecipient = await optics.deployImplementation('TestRecipient');
 
-    const TestRecipient = await ethers.getContractFactory('TestRecipient');
-    const string = 'String!';
-    const receiveStringFunction =
-      TestRecipient.interface.getFunction('receiveString');
-    const receiveStringEncoded = TestRecipient.interface.encodeFunctionData(
-      receiveStringFunction,
-      [string],
-    );
-    const receiveStringEncodedLength = await nonGovernorRouter.getMessageLength(
-      receiveStringEncoded,
-    );
-
-    const callData = {
-      to: optics.ethersAddressToBytes32(testRecipient.address),
-      dataLen: receiveStringEncodedLength,
-      data: receiveStringEncoded,
-    };
+    // Format optics call message
+    const arg = 'String!';
+    const call = await formatCall(TestRecipient, 'receiveString', [arg]);
 
     // Create Call message to test recipient that calls receiveString
-    const callMessage = optics.GovernanceRouter.formatCalls([
-      callData,
-      callData,
-    ]);
+    const callMessage = optics.GovernanceRouter.formatCalls([call, call]);
 
     const opticsMessage = await formatOpticsMessage(
       governorReplicaOnNonGovernorChain,
@@ -346,5 +326,197 @@ describe('GovernanceRouter', async () => {
     );
     // Governor HAS been transferred on original non-governor domain
     await expectGovernor(nonGovernorRouter, nonGovernorDomain, secondGovernor);
+  });
+
+  it('Upgrades using GovernanceRouter call', async () => {
+    const a = 5;
+    const b = 10;
+    const stateVar = 17;
+
+    // get upgradeBeaconController
+    const upgradeBeaconController = getUpgradeBeaconController(
+      chainDetails,
+      governorDomain,
+    );
+
+    // Set up contract suite
+    const { contracts } = await optics.deployUpgradeSetupAndProxy(
+      'MysteryMathV1',
+      [],
+      [],
+      upgradeBeaconController,
+    );
+    const mysteryMathProxy = contracts.proxyWithImplementation;
+    const upgradeBeacon = contracts.upgradeBeacon;
+
+    // Set state of proxy
+    await mysteryMathProxy.setState(stateVar);
+
+    // expect results before upgrade
+    let versionResult = await mysteryMathProxy.version();
+    expect(versionResult).to.equal(1);
+    let mathResult = await mysteryMathProxy.doMath(a, b);
+    expect(mathResult).to.equal(a + b);
+    let stateResult = await mysteryMathProxy.getState();
+    expect(stateResult).to.equal(stateVar);
+
+    // Deploy Implementation 2
+    const implementation = await optics.deployImplementation('MysteryMathV2');
+
+    // Format optics call message
+    const call = await formatCall(upgradeBeaconController, 'upgrade', [
+      upgradeBeacon.address,
+      implementation.address,
+    ]);
+
+    // dispatch call on local governorRouter
+    await expect(governorRouter.callLocal([call])).to.emit(
+      upgradeBeaconController,
+      'BeaconUpgraded',
+    );
+
+    // test implementation was upgraded
+    versionResult = await mysteryMathProxy.version();
+    expect(versionResult).to.equal(2);
+
+    mathResult = await mysteryMathProxy.doMath(a, b);
+    expect(mathResult).to.equal(a * b);
+
+    stateResult = await mysteryMathProxy.getState();
+    expect(stateResult).to.equal(stateVar);
+  });
+
+  it('Sends cross-chain message to upgrade contract', async () => {
+    const a = 5;
+    const b = 10;
+    const stateVar = 17;
+
+    // get upgradeBeaconController
+    const upgradeBeaconController = getUpgradeBeaconController(
+      chainDetails,
+      nonGovernorDomain,
+    );
+
+    // Set up contract suite
+    const { contracts } = await optics.deployUpgradeSetupAndProxy(
+      'MysteryMathV1',
+      [],
+      [],
+      upgradeBeaconController,
+    );
+    const mysteryMathProxy = contracts.proxyWithImplementation;
+    const upgradeBeacon = contracts.upgradeBeacon;
+
+    // Set state of proxy
+    await mysteryMathProxy.setState(stateVar);
+
+    // expect results before upgrade
+    let versionResult = await mysteryMathProxy.version();
+    expect(versionResult).to.equal(1);
+    let mathResult = await mysteryMathProxy.doMath(a, b);
+    expect(mathResult).to.equal(a + b);
+    let stateResult = await mysteryMathProxy.getState();
+    expect(stateResult).to.equal(stateVar);
+
+    // Deploy Implementation 2
+    const implementation = await optics.deployImplementation('MysteryMathV2');
+
+    // Format optics call message
+    const call = await formatCall(upgradeBeaconController, 'upgrade', [
+      upgradeBeacon.address,
+      implementation.address,
+    ]);
+
+    const currentRoot = await governorHome.current();
+
+    // dispatch call on local governorRouter
+    governorRouter.callRemote(nonGovernorDomain, [call]);
+
+    const [, latestRoot] = await governorHome.suggestUpdate();
+
+    const { signature } = await updater.signUpdate(currentRoot, latestRoot);
+
+    await expect(governorHome.update(currentRoot, latestRoot, signature))
+      .to.emit(governorHome, 'Update')
+      .withArgs(governorDomain, currentRoot, latestRoot, signature);
+
+    expect(await governorHome.current()).to.equal(latestRoot);
+    expect(await governorHome.queueContains(latestRoot)).to.be.false;
+
+    await enqueueUpdateToReplica(
+      chainDetails,
+      { startRoot: currentRoot, finalRoot: latestRoot, signature },
+      governorDomain,
+      nonGovernorDomain,
+    );
+
+    const [pending] = await governorReplicaOnNonGovernorChain.nextPending();
+    expect(pending).to.equal(latestRoot);
+
+    // Increase time enough for both updates to be confirmable
+    const optimisticSeconds = chainDetails[nonGovernorDomain].optimisticSeconds;
+    await testUtils.increaseTimestampBy(provider, optimisticSeconds * 2);
+
+    // Replica should be able to confirm updates
+    expect(await governorReplicaOnNonGovernorChain.canConfirm()).to.be.true;
+
+    await governorReplicaOnNonGovernorChain.confirm();
+
+    // after confirming, current root should be equal to the last submitted update
+    expect(await governorReplicaOnNonGovernorChain.current()).to.equal(
+      latestRoot,
+    );
+
+    const callMessage = optics.GovernanceRouter.formatCalls([call]);
+
+    const opticsMessage = optics.formatMessage(
+      governorDomain,
+      governorRouter.address,
+      1,
+      nonGovernorDomain,
+      nonGovernorRouter.address,
+      callMessage,
+    );
+
+    const { path } = proof;
+    const index = 0;
+    await governorReplicaOnNonGovernorChain.proveAndProcess(
+      opticsMessage,
+      path,
+      index,
+    );
+
+    // test implementation was upgraded
+    versionResult = await mysteryMathProxy.version();
+    expect(versionResult).to.equal(2);
+
+    mathResult = await mysteryMathProxy.doMath(a, b);
+    expect(mathResult).to.equal(a * b);
+
+    stateResult = await mysteryMathProxy.getState();
+    expect(stateResult).to.equal(stateVar);
+  });
+
+  it('Calls UpdaterManager to change the Updater on Home', async () => {
+    const [newUpdater] = provider.getWallets();
+    const updaterManager = getUpdaterManager(chainDetails, governorDomain);
+
+    // check current Updater address on Home
+    let currentUpdaterAddr = await governorHome.updater();
+    expect(currentUpdaterAddr).to.equal(updater.signer.address);
+
+    // format optics call message
+    const call = await formatCall(updaterManager, 'setUpdater', [
+      newUpdater.address,
+    ]);
+
+    await expect(governorRouter.callLocal([call])).to.emit(
+      governorHome,
+      'NewUpdater',
+    );
+
+    // check for new updater
+    currentUpdaterAddr = await governorHome.updater();
+    expect(currentUpdaterAddr).to.equal(newUpdater.address);
   });
 });

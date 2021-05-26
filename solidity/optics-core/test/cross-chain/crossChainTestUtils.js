@@ -180,9 +180,24 @@ async function formatOpticsMessage(
   return opticsMessage;
 }
 
+async function formatCall(destinationContract, functionStr, functionArgs) {
+  // Set up data for call message
+  const callFunc = destinationContract.interface.getFunction(functionStr);
+  const callDataEncoded = destinationContract.interface.encodeFunctionData(
+    callFunc,
+    functionArgs,
+  );
+
+  return {
+    to: optics.ethersAddressToBytes32(destinationContract.address),
+    data: callDataEncoded,
+  };
+}
+
 module.exports = {
   enqueueUpdateToReplica,
   enqueueMessagesAndUpdateHome,
   formatMessage,
+  formatCall,
   formatOpticsMessage,
 };
