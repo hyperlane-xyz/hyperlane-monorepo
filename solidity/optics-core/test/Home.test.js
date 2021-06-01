@@ -81,14 +81,14 @@ describe('Home', async () => {
     for (let testCase of homeDomainHashTestCases) {
       const { contracts } = await optics.deployUpgradeSetupAndProxy(
         'TestHome',
-        [testCase.domain],
+        [testCase.homeDomain],
         [mockUpdaterManager.address],
       );
       const tempHome = contracts.proxyWithImplementation;
 
-      const { expectedHomeDomainHash } = testCase;
+      const { expectedDomainHash } = testCase;
       const homeDomainHash = await tempHome.testHomeDomainHash();
-      expect(homeDomainHash).to.equal(expectedHomeDomainHash);
+      expect(homeDomainHash).to.equal(expectedDomainHash);
     }
   });
 
@@ -260,8 +260,10 @@ describe('Home', async () => {
     for (let testCase of testCases) {
       let { destination, sequence, expectedDestinationAndSequence } = testCase;
 
-      const solidityDestinationAndSequence =
-        await home.testDestinationAndSequence(destination, sequence);
+      const solidityDestinationAndSequence = await home.testDestinationAndSequence(
+        destination,
+        sequence,
+      );
 
       expect(solidityDestinationAndSequence).to.equal(
         expectedDestinationAndSequence,
