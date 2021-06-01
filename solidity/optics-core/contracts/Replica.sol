@@ -60,12 +60,11 @@ contract Replica is Initializable, Common, QueueManager {
 
         queue.initialize();
 
-        updater = _updater;
         current = _current;
         optimisticSeconds = _optimisticSeconds;
         nextToProcess = _nextToProcess;
 
-        state = States.ACTIVE;
+        Common.initialize(_updater);
     }
 
     /**
