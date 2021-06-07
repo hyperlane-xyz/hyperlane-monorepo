@@ -110,7 +110,7 @@ macro_rules! decl_settings {
                 s.merge(config::File::with_name(&format!("./config/{}/{}", env, fname)))?;
                 s.merge(config::File::with_name(&format!("./config/{}/{}-partial", env, $name)).required(false))?;
 
-                // Derive Environment prefix from agent name
+                // Derive additional prefix from agent name
                 let prefix = format!("OPT_{}", $name.to_ascii_uppercase());
                 s.merge(config::Environment::with_prefix(&prefix).separator("_"))?;
 
