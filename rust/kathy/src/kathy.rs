@@ -15,6 +15,7 @@ use optics_base::{
     decl_agent,
 };
 use optics_core::{traits::Home, Message};
+use tracing::info;
 
 use crate::settings::Settings;
 
@@ -57,8 +58,10 @@ impl OpticsAgent for Kathy {
         tokio::spawn(async move {
             loop {
                 if let Some(message) = generator.gen_chat() {
+                    info!("Enqueuing message with body length {}", message.body.len());
                     home.enqueue(&message).await?;
                 } else {
+                    info!("Reached the end of the static message queue. Shutting down.");
                     return Ok(());
                 }
 
