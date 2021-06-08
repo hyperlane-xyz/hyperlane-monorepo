@@ -10,7 +10,7 @@ use crate::{home::Homes, replica::Replicas, xapp::ConnectionManagers};
 /// Specify the chain name (enum variant) in toml under the `chain` key
 /// Specify the connection details as a toml object under the `connection` key.
 #[derive(Debug, Deserialize)]
-#[serde(tag = "rpcStyle", content = "config", rename_all = "camelCase")]
+#[serde(tag = "rpcStyle", content = "connection", rename_all = "camelCase")]
 pub enum ChainConf {
     /// Ethereum configuration
     Ethereum(EthereumConnection),

@@ -4,6 +4,19 @@ use color_eyre::{eyre::bail, Report};
 use ethers::core::types::H256;
 use sha3::{Digest, Keccak256};
 
+/// Strips the '0x' prefix off of hex string so it can be deserialized.
+///
+/// # Arguments
+///
+/// * `s` - The hex str
+pub fn strip_0x_prefix(s: &str) -> &str {
+    if s.len() < 2 || &s[..2] != "0x" {
+        s
+    } else {
+        &s[2..]
+    }
+}
+
 /// Computes hash of home domain concatenated with "OPTICS"
 pub fn home_domain_hash(home_domain: u32) -> H256 {
     H256::from_slice(
@@ -34,13 +47,21 @@ impl<const N: usize> AsRef<String> for HexString<N> {
 }
 
 impl<const N: usize> HexString<N> {
-    /// Instantiate a new HexString from a String
-    pub fn from_string<S: AsRef<str>>(s: S) -> Result<Self, Report> {
-        // Lazy. Should do the check as a cheaper action
-        if s.as_ref().len() == N && hex::decode(s.as_ref()).is_ok() {
-            return Ok(Self(s.as_ref().to_owned()));
+    /// Instantiate a new HexString from any `AsRef<str>`. Tolerates 0x
+    /// prefixing. A succesful instantiation will create an owned copy of the
+    /// string.
+    pub fn from_string<S: AsRef<str>>(candidate: S) -> Result<Self, Report> {
+        let s = strip_0x_prefix(candidate.as_ref());
+
+        if s.len() != N {
+            bail!("Expected string of length {}, got {}", N, s.len());
         }
-        bail!("Expected hex string of length {}", N)
+
+        // Lazy. Should do the check as a cheaper action
+        if hex::decode(s).is_err() {
+            bail!("String is not hex");
+        }
+        Ok(Self(s.to_owned()))
     }
 }
 
