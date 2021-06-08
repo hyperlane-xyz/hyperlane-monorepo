@@ -7,6 +7,8 @@ use optics_core::{
 };
 use std::sync::Arc;
 
+use crate::report_tx;
+
 #[allow(missing_docs)]
 abigen!(
     EthereumConnectionManagerInternal,
@@ -86,13 +88,11 @@ where
         replica: OpticsIdentifier,
         domain: u32,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
+        let tx = self
             .contract
-            .owner_enroll_replica(replica.as_ethereum_address(), domain)
-            .send()
-            .await?
-            .await?
-            .into())
+            .owner_enroll_replica(replica.as_ethereum_address(), domain);
+
+        Ok(report_tx!(tx).into())
     }
 
     #[tracing::instrument(err)]
@@ -100,24 +100,18 @@ where
         &self,
         replica: OpticsIdentifier,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
+        let tx = self
             .contract
-            .owner_unenroll_replica(replica.as_ethereum_address())
-            .send()
-            .await?
-            .await?
-            .into())
+            .owner_unenroll_replica(replica.as_ethereum_address());
+
+        Ok(report_tx!(tx).into())
     }
 
     #[tracing::instrument(err)]
     async fn set_home(&self, home: OpticsIdentifier) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .set_home(home.as_ethereum_address())
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx = self.contract.set_home(home.as_ethereum_address());
+
+        Ok(report_tx!(tx).into())
     }
 
     #[tracing::instrument(err)]
@@ -127,13 +121,11 @@ where
         domain: u32,
         access: bool,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .set_watcher_permission(watcher.as_ethereum_address(), domain, access)
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx =
+            self.contract
+                .set_watcher_permission(watcher.as_ethereum_address(), domain, access);
+
+        Ok(report_tx!(tx).into())
     }
 
     #[tracing::instrument(err)]
@@ -141,16 +133,12 @@ where
         &self,
         signed_failure: &SignedFailureNotification,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .unenroll_replica(
-                signed_failure.notification.home_domain,
-                signed_failure.notification.updater.into(),
-                signed_failure.signature.to_vec(),
-            )
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx = self.contract.unenroll_replica(
+            signed_failure.notification.home_domain,
+            signed_failure.notification.updater.into(),
+            signed_failure.signature.to_vec(),
+        );
+
+        Ok(report_tx!(tx).into())
     }
 }

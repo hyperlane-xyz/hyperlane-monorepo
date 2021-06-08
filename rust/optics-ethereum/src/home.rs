@@ -10,6 +10,8 @@ use optics_core::{
 
 use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
 
+use crate::report_tx;
+
 #[allow(missing_docs)]
 abigen!(EthereumHomeInternal, "./optics-ethereum/abis/Home.abi.json");
 
@@ -136,17 +138,13 @@ where
 
     #[tracing::instrument(err)]
     async fn update(&self, update: &SignedUpdate) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .update(
-                update.update.previous_root.to_fixed_bytes(),
-                update.update.new_root.to_fixed_bytes(),
-                update.signature.to_vec(),
-            )
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx = self.contract.update(
+            update.update.previous_root.to_fixed_bytes(),
+            update.update.new_root.to_fixed_bytes(),
+            update.signature.to_vec(),
+        );
+
+        Ok(report_tx!(tx).into())
     }
 
     #[tracing::instrument(err)]
@@ -154,21 +152,18 @@ where
         &self,
         double: &DoubleUpdate,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .double_update(
-                double.0.update.previous_root.to_fixed_bytes(),
-                [
-                    double.0.update.new_root.to_fixed_bytes(),
-                    double.1.update.new_root.to_fixed_bytes(),
-                ],
-                double.0.signature.to_vec(),
-                double.1.signature.to_vec(),
-            )
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx = self.contract.double_update(
+            double.0.update.previous_root.to_fixed_bytes(),
+            [
+                double.0.update.new_root.to_fixed_bytes(),
+                double.1.update.new_root.to_fixed_bytes(),
+            ],
+            double.0.signature.to_vec(),
+            double.1.signature.to_vec(),
+        );
+        let response = report_tx!(tx);
+
+        Ok(response.into())
     }
 }
 
@@ -236,17 +231,13 @@ where
 
     #[tracing::instrument(err)]
     async fn enqueue(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .enqueue(
-                message.destination,
-                message.recipient.to_fixed_bytes(),
-                message.body.clone(),
-            )
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx = self.contract.enqueue(
+            message.destination,
+            message.recipient.to_fixed_bytes(),
+            message.body.clone(),
+        );
+
+        Ok(report_tx!(tx).into())
     }
 
     async fn queue_contains(&self, root: H256) -> Result<bool, ChainCommunicationError> {
@@ -258,17 +249,13 @@ where
         &self,
         update: &SignedUpdate,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .improper_update(
-                update.update.previous_root.to_fixed_bytes(),
-                update.update.new_root.to_fixed_bytes(),
-                update.signature.to_vec(),
-            )
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx = self.contract.improper_update(
+            update.update.previous_root.to_fixed_bytes(),
+            update.update.new_root.to_fixed_bytes(),
+            update.signature.to_vec(),
+        );
+
+        Ok(report_tx!(tx).into())
     }
 
     #[tracing::instrument(err)]

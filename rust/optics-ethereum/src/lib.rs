@@ -4,6 +4,8 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+mod macros;
+
 /// Home abi
 #[cfg(not(doctest))]
 mod home;

@@ -9,6 +9,8 @@ use optics_core::{
 
 use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
 
+use crate::report_tx;
+
 #[allow(missing_docs)]
 abigen!(
     EthereumReplicaInternal,
@@ -142,17 +144,14 @@ where
 
     #[tracing::instrument(err)]
     async fn update(&self, update: &SignedUpdate) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .update(
-                update.update.previous_root.to_fixed_bytes(),
-                update.update.new_root.to_fixed_bytes(),
-                update.signature.to_vec(),
-            )
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx = self.contract.update(
+            update.update.previous_root.to_fixed_bytes(),
+            update.update.new_root.to_fixed_bytes(),
+            update.signature.to_vec(),
+        );
+
+        let result = report_tx!(tx);
+        Ok(result.into())
     }
 
     #[tracing::instrument(err)]
@@ -160,21 +159,17 @@ where
         &self,
         double: &DoubleUpdate,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .double_update(
-                double.0.update.previous_root.to_fixed_bytes(),
-                [
-                    double.0.update.new_root.to_fixed_bytes(),
-                    double.1.update.new_root.to_fixed_bytes(),
-                ],
-                double.0.signature.to_vec(),
-                double.1.signature.to_vec(),
-            )
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx = self.contract.double_update(
+            double.0.update.previous_root.to_fixed_bytes(),
+            [
+                double.0.update.new_root.to_fixed_bytes(),
+                double.1.update.new_root.to_fixed_bytes(),
+            ],
+            double.0.signature.to_vec(),
+            double.1.signature.to_vec(),
+        );
+
+        Ok(report_tx!(tx).into())
     }
 }
 
@@ -209,7 +204,8 @@ where
 
     #[tracing::instrument(err)]
     async fn confirm(&self) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self.contract.confirm().send().await?.await?.into())
+        let tx = self.contract.confirm();
+        Ok(report_tx!(tx).into())
     }
 
     #[tracing::instrument(err)]
@@ -230,24 +226,17 @@ where
             .enumerate()
             .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
 
-        Ok(self
+        let tx = self
             .contract
-            .prove(proof.leaf.into(), sol_proof, proof.index.into())
-            .send()
-            .await?
-            .await?
-            .into())
+            .prove(proof.leaf.into(), sol_proof, proof.index.into());
+
+        Ok(report_tx!(tx).into())
     }
 
     #[tracing::instrument(err)]
     async fn process(&self, message: &OpticsMessage) -> Result<TxOutcome, ChainCommunicationError> {
-        Ok(self
-            .contract
-            .process(message.to_vec())
-            .send()
-            .await?
-            .await?
-            .into())
+        let tx = self.contract.process(message.to_vec());
+        Ok(report_tx!(tx).into())
     }
 
     #[tracing::instrument(err)]
@@ -262,12 +251,9 @@ where
             .enumerate()
             .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
 
-        Ok(self
+        let tx = self
             .contract
-            .prove_and_process(message.to_vec(), sol_proof, proof.index.into())
-            .send()
-            .await?
-            .await?
-            .into())
+            .prove_and_process(message.to_vec(), sol_proof, proof.index.into());
+        Ok(report_tx!(tx).into())
     }
 }
