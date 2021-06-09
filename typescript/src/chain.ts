@@ -5,6 +5,7 @@ import * as contracts from './typechain';
 
 export type Address = string;
 
+// Optic's complete contract suite
 export type Contracts = {
   upgradeBeaconController?: contracts.UpgradeBeaconController;
   xappConnectionManager?: contracts.XAppConnectionManager;
@@ -15,6 +16,11 @@ export type Contracts = {
   replicas: Record<number, BeaconProxy<contracts.Replica>>;
 };
 
+/**
+ * Converts entire contract suite to json
+ *
+ * @param contracts - The contracts
+ */
 export function toJson(contracts: Contracts): string {
   const replicas: Record<string, ProxyAddresses> = {};
   Object.entries(contracts.replicas).forEach(([k, v]) => {
@@ -47,6 +53,7 @@ export function toJson(contracts: Contracts): string {
   );
 }
 
+// config for generating a Chain
 export interface ChainConfig {
   name: string;
   rpc: string;
@@ -58,6 +65,7 @@ export interface ChainConfig {
   gasPrice?: ethers.BigNumberish;
 }
 
+// deserialized version of the ChainConfig
 export type Chain = {
   name: string;
   config: ChainConfig;
@@ -70,11 +78,17 @@ export type Chain = {
   gasPrice: ethers.BigNumber;
 };
 
+// data about a chain and its deployed contracts
 export type Deploy = {
   chain: Chain;
   contracts: Contracts;
 };
 
+/**
+ * Builds Chain from config
+ *
+ * @param config - The chain config
+ */
 export function toChain(config: ChainConfig): Chain {
   const provider = new ethers.providers.JsonRpcProvider(config.rpc);
   const deployer = new ethers.Wallet(config.deployerKey, provider);
@@ -91,6 +105,11 @@ export function toChain(config: ChainConfig): Chain {
   };
 }
 
+/**
+ * Instantiates a new deploy instance
+ *
+ * @param config - The chain config
+ */
 export function freshDeploy(config: ChainConfig): Deploy {
   return {
     chain: toChain(config),
@@ -127,43 +146,58 @@ type RustConfig = {
   dbPath: string;
 };
 
-function buildConfig(left: Deploy, right: Deploy): RustConfig {
-  const replica = {
-    address: right.contracts.replicas[left.chain.domain].proxy.address,
-    domain: right.chain.domain,
-    name: right.chain.name,
+export function buildConfig(local: Deploy, remotes: Deploy[]): RustConfig {
+  const home = {
+    address: local.contracts.home!.proxy.address,
+    domain: local.chain.domain,
+    name: local.chain.name,
     rpcStyle: 'ethereum',
     connection: {
-      type: 'http',
-      url: right.chain.config.rpc,
-    },
-  };
-  const home = {
-    address: left.contracts.home!.proxy.address,
-    domain: left.chain.domain,
-    name: left.chain.name,
-    rpcStyle: 'ethereum', // TODO
-    connection: {
       type: 'http', // TODO
-      url: left.chain.config.rpc,
+      url: local.chain.config.rpc,
     },
   };
 
-  return {
-    signers: { [replica.name]: { key: '', type: 'hexKey' } },
-    replicas: { [replica.name]: replica },
+  const rustConfig: RustConfig = {
+    signers: {},
+    replicas: {},
     home,
     tracing: {
       level: 'debug',
       style: 'pretty',
     },
     dbPath: 'db_path',
-  };
+  }
+
+  for (var remote of remotes) {
+    const replica = {
+      address: remote.contracts.replicas[local.chain.domain].proxy.address,
+      domain: remote.chain.domain,
+      name: remote.chain.name,
+      rpcStyle: 'ethereum',
+      connection: {
+        type: 'http',
+        url: remote.chain.config.rpc,
+      },
+    };
+    rustConfig.signers[replica.name] = { key: '', type: 'hexKey' }
+    rustConfig.replicas[replica.name] = replica
+  }
+
+  return rustConfig;
 }
 
-export function toRustConfigs(
-  left: Deploy,
-  right: Deploy,
-): [RustConfig, RustConfig] {
-  return [buildConfig(left, right), buildConfig(right, left)];
+export function toRustConfigs(deploys: Deploy[]): RustConfig[] {
+  let configs: RustConfig[] = [];
+  for (let i = 0; i < deploys.length; i++) {
+    const local = deploys[i];
+
+    // copy array so original is not altered
+    const copy = deploys.slice()
+    const remotes = copy.splice(i, 1);
+
+    // build and add new config
+    configs.push(buildConfig(local, remotes));
+  }
+  return configs;
 }
