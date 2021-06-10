@@ -24,7 +24,6 @@ interface CommonInterface extends ethers.utils.Interface {
     "current()": FunctionFragment;
     "doubleUpdate(bytes32,bytes32[2],bytes,bytes)": FunctionFragment;
     "homeDomainHash()": FunctionFragment;
-    "initialize(address)": FunctionFragment;
     "localDomain()": FunctionFragment;
     "state()": FunctionFragment;
     "updater()": FunctionFragment;
@@ -39,7 +38,6 @@ interface CommonInterface extends ethers.utils.Interface {
     functionFragment: "homeDomainHash",
     values?: undefined
   ): string;
-  encodeFunctionData(functionFragment: "initialize", values: [string]): string;
   encodeFunctionData(
     functionFragment: "localDomain",
     values?: undefined
@@ -56,7 +54,6 @@ interface CommonInterface extends ethers.utils.Interface {
     functionFragment: "homeDomainHash",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
@@ -129,11 +126,6 @@ export class Common extends BaseContract {
 
     homeDomainHash(overrides?: CallOverrides): Promise<[string]>;
 
-    initialize(
-      _updater: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
     state(overrides?: CallOverrides): Promise<[number]>;
@@ -153,11 +145,6 @@ export class Common extends BaseContract {
 
   homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
-  initialize(
-    _updater: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   localDomain(overrides?: CallOverrides): Promise<number>;
 
   state(overrides?: CallOverrides): Promise<number>;
@@ -176,8 +163,6 @@ export class Common extends BaseContract {
     ): Promise<void>;
 
     homeDomainHash(overrides?: CallOverrides): Promise<string>;
-
-    initialize(_updater: string, overrides?: CallOverrides): Promise<void>;
 
     localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -231,11 +216,6 @@ export class Common extends BaseContract {
 
     homeDomainHash(overrides?: CallOverrides): Promise<BigNumber>;
 
-    initialize(
-      _updater: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
     state(overrides?: CallOverrides): Promise<BigNumber>;
@@ -255,11 +235,6 @@ export class Common extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     homeDomainHash(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    initialize(
-      _updater: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 

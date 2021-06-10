@@ -30,10 +30,10 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     "doubleUpdate(bytes32,bytes32[2],bytes,bytes)": FunctionFragment;
     "homeDomainHash()": FunctionFragment;
     "initialize(uint32,address,bytes32,uint256,uint256)": FunctionFragment;
-    "lastProcessed()": FunctionFragment;
     "localDomain()": FunctionFragment;
     "messages(bytes32)": FunctionFragment;
     "nextPending()": FunctionFragment;
+    "nextToProcess()": FunctionFragment;
     "optimisticSeconds()": FunctionFragment;
     "previous()": FunctionFragment;
     "process(bytes)": FunctionFragment;
@@ -88,16 +88,16 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     values: [BigNumberish, string, BytesLike, BigNumberish, BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "lastProcessed",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "localDomain",
     values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "messages", values: [BytesLike]): string;
   encodeFunctionData(
     functionFragment: "nextPending",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "nextToProcess",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -294,16 +294,16 @@ interface TestReplicaInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "lastProcessed",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "messages", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "nextPending",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "nextToProcess",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -438,21 +438,14 @@ export class TestReplica extends BaseContract {
 
     homeDomainHash(overrides?: CallOverrides): Promise<[string]>;
 
-    "initialize(uint32,address,bytes32,uint256,uint256)"(
+    initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
       _current: BytesLike,
       _optimisticSeconds: BigNumberish,
-      _lastProcessed: BigNumberish,
+      _nextToProcess: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
-
-    "initialize(address)"(
-      _updater: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
-    lastProcessed(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
@@ -463,6 +456,8 @@ export class TestReplica extends BaseContract {
     ): Promise<
       [string, BigNumber] & { _pending: string; _confirmAt: BigNumber }
     >;
+
+    nextToProcess(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     optimisticSeconds(overrides?: CallOverrides): Promise<[BigNumber]>;
 
@@ -673,21 +668,14 @@ export class TestReplica extends BaseContract {
 
   homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
-  "initialize(uint32,address,bytes32,uint256,uint256)"(
+  initialize(
     _remoteDomain: BigNumberish,
     _updater: string,
     _current: BytesLike,
     _optimisticSeconds: BigNumberish,
-    _lastProcessed: BigNumberish,
+    _nextToProcess: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
-
-  "initialize(address)"(
-    _updater: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
-  lastProcessed(overrides?: CallOverrides): Promise<BigNumber>;
 
   localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -696,6 +684,8 @@ export class TestReplica extends BaseContract {
   nextPending(
     overrides?: CallOverrides
   ): Promise<[string, BigNumber] & { _pending: string; _confirmAt: BigNumber }>;
+
+  nextToProcess(overrides?: CallOverrides): Promise<BigNumber>;
 
   optimisticSeconds(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -901,21 +891,14 @@ export class TestReplica extends BaseContract {
 
     homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
-    "initialize(uint32,address,bytes32,uint256,uint256)"(
+    initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
       _current: BytesLike,
       _optimisticSeconds: BigNumberish,
-      _lastProcessed: BigNumberish,
+      _nextToProcess: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
-
-    "initialize(address)"(
-      _updater: string,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    lastProcessed(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -926,6 +909,8 @@ export class TestReplica extends BaseContract {
     ): Promise<
       [string, BigNumber] & { _pending: string; _confirmAt: BigNumber }
     >;
+
+    nextToProcess(overrides?: CallOverrides): Promise<BigNumber>;
 
     optimisticSeconds(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -1164,27 +1149,22 @@ export class TestReplica extends BaseContract {
 
     homeDomainHash(overrides?: CallOverrides): Promise<BigNumber>;
 
-    "initialize(uint32,address,bytes32,uint256,uint256)"(
+    initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
       _current: BytesLike,
       _optimisticSeconds: BigNumberish,
-      _lastProcessed: BigNumberish,
+      _nextToProcess: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
-
-    "initialize(address)"(
-      _updater: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
-    lastProcessed(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
     messages(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
     nextPending(overrides?: CallOverrides): Promise<BigNumber>;
+
+    nextToProcess(overrides?: CallOverrides): Promise<BigNumber>;
 
     optimisticSeconds(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -1399,21 +1379,14 @@ export class TestReplica extends BaseContract {
 
     homeDomainHash(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    "initialize(uint32,address,bytes32,uint256,uint256)"(
+    initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
       _current: BytesLike,
       _optimisticSeconds: BigNumberish,
-      _lastProcessed: BigNumberish,
+      _nextToProcess: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
-
-    "initialize(address)"(
-      _updater: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    lastProcessed(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
@@ -1423,6 +1396,8 @@ export class TestReplica extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     nextPending(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    nextToProcess(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     optimisticSeconds(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 

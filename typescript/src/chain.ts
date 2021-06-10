@@ -161,7 +161,9 @@ export function buildConfig(local: Deploy, remotes: Deploy[]): RustConfig {
   };
 
   const rustConfig: RustConfig = {
-    signers: {},
+    signers: {
+      [home.name]: { key: '', type: 'hexKey' },
+    },
     replicas: {},
     home,
     tracing: {
@@ -169,7 +171,7 @@ export function buildConfig(local: Deploy, remotes: Deploy[]): RustConfig {
       style: 'pretty',
     },
     dbPath: 'db_path',
-  }
+  };
 
   for (var remote of remotes) {
     const replica = {
@@ -182,8 +184,8 @@ export function buildConfig(local: Deploy, remotes: Deploy[]): RustConfig {
         url: remote.chain.config.rpc,
       },
     };
-    rustConfig.signers[replica.name] = { key: '', type: 'hexKey' }
-    rustConfig.replicas[replica.name] = replica
+    rustConfig.signers[replica.name] = { key: '', type: 'hexKey' };
+    rustConfig.replicas[replica.name] = replica;
   }
 
   return rustConfig;
@@ -195,7 +197,7 @@ export function toRustConfigs(deploys: Deploy[]): RustConfig[] {
     const local = deploys[i];
 
     // copy array so original is not altered
-    const copy = deploys.slice()
+    const copy = deploys.slice();
     const remotes = copy.splice(i, 1);
 
     // build and add new config
