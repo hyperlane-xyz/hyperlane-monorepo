@@ -2,6 +2,7 @@ import * as ethers from 'ethers';
 import { BigNumber } from 'ethers';
 import { BeaconProxy, ProxyAddresses } from './proxyUtils';
 import * as contracts from './typechain';
+import { NonceManager } from '@ethersproject/experimental';
 
 export type Address = string;
 
@@ -91,7 +92,8 @@ export type Deploy = {
  */
 export function toChain(config: ChainConfig): Chain {
   const provider = new ethers.providers.JsonRpcProvider(config.rpc);
-  const deployer = new ethers.Wallet(config.deployerKey, provider);
+  const signer = new ethers.Wallet(config.deployerKey, provider);
+  const deployer = new NonceManager(signer);
   return {
     name: config.name,
     config: config,

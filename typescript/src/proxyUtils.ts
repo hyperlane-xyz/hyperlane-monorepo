@@ -68,7 +68,7 @@ export async function duplicate<T extends ethers.Contract>(
 
 /**
  * Returns an UNWAITED beacon
- * 
+ *
  * @dev The TX to deploy may still be in-flight
  * @dev We set manual gas here to suppress ethers's preflight checks
  *
@@ -91,7 +91,7 @@ async function _deployBeacon(
 
 /**
  * Returns an UNWAITED proxy
- * 
+ *
  * @dev The TX to deploy may still be in-flight
  * @dev We set manual gas here to suppress ethers's preflight checks
  *
