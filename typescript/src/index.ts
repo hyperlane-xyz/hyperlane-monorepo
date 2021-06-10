@@ -334,7 +334,7 @@ export async function transferGovernorship(gov: Deploy, non: Deploy) {
 
 /**
  * Deploys the entire optics suite of contracts on two chains.
- * 
+ *
  * @notice `gov` has the governance capability after setup
  *
  * @param gov - The governor chain deploy instance
@@ -409,7 +409,9 @@ export async function deployNChains(chains: Deploy[]) {
   for (let local of nonGovChains) {
     for (let remote of nonGovChains) {
       if (remote.chain.domain != local.chain.domain) {
-        console.log(`enrolling ${remote.chain.domain} on ${local.chain.domain}`)
+        console.log(
+          `enrolling ${remote.chain.domain} on ${local.chain.domain}`,
+        );
         await enrollRemote(local, remote);
       }
     }
@@ -423,8 +425,8 @@ export async function deployNChains(chains: Deploy[]) {
  *
  * @param deploys - The array of chain deploys
  */
- export function writeDeployOutput(deploys: Deploy[]) {
-  const dir = `../config/${Date.now()}`;
+export function writeDeployOutput(deploys: Deploy[]) {
+  const dir = `../rust/config/${Date.now()}`;
   for (let i = 0; i < deploys.length; i++) {
     const local = deploys[i];
 
@@ -436,7 +438,10 @@ export async function deployNChains(chains: Deploy[]) {
     const name = local.chain.name;
 
     fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(`${dir}/${name}_config.json`, JSON.stringify(config, null, 2));
+    fs.writeFileSync(
+      `${dir}/${name}_config.json`,
+      JSON.stringify(config, null, 2),
+    );
     fs.writeFileSync(`${dir}/${name}_contracts.json`, toJson(local.contracts));
   }
 }
