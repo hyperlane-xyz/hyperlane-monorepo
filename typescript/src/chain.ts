@@ -153,7 +153,7 @@ export function buildConfig(local: Deploy, remotes: Deploy[]): RustConfig {
     address: local.contracts.home!.proxy.address,
     domain: local.chain.domain,
     name: local.chain.name,
-    rpcStyle: 'ethereum',
+    rpcStyle: 'ethereum', // TODO
     connection: {
       type: 'http', // TODO
       url: local.chain.config.rpc,
@@ -173,7 +173,12 @@ export function buildConfig(local: Deploy, remotes: Deploy[]): RustConfig {
     dbPath: 'db_path',
   };
 
+  console.log(`fff have ${remotes.length} remotes`);
+
   for (var remote of remotes) {
+    console.log(`remote ${remote.chain.domain}`);
+    console.log(`local ${local.chain.domain}`);
+
     const replica = {
       address: remote.contracts.replicas[local.chain.domain].proxy.address,
       domain: remote.chain.domain,
@@ -184,6 +189,7 @@ export function buildConfig(local: Deploy, remotes: Deploy[]): RustConfig {
         url: remote.chain.config.rpc,
       },
     };
+
     rustConfig.signers[replica.name] = { key: '', type: 'hexKey' };
     rustConfig.replicas[replica.name] = replica;
   }
@@ -197,8 +203,9 @@ export function toRustConfigs(deploys: Deploy[]): RustConfig[] {
     const local = deploys[i];
 
     // copy array so original is not altered
-    const copy = deploys.slice();
-    const remotes = copy.splice(i, 1);
+    const remotes = deploys
+      .slice()
+      .filter((remote) => remote.chain.domain !== local.chain.domain);
 
     // build and add new config
     configs.push(buildConfig(local, remotes));

@@ -426,13 +426,13 @@ export async function deployNChains(chains: Deploy[]) {
  * @param deploys - The array of chain deploys
  */
 export function writeDeployOutput(deploys: Deploy[]) {
+  console.log(`Have ${deploys.length} deploys`);
   const dir = `../rust/config/${Date.now()}`;
-  for (let i = 0; i < deploys.length; i++) {
-    const local = deploys[i];
-
+  for (const local of deploys) {
     // get remotes
-    const copy = deploys.slice();
-    const remotes = copy.splice(i, 1);
+    const remotes = deploys
+      .slice()
+      .filter((remote) => remote.chain.domain !== local.chain.domain);
 
     const config = buildConfig(local, remotes);
     const name = local.chain.name;
