@@ -117,6 +117,7 @@ where
     ) -> Result<Option<SignedUpdate>, ChainCommunicationError> {
         self.contract
             .update_filter()
+            .from_block(0)
             .topic3(new_root)
             .query()
             .await?
@@ -188,6 +189,7 @@ where
         let events = self
             .contract
             .dispatch_filter()
+            .from_block(0)
             .topic1(U256::from(dest_and_seq))
             .query()
             .await?;
@@ -203,7 +205,13 @@ where
         &self,
         leaf: H256,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
-        let events = self.contract.dispatch_filter().topic3(leaf).query().await?;
+        let events = self
+            .contract
+            .dispatch_filter()
+            .from_block(0)
+            .topic3(leaf)
+            .query()
+            .await?;
 
         Ok(events.into_iter().next().map(|f| RawCommittedMessage {
             leaf_index: f.leaf_index.as_u32(),
@@ -218,6 +226,7 @@ where
         Ok(self
             .contract
             .dispatch_filter()
+            .from_block(0)
             .topic1(U256::from(tree_index))
             .query()
             .await?
