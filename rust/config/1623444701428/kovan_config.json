@@ -35,5 +35,5 @@
     "level": "debug",
     "style": "pretty"
   },
-  "dbPath": "db_path"
+  "db": "db_path"
 }

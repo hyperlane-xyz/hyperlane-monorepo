@@ -145,7 +145,7 @@ type RustConfig = {
     level: string;
     style: string;
   };
-  dbPath: string;
+  db: string;
 };
 
 export function buildConfig(local: Deploy, remotes: Deploy[]): RustConfig {
@@ -170,15 +170,10 @@ export function buildConfig(local: Deploy, remotes: Deploy[]): RustConfig {
       level: 'debug',
       style: 'pretty',
     },
-    dbPath: 'db_path',
+    db: 'db_path',
   };
 
-  console.log(`fff have ${remotes.length} remotes`);
-
   for (var remote of remotes) {
-    console.log(`remote ${remote.chain.domain}`);
-    console.log(`local ${local.chain.domain}`);
-
     const replica = {
       address: remote.contracts.replicas[local.chain.domain].proxy.address,
       domain: remote.chain.domain,

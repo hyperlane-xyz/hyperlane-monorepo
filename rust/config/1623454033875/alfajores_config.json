@@ -11,7 +11,7 @@
   },
   "replicas": {
     "kovan": {
-      "address": "0x159778DAeAe3A6Ea2fB6C559a7D3c17cA1c73Fc0",
+      "address": "0x7A9CA7500C8D6f66FACD373f64F65fC8E9e11742",
       "domain": 3000,
       "name": "kovan",
       "rpcStyle": "ethereum",
@@ -22,7 +22,7 @@
     }
   },
   "home": {
-    "address": "0x0DFBb885a9C9628f609Cd9f2E4Bb123808c3164E",
+    "address": "0x58f25C7E2662BCC2969C25A2d118d15772943AD1",
     "domain": 1000,
     "name": "alfajores",
     "rpcStyle": "ethereum",

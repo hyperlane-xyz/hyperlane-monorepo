@@ -256,4 +256,14 @@ where
             .prove_and_process(message.to_vec(), sol_proof, proof.index.into());
         Ok(report_tx!(tx).into())
     }
+
+    #[tracing::instrument(err)]
+    async fn queue_end(&self) -> Result<Option<H256>, ChainCommunicationError> {
+        let end: H256 = self.contract.queue_end().call().await?.into();
+        if end.is_zero() {
+            Ok(None)
+        } else {
+            Ok(Some(end))
+        }
+    }
 }

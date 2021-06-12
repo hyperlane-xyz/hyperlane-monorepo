@@ -127,6 +127,14 @@ impl Replica for Replicas {
             Replicas::Other(replica) => replica.process(message).await,
         }
     }
+
+    async fn queue_end(&self) -> Result<Option<H256>, ChainCommunicationError> {
+        match self {
+            Replicas::Ethereum(replica) => replica.queue_end().await,
+            Replicas::Mock(mock_replica) => mock_replica.queue_end().await,
+            Replicas::Other(replica) => replica.queue_end().await,
+        }
+    }
 }
 
 #[async_trait]

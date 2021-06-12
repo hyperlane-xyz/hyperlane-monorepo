@@ -96,14 +96,22 @@ impl Updater {
                     // can check and enter the below `if` block at a time,
                     // protecting from races between threads.
 
-                    // acquire guard
-                    let _guard = mutex.lock().await;
+                    // acquire guard. If the guard can't be acquired, that
+                    // means a tx is in flight and we should try again later.
+                    let _guard = mutex.try_lock();
+                    if _guard.is_err() {
+                        return;
+                    }
+
                     if let Ok(None) = Self::db_get(&db, old_root) {
                         info!("signing update");
                         let signed = update.sign_with(signer.as_ref()).await.unwrap();
 
                         // If successfully submitted update, record in db
-                        info!("dispatching signed update to contract");
+                        info!(
+                            "Dispatching signed update to contract. Current root is {:?}, new root is {:?}",
+                            &signed.update.previous_root, &signed.update.new_root
+                        );
                         match home.update(&signed).await {
                             Ok(_) => {
                                 info!("Storing signed update in db");

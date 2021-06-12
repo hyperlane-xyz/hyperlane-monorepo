@@ -47,4 +47,7 @@ pub trait Replica: Common + Send + Sync + std::fmt::Debug {
 
         Ok(self.process(message).await?)
     }
+
+    /// Fetch the root at the end of the confirmation queue
+    async fn queue_end(&self) -> Result<Option<H256>, ChainCommunicationError>;
 }

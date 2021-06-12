@@ -89,6 +89,7 @@ where
     ) -> Result<Option<SignedUpdate>, ChainCommunicationError> {
         self.contract
             .update_filter()
+            .from_block(0)
             .topic2(old_root)
             .query()
             .await?

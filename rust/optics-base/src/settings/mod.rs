@@ -76,7 +76,7 @@ impl SignerConf {
 #[serde(rename_all = "camelCase")]
 pub struct Settings {
     /// The path to use for the DB file
-    pub db_path: String,
+    pub db: String,
     /// The home configuration
     pub home: ChainSetup,
     /// The replica configurations
@@ -120,7 +120,7 @@ impl Settings {
     pub async fn try_into_core(&self) -> Result<AgentCore, Report> {
         let home = Arc::new(self.try_home().await?);
         let replicas = self.try_replicas().await?;
-        let db = Arc::new(db::from_path(&self.db_path)?);
+        let db = Arc::new(db::from_path(&self.db)?);
 
         Ok(AgentCore { home, replicas, db })
     }

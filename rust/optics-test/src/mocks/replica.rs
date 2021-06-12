@@ -41,6 +41,8 @@ mock! {
         // Common
         pub fn _name(&self) -> &str {}
 
+        pub fn _queue_end(&self) -> Result<Option<H256>, ChainCommunicationError> {}
+
         pub fn _status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {}
 
         pub fn _updater(&self) -> Result<H256, ChainCommunicationError> {}
@@ -118,6 +120,10 @@ impl Replica for MockReplicaContract {
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         self._prove_and_process(message, proof)
+    }
+
+    async fn queue_end(&self) -> Result<Option<H256>, ChainCommunicationError> {
+        self._queue_end()
     }
 }
 
