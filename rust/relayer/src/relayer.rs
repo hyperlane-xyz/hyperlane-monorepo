@@ -74,7 +74,7 @@ impl UpdatePoller {
             // lock dropped here
         } else {
             info!(
-                "No update. Current root for replica {} is {:?}",
+                "No update. Current root for replica {} is {}",
                 self.replica.name(),
                 old_root
             );

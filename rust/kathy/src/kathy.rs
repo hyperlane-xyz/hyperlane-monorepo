@@ -1,9 +1,8 @@
+use std::time::Duration;
+
 use async_trait::async_trait;
 use ethers::core::types::H256;
-use tokio::{
-    task::JoinHandle,
-    time::{interval, Interval},
-};
+use tokio::{task::JoinHandle, time::sleep};
 
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -20,21 +19,17 @@ use tracing::info;
 use crate::settings::Settings;
 
 decl_agent!(Kathy {
-    interval_seconds: u64,
+    duration: u64,
     generator: ChatGenerator,
 });
 
 impl Kathy {
-    pub fn new(interval_seconds: u64, generator: ChatGenerator, core: AgentCore) -> Self {
+    pub fn new(duration: u64, generator: ChatGenerator, core: AgentCore) -> Self {
         Self {
-            interval_seconds,
+            duration,
             generator,
             core,
         }
-    }
-
-    fn interval(&self) -> Interval {
-        interval(std::time::Duration::from_secs(self.interval_seconds))
     }
 }
 
@@ -52,9 +47,9 @@ impl OpticsAgent for Kathy {
 
     #[tracing::instrument]
     fn run(&self, _: &str) -> JoinHandle<Result<()>> {
-        let mut interval = self.interval();
         let home = self.home();
         let mut generator = self.generator.clone();
+        let duration = Duration::from_secs(self.duration);
         tokio::spawn(async move {
             loop {
                 if let Some(message) = generator.gen_chat() {
@@ -65,7 +60,7 @@ impl OpticsAgent for Kathy {
                     return Ok(());
                 }
 
-                interval.tick().await;
+                sleep(duration).await;
             }
         })
     }
