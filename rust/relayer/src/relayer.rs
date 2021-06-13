@@ -60,7 +60,7 @@ impl UpdatePoller {
         // If signed update exists, update replica's current root
         if let Some(signed_update) = signed_update_opt {
             info!(
-                "Update for replica {}. Root {:?} to {:?}",
+                "Update for replica {}. Root {} to {}",
                 self.replica.name(),
                 &signed_update.update.previous_root,
                 &signed_update.update.new_root,

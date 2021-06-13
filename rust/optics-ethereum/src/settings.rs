@@ -20,9 +20,21 @@ macro_rules! construct_box_contract {
             escalator,
             ethers::middleware::gas_escalator::Frequency::PerBlock,
         );
+
         if let Some(signer) = $signer {
+            // If there's a provided signer, we want to manage every aspect
+            // locally
+
+            // First set the chain ID locally
             let provider_chain_id = provider.get_chainid().await?;
             let signer = signer.set_chain_id(provider_chain_id.as_u64());
+
+            // Manage the nonce locally
+            let address = ethers::prelude::Signer::address(&signer);
+            let provider =
+                ethers::middleware::nonce_manager::NonceManagerMiddleware::new(provider, address);
+
+            // Manage signing locally
             let signing_provider = ethers::middleware::SignerMiddleware::new(provider, signer);
 
             Box::new(crate::$contract::new(

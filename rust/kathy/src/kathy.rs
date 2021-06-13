@@ -114,7 +114,7 @@ impl ChatGenerator {
             } => Some(Message {
                 destination: destination.to_owned(),
                 recipient: recipient.to_owned(),
-                body: message.clone().into(),
+                body: message.as_bytes().to_vec(),
             }),
             ChatGenerator::OrderedList { messages, counter } => {
                 if *counter >= messages.len() {
