@@ -91,8 +91,11 @@ contract Replica is Initializable, Common, QueueManager {
             "bad sig"
         );
 
+        // Hook for future use
         _beforeUpdate();
 
+        // Set the new root's confirmation timer
+        // And add the new root to the queue of roots
         confirmAt[_newRoot] = block.timestamp + optimisticSeconds;
         queue.enqueue(_newRoot);
 
@@ -280,6 +283,7 @@ contract Replica is Initializable, Common, QueueManager {
         previous = current;
     }
 
+    /// @notice Hook for potential future use
     // solhint-disable-next-line no-empty-blocks
     function _beforeUpdate() internal {}
 }

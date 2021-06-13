@@ -1,13 +1,8 @@
 use async_trait::async_trait;
 use color_eyre::{eyre::bail, Result};
 use futures_util::future::select_all;
-use std::sync::Arc;
-use tokio::{
-    join,
-    sync::Mutex,
-    task::JoinHandle,
-    time::{interval, Interval},
-};
+use std::{sync::Arc, time::Duration};
+use tokio::{join, sync::Mutex, task::JoinHandle, time::sleep};
 use tracing::info;
 
 use optics_base::{
@@ -21,18 +16,18 @@ use crate::settings::Settings;
 
 #[derive(Debug)]
 struct UpdatePoller {
+    duration: Duration,
     home: Arc<Homes>,
     replica: Arc<Replicas>,
-    interval: Interval,
     semaphore: Mutex<()>,
 }
 
 impl UpdatePoller {
-    fn new(home: Arc<Homes>, replica: Arc<Replicas>, interval: Interval) -> Self {
+    fn new(home: Arc<Homes>, replica: Arc<Replicas>, duration: u64) -> Self {
         Self {
             home,
             replica,
-            interval,
+            duration: Duration::from_secs(duration),
             semaphore: Mutex::new(()),
         }
     }
@@ -52,6 +47,12 @@ impl UpdatePoller {
                 old_root_res?
             }
         };
+
+        info!(
+            "Replica {} latest root is: {}",
+            self.replica.name(),
+            old_root
+        );
 
         // Check for first signed update building off of the replica's current root
         let signed_update_opt = self.home.signed_update_by_old_root(old_root).await?;
@@ -82,11 +83,11 @@ impl UpdatePoller {
         Ok(())
     }
 
-    fn spawn(mut self) -> JoinHandle<Result<()>> {
+    fn spawn(self) -> JoinHandle<Result<()>> {
         tokio::spawn(async move {
             loop {
                 self.poll_and_relay_update().await?;
-                self.interval.tick().await;
+                sleep(self.duration).await;
             }
         })
     }
@@ -95,12 +96,17 @@ impl UpdatePoller {
 #[derive(Debug)]
 struct ConfirmPoller {
     replica: Arc<Replicas>,
-    interval: Interval,
+    duration: Duration,
+    semaphore: Mutex<()>,
 }
 
 impl ConfirmPoller {
-    fn new(replica: Arc<Replicas>, interval: Interval) -> Self {
-        Self { replica, interval }
+    fn new(replica: Arc<Replicas>, duration: u64) -> Self {
+        Self {
+            replica,
+            duration: Duration::from_secs(duration),
+            semaphore: Mutex::new(()),
+        }
     }
 
     #[tracing::instrument(err)]
@@ -110,9 +116,15 @@ impl ConfirmPoller {
 
         // If valid pending update exists, confirm it
         if can_confirm {
+            let lock = self.semaphore.try_lock();
+            if lock.is_err() {
+                // A tx is in-flight. Do nothing.
+                return Ok(());
+            }
             info!("Can confirm. Confirming on replica {}", self.replica.name());
             // don't care if it succeeds
             let _ = self.replica.confirm().await;
+            // lock dropped here
         } else {
             info!("Can't confirm on replica {}", self.replica.name());
         }
@@ -120,11 +132,11 @@ impl ConfirmPoller {
         Ok(())
     }
 
-    fn spawn(mut self) -> JoinHandle<Result<()>> {
+    fn spawn(self) -> JoinHandle<Result<()>> {
         tokio::spawn(async move {
             loop {
                 self.poll_confirm().await?;
-                self.interval.tick().await;
+                sleep(self.duration).await;
             }
         })
     }
@@ -133,7 +145,7 @@ impl ConfirmPoller {
 /// A relayer agent
 #[derive(Debug)]
 pub struct Relayer {
-    interval_seconds: u64,
+    duration: u64,
     core: AgentCore,
 }
 
@@ -146,15 +158,8 @@ impl AsRef<AgentCore> for Relayer {
 #[allow(clippy::unit_arg)]
 impl Relayer {
     /// Instantiate a new relayer
-    pub fn new(interval_seconds: u64, core: AgentCore) -> Self {
-        Self {
-            interval_seconds,
-            core,
-        }
-    }
-
-    fn interval(&self) -> Interval {
-        interval(std::time::Duration::from_secs(self.interval_seconds))
+    pub fn new(duration: u64, core: AgentCore) -> Self {
+        Self { duration, core }
     }
 }
 
@@ -177,9 +182,9 @@ impl OpticsAgent for Relayer {
     fn run(&self, name: &str) -> JoinHandle<Result<()>> {
         let replica_opt = self.replica_by_name(name);
         let home = self.home();
-        let i1 = self.interval();
-        let i2 = self.interval();
         let name = name.to_owned();
+
+        let duration = self.duration;
 
         tokio::spawn(async move {
             if replica_opt.is_none() {
@@ -187,10 +192,10 @@ impl OpticsAgent for Relayer {
             }
             let replica = replica_opt.unwrap();
 
-            let update_poller = UpdatePoller::new(home, replica.clone(), i1);
+            let update_poller = UpdatePoller::new(home, replica.clone(), duration);
             let update_task = update_poller.spawn();
 
-            let confirm_poller = ConfirmPoller::new(replica, i2);
+            let confirm_poller = ConfirmPoller::new(replica, duration);
             let confirm_task = confirm_poller.spawn();
 
             let (res, _, _) = select_all(vec![confirm_task, update_task]).await;
