@@ -4,11 +4,7 @@ use async_trait::async_trait;
 use color_eyre::{eyre::ensure, Result};
 use ethers::{core::types::H256, signers::Signer, types::Address};
 use rocksdb::DB;
-use tokio::{
-    sync::Mutex,
-    task::JoinHandle,
-    time::{interval, Interval},
-};
+use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
 
 use optics_base::{
     agent::{AgentCore, OpticsAgent},
@@ -73,7 +69,7 @@ impl Updater {
             return Ok(Some(tokio::spawn(async move {
                 info!("Have an update, awaiting the tick");
                 // Wait `update_pause` seconds
-                interval(Duration::from_secs(update_pause)).tick().await;
+                sleep(Duration::from_secs(update_pause)).await;
 
                 // Poll chain API to see if queue still contains new root
                 // and old root still equals home's current root
@@ -133,10 +129,6 @@ impl Updater {
 
         Ok(None)
     }
-
-    fn interval(&self) -> Interval {
-        interval(Duration::from_secs(self.interval_seconds))
-    }
 }
 
 #[async_trait]
@@ -162,7 +154,7 @@ impl OpticsAgent for Updater {
         // First we check that we have the correct key to sign with.
         let home = self.home();
         let address = self.signer.address();
-        let mut interval = self.interval();
+        let interval_seconds = self.interval_seconds;
         let update_pause = self.update_pause;
         let signer = self.signer.clone();
         let db = self.db();
@@ -194,7 +186,7 @@ impl OpticsAgent for Updater {
                 }
 
                 // Wait for the next tick on the interval
-                interval.tick().await;
+                sleep(Duration::from_secs(interval_seconds)).await;
             }
         })
     }
