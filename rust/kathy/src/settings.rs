@@ -19,6 +19,8 @@ pub enum ChatGenConfig {
     },
     Random {
         length: usize,
+        destination: Option<u32>,
+        recipient: Option<H256>,
     },
     #[serde(other)]
     Default,
@@ -46,7 +48,15 @@ impl From<ChatGenConfig> for ChatGenerator {
                 messages,
                 counter: 0,
             },
-            ChatGenConfig::Random { length } => ChatGenerator::Random { length },
+            ChatGenConfig::Random {
+                length,
+                destination,
+                recipient,
+            } => ChatGenerator::Random {
+                length,
+                destination,
+                recipient,
+            },
             ChatGenConfig::Default => ChatGenerator::Default,
         }
     }

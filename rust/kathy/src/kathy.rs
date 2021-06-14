@@ -79,7 +79,9 @@ pub enum ChatGenerator {
         counter: usize,
     },
     Random {
+        destination: Option<u32>,
         length: usize,
+        recipient: Option<H256>,
     },
     Default,
 }
@@ -127,9 +129,13 @@ impl ChatGenerator {
 
                 Some(msg)
             }
-            ChatGenerator::Random { length } => Some(Message {
-                destination: Default::default(),
-                recipient: Default::default(),
+            ChatGenerator::Random {
+                length,
+                destination,
+                recipient,
+            } => Some(Message {
+                destination: destination.unwrap_or_else(Default::default),
+                recipient: recipient.unwrap_or_else(Default::default),
                 body: Self::rand_string(*length).into(),
             }),
         }
