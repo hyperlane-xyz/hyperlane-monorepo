@@ -247,8 +247,15 @@ describe('GovernanceRouter', async () => {
     ] = await governorReplicaOnNonGovernorChain.callStatic.testProcess(
       opticsMessage,
     );
+
+    // remove the extra encoding layer
+    [ret] = ethers.utils.defaultAbiCoder.decode(
+      ['bytes'],
+      ethers.utils.toUtf8Bytes(ret),
+    );
+
     expect(success).to.be.true;
-    expect(ret).to.be.empty;
+    expect(ret).to.equal('0x');
   });
 
   it('Transfers governorship', async () => {

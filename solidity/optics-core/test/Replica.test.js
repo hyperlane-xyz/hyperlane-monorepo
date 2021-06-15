@@ -324,6 +324,10 @@ describe('Replica', async () => {
 
     // Ensure proper static call return value
     let [success, ret] = await replica.callStatic.process(opticsMessage);
+
+    // remove the extra encoding layer
+    [ret] = ethers.utils.defaultAbiCoder.decode(['bytes'], ret);
+
     expect(success).to.be.true;
     expect(ret).to.equal(mockVal);
 

@@ -209,9 +209,6 @@ contract Replica is Initializable, Common, QueueManager {
         // fail.
         messages[_m.keccak()] = MessageStatus.Processed;
 
-        bytes memory _payload = _m.body().clone();
-        address _recipient = _m.recipientAddress();
-
         // NB:
         // A call running out of gas TYPICALLY errors the whole tx. We want to
         // a) ensure the call has a sufficient amount of gas to make a
@@ -223,19 +220,18 @@ contract Replica is Initializable, Common, QueueManager {
         require(gasleft() >= PROCESS_GAS + RESERVE_GAS, "!gas");
         // transparently return.
 
-        try
-            IMessageRecipient(_recipient).handle{gas: PROCESS_GAS}(
-                _m.origin(),
-                _m.sender(),
+        address _recipient = _m.recipientAddress();
+
+        bytes memory _payload =
+            abi.encode(_m.origin(), _m.sender(), _m.body().clone());
+
+        bytes memory _calldata =
+            abi.encodePacked(
+                IMessageRecipient(_recipient).handle.selector,
                 _payload
-            )
-        returns (bytes memory _response) {
-            _success = true;
-            _result = _response;
-        } catch (bytes memory _err) {
-            _success = false;
-            _result = _err;
-        }
+            );
+
+        (_success, _result) = _recipient.call{gas: PROCESS_GAS}(_calldata);
 
         nextToProcess = _sequence + 1;
     }

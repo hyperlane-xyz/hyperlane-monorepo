@@ -106,7 +106,7 @@ impl Replica for Replicas {
         }
     }
 
-    async fn next_to_process(&self) -> Result<U256, ChainCommunicationError> {
+    async fn next_to_process(&self) -> Result<u32, ChainCommunicationError> {
         match self {
             Replicas::Ethereum(replica) => replica.next_to_process().await,
             Replicas::Mock(mock_replica) => mock_replica.next_to_process().await,
