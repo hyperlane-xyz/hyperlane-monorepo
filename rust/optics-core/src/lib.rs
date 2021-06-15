@@ -253,14 +253,14 @@ impl Decode for OpticsMessage {
         let mut sender = H256::zero();
         reader.read_exact(sender.as_mut())?;
 
+        let mut sequence = [0u8; 4];
+        reader.read_exact(&mut sequence)?;
+
         let mut destination = [0u8; 4];
         reader.read_exact(&mut destination)?;
 
         let mut recipient = H256::zero();
         reader.read_exact(recipient.as_mut())?;
-
-        let mut sequence = [0u8; 4];
-        reader.read_exact(&mut sequence)?;
 
         let mut body = vec![];
         reader.read_to_end(&mut body)?;
