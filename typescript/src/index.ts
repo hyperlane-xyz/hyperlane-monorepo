@@ -119,7 +119,7 @@ async function deployNewReplica(local: Deploy, remote: Deploy) {
   // has two public initializers
   const iface = contracts.Replica__factory.createInterface();
   const initIFace = new ethers.utils.Interface([
-    iface.functions['initialize(uint32,address,bytes32,uint256,uint256)'],
+    iface.functions['initialize(uint32,address,bytes32,uint256,uint32)'],
   ]);
 
   const initData = initIFace.encodeFunctionData('initialize', [

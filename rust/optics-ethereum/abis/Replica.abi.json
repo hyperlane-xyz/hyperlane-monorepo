@@ -214,9 +214,9 @@
         "type": "uint256"
       },
       {
-        "internalType": "uint256",
+        "internalType": "uint32",
         "name": "_nextToProcess",
-        "type": "uint256"
+        "type": "uint32"
       }
     ],
     "name": "initialize",
@@ -279,9 +279,9 @@
     "name": "nextToProcess",
     "outputs": [
       {
-        "internalType": "uint256",
+        "internalType": "uint32",
         "name": "",
-        "type": "uint256"
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",

@@ -34,7 +34,7 @@ contract Replica is Initializable, Common, QueueManager {
     uint256 public optimisticSeconds;
 
     /// @notice Index of last processed message's leaf in home's merkle tree
-    uint256 public nextToProcess;
+    uint32 public nextToProcess;
 
     bytes32 public previous; // to smooth over witness invalidation
 
@@ -54,7 +54,7 @@ contract Replica is Initializable, Common, QueueManager {
         address _updater,
         bytes32 _current,
         uint256 _optimisticSeconds,
-        uint256 _nextToProcess
+        uint32 _nextToProcess
     ) public initializer {
         remoteDomain = _remoteDomain;
 

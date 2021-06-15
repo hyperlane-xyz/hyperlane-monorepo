@@ -20,7 +20,7 @@ const initialCurrentRoot = ethers.utils.formatBytes32String('current');
 const initialIndex = 0;
 const replicaContractName = 'TestReplica';
 const replicaInitializeIdentifier =
-  'initialize(uint32, address, bytes32, uint256, uint256)';
+  'initialize(uint32, address, bytes32, uint256, uint32)';
 
 describe('Replica', async () => {
   let replica, signer, fakeSigner, updater, fakeUpdater, initializeArgs;
@@ -105,7 +105,7 @@ describe('Replica', async () => {
           initialIndex,
         ],
         null,
-        'initialize(uint32, address, bytes32, uint256, uint256)',
+        'initialize(uint32, address, bytes32, uint256, uint32)',
       );
       const tempReplica = contracts.proxyWithImplementation;
 
@@ -328,7 +328,7 @@ describe('Replica', async () => {
     expect(ret).to.equal(mockVal);
 
     await replica.process(opticsMessage);
-    expect(await replica.nextToProcess()).to.equal(sequence.add(1));
+    expect(await replica.nextToProcess()).to.equal(sequence + 1);
   });
 
   it('Fails to process an unproved message', async () => {
@@ -354,7 +354,7 @@ describe('Replica', async () => {
     const [sender, recipient] = provider.getWallets();
 
     // Skip sequence ordering by adding 1 to nextToProcess
-    const sequence = (await replica.nextToProcess()).add(1);
+    const sequence = (await replica.nextToProcess()) + 1;
     const body = ethers.utils.formatBytes32String('message');
 
     const opticsMessage = optics.formatMessage(
@@ -477,7 +477,7 @@ describe('Replica', async () => {
     expect(await replica.messages(leaf)).to.equal(
       optics.MessageStatus.PROCESSED,
     );
-    expect(await replica.nextToProcess()).to.equal(sequence.add(1));
+    expect(await replica.nextToProcess()).to.equal(sequence + 1);
   });
 
   it('Has proveAndProcess fail if prove fails', async () => {

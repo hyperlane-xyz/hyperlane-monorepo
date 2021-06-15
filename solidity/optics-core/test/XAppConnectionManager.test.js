@@ -67,7 +67,7 @@ describe('XAppConnectionManager', async () => {
         initialIndex,
       ],
       controller,
-      'initialize(uint32, address, bytes32, uint256, uint256)',
+      'initialize(uint32, address, bytes32, uint256, uint32)',
     );
     enrolledReplica = contracts.proxyWithImplementation;
 
@@ -133,7 +133,7 @@ describe('XAppConnectionManager', async () => {
         initialIndex,
       ],
       controller,
-      'initialize(uint32, address, bytes32, uint256, uint256)',
+      'initialize(uint32, address, bytes32, uint256, uint32)',
     );
     const newReplica = newReplicaContracts.proxyWithImplementation;
 
