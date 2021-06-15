@@ -2,7 +2,9 @@ use async_trait::async_trait;
 use ethers::core::types::{H256, U256};
 use optics_core::{
     accumulator::merkle::Proof,
-    traits::{ChainCommunicationError, Common, DoubleUpdate, Replica, State, TxOutcome},
+    traits::{
+        ChainCommunicationError, Common, DoubleUpdate, MessageStatus, Replica, State, TxOutcome,
+    },
     OpticsMessage, SignedUpdate,
 };
 
@@ -133,6 +135,14 @@ impl Replica for Replicas {
             Replicas::Ethereum(replica) => replica.queue_end().await,
             Replicas::Mock(mock_replica) => mock_replica.queue_end().await,
             Replicas::Other(replica) => replica.queue_end().await,
+        }
+    }
+
+    async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
+        match self {
+            Replicas::Ethereum(replica) => replica.message_status(leaf).await,
+            Replicas::Mock(mock_replica) => mock_replica.message_status(leaf).await,
+            Replicas::Other(replica) => replica.message_status(leaf).await,
         }
     }
 }

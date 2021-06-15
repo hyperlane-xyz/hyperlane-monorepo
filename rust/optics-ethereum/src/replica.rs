@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use ethers::contract::abigen;
 use ethers::core::types::{Address, Signature, H256, U256};
+use optics_core::traits::MessageStatus;
 use optics_core::{
     accumulator::merkle::Proof,
     traits::{ChainCommunicationError, Common, DoubleUpdate, Replica, State, TxOutcome},
@@ -266,6 +267,17 @@ where
             Ok(None)
         } else {
             Ok(Some(end))
+        }
+    }
+
+    #[tracing::instrument(err)]
+    async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
+        let status = self.contract.messages(leaf.into()).call().await?;
+        match status {
+            0 => Ok(MessageStatus::None),
+            1 => Ok(MessageStatus::Pending),
+            2 => Ok(MessageStatus::Processed),
+            _ => panic!("Bad status from solidity"),
         }
     }
 }

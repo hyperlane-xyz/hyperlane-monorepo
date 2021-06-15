@@ -67,6 +67,8 @@ mock! {
             &self,
             double: &DoubleUpdate,
         ) -> Result<TxOutcome, ChainCommunicationError> {}
+
+        pub fn _message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {}
     }
 }
 
@@ -125,6 +127,13 @@ impl Replica for MockReplicaContract {
     async fn queue_end(&self) -> Result<Option<H256>, ChainCommunicationError> {
         self._queue_end()
     }
+
+    async fn message_status(
+        &self,
+        leaf: H256,
+    ) -> Result<optics_core::traits::MessageStatus, ChainCommunicationError> {
+        self._message_status(leaf)
+    }
 }
 
 #[async_trait]
@@ -174,3 +183,5 @@ impl Common for MockReplicaContract {
         self._double_update(double)
     }
 }
+
+use optics_core::traits::MessageStatus;

@@ -7,6 +7,17 @@ use crate::{
     OpticsMessage,
 };
 
+/// The status of a message in the replica
+#[repr(u8)]
+pub enum MessageStatus {
+    /// Message is unknown
+    None = 0,
+    /// Message has been proven but not processed
+    Pending = 1,
+    /// Message has been processed
+    Processed = 2,
+}
+
 /// Interface for on-chain replicas
 #[async_trait]
 pub trait Replica: Common + Send + Sync + std::fmt::Debug {
@@ -50,4 +61,7 @@ pub trait Replica: Common + Send + Sync + std::fmt::Debug {
 
     /// Fetch the root at the end of the confirmation queue
     async fn queue_end(&self) -> Result<Option<H256>, ChainCommunicationError>;
+
+    /// Fetch the status of a message
+    async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError>;
 }

@@ -27,6 +27,13 @@ pub struct CommittedMessage {
     pub message: OpticsMessage,
 }
 
+impl CommittedMessage {
+    /// Return the leaf associated with the message
+    pub fn to_leaf(&self) -> H256 {
+        self.message.to_leaf()
+    }
+}
+
 impl AsRef<OpticsMessage> for CommittedMessage {
     fn as_ref(&self) -> &OpticsMessage {
         &self.message
