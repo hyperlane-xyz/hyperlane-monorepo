@@ -8,7 +8,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::{
     sync::{oneshot::channel, RwLock},
     task::JoinHandle,
-    time::{interval, Interval},
+    time::sleep,
 };
 use tracing::info;
 
@@ -48,16 +48,11 @@ impl ReplicaProcessor {
         }
     }
 
-    fn interval(&self) -> Interval {
-        interval(std::time::Duration::from_secs(self.interval_seconds))
-    }
-
     pub(crate) fn spawn(self) -> JoinHandle<Result<()>> {
         tokio::spawn(async move {
             info!("Starting processor");
             let domain = self.replica.local_domain();
-
-            let mut interval = self.interval();
+            let interval = self.interval_seconds;
 
             // The basic structure of this loop is as follows:
             // 1. Get the last processed index
@@ -105,7 +100,7 @@ impl ReplicaProcessor {
                     .prove_and_process(message.as_ref(), &proof)
                     .await?;
 
-                interval.tick().await;
+                sleep(std::time::Duration::from_secs(interval)).await;
             }
         })
     }
@@ -168,6 +163,7 @@ impl OpticsAgent for Processor {
         let (_tx, rx) = channel();
         let interval_seconds = self.interval_seconds;
 
+        info!("Starting ProverSync task");
         let sync = ProverSync::new(self.prover.clone(), self.home(), self.db(), rx);
         let sync_task = tokio::spawn(async move {
             sync.poll_updates(interval_seconds)

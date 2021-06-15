@@ -2,7 +2,7 @@
 /// Shortcut for resetting a timed loop
 macro_rules! reset_loop {
     ($interval:ident) => {{
-        $interval.tick().await;
+        tokio::time::sleep(std::time::Duration::from_secs($interval)).await;
         continue;
     }};
 }

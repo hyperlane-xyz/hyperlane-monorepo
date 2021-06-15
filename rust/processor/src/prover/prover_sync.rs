@@ -6,13 +6,13 @@ use optics_core::{
     traits::{ChainCommunicationError, Common, Home},
 };
 use rocksdb::DB;
-use std::{sync::Arc, time::Duration};
+use std::{ops::Range, sync::Arc, time::Duration};
 use tokio::{
     sync::{
         oneshot::{error::TryRecvError, Receiver},
         RwLock,
     },
-    time::interval,
+    time::sleep,
 };
 use tracing::info;
 
@@ -76,17 +76,63 @@ impl ProverSync {
         }
     }
 
+    // The current canonical local root. This is the root that the full
+    // prover currently has. If that root is the initial root, it is 0.
+    async fn local_root(&self) -> H256 {
+        let root = self.prover.read().await.root();
+        if root == *INITIAL_ROOT {
+            H256::zero()
+        } else {
+            root
+        }
+    }
+
+    fn store_leaf(&mut self, index: usize, leaf: H256) {
+        Self::db_put(&self.db, index, leaf).expect("!db_put");
+    }
+
+    fn retrieve_leaf(&self, index: usize) -> Option<H256> {
+        Self::db_get(&self.db, index).expect("!db_get")
+    }
+
+    // simple caching
+    async fn fetch_leaf(&mut self, index: usize) -> Result<Option<H256>, ProverSyncError> {
+        let leaf = self.retrieve_leaf(index);
+        if leaf.is_some() {
+            Ok(leaf)
+        } else {
+            match self.home.leaf_by_tree_index(index).await? {
+                Some(leaf) => {
+                    self.store_leaf(index, leaf);
+                    Ok(Some(leaf))
+                }
+                None => Ok(None),
+            }
+        }
+    }
+
+    // expensive and poorly done
+    async fn get_leaf_range(&mut self, range: Range<usize>) -> Result<Vec<H256>, ProverSyncError> {
+        let mut leaves = vec![];
+        for i in range {
+            let leaf = self.fetch_leaf(i).await?;
+            if leaf.is_none() {
+                break;
+            }
+            leaves.push(leaf.unwrap());
+        }
+
+        Ok(leaves)
+    }
+
     /// Consume self and poll for signed updates at regular interval. Update
     /// local merkle tree with all leaves between local root and
     /// new root. Use short interval for bootup syncing and longer
     /// interval for regular polling.
-    #[tracing::instrument(err)]
+    #[tracing::instrument(err, skip(self))]
     pub async fn poll_updates(mut self, interval_seconds: u64) -> Result<(), ProverSyncError> {
-        let mut interval = interval(Duration::from_secs(interval_seconds));
-
         loop {
-            let local_root = self.prover.read().await.root();
-
+            let local_root = self.local_root().await;
             let signed_update_opt = self.home.signed_update_by_old_root(local_root).await?;
 
             // This if block is somewhat ugly.
@@ -97,8 +143,11 @@ impl ProverSync {
             //   We ensure that an update produced the local root.
             //      If no update produced the local root, we error.
             if let Some(signed_update) = signed_update_opt {
-                info!("have signed update, updating prover tree");
-                self.update_prover_tree(local_root, signed_update.update.new_root)
+                info!(
+                    "have signed update from {} to {}",
+                    signed_update.update.previous_root, signed_update.update.new_root,
+                );
+                self.update_full(local_root, signed_update.update.new_root)
                     .await?;
             } else if local_root != *INITIAL_ROOT
                 && self
@@ -112,9 +161,11 @@ impl ProverSync {
 
             // Check to see if the parent task has shut down
             if let Err(TryRecvError::Closed) = self.rx.try_recv() {
+                info!("ProverSync: Parent task has shut down.");
                 break;
             }
-            interval.tick().await;
+
+            sleep(Duration::from_secs(2)).await;
         }
 
         Ok(())
@@ -124,41 +175,38 @@ impl ProverSync {
     /// produced between `local_root` and `new_root`. If successful (i.e.
     /// incremental tree is updated until its root equals the `new_root`),
     /// commit to changes by batch updating the prover's actual merkle tree.
-    #[tracing::instrument(err)]
-    async fn update_prover_tree(
+    #[tracing::instrument(err, skip(self))]
+    async fn update_full(
         &mut self,
         local_root: H256,
         new_root: H256,
     ) -> Result<(), ProverSyncError> {
         // If roots don't match by end of incremental update, will return
         // MismatchedRoots error
-        let leaves = self
-            .update_incremental_and_return_leaves(local_root, new_root)
-            .await?;
-
-        let mut prover = self.prover.write().await;
+        let range = self.update_incremental(local_root, new_root).await?;
+        let leaves = self.get_leaf_range(range.clone()).await?;
 
         // Check that local root still equals prover's root just in case
         // another entity wrote to prover while we were building the leaf
         // vector. If roots no longer match, return Ok(()) and restart
         // poll_updates loop.
-        if local_root != prover.root() {
+        if local_root != self.local_root().await {
+            info!("ProverSync: Root mismatch during update. Resuming loop.");
             return Ok(());
         }
 
-        // Save current index of prover tree before updating tree
-        let mut index = prover.count();
-
         // Extend in-memory tree
-        info!("Extending tree with {} leaves", leaves.len());
+        info!(
+            "Committing leaves {}..{} to prover.",
+            range.start, range.end
+        );
         let leaves = leaves.into_iter();
-        prover.extend(leaves.clone());
-        assert_eq!(new_root, prover.root());
-
-        // If in-memory extension succeeded, write kv pairs to disk
-        for leaf in leaves {
-            Self::db_put(&self.db, index, leaf).expect("!db_put");
-            index += 1;
+        {
+            // lock bounds
+            let mut prover = self.prover.write().await;
+            prover.extend(leaves.clone());
+            assert_eq!(new_root, prover.root());
+            info!("Committed {} leaves to prover.", leaves.len());
         }
 
         Ok(())
@@ -169,45 +217,53 @@ impl ProverSync {
     /// and return ingested leaves if successful. If incremental merkle is
     /// up-to-date with update but roots still don't match, return
     /// `MismatchedRoots` error.
-    #[tracing::instrument(err)]
-    async fn update_incremental_and_return_leaves(
+    #[tracing::instrument(err, skip(self))]
+    async fn update_incremental(
         &mut self,
         local_root: H256,
         new_root: H256,
-    ) -> Result<Vec<H256>, ProverSyncError> {
+    ) -> Result<Range<usize>, ProverSyncError> {
         let mut leaves: Vec<H256> = Vec::new();
 
         // Create copy of ProverSync's incremental so we can easily discard
-        // changes in case of bad update
+        // changes in case of bad updates
         let mut incremental = self.incremental;
         let mut local_root = local_root;
 
+        let start = incremental.count();
+        let mut tree_size = start;
+        info!("Local root is {}, goingt to root {}", local_root, new_root);
+
         while local_root != new_root {
-            let tree_size = incremental.count();
+            info!("Polling Chain for leaf at index {}", tree_size);
 
             // As we fill the incremental merkle, its tree_size will always be
             // equal to the index of the next leaf we want (e.g. if tree_size
             // is 3, we want the 4th leaf, which is at index 3)
-            let leaf_opt = self.home.leaf_by_tree_index(tree_size).await?;
-
-            if let Some(leaf) = leaf_opt {
+            if let Some(leaf) = self.fetch_leaf(tree_size).await? {
+                info!("Leaf at index {} is {}", tree_size, leaf);
                 incremental.ingest(leaf);
                 leaves.push(leaf);
                 local_root = incremental.root();
             } else {
-                // If local incremental tree is up-to-date but doesn't match new
-                // root, bubble up MismatchedRoots error
+                // break on no leaf
                 local_root = incremental.root();
-                if local_root != new_root {
-                    return Err(ProverSyncError::MismatchedRoots {
-                        local_root,
-                        new_root,
-                    });
-                }
+                break;
             }
+            tree_size = incremental.count();
         }
 
+        // If local incremental tree is up-to-date but doesn't match new
+        // root, bubble up MismatchedRoots error
+        if local_root != new_root {
+            return Err(ProverSyncError::MismatchedRoots {
+                local_root,
+                new_root,
+            });
+        }
+
+        info!("Committing leaves {}..{} to incremental.", start, tree_size);
         self.incremental = incremental;
-        Ok(leaves)
+        Ok(start..tree_size)
     }
 }

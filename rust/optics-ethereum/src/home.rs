@@ -190,7 +190,7 @@ where
             .contract
             .dispatch_filter()
             .from_block(0)
-            .topic1(U256::from(dest_and_seq))
+            .topic2(U256::from(dest_and_seq))
             .query()
             .await?;
 
