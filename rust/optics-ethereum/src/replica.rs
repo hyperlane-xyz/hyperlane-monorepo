@@ -7,7 +7,6 @@ use optics_core::{
     traits::{ChainCommunicationError, Common, DoubleUpdate, Replica, State, TxOutcome},
     Encode, OpticsMessage, SignedUpdate, Update,
 };
-use tracing::info;
 
 use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
 
@@ -239,7 +238,6 @@ where
 
     #[tracing::instrument(err)]
     async fn process(&self, message: &OpticsMessage) -> Result<TxOutcome, ChainCommunicationError> {
-        info!("{}", hex::encode(message.to_vec()));
         let tx = self.contract.process(message.to_vec());
         Ok(report_tx!(tx).into())
     }

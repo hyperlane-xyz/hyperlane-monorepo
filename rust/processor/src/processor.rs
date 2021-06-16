@@ -10,7 +10,7 @@ use tokio::{
     task::JoinHandle,
     time::sleep,
 };
-use tracing::info;
+use tracing::{info, instrument, Instrument};
 
 use optics_base::{
     agent::{AgentCore, OpticsAgent},
@@ -29,6 +29,7 @@ use crate::{
     settings::Settings,
 };
 
+#[derive(Debug)]
 pub(crate) struct ReplicaProcessor {
     interval_seconds: u64,
     replica: Arc<Replicas>,
@@ -51,6 +52,7 @@ impl ReplicaProcessor {
         }
     }
 
+    #[instrument]
     pub(crate) fn spawn(self) -> JoinHandle<Result<()>> {
         tokio::spawn(async move {
             info!("Starting processor");
@@ -108,9 +110,10 @@ impl ReplicaProcessor {
 
                 sleep(std::time::Duration::from_secs(interval)).await;
             }
-        })
+        }.in_current_span())
     }
 
+    #[instrument(err)]
     /// Dispatch a message for processing. If the message is already proven, process only.
     async fn process(&self, message: CommittedMessage, proof: Proof) -> Result<()> {
         let status = self.replica.message_status(message.to_leaf()).await?;

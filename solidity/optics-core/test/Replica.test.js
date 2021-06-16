@@ -349,9 +349,7 @@ describe('Replica', async () => {
       body,
     );
 
-    await expect(replica.process(opticsMessage)).to.be.revertedWith(
-      'not pending',
-    );
+    await expect(replica.process(opticsMessage)).to.be.revertedWith('!pending');
   });
 
   it('Fails to process out-of-order message', async () => {

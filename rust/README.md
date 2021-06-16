@@ -7,8 +7,8 @@
 - setup pre-commit hooks: `cp ../pre-commit.sh ../.git/hooks/pre-commit`
   - Note: To bypass pre-commit hooks, pass `--no-verify` after commit message
 
+Note: You should be running >= version `1.52.1` of the rustc compiler, you can see that version with this command and should see similar output:
 
-Note: You should be running >= version `1.52.1` of the rustc compiler, you can see that version with this command and should see similar output: 
 ```
 $ rustup --version
 rustup 1.24.2 (755e2b07e 2021-05-12)
@@ -100,7 +100,6 @@ We use the tokio async runtime environment. Please see the docs
     - basic setup for an off-chain agent
 - `optics-ethereum`
   - interfaces to the ethereum contracts
-- TODO: other agents :)
 
 ### High-level guide to building an agent
 

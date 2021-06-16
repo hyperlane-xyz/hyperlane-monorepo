@@ -1930,7 +1930,6 @@ dependencies = [
  "async-trait",
  "color-eyre",
  "ethers",
- "hex",
  "optics-core",
  "serde 1.0.125",
  "serde_json",

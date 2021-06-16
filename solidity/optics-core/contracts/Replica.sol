@@ -201,7 +201,7 @@ contract Replica is Initializable, Common, QueueManager {
         require(_sequence == nextToProcess, "!sequence");
         require(
             messages[keccak256(_message)] == MessageStatus.Pending,
-            "not pending"
+            "!pending"
         );
 
         // Set the state now. We will set nextToProcess later. This prevents

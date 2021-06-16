@@ -145,6 +145,18 @@ impl Replica for Replicas {
             Replicas::Other(replica) => replica.message_status(leaf).await,
         }
     }
+
+    async fn prove_and_process(
+        &self,
+        message: &OpticsMessage,
+        proof: &Proof,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
+        match self {
+            Replicas::Ethereum(replica) => replica.prove_and_process(message, proof).await,
+            Replicas::Mock(mock_replica) => mock_replica.prove_and_process(message, proof).await,
+            Replicas::Other(replica) => replica.prove_and_process(message, proof).await,
+        }
+    }
 }
 
 #[async_trait]

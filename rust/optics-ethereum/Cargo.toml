@@ -16,5 +16,3 @@ tracing = "0.1.22"
 color-eyre = "0.5.0"
 
 optics-core = { path = "../optics-core" }
-
-hex = "*"

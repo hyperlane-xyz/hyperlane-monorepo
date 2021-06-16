@@ -125,52 +125,6 @@ impl ProverSync {
         Ok(leaves)
     }
 
-    /// Consume self and poll for signed updates at regular interval. Update
-    /// local merkle tree with all leaves between local root and
-    /// new root. Use short interval for bootup syncing and longer
-    /// interval for regular polling.
-    #[tracing::instrument(err, skip(self))]
-    pub async fn poll_updates(mut self, interval_seconds: u64) -> Result<(), ProverSyncError> {
-        loop {
-            let local_root = self.local_root().await;
-            let signed_update_opt = self.home.signed_update_by_old_root(local_root).await?;
-
-            // This if block is somewhat ugly.
-            // First we check if there is a signed update with the local root.
-            //   If so we start ingesting messages under the new root.
-            // Otherwise, if there is no update,
-            //   We ignore the initial root
-            //   We ensure that an update produced the local root.
-            //      If no update produced the local root, we error.
-            if let Some(signed_update) = signed_update_opt {
-                info!(
-                    "have signed update from {} to {}",
-                    signed_update.update.previous_root, signed_update.update.new_root,
-                );
-                self.update_full(local_root, signed_update.update.new_root)
-                    .await?;
-            } else if local_root != *INITIAL_ROOT
-                && self
-                    .home
-                    .signed_update_by_new_root(local_root)
-                    .await?
-                    .is_none()
-            {
-                return Err(ProverSyncError::InvalidLocalRoot { local_root });
-            }
-
-            // Check to see if the parent task has shut down
-            if let Err(TryRecvError::Closed) = self.rx.try_recv() {
-                info!("ProverSync: Parent task has shut down.");
-                break;
-            }
-
-            sleep(Duration::from_secs(2)).await;
-        }
-
-        Ok(())
-    }
-
     /// First attempt to update incremental merkle tree with all leaves
     /// produced between `local_root` and `new_root`. If successful (i.e.
     /// incremental tree is updated until its root equals the `new_root`),
@@ -265,5 +219,51 @@ impl ProverSync {
         info!("Committing leaves {}..{} to incremental.", start, tree_size);
         self.incremental = incremental;
         Ok(start..tree_size)
+    }
+
+    /// Consume self and poll for signed updates at regular interval. Update
+    /// local merkle tree with all leaves between local root and
+    /// new root. Use short interval for bootup syncing and longer
+    /// interval for regular polling.
+    #[tracing::instrument(err, skip(self))]
+    pub async fn poll_updates(mut self, interval_seconds: u64) -> Result<(), ProverSyncError> {
+        loop {
+            let local_root = self.local_root().await;
+            let signed_update_opt = self.home.signed_update_by_old_root(local_root).await?;
+
+            // This if block is somewhat ugly.
+            // First we check if there is a signed update with the local root.
+            //   If so we start ingesting messages under the new root.
+            // Otherwise, if there is no update,
+            //   We ignore the initial root
+            //   We ensure that an update produced the local root.
+            //      If no update produced the local root, we error.
+            if let Some(signed_update) = signed_update_opt {
+                info!(
+                    "have signed update from {} to {}",
+                    signed_update.update.previous_root, signed_update.update.new_root,
+                );
+                self.update_full(local_root, signed_update.update.new_root)
+                    .await?;
+            } else if local_root != *INITIAL_ROOT
+                && self
+                    .home
+                    .signed_update_by_new_root(local_root)
+                    .await?
+                    .is_none()
+            {
+                return Err(ProverSyncError::InvalidLocalRoot { local_root });
+            }
+
+            // Check to see if the parent task has shut down
+            if let Err(TryRecvError::Closed) = self.rx.try_recv() {
+                info!("ProverSync: Parent task has shut down.");
+                break;
+            }
+
+            sleep(Duration::from_secs(2)).await;
+        }
+
+        Ok(())
     }
 }

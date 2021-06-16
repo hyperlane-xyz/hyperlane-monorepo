@@ -117,8 +117,8 @@ impl Updater {
                                 tracing::error!("Error submitting update to home: {:?}", e)
                             }
                         }
-                    }
-                    // guard dropped here
+                    } // TODO: log here
+                      // guard dropped here
                 } else {
                     info!("Declined to submit update, no longer current");
                 }
