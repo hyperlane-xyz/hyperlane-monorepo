@@ -4,4 +4,4 @@ config.json
 
 typescript/tmp.ts
 rust/tmp_db
-tmp.env
+rust/tmp.env
