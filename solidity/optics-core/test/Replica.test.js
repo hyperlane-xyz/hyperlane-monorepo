@@ -304,10 +304,7 @@ describe('Replica', async () => {
 
   it('Processes a proved message', async () => {
     const sender = testUtils.opticsMessageSender;
-    const mockRecipient = await testUtils.opticsMessageMockRecipient.getRecipient();
-
-    const mockVal = '0x1234abcd';
-    await mockRecipient.mock.handle.returns(mockVal);
+    const mockRecipient = await optics.deployImplementation('TestRecipient');
 
     const sequence = await replica.nextToProcess();
     const opticsMessage = optics.formatMessage(
@@ -323,13 +320,8 @@ describe('Replica', async () => {
     await replica.setMessagePending(opticsMessage);
 
     // Ensure proper static call return value
-    let [success, ret] = await replica.callStatic.process(opticsMessage);
-
-    // remove the extra encoding layer
-    [ret] = ethers.utils.defaultAbiCoder.decode(['bytes'], ret);
-
+    let success = await replica.callStatic.process(opticsMessage);
     expect(success).to.be.true;
-    expect(ret).to.equal(mockVal);
 
     await replica.process(opticsMessage);
     expect(await replica.nextToProcess()).to.equal(sequence + 1);
@@ -351,6 +343,33 @@ describe('Replica', async () => {
 
     await expect(replica.process(opticsMessage)).to.be.revertedWith('!pending');
   });
+
+  for (let i = 1; i <= 6; i++) {
+    it(
+      'Processes a message from a badly implemented recipient (' + i + ')',
+      async () => {
+        const sender = testUtils.opticsMessageSender;
+        const mockRecipient = await optics.deployImplementation(
+          `BadRecipient${i}`,
+        );
+
+        const sequence = await replica.nextToProcess();
+        const opticsMessage = optics.formatMessage(
+          remoteDomain,
+          sender.address,
+          sequence,
+          localDomain,
+          mockRecipient.address,
+          '0x',
+        );
+
+        // Set message status to MessageStatus.Pending
+        await replica.setMessagePending(opticsMessage);
+        await replica.process(opticsMessage);
+        expect(await replica.nextToProcess()).to.equal(sequence + 1);
+      },
+    );
+  }
 
   it('Fails to process out-of-order message', async () => {
     const [sender, recipient] = provider.getWallets();
@@ -437,16 +456,13 @@ describe('Replica', async () => {
     await replica.setMessagePending(opticsMessage);
 
     // Ensure bad handler function causes process to return false
-    let [success] = await replica.callStatic.process(opticsMessage);
+    let success = await replica.callStatic.process(opticsMessage);
     expect(success).to.be.false;
   });
 
   it('Proves and processes a message', async () => {
     const sender = testUtils.opticsMessageSender;
     const mockRecipient = await testUtils.opticsMessageMockRecipient.getRecipient();
-
-    const mockVal = '0x1234abcd';
-    await mockRecipient.mock.handle.returns(mockVal);
 
     const sequence = await replica.nextToProcess();
 
