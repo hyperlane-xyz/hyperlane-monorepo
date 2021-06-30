@@ -14,12 +14,8 @@ use optics_base::{agent::OpticsAgent, settings::log::Style};
 use crate::{kathy::Kathy, settings::KathySettings as Settings};
 
 async fn _main(settings: Settings) -> Result<()> {
-    let kathy = Kathy::from_settings(settings).await?;
-
-    // Normally we would run_from_settings
-    // but for an empty replica vector that would do nothing
-    kathy.run("").await??;
-
+    let relayer = Kathy::from_settings(settings).await?;
+    relayer.run_all().await?;
     Ok(())
 }
 
