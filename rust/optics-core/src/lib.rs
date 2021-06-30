@@ -395,7 +395,6 @@ impl Decode for SignedUpdate {
 impl SignedUpdate {
     /// Recover the Ethereum address of the signer
     pub fn recover(&self) -> Result<Address, OpticsError> {
-        dbg!(self.update.prepended_hash());
         Ok(self.signature.recover(self.update.prepended_hash())?)
     }
 
@@ -457,7 +456,6 @@ pub struct SignedFailureNotification {
 impl SignedFailureNotification {
     /// Recover the Ethereum address of the signer
     pub fn recover(&self) -> Result<Address, OpticsError> {
-        dbg!(self.notification.prepended_hash());
         Ok(self.signature.recover(self.notification.prepended_hash())?)
     }
 

@@ -14,8 +14,8 @@ use optics_base::{agent::OpticsAgent, settings::log::Style};
 use crate::{kathy::Kathy, settings::KathySettings as Settings};
 
 async fn _main(settings: Settings) -> Result<()> {
-    let relayer = Kathy::from_settings(settings).await?;
-    relayer.run_all().await?;
+    let kathy = Kathy::from_settings(settings).await?;
+    kathy.run_all().await?;
     Ok(())
 }
 

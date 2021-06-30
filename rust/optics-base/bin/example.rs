@@ -40,7 +40,6 @@ fn setup() -> Result<Settings> {
 #[allow(dead_code)]
 fn main() -> Result<()> {
     let _settings = setup()?;
-    dbg!(_settings);
     // tokio::runtime::Builder::new_current_thread()
     //     .enable_all()
     //     .build()

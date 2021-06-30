@@ -192,7 +192,6 @@ mod test {
                 // assert the tree generates the proper proof for this leaf
                 let proof = tree.prove(n).unwrap();
                 assert_eq!(proof, test_case.proofs[n]);
-                dbg!(&proof);
 
                 // check that the tree can verify the proof for this leaf
                 tree.verify(&proof).unwrap();
