@@ -34,8 +34,6 @@ fn setup() -> Result<Settings> {
     }
     .map_err(|e| eyre!(e))?;
 
-    dbg!(&settings);
-
     Ok(settings)
 }
 
