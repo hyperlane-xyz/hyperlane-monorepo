@@ -18,7 +18,7 @@ abigen!(
     "./optics-ethereum/abis/Replica.abi.json",
      methods {
         initialize(address) as initialize_common;
-        initialize(uint32, address, bytes32, uint256, uint256) as initialize;
+        initialize(uint32, address, bytes32, uint256, uint32) as initialize;
      },
 );
 
