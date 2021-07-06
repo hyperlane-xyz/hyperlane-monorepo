@@ -1978,6 +1978,8 @@ dependencies = [
  "pin-project",
  "rand 0.8.4",
  "thiserror",
+ "tokio",
+ "tokio-stream",
 ]
 
 [[package]]
@@ -2009,6 +2011,25 @@ dependencies = [
  "reqwest",
  "thiserror",
  "thrift",
+ "tokio",
+]
+
+[[package]]
+name = "opentelemetry-zipkin"
+version = "0.12.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb008a5e6685ac350d50ff72f29cdd37ad25bc0960129be75fcc9ad5a67fdc08"
+dependencies = [
+ "async-trait",
+ "http",
+ "lazy_static",
+ "opentelemetry",
+ "opentelemetry-http",
+ "reqwest",
+ "serde 1.0.126",
+ "serde_json",
+ "thiserror",
+ "typed-builder",
 ]
 
 [[package]]
@@ -2022,6 +2043,7 @@ dependencies = [
  "futures-util",
  "opentelemetry",
  "opentelemetry-jaeger",
+ "opentelemetry-zipkin",
  "optics-core",
  "optics-ethereum",
  "optics-test",
@@ -3342,6 +3364,17 @@ dependencies = [
  "utf-8",
  "webpki",
  "webpki-roots",
+]
+
+[[package]]
+name = "typed-builder"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f85f4270f4f449a3f2c0cf2aecc8415e388a597aeacc7d55fc749c5c968c8533"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]

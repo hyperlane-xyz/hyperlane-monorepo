@@ -8,10 +8,13 @@ use crate::settings::trace::fmt::Style;
 /// Configure a `tracing_subscriber::fmt` Layer outputting to stdout
 pub mod fmt;
 
-use self::{fmt::LogOutputLayer, jaeger::JaegerConfig};
+use self::{fmt::LogOutputLayer, jaeger::JaegerConfig, zipkin::ZipkinConfig};
 
 /// Configure a Layer using `tracing_opentelemtry` + `opentelemetry-jaeger`
 pub mod jaeger;
+
+/// Configure a Layer using `tracing_opentelemtry` + `opentelemetry-zipkin`
+pub mod zipkin;
 
 /// Logging level
 #[derive(Debug, Clone, Copy, serde::Deserialize)]
@@ -61,6 +64,7 @@ impl From<Level> for LevelFilter {
 #[derive(Debug, Clone, serde::Deserialize)]
 pub struct TracingConfig {
     jaeger: Option<JaegerConfig>,
+    zipkin: Option<ZipkinConfig>,
     #[serde(default)]
     fmt: Style,
     #[serde(default)]
@@ -79,7 +83,13 @@ impl TracingConfig {
             .with(err_layer);
 
         match self.jaeger {
-            None => subscriber.try_init()?,
+            None => match self.zipkin {
+                None => subscriber.try_init()?,
+                Some(ref zipkin) => {
+                    let layer: OpenTelemetryLayer<_, _> = zipkin.try_into()?;
+                    subscriber.with(layer).try_init()?
+                }
+            },
             Some(ref jaeger) => {
                 let layer: OpenTelemetryLayer<_, _> = jaeger.try_into()?;
                 subscriber.with(layer).try_init()?

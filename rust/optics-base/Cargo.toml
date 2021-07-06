@@ -29,8 +29,9 @@ tracing-error = "0.1.2"
 
 # these versions are important!
 tracing-opentelemetry = "0.13.0"
-opentelemetry = "0.14.0"
-opentelemetry-jaeger = { version = "0.13.0", features = ["reqwest_collector_client"] }
+opentelemetry = { version = "0.14.0", features = ["rt-tokio"] }
+opentelemetry-jaeger = { version = "0.13.0", features = ["reqwest_collector_client", "tokio"] }
+opentelemetry-zipkin = { version = "0.12.0", features = ["reqwest-client"] }
 
 [[example]]
 name = "example"

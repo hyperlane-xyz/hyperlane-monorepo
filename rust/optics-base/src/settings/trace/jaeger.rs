@@ -49,7 +49,7 @@ impl TryFrom<&JaegerConfig> for Tracer {
 
     fn try_from(value: &JaegerConfig) -> Result<Self, Self::Error> {
         let p: PipelineBuilder = value.into();
-        p.install_simple()
+        p.install_batch(opentelemetry::runtime::Tokio)
     }
 }
 
