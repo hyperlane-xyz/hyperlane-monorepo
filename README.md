@@ -57,6 +57,10 @@ Solidity developers interested in implementing their own `Message` library and
 `Router` contract should check out the [optics-XApps](https://github.com/celo-org/optics-monorepo/tree/main/solidity/optics-xapps)
 package. It contains several example XApps.
 
+You can find current testnet deploy configurations in the `rust/config/`
+directory. These deployments happen frequently and are unstable. Please feel
+free to try out integrations using the deployed contracts in the LATEST config.
+
 It is **Strongly Recommended** that XApp admins run a `watcher` daemon to
 maintain their `XAppConnectionManager` and guard from fraud. Please see the
 documentation in the `rust/` directory and the
