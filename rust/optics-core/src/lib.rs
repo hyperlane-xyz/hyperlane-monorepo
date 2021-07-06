@@ -83,9 +83,6 @@ pub enum OpticsError {
     /// IO error from Read/Write usage
     #[error(transparent)]
     IoError(#[from] std::io::Error),
-    // /// ChainCommunicationError
-    // #[error(transparent)]
-    // ChainCommunicationError(#[from] ChainCommunicationError),
 }
 
 /// Error types for Signers
@@ -282,6 +279,16 @@ impl OpticsMessage {
         let mut buf = vec![];
         self.write_to(&mut buf).expect("!write");
         keccak256(buf).into()
+    }
+}
+
+impl std::fmt::Display for OpticsMessage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "OpticsMessage {}->{}:{}",
+            self.origin, self.destination, self.sequence,
+        )
     }
 }
 
