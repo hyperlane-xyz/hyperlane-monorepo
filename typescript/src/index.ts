@@ -23,6 +23,13 @@ async function deployUpgradeBeaconController(deploy: Deploy) {
     gasPrice: deploy.chain.gasPrice,
   });
   await deploy.contracts.upgradeBeaconController.deployTransaction.wait(5);
+
+  // add contract information to Etherscan verification array
+  deploy.verificationInput.push({
+    name: 'UpgradeBeaconController',
+    address: deploy.contracts.upgradeBeaconController!.address,
+    constructorArguments: [],
+  });
 }
 
 /**
@@ -37,6 +44,13 @@ async function deployUpdaterManager(deploy: Deploy) {
     gasPrice: deploy.chain.gasPrice,
   });
   await deploy.contracts.updaterManager.deployTransaction.wait(5);
+
+  // add contract information to Etherscan verification array
+  deploy.verificationInput.push({
+    name: 'UpdaterManager',
+    address: deploy.contracts.updaterManager!.address,
+    constructorArguments: [deploy.chain.updater],
+  });
 }
 
 /**
@@ -53,6 +67,13 @@ async function deployXAppConnectionManager(deploy: Deploy) {
     gasPrice: deploy.chain.gasPrice,
   });
   await deploy.contracts.xappConnectionManager.deployTransaction.wait(5);
+
+  // add contract information to Etherscan verification array
+  deploy.verificationInput.push({
+    name: 'XAppConnectionManager',
+    address: deploy.contracts.xappConnectionManager!.address,
+    constructorArguments: [],
+  });
 }
 
 /**
@@ -430,13 +451,13 @@ export async function deployNChains(chains: Deploy[]) {
 export function writePartials(dir: string) {
   // make folder if it doesn't exist already
   fs.mkdirSync(dir, { recursive: true });
-  const defaultDir = "../rust/config/default";
-  const partialNames = ["kathy", "processor", "relayer", "updater", "watcher"];
+  const defaultDir = '../rust/config/default';
+  const partialNames = ['kathy', 'processor', 'relayer', 'updater', 'watcher'];
   // copy partial config from default directory to given directory
   for (let partialName of partialNames) {
     const filename = `${partialName}-partial.json`;
-    fs.copyFile( `${defaultDir}/${filename}`, `${dir}/${filename}`, (err) => {
-      if(err) {
+    fs.copyFile(`${defaultDir}/${filename}`, `${dir}/${filename}`, (err) => {
+      if (err) {
         console.error(err);
       }
     });
@@ -466,6 +487,10 @@ export function writeDeployOutput(deploys: Deploy[]) {
       JSON.stringify(config, null, 2),
     );
     fs.writeFileSync(`${dir}/${name}_contracts.json`, toJson(local.contracts));
+    fs.writeFileSync(
+      `${dir}/${name}_verification.json`,
+      JSON.stringify(local.verificationInput, null, 2),
+    );
   }
   writePartials(dir);
 }

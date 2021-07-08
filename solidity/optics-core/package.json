@@ -31,14 +31,15 @@
     "coverage": "npm run compile && hardhat coverage",
     "test": "npm run compile && hardhat test",
     "lint": "solhint 'contracts/*.sol' && solhint 'contracts/**/*.sol' && eslint test/",
-    "lint:fix": "solhint --fix 'contracts/*.sol' && solhint --fix 'contracts/**/*.sol' && eslint --fix test/"
+    "lint:fix": "solhint --fix 'contracts/*.sol' && solhint --fix 'contracts/**/*.sol' && eslint --fix test/",
+    "verify": "hardhat --network kovan verify-latest-deploy"
   },
   "author": "James Prestwich",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@openzeppelin/contracts": "^3.4.0",
     "@summa-tx/memview-sol": "^2.0.0",
-    "dotenv": "^8.2.0",
+    "envy": "^2.0.0",
     "ts-generator": "^0.1.1"
   }
 }
