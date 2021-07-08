@@ -39,6 +39,9 @@ contract Replica is Initializable, Common, QueueManager {
     /// @notice Mapping of enqueued roots to allowable confirmation times
     mapping(bytes32 => uint256) public confirmAt;
 
+    /// @dev re-entrancy guard
+    uint8 private entered;
+
     /// @notice Status of message
     enum MessageStatus {
         None,
@@ -72,16 +75,15 @@ contract Replica is Initializable, Common, QueueManager {
         uint256 _optimisticSeconds,
         uint32 _nextToProcess
     ) public initializer {
-        remoteDomain = _remoteDomain;
-
+        Common.initialize(_updater);
         queue.initialize();
 
+        entered = 1;
+        remoteDomain = _remoteDomain;
         current = _current;
         confirmAt[_current] = 1;
         optimisticSeconds = _optimisticSeconds;
         nextToProcess = _nextToProcess;
-
-        Common.initialize(_updater);
     }
 
     /**
@@ -212,16 +214,17 @@ contract Replica is Initializable, Common, QueueManager {
 
         uint32 _sequence = _m.sequence();
         require(_m.destination() == localDomain, "!destination");
-        require(_sequence == nextToProcess, "!sequence");
         require(
             messages[keccak256(_message)] == MessageStatus.Pending,
             "!pending"
         );
 
-        // Set the state now. We will set nextToProcess later. This prevents
-        // re-entry as one of the two require statements above will definitely
-        // fail.
+        require(entered == 1, "!reentrant");
+        entered = 0;
+
+        // update the status and next to process
         messages[_m.keccak()] = MessageStatus.Processed;
+        nextToProcess = _sequence + 1;
 
         // NB:
         // A call running out of gas TYPICALLY errors the whole tx. We want to
@@ -250,7 +253,7 @@ contract Replica is Initializable, Common, QueueManager {
             emit ProcessError(_sequence, _recipient, _returnData);
         }
 
-        nextToProcess = _sequence + 1;
+        entered = 1;
     }
 
     /**
