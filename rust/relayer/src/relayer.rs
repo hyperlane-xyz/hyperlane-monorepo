@@ -3,7 +3,7 @@ use color_eyre::{eyre::bail, Result};
 use futures_util::future::select_all;
 use std::{sync::Arc, time::Duration};
 use tokio::{join, sync::Mutex, task::JoinHandle, time::sleep};
-use tracing::info;
+use tracing::{info, instrument::Instrumented, Instrument};
 
 use optics_base::{
     agent::{AgentCore, OpticsAgent},
@@ -180,7 +180,7 @@ impl OpticsAgent for Relayer {
     }
 
     #[tracing::instrument]
-    fn run(&self, name: &str) -> JoinHandle<Result<()>> {
+    fn run(&self, name: &str) -> Instrumented<JoinHandle<Result<()>>> {
         let replica_opt = self.replica_by_name(name);
         let home = self.home();
         let name = name.to_owned();
@@ -203,6 +203,7 @@ impl OpticsAgent for Relayer {
 
             res?
         })
+        .in_current_span()
     }
 }
 

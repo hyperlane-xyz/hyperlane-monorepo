@@ -29,8 +29,9 @@ macro_rules! cancel_task {
     ($task:ident) => {
         #[allow(unused_must_use)]
         {
-            $task.abort();
-            $task.await;
+            let t = $task.into_inner();
+            t.abort();
+            t.await;
         }
     };
 }

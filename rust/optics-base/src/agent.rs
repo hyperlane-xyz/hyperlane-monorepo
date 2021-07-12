@@ -3,6 +3,8 @@ use async_trait::async_trait;
 use color_eyre::{eyre::WrapErr, Result};
 use futures_util::future::select_all;
 use rocksdb::DB;
+use tracing::instrument::Instrumented;
+use tracing::Instrument;
 
 use std::{collections::HashMap, sync::Arc};
 use tokio::task::JoinHandle;
@@ -50,18 +52,18 @@ pub trait OpticsAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
     }
 
     /// Run the agent with the given home and replica
-    fn run(&self, replica: &str) -> JoinHandle<Result<()>>;
+    fn run(&self, replica: &str) -> Instrumented<JoinHandle<Result<()>>>;
 
     /// Run the Agent, and tag errors with the domain ID of the replica
     #[allow(clippy::unit_arg)]
     #[tracing::instrument]
-    fn run_report_error(&self, replica: &str) -> JoinHandle<Result<()>> {
+    fn run_report_error(&self, replica: &str) -> Instrumented<JoinHandle<Result<()>>> {
         let m = format!("Task for replica named {} failed", replica);
-        let handle = self.run(replica);
+        let handle = self.run(replica).in_current_span();
 
         let fut = async move { handle.await?.wrap_err(m) };
 
-        tokio::spawn(fut)
+        tokio::spawn(fut).in_current_span()
     }
 
     /// Run several agents by replica name

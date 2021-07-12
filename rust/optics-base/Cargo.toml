@@ -11,7 +11,7 @@ tokio = { version = "1.0.1", features = ["rt", "macros"] }
 config = "0.10"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false }
-ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["abigen"] }
+ethers = {git = "https://github.com/gakonst/ethers-rs", branch = "prestwich/pending-initial-delay", features = ["abigen"]}
 thiserror = { version = "1.0.22", default-features = false }
 async-trait = { version = "0.1.42", default-features = false }
 futures-util = "0.3.12"
@@ -31,7 +31,7 @@ tracing-error = "0.1.2"
 tracing-opentelemetry = "0.13.0"
 opentelemetry = { version = "0.14.0", features = ["rt-tokio"] }
 opentelemetry-jaeger = { version = "0.13.0", features = ["reqwest_collector_client", "tokio"] }
-opentelemetry-zipkin = { version = "0.12.0", features = ["reqwest-client"] }
+opentelemetry-zipkin = { version = "0.12.0", default-features = false, features = ["reqwest-client"] }
 
 [[example]]
 name = "example"

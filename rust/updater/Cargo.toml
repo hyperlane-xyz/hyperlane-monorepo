@@ -10,7 +10,7 @@ config = "0.11.0"
 serde = "1.0.120"
 serde_json = { version = "1.0.61", default-features = false }
 log = "0.4.13"
-ethers = { git = "https://github.com/gakonst/ethers-rs", features = ["abigen"] }
+ethers = {git = "https://github.com/gakonst/ethers-rs", branch = "prestwich/pending-initial-delay", features = ["abigen"]}
 thiserror = { version = "1.0.22", default-features = false }
 async-trait = { version = "0.1.42", default-features = false }
 futures-util = "0.3.12"

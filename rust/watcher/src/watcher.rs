@@ -14,6 +14,7 @@ use tokio::{
     task::JoinHandle,
     time::sleep,
 };
+use tracing::{instrument::Instrumented, Instrument};
 
 use optics_base::{
     agent::{AgentCore, OpticsAgent},
@@ -232,8 +233,8 @@ impl UpdateHandler {
 pub struct Watcher {
     signer: Arc<Signers>,
     interval_seconds: u64,
-    sync_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
-    watch_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
+    sync_tasks: RwLock<HashMap<String, Instrumented<JoinHandle<Result<()>>>>>,
+    watch_tasks: RwLock<HashMap<String, Instrumented<JoinHandle<Result<()>>>>>,
     connection_managers: Vec<ConnectionManagers>,
     core: AgentCore,
 }
@@ -359,10 +360,11 @@ impl OpticsAgent for Watcher {
     }
 
     #[tracing::instrument]
-    fn run(&self, _name: &str) -> JoinHandle<Result<()>> {
+    fn run(&self, _name: &str) -> Instrumented<tokio::task::JoinHandle<Result<()>>> {
         tokio::spawn(
             async move { bail!("Watcher::run should not be called. Always call run_many") },
         )
+        .in_current_span()
     }
 
     #[tracing::instrument(err)]
@@ -379,11 +381,14 @@ impl OpticsAgent for Watcher {
             self.watch_tasks.write().await.insert(
                 (*name).to_owned(),
                 ContractWatcher::new(self.interval_seconds, from, tx.clone(), replica.clone())
-                    .spawn(),
+                    .spawn()
+                    .in_current_span(),
             );
             self.sync_tasks.write().await.insert(
                 (*name).to_owned(),
-                HistorySync::new(self.interval_seconds, from, tx.clone(), replica).spawn(),
+                HistorySync::new(self.interval_seconds, from, tx.clone(), replica)
+                    .spawn()
+                    .in_current_span(),
             );
         }
 
@@ -391,8 +396,12 @@ impl OpticsAgent for Watcher {
         let from = home.current_root().await?;
 
         let home_watcher =
-            ContractWatcher::new(self.interval_seconds, from, tx.clone(), home.clone()).spawn();
-        let home_sync = HistorySync::new(self.interval_seconds, from, tx.clone(), home).spawn();
+            ContractWatcher::new(self.interval_seconds, from, tx.clone(), home.clone())
+                .spawn()
+                .in_current_span();
+        let home_sync = HistorySync::new(self.interval_seconds, from, tx.clone(), home)
+            .spawn()
+            .in_current_span();
 
         let join_result = handler.await;
 

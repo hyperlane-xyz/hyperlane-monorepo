@@ -16,7 +16,8 @@ use optics_base::{
     decl_agent,
 };
 use optics_core::{traits::Home, Message};
-use tracing::info;
+use tracing::instrument::Instrumented;
+use tracing::{info, Instrument};
 
 use crate::settings::KathySettings as Settings;
 
@@ -48,7 +49,7 @@ impl OpticsAgent for Kathy {
     }
 
     #[tracing::instrument]
-    fn run(&self, name: &str) -> JoinHandle<Result<()>> {
+    fn run(&self, name: &str) -> Instrumented<JoinHandle<Result<()>>> {
         let replica_opt = self.replica_by_name(name);
         let name = name.to_owned();
         let home = self.home();
@@ -81,6 +82,7 @@ impl OpticsAgent for Kathy {
                             message.recipient
                         );
                         home.enqueue(&message).await?;
+                        info!("Enqueue success");
                     }
                     _ => {
                         info!("Reached the end of the static message queue. Shutting down.");
@@ -91,6 +93,7 @@ impl OpticsAgent for Kathy {
                 sleep(duration).await;
             }
         })
+        .in_current_span()
     }
 }
 

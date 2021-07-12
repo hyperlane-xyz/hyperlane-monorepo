@@ -16,7 +16,7 @@ use tokio::{
     task::JoinHandle,
     time::sleep,
 };
-use tracing::{error, info, instrument, Instrument};
+use tracing::{error, info, instrument, instrument::Instrumented, Instrument};
 
 use optics_base::{
     agent::{AgentCore, OpticsAgent},
@@ -226,7 +226,7 @@ impl OpticsAgent for Processor {
         ))
     }
 
-    fn run(&self, name: &str) -> JoinHandle<Result<()>> {
+    fn run(&self, name: &str) -> Instrumented<JoinHandle<Result<()>>> {
         let home = self.home();
         let interval = self.interval;
 
@@ -243,6 +243,7 @@ impl OpticsAgent for Processor {
                 .spawn()
                 .await?
         })
+        .in_current_span()
     }
 
     #[tracing::instrument(err)]
@@ -256,7 +257,8 @@ impl OpticsAgent for Processor {
             sync.spawn(interval)
                 .await
                 .wrap_err("ProverSync task has shut down")
-        });
+        })
+        .in_current_span();
 
         // for each specified replica, spawn a joinable task
         let mut handles: Vec<_> = replicas.iter().map(|name| self.run(name)).collect();

@@ -1,6 +1,9 @@
 use std::convert::{TryFrom, TryInto};
 
-use opentelemetry::{sdk::trace::Tracer, trace::TraceError};
+use opentelemetry::{
+    sdk::trace::{IdGenerator, Tracer},
+    trace::TraceError,
+};
 use opentelemetry_jaeger::PipelineBuilder;
 use tracing::Subscriber;
 use tracing_opentelemetry::OpenTelemetryLayer;
@@ -32,7 +35,10 @@ impl From<&JaegerConfig> for PipelineBuilder {
     fn from(conf: &JaegerConfig) -> Self {
         let builder = PipelineBuilder::default()
             .with_service_name(&conf.name)
-            .with_collector_endpoint(&conf.collector.uri);
+            .with_collector_endpoint(&conf.collector.uri)
+            .with_trace_config(
+                opentelemetry::sdk::trace::config().with_id_generator(IdGenerator::default()),
+            );
 
         if let Some(ref auth) = conf.collector.auth {
             builder

@@ -163,7 +163,7 @@ impl OpticsAgent for Updater {
         ))
     }
 
-    fn run(&self, _replica: &str) -> JoinHandle<Result<()>> {
+    fn run(&self, _replica: &str) -> Instrumented<JoinHandle<Result<()>>> {
         // First we check that we have the correct key to sign with.
         let home = self.home();
         let address = self.signer.address();
@@ -202,6 +202,7 @@ impl OpticsAgent for Updater {
                 sleep(Duration::from_secs(interval_seconds)).await;
             }
         })
+        .in_current_span()
     }
 }
 

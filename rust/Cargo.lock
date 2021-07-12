@@ -87,9 +87,9 @@ dependencies = [
 
 [[package]]
 name = "anyhow"
-version = "1.0.41"
+version = "1.0.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "15af2628f6890fe2609a3b91bef4c83450512802e59489f9c1cb1fa5df064a61"
+checksum = "595d3cfa7a60d4555cb5067b99f07142a08ea778de5cf993f7b75c7d8fabc486"
 
 [[package]]
 name = "arrayref"
@@ -382,9 +382,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.68"
+version = "1.0.69"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4a72c244c1ff497a746a7e1fb3d14bd08420ecda70c8f25c7112f2781652d787"
+checksum = "e70cc2f62c6ce1868963827bd677764c62d07c3d9a3e1fb1177ee1a9ab199eb2"
 dependencies = [
  "jobserver",
 ]
@@ -798,9 +798,9 @@ dependencies = [
 
 [[package]]
 name = "elliptic-curve"
-version = "0.10.3"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "dd035cb119cbc25e91bb6f1abbfe341388ddb47a1fe5e77ca6bcbe231e87580b"
+checksum = "83e5c176479da93a0983f0a6fdc3c1b8e7d5be0d7fe3fe05a99f15b96582b9a8"
 dependencies = [
  "crypto-bigint",
  "generic-array 0.14.4",
@@ -841,9 +841,9 @@ dependencies = [
 
 [[package]]
 name = "ethabi"
-version = "14.0.0"
+version = "14.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c52991643379afc90bfe2df3c64d53983e59c35a82ba6e75c997cfc2880d8524"
+checksum = "a01317735d563b3bad2d5f90d2e1799f414165408251abb762510f40e790e69a"
 dependencies = [
  "anyhow",
  "ethereum-types",
@@ -885,7 +885,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "0.2.2"
-source = "git+https://github.com/gakonst/ethers-rs#d722c1a6af6b0fc4a2cbbb66fe9c83ef35e81bfd"
+source = "git+https://github.com/gakonst/ethers-rs?branch=prestwich/pending-initial-delay#54422aa0f961c1ec3f52dd16de16e137402b6278"
 dependencies = [
  "ethers-contract",
  "ethers-core",
@@ -897,7 +897,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "0.2.2"
-source = "git+https://github.com/gakonst/ethers-rs#d722c1a6af6b0fc4a2cbbb66fe9c83ef35e81bfd"
+source = "git+https://github.com/gakonst/ethers-rs?branch=prestwich/pending-initial-delay#54422aa0f961c1ec3f52dd16de16e137402b6278"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -915,7 +915,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "0.2.2"
-source = "git+https://github.com/gakonst/ethers-rs#d722c1a6af6b0fc4a2cbbb66fe9c83ef35e81bfd"
+source = "git+https://github.com/gakonst/ethers-rs?branch=prestwich/pending-initial-delay#54422aa0f961c1ec3f52dd16de16e137402b6278"
 dependencies = [
  "Inflector",
  "anyhow",
@@ -932,7 +932,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "0.2.2"
-source = "git+https://github.com/gakonst/ethers-rs#d722c1a6af6b0fc4a2cbbb66fe9c83ef35e81bfd"
+source = "git+https://github.com/gakonst/ethers-rs?branch=prestwich/pending-initial-delay#54422aa0f961c1ec3f52dd16de16e137402b6278"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -946,12 +946,12 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "0.2.2"
-source = "git+https://github.com/gakonst/ethers-rs#d722c1a6af6b0fc4a2cbbb66fe9c83ef35e81bfd"
+source = "git+https://github.com/gakonst/ethers-rs?branch=prestwich/pending-initial-delay#54422aa0f961c1ec3f52dd16de16e137402b6278"
 dependencies = [
  "arrayvec 0.5.2",
  "bytes",
  "ecdsa",
- "elliptic-curve 0.10.3",
+ "elliptic-curve 0.10.4",
  "ethabi",
  "funty",
  "futures-util",
@@ -971,7 +971,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "0.2.2"
-source = "git+https://github.com/gakonst/ethers-rs#d722c1a6af6b0fc4a2cbbb66fe9c83ef35e81bfd"
+source = "git+https://github.com/gakonst/ethers-rs?branch=prestwich/pending-initial-delay#54422aa0f961c1ec3f52dd16de16e137402b6278"
 dependencies = [
  "async-trait",
  "ethers-contract",
@@ -993,7 +993,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "0.2.2"
-source = "git+https://github.com/gakonst/ethers-rs#d722c1a6af6b0fc4a2cbbb66fe9c83ef35e81bfd"
+source = "git+https://github.com/gakonst/ethers-rs?branch=prestwich/pending-initial-delay#54422aa0f961c1ec3f52dd16de16e137402b6278"
 dependencies = [
  "async-trait",
  "auto_impl",
@@ -1020,13 +1020,13 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "0.2.2"
-source = "git+https://github.com/gakonst/ethers-rs#d722c1a6af6b0fc4a2cbbb66fe9c83ef35e81bfd"
+source = "git+https://github.com/gakonst/ethers-rs?branch=prestwich/pending-initial-delay#54422aa0f961c1ec3f52dd16de16e137402b6278"
 dependencies = [
  "async-trait",
  "coins-bip32",
  "coins-bip39",
  "coins-ledger",
- "elliptic-curve 0.10.3",
+ "elliptic-curve 0.10.4",
  "eth-keystore",
  "ethers-core",
  "futures-executor",
@@ -1431,9 +1431,9 @@ checksum = "6456b8a6c8f33fee7d958fcd1b60d55b11940a79e63ae87013e6d22e26034440"
 
 [[package]]
 name = "hyper"
-version = "0.14.9"
+version = "0.14.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "07d6baa1b441335f3ce5098ac421fb6547c46dda735ca1bc6d0153c838f9dd83"
+checksum = "7728a72c4c7d72665fde02204bcbd93b247721025b222ef78606f14513e0fd03"
 dependencies = [
  "bytes",
  "futures-channel",
@@ -1660,9 +1660,9 @@ dependencies = [
 
 [[package]]
 name = "libc"
-version = "0.2.97"
+version = "0.2.98"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "12b8adadd720df158f4d70dfe7ccc6adb0472d7c55ca83445f6a5ab3e36f8fb6"
+checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
 
 [[package]]
 name = "libloading"
@@ -1677,7 +1677,7 @@ dependencies = [
 [[package]]
 name = "librocksdb-sys"
 version = "6.20.3"
-source = "git+https://github.com/rust-rocksdb/rust-rocksdb#f00ae8c4ab858c4ba5416b995664ad09b368ed22"
+source = "git+https://github.com/rust-rocksdb/rust-rocksdb#54cbd34d2ebbe942806d963021de63afbaaf37ac"
 dependencies = [
  "bindgen",
  "cc",
@@ -2636,7 +2636,7 @@ dependencies = [
 [[package]]
 name = "rocksdb"
 version = "0.17.0"
-source = "git+https://github.com/rust-rocksdb/rust-rocksdb#f00ae8c4ab858c4ba5416b995664ad09b368ed22"
+source = "git+https://github.com/rust-rocksdb/rust-rocksdb#54cbd34d2ebbe942806d963021de63afbaaf37ac"
 dependencies = [
  "libc",
  "librocksdb-sys",
@@ -2989,9 +2989,9 @@ dependencies = [
 
 [[package]]
 name = "synstructure"
-version = "0.12.4"
+version = "0.12.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b834f2d66f734cb897113e34aaff2f1ab4719ca946f9a7358dba8f8064148701"
+checksum = "474aaa926faa1603c40b7885a9eaea29b444d1cb2850cb7c0e37bb1a4182f4fa"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3106,9 +3106,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.8.0"
+version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "570c2eb13b3ab38208130eccd41be92520388791207fde783bda7c1e8ace28d4"
+checksum = "98c8b05dc14c75ea83d63dd391100353789f5f24b8b3866542a5e85c8be8e985"
 dependencies = [
  "autocfg",
  "bytes",
@@ -3123,9 +3123,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-macros"
-version = "1.2.0"
+version = "1.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c49e3df43841dafb86046472506755d8501c5615673955f6aa17181125d13c37"
+checksum = "54473be61f4ebe4efd09cec9bd5d16fa51d70ea0192213d754d2d500457db110"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -3155,9 +3155,9 @@ dependencies = [
 
 [[package]]
 name = "tokio-stream"
-version = "0.1.6"
+version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f8864d706fdb3cc0843a49647ac892720dac98a6eeb818b77190592cf4994066"
+checksum = "7b2f3f698253f03119ac0102beaa64f67a67e08074d03a22d18784104543727f"
 dependencies = [
  "futures-core",
  "pin-project-lite",
