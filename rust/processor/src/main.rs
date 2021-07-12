@@ -17,26 +17,20 @@ use color_eyre::Result;
 use crate::{processor::Processor, settings::ProcessorSettings as Settings};
 use optics_base::agent::OpticsAgent;
 
-async fn _main(settings: Settings) -> Result<()> {
-    let processor = Processor::from_settings(settings).await?;
-    processor.run_all().await?;
-
-    Ok(())
-}
-
-fn setup() -> Result<Settings> {
+async fn _main() -> Result<()> {
     color_eyre::install()?;
     let settings = Settings::new()?;
     settings.base.tracing.try_init_tracing()?;
-    Ok(settings)
+
+    let agent = Processor::from_settings(settings).await?;
+    agent.run_all().await?;
+    Ok(())
 }
 
 fn main() -> Result<()> {
-    let settings = setup()?;
-
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
-        .block_on(_main(settings))
+        .block_on(_main())
 }

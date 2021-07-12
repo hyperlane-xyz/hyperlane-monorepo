@@ -15,12 +15,11 @@ use crate::{kathy::Kathy, settings::KathySettings as Settings};
 
 async fn _main() -> Result<()> {
     color_eyre::install()?;
-
     let settings = Settings::new()?;
     settings.base.tracing.try_init_tracing()?;
 
-    let kathy = Kathy::from_settings(settings).await?;
-    kathy.run_all().await?;
+    let agent = Kathy::from_settings(settings).await?;
+    agent.run_all().await?;
     Ok(())
 }
 

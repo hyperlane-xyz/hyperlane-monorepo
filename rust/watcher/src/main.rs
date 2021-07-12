@@ -18,29 +18,20 @@ use optics_base::agent::OpticsAgent;
 
 use crate::{settings::WatcherSettings as Settings, watcher::Watcher};
 
-async fn _main(settings: Settings) -> Result<()> {
-    let watcher = Watcher::from_settings(settings).await?;
-    watcher.run_all().await?;
+async fn _main() -> Result<()> {
+    color_eyre::install()?;
+    let settings = Settings::new()?;
+    settings.base.tracing.try_init_tracing()?;
 
+    let agent = Watcher::from_settings(settings).await?;
+    agent.run_all().await?;
     Ok(())
 }
 
-fn setup() -> Result<Settings> {
-    color_eyre::install()?;
-
-    let settings = Settings::new()?;
-
-    settings.base.tracing.try_init_tracing()?;
-
-    Ok(settings)
-}
-
 fn main() -> Result<()> {
-    let settings = setup()?;
-
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
-        .block_on(_main(settings))
+        .block_on(_main())
 }

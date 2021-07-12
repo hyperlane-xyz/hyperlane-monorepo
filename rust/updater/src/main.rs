@@ -16,29 +16,20 @@ use optics_base::agent::OpticsAgent;
 
 use crate::{settings::UpdaterSettings as Settings, updater::Updater};
 
-async fn _main(settings: Settings) -> Result<()> {
-    let updater = Updater::from_settings(settings).await?;
-
-    updater.run("").await??;
-
-    Ok(())
-}
-
-fn setup() -> Result<Settings> {
+async fn _main() -> Result<()> {
     color_eyre::install()?;
-
     let settings = Settings::new()?;
     settings.base.tracing.try_init_tracing()?;
 
-    Ok(settings)
+    let agent = Updater::from_settings(settings).await?;
+    agent.run_all().await?;
+    Ok(())
 }
 
 fn main() -> Result<()> {
-    let settings = setup()?;
-
     tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
         .unwrap()
-        .block_on(_main(settings))
+        .block_on(_main())
 }
