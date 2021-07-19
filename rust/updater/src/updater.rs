@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use color_eyre::{
-    eyre::{ensure, eyre, Context},
+    eyre::{bail, ensure, Context},
     Result,
 };
 use ethers::{core::types::H256, signers::Signer, types::Address};
@@ -119,8 +119,9 @@ impl UpdateHandler {
         // can check and enter the below `if` block at a time,
         // protecting from races between threads.
 
-        self.check_conflict(&update)
-            .ok_or_else(|| eyre!("Found conflicting update in DB"))?;
+        if self.check_conflict(&update).is_some() {
+            bail!("Found conflicting update in DB");
+        }
 
         // If we have a conflict, we grab that one instead
         let signed = update.sign_with(self.signer.as_ref()).await.unwrap();
