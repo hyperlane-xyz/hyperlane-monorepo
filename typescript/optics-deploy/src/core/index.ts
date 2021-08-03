@@ -4,10 +4,10 @@
 import * as ethers from 'ethers';
 import fs from 'fs';
 
-import * as proxyUtils from './proxyUtils';
-import { Deploy, toJson, buildConfig } from './chain';
-import { toBytes32 } from '../../optics-tests/lib/utils';
-import * as contracts from '../../typechain/optics-core';
+import * as proxyUtils from '../proxyUtils';
+import { CoreDeploy } from '../deploy';
+import { toBytes32 } from '../../../optics-tests/lib/utils';
+import * as contracts from '../../../typechain/optics-core';
 
 function log(isTest: boolean, str: string) {
   if (!isTest) {
@@ -30,7 +30,7 @@ function warn(text: string, padded: boolean) {
   }
 }
 
-export async function deployUpgradeBeaconController(deploy: Deploy) {
+export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
   let factory = new contracts.UpgradeBeaconController__factory(deploy.deployer);
   deploy.contracts.upgradeBeaconController = await factory.deploy(
     deploy.overrides,
@@ -53,10 +53,11 @@ export async function deployUpgradeBeaconController(deploy: Deploy) {
  *
  * @param deploy - The deploy instance
  */
-export async function deployUpdaterManager(deploy: Deploy) {
+export async function deployUpdaterManager(deploy: CoreDeploy) {
   let factory = new contracts.UpdaterManager__factory(deploy.deployer);
+
   deploy.contracts.updaterManager = await factory.deploy(
-    deploy.chain.updater,
+    deploy.config.updater,
     deploy.overrides,
   );
   await deploy.contracts.updaterManager!.deployTransaction.wait(
@@ -67,7 +68,7 @@ export async function deployUpdaterManager(deploy: Deploy) {
   deploy.verificationInput.push({
     name: 'UpdaterManager',
     address: deploy.contracts.updaterManager!.address,
-    constructorArguments: [deploy.chain.updater],
+    constructorArguments: [deploy.config.updater],
   });
 }
 
@@ -77,7 +78,7 @@ export async function deployUpdaterManager(deploy: Deploy) {
  *
  * @param deploy - The deploy instance
  */
-export async function deployXAppConnectionManager(deploy: Deploy) {
+export async function deployXAppConnectionManager(deploy: CoreDeploy) {
   let factory = new contracts.XAppConnectionManager__factory(deploy.deployer);
   deploy.contracts.xappConnectionManager = await factory.deploy(
     deploy.overrides,
@@ -100,10 +101,10 @@ export async function deployXAppConnectionManager(deploy: Deploy) {
  *
  * @param deploy - The deploy instance
  */
-export async function deployUpdaterManager(deploy: Deploy) {
+export async function deployUpdaterManager(deploy: CoreDeploy) {
   let factory = new contracts.UpdaterManager__factory(deploy.deployer);
   deploy.contracts.updaterManager = await factory.deploy(
-    deploy.chain.updater,
+    deploy.config.updater,
     deploy.overrides,
   );
   await deploy.contracts.updaterManager.deployTransaction.wait(
@@ -117,7 +118,7 @@ export async function deployUpdaterManager(deploy: Deploy) {
  *
  * @param deploy - The deploy instance
  */
-export async function deployXAppConnectionManager(deploy: Deploy) {
+export async function deployXAppConnectionManager(deploy: CoreDeploy) {
   const isTestDeploy: boolean = deploy.test;
   if (isTestDeploy) warn('deploying test XAppConnectionManager');
 
@@ -140,21 +141,21 @@ export async function deployXAppConnectionManager(deploy: Deploy) {
  *
  * @param deploy - The deploy instance
  */
-export async function deployHome(deploy: Deploy) {
+export async function deployHome(deploy: CoreDeploy) {
   const isTestDeploy: boolean = deploy.test;
   if (isTestDeploy) warn('deploying test Home');
-  const home = isTestDeploy
+  const homeFactory = isTestDeploy
     ? contracts.TestHome__factory
     : contracts.Home__factory;
 
   let { updaterManager } = deploy.contracts;
-  let initData = home
+  let initData = homeFactory
     .createInterface()
     .encodeFunctionData('initialize', [updaterManager!.address]);
 
   deploy.contracts.home = await proxyUtils.deployProxy<contracts.Home>(
     deploy,
-    new home(deploy.deployer),
+    new homeFactory(deploy.deployer),
     initData,
     deploy.chain.domain,
   );
@@ -166,7 +167,7 @@ export async function deployHome(deploy: Deploy) {
  *
  * @param deploy - The deploy instance
  */
-export async function deployGovernanceRouter(deploy: Deploy) {
+export async function deployGovernanceRouter(deploy: CoreDeploy) {
   const isTestDeploy: boolean = deploy.test;
   if (isTestDeploy) warn('deploying test GovernanceRouter');
   const governanceRouter = isTestDeploy
@@ -174,7 +175,7 @@ export async function deployGovernanceRouter(deploy: Deploy) {
     : contracts.GovernanceRouter__factory;
 
   let { xAppConnectionManager } = deploy.contracts;
-  const recoveryManager = deploy.chain.recoveryManager;
+  const recoveryManager = deploy.config.recoveryManager;
   const recoveryTimelock = 1;
 
   let initData = governanceRouter
@@ -201,7 +202,10 @@ export async function deployGovernanceRouter(deploy: Deploy) {
  * @param local - The local deploy instance
  * @param remote - The remote deploy instance
  */
-export async function deployUnenrolledReplica(local: Deploy, remote: Deploy) {
+export async function deployUnenrolledReplica(
+  local: CoreDeploy,
+  remote: CoreDeploy,
+) {
   const isTestDeploy: boolean = remote.test;
   if (isTestDeploy) warn('deploying test Replica');
   log(
@@ -216,9 +220,9 @@ export async function deployUnenrolledReplica(local: Deploy, remote: Deploy) {
 
   let initData = replica.createInterface().encodeFunctionData('initialize', [
     remote.chain.domain,
-    remote.chain.updater,
+    remote.config.updater,
     ethers.constants.HashZero, // TODO: allow configuration
-    remote.chain.optimisticSeconds,
+    remote.config.optimisticSeconds,
     0, // TODO: allow configuration
   ]);
 
@@ -255,7 +259,7 @@ export async function deployUnenrolledReplica(local: Deploy, remote: Deploy) {
  *
  * @param deploy - The deploy instance
  */
-export async function deployOptics(deploy: Deploy) {
+export async function deployOptics(deploy: CoreDeploy) {
   const isTestDeploy: boolean = deploy.test;
   if (isTestDeploy) {
     warn('deploying test contracts', true);
@@ -311,7 +315,7 @@ export async function deployOptics(deploy: Deploy) {
  *
  * @param deploy - The deploy instance
  */
-export async function relinquish(deploy: Deploy) {
+export async function relinquish(deploy: CoreDeploy) {
   const isTestDeploy = deploy.test;
   const govRouter = await deploy.contracts.governance!.proxy.address;
 
@@ -363,7 +367,7 @@ export async function relinquish(deploy: Deploy) {
  * @param local - The local deploy instance
  * @param remote - The remote deploy instance
  */
-export async function enrollReplica(local: Deploy, remote: Deploy) {
+export async function enrollReplica(local: CoreDeploy, remote: CoreDeploy) {
   const isTestDeploy = local.test;
   log(isTestDeploy, `${local.chain.name}: starting replica enrollment`);
 
@@ -383,12 +387,12 @@ export async function enrollReplica(local: Deploy, remote: Deploy) {
  * @param local - The local deploy instance
  * @param remote - The remote deploy instance
  */
-export async function enrollWatchers(left: Deploy, right: Deploy) {
+export async function enrollWatchers(left: CoreDeploy, right: CoreDeploy) {
   const isTestDeploy = left.test;
   log(isTestDeploy, `${left.chain.name}: starting watcher enrollment`);
 
   await Promise.all(
-    left.chain.watchers.map(async (watcher) => {
+    left.config.watchers.map(async (watcher) => {
       const tx =
         await left.contracts.xAppConnectionManager!.setWatcherPermission(
           watcher,
@@ -409,7 +413,10 @@ export async function enrollWatchers(left: Deploy, right: Deploy) {
  * @param local - The local deploy instance
  * @param remote - The remote deploy instance
  */
-export async function enrollGovernanceRouter(local: Deploy, remote: Deploy) {
+export async function enrollGovernanceRouter(
+  local: CoreDeploy,
+  remote: CoreDeploy,
+) {
   const isTestDeploy = local.test;
   log(isTestDeploy, `${local.chain.name}: starting governance enrollment`);
   let tx = await local.contracts.governance!.proxy.setRouter(
@@ -427,7 +434,7 @@ export async function enrollGovernanceRouter(local: Deploy, remote: Deploy) {
  * @param local - The local deploy instance
  * @param remote - The remote deploy instance
  */
-export async function enrollRemote(local: Deploy, remote: Deploy) {
+export async function enrollRemote(local: CoreDeploy, remote: CoreDeploy) {
   await deployUnenrolledReplica(local, remote);
   await enrollReplica(local, remote);
   await enrollWatchers(local, remote);
@@ -440,7 +447,7 @@ export async function enrollRemote(local: Deploy, remote: Deploy) {
  * @param gov - The governor chain deploy instance
  * @param non - The non-governor chain deploy instance
  */
-export async function transferGovernorship(gov: Deploy, non: Deploy) {
+export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
   const isTestDeploy = gov.test;
   log(isTestDeploy, `${non.chain.name}: transferring governorship`);
   let governorAddress = await gov.contracts.governance!.proxy.governor();
@@ -461,9 +468,8 @@ export async function transferGovernorship(gov: Deploy, non: Deploy) {
  * @param gov - The governor chain deploy instance
  * @param non - The non-governor chain deploy instance
  */
-export async function deployTwoChains(gov: Deploy, non: Deploy) {
+export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   const isTestDeploy: boolean = gov.test || non.test;
-
   await Promise.all([deployOptics(gov), deployOptics(non)]);
 
   log(isTestDeploy, 'initial deploys done');
@@ -502,7 +508,10 @@ export async function deployTwoChains(gov: Deploy, non: Deploy) {
  * @param gov - The governing chain deploy instance
  * @param spokes - An array of remote chain deploy instances
  */
-export async function deployHubAndSpokes(gov: Deploy, spokes: Deploy[]) {
+export async function deployHubAndSpokes(
+  gov: CoreDeploy,
+  spokes: CoreDeploy[],
+) {
   await deployOptics(gov);
 
   for (const non of spokes) {
@@ -530,7 +539,7 @@ export async function deployHubAndSpokes(gov: Deploy, spokes: Deploy[]) {
  *
  * @param chains - An array of chain deploys
  */
-export async function deployNChains(chains: Deploy[]) {
+export async function deployNChains(chains: CoreDeploy[]) {
   // there exists any chain marked test
   const isTestDeploy: boolean = chains.filter((c) => c.test).length > 0;
 
@@ -580,7 +589,7 @@ export function writePartials(dir: string) {
  *
  * @param deploys - The array of chain deploys
  */
-export function writeDeployOutput(deploys: Deploy[]) {
+export function writeDeployOutput(deploys: CoreDeploy[]) {
   log(deploys[0].test, `Have ${deploys.length} deploys`);
   const dir = `../../rust/config/${Date.now()}`;
   for (const local of deploys) {
@@ -589,7 +598,7 @@ export function writeDeployOutput(deploys: Deploy[]) {
       .slice()
       .filter((remote) => remote.chain.domain !== local.chain.domain);
 
-    const config = buildConfig(local, remotes);
+    const config = CoreDeploy.buildConfig(local, remotes);
     const name = local.chain.name;
 
     fs.mkdirSync(dir, { recursive: true });
@@ -597,7 +606,10 @@ export function writeDeployOutput(deploys: Deploy[]) {
       `${dir}/${name}_config.json`,
       JSON.stringify(config, null, 2),
     );
-    fs.writeFileSync(`${dir}/${name}_contracts.json`, toJson(local.contracts));
+    fs.writeFileSync(
+      `${dir}/${name}_contracts.json`,
+      local.contracts.toJsonPretty(),
+    );
     fs.writeFileSync(
       `${dir}/${name}_verification.json`,
       JSON.stringify(local.verificationInput, null, 2),
