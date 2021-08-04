@@ -33,6 +33,14 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Replica__factory>;
     getContractFactory(
+      name: "UpgradeBeacon",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.UpgradeBeacon__factory>;
+    getContractFactory(
+      name: "UpgradeBeaconProxy",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.UpgradeBeaconProxy__factory>;
+    getContractFactory(
       name: "XAppConnectionManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.XAppConnectionManager__factory>;
@@ -68,6 +76,14 @@ declare module "hardhat/types/runtime" {
       name: "ERC20",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ERC20__factory>;
+    getContractFactory(
+      name: "TestFastLiquidity",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.TestFastLiquidity__factory>;
+    getContractFactory(
+      name: "TestXappConnectionManager",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.TestXappConnectionManager__factory>;
     getContractFactory(
       name: "TokenRegistry",
       signerOrOptions?: ethers.Signer | FactoryOptions

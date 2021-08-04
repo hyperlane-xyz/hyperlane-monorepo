@@ -3,12 +3,12 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {BridgeMessage} from "./BridgeMessage.sol";
-import {BridgeToken} from "./BridgeToken.sol";
 import {IBridgeToken} from "../../interfaces/bridge/IBridgeToken.sol";
 import {XAppConnectionClient} from "../XAppConnectionClient.sol";
+
 // ============ External Imports ============
-import {XAppConnectionManager, TypeCasts} from "@celo-org/optics-sol/contracts/XAppConnectionManager.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {TypeCasts} from "@celo-org/optics-sol/contracts/XAppConnectionManager.sol";
+import {UpgradeBeaconProxy} from "@celo-org/optics-sol/contracts/upgrade/UpgradeBeaconProxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
@@ -34,6 +34,8 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
     using TypedMemView for bytes29;
     using BridgeMessage for bytes29;
 
+    // ============ Structs ============
+
     // We identify tokens by a TokenId:
     // domain - 4 byte chain ID of the chain from which the token originates
     // id - 32 byte identifier of the token address on the origin chain, in that chain's address format
@@ -42,15 +44,11 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
         bytes32 id;
     }
 
-    event TokenDeployed(
-        uint32 indexed domain,
-        bytes32 indexed id,
-        address indexed representation
-    );
+    // ============ Public Storage ============
 
-    // Contract bytecode that will be cloned to deploy
-    // new representation token contracts
-    address internal tokenTemplate;
+    /// @dev The UpgradeBeacon that new tokens proxies will read implementation
+    /// from
+    address public tokenBeacon;
 
     // local representation token address => token ID
     mapping(address => TokenId) public representationToCanonical;
@@ -59,42 +57,42 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
     // If the token is of local origin, this MUST map to address(0).
     mapping(bytes32 => address) public canonicalToRepresentation;
 
+    // ============ Events ============
+
+    event TokenDeployed(
+        uint32 indexed domain,
+        bytes32 indexed id,
+        address indexed representation
+    );
+
     // ======== Initializer =========
 
-    function _initialize(address _xAppConnectionManager)
-        internal
-        override
+    /**
+     * @notice Initialize the TokenRegistry with UpgradeBeaconController and
+     *          XappConnectionManager.
+     * @dev This method deploys two new contracts, and may be expensive to call.
+     * @param _xAppConnectionManager The address of the XappConnectionManager
+     *        that will manage Optics channel connectoins
+     */
+    function initialize(address _tokenBeacon, address _xAppConnectionManager)
+        public
         initializer
     {
-        tokenTemplate = address(new BridgeToken());
+        tokenBeacon = _tokenBeacon;
         XAppConnectionClient._initialize(_xAppConnectionManager);
     }
+
+    // ============ Modifiers ============
 
     modifier typeAssert(bytes29 _view, BridgeMessage.Types _t) {
         _view.assertType(uint40(_t));
         _;
     }
 
-    function setTemplate(address _newTemplate) external onlyOwner {
-        tokenTemplate = _newTemplate;
-    }
+    // ============ Internal Functions ============
 
     function _cloneTokenContract() internal returns (address result) {
-        bytes20 targetBytes = bytes20(tokenTemplate);
-        // solhint-disable-next-line no-inline-assembly
-        assembly {
-            let _clone := mload(0x40)
-            mstore(
-                _clone,
-                0x3d602d80600a3d3981f3363d3d373d3d3d363d73000000000000000000000000
-            )
-            mstore(add(_clone, 0x14), targetBytes)
-            mstore(
-                add(_clone, 0x28),
-                0x5af43d82803e903d91602b57fd5bf30000000000000000000000000000000000
-            )
-            result := create(0, _clone, 0x37)
-        }
+        return address(new UpgradeBeaconProxy(tokenBeacon, ""));
     }
 
     function _deployToken(bytes29 _tokenId)
@@ -115,22 +113,46 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
         emit TokenDeployed(_tokenId.domain(), _tokenId.id(), _token);
     }
 
+    /// @dev Gets the local address corresponding to the canonical ID, or
+    /// address(0)
+    function _getTokenAddress(bytes29 _tokenId)
+        internal
+        view
+        typeAssert(_tokenId, BridgeMessage.Types.TokenId)
+        returns (address _local)
+    {
+        if (_tokenId.domain() == _localDomain()) {
+            // Token is of local origin
+            _local = _tokenId.evmId();
+        } else {
+            // Token is a representation of a token of remote origin
+            _local = canonicalToRepresentation[_tokenId.keccak()];
+        }
+    }
+
     function _ensureToken(bytes29 _tokenId)
         internal
         typeAssert(_tokenId, BridgeMessage.Types.TokenId)
         returns (IERC20)
     {
-        // Token is of local origin
-        if (_tokenId.domain() == _localDomain()) {
-            return IERC20(_tokenId.evmId());
-        }
-        // Token is a representation of a token of remote origin
-        address _local = canonicalToRepresentation[_tokenId.keccak()];
+        address _local = _getTokenAddress(_tokenId);
         if (_local == address(0)) {
             // Representation does not exist yet;
             // deploy representation contract
             _local = _deployToken(_tokenId);
         }
+        return IERC20(_local);
+    }
+
+    /// @dev returns the token corresponding to the canonical ID, or errors.
+    function _mustHaveToken(bytes29 _tokenId)
+        internal
+        view
+        typeAssert(_tokenId, BridgeMessage.Types.TokenId)
+        returns (IERC20)
+    {
+        address _local = _getTokenAddress(_tokenId);
+        require(_local != address(0), "!token");
         return IERC20(_local);
     }
 

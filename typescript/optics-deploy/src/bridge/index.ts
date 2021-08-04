@@ -18,31 +18,55 @@ export type BridgeDeployOutput = {
  * @param deploys - The list of deploy instances for each chain
  */
 export async function deployBridges(deploys: BridgeDeploy[]) {
-  // deploy BridgeRouters
-  const deployPromises: Promise<void>[] = [];
-  for (let deploy of deploys) {
-    deployPromises.push(deployBridgeRouter(deploy));
-  }
-  await Promise.all(deployPromises);
+  // deploy BridgeTokens & BridgeRouters
+  await Promise.all(
+    deploys.map(async (deploy) => {
+      await deployTokenUpgradeBeacon(deploy);
+      await deployBridgeRouter(deploy);
+    }),
+  );
 
+  // after all BridgeRouters have been deployed,
   // enroll peer BridgeRouters with each other
-  const enrollPromises: Promise<void>[] = [];
-  for (let deploy of deploys) {
-    enrollPromises.push(enrollAllBridgeRouters(deploy, deploys));
-  }
-  await Promise.all(enrollPromises);
+  await Promise.all(
+    deploys.map(async (deploy) => {
+      await enrollAllBridgeRouters(deploy, deploys);
+    }),
+  );
 
-  // after finishing enrolling,
+  // after all peer BridgeRouters have been co-enrolled,
   // transfer ownership of BridgeRouters to Governance
-  const transferPromises: Promise<void>[] = [];
-  for (let deploy of deploys) {
-    transferPromises.push(transferOwnershipToGovernance(deploy));
-  }
-  await Promise.all(transferPromises);
+  await Promise.all(
+    deploys.map(async (deploy) => {
+      await transferOwnershipToGovernance(deploy);
+    }),
+  );
 
   // output the Bridge deploy information to a subdirectory
   // of the core system deploy config folder
   writeBridgeDeployOutput(deploys);
+}
+
+/**
+ * Deploys the BridgeToken implementation + upgrade beacon
+ * on the chain of the given deploy
+ * and updates the deploy instance with the new contracts.
+ *
+ * @param deploy - The deploy instance
+ */
+async function deployTokenUpgradeBeacon(deploy: BridgeDeploy) {
+  console.log(`deploying ${deploy.chain.name} Token Upgrade Beacon`);
+
+  // no initialize function called
+  const initData = "";
+
+  deploy.contracts.bridgeToken = await proxyUtils.deployProxy<xAppContracts.BridgeToken>(
+      deploy,
+      new xAppContracts.BridgeToken__factory(deploy.chain.deployer),
+      initData,
+  );
+
+  console.log(`deployed ${deploy.chain.name} Token Upgrade Beacon`);
 }
 
 /**
@@ -54,10 +78,13 @@ export async function deployBridges(deploys: BridgeDeploy[]) {
 async function deployBridgeRouter(deploy: BridgeDeploy) {
   console.log(`deploying ${deploy.chain.name} BridgeRouter`);
 
-  let initData =
+  const initData =
     xAppContracts.BridgeRouter__factory.createInterface().encodeFunctionData(
       'initialize',
-      [deploy.coreContractAddresses.xappConnectionManager],
+      [
+        deploy.contracts.bridgeToken!.beacon.address,
+        deploy.coreContractAddresses.xappConnectionManager,
+      ],
     );
 
   deploy.contracts.bridgeRouter =

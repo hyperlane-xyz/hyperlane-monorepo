@@ -71,6 +71,24 @@ const _abi = [
     type: "function",
   },
   {
+    inputs: [
+      {
+        internalType: "address",
+        name: "_tokenBeacon",
+        type: "address",
+      },
+      {
+        internalType: "address",
+        name: "_xAppConnectionManager",
+        type: "address",
+      },
+    ],
+    name: "initialize",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
     inputs: [],
     name: "owner",
     outputs: [
@@ -118,19 +136,6 @@ const _abi = [
     inputs: [
       {
         internalType: "address",
-        name: "_newTemplate",
-        type: "address",
-      },
-    ],
-    name: "setTemplate",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "address",
         name: "_xAppConnectionManager",
         type: "address",
       },
@@ -138,6 +143,19 @@ const _abi = [
     name: "setXAppConnectionManager",
     outputs: [],
     stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "tokenBeacon",
+    outputs: [
+      {
+        internalType: "address",
+        name: "",
+        type: "address",
+      },
+    ],
+    stateMutability: "view",
     type: "function",
   },
   {
