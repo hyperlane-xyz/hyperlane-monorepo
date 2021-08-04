@@ -36,7 +36,7 @@ pub enum SignerConf {
     /// separately.
     Aws {
         /// The UUID identifying the AWS KMS Key
-        key_id: String,
+        id: String, // change to no _ so we can set by env
         /// The AWS region
         region: String,
     },
@@ -57,7 +57,7 @@ impl SignerConf {
     pub async fn try_into_signer(&self) -> Result<Signers, Report> {
         match self {
             SignerConf::HexKey { key } => Ok(Signers::Local(key.as_ref().parse()?)),
-            SignerConf::Aws { key_id, region } => {
+            SignerConf::Aws { id, region } => {
                 let client = rusoto_core::Client::new_with(
                     EnvironmentProvider::default(),
                     HttpClient::new().unwrap(),
@@ -71,7 +71,7 @@ impl SignerConf {
                 {
                     panic!("couldn't set cell")
                 }
-                let signer = AwsSigner::new(KMS_CLIENT.get().unwrap(), key_id, 0).await?;
+                let signer = AwsSigner::new(KMS_CLIENT.get().unwrap(), id, 0).await?;
                 Ok(Signers::Aws(signer))
             }
             SignerConf::Node => bail!("Node signer"),
