@@ -1,0 +1,130 @@
+{{- if .Values.optics.kathy.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "optics-agent.fullname" . }}-kathy
+  labels:
+    {{- include "optics-agent.labels" . | nindent 4 }}
+    role: kathy
+spec:
+  clusterIP: None
+  selector:
+    {{- include "optics-agent.selectorLabels" . | nindent 4 }}
+    role: kathy
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "optics-agent.fullname" . }}-kathy
+  labels:
+    {{- include "optics-agent.labels" . | nindent 4 }}
+    role: kathy
+spec:
+  selector:
+    matchLabels:
+      {{- include "optics-agent.selectorLabels" . | nindent 6 }}
+      role: kathy
+  replicas: 1 
+  serviceName: {{ include "optics-agent.fullname" . }}-kathy
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "optics-agent.selectorLabels" . | nindent 8 }}
+        role: kathy
+        {{- include "optics-agent.labels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 10
+      containers:
+      - name: {{ .Chart.Name }}
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 12 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["./kathy"]
+        env: 
+          # Set the DB location to be the volume 
+          - name: OPT_BASE_DBPATH
+            value: /usr/share/optics
+          # Set the log formatting 
+          - name: OPT_BASE_TRACING_STYLE
+            value: "json"
+          # Sets the config folder to use
+          - name: RUN_ENV
+            value: {{ .Values.optics.runEnv | quote }}
+          # Sets the base config to be used (switch between Homes)
+          - name: BASE_CONFIG
+            value: {{ .Values.optics.baseConfig }}
+          # Home Overrides
+          {{- if .Values.optics.homeChain.connectionUrl }}
+          - name: OPT_BASE_HOME_CONFIG_CONNECTION_URL
+            value: {{ .Values.optics.homeChain.connectionUrl }}
+          {{- end }}
+          {{- if .Values.optics.homeChain.connectionType }}
+          - name: OPT_BASE_HOME_CONFIG_CONNECTION_TYPE
+            value: {{ .Values.optics.homeChain.connectionType }}
+          {{- end }}
+          # Replica Overrides
+          {{- range .Values.optics.replicaChains }}
+          {{- if .connectionUrl }}
+          - name: OPT_BASE_REPLICAS_{{ .name | upper }}_CONNECTION_URL
+            value: {{ .connectionUrl }}
+          {{- end }}
+          {{- if .address }}
+          - name: OPT_BASE_REPLICAS_{{ .name | upper }}_ADDRESS
+            value: {{ .address }}
+          {{- end }}
+          {{- end }}
+          # Polling Interval Override
+          {{- if .Values.optics.kathy.messageInterval }}
+          - name: OPT_BASE_MESSAGEINTERVAL
+            value: {{ .Values.optics.kathy.messageInterval | quote }}
+          {{- end }}
+          # Transaction Signer Keys
+          {{- range .Values.optics.kathy.transactionSigners }}
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_KEY
+            value: {{ .key }}
+          {{- end }}
+          # Jaeger Config
+          {{- if .Values.optics.tracing.uri }}
+          - name: OPT_BASE_TRACING_JAEGER_NAME
+            value: {{ include "optics-agent.fullname" . }}-kathy
+          - name: OPT_BASE_TRACING_JAEGER_COLLECTOR_URI
+            value: {{ $.Values.optics.tracing.uri }}
+          {{- end }}
+          - name: RUST_BACKTRACE
+            value: full
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        volumeMounts:
+        - name: state
+          mountPath: /usr/share/optics
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: state
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      storageClassName: {{ .Values.volumeStorageClass }}
+      resources:
+        requests:
+          storage: 10Gi
+{{- end }}

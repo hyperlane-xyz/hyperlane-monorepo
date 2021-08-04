@@ -1,0 +1,128 @@
+replicaCount: 1
+# -- Default to standard storageclass provided by GKE
+volumeStorageClass: "standard"
+
+# -- Optics Overrides
+# By Default, Optics Agents load the config baked into the Docker Image
+# Pass values here in order to override the values in the config
+# Note: For successful operation, one _must_ pass signer keys as
+#       they are not baked into the image for security reasons. 
+optics: 
+  runEnv: "default"
+  baseConfig: "base.json"
+  tracing: 
+    uri: ""
+  homeChain: 
+    name: "goerli"
+    # -- The contract address for the home contract
+    address: # "0x0C473afC0cabd469751CBE3Ac08aBac3e40bF586"
+    # -- The hard-coded domain corresponding to this blockchain
+    domain: # 1000
+    # -- RPC Style
+    rpcStyle: # "ethereum"
+    connectionType: # "http"
+    # -- Connection string pointing to an RPC endpoint for the home chain 
+    connectionUrl: # "https://goerli.infura.io/v3/<KEY>"
+    
+  # -- Replica chain overrides, a sequence
+  replicaChains:
+    - name: "alfajores"
+      # -- The contract address for the replica contract
+      address: # "0x0C473afC0cabd469751CBE3Ac08aBac3e40bF586"
+      domain: # 1000
+      rpcStyle: # "ethereum"
+      connectionType: # "http"
+      # -- Connection string pointing to an RPC endpoint for the replica chain
+      connectionUrl: # "https://alfajores-forno.celo-testnet.org"
+  
+  # Optics Agent Roles
+  # Individually Switchable via <role>.enabled 
+  updater: 
+    # -- Enables or disables the updater
+    enabled: false
+    # -- Trnsaction Signing keys for home and replica(s)
+    transactionSigners: 
+      - name: "goerli"
+        key: ""
+      - name: "alfajores"
+        key: ""
+    # -- Specialized key used by updater and watcher used to sign attestations, separate from updater.keys
+    attestationSigner: ""
+    # -- How long to wait between checking for updates
+    pollingInterval: # 5
+    updatePause: # 15
+  relayer: 
+    # -- Enables or disables the relayer
+    enabled: false
+    transactionSigners: 
+      - name: "goerli"
+        key: ""
+      - name: "alfajores"
+        key: ""
+    pollingInterval: # 10
+  processor: 
+    enabled: false
+    transactionSigners: 
+      - name: "goerli"
+        key: ""
+      - name: "alfajores"
+        key: ""
+    pollingInterval: # 10
+  kathy: 
+    enabled: false
+    transactionSigners: 
+      - name: "goerli"
+        key: ""
+      - name: "alfajores"
+        key: ""
+    messageInterval: # 100
+    # -- Configuration for Kathy's message generation code
+    chatGenConfig:
+      destination: # 2000
+      message: # "hello are you listening?"
+      recipient: # "recipient"
+      type: # "static"
+
+image:
+  # -- Main repository for Optics Agent binaries, provided by cLabs
+  repository: gcr.io/clabs-optics/optics-agent
+  pullPolicy: Always
+  # -- Overrides the image tag whose default is the chart appVersion.
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+
+podAnnotations: {}
+
+podSecurityContext: {}
+  # fsGroup: 2000
+
+securityContext: {}
+  # capabilities:
+  #   drop:
+  #   - ALL
+  # readOnlyRootFilesystem: true
+  # runAsNonRoot: true
+  # runAsUser: 1000
+
+
+resources: {}
+  # We usually recommend not to specify default resources and to leave this as a conscious
+  # choice for the user. This also increases chances charts run on environments with little
+  # resources, such as Minikube. If you do want to specify resources, uncomment the following
+  # lines, adjust them as necessary, and remove the curly braces after 'resources:'.
+  # limits:
+  #   cpu: 100m
+  #   memory: 128Mi
+  # requests:
+  #   cpu: 100m
+  #   memory: 128Mi
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
