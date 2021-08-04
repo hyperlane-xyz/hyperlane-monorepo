@@ -54,6 +54,7 @@ export class CoreContracts extends Contracts {
 export class BridgeContracts extends Contracts {
   bridgeRouter?: BeaconProxy<xAppContracts.BridgeRouter>;
   bridgeToken?: BeaconProxy<xAppContracts.BridgeToken>;
+  ethHelper?: xAppContracts.ETHHelper;
 
   constructor() {
     super();
@@ -62,6 +63,8 @@ export class BridgeContracts extends Contracts {
   toObject(): Object {
     return {
       bridgeRouter: this.bridgeRouter?.toObject(),
+      bridgeToken: this.bridgeToken?.toObject(),
+      ethHelper: this.ethHelper?.address,
     };
   }
 }

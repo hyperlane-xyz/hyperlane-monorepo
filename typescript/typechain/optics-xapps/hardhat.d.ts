@@ -73,6 +73,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.BridgeToken__factory>;
     getContractFactory(
+      name: "ETHHelper",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.ETHHelper__factory>;
+    getContractFactory(
       name: "ERC20",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ERC20__factory>;
@@ -108,6 +112,10 @@ declare module "hardhat/types/runtime" {
       name: "IBridgeToken",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IBridgeToken__factory>;
+    getContractFactory(
+      name: "IWeth",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IWeth__factory>;
 
     // default types
     getContractFactory(
