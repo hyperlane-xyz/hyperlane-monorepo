@@ -228,7 +228,7 @@ contract BridgeRouter is Initializable, Router, TokenRegistry {
         typeAssert(_action, BridgeMessage.Types.Details)
     {
         // get the token contract deployed on this chain
-        // revert otherwise
+        // revert if no token contract exists
         IERC20 _token = _mustHaveToken(_tokenId);
         // require that the token is of remote origin
         // (otherwise, the BridgeRouter did not deploy the token contract,
@@ -236,8 +236,8 @@ contract BridgeRouter is Initializable, Router, TokenRegistry {
         require(!_isLocalOrigin(_token), "!remote origin");
         // update the token metadata
         _downcast(_token).setDetails(
-            _action.name(),
-            _action.symbol(),
+            TypeCasts.coerceString(_action.name()),
+            TypeCasts.coerceString(_action.symbol()),
             _action.decimals()
         );
     }

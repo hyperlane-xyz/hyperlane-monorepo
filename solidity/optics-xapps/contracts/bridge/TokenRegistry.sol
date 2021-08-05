@@ -3,6 +3,7 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {BridgeMessage} from "./BridgeMessage.sol";
+import {Encoding} from "./Encoding.sol";
 import {IBridgeToken} from "../../interfaces/bridge/IBridgeToken.sol";
 import {XAppConnectionClient} from "../XAppConnectionClient.sol";
 
@@ -89,7 +90,7 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
         _;
     }
 
-    // ======== External Functions =========
+    // ======== External: Token Lookup Convenience =========
 
     /**
      * @notice Looks up the canonical identifier for a local representation.
@@ -124,7 +125,7 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
         _token = getLocalAddress(_domain, TypeCasts.addressToBytes32(_id));
     }
 
-    // ======== Public Functions =========
+    // ======== Public: Token Lookup Convenience =========
 
     /**
      * @notice Looks up the local address corresponding to a domain/id pair.
@@ -145,8 +146,29 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
 
     // ======== Internal Functions =========
 
-    function _cloneTokenContract() internal returns (address result) {
-        return address(new UpgradeBeaconProxy(tokenBeacon, ""));
+    function _defaultDetails(bytes29 _tokenId)
+        internal
+        pure
+        typeAssert(_tokenId, BridgeMessage.Types.TokenId)
+        returns (string memory _name, string memory _symbol)
+    {
+        // get the first and second half of the token ID
+        (uint256 _firstHalfId, uint256 _secondHalfId) = Encoding.encodeHex(uint256(_tokenId.id()));
+        // encode the default token name: "optics.[domain].[id]"
+        _name = string(
+            abi.encodePacked(
+                "optics.",
+                Encoding.encodeUint32(_tokenId.domain()),
+                ".0x",
+                _firstHalfId,
+                _secondHalfId
+            )
+        );
+        // allocate the memory for a new 32-byte string
+        _symbol = new string(32);
+        assembly {
+            mstore(add(_symbol, 0x20), mload(add(_name, 0x20)))
+        }
     }
 
     function _deployToken(bytes29 _tokenId)
@@ -154,15 +176,17 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
         typeAssert(_tokenId, BridgeMessage.Types.TokenId)
         returns (address _token)
     {
-        // Deploy the token contract by cloning tokenTemplate
-        _token = _cloneTokenContract();
-        // Initial details are set to a hash of the ID
-        bytes32 _idHash = _tokenId.keccak();
-        IBridgeToken(_token).setDetails(_idHash, _idHash, 18);
+        // deploy the token contract
+        _token = address(new UpgradeBeaconProxy(tokenBeacon, ""));
+        // set the default token name & symbol
+        string memory _name;
+        string memory _symbol;
+        (_name, _symbol) = _defaultDetails(_tokenId);
+        IBridgeToken(_token).setDetails(_name, _symbol, 18);
         // store token in mappings
         representationToCanonical[_token].domain = _tokenId.domain();
         representationToCanonical[_token].id = _tokenId.id();
-        canonicalToRepresentation[_idHash] = _token;
+        canonicalToRepresentation[_tokenId.keccak()] = _token;
         // emit event upon deploying new token
         emit TokenDeployed(_tokenId.domain(), _tokenId.id(), _token);
     }
@@ -226,11 +250,11 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
         return _isLocalOrigin(address(_token));
     }
 
-    function _isLocalOrigin(address _addr) internal view returns (bool) {
+    function _isLocalOrigin(address _token) internal view returns (bool) {
         // If the contract WAS deployed by the TokenRegistry,
         // it will be stored in this mapping.
         // If so, it IS NOT of local origin
-        if (representationToCanonical[_addr].domain != 0) {
+        if (representationToCanonical[_token].domain != 0) {
             return false;
         }
         // If the contract WAS NOT deployed by the TokenRegistry,
@@ -239,7 +263,7 @@ abstract contract TokenRegistry is Initializable, XAppConnectionClient {
         uint256 _codeSize;
         // solhint-disable-next-line no-inline-assembly
         assembly {
-            _codeSize := extcodesize(_addr)
+            _codeSize := extcodesize(_token)
         }
         return _codeSize != 0;
     }
