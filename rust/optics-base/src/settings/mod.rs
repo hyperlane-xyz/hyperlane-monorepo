@@ -1,3 +1,41 @@
+//! Settings and configuration for Optics agents
+//!
+//! ## Introduction
+//!
+//! Optics Agents have a shared core, which contains connection info for rpc,
+//! relevant contract addresses on each chain, etc. In addition, each agent has
+//! agent-specific settings. Be convention, we represent these as a base config
+//! per-Home contract, and a "partial" config per agent. On bootup, the agent
+//! loads the configuration, establishes RPC connections, and monitors each
+//! configured chain.
+//!
+//! All agents share the [`Settings`] struct in this crate, and then define any
+//! additional `Settings` in their own crate. By convention this is done in
+//! `settings.rs` using the [`decl_settings!`] macro.
+//!
+//! ### Configuration
+//!
+//! Agents read settings from the config files and/or env.
+//!
+//! Config files are loaded from `rust/config/default` unless specified
+//! otherwise. Currently deployment config directories are labeled by the
+//! timestamp at which they were deployed
+//!
+//! Configuration key/value pairs are loaded in the following order, with later
+//! sources taking precedence:
+//!
+//! 1. The config file specified by the `RUN_ENV` and `BASE_CONFIG`
+//!    env vars. `$RUN_ENV/$BASE_CONFIG`
+//! 2. The config file specified by the `RUN_ENV` env var and the
+//!    agent's name. `$RUN_ENV/{agent}-partial.json`.
+//!    E.g. `$RUN_ENV/updater-partial.json`
+//! 3. Configuration env vars with the prefix `OPT_BASE` intended
+//!    to be shared by multiple agents in the same environment
+//!    E.g. `export OPT_BASE_REPLICAS_KOVAN_DOMAIN=3000`
+//! 4. Configuration env vars with the prefix `OPT_{agent name}`
+//!    intended to be used by a specific agent.
+//!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
+
 use crate::{agent::AgentCore, db, home::Homes, replica::Replicas};
 use color_eyre::{eyre::bail, Report};
 use config::{Config, ConfigError, Environment, File};

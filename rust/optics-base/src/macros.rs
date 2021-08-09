@@ -70,6 +70,24 @@ macro_rules! decl_agent {
 
 #[macro_export]
 /// Declare a new settings block
+///
+/// This macro declares a settings struct for an agent. The new settings block
+/// contains a [`crate::Settings`] and any other specified attributes.
+///
+/// Please note that integers must be specified as `String` in order to allow
+/// them to be configured via env var. They must then be parsed in the
+/// [`OpticsAgent::from_settings`](crate::agent::OpticsAgent::from_settings)
+/// method.
+///
+/// ### Usage
+///
+/// ```ignore
+/// decl_settings!(Updater {
+///    updater: SignerConf,
+///    polling_interval: String,
+///    update_pause: String,
+/// });
+/// ```
 macro_rules! decl_settings {
     (
         $name:ident {
