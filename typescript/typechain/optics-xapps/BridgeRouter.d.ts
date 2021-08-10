@@ -24,12 +24,14 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     "PRE_FILL_FEE_DENOMINATOR()": FunctionFragment;
     "PRE_FILL_FEE_NUMERATOR()": FunctionFragment;
     "canonicalToRepresentation(bytes32)": FunctionFragment;
+    "enrollCustom(uint32,bytes32,address)": FunctionFragment;
     "enrollRemoteRouter(uint32,bytes32)": FunctionFragment;
     "getCanonicalAddress(address)": FunctionFragment;
     "getLocalAddress(uint32,bytes32)": FunctionFragment;
     "handle(uint32,bytes32,bytes)": FunctionFragment;
     "initialize(address,address)": FunctionFragment;
     "liquidityProvider(bytes32)": FunctionFragment;
+    "migrate(address)": FunctionFragment;
     "owner()": FunctionFragment;
     "preFill(bytes)": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
@@ -55,6 +57,10 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "enrollCustom",
+    values: [BigNumberish, BytesLike, string]
+  ): string;
+  encodeFunctionData(
     functionFragment: "enrollRemoteRouter",
     values: [BigNumberish, BytesLike]
   ): string;
@@ -78,6 +84,7 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     functionFragment: "liquidityProvider",
     values: [BytesLike]
   ): string;
+  encodeFunctionData(functionFragment: "migrate", values: [string]): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(functionFragment: "preFill", values: [BytesLike]): string;
   encodeFunctionData(
@@ -126,6 +133,10 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "enrollCustom",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "enrollRemoteRouter",
     data: BytesLike
   ): Result;
@@ -143,6 +154,7 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     functionFragment: "liquidityProvider",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "migrate", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "preFill", data: BytesLike): Result;
   decodeFunctionResult(
@@ -176,10 +188,12 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
   ): Result;
 
   events: {
+    "Migrate(uint32,bytes32,address,uint256,address,address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
     "TokenDeployed(uint32,bytes32,address)": EventFragment;
   };
 
+  getEvent(nameOrSignatureOrTopic: "Migrate"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "TokenDeployed"): EventFragment;
 }
@@ -237,6 +251,13 @@ export class BridgeRouter extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[string]>;
 
+    enrollCustom(
+      _domain: BigNumberish,
+      _id: BytesLike,
+      _custom: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     enrollRemoteRouter(
       _domain: BigNumberish,
       _router: BytesLike,
@@ -281,6 +302,11 @@ export class BridgeRouter extends BaseContract {
       arg0: BytesLike,
       overrides?: CallOverrides
     ): Promise<[string]>;
+
+    migrate(
+      _oldRepr: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
 
     owner(overrides?: CallOverrides): Promise<[string]>;
 
@@ -336,6 +362,13 @@ export class BridgeRouter extends BaseContract {
     overrides?: CallOverrides
   ): Promise<string>;
 
+  enrollCustom(
+    _domain: BigNumberish,
+    _id: BytesLike,
+    _custom: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   enrollRemoteRouter(
     _domain: BigNumberish,
     _router: BytesLike,
@@ -380,6 +413,11 @@ export class BridgeRouter extends BaseContract {
     arg0: BytesLike,
     overrides?: CallOverrides
   ): Promise<string>;
+
+  migrate(
+    _oldRepr: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
   owner(overrides?: CallOverrides): Promise<string>;
 
@@ -435,6 +473,13 @@ export class BridgeRouter extends BaseContract {
       overrides?: CallOverrides
     ): Promise<string>;
 
+    enrollCustom(
+      _domain: BigNumberish,
+      _id: BytesLike,
+      _custom: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
     enrollRemoteRouter(
       _domain: BigNumberish,
       _router: BytesLike,
@@ -478,6 +523,8 @@ export class BridgeRouter extends BaseContract {
       overrides?: CallOverrides
     ): Promise<string>;
 
+    migrate(_oldRepr: string, overrides?: CallOverrides): Promise<void>;
+
     owner(overrides?: CallOverrides): Promise<string>;
 
     preFill(_message: BytesLike, overrides?: CallOverrides): Promise<void>;
@@ -519,6 +566,25 @@ export class BridgeRouter extends BaseContract {
   };
 
   filters: {
+    Migrate(
+      domain?: BigNumberish | null,
+      id?: BytesLike | null,
+      tokenHolder?: string | null,
+      balance?: null,
+      oldToken?: null,
+      newToken?: null
+    ): TypedEventFilter<
+      [number, string, string, BigNumber, string, string],
+      {
+        domain: number;
+        id: string;
+        tokenHolder: string;
+        balance: BigNumber;
+        oldToken: string;
+        newToken: string;
+      }
+    >;
+
     OwnershipTransferred(
       previousOwner?: string | null,
       newOwner?: string | null
@@ -545,6 +611,13 @@ export class BridgeRouter extends BaseContract {
     canonicalToRepresentation(
       arg0: BytesLike,
       overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    enrollCustom(
+      _domain: BigNumberish,
+      _id: BytesLike,
+      _custom: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     enrollRemoteRouter(
@@ -590,6 +663,11 @@ export class BridgeRouter extends BaseContract {
     liquidityProvider(
       arg0: BytesLike,
       overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    migrate(
+      _oldRepr: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     owner(overrides?: CallOverrides): Promise<BigNumber>;
@@ -651,6 +729,13 @@ export class BridgeRouter extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    enrollCustom(
+      _domain: BigNumberish,
+      _id: BytesLike,
+      _custom: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
     enrollRemoteRouter(
       _domain: BigNumberish,
       _router: BytesLike,
@@ -694,6 +779,11 @@ export class BridgeRouter extends BaseContract {
     liquidityProvider(
       arg0: BytesLike,
       overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    migrate(
+      _oldRepr: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;

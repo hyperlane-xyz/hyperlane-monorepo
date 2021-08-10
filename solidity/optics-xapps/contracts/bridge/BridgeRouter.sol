@@ -25,6 +25,16 @@ contract BridgeRouter is Router, TokenRegistry {
     /// @notice 5 bps (0.05%) hardcoded fee. Can be changed by contract upgrade
     uint256 public constant PRE_FILL_FEE_NUMERATOR = 9995;
     uint256 public constant PRE_FILL_FEE_DENOMINATOR = 10000;
+    // ======== Events =========
+
+    event Migrate(
+        uint32 indexed domain,
+        bytes32 indexed id,
+        address indexed tokenHolder,
+        uint256 balance,
+        address oldToken,
+        address newToken
+    );
 
     /// @notice A mapping that stores the LP that pre-filled a token transfer
     /// message
@@ -280,5 +290,72 @@ contract BridgeRouter is Router, TokenRegistry {
         _views[0] = _tokenId;
         _views[1] = _action;
         return TypedMemView.joinKeccak(_views);
+    }
+
+    // ====== CUSTOM REPRESENTATIONS ======
+
+    /**
+     * @notice Enroll a custom token. This allows projects to work with
+     * governance to specify a custom representation.
+     * @dev This is done by inserting the custom representation into the token
+     * lookup tables. It is permissioned to the owner (governance) and can
+     * potentially break token representations. It must be used with extreme
+     * caution.
+     * After the token is inserted, new mint instructions will be sent to the
+     * custom token. The default representation (and old custom representations)
+     * may still be burnt. Until all users have explicitly called migrate, both
+     * representations will continue to exist.
+     * The custom representation MUST be trusted, and MUST allow the router to
+     * both mint AND burn tokens at will.
+     * @param _id the canonical ID of the Token to enroll, as a byte vector
+     * @param _custom the address of the custom implementation to use.
+     */
+    function enrollCustom(
+        uint32 _domain,
+        bytes32 _id,
+        address _custom
+    ) external onlyOwner {
+        bytes29 _tokenId = BridgeMessage.formatTokenId(_domain, _id);
+        bytes32 _idHash = _tokenId.keccak();
+
+        // Sanity check. Ensures that human error doesn't cause an
+        // unpermissioned contract to be enrolled.
+        IBridgeToken(_custom).mint(address(this), 1);
+        IBridgeToken(_custom).burn(address(this), 1);
+
+        representationToCanonical[_custom].domain = _tokenId.domain();
+        representationToCanonical[_custom].id = _tokenId.id();
+        canonicalToRepresentation[_idHash] = _custom;
+    }
+
+    /**
+     * @notice Migrate all tokens in a previous representation to the latest
+     * custom representation. This works by looking up local mappings and then
+     * burning old tokens and minting new tokens.
+     * @dev This is explicitly opt-in to allow dapps to decide when and how to
+     * upgrade to the new representation.
+     * @param _oldRepr The address of the old token to migrate
+     */
+    function migrate(address _oldRepr) external {
+        // get the token ID for the old token contract
+        TokenId memory _id = representationToCanonical[_oldRepr];
+        require(_id.domain != 0, "!repr");
+
+        IBridgeToken _old = IBridgeToken(_oldRepr);
+        IBridgeToken _new = _reprFor(_id);
+        require(_new != _old, "!different");
+
+        // burn the old tokens & mint the new ones
+        uint256 _bal = _old.balanceOf(msg.sender);
+        _old.burn(msg.sender, _bal);
+        _new.mint(msg.sender, _bal);
+        emit Migrate(
+            _id.domain,
+            _id.id,
+            msg.sender,
+            _bal,
+            address(_old),
+            address(_new)
+        );
     }
 }
