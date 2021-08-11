@@ -36,11 +36,11 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     "preFill(bytes)": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
     "representationToCanonical(address)": FunctionFragment;
+    "requestDetails(uint32,bytes32)": FunctionFragment;
     "send(address,uint256,uint32,bytes32)": FunctionFragment;
     "setXAppConnectionManager(address)": FunctionFragment;
     "tokenBeacon()": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
-    "updateDetails(address,uint32)": FunctionFragment;
     "xAppConnectionManager()": FunctionFragment;
   };
 
@@ -96,6 +96,10 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(
+    functionFragment: "requestDetails",
+    values: [BigNumberish, BytesLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "send",
     values: [string, BigNumberish, BigNumberish, BytesLike]
   ): string;
@@ -110,10 +114,6 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
   encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [string]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "updateDetails",
-    values: [string, BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "xAppConnectionManager",
@@ -165,6 +165,10 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     functionFragment: "representationToCanonical",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "requestDetails",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "send", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "setXAppConnectionManager",
@@ -176,10 +180,6 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "updateDetails",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -320,6 +320,12 @@ export class BridgeRouter extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[number, string] & { domain: number; id: string }>;
 
+    requestDetails(
+      _domain: BigNumberish,
+      _id: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     send(
       _token: string,
       _amnt: BigNumberish,
@@ -337,12 +343,6 @@ export class BridgeRouter extends BaseContract {
 
     transferOwnership(
       newOwner: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
-    updateDetails(
-      _token: string,
-      _destination: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -427,6 +427,12 @@ export class BridgeRouter extends BaseContract {
     overrides?: CallOverrides
   ): Promise<[number, string] & { domain: number; id: string }>;
 
+  requestDetails(
+    _domain: BigNumberish,
+    _id: BytesLike,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   send(
     _token: string,
     _amnt: BigNumberish,
@@ -444,12 +450,6 @@ export class BridgeRouter extends BaseContract {
 
   transferOwnership(
     newOwner: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
-  updateDetails(
-    _token: string,
-    _destination: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -526,6 +526,12 @@ export class BridgeRouter extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[number, string] & { domain: number; id: string }>;
 
+    requestDetails(
+      _domain: BigNumberish,
+      _id: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
     send(
       _token: string,
       _amnt: BigNumberish,
@@ -543,12 +549,6 @@ export class BridgeRouter extends BaseContract {
 
     transferOwnership(
       newOwner: string,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    updateDetails(
-      _token: string,
-      _destination: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -672,6 +672,12 @@ export class BridgeRouter extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
+    requestDetails(
+      _domain: BigNumberish,
+      _id: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     send(
       _token: string,
       _amnt: BigNumberish,
@@ -689,12 +695,6 @@ export class BridgeRouter extends BaseContract {
 
     transferOwnership(
       newOwner: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
-    updateDetails(
-      _token: string,
-      _destination: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -784,6 +784,12 @@ export class BridgeRouter extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    requestDetails(
+      _domain: BigNumberish,
+      _id: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
     send(
       _token: string,
       _amnt: BigNumberish,
@@ -801,12 +807,6 @@ export class BridgeRouter extends BaseContract {
 
     transferOwnership(
       newOwner: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    updateDetails(
-      _token: string,
-      _destination: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 

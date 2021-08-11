@@ -73,9 +73,25 @@ contract BridgeRouter is Router, TokenRegistry {
             _handleTransfer(_tokenId, _action);
         } else if (_action.isDetails()) {
             _handleDetails(_tokenId, _action);
+        } else if (_action.isRequestDetails()) {
+            _handleRequestDetails(_tokenId, _action);
         } else {
             require(false, "!valid action");
         }
+    }
+
+    // ======== External: Request Token Details =========
+
+    /**
+     * @notice Request updated token metadata from another chain
+     * @dev This is only owner to prevent abuse and spam. Requesting details
+     *  should be done automatically on token instantiation
+     * @param _domain The domain where that token is native
+     * @param _id The token id on that domain
+     */
+    function requestDetails(uint32 _domain, bytes32 _id) external onlyOwner {
+        bytes29 _tokenId = BridgeMessage.formatTokenId(_domain, _id);
+        _requestDetails(_tokenId);
     }
 
     // ======== External: Send Token =========
@@ -144,35 +160,6 @@ contract BridgeRouter is Router, TokenRegistry {
             msg.sender,
             _action.evmRecipient(),
             _applyPreFillFee(_action.amnt())
-        );
-    }
-
-    // ======== External: Update Token Details =========
-
-    /**
-     * @notice Update the token metadata on another chain
-     * @param _token The token address
-     * @param _destination The destination domain
-     */
-    // TODO: people can call this for nonsense non-ERC-20 tokens
-    // name, symbol, decimals could be nonsense
-    // remote chains will deploy a token contract based on this message
-    function updateDetails(address _token, uint32 _destination) external {
-        require(_isLocalOrigin(_token), "!local origin");
-        // get remote BridgeRouter address; revert if not found
-        bytes32 _remote = _mustHaveRemote(_destination);
-        // format Update Details message
-        IBridgeToken _bridgeToken = IBridgeToken(_token);
-        bytes29 _action = BridgeMessage.formatDetails(
-            TypeCasts.coerceBytes32(_bridgeToken.name()),
-            TypeCasts.coerceBytes32(_bridgeToken.symbol()),
-            _bridgeToken.decimals()
-        );
-        // send message to remote chain via Optics
-        Home(xAppConnectionManager.home()).enqueue(
-            _destination,
-            _remote,
-            BridgeMessage.formatMessage(_formatTokenId(_token), _action)
         );
     }
 
@@ -262,6 +249,89 @@ contract BridgeRouter is Router, TokenRegistry {
         );
     }
 
+    /**
+     * @notice Handles an incoming RequestDetails message
+     * by sending an UpdateDetails message to the remote chain
+     * @param _tokenId The token ID
+     * @param _requestDetailsAction The request details action from the message
+     */
+    function _handleRequestDetails(
+        bytes29 _tokenId,
+        bytes29 _requestDetailsAction
+    )
+        internal
+        typeAssert(_tokenId, BridgeMessage.Types.TokenId)
+        typeAssert(_requestDetailsAction, BridgeMessage.Types.RequestDetails)
+    {
+        // get token
+        address _token = _tokenId.evmId();
+        require(_isLocalOrigin(_token), "!local origin");
+        IBridgeToken _bridgeToken = IBridgeToken(_token);
+        // get remote BridgeRouter address; revert if not found
+        uint32 _destination = _tokenId.domain();
+        bytes32 _remote = _mustHaveRemote(_destination);
+        // format Update Details message
+        bytes29 _updateDetailsAction = BridgeMessage.formatDetails(
+            TypeCasts.coerceBytes32(_bridgeToken.name()),
+            TypeCasts.coerceBytes32(_bridgeToken.symbol()),
+            _bridgeToken.decimals()
+        );
+        // send message to remote chain via Optics
+        Home(xAppConnectionManager.home()).enqueue(
+            _destination,
+            _remote,
+            BridgeMessage.formatMessage(
+                _formatTokenId(_token),
+                _updateDetailsAction
+            )
+        );
+    }
+
+    // ============ Internal: Transfer ============
+
+    function _ensureToken(bytes29 _tokenId)
+        internal
+        typeAssert(_tokenId, BridgeMessage.Types.TokenId)
+        returns (IERC20)
+    {
+        address _local = _getTokenAddress(_tokenId);
+        if (_local == address(0)) {
+            // Representation does not exist yet;
+            // deploy representation contract
+            _local = _deployToken(_tokenId);
+            // message the origin domain
+            // to request the token details
+            _requestDetails(_tokenId);
+        }
+        return IERC20(_local);
+    }
+
+    // ============ Internal: Request Details ============
+
+    /**
+     * @notice Handles an incoming Details message.
+     * @param _tokenId The token ID
+     */
+    function _requestDetails(bytes29 _tokenId)
+        internal
+        typeAssert(_tokenId, BridgeMessage.Types.TokenId)
+    {
+        uint32 _destination = _tokenId.domain();
+        // get remote BridgeRouter address; revert if not found
+        bytes32 _remote = remotes[_destination];
+        if (_remote == bytes32(0)) {
+            return;
+        }
+        // format Request Details message
+        bytes29 _action = BridgeMessage.formatRequestDetails();
+        // send message to remote chain via Optics
+        Home(xAppConnectionManager.home()).enqueue(
+            _destination,
+            _remote,
+            BridgeMessage.formatMessage(_tokenId, _action)
+        );
+    }
+
     // ============ Internal: Fast Liquidity ============
 
     /**
@@ -275,6 +345,8 @@ contract BridgeRouter is Router, TokenRegistry {
         pure
         returns (uint256 _amtAfterFee)
     {
+        // overflow only possible if (2**256 / 9995) tokens sent once
+        // in which case, probably not a real token
         _amtAfterFee =
             (_amnt * PRE_FILL_FEE_NUMERATOR) /
             PRE_FILL_FEE_DENOMINATOR;
@@ -326,16 +398,15 @@ contract BridgeRouter is Router, TokenRegistry {
         bytes32 _id,
         address _custom
     ) external onlyOwner {
-        bytes29 _tokenId = BridgeMessage.formatTokenId(_domain, _id);
-        bytes32 _idHash = _tokenId.keccak();
-
         // Sanity check. Ensures that human error doesn't cause an
         // unpermissioned contract to be enrolled.
         IBridgeToken(_custom).mint(address(this), 1);
         IBridgeToken(_custom).burn(address(this), 1);
-
+        // update mappings with custom token
+        bytes29 _tokenId = BridgeMessage.formatTokenId(_domain, _id);
         representationToCanonical[_custom].domain = _tokenId.domain();
         representationToCanonical[_custom].id = _tokenId.id();
+        bytes32 _idHash = _tokenId.keccak();
         canonicalToRepresentation[_idHash] = _custom;
     }
 
@@ -351,15 +422,15 @@ contract BridgeRouter is Router, TokenRegistry {
         // get the token ID for the old token contract
         TokenId memory _id = representationToCanonical[_oldRepr];
         require(_id.domain != 0, "!repr");
-
+        // ensure that new token & old token are different
         IBridgeToken _old = IBridgeToken(_oldRepr);
         IBridgeToken _new = _reprFor(_id);
         require(_new != _old, "!different");
-
         // burn the old tokens & mint the new ones
         uint256 _bal = _old.balanceOf(msg.sender);
         _old.burn(msg.sender, _bal);
         _new.mint(msg.sender, _bal);
+        // emit event
         emit Migrate(
             _id.domain,
             _id.id,
