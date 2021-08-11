@@ -11,7 +11,7 @@ async function getRepresentationTokenContract(deployer: Signer, bridgeRouter: Br
   return IERC20__factory.connect(reprAddr, deployer);
 }
 
-describe.only('Bridge', async () => {
+describe('Bridge', async () => {
   let deployer: Signer;
   let deployerAddress: String;
   let deployerId: BytesLike;
