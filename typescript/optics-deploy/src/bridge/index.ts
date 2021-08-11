@@ -91,7 +91,7 @@ export async function deployBridgeRouter(deploy: Deploy) {
       'initialize',
       [
         deploy.contracts.bridgeToken!.beacon.address,
-        deploy.coreContractAddresses.xappConnectionManager,
+        deploy.coreContractAddresses.xAppConnectionManager,
       ],
     );
 
@@ -133,6 +133,12 @@ export async function deployEthHelper(deploy: Deploy) {
     deploy.contracts.bridgeRouter?.proxy.address!,
   );
   await deploy.contracts.ethHelper.deployTransaction.wait(5);
+  deploy.verificationInput.push({
+    name: `ETH Helper`,
+    address: deploy.contracts.ethHelper.address,
+    constructorArguments: [deploy.config.weth!,
+      deploy.contracts.bridgeRouter?.proxy.address!],
+  });
 }
 
 /**

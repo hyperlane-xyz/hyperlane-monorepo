@@ -1,4 +1,4 @@
-import { getPathToLatestDeploy } from '../src/readDeployOutput';
+import { getPathToLatestDeploy } from '../src/verification/readDeployOutput';
 import { deployBridges } from '../src/bridge';
 import * as alfajores from '../config/alfajores';
 import * as kovan from '../config/kovan';
