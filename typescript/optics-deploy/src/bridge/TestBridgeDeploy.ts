@@ -1,9 +1,15 @@
-import { Signer } from 'ethers';
+import { BytesLike, ethers, Signer } from 'ethers';
 import {
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
 } from '../../../typechain/optics-core';
-import { MockCore, MockCore__factory } from '../../../typechain/optics-xapps';
+import {
+  BridgeRouter,
+  IERC20,
+  IERC20__factory,
+  MockCore,
+  MockCore__factory,
+} from '../../../typechain/optics-xapps';
 import { ContractVerificationInput } from '../deploy';
 import { BridgeContracts } from './BridgeContracts';
 import * as process from '.';
@@ -25,12 +31,14 @@ export default class TestBridgeDeploy {
   mockCore: MockCore;
   contracts: BridgeContracts;
   verificationInput: ContractVerificationInput[];
+  localDomain: number;
 
   constructor(
     signer: Signer,
     mockCore: MockCore,
     ubc: UpgradeBeaconController,
     contracts: BridgeContracts,
+    domain: number,
     callerKnowsWhatTheyAreDoing: boolean = false,
   ) {
     if (!callerKnowsWhatTheyAreDoing) {
@@ -41,14 +49,23 @@ export default class TestBridgeDeploy {
     this.mockCore = mockCore;
     this.contracts = contracts;
     this.signer = signer;
+    this.localDomain = domain;
   }
 
   static async deploy(signer: Signer): Promise<TestBridgeDeploy> {
     const mockCore = await new MockCore__factory(signer).deploy();
     const ubc = await new UpgradeBeaconController__factory(signer).deploy();
     const contracts = new BridgeContracts();
+    const domain = await mockCore.localDomain();
 
-    let deploy = new TestBridgeDeploy(signer, mockCore, ubc, contracts, true);
+    let deploy = new TestBridgeDeploy(
+      signer,
+      mockCore,
+      ubc,
+      contracts,
+      domain,
+      true,
+    );
 
     await process.deployTokenUpgradeBeacon(deploy);
     await process.deployBridgeRouter(deploy);
@@ -92,5 +109,48 @@ export default class TestBridgeDeploy {
   }
   get config() {
     return { weth: '' };
+  }
+
+  get bridgeRouter(): BridgeRouter | undefined {
+    return this.contracts.bridgeRouter?.proxy;
+  }
+
+  get remoteDomain(): number {
+    return 1;
+  }
+
+  get remoteDomainBytes(): string {
+    return `0x0000000${this.remoteDomain}`;
+  }
+
+  get localDomainBytes(): string {
+    return `0x0000000${this.localDomain}`;
+  }
+
+  get testToken(): string {
+    return `0x${'11'.repeat(32)}`;
+  }
+
+  get testTokenId(): string {
+    return ethers.utils.hexConcat([this.remoteDomainBytes, this.testToken]);
+  }
+
+  async getTestRepresentation(): Promise<IERC20 | undefined> {
+    return await this.getRepresentation(this.remoteDomain, this.testToken);
+  }
+
+  async getRepresentation(
+    domain: number,
+    canonicalTokenAddress: BytesLike,
+  ): Promise<IERC20 | undefined> {
+    const reprAddr = await this.bridgeRouter![
+      'getLocalAddress(uint32,bytes32)'
+    ](domain, canonicalTokenAddress);
+
+    if (domain === 0) {
+      return undefined;
+    }
+
+    return IERC20__factory.connect(reprAddr, this.signer);
   }
 }
