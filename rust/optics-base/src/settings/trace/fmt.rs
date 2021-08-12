@@ -11,7 +11,7 @@ use tracing_subscriber::{
 };
 
 /// Basic tracing configuration
-#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, serde::Deserialize, Eq, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub enum Style {
     /// Pretty print
@@ -201,5 +201,49 @@ where
             LogOutputLayer::Compact(inner) => inner.on_id_change(old, new, ctx),
             LogOutputLayer::Json(inner) => inner.on_id_change(old, new, ctx),
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+
+    use super::*;
+
+    #[derive(serde::Deserialize)]
+    struct TestStyle {
+        style: Style,
+    }
+
+    #[test]
+    fn it_deserializes_formatting_strings() {
+        let case = r#"{"style": "pretty"}"#;
+        assert_eq!(
+            serde_json::from_str::<TestStyle>(case).unwrap().style,
+            Style::Pretty
+        );
+
+        let case = r#"{"style": "compact"}"#;
+        assert_eq!(
+            serde_json::from_str::<TestStyle>(case).unwrap().style,
+            Style::Compact
+        );
+
+        let case = r#"{"style": "full"}"#;
+        assert_eq!(
+            serde_json::from_str::<TestStyle>(case).unwrap().style,
+            Style::Full
+        );
+
+        let case = r#"{"style": "json"}"#;
+        assert_eq!(
+            serde_json::from_str::<TestStyle>(case).unwrap().style,
+            Style::Json
+        );
+
+        let case = r#"{"style": "toast"}"#;
+        assert_eq!(
+            serde_json::from_str::<TestStyle>(case).unwrap().style,
+            Style::Full
+        );
     }
 }
