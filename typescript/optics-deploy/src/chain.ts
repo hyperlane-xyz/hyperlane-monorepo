@@ -3,6 +3,8 @@ import { BigNumber } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
 import { ProxyAddresses } from './proxyUtils';
 
+export type DeployEnvironment = 'dev' | 'staging' | 'prod';
+
 export type CoreContractDeployOutput = {
   upgradeBeaconController: string;
   xAppConnectionManager: string;
@@ -30,6 +32,18 @@ export type Chain = {
   confirmations: number;
   domain: number;
 };
+
+export function deployEnvironment(): DeployEnvironment {
+  const e = process.env.OPTICS_DEPLOY_ENVIRONMENT;
+
+  if (e === 'staging') {
+    return 'staging';
+  } else if (e === 'prod') {
+    return 'prod';
+  }
+
+  return 'dev';
+}
 
 export function toChain(config: ChainJson): Chain {
   const provider = new ethers.providers.JsonRpcProvider(config.rpc);
