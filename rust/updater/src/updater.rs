@@ -41,6 +41,16 @@ struct UpdateHandler {
     mutex: Arc<Mutex<()>>,
 }
 
+impl std::fmt::Display for UpdateHandler {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "UpdateHandler: {{ home: {:?}, signer: {:?}, update_pause: {} }}",
+            self.home, self.signer, self.update_pause
+        )
+    }
+}
+
 impl UsingPersistence<H256, SignedUpdate> for UpdateHandler {
     const KEY_PREFIX: &'static [u8] = "update_".as_bytes();
 
@@ -72,7 +82,7 @@ impl UpdateHandler {
         Self::db_get(&self.db, update.previous_root).unwrap()
     }
 
-    #[tracing::instrument(err)]
+    #[tracing::instrument(err, skip(self), fields(self = %self))]
     async fn acceptable(&self, update: &Update) -> Result<bool> {
         // Poll chain API to see if queue still contains new root
         // and old root still equals home's current root
@@ -95,7 +105,7 @@ impl UpdateHandler {
         Ok(in_queue && current_root == old_root)
     }
 
-    #[tracing::instrument(err)]
+    #[tracing::instrument(err, skip(self), fields(self = %self))]
     async fn handle_update(&self, update: Update) -> Result<()> {
         info!("Have an update, awaiting the tick");
         // Wait `update_pause` seconds

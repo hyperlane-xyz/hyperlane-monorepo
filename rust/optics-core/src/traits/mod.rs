@@ -7,6 +7,9 @@ pub mod replica;
 /// Interface for XAppConnectionManager contract
 pub mod xapp;
 
+/// Traits for canonical binary representations
+pub mod encode;
+
 use async_trait::async_trait;
 use ethers::{
     contract::ContractError,
