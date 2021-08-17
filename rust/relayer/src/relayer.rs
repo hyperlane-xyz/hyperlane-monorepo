@@ -22,6 +22,16 @@ struct UpdatePoller {
     semaphore: Mutex<()>,
 }
 
+impl std::fmt::Display for UpdatePoller {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "UpdatePoller: {{ home: {:?}, replica: {:?} }}",
+            self.home, self.replica
+        )
+    }
+}
+
 impl UpdatePoller {
     fn new(home: Arc<Homes>, replica: Arc<Replicas>, duration: u64) -> Self {
         Self {
@@ -32,7 +42,7 @@ impl UpdatePoller {
         }
     }
 
-    #[tracing::instrument(err)]
+    #[tracing::instrument(err, skip(self), fields(self = %self))]
     async fn poll_and_relay_update(&self) -> Result<()> {
         // Get replica's current root.
         // If the replica has a queue of pending updates, we use the last queue
@@ -101,6 +111,12 @@ struct ConfirmPoller {
     semaphore: Mutex<()>,
 }
 
+impl std::fmt::Display for ConfirmPoller {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ConfirmPoller: {{ replica: {:?} }}", self.replica)
+    }
+}
+
 impl ConfirmPoller {
     fn new(replica: Arc<Replicas>, duration: u64) -> Self {
         Self {
@@ -110,7 +126,7 @@ impl ConfirmPoller {
         }
     }
 
-    #[tracing::instrument(err)]
+    #[tracing::instrument(err, skip(self), fields(self = %self))]
     async fn poll_confirm(&self) -> Result<()> {
         // Check for pending update that can be confirmed
         let can_confirm = self.replica.can_confirm().await?;

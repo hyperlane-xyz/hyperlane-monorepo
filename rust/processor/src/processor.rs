@@ -46,6 +46,16 @@ pub(crate) struct ReplicaProcessor {
     denied: Option<Arc<HashSet<H256>>>,
 }
 
+impl std::fmt::Display for ReplicaProcessor {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "ReplicaProcessor: {{ home: {:?}, replica: {:?}, allowed: {:?}, denied: {:?} }}",
+            self.home, self.replica, self.allowed, self.denied
+        )
+    }
+}
+
 impl UsingPersistence<usize, Proof> for ReplicaProcessor {
     const KEY_PREFIX: &'static [u8] = "proof_".as_bytes();
 
@@ -73,7 +83,7 @@ impl ReplicaProcessor {
         }
     }
 
-    #[instrument]
+    #[instrument(skip(self), fields(self = %self))]
     pub(crate) fn spawn(self) -> JoinHandle<Result<()>> {
         tokio::spawn(async move {
             info!("Starting processor for {}", self.replica.name());
@@ -158,7 +168,7 @@ impl ReplicaProcessor {
         }.in_current_span())
     }
 
-    #[instrument(err)]
+    #[instrument(err, skip(self), fields(self = %self))]
     /// Dispatch a message for processing. If the message is already proven, process only.
     async fn process(&self, message: CommittedMessage, proof: Proof) -> Result<()> {
         let status = self.replica.message_status(message.to_leaf()).await?;

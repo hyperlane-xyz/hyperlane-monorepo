@@ -177,8 +177,7 @@ mod test {
             };
 
             let signed = message.sign_with(&signer).await.expect("!sign_with");
-            dbg!(signer.address());
-            dbg!(signed.recover().unwrap());
+            assert!(signed.signature.v == 27 || signed.signature.v == 28);
             signed.verify(signer.address()).expect("!verify");
         };
         tokio::runtime::Builder::new_current_thread()
