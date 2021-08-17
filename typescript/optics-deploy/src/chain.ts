@@ -85,7 +85,7 @@ export type RustConfig = {
   home: RustContractBlock;
   tracing: {
     level: string;
-    style: string;
+    fmt: 'json';
   };
   db: string;
 };

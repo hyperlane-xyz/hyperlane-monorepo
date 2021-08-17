@@ -34,7 +34,7 @@
   },
   "tracing": {
     "level": "debug",
-    "style": "json"
+    "fmt": "json"
   },
   "db": "db_path"
 }

@@ -81,7 +81,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
       home,
       tracing: {
         level: 'debug',
-        style: 'json',
+        fmt: 'json',
       },
       db: 'db_path',
     };
