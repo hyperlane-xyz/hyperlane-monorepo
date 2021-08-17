@@ -2045,6 +2045,7 @@ dependencies = [
  "ethers",
  "ethers-contract",
  "ethers-signers",
+ "hex",
  "optics-core",
  "serde 1.0.127",
  "serde_json",
