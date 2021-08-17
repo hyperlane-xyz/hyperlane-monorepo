@@ -3,11 +3,10 @@ pragma solidity >=0.6.11;
 
 import "./Common.sol";
 import "./Merkle.sol";
-import "./Queue.sol";
 import "../interfaces/IUpdaterManager.sol";
 
-import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title Home
@@ -15,7 +14,7 @@ import "@openzeppelin/contracts/utils/Address.sol";
  * @notice Contract responsible for managing production of the message tree and
  * holding custody of the updater bond.
  */
-contract Home is Initializable, MerkleTreeManager, QueueManager, Common {
+contract Home is MerkleTreeManager, Common, OwnableUpgradeable {
     using QueueLib for QueueLib.Queue;
     using MerkleLib for MerkleLib.Tree;
 
@@ -26,7 +25,8 @@ contract Home is Initializable, MerkleTreeManager, QueueManager, Common {
     mapping(uint32 => uint32) public sequences;
 
     IUpdaterManager public updaterManager;
-    address public owner;
+
+    uint256[48] private __GAP; // gap for upgrade safety
 
     /**
      * @notice Event emitted when new message is enqueued
@@ -66,37 +66,21 @@ contract Home is Initializable, MerkleTreeManager, QueueManager, Common {
      */
     event UpdaterSlashed(address indexed updater, address indexed reporter);
 
-    /**
-     * @notice Event emitted when a new owner is set
-     * @param previousOwner The address of the previous owner
-     * @param newOwner The address of the new owner
-     */
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
-
     constructor(uint32 _localDomain) Common(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     function initialize(IUpdaterManager _updaterManager) public initializer {
-        _transferOwnership(msg.sender);
+        __Ownable_init();
 
         _setUpdaterManager(_updaterManager);
-
-        queue.initialize();
-
         address _updater = updaterManager.updater();
-        Common.initialize(_updater);
+
+        __Common_initialize(_updater);
+
         emit NewUpdater(_updater);
     }
 
     modifier onlyUpdaterManager() {
         require(msg.sender == address(updaterManager), "!updaterManager");
-        _;
-    }
-
-    modifier onlyOwner() {
-        require(msg.sender == owner, "!owner");
         _;
     }
 
@@ -108,11 +92,6 @@ contract Home is Initializable, MerkleTreeManager, QueueManager, Common {
     /// @notice sets a new updaterManager
     function setUpdaterManager(address _updaterManager) external onlyOwner {
         _setUpdaterManager(IUpdaterManager(_updaterManager));
-    }
-
-    /// @notice transfer owner role
-    function transferOwnership(address _newOwner) external onlyOwner {
-        _transferOwnership(_newOwner);
     }
 
     /**
@@ -230,15 +209,6 @@ contract Home is Initializable, MerkleTreeManager, QueueManager, Common {
             return true;
         }
         return false;
-    }
-
-    /**
-     * @notice sets a new owner
-     * @param _newOwner Address of new owner
-     */
-    function _transferOwnership(address _newOwner) internal {
-        emit OwnershipTransferred(owner, _newOwner);
-        owner = _newOwner;
     }
 
     /**

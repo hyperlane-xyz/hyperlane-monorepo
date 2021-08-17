@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+import "./Queue.sol";
 import "../libs/Message.sol";
 
-import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
 import "@openzeppelin/contracts/cryptography/ECDSA.sol";
 
 /**
@@ -11,7 +11,7 @@ import "@openzeppelin/contracts/cryptography/ECDSA.sol";
  * @author Celo Labs Inc.
  * @notice Shared utilities between Home and Replica.
  **/
-abstract contract Common is Initializable {
+abstract contract Common is QueueManager {
     enum States {
         UNINITIALIZED,
         ACTIVE,
@@ -26,6 +26,8 @@ abstract contract Common is Initializable {
     States public state;
     /// @notice Current root
     bytes32 public current;
+    // gap for upgrade safety
+    uint256[47] private __GAP;
 
     /**
      * @notice Event emitted when update is made on Home or unconfirmed update
@@ -61,7 +63,8 @@ abstract contract Common is Initializable {
         localDomain = _localDomain;
     }
 
-    function initialize(address _updater) internal initializer {
+    function __Common_initialize(address _updater) internal initializer {
+        __QueueManager_intialize();
         updater = _updater;
         state = States.ACTIVE;
     }

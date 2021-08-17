@@ -30,6 +30,7 @@ contract GovernanceRouter is Initializable, IMessageRecipient {
 
     mapping(uint32 => bytes32) public routers; // registry of domain -> remote GovernanceRouter contract address
     uint32[] public domains; // array of all domains registered
+    uint256[43] private __GAP; // gap for upgrade safety
 
     event SetRouter(
         uint32 indexed domain,

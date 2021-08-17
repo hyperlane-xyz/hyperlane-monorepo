@@ -3,15 +3,22 @@ pragma solidity >=0.6.11;
 
 import "../libs/Queue.sol";
 
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
+
 /**
  * @title QueueManager
  * @author Celo Labs Inc.
  * @notice Contract containing a queue instance and view operations on the
  * queue.
  **/
-contract QueueManager {
+contract QueueManager is Initializable {
     using QueueLib for QueueLib.Queue;
     QueueLib.Queue internal queue;
+    uint256[49] private __GAP; // gap for upgrade safety
+
+    function __QueueManager_intialize() internal initializer {
+        queue.initialize();
+    }
 
     /// @notice Returns number of elements in queue
     function queueLength() external view returns (uint256) {
