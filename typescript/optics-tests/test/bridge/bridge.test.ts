@@ -53,6 +53,22 @@ describe('BridgeRouter', async () => {
     deployerId = toBytes32(await deployer.getAddress()).toLowerCase();
   });
 
+  describe('invalid messages', async () => {
+    before(async () => {
+      deploy = await TestBridgeDeploy.deploy(deployer);
+    });
+
+    it('rejects invalid messages', async () => {
+      const handleTx = deploy.bridgeRouter!.handle(
+        deploy.remoteDomain,
+        deployerId,
+        '0x',
+        { gasLimit: PROTOCOL_PROCESS_GAS },
+      );
+      await expect(handleTx).to.be.reverted;
+    });
+  });
+
   describe('transfer message', async () => {
     before(async () => {
       deploy = await TestBridgeDeploy.deploy(deployer);
@@ -140,6 +156,17 @@ describe('BridgeRouter', async () => {
         );
 
         await expect(zeroTx).to.be.revertedWith('cannot send 0');
+      });
+
+      it('errors on send if remote router is unknown', async () => {
+        const unknownRemote = deploy.bridgeRouter!.send(
+          repr!.address,
+          1,
+          3000,
+          deployerId,
+        );
+
+        await expect(unknownRemote).to.be.revertedWith('!remote');
       });
 
       it('burns tokens on outbound message', async () => {
@@ -637,6 +664,16 @@ describe('BridgeRouter', async () => {
       expect(await customRepr.balanceOf(deployerAddress)).to.equal(
         BigNumber.from(0),
       );
+    });
+
+    it('migrate errors if old === new', async () => {
+      const migrate = deploy.bridgeRouter!.migrate(defaultRepr.address);
+      await expect(migrate).to.be.revertedWith('!different');
+    });
+
+    it('migrate errors if custom token is not enrolled', async () => {
+      const migrate = deploy.bridgeRouter!.migrate(customRepr.address);
+      await expect(migrate).to.be.revertedWith('!repr');
     });
 
     it('errors if no mint/burn privileges', async () => {
