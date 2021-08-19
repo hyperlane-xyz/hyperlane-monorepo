@@ -1,14 +1,18 @@
 #!/bin/sh
+# Script for testing entire optics monorepo unconditionally
+# Run from root (./scripts/test-all.sh)
 
 # update ABIs
 cd ./solidity
 
-echo "+Updating core ABIs"
+echo "+Lint and compile core"
 cd ./optics-core
+npm run lint
 npm run compile
 
-echo "+Updating xapps ABIs"
+echo "+Lint and compile xApps"
 cd ../optics-xapps
+npm run lint
 npm run compile
 cd ..
 
@@ -35,16 +39,6 @@ cargo test -- -q
 cd ..
 
 # Run solidity tests
-cd ./solidity
-
-# Run solidity/optics-core tests and lint
-echo "+Running optics core tests"
-cd ./optics-core
-npm run lint
-npm test
-
-# Run solidity/optics-xapps tests and lint
-echo "+Running optics-xapps tests"
-cd ../optics-xapps
-npm run lint
-npm test
+echo "+Running solidity tests"
+cd ./typescript/optics-tests
+npm run testNoCompile
