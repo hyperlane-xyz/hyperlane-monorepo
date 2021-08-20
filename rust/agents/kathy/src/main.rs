@@ -16,6 +16,7 @@ use crate::{kathy::Kathy, settings::KathySettings as Settings};
 async fn _main() -> Result<()> {
     color_eyre::install()?;
     let settings = Settings::new()?;
+    // there needs to be an HTTP server here??? for health agent endpoint stuff.
     settings.base.tracing.start_tracing()?;
 
     let agent = Kathy::from_settings(settings).await?;

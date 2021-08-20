@@ -18,6 +18,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.54.0
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
@@ -30,6 +33,9 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.54.0
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
@@ -42,14 +48,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: 1.54.0
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-
+      - name: Rustfmt
+        run: cd rust && cargo fmt -- --check
       - name: Clippy
         run: cd rust && cargo clippy -- -D warnings
-      - name: Lint
-        run: cd rust && cargo fmt -- --check
 
   complete:
     runs-on: ubuntu-latest

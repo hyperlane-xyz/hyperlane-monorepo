@@ -1,6 +1,6 @@
-/// Struct responsible for syncing Prover
-pub mod prover_sync;
-pub use prover_sync::ProverSync;
+//! Prover process: generate proofs in the tree.
+//!
+//! Struct responsible for syncing Prover
 
 use ethers::core::types::H256;
 use rocksdb::DB;
