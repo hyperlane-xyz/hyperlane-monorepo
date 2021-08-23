@@ -472,7 +472,7 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   console.log(`Deploy env is ${gov.config.environment}`);
   console.log(`${gov.chain.name} is governing`);
   console.log(`Updater for ${gov.chain.name} Home is ${gov.config.updater}`);
-  console.log(`Updater for ${gov.chain.name} Home is ${non.config.updater}`);
+  console.log(`Updater for ${non.chain.name} Home is ${non.config.updater}`);
 
   const isTestDeploy: boolean = gov.test || non.test;
   await Promise.all([deployOptics(gov), deployOptics(non)]);
