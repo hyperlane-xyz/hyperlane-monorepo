@@ -1,11 +1,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import "./Common.sol";
-import "./Merkle.sol";
-import "../interfaces/IUpdaterManager.sol";
-
-import "@openzeppelin/contracts/utils/Address.sol";
+// ============ Internal Imports ============
+import {Version0} from "./Version0.sol";
+import {Common} from "./Common.sol";
+import {QueueLib} from "../libs/Queue.sol";
+import {MerkleLib} from "../libs/Merkle.sol";
+import {Message} from "../libs/Message.sol";
+import {MerkleTreeManager} from "./Merkle.sol";
+import {IUpdaterManager} from "../interfaces/IUpdaterManager.sol";
+// ============ External Imports ============
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
@@ -14,7 +19,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * @notice Contract responsible for managing production of the message tree and
  * holding custody of the updater bond.
  */
-contract Home is MerkleTreeManager, Common, OwnableUpgradeable {
+contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
     using QueueLib for QueueLib.Queue;
     using MerkleLib for MerkleLib.Tree;
 
