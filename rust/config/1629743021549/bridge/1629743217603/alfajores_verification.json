@@ -1,0 +1,46 @@
+[
+  {
+    "name": "Contract Implementation",
+    "address": "0xd9D284901a9bb3D3673F3B9F2DC638F5dE60D4f7",
+    "constructorArguments": []
+  },
+  {
+    "name": "Contract UpgradeBeacon",
+    "address": "0xd26B7161D6f2D7dD13Dd3F2eA13D63CcC966CCC8",
+    "constructorArguments": [
+      "0xd9D284901a9bb3D3673F3B9F2DC638F5dE60D4f7",
+      "0xB1Bfb317DAa1EEB1b1E4bd40b0d87Cd57F601AF8"
+    ]
+  },
+  {
+    "name": "Contract Proxy",
+    "address": "0xeB28EFc49Dd36a623CEb72c6636D3E916aE4B304",
+    "constructorArguments": [
+      "0xd26B7161D6f2D7dD13Dd3F2eA13D63CcC966CCC8",
+      "0x"
+    ],
+    "isProxy": true
+  },
+  {
+    "name": "Contract Implementation",
+    "address": "0xDE9e8A61e5BEA2D6Fe4522ac68246ebDf52Ba0e0",
+    "constructorArguments": []
+  },
+  {
+    "name": "Contract UpgradeBeacon",
+    "address": "0x27d033C95Bc1D9623eA6D0298e599cda2CB732A4",
+    "constructorArguments": [
+      "0xDE9e8A61e5BEA2D6Fe4522ac68246ebDf52Ba0e0",
+      "0xB1Bfb317DAa1EEB1b1E4bd40b0d87Cd57F601AF8"
+    ]
+  },
+  {
+    "name": "Contract Proxy",
+    "address": "0x992edC0FdF8046a4577617d6E68e7C6DcB96b4ED",
+    "constructorArguments": [
+      "0x27d033C95Bc1D9623eA6D0298e599cda2CB732A4",
+      "0x485cc955000000000000000000000000d26b7161d6f2d7dd13dd3f2ea13d63ccc966ccc8000000000000000000000000d7f6bffe4e710205411d5c8680941cc948517898"
+    ],
+    "isProxy": true
+  }
+]
