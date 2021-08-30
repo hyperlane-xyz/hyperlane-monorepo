@@ -1,8 +1,8 @@
-import { getPathToLatestDeploy } from '../src/verification/readDeployOutput';
-import { deployBridges } from '../src/bridge';
-import * as alfajores from '../config/alfajores';
-import * as kovan from '../config/kovan';
-import { BridgeDeploy } from '../src/bridge/BridgeDeploy';
+import { getPathToLatestDeploy } from '../../src/verification/readDeployOutput';
+import { deployBridges } from '../../src/bridge';
+import * as alfajores from '../../config/testnets/alfajores';
+import * as kovan from '../../config/testnets/kovan';
+import { BridgeDeploy } from '../../src/bridge/BridgeDeploy';
 
 // get the path to the latest core system deploy
 const path = getPathToLatestDeploy();
