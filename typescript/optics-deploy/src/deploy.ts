@@ -39,10 +39,15 @@ export abstract class Deploy<T extends Contracts> {
 
   // this is currently a kludge to account for ethers issues
   get overrides(): ethers.Overrides {
-    return {
+    let overrides: ethers.Overrides = {
       type: this.supports1559 ? 2 : 0,
-      gasPrice: this.chain.gasPrice,
-      gasLimit: this.supports1559 ? undefined : 6_000_000,
     };
+
+    if (this.supports1559) {
+      overrides.gasPrice = this.chain.gasPrice;
+      overrides.gasLimit = 6_000_000;
+    }
+
+    return overrides;
   }
 }
