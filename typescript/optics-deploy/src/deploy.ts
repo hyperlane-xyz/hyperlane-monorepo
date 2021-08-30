@@ -43,7 +43,7 @@ export abstract class Deploy<T extends Contracts> {
       type: this.supports1559 ? 2 : 0,
     };
 
-    if (this.supports1559) {
+    if (!this.supports1559) {
       overrides.gasPrice = this.chain.gasPrice;
       overrides.gasLimit = 6_000_000;
     }
