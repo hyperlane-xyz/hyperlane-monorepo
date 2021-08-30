@@ -20,7 +20,7 @@ pub fn from_path(db_path: &str) -> Result<DB> {
             "Opening existing db at {path}",
             path = path.to_str().unwrap()
         ),
-        false => info!("Creating db a {path}", path = path.to_str().unwrap()),
+        false => info!("Creating db at {path}", path = path.to_str().unwrap()),
     }
 
     let mut opts = Options::default();
