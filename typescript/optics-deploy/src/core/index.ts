@@ -1,6 +1,3 @@
-// TODO: fix ts errors here
-// @ts-nocheck
-
 import * as ethers from 'ethers';
 import fs from 'fs';
 
@@ -15,7 +12,7 @@ function log(isTest: boolean, str: string) {
   }
 }
 
-function warn(text: string, padded: boolean) {
+function warn(text: string, padded: boolean = false) {
   if (padded) {
     const padding = '*'.repeat(text.length + 8);
     console.log(
@@ -55,12 +52,11 @@ export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
  */
 export async function deployUpdaterManager(deploy: CoreDeploy) {
   let factory = new contracts.UpdaterManager__factory(deploy.deployer);
-
   deploy.contracts.updaterManager = await factory.deploy(
     deploy.config.updater,
     deploy.overrides,
   );
-  await deploy.contracts.updaterManager!.deployTransaction.wait(
+  await deploy.contracts.updaterManager.deployTransaction.wait(
     deploy.chain.confirmations,
   );
 
@@ -70,46 +66,6 @@ export async function deployUpdaterManager(deploy: CoreDeploy) {
     address: deploy.contracts.updaterManager!.address,
     constructorArguments: [deploy.config.updater],
   });
-}
-
-/**
- * Deploys the XAppConnectionManager on the chain of the given deploy and updates
- * the deploy instance with the new contract.
- *
- * @param deploy - The deploy instance
- */
-export async function deployXAppConnectionManager(deploy: CoreDeploy) {
-  let factory = new contracts.XAppConnectionManager__factory(deploy.deployer);
-  deploy.contracts.xAppConnectionManager = await factory.deploy(
-    deploy.overrides,
-  );
-  await deploy.contracts.xAppConnectionManager.deployTransaction.wait(
-    deploy.chain.confirmations,
-  );
-
-  // add contract information to Etherscan verification array
-  deploy.verificationInput.push({
-    name: 'XAppConnectionManager',
-    address: deploy.contracts.xAppConnectionManager!.address,
-    constructorArguments: [],
-  });
-}
-
-/**
- * Deploys the UpdaterManager on the chain of the given deploy and updates
- * the deploy instance with the new contract.
- *
- * @param deploy - The deploy instance
- */
-export async function deployUpdaterManager(deploy: CoreDeploy) {
-  let factory = new contracts.UpdaterManager__factory(deploy.deployer);
-  deploy.contracts.updaterManager = await factory.deploy(
-    deploy.config.updater,
-    deploy.overrides,
-  );
-  await deploy.contracts.updaterManager.deployTransaction.wait(
-    deploy.chain.confirmations,
-  );
 }
 
 /**
@@ -133,6 +89,13 @@ export async function deployXAppConnectionManager(deploy: CoreDeploy) {
   await deploy.contracts.xAppConnectionManager.deployTransaction.wait(
     deploy.chain.confirmations,
   );
+
+  // add contract information to Etherscan verification array
+  deploy.verificationInput.push({
+    name: 'XAppConnectionManager',
+    address: deploy.contracts.xAppConnectionManager!.address,
+    constructorArguments: [],
+  });
 }
 
 /**
@@ -280,7 +243,7 @@ export async function deployOptics(deploy: CoreDeploy) {
   await deployXAppConnectionManager(deploy);
 
   log(isTestDeploy, `${deploy.chain.name}: awaiting deploy Home(deploy);`);
-  await deployHome(deploy, isTestDeploy);
+  await deployHome(deploy);
 
   log(
     isTestDeploy,
@@ -304,7 +267,7 @@ export async function deployOptics(deploy: CoreDeploy) {
     isTestDeploy,
     `${deploy.chain.name}: awaiting deploy GovernanceRouter(deploy);`,
   );
-  await deployGovernanceRouter(deploy, isTestDeploy);
+  await deployGovernanceRouter(deploy);
 
   log(isTestDeploy, `${deploy.chain.name}: initial chain deploy completed`);
 }
@@ -460,6 +423,28 @@ export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
 }
 
 /**
+ * Appints the intended ultimate governor in that domain's Governance Router.
+ * If the governor address is not configured, it will remain the deployer
+ * address.
+ * @param gov - The governor chain deploy instance
+ */
+export async function appointGovernor(gov: CoreDeploy) {
+  let governor = gov.config.governor;
+  if (governor) {
+    log(
+      gov.test,
+      `${gov.chain.name}: transferring root governorship to ${governor}`,
+    );
+    const tx = await gov.contracts.governance!.proxy.transferGovernor(
+      governor.domain,
+      governor.address,
+    );
+    await tx.wait(gov.chain.confirmations);
+    log(gov.test, `${gov.chain.name}: root governorship transferred`);
+  }
+}
+
+/**
  * Deploys the entire optics suite of contracts on two chains.
  *
  * @notice `gov` has the governance capability after setup
@@ -501,6 +486,10 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
 
   await Promise.all([relinquish(gov), relinquish(non)]);
 
+  if (gov.config.governor) {
+    await appointGovernor(gov);
+  }
+
   if (!isTestDeploy) {
     writeDeployOutput([gov, non]);
   }
@@ -528,6 +517,10 @@ export async function deployHubAndSpokes(
     await transferGovernorship(gov, non);
 
     await relinquish(non);
+  }
+
+  if (gov.config.governor) {
+    await appointGovernor(gov);
   }
 
   await relinquish(gov);
@@ -622,7 +615,7 @@ export function writeDeployOutput(deploys: CoreDeploy[]) {
     );
     fs.writeFileSync(
       `${dir}/${name}_contracts.json`,
-      local.contracts.toJsonPretty(),
+      JSON.stringify(local.contractOutput, null, 2),
     );
     fs.writeFileSync(
       `${dir}/${name}_verification.json`,

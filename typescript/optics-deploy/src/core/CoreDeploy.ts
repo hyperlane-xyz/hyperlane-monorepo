@@ -1,20 +1,28 @@
 import {
   Chain,
   ChainJson,
+  CoreContractAddresses,
+  CoreDeployAddresses,
   DeployEnvironment,
   RustConfig,
   toChain,
 } from '../chain';
 import { CoreContracts } from './CoreContracts';
 import { Deploy } from '../deploy';
+import { Address } from '../../../optics-tests/lib/types';
 
+type Governor = {
+  domain: number,
+  address: Address
+}
 export type CoreConfig = {
   environment: DeployEnvironment;
-  updater: string;
+  updater: Address;
   recoveryTimelock: number;
-  recoveryManager: string;
+  recoveryManager: Address;
   optimisticSeconds: number;
   watchers: string[];
+  governor?: Governor;
 };
 
 export class CoreDeploy extends Deploy<CoreContracts> {
@@ -25,8 +33,27 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     this.config = config;
   }
 
-  get ubcAddress(): string | undefined {
+  get contractOutput(): CoreDeployAddresses {
+    let addresses: CoreDeployAddresses = {
+      ...this.contracts.toObject(),
+      recoveryManager: this.config.recoveryManager,
+      updater: this.config.updater,
+    };
+    if (this.config.governor) {
+      addresses.governor = {
+        address: this.config.governor.address,
+        domain: this.chain.domain,
+      };
+    }
+    return addresses;
+  }
+
+  get ubcAddress(): Address | undefined {
     return this.contracts.upgradeBeaconController?.address;
+  }
+
+  async governor(): Promise<Address> {
+    return this.config.governor?.address ?? (await this.deployer.getAddress());
   }
 
   static parseCoreConfig(config: ChainJson & CoreConfig): [Chain, CoreConfig] {
