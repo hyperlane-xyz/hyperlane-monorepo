@@ -22,21 +22,21 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 interface HomeInterface extends ethers.utils.Interface {
   functions: {
     "MAX_MESSAGE_BODY_BYTES()": FunctionFragment;
+    "committedRoot()": FunctionFragment;
     "count()": FunctionFragment;
-    "current()": FunctionFragment;
+    "dispatch(uint32,bytes32,bytes)": FunctionFragment;
     "doubleUpdate(bytes32,bytes32[2],bytes,bytes)": FunctionFragment;
-    "enqueue(uint32,bytes32,bytes)": FunctionFragment;
     "homeDomainHash()": FunctionFragment;
     "improperUpdate(bytes32,bytes32,bytes)": FunctionFragment;
     "initialize(address)": FunctionFragment;
     "localDomain()": FunctionFragment;
+    "nonces(uint32)": FunctionFragment;
     "owner()": FunctionFragment;
     "queueContains(bytes32)": FunctionFragment;
     "queueEnd()": FunctionFragment;
     "queueLength()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
     "root()": FunctionFragment;
-    "sequences(uint32)": FunctionFragment;
     "setUpdater(address)": FunctionFragment;
     "setUpdaterManager(address)": FunctionFragment;
     "state()": FunctionFragment;
@@ -52,15 +52,18 @@ interface HomeInterface extends ethers.utils.Interface {
     functionFragment: "MAX_MESSAGE_BODY_BYTES",
     values?: undefined
   ): string;
+  encodeFunctionData(
+    functionFragment: "committedRoot",
+    values?: undefined
+  ): string;
   encodeFunctionData(functionFragment: "count", values?: undefined): string;
-  encodeFunctionData(functionFragment: "current", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "dispatch",
+    values: [BigNumberish, BytesLike, BytesLike]
+  ): string;
   encodeFunctionData(
     functionFragment: "doubleUpdate",
     values: [BytesLike, [BytesLike, BytesLike], BytesLike, BytesLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "enqueue",
-    values: [BigNumberish, BytesLike, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "homeDomainHash",
@@ -74,6 +77,10 @@ interface HomeInterface extends ethers.utils.Interface {
   encodeFunctionData(
     functionFragment: "localDomain",
     values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "nonces",
+    values: [BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
@@ -90,10 +97,6 @@ interface HomeInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "root", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "sequences",
-    values: [BigNumberish]
-  ): string;
   encodeFunctionData(functionFragment: "setUpdater", values: [string]): string;
   encodeFunctionData(
     functionFragment: "setUpdaterManager",
@@ -123,13 +126,16 @@ interface HomeInterface extends ethers.utils.Interface {
     functionFragment: "MAX_MESSAGE_BODY_BYTES",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "committedRoot",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "count", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "current", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "dispatch", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "doubleUpdate",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "enqueue", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "homeDomainHash",
     data: BytesLike
@@ -143,6 +149,7 @@ interface HomeInterface extends ethers.utils.Interface {
     functionFragment: "localDomain",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "nonces", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "queueContains",
@@ -158,7 +165,6 @@ interface HomeInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "root", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "sequences", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "setUpdater", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "setUpdaterManager",
@@ -182,7 +188,7 @@ interface HomeInterface extends ethers.utils.Interface {
   ): Result;
 
   events: {
-    "Dispatch(uint256,uint64,bytes32,bytes32,bytes)": EventFragment;
+    "Dispatch(bytes32,uint256,uint64,bytes32,bytes)": EventFragment;
     "DoubleUpdate(bytes32,bytes32[2],bytes,bytes)": EventFragment;
     "ImproperUpdate(bytes32,bytes32,bytes)": EventFragment;
     "NewUpdater(address)": EventFragment;
@@ -248,22 +254,22 @@ export class Home extends BaseContract {
   functions: {
     MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<[BigNumber]>;
 
+    committedRoot(overrides?: CallOverrides): Promise<[string]>;
+
     count(overrides?: CallOverrides): Promise<[BigNumber]>;
 
-    current(overrides?: CallOverrides): Promise<[string]>;
+    dispatch(
+      _destinationDomain: BigNumberish,
+      _recipientAddress: BytesLike,
+      _messageBody: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
 
     doubleUpdate(
       _oldRoot: BytesLike,
       _newRoot: [BytesLike, BytesLike],
       _signature: BytesLike,
       _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
-    enqueue(
-      _destinationDomain: BigNumberish,
-      _recipientAddress: BytesLike,
-      _messageBody: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -283,6 +289,8 @@ export class Home extends BaseContract {
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
+    nonces(arg0: BigNumberish, overrides?: CallOverrides): Promise<[number]>;
+
     owner(overrides?: CallOverrides): Promise<[string]>;
 
     queueContains(
@@ -300,8 +308,6 @@ export class Home extends BaseContract {
 
     root(overrides?: CallOverrides): Promise<[string]>;
 
-    sequences(arg0: BigNumberish, overrides?: CallOverrides): Promise<[number]>;
-
     setUpdater(
       _updater: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -316,7 +322,7 @@ export class Home extends BaseContract {
 
     suggestUpdate(
       overrides?: CallOverrides
-    ): Promise<[string, string] & { _current: string; _new: string }>;
+    ): Promise<[string, string] & { _committedRoot: string; _new: string }>;
 
     transferOwnership(
       newOwner: string,
@@ -328,7 +334,7 @@ export class Home extends BaseContract {
     ): Promise<[BigNumber] & { count: BigNumber }>;
 
     update(
-      _currentRoot: BytesLike,
+      _committedRoot: BytesLike,
       _newRoot: BytesLike,
       _signature: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -341,22 +347,22 @@ export class Home extends BaseContract {
 
   MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<BigNumber>;
 
+  committedRoot(overrides?: CallOverrides): Promise<string>;
+
   count(overrides?: CallOverrides): Promise<BigNumber>;
 
-  current(overrides?: CallOverrides): Promise<string>;
+  dispatch(
+    _destinationDomain: BigNumberish,
+    _recipientAddress: BytesLike,
+    _messageBody: BytesLike,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
   doubleUpdate(
     _oldRoot: BytesLike,
     _newRoot: [BytesLike, BytesLike],
     _signature: BytesLike,
     _signature2: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
-  enqueue(
-    _destinationDomain: BigNumberish,
-    _recipientAddress: BytesLike,
-    _messageBody: BytesLike,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -376,6 +382,8 @@ export class Home extends BaseContract {
 
   localDomain(overrides?: CallOverrides): Promise<number>;
 
+  nonces(arg0: BigNumberish, overrides?: CallOverrides): Promise<number>;
+
   owner(overrides?: CallOverrides): Promise<string>;
 
   queueContains(_item: BytesLike, overrides?: CallOverrides): Promise<boolean>;
@@ -389,8 +397,6 @@ export class Home extends BaseContract {
   ): Promise<ContractTransaction>;
 
   root(overrides?: CallOverrides): Promise<string>;
-
-  sequences(arg0: BigNumberish, overrides?: CallOverrides): Promise<number>;
 
   setUpdater(
     _updater: string,
@@ -406,7 +412,7 @@ export class Home extends BaseContract {
 
   suggestUpdate(
     overrides?: CallOverrides
-  ): Promise<[string, string] & { _current: string; _new: string }>;
+  ): Promise<[string, string] & { _committedRoot: string; _new: string }>;
 
   transferOwnership(
     newOwner: string,
@@ -416,7 +422,7 @@ export class Home extends BaseContract {
   tree(overrides?: CallOverrides): Promise<BigNumber>;
 
   update(
-    _currentRoot: BytesLike,
+    _committedRoot: BytesLike,
     _newRoot: BytesLike,
     _signature: BytesLike,
     overrides?: Overrides & { from?: string | Promise<string> }
@@ -429,22 +435,22 @@ export class Home extends BaseContract {
   callStatic: {
     MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<BigNumber>;
 
+    committedRoot(overrides?: CallOverrides): Promise<string>;
+
     count(overrides?: CallOverrides): Promise<BigNumber>;
 
-    current(overrides?: CallOverrides): Promise<string>;
+    dispatch(
+      _destinationDomain: BigNumberish,
+      _recipientAddress: BytesLike,
+      _messageBody: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<void>;
 
     doubleUpdate(
       _oldRoot: BytesLike,
       _newRoot: [BytesLike, BytesLike],
       _signature: BytesLike,
       _signature2: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    enqueue(
-      _destinationDomain: BigNumberish,
-      _recipientAddress: BytesLike,
-      _messageBody: BytesLike,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -464,6 +470,8 @@ export class Home extends BaseContract {
 
     localDomain(overrides?: CallOverrides): Promise<number>;
 
+    nonces(arg0: BigNumberish, overrides?: CallOverrides): Promise<number>;
+
     owner(overrides?: CallOverrides): Promise<string>;
 
     queueContains(
@@ -479,8 +487,6 @@ export class Home extends BaseContract {
 
     root(overrides?: CallOverrides): Promise<string>;
 
-    sequences(arg0: BigNumberish, overrides?: CallOverrides): Promise<number>;
-
     setUpdater(_updater: string, overrides?: CallOverrides): Promise<void>;
 
     setUpdaterManager(
@@ -492,7 +498,7 @@ export class Home extends BaseContract {
 
     suggestUpdate(
       overrides?: CallOverrides
-    ): Promise<[string, string] & { _current: string; _new: string }>;
+    ): Promise<[string, string] & { _committedRoot: string; _new: string }>;
 
     transferOwnership(
       newOwner: string,
@@ -502,7 +508,7 @@ export class Home extends BaseContract {
     tree(overrides?: CallOverrides): Promise<BigNumber>;
 
     update(
-      _currentRoot: BytesLike,
+      _committedRoot: BytesLike,
       _newRoot: BytesLike,
       _signature: BytesLike,
       overrides?: CallOverrides
@@ -515,18 +521,18 @@ export class Home extends BaseContract {
 
   filters: {
     Dispatch(
+      messageHash?: BytesLike | null,
       leafIndex?: BigNumberish | null,
-      destinationAndSequence?: BigNumberish | null,
-      leaf?: BytesLike | null,
-      current?: null,
+      destinationAndNonce?: BigNumberish | null,
+      committedRoot?: null,
       message?: null
     ): TypedEventFilter<
-      [BigNumber, BigNumber, string, string, string],
+      [string, BigNumber, BigNumber, string, string],
       {
+        messageHash: string;
         leafIndex: BigNumber;
-        destinationAndSequence: BigNumber;
-        leaf: string;
-        current: string;
+        destinationAndNonce: BigNumber;
+        committedRoot: string;
         message: string;
       }
     >;
@@ -596,22 +602,22 @@ export class Home extends BaseContract {
   estimateGas: {
     MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<BigNumber>;
 
+    committedRoot(overrides?: CallOverrides): Promise<BigNumber>;
+
     count(overrides?: CallOverrides): Promise<BigNumber>;
 
-    current(overrides?: CallOverrides): Promise<BigNumber>;
+    dispatch(
+      _destinationDomain: BigNumberish,
+      _recipientAddress: BytesLike,
+      _messageBody: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
 
     doubleUpdate(
       _oldRoot: BytesLike,
       _newRoot: [BytesLike, BytesLike],
       _signature: BytesLike,
       _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
-    enqueue(
-      _destinationDomain: BigNumberish,
-      _recipientAddress: BytesLike,
-      _messageBody: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -631,6 +637,8 @@ export class Home extends BaseContract {
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
+    nonces(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
+
     owner(overrides?: CallOverrides): Promise<BigNumber>;
 
     queueContains(
@@ -647,11 +655,6 @@ export class Home extends BaseContract {
     ): Promise<BigNumber>;
 
     root(overrides?: CallOverrides): Promise<BigNumber>;
-
-    sequences(
-      arg0: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
 
     setUpdater(
       _updater: string,
@@ -675,7 +678,7 @@ export class Home extends BaseContract {
     tree(overrides?: CallOverrides): Promise<BigNumber>;
 
     update(
-      _currentRoot: BytesLike,
+      _committedRoot: BytesLike,
       _newRoot: BytesLike,
       _signature: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -691,22 +694,22 @@ export class Home extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    committedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
     count(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    current(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    dispatch(
+      _destinationDomain: BigNumberish,
+      _recipientAddress: BytesLike,
+      _messageBody: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
 
     doubleUpdate(
       _oldRoot: BytesLike,
       _newRoot: [BytesLike, BytesLike],
       _signature: BytesLike,
       _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    enqueue(
-      _destinationDomain: BigNumberish,
-      _recipientAddress: BytesLike,
-      _messageBody: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -726,6 +729,11 @@ export class Home extends BaseContract {
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
+    nonces(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     queueContains(
@@ -742,11 +750,6 @@ export class Home extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     root(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    sequences(
-      arg0: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
 
     setUpdater(
       _updater: string,
@@ -770,7 +773,7 @@ export class Home extends BaseContract {
     tree(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     update(
-      _currentRoot: BytesLike,
+      _committedRoot: BytesLike,
       _newRoot: BytesLike,
       _signature: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }

@@ -104,7 +104,7 @@ function formatSetRouter(domain: types.Domain, address: types.Address): string {
   );
 }
 
-function messageToLeaf(message: types.HexString): string {
+function messageHash(message: types.HexString): string {
   return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 
@@ -114,7 +114,7 @@ function ethersAddressToBytes32(address: types.Address): string {
     .toLowerCase();
 }
 
-function destinationAndSequence(
+function destinationAndNonce(
   destination: types.Domain,
   sequence: number,
 ): ethers.BigNumber {
@@ -193,9 +193,9 @@ export const optics: types.HardhatOpticsHelpers = {
     formatSetRouter,
     formatCalls,
   },
-  messageToLeaf,
+  messageHash,
   ethersAddressToBytes32,
-  destinationAndSequence,
+  destinationAndNonce,
   domainHash,
   signedFailureNotification,
 };

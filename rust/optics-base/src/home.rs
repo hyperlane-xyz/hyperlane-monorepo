@@ -75,19 +75,15 @@ impl Home for Homes {
     }
 
     #[instrument(level = "trace", err)]
-    async fn raw_message_by_sequence(
+    async fn raw_message_by_nonce(
         &self,
         destination: u32,
-        sequence: u32,
+        nonce: u32,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
         match self {
-            Homes::Ethereum(home) => home.raw_message_by_sequence(destination, sequence).await,
-            Homes::Mock(mock_home) => {
-                mock_home
-                    .raw_message_by_sequence(destination, sequence)
-                    .await
-            }
-            Homes::Other(home) => home.raw_message_by_sequence(destination, sequence).await,
+            Homes::Ethereum(home) => home.raw_message_by_nonce(destination, nonce).await,
+            Homes::Mock(mock_home) => mock_home.raw_message_by_nonce(destination, nonce).await,
+            Homes::Other(home) => home.raw_message_by_nonce(destination, nonce).await,
         }
     }
 
@@ -116,20 +112,20 @@ impl Home for Homes {
     }
 
     #[instrument(level = "trace", err)]
-    async fn sequences(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
+    async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
         match self {
-            Homes::Ethereum(home) => home.sequences(destination).await,
-            Homes::Mock(mock_home) => mock_home.sequences(destination).await,
-            Homes::Other(home) => home.sequences(destination).await,
+            Homes::Ethereum(home) => home.nonces(destination).await,
+            Homes::Mock(mock_home) => mock_home.nonces(destination).await,
+            Homes::Other(home) => home.nonces(destination).await,
         }
     }
 
     #[instrument(level = "trace", err)]
-    async fn enqueue(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
+    async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
         match self {
-            Homes::Ethereum(home) => home.enqueue(message).await,
-            Homes::Mock(mock_home) => mock_home.enqueue(message).await,
-            Homes::Other(home) => home.enqueue(message).await,
+            Homes::Ethereum(home) => home.dispatch(message).await,
+            Homes::Mock(mock_home) => mock_home.dispatch(message).await,
+            Homes::Other(home) => home.dispatch(message).await,
         }
     }
 
@@ -196,11 +192,11 @@ impl Common for Homes {
         }
     }
 
-    async fn current_root(&self) -> Result<H256, ChainCommunicationError> {
+    async fn committed_root(&self) -> Result<H256, ChainCommunicationError> {
         match self {
-            Homes::Ethereum(home) => home.current_root().await,
-            Homes::Mock(mock_home) => mock_home.current_root().await,
-            Homes::Other(home) => home.current_root().await,
+            Homes::Ethereum(home) => home.committed_root().await,
+            Homes::Mock(mock_home) => mock_home.committed_root().await,
+            Homes::Other(home) => home.committed_root().await,
         }
     }
 

@@ -19,10 +19,10 @@ mock! {
 
         pub fn _home_domain_hash(&self) -> H256 {}
 
-        pub fn _raw_message_by_sequence(
+        pub fn _raw_message_by_nonce(
             &self,
             destination: u32,
-            sequence: u32,
+            nonce: u32,
         ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {}
 
         pub fn _raw_message_by_leaf(
@@ -36,9 +36,9 @@ mock! {
             tree_index: usize,
         ) -> Result<Option<H256>, ChainCommunicationError> {}
 
-        pub fn _sequences(&self, destination: u32) -> Result<u32, ChainCommunicationError> {}
+        pub fn _nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {}
 
-        pub fn _enqueue(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {}
+        pub fn _dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {}
 
         pub fn _queue_contains(&self, root: H256) -> Result<bool, ChainCommunicationError> {}
 
@@ -58,7 +58,7 @@ mock! {
 
         pub fn _state(&self) -> Result<State, ChainCommunicationError> {}
 
-        pub fn _current_root(&self) -> Result<H256, ChainCommunicationError> {}
+        pub fn _committed_root(&self) -> Result<H256, ChainCommunicationError> {}
 
         pub fn _signed_update_by_old_root(
             &self,
@@ -95,12 +95,12 @@ impl Home for MockHomeContract {
         self._home_domain_hash()
     }
 
-    async fn raw_message_by_sequence(
+    async fn raw_message_by_nonce(
         &self,
         destination: u32,
-        sequence: u32,
+        nonce: u32,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
-        self._raw_message_by_sequence(destination, sequence)
+        self._raw_message_by_nonce(destination, nonce)
     }
 
     async fn raw_message_by_leaf(
@@ -117,12 +117,12 @@ impl Home for MockHomeContract {
         self._leaf_by_tree_index(tree_index)
     }
 
-    async fn sequences(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
-        self._sequences(destination)
+    async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
+        self._nonces(destination)
     }
 
-    async fn enqueue(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
-        self._enqueue(message)
+    async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
+        self._dispatch(message)
     }
 
     async fn queue_contains(&self, root: H256) -> Result<bool, ChainCommunicationError> {
@@ -159,8 +159,8 @@ impl Common for MockHomeContract {
         self._state()
     }
 
-    async fn current_root(&self) -> Result<H256, ChainCommunicationError> {
-        self._current_root()
+    async fn committed_root(&self) -> Result<H256, ChainCommunicationError> {
+        self._committed_root()
     }
 
     async fn signed_update_by_old_root(

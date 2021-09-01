@@ -15,7 +15,7 @@ pub struct RawCommittedMessage {
     /// The index at which the message is committed
     pub leaf_index: u32,
     /// The home's current root when the message was committed.
-    pub current_root: H256,
+    pub committed_root: H256,
     /// The fully detailed message that was committed
     pub message: Vec<u8>,
 }
@@ -27,7 +27,7 @@ pub struct CommittedMessage {
     /// The index at which the message is committed
     pub leaf_index: u32,
     /// The home's current root when the message was committed.
-    pub current_root: H256,
+    pub committed_root: H256,
     /// The fully detailed message that was committed
     pub message: OpticsMessage,
 }
@@ -51,7 +51,7 @@ impl TryFrom<RawCommittedMessage> for CommittedMessage {
     fn try_from(raw: RawCommittedMessage) -> Result<Self, Self::Error> {
         Ok(Self {
             leaf_index: raw.leaf_index,
-            current_root: raw.current_root,
+            committed_root: raw.committed_root,
             message: OpticsMessage::read_from(&mut &raw.message[..])?,
         })
     }
@@ -69,24 +69,24 @@ pub trait Home: Common + Send + Sync + std::fmt::Debug {
         home_domain_hash(self.local_domain())
     }
 
-    /// Fetch the message to destination at the sequence number (or error).
+    /// Fetch the message to destination at the nonce (or error).
     /// This should fetch events from the chain API.
     ///
     /// Used by processors to get messages in order
-    async fn raw_message_by_sequence(
+    async fn raw_message_by_nonce(
         &self,
         destination: u32,
-        sequence: u32,
+        nonce: u32,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError>;
 
-    /// Fetch the message to destination at the sequence number (or error).
+    /// Fetch the message to destination at the nonce (or error).
     /// This should fetch events from the chain API
-    async fn message_by_sequence(
+    async fn message_by_nonce(
         &self,
         destination: u32,
-        sequence: u32,
+        nonce: u32,
     ) -> Result<Option<CommittedMessage>, ChainCommunicationError> {
-        self.raw_message_by_sequence(destination, sequence)
+        self.raw_message_by_nonce(destination, nonce)
             .await?
             .map(CommittedMessage::try_from)
             .transpose()
@@ -116,19 +116,19 @@ pub trait Home: Common + Send + Sync + std::fmt::Debug {
     /// Fetch the tree_index-th leaf inserted into the merkle tree.
     /// Returns `Ok(None)` if no leaf exists for given `tree_size` (`Ok(None)`
     /// serves as the return value for an index error). If tree_index == 0,
-    /// this will return the first enqueued leaf.  This is because the Home
+    /// this will return the first inserted leaf.  This is because the Home
     /// emits the index at which the leaf was inserted in (`tree.count() - 1`),
-    /// thus the first enqueued leaf has an index of 0.
+    /// thus the first inserted leaf has an index of 0.
     async fn leaf_by_tree_index(
         &self,
         tree_index: usize,
     ) -> Result<Option<H256>, ChainCommunicationError>;
 
-    /// Fetch the sequence
-    async fn sequences(&self, destination: u32) -> Result<u32, ChainCommunicationError>;
+    /// Fetch the nonce
+    async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError>;
 
-    /// Queue a message.
-    async fn enqueue(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError>;
+    /// Dispatch a message.
+    async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError>;
 
     /// Check if queue contains root.
     async fn queue_contains(&self, root: H256) -> Result<bool, ChainCommunicationError>;

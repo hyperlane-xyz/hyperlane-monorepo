@@ -83,8 +83,8 @@ where
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn current_root(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.current().call().await?.into())
+    async fn committed_root(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.committed_root().call().await?.into())
     }
 
     #[tracing::instrument(err, skip(self))]
@@ -184,12 +184,12 @@ where
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn raw_message_by_sequence(
+    async fn raw_message_by_nonce(
         &self,
         destination: u32,
-        sequence: u32,
+        nonce: u32,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
-        let dest_and_seq = utils::destination_and_sequence(destination, sequence);
+        let dest_and_seq = utils::destination_and_nonce(destination, nonce);
 
         let events = self
             .contract
@@ -201,7 +201,7 @@ where
 
         Ok(events.into_iter().next().map(|f| RawCommittedMessage {
             leaf_index: f.leaf_index.as_u32(),
-            current_root: f.current.into(),
+            committed_root: f.committed_root.into(),
             message: f.message,
         }))
     }
@@ -221,7 +221,7 @@ where
 
         Ok(events.into_iter().next().map(|f| RawCommittedMessage {
             leaf_index: f.leaf_index.as_u32(),
-            current_root: f.current.into(),
+            committed_root: f.committed_root.into(),
             message: f.message,
         }))
     }
@@ -238,17 +238,17 @@ where
             .query()
             .await?
             .first()
-            .map(|event| event.leaf.into()))
+            .map(|event| event.message_hash.into()))
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn sequences(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
-        Ok(self.contract.sequences(destination).call().await?)
+    async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
+        Ok(self.contract.nonces(destination).call().await?)
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn enqueue(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.enqueue(
+    async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
+        let tx = self.contract.dispatch(
             message.destination,
             message.recipient.to_fixed_bytes(),
             message.body.clone(),

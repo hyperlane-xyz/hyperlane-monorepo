@@ -21,7 +21,7 @@ const remoteDomain = domains[1];
 
 /*
  * Deploy the full Optics suite on two chains
- * enqueue messages to Home
+ * dispatch messages to Home
  * sign and submit updates to Home
  * relay updates to Replica
  * confirm updates on Replica
@@ -33,7 +33,7 @@ describe('SimpleCrossChainMessage', async () => {
   let deploys: Deploy[] = [];
 
   let randomSigner: Signer,
-    firstRootEnqueuedToReplica: string,
+    firstRootSubmittedToReplica: string,
     updater: Updater,
     latestRoot: string,
     latestUpdate: Update;
@@ -57,8 +57,8 @@ describe('SimpleCrossChainMessage', async () => {
     let length = await governorHome.queueLength();
     expect(length).to.equal(1);
 
-    let [suggestedCurrent, suggestedNew] = await governorHome.suggestUpdate();
-    expect(suggestedCurrent).to.equal(nullRoot);
+    let [suggestedCommitted, suggestedNew] = await governorHome.suggestUpdate();
+    expect(suggestedCommitted).to.equal(nullRoot);
     expect(suggestedNew).to.not.equal(nullRoot);
 
     // nonGovernorHome has 2 updates
@@ -67,8 +67,8 @@ describe('SimpleCrossChainMessage', async () => {
     length = await nonGovernorHome.queueLength();
     expect(length).to.equal(2);
 
-    [suggestedCurrent, suggestedNew] = await nonGovernorHome.suggestUpdate();
-    expect(suggestedCurrent).to.equal(nullRoot);
+    [suggestedCommitted, suggestedNew] = await nonGovernorHome.suggestUpdate();
+    expect(suggestedCommitted).to.equal(nullRoot);
     expect(suggestedNew).to.not.equal(nullRoot);
   });
 
@@ -82,7 +82,7 @@ describe('SimpleCrossChainMessage', async () => {
         expect(length).to.equal(0);
 
         const [pending, confirmAt] = await replica.nextPending();
-        expect(pending).to.equal(await replica.current());
+        expect(pending).to.equal(await replica.committedRoot());
         expect(confirmAt).to.equal(1);
       }
     }
@@ -92,7 +92,7 @@ describe('SimpleCrossChainMessage', async () => {
     const messages = ['message'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    const update = await utils.enqueueMessagesAndUpdateHome(
+    const update = await utils.dispatchMessagesAndUpdateHome(
       deploys[0].contracts.home?.proxy!,
       messages,
       updater,
@@ -103,7 +103,7 @@ describe('SimpleCrossChainMessage', async () => {
   });
 
   it('Destination Replica Accepts the first update', async () => {
-    firstRootEnqueuedToReplica = await utils.enqueueUpdateToReplica(
+    firstRootSubmittedToReplica = await utils.updateReplica(
       latestUpdate,
       deploys[1].contracts.replicas[localDomain].proxy!,
     );
@@ -113,7 +113,7 @@ describe('SimpleCrossChainMessage', async () => {
     const messages = ['message1', 'message2', 'message3'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    const update = await utils.enqueueMessagesAndUpdateHome(
+    const update = await utils.dispatchMessagesAndUpdateHome(
       deploys[0].contracts.home?.proxy!,
       messages,
       updater,
@@ -124,7 +124,7 @@ describe('SimpleCrossChainMessage', async () => {
   });
 
   it('Destination Replica Accepts the second update', async () => {
-    await utils.enqueueUpdateToReplica(
+    await utils.updateReplica(
       latestUpdate,
       deploys[1].contracts.replicas[localDomain].proxy,
     );
@@ -133,7 +133,7 @@ describe('SimpleCrossChainMessage', async () => {
   it('Destination Replica shows first update as the next pending', async () => {
     const replica = deploys[1].contracts.replicas[localDomain].proxy;
     const [pending] = await replica.nextPending();
-    expect(pending).to.equal(firstRootEnqueuedToReplica);
+    expect(pending).to.equal(firstRootSubmittedToReplica);
   });
 
   it('Destination Replica Batch-confirms several ready updates', async () => {
@@ -150,7 +150,7 @@ describe('SimpleCrossChainMessage', async () => {
 
     // after confirming, current root should be equal to the last submitted update
     const { newRoot } = latestUpdate;
-    expect(await replica.current()).to.equal(newRoot);
+    expect(await replica.committedRoot()).to.equal(newRoot);
   });
 
   it('Proves and processes a message on Replica', async () => {
@@ -173,11 +173,11 @@ describe('SimpleCrossChainMessage', async () => {
 
     // Create Optics message that is sent from the governor domain and governor
     // to the nonGovernorRouter on the nonGovernorDomain
-    const sequence = 0;
+    const nonce = 0;
     const opticsMessage = optics.formatMessage(
       1000,
       governorRouter.address,
-      sequence,
+      nonce,
       2000,
       nonGovernorRouter.address,
       callMessage,
@@ -185,21 +185,21 @@ describe('SimpleCrossChainMessage', async () => {
 
     // get merkle proof
     const { path, index } = proveAndProcessTestCases[0];
-    const leaf = optics.messageToLeaf(opticsMessage);
+    const messageHash = optics.messageHash(opticsMessage);
 
     // set root
     const proofRoot = await replica.testBranchRoot(
-      leaf,
+      messageHash,
       path as BytesArray,
       index,
     );
-    await replica.setCurrentRoot(proofRoot);
+    await replica.setCommittedRoot(proofRoot);
 
     // prove and process message
     await replica.proveAndProcess(opticsMessage, path as BytesArray, index);
 
     // expect call to have been processed
     expect(await TestRecipient.processed()).to.be.true;
-    expect(await replica.messages(leaf)).to.equal(MessageStatus.PROCESSED);
+    expect(await replica.messages(messageHash)).to.equal(MessageStatus.PROCESSED);
   });
 });

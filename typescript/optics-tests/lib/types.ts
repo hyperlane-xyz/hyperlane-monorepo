@@ -11,9 +11,9 @@ export interface HardhatOpticsHelpers {
     formatSetRouter: Function;
     formatCalls: Function;
   };
-  messageToLeaf: Function;
+  messageHash: Function;
   ethersAddressToBytes32: Function;
-  destinationAndSequence: Function;
+  destinationAndNonce: Function;
   domainHash: Function;
   signedFailureNotification: Function;
 }

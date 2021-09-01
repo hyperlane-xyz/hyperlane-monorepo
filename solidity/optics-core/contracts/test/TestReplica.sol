@@ -24,11 +24,11 @@ contract TestReplica is Replica {
 
     function setMessagePending(bytes memory _message) external {
         bytes29 _m = _message.ref(0);
-        messages[_m.keccak()] = MessageStatus.Pending;
+        messages[_m.keccak()] = MessageStatus.Proven;
     }
 
-    function setCurrentRoot(bytes32 _newRoot) external {
-        current = _newRoot;
+    function setCommittedRoot(bytes32 _newRoot) external {
+        committedRoot = _newRoot;
         confirmAt[_newRoot] = 1;
     }
 

@@ -9,7 +9,7 @@ import {MerkleLib} from "@celo-org/optics-sol/libs/Merkle.sol";
 import {QueueLib} from "@celo-org/optics-sol/libs/Queue.sol";
 
 // We reproduce a significant amount of logic from `Home` to ensure that
-// calling enqueue here is AT LEAST AS EXPENSIVE as calling it on home
+// calling dispatch here is AT LEAST AS EXPENSIVE as calling it on home
 contract MockCore is MerkleTreeManager, QueueManager {
     using QueueLib for QueueLib.Queue;
     using MerkleLib for MerkleLib.Tree;
@@ -23,12 +23,12 @@ contract MockCore is MerkleTreeManager, QueueManager {
     );
     event Dispatch(
         uint256 indexed leafIndex,
-        uint64 indexed destinationAndSequence,
+        uint64 indexed destinationAndNonce,
         bytes32 indexed leaf,
         bytes message
     );
 
-    mapping(uint32 => uint32) public sequences;
+    mapping(uint32 => uint32) public nonces;
 
     function localDomain() public pure returns (uint32) {
         return 5;
@@ -39,18 +39,18 @@ contract MockCore is MerkleTreeManager, QueueManager {
     }
 
     // We reproduce the logic here to simulate
-    function enqueue(
+    function dispatch(
         uint32 _destination,
         bytes32 _recipient,
         bytes calldata _body
     ) external {
         require(_body.length <= MAX_MESSAGE_BODY_BYTES, "!too big");
-        uint32 _sequence = sequences[_destination];
+        uint32 _nonce = nonces[_destination];
 
         bytes memory _message = Message.formatMessage(
             localDomain(),
             bytes32(uint256(uint160(msg.sender))),
-            _sequence,
+            _nonce,
             _destination,
             _recipient,
             _body
@@ -63,24 +63,24 @@ contract MockCore is MerkleTreeManager, QueueManager {
         // leafIndex is count() - 1 since new leaf has already been inserted
         emit Dispatch(
             count() - 1,
-            _destinationAndSequence(_destination, _sequence),
+            _destinationAndNonce(_destination, _nonce),
             _leaf,
             _message
         );
         emit Enqueue(_destination, _recipient, _body);
 
-        sequences[_destination] = _sequence + 1;
+        nonces[_destination] = _nonce + 1;
     }
 
     function isReplica(address) public pure returns (bool) {
         return true;
     }
 
-    function _destinationAndSequence(uint32 _destination, uint32 _sequence)
+    function _destinationAndNonce(uint32 _destination, uint32 _nonce)
         internal
         pure
         returns (uint64)
     {
-        return (uint64(_destination) << 32) | _sequence;
+        return (uint64(_destination) << 32) | _nonce;
     }
 }

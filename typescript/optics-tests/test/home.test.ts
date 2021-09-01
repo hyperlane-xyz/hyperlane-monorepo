@@ -13,7 +13,7 @@ import {
 } from '../../typechain/optics-core';
 
 import homeDomainHashTestCases from '../../../vectors/homeDomainHash.json';
-import destinationSequenceTestCases from '../../../vectors/destinationSequence.json';
+import destinationNonceTestCases from '../../../vectors/destinationNonce.json';
 
 const localDomain = 1000;
 const destDomain = 2000;
@@ -29,11 +29,11 @@ describe('Home', async () => {
     fakeUpdater: Updater,
     fakeUpdaterManager: UpdaterManager;
 
-  // Helper function that enqueues message and returns its root.
-  // The message recipient is the same for all messages enqueued.
-  const enqueueMessageAndGetRoot = async (message: string) => {
+  // Helper function that dispatches message and returns intermediate root.
+  // The message recipient is the same for all messages dispatched.
+  const dispatchMessageAndGetRoot = async (message: string) => {
     message = ethers.utils.formatBytes32String(message);
-    await home.enqueue(
+    await home.dispatch(
       destDomain,
       optics.ethersAddressToBytes32(recipient.address),
       message,
@@ -82,7 +82,7 @@ describe('Home', async () => {
 
     const message = ethers.utils.formatBytes32String('message');
     await expect(
-      home.enqueue(
+      home.dispatch(
         destDomain,
         optics.ethersAddressToBytes32(recipient.address),
         message,
@@ -110,12 +110,12 @@ describe('Home', async () => {
     }
   });
 
-  it('Does not enqueue large messages', async () => {
+  it('Does not dispatch too large messages', async () => {
     const message = `0x${Buffer.alloc(3000).toString('hex')}`;
     await expect(
       home
         .connect(signer)
-        .enqueue(
+        .dispatch(
           destDomain,
           optics.ethersAddressToBytes32(recipient.address),
           message,
@@ -123,33 +123,33 @@ describe('Home', async () => {
     ).to.be.revertedWith('msg too long');
   });
 
-  it('Enqueues a message', async () => {
+  it('Dispatches a message', async () => {
     const message = ethers.utils.formatBytes32String('message');
-    const sequence = await home.sequences(localDomain);
+    const nonce = await home.nonces(localDomain);
 
     // Format data that will be emitted from Dispatch event
-    const destinationAndSequence = optics.destinationAndSequence(
+    const destinationAndNonce = optics.destinationAndNonce(
       destDomain,
-      sequence,
+        nonce,
     );
 
     const opticsMessage = optics.formatMessage(
       localDomain,
       signer.address,
-      sequence,
+        nonce,
       destDomain,
       recipient.address,
       message,
     );
-    const leaf = optics.messageToLeaf(opticsMessage);
+    const messageHash = optics.messageHash(opticsMessage);
     const leafIndex = await home.nextLeafIndex();
-    const current = await home.current();
+    const committedRoot = await home.committedRoot();
 
     // Send message with signer address as msg.sender
     await expect(
       home
         .connect(signer)
-        .enqueue(
+        .dispatch(
           destDomain,
           optics.ethersAddressToBytes32(recipient.address),
           message,
@@ -157,25 +157,25 @@ describe('Home', async () => {
     )
       .to.emit(home, 'Dispatch')
       .withArgs(
+        messageHash,
         leafIndex,
-        destinationAndSequence,
-        leaf,
-        current,
+        destinationAndNonce,
+        committedRoot,
         opticsMessage,
       );
   });
 
   it('Suggests current root and latest root on suggestUpdate', async () => {
-    const currentRoot = await home.current();
+    const committedRoot = await home.committedRoot();
     const message = ethers.utils.formatBytes32String('message');
-    await home.enqueue(
+    await home.dispatch(
       destDomain,
       optics.ethersAddressToBytes32(recipient.address),
       message,
     );
     const latestEnqueuedRoot = await home.queueEnd();
-    const [suggestedCurrent, suggestedNew] = await home.suggestUpdate();
-    expect(suggestedCurrent).to.equal(currentRoot);
+    const [suggestedCommitted, suggestedNew] = await home.suggestUpdate();
+    expect(suggestedCommitted).to.equal(committedRoot);
     expect(suggestedNew).to.equal(latestEnqueuedRoot);
   });
 
@@ -183,43 +183,43 @@ describe('Home', async () => {
     const length = await home.queueLength();
     expect(length).to.equal(0);
 
-    const [suggestedCurrent, suggestedNew] = await home.suggestUpdate();
-    expect(suggestedCurrent).to.equal(emptyAddress);
+    const [suggestedCommitted, suggestedNew] = await home.suggestUpdate();
+    expect(suggestedCommitted).to.equal(emptyAddress);
     expect(suggestedNew).to.equal(emptyAddress);
   });
 
   it('Accepts a valid update', async () => {
-    const currentRoot = await home.current();
-    const newRoot = await enqueueMessageAndGetRoot('message');
-    const { signature } = await updater.signUpdate(currentRoot, newRoot);
+    const committedRoot = await home.committedRoot();
+    const newRoot = await dispatchMessageAndGetRoot('message');
+    const { signature } = await updater.signUpdate(committedRoot, newRoot);
 
-    await expect(home.update(currentRoot, newRoot, signature))
+    await expect(home.update(committedRoot, newRoot, signature))
       .to.emit(home, 'Update')
-      .withArgs(localDomain, currentRoot, newRoot, signature);
-    expect(await home.current()).to.equal(newRoot);
+      .withArgs(localDomain, committedRoot, newRoot, signature);
+    expect(await home.committedRoot()).to.equal(newRoot);
     expect(await home.queueContains(newRoot)).to.be.false;
   });
 
   it('Batch-accepts several updates', async () => {
-    const currentRoot = await home.current();
-    const newRoot1 = await enqueueMessageAndGetRoot('message1');
-    const newRoot2 = await enqueueMessageAndGetRoot('message2');
-    const newRoot3 = await enqueueMessageAndGetRoot('message3');
-    const { signature } = await updater.signUpdate(currentRoot, newRoot3);
+    const committedRoot = await home.committedRoot();
+    const newRoot1 = await dispatchMessageAndGetRoot('message1');
+    const newRoot2 = await dispatchMessageAndGetRoot('message2');
+    const newRoot3 = await dispatchMessageAndGetRoot('message3');
+    const { signature } = await updater.signUpdate(committedRoot, newRoot3);
 
-    await expect(home.update(currentRoot, newRoot3, signature))
+    await expect(home.update(committedRoot, newRoot3, signature))
       .to.emit(home, 'Update')
-      .withArgs(localDomain, currentRoot, newRoot3, signature);
-    expect(await home.current()).to.equal(newRoot3);
+      .withArgs(localDomain, committedRoot, newRoot3, signature);
+    expect(await home.committedRoot()).to.equal(newRoot3);
     expect(await home.queueContains(newRoot1)).to.be.false;
     expect(await home.queueContains(newRoot2)).to.be.false;
     expect(await home.queueContains(newRoot3)).to.be.false;
   });
 
   it('Rejects update that does not build off of current root', async () => {
-    // First root is current root
-    const secondRoot = await enqueueMessageAndGetRoot('message');
-    const thirdRoot = await enqueueMessageAndGetRoot('message2');
+    // First root is committedRoot
+    const secondRoot = await dispatchMessageAndGetRoot('message');
+    const thirdRoot = await dispatchMessageAndGetRoot('message2');
 
     // Try to submit update that skips the current (first) root
     const { signature } = await updater.signUpdate(secondRoot, thirdRoot);
@@ -229,11 +229,11 @@ describe('Home', async () => {
   });
 
   it('Rejects update that does not exist in queue', async () => {
-    const currentRoot = await home.current();
+    const committedRoot = await home.committedRoot();
     const fakeNewRoot = ethers.utils.formatBytes32String('fake root');
-    const { signature } = await updater.signUpdate(currentRoot, fakeNewRoot);
+    const { signature } = await updater.signUpdate(committedRoot, fakeNewRoot);
 
-    await expect(home.update(currentRoot, fakeNewRoot, signature)).to.emit(
+    await expect(home.update(committedRoot, fakeNewRoot, signature)).to.emit(
       home,
       'ImproperUpdate',
     );
@@ -241,21 +241,21 @@ describe('Home', async () => {
   });
 
   it('Rejects update from non-updater address', async () => {
-    const currentRoot = await home.current();
-    const newRoot = await enqueueMessageAndGetRoot('message');
+    const committedRoot = await home.committedRoot();
+    const newRoot = await dispatchMessageAndGetRoot('message');
     const { signature: fakeSignature } = await fakeUpdater.signUpdate(
-      currentRoot,
+      committedRoot,
       newRoot,
     );
     await expect(
-      home.update(currentRoot, newRoot, fakeSignature),
+      home.update(committedRoot, newRoot, fakeSignature),
     ).to.be.revertedWith('!updater sig');
   });
 
   it('Fails on valid double update proof', async () => {
-    const firstRoot = await home.current();
-    const secondRoot = await enqueueMessageAndGetRoot('message');
-    const thirdRoot = await enqueueMessageAndGetRoot('message2');
+    const firstRoot = await home.committedRoot();
+    const secondRoot = await dispatchMessageAndGetRoot('message');
+    const thirdRoot = await dispatchMessageAndGetRoot('message2');
     const { signature } = await updater.signUpdate(firstRoot, secondRoot);
     const { signature: signature2 } = await updater.signUpdate(
       firstRoot,
@@ -272,13 +272,13 @@ describe('Home', async () => {
     expect(await home.state()).to.equal(OpticsState.FAILED);
   });
 
-  it('Correctly calculates destinationAndSequence', async () => {
-    for (let testCase of destinationSequenceTestCases) {
-      let { destination, sequence, expectedDestinationAndSequence } = testCase;
-      const solidityDestinationAndSequence =
-        await home.testDestinationAndSequence(destination, sequence);
-      expect(solidityDestinationAndSequence).to.equal(
-        expectedDestinationAndSequence,
+  it('Correctly calculates destinationAndNonce', async () => {
+    for (let testCase of destinationNonceTestCases) {
+      let { destination, nonce, expectedDestinationAndNonce } = testCase;
+      const solidityDestinationAndNonce =
+        await home.testDestinationAndNonce(destination, nonce);
+      expect(solidityDestinationAndNonce).to.equal(
+          expectedDestinationAndNonce,
       );
     }
   });

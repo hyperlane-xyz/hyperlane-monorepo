@@ -39,10 +39,10 @@ describe('Replica', async () => {
     updater: Updater,
     fakeUpdater: Updater;
 
-  const enqueueValidUpdate = async (newRoot: string) => {
+  const submitValidUpdate = async (newRoot: string) => {
     let oldRoot;
     if ((await replica.queueLength()).isZero()) {
-      oldRoot = await replica.current();
+      oldRoot = await replica.committedRoot();
     } else {
       oldRoot = await replica.queueEnd();
     }
@@ -91,7 +91,7 @@ describe('Replica', async () => {
     expect(await replica.state()).to.equal(OpticsState.FAILED);
 
     const newRoot = ethers.utils.formatBytes32String('new root');
-    await expect(enqueueValidUpdate(newRoot)).to.be.revertedWith(
+    await expect(submitValidUpdate(newRoot)).to.be.revertedWith(
       'failed state',
     );
   });
@@ -120,21 +120,21 @@ describe('Replica', async () => {
 
   it('Enqueues pending updates', async () => {
     const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await enqueueValidUpdate(firstNewRoot);
+    await submitValidUpdate(firstNewRoot);
     expect(await replica.queueEnd()).to.equal(firstNewRoot);
 
     const secondNewRoot = ethers.utils.formatBytes32String('second next root');
-    await enqueueValidUpdate(secondNewRoot);
+    await submitValidUpdate(secondNewRoot);
     expect(await replica.queueEnd()).to.equal(secondNewRoot);
   });
 
   it('Returns the earliest pending update', async () => {
     const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await enqueueValidUpdate(firstNewRoot);
+    await submitValidUpdate(firstNewRoot);
 
     const beforeTimestamp = await replica.timestamp();
     const secondNewRoot = ethers.utils.formatBytes32String('second next root');
-    await enqueueValidUpdate(secondNewRoot);
+    await submitValidUpdate(secondNewRoot);
 
     const [pending, confirmAt] = await replica.nextPending();
     expect(pending).to.equal(firstNewRoot);
@@ -143,13 +143,13 @@ describe('Replica', async () => {
 
   it('Returns the current value when the queue is empty', async () => {
     const [pending, confirmAt] = await replica.nextPending();
-    expect(pending).to.equal(await replica.current());
+    expect(pending).to.equal(await replica.committedRoot());
     expect(confirmAt).to.equal(1);
   });
 
   it('Rejects update with invalid signature', async () => {
     const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await enqueueValidUpdate(firstNewRoot);
+    await submitValidUpdate(firstNewRoot);
 
     const secondNewRoot = ethers.utils.formatBytes32String('second new root');
     const { signature: fakeSignature } = await fakeUpdater.signUpdate(
@@ -174,7 +174,7 @@ describe('Replica', async () => {
 
   it('Rejects updates not building off latest enqueued root', async () => {
     const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await enqueueValidUpdate(firstNewRoot);
+    await submitValidUpdate(firstNewRoot);
 
     const fakeLatestRoot = ethers.utils.formatBytes32String('fake root');
     const secondNewRoot = ethers.utils.formatBytes32String('second new root');
@@ -189,7 +189,7 @@ describe('Replica', async () => {
   });
 
   it('Accepts a double update proof', async () => {
-    const firstRoot = await replica.current();
+    const firstRoot = await replica.committedRoot();
     const secondRoot = ethers.utils.formatBytes32String('second root');
     const thirdRoot = ethers.utils.formatBytes32String('third root');
 
@@ -213,28 +213,28 @@ describe('Replica', async () => {
 
   it('Confirms a ready update', async () => {
     const newRoot = ethers.utils.formatBytes32String('new root');
-    await enqueueValidUpdate(newRoot);
+    await submitValidUpdate(newRoot);
 
     await increaseTimestampBy(ethers.provider, optimisticSeconds);
 
     expect(await replica.canConfirm()).to.be.true;
     await replica.confirm();
-    expect(await replica.current()).to.equal(newRoot);
+    expect(await replica.committedRoot()).to.equal(newRoot);
   });
 
   it('Batch-confirms several ready updates', async () => {
     const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await enqueueValidUpdate(firstNewRoot);
+    await submitValidUpdate(firstNewRoot);
 
     const secondNewRoot = ethers.utils.formatBytes32String('second next root');
-    await enqueueValidUpdate(secondNewRoot);
+    await submitValidUpdate(secondNewRoot);
 
     // Increase time enough for both updates to be confirmable
     await increaseTimestampBy(ethers.provider, optimisticSeconds * 2);
 
     expect(await replica.canConfirm()).to.be.true;
     await replica.confirm();
-    expect(await replica.current()).to.equal(secondNewRoot);
+    expect(await replica.committedRoot()).to.equal(secondNewRoot);
   });
 
   it('Rejects confirmation attempt on empty queue', async () => {
@@ -246,10 +246,10 @@ describe('Replica', async () => {
 
   it('Rejects an early confirmation attempt', async () => {
     const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await enqueueValidUpdate(firstNewRoot);
+    await submitValidUpdate(firstNewRoot);
 
     // Don't increase time enough for update to be confirmable.
-    // Note that we use optimisticSeconds - 2 because the call to enqueue
+    // Note that we use optimisticSeconds - 2 because the call to submit
     // the valid root has already increased the timestamp by 1.
     await increaseTimestampBy(ethers.provider, optimisticSeconds - 2);
 
@@ -262,7 +262,7 @@ describe('Replica', async () => {
     const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
-    await replica.setCurrentRoot(testCase.expectedRoot);
+    await replica.setCommittedRoot(testCase.expectedRoot);
 
     // Ensure proper static call return value
     expect(await replica.callStatic.prove(leaf, path as BytesArray, index)).to
@@ -276,7 +276,7 @@ describe('Replica', async () => {
     const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
-    await replica.setCurrentRoot(testCase.expectedRoot);
+    await replica.setCommittedRoot(testCase.expectedRoot);
 
     // Prove message, which changes status to MessageStatus.Pending
     await replica.prove(leaf, path as BytesArray, index);
@@ -298,7 +298,7 @@ describe('Replica', async () => {
     path[0] = path[1];
     path[1] = firstHash;
 
-    await replica.setCurrentRoot(testCase.expectedRoot);
+    await replica.setCommittedRoot(testCase.expectedRoot);
 
     expect(await replica.callStatic.prove(leaf, path as BytesArray, index)).to
       .be.false;
@@ -313,11 +313,11 @@ describe('Replica', async () => {
     const testRecipientFactory = new contracts.TestRecipient__factory(signer);
     const testRecipient = await testRecipientFactory.deploy();
 
-    const sequence = 0;
+    const nonce = 0;
     const opticsMessage = optics.formatMessage(
       remoteDomain,
       sender.address,
-      sequence,
+      nonce,
       localDomain,
       testRecipient.address,
       '0x',
@@ -333,24 +333,24 @@ describe('Replica', async () => {
     const processTx = replica.process(opticsMessage);
     await expect(processTx)
       .to.emit(replica, 'ProcessSuccess')
-      .withArgs(optics.messageToLeaf(opticsMessage));
+      .withArgs(optics.messageHash(opticsMessage));
   });
 
   it('Fails to process an unproved message', async () => {
     const [sender, recipient] = await ethers.getSigners();
-    const sequence = 0;
+    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
     const opticsMessage = optics.formatMessage(
       remoteDomain,
       sender.address,
-      sequence,
+      nonce,
       localDomain,
       recipient.address,
       body,
     );
 
-    await expect(replica.process(opticsMessage)).to.be.revertedWith('!pending');
+    await expect(replica.process(opticsMessage)).to.be.revertedWith('!proven');
   });
 
   for (let i = 0; i < badRecipientFactories.length; i++) {
@@ -361,11 +361,11 @@ describe('Replica', async () => {
       const factory = new badRecipientFactories[i](signer);
       const badRecipient = await factory.deploy();
 
-      const sequence = 0;
+      const nonce = 0;
       const opticsMessage = optics.formatMessage(
         remoteDomain,
         sender.address,
-        sequence,
+          nonce,
         localDomain,
         badRecipient.address,
         '0x',
@@ -379,13 +379,13 @@ describe('Replica', async () => {
 
   it('Fails to process message with wrong destination Domain', async () => {
     const [sender, recipient] = await ethers.getSigners();
-    const sequence = 0;
+    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
     const opticsMessage = optics.formatMessage(
       remoteDomain,
       sender.address,
-      sequence,
+        nonce,
       // Wrong destination Domain
       localDomain + 5,
       recipient.address,
@@ -398,13 +398,13 @@ describe('Replica', async () => {
   });
 
   it('Processes message sent to a non-existent contract address', async () => {
-    const sequence = 0;
+    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
     const opticsMessage = optics.formatMessage(
       remoteDomain,
       opticsMessageSender.address,
-      sequence,
+        nonce,
       localDomain,
       '0x1234567890123456789012345678901234567890', // non-existent contract address
       body,
@@ -417,13 +417,13 @@ describe('Replica', async () => {
 
   it('Fails to process an undergased transaction', async () => {
     const [sender, recipient] = await ethers.getSigners();
-    const sequence = 0;
+    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
     const opticsMessage = optics.formatMessage(
       remoteDomain,
       sender.address,
-      sequence,
+        nonce,
       localDomain,
       recipient.address,
       body,
@@ -444,11 +444,11 @@ describe('Replica', async () => {
     const factory = new contracts.BadRecipientHandle__factory(recipient);
     const testRecipient = await factory.deploy();
 
-    const sequence = 0;
+    const nonce = 0;
     const opticsMessage = optics.formatMessage(
       remoteDomain,
       sender.address,
-      sequence,
+        nonce,
       localDomain,
       testRecipient.address,
       '0x',
@@ -467,14 +467,14 @@ describe('Replica', async () => {
     const testRecipientFactory = new contracts.TestRecipient__factory(signer);
     const testRecipient = await testRecipientFactory.deploy();
 
-    const sequence = 0;
+    const nonce = 0;
 
     // Note that hash of this message specifically matches leaf of 1st
     // proveAndProcess test case
     const opticsMessage = optics.formatMessage(
       remoteDomain,
       sender.address,
-      sequence,
+        nonce,
       localDomain,
       testRecipient.address,
       '0x',
@@ -482,7 +482,7 @@ describe('Replica', async () => {
 
     // Assert above message and test case have matching leaves
     const { path, index } = proveAndProcessTestCases[0];
-    const messageLeaf = optics.messageToLeaf(opticsMessage);
+    const messageHash = optics.messageHash(opticsMessage);
 
     // Set replica's current root to match newly computed root that includes
     // the new leaf (normally root will have already been computed and path
@@ -490,22 +490,22 @@ describe('Replica', async () => {
     // impossible to find the inputs that create a pre-determined root, we
     // simply recalculate root with the leaf using branchRoot)
     const proofRoot = await replica.testBranchRoot(
-      messageLeaf,
+      messageHash,
       path as BytesArray,
       index,
     );
-    await replica.setCurrentRoot(proofRoot);
+    await replica.setCommittedRoot(proofRoot);
 
     await replica.proveAndProcess(opticsMessage, path as BytesArray, index);
 
-    expect(await replica.messages(messageLeaf)).to.equal(
+    expect(await replica.messages(messageHash)).to.equal(
       MessageStatus.PROCESSED,
     );
   });
 
   it('Has proveAndProcess fail if prove fails', async () => {
     const [sender, recipient] = await ethers.getSigners();
-    const sequence = 0;
+    const nonce = 0;
 
     // Use 1st proof of 1st merkle vector test case
     const testCase = merkleTestCases[0];
@@ -515,7 +515,7 @@ describe('Replica', async () => {
     const opticsMessage = optics.formatMessage(
       remoteDomain,
       sender.address,
-      sequence,
+        nonce,
       localDomain,
       recipient.address,
       '0x',
@@ -523,7 +523,7 @@ describe('Replica', async () => {
 
     // Ensure root given in proof and actual root don't match so that
     // replica.prove(...) will fail
-    const actualRoot = await replica.current();
+    const actualRoot = await replica.committedRoot();
     const proofRoot = await replica.testBranchRoot(
       leaf,
       path as BytesArray,

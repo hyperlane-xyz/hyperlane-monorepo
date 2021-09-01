@@ -15,6 +15,12 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "bytes32",
+        "name": "messageHash",
+        "type": "bytes32"
+      },
+      {
+        "indexed": true,
         "internalType": "uint256",
         "name": "leafIndex",
         "type": "uint256"
@@ -22,19 +28,13 @@
       {
         "indexed": true,
         "internalType": "uint64",
-        "name": "destinationAndSequence",
+        "name": "destinationAndNonce",
         "type": "uint64"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "leaf",
-        "type": "bytes32"
       },
       {
         "indexed": false,
         "internalType": "bytes32",
-        "name": "current",
+        "name": "committedRoot",
         "type": "bytes32"
       },
       {
@@ -213,6 +213,19 @@
   },
   {
     "inputs": [],
+    "name": "committedRoot",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
     "name": "count",
     "outputs": [
       {
@@ -225,16 +238,26 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "current",
-    "outputs": [
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "_destinationDomain",
+        "type": "uint32"
+      },
       {
         "internalType": "bytes32",
-        "name": "",
+        "name": "_recipientAddress",
         "type": "bytes32"
+      },
+      {
+        "internalType": "bytes",
+        "name": "_messageBody",
+        "type": "bytes"
       }
     ],
-    "stateMutability": "view",
+    "name": "dispatch",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -261,29 +284,6 @@
       }
     ],
     "name": "doubleUpdate",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint32",
-        "name": "_destinationDomain",
-        "type": "uint32"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_recipientAddress",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_messageBody",
-        "type": "bytes"
-      }
-    ],
-    "name": "enqueue",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -346,6 +346,25 @@
   {
     "inputs": [],
     "name": "localDomain",
+    "outputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "uint32",
+        "name": "",
+        "type": "uint32"
+      }
+    ],
+    "name": "nonces",
     "outputs": [
       {
         "internalType": "uint32",
@@ -437,25 +456,6 @@
   {
     "inputs": [
       {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "name": "sequences",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "address",
         "name": "_updater",
         "type": "address"
@@ -498,7 +498,7 @@
     "outputs": [
       {
         "internalType": "bytes32",
-        "name": "_current",
+        "name": "_committedRoot",
         "type": "bytes32"
       },
       {
@@ -540,7 +540,7 @@
     "inputs": [
       {
         "internalType": "bytes32",
-        "name": "_currentRoot",
+        "name": "_committedRoot",
         "type": "bytes32"
       },
       {

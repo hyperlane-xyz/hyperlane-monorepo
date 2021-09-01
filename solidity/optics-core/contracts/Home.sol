@@ -37,8 +37,8 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
 
     // ============ Public Storage Variables ============
 
-    // domain => next available nonce
-    mapping(uint32 => uint32) public sequences;
+    // domain => next available nonce for the domain
+    mapping(uint32 => uint32) public nonces;
     // contract responsible for Updater bonding, slashing and rotation
     IUpdaterManager public updaterManager;
 
@@ -50,19 +50,19 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
     // ============ Events ============
 
     /**
-     * @notice Emitted when a new message is enqueued
+     * @notice Emitted when a new message is dispatched via Optics
      * @param leafIndex Index of message's leaf in merkle tree
-     * @param destinationAndSequence Destination and destination-specific
-     * sequence combined in single field ((destination << 32) & sequence)
-     * @param leaf Hash of formatted message; the leaf inserted to the Merkle tree for the message
-     * @param current the latest notarized root submitted in the last signed Update
-     * @param message Raw bytes of enqueued message
+     * @param destinationAndNonce Destination and destination-specific
+     * nonce combined in single field ((destination << 32) & nonce)
+     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
+     * @param committedRoot the latest notarized root submitted in the last signed Update
+     * @param message Raw bytes of message
      */
     event Dispatch(
+        bytes32 indexed messageHash,
         uint256 indexed leafIndex,
-        uint64 indexed destinationAndSequence,
-        bytes32 indexed leaf,
-        bytes32 current,
+        uint64 indexed destinationAndNonce,
+        bytes32 committedRoot,
         bytes message
     );
 
@@ -152,20 +152,20 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
      * @param _recipientAddress Address of recipient on destination chain as bytes32
      * @param _messageBody Raw bytes content of message
      */
-    function enqueue(
+    function dispatch(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes memory _messageBody
     ) external notFailed {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
-        // get the next sequence for the destination domain, then increment it
-        uint32 _sequence = sequences[_destinationDomain];
-        sequences[_destinationDomain] = _sequence + 1;
+        // get the next nonce for the destination domain, then increment it
+        uint32 _nonce = nonces[_destinationDomain];
+        nonces[_destinationDomain] = _nonce + 1;
         // format the message into packed bytes
         bytes memory _message = Message.formatMessage(
             localDomain,
             bytes32(uint256(uint160(msg.sender))),
-            _sequence,
+            _nonce,
             _destinationDomain,
             _recipientAddress,
             _messageBody
@@ -178,58 +178,58 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
         // Emit Dispatch event with message information
         // note: leafIndex is count() - 1 since new leaf has already been inserted
         emit Dispatch(
-            count() - 1,
-            _destinationAndSequence(_destinationDomain, _sequence),
             _messageHash,
-            current,
+            count() - 1,
+            _destinationAndNonce(_destinationDomain, _nonce),
+            committedRoot,
             _message
         );
     }
 
     /**
-     * @notice Submit a signature from the Updater "notarizing" an enqueued root,
-     * which updates the Home contract's `current` root,
+     * @notice Submit a signature from the Updater "notarizing" a root,
+     * which updates the Home contract's `committedRoot`,
      * and publishes the signature which will be relayed to Replica contracts
      * @dev emits Update event
      * @dev If _newRoot is not contained in the queue,
      * the Update is a fraudulent Improper Update, so
      * the Updater is slashed & Home is set to FAILED state
-     * @param _currentRoot Current updated merkle root which the update is building off of
+     * @param _committedRoot Current updated merkle root which the update is building off of
      * @param _newRoot New merkle root to update the contract state to
-     * @param _signature Updater signature on `_currentRoot` and `_newRoot`
+     * @param _signature Updater signature on `_committedRoot` and `_newRoot`
      */
     function update(
-        bytes32 _currentRoot,
+        bytes32 _committedRoot,
         bytes32 _newRoot,
         bytes memory _signature
     ) external notFailed {
         // check that the update is not fraudulent;
         // if fraud is detected, Updater is slashed & Home is set to FAILED state
-        if (improperUpdate(_currentRoot, _newRoot, _signature)) return;
+        if (improperUpdate(_committedRoot, _newRoot, _signature)) return;
         // clear all of the intermediate roots contained in this update from the queue
         while (true) {
             bytes32 _next = queue.dequeue();
             if (_next == _newRoot) break;
         }
         // update the Home state with the latest signed root & emit event
-        current = _newRoot;
-        emit Update(localDomain, _currentRoot, _newRoot, _signature);
+        committedRoot = _newRoot;
+        emit Update(localDomain, _committedRoot, _newRoot, _signature);
     }
 
     /**
      * @notice Suggest an update for the Updater to sign and submit.
      * @dev If queue is empty, null bytes returned for both
      * (No update is necessary because no messages have been dispatched since the last update)
-     * @return _current Latest updated root
-     * @return _new Latest enqueued root
+     * @return _committedRoot Latest root signed by the Updater
+     * @return _new Latest enqueued Merkle root
      */
     function suggestUpdate()
         external
         view
-        returns (bytes32 _current, bytes32 _new)
+        returns (bytes32 _committedRoot, bytes32 _new)
     {
         if (queue.length() != 0) {
-            _current = current;
+            _committedRoot = committedRoot;
             _new = queue.lastItem();
         }
     }
@@ -247,7 +247,7 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
      * @notice Check if an Update is an Improper Update;
      * if so, slash the Updater and set the contract to FAILED state.
      *
-     * An Improper Update is an update building off of the Home's `current` root
+     * An Improper Update is an update building off of the Home's `committedRoot`
      * for which the `_newRoot` does not currently exist in the Home's queue.
      * This would mean that message(s) that were not truly
      * dispatched on Home were falsely included in the signed root.
@@ -260,12 +260,12 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
      * in order to slash the Updater with an Improper Update.
      *
      * An Improper Update submitted to the Replica is only valid
-     * while the `_oldRoot` is still equal to the `current` root on Home;
-     * if the `current` root on Home has already been updated with a valid Update,
+     * while the `_oldRoot` is still equal to the `committedRoot` on Home;
+     * if the `committedRoot` on Home has already been updated with a valid Update,
      * then the Updater should be slashed with a Double Update.
      * @dev Reverts (and doesn't slash updater) if signature is invalid or
      * update not current
-     * @param _oldRoot Old merkle tree root (should equal home's current root)
+     * @param _oldRoot Old merkle tree root (should equal home's committedRoot)
      * @param _newRoot New merkle tree root
      * @param _signature Updater signature on `_oldRoot` and `_newRoot`
      * @return TRUE if update was an Improper Update (implying Updater was slashed)
@@ -279,7 +279,7 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
             _isUpdaterSignature(_oldRoot, _newRoot, _signature),
             "!updater sig"
         );
-        require(_oldRoot == current, "not a current update");
+        require(_oldRoot == committedRoot, "not a current update");
         // if the _newRoot is not currently contained in the queue,
         // slash the Updater and set the contract to FAILED state
         if (!queue.contains(_newRoot)) {
@@ -330,17 +330,17 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
 
     /**
      * @notice Internal utility function that combines
-     * `_destination` and `_sequence`.
-     * @dev Both destination and sequence should be less than 2^32 - 1
+     * `_destination` and `_nonce`.
+     * @dev Both destination and nonce should be less than 2^32 - 1
      * @param _destination Domain of destination chain
-     * @param _sequence Current sequence for given destination chain
-     * @return Returns (`_destination` << 32) & `_sequence`
+     * @param _nonce Current nonce for given destination chain
+     * @return Returns (`_destination` << 32) & `_nonce`
      */
-    function _destinationAndSequence(uint32 _destination, uint32 _sequence)
+    function _destinationAndNonce(uint32 _destination, uint32 _nonce)
         internal
         pure
         returns (uint64)
     {
-        return (uint64(_destination) << 32) | _sequence;
+        return (uint64(_destination) << 32) | _nonce;
     }
 }
