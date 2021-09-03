@@ -143,6 +143,8 @@ impl SignerConf {
 pub struct Settings {
     /// The path to use for the DB file
     pub db: String,
+    /// Port to listen for prometheus scrape requests
+    pub metrics: Option<String>,
     /// The home configuration
     pub home: ChainSetup,
     /// The replica configurations
@@ -182,13 +184,24 @@ impl Settings {
         self.home.try_into_home(signer).await
     }
 
-    /// Try to generate an agent core
-    pub async fn try_into_core(&self) -> Result<AgentCore, Report> {
+    /// Try to generate an agent core for a named agent
+    pub async fn try_into_core(&self, name: &str) -> Result<AgentCore, Report> {
         let home = Arc::new(self.try_home().await?);
         let replicas = self.try_replicas().await?;
         let db = Arc::new(db::from_path(&self.db)?);
 
-        Ok(AgentCore { home, replicas, db })
+        Ok(AgentCore {
+            home,
+            replicas,
+            db,
+            metrics: Arc::new(crate::metrics::CoreMetrics::new(
+                name,
+                self.metrics
+                    .as_ref()
+                    .map(|v| v.parse::<u16>().expect("metrics port must be u16")),
+                Arc::new(prometheus::Registry::new()),
+            )?),
+        })
     }
 
     /// Read settings from the config file

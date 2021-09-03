@@ -41,5 +41,6 @@
     "level": "debug",
     "style": "pretty"
   },
+  "metrics": "9090",
   "dbPath": "db_path"
 }
