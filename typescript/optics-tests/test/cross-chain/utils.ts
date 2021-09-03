@@ -128,7 +128,7 @@ export async function updateReplica(
     .to.emit(replica, 'Update')
     .withArgs(homeDomain, oldRoot, newRoot, signature);
 
-  expect(await replica.queueEnd()).to.equal(newRoot);
+  expect(await replica.committedRoot()).to.equal(newRoot);
 
   return newRoot;
 }
