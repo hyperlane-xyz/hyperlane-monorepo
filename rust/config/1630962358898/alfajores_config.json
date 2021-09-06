@@ -1,0 +1,54 @@
+{
+  "environment": "dev",
+  "signers": {
+    "alfajores": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "kovan": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "rinkeby": {
+      "key": "",
+      "type": "hexKey"
+    }
+  },
+  "replicas": {
+    "kovan": {
+      "address": "0xE63E73339501EE3A8d2928d6C88cf30aC8556Ee0",
+      "domain": "3000",
+      "name": "kovan",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": "https://eth-kovan.alchemyapi.io/v2/aJP38P1ZeHbXP3Td8vVh8vFmxkKT9pnR"
+      }
+    },
+    "rinkeby": {
+      "address": "0x6A5F9531D1877ebE96Bc0631DbF64BBCf1f7421c",
+      "domain": "2000",
+      "name": "rinkeby",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": "https://eth-rinkeby.alchemyapi.io/v2/uOf-lO18qM7rAT6NOgMAZQoyuS__lhqN"
+      }
+    }
+  },
+  "home": {
+    "address": "0x47AaF05B1C36015eC186892C43ba4BaF91246aaA",
+    "domain": "1000",
+    "name": "alfajores",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": "https://alfajores-forno.celo-testnet.org"
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path"
+}
