@@ -1,7 +1,7 @@
 import * as proxyUtils from '../proxyUtils';
 
-import * as xAppContracts from '../../../typechain/optics-xapps';
 import * as contracts from '../../../typechain/optics-core';
+import * as xAppContracts from '../../../typechain/optics-xapps';
 import { toBytes32 } from '../../../optics-tests/lib/utils';
 import fs from 'fs';
 import { BridgeDeploy } from './BridgeDeploy';

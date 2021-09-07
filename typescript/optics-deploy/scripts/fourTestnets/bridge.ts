@@ -10,22 +10,22 @@ import { BridgeDeploy } from '../../src/bridge/BridgeDeploy';
 const path = getPathToLatestDeploy();
 
 const alfajoresDeploy = new BridgeDeploy(
-    alfajores.chain,
-    alfajores.bridgeConfig,
-    path,
+  alfajores.chain,
+  alfajores.bridgeConfig,
+  path,
 );
 const kovanDeploy = new BridgeDeploy(kovan.chain, kovan.bridgeConfig, path);
 
 const rinkebyDeploy = new BridgeDeploy(
-    rinkeby.chain,
-    rinkeby.bridgeConfig,
-    path,
+  rinkeby.chain,
+  rinkeby.bridgeConfig,
+  path,
 );
 
 const rinkarbyDeploy = new BridgeDeploy(
-    rinkarby.chain,
-    rinkarby.bridgeConfig,
-    path,
+  rinkarby.chain,
+  rinkarby.bridgeConfig,
+  path,
 );
 
 deployBridges([kovanDeploy, alfajoresDeploy, rinkebyDeploy, rinkarbyDeploy]);

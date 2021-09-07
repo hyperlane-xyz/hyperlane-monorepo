@@ -135,8 +135,8 @@ export default class TestBridgeDeploy {
   get testTokenId(): TokenId {
     return {
       domain: this.remoteDomain,
-      id: this.testToken
-    }
+      id: this.testToken,
+    };
   }
 
   async getTestRepresentation(): Promise<BridgeToken | undefined> {

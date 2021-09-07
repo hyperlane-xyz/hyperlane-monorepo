@@ -3,7 +3,6 @@ import * as dotenv from 'dotenv';
 import { ChainJson, toChain } from '../../src/chain';
 import { CoreConfig } from '../../src/core/CoreDeploy';
 import { BridgeConfig } from '../../src/bridge/BridgeDeploy';
-import { BigNumber } from '@ethersproject/bignumber';
 
 dotenv.config();
 

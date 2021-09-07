@@ -9,13 +9,13 @@ import { deployEnvironment } from '../../src/chain';
 let environment = deployEnvironment();
 
 let alfajoresConfig =
-    environment === 'staging' ? alfajores.stagingConfig : alfajores.devConfig;
+  environment === 'staging' ? alfajores.stagingConfig : alfajores.devConfig;
 let kovanConfig =
-    environment === 'staging' ? kovan.stagingConfig : kovan.devConfig;
+  environment === 'staging' ? kovan.stagingConfig : kovan.devConfig;
 let rinkebyConfig =
-    environment === 'staging' ? rinkeby.stagingConfig : rinkeby.devConfig;
+  environment === 'staging' ? rinkeby.stagingConfig : rinkeby.devConfig;
 let rinkarbyConfig =
-    environment === 'staging' ? rinkarby.stagingConfig : rinkarby.devConfig;
+  environment === 'staging' ? rinkarby.stagingConfig : rinkarby.devConfig;
 
 const alfajoresDeploy = new CoreDeploy(alfajores.chain, alfajoresConfig);
 const kovanDeploy = new CoreDeploy(kovan.chain, kovanConfig);
