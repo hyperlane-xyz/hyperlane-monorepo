@@ -1,7 +1,7 @@
 {
   "environment": "dev",
   "signers": {
-    "arbitrum_rinkeby": {
+    "rinkARBy": {
       "key": "",
       "type": "hexKey"
     },
@@ -53,7 +53,7 @@
   "home": {
     "address": "0x26F38465cA262CaCaB85f8a4e1D32b8BB7c9eF4f",
     "domain": "4000",
-    "name": "arbitrum_rinkeby",
+    "name": "rinkARBy",
     "rpcStyle": "ethereum",
     "connection": {
       "type": "http",

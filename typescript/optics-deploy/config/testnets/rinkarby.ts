@@ -6,15 +6,15 @@ import { BridgeConfig } from '../../src/bridge/BridgeDeploy';
 
 dotenv.config();
 
-const rpc = process.env.ARBITRUM_RINKEBY_RPC;
+const rpc = process.env.RINKARBY_RPC;
 if (!rpc) {
   throw new Error('Missing RPC URI');
 }
 
 const chainJson: ChainJson = {
-  name: 'arbitrum_rinkeby',
+  name: 'rinkARBy',
   rpc,
-  deployerKey: process.env.ARBITRUM_RINKEBY_DEPLOYER_KEY,
+  deployerKey: process.env.RINKARBY_DEPLOYER_KEY,
   domain: 4000,
   gasPrice: 0,
   gasLimit: 600_000_000,
