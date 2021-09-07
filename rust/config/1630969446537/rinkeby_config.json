@@ -13,7 +13,7 @@
       "key": "",
       "type": "hexKey"
     },
-    "rinkARBy": {
+    "rinkarby": {
       "key": "",
       "type": "hexKey"
     }
@@ -39,10 +39,10 @@
         "url": "https://alfajores-forno.celo-testnet.org"
       }
     },
-    "rinkARBy": {
+    "rinkarby": {
       "address": "0xED03Ac664F987D9AE7e8cFCd90357FA214bcc5C1",
       "domain": "4000",
-      "name": "rinkARBy",
+      "name": "rinkarby",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",

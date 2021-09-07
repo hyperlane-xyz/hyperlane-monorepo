@@ -12,7 +12,7 @@ if (!rpc) {
 }
 
 const chainJson: ChainJson = {
-  name: 'rinkARBy',
+  name: 'rinkarby',
   rpc,
   deployerKey: process.env.RINKARBY_DEPLOYER_KEY,
   domain: 4000,

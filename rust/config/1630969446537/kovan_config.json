@@ -13,7 +13,7 @@
       "key": "",
       "type": "hexKey"
     },
-    "rinkARBy": {
+    "rinkarby": {
       "key": "",
       "type": "hexKey"
     }
@@ -39,10 +39,10 @@
         "url": "https://eth-rinkeby.alchemyapi.io/v2/uOf-lO18qM7rAT6NOgMAZQoyuS__lhqN"
       }
     },
-    "rinkARBy": {
+    "rinkarby": {
       "address": "0x5FbaAC3d330898801342e274741e016f09DfE3FB",
       "domain": "4000",
-      "name": "rinkARBy",
+      "name": "rinkarby",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
