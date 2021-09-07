@@ -263,7 +263,7 @@ impl ProverSync {
     /// new root. Use short interval for bootup syncing and longer
     /// interval for regular polling.
     #[tracing::instrument(err, skip(self))]
-    pub async fn spawn(mut self, interval_seconds: u64) -> Result<(), ProverSyncError> {
+    pub async fn spawn(mut self) -> Result<(), ProverSyncError> {
         loop {
             let local_root = self.local_root().await;
             let signed_update_opt = self.home.signed_update_by_old_root(local_root).await?;
