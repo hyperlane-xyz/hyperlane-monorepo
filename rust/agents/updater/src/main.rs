@@ -25,7 +25,8 @@ async fn _main() -> Result<()> {
 
     let _ = agent.metrics().run_http_server();
 
-    agent.run_all().await?;
+    // this is deliberately different from other agents
+    agent.run("").await??;
     Ok(())
 }
 
