@@ -97,7 +97,10 @@ impl Replica {
                 };
 
                 info!(
-                    "Starting processor for {} {} at leaf index {}",
+                    domain,
+                    nonce = next_to_inspect,
+                    replica = self.replica.name(),
+                    "Starting processor for {} {} at nonce {}",
                     domain,
                     self.replica.name(),
                     next_to_inspect
@@ -114,7 +117,7 @@ impl Replica {
                     );
 
                     match self
-                        .try_msg_by_domain_and_seq(domain, next_to_inspect)
+                        .try_msg_by_domain_and_nonce(domain, next_to_inspect)
                         .instrument(seq_span)
                         .await
                     {
@@ -146,10 +149,10 @@ impl Replica {
     ///
     /// In case of error: send help?
     #[instrument(err)]
-    async fn try_msg_by_domain_and_seq(&self, domain: u32, current_seq: u32) -> Result<bool> {
+    async fn try_msg_by_domain_and_nonce(&self, domain: u32, nonce: u32) -> Result<bool> {
         use optics_core::traits::Replica;
 
-        let message = match self.home.message_by_nonce(domain, current_seq).await {
+        let message = match self.home.message_by_nonce(domain, nonce).await {
             Ok(Some(m)) => m,
             Ok(None) => {
                 info!("Message not yet found");
@@ -202,10 +205,7 @@ impl Replica {
             sleep(Duration::from_secs(self.interval)).await;
         }
 
-        info!(
-            "Dispatching a message for processing {}:{}",
-            domain, current_seq
-        );
+        info!("Dispatching a message for processing {}:{}", domain, nonce);
 
         self.process(message, proof).await?;
 

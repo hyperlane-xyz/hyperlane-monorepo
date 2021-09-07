@@ -189,13 +189,13 @@ where
         destination: u32,
         nonce: u32,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
-        let dest_and_seq = utils::destination_and_nonce(destination, nonce);
+        let dest_and_nonce = utils::destination_and_nonce(destination, nonce);
 
         let events = self
             .contract
             .dispatch_filter()
             .from_block(0)
-            .topic2(U256::from(dest_and_seq))
+            .topic3(U256::from(dest_and_nonce))
             .query()
             .await?;
 
@@ -215,7 +215,7 @@ where
             .contract
             .dispatch_filter()
             .from_block(0)
-            .topic3(leaf)
+            .topic1(leaf)
             .query()
             .await?;
 
@@ -234,7 +234,7 @@ where
             .contract
             .dispatch_filter()
             .from_block(0)
-            .topic1(U256::from(tree_index))
+            .topic2(U256::from(tree_index))
             .query()
             .await?
             .first()

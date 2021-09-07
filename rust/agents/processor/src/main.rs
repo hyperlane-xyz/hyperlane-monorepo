@@ -15,16 +15,16 @@ mod settings;
 
 use color_eyre::Result;
 
-use crate::{processor::Processor, settings::ProcessorSettings as Settings};
+use crate::{processor::Processor, settings::ProcessorSettings};
 use optics_base::agent::OpticsAgent;
 
 async fn _main() -> Result<()> {
     color_eyre::install()?;
-    let settings = Settings::new()?;
-    settings.base.tracing.start_tracing()?;
+    let config = ProcessorSettings::new()?;
+    config.base.tracing.start_tracing()?;
 
     // TODO: top-level root span customizations?
-    let agent = Processor::from_settings(settings).await?;
+    let agent = Processor::from_settings(config).await?;
 
     let _ = agent.metrics().run_http_server();
 
