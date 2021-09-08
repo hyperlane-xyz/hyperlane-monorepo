@@ -161,11 +161,13 @@ export async function enrollAllBridgeRouters(
   deploy: Deploy,
   allDeploys: Deploy[],
 ) {
-  for (let remoteDeploy of allDeploys) {
-    if (deploy.chain.name != remoteDeploy.chain.name) {
-      await enrollBridgeRouter(deploy, remoteDeploy);
-    }
-  }
+  await Promise.all(
+    allDeploys
+      .filter((remoteDeploy) => remoteDeploy.chain.name !== deploy.chain.name)
+      .map(async (remoteDeploy) => {
+        await enrollBridgeRouter(deploy, remoteDeploy);
+      }),
+  );
 }
 
 /**

@@ -445,11 +445,12 @@ export async function appointGovernor(gov: CoreDeploy) {
   if (governor) {
     log(
       gov.test,
-      `${gov.chain.name}: transferring root governorship to ${governor}`,
+      `${gov.chain.name}: transferring root governorship to ${governor.domain}:${governor.address}`,
     );
     const tx = await gov.contracts.governance!.proxy.transferGovernor(
       governor.domain,
       governor.address,
+      gov.overrides,
     );
     await tx.wait(gov.chain.confirmations);
     log(gov.test, `${gov.chain.name}: root governorship transferred`);
