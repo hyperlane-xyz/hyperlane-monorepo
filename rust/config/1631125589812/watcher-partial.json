@@ -1,5 +1,5 @@
 {
-  "interval": "100",
+  "pollingInterval": "100",
   "watcher": {
     "key": "",
     "type": "hexKey"
