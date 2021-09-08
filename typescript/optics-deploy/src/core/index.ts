@@ -5,6 +5,7 @@ import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
 import { toBytes32 } from '../../../optics-tests/lib/utils';
 import * as contracts from '../../../typechain/optics-core';
+import { assert } from 'console';
 
 function log(isTest: boolean, str: string) {
   if (!isTest) {
@@ -28,6 +29,8 @@ function warn(text: string, padded: boolean = false) {
 }
 
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
+  assert(deploy.contracts.upgradeBeaconController);
+
   let factory = new contracts.UpgradeBeaconController__factory(deploy.deployer);
   deploy.contracts.upgradeBeaconController = await factory.deploy(
     deploy.overrides,
@@ -171,10 +174,6 @@ export async function deployUnenrolledReplica(
 ) {
   const isTestDeploy: boolean = remote.test;
   if (isTestDeploy) warn('deploying test Replica');
-  log(
-    isTestDeploy,
-    `${local.chain.name}: deploying replica for domain ${remote.chain.name}`,
-  );
 
   const replica = isTestDeploy
     ? contracts.TestReplica__factory
@@ -192,7 +191,10 @@ export async function deployUnenrolledReplica(
   // otherwise just deploy a fresh proxy
   let proxy;
   if (Object.keys(local.contracts.replicas).length === 0) {
-    log(isTestDeploy, `${local.chain.name}: initial Replica deploy`);
+    log(
+      isTestDeploy,
+      `${local.chain.name}: deploying initial Replica for ${remote.chain.name}`,
+    );
     proxy = await proxyUtils.deployProxy<contracts.Replica>(
       local,
       new replica(local.deployer),
@@ -202,7 +204,10 @@ export async function deployUnenrolledReplica(
       local.config.reserveGas,
     );
   } else {
-    log(isTestDeploy, `${local.chain.name}: additional Replica deploy`);
+    log(
+      isTestDeploy,
+      `${local.chain.name}: deploying additional Replica for ${remote.chain.name}`,
+    );
     const prev = Object.entries(local.contracts.replicas)[0][1];
     proxy = await proxyUtils.duplicate<contracts.Replica>(
       local,
