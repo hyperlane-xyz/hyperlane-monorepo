@@ -520,15 +520,18 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
  * @param spokes - An array of remote chain deploy instances
  */
 async function deployHubAndSpokes(gov: CoreDeploy, spokes: CoreDeploy[]) {
-  await deployOptics(gov);
+  await Promise.all([
+    deployOptics(gov),
+    ...spokes.map(async (non) => await deployOptics(non)),
+  ]);
 
-  await Promise.all(
-    spokes.map(async (non) => {
-      await deployOptics(non);
-      await enrollRemote(gov, non);
-      await enrollRemote(non, gov);
-    }),
-  );
+  // do not use Promise.all for this block (looking at you James)
+  // using Promise.all introduces a race condition which results
+  // in multiple replica implementations on the home chain
+  for (const non of spokes) {
+    await enrollRemote(gov, non);
+    await enrollRemote(non, gov);
+  }
 }
 
 /**
