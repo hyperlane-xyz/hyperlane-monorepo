@@ -15,6 +15,7 @@ export const chainJson: ChainJson = {
   rpc,
   deployerKey: process.env.ETHEREUM_DEPLOYER_KEY,
   domain: 0x657468, // b'eth' interpreted as an int
+  gasPrice: '400000000000',
 };
 
 export const chain = toChain(chainJson);
