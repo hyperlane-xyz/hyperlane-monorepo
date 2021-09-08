@@ -34,7 +34,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
 
     // ============ Public Storage ============
 
-    // token transfer message => LP that pre-filled message to provide fast liquidity
+    // token transfer prefill ID => LP that pre-filled message to provide fast liquidity
     mapping(bytes32 => address) public liquidityProvider;
 
     // ============ Upgrade Gap ============
@@ -44,13 +44,20 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
 
     // ======== Events =========
 
-    event Migrate(
-        uint32 indexed domain,
-        bytes32 indexed id,
-        address indexed tokenHolder,
-        uint256 balance,
-        address oldToken,
-        address newToken
+    /**
+     * @notice emitted when tokens are sent from this domain to another domain
+     * @param token the address of the token contract
+     * @param from the address sending tokens
+     * @param toDomain the domain of the chain the tokens are being sent to
+     * @param toId the bytes32 address of the recipient of the tokens
+     * @param amount the amount of tokens sent
+     */
+    event Send(
+        address indexed token,
+        address indexed from,
+        uint32 indexed toDomain,
+        bytes32 toId,
+        uint256 amount
     );
 
     // ======== Initializer ========
@@ -144,6 +151,14 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
             _remote,
             BridgeMessage.formatMessage(_formatTokenId(_token), _action)
         );
+        // emit Send event to record token sender
+        emit Send(
+            address(_bridgeToken),
+            msg.sender,
+            _destination,
+            _recipient,
+            _amount
+        );
     }
 
     // ======== External: Fast Liquidity =========
@@ -155,6 +170,9 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
      * Transfers tokens from the liquidity provider to the end recipient, minus the LP fee;
      * Records the liquidity provider, who receives
      * the full token amount when the transfer message is handled.
+     * @dev fast liquidity can only be provided for ONE token transfer
+     * with the same (recipient, amount) at a time.
+     * in the case that multiple token transfers with the same (recipient, amount)
      * @param _message The incoming transfer message to pre-fill
      */
     function preFill(bytes calldata _message) external {
@@ -232,15 +250,6 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         uint256 _bal = _old.balanceOf(msg.sender);
         _old.burn(msg.sender, _bal);
         _new.mint(msg.sender, _bal);
-        // emit event
-        emit Migrate(
-            _id.domain,
-            _id.id,
-            msg.sender,
-            _bal,
-            address(_old),
-            address(_new)
-        );
     }
 
     // ============ Internal: Send / UpdateDetails ============
