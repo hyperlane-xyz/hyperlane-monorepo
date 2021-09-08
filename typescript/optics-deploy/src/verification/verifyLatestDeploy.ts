@@ -10,13 +10,27 @@ const envError = (network: string) =>
   `pass --network tag to hardhat task (current network=${network})`;
 
 // list of networks supported by Etherscan
-const etherscanNetworks = ['mainnet', 'kovan', 'goerli', 'ropsten', 'rinkeby'];
+const etherscanNetworks = [
+  'mainnet',
+  'ethereum',
+  'kovan',
+  'goerli',
+  'ropsten',
+  'rinkeby',
+  'polygon',
+];
 
 /*
  * Generate link to Etherscan for an address on the given network
  * */
 function etherscanLink(network: string, address: string) {
-  const prefix = network == 'mainnet' ? '' : `${network}.`;
+  if (network === 'polygon') {
+    return `https://polygonscan.com/address/${address}`;
+  }
+
+  const prefix =
+    network === 'mainnet' || network === 'ethereum' ? '' : `${network}.`;
+
   return `https://${prefix}etherscan.io/address/${address}`;
 }
 
@@ -49,7 +63,11 @@ export async function verifyLatestCoreDeploy(hre: any, etherscanKey: string) {
  * and attempt to verify those contracts' source code on Etherscan
  * */
 async function verifyDeploy(path: string, etherscanKey: string, hre: any) {
-  const network = hre.network.name;
+  let network = hre.network.name;
+
+  if (network === 'mainnet') {
+    network = 'ethereum';
+  }
 
   // assert that network from .env is supported by Etherscan
   if (!etherscanNetworks.includes(network)) {
