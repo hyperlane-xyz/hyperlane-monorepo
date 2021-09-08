@@ -13,7 +13,7 @@ if (!rpc) {
 export const chainJson: ChainJson = {
   name: 'polygon',
   rpc,
-  deployerKey: process.env.POLYGON_KEY,
+  deployerKey: process.env.POLYGON_DEPLOYER_KEY,
   domain: 0x706f6c79, // b'poly' interpreted as an int
 };
 
