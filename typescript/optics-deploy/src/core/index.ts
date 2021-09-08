@@ -29,12 +29,11 @@ function warn(text: string, padded: boolean = false) {
 }
 
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
-  assert(deploy.contracts.upgradeBeaconController);
-
   let factory = new contracts.UpgradeBeaconController__factory(deploy.deployer);
   deploy.contracts.upgradeBeaconController = await factory.deploy(
     deploy.overrides,
   );
+  assert(deploy.contracts.upgradeBeaconController);
   await deploy.contracts.upgradeBeaconController.deployTransaction.wait(
     deploy.chain.confirmations,
   );
