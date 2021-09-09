@@ -1,11 +1,12 @@
 import * as ethers from 'ethers';
+import { assert } from 'console';
 import fs from 'fs';
 
 import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
 import { toBytes32 } from '../../../optics-tests/lib/utils';
 import * as contracts from '../../../typechain/optics-core';
-import { assert } from 'console';
+import { checkCoreDeploy } from './checks';
 
 function log(isTest: boolean, str: string) {
   if (!isTest) {
@@ -177,7 +178,6 @@ export async function deployUnenrolledReplica(
   const replica = isTestDeploy
     ? contracts.TestReplica__factory
     : contracts.Replica__factory;
-  const factory = new replica(local.chain.deployer);
 
   let initData = replica.createInterface().encodeFunctionData('initialize', [
     remote.chain.domain,
@@ -422,8 +422,7 @@ export async function enrollRemote(local: CoreDeploy, remote: CoreDeploy) {
  * @param non - The non-governor chain deploy instance
  */
 export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
-  const isTestDeploy = gov.test;
-  log(isTestDeploy, `${non.chain.name}: transferring governorship`);
+  log(gov.test, `${non.chain.name}: transferring governorship`);
   let governorAddress = await gov.contracts.governance!.proxy.governor();
   let tx = await non.contracts.governance!.proxy.transferGovernor(
     gov.chain.domain,
@@ -431,7 +430,7 @@ export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
     non.overrides,
   );
   await tx.wait(gov.chain.confirmations);
-  log(isTestDeploy, `${non.chain.name}: governorship transferred`);
+  log(gov.test, `${non.chain.name}: governorship transferred`);
 }
 
 /**
@@ -466,17 +465,17 @@ export async function appointGovernor(gov: CoreDeploy) {
  * @param non - The non-governor chain deploy instance
  */
 export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
-  console.log('Beginning Two Chain deploy process');
-  console.log(`Deploy env is ${gov.config.environment}`);
-  console.log(`${gov.chain.name} is governing`);
-  console.log(`Updater for ${gov.chain.name} Home is ${gov.config.updater}`);
-  console.log(`Updater for ${non.chain.name} Home is ${non.config.updater}`);
-
   const isTestDeploy: boolean = gov.test || non.test;
 
-  console.log('awaiting provider ready');
+  log(isTestDeploy, 'Beginning Two Chain deploy process');
+  log(isTestDeploy, `Deploy env is ${gov.config.environment}`);
+  log(isTestDeploy, `${gov.chain.name} is governing`);
+  log(isTestDeploy, `Updater for ${gov.chain.name} Home is ${gov.config.updater}`);
+  log(isTestDeploy, `Updater for ${non.chain.name} Home is ${non.config.updater}`);
+
+  log(isTestDeploy, 'awaiting provider ready');
   await Promise.all([gov.ready(), non.ready()]);
-  console.log('done readying');
+  log(isTestDeploy, 'done readying');
 
   await Promise.all([deployOptics(gov), deployOptics(non)]);
 
@@ -500,38 +499,23 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
     enrollGovernanceRouter(non, gov),
   ]);
 
+  if (gov.config.governor) {
+    log(isTestDeploy, `appoint governor: ${gov.config.governor}`);
+    await appointGovernor(gov);
+  }
+
   await transferGovernorship(gov, non);
 
   await Promise.all([relinquish(gov), relinquish(non)]);
 
-  if (gov.config.governor) {
-    await appointGovernor(gov);
-  }
+  // checks deploys are correct
+  const govDomain = gov.chain.domain;
+  const nonDomain = non.chain.domain;
+  await checkCoreDeploy(gov, [nonDomain], govDomain);
+  await checkCoreDeploy(non, [govDomain], govDomain);
 
   if (!isTestDeploy) {
     writeDeployOutput([gov, non]);
-  }
-}
-
-/**
- * Deploys a hub and spoke system (the governance chain is connected to any
- * number of replica chains, but they are not connected to each other).
- *
- * @param gov - The governing chain deploy instance
- * @param spokes - An array of remote chain deploy instances
- */
-async function deployHubAndSpokes(gov: CoreDeploy, spokes: CoreDeploy[]) {
-  await Promise.all([
-    deployOptics(gov),
-    ...spokes.map(async (non) => await deployOptics(non)),
-  ]);
-
-  // do not use Promise.all for this block (looking at you James)
-  // using Promise.all introduces a race condition which results
-  // in multiple replica implementations on the home chain
-  for (const non of spokes) {
-    await enrollRemote(gov, non);
-    await enrollRemote(non, gov);
   }
 }
 
@@ -547,53 +531,60 @@ async function deployHubAndSpokes(gov: CoreDeploy, spokes: CoreDeploy[]) {
  * @param deploys - An array of chain deploys
  */
 export async function deployNChains(deploys: CoreDeploy[]) {
-  console.log(`Beginning ${deploys.length} Chain deploy process`);
-  console.log(`Deploy env is ${deploys[0].config.environment}`);
-  console.log(`${deploys[0].chain.name} is governing`);
+  if (deploys.length == 0) {
+    throw new Error('Must pass at least one deploy config');
+  }
+
+  // there exists any chain marked test
+  const isTestDeploy: boolean = deploys.filter((c) => c.test).length > 0;
+
+  log(isTestDeploy, `Beginning ${deploys.length} Chain deploy process`);
+  log(isTestDeploy, `Deploy env is ${deploys[0].config.environment}`);
+  log(isTestDeploy, `${deploys[0].chain.name} is governing`);
   deploys.forEach((deploy) => {
-    console.log(
+    log(isTestDeploy,
       `Updater for ${deploy.chain.name} Home is ${deploy.config.updater}`,
     );
   });
 
-  // there exists any chain marked test
-  const isTestDeploy: boolean = deploys.filter((c) => c.test).length > 0;
   const govChain = deploys[0];
   const nonGovChains = deploys.slice(1);
 
-  // ensure providers are connected
-  console.log('awaiting provider ready');
-  await Promise.all(deploys.map(async (deploy) => await deploy.ready()));
-  console.log('done readying');
+  // await Promise.all([deployOptics(deploys[0]), deployOptics(deploys[1])]);
+  log(isTestDeploy, 'awaiting provider ready');
+  await Promise.all([deploys.map(async (deploy) => {
+    await deploy.ready();
+  })]);
+  log(isTestDeploy, 'done readying');
 
-  // enroll all spokes with the governance chain
-  await deployHubAndSpokes(govChain, nonGovChains);
+  // deploy optics on each chain
+  await Promise.all(deploys.map(async (deploy) => {
+    await deployOptics(deploy);
+  }));
 
-  // enroll all spokes with eachother
-  await Promise.all(
-    nonGovChains.map(async (local) => {
-      // deploy replicas for all OTHER non-gov domains
-      // (gov replicas were already deployed in hubAndSpokes)
-      await Promise.all(
-        nonGovChains
-          .filter((deploy) => deploy.chain.domain !== local.chain.domain)
-          .map(async (remote) => {
-            log(
-              isTestDeploy,
-              `connecting ${remote.chain.name} on ${local.chain.name}`,
-            );
-            await enrollRemote(local, remote);
-            log(
-              isTestDeploy,
-              `connected ${remote.chain.name} on ${local.chain.name}`,
-            );
-          }),
+  // enroll remotes on every chain
+  //
+  //    NB: do not use Promise.all for this block. It introduces a race condition
+  //    which results in multiple replica implementations on the home chain.
+  //
+  for (const local of deploys) {
+    const remotes = deploys.filter(d => d.chain.domain !== local.chain.domain);
+    for (const remote of remotes) {
+      log(
+        isTestDeploy,
+        `connecting ${remote.chain.name} on ${local.chain.name}`,
       );
-    }),
-  );
+      await enrollRemote(local, remote);
+      log(
+        isTestDeploy,
+        `connected ${remote.chain.name} on ${local.chain.name}`,
+      );
+    }
+  }
 
   // appoint the configured governance account as governor
   if (govChain.config.governor) {
+    log(isTestDeploy, `appoint governor: ${govChain.config.governor}`);
     await appointGovernor(govChain);
   }
 
@@ -605,6 +596,16 @@ export async function deployNChains(deploys: CoreDeploy[]) {
 
   // relinquish control of all chains
   await Promise.all(deploys.map(relinquish));
+
+  // checks deploys are correct
+  const govDomain = deploys[0].chain.domain;
+  for (var i = 0; i < deploys.length; i++) {
+    const localDomain = deploys[i].chain.domain;
+    const remoteDomains = deploys.map(deploy => deploy.chain.domain).filter(domain => {
+      return domain != localDomain
+    });
+    await checkCoreDeploy(deploys[i], remoteDomains, govDomain);
+  }
 
   // write config outputs
   if (!isTestDeploy) {

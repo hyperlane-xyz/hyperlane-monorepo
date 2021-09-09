@@ -16,6 +16,8 @@ import { ContractVerificationInput } from '../deploy';
 import { BridgeContracts } from './BridgeContracts';
 import * as process from '.';
 import { TokenId } from '../../../optics-tests/lib/types';
+import { Chain } from '../chain';
+import { getTestChain } from '../../../optics-tests/test/testChain';
 
 function toBytes32(address: string): string {
   return '0x' + '00'.repeat(12) + address.slice(2);
@@ -36,27 +38,31 @@ export default class TestBridgeDeploy {
   contracts: BridgeContracts;
   verificationInput: ContractVerificationInput[];
   localDomain: number;
+  chain: Chain;
+  test: boolean = true;
 
   constructor(
     signer: Signer,
+    ubc: UpgradeBeaconController,
     mockCore: MockCore,
     mockWeth: MockWeth,
-    ubc: UpgradeBeaconController,
     contracts: BridgeContracts,
     domain: number,
+    chain: Chain,
     callerKnowsWhatTheyAreDoing: boolean = false,
   ) {
     if (!callerKnowsWhatTheyAreDoing) {
       throw new Error("Don't instantiate via new.");
     }
-    this.verificationInput = [];
+    this.signer = signer;
     this.ubc = ubc;
     this.mockCore = mockCore;
     this.mockWeth = mockWeth;
     this.contracts = contracts;
-    this.signer = signer;
+    this.verificationInput = [];
     this.localDomain = domain;
     this.config.weth = mockWeth.address;
+    this.chain = chain;
   }
 
   static async deploy(signer: Signer): Promise<TestBridgeDeploy> {
@@ -65,14 +71,17 @@ export default class TestBridgeDeploy {
     const ubc = await new UpgradeBeaconController__factory(signer).deploy();
     const contracts = new BridgeContracts();
     const domain = await mockCore.localDomain();
+    const [chain] = await getTestChain(domain, '', []);
+    chain.deployer = signer;
 
     let deploy = new TestBridgeDeploy(
       signer,
+      ubc,
       mockCore,
       mockWeth,
-      ubc,
       contracts,
       domain,
+      chain,
       true,
     );
 
@@ -107,9 +116,6 @@ export default class TestBridgeDeploy {
     };
   }
 
-  get chain() {
-    return { name: 'test', confirmations: 0, deployer: this.signer };
-  }
   get coreDeployPath() {
     return '';
   }

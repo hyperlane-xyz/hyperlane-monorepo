@@ -1,6 +1,5 @@
 import * as proxyUtils from '../proxyUtils';
-
-import * as contracts from '../../../typechain/optics-core';
+import { checkBridgeDeploy } from './checks';
 import * as xAppContracts from '../../../typechain/optics-xapps';
 import { toBytes32 } from '../../../optics-tests/lib/utils';
 import fs from 'fs';
@@ -22,6 +21,8 @@ export type BridgeDeployOutput = {
  * @param deploys - The list of deploy instances for each chain
  */
 export async function deployBridges(deploys: Deploy[]) {
+  const isTestDeploy: boolean = deploys.filter((c) => c.test).length > 0;
+
   // deploy BridgeTokens & BridgeRouters
   await Promise.all(
     deploys.map(async (deploy) => {
@@ -30,7 +31,7 @@ export async function deployBridges(deploys: Deploy[]) {
       await deployTokenUpgradeBeacon(deploy);
       await deployBridgeRouter(deploy);
       await deployEthHelper(deploy);
-    }),
+    })
   );
 
   // after all BridgeRouters have been deployed,
@@ -38,7 +39,7 @@ export async function deployBridges(deploys: Deploy[]) {
   await Promise.all(
     deploys.map(async (deploy) => {
       await enrollAllBridgeRouters(deploy, deploys);
-    }),
+    })
   );
 
   // after all peer BridgeRouters have been co-enrolled,
@@ -46,12 +47,23 @@ export async function deployBridges(deploys: Deploy[]) {
   await Promise.all(
     deploys.map(async (deploy) => {
       await transferOwnershipToGovernance(deploy);
-    }),
+    })
   );
 
-  // output the Bridge deploy information to a subdirectory
-  // of the core system deploy config folder
-  writeBridgeDeployOutput(deploys);
+  await Promise.all(
+    deploys.map(async (local) => {
+      const remotes = deploys
+        .filter(remote => remote.chain.domain != local.chain.domain)
+        .map(remote => remote.chain.domain);
+      await checkBridgeDeploy(local, remotes);
+    })
+  )
+
+  if (!isTestDeploy) {
+    // output the Bridge deploy information to a subdirectory
+    // of the core system deploy config folder
+    writeBridgeDeployOutput(deploys);
+  }
 }
 
 /**
@@ -122,11 +134,12 @@ export async function deployBridgeRouter(deploy: Deploy) {
  * @param deploy - The deploy instance for the chain on which to deploy the contract
  */
 export async function deployEthHelper(deploy: Deploy) {
-  console.log(`deploying ${deploy.chain.name} EthHelper`);
-
   if (!deploy.config.weth) {
+    console.log(`skipping ${deploy.chain.name} EthHelper deploy`);
     return;
   }
+
+  console.log(`deploying ${deploy.chain.name} EthHelper`);
 
   const factory = new xAppContracts.ETHHelper__factory(deploy.chain.deployer);
 
@@ -161,13 +174,11 @@ export async function enrollAllBridgeRouters(
   deploy: Deploy,
   allDeploys: Deploy[],
 ) {
-  await Promise.all(
-    allDeploys
-      .filter((remoteDeploy) => remoteDeploy.chain.name !== deploy.chain.name)
-      .map(async (remoteDeploy) => {
-        await enrollBridgeRouter(deploy, remoteDeploy);
-      }),
-  );
+  for (let remoteDeploy of allDeploys) {
+    if (deploy.chain.domain != remoteDeploy.chain.domain) {
+      await enrollBridgeRouter(deploy, remoteDeploy);
+    }
+  }
 }
 
 /**
@@ -182,19 +193,13 @@ export async function enrollBridgeRouter(local: Deploy, remote: Deploy) {
     `enrolling ${remote.chain.name} BridgeRouter on ${local.chain.name}`,
   );
 
-  const remoteHome: contracts.Home = contracts.Home__factory.connect(
-    remote.coreContractAddresses.home.proxy,
-    remote.chain.deployer,
-  );
-  const remoteDomain = await remoteHome.localDomain();
-
   let tx = await local.contracts.bridgeRouter!.proxy.enrollRemoteRouter(
-    remoteDomain,
+    remote.chain.domain,
     toBytes32(remote.contracts.bridgeRouter!.proxy.address),
     local.overrides,
   );
 
-  await tx.wait(5);
+  await tx.wait(local.chain.confirmations);
 
   console.log(
     `enrolled ${remote.chain.name} BridgeRouter on ${local.chain.name}`,
@@ -215,7 +220,7 @@ export async function transferOwnershipToGovernance(deploy: Deploy) {
     deploy.overrides,
   );
 
-  await tx.wait(5);
+  await tx.wait(deploy.chain.confirmations);
 
   console.log(`transferred ownership of ${deploy.chain.name} BridgeRouter`);
 }
