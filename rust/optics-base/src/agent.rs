@@ -1,10 +1,14 @@
 use crate::{
-    cancel_task, home::Homes, metrics::CoreMetrics, replica::Replicas, settings::Settings,
+    cancel_task,
+    home::Homes,
+    metrics::CoreMetrics,
+    replica::Replicas,
+    settings::{IndexSettings, Settings},
 };
 use async_trait::async_trait;
 use color_eyre::{eyre::WrapErr, Result};
 use futures_util::future::select_all;
-use rocksdb::DB;
+use optics_core::{db::DB, traits::Home};
 use tracing::instrument::Instrumented;
 use tracing::Instrument;
 
@@ -18,9 +22,11 @@ pub struct AgentCore {
     /// A map of boxed Replicas
     pub replicas: HashMap<String, Arc<Replicas>>,
     /// A persistent KV Store (currently implemented as rocksdb)
-    pub db: Arc<DB>,
+    pub db: DB,
     /// Prometheus metrics
     pub metrics: Arc<CoreMetrics>,
+    /// The height at which to start indexing the Home
+    pub indexer: IndexSettings,
 }
 
 /// A trait for an application:
@@ -43,7 +49,7 @@ pub trait OpticsAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
     }
 
     /// Return a handle to the DB
-    fn db(&self) -> Arc<DB> {
+    fn db(&self) -> DB {
         self.as_ref().db.clone()
     }
 
@@ -97,9 +103,12 @@ pub trait OpticsAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
     }
 
     /// Run several agents
-    #[allow(clippy::unit_arg)]
+    #[allow(clippy::unit_arg, unused_must_use)]
     #[tracing::instrument(err)]
     async fn run_all(&self) -> Result<()> {
+        // this is the unused must use
+        let indexer = &self.as_ref().indexer;
+        self.home().index(indexer.from(), indexer.chunk_size());
         let names: Vec<&str> = self.replicas().keys().map(|k| k.as_str()).collect();
         self.run_many(&names).await
     }

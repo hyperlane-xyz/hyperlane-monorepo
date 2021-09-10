@@ -13,9 +13,11 @@ mod updater;
 use color_eyre::Result;
 
 use optics_base::agent::OpticsAgent;
+use optics_core::traits::Home;
 
 use crate::{settings::UpdaterSettings as Settings, updater::Updater};
 
+#[allow(unused_must_use)]
 async fn _main() -> Result<()> {
     color_eyre::install()?;
     let settings = Settings::new()?;
@@ -26,6 +28,8 @@ async fn _main() -> Result<()> {
     let _ = agent.metrics().run_http_server();
 
     // this is deliberately different from other agents
+    let indexer = &agent.as_ref().indexer;
+    agent.home().index(indexer.from(), indexer.chunk_size());
     agent.run("").await??;
     Ok(())
 }
