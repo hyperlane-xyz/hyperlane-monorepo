@@ -1,5 +1,9 @@
 {
   "environment": "staging",
+  "index": {
+    "from": "7153909",
+    "chunk": "9999"
+  },
   "signers": {
     "alfajores": {
       "key": "",

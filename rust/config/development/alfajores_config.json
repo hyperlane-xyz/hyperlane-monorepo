@@ -1,5 +1,9 @@
 {
   "environment": "dev",
+  "index": {
+    "from": "7121263",
+    "chunk": "9999"
+  },
   "signers": {
     "alfajores": {
       "key": "",

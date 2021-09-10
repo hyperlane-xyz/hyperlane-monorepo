@@ -1,5 +1,9 @@
 {
   "environment": "staging",
+  "index": {
+    "from": "9258024",
+    "chunk": "9999"
+  },
   "signers": {
     "rinkeby": {
       "key": "",
