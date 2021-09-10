@@ -120,6 +120,7 @@ export async function deployHome(deploy: CoreDeploy) {
     .encodeFunctionData('initialize', [updaterManager!.address]);
 
   deploy.contracts.home = await proxyUtils.deployProxy<contracts.Home>(
+    'Home',
     deploy,
     new homeFactory(deploy.deployer),
     initData,
@@ -153,6 +154,7 @@ export async function deployGovernanceRouter(deploy: CoreDeploy) {
 
   deploy.contracts.governance =
     await proxyUtils.deployProxy<contracts.GovernanceRouter>(
+      'Governance',
       deploy,
       new governanceRouter(deploy.deployer),
       initData,
@@ -195,6 +197,7 @@ export async function deployUnenrolledReplica(
       `${local.chain.name}: deploying initial Replica for ${remote.chain.name}`,
     );
     proxy = await proxyUtils.deployProxy<contracts.Replica>(
+      'Replica',
       local,
       new replica(local.deployer),
       initData,
@@ -209,6 +212,7 @@ export async function deployUnenrolledReplica(
     );
     const prev = Object.entries(local.contracts.replicas)[0][1];
     proxy = await proxyUtils.duplicate<contracts.Replica>(
+      'Replica',
       local,
       prev,
       initData,
@@ -550,7 +554,6 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   const govChain = deploys[0];
   const nonGovChains = deploys.slice(1);
 
-  // await Promise.all([deployOptics(deploys[0]), deployOptics(deploys[1])]);
   log(isTestDeploy, 'awaiting provider ready');
   await Promise.all([deploys.map(async (deploy) => {
     await deploy.ready();
@@ -567,9 +570,9 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   //    NB: do not use Promise.all for this block. It introduces a race condition
   //    which results in multiple replica implementations on the home chain.
   //
-  for (const local of deploys) {
+  for (let local of deploys) {
     const remotes = deploys.filter(d => d.chain.domain !== local.chain.domain);
-    for (const remote of remotes) {
+    for (let remote of remotes) {
       log(
         isTestDeploy,
         `connecting ${remote.chain.name} on ${local.chain.name}`,

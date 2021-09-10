@@ -7,6 +7,8 @@ import TestBridgeDeploy from './bridge/TestBridgeDeploy';
 
 type Deploy = CoreDeploy | BridgeDeploy | TestBridgeDeploy;
 
+type ProxyNames = "Home" | "Replica" | "Governance" | "BridgeToken" | "BridgeRouter";
+
 export class BeaconProxy<T extends ethers.Contract> {
   implementation: T;
   proxy: T;
@@ -39,6 +41,7 @@ export type ProxyAddresses = {
  * @param T - The contract
  */
 export async function deployProxy<T extends ethers.Contract>(
+  name: ProxyNames,
   deploy: Deploy,
   factory: ethers.ContractFactory,
   initData: BytesLike,
@@ -51,7 +54,7 @@ export async function deployProxy<T extends ethers.Contract>(
   const implementation = (await factory.deploy(
     ...deployArgs,
     deploy.overrides,
-  )) as T;
+  ));
   const beacon = await _deployBeacon(deploy, implementation);
   const proxy = await _deployProxy(deploy, beacon, initData);
 
@@ -59,7 +62,6 @@ export async function deployProxy<T extends ethers.Contract>(
   // due to nonce ordering
   await proxy.deployTransaction.wait(deploy.chain.confirmations);
 
-  const { name } = implementation.constructor;
   // add UpgradeBeacon to Etherscan verification
   deploy.verificationInput.push({
     name: `${name} Implementation`,
@@ -83,7 +85,7 @@ export async function deployProxy<T extends ethers.Contract>(
   });
 
   return new BeaconProxy(
-    implementation,
+    implementation as T,
     factory.attach(proxy.address) as T,
     beacon,
   );
@@ -95,6 +97,7 @@ export async function deployProxy<T extends ethers.Contract>(
  * @param T - The contract
  */
 export async function duplicate<T extends ethers.Contract>(
+  name: ProxyNames,
   deploy: Deploy,
   prev: BeaconProxy<T>,
   initData: BytesLike,
@@ -102,7 +105,6 @@ export async function duplicate<T extends ethers.Contract>(
   const proxy = await _deployProxy(deploy, prev.beacon, initData);
   await proxy.deployTransaction.wait(deploy.chain.confirmations);
 
-  const { name } = prev.implementation.constructor;
   // add UpgradeBeacon to etherscan verification
   // add Proxy to etherscan verification
   deploy.verificationInput.push({
