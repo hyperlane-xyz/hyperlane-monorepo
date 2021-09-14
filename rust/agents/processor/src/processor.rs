@@ -10,12 +10,8 @@ use std::{
     sync::Arc,
     time::Duration,
 };
-use tokio::{
-    sync::{oneshot::channel, RwLock},
-    task::JoinHandle,
-    time::sleep,
-};
-use tracing::{error, info, instrument, instrument::Instrumented, Instrument};
+use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
+use tracing::{error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
 use optics_base::{
     agent::{AgentCore, OpticsAgent},
@@ -137,7 +133,7 @@ impl Replica {
     /// }```
     ///
     /// In case of error: send help?
-    #[instrument(err)]
+    #[instrument(err, skip(self), fields(self = %self))]
     async fn try_msg_by_domain_and_nonce(&self, domain: u32, nonce: u32) -> Result<bool> {
         use optics_core::traits::Replica;
 
@@ -210,7 +206,7 @@ impl Replica {
         Ok(true)
     }
 
-    #[instrument(err, level = "trace")]
+    #[instrument(err, level = "trace", skip(self), fields(self = %self))]
     /// Dispatch a message for processing. If the message is already proven, process only.
     async fn process(&self, message: CommittedMessage, proof: Proof) -> Result<()> {
         use optics_core::traits::Replica;
@@ -246,7 +242,6 @@ decl_agent!(
     /// A processor agent
     Processor {
         interval: u64,
-        prover: Arc<RwLock<Prover>>,
         replica_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
         allowed: Option<Arc<HashSet<H256>>>,
         denied: Option<Arc<HashSet<H256>>>,
@@ -273,7 +268,6 @@ impl Processor {
 
         Self {
             interval,
-            prover: Arc::new(RwLock::new(Prover::from_disk(&core.db))),
             core,
             replica_tasks: Default::default(),
             allowed: allowed.map(Arc::new),
@@ -331,29 +325,35 @@ impl OpticsAgent for Processor {
         .in_current_span()
     }
 
-    #[tracing::instrument(err)]
-    async fn run_many(&self, replicas: &[&str]) -> Result<()> {
-        let (_tx, rx) = channel();
+    fn run_all(self) -> Instrumented<JoinHandle<Result<()>>>
+    where
+        Self: Sized + 'static,
+    {
+        let span = info_span!("Processor::run_all");
+        tokio::spawn(async move {
+            let indexer = &self.as_ref().indexer;
+            // this is the unused must use
+            let names: Vec<&str> = self.replicas().keys().map(|k| k.as_str()).collect();
 
-        info!("Starting ProverSync task");
-        let sync = ProverSync::new(self.prover.clone(), self.home(), self.db(), rx);
-        let sync_task =
-            tokio::spawn(
-                async move { sync.spawn().await.wrap_err("ProverSync task has shut down") },
-            )
+            let sync = ProverSync::new(Prover::from_disk(&self.core.db), self.home(), self.db());
+
+            let sync_task = tokio::spawn(async move {
+                sync.spawn().await.wrap_err("ProverSync task has shut down")
+            })
             .in_current_span();
 
-        // for each specified replica, spawn a joinable task
-        let mut handles: Vec<_> = replicas.iter().map(|name| self.run(name)).collect();
+            let index_task = self.home().index(indexer.from(), indexer.chunk_size());
+            let run_task = self.run_many(&names);
 
-        handles.push(sync_task);
+            let futs = vec![index_task, run_task, sync_task];
+            let (res, _, remaining) = select_all(futs).await;
 
-        // The first time a task fails we cancel all other tasks
-        let (res, _, remaining) = select_all(handles).await;
-        for task in remaining {
-            cancel_task!(task);
-        }
+            for task in remaining.into_iter() {
+                cancel_task!(task);
+            }
 
-        res?
+            res?
+        })
+        .instrument(span)
     }
 }
