@@ -116,6 +116,8 @@ impl Relayer {
 #[async_trait]
 #[allow(clippy::unit_arg)]
 impl OpticsAgent for Relayer {
+    const AGENT_NAME: &'static str = "relayer";
+
     type Settings = Settings;
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
