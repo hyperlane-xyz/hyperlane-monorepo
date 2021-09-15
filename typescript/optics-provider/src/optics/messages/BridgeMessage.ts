@@ -1,8 +1,10 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
-import { BridgeContracts, CoreContracts, OpticsContext } from '..';
+import { ContractReceipt, ethers } from 'ethers';
+import { BridgeContracts, OpticsContext } from '..';
+import { ERC20 } from '@optics-xyz/ts-interface/optics-xapps';
 import { ResolvedTokenInfo, TokenIdentifier } from '../tokens';
-import { DispatchEvent, OpticsMessage, parseMessage } from './OpticsMessage';
+import { OpticsMessage, parseMessage } from './OpticsMessage';
 
 const ACTION_LEN = {
   identifier: 1,
@@ -98,58 +100,59 @@ function parseBody(
   }
 }
 
-class BridgeMessage<T extends Action> extends OpticsMessage {
+class BridgeMessage extends OpticsMessage {
   readonly token: TokenIdentifier;
-  readonly action: T;
 
   readonly fromBridge: BridgeContracts;
   readonly toBridge: BridgeContracts;
 
   constructor(
-    event: DispatchEvent,
-    parsed: ParsedBridgeMessage<T>,
+    receipt: ContractReceipt,
+    token: TokenIdentifier,
     context: OpticsContext,
+    callerKnowsWhatTheyAreDoing: boolean,
   ) {
-    super(event, context);
-
-    const fromBridge = context.getBridge(this.message.from);
-    const toBridge = context.getBridge(this.message.destination);
-
-    if (!fromBridge || !toBridge) {
-      throw new Error('missing bridge');
+    if (!callerKnowsWhatTheyAreDoing) {
+      throw new Error('Use `fromReceipt` to instantiate');
     }
+    super(receipt, context);
+
+    const fromBridge = context.mustGetBridge(this.message.from);
+    const toBridge = context.mustGetBridge(this.message.destination);
 
     this.fromBridge = fromBridge;
     this.toBridge = toBridge;
-    this.token = parsed.token;
-
-    this.action = parsed.action;
+    this.token = token;
   }
 
-  static fromEvent(
-    event: DispatchEvent,
+  static fromReceipt(
+    receipt: ethers.ContractReceipt,
     context: OpticsContext,
-  ): TransferMessage | DetailsMessage | RequestDetailsMesasage {
+  ): TransferMessage | DetailsMessage | RequestDetailsMessage {
     // kinda hate this but ok
+    const oMessage = new OpticsMessage(receipt, context);
+
+    let event = oMessage.event;
+
     const parsedEvent = parseMessage(event.args.message);
     const parsed = parseBody(parsedEvent.body);
 
     switch (parsed.action.action) {
       case 'transfer':
-        return new BridgeMessage(
-          event,
+        return new TransferMessage(
+          receipt,
           parsed as ParsedTransferMessage,
           context,
         );
       case 'details':
-        return new BridgeMessage(
-          event,
+        return new DetailsMessage(
+          receipt,
           parsed as ParsedDetailsMessage,
           context,
         );
       case 'requestDetails':
-        return new BridgeMessage(
-          event,
+        return new RequestDetailsMessage(
+          receipt,
           parsed as ParsedRequestDetailsMesasage,
           context,
         );
@@ -159,8 +162,84 @@ class BridgeMessage<T extends Action> extends OpticsMessage {
   async asset(): Promise<ResolvedTokenInfo> {
     return await this.context.tokenRepresentations(this.token);
   }
+
+  // Get the asset at the orgin
+  async assetAtOrigin(): Promise<ERC20 | undefined> {
+    return (await this.asset()).tokens.get(this.origin);
+  }
+
+  // Get the asset at the destination
+  async assetAtDestination(): Promise<ERC20 | undefined> {
+    return (await this.asset()).tokens.get(this.destination);
+  }
 }
 
-export type TransferMessage = BridgeMessage<Transfer>;
-export type DetailsMessage = BridgeMessage<Details>;
-export type RequestDetailsMesasage = BridgeMessage<RequestDetails>;
+export class TransferMessage extends BridgeMessage {
+  action: Transfer;
+
+  constructor(
+    receipt: ContractReceipt,
+    parsed: ParsedTransferMessage,
+    context: OpticsContext,
+  ) {
+    super(receipt, parsed.token, context, true);
+    this.action = parsed.action;
+  }
+
+  async currentlyPrefilled(): Promise<boolean> {
+    const bridge = this.context.mustGetBridge(this.destination);
+    const lpAddress = await bridge.bridgeRouter.liquidityProvider(
+      this.messageHash,
+    );
+    if (lpAddress !== ethers.constants.AddressZero) {
+      return true;
+    }
+    return false;
+  }
+
+  get amount(): BigNumber {
+    return this.action.amount;
+  }
+
+  get to(): string {
+    return this.action.to;
+  }
+}
+
+export class DetailsMessage extends BridgeMessage {
+  action: Details;
+
+  constructor(
+    receipt: ContractReceipt,
+    parsed: ParsedDetailsMessage,
+    context: OpticsContext,
+  ) {
+    super(receipt, parsed.token, context, true);
+    this.action = parsed.action;
+  }
+
+  get name(): string {
+    return this.action.name;
+  }
+
+  get symbol(): string {
+    return this.action.symbol;
+  }
+
+  get decimals(): number {
+    return this.action.decimals;
+  }
+}
+
+export class RequestDetailsMessage extends BridgeMessage {
+  action: RequestDetails;
+
+  constructor(
+    receipt: ContractReceipt,
+    parsed: ParsedRequestDetailsMesasage,
+    context: OpticsContext,
+  ) {
+    super(receipt, parsed.token, context, true);
+    this.action = parsed.action;
+  }
+}
