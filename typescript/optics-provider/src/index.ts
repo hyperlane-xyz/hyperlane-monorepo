@@ -1,3 +1,5 @@
+import { xapps } from '@optics-xyz/ts-interface';
+
 export { MultiProvider } from './provider';
 
 export { mainnet, dev, staging, OpticsContext } from './optics';
@@ -13,3 +15,5 @@ export { mainnet, dev, staging, OpticsContext } from './optics';
 // mainnet.registerSigner('ethereum', ...);
 
 // mainnet.doWhatever
+
+type b = xapps.BridgeRouter;

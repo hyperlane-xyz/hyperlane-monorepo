@@ -7,10 +7,10 @@
     "ethers": "^5.4.4"
   },
   "name": "@optics-xyz/ts-interface",
-  "version": "1.0.5",
+  "version": "1.0.7",
   "description": "Optics contract typechain gens",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "main": "index.js",
+  "types": "index.d.ts",
   "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",
   "prepublish": "tsc",
