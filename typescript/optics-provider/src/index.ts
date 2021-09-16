@@ -15,5 +15,3 @@ export { mainnet, dev, staging, OpticsContext } from './optics';
 // mainnet.registerSigner('ethereum', ...);
 
 // mainnet.doWhatever
-
-type b = xapps.BridgeRouter;
