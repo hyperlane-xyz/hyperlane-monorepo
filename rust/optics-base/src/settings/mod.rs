@@ -187,6 +187,21 @@ pub struct Settings {
 }
 
 impl Settings {
+    /// Private to preserve linearity of AgentCore::from_settings -- creating an agent consumes the settings.
+    fn clone(&self) -> Self {
+        Self {
+            db: self.db.clone(),
+            metrics: self.metrics.clone(),
+            index: self.index.clone(),
+            home: self.home.clone(),
+            replicas: self.replicas.clone(),
+            tracing: self.tracing.clone(),
+            signers: self.signers.clone(),
+        }
+    }
+}
+
+impl Settings {
     /// Try to get a signer instance by name
     pub async fn get_signer(&self, name: &str) -> Option<Signers> {
         self.signers.get(name)?.try_into_signer().await.ok()
@@ -233,6 +248,7 @@ impl Settings {
             home,
             replicas,
             db,
+            settings: self.clone(),
             metrics,
             indexer: self.index.clone(),
         })
