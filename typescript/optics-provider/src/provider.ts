@@ -30,7 +30,7 @@ export class MultiProvider {
   resolveDomain(nameOrDomain: string | number): number {
     if (typeof nameOrDomain === 'string') {
       const domains = Array.from(this.domains.values()).filter(
-        (domain) => domain.name === nameOrDomain,
+        (domain) => domain.name.toLowerCase() === nameOrDomain.toLowerCase(),
       );
       if (domains.length === 0) {
         throw new Error(`Domain not found: ${nameOrDomain}`);
