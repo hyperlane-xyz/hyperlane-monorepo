@@ -46,7 +46,7 @@ export class OpticsContext extends MultiProvider {
   private reconnect(domain: number) {
     const connection = this.getConnection(domain);
     if (!connection) {
-      throw new Error('Reconnect failed: no connection');
+      throw new Error(`Reconnect failed: no connection for ${domain}`);
     }
     // re-register contracts
     const core = this.cores.get(domain);

@@ -41,6 +41,15 @@ export class MultiProvider {
     }
   }
 
+  knownDomain(nameOrDomain: string | number): boolean {
+    try {
+      this.resolveDomain(nameOrDomain);
+      return true;
+    } catch (e) {
+      return false;
+    }
+  }
+
   getDomain(nameOrDomain: number | string): Domain | undefined {
     return this.domains.get(this.resolveDomain(nameOrDomain));
   }
@@ -65,10 +74,10 @@ export class MultiProvider {
       if (signer) {
         this.signers.set(domain, signer.connect(provider));
       }
-      this.providers.set(domain, provider);
     } catch (e) {
-      // do nothing
+      this.unregisterSigner(domain);
     }
+    this.providers.set(domain, provider);
   }
 
   registerRpcProvider(nameOrDomain: string | number, rpc: string) {
@@ -116,11 +125,24 @@ export class MultiProvider {
   }
 
   unregisterSigner(nameOrDomain: string | number) {
-    this.signers.delete(this.resolveDomain(nameOrDomain));
+    const domain = this.resolveDomain(nameOrDomain);
+    if (!this.signers.has(domain)) {
+      return;
+    }
+
+    const signer = this.signers.get(domain);
+    if (!signer?.provider) {
+      throw new Error('signer was missing provider. How?');
+    }
+    this.signers.delete(domain);
+
+    if (!this.getProvider(nameOrDomain)) {
+      this.providers.set(domain, signer!.provider!);
+    }
   }
 
   clearSigners() {
-    this.signers.clear();
+    this.domainNumbers.forEach((domain) => this.unregisterSigner(domain));
   }
 
   registerWalletSigner(nameOrDomain: string | number, privkey: string) {
