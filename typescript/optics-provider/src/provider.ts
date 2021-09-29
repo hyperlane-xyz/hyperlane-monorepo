@@ -22,6 +22,11 @@ export class MultiProvider {
     return Array.from(this.domains.keys());
   }
 
+  get missingProviders(): number[] {
+    const numbers = this.domainNumbers;
+    return numbers.filter((number) => this.providers.has(number));
+  }
+
   resolveDomain(nameOrDomain: string | number): number {
     if (typeof nameOrDomain === 'string') {
       const domains = Array.from(this.domains.values()).filter(

@@ -1,6 +1,6 @@
 {
   "name": "@optics-xyz/multi-provider",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "multi-provider for Optics",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -8,7 +8,7 @@
     "build": "rm -rf ./dist/ && rm tsconfig.tsbuildinfo & tsc",
     "check": "rm tsconfig.tsbuildinfo & tsc --noEmit",
     "prettier": "prettier --write ./src",
-    "prepare": "tsc"
+    "prepublishOnly": "npm run build"
   },
   "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",
