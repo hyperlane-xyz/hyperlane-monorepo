@@ -1,17 +1,17 @@
 {
+  "extends": "../tsconfig.package.json",
   "compilerOptions": {
     "outDir": "./dist/",
     "rootDir": "./src/"
   },
   "exclude": ["./node_modules/", "./dist/"],
-  "extends": "../tsconfig.package.json",
   "include": [
     "./src/*.ts",
     "./src/optics/*.ts",
     "./src/optics/contracts/*.ts",
     "./src/optics/domains/*.ts",
+    "./src/optics/events/*.ts",
     "./src/optics/messages/*.ts",
-    "./src/optics/tokens/*.ts",
-    "src/optics/events/*.ts"
+    "./src/optics/tokens/*.ts"
   ]
 }
