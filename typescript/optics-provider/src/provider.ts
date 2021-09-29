@@ -1,3 +1,4 @@
+import { JsonRpcSigner } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { Domain } from './domains';
 
@@ -93,11 +94,15 @@ export class MultiProvider {
     }
 
     if (provider) {
-      this.signers.set(domain, signer.connect(provider));
-    } else {
-      this.registerProvider(domain, signer.provider!);
-      this.signers.set(domain, signer);
+      try {
+        signer = signer.connect(provider);
+        this.signers.set(domain, signer.connect(provider));
+        return;
+      } catch {}
     }
+    // else and fallback
+    this.registerProvider(domain, signer.provider!);
+    this.signers.set(domain, signer);
   }
 
   unregisterSigner(nameOrDomain: string | number) {
