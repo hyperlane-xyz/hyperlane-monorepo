@@ -99,8 +99,11 @@ export class MultiProvider {
         return;
       } catch {}
     }
+    if (!signer.provider) {
+      throw new Error('Signer does not permit reconnect and has no provider');
+    }
     // else and fallback
-    this.registerProvider(domain, signer.provider!);
+    this.registerProvider(domain, signer.provider);
     this.signers.set(domain, signer);
   }
 
