@@ -27,7 +27,6 @@ use optics_core::{
 
 use crate::{prover_sync::ProverSync, settings::ProcessorSettings as Settings};
 
-const LAST_INSPECTED: &str = "lastInspected";
 const AGENT_NAME: &str = "processor";
 
 /// The replica processor is responsible for polling messages and waiting until they validate
@@ -40,7 +39,7 @@ pub(crate) struct Replica {
     home_db: HomeDB,
     allowed: Option<Arc<HashSet<H256>>>,
     denied: Option<Arc<HashSet<H256>>>,
-    next_message_index: prometheus::IntGaugeVec,
+    next_nonce: Arc<prometheus::IntGaugeVec>,
 }
 
 impl std::fmt::Display for Replica {
@@ -70,24 +69,24 @@ impl Replica {
                 //      - If not, wait and poll again
                 // 4. Check if the proof is valid under the replica
                 // 5. Submit the proof to the replica
-                let mut next_message_index: u32 = self
+                let mut next_nonce: u32 = self
                     .home_db
-                    .retrieve_decodable("", LAST_INSPECTED)?
+                    .retrieve_latest_nonce(domain)?
                     .map(|n: u32| n + 1)
                     .unwrap_or_default();
 
-                self.next_message_index
-                    .with_label_values(&[self.replica.name(), AGENT_NAME])
-                    .set(next_message_index as i64);
+                self.next_nonce
+                    .with_label_values(&[self.home.name(), self.replica.name(), AGENT_NAME])
+                    .set(next_nonce as i64);
 
                 info!(
                     domain,
-                    nonce = next_message_index,
+                    nonce = next_nonce,
                     replica = self.replica.name(),
                     "Starting processor for {} {} at nonce {}",
                     domain,
                     self.replica.name(),
-                    next_message_index
+                    next_nonce
                 );
 
                 loop {
@@ -95,23 +94,19 @@ impl Replica {
                     let seq_span = tracing::trace_span!(
                         "ReplicaProcessor",
                         name = self.replica.name(),
-                        nonce = next_message_index,
+                        nonce = next_nonce,
                         replica_domain = self.replica.local_domain(),
                         home_domain = self.home.local_domain(),
                     );
 
                     match self
-                        .try_msg_by_domain_and_nonce(domain, next_message_index)
+                        .try_msg_by_domain_and_nonce(domain, next_nonce)
                         .instrument(seq_span)
                         .await
                     {
                         Ok(true) => {
-                            self.home_db.store_encodable(
-                                "",
-                                LAST_INSPECTED,
-                                &next_message_index,
-                            )?;
-                            next_message_index += 1;
+                            self.home_db.store_latest_nonce(domain, next_nonce)?;
+                            next_nonce += 1;
                         }
                         Ok(false) => {
                             // there was some fault, let's wait and then try again later when state may have moved
@@ -229,7 +224,7 @@ impl Replica {
                     domain = message.message.destination,
                     nonce = message.message.nonce,
                     leaf_index = message.leaf_index,
-                    leaf_hash = ?message.message.to_leaf(),
+                    leaf = ?message.message.to_leaf(),
                     "Message {}:{} already processed",
                     message.message.destination,
                     message.message.nonce
@@ -248,7 +243,7 @@ decl_agent!(
         replica_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
         allowed: Option<Arc<HashSet<H256>>>,
         denied: Option<Arc<HashSet<H256>>>,
-        next_message_index: prometheus::IntGaugeVec,
+        next_nonce: Arc<prometheus::IntGaugeVec>,
         index_only: bool,
     }
 );
@@ -262,12 +257,12 @@ impl Processor {
         denied: Option<HashSet<H256>>,
         index_only: bool,
     ) -> Self {
-        let next_message_index = core
+        let next_nonce = core
             .metrics
             .new_int_gauge(
-                "next_message_index",
-                "Index of the next message to inspect",
-                &["replica", "agent"],
+                "next_nonce",
+                "Next nonce of a replica processor to inspect",
+                &["home", "replica", "agent"],
             )
             .expect("processor metric already registered -- should have be a singleton");
 
@@ -277,7 +272,7 @@ impl Processor {
             replica_tasks: Default::default(),
             allowed: allowed.map(Arc::new),
             denied: denied.map(Arc::new),
-            next_message_index,
+            next_nonce: Arc::new(next_nonce),
             index_only,
         }
     }
@@ -305,6 +300,7 @@ impl OpticsAgent for Processor {
 
     fn run(&self, name: &str) -> Instrumented<JoinHandle<Result<()>>> {
         let home = self.home();
+        let next_nonce = self.next_nonce.clone();
         let interval = self.interval;
 
         let replica_opt = self.replica_by_name(name);
@@ -313,8 +309,6 @@ impl OpticsAgent for Processor {
 
         let allowed = self.allowed.clone();
         let denied = self.denied.clone();
-
-        let next_message_index = self.next_message_index.clone();
 
         tokio::spawn(async move {
             let replica = replica_opt.ok_or_else(|| eyre!("No replica named {}", name))?;
@@ -327,7 +321,7 @@ impl OpticsAgent for Processor {
                 home_db: HomeDB::new(db, home_name),
                 allowed,
                 denied,
-                next_message_index,
+                next_nonce,
             }
             .main()
             .await?
