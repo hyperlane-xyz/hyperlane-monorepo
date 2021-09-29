@@ -168,10 +168,3 @@ export class MultiProvider {
     return await signer?.getAddress();
   }
 }
-
-/*
-1. Unregister the signer on the network we switched AWAY
-2. Register the config RPC Provider on the network we switched AWAY from
-3. Register the new metamask signer on the network we switched TO
-   4. if the network we switched TO is unknown, do nothing
-*/
