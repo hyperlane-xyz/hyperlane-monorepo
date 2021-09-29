@@ -1,4 +1,3 @@
-import { JsonRpcSigner } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { Domain } from './domains';
 
