@@ -55,11 +55,14 @@ export class MultiProvider {
 
   registerProvider(nameOrDomain: string | number, provider: Provider) {
     const domain = this.mustGetDomain(nameOrDomain).id;
-
-    this.providers.set(domain, provider);
-    const signer = this.signers.get(domain);
-    if (signer) {
-      this.signers.set(domain, signer.connect(provider));
+    try {
+      const signer = this.signers.get(domain);
+      if (signer) {
+        this.signers.set(domain, signer.connect(provider));
+      }
+      this.providers.set(domain, provider);
+    } catch (e) {
+      // do nothing
     }
   }
 
@@ -111,6 +114,10 @@ export class MultiProvider {
     this.signers.delete(this.resolveDomain(nameOrDomain));
   }
 
+  clearSigners() {
+    this.signers.clear();
+  }
+
   registerWalletSigner(nameOrDomain: string | number, privkey: string) {
     const domain = this.resolveDomain(nameOrDomain);
 
@@ -134,3 +141,10 @@ export class MultiProvider {
     return await signer?.getAddress();
   }
 }
+
+/*
+1. Unregister the signer on the network we switched AWAY
+2. Register the config RPC Provider on the network we switched AWAY from
+3. Register the new metamask signer on the network we switched TO
+   4. if the network we switched TO is unknown, do nothing
+*/

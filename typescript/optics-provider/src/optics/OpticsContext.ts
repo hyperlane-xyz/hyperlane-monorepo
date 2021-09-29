@@ -80,6 +80,11 @@ export class OpticsContext extends MultiProvider {
     this.reconnect(domain);
   }
 
+  clearSigners(): void {
+    super.clearSigners();
+    this.domainNumbers.forEach((domain) => this.reconnect(domain));
+  }
+
   getCore(nameOrDomain: string | number): CoreContracts | undefined {
     const domain = this.resolveDomain(nameOrDomain);
     return this.cores.get(domain);
