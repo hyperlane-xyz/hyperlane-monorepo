@@ -4,6 +4,7 @@ test_deploy.env
 typescript/optics-deploy/.env
 **/.env
 **/tsconfig.tsbuildinfo
+**/tmp.*
 
 rust/vendor/
 rust/tmp_db

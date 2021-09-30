@@ -225,7 +225,7 @@ class BridgeMessage extends OpticsMessage {
   }
 
   async asset(): Promise<ResolvedTokenInfo> {
-    return await this.context.tokenRepresentations(this.token);
+    return await this.context.resolveRepresentations(this.token);
   }
 
   // Get the asset at the orgin

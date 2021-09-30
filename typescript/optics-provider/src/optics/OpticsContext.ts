@@ -121,6 +121,7 @@ export class OpticsContext extends MultiProvider {
       ?.contract;
   }
 
+  // gets the replica of Home on Remote, or errors
   mustGetReplicaFor(
     home: string | number,
     remote: string | number,
@@ -133,7 +134,7 @@ export class OpticsContext extends MultiProvider {
   }
 
   // resolve the local repr of a token on its domain
-  async resolveTokenRepresentation(
+  async resolveRepresentation(
     nameOrDomain: string | number,
     token: TokenIdentifier,
   ): Promise<xapps.BridgeToken | undefined> {
@@ -161,14 +162,14 @@ export class OpticsContext extends MultiProvider {
   }
 
   // resolve all token representations
-  async tokenRepresentations(
+  async resolveRepresentations(
     token: TokenIdentifier,
   ): Promise<ResolvedTokenInfo> {
     const tokens: Map<number, xapps.BridgeToken> = new Map();
 
     await Promise.all(
       this.domainNumbers.map(async (domain) => {
-        let tok = await this.resolveTokenRepresentation(domain, token);
+        let tok = await this.resolveRepresentation(domain, token);
         if (tok) {
           tokens.set(domain, tok);
         }
@@ -182,7 +183,8 @@ export class OpticsContext extends MultiProvider {
     };
   }
 
-  async resolveCanonicalTokenIdentifier(
+  // resolve the ID of the canonical token for a representation on some domain
+  async resolveCanonicalIdentifier(
     nameOrDomain: string | number,
     representation: Address,
   ): Promise<TokenIdentifier | undefined> {
@@ -217,18 +219,20 @@ export class OpticsContext extends MultiProvider {
     return;
   }
 
+  // resolve an `ethers.Contract` for the canonical token for a representation
+  // on some domain
   async resolveCanonicalToken(
     nameOrDomain: string | number,
     representation: Address,
   ): Promise<xapps.BridgeToken> {
-    const canonicalId = await this.resolveCanonicalTokenIdentifier(
+    const canonicalId = await this.resolveCanonicalIdentifier(
       nameOrDomain,
       representation,
     );
     if (!canonicalId) {
       throw new Error('Token seems to not exist');
     }
-    const token = await this.resolveTokenRepresentation(
+    const token = await this.resolveRepresentation(
       canonicalId.domain,
       canonicalId,
     );
@@ -252,7 +256,7 @@ export class OpticsContext extends MultiProvider {
     const fromBridge = this.mustGetBridge(from);
     const bridgeAddress = fromBridge.bridgeRouter.address;
 
-    const fromToken = await this.resolveTokenRepresentation(from, token);
+    const fromToken = await this.resolveRepresentation(from, token);
     if (!fromToken) {
       throw new Error(`Token not available on ${from}`);
     }
@@ -285,6 +289,7 @@ export class OpticsContext extends MultiProvider {
     return message as TransferMessage;
   }
 
+  // send the native asset from domain to domain (using EthHelper.sol)
   async sendNative(
     from: string | number,
     to: string | number,
