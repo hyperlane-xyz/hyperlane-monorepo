@@ -1,4 +1,4 @@
-import { BytesLike } from '@ethersproject/bytes';
+import { arrayify, BytesLike, hexlify } from '@ethersproject/bytes';
 import { ethers } from 'ethers';
 
 export type Address = string;
@@ -13,6 +13,18 @@ export function canonizeId(data: BytesLike): Uint8Array {
     throw new Error('bad input, expect address or bytes32');
   }
   return ethers.utils.zeroPad(buf, 32);
+}
+
+export function evmId(data: BytesLike): Address {
+  const u8a = arrayify(data);
+
+  if (u8a.length === 32) {
+    return hexlify(u8a.slice(12, 32));
+  } else if (u8a.length === 20) {
+    return hexlify(u8a);
+  } else {
+    throw new Error(`Invalid id length. expected 20 or 32. Got ${u8a.length}`);
+  }
 }
 
 // sleep

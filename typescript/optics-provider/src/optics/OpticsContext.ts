@@ -4,7 +4,7 @@ import { xapps, core } from '@optics-xyz/ts-interface';
 import { BridgeContracts } from './contracts/BridgeContracts';
 import { CoreContracts } from './contracts/CoreContracts';
 import { ResolvedTokenInfo, TokenIdentifier } from './tokens';
-import { canonizeId } from '../utils';
+import { canonizeId, evmId } from '../utils';
 import {
   devDomains,
   mainnetDomains,
@@ -12,6 +12,7 @@ import {
   stagingDomains,
 } from './domains';
 import { TransferMessage } from './messages';
+import { hexlify } from '@ethersproject/bytes';
 
 type Address = string;
 
@@ -150,7 +151,7 @@ export class OpticsContext extends MultiProvider {
       return;
     }
 
-    let contract = new xapps.BridgeToken__factory().attach(address);
+    let contract = new xapps.BridgeToken__factory().attach(evmId(address));
 
     const connection = this.getConnection(domain);
     if (connection) {
@@ -181,20 +182,62 @@ export class OpticsContext extends MultiProvider {
     };
   }
 
-  async resolveCanonicalToken(
+  async resolveCanonicalTokenIdentifier(
     nameOrDomain: string | number,
     representation: Address,
   ): Promise<TokenIdentifier | undefined> {
+    const domain = this.resolveDomain(nameOrDomain);
     const bridge = this.mustGetBridge(nameOrDomain);
+    const repr = hexlify(canonizeId(representation));
 
-    const token = await bridge.bridgeRouter.getCanonicalAddress(representation);
-    if (token[0] === 0) {
-      return;
+    const canonical = await bridge.bridgeRouter.representationToCanonical(
+      representation,
+    );
+
+    if (canonical[0] !== 0) {
+      return {
+        domain: canonical[0],
+        id: canonical[1],
+      };
     }
-    return {
-      domain: token[0],
-      id: token[1],
-    };
+
+    // check if it's a local token
+    const local = await bridge.bridgeRouter['getLocalAddress(uint32,bytes32)'](
+      domain,
+      repr,
+    );
+    if (local !== ethers.constants.AddressZero) {
+      return {
+        domain,
+        id: hexlify(canonizeId(local)),
+      };
+    }
+
+    // otherwise undefined
+    return;
+  }
+
+  async resolveCanonicalToken(
+    nameOrDomain: string | number,
+    representation: Address,
+  ): Promise<xapps.BridgeToken> {
+    const canonicalId = await this.resolveCanonicalTokenIdentifier(
+      nameOrDomain,
+      representation,
+    );
+    if (!canonicalId) {
+      throw new Error('Token seems to not exist');
+    }
+    const token = await this.resolveTokenRepresentation(
+      canonicalId.domain,
+      canonicalId,
+    );
+    if (!token) {
+      throw new Error(
+        'Cannot resolve canonical on its own domain. how did this happen?',
+      );
+    }
+    return token;
   }
 
   // send tokens from domain to domain
