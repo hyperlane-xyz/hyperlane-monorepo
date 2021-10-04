@@ -7,7 +7,7 @@ from utils import dispatch_signed_transaction
 from web3 import Web3
 from prometheus_client import start_http_server, Counter, Gauge
 from config import load_config
-from utils import create_transaction, is_wallet_below_threshold, get_nonce, get_balance
+from utils import create_transaction, is_wallet_below_threshold, get_nonce, get_balance, get_block_height
 
 import click
 import logging
@@ -66,14 +66,32 @@ def monitor(ctx, metrics_port, pause_duration):
     logging.info("Executing event loop, Ctrl+C to exit.")
     # main event loop
     while True:
+        # top-up if we see a low balance
+        should_top_up = False
+        threshold = 150000000000000000
         # for each rpc
         for name, network in config["networks"].items():
             endpoint = network["endpoint"]
-            w3 = Web3(Web3.HTTPProvider(endpoint))
 
             # Fetch block height
-            block_height = w3.eth.get_block_number()
-            metrics["block_number"].labels(network=name).set(block_height)
+            try:
+                block_height = get_block_height(endpoint)
+                metrics["block_number"].labels(network=name).set(block_height)
+            except ValueError:
+                continue
+            
+            # fetch bank balance
+            account = network["bank"]["address"]
+            logging.info(f"Fetching metrics for {account} via {endpoint}")
+            wallet_wei = get_balance(account, endpoint)
+            logging.info(f"Wallet Balance: {wallet_wei * 10**-18}")
+            # fetch tx count
+            tx_count = get_nonce(account, endpoint)
+            logging.info(f"Transaction Count: {tx_count}")
+            # report metrics 
+            metrics["wallet_balance"].labels(role="bank", home=name, address=account, network=name).set(wallet_wei)
+            metrics["transaction_count"].labels(role="bank", home=name, address=account, network=name).set(tx_count)
+
 
             # for each account
             for home_name, home in config["homes"].items():
@@ -82,12 +100,19 @@ def monitor(ctx, metrics_port, pause_duration):
                     # fetch balance
                     wallet_wei = get_balance(account, endpoint)
                     logging.info(f"Wallet Balance: {wallet_wei * 10**-18}")
+                    if wallet_wei < threshold: 
+                        logging.warn(f"BALANCE IS LOW, MARKING FOR TOP-UP {wallet_wei} < {threshold}")
+                        should_top_up = True
                     # fetch tx count
                     tx_count = get_nonce(account, endpoint)
                     logging.info(f"Transaction Count: {tx_count}")
                     # report metrics 
                     metrics["wallet_balance"].labels(role=role, home=home_name, address=account, network=name).set(wallet_wei)
                     metrics["transaction_count"].labels(role=role, home=home_name, address=account, network=name).set(tx_count)
+        
+        if should_top_up:
+            _top_up(ctx, auto_approve=True)
+        
         logging.info(f"Sleeping for {pause_duration} seconds.")
         time.sleep(pause_duration)
 
@@ -95,6 +120,9 @@ def monitor(ctx, metrics_port, pause_duration):
 @cli.command()
 @click.pass_context
 def top_up(ctx):
+    _top_up(ctx)
+
+def _top_up(ctx, auto_approve=False):
     click.echo(f"Debug is {'on' if ctx.obj['DEBUG'] else 'off'}")
     config = ctx.obj["CONFIG"]
     transaction_queue = {}
@@ -156,7 +184,11 @@ def top_up(ctx):
             click.echo(f"\t {network} Bank has {Web3.fromWei(bank_balance, 'ether')} ETH")
             click.echo(f"\t About to send {len(transaction_queue[network])} transactions on {network} - Total of {Web3.fromWei(amount_sum, 'ether')} ETH \n")
 
-            click.confirm("Would you like to proceed with dispatching these transactions?", abort=True)
+            if not auto_approve:
+                click.confirm("Would you like to proceed with dispatching these transactions?", abort=True)
+            else: 
+                # Send it!!
+                click.echo("Auto-Approved. Dispatching.")
 
             # Process enqueued transactions 
             click.echo(f"Processing transactions for {network}")
