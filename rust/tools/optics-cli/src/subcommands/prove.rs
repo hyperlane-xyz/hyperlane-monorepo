@@ -1,4 +1,7 @@
 use std::{convert::TryFrom, sync::Arc};
+use structopt::StructOpt;
+
+use crate::{replicas, rpc};
 
 use optics_core::{
     accumulator::merkle::Proof,
@@ -8,7 +11,6 @@ use optics_core::{
 };
 use optics_ethereum::EthereumReplica;
 
-use clap::Clap;
 use ethers::{
     prelude::{Http, Middleware, Provider, SignerMiddleware, H160},
     types::H256,
@@ -21,53 +23,68 @@ use once_cell::sync::OnceCell;
 use rusoto_core::{credential::EnvironmentProvider, HttpClient};
 use rusoto_kms::KmsClient;
 
-mod replicas;
-mod rpc;
-
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
 type ConcreteReplica = EthereumReplica<SignerMiddleware<Provider<Http>, Signers>>;
 
-#[derive(Clap)]
-struct Opts {
+#[derive(StructOpt, Debug)]
+pub struct ProveCommand {
+    /// Leaf to prove
+    #[structopt(long, required_unless = "leaf_index")]
+    leaf: Option<H256>,
+
     /// Leaf index to prove
-    #[clap(long)]
+    #[structopt(long, required_unless = "leaf")]
     leaf_index: Option<u32>,
 
-    /// Leaf index to prove
-    #[clap(long)]
-    leaf_hash: Option<H256>,
-
     /// The name of the home chain, used to lookup keys in the db
-    #[clap(long)]
-    home: String,
+    #[structopt(long)]
+    home_name: String,
 
     /// Path to db containing proof
-    #[clap(long)]
-    db: String,
+    #[structopt(long)]
+    db_path: String,
 
     /// HexKey to use (please be careful)
-    #[clap(long)]
+    #[structopt(long)]
     key: Option<String>,
 
     /// If using AWS signer, the key ID
-    #[clap(long)]
+    #[structopt(long)]
     key_id: Option<String>,
 
     /// If using AWS signer, the region
-    #[clap(long)]
+    #[structopt(long)]
     aws_region: Option<String>,
 
     /// replica contract address
-    #[clap(long)]
+    #[structopt(long)]
     address: Option<String>,
 
     /// RPC connection details
-    #[clap(long)]
+    #[structopt(long)]
     rpc: Option<String>,
 }
 
-impl Opts {
+impl ProveCommand {
+    pub async fn run(&self) -> Result<()> {
+        let (message, proof) = self.fetch_proof()?;
+        let replica = self.replica(message.origin, message.destination).await?;
+
+        let status = replica.message_status(message.to_leaf()).await?;
+        let outcome = match status {
+            MessageStatus::None => replica.prove_and_process(&message, &proof).await?,
+            MessageStatus::Proven => replica.process(&message).await?,
+            _ => {
+                println!("Message already processed.");
+                return Ok(());
+            }
+        };
+
+        println!("{:?}", outcome);
+        Ok(())
+    }
+
     // mostly copied from optics-base settings
     async fn signer(&self) -> Result<Signers> {
         if let Some(key) = &self.key {
@@ -94,9 +111,9 @@ impl Opts {
     }
 
     fn fetch_proof(&self) -> Result<(OpticsMessage, Proof)> {
-        let db = HomeDB::new(DB::from_path(&self.db)?, self.home.clone());
+        let db = HomeDB::new(DB::from_path(&self.db_path)?, self.home_name.clone());
 
-        let idx = match (self.leaf_index, self.leaf_hash) {
+        let idx = match (self.leaf_index, self.leaf) {
             (Some(idx), _) => idx,
             (None, Some(digest)) => match db.message_by_leaf(digest)? {
                 Some(leaf) => leaf.leaf_index,
@@ -137,26 +154,4 @@ impl Opts {
 
         Ok(EthereumReplica::new("", 0, address, Arc::new(middleware)))
     }
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    let opts = Opts::parse();
-
-    let (message, proof) = opts.fetch_proof()?;
-    let replica = opts.replica(message.origin, message.destination).await?;
-
-    let status = replica.message_status(message.to_leaf()).await?;
-    let outcome = match status {
-        MessageStatus::None => replica.prove_and_process(&message, &proof).await?,
-        MessageStatus::Proven => replica.process(&message).await?,
-        _ => {
-            println!("Message already processed.");
-            return Ok(());
-        }
-    };
-
-    println!("{:?}", outcome);
-
-    Ok(())
 }
