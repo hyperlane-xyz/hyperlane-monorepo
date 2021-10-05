@@ -86,7 +86,7 @@ function parseBody(
   const tokenId = buf.slice(0, 36);
   const token = {
     domain: Buffer.from(tokenId).readUInt32BE(0),
-    id: hexlify(buf.slice(4)),
+    id: hexlify(tokenId.slice(4, 36)),
   };
 
   const action = parseAction(buf.slice(36));

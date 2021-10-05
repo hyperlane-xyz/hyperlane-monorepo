@@ -1,6 +1,6 @@
 {
   "name": "@optics-xyz/multi-provider",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "multi-provider for Optics",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
