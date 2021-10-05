@@ -11,7 +11,7 @@ use std::{
     time::Duration,
 };
 use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
-use tracing::{error, info, info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
 use optics_base::{
     agent::{AgentCore, OpticsAgent},
@@ -25,9 +25,18 @@ use optics_core::{
     traits::{CommittedMessage, Common, Home, MessageStatus},
 };
 
-use crate::{prover_sync::ProverSync, settings::ProcessorSettings as Settings};
+use crate::{
+    prover_sync::ProverSync,
+    push::Pusher,
+    settings::{ProcessorSettings as Settings, S3Config},
+};
 
 const AGENT_NAME: &str = "processor";
+
+enum Flow {
+    Advance,
+    Repeat,
+}
 
 /// The replica processor is responsible for polling messages and waiting until they validate
 /// before proving/processing them.
@@ -39,7 +48,7 @@ pub(crate) struct Replica {
     home_db: HomeDB,
     allowed: Option<Arc<HashSet<H256>>>,
     denied: Option<Arc<HashSet<H256>>>,
-    next_nonce: Arc<prometheus::IntGaugeVec>,
+    next_message_nonce: Arc<prometheus::IntGaugeVec>,
 }
 
 impl std::fmt::Display for Replica {
@@ -69,24 +78,24 @@ impl Replica {
                 //      - If not, wait and poll again
                 // 4. Check if the proof is valid under the replica
                 // 5. Submit the proof to the replica
-                let mut next_nonce: u32 = self
+                let mut next_message_nonce: u32 = self
                     .home_db
                     .retrieve_latest_nonce(domain)?
                     .map(|n: u32| n + 1)
                     .unwrap_or_default();
 
-                self.next_nonce
+                self.next_message_nonce
                     .with_label_values(&[self.home.name(), self.replica.name(), AGENT_NAME])
-                    .set(next_nonce as i64);
+                    .set(next_message_nonce as i64);
 
                 info!(
                     domain,
-                    nonce = next_nonce,
+                    nonce = next_message_nonce,
                     replica = self.replica.name(),
                     "Starting processor for {} {} at nonce {}",
                     domain,
                     self.replica.name(),
-                    next_nonce
+                    next_message_nonce
                 );
 
                 loop {
@@ -94,21 +103,22 @@ impl Replica {
                     let seq_span = tracing::trace_span!(
                         "ReplicaProcessor",
                         name = self.replica.name(),
-                        nonce = next_nonce,
+                        nonce = next_message_nonce,
                         replica_domain = self.replica.local_domain(),
                         home_domain = self.home.local_domain(),
                     );
 
                     match self
-                        .try_msg_by_domain_and_nonce(domain, next_nonce)
+                        .try_msg_by_domain_and_nonce(domain, next_message_nonce)
                         .instrument(seq_span)
                         .await
                     {
-                        Ok(true) => {
-                            self.home_db.store_latest_nonce(domain, next_nonce)?;
-                            next_nonce += 1;
+                        Ok(Flow::Advance) => {
+                            self.home_db
+                                .store_latest_nonce(domain, next_message_nonce)?;
+                            next_message_nonce += 1;
                         }
-                        Ok(false) => {
+                        Ok(Flow::Repeat) => {
                             // there was some fault, let's wait and then try again later when state may have moved
                             sleep(Duration::from_secs(self.interval)).await
                         }
@@ -132,7 +142,7 @@ impl Replica {
     ///
     /// In case of error: send help?
     #[instrument(err, skip(self), fields(self = %self))]
-    async fn try_msg_by_domain_and_nonce(&self, domain: u32, nonce: u32) -> Result<bool> {
+    async fn try_msg_by_domain_and_nonce(&self, domain: u32, nonce: u32) -> Result<Flow> {
         use optics_core::traits::Replica;
 
         let message = match self.home.message_by_nonce(domain, nonce).await {
@@ -143,9 +153,9 @@ impl Replica {
                     sequence = nonce,
                     "Message not yet found {}:{}",
                     domain,
-                    nonce
+                    nonce,
                 );
-                return Ok(false);
+                return Ok(Flow::Repeat);
             }
             Err(e) => bail!(e),
         };
@@ -158,7 +168,7 @@ impl Replica {
             .as_ref()
             .map(|set| set.contains(&message.message.sender))
         {
-            return Ok(true);
+            return Ok(Flow::Advance);
         }
 
         // if we have a deny list, filter senders on it
@@ -167,14 +177,18 @@ impl Replica {
             .as_ref()
             .map(|set| set.contains(&message.message.sender))
         {
-            return Ok(true);
+            return Ok(Flow::Advance);
         }
 
         let proof = match self.home_db.proof_by_leaf_index(message.leaf_index) {
             Ok(Some(p)) => p,
             Ok(None) => {
-                info!(leaf_index = message.leaf_index, "Proof not yet found");
-                return Ok(false);
+                info!(
+                    leaf_hash = ?message.to_leaf(),
+                    leaf_index = message.leaf_index,
+                    "Proof not yet found"
+                );
+                return Ok(Flow::Repeat);
             }
             Err(e) => bail!(e),
         };
@@ -188,6 +202,8 @@ impl Replica {
 
         while !self.replica.acceptable_root(proof.root()).await? {
             info!(
+                leaf_hash = ?message.to_leaf(),
+                leaf_index = message.leaf_index,
                 "Proof under {root} not yet valid here, waiting until Replica confirms",
                 root = proof.root(),
             );
@@ -195,13 +211,16 @@ impl Replica {
         }
 
         info!(
+            leaf_hash = ?message.to_leaf(),
+            leaf_index = message.leaf_index,
+            "Dispatching a message for processing {}:{}",
             domain,
-            nonce, "Dispatching a message for processing {}:{}", domain, nonce
+            nonce
         );
 
         self.process(message, proof).await?;
 
-        Ok(true)
+        Ok(Flow::Advance)
     }
 
     #[instrument(err, level = "trace", skip(self), fields(self = %self))]
@@ -243,8 +262,9 @@ decl_agent!(
         replica_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
         allowed: Option<Arc<HashSet<H256>>>,
         denied: Option<Arc<HashSet<H256>>>,
-        next_nonce: Arc<prometheus::IntGaugeVec>,
         index_only: bool,
+        next_message_nonce: Arc<prometheus::IntGaugeVec>,
+        config: Option<S3Config>,
     }
 );
 
@@ -256,15 +276,17 @@ impl Processor {
         allowed: Option<HashSet<H256>>,
         denied: Option<HashSet<H256>>,
         index_only: bool,
+        config: Option<S3Config>,
     ) -> Self {
-        let next_nonce = core
-            .metrics
-            .new_int_gauge(
-                "next_nonce",
-                "Next nonce of a replica processor to inspect",
-                &["home", "replica", "agent"],
-            )
-            .expect("processor metric already registered -- should have be a singleton");
+        let next_message_nonce = Arc::new(
+            core.metrics
+                .new_int_gauge(
+                    "next_message_nonce",
+                    "Index of the next message to inspect",
+                    &["home", "replica", "agent"],
+                )
+                .expect("processor metric already registered -- should have be a singleton"),
+        );
 
         Self {
             interval,
@@ -272,8 +294,9 @@ impl Processor {
             replica_tasks: Default::default(),
             allowed: allowed.map(Arc::new),
             denied: denied.map(Arc::new),
-            next_nonce: Arc::new(next_nonce),
+            next_message_nonce,
             index_only,
+            config,
         }
     }
 }
@@ -295,33 +318,33 @@ impl OpticsAgent for Processor {
             settings.allowed,
             settings.denied,
             settings.indexon.is_some(),
+            settings.s3,
         ))
     }
 
     fn run(&self, name: &str) -> Instrumented<JoinHandle<Result<()>>> {
         let home = self.home();
-        let next_nonce = self.next_nonce.clone();
+        let next_message_nonce = self.next_message_nonce.clone();
         let interval = self.interval;
+        let home_db = self.home_db();
 
         let replica_opt = self.replica_by_name(name);
         let name = name.to_owned();
-        let db = self.db();
 
         let allowed = self.allowed.clone();
         let denied = self.denied.clone();
 
         tokio::spawn(async move {
             let replica = replica_opt.ok_or_else(|| eyre!("No replica named {}", name))?;
-            let home_name = home.name().to_owned();
 
             Replica {
                 interval,
                 replica,
                 home,
-                home_db: HomeDB::new(db, home_name),
+                home_db,
                 allowed,
                 denied,
-                next_nonce,
+                next_message_nonce,
             }
             .main()
             .await?
@@ -335,13 +358,13 @@ impl OpticsAgent for Processor {
     {
         tokio::spawn(async move {
             info!("Starting Processor tasks");
+
             // tree sync
-            let sync = ProverSync::from_disk(HomeDB::new(
-                self.core.db.clone(),
-                self.home().name().to_owned(),
-            ));
+            info!("Starting ProverSync");
+            let sync = ProverSync::from_disk(self.home_db());
             let sync_task = sync.spawn();
 
+            info!("Starting indexer");
             // indexer setup
             let block_height = self
                 .as_ref()
@@ -369,9 +392,23 @@ impl OpticsAgent for Processor {
                 tasks.push(self.run_many(&names));
             }
 
-            info!("selecting");
-            let (res, _, remaining) = select_all(tasks).await;
+            // if we have a bucket, add a task to push to it
+            if let Some(config) = &self.config {
+                info!(bucket = %config.bucket, "Starting S3 push tasks");
+                tasks.push(
+                    Pusher::new(
+                        self.core.home.name(),
+                        &config.bucket,
+                        config.region.parse().expect("invalid s3 region"),
+                        self.home_db(),
+                    )
+                    .spawn(),
+                )
+            }
 
+            // find the first task to shut down. Then cancel all others
+            debug!(tasks = tasks.len(), "Selecting across Processor tasks");
+            let (res, _, remaining) = select_all(tasks).await;
             for task in remaining.into_iter() {
                 cancel_task!(task);
             }
