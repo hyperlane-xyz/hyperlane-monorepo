@@ -19,15 +19,8 @@ use tokio::{
 use tracing::{error, info, instrument::Instrumented, Instrument};
 
 use crate::settings::UpdaterSettings as Settings;
-use optics_base::{
-    agent::{AgentCore, OpticsAgent},
-    home::Homes,
-};
-use optics_core::{
-    db::HomeDB,
-    traits::{Common, Home},
-    SignedUpdate, Signers, Update,
-};
+use optics_base::{AgentCore, Homes, OpticsAgent};
+use optics_core::{db::HomeDB, Common, Home, SignedUpdate, Signers, Update};
 
 #[derive(Debug)]
 struct UpdateHandler {

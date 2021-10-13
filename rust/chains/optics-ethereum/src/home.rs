@@ -3,8 +3,9 @@
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::contract::abigen;
-use ethers::core::types::{Address, Signature, H256};
+use ethers::core::types::{Signature, H256};
 use optics_core::db::{HomeDB, DB};
+/*
 use optics_core::traits::CommittedMessage;
 use optics_core::SignedUpdateWithMeta;
 use optics_core::{
@@ -12,6 +13,11 @@ use optics_core::{
         ChainCommunicationError, Common, DoubleUpdate, Home, RawCommittedMessage, State, TxOutcome,
     },
     Message, SignedUpdate, Update, UpdateMeta,
+*/
+use optics_core::*;
+use optics_core::{
+    ChainCommunicationError, Common, DoubleUpdate, Home, Message, RawCommittedMessage,
+    SignedUpdate, State, TxOutcome, Update,
 };
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
@@ -203,10 +209,18 @@ where
 {
     /// Create a reference to a Home at a specific Ethereum address on some
     /// chain
-    pub fn new(name: &str, domain: u32, address: Address, provider: Arc<M>, db: DB) -> Self {
+    pub fn new(
+        provider: Arc<M>,
+        ContractLocator {
+            name,
+            domain,
+            address,
+        }: &ContractLocator,
+        db: DB,
+    ) -> Self {
         Self {
             contract: Arc::new(EthereumHomeInternal::new(address, provider.clone())),
-            domain,
+            domain: *domain,
             name: name.to_owned(),
             home_db: HomeDB::new(db, name.to_owned()),
             provider,

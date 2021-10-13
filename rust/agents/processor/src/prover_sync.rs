@@ -4,7 +4,7 @@ use ethers::core::types::H256;
 use optics_core::{
     accumulator::{incremental::IncrementalMerkle, INITIAL_ROOT},
     db::{DbError, HomeDB},
-    traits::ChainCommunicationError,
+    ChainCommunicationError,
 };
 use std::{fmt::Display, ops::Range, time::Duration};
 use tokio::{task::JoinHandle, time::sleep};

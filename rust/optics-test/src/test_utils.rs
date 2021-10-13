@@ -42,7 +42,7 @@ mod test {
     use super::*;
     use ethers::types::H256;
     use optics_core::{
-        accumulator::merkle::Proof, db::HomeDB, traits::RawCommittedMessage, Encode, OpticsMessage,
+        accumulator::merkle::Proof, db::HomeDB, Encode, OpticsMessage, RawCommittedMessage,
     };
 
     #[tokio::test]
