@@ -11,12 +11,11 @@ use once_cell::sync::OnceCell;
 use rusoto_core::{credential::EnvironmentProvider, HttpClient};
 use rusoto_kms::KmsClient;
 
-use clap::Clap;
+use clap::Parser;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
 fn init_kms(region: String) {
-    // setup KMS
     let client =
         rusoto_core::Client::new_with(EnvironmentProvider::default(), HttpClient::new().unwrap());
     if KMS_CLIENT
@@ -30,7 +29,7 @@ fn init_kms(region: String) {
     }
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct Tx {
     // TX
     /// The TX value (in wei)
@@ -61,19 +60,20 @@ pub struct Tx {
     rpc: String,
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 pub struct Info {}
 
-#[derive(Clap)]
+#[derive(Parser)]
 /// Subcommands
+#[allow(clippy::large_enum_variant)]
 pub enum SubCommands {
     /// Send a tx signed by the KMS key
-    Tx(Tx),
+    Transaction(Tx),
     /// Print the key info (region, id, address)
     Info(Info),
 }
 
-#[derive(Clap)]
+#[derive(Parser)]
 #[clap(version = "0.1", author = "James Prestwich")]
 pub struct Opts {
     #[clap(subcommand)]
@@ -141,7 +141,7 @@ fn prep_tx_request(opts: &Tx) -> TransactionRequest {
 
 async fn _send_tx(signer: &AwsSigner<'_>, opts: &Opts) -> Result<()> {
     let tx: &Tx = match opts.sub {
-        SubCommands::Tx(ref tx) => tx,
+        SubCommands::Transaction(ref tx) => tx,
         SubCommands::Info(_) => unreachable!(),
     };
 
@@ -192,7 +192,7 @@ async fn _main() -> Result<()> {
     let opts: Opts = Opts::parse();
     init_kms(opts.region.to_owned());
     let chain_id = match opts.sub {
-        SubCommands::Tx(ref tx) => tx.chain_id.unwrap_or(1),
+        SubCommands::Transaction(ref tx) => tx.chain_id.unwrap_or(1),
         SubCommands::Info(_) => 1,
     };
 
@@ -201,7 +201,7 @@ async fn _main() -> Result<()> {
         .with_chain_id(chain_id);
 
     match opts.sub {
-        SubCommands::Tx(_) => _send_tx(&signer, &opts).await,
+        SubCommands::Transaction(_) => _send_tx(&signer, &opts).await,
         SubCommands::Info(_) => _print_info(&signer, &opts).await,
     }
 }

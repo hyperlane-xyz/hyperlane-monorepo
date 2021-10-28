@@ -33,17 +33,24 @@ use crate::report_tx;
 
 static LAST_INSPECTED: &str = "homeIndexerLastInspected";
 
-#[allow(missing_docs)]
 abigen!(
     EthereumHomeInternal,
     "./chains/optics-ethereum/abis/Home.abi.json"
 );
 
+impl<M> std::fmt::Display for EthereumHomeInternal<M>
+where
+    M: ethers::providers::Middleware,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
 struct HomeIndexer<M>
 where
     M: ethers::providers::Middleware,
 {
-    home_name: String,
     contract: Arc<EthereumHomeInternal<M>>,
     provider: Arc<M>,
     db: OpticsDB,
@@ -95,9 +102,8 @@ where
 
         for update_with_meta in updates_with_meta {
             self.db
-                .store_latest_update(&self.home_name, &update_with_meta.signed_update)?;
+                .store_latest_update(&update_with_meta.signed_update)?;
             self.db.store_update_metadata(
-                &self.home_name,
                 update_with_meta.signed_update.update.new_root,
                 update_with_meta.metadata,
             )?;
@@ -130,8 +136,7 @@ where
         });
 
         for message in messages {
-            self.db
-                .store_raw_committed_message(&self.home_name, &message)?;
+            self.db.store_raw_committed_message(&message)?;
 
             let committed_message: CommittedMessage = message.try_into()?;
             info!(
@@ -152,7 +157,7 @@ where
         tokio::spawn(async move {
             let mut next_height: u32 = self
                 .db
-                .retrieve_decodable(&self.home_name, "", LAST_INSPECTED)
+                .retrieve_decodable("", LAST_INSPECTED)
                 .expect("db failure")
                 .unwrap_or(self.from_height);
             info!(
@@ -180,8 +185,7 @@ where
                     self.sync_leaves(next_height, to)
                 )?;
 
-                self.db
-                    .store_encodable(&self.home_name, "", LAST_INSPECTED, &next_height)?;
+                self.db.store_encodable("", LAST_INSPECTED, &next_height)?;
                 next_height = to;
                 // sleep here if we've caught up
                 if to == tip {
@@ -225,7 +229,7 @@ where
             contract: Arc::new(EthereumHomeInternal::new(address, provider.clone())),
             domain: *domain,
             name: name.to_owned(),
-            db: OpticsDB::new(db),
+            db: OpticsDB::new(name.to_owned(), db),
             provider,
         }
     }
@@ -278,7 +282,7 @@ where
         old_root: H256,
     ) -> Result<Option<SignedUpdate>, ChainCommunicationError> {
         loop {
-            if let Some(update) = self.db.update_by_previous_root(&self.name, old_root)? {
+            if let Some(update) = self.db.update_by_previous_root(old_root)? {
                 return Ok(Some(update));
             }
             sleep(Duration::from_millis(500)).await;
@@ -291,14 +295,14 @@ where
         new_root: H256,
     ) -> Result<Option<SignedUpdate>, ChainCommunicationError> {
         loop {
-            if let Some(update) = self.db.update_by_new_root(&self.name, new_root)? {
+            if let Some(update) = self.db.update_by_new_root(new_root)? {
                 return Ok(Some(update));
             }
             sleep(Duration::from_millis(500)).await;
         }
     }
 
-    #[tracing::instrument(err, skip(self), fields(hexSignature = %format!("0x{}", hex::encode(update.signature.to_vec()))))]
+    #[tracing::instrument(err, skip(self), fields(hex_signature = %format!("0x{}", hex::encode(update.signature.to_vec()))))]
     async fn update(&self, update: &SignedUpdate) -> Result<TxOutcome, ChainCommunicationError> {
         let tx = self.contract.update(
             update.update.previous_root.to_fixed_bytes(),
@@ -346,7 +350,6 @@ where
         indexed_height: prometheus::IntGauge,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let indexer = HomeIndexer {
-            home_name: self.name.to_owned(),
             contract: self.contract.clone(),
             db: self.db.clone(),
             from_height,
@@ -364,7 +367,7 @@ where
         nonce: u32,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
         loop {
-            if let Some(update) = self.db.message_by_nonce(&self.name, destination, nonce)? {
+            if let Some(update) = self.db.message_by_nonce(destination, nonce)? {
                 return Ok(Some(update));
             }
             sleep(Duration::from_millis(500)).await;
@@ -377,7 +380,7 @@ where
         leaf: H256,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
         loop {
-            if let Some(update) = self.db.message_by_leaf(&self.name, leaf)? {
+            if let Some(update) = self.db.message_by_leaf(leaf)? {
                 return Ok(Some(update));
             }
             sleep(Duration::from_millis(500)).await;
@@ -389,7 +392,7 @@ where
         tree_index: usize,
     ) -> Result<Option<H256>, ChainCommunicationError> {
         loop {
-            if let Some(update) = self.db.leaf_by_leaf_index(&self.name, tree_index as u32)? {
+            if let Some(update) = self.db.leaf_by_leaf_index(tree_index as u32)? {
                 return Ok(Some(update));
             }
             sleep(Duration::from_millis(500)).await;
@@ -416,7 +419,7 @@ where
         Ok(self.contract.queue_contains(root.into()).call().await?)
     }
 
-    #[tracing::instrument(err, skip(self), fields(hexSignature = %format!("0x{}", hex::encode(update.signature.to_vec()))))]
+    #[tracing::instrument(err, skip(self), fields(hex_signature = %format!("0x{}", hex::encode(update.signature.to_vec()))))]
     async fn improper_update(
         &self,
         update: &SignedUpdate,
