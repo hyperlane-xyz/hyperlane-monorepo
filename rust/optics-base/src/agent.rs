@@ -1,14 +1,13 @@
 use crate::{
     cancel_task,
-    home::Homes,
     metrics::CoreMetrics,
-    replica::Replicas,
     settings::{IndexSettings, Settings},
+    CachingHome, CachingReplica,
 };
 use async_trait::async_trait;
 use color_eyre::{eyre::WrapErr, Result};
 use futures_util::future::select_all;
-use optics_core::{db::DB, Common, Home};
+use optics_core::{db::DB, Common};
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
@@ -18,9 +17,9 @@ use tokio::task::JoinHandle;
 #[derive(Debug)]
 pub struct AgentCore {
     /// A boxed Home
-    pub home: Arc<Homes>,
+    pub home: Arc<CachingHome>,
     /// A map of boxed Replicas
-    pub replicas: HashMap<String, Arc<Replicas>>,
+    pub replicas: HashMap<String, Arc<CachingReplica>>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -59,17 +58,17 @@ pub trait OpticsAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
     }
 
     /// Return a reference to a home contract
-    fn home(&self) -> Arc<Homes> {
+    fn home(&self) -> Arc<CachingHome> {
         self.as_ref().home.clone()
     }
 
     /// Get a reference to the replicas map
-    fn replicas(&self) -> &HashMap<String, Arc<Replicas>> {
+    fn replicas(&self) -> &HashMap<String, Arc<CachingReplica>> {
         &self.as_ref().replicas
     }
 
     /// Get a reference to a replica by its name
-    fn replica_by_name(&self, name: &str) -> Option<Arc<Replicas>> {
+    fn replica_by_name(&self, name: &str) -> Option<Arc<CachingReplica>> {
         self.replicas().get(name).map(Clone::clone)
     }
 
@@ -138,11 +137,11 @@ pub trait OpticsAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
                     .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
 
                 let indexer = &self.as_ref().indexer;
-                let index_task =
+                let sync_task =
                     self.home()
-                        .index(indexer.from(), indexer.chunk_size(), block_height);
+                        .sync(indexer.from(), indexer.chunk_size(), block_height);
 
-                tasks.push(index_task);
+                tasks.push(sync_task);
             }
 
             let (res, _, remaining) = select_all(tasks).await;

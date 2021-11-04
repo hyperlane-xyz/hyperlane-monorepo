@@ -13,9 +13,10 @@ use std::{
 use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use optics_base::{cancel_task, decl_agent, AgentCore, Homes, OpticsAgent, Replicas};
+use optics_base::{cancel_task, decl_agent, AgentCore, CachingHome, CachingReplica, OpticsAgent};
 use optics_core::{
-    accumulator::merkle::Proof, db::OpticsDB, CommittedMessage, Common, Home, MessageStatus,
+    accumulator::merkle::Proof, db::OpticsDB, CommittedMessage, Common, Home, HomeEvents,
+    MessageStatus,
 };
 
 use crate::{
@@ -37,8 +38,8 @@ enum Flow {
 #[derive(Debug)]
 pub(crate) struct Replica {
     interval: u64,
-    replica: Arc<Replicas>,
-    home: Arc<Homes>,
+    replica: Arc<CachingReplica>,
+    home: Arc<CachingHome>,
     db: OpticsDB,
     allowed: Option<Arc<HashSet<H256>>>,
     denied: Option<Arc<HashSet<H256>>>,
@@ -393,7 +394,7 @@ impl OpticsAgent for Processor {
             info!("Starting ProverSync");
             let db = OpticsDB::new(self.home().name().to_owned(), self.db());
             let sync = ProverSync::from_disk(db.clone());
-            let sync_task = sync.spawn();
+            let prover_sync_task = sync.spawn();
 
             info!("Starting indexer");
             // indexer setup
@@ -408,14 +409,14 @@ impl OpticsAgent for Processor {
                 .expect("failed to register block_height metric")
                 .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
             let indexer = &self.as_ref().indexer;
-            let index_task = self
-                .home()
-                .index(indexer.from(), indexer.chunk_size(), block_height);
+            let home_sync_task =
+                self.home()
+                    .sync(indexer.from(), indexer.chunk_size(), block_height);
 
             info!("started indexer and sync");
 
             // instantiate task array here so we can optionally push run_task
-            let mut tasks = vec![index_task, sync_task];
+            let mut tasks = vec![home_sync_task, prover_sync_task];
 
             if !self.index_only {
                 // this is the unused must use

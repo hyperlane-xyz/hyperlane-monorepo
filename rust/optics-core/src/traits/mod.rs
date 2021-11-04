@@ -1,9 +1,11 @@
 mod encode;
 mod home;
+mod indexer;
 mod replica;
 mod xapp;
 
 use async_trait::async_trait;
+use color_eyre::Result;
 use ethers::{
     contract::ContractError,
     core::types::{TransactionReceipt, H256},
@@ -15,6 +17,7 @@ use crate::{db::DbError, OpticsError, SignedUpdate};
 
 pub use encode::*;
 pub use home::*;
+pub use indexer::*;
 pub use replica::*;
 pub use xapp::*;
 
@@ -102,6 +105,19 @@ pub trait Common: Sync + Send + std::fmt::Debug {
     /// Fetch the current root.
     async fn committed_root(&self) -> Result<H256, ChainCommunicationError>;
 
+    /// Submit a signed update for inclusion
+    async fn update(&self, update: &SignedUpdate) -> Result<TxOutcome, ChainCommunicationError>;
+
+    /// Submit a double update for slashing
+    async fn double_update(
+        &self,
+        double: &DoubleUpdate,
+    ) -> Result<TxOutcome, ChainCommunicationError>;
+}
+
+/// Interface for retrieving event data emitted by both the home and replica
+#[async_trait]
+pub trait CommonEvents: Common + Send + Sync + std::fmt::Debug {
     /// Fetch the first signed update building off of `old_root`. If `old_root`
     /// was never accepted or has never been updated, this will return `Ok(None )`.
     /// This should fetch events from the chain API
@@ -123,13 +139,4 @@ pub trait Common: Sync + Send + std::fmt::Debug {
         let committed_root = self.committed_root().await?;
         self.signed_update_by_new_root(committed_root).await
     }
-
-    /// Submit a signed update for inclusion
-    async fn update(&self, update: &SignedUpdate) -> Result<TxOutcome, ChainCommunicationError>;
-
-    /// Submit a double update for slashing
-    async fn double_update(
-        &self,
-        double: &DoubleUpdate,
-    ) -> Result<TxOutcome, ChainCommunicationError>;
 }

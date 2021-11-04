@@ -51,7 +51,7 @@ impl Default for Connection {
 }
 
 #[cfg(not(doctest))]
-pub use crate::{home::EthereumHome, replica::EthereumReplica, xapp::EthereumConnectionManager};
+pub use crate::{home::*, replica::*, xapp::*};
 
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
@@ -60,9 +60,23 @@ pub struct Chain {
     ethers: ethers::providers::Provider<ethers::providers::Http>,
 }
 
-contract!(make_replica, EthereumReplica, Replica,);
-contract!(make_home, EthereumHome, Home, db: optics_core::db::DB);
-contract!(
+boxed_trait!(
+    make_home_indexer,
+    EthereumHomeIndexer,
+    HomeIndexer,
+    from_height: u32,
+    chunk_size: u32
+);
+boxed_trait!(
+    make_replica_indexer,
+    EthereumReplicaIndexer,
+    CommonIndexer,
+    from_height: u32,
+    chunk_size: u32
+);
+boxed_trait!(make_replica, EthereumReplica, Replica,);
+boxed_trait!(make_home, EthereumHome, Home,);
+boxed_trait!(
     make_conn_manager,
     EthereumConnectionManager,
     ConnectionManager,

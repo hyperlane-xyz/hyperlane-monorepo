@@ -36,11 +36,16 @@
 //!    intended to be used by a specific agent.
 //!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
 
-use crate::{agent::AgentCore, home::Homes, replica::Replicas};
+use crate::{agent::AgentCore, CachingHome, CachingReplica, CommonIndexers, HomeIndexers};
 use color_eyre::{eyre::bail, Report};
 use config::{Config, ConfigError, Environment, File};
 use ethers::prelude::AwsSigner;
-use optics_core::{db::DB, utils::HexString, Signers};
+use optics_core::{
+    db::{OpticsDB, DB},
+    utils::HexString,
+    Common, ContractLocator, Signers,
+};
+use optics_ethereum::{make_home_indexer, make_replica_indexer};
 use rusoto_core::{credential::EnvironmentProvider, HttpClient};
 use rusoto_kms::KmsClient;
 use serde::Deserialize;
@@ -50,7 +55,7 @@ use tracing::instrument;
 /// Chain configuartion
 pub mod chains;
 
-pub use chains::ChainSetup;
+pub use chains::{ChainConf, ChainSetup};
 
 /// Tracing subscriber management
 pub mod trace;
@@ -208,7 +213,10 @@ impl Settings {
     }
 
     /// Try to get all replicas from this settings object
-    pub async fn try_replicas(&self) -> Result<HashMap<String, Arc<Replicas>>, Report> {
+    pub async fn try_caching_replicas(
+        &self,
+        db: DB,
+    ) -> Result<HashMap<String, Arc<CachingReplica>>, Report> {
         let mut result = HashMap::default();
         for (k, v) in self.replicas.iter().filter(|(_, v)| v.disabled.is_none()) {
             if k != &v.name {
@@ -219,15 +227,68 @@ impl Settings {
                 );
             }
             let signer = self.get_signer(&v.name).await;
-            result.insert(v.name.clone(), Arc::new(v.try_into_replica(signer).await?));
+            let replica = v.try_into_replica(signer).await?;
+            let indexer = Arc::new(self.try_replica_indexer(v).await?);
+            let optics_db = OpticsDB::new(replica.name(), db.clone());
+            result.insert(
+                v.name.clone(),
+                Arc::new(CachingReplica::new(replica, optics_db, indexer)),
+            );
         }
         Ok(result)
     }
 
     /// Try to get a home object
-    pub async fn try_home(&self, db: DB) -> Result<Homes, Report> {
+    pub async fn try_caching_home(&self, db: DB) -> Result<CachingHome, Report> {
         let signer = self.get_signer(&self.home.name).await;
-        self.home.try_into_home(signer, db).await
+        let home = self.home.try_into_home(signer).await?;
+        let indexer = Arc::new(self.try_home_indexer().await?);
+        let optics_db = OpticsDB::new(home.name(), db);
+        Ok(CachingHome::new(home, optics_db, indexer))
+    }
+
+    /// Try to get an indexer object for a home
+    pub async fn try_home_indexer(&self) -> Result<HomeIndexers, Report> {
+        let signer = self.get_signer(&self.home.name).await;
+
+        match &self.home.chain {
+            ChainConf::Ethereum(conn) => Ok(HomeIndexers::Ethereum(
+                make_home_indexer(
+                    conn.clone(),
+                    &ContractLocator {
+                        name: self.home.name.clone(),
+                        domain: self.home.domain.parse().expect("invalid uint"),
+                        address: self.home.address.parse::<ethers::types::Address>()?.into(),
+                    },
+                    signer,
+                    self.index.from(),
+                    self.index.chunk_size(),
+                )
+                .await?,
+            )),
+        }
+    }
+
+    /// Try to get an indexer object for a replica
+    pub async fn try_replica_indexer(&self, setup: &ChainSetup) -> Result<CommonIndexers, Report> {
+        let signer = self.get_signer(&setup.name).await;
+
+        match &setup.chain {
+            ChainConf::Ethereum(conn) => Ok(CommonIndexers::Ethereum(
+                make_replica_indexer(
+                    conn.clone(),
+                    &ContractLocator {
+                        name: setup.name.clone(),
+                        domain: setup.domain.parse().expect("invalid uint"),
+                        address: setup.address.parse::<ethers::types::Address>()?.into(),
+                    },
+                    signer,
+                    self.index.from(),
+                    self.index.chunk_size(),
+                )
+                .await?,
+            )),
+        }
     }
 
     /// Try to generate an agent core for a named agent
@@ -241,8 +302,8 @@ impl Settings {
         )?);
 
         let db = DB::from_path(&self.db)?;
-        let home = Arc::new(self.try_home(db.clone()).await?);
-        let replicas = self.try_replicas().await?;
+        let home = Arc::new(self.try_caching_home(db.clone()).await?);
+        let replicas = self.try_caching_replicas(db.clone()).await?;
 
         Ok(AgentCore {
             home,

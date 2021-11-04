@@ -4,21 +4,23 @@ use thiserror::Error;
 
 use ethers::core::types::H256;
 use futures_util::future::{join, join_all, select_all};
-use std::{collections::HashMap, sync::Arc, time::Duration};
+use std::{collections::HashMap, fmt::Display, sync::Arc, time::Duration};
 use tokio::{
     sync::{mpsc, oneshot, RwLock},
     task::JoinHandle,
     time::sleep,
 };
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use tracing::{error, info, info_span, instrument::Instrumented, Instrument};
 
-use optics_base::{cancel_task, AgentCore, ConnectionManagers, Homes, OpticsAgent};
+use optics_base::{cancel_task, AgentCore, CachingHome, ConnectionManagers, OpticsAgent};
 use optics_core::{
-    db::OpticsDB, ChainCommunicationError, Common, ConnectionManager, DoubleUpdate,
+    db::OpticsDB, ChainCommunicationError, Common, CommonEvents, ConnectionManager, DoubleUpdate,
     FailureNotification, Home, SignedUpdate, Signers, TxOutcome,
 };
 
 use crate::settings::WatcherSettings as Settings;
+
+const AGENT_NAME: &str = "watcher";
 
 #[derive(Debug, Error)]
 enum WatcherError {
@@ -29,7 +31,7 @@ enum WatcherError {
 #[derive(Debug)]
 pub struct ContractWatcher<C>
 where
-    C: Common + ?Sized + 'static,
+    C: Common + CommonEvents + ?Sized + 'static,
 {
     interval: u64,
     committed_root: H256,
@@ -37,9 +39,23 @@ where
     contract: Arc<C>,
 }
 
+impl<C> Display for ContractWatcher<C>
+where
+    C: Common + CommonEvents + ?Sized + 'static,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "ContractWatcher {{ ")?;
+        write!(f, "interval: {}", self.interval)?;
+        write!(f, "committed_root: {}", self.committed_root)?;
+        write!(f, "contract: {}", self.contract.name())?;
+        write!(f, "}}")?;
+        Ok(())
+    }
+}
+
 impl<C> ContractWatcher<C>
 where
-    C: Common + ?Sized + 'static,
+    C: Common + CommonEvents + ?Sized + 'static,
 {
     pub fn new(
         interval: u64,
@@ -62,12 +78,22 @@ where
             .await?;
 
         if update_opt.is_none() {
+            info!(
+                "No new update found. Previous root: {}. From contract: {}.",
+                self.committed_root,
+                self.contract.name()
+            );
             return Ok(());
         }
 
         let new_update = update_opt.unwrap();
         self.committed_root = new_update.update.new_root;
 
+        info!(
+            "Sending new update to UpdateHandler. Update: {:?}. From contract: {}.",
+            &new_update,
+            self.contract.name()
+        );
         self.tx.send(new_update).await?;
         Ok(())
     }
@@ -86,7 +112,7 @@ where
 #[derive(Debug)]
 pub struct HistorySync<C>
 where
-    C: Common + ?Sized + 'static,
+    C: Common + CommonEvents + ?Sized + 'static,
 {
     interval: u64,
     committed_root: H256,
@@ -96,7 +122,7 @@ where
 
 impl<C> HistorySync<C>
 where
-    C: Common + ?Sized + 'static,
+    C: Common + CommonEvents + ?Sized + 'static,
 {
     pub fn new(
         interval: u64,
@@ -119,18 +145,24 @@ where
             .await?;
 
         if previous_update.is_none() {
-            // Task finished
+            info!(
+                "HistorySync for contract {} has finished.",
+                self.contract.name()
+            );
             return Err(Report::new(WatcherError::SyncingFinished));
         }
 
         // Dispatch to the handler
         let previous_update = previous_update.unwrap();
+        self.tx.send(previous_update.clone()).await?;
 
         // set up for next loop iteration
         self.committed_root = previous_update.update.previous_root;
-        self.tx.send(previous_update).await?;
         if self.committed_root.is_zero() {
-            // Task finished
+            info!(
+                "HistorySync for contract {} has finished.",
+                self.contract.name()
+            );
             return Err(Report::new(WatcherError::SyncingFinished));
         }
 
@@ -158,13 +190,21 @@ where
 #[derive(Debug)]
 pub struct UpdateHandler {
     rx: mpsc::Receiver<SignedUpdate>,
-    db: OpticsDB,
-    home: Arc<Homes>,
+    watcher_db: OpticsDB,
+    home: Arc<CachingHome>,
 }
 
 impl UpdateHandler {
-    pub fn new(rx: mpsc::Receiver<SignedUpdate>, db: OpticsDB, home: Arc<Homes>) -> Self {
-        Self { rx, db, home }
+    pub fn new(
+        rx: mpsc::Receiver<SignedUpdate>,
+        watcher_db: OpticsDB,
+        home: Arc<CachingHome>,
+    ) -> Self {
+        Self {
+            rx,
+            watcher_db,
+            home,
+        }
     }
 
     fn check_double_update(&mut self, update: &SignedUpdate) -> Result<(), DoubleUpdate> {
@@ -172,25 +212,35 @@ impl UpdateHandler {
         let new_root = update.update.new_root;
 
         match self
-            .db
-            .update_by_previous_root(self.home.name(), old_root)
+            .watcher_db
+            .update_by_previous_root(old_root)
             .expect("!db_get")
         {
             Some(existing) => {
                 if existing.update.new_root != new_root {
+                    error!(
+                        "UpdateHandler detected double update! Existing: {:?}. Double: {:?}.",
+                        &existing, &update
+                    );
                     return Err(DoubleUpdate(existing, update.to_owned()));
                 }
             }
             None => {
-                self.db
-                    .store_latest_update(self.home.name(), update)
-                    .expect("!db_put");
+                info!(
+                    "UpdateHandler storing new update from root {} to {}. Update: {:?}.",
+                    &update.update.previous_root, &update.update.new_root, &update
+                );
+                self.watcher_db.store_update(update).expect("!db_put");
             }
         }
 
         Ok(())
     }
 
+    /// Receive updates and check them for fraud. If double update was
+    /// found, return Ok(double_update). This loop should never exit naturally
+    /// unless the channel for sending new updates was closed, in which case we
+    /// return an error.
     #[tracing::instrument]
     fn spawn(mut self) -> JoinHandle<Result<DoubleUpdate>> {
         tokio::spawn(async move {
@@ -308,9 +358,10 @@ impl Watcher {
         &self,
         double_update_tx: oneshot::Sender<DoubleUpdate>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let db = OpticsDB::new(self.db());
         let home = self.home();
         let replicas = self.replicas().clone();
+        let watcher_db_name = format!("{}_{}", home.name(), AGENT_NAME);
+        let watcher_db = OpticsDB::new(watcher_db_name, self.db());
         let interval_seconds = self.interval_seconds;
         let sync_tasks = self.sync_tasks.clone();
         let watch_tasks = self.watch_tasks.clone();
@@ -318,10 +369,12 @@ impl Watcher {
         tokio::spawn(async move {
             // Spawn update handler
             let (tx, rx) = mpsc::channel(200);
-            let handler = UpdateHandler::new(rx, db, home.clone()).spawn();
+            let handler = UpdateHandler::new(rx, watcher_db, home.clone()).spawn();
 
             // For each replica, spawn polling and history syncing tasks
+            info!("Spawning replica watch and sync tasks...");
             for (name, replica) in replicas {
+                info!("Spawning watch and sync tasks for replica {}.", name);
                 let from = replica.committed_root().await?;
 
                 watch_tasks.write().await.insert(
@@ -339,6 +392,7 @@ impl Watcher {
             }
 
             // Spawn polling and history syncing tasks for home
+            info!("Starting watch and sync tasks for home {}.", home.name());
             let from = home.committed_root().await?;
             let home_watcher =
                 ContractWatcher::new(interval_seconds, from, tx.clone(), home.clone())
@@ -348,7 +402,8 @@ impl Watcher {
                 .spawn()
                 .in_current_span();
 
-            // Wait for update handler to encounter error OR fraud
+            // Wait for update handler to finish (should only happen watcher is 
+            // manually shut down)
             let double_update_res = handler.await?;
 
             // Cancel running tasks
@@ -356,8 +411,12 @@ impl Watcher {
             cancel_task!(home_watcher);
             cancel_task!(home_sync);
 
-            // If double update found, send through oneshot
-            if let Err(e) = double_update_tx.send(double_update_res?) {
+            // If update receiver channel was closed we will error out. The only
+            // reason we pass this point is that we successfully found double 
+            // update.
+            let double_update = double_update_res?;
+            error!("Double update found! Sending through through double update tx! Double update: {:?}.", &double_update);
+            if let Err(e) = double_update_tx.send(double_update) {
                 bail!("Failed to send double update through oneshot: {:?}", e);
             }
 
@@ -370,7 +429,7 @@ impl Watcher {
 #[async_trait]
 #[allow(clippy::unit_arg)]
 impl OpticsAgent for Watcher {
-    const AGENT_NAME: &'static str = "watcher";
+    const AGENT_NAME: &'static str = AGENT_NAME;
 
     type Settings = Settings;
 
@@ -380,7 +439,7 @@ impl OpticsAgent for Watcher {
         Self: Sized,
     {
         let mut connection_managers = vec![];
-        for chain_setup in settings.connection_managers.iter() {
+        for chain_setup in settings.managers.values() {
             let signer = settings.base.get_signer(&chain_setup.name).await;
             let manager = chain_setup.try_into_connection_manager(signer).await;
             connection_managers.push(manager);
@@ -426,21 +485,25 @@ impl OpticsAgent for Watcher {
         tokio::spawn(async move {
             info!("Starting Watcher tasks");
 
-            // Indexer setup
-            let block_height = self
-                .as_ref()
-                .metrics
-                .new_int_gauge(
-                    "block_height",
-                    "Height of a recently observed block",
-                    &["network", "agent"],
-                )
-                .expect("failed to register block_height metric")
-                .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
+            // CommonIndexer setup
+            let block_height = Arc::new(
+                self.core.metrics
+                    .new_int_gauge(
+                        "block_height",
+                        "Height of a recently observed block",
+                        &["network", "agent"],
+                    )
+                    .expect("processor metric already registered -- should have be a singleton"),
+            );
+
             let indexer = &self.as_ref().indexer;
-            let index_task = self
+            let home_sync_task = self
                 .home()
-                .index(indexer.from(), indexer.chunk_size(), block_height);
+                .sync(indexer.from(), indexer.chunk_size(), block_height.with_label_values(&[self.home().name(), Self::AGENT_NAME]));
+            let replica_sync_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self.replicas().iter().map(|(name, replica)| {
+                replica
+                .sync(indexer.from(), indexer.chunk_size(), block_height.with_label_values(&[name, Self::AGENT_NAME]))
+            }).collect();
 
             // Watcher watch tasks setup
             let (double_update_tx, mut double_update_rx) = oneshot::channel::<DoubleUpdate>();
@@ -448,7 +511,8 @@ impl OpticsAgent for Watcher {
 
             // Race index and run tasks
             info!("selecting");
-            let tasks = vec![index_task, watch_tasks];
+            let mut tasks = vec![home_sync_task, watch_tasks];
+            tasks.extend(replica_sync_tasks);
             let (_, _, remaining) = select_all(tasks).await;
 
             // Cancel lagging task and watcher polling/syncing tasks
@@ -489,13 +553,14 @@ impl OpticsAgent for Watcher {
 #[cfg(test)]
 mod test {
     use optics_base::IndexSettings;
+    use optics_test::mocks::MockIndexer;
     use std::sync::Arc;
     use tokio::sync::mpsc;
 
     use ethers::core::types::H256;
     use ethers::signers::{LocalWallet, Signer};
 
-    use optics_base::Replicas;
+    use optics_base::{CachingReplica, CommonIndexers, HomeIndexers, Homes, Replicas};
     use optics_core::{DoubleUpdate, SignedFailureNotification, Update};
     use optics_test::{
         mocks::{MockConnectionManagerContract, MockHomeContract, MockReplicaContract},
@@ -506,38 +571,39 @@ mod test {
 
     #[tokio::test]
     async fn contract_watcher_polls_and_sends_update() {
-        let signer: LocalWallet =
-            "1111111111111111111111111111111111111111111111111111111111111111"
-                .parse()
-                .unwrap();
+        test_utils::run_test_db(|db| async move {
+            let signer: LocalWallet =
+                "1111111111111111111111111111111111111111111111111111111111111111"
+                    .parse()
+                    .unwrap();
 
-        let first_root = H256::from([1; 32]);
-        let second_root = H256::from([2; 32]);
+            let first_root = H256::from([0; 32]);
+            let second_root = H256::from([1; 32]);
 
-        let signed_update = Update {
-            home_domain: 1,
-            previous_root: first_root,
-            new_root: second_root,
-        }
-        .sign_with(&signer)
-        .await
-        .expect("!sign");
+            let signed_update = Update {
+                home_domain: 1,
+                previous_root: first_root,
+                new_root: second_root,
+            }
+            .sign_with(&signer)
+            .await
+            .expect("!sign");
 
-        let mut mock_home = MockHomeContract::new();
-        {
-            let signed_update = signed_update.clone();
-            // home.signed_update_by_old_root called once and
-            // returns mock value signed_update when called with first_root
-            mock_home
-                .expect__signed_update_by_old_root()
-                .withf(move |r: &H256| *r == first_root)
-                .times(1)
-                .return_once(move |_| Ok(Some(signed_update)));
-        }
+            let mut mock_home = MockHomeContract::new();
+            let optics_db = OpticsDB::new("home_1", db.clone());
 
-        let mut home: Arc<Homes> = Arc::new(mock_home.into());
-        let (tx, mut rx) = mpsc::channel(200);
-        {
+            {
+                mock_home.expect__name().return_const("home_1".to_owned());
+
+                // When home polls for new update it gets `signed_update`
+                optics_db.store_latest_update(&signed_update).unwrap();
+            }
+
+            let mock_home_indexer = Arc::new(MockIndexer::new().into());
+            let home: Arc<CachingHome> =
+                CachingHome::new(mock_home.into(), optics_db.clone(), mock_home_indexer).into();
+
+            let (tx, mut rx) = mpsc::channel(200);
             let mut contract_watcher =
                 ContractWatcher::new(3, first_root, tx.clone(), home.clone());
 
@@ -548,66 +614,60 @@ mod test {
 
             assert_eq!(contract_watcher.committed_root, second_root);
             assert_eq!(rx.recv().await.unwrap(), signed_update);
-        }
-
-        let mock_home = Arc::get_mut(&mut home).unwrap();
-        mock_home.checkpoint();
+        })
+        .await
     }
 
     #[tokio::test]
     async fn history_sync_updates_history() {
-        let signer: LocalWallet =
-            "1111111111111111111111111111111111111111111111111111111111111111"
-                .parse()
-                .unwrap();
+        test_utils::run_test_db(|db| async move {
+            let signer: LocalWallet =
+                "1111111111111111111111111111111111111111111111111111111111111111"
+                    .parse()
+                    .unwrap();
 
-        let zero_root = H256::zero(); // Original zero root
-        let first_root = H256::from([1; 32]);
-        let second_root = H256::from([2; 32]);
+            let zero_root = H256::zero(); // Original zero root
+            let first_root = H256::from([1; 32]);
+            let second_root = H256::from([2; 32]);
 
-        // Zero root to first root
-        let first_signed_update = Update {
-            home_domain: 1,
-            previous_root: zero_root,
-            new_root: first_root,
-        }
-        .sign_with(&signer)
-        .await
-        .expect("!sign");
+            // Zero root to first root
+            let first_signed_update = Update {
+                home_domain: 1,
+                previous_root: zero_root,
+                new_root: first_root,
+            }
+            .sign_with(&signer)
+            .await
+            .expect("!sign");
 
-        // First root to second root
-        let second_signed_update = Update {
-            home_domain: 1,
-            previous_root: first_root,
-            new_root: second_root,
-        }
-        .sign_with(&signer)
-        .await
-        .expect("!sign");
+            // First root to second root
+            let second_signed_update = Update {
+                home_domain: 1,
+                previous_root: first_root,
+                new_root: second_root,
+            }
+            .sign_with(&signer)
+            .await
+            .expect("!sign");
 
-        let mut mock_home = MockHomeContract::new();
-        {
-            let first_signed_update = first_signed_update.clone();
-            let second_signed_update = second_signed_update.clone();
-            // home.signed_update_by_new_root called once with second_root
-            // and returns mock value second_signed_update
-            mock_home
-                .expect__signed_update_by_new_root()
-                .withf(move |r: &H256| *r == second_root)
-                .times(1)
-                .return_once(move |_| Ok(Some(second_signed_update)));
-            // home.signed_update_by_new_root called once with first_root
-            // and returns mock value first_signed_update
-            mock_home
-                .expect__signed_update_by_new_root()
-                .withf(move |r: &H256| *r == first_root)
-                .times(1)
-                .return_once(move |_| Ok(Some(first_signed_update)));
-        }
+            let mut mock_home = MockHomeContract::new();
+            let optics_db = OpticsDB::new("home_1", db.clone());
 
-        let mut home: Arc<Homes> = Arc::new(mock_home.into());
-        let (tx, mut rx) = mpsc::channel(200);
-        {
+            {
+                mock_home.expect__name().return_const("home_1".to_owned());
+
+                // When HistorySync works through history it finds second and first signed updates
+                optics_db.store_latest_update(&first_signed_update).unwrap();
+                optics_db
+                    .store_latest_update(&second_signed_update)
+                    .unwrap();
+            }
+
+            let mock_home_indexer = Arc::new(MockIndexer::new().into());
+            let home: Arc<CachingHome> =
+                CachingHome::new(mock_home.into(), optics_db.clone(), mock_home_indexer).into();
+
+            let (tx, mut rx) = mpsc::channel(200);
             let mut history_sync = HistorySync::new(3, second_root, tx.clone(), home.clone());
 
             // First update_history call returns first -> second update
@@ -628,10 +688,8 @@ mod test {
 
             assert_eq!(history_sync.committed_root, zero_root);
             assert_eq!(rx.recv().await.unwrap(), first_signed_update)
-        }
-
-        let mock_home = Arc::get_mut(&mut home).unwrap();
-        mock_home.checkpoint();
+        })
+        .await
     }
 
     #[tokio::test]
@@ -677,30 +735,33 @@ mod test {
             let mut mock_home = MockHomeContract::new();
             mock_home.expect__name().return_const("home_1".to_owned());
 
-            {
-                let (_tx, rx) = mpsc::channel(200);
-                let mut handler = UpdateHandler {
-                    rx,
-                    db: OpticsDB::new("home", db),
-                    home: Arc::new(mock_home.into()),
-                };
+            let optics_db = OpticsDB::new("home_1_watcher", db);
+            let mock_home_indexer = Arc::new(MockIndexer::new().into());
+            let home: Arc<CachingHome> =
+                CachingHome::new(mock_home.into(), optics_db.clone(), mock_home_indexer).into();
 
-                let _first_update_ret = handler
-                    .check_double_update(&first_update)
-                    .expect("Update should have been valid");
+            let (_tx, rx) = mpsc::channel(200);
+            let mut handler = UpdateHandler {
+                rx,
+                watcher_db: optics_db.clone(),
+                home,
+            };
 
-                let _second_update_ret = handler
-                    .check_double_update(&second_update)
-                    .expect("Update should have been valid");
+            let _first_update_ret = handler
+                .check_double_update(&first_update)
+                .expect("Update should have been valid");
 
-                let bad_second_update_ret = handler
-                    .check_double_update(&bad_second_update)
-                    .expect_err("Update should have been invalid");
-                assert_eq!(
-                    bad_second_update_ret,
-                    DoubleUpdate(second_update, bad_second_update)
-                );
-            }
+            let _second_update_ret = handler
+                .check_double_update(&second_update)
+                .expect("Update should have been valid");
+
+            let bad_second_update_ret = handler
+                .check_double_update(&bad_second_update)
+                .expect_err("Update should have been invalid");
+            assert_eq!(
+                bad_second_update_ret,
+                DoubleUpdate(second_update, bad_second_update)
+            );
         })
         .await
     }
@@ -757,13 +818,13 @@ mod test {
 
             // Home and replica expectations
             {
-                // home.local_domain returns `home_domain`
+                mock_home.expect__name().return_const("home_1".to_owned());
+
                 mock_home
                     .expect__local_domain()
                     .times(1)
                     .return_once(move || home_domain);
 
-                // home.updater returns `updater` address
                 let updater = updater.clone();
                 mock_home
                     .expect__updater()
@@ -784,6 +845,10 @@ mod test {
                     });
             }
             {
+                mock_replica_1
+                    .expect__name()
+                    .return_const("replica_1".to_owned());
+
                 // replica_1.double_update called once
                 let double = double.clone();
                 mock_replica_1
@@ -798,6 +863,10 @@ mod test {
                     });
             }
             {
+                mock_replica_2
+                    .expect__name()
+                    .return_const("replica_2".to_owned());
+
                 // replica_2.double_update called once
                 let double = double.clone();
                 mock_replica_2
@@ -848,46 +917,69 @@ mod test {
                 mock_connection_manager_2.into(),
             ];
 
-            let home = Arc::new(mock_home.into());
-            let replica_1 = Arc::new(mock_replica_1.into());
-            let replica_2 = Arc::new(mock_replica_2.into());
+            let mock_indexer: Arc<CommonIndexers> = Arc::new(MockIndexer::new().into());
+            let mock_home_indexer: Arc<HomeIndexers> = Arc::new(MockIndexer::new().into());
+            let mut mock_home: Homes = mock_home.into();
+            let mut mock_replica_1: Replicas = mock_replica_1.into();
+            let mut mock_replica_2: Replicas = mock_replica_2.into();
 
-            let mut replica_map: HashMap<String, Arc<Replicas>> = HashMap::new();
-            replica_map.insert("replica_1".into(), replica_1);
-            replica_map.insert("replica_2".into(), replica_2);
+            let home_db = OpticsDB::new("home_1", db.clone());
+            let replica_1_db = OpticsDB::new("replica_1", db.clone());
+            let replica_2_db = OpticsDB::new("replica_2", db.clone());
 
-            let core = AgentCore {
-                home,
-                replicas: replica_map,
-                db: db,
-                indexer: IndexSettings::default(),
-                settings: optics_base::Settings::default(),
-                metrics: Arc::new(
-                    optics_base::CoreMetrics::new(
-                        "watcher_test",
-                        None,
-                        Arc::new(prometheus::Registry::new()),
-                    )
-                    .expect("could not make metrics"),
-                ),
-            };
+            {
+                let home: Arc<CachingHome> = CachingHome::new(
+                    mock_home.clone(),
+                    home_db.clone(),
+                    mock_home_indexer.clone(),
+                )
+                .into();
+                let replica_1: Arc<CachingReplica> = CachingReplica::new(
+                    mock_replica_1.clone(),
+                    replica_1_db.clone(),
+                    mock_indexer.clone(),
+                )
+                .into();
+                let replica_2: Arc<CachingReplica> = CachingReplica::new(
+                    mock_replica_2.clone(),
+                    replica_2_db.clone(),
+                    mock_indexer.clone(),
+                )
+                .into();
 
-            let mut watcher = Watcher::new(updater.into(), 1, connection_managers, core);
-            watcher.handle_failure(&double).await;
+                let mut replica_map: HashMap<String, Arc<CachingReplica>> = HashMap::new();
+                replica_map.insert("replica_1".into(), replica_1);
+                replica_map.insert("replica_2".into(), replica_2);
 
-            // Checkpoint connection managers
-            for connection_manager in watcher.connection_managers.iter_mut() {
-                connection_manager.checkpoint();
+                let core = AgentCore {
+                    home: home.clone(),
+                    replicas: replica_map,
+                    db,
+                    indexer: IndexSettings::default(),
+                    settings: optics_base::Settings::default(),
+                    metrics: Arc::new(
+                        optics_base::CoreMetrics::new(
+                            "watcher_test",
+                            None,
+                            Arc::new(prometheus::Registry::new()),
+                        )
+                        .expect("could not make metrics"),
+                    ),
+                };
+
+                let mut watcher = Watcher::new(updater.into(), 1, connection_managers, core);
+                watcher.handle_failure(&double).await;
+
+                // Checkpoint connection managers
+                for connection_manager in watcher.connection_managers.iter_mut() {
+                    connection_manager.checkpoint();
+                }
             }
 
-            // Checkpoint home
-            let mock_home = Arc::get_mut(&mut watcher.core.home).unwrap();
-            mock_home.checkpoint();
-
-            // Checkpoint replicas
-            for replica in watcher.core.replicas.values_mut() {
-                Arc::get_mut(replica).unwrap().checkpoint();
-            }
+            // Checkpoint home and replicas
+            Arc::get_mut(&mut mock_home).unwrap().checkpoint();
+            Arc::get_mut(&mut mock_replica_1).unwrap().checkpoint();
+            Arc::get_mut(&mut mock_replica_2).unwrap().checkpoint();
         })
         .await
     }
