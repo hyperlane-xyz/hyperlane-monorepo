@@ -16,7 +16,11 @@ export const chainJson: ChainJson = {
   rpc,
   deployerKey: process.env.AVALANCHE_DEPLOYER_KEY,
   domain: 0x61766178, // b'avax' interpreted as an int
-  gasPrice: BigNumber.from(225_000_000_000),
+  // This isn't actually used because Avalanche supports EIP 1559 - but just in case
+  gasPrice: BigNumber.from(225_000_000_000), // 225 nAVAX (225 gwei)
+  // EIP 1559 params
+  maxFeePerGas: '225000000000', // 225 nAVAX (225 gwei)
+  maxPriorityFeePerGas: '4000000000', // 4 nAVAX (4 gwei)
 };
 
 export const chain = toChain(chainJson);

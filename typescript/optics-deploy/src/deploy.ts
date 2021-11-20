@@ -70,7 +70,7 @@ export abstract class Deploy<T extends Contracts> {
   }
 
   get supports1559(): boolean {
-    let notSupported = ['kovan', 'alfajores', 'baklava', 'celo', 'avalanche', 'polygon'];
+    let notSupported = ['kovan', 'alfajores', 'baklava', 'celo', 'polygon'];
     return notSupported.indexOf(this.chain.name) === -1;
   }
 
