@@ -613,6 +613,11 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   // relinquish control of all chains
   await Promise.all(deploys.map(relinquish));
 
+  // write config outputs
+  if (!isTestDeploy) {
+    writeDeployOutput(deploys);
+  }
+
   // checks deploys are correct
   const govDomain = deploys[0].chain.domain;
   for (var i = 0; i < deploys.length; i++) {
@@ -623,11 +628,6 @@ export async function deployNChains(deploys: CoreDeploy[]) {
         return domain != localDomain;
       });
     await checkCoreDeploy(deploys[i], remoteDomains, govDomain);
-  }
-
-  // write config outputs
-  if (!isTestDeploy) {
-    writeDeployOutput(deploys);
   }
 }
 
