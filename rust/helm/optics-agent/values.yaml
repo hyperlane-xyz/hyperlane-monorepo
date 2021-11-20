@@ -1,7 +1,7 @@
 image:
   repository: gcr.io/clabs-optics/optics-agent
   pullPolicy: Always
-  tag: "latest"
+  tag: staging-community
 
 imagePullSecrets: []
 nameOverride: ""
@@ -26,9 +26,9 @@ storage:
 #       they are not baked into the image for security reasons.
 optics:
   # Sets the config folder to use
-  runEnv: "default"
+  runEnv: "staging-community"
   # Sets the base config to be used (switch between Homes)
-  baseConfig: "base.json"
+  baseConfig: "kovan_config.json"
   # Set the DB location to be the volume
   dbPath: /usr/share/optics
   rustBacktrace: full
@@ -50,10 +50,10 @@ optics:
     rpcStyle: # "ethereum"
     connectionType: # "http"
     # -- Connection string pointing to an RPC endpoint for the home chain
-    connectionUrl: # "https://kovan.infura.io/v3/<KEY>"
+    connectionUrl: "https://kovan.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161" # "https://kovan.infura.io/v3/<KEY>"
   aws:
-    # accessKeyId: ""
-    # secretAccessKey: ""
+    accessKeyId: "AKIATRTUR2LSGMB3RXEK"
+    secretAccessKey: "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"
 
   # -- Replica chain overrides, a sequence
   replicaChains:
@@ -64,12 +64,16 @@ optics:
       rpcStyle: # "ethereum"
       connectionType: # "http"
       # -- Connection string pointing to an RPC endpoint for the replica chain
-      connectionUrl: # "https://alfajores-forno.celo-testnet.org"
+      connectionUrl: "https://alfajores-forno.celo-testnet.org"
+    - name: "gorli"
+      connectionUrl: "https://rpc.goerli.mudit.blog/"
+    - name: ropsten
+      connectionUrl: "https://ropsten.infura.io/v3/9aa3d95b3bc440fa88ea12eaa4456161"
 
   # Optics Agent Roles
   # Individually Switchable via <role>.enabled
   updater:
-    enabled: false
+    enabled: true
     podAnnotations: {}
     podLabels: {}
     storage:
@@ -81,27 +85,32 @@ optics:
     # -- Transaction Signing keys for home and replica(s)
     transactionSigners:
       - name: "kovan"
-        hexKey: ""
         aws:
-          keyId: ""
-          region: ""
+          keyId: "alias/staging-community-kovan-updater-attestation"
+          region: "us-west-2"
       - name: "alfajores"
-        hexKey: ""
         aws:
-          keyId: ""
-          region: ""
+          keyId: "alias/staging-community-kovan-updater-attestation"
+          region: "us-west-2"
+      - name: "gorli"
+        aws:
+          keyId: "alias/staging-community-kovan-updater-attestation"
+          region: "us-west-2"
+      - name: "ropsten"
+        aws:
+          keyId: "alias/staging-community-kovan-updater-attestation"
+          region: "us-west-2"
     # -- Specialized key used by updater and watcher used to sign attestations, separate from updater.transactionSigners
     attestationSigner:
-      hexKey: ""
       aws:
-        keyId: ""
-        region: ""
+        keyId: "alias/staging-community-kovan-updater-signer"
+        region: "us-west-2"
     # -- How long to wait between checking for updates
-    pollingInterval: # 5
-    updatePause: # 15
+    pollingInterval: 5 # 5
+    updatePause: 15 # 15
 
   relayer:
-    enabled: false
+    enabled: true
     podAnnotations: {}
     podLabels: {}
     storage:
@@ -112,19 +121,25 @@ optics:
     resources: {}
     transactionSigners:
       - name: "kovan"
-        hexKey: ""
         aws:
-          keyId: ""
-          region: ""
+          keyId: "alias/staging-community-kovan-relayer-signer"
+          region: "us-west-2"
       - name: "alfajores"
-        hexKey: ""
         aws:
-          keyId: ""
-          region: ""
+          keyId: "alias/staging-community-kovan-relayer-signer"
+          region: "us-west-2"
+      - name: "ropsten"
+        aws:
+          keyId: "alias/staging-community-kovan-relayer-signer"
+          region: "us-west-2"
+      - name: "gorli"
+        aws:
+          keyId: "alias/staging-community-kovan-relayer-signer"
+          region: "us-west-2"
     pollingInterval: # 10
 
   processor:
-    enabled: false
+    enabled: true
     podAnnotations: {}
     podLabels: {}
     storage:
@@ -135,15 +150,21 @@ optics:
     resources: {}
     transactionSigners:
       - name: "kovan"
-        hexKey: ""
         aws:
-          keyId: ""
-          region: ""
+          keyId: "alias/staging-community-kovan-processor-signer"
+          region: "us-west-2"
       - name: "alfajores"
-        hexKey: ""
         aws:
-          keyId: ""
-          region: ""
+          keyId: "alias/staging-community-kovan-processor-signer"
+          region: "us-west-2"
+      - name: "ropsten"
+        aws:
+          keyId: "alias/staging-community-kovan-processor-signer"
+          region: "us-west-2"
+      - name: "gorli"
+        aws:
+          keyId: "alias/staging-community-kovan-processor-signer"
+          region: "us-west-2"
     pollingInterval: # 10
 
   kathy:
@@ -161,12 +182,12 @@ optics:
         hexKey: ""
         aws:
           keyId: ""
-          region: ""
+          region: "us-west-2"
       - name: "alfajores"
         hexKey: ""
         aws:
           keyId: ""
-          region: ""
+          region: "us-west-2"
     # Polling Interval Override
     messageInterval: # 100
     # -- Configuration for Kathy's message generation code

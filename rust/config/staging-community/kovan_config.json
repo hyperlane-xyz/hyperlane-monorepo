@@ -1,5 +1,9 @@
 {
   "environment": "staging-community",
+  "index": {
+    "from": "25000000",
+    "chunk": "2000"
+  },
   "signers": {
     "kovan": {
       "key": "",
