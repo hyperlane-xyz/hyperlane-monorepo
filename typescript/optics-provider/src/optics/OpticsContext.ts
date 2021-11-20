@@ -10,6 +10,7 @@ import {
   mainnetDomains,
   OpticsDomain,
   stagingDomains,
+  stagingCommunityDomains
 } from './domains';
 import { TransferMessage } from './messages';
 import { hexlify } from '@ethersproject/bytes';
@@ -472,3 +473,4 @@ export class OpticsContext extends MultiProvider {
 export const mainnet = OpticsContext.fromDomains(mainnetDomains);
 export const dev = OpticsContext.fromDomains(devDomains);
 export const staging = OpticsContext.fromDomains(stagingDomains);
+export const stagingCommunity = OpticsContext.fromDomains(stagingCommunityDomains)
