@@ -1,0 +1,68 @@
+{
+  "environment": "staging-community",
+  "signers": {
+    "ropsten": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "gorli": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "kovan": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "alfajores": {
+      "key": "",
+      "type": "hexKey"
+    }
+  },
+  "replicas": {
+    "gorli": {
+      "address": "0xC9e581Cd4fF6533f5ccBA4Dc5d5f642B8b658B93",
+      "domain": "5",
+      "name": "gorli",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "kovan": {
+      "address": "0x15C1edbf6E6161d50d58682dF7587F0d61db5C38",
+      "domain": "3000",
+      "name": "kovan",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "alfajores": {
+      "address": "0xC9e581Cd4fF6533f5ccBA4Dc5d5f642B8b658B93",
+      "domain": "1000",
+      "name": "alfajores",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    }
+  },
+  "home": {
+    "address": "0x7E26E170dB94E81979927d2D39CB703048Ad599D",
+    "domain": "3",
+    "name": "ropsten",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path"
+}

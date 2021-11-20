@@ -34,17 +34,27 @@ logger = logging.getLogger("kms_provisioner")
 logger.setLevel(logging.DEBUG)
 
 # Agent Keys
+# agent_keys = {
+#     "staging": [
+#         "watcher-signer",
+#         "watcher-attestation",
+#         "updater-signer",
+#         "updater-attestation",
+#         "processor-signer",
+#         "relayer-signer",
+#         "kathy-signer"
+#     ],
+#     "production": [
+#         "watcher-signer",
+#         "watcher-attestation",
+#         "updater-signer",
+#         "updater-attestation",
+#         "processor-signer",
+#         "relayer-signer",
+#     ]
+# }
 agent_keys = {
-    "staging": [
-        "watcher-signer",
-        "watcher-attestation",
-        "updater-signer",
-        "updater-attestation",
-        "processor-signer",
-        "relayer-signer",
-        "kathy-signer"
-    ],
-    "production": [
+    "staging-community": [
         "watcher-signer",
         "watcher-attestation",
         "updater-signer",
@@ -55,22 +65,29 @@ agent_keys = {
 }
 
 networks = {
-    "production": [
-        "celo",
-        "ethereum",
-        "polygon"
-    ],
-    "staging": [
+    "staging-community": [
         "alfajores",
         "kovan",
-        "rinkeby"
+        "ropsten",
+        "gorli"
     ]
+    # "production": [
+    #     "celo",
+    #     "ethereum",
+    #     "polygon"
+    # ],
+    # "staging": [
+    #     "alfajores",
+    #     "kovan",
+    #     "rinkeby"
+    # ]
 }
 
 # nAgentKeys * nEnvironments
 environments = [
-    "staging",
-    "production"
+    # "staging",
+    # "production"
+    "staging-community"
 ]
 
 # AWS Region where we should provison keys

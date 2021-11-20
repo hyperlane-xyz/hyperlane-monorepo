@@ -4,7 +4,7 @@ import { NonceManager } from '@ethersproject/experimental';
 import { ProxyAddresses } from './proxyUtils';
 
 type Address = string;
-export type DeployEnvironment = 'dev' | 'staging' | 'prod';
+export type DeployEnvironment = 'dev' | 'staging' | 'prod' | 'staging-community';
 
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;

@@ -44,6 +44,17 @@ export const stagingConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
+export const stagingCommunityConfig: CoreConfig = {
+  environment: 'staging-community',
+  updater: '0xED576b49c3bD42862340e21a7A0AcCA3814bfE18',
+  watchers: ['0x5830e4a749e0eAEF5955069f12B37Fd82C234c23'],
+  recoveryManager: '0xED576b49c3bD42862340e21a7A0AcCA3814bfE18',
+  optimisticSeconds: 10,
+  recoveryTimelock: 180,
+  processGas: 850_000,
+  reserveGas: 15_000,
+};
+
 export const bridgeConfig: BridgeConfig = {
   weth: '0xd0a1e359811322d97991e03f863a0c30c2cf029c',
 };
