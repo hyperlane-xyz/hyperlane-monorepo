@@ -629,6 +629,11 @@ export async function deployNChains(deploys: CoreDeploy[]) {
       });
     await checkCoreDeploy(deploys[i], remoteDomains, govDomain);
   }
+
+  // write config outputs again, should write under a different dir
+  if (!isTestDeploy) {
+    writeDeployOutput(deploys);
+  }
 }
 
 /**
