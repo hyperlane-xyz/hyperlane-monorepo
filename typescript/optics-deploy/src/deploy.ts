@@ -82,6 +82,7 @@ export abstract class Deploy<T extends Contracts> {
       overrides = {
         maxFeePerGas: this.chain.maxFeePerGas,
         maxPriorityFeePerGas: this.chain.maxPriorityFeePerGas,
+        gasLimit: this.chain.gasLimit,
       };
     } else {
       overrides = {
