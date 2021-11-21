@@ -15,8 +15,11 @@ export const chainJson: ChainJson = {
   rpc,
   deployerKey: process.env.ETHEREUM_DEPLOYER_KEY,
   domain: 0x657468, // b'eth' interpreted as an int
-  // TODO
-  gasPrice: '400000000000',
+  // This isn't actually used because Ethereum supports EIP 1559 - but just in case
+  gasPrice: '400000000000', // 400 gwei
+  // EIP 1559 params
+  maxFeePerGas: '400000000000', // 400 gwei
+  maxPriorityFeePerGas: '4000000000', // 4 gwei
 };
 
 export const chain = toChain(chainJson);

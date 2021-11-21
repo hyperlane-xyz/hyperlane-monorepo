@@ -143,7 +143,7 @@ export async function deployGovernanceRouter(deploy: CoreDeploy) {
 
   let { xAppConnectionManager } = deploy.contracts;
   const recoveryManager = deploy.config.recoveryManager;
-  const recoveryTimelock = 1;
+  const recoveryTimelock = deploy.config.recoveryTimelock;
 
   let initData = governanceRouter
     .createInterface()
