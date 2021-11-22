@@ -20,7 +20,7 @@ export const chainJson: ChainJson = {
   gasPrice: BigNumber.from(225_000_000_000), // 225 nAVAX (225 gwei)
   // EIP 1559 params
   maxFeePerGas: '225000000000', // 225 nAVAX (225 gwei)
-  maxPriorityFeePerGas: '4000000000', // 4 nAVAX (4 gwei)
+  maxPriorityFeePerGas: '10000000000', // 10 nAVAX (10 gwei)
 };
 
 export const chain = toChain(chainJson);
