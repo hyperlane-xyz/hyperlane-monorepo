@@ -1,5 +1,9 @@
 {
   "environment": "prod-community",
+  "index": {
+    "from": "9712249",
+    "chunk": "2000"
+  },
   "signers": {
     "celo": {
       "key": "",
