@@ -15,4 +15,4 @@ const ethereumDeploy = new CoreDeploy(ethereum.chain, ethereumConfig);
 const polygonDeploy = new CoreDeploy(polygon.chain, polygonConfig);
 const avalancheDeploy = new CoreDeploy(avalanche.chain, avalancheConfig);
 
-deployNChains([celoDeploy, ethereumDeploy, polygonDeploy, avalancheDeploy]);
+deployNChains([celoDeploy, polygonDeploy, avalancheDeploy, ethereumDeploy]);
