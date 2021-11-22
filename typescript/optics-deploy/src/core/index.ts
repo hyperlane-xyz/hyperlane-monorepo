@@ -569,12 +569,10 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   ]);
   log(isTestDeploy, 'done readying');
 
-  // deploy optics on each chain
-  await Promise.all(
-    deploys.map(async (deploy) => {
-      await deployOptics(deploy);
-    }),
-  );
+  // Do it sequentially
+  for (const deploy of deploys) {
+    await deployOptics(deploy)
+  }
 
   // enroll remotes on every chain
   //

@@ -15,6 +15,7 @@ export const chainJson: ChainJson = {
   rpc,
   deployerKey: process.env.POLYGON_DEPLOYER_KEY,
   domain: 0x706f6c79, // b'poly' interpreted as an int
+  gasPrice: '60000000000' // 60 gwei
 };
 
 export const chain = toChain(chainJson);
