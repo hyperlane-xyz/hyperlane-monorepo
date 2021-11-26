@@ -31,6 +31,7 @@ export const config: CoreConfig = {
   recoveryManager: '0x2bb2a5a724170357cb691841f40d26a950d8c33d',
   optimisticSeconds: 60 * 30, // 30 minutes
   watchers: ['0xD0D09d9CF712ccE87141Dfa22a3aBBDb7B1c296e'],
+  // governor: {},
   processGas: 850_000,
   reserveGas: 15_000,
 };
