@@ -1,5 +1,9 @@
 {
   "environment": "prod-community",
+  "index": {
+    "from": "19657100",
+    "chunk": "2000"
+  },
   "signers": {
     "polygon": {
       "key": "",
