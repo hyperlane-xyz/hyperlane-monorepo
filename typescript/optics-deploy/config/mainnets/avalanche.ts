@@ -29,7 +29,7 @@ export const config: CoreConfig = {
   environment: 'prod-community',
   updater: '0x6e29236E86a039F8225834F7E7cd4122dc166e51',
   recoveryTimelock: 60 * 60 * 24 * 14, // 14 days
-  recoveryManager: '0x3D9330014952Bf0A3863FEB7a657bfFA5C9D40B9',
+  recoveryManager: '0x8a11d528d12ea09ccbf86e21B7813812b53a6900',
   optimisticSeconds: 60 * 30, // 30 minutes
   watchers: ['0x74C1580f920E4d694502Ca95838d6382caecb1dE'],
   // governor: {},
