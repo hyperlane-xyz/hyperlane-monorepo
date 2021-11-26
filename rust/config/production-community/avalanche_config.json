@@ -1,9 +1,5 @@
 {
   "environment": "prod-community",
-  "index": {
-    "from": "6765067",
-    "chunk": "2000"
-  },
   "signers": {
     "avalanche": {
       "key": "",
@@ -24,7 +20,7 @@
   },
   "replicas": {
     "celo": {
-      "address": "0xe77E82E51E4dad7985A7F284daEE79fCe954Ab27",
+      "address": "0x2784a755690453035f32Ac5e28c52524d127AfE2",
       "domain": "1667591279",
       "name": "celo",
       "rpcStyle": "ethereum",
@@ -34,7 +30,7 @@
       }
     },
     "polygon": {
-      "address": "0x4786682D0c9aB0217497A620125AD2888684c676",
+      "address": "0xfde0a96468ae91B4E13794E1B8e5B222E7Db6a23",
       "domain": "1886350457",
       "name": "polygon",
       "rpcStyle": "ethereum",
@@ -44,7 +40,7 @@
       }
     },
     "ethereum": {
-      "address": "0x5Bb837223780A03b8A01b5B12662A46E52EB6815",
+      "address": "0xaa099aF87ACE9E437b9B410a687F263eeaeC4321",
       "domain": "6648936",
       "name": "ethereum",
       "rpcStyle": "ethereum",
@@ -55,7 +51,7 @@
     }
   },
   "home": {
-    "address": "0x646Ae94fb5227027De724bACC3B19bfF92E0E509",
+    "address": "0x101a39eA1143cb252fc8093847399046fc35Db89",
     "domain": "1635148152",
     "name": "avalanche",
     "rpcStyle": "ethereum",
