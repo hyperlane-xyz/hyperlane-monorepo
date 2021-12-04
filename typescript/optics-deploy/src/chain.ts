@@ -15,6 +15,10 @@ export type CoreContractAddresses = {
   replicas?: Record<string, ProxyAddresses>;
 };
 
+export type BridgeContractAddresses = {
+  bridgeRouter: ProxyAddresses
+}
+
 export type CoreDeployAddresses = CoreContractAddresses & {
   recoveryManager: Address;
   updater: Address;

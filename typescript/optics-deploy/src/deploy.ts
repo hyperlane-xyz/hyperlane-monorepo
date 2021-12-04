@@ -23,6 +23,10 @@ type BridgeRouterName =
   | 'BridgeRouter UpgradeBeacon'
   | 'BridgeRouter Proxy'
   | 'BridgeRouter Implementation';
+type FundraiseRouterName =
+  | 'FundraiseRouter UpgradeBeacon'
+  | 'FundraiseRouter Proxy'
+  | 'FundraiseRouter Implementation';
 
 export type ContractVerificationName =
   | XAppConnectionName
@@ -33,7 +37,8 @@ export type ContractVerificationName =
   | GovernanceName
   | EthHelperName
   | BridgeTokenName
-  | BridgeRouterName;
+  | BridgeRouterName
+  | FundraiseRouterName;
 
 export type ContractVerificationInput = {
   name: ContractVerificationName;
