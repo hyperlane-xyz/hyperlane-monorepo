@@ -8,9 +8,11 @@ import { IERC20Mintable } from "../../interfaces/bridge/IERC20Mintable.sol";
 
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Version0} from "@celo-org/optics-sol/contracts/Version0.sol";
+
 contract MintableERC20 is Version0, ERC20, OwnableUpgradeable, IERC20Mintable {
-    function initialize() public initializer {
+    function initialize(address _owner) public initializer {
         __Ownable_init();
+        transferOwnership(_owner);
     }
 
     // ============ External Functions ============

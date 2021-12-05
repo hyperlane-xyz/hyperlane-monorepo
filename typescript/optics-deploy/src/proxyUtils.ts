@@ -13,7 +13,8 @@ type ProxyNames =
   | 'Governance'
   | 'BridgeToken'
   | 'BridgeRouter'
-  | 'FundraiseRouter';
+  | 'FundraiseRouter'
+  | 'FundraiseGovernanceToken';
 
 export class BeaconProxy<T extends ethers.Contract> {
   implementation: T;

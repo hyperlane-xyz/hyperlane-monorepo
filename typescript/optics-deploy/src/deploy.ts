@@ -27,6 +27,10 @@ type FundraiseRouterName =
   | 'FundraiseRouter UpgradeBeacon'
   | 'FundraiseRouter Proxy'
   | 'FundraiseRouter Implementation';
+type FundraiseGovernanceTokenName =
+| 'FundraiseGovernanceToken UpgradeBeacon'
+| 'FundraiseGovernanceToken Proxy'
+| 'FundraiseGovernanceToken Implementation';
 
 export type ContractVerificationName =
   | XAppConnectionName
@@ -38,7 +42,8 @@ export type ContractVerificationName =
   | EthHelperName
   | BridgeTokenName
   | BridgeRouterName
-  | FundraiseRouterName;
+  | FundraiseRouterName
+  | FundraiseGovernanceTokenName;
 
 export type ContractVerificationInput = {
   name: ContractVerificationName;

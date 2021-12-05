@@ -72,18 +72,33 @@ export async function deployFundraiseRouters(deploys: Deploy[]) {
 export async function deployFundraiseRouter(deploy: Deploy) {
   console.log(`deploying ${deploy.chain.name} FundraiseRouter`);
 
-  if (deploy.chain.domain === 1000) {
-    
+  if (deploy.chain.domain === 3000) {
+    const governanceTokenInitData =
+    xAppContracts.MintableERC20__factory.createInterface().encodeFunctionData(
+      'initialize',
+      [
+        await deploy.chain.deployer.getAddress()
+      ],
+    );
+    deploy.contracts.governanceToken =
+    await proxyUtils.deployProxy<xAppContracts.MintableERC20>(
+      'FundraiseGovernanceToken',
+      deploy,
+      new xAppContracts.MintableERC20__factory(deploy.chain.deployer),
+      governanceTokenInitData,
+    );
   }
 
+  
   const initData =
     xAppContracts.FundraiseRouter__factory.createInterface().encodeFunctionData(
       'initialize',
       [
         deploy.coreContractAddresses.xAppConnectionManager,
         deploy.bridgeContractAddresses.bridgeRouter.proxy,
-        deploy.chain.domain === 1000 ? "0x5503216f0C17C63E7AF99BF8E8F48f869Da26bc7" : "0x0000000000000000000000000000000000000000",
-        1000
+        deploy.chain.domain === 3000 ? "0x5503216f0C17C63E7AF99BF8E8F48f869Da26bc7" : "0x0000000000000000000000000000000000000000",
+        3000,
+        deploy.contracts.governanceToken?.proxy.address || "0x0000000000000000000000000000000000000000"
       ],
     );
 
@@ -99,6 +114,11 @@ export async function deployFundraiseRouter(deploy: Deploy) {
     (await deploy.contracts.fundraiseRouter!.proxy.xAppConnectionManager()) ===
       deploy.coreContractAddresses.xAppConnectionManager,
   );
+
+  if (deploy.chain.domain === 3000) {
+    console.log('Transfer to GovernanceTokenOwnership')
+    await deploy.contracts.governanceToken!.proxy.transferOwnership(deploy.contracts.fundraiseRouter.proxy.address, deploy.overrides)
+  }
 
   console.log(`deployed ${deploy.chain.name} FundraiseRouter`);
 }

@@ -20,6 +20,12 @@ export async function checkFundraiseDeploy(
     }),
   );
 
+  if (deploy.chain.domain === 3000) {
+    const governanceToken = await deploy.contracts.governanceToken?.proxy!;
+    const owner = await governanceToken.owner()
+    expect(owner).to.equal(fundraiseRouter.address)
+  }
+
   // TODO: Fix this
   console.log("AM NOT CHECKING OWNERSHIP")
   // expect(await fundraiseRouter.owner()).to.equal(

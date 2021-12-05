@@ -120,9 +120,9 @@ contract FundraiseRouter is Version0, Router {
         bytes29 _msg = _message.ref(0).mustBeMessage();
         bytes29 _tokenId = _msg.tokenId();
         bytes29 _action = _msg.action();
-        if (_msg.isTransfer()) {
+        if (_action.isTransfer()) {
             _handleTransfer(_tokenId, _action);
-        } else if (_msg.isDeposit()) {
+        } else if (_action.isDeposit()) {
             _handleDeposit(_origin, _tokenId, _action);
         } else {
             require(false, "!valid message type");
