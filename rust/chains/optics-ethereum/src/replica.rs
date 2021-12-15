@@ -129,6 +129,7 @@ where
     domain: u32,
     name: String,
     provider: Arc<M>,
+    manual_processing: Option<bool>,
 }
 
 impl<M> EthereumReplica<M>
@@ -144,12 +145,14 @@ where
             domain,
             address,
         }: &ContractLocator,
+        manual_processing: Option<bool>,
     ) -> Self {
         Self {
             contract: Arc::new(EthereumReplicaInternal::new(address, provider.clone())),
             domain: *domain,
             name: name.to_owned(),
             provider,
+            manual_processing,
         }
     }
 }
@@ -291,5 +294,9 @@ where
 
     async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError> {
         Ok(self.contract.acceptable_root(root.into()).call().await?)
+    }
+
+    async fn manual_processing(&self) -> Option<bool> {
+        self.manual_processing
     }
 }

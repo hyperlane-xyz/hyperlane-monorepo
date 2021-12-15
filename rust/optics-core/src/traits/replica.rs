@@ -50,4 +50,7 @@ pub trait Replica: Common + Send + Sync + std::fmt::Debug {
 
     /// Fetch the confirmation time for a specific root
     async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError>;
+
+    /// Does this replica request manual processing
+    async fn manual_processing(&self) -> Option<bool>;
 }

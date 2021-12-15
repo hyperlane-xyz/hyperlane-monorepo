@@ -74,7 +74,12 @@ boxed_trait!(
     from_height: u32,
     chunk_size: u32
 );
-boxed_trait!(make_replica, EthereumReplica, Replica,);
+boxed_trait!(
+    make_replica,
+    EthereumReplica,
+    Replica,
+    manual_processing: Option<bool>
+);
 boxed_trait!(make_home, EthereumHome, Home,);
 boxed_trait!(
     make_conn_manager,

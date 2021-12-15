@@ -44,6 +44,8 @@ mock! {
         pub fn _message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {}
 
         pub fn _acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError> {}
+
+        pub fn _manual_processing(&self) -> Option<bool> {}
     }
 }
 
@@ -85,6 +87,10 @@ impl Replica for MockReplicaContract {
 
     async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError> {
         self._acceptable_root(root)
+    }
+
+    async fn manual_processing(&self) -> Option<bool> {
+        self._manual_processing()
     }
 }
 

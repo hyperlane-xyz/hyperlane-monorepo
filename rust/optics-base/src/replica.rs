@@ -103,6 +103,10 @@ impl Replica for CachingReplica {
     async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError> {
         self.replica.acceptable_root(root).await
     }
+
+    async fn manual_processing(&self) -> Option<bool> {
+        self.replica.manual_processing().await
+    }
 }
 
 #[async_trait]
@@ -298,6 +302,14 @@ impl Replica for ReplicaVariants {
             ReplicaVariants::Ethereum(replica) => replica.acceptable_root(root).await,
             ReplicaVariants::Mock(mock_replica) => mock_replica.acceptable_root(root).await,
             ReplicaVariants::Other(replica) => replica.acceptable_root(root).await,
+        }
+    }
+
+    async fn manual_processing(&self) -> Option<bool> {
+        match self {
+            ReplicaVariants::Ethereum(replica) => replica.manual_processing().await,
+            ReplicaVariants::Mock(mock_replica) => mock_replica.manual_processing().await,
+            ReplicaVariants::Other(replica) => replica.manual_processing().await,
         }
     }
 }

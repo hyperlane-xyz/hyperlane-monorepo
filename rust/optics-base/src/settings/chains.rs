@@ -41,6 +41,9 @@ pub struct ChainSetup {
     /// Set this key to disable the replica. Does nothing for homes.
     #[serde(default)]
     pub disabled: Option<String>,
+    /// Set this to enable the user to push proofs to replicas directly
+    /// Does nothing for homes
+    pub manual_processing: Option<bool>,
 }
 
 impl ChainSetup {
@@ -75,6 +78,7 @@ impl ChainSetup {
                         address: self.address.parse::<ethers::types::Address>()?.into(),
                     },
                     signer,
+                    self.manual_processing,
                 )
                 .await?,
             )

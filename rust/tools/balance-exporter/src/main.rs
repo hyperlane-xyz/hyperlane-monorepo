@@ -148,6 +148,7 @@ async fn mainnet_works() {
                 }),
                 address: "0xcEc158A719d11005Bd9339865965bed938BEafA3".into(),
                 disabled: None,
+                manual_processing: None,
             }],
         },
         Duration::from_secs(120),

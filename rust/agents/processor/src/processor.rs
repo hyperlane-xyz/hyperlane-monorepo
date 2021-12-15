@@ -238,7 +238,13 @@ impl Replica {
             nonce
         );
 
-        self.process(message, proof).await?;
+        // Don't process the message if the replica is configured for
+        // manual processing and an AWS bucket is set
+        if Some(true) != self.replica.manual_processing().await {
+            //&&
+            //None != &self.config { // TODO (Drew)
+            self.process(message, proof).await?;
+        }
 
         Ok(Flow::Advance)
     }
@@ -250,6 +256,7 @@ impl Replica {
         let status = self.replica.message_status(message.to_leaf()).await?;
 
         match status {
+            // Where the messages are actually sent to the replica on-chain
             MessageStatus::None => {
                 self.replica
                     .prove_and_process(message.as_ref(), &proof)
@@ -425,6 +432,7 @@ impl OpticsAgent for Processor {
             }
 
             // if we have a bucket, add a task to push to it
+            // for users to manually copy and submit to a replica
             if let Some(config) = &self.config {
                 info!(bucket = %config.bucket, "Starting S3 push tasks");
                 tasks.push(
