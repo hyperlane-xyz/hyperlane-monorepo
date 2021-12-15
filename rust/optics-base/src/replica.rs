@@ -104,8 +104,8 @@ impl Replica for CachingReplica {
         self.replica.acceptable_root(root).await
     }
 
-    async fn manual_processing(&self) -> Option<bool> {
-        self.replica.manual_processing().await
+    fn manual_processing(&self) -> Option<bool> {
+        self.replica.manual_processing()
     }
 }
 
@@ -305,11 +305,11 @@ impl Replica for ReplicaVariants {
         }
     }
 
-    async fn manual_processing(&self) -> Option<bool> {
+    fn manual_processing(&self) -> Option<bool> {
         match self {
-            ReplicaVariants::Ethereum(replica) => replica.manual_processing().await,
-            ReplicaVariants::Mock(mock_replica) => mock_replica.manual_processing().await,
-            ReplicaVariants::Other(replica) => replica.manual_processing().await,
+            ReplicaVariants::Ethereum(replica) => replica.manual_processing(),
+            ReplicaVariants::Mock(mock_replica) => mock_replica.manual_processing(),
+            ReplicaVariants::Other(replica) => replica.manual_processing(),
         }
     }
 }

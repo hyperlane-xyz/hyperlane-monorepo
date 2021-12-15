@@ -296,7 +296,7 @@ where
         Ok(self.contract.acceptable_root(root.into()).call().await?)
     }
 
-    async fn manual_processing(&self) -> Option<bool> {
+    fn manual_processing(&self) -> Option<bool> {
         self.manual_processing
     }
 }

@@ -89,7 +89,7 @@ impl Replica for MockReplicaContract {
         self._acceptable_root(root)
     }
 
-    async fn manual_processing(&self) -> Option<bool> {
+    fn manual_processing(&self) -> Option<bool> {
         self._manual_processing()
     }
 }

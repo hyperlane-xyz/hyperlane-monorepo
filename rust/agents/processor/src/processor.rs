@@ -240,7 +240,7 @@ impl Replica {
 
         // Don't process the message if the replica is configured for
         // manual processing and an AWS bucket is set
-        if Some(true) != self.replica.manual_processing().await {
+        if Some(true) != self.replica.manual_processing() {
             //&&
             //None != &self.config { // TODO (Drew)
             self.process(message, proof).await?;

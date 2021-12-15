@@ -52,5 +52,5 @@ pub trait Replica: Common + Send + Sync + std::fmt::Debug {
     async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError>;
 
     /// Does this replica request manual processing
-    async fn manual_processing(&self) -> Option<bool>;
+    fn manual_processing(&self) -> Option<bool>;
 }
