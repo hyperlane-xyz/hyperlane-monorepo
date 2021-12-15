@@ -239,10 +239,8 @@ impl Replica {
         );
 
         // Don't process the message if the replica is configured for
-        // manual processing and an AWS bucket is set
+        // manual processing
         if Some(true) != self.replica.manual_processing() {
-            //&&
-            //None != &self.config { // TODO (Drew)
             self.process(message, proof).await?;
         }
 
@@ -444,6 +442,19 @@ impl OpticsAgent for Processor {
                     )
                     .spawn(),
                 )
+            // If no s3 config is set and there exist replicas that require
+            // manual processing, issue an error
+            } else {
+                for r in self.replicas().values() {
+                    if Some(true) == r.manual_processing() {
+                        info!(
+                            "Message will not be processed for {} as it \
+                               must be processed manually but no S3 bucket \
+                               is set",
+                            r.name()
+                        );
+                    }
+                }
             }
 
             // find the first task to shut down. Then cancel all others

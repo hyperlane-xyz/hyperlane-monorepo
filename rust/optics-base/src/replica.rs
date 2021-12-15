@@ -103,10 +103,6 @@ impl Replica for CachingReplica {
     async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError> {
         self.replica.acceptable_root(root).await
     }
-
-    fn manual_processing(&self) -> Option<bool> {
-        self.replica.manual_processing()
-    }
 }
 
 #[async_trait]
@@ -140,6 +136,10 @@ impl Common for CachingReplica {
         double: &DoubleUpdate,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         self.replica.double_update(double).await
+    }
+
+    fn manual_processing(&self) -> Option<bool> {
+        self.replica.manual_processing()
     }
 }
 
@@ -304,14 +304,6 @@ impl Replica for ReplicaVariants {
             ReplicaVariants::Other(replica) => replica.acceptable_root(root).await,
         }
     }
-
-    fn manual_processing(&self) -> Option<bool> {
-        match self {
-            ReplicaVariants::Ethereum(replica) => replica.manual_processing(),
-            ReplicaVariants::Mock(mock_replica) => mock_replica.manual_processing(),
-            ReplicaVariants::Other(replica) => replica.manual_processing(),
-        }
-    }
 }
 
 #[async_trait]
@@ -373,6 +365,14 @@ impl Common for ReplicaVariants {
             ReplicaVariants::Ethereum(replica) => replica.double_update(double).await,
             ReplicaVariants::Mock(mock_replica) => mock_replica.double_update(double).await,
             ReplicaVariants::Other(replica) => replica.double_update(double).await,
+        }
+    }
+
+    fn manual_processing(&self) -> Option<bool> {
+        match self {
+            ReplicaVariants::Ethereum(replica) => replica.manual_processing(),
+            ReplicaVariants::Mock(mock_replica) => mock_replica.manual_processing(),
+            ReplicaVariants::Other(replica) => replica.manual_processing(),
         }
     }
 }

@@ -61,6 +61,8 @@ mock! {
             &self,
             double: &DoubleUpdate,
         ) -> Result<TxOutcome, ChainCommunicationError> {}
+
+        pub fn _manual_processing(&self) -> Option<bool> {}
     }
 }
 
@@ -135,5 +137,9 @@ impl Common for MockHomeContract {
         double: &DoubleUpdate,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         self._double_update(double)
+    }
+
+    fn manual_processing(&self) -> Option<bool> {
+        self._manual_processing()
     }
 }

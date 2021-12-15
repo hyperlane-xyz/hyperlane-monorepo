@@ -189,6 +189,11 @@ where
         &self.name
     }
 
+    // Messages to homes are not eligible for manual processing
+    fn manual_processing(&self) -> std::option::Option<bool> {
+        Some(false)
+    }
+
     #[tracing::instrument(err, skip(self))]
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
         let receipt_opt = self

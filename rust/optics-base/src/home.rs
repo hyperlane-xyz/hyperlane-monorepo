@@ -163,6 +163,11 @@ impl Common for CachingHome {
         self.home.name()
     }
 
+    // Messages to homes are not eligible for manual processing
+    fn manual_processing(&self) -> std::option::Option<bool> {
+        Some(false)
+    }
+
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
         self.home.status(txid).await
     }
@@ -361,6 +366,14 @@ impl Common for HomeVariants {
             HomeVariants::Ethereum(home) => home.name(),
             HomeVariants::Mock(mock_home) => mock_home.name(),
             HomeVariants::Other(home) => home.name(),
+        }
+    }
+
+    fn manual_processing(&self) -> std::option::Option<bool> {
+        match self {
+            HomeVariants::Ethereum(home) => home.manual_processing(),
+            HomeVariants::Mock(mock_home) => mock_home.manual_processing(),
+            HomeVariants::Other(home) => home.manual_processing(),
         }
     }
 

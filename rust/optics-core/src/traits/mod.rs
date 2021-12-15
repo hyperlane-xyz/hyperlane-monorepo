@@ -113,6 +113,9 @@ pub trait Common: Sync + Send + std::fmt::Debug {
         &self,
         double: &DoubleUpdate,
     ) -> Result<TxOutcome, ChainCommunicationError>;
+
+    /// Does this replica request manual processing
+    fn manual_processing(&self) -> Option<bool>;
 }
 
 /// Interface for retrieving event data emitted by both the home and replica

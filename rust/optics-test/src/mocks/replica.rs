@@ -88,10 +88,6 @@ impl Replica for MockReplicaContract {
     async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError> {
         self._acceptable_root(root)
     }
-
-    fn manual_processing(&self) -> Option<bool> {
-        self._manual_processing()
-    }
 }
 
 #[async_trait]
@@ -125,5 +121,9 @@ impl Common for MockReplicaContract {
         double: &DoubleUpdate,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         self._double_update(double)
+    }
+
+    fn manual_processing(&self) -> Option<bool> {
+        self._manual_processing()
     }
 }

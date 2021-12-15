@@ -166,6 +166,10 @@ where
         &self.name
     }
 
+    fn manual_processing(&self) -> Option<bool> {
+        self.manual_processing
+    }
+
     #[tracing::instrument(err)]
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {
         let receipt_opt = self
@@ -294,9 +298,5 @@ where
 
     async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError> {
         Ok(self.contract.acceptable_root(root.into()).call().await?)
-    }
-
-    fn manual_processing(&self) -> Option<bool> {
-        self.manual_processing
     }
 }
