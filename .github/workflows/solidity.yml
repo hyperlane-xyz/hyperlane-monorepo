@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  install:
+  solidity-install:
     runs-on: ubuntu-latest
 
     steps:
@@ -85,7 +85,7 @@ jobs:
         if: steps.provider-cache.outputs.cache-hit != 'true'
         run: cd ./typescript/optics-provider && npm i
 
-  lint:
+  solidity-lint:
     runs-on: ubuntu-latest
     needs: [install]
 
@@ -115,7 +115,7 @@ jobs:
           cd ../optics-xapps
           npm run lint
 
-  test:
+  solidity-test:
     env:
       ETHERSCAN_API_KEY: ""
 
