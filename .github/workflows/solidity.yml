@@ -114,12 +114,6 @@ jobs:
           npm run lint
           cd ../optics-xapps
           npm run lint
-      
-      # Tests
-      - name: Tests
-        run:
-          cd ./typescript/optics-tests
-          npm run testNoCompile
 
   test:
     env:
