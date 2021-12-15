@@ -135,21 +135,9 @@ if ! git diff-index --quiet HEAD -- ./rust; then
     cargo fmt -- --check
     echo '+cargo clippy -- -D warnings'
     cargo clippy -- -D warnings
-    echo '+cargo test -- -q'
-    cargo test -- -q
     cd ..
 else
     echo "+Skipping rust tests"
-fi
-
-# Test solidity contracts
-if ! git diff-index --quiet HEAD -- ./solidity/optics-core ./solidity/optics-xapps ./typescript/optics-tests ./typescript/optics-deploy; then
-    echo "+Running solidity tests"
-    cd ./typescript/optics-tests
-    npm run testNoCompile
-    cd ../..
-else
-    echo "+Skipping solidity tests"
 fi
 
 # Git add abis if updated
