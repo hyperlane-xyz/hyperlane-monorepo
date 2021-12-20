@@ -24,58 +24,61 @@ function valuesForHome(home: string, agentConfig: AgentConfig, configs: any) {
       repository: agentConfig.dockerImageRepo,
       tag: agentConfig.dockerImageTag,
     },
-    baseConfig: `${home}_config.json`,
-    homeChain: {
-      name: home,
-      connectionUrl: configs[home].rpc
-    },
-    aws: {
-      accessKeyId: agentConfig.awsKeyId,
-      secretAccessKey: agentConfig.awsSecretAccessKey
-    },
-    replicaChains: Object.keys(configs).filter(_ => _ !== home).map(replica => {
-      const replicaConfig = configs[replica]
-      return {
-        name: replica,
-        connectionUrl: replicaConfig.rpc
+    optics: {
+      runEnv: agentConfig.runEnv,
+      baseConfig: `${home}_config.json`,
+      homeChain: {
+        name: home,
+        connectionUrl: configs[home].rpc
+      },
+      aws: {
+        accessKeyId: agentConfig.awsKeyId,
+        secretAccessKey: agentConfig.awsSecretAccessKey
+      },
+      replicaChains: Object.keys(configs).filter(_ => _ !== home).map(replica => {
+        const replicaConfig = configs[replica]
+        return {
+          name: replica,
+          connectionUrl: replicaConfig.rpc
+        }
+      }),
+      updater: {
+        transactionSigners: Object.keys(configs).map((chain) => ({
+          name: configs[chain].name,
+          aws: {
+            // Just on staging
+            keyId: `alias/${agentConfig.runEnv}-${home}-updater-attestation`,
+            region: agentConfig.awsRegion
+          }
+        })),
+        attestationSigner: {
+          aws: {
+            keyId: `alias/${agentConfig.runEnv}-${home}-updater-signer`,
+            region: agentConfig.awsRegion
+          }
+        }
+      },
+      relayer: {
+        transactionSigners: Object.keys(configs).map((chain) => ({
+          name: configs[chain].name,
+          aws: {
+            // Just on staging
+            keyId: `alias/${agentConfig.runEnv}-${home}-relayer-signer`,
+            region: agentConfig.awsRegion
+          }
+        }))
+      },
+      processor: {
+        transactionSigners: Object.keys(configs).map((chain) => ({
+          name: configs[chain].name,
+          aws: {
+            // Just on staging
+            keyId: `alias/${agentConfig.runEnv}-${home}-processor-signer`,
+            region: agentConfig.awsRegion
+          }
+        }))
       }
-    }),
-    updater: {
-      transactionSigners: Object.keys(configs).map((chain) => ({
-        name: configs[chain].name,
-        aws: {
-          // Just on staging
-          keyId: `alias/${agentConfig.runEnv}-${home}-updater-attestation`,
-          region: agentConfig.awsRegion
-        }
-      })),
-      attestationSigner: {
-        aws: {
-          keyId: `alias/${agentConfig.runEnv}-${home}-updater-signer`,
-          region: agentConfig.awsRegion
-        }
-      }
     },
-    relayer: {
-      transactionSigners: Object.keys(configs).map((chain) => ({
-        name: configs[chain].name,
-        aws: {
-          // Just on staging
-          keyId: `alias/${agentConfig.runEnv}-${home}-relayer-signer`,
-          region: agentConfig.awsRegion
-        }
-      }))
-    },
-    processor: {
-      transactionSigners: Object.keys(configs).map((chain) => ({
-        name: configs[chain].name,
-        aws: {
-          // Just on staging
-          keyId: `alias/${agentConfig.runEnv}-${home}-processor-signer`,
-          region: agentConfig.awsRegion
-        }
-      }))
-    }
   }
 }
 
