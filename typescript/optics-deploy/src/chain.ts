@@ -76,6 +76,16 @@ export function toChain(config: ChainJson): Chain {
   };
 }
 
+export function replaceDeployer(chain: Chain, privateKey: string): Chain {
+  const provider = new ethers.providers.JsonRpcProvider(chain.config.rpc);
+  const signer = new ethers.Wallet(privateKey, provider);
+  const deployer = new NonceManager(signer);
+  return {
+    ...chain,
+    deployer
+  }
+}
+
 export type RustSigner = {
   key: string;
   type: string; // TODO

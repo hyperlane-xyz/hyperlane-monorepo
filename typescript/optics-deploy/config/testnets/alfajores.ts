@@ -15,6 +15,7 @@ export const chainJson: ChainJson = {
   rpc,
   deployerKey: process.env.ALFAJORES_DEPLOYER_KEY,
   domain: 1000,
+  confirmations: 1,
 };
 
 export const chain = toChain(chainJson);
