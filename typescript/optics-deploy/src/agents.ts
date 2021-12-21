@@ -26,7 +26,7 @@ interface SecretManagerPersistedKeys {
   environment: string;
 }
 
-enum KEY_ROLE_ENUM {
+export enum KEY_ROLE_ENUM {
   UpdaterAttestation = 'updater-attestation',
   UpdaterSigner = 'updater-signer',
   ProcessorSigner = 'processor-signer',
@@ -251,6 +251,36 @@ function helmifyValues(config: any, prefix?: string): string[] {
     const value = config[key];
     return helmifyValues(value, prefix ? `${prefix}.${key}` : key);
   });
+}
+
+export async function outputAgentEnvVars(
+  home: string,
+  role: KEY_ROLE_ENUM,
+  agentConfig: AgentConfig,
+  configs: AgentChainsConfig
+) {
+  const gcpKeys = await getKeys(agentConfig.environment)
+  const valueDict = await valuesForHome(home, agentConfig, configs);
+
+  const envVars: string[] = []
+
+  // Base vars from config map
+  envVars.push(`BASE_CONFIG=${valueDict.optics.baseConfig}`)
+  envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${valueDict.optics.homeChain.connectionUrl}`)
+  envVars.push(`RUN_ENV=${agentConfig.runEnv}`)
+  valueDict.optics.replicaChains.forEach((replicaChain: any) => {
+    envVars.push(`OPT_BASE_REPLICAS_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${replicaChain.connectionUrl}`)
+  })
+
+  // Signer key
+  Object.keys(configs).forEach(network => {
+    envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(gcpKeys[role].privateKey)}`)
+  })
+
+  if (role.startsWith('updater')) {
+    envVars.push(`OPT_BASE_UPDATER_KEY=${strip0x(gcpKeys[KEY_ROLE_ENUM.UpdaterAttestation].privateKey)}`)
+  }
+  return envVars
 }
 
 export async function runAgentHelmCommand(

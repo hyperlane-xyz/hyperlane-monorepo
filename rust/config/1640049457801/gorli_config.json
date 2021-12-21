@@ -1,5 +1,9 @@
 {
   "environment": "dev",
+  "index": {
+    "from": "4879884",
+    "chunk": "2000"
+  },
   "signers": {
     "gorli": {
       "key": "",

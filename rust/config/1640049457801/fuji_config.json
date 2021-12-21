@@ -1,5 +1,9 @@
 {
   "environment": "dev",
+  "index": {
+    "from": "3485934",
+    "chunk": "2000"
+  },
   "signers": {
     "fuji": {
       "key": "",
