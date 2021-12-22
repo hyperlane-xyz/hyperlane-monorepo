@@ -213,6 +213,7 @@ async function valuesForHome(
           };
         }),
       updater: {
+        enabled: true,
         transactionSigners: Object.keys(configs).map((chain) => ({
           name: configs[chain].name,
           ...credentials(KEY_ROLE_ENUM.UpdaterSigner),
@@ -222,12 +223,14 @@ async function valuesForHome(
         },
       },
       relayer: {
+        enabled: true,
         transactionSigners: Object.keys(configs).map((chain) => ({
           name: configs[chain].name,
           ...credentials(KEY_ROLE_ENUM.RelayerSigner),
         })),
       },
       processor: {
+        enabled: true,
         transactionSigners: Object.keys(configs).map((chain) => ({
           name: configs[chain].name,
           ...credentials(KEY_ROLE_ENUM.ProcessorSigner),
@@ -320,7 +323,7 @@ export async function runKeymasterHelmCommand(
             signer: ensure0x(bankKey.privateKey),
             address: bankKey.address,
           },
-          threshold: 20000000000000000
+          threshold: 200000000000000000
         },
       ];
     }),
