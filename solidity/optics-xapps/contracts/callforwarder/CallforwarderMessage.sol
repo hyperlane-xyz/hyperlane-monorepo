@@ -69,7 +69,7 @@ library CallforwarderMessage {
     }
 
     function getCalls(bytes29 _msg) internal view returns (Call[] memory) {
-        uint8 _numCalls = uint8(_msg.indexUint(2, 1));
+        uint8 _numCalls = uint8(_msg.indexUint(33, 1));
 
         // Skip message prefix
         bytes29 _msgPtr = _msg.slice(
