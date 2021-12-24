@@ -61,7 +61,7 @@ export function getPathToLatestDeployConfig() {
  * */
 function getPathToLatestConfig(
   configPath: string,
-  ignoreFolders = ['development', 'staging', 'mainnet', 'default', 'production-community'],
+  ignoreFolders = ['development', 'staging', 'mainnet', 'default', 'production-community', 'staging-community', '1640380381368'],
 ) {
   // get the names of all non-default config directories within the relative configPath
   let configFolders: string[] = fs
