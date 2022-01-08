@@ -164,7 +164,7 @@ contract Home is
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes memory _messageBody
-    ) external notFailed {
+    ) external virtual notFailed {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // get the next nonce for the destination domain, then increment it
         uint32 _nonce = nonces[_destinationDomain];
