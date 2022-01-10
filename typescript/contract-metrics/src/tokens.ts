@@ -6,12 +6,12 @@ import {
   AnnotatedTokenDeployed,
   TokenDeployedArgs,
   TokenDeployedTypes,
-} from '@optics-xyz/multi-provider/dist/optics/events/bridgeEvents';
+} from 'optics-multi-provider-community/dist/optics/events/bridgeEvents';
 import {
   OpticsContext,
   queryAnnotatedEvents,
-} from '@optics-xyz/multi-provider/dist/optics';
-import { TSContract } from '@optics-xyz/multi-provider/dist/optics/events/fetch';
+} from 'optics-multi-provider-community/dist/optics';
+import { TSContract } from 'optics-multi-provider-community/dist/optics/events/fetch';
 // import { ethers } from 'ethers';
 import { uploadDeployedTokens } from './googleSheets';
 
