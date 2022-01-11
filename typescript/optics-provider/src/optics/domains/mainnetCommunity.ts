@@ -73,6 +73,10 @@ export const polygon: OpticsDomain = {
 export const avalanche: OpticsDomain = {
   name: 'avalanche',
   id: 1635148152, // b'avax' as an int
+  paginate: {
+    blocks: 1000000,
+    from: 6765067,
+  },
   bridgeRouter: '0xB6bB41B1fb8c381b002C405B8abB5D1De0C0abFE',
   ethHelper: '0x4fc16De11deAc71E8b2Db539d82d93BE4b486892',
   home: '0x101a39eA1143cb252fc8093847399046fc35Db89',

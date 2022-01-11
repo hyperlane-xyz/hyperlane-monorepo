@@ -9,7 +9,7 @@ const environment = process.env.ENVIRONMENT ?? 'development'
 let networks = []
 switch (environment) {
   case 'production':
-    networks = ['ethereum', 'celo', 'polygon']
+    networks = ['celo', 'ethereum', 'polygon', 'avalanche']
     break;
 
   default:
@@ -34,6 +34,7 @@ export default {
   celoRpc: process.env.CELO_RPC ?? '',
   ethereumRpc: process.env.ETHEREUM_RPC ?? '',
   polygonRpc: process.env.POLYGON_RPC ?? '',
+  avalancheRpc: process.env.AVALANCHE_RPC ?? '',
   alfajoresRpc: process.env.ALFAJORES_RPC ?? '',
   kovanRpc: process.env.KOVAN_RPC ?? '',
   rinkebyRpc: process.env.RINKEBY_RPC ?? '',

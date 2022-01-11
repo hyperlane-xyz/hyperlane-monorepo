@@ -1,13 +1,13 @@
-import {OpticsContext, OpticsMessage} from '@optics-xyz/multi-provider';
+import {OpticsContext, OpticsMessage} from 'optics-multi-provider-community';
 import * as contexts from "./registerContext";
 import {printStatus} from "./print";
 
 const input: TraceInput[] = [
   {
-    chain: 'kovan',
-    context: contexts.dev,
+    chain: 'celo',
+    context: contexts.mainnetCommunity,
     transactionHash:
-      '0x39322e91cbfe18391f252f063231065adceda35fe8c1ebd2292c98d0a7d10a1f',
+      '0x8104d296ee0eb83c489453a8cc22129be614b8588e940a72e984c3ba7d8edade',
   },
 ];
 

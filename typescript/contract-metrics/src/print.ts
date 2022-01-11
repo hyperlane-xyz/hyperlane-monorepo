@@ -1,5 +1,5 @@
-import {AnnotatedLifecycleEvent, MessageStatus} from "@optics-xyz/multi-provider/dist/optics";
-import {OpticsContext, OpticsStatus} from "@optics-xyz/multi-provider";
+import {AnnotatedLifecycleEvent, MessageStatus} from "optics-multi-provider-community/dist/optics";
+import {OpticsContext, OpticsStatus} from "optics-multi-provider-community";
 import fs from "fs";
 import config from "./config";
 
