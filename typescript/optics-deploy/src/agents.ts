@@ -15,7 +15,7 @@ export interface AgentConfig {
   dockerImageTag: string;
 }
 
-export interface AgentChainsConfig {
+export interface AgentChainConfigs {
   [name: string]: ChainJson;
 }
 
@@ -52,7 +52,7 @@ export enum HelmCommand {
   Upgrade = 'upgrade'
 }
 
-export async function deleteKeysInGCP(environment: string) {
+export async function deleteAgentGCPKeys(environment: string) {
   await Promise.all(
     KEY_ROLES.map(async (role) => {
       await execCmd(
@@ -88,7 +88,7 @@ async function createAgentGCPKey(environment: string, role: string) {
   };
 }
 
-export async function createKeysInGCP(environment: string) {
+export async function createAgentGCPKeys(environment: string) {
   const keys = await Promise.all(
     KEY_ROLES.map((role) => createAgentGCPKey(environment, role)),
   );
@@ -111,7 +111,7 @@ async function getAgentGCPKey(environment: string, role: string) {
   return [role, secret] as [string, SecretManagerPersistedKeys];
 }
 
-async function getKeys(environment: string) {
+async function getAgentGCPKeys(environment: string) {
   const secrets = await Promise.all(
     KEY_ROLES.map((role) => getAgentGCPKey(environment, role)),
   );
@@ -119,7 +119,7 @@ async function getKeys(environment: string) {
 }
 
 // Modifies a Chain configuration with the deployer key pulled from GCP
-export async function updateChainConfigWithKeys(environment: string, chain: Chain) {
+export async function addDeployerGCPKey(environment: string, chain: Chain) {
   const [deployerSecretRaw] = await execCmd(
     `gcloud secrets versions access latest --secret optics-key-${environment}-deployer`,
   );
@@ -128,7 +128,7 @@ export async function updateChainConfigWithKeys(environment: string, chain: Chai
 }
 
 // Modifies a Core configuration with the relevant watcher/updater addresses pulled from GCP
-export async function updateCoreConfigWithKeys(
+export async function addAgentGCPAddresses(
   environment: string,
   config: CoreConfig,
 ) {
@@ -155,22 +155,22 @@ function include(condition: boolean, data: any) {
   return condition ? data : {};
 }
 
-async function valuesForHome(
-  home: string,
+async function helmValuesForChain(
+  chainName: string,
   agentConfig: AgentConfig,
-  configs: AgentChainsConfig,
+  configs: AgentChainConfigs,
 ) {
   let gcpKeys: { [role: string]: SecretManagerPersistedKeys } | undefined =
     undefined;
   try {
-    gcpKeys = await getKeys(agentConfig.environment);
+    gcpKeys = await getAgentGCPKeys(agentConfig.environment);
   } catch (error) {
     if (
       !agentConfig.awsRegion ||
       !agentConfig.awsKeyId ||
       !agentConfig.awsSecretAccessKey
     ) {
-      throw new Error('agents keys are neither in GCP nor in AWS');
+      throw new Error("agents' keys are neither in GCP nor in AWS");
     }
   }
 
@@ -189,7 +189,7 @@ async function valuesForHome(
           : role;
       return {
         aws: {
-          keyId: `alias/${agentConfig.runEnv}-${home}-${adjustedRole}`,
+          keyId: `alias/${agentConfig.runEnv}-${chainName}-${adjustedRole}`,
           region: agentConfig.awsRegion,
         },
       };
@@ -203,10 +203,10 @@ async function valuesForHome(
     },
     optics: {
       runEnv: agentConfig.runEnv,
-      baseConfig: `${home}_config.json`,
+      baseConfig: `${chainName}_config.json`,
       homeChain: {
-        name: home,
-        connectionUrl: configs[home].rpc,
+        name: chainName,
+        connectionUrl: configs[chainName].rpc,
       },
       ...include(!gcpKeys, {
         aws: {
@@ -215,7 +215,7 @@ async function valuesForHome(
         },
       }),
       replicaChains: Object.keys(configs)
-        .filter((_) => _ !== home)
+        .filter((_) => _ !== chainName)
         .map((replica) => {
           const replicaConfig = configs[replica];
           return {
@@ -271,10 +271,10 @@ export async function getAgentEnvVars(
   home: string,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
-  configs: AgentChainsConfig,
+  configs: AgentChainConfigs,
 ) {
-  const gcpKeys = await getKeys(agentConfig.environment);
-  const valueDict = await valuesForHome(home, agentConfig, configs);
+  const gcpKeys = await getAgentGCPKeys(agentConfig.environment);
+  const valueDict = await helmValuesForChain(home, agentConfig, configs);
 
   const envVars: string[] = [];
 
@@ -315,9 +315,9 @@ export async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
   homeConfig: ChainJson,
-  configs: AgentChainsConfig,
+  configs: AgentChainConfigs,
 ) {
-  const valueDict = await valuesForHome(homeConfig.name, agentConfig, configs);
+  const valueDict = await helmValuesForChain(homeConfig.name, agentConfig, configs);
   const values = helmifyValues(valueDict);
   return execCmd(
     `helm ${action} ${
@@ -334,9 +334,9 @@ export async function runAgentHelmCommand(
 export async function runKeymasterHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  configs: AgentChainsConfig,
+  configs: AgentChainConfigs,
 ) {
-  const gcpKeys = await getKeys(agentConfig.environment);
+  const gcpKeys = await getAgentGCPKeys(agentConfig.environment);
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
     networks: mapPairs(configs, (home, chain) => {

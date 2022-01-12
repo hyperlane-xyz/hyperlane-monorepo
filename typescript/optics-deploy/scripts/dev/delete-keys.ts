@@ -1,3 +1,3 @@
-import { deleteKeysInGCP } from "../../src/agents"
+import { deleteAgentGCPKeys } from "../../src/agents"
 
-deleteKeysInGCP('dev').then(console.log).catch(console.error)
+deleteAgentGCPKeys('dev').then(console.log).catch(console.error)
