@@ -1,14 +1,8 @@
-import { BridgeConfig, ExistingBridgeDeploy } from './bridge/BridgeDeploy';
-import { CoreConfig, ExistingCoreDeploy } from './core/CoreDeploy';
-import { Chain } from './chain';
+import { ExistingBridgeDeploy } from './bridge/BridgeDeploy';
+import { ExistingCoreDeploy } from './core/CoreDeploy';
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
-
-interface ExistingDeployConfig {
-  chain: Chain;
-  coreConfig: CoreConfig;
-  bridgeConfig: BridgeConfig;
-}
+import { ExistingDeployConfig } from './config';
 
 export function updateProviderDomain(
   environment: string,

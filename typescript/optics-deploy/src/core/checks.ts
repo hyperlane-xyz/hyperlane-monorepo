@@ -1,10 +1,16 @@
 import { expect } from 'chai';
-import { Contract } from 'ethers';
+import { Contract, ethers } from 'ethers';
 
 import { CoreDeploy as Deploy } from './CoreDeploy';
 import { BridgeDeploy } from '../bridge/BridgeDeploy';
 import { BeaconProxy } from '../proxyUtils';
 import TestBridgeDeploy from '../bridge/TestBridgeDeploy';
+import { UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
+import {
+  assertInvariantViolation,
+  InvariantViolationHandler,
+  InvariantViolationType,
+} from '../checks';
 
 const emptyAddr = '0x' + '00'.repeat(20);
 
@@ -12,6 +18,38 @@ export function assertBeaconProxy(beaconProxy: BeaconProxy<Contract>) {
   expect(beaconProxy.beacon).to.not.be.undefined;
   expect(beaconProxy.proxy).to.not.be.undefined;
   expect(beaconProxy.implementation).to.not.be.undefined;
+}
+
+export async function checkBeaconProxyPointer(
+  domain: number,
+  upgradeBeaconController: UpgradeBeaconController,
+  beaconProxy: BeaconProxy<Contract>,
+  invariantViolationHandler: InvariantViolationHandler,
+) {
+  expect(beaconProxy.beacon).to.not.be.undefined;
+  expect(beaconProxy.proxy).to.not.be.undefined;
+  expect(beaconProxy.implementation).to.not.be.undefined;
+
+  // Assert that the implementation is actually set
+  const provider = beaconProxy.beacon.provider;
+  const storageValue = await provider.getStorageAt(
+    beaconProxy.beacon.address,
+    0,
+  );
+  const onChainImplementationAddress = ethers.utils.getAddress(
+    storageValue.slice(26),
+  );
+
+  if (onChainImplementationAddress != beaconProxy.implementation.address) {
+    invariantViolationHandler({
+      type: InvariantViolationType.ProxyBeacon,
+      domain,
+      upgradeBeaconController,
+      beacon: beaconProxy.beacon,
+      onChainImplementationAddress,
+      configImplementationAddress: beaconProxy.implementation.address,
+    });
+  }
 }
 
 export function checkVerificationInput(
@@ -29,9 +67,16 @@ export async function checkCoreDeploy(
   deploy: Deploy,
   remoteDomains: number[],
   governorDomain: number,
+  invariantViolationHandler: InvariantViolationHandler = assertInvariantViolation,
 ) {
   // Home upgrade setup contracts are defined
   assertBeaconProxy(deploy.contracts.home!);
+  await checkBeaconProxyPointer(
+    deploy.chain.domain,
+    deploy.contracts.upgradeBeaconController!,
+    deploy.contracts.home!,
+    invariantViolationHandler,
+  );
 
   // updaterManager is set on Home
   const updaterManager = await deploy.contracts.home?.proxy.updaterManager();
@@ -39,10 +84,22 @@ export async function checkCoreDeploy(
 
   // GovernanceRouter upgrade setup contracts are defined
   assertBeaconProxy(deploy.contracts.governance!);
+  await checkBeaconProxyPointer(
+    deploy.chain.domain,
+    deploy.contracts.upgradeBeaconController!,
+    deploy.contracts.governance!,
+    invariantViolationHandler,
+  );
 
   for (const domain of remoteDomains) {
     // Replica upgrade setup contracts are defined
     assertBeaconProxy(deploy.contracts.replicas[domain]!);
+    await checkBeaconProxyPointer(
+      deploy.chain.domain,
+      deploy.contracts.upgradeBeaconController!,
+      deploy.contracts.replicas[domain]!,
+      invariantViolationHandler,
+    );
     // governanceRouter for remote domain is registered
     const registeredRouter = await deploy.contracts.governance?.proxy.routers(
       domain,
@@ -53,14 +110,16 @@ export async function checkCoreDeploy(
       await deploy.contracts.xAppConnectionManager?.domainToReplica(domain);
     expect(enrolledReplica).to.not.equal(emptyAddr);
     //watchers have permission in xAppConnectionManager
-    deploy.config.watchers.forEach(async (watcher) => {
-      const watcherPermissions =
-        await deploy.contracts.xAppConnectionManager?.watcherPermission(
-          watcher,
-          domain,
-        );
-      expect(watcherPermissions).to.be.true;
-    });
+    await Promise.all(
+      deploy.config.watchers.map(async (watcher) => {
+        const watcherPermissions =
+          await deploy.contracts.xAppConnectionManager?.watcherPermission(
+            watcher,
+            domain,
+          );
+        expect(watcherPermissions).to.be.true;
+      }),
+    );
   }
 
   if (remoteDomains.length > 0) {

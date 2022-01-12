@@ -131,7 +131,7 @@ export async function addDeployerGCPKey(environment: string, chain: Chain) {
 export async function addAgentGCPAddresses(
   environment: string,
   config: CoreConfig,
-) {
+): Promise<CoreConfig> {
   const [addressesRaw] = await execCmd(
     `gcloud secrets versions access latest --secret optics-key-${environment}-addresses`,
   );

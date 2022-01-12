@@ -10,6 +10,7 @@ import { CoreContracts } from './CoreContracts';
 import { Deploy } from '../deploy';
 import { BigNumberish } from '@ethersproject/bignumber';
 import { readFileSync } from 'fs';
+import { getVerificationInputFromDeploy } from '../verification/readDeployOutput';
 
 type Address = string;
 
@@ -149,5 +150,6 @@ export class ExistingCoreDeploy extends CoreDeploy {
     super(chain, config, test);
     const addresses: CoreDeployAddresses = JSON.parse(readFileSync(`${path}/${chain.name}_contracts.json`) as any as string);
     this.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
+    this.verificationInput = getVerificationInputFromDeploy(path, chain.config.name)
   }
 }
