@@ -33,6 +33,7 @@ export interface ChainJson {
   maxPriorityFeePerGas?: ethers.BigNumberish;
 }
 
+// Why are so many fields present in both Chain and ChainJson?
 export type Chain = {
   name: string;
   provider: ethers.providers.JsonRpcProvider;
@@ -46,6 +47,7 @@ export type Chain = {
   maxPriorityFeePerGas?: ethers.BigNumber;
 };
 
+// Does this need updating?
 export function deployEnvironment(): DeployEnvironment {
   const e = process.env.OPTICS_DEPLOY_ENVIRONMENT;
 

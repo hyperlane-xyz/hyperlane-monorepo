@@ -9,6 +9,7 @@ import {
 import { CoreContracts } from './CoreContracts';
 import { Deploy } from '../deploy';
 import { BigNumberish } from '@ethersproject/bignumber';
+import * as path from "path";
 
 type Address = string;
 
@@ -16,6 +17,7 @@ type Governor = {
   domain: number;
   address: Address;
 };
+
 export type CoreConfig = {
   environment: DeployEnvironment;
   updater: Address;
@@ -140,5 +142,12 @@ export class CoreDeploy extends Deploy<CoreContracts> {
   static freshFromConfig(chainConfig: ChainJson & CoreConfig): CoreDeploy {
     let [chain, config] = CoreDeploy.parseCoreConfig(chainConfig);
     return new CoreDeploy(chain, config);
+  }
+
+  static fromDeployment(directory: string, chain: Chain, config: CoreConfig, test: boolean = false): CoreDeploy {
+    let deploy = new CoreDeploy(chain, config, test);
+    const addresses: CoreDeployAddresses = JSON.parse(fs.readFileSync(path.join(directory, `${chain.name}_contracts.json`)) as any as string);
+    deploy.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
+    return deploy
   }
 }

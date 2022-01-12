@@ -5,6 +5,7 @@ typescript/optics-deploy/.env
 **/.env
 **/tsconfig.tsbuildinfo
 **/tmp.*
+**/*.swp
 
 rust/vendor/
 rust/tmp_db

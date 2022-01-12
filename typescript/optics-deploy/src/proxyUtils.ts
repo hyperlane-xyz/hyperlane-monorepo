@@ -64,7 +64,7 @@ export async function deployProxy<T extends ethers.Contract>(
   // due to nonce ordering
   await proxy.deployTransaction.wait(deploy.chain.confirmations);
 
-  // add UpgradeBeacon to Etherscan verification
+  // add Implementation to Etherscan verification
   deploy.verificationInput.push({
     name: `${name} Implementation`,
     address: implementation!.address,
@@ -120,6 +120,38 @@ export async function duplicate<T extends ethers.Contract>(
     prev.implementation,
     prev.proxy.attach(proxy.address) as T,
     prev.beacon,
+  );
+}
+
+/**
+ * Deploys an Implementation for a given contract and returns a BeaconProxy reflecting the state
+ * if that implementation was adopted.
+ *
+ * @param T - The contract
+ */
+export async function deployImplementation<T extends ethers.Contract>(
+  name: ProxyNames,
+  deploy: Deploy,
+  factory: ethers.ContractFactory,
+  beaconProxy: BeaconProxy<T>,
+  ...deployArgs: any[]
+): Promise<BeaconProxy<T>> {
+  const implementation = await factory.deploy(...deployArgs, deploy.overrides);
+  await implementation.deployTransaction.wait(deploy.chain.confirmations);
+
+  // add Implementation to Etherscan verification
+  deploy.verificationInput.push({
+    name: `${name} Implementation`,
+    address: implementation!.address,
+    constructorArguments: deployArgs,
+  });
+
+  const proxy = factory.connect(beaconProxy.proxy.address, provider);
+  const beacon = deploy.contracts.UpgradeBeacon__factory.connect(beaconProxy.beacon.address, provider);
+  return new BeaconProxy(
+    implementation as T,
+    factory.attach(beaconProxy.proxy.address) as T,
+    beacon,
   );
 }
 
