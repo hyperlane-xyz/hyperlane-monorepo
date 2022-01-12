@@ -4,7 +4,7 @@ import * as gorli from '../../config/testnets/gorli';
 import * as kovan from '../../config/testnets/kovan';
 import * as mumbai from '../../config/testnets/mumbai';
 import * as fuji from '../../config/testnets/fuji';
-import { augmentChain, augmentCoreConfig } from '../../src/agents';
+import { updateChainConfigWithKeys, updateCoreConfigWithKeys } from '../../src/agents';
 import { CoreDeploy } from '../../src/core/CoreDeploy';
 
 let alfajoresConfig = alfajores.devConfig;
@@ -17,24 +17,24 @@ const environment = 'dev';
 
 async function main() {
   const alfajoresDeploy = new CoreDeploy(
-    await augmentChain(environment, alfajores.chain),
-    await augmentCoreConfig(environment, alfajoresConfig)
+    await updateChainConfigWithKeys(environment, alfajores.chain),
+    await updateCoreConfigWithKeys(environment, alfajoresConfig)
   );
   const gorliDeploy = new CoreDeploy(
-    await augmentChain(environment, gorli.chain),
-    await augmentCoreConfig(environment, gorliConfig)
+    await updateChainConfigWithKeys(environment, gorli.chain),
+    await updateCoreConfigWithKeys(environment, gorliConfig)
   );
   const kovanDeploy = new CoreDeploy(
-    await augmentChain(environment, kovan.chain),
-    await augmentCoreConfig(environment, kovanConfig)
+    await updateChainConfigWithKeys(environment, kovan.chain),
+    await updateCoreConfigWithKeys(environment, kovanConfig)
   );
   const mumbaiDeploy = new CoreDeploy(
-    await augmentChain(environment, mumbai.chain),
-    await augmentCoreConfig(environment, mumbaiConfig)
+    await updateChainConfigWithKeys(environment, mumbai.chain),
+    await updateCoreConfigWithKeys(environment, mumbaiConfig)
   );
   const fujiDeploy = new CoreDeploy(
-    await augmentChain(environment, fuji.chain),
-    await augmentCoreConfig(environment, fujiConfig)
+    await updateChainConfigWithKeys(environment, fuji.chain),
+    await updateCoreConfigWithKeys(environment, fujiConfig)
   );
 
   await deployNChains([alfajoresDeploy, mumbaiDeploy, fujiDeploy, gorliDeploy, kovanDeploy]);

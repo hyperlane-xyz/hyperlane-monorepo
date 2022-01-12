@@ -47,6 +47,11 @@ export const KEY_ROLES = [
   'bank',
 ];
 
+export enum HelmCommand {
+  Install = 'install',
+  Upgrade = 'upgrade'
+}
+
 export async function deleteKeysInGCP(environment: string) {
   await Promise.all(
     KEY_ROLES.map(async (role) => {
@@ -60,30 +65,32 @@ export async function deleteKeysInGCP(environment: string) {
   );
 }
 
+async function createAgentGCPKey(environment: string, role: string) {
+  const wallet = Wallet.createRandom();
+  const address = await wallet.getAddress();
+  await writeFile(
+    `optics-key-${environment}-${role}.txt`,
+    JSON.stringify({
+      role,
+      environment,
+      privateKey: wallet.privateKey,
+      address,
+    }),
+  );
+  await execCmd(
+    `gcloud secrets create optics-key-${environment}-${role} --data-file=optics-key-${environment}-${role}.txt --replication-policy=automatic --labels=environment=${environment},role=${role}`,
+  );
+  await rm(`optics-key-${environment}-${role}.txt`);
+  return {
+    role,
+    environment,
+    address,
+  };
+}
+
 export async function createKeysInGCP(environment: string) {
   const keys = await Promise.all(
-    KEY_ROLES.map(async (role) => {
-      const wallet = Wallet.createRandom();
-      const address = await wallet.getAddress();
-      await writeFile(
-        `optics-key-${environment}-${role}.txt`,
-        JSON.stringify({
-          role,
-          environment,
-          privateKey: wallet.privateKey,
-          address,
-        }),
-      );
-      await execCmd(
-        `gcloud secrets create optics-key-${environment}-${role} --data-file=optics-key-${environment}-${role}.txt --replication-policy=automatic --labels=environment=${environment},role=${role}`,
-      );
-      await rm(`optics-key-${environment}-${role}.txt`);
-      return {
-        role,
-        environment,
-        address,
-      };
-    }),
+    KEY_ROLES.map((role) => createAgentGCPKey(environment, role)),
   );
 
   await writeFile(
@@ -96,20 +103,23 @@ export async function createKeysInGCP(environment: string) {
   await rm(`optics-key-${environment}-addresses.txt`);
 }
 
+async function getAgentGCPKey(environment: string, role: string) {
+  const [secretRaw] = await execCmd(
+    `gcloud secrets versions access latest --secret optics-key-${environment}-${role}`,
+  );
+  const secret: SecretManagerPersistedKeys = JSON.parse(secretRaw);
+  return [role, secret] as [string, SecretManagerPersistedKeys];
+}
+
 async function getKeys(environment: string) {
   const secrets = await Promise.all(
-    KEY_ROLES.map(async (role) => {
-      const [secretRaw] = await execCmd(
-        `gcloud secrets versions access latest --secret optics-key-${environment}-${role}`,
-      );
-      const secret: SecretManagerPersistedKeys = JSON.parse(secretRaw);
-      return [role, secret] as [string, SecretManagerPersistedKeys];
-    }),
+    KEY_ROLES.map((role) => getAgentGCPKey(environment, role)),
   );
   return Object.fromEntries(secrets);
 }
 
-export async function augmentChain(environment: string, chain: Chain) {
+// Modifies a Chain configuration with the deployer key pulled from GCP
+export async function updateChainConfigWithKeys(environment: string, chain: Chain) {
   const [deployerSecretRaw] = await execCmd(
     `gcloud secrets versions access latest --secret optics-key-${environment}-deployer`,
   );
@@ -117,7 +127,8 @@ export async function augmentChain(environment: string, chain: Chain) {
   return replaceDeployer(chain, strip0x(deployerSecret));
 }
 
-export async function augmentCoreConfig(
+// Modifies a Core configuration with the relevant watcher/updater addresses pulled from GCP
+export async function updateCoreConfigWithKeys(
   environment: string,
   config: CoreConfig,
 ) {
@@ -147,7 +158,7 @@ function include(condition: boolean, data: any) {
 async function valuesForHome(
   home: string,
   agentConfig: AgentConfig,
-  configs: any,
+  configs: AgentChainsConfig,
 ) {
   let gcpKeys: { [role: string]: SecretManagerPersistedKeys } | undefined =
     undefined;
@@ -167,6 +178,7 @@ async function valuesForHome(
     if (!!gcpKeys) {
       return { hexKey: strip0x(gcpKeys![role].privateKey) };
     } else {
+      // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
       const adjustedRole =
         agentConfig.environment === 'staging-community' &&
         role === KEY_ROLE_ENUM.UpdaterAttestation
@@ -177,7 +189,6 @@ async function valuesForHome(
           : role;
       return {
         aws: {
-          // Just on staging
           keyId: `alias/${agentConfig.runEnv}-${home}-${adjustedRole}`,
           region: agentConfig.awsRegion,
         },
@@ -256,38 +267,52 @@ function helmifyValues(config: any, prefix?: string): string[] {
   });
 }
 
-export async function outputAgentEnvVars(
+export async function getAgentEnvVars(
   home: string,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
-  configs: AgentChainsConfig
+  configs: AgentChainsConfig,
 ) {
-  const gcpKeys = await getKeys(agentConfig.environment)
+  const gcpKeys = await getKeys(agentConfig.environment);
   const valueDict = await valuesForHome(home, agentConfig, configs);
 
-  const envVars: string[] = []
+  const envVars: string[] = [];
 
   // Base vars from config map
-  envVars.push(`BASE_CONFIG=${valueDict.optics.baseConfig}`)
-  envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${valueDict.optics.homeChain.connectionUrl}`)
-  envVars.push(`RUN_ENV=${agentConfig.runEnv}`)
+  envVars.push(`BASE_CONFIG=${valueDict.optics.baseConfig}`);
+  envVars.push(
+    `OPT_BASE_HOME_CONNECTION_URL=${valueDict.optics.homeChain.connectionUrl}`,
+  );
+  envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
   valueDict.optics.replicaChains.forEach((replicaChain: any) => {
-    envVars.push(`OPT_BASE_REPLICAS_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${replicaChain.connectionUrl}`)
-  })
+    envVars.push(
+      `OPT_BASE_REPLICAS_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
+        replicaChain.connectionUrl
+      }`,
+    );
+  });
 
   // Signer key
-  Object.keys(configs).forEach(network => {
-    envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(gcpKeys[role].privateKey)}`)
-  })
+  Object.keys(configs).forEach((network) => {
+    envVars.push(
+      `OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(
+        gcpKeys[role].privateKey,
+      )}`,
+    );
+  });
 
   if (role.startsWith('updater')) {
-    envVars.push(`OPT_BASE_UPDATER_KEY=${strip0x(gcpKeys[KEY_ROLE_ENUM.UpdaterAttestation].privateKey)}`)
+    envVars.push(
+      `OPT_BASE_UPDATER_KEY=${strip0x(
+        gcpKeys[KEY_ROLE_ENUM.UpdaterAttestation].privateKey,
+      )}`,
+    );
   }
-  return envVars
+  return envVars;
 }
 
 export async function runAgentHelmCommand(
-  action: 'install' | 'upgrade',
+  action: HelmCommand,
   agentConfig: AgentConfig,
   homeConfig: ChainJson,
   configs: AgentChainsConfig,
@@ -307,7 +332,7 @@ export async function runAgentHelmCommand(
 }
 
 export async function runKeymasterHelmCommand(
-  action: 'install' | 'upgrade',
+  action: HelmCommand,
   agentConfig: AgentConfig,
   configs: AgentChainsConfig,
 ) {
@@ -323,37 +348,37 @@ export async function runKeymasterHelmCommand(
             signer: ensure0x(bankKey.privateKey),
             address: bankKey.address,
           },
-          threshold: 200000000000000000
+          threshold: 200000000000000000,
         },
       ];
     }),
     homes: mapPairs(configs, (home, chain) => {
-      return [home, {
-        replicas: Object.keys(configs),
-        addresses: Object.fromEntries(KEY_ROLES.filter(_ => _.endsWith('signer')).map(role => [role,gcpKeys[role].address]))
-      }]
-    })
-
+      return [
+        home,
+        {
+          replicas: Object.keys(configs),
+          addresses: Object.fromEntries(
+            KEY_ROLES.filter((_) => _.endsWith('signer')).map((role) => [
+              role,
+              gcpKeys[role].address,
+            ]),
+          ),
+        },
+      ];
+    }),
   };
 
-  await writeFile(
-    `config.json`,
-    JSON.stringify(config),
-  );
+  await writeFile(`config.json`, JSON.stringify(config));
 
   await execCmd(
-    `helm ${action} keymaster-${
-      agentConfig.environment
-    } ../../tools/keymaster/helm/keymaster/ --namespace ${
-      agentConfig.namespace
-    } --set-file keymaster.config=config.json`,
+    `helm ${action} keymaster-${agentConfig.environment} ../../tools/keymaster/helm/keymaster/ --namespace ${agentConfig.namespace} --set-file keymaster.config=config.json`,
     {},
     false,
     true,
   );
 
-  await rm('config.json')
-    return
+  await rm('config.json');
+  return;
 }
 
 function mapPairs<V, R>(

@@ -1,5 +1,5 @@
 import { writeFile } from "fs/promises";
-import { outputAgentEnvVars } from "../../src/agents"
+import { getAgentEnvVars } from "../../src/agents"
 import { agentConfig, configs } from './agentConfig';
 
 async function main() {
@@ -8,7 +8,7 @@ async function main() {
     throw new Error("unknown arguments, usage: cmd network role filePath")
   }
   // @ts-ignore
-  const envVars = await outputAgentEnvVars(args[0], args[1], agentConfig, configs)
+  const envVars = await getAgentEnvVars(args[0], args[1], agentConfig, configs)
 
   await writeFile(args[2], envVars.join('\n'))
 }
