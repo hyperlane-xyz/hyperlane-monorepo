@@ -8,6 +8,7 @@ export interface AllConfigs {
   bridgeConfig: BridgeConfig;
 }
 
+// The accessor is necessary as a network may have multiple core configs
 export function makeAllConfigs<V>(data: V, coreConfigAccessor: (data: V) => CoreConfig) {
   return { ...data, coreConfig: coreConfigAccessor(data) };
 }
