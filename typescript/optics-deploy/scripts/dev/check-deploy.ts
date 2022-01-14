@@ -4,7 +4,7 @@ import * as gorli from '../../config/testnets/gorli';
 import * as fuji from '../../config/testnets/fuji';
 import * as mumbai from '../../config/testnets/mumbai';
 import { checkCoreDeploys, InvariantViolationCollector } from '../../src/checks';
-import { makeExistingDeployConfig } from '../../src/config';
+import { makeAllConfigs } from '../../src/config';
 import { configPath } from './agentConfig';
 
 const governorDomain = alfajores.chain.domain;
@@ -14,11 +14,11 @@ async function check() {
   await checkCoreDeploys(
     configPath,
     await Promise.all([
-      makeExistingDeployConfig(alfajores, (_) => _.devConfig),
-      makeExistingDeployConfig(kovan, (_) => _.devConfig),
-      makeExistingDeployConfig(gorli, (_) => _.devConfig),
-      makeExistingDeployConfig(fuji, (_) => _.devConfig),
-      makeExistingDeployConfig(mumbai, (_) => _.devConfig),
+      makeAllConfigs(alfajores, (_) => _.devConfig),
+      makeAllConfigs(kovan, (_) => _.devConfig),
+      makeAllConfigs(gorli, (_) => _.devConfig),
+      makeAllConfigs(fuji, (_) => _.devConfig),
+      makeAllConfigs(mumbai, (_) => _.devConfig),
     ]),
     governorDomain,
     invariantViolationCollector.handleViolation

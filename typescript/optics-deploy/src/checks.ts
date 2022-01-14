@@ -1,11 +1,11 @@
 import { CoreDeploy } from './core/CoreDeploy';
 import { checkCoreDeploy } from './core/checks';
-import { ExistingDeployConfig } from './config';
+import { AllConfigs } from './config';
 import { UpgradeBeacon, UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
 
 export async function checkCoreDeploys(
   coreDirectory: string,
-  configs: ExistingDeployConfig[],
+  configs: AllConfigs[],
   governorDomain: number,
   invariantViolationHandler: InvariantViolationHandler
 ) {

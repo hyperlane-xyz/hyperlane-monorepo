@@ -2,12 +2,12 @@ import { BridgeConfig } from './bridge/BridgeDeploy';
 import { CoreConfig } from './core/CoreDeploy';
 import { Chain } from './chain';
 
-export interface ExistingDeployConfig {
+export interface AllConfigs {
   chain: Chain;
   coreConfig: CoreConfig;
   bridgeConfig: BridgeConfig;
 }
 
-export function makeExistingDeployConfig<V>(data: V, coreConfigAccessor: (data: V) => CoreConfig) {
+export function makeAllConfigs<V>(data: V, coreConfigAccessor: (data: V) => CoreConfig) {
   return { ...data, coreConfig: coreConfigAccessor(data) };
 }
