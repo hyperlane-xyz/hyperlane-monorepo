@@ -5,8 +5,8 @@ import * as mumbai from '../../config/testnets/mumbai';
 import * as fuji from '../../config/testnets/fuji';
 import { AgentChainConfigs, AgentConfig } from '../../src/agents';
 
-const configFolder = '1e57b03cae16f6506c2ec77d40b9bff3ffc228cf'
-export const configPath = `../../rust/config/${configFolder}`;
+const configDirectory = '1640049457801'
+export const configPath = `../../rust/config/${configDirectory}`;
 
 export const configs: AgentChainConfigs = {
   alfajores: alfajores.chainJson,
@@ -20,7 +20,7 @@ export const configs: AgentChainConfigs = {
 export const agentConfig: AgentConfig = {
   environment: 'dev',
   namespace: 'optics-dev',
-  runEnv: configFolder,
+  runEnv: configDirectory,
   dockerImageRepo: "gcr.io/clabs-optics/optics-agent",
   dockerImageTag: "dev-2021-12-20"
 }

@@ -1,19 +1,19 @@
-import { ExistingCoreDeploy } from './core/CoreDeploy';
+import { CoreDeploy } from './core/CoreDeploy';
 import { checkCoreDeploy } from './core/checks';
 import { ExistingDeployConfig } from './config';
 import { UpgradeBeacon, UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
 
 export async function checkCoreDeploys(
-  path: string,
+  coreDirectory: string,
   configs: ExistingDeployConfig[],
   governorDomain: number,
   invariantViolationHandler: InvariantViolationHandler
 ) {
   const coreDeploys = configs.map(
-    (_) => new ExistingCoreDeploy(path, _.chain, _.coreConfig),
+    (_) => CoreDeploy.fromDirectory(coreDirectory, _.chain, _.coreConfig),
   );
 
-  const checkDeploy = async (deploy: ExistingCoreDeploy) => {
+  const checkDeploy = async (deploy: CoreDeploy) => {
     const remoteDomains = coreDeploys.filter(_ => _.chain.domain !== deploy.chain.domain).map(_ => _.chain.domain)
 
     console.info(`Checking core deploy on ${deploy.chain.name}`)
@@ -24,26 +24,26 @@ export async function checkCoreDeploys(
 }
 
 export enum InvariantViolationType {
-  ProxyBeacon
+  UpgradeBeacon
 }
 
-interface ProxyBeaconInvariantViolation {
+interface UpgradeBeaconInvariantViolation {
   domain: number
   upgradeBeaconController: UpgradeBeaconController,
-  type: InvariantViolationType.ProxyBeacon,
+  type: InvariantViolationType.UpgradeBeacon,
   beacon: UpgradeBeacon,
-  configImplementationAddress: string
-  onChainImplementationAddress: string
+  expectedImplementationAddress: string
+  actualImplementationAddress: string
 }
 
-type InvariantViolation = ProxyBeaconInvariantViolation
+type InvariantViolation = UpgradeBeaconInvariantViolation
 
 export type InvariantViolationHandler = (violation: InvariantViolation) => void
 
 export const assertInvariantViolation = (violation: InvariantViolation) => {
   switch (violation.type) {
-    case InvariantViolationType.ProxyBeacon:
-      throw new Error(`BeaconProxy at ${violation.beacon.address} should point to implementation at ${violation.configImplementationAddress}, instead points to ${violation.onChainImplementationAddress}`)
+    case InvariantViolationType.UpgradeBeacon:
+      throw new Error(`Expected BeaconProxy at address at ${violation.beacon.address} to point to implementation at ${violation.expectedImplementationAddress}, found ${violation.actualImplementationAddress}`)
       break;
     default:
       break;

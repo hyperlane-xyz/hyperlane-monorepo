@@ -42,19 +42,13 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
   ): BridgeDeploy {
     return new BridgeDeploy(toChain(config), {}, coreDeployPath);
   }
-}
 
-export class ExistingBridgeDeploy extends BridgeDeploy {
-  constructor(
-      chain: Chain,
-      config: BridgeConfig,
-      coreDeployPath: string,
-      test: boolean = false,
-      coreContracts?: CoreContractAddresses
-  ) {
-    super(chain, config, coreDeployPath, test, coreContracts);
-    const bridgeConfigPath = getPathToLatestConfig(`${coreDeployPath}/bridge`);
+  static fromDirectory(directory: string, chain: Chain, config: BridgeConfig, test: boolean = false, coreContracts?: CoreContractAddresses
+    ): BridgeDeploy {
+    const deploy = new BridgeDeploy(chain, config, directory, test, coreContracts)
+    const bridgeConfigPath = getPathToLatestConfig(`${directory}/bridge`);
     const addresses: BridgeContractAddresses = JSON.parse(fs.readFileSync(`${bridgeConfigPath}/${chain.name}_contracts.json`) as any as string);
-    this.contracts = BridgeContracts.fromAddresses(addresses, chain.provider);
+    deploy.contracts = BridgeContracts.fromAddresses(addresses, chain.provider);
+    return deploy
   }
 }

@@ -20,15 +20,13 @@ export function assertBeaconProxy(beaconProxy: BeaconProxy<Contract>) {
   expect(beaconProxy.implementation).to.not.be.undefined;
 }
 
-export async function checkBeaconProxyPointer(
+export async function checkBeaconProxyImplementation(
   domain: number,
   upgradeBeaconController: UpgradeBeaconController,
   beaconProxy: BeaconProxy<Contract>,
   invariantViolationHandler: InvariantViolationHandler,
 ) {
-  expect(beaconProxy.beacon).to.not.be.undefined;
-  expect(beaconProxy.proxy).to.not.be.undefined;
-  expect(beaconProxy.implementation).to.not.be.undefined;
+  assertBeaconProxy(beaconProxy)
 
   // Assert that the implementation is actually set
   const provider = beaconProxy.beacon.provider;
@@ -36,18 +34,18 @@ export async function checkBeaconProxyPointer(
     beaconProxy.beacon.address,
     0,
   );
-  const onChainImplementationAddress = ethers.utils.getAddress(
+  const actualImplementationAddress = ethers.utils.getAddress(
     storageValue.slice(26),
   );
 
-  if (onChainImplementationAddress != beaconProxy.implementation.address) {
+  if (actualImplementationAddress != beaconProxy.implementation.address) {
     invariantViolationHandler({
-      type: InvariantViolationType.ProxyBeacon,
+      type: InvariantViolationType.UpgradeBeacon,
       domain,
       upgradeBeaconController,
       beacon: beaconProxy.beacon,
-      onChainImplementationAddress,
-      configImplementationAddress: beaconProxy.implementation.address,
+      actualImplementationAddress,
+      expectedImplementationAddress: beaconProxy.implementation.address,
     });
   }
 }
@@ -70,8 +68,7 @@ export async function checkCoreDeploy(
   invariantViolationHandler: InvariantViolationHandler = assertInvariantViolation,
 ) {
   // Home upgrade setup contracts are defined
-  assertBeaconProxy(deploy.contracts.home!);
-  await checkBeaconProxyPointer(
+  await checkBeaconProxyImplementation(
     deploy.chain.domain,
     deploy.contracts.upgradeBeaconController!,
     deploy.contracts.home!,
@@ -83,8 +80,7 @@ export async function checkCoreDeploy(
   expect(updaterManager).to.equal(deploy.contracts.updaterManager?.address);
 
   // GovernanceRouter upgrade setup contracts are defined
-  assertBeaconProxy(deploy.contracts.governance!);
-  await checkBeaconProxyPointer(
+  await checkBeaconProxyImplementation(
     deploy.chain.domain,
     deploy.contracts.upgradeBeaconController!,
     deploy.contracts.governance!,
@@ -93,8 +89,7 @@ export async function checkCoreDeploy(
 
   for (const domain of remoteDomains) {
     // Replica upgrade setup contracts are defined
-    assertBeaconProxy(deploy.contracts.replicas[domain]!);
-    await checkBeaconProxyPointer(
+    await checkBeaconProxyImplementation(
       deploy.chain.domain,
       deploy.contracts.upgradeBeaconController!,
       deploy.contracts.replicas[domain]!,

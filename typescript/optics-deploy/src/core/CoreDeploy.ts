@@ -11,6 +11,7 @@ import { Deploy } from '../deploy';
 import { BigNumberish } from '@ethersproject/bignumber';
 import { readFileSync } from 'fs';
 import { getVerificationInputFromDeploy } from '../verification/readDeployOutput';
+import path from 'path';
 
 type Address = string;
 
@@ -143,13 +144,12 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     let [chain, config] = CoreDeploy.parseCoreConfig(chainConfig);
     return new CoreDeploy(chain, config);
   }
-}
 
-export class ExistingCoreDeploy extends CoreDeploy {
-  constructor(path:string, chain: Chain, config: CoreConfig, test: boolean = false) {
-    super(chain, config, test);
-    const addresses: CoreDeployAddresses = JSON.parse(readFileSync(`${path}/${chain.name}_contracts.json`) as any as string);
-    this.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
-    this.verificationInput = getVerificationInputFromDeploy(path, chain.config.name)
+  static fromDirectory(directory: string, chain: Chain, config: CoreConfig, test: boolean = false): CoreDeploy {
+    let deploy = new CoreDeploy(chain, config, test);
+    const addresses: CoreDeployAddresses = JSON.parse(readFileSync(path.join(directory, `${chain.name}_contracts.json`)) as any as string);
+    deploy.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
+    deploy.verificationInput = getVerificationInputFromDeploy(path, chain.config.name)
+    return deploy
   }
 }
