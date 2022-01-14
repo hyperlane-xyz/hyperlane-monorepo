@@ -1,5 +1,5 @@
-import {OpticsContext} from '@optics-xyz/multi-provider';
-import {getEvents} from "@optics-xyz/multi-provider/dist/optics/events/fetch";
+import {OpticsContext} from 'optics-multi-provider-community';
+import {getEvents} from "optics-multi-provider-community/dist/optics/events/fetch";
 import * as contexts from "./registerContext";
 import {logMonitorMetrics, writeUnprocessedMessages} from "./print";
 import config from './config';
@@ -35,7 +35,7 @@ async function monitorAll(shouldWrite: boolean) {
   for (let network of config.networks) {
     const origin = network;
     const remotes = config.networks.filter((m) => m != origin);
-    const cont = (config.environment == 'production') ? contexts.mainnet : contexts.dev
+    const cont = (config.environment == 'production') ? contexts.mainnetCommunity : contexts.dev
     try {
       await monitor(cont, origin, remotes, shouldWrite);
     } catch(e){
