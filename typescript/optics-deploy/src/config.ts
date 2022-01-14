@@ -7,3 +7,7 @@ export interface ExistingDeployConfig {
   coreConfig: CoreConfig;
   bridgeConfig: BridgeConfig;
 }
+
+export function makeExistingDeployConfig<V>(data: V, coreConfigAccessor: (data: V) => CoreConfig) {
+  return { ...data, coreConfig: coreConfigAccessor(data) };
+}
