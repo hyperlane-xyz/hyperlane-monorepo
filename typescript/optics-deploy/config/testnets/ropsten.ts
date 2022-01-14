@@ -1,21 +1,24 @@
-import { ChainJson, toChain } from '../../src/chain';
 import * as dotenv from 'dotenv';
+
+import { ChainJson, toChain } from '../../src/chain';
 import { CoreConfig } from '../../src/core/CoreDeploy';
+import { BigNumber } from 'ethers';
 import { BridgeConfig } from '../../src/bridge/BridgeDeploy';
 
 dotenv.config();
 
-const rpc = process.env.ALFAJORES_RPC;
+const rpc = process.env.ROPSTEN_RPC;
 if (!rpc) {
   throw new Error('Missing RPC URI');
 }
 
 export const chainJson: ChainJson = {
-  name: 'alfajores',
+  name: 'ropsten',
   rpc,
-  deployerKey: process.env.ALFAJORES_DEPLOYER_KEY,
-  domain: 1000,
-  confirmations: 1,
+  deployerKey: process.env.ROPSTEN_DEPLOYER_KEY,
+  domain: 3,
+  confirmations: 3,
+  gasPrice: BigNumber.from(10_000_000_000),
 };
 
 export const chain = toChain(chainJson);
@@ -31,26 +34,18 @@ export const devConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-export const stagingConfig: CoreConfig = {
-  environment: 'staging',
-  updater: '0x201dd86063Dc251cA5a576d1b7365C38e5fB4CD5',
-  watchers: ['0x22B2855635154Baa41C306BcA979C8c9a077A180'],
-  recoveryManager: '0x24F6c874F56533d9a1422e85e5C7A806ED11c036',
+
+export const stagingCommunityConfig: CoreConfig = {
+  environment: 'staging-community',
+  updater: '0x6f37CaE0b16589FA55152732f2E04f6F0F7dcE97',
+  watchers: ['0x405a8C080Ca64e038554a2B03eA1bdA96DAFA52C'],
+  recoveryManager: '0x6f37CaE0b16589FA55152732f2E04f6F0F7dcE97',
   optimisticSeconds: 10,
   recoveryTimelock: 180,
   processGas: 850_000,
   reserveGas: 15_000,
 };
 
-export const stagingCommunityConfig: CoreConfig = {
-  environment: 'staging-community',
-  updater: '0x075fE802D26a983423caE0a16b8250F155AbeB03',
-  watchers: ['0xC3Ef93917f0d0AC4D70E675824270b290E0a2667'],
-  recoveryManager: '0x075fE802D26a983423caE0a16b8250F155AbeB03',
-  optimisticSeconds: 10,
-  recoveryTimelock: 180,
-  processGas: 850_000,
-  reserveGas: 15_000,
-}
-
-export const bridgeConfig: BridgeConfig = {};
+export const bridgeConfig: BridgeConfig = {
+  weth: '0xc778417E063141139Fce010982780140Aa0cD5Ab',
+};

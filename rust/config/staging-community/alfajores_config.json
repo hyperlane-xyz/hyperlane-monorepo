@@ -1,0 +1,72 @@
+{
+  "environment": "staging-community",
+  "index": {
+    "from": "7712249",
+    "chunk": "2000"
+  },
+  "signers": {
+    "alfajores": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "ropsten": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "gorli": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "kovan": {
+      "key": "",
+      "type": "hexKey"
+    }
+  },
+  "replicas": {
+    "ropsten": {
+      "address": "0x30dAE25E9eBd644841d1A1fF25e303331B1CdEb3",
+      "domain": "3",
+      "name": "ropsten",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "gorli": {
+      "address": "0x15fA9169F7495162ac52b4A7957c9054097Ab0FF",
+      "domain": "5",
+      "name": "gorli",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "kovan": {
+      "address": "0x30dAE25E9eBd644841d1A1fF25e303331B1CdEb3",
+      "domain": "3000",
+      "name": "kovan",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    }
+  },
+  "home": {
+    "address": "0xDf89d5d4039ada018BCDb992Bb6C2e05fEf86328",
+    "domain": "1000",
+    "name": "alfajores",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path"
+}
