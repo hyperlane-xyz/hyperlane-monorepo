@@ -118,6 +118,10 @@ export class CoreContracts extends Contracts {
     return this._governor;
   }
 
+  async newGovernanceBatch(): Promise<CallBatch> {
+    return CallBatch.fromCore(this);
+  }
+
   connect(providerOrSigner: ethers.providers.Provider | ethers.Signer): void {
     this._home = this._home.connect(providerOrSigner);
 

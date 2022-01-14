@@ -26,27 +26,6 @@ export function serializeCall(call: Call): string {
   );
 }
 
-/**
- * Serialize a call array to its packed Optics governance representation
- * @param batch The function calls to serialize
- * @returns The serialized function calls, as a '0x'-prepended hex string
- */
-export function serializeCalls(batch: Call[]): string {
-  return ethers.utils.hexConcat([
-    [batch.length % 256], // 1 byte length of Call array
-    ...batch.map(serializeCall), // each serialized call in turn
-  ]);
-}
-
-/**
- * Calculates the hash commitment to a batch of calls
- * @param batch The function calls to be committed
- * @returns The hash commitment to the calls
- */
-export function batchHash(batch: Call[]): string {
-  return ethers.utils.keccak256(serializeCalls(batch));
-}
-
 export function associateRemotes(
   remoteCalls: Map<number, Call[]>,
 ): [number[], Call[][]] {

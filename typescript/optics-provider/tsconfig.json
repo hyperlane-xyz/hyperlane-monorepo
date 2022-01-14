@@ -12,6 +12,7 @@
     "./src/optics/domains/*.ts",
     "./src/optics/events/*.ts",
     "./src/optics/messages/*.ts",
-    "./src/optics/tokens/*.ts"
+    "./src/optics/tokens/*.ts",
+    "src/nomad/govern/*.ts"
   ]
 }
