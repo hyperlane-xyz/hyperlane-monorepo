@@ -144,7 +144,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     return new CoreDeploy(chain, config);
   }
 
-  static fromDeployment(directory: string, chain: Chain, config: CoreConfig, test: boolean = false): CoreDeploy {
+  static fromDirectory(directory: string, chain: Chain, config: CoreConfig, test: boolean = false): CoreDeploy {
     let deploy = new CoreDeploy(chain, config, test);
     const addresses: CoreDeployAddresses = JSON.parse(fs.readFileSync(path.join(directory, `${chain.name}_contracts.json`)) as any as string);
     deploy.contracts = CoreContracts.fromAddresses(addresses, chain.provider);

@@ -12,6 +12,7 @@ export const alfajores: OpticsDomain = {
       address: '0xB5EB71E40bcAEAD5DDdc7687724f9F155Fd1a7a8',
     },
   ],
+  governanceRouter: '',
 };
 
 export const kovan: OpticsDomain = {
@@ -27,6 +28,7 @@ export const kovan: OpticsDomain = {
       address: '0xC6b39Ac67FBE3e029708390ffea130c8C0E7D30b',
     },
   ],
+  governanceRouter: '',
 };
 
 export const rinkeby: OpticsDomain = {
@@ -42,6 +44,7 @@ export const rinkeby: OpticsDomain = {
       address: '0x72877419567cd7f697A6a5F2f7dF3e07327Ea7B2',
     },
   ],
+  governanceRouter: '',
 };
 
 export const devDomains = [alfajores, kovan, rinkeby];

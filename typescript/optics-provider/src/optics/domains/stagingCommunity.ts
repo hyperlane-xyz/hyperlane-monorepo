@@ -19,6 +19,7 @@ export const alfajores: OpticsDomain = {
       address: '0x4eAD31e37b950B32b9EBbE747f0ef4BffAc336a5',
     },
   ],
+  governanceRouter: '',
 };
 
 export const ropsten: OpticsDomain = {
@@ -41,6 +42,7 @@ export const ropsten: OpticsDomain = {
       address: '0x15C1edbf6E6161d50d58682dF7587F0d61db5C38',
     },
   ],
+  governanceRouter: '',
 };
 
 export const kovan: OpticsDomain = {
@@ -66,25 +68,26 @@ export const kovan: OpticsDomain = {
 };
 
 export const gorli: OpticsDomain = {
-    name: 'gorli',
-    id: 4000,
-    bridgeRouter: '0xe29Abbc3669064d8aF9F6BE378179a133664a92C',
-    ethHelper: '0x9A0e88a3D8CF09F3dc5Ba65640299DE3D87f926C',
-    home: '0xDf89d5d4039ada018BCDb992Bb6C2e05fEf86328',
-    replicas: [
-      {
-        domain: 1000, // alfajores
-        address: '0x15fA9169F7495162ac52b4A7957c9054097Ab0FF'
-      },
-      {
-        domain: 2000, // ropsten
-        address: '0xC9e581Cd4fF6533f5ccBA4Dc5d5f642B8b658B93',
-      },
-      {
-        domain: 3000, // kovan
-        address: '0x4eAD31e37b950B32b9EBbE747f0ef4BffAc336a5',
-      },
-    ],
+  name: 'gorli',
+  id: 4000,
+  bridgeRouter: '0xe29Abbc3669064d8aF9F6BE378179a133664a92C',
+  ethHelper: '0x9A0e88a3D8CF09F3dc5Ba65640299DE3D87f926C',
+  home: '0xDf89d5d4039ada018BCDb992Bb6C2e05fEf86328',
+  replicas: [
+    {
+      domain: 1000, // alfajores
+      address: '0x15fA9169F7495162ac52b4A7957c9054097Ab0FF'
+    },
+    {
+      domain: 2000, // ropsten
+      address: '0xC9e581Cd4fF6533f5ccBA4Dc5d5f642B8b658B93',
+    },
+    {
+      domain: 3000, // kovan
+      address: '0x4eAD31e37b950B32b9EBbE747f0ef4BffAc336a5',
+    },
+  ],
+  governanceRouter: '',
 };
 
 export const stagingCommunityDomains = [alfajores, kovan, ropsten, gorli];

@@ -140,6 +140,7 @@ export async function deployImplementation<T extends ethers.Contract>(
   await implementation.deployTransaction.wait(deploy.chain.confirmations);
 
   // add Implementation to Etherscan verification
+  // TODO: This ADDS multiple implementations to the verification info, is that okay?
   deploy.verificationInput.push({
     name: `${name} Implementation`,
     address: implementation!.address,

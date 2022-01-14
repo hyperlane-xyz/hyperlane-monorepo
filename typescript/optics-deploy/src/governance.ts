@@ -29,13 +29,6 @@ function warn(text: string, padded: boolean = false) {
   }
 }
 
-type ContractUpgrade = {
-  domain: number;
-  implementationAddress: Address;
-  upgradeBeaconAddress: Address;
-  ubc: contracts.UpgradeBeaconController;
-};
-
 type ContractCall = {
   domain: number;
   contract: types.Contract;
@@ -64,30 +57,6 @@ export async function toGovernanceMessageCall(call: ContractCall): Promise<Gover
   };
 }
 
-/**
- * Deploys a new home implementation on the chain of the given deploy, updates the deploy instance
- * with the new contract, and writes the data needed to upgrade to that implementation to a file.
- *
- * @param deploy - The deploy instance
- */
-export async function upgradeHome(deploy: CoreDeploy) {
-  const isTestDeploy: boolean = deploy.test;
-  if (isTestDeploy) warn('deploying test Home');
-  const homeFactory = isTestDeploy
-    ? contracts.TestHome__factory
-    : contracts.Home__factory;
-
-  // TODO: consider requiring an upgrade beacon and UBC to be deployed already 
-
-  deploy.contracts.home = await proxyUtils.deployImplementation<contracts.Home>(
-    'Home',
-    deploy,
-    new homeFactory(deploy.deployer),
-    deploy.contracts.home,
-    deploy.chain.domain,
-  );
-}
-
 export async function populateGovernanceTransaction(deploys: CoreDeploy[], call: ContractCall, governorRouter: BeaconProxy<contracts.GovernanceRouter>): Promise<UnsignedTx> {
   const message = await toGovernanceMessageCall(call)
   // Check if the upgrade is happening on the governor chain.
@@ -99,15 +68,16 @@ export async function populateGovernanceTransaction(deploys: CoreDeploy[], call:
   }
 }
 
-export function populateGovernanceUpgrade(deploys: CoreDeploy[], upgrade: Upgrade, governorRouter: BeaconProxy<contracts.GovernanceRouter>): Promise<UnsignedTx> {
-  const call = { 
-    domain: upgrade.domain,
-    contract: upgrade.ubc,
-    functionStr: 'upgrade',
-    functionArgs: [
-      upgrade.upgradeBeaconAddress,
-      upgrade.implementationAddress,
-    ]
-  };
-  return populateGovernanceTransaction(deploys, call, governorRouter)
+/**
+ * Writes unsigned governance transactions to a file. 
+ *
+ * @param txs - The array of unsigned txs.
+ */
+export function writeGovernanceOutput(txs: UnsignedTx[]) {
+  log(deploys[0].test, `Have ${txs.length} txs`);
+  const filename = `governance_${Date.now()}.json`;
+  fs.writeFileSync(
+    filename,
+    JSON.stringify(txs, null, 2),
+  );
 }
