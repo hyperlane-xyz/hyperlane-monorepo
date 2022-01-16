@@ -5,14 +5,14 @@ import * as fuji from '../../config/testnets/fuji';
 import * as mumbai from '../../config/testnets/mumbai';
 import { updateProviderDomain } from '../../src/provider';
 import { configPath } from './agentConfig';
-import { makeExistingDeployConfig } from '../../src/config';
+import { makeAllConfigs } from '../../src/config';
 
 
 updateProviderDomain('dev', configPath, [
-  makeExistingDeployConfig(alfajores, (_) => _.devConfig),
-  makeExistingDeployConfig(kovan, (_) => _.devConfig),
-  makeExistingDeployConfig(gorli, (_) => _.devConfig),
-  makeExistingDeployConfig(fuji, (_) => _.devConfig),
-  makeExistingDeployConfig(mumbai, (_) => _.devConfig),
+  makeAllConfigs(alfajores, (_) => _.devConfig),
+  makeAllConfigs(kovan, (_) => _.devConfig),
+  makeAllConfigs(gorli, (_) => _.devConfig),
+  makeAllConfigs(fuji, (_) => _.devConfig),
+  makeAllConfigs(mumbai, (_) => _.devConfig),
 ]);
 

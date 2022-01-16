@@ -149,7 +149,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     let deploy = new CoreDeploy(chain, config, test);
     const addresses: CoreDeployAddresses = JSON.parse(readFileSync(path.join(directory, `${chain.name}_contracts.json`)) as any as string);
     deploy.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
-    deploy.verificationInput = getVerificationInputFromDeploy(path, chain.config.name)
+    deploy.verificationInput = getVerificationInputFromDeploy(directory, chain.config.name)
     return deploy
   }
 }
