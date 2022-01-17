@@ -227,4 +227,4 @@ jobs:
 
       # Test
       - name: optics-deploy build
-        run: cd ./typescript/optics-deploy && npm build
+        run: cd ./typescript/optics-deploy && npm run build
