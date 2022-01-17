@@ -5,7 +5,7 @@ import * as mumbai from '../../config/testnets/mumbai';
 import * as fuji from '../../config/testnets/fuji';
 import { AgentChainConfigs, AgentConfig } from '../../src/agents';
 
-const configDirectory = '1640049457801'
+const configDirectory = 'dev-community'
 export const configPath = `../../rust/config/${configDirectory}`;
 
 export const configs: AgentChainConfigs = {
