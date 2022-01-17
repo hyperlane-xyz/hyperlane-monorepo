@@ -4,28 +4,36 @@ import * as gorli from '../../config/testnets/gorli';
 import * as kovan from '../../config/testnets/kovan';
 import * as mumbai from '../../config/testnets/mumbai';
 import * as fuji from '../../config/testnets/fuji';
-import { CoreDeploy } from '../../src/core/CoreDeploy';
+import { checkCoreDeploys, InvariantViolationCollector } from '../../src/checks';
+import { configPath } from './agentConfig';
+import { makeAllConfigs } from '../../src/config';
 
-let alfajoresConfig = alfajores.devConfig;
-let gorliConfig = gorli.devConfig;
-let kovanConfig = kovan.devConfig;
-let mumbaiConfig = mumbai.devConfig;
-let fujiConfig = fuji.devConfig;
-
-const alfajoresDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', alfajores.chain, alfajoresConfig)
-const gorliDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', gorli.chain, gorliConfig)
-const kovanDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', kovan.chain, kovanConfig)
-const mumbaiDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', mumbai.chain, mumbaiConfig)
-const fujiDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', fuji.chain, fujiConfig)
-
-const deploys = [alfajoresDeploy, gorliDeploy, kovanDeploy, mumbaiDeploy, fujiDeploy]
 async function main() {
   const governorCore = await devCommunity.governorCore()
   const governorDomain = await devCommunity.governorDomain()
   const governanceMessages = await governorCore.newGovernanceBatch()
-  // Nam gets violations here!
-  for (const violation: UpgradeBeaconInvariantViolation of violations) {
-    const call = await violation.upgradeBeaconController.populateTransaction.upgrade(violation.beacon.address, violation.implementation)
+
+  const invariantViolationCollector = new InvariantViolationCollector()
+  await checkCoreDeploys(
+    configPath,
+    await Promise.all([
+      makeAllConfigs(alfajores, (_) => _.devConfig),
+      makeAllConfigs(kovan, (_) => _.devConfig),
+      makeAllConfigs(gorli, (_) => _.devConfig),
+      makeAllConfigs(fuji, (_) => _.devConfig),
+      makeAllConfigs(mumbai, (_) => _.devConfig),
+    ]),
+    governorDomain,
+    invariantViolationCollector.handleViolation
+  );
+
+  if (invariantViolationCollector.violations.length === 0) {
+    console.info("No violations, exit")
+    return
+  }
+
+  for (const violation of invariantViolationCollector.violations) {
+    const call = await violation.upgradeBeaconController.populateTransaction.upgrade(violation.beacon.address, violation.expectedImplementationAddress)
     if (violation.domain === governorDomain) {
       governanceMessages.pushLocal(call)
     } else {
