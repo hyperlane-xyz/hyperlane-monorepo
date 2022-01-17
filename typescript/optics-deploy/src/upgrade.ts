@@ -1,15 +1,7 @@
-import * as ethers from 'ethers';
-import { assert } from 'console';
-import * as fs from 'fs';
-
 import * as proxyUtils from './proxyUtils';
 import { CoreDeploy } from './core/CoreDeploy';
 import { writeDeployOutput } from './core';
 import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
-import { checkCoreDeploy } from './core/checks';
-import { Call } from '@optics-xyz/multi-provider';
-
-type Address = string;
 
 function log(isTest: boolean, str: string) {
   if (!isTest) {
@@ -52,7 +44,7 @@ export async function deployHomeImplementation(deploy: CoreDeploy) {
     'Home',
     deploy,
     new homeFactory(deploy.deployer),
-    deploy.contracts.home,
+    deploy.contracts.home!,
     deploy.chain.domain,
   );
 }
@@ -110,9 +102,6 @@ export async function deployImplementations(deploys: CoreDeploy[], deployImpleme
   log(isTestDeploy, `Beginning ${deploys.length} Chain deploy process`);
   log(isTestDeploy, `Deploy env is ${deploys[0].config.environment}`);
   log(isTestDeploy, `${deploys[0].chain.name} is governing`);
-
-  const govChain = deploys[0];
-  const nonGovChains = deploys.slice(1);
 
   log(isTestDeploy, 'awaiting provider ready');
   await Promise.all([

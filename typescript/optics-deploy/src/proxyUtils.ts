@@ -145,7 +145,7 @@ export async function deployImplementation<T extends ethers.Contract>(
     address: implementation!.address,
     constructorArguments: deployArgs,
   });
-  return implementation
+  return implementation as T;
 }
 
 /**
@@ -153,14 +153,13 @@ export async function deployImplementation<T extends ethers.Contract>(
  *
  * @param T - The contract
  */
-export async function proxyImplementation<T extends ethers.Contract>(
+export function proxyImplementation<T extends ethers.Contract>(
   implementation: T,
-  deploy: Deploy,
+  deploy: CoreDeploy,
   factory: ethers.ContractFactory,
   beaconProxy: BeaconProxy<T>
 ): BeaconProxy<T> {
-  const proxy = factory.connect(beaconProxy.proxy.address, provider);
-  const beacon = deploy.contracts.UpgradeBeacon__factory.connect(beaconProxy.beacon.address, provider);
+  const beacon = contracts.UpgradeBeacon__factory.connect(beaconProxy.beacon.address, deploy.provider);
   return new BeaconProxy(
     implementation as T,
     factory.attach(beaconProxy.proxy.address) as T,
@@ -170,12 +169,12 @@ export async function proxyImplementation<T extends ethers.Contract>(
 
 export async function deployAndProxyImplementation<T extends ethers.Contract>(
   name: ProxyNames,
-  deploy: Deploy,
+  deploy: CoreDeploy,
   factory: ethers.ContractFactory,
-  beaconProxy: BeaconProxy<T>
+  beaconProxy: BeaconProxy<T>,
   ...deployArgs: any[]
-): Promise<T> {
-  const implementation = await deployImplementation(name, deploy, factory, ...deployArgs)
+): Promise<BeaconProxy<T>> {
+  const implementation: T = await deployImplementation(name, deploy, factory, ...deployArgs)
   return proxyImplementation(implementation, deploy, factory, beaconProxy)
 }
 
