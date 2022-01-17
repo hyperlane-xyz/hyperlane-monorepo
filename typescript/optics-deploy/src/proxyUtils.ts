@@ -124,8 +124,8 @@ export async function duplicate<T extends ethers.Contract>(
 }
 
 /**
- * Deploys an Implementation for a given contract and returns a BeaconProxy reflecting the state
- * if that implementation was adopted.
+ * Deploys an Implementation for a given contract, updates the deploy with the
+ * implementation verification info, and returns the implementation contract.
  *
  * @param T - The contract
  */
@@ -133,9 +133,8 @@ export async function deployImplementation<T extends ethers.Contract>(
   name: ProxyNames,
   deploy: Deploy,
   factory: ethers.ContractFactory,
-  beaconProxy: BeaconProxy<T>,
   ...deployArgs: any[]
-): Promise<BeaconProxy<T>> {
+): Promise<T> {
   const implementation = await factory.deploy(...deployArgs, deploy.overrides);
   await implementation.deployTransaction.wait(deploy.chain.confirmations);
 
@@ -146,7 +145,20 @@ export async function deployImplementation<T extends ethers.Contract>(
     address: implementation!.address,
     constructorArguments: deployArgs,
   });
+  return implementation
+}
 
+/**
+ * Given an existing BeaconProxy, returns a new BeaconProxy with a different implementation.
+ *
+ * @param T - The contract
+ */
+export async function proxyImplementation<T extends ethers.Contract>(
+  implementation: T,
+  deploy: Deploy,
+  factory: ethers.ContractFactory,
+  beaconProxy: BeaconProxy<T>
+): BeaconProxy<T> {
   const proxy = factory.connect(beaconProxy.proxy.address, provider);
   const beacon = deploy.contracts.UpgradeBeacon__factory.connect(beaconProxy.beacon.address, provider);
   return new BeaconProxy(
@@ -154,6 +166,17 @@ export async function deployImplementation<T extends ethers.Contract>(
     factory.attach(beaconProxy.proxy.address) as T,
     beacon,
   );
+}
+
+export async function deployAndProxyImplementation<T extends ethers.Contract>(
+  name: ProxyNames,
+  deploy: Deploy,
+  factory: ethers.ContractFactory,
+  beaconProxy: BeaconProxy<T>
+  ...deployArgs: any[]
+): Promise<T> {
+  const implementation = await deployImplementation(name, deploy, factory, ...deployArgs)
+  return proxyImplementation(implementation, deploy, factory, beaconProxy)
 }
 
 /**

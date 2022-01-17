@@ -3,11 +3,11 @@ import { assert } from 'console';
 import * as fs from 'fs';
 
 import * as proxyUtils from './proxyUtils';
-import { populateGovernanceTransaction } from './governance';
 import { CoreDeploy } from './core/CoreDeploy';
 import { writeDeployOutput } from './core';
 import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
 import { checkCoreDeploy } from './core/checks';
+import { Call } from '@optics-xyz/multi-provider';
 
 type Address = string;
 
@@ -32,26 +32,6 @@ function warn(text: string, padded: boolean = false) {
   }
 }
 
-type ContractUpgrade = {
-  domain: number;
-  implementationAddress: Address;
-  upgradeBeaconAddress: Address;
-  ubc: contracts.UpgradeBeaconController;
-};
-
-export function populateGovernanceUpgrade(deploys: CoreDeploy[], upgrade: ContractUpgrade, governorRouter: proxyUtils.BeaconProxy<contracts.GovernanceRouter>): Promise<ethers.UnsignedTransaction> {
-  const call = { 
-    domain: upgrade.domain,
-    contract: upgrade.ubc,
-    functionStr: 'upgrade',
-    functionArgs: [
-      upgrade.upgradeBeaconAddress,
-      upgrade.implementationAddress,
-    ]
-  };
-  return populateGovernanceTransaction(deploys, call, governorRouter)
-}
-
 /**
  * Deploys a Home implementation on the chain of the given deploy and updates
  * the deploy instance with the new contract.
@@ -68,7 +48,7 @@ export async function deployHomeImplementation(deploy: CoreDeploy) {
   // TODO: consider requiring an upgrade beacon and UBC to be deployed already
   // TODO: update verification info
 
-  deploy.contracts.home = await proxyUtils.deployImplementation<contracts.Home>(
+  deploy.contracts.home = await proxyUtils.deployAndProxyImplementation<contracts.Home>(
     'Home',
     deploy,
     new homeFactory(deploy.deployer),
@@ -89,18 +69,23 @@ export async function deployReplicaImplementation(deploy: CoreDeploy) {
   const replicaFactory = isTestDeploy
     ? contracts.TestReplica__factory
     : contracts.Replica__factory;
+  const implementation = await proxyUtils.deployImplementation<contracts.Replica>(
+    'Replica',
+    deploy,
+    new replicaFactory(deploy.deployer),
+    deploy.chain.domain,
+    deploy.config.processGas,
+    deploy.config.reserveGas,
+  );
 
   // TODO: consider requiring an upgrade beacon and UBC to be deployed already
   // TODO: update verification info
   for (const domain in deploy.contracts.replicas) {
-    deploy.contracts.replicas[domain] = await proxyUtils.deployImplementation<contracts.Replica>(
-      'Replica',
+    deploy.contracts.replicas[domain] = proxyUtils.proxyImplementation<contracts.Replica>(
+      implementation,
       deploy,
       new replicaFactory(deploy.deployer),
-      deploy.contracts.replicas[domain],
-      deploy.chain.domain,
-      deploy.config.processGas,
-      deploy.config.reserveGas,
+      deploy.contracts.replicas[domain]
     );
   }
 }

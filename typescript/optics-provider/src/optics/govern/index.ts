@@ -70,4 +70,14 @@ export class CallBatch {
     this.built = remotes.concat(local)
     return this.built;
   }
+
+  write(directory: string) {
+    if (!this.built)
+      throw new Error('Must build batch before writing');
+    const filename = `governance_${Date.now()}.json`;
+    fs.writeFileSync(
+      path.join(directory, filename),
+      JSON.stringify(txs, null, 2),
+    );
+  }
 }

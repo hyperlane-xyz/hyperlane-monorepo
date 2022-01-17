@@ -227,7 +227,7 @@ export class OpticsContext extends MultiProvider {
   }
 
   /**
-   * Discovers the governor domain of this nomad deployment and caches it.
+   * Discovers the governor domain of this optics deployment and caches it.
    *
    * @returns The identifier of the governing domain
    */
@@ -245,7 +245,7 @@ export class OpticsContext extends MultiProvider {
   }
 
   /**
-   * Discovers the governor domain of this nomad deployment and returns the
+   * Discovers the governor domain of this optics deployment and returns the
    * associated Core.
    *
    * @returns The identifier of the governing domain
