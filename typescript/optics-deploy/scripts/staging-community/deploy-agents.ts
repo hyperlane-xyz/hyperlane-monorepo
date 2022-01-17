@@ -1,9 +1,9 @@
-import { runHelmCommand } from '../../src/agents';
+import { runAgentHelmCommand } from '../../src/agents';
 import { agentConfig, configs } from './agentConfig';
 
 async function deploy() {
   for (const config in configs) {
-    await runHelmCommand('install', agentConfig, configs[config], configs), { depth: null }
+    await runAgentHelmCommand('install', agentConfig, configs[config], configs), { depth: null }
   }
 }
 

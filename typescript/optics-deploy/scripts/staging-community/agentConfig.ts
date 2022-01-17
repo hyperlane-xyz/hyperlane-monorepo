@@ -2,11 +2,11 @@ import * as alfajores from '../../config/testnets/alfajores';
 import * as gorli from '../../config/testnets/gorli';
 import * as kovan from '../../config/testnets/kovan';
 import * as ropsten from '../../config/testnets/ropsten';
-import { AgentChainsConfig, AgentConfig } from '../../src/agents';
+import { AgentChainConfigs, AgentConfig } from '../../src/agents';
 
 // Assumes kubectl is pointed at the right cluster
 
-export const configs: AgentChainsConfig = {
+export const configs: AgentChainConfigs = {
   alfajores: alfajores.chainJson,
   gorli: gorli.chainJson,
   kovan: kovan.chainJson,
