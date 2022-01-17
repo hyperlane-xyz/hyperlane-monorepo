@@ -115,7 +115,7 @@ jobs:
           cd ../optics-xapps
           npm run lint
 
-  test:
+  solidity-test:
     env:
       ETHERSCAN_API_KEY: ""
 
@@ -172,5 +172,59 @@ jobs:
       - name: Test
         run: ./scripts/test-solidity.sh
 
+  typescript-test:
+    env:
+      ETHERSCAN_API_KEY: ""
+
+    runs-on: ubuntu-latest
+    needs: [install]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      # Get caches
+      - name: Core Cache
+        id: core-cache
+        uses: actions/cache@v2
+        with:
+          path: ./solidity/optics-core/node_modules
+          key: ${{ runner.os }}-core-cache-${{ hashFiles('solidity/optics-core/package-lock.json') }}
+
+      - name: XApps Cache
+        id: xapps-cache
+        uses: actions/cache@v2
+        with:
+          path: ./solidity/optics-xapps/node_modules
+          key: ${{ runner.os }}-xapps-cache-${{ hashFiles('solidity/optics-xapps/package-lock.json') }}
+
+      - name: Tests Cache
+        id: tests-cache
+        uses: actions/cache@v2
+        with:
+          path: ./typescript/optics-tests/node_modules
+          key: ${{ runner.os }}-tests-cache-${{ hashFiles('typescript/optics-tests/package-lock.json') }}
+
+      - name: Deploy Cache
+        id: deploy-cache
+        uses: actions/cache@v2
+        with:
+          path: ./typescript/optics-deploy/node_modules
+          key: ${{ runner.os }}-deploy-cache-${{ hashFiles('typescript/optics-deploy/package-lock.json') }}
+
+      - name: Typechain Cache
+        id: typechain-cache
+        uses: actions/cache@v2
+        with:
+          path: ./typescript/typechain/node_modules
+          key: ${{ runner.os }}-typechain-cache-${{ hashFiles('typescript/typechain/package-lock.json') }}
+
+      - name: Multi-Provider Cache
+        id: provider-cache
+        uses: actions/cache@v2
+        with:
+          path: ./typescript/optics-provider/node_modules
+          key: ${{ runner.os }}-provider-cache-${{ hashFiles('typescript/optics-provider/package-lock.json') }}
+
+      # Test
       - name: optics-deploy build
         run: cd ./typescript/optics-deploy && npm build
