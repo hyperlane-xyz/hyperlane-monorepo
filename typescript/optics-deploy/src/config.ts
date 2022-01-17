@@ -9,6 +9,6 @@ export interface AllConfigs {
 }
 
 // The accessor is necessary as a network may have multiple core configs
-export function makeAllConfigs<V>(data: V, coreConfigAccessor: (data: V) => CoreConfig) {
-  return { ...data, coreConfig: coreConfigAccessor(data) };
+export async function makeAllConfigs<V>(data: V, coreConfigAccessor: (data: V) => Promise<CoreConfig>) {
+  return { ...data, coreConfig: await coreConfigAccessor(data) };
 }

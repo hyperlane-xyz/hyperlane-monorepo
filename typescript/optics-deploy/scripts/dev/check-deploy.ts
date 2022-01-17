@@ -6,6 +6,7 @@ import * as mumbai from '../../config/testnets/mumbai';
 import { checkCoreDeploys, InvariantViolationCollector } from '../../src/checks';
 import { makeAllConfigs } from '../../src/config';
 import { configPath } from './agentConfig';
+import { addAgentGCPAddresses } from '../../src/agents';
 
 const governorDomain = alfajores.chain.domain;
 
@@ -14,11 +15,11 @@ async function check() {
   await checkCoreDeploys(
     configPath,
     await Promise.all([
-      makeAllConfigs(alfajores, (_) => _.devConfig),
-      makeAllConfigs(kovan, (_) => _.devConfig),
-      makeAllConfigs(gorli, (_) => _.devConfig),
-      makeAllConfigs(fuji, (_) => _.devConfig),
-      makeAllConfigs(mumbai, (_) => _.devConfig),
+      makeAllConfigs(alfajores, (_) => addAgentGCPAddresses('dev', _.devConfig)),
+      makeAllConfigs(kovan, (_) => addAgentGCPAddresses('dev', _.devConfig)),
+      makeAllConfigs(gorli, (_) => addAgentGCPAddresses('dev', _.devConfig)),
+      makeAllConfigs(fuji, (_) => addAgentGCPAddresses('dev', _.devConfig)),
+      makeAllConfigs(mumbai, (_) => addAgentGCPAddresses('dev', _.devConfig)),
     ]),
     governorDomain,
     invariantViolationCollector.handleViolation
