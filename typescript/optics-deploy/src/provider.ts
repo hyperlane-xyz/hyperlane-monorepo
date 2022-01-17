@@ -2,12 +2,12 @@ import { ExistingBridgeDeploy } from './bridge/BridgeDeploy';
 import { ExistingCoreDeploy } from './core/CoreDeploy';
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
-import { ExistingDeployConfig } from './config';
+import { AllConfigs } from './config';
 
 export function updateProviderDomain(
   environment: string,
   path: string,
-  configs: ExistingDeployConfig[],
+  configs: AllConfigs[],
 ) {
   let ret = "import { OpticsDomain } from './domain';\n"
   const coreDeploys = configs.map(

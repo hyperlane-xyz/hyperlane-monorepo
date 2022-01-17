@@ -4,7 +4,7 @@ import * as gorli from '../../config/testnets/gorli';
 import * as kovan from '../../config/testnets/kovan';
 import * as mumbai from '../../config/testnets/mumbai';
 import * as fuji from '../../config/testnets/fuji';
-import { updateChainConfigWithKeys } from '../../src/agents';
+import { addDeployerGCPKey } from '../../src/agents';
 import { BridgeDeploy } from '../../src/bridge/BridgeDeploy';
 import { getPathToLatestDeploy } from '../../src/verification/readDeployOutput';
 
@@ -20,27 +20,27 @@ async function main() {
   const path = getPathToLatestDeploy();
 
   const alfajoresDeploy = new BridgeDeploy(
-    await updateChainConfigWithKeys(environment, alfajores.chain),
+    await addDeployerGCPKey(environment, alfajores.chain),
     alfajoresConfig,
     path
   );
   const gorliDeploy = new BridgeDeploy(
-    await updateChainConfigWithKeys(environment, gorli.chain),
+    await addDeployerGCPKey(environment, gorli.chain),
     gorliConfig,
     path
   );
   const kovanDeploy = new BridgeDeploy(
-    await updateChainConfigWithKeys(environment, kovan.chain),
+    await addDeployerGCPKey(environment, kovan.chain),
     kovanConfig,
     path
   );
   const mumbaiDeploy = new BridgeDeploy(
-    await updateChainConfigWithKeys(environment, mumbai.chain),
+    await addDeployerGCPKey(environment, mumbai.chain),
     mumbaiConfig,
     path
   );
   const fujiDeploy = new BridgeDeploy(
-    await updateChainConfigWithKeys(environment, fuji.chain),
+    await addDeployerGCPKey(environment, fuji.chain),
     fujiConfig,
     path
   );
