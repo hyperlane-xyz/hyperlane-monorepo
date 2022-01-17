@@ -3,6 +3,7 @@ export {
   mainnet,
   mainnetCommunity,
   dev,
+  devCommunityDomains,
   staging,
   stagingCommunity,
   OpticsContext,

@@ -17,7 +17,7 @@ export type { ResolvedTokenInfo, TokenIdentifier } from './tokens';
 export { tokens, testnetTokens } from './tokens';
 
 export type { OpticsDomain } from './domains';
-export { mainnetDomains, mainnetCommunityDomains, devDomains, stagingDomains, stagingCommunityDomains } from './domains';
+export { mainnetDomains, mainnetCommunityDomains, devDomains, stagingDomains, stagingCommunityDomains, devCommunityDomains } from './domains';
 
 export type { AnnotatedLifecycleEvent, OpticsLifecyleEvent } from './events';
 export { queryAnnotatedEvents, Annotated } from './events';
