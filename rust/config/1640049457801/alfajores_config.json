@@ -1,0 +1,86 @@
+{
+  "environment": "dev",
+  "index": {
+    "from": "7712249",
+    "chunk": "2000"
+  },
+  "signers": {
+    "alfajores": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "mumbai": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "fuji": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "gorli": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "kovan": {
+      "key": "",
+      "type": "hexKey"
+    }
+  },
+  "replicas": {
+    "mumbai": {
+      "address": "0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964",
+      "domain": "80001",
+      "name": "mumbai",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "fuji": {
+      "address": "0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964",
+      "domain": "43113",
+      "name": "fuji",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "gorli": {
+      "address": "0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964",
+      "domain": "5",
+      "name": "gorli",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "kovan": {
+      "address": "0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964",
+      "domain": "3000",
+      "name": "kovan",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    }
+  },
+  "home": {
+    "address": "0xeA057840858645bb68134a913A252a44a0C58652",
+    "domain": "1000",
+    "name": "alfajores",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path"
+}

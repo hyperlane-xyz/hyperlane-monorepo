@@ -8,10 +8,10 @@
     "build": "rm tsconfig.tsbuildinfo & tsc",
     "check": "rm tsconfig.tsbuildinfo & tsc --noEmit",
     "prettier": "prettier --write .",
-    "relink": "cd ../optics-provider && npm run build && cd ../contract-metrics && npm link @optics-xyz/multi-provider"
+    "relink": "cd ../optics-provider && npm run build && cd ../contract-metrics && npm link optics-multi-provider-community"
   },
   "dependencies": {
-    "@optics-xyz/multi-provider": "^0.1.13",
+    "optics-multi-provider-community": "^0.1.21",
     "@optics-xyz/ts-interface": "^1.0.9",
     "@types/bunyan": "^1.8.7",
     "@types/express": "^4.17.13",

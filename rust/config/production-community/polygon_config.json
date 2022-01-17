@@ -1,7 +1,7 @@
 {
   "environment": "prod-community",
   "index": {
-    "from": "19657100",
+    "from": "21734736",
     "chunk": "2000"
   },
   "signers": {

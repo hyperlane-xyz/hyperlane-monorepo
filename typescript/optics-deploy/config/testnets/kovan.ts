@@ -12,7 +12,7 @@ if (!rpc) {
   throw new Error('Missing RPC URI');
 }
 
-const chainJson: ChainJson = {
+export const chainJson: ChainJson = {
   name: 'kovan',
   rpc,
   deployerKey: process.env.KOVAN_DEPLOYER_KEY,
@@ -38,6 +38,17 @@ export const stagingConfig: CoreConfig = {
   updater: '0x201dd86063Dc251cA5a576d1b7365C38e5fB4CD5',
   watchers: ['0x22B2855635154Baa41C306BcA979C8c9a077A180'],
   recoveryManager: '0x24F6c874F56533d9a1422e85e5C7A806ED11c036',
+  optimisticSeconds: 10,
+  recoveryTimelock: 180,
+  processGas: 850_000,
+  reserveGas: 15_000,
+};
+
+export const stagingCommunityConfig: CoreConfig = {
+  environment: 'staging-community',
+  updater: '0xED576b49c3bD42862340e21a7A0AcCA3814bfE18',
+  watchers: ['0x5830e4a749e0eAEF5955069f12B37Fd82C234c23'],
+  recoveryManager: '0xED576b49c3bD42862340e21a7A0AcCA3814bfE18',
   optimisticSeconds: 10,
   recoveryTimelock: 180,
   processGas: 850_000,

@@ -3,14 +3,13 @@ import { OpticsDomain } from './domain';
 export const alfajores: OpticsDomain = {
   name: 'alfajores',
   id: 1000,
-  bridgeRouter: '0xDBbe03850fDF986Df1C8f1D856012f80A1f98eCc',
-  home: '0x01652e694BbD82C0900776c0406C3DFaa00e1e91',
+  bridgeRouter: '0x684C74fBA4dF7F7A542709C5f9688AB806C7B828',
+  home: '0xeA057840858645bb68134a913A252a44a0C58652',
   replicas: [
-    { domain: 2000, address: '0xB4ceF5bd5328c42F3f09b9A43F6010ea93f145f1' },
-    {
-      domain: 3000,
-      address: '0xB5EB71E40bcAEAD5DDdc7687724f9F155Fd1a7a8',
-    },
+    { domain: 5, address: '0x3354D5956612C38D0dD831dcdf83CF30BC674231' },
+    { domain: 3000, address: '0x6AdB8ba7C826d70506D26eDdc74236fB88Fa647F' },
+    { domain: 43113, address: '0x570EDeF0c271E3f1ba6B5C66D040195750a79762' },
+    { domain: 80001, address: '0xbA00eF80A55d4EefcF3d7971270D2c233F9d315e' },
   ],
   governanceRouter: '',
 };
@@ -18,33 +17,59 @@ export const alfajores: OpticsDomain = {
 export const kovan: OpticsDomain = {
   name: 'kovan',
   id: 3000,
-  bridgeRouter: '0xA763Db23711537D7074392b16E84eb04993C9f5d',
-  ethHelper: '0x90b6A931Cf35a1ba72E8959948d0E041320Fa704',
-  home: '0x0ED518F19fEbbd3737e39a55a8a708AFe8a9BE59',
+  bridgeRouter: '0x53d09A4B49443F7f7C66321C306601dC9d483D4F',
+  ethHelper: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
+  home: '0xc53F82FAF17B4c521A85C514791593847Bdf1655',
   replicas: [
-    { domain: 2000, address: '0x6776ef96A04a40a4dCB835D42bF59649aA9daFeA' },
-    {
-      domain: 1000,
-      address: '0xC6b39Ac67FBE3e029708390ffea130c8C0E7D30b',
-    },
+    { domain: 5, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
+    { domain: 1000, address: '0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964' },
+    { domain: 43113, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
+    { domain: 80001, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
   governanceRouter: '',
 };
 
-export const rinkeby: OpticsDomain = {
-  name: 'rinkeby',
-  id: 2000,
-  bridgeRouter: '0x926Df2b652bC8273BB2F06E8de135875bbE1D271',
-  ethHelper: '0x4e52f7e2F9f3B592dcfBD8957d36973a0308d1eF',
-  home: '0xDf4c0d67489F945C1e52440Ef8F203F4CE6e4176',
+export const gorli: OpticsDomain = {
+  name: 'gorli',
+  id: 5,
+  bridgeRouter: '0x53d09A4B49443F7f7C66321C306601dC9d483D4F',
+  ethHelper: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
+  home: '0xc53F82FAF17B4c521A85C514791593847Bdf1655',
   replicas: [
-    { domain: 1000, address: '0x7f41a2A1D97DD5F75B6FF6E1b012f686fE8121E4' },
-    {
-      domain: 3000,
-      address: '0x72877419567cd7f697A6a5F2f7dF3e07327Ea7B2',
-    },
+    { domain: 1000, address: '0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964' },
+    { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
+    { domain: 43113, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
+    { domain: 80001, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
   governanceRouter: '',
 };
 
-export const devDomains = [alfajores, kovan, rinkeby];
+export const fuji: OpticsDomain = {
+  name: 'fuji',
+  id: 43113,
+  bridgeRouter: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
+  ethHelper: '0x7B99a9cf26c9813b16E3DDb3D6E593c3624c9EBA',
+  home: '0xc53F82FAF17B4c521A85C514791593847Bdf1655',
+  replicas: [
+    { domain: 5, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
+    { domain: 1000, address: '0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964' },
+    { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
+    { domain: 80001, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
+  ],
+};
+
+export const mumbai: OpticsDomain = {
+  name: 'mumbai',
+  id: 80001,
+  bridgeRouter: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
+  ethHelper: '0x7B99a9cf26c9813b16E3DDb3D6E593c3624c9EBA',
+  home: '0xc53F82FAF17B4c521A85C514791593847Bdf1655',
+  replicas: [
+    { domain: 5, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
+    { domain: 1000, address: '0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964' },
+    { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
+    { domain: 43113, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
+  ],
+};
+
+export const devDomains = [alfajores, kovan, gorli, fuji, mumbai];

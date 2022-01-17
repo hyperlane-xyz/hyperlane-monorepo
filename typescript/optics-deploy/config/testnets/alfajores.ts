@@ -15,6 +15,7 @@ export const chainJson: ChainJson = {
   rpc,
   deployerKey: process.env.ALFAJORES_DEPLOYER_KEY,
   domain: 1000,
+  confirmations: 1,
 };
 
 export const chain = toChain(chainJson);
@@ -40,5 +41,16 @@ export const stagingConfig: CoreConfig = {
   processGas: 850_000,
   reserveGas: 15_000,
 };
+
+export const stagingCommunityConfig: CoreConfig = {
+  environment: 'staging-community',
+  updater: '0x075fE802D26a983423caE0a16b8250F155AbeB03',
+  watchers: ['0xC3Ef93917f0d0AC4D70E675824270b290E0a2667'],
+  recoveryManager: '0x075fE802D26a983423caE0a16b8250F155AbeB03',
+  optimisticSeconds: 10,
+  recoveryTimelock: 180,
+  processGas: 850_000,
+  reserveGas: 15_000,
+}
 
 export const bridgeConfig: BridgeConfig = {};
