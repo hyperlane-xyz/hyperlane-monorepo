@@ -56,7 +56,7 @@ export async function deployProxy<T extends ethers.Contract>(
   // we cast here because Factories don't have associated types
   // this is unsafe if the specified typevar doesn't match the factory output
   // :(
-  const implementation = await factory.deploy(...deployArgs, deploy.overrides);
+  const implementation = await _deployImplementation(factory, deploy, deployArgs);
   const beacon = await _deployBeacon(deploy, implementation);
   const proxy = await _deployProxy(deploy, beacon, initData);
 
@@ -135,17 +135,16 @@ export async function deployImplementation<T extends ethers.Contract>(
   factory: ethers.ContractFactory,
   ...deployArgs: any[]
 ): Promise<T> {
-  const implementation = await factory.deploy(...deployArgs, deploy.overrides);
+  const implementation = await _deployImplementation(deploy, factory, deployArgs)
   await implementation.deployTransaction.wait(deploy.chain.confirmations);
 
   // add Implementation to Etherscan verification
-  // TODO: This ADDS multiple implementations to the verification info, is that okay?
   deploy.verificationInput.push({
     name: `${name} Implementation`,
     address: implementation!.address,
     constructorArguments: deployArgs,
   });
-  return implementation as T;
+  return implementation;
 }
 
 /**
@@ -153,7 +152,7 @@ export async function deployImplementation<T extends ethers.Contract>(
  *
  * @param T - The contract
  */
-export function proxyImplementation<T extends ethers.Contract>(
+export function overrideBeaconProxyImplementation<T extends ethers.Contract>(
   implementation: T,
   deploy: CoreDeploy,
   factory: ethers.ContractFactory,
@@ -167,15 +166,23 @@ export function proxyImplementation<T extends ethers.Contract>(
   );
 }
 
-export async function deployAndProxyImplementation<T extends ethers.Contract>(
-  name: ProxyNames,
-  deploy: CoreDeploy,
+/**
+ * Returns an UNWAITED implementation
+ *
+ * @dev The TX to deploy may still be in-flight
+ * @dev We set manual gas here to suppress ethers's preflight checks
+ *
+ * @param deploy - The deploy
+ * @param factory - The implementation factory object
+ * @param deployArgs - The arguments to pass to the implementation constructor
+ */
+async function _deployImplementation<T extends ethers.Contract>(
+  deploy: Deploy,
   factory: ethers.ContractFactory,
-  beaconProxy: BeaconProxy<T>,
   ...deployArgs: any[]
-): Promise<BeaconProxy<T>> {
-  const implementation: T = await deployImplementation(name, deploy, factory, ...deployArgs)
-  return proxyImplementation(implementation, deploy, factory, beaconProxy)
+): Promise<T> {
+  const implementation = await factory.deploy(...deployArgs, deploy.overrides);
+  return implementation as T
 }
 
 /**

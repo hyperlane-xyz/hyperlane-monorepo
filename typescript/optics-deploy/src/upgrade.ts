@@ -2,27 +2,7 @@ import * as proxyUtils from './proxyUtils';
 import { CoreDeploy } from './core/CoreDeploy';
 import { writeDeployOutput } from './core';
 import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
-
-function log(isTest: boolean, str: string) {
-  if (!isTest) {
-    console.log(str);
-  }
-}
-
-function warn(text: string, padded: boolean = false) {
-  if (padded) {
-    const padding = '*'.repeat(text.length + 8);
-    console.log(
-      `
-      ${padding}
-      *** ${text.toUpperCase()} ***
-      ${padding}
-      `,
-    );
-  } else {
-    console.log(`**** ${text.toUpperCase()} ****`);
-  }
-}
+import { log, warn } from './utils';
 
 /**
  * Deploys a Home implementation on the chain of the given deploy and updates
@@ -36,16 +16,18 @@ export async function deployHomeImplementation(deploy: CoreDeploy) {
   const homeFactory = isTestDeploy
     ? contracts.TestHome__factory
     : contracts.Home__factory;
-
-  // TODO: consider requiring an upgrade beacon and UBC to be deployed already
-  // TODO: update verification info
-
-  deploy.contracts.home = await proxyUtils.deployAndProxyImplementation<contracts.Home>(
+  const implementation = await proxyUtils.deployImplementation<contracts.Home>(
     'Home',
     deploy,
     new homeFactory(deploy.deployer),
-    deploy.contracts.home!,
-    deploy.chain.domain,
+    deploy.chain.domain
+  );
+
+  deploy.contracts.home = proxyUtils.ovverrideBeaconProxyImplementation<contracts.Home>(
+    implementation,
+    deploy,
+    new homeFactory(deploy.deployer),
+    deploy.contracts.home!
   );
 }
 
@@ -70,8 +52,6 @@ export async function deployReplicaImplementation(deploy: CoreDeploy) {
     deploy.config.reserveGas,
   );
 
-  // TODO: consider requiring an upgrade beacon and UBC to be deployed already
-  // TODO: update verification info
   for (const domain in deploy.contracts.replicas) {
     deploy.contracts.replicas[domain] = proxyUtils.proxyImplementation<contracts.Replica>(
       implementation,

@@ -84,3 +84,24 @@ export const strip0x = (hexstr: string) => (hexstr.startsWith('0x') ? hexstr.sli
 export function includeConditionally(condition: boolean, data: any) {
   return condition ? data : {};
 }
+
+function log(isTest: boolean, str: string) {
+  if (!isTest) {
+    console.log(str);
+  }
+}
+
+function warn(text: string, padded: boolean = false) {
+  if (padded) {
+    const padding = '*'.repeat(text.length + 8);
+    console.log(
+      `
+      ${padding}
+      *** ${text.toUpperCase()} ***
+      ${padding}
+      `,
+    );
+  } else {
+    console.log(`**** ${text.toUpperCase()} ****`);
+  }
+}

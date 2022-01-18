@@ -6,28 +6,7 @@ import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
 import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
 import { checkCoreDeploy } from './checks';
-import { toBytes32 } from '../utils';
-
-function log(isTest: boolean, str: string) {
-  if (!isTest) {
-    console.log(str);
-  }
-}
-
-function warn(text: string, padded: boolean = false) {
-  if (padded) {
-    const padding = '*'.repeat(text.length + 8);
-    console.log(
-      `
-      ${padding}
-      *** ${text.toUpperCase()} ***
-      ${padding}
-      `,
-    );
-  } else {
-    console.log(`**** ${text.toUpperCase()} ****`);
-  }
-}
+import { log, warn, toBytes32 } from '../utils';
 
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
   let factory = new contracts.UpgradeBeaconController__factory(deploy.deployer);
