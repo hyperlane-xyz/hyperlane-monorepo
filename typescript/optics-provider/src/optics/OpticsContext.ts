@@ -6,7 +6,7 @@ import { CoreContracts } from './contracts/CoreContracts';
 import { ResolvedTokenInfo, TokenIdentifier } from './tokens';
 import { canonizeId, evmId } from '../utils';
 import {
-  devDomains,
+  devCommunityDomains,
   mainnetDomains,
   mainnetCommunityDomains,
   OpticsDomain,
@@ -200,8 +200,7 @@ export class OpticsContext extends MultiProvider {
     home: string | number,
     remote: string | number,
   ): core.Replica | undefined {
-    return this.getCore(remote)?.replicas.get(this.resolveDomain(home))
-      ?.contract;
+    return this.getCore(remote)?.getReplica(this.resolveDomain(home));
   }
 
   /**
@@ -502,6 +501,6 @@ export class OpticsContext extends MultiProvider {
 
 export const mainnet = OpticsContext.fromDomains(mainnetDomains);
 export const mainnetCommunity = OpticsContext.fromDomains(mainnetCommunityDomains);
-export const dev = OpticsContext.fromDomains(devDomains);
+export const devCommunity = OpticsContext.fromDomains(devCommunityDomains);
 export const staging = OpticsContext.fromDomains(stagingDomains);
 export const stagingCommunity = OpticsContext.fromDomains(stagingCommunityDomains);

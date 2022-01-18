@@ -1,4 +1,4 @@
-import { devCommunity } from '@optics-xyz/multi-provider';
+import { devCommunity } from 'optics-multi-provider-community';
 import * as alfajores from '../../config/testnets/alfajores';
 import * as gorli from '../../config/testnets/gorli';
 import * as kovan from '../../config/testnets/kovan';

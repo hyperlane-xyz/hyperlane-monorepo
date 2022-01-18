@@ -17,6 +17,7 @@ export const ethereum: OpticsDomain = {
     },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const polygon: OpticsDomain = {
@@ -38,6 +39,7 @@ export const polygon: OpticsDomain = {
     },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const celo: OpticsDomain = {
@@ -53,6 +55,7 @@ export const celo: OpticsDomain = {
     },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const mainnetDomains = [ethereum, celo, polygon];

@@ -13,6 +13,7 @@ export const alfajores: OpticsDomain = {
     },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const kovan: OpticsDomain = {
@@ -29,6 +30,7 @@ export const kovan: OpticsDomain = {
     },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const rinkeby: OpticsDomain = {
@@ -45,6 +47,7 @@ export const rinkeby: OpticsDomain = {
     },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const stagingDomains = [alfajores, kovan, rinkeby];

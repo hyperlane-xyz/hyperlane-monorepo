@@ -2,13 +2,9 @@ import { ethers } from 'ethers';
 import { core } from '@optics-xyz/ts-interface';
 import { Contracts } from '../../contracts';
 import { ReplicaInfo } from '../domains/domain';
+import { CallBatch } from '../govern';
 
 type Address = string;
-
-type InternalReplica = {
-  domain: number;
-  contract: core.Replica;
-};
 
 interface Core {
   id: number;
@@ -16,6 +12,7 @@ interface Core {
   replicas: ReplicaInfo[];
   // TODO: Populate this
   governanceRouter: Address;
+  xAppConnectionManager: Address;
 }
 
 export type LocalGovernor = {
@@ -33,7 +30,7 @@ export type Governor = LocalGovernor | RemoteGovernor;
 export class CoreContracts extends Contracts {
   readonly domain: number;
   readonly _home: Address;
-  readonly _replicas: Map<number, InternalReplica>;
+  readonly _replicas: Map<number, ReplicaInfo>;
   readonly governanceRouterAddress: Address;
   readonly xAppConnectionManagerAddress: Address;
   private providerOrSigner?: ethers.providers.Provider | ethers.Signer;
@@ -47,17 +44,17 @@ export class CoreContracts extends Contracts {
     xAppConnectionManager: Address,
     providerOrSigner?: ethers.providers.Provider | ethers.Signer,
   ) {
-    super(domain, home, replicas, signer);
+    super(domain, home, replicas, providerOrSigner);
     this.providerOrSigner = providerOrSigner;
     this.domain = domain;
-    this._home = new core.Home__factory(signer).attach(home);
+    this._home = home;
     this.governanceRouterAddress = governanceRouterAddress;
     this.xAppConnectionManagerAddress = xAppConnectionManager;
 
     this._replicas = new Map();
     replicas.forEach((replica) => {
       this._replicas.set(replica.domain, {
-        contract: new core.Replica__factory(signer).attach(replica.address),
+        address: replica.address,
         domain: replica.domain,
       });
     });
@@ -87,7 +84,7 @@ export class CoreContracts extends Contracts {
       throw new Error('No provider or signer. Call `connect` first.');
     }
     return core.GovernanceRouter__factory.connect(
-      this._governanceRouterAddress,
+      this.governanceRouterAddress,
       this.providerOrSigner,
     );
   }
@@ -123,23 +120,11 @@ export class CoreContracts extends Contracts {
   }
 
   connect(providerOrSigner: ethers.providers.Provider | ethers.Signer): void {
-    this._home = this._home.connect(providerOrSigner);
-
-    Array.from(this._replicas.values()).forEach((replica: InternalReplica) => {
-      replica.contract = replica.contract.connect(providerOrSigner);
-    });
+    this.providerOrSigner = providerOrSigner;
   }
 
   toObject(): Core {
-    const replicas: ReplicaInfo[] = Array.from(this._replicas.values()).map(
-      (replica) => {
-        return {
-          domain: replica.domain,
-          address: replica.contract.address,
-        };
-      },
-    );
-
+    const replicas: ReplicaInfo[] = Array.from(this._replicas.values());
     return {
       id: this.domain,
       home: this._home,

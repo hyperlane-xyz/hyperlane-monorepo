@@ -39,7 +39,7 @@ export function associateRemotes(
 }
 
 export function normalizeCall(partial: Partial<Call>): Readonly<Call> {
-  const to = ethers.utils.hexlify(canonizeId(partial.to));
+  const to = ethers.utils.hexlify(canonizeId(partial.to!));
   const data = partial.data ?? '0x';
 
   return Object.freeze({

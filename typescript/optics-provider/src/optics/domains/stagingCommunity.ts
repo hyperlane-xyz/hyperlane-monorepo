@@ -20,6 +20,7 @@ export const alfajores: OpticsDomain = {
     },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const ropsten: OpticsDomain = {
@@ -43,6 +44,7 @@ export const ropsten: OpticsDomain = {
     },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const kovan: OpticsDomain = {
@@ -65,6 +67,8 @@ export const kovan: OpticsDomain = {
       address: '0xF782C67AA111a9D75f6ccEf3d7aDB54620D5A8e9',
     },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const gorli: OpticsDomain = {
@@ -88,6 +92,7 @@ export const gorli: OpticsDomain = {
     },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const stagingCommunityDomains = [alfajores, kovan, ropsten, gorli];

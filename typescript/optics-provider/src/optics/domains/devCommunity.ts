@@ -12,6 +12,7 @@ export const alfajores: OpticsDomain = {
     { domain: 80001, address: '0xbA00eF80A55d4EefcF3d7971270D2c233F9d315e' },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const kovan: OpticsDomain = {
@@ -27,6 +28,7 @@ export const kovan: OpticsDomain = {
     { domain: 80001, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const gorli: OpticsDomain = {
@@ -42,6 +44,7 @@ export const gorli: OpticsDomain = {
     { domain: 80001, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
   governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const fuji: OpticsDomain = {
@@ -56,6 +59,8 @@ export const fuji: OpticsDomain = {
     { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
     { domain: 80001, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const mumbai: OpticsDomain = {
@@ -70,6 +75,8 @@ export const mumbai: OpticsDomain = {
     { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
     { domain: 43113, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
-export const devDomains = [alfajores, kovan, gorli, fuji, mumbai];
+export const devCommunityDomains = [alfajores, kovan, gorli, fuji, mumbai];

@@ -1,7 +1,8 @@
-import { TypedEvent } from '@optics-xyz/contract-interfaces/dist/core/commons';
 import { ethers } from 'ethers';
-import { OpticsContext } from '..';
 import { CoreContracts } from '../contracts';
+import fs from 'fs';
+import path from 'path';
+
 
 import * as utils from './utils';
 
@@ -77,7 +78,7 @@ export class CallBatch {
     const filename = `governance_${Date.now()}.json`;
     fs.writeFileSync(
       path.join(directory, filename),
-      JSON.stringify(txs, null, 2),
+      JSON.stringify(this.built, null, 2),
     );
   }
 }
