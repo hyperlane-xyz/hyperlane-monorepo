@@ -155,6 +155,24 @@ function include(condition: boolean, data: any) {
   return condition ? data : {};
 }
 
+const awsSignerCredentials = (role: KEY_ROLE_ENUM, agentConfig: AgentConfig, homeChainName: string) => {
+    // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
+    const adjustedRole =
+      agentConfig.environment === 'staging-community' &&
+      role === KEY_ROLE_ENUM.UpdaterAttestation
+        ? KEY_ROLE_ENUM.UpdaterSigner
+        : agentConfig.environment === 'staging-community' &&
+          role === KEY_ROLE_ENUM.UpdaterSigner
+        ? KEY_ROLE_ENUM.UpdaterAttestation
+        : role;
+    return {
+      aws: {
+        keyId: `alias/${agentConfig.runEnv}-${homeChainName}-${adjustedRole}`,
+        region: agentConfig.awsRegion,
+      },
+    };
+};
+
 async function helmValuesForChain(
   chainName: string,
   agentConfig: AgentConfig,
@@ -178,21 +196,7 @@ async function helmValuesForChain(
     if (!!gcpKeys) {
       return { hexKey: strip0x(gcpKeys![role].privateKey) };
     } else {
-      // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
-      const adjustedRole =
-        agentConfig.environment === 'staging-community' &&
-        role === KEY_ROLE_ENUM.UpdaterAttestation
-          ? KEY_ROLE_ENUM.UpdaterSigner
-          : agentConfig.environment === 'staging-community' &&
-            role === KEY_ROLE_ENUM.UpdaterSigner
-          ? KEY_ROLE_ENUM.UpdaterAttestation
-          : role;
-      return {
-        aws: {
-          keyId: `alias/${agentConfig.runEnv}-${chainName}-${adjustedRole}`,
-          region: agentConfig.awsRegion,
-        },
-      };
+      return awsSignerCredentials(role, agentConfig, chainName)
     }
   };
 
@@ -273,9 +277,7 @@ export async function getAgentEnvVars(
   agentConfig: AgentConfig,
   configs: AgentChainConfigs,
 ) {
-  const gcpKeys = await getAgentGCPKeys(agentConfig.environment);
   const valueDict = await helmValuesForChain(home, agentConfig, configs);
-
   const envVars: string[] = [];
 
   // Base vars from config map
@@ -292,22 +294,47 @@ export async function getAgentEnvVars(
     );
   });
 
-  // Signer key
-  Object.keys(configs).forEach((network) => {
-    envVars.push(
-      `OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(
-        gcpKeys[role].privateKey,
-      )}`,
-    );
-  });
+  try {
+    const gcpKeys = await getAgentGCPKeys(agentConfig.environment);
+    // Signer keys
+    Object.keys(configs).forEach((network) => {
+      envVars.push(
+        `OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(
+          gcpKeys[role].privateKey,
+        )}`,
+      );
+    });
 
-  if (role.startsWith('updater')) {
-    envVars.push(
-      `OPT_BASE_UPDATER_KEY=${strip0x(
-        gcpKeys[KEY_ROLE_ENUM.UpdaterAttestation].privateKey,
-      )}`,
-    );
+    // Updater attestation key
+    if (role.startsWith('updater')) {
+      envVars.push(
+        `OPT_BASE_UPDATER_KEY=${strip0x(
+          gcpKeys[KEY_ROLE_ENUM.UpdaterAttestation].privateKey,
+        )}`,
+      );
+    }
+  } catch (error) {
+    // Keys are in AWS
+    envVars.push(`AWS_ACCESS_KEY_ID=${valueDict.optics.aws.accessKeyId}`)
+    envVars.push(`AWS_SECRET_ACCESS_KEY=${valueDict.optics.aws.secretAccessKey}`)
+
+    // Signers
+    Object.keys(configs).forEach((network) => {
+      const awsSigner = awsSignerCredentials(role, agentConfig, home)
+      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`)
+      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_ID=${awsSigner.aws.keyId}`)
+      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_REGION=${awsSigner.aws.region}`)
+    })
+
+    // Updater attestation key
+    if (role.startsWith('updater')) {
+      const awsSigner = awsSignerCredentials(role, agentConfig, home)
+      envVars.push(`OPT_BASE_UPDATER_TYPE=aws`)
+      envVars.push(`OPT_BASE_UPDATER_ID=${awsSigner.aws.keyId}`)
+      envVars.push(`OPT_BASE_UPDATER_REGION=${awsSigner.aws.region}`)
+    }
   }
+
   return envVars;
 }
 
