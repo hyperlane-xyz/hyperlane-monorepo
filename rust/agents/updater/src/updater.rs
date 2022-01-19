@@ -89,7 +89,10 @@ impl OpticsAgent for Updater {
         let address = self.signer.address();
         let db = OpticsDB::new(self.home().name(), self.db());
 
-        info!("Updater is running with interval {:?} and pause {:?}", &self.interval_seconds, &self.update_pause);
+        info!(
+            "Updater is running with interval {:?} and pause {:?}",
+            &self.interval_seconds, &self.update_pause
+        );
 
         let produce = UpdateProducer::new(
             self.home(),
