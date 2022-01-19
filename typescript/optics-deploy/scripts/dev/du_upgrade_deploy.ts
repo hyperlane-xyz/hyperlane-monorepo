@@ -12,11 +12,11 @@ let kovanConfig = kovan.devConfig;
 let mumbaiConfig = mumbai.devConfig;
 let fujiConfig = fuji.devConfig;
 
-const alfajoresDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', alfajores.chain, alfajoresConfig)
-const gorliDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', gorli.chain, gorliConfig)
-const kovanDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', kovan.chain, kovanConfig)
-const mumbaiDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', mumbai.chain, mumbaiConfig)
-const fujiDeploy = CoreDeploy.fromDirectory('../../rust/config/dev/', fuji.chain, fujiConfig)
+const alfajoresDeploy = CoreDeploy.fromDirectory('../../rust/config/dev-community/', alfajores.chain, alfajoresConfig)
+const gorliDeploy = CoreDeploy.fromDirectory('../../rust/config/dev-community/', gorli.chain, gorliConfig)
+const kovanDeploy = CoreDeploy.fromDirectory('../../rust/config/dev-community/', kovan.chain, kovanConfig)
+const mumbaiDeploy = CoreDeploy.fromDirectory('../../rust/config/dev-community/', mumbai.chain, mumbaiConfig)
+const fujiDeploy = CoreDeploy.fromDirectory('../../rust/config/dev-community/', fuji.chain, fujiConfig)
 
 const deploys = [alfajoresDeploy, gorliDeploy, kovanDeploy, mumbaiDeploy, fujiDeploy]
 async function main() {

@@ -23,7 +23,7 @@ export async function deployHomeImplementation(deploy: CoreDeploy) {
     deploy.chain.domain
   );
 
-  deploy.contracts.home = proxyUtils.ovverrideBeaconProxyImplementation<contracts.Home>(
+  deploy.contracts.home = proxyUtils.overrideBeaconProxyImplementation<contracts.Home>(
     implementation,
     deploy,
     new homeFactory(deploy.deployer),
@@ -53,7 +53,7 @@ export async function deployReplicaImplementation(deploy: CoreDeploy) {
   );
 
   for (const domain in deploy.contracts.replicas) {
-    deploy.contracts.replicas[domain] = proxyUtils.proxyImplementation<contracts.Replica>(
+    deploy.contracts.replicas[domain] = proxyUtils.overrideBeaconProxyImplementation<contracts.Replica>(
       implementation,
       deploy,
       new replicaFactory(deploy.deployer),

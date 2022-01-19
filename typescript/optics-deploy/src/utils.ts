@@ -85,13 +85,13 @@ export function includeConditionally(condition: boolean, data: any) {
   return condition ? data : {};
 }
 
-function log(isTest: boolean, str: string) {
+export function log(isTest: boolean, str: string) {
   if (!isTest) {
     console.log(str);
   }
 }
 
-function warn(text: string, padded: boolean = false) {
+export function warn(text: string, padded: boolean = false) {
   if (padded) {
     const padding = '*'.repeat(text.length + 8);
     console.log(

@@ -56,7 +56,7 @@ export async function deployProxy<T extends ethers.Contract>(
   // we cast here because Factories don't have associated types
   // this is unsafe if the specified typevar doesn't match the factory output
   // :(
-  const implementation = await _deployImplementation(factory, deploy, deployArgs);
+  const implementation = await _deployImplementation(deploy, factory, deployArgs);
   const beacon = await _deployBeacon(deploy, implementation);
   const proxy = await _deployProxy(deploy, beacon, initData);
 
@@ -144,7 +144,7 @@ export async function deployImplementation<T extends ethers.Contract>(
     address: implementation!.address,
     constructorArguments: deployArgs,
   });
-  return implementation;
+  return implementation as T;
 }
 
 /**
@@ -179,7 +179,7 @@ export function overrideBeaconProxyImplementation<T extends ethers.Contract>(
 async function _deployImplementation<T extends ethers.Contract>(
   deploy: Deploy,
   factory: ethers.ContractFactory,
-  ...deployArgs: any[]
+  deployArgs: any[]
 ): Promise<T> {
   const implementation = await factory.deploy(...deployArgs, deploy.overrides);
   return implementation as T
