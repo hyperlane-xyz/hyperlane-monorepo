@@ -69,4 +69,4 @@ export const mumbai: OpticsDomain = {
   ],
 };
 
-export const devDomains = [alfajores, kovan, gorli, fuji, mumbai];
+export const devCommunityDomains = [alfajores, kovan, gorli, fuji, mumbai];
