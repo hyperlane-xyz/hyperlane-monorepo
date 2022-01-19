@@ -1,11 +1,12 @@
 use std::time::Duration;
 
+use ethers::utils::keccak256;
 use rusoto_core::{credential::EnvironmentProvider, HttpClient, Region, RusotoError};
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};
 
 use color_eyre::eyre::{bail, eyre, Result};
 
-use optics_core::{accumulator::merkle::Proof, db::OpticsDB, Encode};
+use optics_core::{accumulator::merkle::Proof, db::OpticsDB};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
@@ -118,11 +119,10 @@ impl Pusher {
                         let message = self
                             .db
                             .message_by_leaf_index(index)?
+                            .map(|message| message.message)
                             .ok_or_else(|| eyre!("Missing message for known proof"))?;
-                        let proven = ProvenMessage {
-                            proof,
-                            message: message.to_vec(),
-                        };
+                        debug_assert_eq!(keccak256(&message), *proof.leaf.as_fixed_bytes());
+                        let proven = ProvenMessage { proof, message };
                         // upload if not already present
                         if !self.already_uploaded(&proven).await? {
                             self.upload_proof(&proven).await?;
