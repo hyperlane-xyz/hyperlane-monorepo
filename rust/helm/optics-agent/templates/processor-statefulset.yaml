@@ -54,6 +54,14 @@ spec:
           {{- if .Values.optics.processor.pollingInterval }}
           - name: OPT_PROCESSOR_INTERVAL
             value: {{ .Values.optics.processor.pollingInterval | quote }}
+          - name: OPT_PROCESSOR_INDEXON
+            value: {{ .Values.optics.processor.indexon | quote }}
+          {{- if .hexKey }}
+          - name: OPT_PROCESSOR_S3_BUCKET
+            value: {{ .Values.optics.processor.s3BucketName }}
+          - name: OPT_PROCESSOR_S3_REGION
+            value: {{ .aws.region }}
+          {{- end }}
           {{- end }}
           {{- range .Values.optics.processor.transactionSigners }}
           {{- if .hexKey }}

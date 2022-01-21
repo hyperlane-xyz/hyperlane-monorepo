@@ -11,6 +11,8 @@ export interface AgentConfig {
   awsRegion?: string;
   awsKeyId?: string;
   awsSecretAccessKey?: string;
+  processorIndexOnly?: boolean;
+  processorS3Bucket?: string;
   dockerImageRepo: string;
   dockerImageTag: string;
 }
@@ -250,6 +252,8 @@ async function helmValuesForChain(
           name: configs[chain].name,
           ...credentials(KEY_ROLE_ENUM.ProcessorSigner),
         })),
+        indexonly: agentConfig.processorIndexOnly || false,
+        s3BucketName: agentConfig.processorS3Bucket || ''
       },
     },
   };
