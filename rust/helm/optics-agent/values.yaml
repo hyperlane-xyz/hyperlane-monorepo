@@ -123,6 +123,8 @@ optics:
         hexKey: ""
       - name: "alfajores"
         hexKey: ""
+    s3BucketName:
+    indxonly: false
     pollingInterval: # 10
 
   kathy:
