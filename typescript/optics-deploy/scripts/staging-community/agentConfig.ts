@@ -22,5 +22,5 @@ export const agentConfig: AgentConfig = {
   awsKeyId: process.env.AWS_KEY_ID!,
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   dockerImageRepo: "gcr.io/clabs-optics/optics-agent",
-  dockerImageTag: "staging-community"
+  dockerImageTag: "3594c7d715f0ad1def2b36cb0e29649e1f6712e6"
 }
