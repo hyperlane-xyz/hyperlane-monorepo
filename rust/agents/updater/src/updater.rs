@@ -6,7 +6,7 @@ use ethers::{signers::Signer, types::Address};
 use futures_util::future::select_all;
 use prometheus::IntCounterVec;
 use tokio::task::JoinHandle;
-use tracing::{instrument::Instrumented, Instrument};
+use tracing::{info, instrument::Instrumented, Instrument};
 
 use crate::{
     produce::UpdateProducer, settings::UpdaterSettings as Settings, submit::UpdateSubmitter,
@@ -88,6 +88,11 @@ impl OpticsAgent for Updater {
         let home = self.home();
         let address = self.signer.address();
         let db = OpticsDB::new(self.home().name(), self.db());
+
+        info!(
+            "Updater is running with interval {:?} and pause {:?}",
+            &self.interval_seconds, &self.update_pause
+        );
 
         let produce = UpdateProducer::new(
             self.home(),

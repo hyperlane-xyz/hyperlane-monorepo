@@ -1,20 +1,20 @@
-import { ExistingBridgeDeploy } from './bridge/BridgeDeploy';
-import { ExistingCoreDeploy } from './core/CoreDeploy';
+import { BridgeDeploy } from './bridge/BridgeDeploy';
+import { CoreDeploy } from './core/CoreDeploy';
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
-import { ExistingDeployConfig } from './config';
+import { AllConfigs } from './config';
 
 export function updateProviderDomain(
   environment: string,
-  path: string,
-  configs: ExistingDeployConfig[],
+  directory: string,
+  configs: AllConfigs[],
 ) {
   let ret = "import { OpticsDomain } from './domain';\n"
   const coreDeploys = configs.map(
-    (_) => new ExistingCoreDeploy(path, _.chain, _.coreConfig),
+    (_) => CoreDeploy.fromDirectory(directory, _.chain, _.coreConfig),
   );
   const bridgeDeploys = configs.map(
-    (_) => new ExistingBridgeDeploy(_.chain, _.bridgeConfig, path),
+    (_) => BridgeDeploy.fromDirectory(directory, _.chain, _.bridgeConfig),
   );
 
   for (let i = 0; i < configs.length; i++) {
