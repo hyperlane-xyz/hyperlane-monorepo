@@ -1,11 +1,19 @@
 {
   "environment": "dev",
+  "index": {
+    "from": "3485934",
+    "chunk": "2000"
+  },
   "signers": {
     "fuji": {
       "key": "",
       "type": "hexKey"
     },
     "alfajores": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "mumbai": {
       "key": "",
       "type": "hexKey"
     },
@@ -16,10 +24,6 @@
     "kovan": {
       "key": "",
       "type": "hexKey"
-    },
-    "mumbai": {
-      "key": "",
-      "type": "hexKey"
     }
   },
   "replicas": {
@@ -27,6 +31,16 @@
       "address": "0x570EDeF0c271E3f1ba6B5C66D040195750a79762",
       "domain": "1000",
       "name": "alfajores",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "mumbai": {
+      "address": "0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB",
+      "domain": "80001",
+      "name": "mumbai",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
@@ -47,16 +61,6 @@
       "address": "0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A",
       "domain": "3000",
       "name": "kovan",
-      "rpcStyle": "ethereum",
-      "connection": {
-        "type": "http",
-        "url": ""
-      }
-    },
-    "mumbai": {
-      "address": "0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB",
-      "domain": "80001",
-      "name": "mumbai",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
