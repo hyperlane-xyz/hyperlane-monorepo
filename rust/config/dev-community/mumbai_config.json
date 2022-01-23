@@ -1,9 +1,5 @@
 {
   "environment": "dev",
-  "index": {
-    "from": "20957110",
-    "chunk": "2000"
-  },
   "signers": {
     "mumbai": {
       "key": "",
