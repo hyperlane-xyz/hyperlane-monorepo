@@ -17,7 +17,7 @@ import { BridgeContracts } from './BridgeContracts';
 import * as process from '.';
 import { Chain } from '../chain';
 
-import { TokenIdentifier } from '@optics-xyz/multi-provider/dist/optics/tokens';
+import { TokenIdentifier } from 'optics-multi-provider-community/dist/optics/tokens'
 import { CoreConfig } from '../core/CoreDeploy';
 
 function toBytes32(address: string): string {

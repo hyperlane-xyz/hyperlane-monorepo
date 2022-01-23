@@ -11,8 +11,8 @@ export const alfajores: OpticsDomain = {
     { domain: 43113, address: '0x570EDeF0c271E3f1ba6B5C66D040195750a79762' },
     { domain: 80001, address: '0xbA00eF80A55d4EefcF3d7971270D2c233F9d315e' },
   ],
-  governanceRouter: '',
-  xAppConnectionManager: '',
+  governanceRouter: '0xBF79333049D140fCa12355f1F896c8ebedAf8707',
+  xAppConnectionManager: '0x2d230eB17F3AFe032809EC13A0E516E297b17AA3',
 };
 
 export const kovan: OpticsDomain = {
@@ -27,8 +27,8 @@ export const kovan: OpticsDomain = {
     { domain: 43113, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
     { domain: 80001, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
-  governanceRouter: '',
-  xAppConnectionManager: '',
+  governanceRouter: '0x11E94700D9E5Ab1F8Bd0b3bd13e331CEFe3acEB7',
+  xAppConnectionManager: '0xf9db87020527A5A5aeFd95099051Fb14058916C9',
 };
 
 export const gorli: OpticsDomain = {
@@ -43,8 +43,8 @@ export const gorli: OpticsDomain = {
     { domain: 43113, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
     { domain: 80001, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
-  governanceRouter: '',
-  xAppConnectionManager: '',
+  governanceRouter: '0x11E94700D9E5Ab1F8Bd0b3bd13e331CEFe3acEB7',
+  xAppConnectionManager: '0xf9db87020527A5A5aeFd95099051Fb14058916C9',
 };
 
 export const fuji: OpticsDomain = {
@@ -59,8 +59,8 @@ export const fuji: OpticsDomain = {
     { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
     { domain: 80001, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
-  governanceRouter: '',
-  xAppConnectionManager: '',
+  governanceRouter: '0x11E94700D9E5Ab1F8Bd0b3bd13e331CEFe3acEB7',
+  xAppConnectionManager: '0xf9db87020527A5A5aeFd95099051Fb14058916C9',
 };
 
 export const mumbai: OpticsDomain = {
@@ -75,8 +75,8 @@ export const mumbai: OpticsDomain = {
     { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
     { domain: 43113, address: '0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB' },
   ],
-  governanceRouter: '',
-  xAppConnectionManager: '',
+  governanceRouter: '0x11E94700D9E5Ab1F8Bd0b3bd13e331CEFe3acEB7',
+  xAppConnectionManager: '0xf9db87020527A5A5aeFd95099051Fb14058916C9',
 };
 
 export const devCommunityDomains = [alfajores, kovan, gorli, fuji, mumbai];

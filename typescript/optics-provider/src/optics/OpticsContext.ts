@@ -237,6 +237,8 @@ export class OpticsContext extends MultiProvider {
 
     const core: CoreContracts = this.cores.entries().next().value;
     if (!core) throw new Error('empty core map');
+    console.log('core', core)
+    console.log('core gov router', core.governanceRouter)
 
     const governorDomain = await core.governanceRouter.governorDomain();
     this._governorDomain = governorDomain !== 0 ? governorDomain : core.domain;

@@ -10,7 +10,6 @@ interface Core {
   id: number;
   home: Address;
   replicas: ReplicaInfo[];
-  // TODO: Populate this
   governanceRouter: Address;
   xAppConnectionManager: Address;
 }
@@ -31,8 +30,8 @@ export class CoreContracts extends Contracts {
   readonly domain: number;
   readonly _home: Address;
   readonly _replicas: Map<number, ReplicaInfo>;
-  readonly governanceRouterAddress: Address;
-  readonly xAppConnectionManagerAddress: Address;
+  readonly _governanceRouter: Address;
+  readonly _xAppConnectionManager: Address;
   private providerOrSigner?: ethers.providers.Provider | ethers.Signer;
   private _governor?: Governor;
 
@@ -40,7 +39,7 @@ export class CoreContracts extends Contracts {
     domain: number,
     home: Address,
     replicas: ReplicaInfo[],
-    governanceRouterAddress: Address,
+    governanceRouter: Address,
     xAppConnectionManager: Address,
     providerOrSigner?: ethers.providers.Provider | ethers.Signer,
   ) {
@@ -48,8 +47,8 @@ export class CoreContracts extends Contracts {
     this.providerOrSigner = providerOrSigner;
     this.domain = domain;
     this._home = home;
-    this.governanceRouterAddress = governanceRouterAddress;
-    this.xAppConnectionManagerAddress = xAppConnectionManager;
+    this._governanceRouter = governanceRouter;
+    this._xAppConnectionManager = xAppConnectionManager;
 
     this._replicas = new Map();
     replicas.forEach((replica) => {
@@ -80,11 +79,15 @@ export class CoreContracts extends Contracts {
   }
 
   get governanceRouter(): core.GovernanceRouter {
+    console.log('debug')
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
+    console.log('factory', core.GovernanceRouter__factory)
+    console.log('govrout', this._governanceRouter)
+    console.log('signer', this.providerOrSigner)
     return core.GovernanceRouter__factory.connect(
-      this.governanceRouterAddress,
+      this._governanceRouter,
       this.providerOrSigner,
     );
   }
@@ -94,7 +97,7 @@ export class CoreContracts extends Contracts {
       throw new Error('No provider or signer. Call `connect` first.');
     }
     return core.XAppConnectionManager__factory.connect(
-      this.xAppConnectionManagerAddress,
+      this._xAppConnectionManager,
       this.providerOrSigner,
     );
   }
@@ -129,8 +132,8 @@ export class CoreContracts extends Contracts {
       id: this.domain,
       home: this._home,
       replicas: replicas,
-      governanceRouter: this.governanceRouterAddress,
-      xAppConnectionManager: this.xAppConnectionManagerAddress,
+      governanceRouter: this._governanceRouter,
+      xAppConnectionManager: this._xAppConnectionManager,
     };
   }
 

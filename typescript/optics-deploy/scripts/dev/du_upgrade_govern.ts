@@ -9,7 +9,13 @@ import { configPath } from './agentConfig';
 import { makeAllConfigs } from '../../src/config';
 
 async function main() {
+  devCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!)
+  devCommunity.registerRpcProvider('gorli', process.env.GORLI_RPC!)
+  devCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!)
+  devCommunity.registerRpcProvider('mumbai', process.env.MUMBAI_RPC!)
+  devCommunity.registerRpcProvider('fuji', process.env.FUJI_RPC!)
   const governorCore = await devCommunity.governorCore()
+  console.log('govcore', governorCore)
   const governorDomain = await devCommunity.governorDomain()
   const governanceMessages = await governorCore.newGovernanceBatch()
 
