@@ -636,9 +636,9 @@ export function writePartials(dir: string) {
  *
  * @param deploys - The array of chain deploys
  */
-export function writeDeployOutput(deploys: CoreDeploy[]) {
+export function writeDeployOutput(deploys: CoreDeploy[], writeDir?: string) {
   log(deploys[0].test, `Have ${deploys.length} deploys`);
-  const dir = `../../rust/config/${Date.now()}`;
+  const dir = writeDir ? writeDir : `../../rust/config/${Date.now()}`;
   for (const local of deploys) {
     // get remotes
     const remotes = deploys

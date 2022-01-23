@@ -71,7 +71,7 @@ export async function deployReplicaImplementation(deploy: CoreDeploy) {
  * @param deploys - An array of chain deploys
  * @param deployImplementation - A function that deploys a new implementation
  */
-export async function deployImplementations(deploys: CoreDeploy[], deployImplementation: (d: CoreDeploy) => void) {
+export async function deployImplementations(dir: string, deploys: CoreDeploy[], deployImplementation: (d: CoreDeploy) => void) {
   if (deploys.length == 0) {
     throw new Error('Must pass at least one deploy config');
   }
@@ -98,6 +98,6 @@ export async function deployImplementations(deploys: CoreDeploy[], deployImpleme
 
   // write config outputs again, should write under a different dir
   if (!isTestDeploy) {
-    writeDeployOutput(deploys);
+    writeDeployOutput(deploys, dir);
   }
 }

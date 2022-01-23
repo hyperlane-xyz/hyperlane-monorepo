@@ -12,31 +12,16 @@ let kovanConfig = kovan.devConfig;
 let mumbaiConfig = mumbai.devConfig;
 let fujiConfig = fuji.devConfig;
 
+const dir = '../../rust/config/dev-community/';
 const alfajoresDeploy = CoreDeploy.fromDirectory(
-  '../../rust/config/dev-community/',
+  dir,
   alfajores.chain,
   alfajoresConfig,
 );
-const gorliDeploy = CoreDeploy.fromDirectory(
-  '../../rust/config/dev-community/',
-  gorli.chain,
-  gorliConfig,
-);
-const kovanDeploy = CoreDeploy.fromDirectory(
-  '../../rust/config/dev-community/',
-  kovan.chain,
-  kovanConfig,
-);
-const mumbaiDeploy = CoreDeploy.fromDirectory(
-  '../../rust/config/dev-community/',
-  mumbai.chain,
-  mumbaiConfig,
-);
-const fujiDeploy = CoreDeploy.fromDirectory(
-  '../../rust/config/dev-community/',
-  fuji.chain,
-  fujiConfig,
-);
+const gorliDeploy = CoreDeploy.fromDirectory(dir, gorli.chain, gorliConfig);
+const kovanDeploy = CoreDeploy.fromDirectory(dir, kovan.chain, kovanConfig);
+const mumbaiDeploy = CoreDeploy.fromDirectory(dir, mumbai.chain, mumbaiConfig);
+const fujiDeploy = CoreDeploy.fromDirectory(dir, fuji.chain, fujiConfig);
 
 const deploys = [
   alfajoresDeploy,
@@ -46,7 +31,7 @@ const deploys = [
   kovanDeploy,
 ];
 async function main() {
-  await deployImplementations(deploys, deployHomeImplementation);
-  await deployImplementations(deploys, deployReplicaImplementation);
+  await deployImplementations(dir, deploys, deployHomeImplementation);
+  await deployImplementations(dir, deploys, deployReplicaImplementation);
 }
 main().then(console.log).catch(console.error);
