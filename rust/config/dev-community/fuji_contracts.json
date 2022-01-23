@@ -8,28 +8,28 @@
     "beacon": "0x745C5161161D42464Dbcc9485C1DF679306d095b"
   },
   "home": {
-    "implementation": "0xC501AC1Ccc44AA3332899a933ACf71FF4165fF49",
+    "implementation": "0x904471D9A74a1E953A06A5c7eE320e0323F53aC2",
     "proxy": "0xc53F82FAF17B4c521A85C514791593847Bdf1655",
     "beacon": "0xA797e4bB7b52Aa4F118f4b63059bdaF81643FD4d"
   },
   "replicas": {
     "5": {
-      "implementation": "0x2d230eB17F3AFe032809EC13A0E516E297b17AA3",
+      "implementation": "0x068269933F917DFD04D7C4cC2333eD228f710310",
       "proxy": "0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A",
       "beacon": "0x5ccc046f7c156a621d6Da5ffd79f96a731122057"
     },
     "1000": {
-      "implementation": "0x2d230eB17F3AFe032809EC13A0E516E297b17AA3",
+      "implementation": "0x068269933F917DFD04D7C4cC2333eD228f710310",
       "proxy": "0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964",
       "beacon": "0x5ccc046f7c156a621d6Da5ffd79f96a731122057"
     },
     "3000": {
-      "implementation": "0x2d230eB17F3AFe032809EC13A0E516E297b17AA3",
+      "implementation": "0x068269933F917DFD04D7C4cC2333eD228f710310",
       "proxy": "0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa",
       "beacon": "0x5ccc046f7c156a621d6Da5ffd79f96a731122057"
     },
     "80001": {
-      "implementation": "0x2d230eB17F3AFe032809EC13A0E516E297b17AA3",
+      "implementation": "0x068269933F917DFD04D7C4cC2333eD228f710310",
       "proxy": "0xeAc82476aF67dca63B04a66EA8D7230EfB4028DB",
       "beacon": "0x5ccc046f7c156a621d6Da5ffd79f96a731122057"
     }

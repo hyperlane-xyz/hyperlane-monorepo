@@ -139,6 +139,7 @@ export class CoreContracts extends Contracts {
 
   static fromObject(data: Core, signer?: ethers.Signer): CoreContracts {
     const { id, home, replicas, governanceRouter, xAppConnectionManager } = data;
+    // if (!id || !home || !replicas || !governanceRouter || !xAppConnectionManager) {
     if (!id || !home || !replicas) {
       throw new Error('Missing key');
     }

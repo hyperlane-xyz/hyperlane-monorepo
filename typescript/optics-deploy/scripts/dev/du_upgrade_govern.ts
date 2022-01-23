@@ -14,9 +14,10 @@ async function main() {
   devCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!)
   devCommunity.registerRpcProvider('mumbai', process.env.MUMBAI_RPC!)
   devCommunity.registerRpcProvider('fuji', process.env.FUJI_RPC!)
+  const governorDomain = await devCommunity.governorDomain()
+  console.log('goveDomain', governorDomain)
   const governorCore = await devCommunity.governorCore()
   console.log('govcore', governorCore)
-  const governorDomain = await devCommunity.governorDomain()
   const governanceMessages = await governorCore.newGovernanceBatch()
 
   const invariantViolationCollector = new InvariantViolationCollector()
