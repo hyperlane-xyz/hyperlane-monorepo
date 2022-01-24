@@ -41,7 +41,6 @@ export async function findAnnotatedSingleEvent<T extends Result, U>(
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
-  endBlock?: number,
 ): Promise<Array<Annotated<T, TypedEvent<T & U>>>> {
   const events = await findEvent(
     context,
@@ -49,7 +48,6 @@ export async function findAnnotatedSingleEvent<T extends Result, U>(
     contract,
     filter,
     startBlock,
-    endBlock,
   );
   return Annotated.fromEvents(context.resolveDomain(nameOrDomain), events);
 }
@@ -82,7 +80,6 @@ export async function findEvent<T extends Result, U>(
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
-  endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
   const domain = context.mustGetDomain(nameOrDomain);
   if (domain.paginate) {
@@ -92,10 +89,9 @@ export async function findEvent<T extends Result, U>(
       contract,
       filter,
       startBlock,
-      endBlock,
     );
   }
-  return contract.queryFilter(filter, startBlock, endBlock);
+  return contract.queryFilter(filter, startBlock);
 }
 
 async function getPaginatedEvents<T extends Result, U>(

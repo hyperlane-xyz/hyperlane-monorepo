@@ -1,4 +1,4 @@
-import {devCommunity as dev, mainnetCommunity, staging} from "optics-multi-provider-community";
+import {devCommunity, mainnetCommunity, staging} from "optics-multi-provider-community";
 import config from "./config";
 
 // register mainnet
@@ -11,10 +11,10 @@ mainnetCommunity.registerRpcProvider('avalanche', config.avalancheRpc);
 staging.registerRpcProvider('alfajores', config.alfajoresRpc);
 staging.registerRpcProvider('kovan', config.kovanRpc);
 
-// register dev
-dev.registerRpcProvider('alfajores', config.alfajoresRpc);
-dev.registerRpcProvider('kovan', config.kovanRpc);
+// register devCommunity
+devCommunity.registerRpcProvider('alfajores', config.alfajoresRpc);
+devCommunity.registerRpcProvider('kovan', config.kovanRpc);
 
 export {
-    mainnetCommunity, staging, dev
+    mainnetCommunity, staging, devCommunity
 };
