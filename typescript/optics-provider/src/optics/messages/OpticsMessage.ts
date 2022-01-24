@@ -18,7 +18,7 @@ import {
   DispatchTypes,
 } from '../events';
 
-import { queryAnnotatedEvents } from '..';
+import { findAnnotatedSingleEvent } from '..';
 import { keccak256 } from 'ethers/lib/utils';
 
 export type ParsedMessage = {
@@ -244,7 +244,7 @@ export class OpticsMessage {
       this.committedRoot,
     );
 
-    const updateLogs: AnnotatedUpdate[] = await queryAnnotatedEvents<
+    const updateLogs: AnnotatedUpdate[] = await findAnnotatedSingleEvent<
       UpdateTypes,
       UpdateArgs
     >(this.context, this.origin, this.home, updateFilter);
@@ -275,7 +275,7 @@ export class OpticsMessage {
       undefined,
       this.committedRoot,
     );
-    const updateLogs: AnnotatedUpdate[] = await queryAnnotatedEvents<
+    const updateLogs: AnnotatedUpdate[] = await findAnnotatedSingleEvent<
       UpdateTypes,
       UpdateArgs
     >(this.context, this.destination, this.replica, updateFilter);
@@ -302,7 +302,7 @@ export class OpticsMessage {
     }
     // if not, attempt to query the event
     const processFilter = this.replica.filters.Process(this.leaf);
-    const processLogs = await queryAnnotatedEvents<ProcessTypes, ProcessArgs>(
+    const processLogs = await findAnnotatedSingleEvent<ProcessTypes, ProcessArgs>(
       this.context,
       this.destination,
       this.replica,

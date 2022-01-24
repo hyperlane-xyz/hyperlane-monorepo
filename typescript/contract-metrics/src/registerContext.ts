@@ -1,4 +1,4 @@
-import {dev, mainnetCommunity, staging} from "optics-multi-provider-community";
+import {devCommunity as dev, mainnetCommunity, staging} from "optics-multi-provider-community";
 import config from "./config";
 
 // register mainnet
