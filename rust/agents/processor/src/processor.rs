@@ -343,12 +343,13 @@ impl OpticsAgent for Processor {
     where
         Self: Sized,
     {
+        let empty_map = HashMap::new();
         Ok(Self::new(
             settings.interval.parse().expect("invalid integer"),
             settings.as_ref().try_into_core(AGENT_NAME).await?,
             settings.allowed,
             settings.denied,
-            settings.indexon,
+            settings.indexon.unwrap_or(empty_map),
             settings.s3,
         ))
     }

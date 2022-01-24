@@ -19,7 +19,7 @@ decl_settings!(Processor {
     /// A deny list of message senders
     denied: Option<HashSet<H256>>,
     /// Only index transactions if this key is set
-    indexon: HashMap<String, bool>,
+    indexon: Option<HashMap<String, bool>>,
     /// An amazon aws s3 bucket to push proofs to
     s3: Option<S3Config>,
 });
