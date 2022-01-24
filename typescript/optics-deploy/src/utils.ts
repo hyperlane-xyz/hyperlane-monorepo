@@ -1,4 +1,6 @@
 import { exec } from 'child_process'
+import fs from 'fs';
+import path from 'path';
 
 /*
  * Converts address to Bytes32
@@ -104,4 +106,11 @@ export function warn(text: string, padded: boolean = false) {
   } else {
     console.log(`**** ${text.toUpperCase()} ****`);
   }
+}
+
+export function writeJSON(directory: string, filename: string, obj: any) {
+  fs.writeFileSync(
+    path.join(directory, filename),
+    JSON.stringify(obj, null, 2),
+  );
 }

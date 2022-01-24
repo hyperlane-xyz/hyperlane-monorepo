@@ -1,7 +1,5 @@
 import { ethers } from 'ethers';
 import { CoreContracts } from '../contracts';
-import fs from 'fs';
-import path from 'path';
 
 
 import * as utils from './utils';
@@ -68,7 +66,7 @@ export class CallBatch {
     console.log('local txs', this.local.length)
     console.log('remote txs', domains, remoteCalls)
     const remotes = await Promise.all(
-      domains.map((domain: number, i: number) => this.core.governanceRouter.populateTransaction.callRemote(domain, remoteCalls[i]))
+      domains.map((domain: number, i: number) => this.core.governanceRouter.populateTransaction.callRemote(domain, remoteCalls[i], overrides))
     )
     this.built = remotes.concat(local)
     console.log('built', this.built.length, 'transactions')
@@ -76,17 +74,9 @@ export class CallBatch {
   }
 
   // Sign each governance transaction and dispatch them to the chain
-  async execute(
-    overrides?: ethers.Overrides,
-  ): Promise<ethers.providers.TransactionReceipt[]> {
+  async execute(): Promise<ethers.providers.TransactionReceipt[]> {
     const transactions = await this.build(overrides);
-    const signer = this.core.governanceRouter.signer;
-    const governor = await this.core.governor()
-    const signerAddress = await signer.getAddress()
-    if (!governor.local)
-      throw new Error('Governor is not local');
-    if (signerAddress !== governor.identifier)
-      throw new Error('Signer is not Governor');
+    const signer = await this.governorSigner()
     const receipts = []
     for (const tx of transactions) {
       const response = await signer.sendTransaction(tx)
@@ -95,17 +85,9 @@ export class CallBatch {
     return receipts
   }
 
-  async estimateGas(
-    overrides?: ethers.Overrides,
-  ): Promise<any[]> {
+  async estimateGas(): Promise<any[]> {
     const transactions = await this.build(overrides);
-    const signer = this.core.governanceRouter.signer;
-    const governor = await this.core.governor()
-    const signerAddress = await signer.getAddress()
-    if (!governor.local)
-      throw new Error('Governor is not local');
-    if (signerAddress !== governor.identifier)
-      throw new Error('Signer is not Governor');
+    const signer = await this.governorSigner()
     const responses = []
     for (const tx of transactions) {
       responses.push(await signer.estimateGas(tx))
@@ -113,13 +95,14 @@ export class CallBatch {
     return responses
   }
 
-  write(directory: string) {
-    if (!this.built)
-      throw new Error('Must build batch before writing');
-    const filename = `governance_${Date.now()}.json`;
-    fs.writeFileSync(
-      path.join(directory, filename),
-      JSON.stringify(this.built, null, 2),
-    );
+  async governorSigner(): Promise<ethers.Signer> {
+    const signer = this.core.governanceRouter.signer;
+    const governor = await this.core.governor()
+    const signerAddress = await signer.getAddress()
+    if (!governor.local)
+      throw new Error('Governor is not local');
+    if (signerAddress !== governor.identifier)
+      throw new Error('Signer is not Governor');
+    return signer
   }
 }

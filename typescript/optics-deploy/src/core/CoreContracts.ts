@@ -4,8 +4,6 @@ import { Contracts } from '../contracts';
 import { CoreContractAddresses } from '../chain';
 import * as ethers from "ethers";
 
-// Represents the contracts deployed on a specific chain. Replicas thus refer to replicas on this
-// chain that are replicating roots from homes on other chains.
 export class CoreContracts extends Contracts {
   upgradeBeaconController?: contracts.UpgradeBeaconController;
   xAppConnectionManager?: contracts.XAppConnectionManager;

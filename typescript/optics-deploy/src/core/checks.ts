@@ -1,7 +1,8 @@
 import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 
-import { CoreDeploy as Deploy } from './CoreDeploy';
+import { Deploy } from '../deploy';
+import { CoreDeploy } from './CoreDeploy';
 import { BridgeDeploy } from '../bridge/BridgeDeploy';
 import { BeaconProxy } from '../proxyUtils';
 import TestBridgeDeploy from '../bridge/TestBridgeDeploy';
@@ -51,7 +52,7 @@ export async function checkBeaconProxyImplementation(
 }
 
 export function checkVerificationInput(
-  deploy: Deploy | BridgeDeploy | TestBridgeDeploy,
+  deploy: Deploy,
   name: string,
   addr: string,
 ) {
@@ -62,10 +63,11 @@ export function checkVerificationInput(
 }
 
 export async function checkCoreDeploy(
-  deploy: Deploy,
+  deploy: CoreDeploy,
   remoteDomains: number[],
   governorDomain: number,
   invariantViolationHandler: InvariantViolationHandler = assertInvariantViolation,
+  _checkVerificationInput = true
 ) {
   // Home upgrade setup contracts are defined
   await checkBeaconProxyImplementation(
@@ -105,7 +107,6 @@ export async function checkCoreDeploy(
       await deploy.contracts.xAppConnectionManager?.domainToReplica(domain);
     expect(enrolledReplica).to.not.equal(emptyAddr);
     //watchers have permission in xAppConnectionManager
-    /*
     await Promise.all(
       deploy.config.watchers.map(async (watcher) => {
         const watcherPermissions =
@@ -116,7 +117,6 @@ export async function checkCoreDeploy(
         expect(watcherPermissions).to.be.true;
       }),
     );
-    */
   }
 
   if (remoteDomains.length > 0) {
@@ -169,7 +169,16 @@ export async function checkCoreDeploy(
   expect(beaconOwner).to.equal(governorAddr);
   expect(homeOwner).to.equal(governorAddr);
 
-  // check verification addresses
+  if (_checkVerificationInput) {
+    checkCoreVerificationInput(deploy, remoteDomains)
+  }
+}
+
+function checkCoreVerificationInput(
+  deploy: CoreDeploy,
+  remoteDomains: number[],
+) {
+  // Checks that verification input is consistent with deployed contracts.
   checkVerificationInput(
     deploy,
     'UpgradeBeaconController',
@@ -185,13 +194,11 @@ export async function checkCoreDeploy(
     'UpdaterManager',
     deploy.contracts.updaterManager?.address!,
   );
-  /*
   checkVerificationInput(
     deploy,
     'Home Implementation',
     deploy.contracts.home?.implementation.address!,
   );
-  */
   checkVerificationInput(
     deploy,
     'Home UpgradeBeacon',
@@ -219,13 +226,11 @@ export async function checkCoreDeploy(
   );
 
   if (remoteDomains.length > 0) {
-    /*
     checkVerificationInput(
       deploy,
       'Replica Implementation',
       deploy.contracts.replicas[remoteDomains[0]]?.implementation.address!,
     );
-    */
     checkVerificationInput(
       deploy,
       'Replica UpgradeBeacon',

@@ -31,13 +31,18 @@ async function main() {
       makeAllConfigs(mumbai, (_) => _.devConfig),
     ]),
     governorDomain,
-    invariantViolationCollector.handleViolation
+    invariantViolationCollector.handleViolation,
+    // We skip checking the verification input as it is expected to fail
+    // as the not-yet-upgraded-to implementations have already been written
+    // to it.
+    false
   );
 
   if (invariantViolationCollector.violations.length === 0) {
     console.info("No violations, exit")
     return
   }
+
   const violations = invariantViolationCollector.uniqueViolations()
   console.log('checked core deploys, found', violations.length, 'violations')
   for (const violation of violations) {
@@ -49,10 +54,10 @@ async function main() {
       governanceMessages.pushRemote(violation.domain, call)
     }
   }
-  await governanceMessages.build()
+  const txs = await governanceMessages.build()
   // const receipts = await governanceMessages.execute()
   const receipts = await governanceMessages.estimateGas()
   console.log(receipts)
-  governanceMessages.write('../../rust/config/dev-community/')
+  governanceMessages.write('../../rust/config/dev-community/', `governance_${Date.now()}.json`, txs)
 }
 main().then(console.log).catch(console.error)
