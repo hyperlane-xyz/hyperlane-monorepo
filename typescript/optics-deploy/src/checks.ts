@@ -62,4 +62,12 @@ export class InvariantViolationCollector {
   handleViolation = (violation: InvariantViolation) => {
     this.violations.push(violation)
   }
+
+  uniqueViolations = (): InvariantViolation[] => {
+    return this.violations.filter((v: InvariantViolation, i: number) => {
+      return i === this.violations.findIndex((m: InvariantViolation) => {
+        return m.domain === v.domain && m.actualImplementationAddress === v.actualImplementationAddress && m.expectedImplementationAddress === v.expectedImplementationAddress
+      })
+    })
+  }
 }
