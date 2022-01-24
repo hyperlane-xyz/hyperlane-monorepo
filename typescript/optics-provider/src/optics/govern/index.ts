@@ -32,7 +32,7 @@ export class CallBatch {
 
   static async fromCore(core: CoreContracts): Promise<CallBatch> {
     const governor = await core.governor();
-    if (governor.location === 'remote')
+    if (!governor.local)
       throw new Error(
         'Cannot create call batch on a chain without governance rights. Use the governing chain.',
       );
@@ -78,10 +78,33 @@ export class CallBatch {
   ): Promise<ethers.providers.TransactionResponse[]> {
     const transactions = await this.build(overrides);
     const signer = this.core.governanceRouter.signer;
-    console.log(signer)
+    const governor = await this.core.governor()
+    const signerAddress = await signer.getAddress()
+    if (!governor.local)
+      throw new Error('Governor is not local');
+    if (signerAddress !== governor.identifier)
+      throw new Error('Signer is not Governor');
     const responses = []
     for (const tx of transactions) {
       responses.push(await signer.sendTransaction(tx))
+    }
+    return responses
+  }
+
+  async call(
+    overrides?: ethers.Overrides,
+  ): Promise<any[]> {
+    const transactions = await this.build(overrides);
+    const signer = this.core.governanceRouter.signer;
+    const governor = await this.core.governor()
+    const signerAddress = await signer.getAddress()
+    if (!governor.local)
+      throw new Error('Governor is not local');
+    if (signerAddress !== governor.identifier)
+      throw new Error('Signer is not Governor');
+    const responses = []
+    for (const tx of transactions) {
+      responses.push(await signer.estimateGas(tx))
     }
     return responses
   }

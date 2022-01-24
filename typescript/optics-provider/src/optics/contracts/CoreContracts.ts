@@ -14,17 +14,11 @@ interface Core {
   xAppConnectionManager: Address;
 }
 
-export type LocalGovernor = {
-  location: 'local';
+export type Governor = {
+  local: boolean;
+  domain: number;
   identifier: string;
 };
-
-export type RemoteGovernor = {
-  location: 'remote';
-  domain: number;
-};
-
-export type Governor = LocalGovernor | RemoteGovernor;
 
 export class CoreContracts extends Contracts {
   readonly domain: number;
@@ -106,11 +100,8 @@ export class CoreContracts extends Contracts {
       this.governanceRouter.governorDomain(),
       this.governanceRouter.governor(),
     ]);
-    if (identifier === ethers.constants.AddressZero) {
-      this._governor = { location: 'remote', domain };
-    } else {
-      this._governor = { location: 'local', identifier };
-    }
+    const local = identifier !== ethers.constants.AddressZero;
+    this._governor = { local, domain, identifier };
     return this._governor;
   }
 
