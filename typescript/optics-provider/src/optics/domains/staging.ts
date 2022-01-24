@@ -12,6 +12,8 @@ export const alfajores: OpticsDomain = {
       address: '0x6B8D6947B9b70f3ff1b547a15B969F625d28104a',
     },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const kovan: OpticsDomain = {
@@ -27,6 +29,8 @@ export const kovan: OpticsDomain = {
       address: '0xE63E73339501EE3A8d2928d6C88cf30aC8556Ee0',
     },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const rinkeby: OpticsDomain = {
@@ -42,6 +46,8 @@ export const rinkeby: OpticsDomain = {
       address: '0x6554bc7a5C35bA64Bf48FA8a9e662d8808aaa890',
     },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const stagingDomains = [alfajores, kovan, rinkeby];

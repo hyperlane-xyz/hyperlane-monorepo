@@ -11,6 +11,7 @@ export type Address = string;
  * @returns A Uint8Array of length 32
  */
 export function canonizeId(data: BytesLike): Uint8Array {
+  if (!data) throw new Error('Bad input. Undefined');
   const buf = ethers.utils.arrayify(data);
   if (buf.length > 32) {
     throw new Error('Too long');

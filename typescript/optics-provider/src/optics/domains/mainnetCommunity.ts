@@ -19,6 +19,8 @@ export const celo: OpticsDomain = {
       address: '0x2784a755690453035f32Ac5e28c52524d127AfE2',
     },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const ethereum: OpticsDomain = {
@@ -41,6 +43,8 @@ export const ethereum: OpticsDomain = {
       address: '0xaa099aF87ACE9E437b9B410a687F263eeaeC4321',
     },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const polygon: OpticsDomain = {
@@ -68,6 +72,8 @@ export const polygon: OpticsDomain = {
       address: '0xfde0a96468ae91B4E13794E1B8e5B222E7Db6a23',
     },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const avalanche: OpticsDomain = {
@@ -94,6 +100,8 @@ export const avalanche: OpticsDomain = {
       address: '0x706DC810c79dAAFb82D304D7C9ff9518D8B43Fae',
     },
   ],
+  governanceRouter: '',
+  xAppConnectionManager: '',
 };
 
 export const mainnetCommunityDomains = [celo, ethereum, polygon, avalanche];
