@@ -293,7 +293,7 @@ decl_agent!(
         replica_tasks: RwLock<HashMap<String, JoinHandle<Result<()>>>>,
         allowed: Option<Arc<HashSet<H256>>>,
         denied: Option<Arc<HashSet<H256>>>,
-        index_only: bool,
+        index_only: HashMap<String, bool>,
         next_message_nonce: Arc<prometheus::IntGaugeVec>,
         config: Option<S3Config>,
     }
@@ -306,7 +306,7 @@ impl Processor {
         core: AgentCore,
         allowed: Option<HashSet<H256>>,
         denied: Option<HashSet<H256>>,
-        index_only: bool,
+        index_only: HashMap<String, bool>,
         config: Option<S3Config>,
     ) -> Self {
         let next_message_nonce = Arc::new(
@@ -343,12 +343,13 @@ impl OpticsAgent for Processor {
     where
         Self: Sized,
     {
+        let empty_map = HashMap::new();
         Ok(Self::new(
             settings.interval.parse().expect("invalid integer"),
             settings.as_ref().try_into_core(AGENT_NAME).await?,
             settings.allowed,
             settings.denied,
-            settings.indexon.is_some(),
+            settings.indexon.unwrap_or(empty_map),
             settings.s3,
         ))
     }
@@ -418,11 +419,19 @@ impl OpticsAgent for Processor {
             // instantiate task array here so we can optionally push run_task
             let mut tasks = vec![home_sync_task, prover_sync_task];
 
-            if !self.index_only {
-                // this is the unused must use
-                let names: Vec<&str> = self.replicas().keys().map(|k| k.as_str()).collect();
-                tasks.push(self.run_many(&names));
-            }
+            // Filter out the index_only replicas
+            let names: Vec<&str> = self
+                .replicas()
+                .keys()
+                .filter(|k| !self.index_only.contains_key(k.as_str()))
+                .map(|k| k.as_str())
+                .collect();
+
+            info!(
+                "Starting Processor tasks {:?}, config is {:?}",
+                &names, self.index_only
+            );
+            tasks.push(self.run_many(&names));
 
             // if we have a bucket, add a task to push to it
             if let Some(config) = &self.config {
