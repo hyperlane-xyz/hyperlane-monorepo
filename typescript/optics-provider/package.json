@@ -1,6 +1,6 @@
 {
   "name": "optics-multi-provider-community",
-  "version": "0.1.22",
+  "version": "0.1.23",
   "description": "multi-provider for Optics",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
