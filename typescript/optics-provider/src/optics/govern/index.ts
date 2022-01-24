@@ -72,6 +72,20 @@ export class CallBatch {
     return this.built;
   }
 
+  // Sign each governance transaction and dispatch them to the chain
+  async execute(
+    overrides?: ethers.Overrides,
+  ): Promise<ethers.providers.TransactionResponse[]> {
+    const transactions = await this.build(overrides);
+    const signer = this.core.governanceRouter.signer;
+    console.log(signer)
+    const responses = []
+    for (const tx of transactions) {
+      responses.push(await signer.sendTransaction(tx))
+    }
+    return responses
+  }
+
   write(directory: string) {
     if (!this.built)
       throw new Error('Must build batch before writing');

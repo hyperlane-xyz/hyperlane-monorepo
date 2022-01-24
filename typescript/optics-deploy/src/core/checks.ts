@@ -105,6 +105,7 @@ export async function checkCoreDeploy(
       await deploy.contracts.xAppConnectionManager?.domainToReplica(domain);
     expect(enrolledReplica).to.not.equal(emptyAddr);
     //watchers have permission in xAppConnectionManager
+    /*
     await Promise.all(
       deploy.config.watchers.map(async (watcher) => {
         const watcherPermissions =
@@ -115,6 +116,7 @@ export async function checkCoreDeploy(
         expect(watcherPermissions).to.be.true;
       }),
     );
+    */
   }
 
   if (remoteDomains.length > 0) {
@@ -183,11 +185,13 @@ export async function checkCoreDeploy(
     'UpdaterManager',
     deploy.contracts.updaterManager?.address!,
   );
+  /*
   checkVerificationInput(
     deploy,
     'Home Implementation',
     deploy.contracts.home?.implementation.address!,
   );
+  */
   checkVerificationInput(
     deploy,
     'Home UpgradeBeacon',
@@ -215,11 +219,13 @@ export async function checkCoreDeploy(
   );
 
   if (remoteDomains.length > 0) {
+    /*
     checkVerificationInput(
       deploy,
       'Replica Implementation',
       deploy.contracts.replicas[remoteDomains[0]]?.implementation.address!,
     );
+    */
     checkVerificationInput(
       deploy,
       'Replica UpgradeBeacon',

@@ -79,13 +79,9 @@ export class CoreContracts extends Contracts {
   }
 
   get governanceRouter(): core.GovernanceRouter {
-    console.log('debug')
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
-    console.log('factory', core.GovernanceRouter__factory)
-    console.log('govrout', this._governanceRouter)
-    console.log('signer', this.providerOrSigner)
     return core.GovernanceRouter__factory.connect(
       this._governanceRouter,
       this.providerOrSigner,

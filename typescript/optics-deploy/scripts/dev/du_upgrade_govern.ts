@@ -7,6 +7,7 @@ import * as fuji from '../../config/testnets/fuji';
 import { checkCoreDeploys, InvariantViolationCollector } from '../../src/checks';
 import { configPath } from './agentConfig';
 import { makeAllConfigs } from '../../src/config';
+import { ethers } from 'ethers';
 
 async function main() {
   devCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!)
@@ -14,11 +15,13 @@ async function main() {
   devCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!)
   devCommunity.registerRpcProvider('mumbai', process.env.MUMBAI_RPC!)
   devCommunity.registerRpcProvider('fuji', process.env.FUJI_RPC!)
+  devCommunity.registerSigner('alfajores', new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!))
   const governorDomain = await devCommunity.governorDomain()
-  console.log('goveDomain', governorDomain)
   const governorCore = await devCommunity.governorCore()
-  console.log('govcore', governorCore)
   const governanceMessages = await governorCore.newGovernanceBatch()
+  const governor = await governorCore.governor()
+  console.log(governor)
+  return
 
   const invariantViolationCollector = new InvariantViolationCollector()
   await checkCoreDeploys(
@@ -38,6 +41,7 @@ async function main() {
     console.info("No violations, exit")
     return
   }
+  console.log('checked core deploys')
 
   for (const violation of invariantViolationCollector.violations) {
     const call = await violation.upgradeBeaconController.populateTransaction.upgrade(violation.beacon.address, violation.expectedImplementationAddress)
@@ -48,6 +52,8 @@ async function main() {
     }
   }
   await governanceMessages.build()
-  governanceMessages.write('../../rust/config/dev/')
+  const responses = await governanceMessages.execute()
+  console.log(responses)
+  // governanceMessages.write('../../rust/config/dev-community/')
 }
 main().then(console.log).catch(console.error)
