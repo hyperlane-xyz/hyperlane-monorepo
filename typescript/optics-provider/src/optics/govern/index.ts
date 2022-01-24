@@ -65,17 +65,20 @@ export class CallBatch {
 
     const [domains, remoteCalls] = utils.associateRemotes(this.remote);
     const local = await this.core.governanceRouter.populateTransaction.callLocal(this.local)
+    console.log('local txs', this.local.length)
+    console.log('remote txs', domains, remoteCalls)
     const remotes = await Promise.all(
       domains.map((domain: number, i: number) => this.core.governanceRouter.populateTransaction.callRemote(domain, remoteCalls[i]))
     )
     this.built = remotes.concat(local)
+    console.log('built', this.built.length, 'transactions')
     return this.built;
   }
 
   // Sign each governance transaction and dispatch them to the chain
   async execute(
     overrides?: ethers.Overrides,
-  ): Promise<ethers.providers.TransactionResponse[]> {
+  ): Promise<ethers.providers.TransactionReceipt[]> {
     const transactions = await this.build(overrides);
     const signer = this.core.governanceRouter.signer;
     const governor = await this.core.governor()
@@ -84,14 +87,15 @@ export class CallBatch {
       throw new Error('Governor is not local');
     if (signerAddress !== governor.identifier)
       throw new Error('Signer is not Governor');
-    const responses = []
+    const receipts = []
     for (const tx of transactions) {
-      responses.push(await signer.sendTransaction(tx))
+      const response = await signer.sendTransaction(tx)
+      receipts.push(await response.wait())
     }
-    return responses
+    return receipts
   }
 
-  async call(
+  async estimateGas(
     overrides?: ethers.Overrides,
   ): Promise<any[]> {
     const transactions = await this.build(overrides);

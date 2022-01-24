@@ -38,10 +38,10 @@ async function main() {
     console.info("No violations, exit")
     return
   }
-  console.log('checked core deploys, found', invariantViolationCollector.violations.length, 'violations')
-
-  for (const violation of invariantViolationCollector.violations) {
-    console.log(violation)
+  const violations = invariantViolationCollector.uniqueViolations()
+  console.log('checked core deploys, found', violations.length, 'violations')
+  for (const violation of violations) {
+    console.log(violation.domain, violation.actualImplementationAddress, violation.expectedImplementationAddress)
     const call = await violation.upgradeBeaconController.populateTransaction.upgrade(violation.beacon.address, violation.expectedImplementationAddress)
     if (violation.domain === governorDomain) {
       governanceMessages.pushLocal(call)
@@ -50,9 +50,9 @@ async function main() {
     }
   }
   await governanceMessages.build()
-  // const responses = await governanceMessages.execute()
-  const responses = await governanceMessages.call()
-  console.log(responses)
+  // const receipts = await governanceMessages.execute()
+  const receipts = await governanceMessages.estimateGas()
+  console.log(receipts)
   governanceMessages.write('../../rust/config/dev-community/')
 }
 main().then(console.log).catch(console.error)
