@@ -17,6 +17,11 @@ export const ethereum: OpticsDomain = {
 export const polygon: OpticsDomain = {
   name: 'polygon',
   id: 1886350457,
+  paginate: {
+    // This needs to be stupidly low to avoid RPC timeouts
+    blocks: 100,
+    from: 18895794,
+  },
   bridgeRouter: '0xf244eA81F715F343040569398A4E7978De656bf6',
   ethHelper: '0xc494bFEE14b5E1E118F93CfedF831f40dFA720fA',
   home: '0x97bbda9A1D45D86631b243521380Bc070D6A4cBD',

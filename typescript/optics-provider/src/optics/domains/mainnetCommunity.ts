@@ -32,6 +32,10 @@ export const ethereum: OpticsDomain = {
 export const avalanche: OpticsDomain = {
   name: 'avalanche',
   id: 1635148152,
+  paginate: {
+    blocks: 1000000,
+    from: 6765067,
+  },
   bridgeRouter: '0xB6bB41B1fb8c381b002C405B8abB5D1De0C0abFE',
   ethHelper: '0x4fc16De11deAc71E8b2Db539d82d93BE4b486892',
   home: '0x101a39eA1143cb252fc8093847399046fc35Db89',
@@ -47,6 +51,11 @@ export const avalanche: OpticsDomain = {
 export const polygon: OpticsDomain = {
   name: 'polygon',
   id: 1886350457,
+  paginate: {
+    // This needs to be stupidly low to avoid RPC timeouts
+    blocks: 10000,
+    from: 19657100,
+  },
   bridgeRouter: '0x3a5846882C0d5F8B0FA4bB04dc90C013104d125d',
   ethHelper: '0xa489b8981ae5652C9Dd6515848cB8Dbecae5E1B0',
   home: '0xCf9066ee2fF063dD09862B745414c8dEa4Cc0497',
