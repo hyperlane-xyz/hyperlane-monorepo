@@ -3,9 +3,7 @@ import { Contract, ethers } from 'ethers';
 
 import { Deploy } from '../deploy';
 import { CoreDeploy } from './CoreDeploy';
-import { BridgeDeploy } from '../bridge/BridgeDeploy';
 import { BeaconProxy } from '../proxyUtils';
-import TestBridgeDeploy from '../bridge/TestBridgeDeploy';
 import { UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
 import {
   assertInvariantViolation,
@@ -52,12 +50,12 @@ export async function checkBeaconProxyImplementation(
 }
 
 export function checkVerificationInput(
-  deploy: Deploy,
+  deploy: Deploy<any>,
   name: string,
   addr: string,
 ) {
   const inputAddr = deploy.verificationInput.filter(
-    (contract) => contract.name == name,
+    (contract: any) => contract.name == name,
   )[0].address;
   expect(inputAddr).to.equal(addr);
 }

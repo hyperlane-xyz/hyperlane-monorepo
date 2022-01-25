@@ -59,15 +59,13 @@ export class InvariantViolationCollector {
   }
 
   // Declare method this way to retain scope
-  handleViolation = (violation: InvariantViolation) => {
-    this.violations.push(violation)
-  }
-
-  uniqueViolations = (): InvariantViolation[] => {
-    return this.violations.filter((v: InvariantViolation, i: number) => {
-      return i === this.violations.findIndex((m: InvariantViolation) => {
-        return m.domain === v.domain && m.actualImplementationAddress === v.actualImplementationAddress && m.expectedImplementationAddress === v.expectedImplementationAddress
-      })
-    })
+  handleViolation = (v: InvariantViolation) => {
+    const duplicateIndex = this.violations.findIndex((m: InvariantViolation) =>
+      m.domain === v.domain &&
+      m.actualImplementationAddress === v.actualImplementationAddress &&
+      m.expectedImplementationAddress === v.expectedImplementationAddress
+    )
+    if (duplicateIndex !== -1)
+      this.violations.push(v);
   }
 }
