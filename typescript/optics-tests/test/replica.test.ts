@@ -11,7 +11,7 @@ import {
   deployUpdaterManager,
 } from '@optics-xyz/deploy/dist/src/core';
 
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+import * as contracts from 'optics-ts-interface/dist/optics-core';
 
 const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
 const merkleTestCases = require('../../../vectors/merkle.json');

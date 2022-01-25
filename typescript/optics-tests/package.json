@@ -18,7 +18,7 @@
   "dependencies": {
     "@optics-xyz/deploy": "^0.0.3",
     "@optics-xyz/multi-provider": "^0.0.4",
-    "@optics-xyz/ts-interface": "^1.0.9",
+    "optics-ts-interface": "^1.1.1",
     "@types/node": "^15.14.7",
     "dotenv": "^10.0.0",
     "ethers": "^5.4.7"

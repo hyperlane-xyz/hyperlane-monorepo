@@ -10,7 +10,7 @@ import {
   TestHome,
   UpdaterManager__factory,
   UpdaterManager,
-} from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-ts-interface/dist/optics-core';
 
 const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
 const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');

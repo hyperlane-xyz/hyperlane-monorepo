@@ -9,7 +9,7 @@ import {
   BridgeToken,
   BridgeToken__factory,
   IERC20,
-} from '@optics-xyz/ts-interface/dist/optics-xapps';
+} from 'optics-ts-interface/dist/optics-xapps';
 import { stringToBytes32 } from '../utils';
 
 const { BridgeMessageTypes } = bridge;

@@ -10,7 +10,7 @@ import { deployTwoChains } from '@optics-xyz/deploy/dist/src/core';
 import {
   TestRecipient__factory,
   TestReplica,
-} from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-ts-interface/dist/optics-core';
 
 const proveAndProcessTestCases = require('../../../../vectors/proveAndProcess.json');
 

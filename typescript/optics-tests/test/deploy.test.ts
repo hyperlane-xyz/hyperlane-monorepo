@@ -15,7 +15,7 @@ import { CoreDeploy } from '@optics-xyz/deploy/dist/src/core/CoreDeploy';
 import {
   MockWeth,
   MockWeth__factory,
-} from '@optics-xyz/ts-interface/dist/optics-xapps';
+} from 'optics-ts-interface/dist/optics-xapps';
 
 const domains = [1000, 2000, 3000, 4000];
 

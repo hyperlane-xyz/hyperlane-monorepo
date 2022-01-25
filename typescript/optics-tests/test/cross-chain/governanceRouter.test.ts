@@ -11,7 +11,7 @@ import {
   deployNChains,
   deployUnenrolledReplica,
 } from '@optics-xyz/deploy/dist/src/core';
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+import * as contracts from 'optics-ts-interface/dist/optics-core';
 
 const helpers = require('../../../../vectors/proof.json');
 
