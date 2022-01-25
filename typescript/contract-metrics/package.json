@@ -11,7 +11,7 @@
     "relink": "cd ../optics-provider && npm run build && cd ../contract-metrics && npm link optics-multi-provider-community"
   },
   "dependencies": {
-    "optics-multi-provider-community": "^0.1.21",
+    "optics-multi-provider-community": "^0.1.24",
     "@optics-xyz/ts-interface": "^1.0.9",
     "@types/bunyan": "^1.8.7",
     "@types/express": "^4.17.13",

@@ -1,7 +1,7 @@
 //! Configuration
 use ethers::prelude::H256;
 use serde::Deserialize;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
 
 use optics_base::decl_settings;
 
