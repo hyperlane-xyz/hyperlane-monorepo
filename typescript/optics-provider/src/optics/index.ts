@@ -20,6 +20,6 @@ export type { OpticsDomain } from './domains';
 export { mainnetDomains, mainnetCommunityDomains, devCommunityDomains, stagingDomains, stagingCommunityDomains } from './domains';
 
 export type { AnnotatedLifecycleEvent, OpticsLifecyleEvent } from './events';
-export { queryAnnotatedEvents, Annotated } from './events';
+export { queryAnnotatedEvents, findAnnotatedSingleEvent, Annotated } from './events';
 
 export { OpticsContext, mainnet, mainnetCommunity, devCommunity, staging, stagingCommunity } from './OpticsContext';
