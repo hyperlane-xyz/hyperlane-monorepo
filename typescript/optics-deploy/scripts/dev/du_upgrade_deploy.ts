@@ -31,7 +31,10 @@ const deploys = [
   kovanDeploy,
 ];
 async function main() {
-  await deployImplementations(dir, deploys, deployHomeImplementation);
+  await deployImplementations(dir, deploys, (deploy) => {
+  deployHomeImplementation(deploy),
+  deployReplicaImplementation(deploy)
+  });
   await deployImplementations(dir, deploys, deployReplicaImplementation);
 }
 main().then(console.log).catch(console.error);
