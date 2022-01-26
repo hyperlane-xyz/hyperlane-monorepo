@@ -272,7 +272,6 @@ describe('XAppConnectionManager', async () => {
     const testCase = signedFailureTestCases[0];
     const { domain, updater, signature, signer } = testCase;
 
-    // This might start failing.
     await enrolledReplica.setUpdater(updater);
     await connectionManager.setWatcherPermission(signer, domain, true);
 
