@@ -57,7 +57,7 @@ export function checkVerificationInput(
   const match = deploy.verificationInput.find(
     (contract) => contract.name == name && contract.address === addr
   )
-  expect(match).to.not.be(undefined);
+  expect(match).to.not.be.undefined;
 }
 
 export async function checkCoreDeploy(
