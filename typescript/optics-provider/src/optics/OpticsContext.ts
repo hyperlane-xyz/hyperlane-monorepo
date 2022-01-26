@@ -33,6 +33,7 @@ type Address = string;
 export class OpticsContext extends MultiProvider {
   private cores: Map<number, CoreContracts>;
   private bridges: Map<number, BridgeContracts>;
+  private _governorDomain?: number;
 
   constructor(
     domains: OpticsDomain[],
@@ -199,8 +200,7 @@ export class OpticsContext extends MultiProvider {
     home: string | number,
     remote: string | number,
   ): core.Replica | undefined {
-    return this.getCore(remote)?.replicas.get(this.resolveDomain(home))
-      ?.contract;
+    return this.getCore(remote)?.getReplica(this.resolveDomain(home));
   }
 
   /**
@@ -223,6 +223,34 @@ export class OpticsContext extends MultiProvider {
       throw new Error(`Missing replica for home ${home} & remote ${remote}`);
     }
     return replica;
+  }
+
+  /**
+   * Discovers the governor domain of this optics deployment and caches it.
+   *
+   * @returns The identifier of the governing domain
+   */
+  async governorDomain(): Promise<number> {
+    if (this._governorDomain) {
+      return this._governorDomain;
+    }
+
+    const core: CoreContracts = this.cores.values().next().value;
+    if (!core) throw new Error('empty core map');
+
+    const governorDomain = await core.governanceRouter.governorDomain();
+    this._governorDomain = governorDomain !== 0 ? governorDomain : core.domain;
+    return this._governorDomain;
+  }
+
+  /**
+   * Discovers the governor domain of this optics deployment and returns the
+   * associated Core.
+   *
+   * @returns The identifier of the governing domain
+   */
+  async governorCore(): Promise<CoreContracts> {
+    return this.mustGetCore(await this.governorDomain());
   }
 
   /**

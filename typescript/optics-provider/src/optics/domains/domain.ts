@@ -6,6 +6,8 @@ export interface OpticsDomain extends Domain {
   ethHelper?: Address;
   home: Address;
   replicas: ReplicaInfo[];
+  governanceRouter: Address;
+  xAppConnectionManager: Address;
 }
 
 export interface ReplicaInfo {

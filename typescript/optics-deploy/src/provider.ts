@@ -27,6 +27,8 @@ export const ${config.chain.name}: OpticsDomain = {
   id: ${config.chain.domain},
   bridgeRouter: '${bridgeDeploy.contracts.bridgeRouter!.proxy.address}',${!!bridgeDeploy.contracts.ethHelper ? `\n  ethHelper: '${bridgeDeploy.contracts.ethHelper?.address}',` : ''}
   home: '${coreDeploy.contracts.home!.proxy.address}',
+  governanceRouter: '${coreDeploy.contracts.governance!.proxy.address}',
+  xAppConnectionManager: '${coreDeploy.contracts.xAppConnectionManager!.address}',
   replicas: [
 ${Object.keys(coreDeploy.contracts.replicas)
       .map(Number)

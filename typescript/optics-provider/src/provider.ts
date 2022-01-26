@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
 import { Domain } from './domains';
+import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
 
 type Provider = ethers.providers.Provider;
 
@@ -151,7 +152,14 @@ export class MultiProvider {
    */
   registerRpcProvider(nameOrDomain: string | number, rpc: string): void {
     const domain = this.resolveDomain(nameOrDomain);
-
+    const celoNames = ['alfajores', 'celo']
+    for (const name of celoNames) {
+      if (nameOrDomain === name) {
+        const provider = new StaticCeloJsonRpcProvider(rpc);
+        this.registerProvider(domain, provider);
+        return
+      }
+    }
     const provider = new ethers.providers.StaticJsonRpcProvider(rpc);
     this.registerProvider(domain, provider);
   }
