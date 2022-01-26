@@ -54,10 +54,10 @@ export function checkVerificationInput(
   name: string,
   addr: string,
 ) {
-  const inputAddr = deploy.verificationInput.filter(
-    (contract: any) => contract.name == name,
-  )[0].address;
-  expect(inputAddr).to.equal(addr);
+  const match = deploy.verificationInput.find(
+    (contract) => contract.name == name && contract.address === addr
+  )
+  expect(match).to.not.be(undefined);
 }
 
 export async function checkCoreDeploy(
@@ -65,7 +65,6 @@ export async function checkCoreDeploy(
   remoteDomains: number[],
   governorDomain: number,
   invariantViolationHandler: InvariantViolationHandler = assertInvariantViolation,
-  _checkVerificationInput = true
 ) {
   // Home upgrade setup contracts are defined
   await checkBeaconProxyImplementation(
@@ -167,9 +166,7 @@ export async function checkCoreDeploy(
   expect(beaconOwner).to.equal(governorAddr);
   expect(homeOwner).to.equal(governorAddr);
 
-  if (_checkVerificationInput) {
-    checkCoreVerificationInput(deploy, remoteDomains)
-  }
+  checkCoreVerificationInput(deploy, remoteDomains)
 }
 
 function checkCoreVerificationInput(
