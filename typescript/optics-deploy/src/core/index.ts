@@ -322,6 +322,14 @@ export async function relinquish(deploy: CoreDeploy) {
     `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
 
+  Object.entries(deploy.contracts.replicas).forEach(async ([domain, replica]) => {
+    await replica.proxy.transferOwnership(govRouter, deploy.overrides);
+    log(
+      isTestDeploy,
+      `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
+    );
+  });
+
   let tx = await deploy.contracts.home!.proxy.transferOwnership(
     govRouter,
     deploy.overrides,

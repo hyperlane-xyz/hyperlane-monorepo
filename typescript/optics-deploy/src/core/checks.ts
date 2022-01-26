@@ -166,6 +166,10 @@ export async function checkCoreDeploy(
   expect(xAppManagerOwner).to.equal(governorAddr);
   expect(beaconOwner).to.equal(governorAddr);
   expect(homeOwner).to.equal(governorAddr);
+  Object.entries(deploy.contracts.replicas).forEach(async ([domain, replica]) => {
+      const replicaOwner = await replica.proxy.owner()
+      expect(replicaOwner).to.equal(governorAddr)
+  })
 
   // check verification addresses
   checkVerificationInput(
