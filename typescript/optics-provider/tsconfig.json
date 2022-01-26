@@ -11,6 +11,7 @@
     "./src/optics/contracts/*.ts",
     "./src/optics/domains/*.ts",
     "./src/optics/events/*.ts",
+    "./src/optics/govern/*.ts",
     "./src/optics/messages/*.ts",
     "./src/optics/tokens/*.ts"
   ]
