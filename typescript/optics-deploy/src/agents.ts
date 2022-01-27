@@ -68,13 +68,13 @@ export async function deleteAgentGCPKeys(
         await Promise.all(
           chainNames.map((chainName) =>
             execCmd(
-              `gcloud secrets delete optics-key-${environment}-${chainName}-${role} --quiet`,
+              `gcloud secrets delete ${gcpKeyIdentifier(environment, role, chainName)} --quiet`,
             ),
           ),
         );
       } else {
         await execCmd(
-          `gcloud secrets delete optics-key-${environment}-${role} --quiet`,
+          `gcloud secrets delete ${gcpKeyIdentifier(environment, role, 'any')} --quiet`,
         );
       }
     }),
@@ -93,18 +93,13 @@ async function createAgentGCPKey(
   const wallet = Wallet.createRandom();
   const address = await wallet.getAddress();
   const isAttestationKey = role.endsWith('attestation');
-  const tempFileName = isAttestationKey
-    ? `optics-key-${environment}-${chainName}-${role}.txt`
-    : `optics-key-${environment}-${role}.txt`;
-  const gcpKeyIdentifier = isAttestationKey
-    ? `optics-key-${environment}-${chainName}-${role}`
-    : `optics-key-${environment}-${role}`;
+  const identifier = gcpKeyIdentifier(environment, role, chainName)
 
   let labels = `environment=${environment},role=${role}`;
   if (isAttestationKey) labels += `,chain=${chainName}`;
 
   await writeFile(
-    tempFileName,
+    `${identifier}.txt`,
     JSON.stringify({
       role,
       environment,
@@ -116,15 +111,15 @@ async function createAgentGCPKey(
 
   if (rotate) {
     await execCmd(
-      `gcloud secrets versions add ${gcpKeyIdentifier} --data-file=${tempFileName}`,
+      `gcloud secrets versions add ${identifier} --data-file=${identifier}.txt`,
     );
   } else {
     await execCmd(
-      `gcloud secrets create ${gcpKeyIdentifier} --data-file=${tempFileName} --replication-policy=automatic --labels=${labels}`,
+      `gcloud secrets create ${identifier} --data-file=${identifier}.txt --replication-policy=automatic --labels=${labels}`,
     );
   }
 
-  await rm(tempFileName);
+  await rm(`${identifier}.txt`);
   return {
     role,
     environment,
@@ -133,7 +128,7 @@ async function createAgentGCPKey(
   };
 }
 
-export function persistKeyAsAddress(key: {
+function persistKeyAsAddress(key: {
   role: string;
   environment: string;
   address: string;
@@ -145,6 +140,24 @@ export function persistKeyAsAddress(key: {
     role: isAttestationKey ? `${key.chainName}-${key.role}` : key.role,
     address: key.address,
   };
+}
+
+// The identifier for a key within GCP Secret Manager
+function gcpKeyIdentifier(
+  environment: string,
+  role: string,
+  chainName: string,
+) {
+  const isAttestationKey = role.endsWith('attestation');
+  return isAttestationKey
+    ? `optics-key-${environment}-${chainName}-${role}`
+    : `optics-key-${environment}-${role}`;
+}
+
+// The identifier for a key within a memory representation
+function memoryKeyIdentifier(role: string, chainName: string) {
+  const isAttestationKey = role.endsWith('attestation')
+  return isAttestationKey ? `${chainName}-${role}` : role
 }
 
 export async function rotateGCPKey(
@@ -159,9 +172,8 @@ export async function rotateGCPKey(
   );
   const addresses = JSON.parse(addressesRaw);
   const filteredAddresses = addresses.filter((_: any) => {
-    const isAttestationKey = role.endsWith('attestation')
-    const matchingRole = isAttestationKey ? `${chainName}-${role}` : role
-    return _.role !== matchingRole
+    const matchingRole = memoryKeyIdentifier(role, chainName)
+    return _.role !== matchingRole;
   });
 
   filteredAddresses.push(persistKeyAsAddress(newKey));
@@ -199,9 +211,7 @@ export async function createAgentGCPKeys(
 
   await writeFile(
     `optics-key-${environment}-addresses.txt`,
-    JSON.stringify(
-      keys.map(persistKeyAsAddress),
-    ),
+    JSON.stringify(keys.map(persistKeyAsAddress)),
   );
   await execCmd(
     `gcloud secrets create optics-key-${environment}-addresses --data-file=optics-key-${environment}-addresses.txt --replication-policy=automatic --labels=environment=${environment}`,
@@ -214,18 +224,15 @@ async function getAgentGCPKey(
   role: string,
   chainName: string,
 ) {
-  const isAttestationKey = role.endsWith('attestation');
-  const gcpKeyIdentifier = isAttestationKey
-    ? `optics-key-${environment}-${chainName}-${role}`
-    : `optics-key-${environment}-${role}`;
   const [secretRaw] = await execCmd(
-    `gcloud secrets versions access latest --secret ${gcpKeyIdentifier}`,
+    `gcloud secrets versions access latest --secret ${gcpKeyIdentifier(
+      environment,
+      role,
+      chainName,
+    )}`,
   );
   const secret: SecretManagerPersistedKeys = JSON.parse(secretRaw);
-  const keyIdentifier = isAttestationKey
-    ? `${secret.chainName!}-${secret.role}`
-    : secret.role;
-  return [keyIdentifier, secret] as [string, SecretManagerPersistedKeys];
+  return [memoryKeyIdentifier(role, chainName), secret] as [string, SecretManagerPersistedKeys];
 }
 
 // This function returns all the GCP keys for a given home chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
@@ -317,10 +324,8 @@ async function helmValuesForChain(
 
   const credentials = (role: KEY_ROLE_ENUM) => {
     if (!!gcpKeys) {
-      if (role.endsWith('attestation')) {
-        return { hexKey: strip0x(gcpKeys![`${chainName}-${role}`].privateKey) };
-      }
-      return { hexKey: strip0x(gcpKeys![role].privateKey) };
+      const identifier = memoryKeyIdentifier(role, chainName)
+      return { hexKey: strip0x(gcpKeys![identifier].privateKey) };
     } else {
       return awsSignerCredentials(role, agentConfig, chainName);
     }
@@ -504,7 +509,10 @@ export async function runKeymasterHelmCommand(
   configs: AgentChainConfigs,
 ) {
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
-  const gcpKeys = await getAgentGCPKeys(agentConfig.environment, configs[0].name);
+  const gcpKeys = await getAgentGCPKeys(
+    agentConfig.environment,
+    configs[0].name,
+  );
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
     networks: mapPairs(configs, (home, chain) => {
