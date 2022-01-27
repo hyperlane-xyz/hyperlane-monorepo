@@ -5,7 +5,6 @@ import { resolve } from 'path';
 
 export function updateProviderDomain(
   environment: string,
-  directory: string,
   coreDeploys: CoreDeploy[],
   bridgeDeploys: BridgeDeploy[],
 ) {

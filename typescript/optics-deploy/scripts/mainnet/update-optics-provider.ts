@@ -7,7 +7,16 @@ import { makeBridgeDeploys } from '../../src/bridge/BridgeDeploy';
 
 const configPath = '../../rust/config/mainnet';
 const networks = [ethereum, polygon, celo];
-const chainAccessor = (_: any) => _.chain;
-const coreDeploys = makeCoreDeploys(configPath, networks, chainAccessor, (_) => _.config);
-const bridgeDeploys = makeBridgeDeploys(configPath, networks, chainAccessor, (_) => _.bridgeConfig);
-updateProviderDomain('mainnet', configPath, coreDeploys, bridgeDeploys);
+const coreDeploys = makeCoreDeploys(
+  configPath,
+  networks,
+  (_) => _.chain,
+  (_) => _.config,
+);
+const bridgeDeploys = makeBridgeDeploys(
+  configPath,
+  networks,
+  (_) => _.chain,
+  (_) => _.bridgeConfig,
+);
+updateProviderDomain('mainnet', coreDeploys, bridgeDeploys);

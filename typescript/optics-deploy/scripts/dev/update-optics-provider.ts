@@ -9,7 +9,16 @@ import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { makeBridgeDeploys } from '../../src/bridge/BridgeDeploy';
 
 const networks = [alfajores, kovan, gorli, fuji, mumbai];
-const chainAccessor = (_: any) => _.chain;
-const coreDeploys = makeCoreDeploys(configPath, networks, chainAccessor, (_) => _.devConfig);
-const bridgeDeploys = makeBridgeDeploys(configPath, networks, chainAccessor, (_) => _.bridgeConfig);
-updateProviderDomain('dev', configPath, coreDeploys, bridgeDeploys);
+const coreDeploys = makeCoreDeploys(
+  configPath,
+  networks,
+  (_) => _.chain,
+  (_) => _.devConfig,
+);
+const bridgeDeploys = makeBridgeDeploys(
+  configPath,
+  networks,
+  (_) => _.chain,
+  (_) => _.bridgeConfig,
+);
+updateProviderDomain('dev', coreDeploys, bridgeDeploys);
