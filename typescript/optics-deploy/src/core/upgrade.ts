@@ -44,7 +44,6 @@ export class ImplementationUpgrader {
   async createCallBatch(): Promise<CallBatch> {
     if (!this._checked)
       throw new Error('Must check invariants match expectation');
-    const governorDomain = await this._context.governorDomain()
     const governorCore = await this._context.governorCore()
     const governanceMessages = await governorCore.newGovernanceBatch()
     for (const violation of this._violations) {
@@ -52,11 +51,7 @@ export class ImplementationUpgrader {
         violation.beaconProxy.beacon.address,
         violation.expectedImplementationAddress
       );
-      if (violation.domain === governorDomain) {
-        governanceMessages.pushLocal(upgrade as Call)
-      } else {
-        governanceMessages.pushRemote(violation.domain, upgrade as Call)
-      }
+      governanceMessages.push(violation.domain, upgrade as Call)
     }
     return governanceMessages;
   }

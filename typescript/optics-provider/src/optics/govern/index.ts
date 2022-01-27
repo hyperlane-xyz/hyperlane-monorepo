@@ -50,27 +50,29 @@ export class CallBatch {
     }
   }
 
+  push(domain: number, call: Call): void {
+    if (domain === this.core.domain) {
+      this.pushLocal(call);
+    } else {
+      this.pushRemote(domain, call)
+    }
+  }
+
   // Build governance transactions from this callbatch
-  async build(
-    overrides?: ethers.Overrides,
-  ): Promise<ethers.PopulatedTransaction[]> {
-    if (this.built && overrides)
-      throw new Error('Cannot rebuild batch with new overrides')
+  async build(): Promise<ethers.PopulatedTransaction[]> {
     if (this.built) return this.built;
     const [domains, remoteCalls] = utils.associateRemotes(this.remote);
     const local = await this.core.governanceRouter.populateTransaction.callLocal(this.local)
     const remotes = await Promise.all(
-      domains.map((domain: number, i: number) => this.core.governanceRouter.populateTransaction.callRemote(domain, remoteCalls[i], overrides))
+      domains.map((domain: number, i: number) => this.core.governanceRouter.populateTransaction.callRemote(domain, remoteCalls[i]))
     )
     this.built = remotes.concat(local)
     return this.built;
   }
 
   // Sign each governance transaction and dispatch them to the chain
-  async execute(
-    overrides?: ethers.Overrides,
-  ): Promise<ethers.providers.TransactionReceipt[]> {
-    const transactions = await this.build(overrides);
+  async execute(): Promise<ethers.providers.TransactionReceipt[]> {
+    const transactions = await this.build();
     const signer = await this.governorSigner()
     const receipts = []
     for (const tx of transactions) {
@@ -80,10 +82,8 @@ export class CallBatch {
     return receipts
   }
 
-  async estimateGas(
-    overrides?: ethers.Overrides,
-  ): Promise<any[]> {
-    const transactions = await this.build(overrides);
+  async estimateGas(): Promise<any[]> {
+    const transactions = await this.build();
     const signer = await this.governorSigner()
     const responses = []
     for (const tx of transactions) {
