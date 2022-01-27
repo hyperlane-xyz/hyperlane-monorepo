@@ -1,7 +1,9 @@
+import { ethers } from 'ethers';
 import { CoreDeploy } from './core/CoreDeploy';
 import { checkCoreDeploy } from './core/checks';
 import { AllConfigs } from './config';
-import { UpgradeBeacon, UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
+import { BeaconProxy } from './proxyUtils';
+import { UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
 
 export async function checkCoreDeploys(
   coreDirectory: string,
@@ -31,7 +33,7 @@ interface UpgradeBeaconInvariantViolation {
   domain: number
   upgradeBeaconController: UpgradeBeaconController,
   type: InvariantViolationType.UpgradeBeacon,
-  beacon: UpgradeBeacon,
+  beaconProxy: BeaconProxy<ethers.Contract>,
   expectedImplementationAddress: string
   actualImplementationAddress: string
 }
@@ -43,7 +45,7 @@ export type InvariantViolationHandler = (violation: InvariantViolation) => void
 export const assertInvariantViolation = (violation: InvariantViolation) => {
   switch (violation.type) {
     case InvariantViolationType.UpgradeBeacon:
-      throw new Error(`Expected BeaconProxy at address at ${violation.beacon.address} to point to implementation at ${violation.expectedImplementationAddress}, found ${violation.actualImplementationAddress}`)
+      throw new Error(`Expected UpgradeBeacon at address at ${violation.beaconProxy.beacon.address} to point to implementation at ${violation.expectedImplementationAddress}, found ${violation.actualImplementationAddress}`)
       break;
     default:
       break;
