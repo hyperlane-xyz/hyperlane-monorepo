@@ -51,6 +51,9 @@ export class ImplementationUpgrader {
         violation.beaconProxy.beacon.address,
         violation.expectedImplementationAddress
       );
+      if (upgrade.to === undefined) {
+        throw new Error('Missing "to" field in populated transaction')
+      }
       governanceMessages.push(violation.domain, upgrade as Call)
     }
     return governanceMessages;
@@ -60,7 +63,6 @@ export class ImplementationUpgrader {
 export function expectCalls(batch: CallBatch, domains: number[], count: number[]) {
   expect(domains).to.have.lengthOf(count.length);
   domains.forEach((domain: number, i: number) => {
-    //expect(batch.calls.get(domain).to.not.be.undefined;
     expect(batch.calls.get(domain)).to.have.lengthOf(count[i]);
   })
 }

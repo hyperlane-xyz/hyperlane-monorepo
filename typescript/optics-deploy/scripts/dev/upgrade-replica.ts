@@ -47,7 +47,7 @@ async function main() {
   await upgrader.getInvariantViolations();
   upgrader.expectViolations(['Replica'], [5]);
   const batch = await upgrader.createCallBatch()
-  
+
   const domains = deploys.map((d: CoreDeploy) => d.chain.domain)
   for (const home of domains) {
     for (const remote of domains) {
@@ -63,8 +63,8 @@ async function main() {
   // For each domain, expect one call to upgrade the contract and then four
   // calls to transfer replica ownership.
   expectCalls(batch, domains, new Array(5).fill(5))
-  // const receipts = await batch.execute()
-  const receipts = await batch.estimateGas()
+  const receipts = await batch.execute()
+  // const receipts = await batch.estimateGas()
   console.log(receipts)
   writeJSON('../../rust/config/dev-community/', `governance_${Date.now()}.json`, receipts)
 }
