@@ -5,9 +5,9 @@ import {printStatus} from "./print";
 const input: TraceInput[] = [
   {
     chain: 'celo',
-    context: contexts.mainnetCommunity,
+    context: contexts.mainnet,
     transactionHash:
-      '0x8104d296ee0eb83c489453a8cc22129be614b8588e940a72e984c3ba7d8edade',
+      '0x6880039b2ed36e4283e027aeb4b46b0259582be16e459bf17999869ca4ef6d94',
   },
 ];
 
