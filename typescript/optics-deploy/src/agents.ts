@@ -68,13 +68,21 @@ export async function deleteAgentGCPKeys(
         await Promise.all(
           chainNames.map((chainName) =>
             execCmd(
-              `gcloud secrets delete ${gcpKeyIdentifier(environment, role, chainName)} --quiet`,
+              `gcloud secrets delete ${gcpKeyIdentifier(
+                environment,
+                role,
+                chainName,
+              )} --quiet`,
             ),
           ),
         );
       } else {
         await execCmd(
-          `gcloud secrets delete ${gcpKeyIdentifier(environment, role, 'any')} --quiet`,
+          `gcloud secrets delete ${gcpKeyIdentifier(
+            environment,
+            role,
+            'any',
+          )} --quiet`,
         );
       }
     }),
@@ -93,7 +101,7 @@ async function createAgentGCPKey(
   const wallet = Wallet.createRandom();
   const address = await wallet.getAddress();
   const isAttestationKey = role.endsWith('attestation');
-  const identifier = gcpKeyIdentifier(environment, role, chainName)
+  const identifier = gcpKeyIdentifier(environment, role, chainName);
 
   let labels = `environment=${environment},role=${role}`;
   if (isAttestationKey) labels += `,chain=${chainName}`;
@@ -156,8 +164,8 @@ function gcpKeyIdentifier(
 
 // The identifier for a key within a memory representation
 function memoryKeyIdentifier(role: string, chainName: string) {
-  const isAttestationKey = role.endsWith('attestation')
-  return isAttestationKey ? `${chainName}-${role}` : role
+  const isAttestationKey = role.endsWith('attestation');
+  return isAttestationKey ? `${chainName}-${role}` : role;
 }
 
 export async function rotateGCPKey(
@@ -172,7 +180,7 @@ export async function rotateGCPKey(
   );
   const addresses = JSON.parse(addressesRaw);
   const filteredAddresses = addresses.filter((_: any) => {
-    const matchingRole = memoryKeyIdentifier(role, chainName)
+    const matchingRole = memoryKeyIdentifier(role, chainName);
     return _.role !== matchingRole;
   });
 
@@ -232,7 +240,10 @@ async function getAgentGCPKey(
     )}`,
   );
   const secret: SecretManagerPersistedKeys = JSON.parse(secretRaw);
-  return [memoryKeyIdentifier(role, chainName), secret] as [string, SecretManagerPersistedKeys];
+  return [memoryKeyIdentifier(role, chainName), secret] as [
+    string,
+    SecretManagerPersistedKeys,
+  ];
 }
 
 // This function returns all the GCP keys for a given home chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
@@ -324,7 +335,7 @@ async function helmValuesForChain(
 
   const credentials = (role: KEY_ROLE_ENUM) => {
     if (!!gcpKeys) {
-      const identifier = memoryKeyIdentifier(role, chainName)
+      const identifier = memoryKeyIdentifier(role, chainName);
       return { hexKey: strip0x(gcpKeys![identifier].privateKey) };
     } else {
       return awsSignerCredentials(role, agentConfig, chainName);
