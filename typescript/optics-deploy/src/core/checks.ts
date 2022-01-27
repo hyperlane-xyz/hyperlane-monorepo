@@ -43,7 +43,7 @@ export async function checkBeaconProxyImplementation(
       type: InvariantViolationType.UpgradeBeacon,
       domain,
       upgradeBeaconController,
-      beacon: beaconProxy.beacon,
+      beaconProxy,
       actualImplementationAddress,
       expectedImplementationAddress: beaconProxy.implementation.address,
     });
