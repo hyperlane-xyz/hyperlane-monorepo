@@ -1,10 +1,9 @@
 import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 
-import { CoreDeploy as Deploy } from './CoreDeploy';
-import { BridgeDeploy } from '../bridge/BridgeDeploy';
+import { Deploy } from '../deploy';
+import { CoreDeploy } from './CoreDeploy';
 import { BeaconProxy } from '../proxyUtils';
-import TestBridgeDeploy from '../bridge/TestBridgeDeploy';
 import { UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
 import {
   assertInvariantViolation,
@@ -51,18 +50,18 @@ export async function checkBeaconProxyImplementation(
 }
 
 export function checkVerificationInput(
-  deploy: Deploy | BridgeDeploy | TestBridgeDeploy,
+  deploy: Deploy<any>,
   name: string,
   addr: string,
 ) {
-  const inputAddr = deploy.verificationInput.filter(
-    (contract) => contract.name == name,
-  )[0].address;
-  expect(inputAddr).to.equal(addr);
+  const match = deploy.verificationInput.find(
+    (contract) => contract.name == name && contract.address === addr
+  )
+  expect(match).to.not.be.undefined;
 }
 
 export async function checkCoreDeploy(
-  deploy: Deploy,
+  deploy: CoreDeploy,
   remoteDomains: number[],
   governorDomain: number,
   invariantViolationHandler: InvariantViolationHandler = assertInvariantViolation,
@@ -171,7 +170,14 @@ export async function checkCoreDeploy(
       expect(replicaOwner).to.equal(governorAddr)
   })
 
-  // check verification addresses
+  checkCoreVerificationInput(deploy, remoteDomains)
+}
+
+function checkCoreVerificationInput(
+  deploy: CoreDeploy,
+  remoteDomains: number[],
+) {
+  // Checks that verification input is consistent with deployed contracts.
   checkVerificationInput(
     deploy,
     'UpgradeBeaconController',

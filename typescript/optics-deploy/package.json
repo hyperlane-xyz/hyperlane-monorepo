@@ -1,7 +1,7 @@
 {
   "devDependencies": {
     "@types/chai": "^4.2.21",
-    "ethers": "^5.4.4",
+    "ethers": "^5.4.7",
     "prettier": "^2.3.1",
     "ts-node": "^10.1.0",
     "typechain": "^5.0.0",
@@ -27,6 +27,6 @@
     "axios": "^0.21.3",
     "chai": "^4.3.4",
     "dotenv": "^10.0.0",
-    "optics-multi-provider-community": "^0.1.24"
+    "optics-multi-provider-community": "0.1.22"
   }
 }

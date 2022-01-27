@@ -19,6 +19,7 @@ type Governor = {
   domain: number;
   address: Address;
 };
+
 export type CoreConfig = {
   environment: DeployEnvironment;
   updater: Address;
