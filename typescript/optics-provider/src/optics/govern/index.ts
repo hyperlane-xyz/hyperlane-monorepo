@@ -12,15 +12,13 @@ export interface Call {
 }
 
 export class CallBatch {
-  readonly local: Readonly<Call>[];
-  readonly remote: Map<number, Readonly<Call>[]>;
+  readonly calls: Map<number, Readonly<Call>[]>;
   private core: CoreContracts;
   private built?: ethers.PopulatedTransaction[];
 
   constructor(core: CoreContracts) {
     this.core = core;
-    this.remote = new Map();
-    this.local = [];
+    this.calls = new Map();
   }
 
   static async fromCore(core: CoreContracts): Promise<CallBatch> {
@@ -32,41 +30,31 @@ export class CallBatch {
     return new CallBatch(core);
   }
 
-  pushLocal(call: Call): void {
+  push(domain: number, call: Call): void {
     if (this.built)
       throw new Error('Batch has been built. Cannot push more calls');
-    this.local.push(utils.normalizeCall(call));
-  }
-
-  pushRemote(domain: number, call: Call): void {
-    if (this.built)
-      throw new Error('Batch has been built. Cannot push more calls');
-    const calls = this.remote.get(domain);
+    const calls = this.calls.get(domain);
     const normalized = utils.normalizeCall(call);
     if (!calls) {
-      this.remote.set(domain, [normalized]);
+      this.calls.set(domain, [normalized]);
     } else {
       calls.push(normalized);
-    }
-  }
-
-  push(domain: number, call: Call): void {
-    if (domain === this.core.domain) {
-      this.pushLocal(call);
-    } else {
-      this.pushRemote(domain, call)
     }
   }
 
   // Build governance transactions from this callbatch
   async build(): Promise<ethers.PopulatedTransaction[]> {
     if (this.built) return this.built;
-    const [domains, remoteCalls] = utils.associateRemotes(this.remote);
-    const local = await this.core.governanceRouter.populateTransaction.callLocal(this.local)
-    const remotes = await Promise.all(
-      domains.map((domain: number, i: number) => this.core.governanceRouter.populateTransaction.callRemote(domain, remoteCalls[i]))
+    const [domains, calls] = utils.associateCalls(this.calls);
+    this.built = await Promise.all(
+      domains.map((domain: number, i: number) => {
+        if (domain === this.core.domain) {
+          return this.core.governanceRouter.populateTransaction.callLocal(calls[i])
+        } else {
+          return this.core.governanceRouter.populateTransaction.callRemote(domain, calls[i])
+        }
+      })
     )
-    this.built = remotes.concat(local)
     return this.built;
   }
 

@@ -6,8 +6,9 @@ import * as mumbai from '../../config/testnets/mumbai';
 import * as fuji from '../../config/testnets/fuji';
 import { CoreDeploy } from '../../src/core/CoreDeploy';
 import { ethers } from 'ethers';
-import { ImplementationUpgrader } from '../../src/core/upgrade';
+import { expectCalls, ImplementationUpgrader } from '../../src/core/upgrade';
 import { writeJSON } from '../../src/utils';
+import { Call } from 'optics-multi-provider-community/dist/optics/govern';
 
 const dir = '../../rust/config/dev-community/';
 let alfajoresConfig = alfajores.devConfig;
@@ -50,14 +51,18 @@ async function main() {
   const domains = deploys.map((d: CoreDeploy) => d.chain.domain)
   for (const home of domains) {
     for (const remote of domains) {
+      if (home === remote) continue;
       const core = devCommunity.mustGetCore(remote)
       const replica = core.getReplica(home)
-      const transferOwnership = await replica.populateTransaction.transferOwnership(core._governanceRouter)
+      const transferOwnership = await replica!.populateTransaction.transferOwnership(core._governanceRouter)
       batch.push(remote, transferOwnership as Call)
     }
   }
 
   await batch.build()
+  // For each domain, expect one call to upgrade the contract and then four
+  // calls to transfer replica ownership.
+  expectCalls(batch, domains, new Array(5).fill(5))
   // const receipts = await batch.execute()
   const receipts = await batch.estimateGas()
   console.log(receipts)
