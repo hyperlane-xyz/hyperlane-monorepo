@@ -1,4 +1,4 @@
-import { deployImplementations, deployReplicaImplementation } from '../../src/upgrade';
+import { ImplementationDeployer } from '../../src/core/implementation';
 import * as alfajores from '../../config/testnets/alfajores';
 import * as gorli from '../../config/testnets/gorli';
 import * as kovan from '../../config/testnets/kovan';
@@ -32,7 +32,9 @@ const deploys = [
 ];
 
 async function main() {
-  await deployImplementations(dir, deploys, deployReplicaImplementation);
+  const deployer = new ImplementationDeployer(deploys);
+  await deployer.deployReplicaImplementations();
+  deployer.writeDeployOutput(dir)
 }
 main().then(console.log).catch(console.error);
 

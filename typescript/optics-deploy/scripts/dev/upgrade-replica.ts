@@ -4,10 +4,35 @@ import * as gorli from '../../config/testnets/gorli';
 import * as kovan from '../../config/testnets/kovan';
 import * as mumbai from '../../config/testnets/mumbai';
 import * as fuji from '../../config/testnets/fuji';
-import { checkCoreDeploys, InvariantViolationCollector } from '../../src/checks';
-import { configPath } from './agentConfig';
-import { makeAllConfigs } from '../../src/config';
+import { CoreDeploy } from '../../src/core/CoreDeploy';
 import { ethers } from 'ethers';
+import { ImplementationUpgrader } from '../../src/core/upgrade';
+import { writeJSON } from '../../src/utils';
+
+const dir = '../../rust/config/dev-community/';
+let alfajoresConfig = alfajores.devConfig;
+let gorliConfig = gorli.devConfig;
+let kovanConfig = kovan.devConfig;
+let mumbaiConfig = mumbai.devConfig;
+let fujiConfig = fuji.devConfig;
+
+const alfajoresDeploy = CoreDeploy.fromDirectory(
+  dir,
+  alfajores.chain,
+  alfajoresConfig,
+);
+const gorliDeploy = CoreDeploy.fromDirectory(dir, gorli.chain, gorliConfig);
+const kovanDeploy = CoreDeploy.fromDirectory(dir, kovan.chain, kovanConfig);
+const mumbaiDeploy = CoreDeploy.fromDirectory(dir, mumbai.chain, mumbaiConfig);
+const fujiDeploy = CoreDeploy.fromDirectory(dir, fuji.chain, fujiConfig);
+
+const deploys = [
+  alfajoresDeploy,
+  mumbaiDeploy,
+  fujiDeploy,
+  gorliDeploy,
+  kovanDeploy,
+];
 
 async function main() {
   devCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!)
@@ -16,47 +41,14 @@ async function main() {
   devCommunity.registerRpcProvider('mumbai', process.env.MUMBAI_RPC!)
   devCommunity.registerRpcProvider('fuji', process.env.FUJI_RPC!)
   devCommunity.registerSigner('alfajores', new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!))
-  const governorDomain = await devCommunity.governorDomain()
-  const governorCore = await devCommunity.governorCore()
-  const governanceMessages = await governorCore.newGovernanceBatch()
 
-  const invariantViolationCollector = new InvariantViolationCollector()
-  await checkCoreDeploys(
-    configPath,
-    await Promise.all([
-      makeAllConfigs(alfajores, (_) => _.devConfig),
-      makeAllConfigs(kovan, (_) => _.devConfig),
-      makeAllConfigs(gorli, (_) => _.devConfig),
-      makeAllConfigs(fuji, (_) => _.devConfig),
-      makeAllConfigs(mumbai, (_) => _.devConfig),
-    ]),
-    governorDomain,
-    invariantViolationCollector.handleViolation,
-  );
+  const upgrader = new ImplementationUpgrader(deploys, devCommunity);
+  await upgrader.getInvariantViolations();
+  upgrader.expectViolations(['Replica'], [5]);
+  const batch = await upgrader.createCallBatch()
 
-  if (invariantViolationCollector.violations.length === 0) {
-    console.info("No upgrades found, exit")
-    return
-  }
-
-  const violations = invariantViolationCollector.uniqueViolations()
-  console.log('checked core deploys, found', violations.length, 'violations')
-  for (const violation of violations) {
-    const upgrade = await violation.upgradeBeaconController.populateTransaction.upgrade(violation.beaconProxy.beacon.address, violation.expectedImplementationAddress)
-    const upgradeCore = await devCommunity.mustGetCore(violation.domain)
-    const transferOwnership = await violation.beaconProxy.proxy.populateTransaction.transferOwnership(upgradeCore.governanceRouter.address)
-    if (violation.domain === governorDomain) {
-      governanceMessages.pushLocal(upgrade)
-      governanceMessages.pushLocal(transferOwnership)
-    } else {
-      governanceMessages.pushRemote(domain, upgrade)
-      governanceMessages.pushRemote(domain, transferOwnership)
-    }
-  }
-  const txs = await governanceMessages.build()
-  // const receipts = await governanceMessages.execute()
-  const receipts = await governanceMessages.estimateGas()
+  const receipts = await batch.estimateGas()
   console.log(receipts)
-  governanceMessages.write('../../rust/config/dev-community/', `governance_${Date.now()}.json`, txs)
+  writeJSON('../../rust/config/dev-community/', `governance_${Date.now()}.json`, receipts)
 }
 main().then(console.log).catch(console.error)

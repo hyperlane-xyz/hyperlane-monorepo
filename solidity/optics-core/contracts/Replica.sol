@@ -190,6 +190,7 @@ contract Replica is Version0, Common {
     /**
      * @notice Returns the address of the current owner.
      */
+    // THIS SHOULD NOT BE VIRTUAL!
     function owner() public view virtual returns (address) {
         return _owner;
     }
