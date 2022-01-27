@@ -178,34 +178,6 @@ export async function rotateGCPKey(
   return newKey;
 }
 
-// When GCP managed dev agent keys were first introduced, all chains shared the same attestation keys. This function splits those out logically (while keeping the same keys), so that individual keys can be rotated
-export async function splitAgentGCPKeys(
-  environment: string,
-  chainNames: string[],
-) {
-  const keys = await getLegacyAgentGCPKeys(environment);
-  for (const chainName of chainNames) {
-    for (const key of Object.values(keys)) {
-      if (key.role.endsWith('attestation')) {
-        await writeFile(
-          `optics-key-${environment}-${chainName}-${key.role}.txt`,
-          JSON.stringify({
-            role: key.role,
-            chainName,
-            environment,
-            privateKey: key.privateKey,
-            address: key.address,
-          }),
-        );
-        await execCmd(
-          `gcloud secrets create optics-key-${environment}-${chainName}-${key.role} --data-file=optics-key-${environment}-${chainName}-${key.role}.txt --replication-policy=automatic --labels=environment=${environment},role=${key.role},chain=${chainName}`,
-        );
-        await rm(`optics-key-${environment}-${chainName}-${key.role}.txt`);
-      }
-    }
-  }
-}
-
 export async function createAgentGCPKeys(
   environment: string,
   chainNames: string[],
@@ -235,23 +207,6 @@ export async function createAgentGCPKeys(
     `gcloud secrets create optics-key-${environment}-addresses --data-file=optics-key-${environment}-addresses.txt --replication-policy=automatic --labels=environment=${environment}`,
   );
   await rm(`optics-key-${environment}-addresses.txt`);
-}
-
-// TODO: Remove this once legacy keys have been removed
-async function getLegacyAgentGCPKey(environment: string, role: string) {
-  const [secretRaw] = await execCmd(
-    `gcloud secrets versions access latest --secret optics-key-${environment}-${role}`,
-  );
-  const secret: SecretManagerPersistedKeys = JSON.parse(secretRaw);
-  return [role, secret] as [string, SecretManagerPersistedKeys];
-}
-
-// TODO: remove this once legacy keys have been migrated
-async function getLegacyAgentGCPKeys(environment: string) {
-  const secrets = await Promise.all(
-    KEY_ROLES.map((role) => getLegacyAgentGCPKey(environment, role)),
-  );
-  return Object.fromEntries(secrets);
 }
 
 async function getAgentGCPKey(
