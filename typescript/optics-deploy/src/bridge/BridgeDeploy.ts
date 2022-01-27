@@ -50,3 +50,15 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
     return deploy
   }
 }
+
+// The accessors is necessary as a network may have multiple core configs
+export function makeBridgeDeploys<V>(
+  directory: string,
+  data: V[],
+  chainAccessor: (data: V) => Chain,
+  bridgeConfigAccessor: (data: V) => BridgeConfig
+): BridgeDeploy[] {
+  return data.map(
+    (d: V) => BridgeDeploy.fromDirectory(directory, chainAccessor(d), bridgeConfigAccessor(d))
+  );
+}

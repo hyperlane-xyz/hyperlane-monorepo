@@ -2,29 +2,20 @@ import { BridgeDeploy } from './bridge/BridgeDeploy';
 import { CoreDeploy } from './core/CoreDeploy';
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
-import { AllConfigs } from './config';
 
 export function updateProviderDomain(
   environment: string,
   directory: string,
-  configs: AllConfigs[],
+  coreDeploys: CoreDeploy[],
+  bridgeDeploys: BridgeDeploy[],
 ) {
   let ret = "import { OpticsDomain } from './domain';\n"
-  const coreDeploys = configs.map(
-    (_) => CoreDeploy.fromDirectory(directory, _.chain, _.coreConfig),
-  );
-  const bridgeDeploys = configs.map(
-    (_) => BridgeDeploy.fromDirectory(directory, _.chain, _.bridgeConfig),
-  );
-
-  for (let i = 0; i < configs.length; i++) {
-    const config = configs[i];
+  coreDeploys.forEach((coreDeploy: CoreDeploy, i: number) => {
     const bridgeDeploy = bridgeDeploys[i];
-    const coreDeploy = coreDeploys[i];
     ret += `
-export const ${config.chain.name}: OpticsDomain = {
-  name: '${config.chain.name}',
-  id: ${config.chain.domain},
+export const ${coreDeploy.chain.name}: OpticsDomain = {
+  name: '${coreDeploy.chain.name}',
+  id: ${coreDeploy.chain.domain},
   bridgeRouter: '${bridgeDeploy.contracts.bridgeRouter!.proxy.address}',${!!bridgeDeploy.contracts.ethHelper ? `\n  ethHelper: '${bridgeDeploy.contracts.ethHelper?.address}',` : ''}
   home: '${coreDeploy.contracts.home!.proxy.address}',
   governanceRouter: '${coreDeploy.contracts.governance!.proxy.address}',
@@ -36,8 +27,8 @@ ${Object.keys(coreDeploy.contracts.replicas)
       ).join('\n')}
   ],
 };\n`
-  }
+  })
 
-  ret += `\nexport const ${environment}Domains = [${configs.map(_ => _.chain.name).join(', ')}];`
+  ret += `\nexport const ${environment}Domains = [${coreDeploys.map(_ => _.chain.name).join(', ')}];`
   writeFileSync(resolve(__dirname, `../../optics-provider/src/optics/domains/${environment}.ts`), ret)
 }
