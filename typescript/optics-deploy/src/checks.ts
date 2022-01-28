@@ -1,18 +1,12 @@
 import { CoreDeploy } from './core/CoreDeploy';
 import { checkCoreDeploy } from './core/checks';
-import { AllConfigs } from './config';
 import { UpgradeBeacon, UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
 
 export async function checkCoreDeploys(
-  coreDirectory: string,
-  configs: AllConfigs[],
+  coreDeploys: CoreDeploy[],
   governorDomain: number,
   invariantViolationHandler: InvariantViolationHandler
 ) {
-  const coreDeploys = configs.map(
-    (_) => CoreDeploy.fromDirectory(coreDirectory, _.chain, _.coreConfig),
-  );
-
   const checkDeploy = async (deploy: CoreDeploy) => {
     const remoteDomains = coreDeploys.filter(_ => _.chain.domain !== deploy.chain.domain).map(_ => _.chain.domain)
 
