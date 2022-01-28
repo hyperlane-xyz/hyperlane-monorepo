@@ -3,31 +3,27 @@ import { ProxyNames } from '../proxyUtils';
 import { OpticsContext } from 'optics-multi-provider-community';
 import { CoreDeploy } from './CoreDeploy';
 import { InvariantViolation, InvariantViolationCollector } from '../checks';
-import { checkCoreDeploys } from './checks';
+import { CoreInvariantChecker } from './checks';
 import { Call, CallBatch } from 'optics-multi-provider-community/dist/optics/govern';
 
 export class ImplementationUpgrader {
   private _deploys: CoreDeploy[];
   private _context: OpticsContext;
+  private _checker: CoreInvariantChecker;
   private _violations: InvariantViolation[];
   private _checked: boolean;
 
   constructor(deploys: CoreDeploy[], context: OpticsContext) {
     this._deploys = deploys;
     this._context = context;
-    this._violations = [];
+    this._checker = new CoreInvariantChecker(this._deploys)
+    this._violations = []
     this._checked = false;
   }
 
   async getInvariantViolations(): Promise<void> {
-    const governorDomain = await this._context.governorDomain()
-    const invariantViolationCollector = new InvariantViolationCollector()
-    await checkCoreDeploys(
-      this._deploys,
-      governorDomain,
-      invariantViolationCollector.handleViolation,
-    );
-    this._violations = invariantViolationCollector.violations;
+    await this._checker.checkDeploys()
+    this._violations = this._checker.violations;
   }
 
   expectViolations(names: ProxyNames[], count: number[]) {

@@ -5,7 +5,7 @@ import fs from 'fs';
 import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
 import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
-import { checkCoreDeploy } from './checks';
+import { CoreInvariantChecker } from './checks';
 import { log, warn, toBytes32 } from '../utils';
 
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
@@ -506,10 +506,9 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   await Promise.all([relinquish(gov), relinquish(non)]);
 
   // checks deploys are correct
-  const govDomain = gov.chain.domain;
-  const nonDomain = non.chain.domain;
-  await checkCoreDeploy(gov, [nonDomain], govDomain);
-  await checkCoreDeploy(non, [govDomain], govDomain);
+  const checker = new CoreInvariantChecker([gov, non])
+  await checker.checkDeploys()
+  checker.expectEmpty()
 
   if (!isTestDeploy) {
     writeDeployOutput([gov, non]);
