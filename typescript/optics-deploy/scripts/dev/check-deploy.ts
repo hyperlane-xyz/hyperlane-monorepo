@@ -1,8 +1,6 @@
 import * as alfajores from '../../config/testnets/alfajores';
-import {
-  checkCoreDeploys,
-  InvariantViolationCollector,
-} from '../../src/checks';
+import { InvariantViolationCollector } from '../../src/checks';
+import { checkCoreDeploys } from '../../src/core/checks';
 import { configPath, networks } from './agentConfig';
 import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 

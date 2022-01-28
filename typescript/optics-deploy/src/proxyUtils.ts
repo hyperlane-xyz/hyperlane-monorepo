@@ -7,7 +7,7 @@ import TestBridgeDeploy from './bridge/TestBridgeDeploy';
 
 type Deploy = CoreDeploy | BridgeDeploy | TestBridgeDeploy;
 
-type ProxyNames =
+export type ProxyNames =
   | 'Home'
   | 'Replica'
   | 'Governance'
