@@ -2,21 +2,22 @@ import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { Deploy } from './deploy';
 import { ProxyNames, BeaconProxy } from './proxyUtils';
-import { UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
 
 export enum ViolationType {
-  UpgradeBeacon,
-  VerificationInput,
+  UpgradeBeacon = 'UpgradeBeacon',
+  VerificationInput = 'VerificationInput',
+  UpdaterManager = 'UpdaterManager',
+  HomeUpdater = 'HomeUpdater',
+  ReplicaUpdater = 'ReplicaUpdater',
 }
 
-interface UpgradeBeaconViolation {
+export interface UpgradeBeaconViolation {
   domain: number
   name: ProxyNames
-  upgradeBeaconController: UpgradeBeaconController,
   type: ViolationType.UpgradeBeacon,
   beaconProxy: BeaconProxy<ethers.Contract>,
-  expectedImplementationAddress: string
-  actualImplementationAddress: string
+  expected: string
+  actual: string
 }
 
 interface VerificationInputViolation {
@@ -26,15 +27,37 @@ interface VerificationInputViolation {
   address: string
 }
 
-export type Violation = UpgradeBeaconViolation | VerificationInputViolation
+export interface UpdaterManagerViolation {
+  domain: number
+  type: ViolationType.UpdaterManager,
+  expected: string
+  actual: string
+}
 
-type VerificationInput = [string, Contract]
+export interface HomeUpdaterViolation {
+  domain: number
+  type: ViolationType.HomeUpdater,
+  expected: string
+  actual: string
+}
+
+export interface ReplicaUpdaterViolation {
+  domain: number
+  remoteDomain: number
+  type: ViolationType.ReplicaUpdater,
+  expected: string
+  actual: string
+}
+
+export type Violation = UpgradeBeaconViolation | VerificationInputViolation | HomeUpdaterViolation | ReplicaUpdaterViolation | UpdaterManagerViolation
+
+export type VerificationInput = [string, Contract];
 
 export abstract class InvariantChecker<T extends Deploy<any>> { 
-  private _deploys: T[]
+  readonly _deploys: T[]
   readonly violations: Violation[];
 
-  abstract checkDeploy(deploy: T): void;
+  abstract checkDeploy(deploy: T): Promise<void>;
   abstract getVerificationInputs(deploy: T): VerificationInput[]
 
   constructor(deploys: T[]) {
@@ -54,15 +77,13 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
         const duplicateIndex = this.violations.findIndex((m: Violation) =>
           m.type === ViolationType.UpgradeBeacon &&
           m.domain === v.domain &&
-          m.actualImplementationAddress === v.actualImplementationAddress &&
-          m.expectedImplementationAddress === v.expectedImplementationAddress
+          m.actual === v.actual &&
+          m.expected === v.expected
         )
         if (duplicateIndex === -1) this.violations.push(v);
         break;
-      case ViolationType.VerificationInput:
-        this.violations.push(v);
-        break;
       default:
+        this.violations.push(v);
         break;
     }
   }
@@ -70,7 +91,6 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
   async checkBeaconProxyImplementation(
     domain: number,
     name: ProxyNames,
-    upgradeBeaconController: UpgradeBeaconController,
     beaconProxy: BeaconProxy<Contract>,
   ) {
     expect(beaconProxy.beacon).to.not.be.undefined;
@@ -83,19 +103,17 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
       beaconProxy.beacon.address,
       0,
     );
-    const actualImplementationAddress = ethers.utils.getAddress(
-      storageValue.slice(26),
-    );
+    const actual = ethers.utils.getAddress(storageValue.slice(26));
+    const expected = beaconProxy.implementation.address;
 
-    if (actualImplementationAddress != beaconProxy.implementation.address) {
+    if (actual != expected) {
       const violation: UpgradeBeaconViolation = {
         domain, 
         type: ViolationType.UpgradeBeacon,
         name,
-        upgradeBeaconController,
         beaconProxy,
-        actualImplementationAddress,
-        expectedImplementationAddress: beaconProxy.implementation.address,
+        actual,
+        expected
       }
       this.addViolation(violation)
     }
@@ -119,7 +137,7 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
   checkVerificationInputs(deploy: T) {
     const inputs = this.getVerificationInputs(deploy)
     const check = (input: VerificationInput) => {
-      this.checkVerificationInput(deploy, input[0], input[1])
+      this.checkVerificationInput(deploy, input[0], input[1].address)
     }
     inputs.map(check)
   }

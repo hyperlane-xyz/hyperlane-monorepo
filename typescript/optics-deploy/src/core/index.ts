@@ -600,16 +600,9 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   }
 
   // checks deploys are correct
-  const govDomain = deploys[0].chain.domain;
-  for (var i = 0; i < deploys.length; i++) {
-    const localDomain = deploys[i].chain.domain;
-    const remoteDomains = deploys
-      .map((deploy) => deploy.chain.domain)
-      .filter((domain) => {
-        return domain != localDomain;
-      });
-    await checkCoreDeploy(deploys[i], remoteDomains, govDomain);
-  }
+  const checker = new CoreInvariantChecker(deploys)
+  await checker.checkDeploys()
+  checker.expectEmpty()
 
   // write config outputs again, should write under a different dir
   if (!isTestDeploy) {

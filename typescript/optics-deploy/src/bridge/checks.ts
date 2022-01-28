@@ -2,7 +2,8 @@ import { expect } from 'chai';
 
 import { BridgeDeploy } from './BridgeDeploy';
 import TestBridgeDeploy from './TestBridgeDeploy';
-import { assertBeaconProxy, checkVerificationInput } from '../checks';
+import { VerificationInput, InvariantChecker } from '../checks';
+import { BeaconProxy } from '../proxyUtils';
 
 const emptyAddr = '0x' + '00'.repeat(32);
 
@@ -10,6 +11,10 @@ type AnyBridgeDeploy = BridgeDeploy | TestBridgeDeploy;
 
 
 export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
+  constructor(deploys: AnyBridgeDeploy[]) {
+    super(deploys)
+  }
+
   async checkDeploy(deploy: AnyBridgeDeploy): Promise<void> {
     await this.checkBeaconProxies(deploy)
     await this.checkBridgeRouter(deploy)
@@ -21,13 +26,11 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
     await this.checkBeaconProxyImplementation(
       deploy.chain.domain,
       'BridgeToken',
-      undefined,
       deploy.contracts.bridgeToken!,
     );
     await this.checkBeaconProxyImplementation(
       deploy.chain.domain,
       'BridgeRouter',
-      undefined,
       deploy.contracts.bridgeRouter!,
     );
   }
@@ -56,17 +59,20 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
     }
   }
 
-  getVerificationInputs(deploy: CoreDeploy): VerificationInput[] {
+  getVerificationInputs(deploy: AnyBridgeDeploy): VerificationInput[] {
     const inputs: VerificationInput[] = []
     const addInputsForUpgradableContract = (contract: BeaconProxy<any>, name: string) => {
-      inputs.push([`${name} Implementation`, contract.implementation.address])
-      inputs.push([`${name} UpgradeBeacon`, contract.beacon.address])
-      inputs.push([`${name} Proxy`, contract.proxy.address])
+      inputs.push([`${name} Implementation`, contract.implementation])
+      inputs.push([`${name} UpgradeBeacon`, contract.beacon])
+      inputs.push([`${name} Proxy`, contract.proxy])
     }
-    addInputsForUpgradableContract(deploy.contracts.bridgeToken, 'BridgeToken')
-    addInputsForUpgradableContract(deploy.contracts.bridgeRouter, 'BridgeRouter')
+    expect(deploy.contracts.bridgeToken).to.not.be.undefined;
+    expect(deploy.contracts.bridgeRouter).to.not.be.undefined;
+    addInputsForUpgradableContract(deploy.contracts.bridgeToken!, 'BridgeToken')
+    addInputsForUpgradableContract(deploy.contracts.bridgeRouter!, 'BridgeRouter')
     if (deploy.config.weth) {
-      inputs.push(['EthHelper', deploy.contracts.ethHelper.address])
+      expect(deploy.contracts.ethHelper).to.not.be.undefined;
+      inputs.push(['EthHelper', deploy.contracts.ethHelper!])
     }
     return inputs
   }
