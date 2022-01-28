@@ -52,6 +52,7 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
     switch (v.type) {
       case ViolationType.UpgradeBeacon:
         const duplicateIndex = this.violations.findIndex((m: Violation) =>
+          m.type === ViolationType.UpgradeBeacon &&
           m.domain === v.domain &&
           m.actualImplementationAddress === v.actualImplementationAddress &&
           m.expectedImplementationAddress === v.expectedImplementationAddress
