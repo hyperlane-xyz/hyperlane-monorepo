@@ -80,6 +80,12 @@ describe('Replica', async () => {
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
+  it('Owner can rotate updater', async () => {
+    const newUpdater = fakeUpdater.address
+    await replica.setUpdater(newUpdater);
+    expect(await replica.updater()).to.equal(newUpdater);
+  });
+
   it('Halts on fail', async () => {
     await replica.setFailed();
     expect(await replica.state()).to.equal(OpticsState.FAILED);

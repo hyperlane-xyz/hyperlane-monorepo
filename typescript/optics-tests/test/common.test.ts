@@ -94,31 +94,6 @@ describe('Common', async () => {
     expect(state).to.equal(OpticsState.ACTIVE);
   });
 
-  it('Does not fail contract on whitelisted double update proof', async () => {
-    const oldRoot = ethers.utils.hexlify(
-      '0xde6e3d4540f861d08dfe4ac16334792de2fb44aa7bcd5b657238410791c67a81');
-    const newRoot = ethers.utils.formatBytes32String('new root 1');
-    const newRoot2 = ethers.utils.formatBytes32String('new root 2');
-
-    const { signature } = await updater.signUpdate(oldRoot, newRoot);
-    const { signature: signature2 } = await updater.signUpdate(
-      oldRoot,
-      newRoot2,
-    );
-
-    await common.doubleUpdate(
-      oldRoot,
-      [newRoot, newRoot2],
-      signature,
-      signature2
-    );
-
-    // State should not be failed because double update proof is whitelisted
-    const state = await common.state();
-    expect(state).not.to.equal(OpticsState.FAILED);
-    expect(state).to.equal(OpticsState.ACTIVE);
-  });
-
   it('Checks Rust-produced SignedUpdate', async () => {
     // Compare Rust output in json file to solidity output
     for (let testCase of signedUpdateTestCases) {
