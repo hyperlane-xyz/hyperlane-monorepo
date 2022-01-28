@@ -1,13 +1,10 @@
 import { BytesLike, ethers } from 'ethers';
 
 import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+import { Deploy } from './deploy';
 import { CoreDeploy } from './core/CoreDeploy';
-import { BridgeDeploy } from './bridge/BridgeDeploy';
-import TestBridgeDeploy from './bridge/TestBridgeDeploy';
 
-type Deploy = CoreDeploy | BridgeDeploy | TestBridgeDeploy;
-
-type ProxyNames =
+export type ProxyNames =
   | 'Home'
   | 'Replica'
   | 'Governance'
@@ -47,7 +44,7 @@ export type ProxyAddresses = {
  */
 export async function deployProxy<T extends ethers.Contract>(
   name: ProxyNames,
-  deploy: Deploy,
+  deploy: Deploy<any>,
   factory: ethers.ContractFactory,
   initData: BytesLike,
   ...deployArgs: any[]
@@ -100,7 +97,7 @@ export async function deployProxy<T extends ethers.Contract>(
  */
 export async function duplicate<T extends ethers.Contract>(
   name: ProxyNames,
-  deploy: Deploy,
+  deploy: Deploy<any>,
   prev: BeaconProxy<T>,
   initData: BytesLike,
 ): Promise<BeaconProxy<T>> {
@@ -131,7 +128,7 @@ export async function duplicate<T extends ethers.Contract>(
  */
 export async function deployImplementation<T extends ethers.Contract>(
   name: ProxyNames,
-  deploy: Deploy,
+  deploy: Deploy<any>,
   factory: ethers.ContractFactory,
   ...deployArgs: any[]
 ): Promise<T> {
@@ -177,7 +174,7 @@ export function overrideBeaconProxyImplementation<T extends ethers.Contract>(
  * @param deployArgs - The arguments to pass to the implementation constructor
  */
 async function _deployImplementation<T extends ethers.Contract>(
-  deploy: Deploy,
+  deploy: Deploy<any>,
   factory: ethers.ContractFactory,
   deployArgs: any[]
 ): Promise<T> {
@@ -195,7 +192,7 @@ async function _deployImplementation<T extends ethers.Contract>(
  * @param implementation - The implementation
  */
 async function _deployBeacon(
-  deploy: Deploy,
+  deploy: Deploy<any>,
   implementation: ethers.Contract,
 ): Promise<contracts.UpgradeBeacon> {
   let factory = new contracts.UpgradeBeacon__factory(deploy.chain.deployer);
@@ -219,7 +216,7 @@ async function _deployBeacon(
  * @param implementation - The implementation
  */
 async function _deployProxy<T>(
-  deploy: Deploy,
+  deploy: Deploy<any>,
   beacon: contracts.UpgradeBeacon,
   initData: BytesLike,
 ): Promise<contracts.UpgradeBeaconProxy> {
