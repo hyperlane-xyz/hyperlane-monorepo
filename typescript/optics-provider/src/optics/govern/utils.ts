@@ -26,12 +26,12 @@ export function serializeCall(call: Call): string {
   );
 }
 
-export function associateRemotes(
-  remoteCalls: Map<number, Call[]>,
+export function associateCalls(
+  _calls: Map<number, Call[]>,
 ): [number[], Call[][]] {
   const domains = [];
   const calls = [];
-  for (const [key, value] of remoteCalls) {
+  for (const [key, value] of _calls) {
     domains.push(key);
     calls.push(value);
   }
