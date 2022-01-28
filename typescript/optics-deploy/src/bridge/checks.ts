@@ -1,9 +1,8 @@
 import { expect } from 'chai';
 
-import { assertBeaconProxy } from '../core/checks';
 import { BridgeDeploy as Deploy } from './BridgeDeploy';
 import TestBridgeDeploy from './TestBridgeDeploy';
-import { checkVerificationInput } from '../core/checks';
+import { assertBeaconProxy, checkVerificationInput } from '../checks';
 
 const emptyAddr = '0x' + '00'.repeat(32);
 
