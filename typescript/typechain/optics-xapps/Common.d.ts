@@ -11,7 +11,6 @@ import {
   PopulatedTransaction,
   BaseContract,
   ContractTransaction,
-  Overrides,
   CallOverrides,
 } from "ethers";
 import { BytesLike } from "@ethersproject/bytes";
@@ -21,22 +20,12 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface CommonInterface extends ethers.utils.Interface {
   functions: {
-    "committedRoot()": FunctionFragment;
-    "doubleUpdate(bytes32,bytes32[2],bytes,bytes)": FunctionFragment;
     "homeDomainHash()": FunctionFragment;
     "localDomain()": FunctionFragment;
     "state()": FunctionFragment;
     "updater()": FunctionFragment;
   };
 
-  encodeFunctionData(
-    functionFragment: "committedRoot",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "doubleUpdate",
-    values: [BytesLike, [BytesLike, BytesLike], BytesLike, BytesLike]
-  ): string;
   encodeFunctionData(
     functionFragment: "homeDomainHash",
     values?: undefined
@@ -49,14 +38,6 @@ interface CommonInterface extends ethers.utils.Interface {
   encodeFunctionData(functionFragment: "updater", values?: undefined): string;
 
   decodeFunctionResult(
-    functionFragment: "committedRoot",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "doubleUpdate",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "homeDomainHash",
     data: BytesLike
   ): Result;
@@ -68,14 +49,10 @@ interface CommonInterface extends ethers.utils.Interface {
   decodeFunctionResult(functionFragment: "updater", data: BytesLike): Result;
 
   events: {
-    "DoubleUpdate(bytes32,bytes32[2],bytes,bytes)": EventFragment;
     "NewUpdater(address)": EventFragment;
-    "Update(uint32,bytes32,bytes32,bytes)": EventFragment;
   };
 
-  getEvent(nameOrSignatureOrTopic: "DoubleUpdate"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "NewUpdater"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "Update"): EventFragment;
 }
 
 export class Common extends BaseContract {
@@ -122,16 +99,6 @@ export class Common extends BaseContract {
   interface: CommonInterface;
 
   functions: {
-    committedRoot(overrides?: CallOverrides): Promise<[string]>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     homeDomainHash(overrides?: CallOverrides): Promise<[string]>;
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
@@ -140,16 +107,6 @@ export class Common extends BaseContract {
 
     updater(overrides?: CallOverrides): Promise<[string]>;
   };
-
-  committedRoot(overrides?: CallOverrides): Promise<string>;
-
-  doubleUpdate(
-    _oldRoot: BytesLike,
-    _newRoot: [BytesLike, BytesLike],
-    _signature: BytesLike,
-    _signature2: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
 
   homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
@@ -160,16 +117,6 @@ export class Common extends BaseContract {
   updater(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
-    committedRoot(overrides?: CallOverrides): Promise<string>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
     homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
     localDomain(overrides?: CallOverrides): Promise<number>;
@@ -180,50 +127,10 @@ export class Common extends BaseContract {
   };
 
   filters: {
-    DoubleUpdate(
-      oldRoot?: null,
-      newRoot?: null,
-      signature?: null,
-      signature2?: null
-    ): TypedEventFilter<
-      [string, [string, string], string, string],
-      {
-        oldRoot: string;
-        newRoot: [string, string];
-        signature: string;
-        signature2: string;
-      }
-    >;
-
     NewUpdater(updater?: null): TypedEventFilter<[string], { updater: string }>;
-
-    Update(
-      homeDomain?: BigNumberish | null,
-      oldRoot?: BytesLike | null,
-      newRoot?: BytesLike | null,
-      signature?: null
-    ): TypedEventFilter<
-      [number, string, string, string],
-      {
-        homeDomain: number;
-        oldRoot: string;
-        newRoot: string;
-        signature: string;
-      }
-    >;
   };
 
   estimateGas: {
-    committedRoot(overrides?: CallOverrides): Promise<BigNumber>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     homeDomainHash(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
@@ -234,16 +141,6 @@ export class Common extends BaseContract {
   };
 
   populateTransaction: {
-    committedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
     homeDomainHash(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;

@@ -25,10 +25,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MerkleTreeManager__factory>;
     getContractFactory(
-      name: "QueueManager",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.QueueManager__factory>;
-    getContractFactory(
       name: "Replica",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Replica__factory>;

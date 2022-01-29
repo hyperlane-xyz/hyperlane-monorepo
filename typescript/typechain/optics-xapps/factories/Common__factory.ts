@@ -12,37 +12,6 @@ const _abi = [
     inputs: [
       {
         indexed: false,
-        internalType: "bytes32",
-        name: "oldRoot",
-        type: "bytes32",
-      },
-      {
-        indexed: false,
-        internalType: "bytes32[2]",
-        name: "newRoot",
-        type: "bytes32[2]",
-      },
-      {
-        indexed: false,
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
-      },
-      {
-        indexed: false,
-        internalType: "bytes",
-        name: "signature2",
-        type: "bytes",
-      },
-    ],
-    name: "DoubleUpdate",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: false,
         internalType: "address",
         name: "updater",
         type: "address",
@@ -50,78 +19,6 @@ const _abi = [
     ],
     name: "NewUpdater",
     type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: "uint32",
-        name: "homeDomain",
-        type: "uint32",
-      },
-      {
-        indexed: true,
-        internalType: "bytes32",
-        name: "oldRoot",
-        type: "bytes32",
-      },
-      {
-        indexed: true,
-        internalType: "bytes32",
-        name: "newRoot",
-        type: "bytes32",
-      },
-      {
-        indexed: false,
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
-      },
-    ],
-    name: "Update",
-    type: "event",
-  },
-  {
-    inputs: [],
-    name: "committedRoot",
-    outputs: [
-      {
-        internalType: "bytes32",
-        name: "",
-        type: "bytes32",
-      },
-    ],
-    stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "bytes32",
-        name: "_oldRoot",
-        type: "bytes32",
-      },
-      {
-        internalType: "bytes32[2]",
-        name: "_newRoot",
-        type: "bytes32[2]",
-      },
-      {
-        internalType: "bytes",
-        name: "_signature",
-        type: "bytes",
-      },
-      {
-        internalType: "bytes",
-        name: "_signature2",
-        type: "bytes",
-      },
-    ],
-    name: "doubleUpdate",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
   },
   {
     inputs: [],

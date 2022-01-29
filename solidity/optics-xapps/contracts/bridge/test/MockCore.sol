@@ -2,29 +2,22 @@
 pragma solidity >=0.6.11;
 
 import {MerkleTreeManager} from "@celo-org/optics-sol/contracts/Merkle.sol";
-import {QueueManager} from "@celo-org/optics-sol/contracts/Queue.sol";
 
 import {Message} from "@celo-org/optics-sol/libs/Message.sol";
 import {MerkleLib} from "@celo-org/optics-sol/libs/Merkle.sol";
-import {QueueLib} from "@celo-org/optics-sol/libs/Queue.sol";
 
 // We reproduce a significant amount of logic from `Home` to ensure that
-// calling dispatch here is AT LEAST AS EXPENSIVE as calling it on home
-contract MockCore is MerkleTreeManager, QueueManager {
-    using QueueLib for QueueLib.Queue;
+// calling dispatch here is AT LEAST AS EXPENSIVE as calling it on Home
+contract MockCore is MerkleTreeManager {
     using MerkleLib for MerkleLib.Tree;
 
     uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
 
-    event Enqueue(
-        uint32 indexed _destination,
-        bytes32 indexed _recipient,
-        bytes _body
-    );
     event Dispatch(
+        bytes32 indexed messageHash,
         uint256 indexed leafIndex,
         uint64 indexed destinationAndNonce,
-        bytes32 indexed leaf,
+        bytes32 latestSnapshotRoot,
         bytes message
     );
 
@@ -40,36 +33,35 @@ contract MockCore is MerkleTreeManager, QueueManager {
 
     // We reproduce the logic here to simulate
     function dispatch(
-        uint32 _destination,
-        bytes32 _recipient,
-        bytes calldata _body
+        uint32 _destinationDomain,
+        bytes32 _recipientAddress,
+        bytes calldata _messageBody
     ) external {
-        require(_body.length <= MAX_MESSAGE_BODY_BYTES, "!too big");
-        uint32 _nonce = nonces[_destination];
-
+        require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
+        // get the next nonce for the destination domain, then increment it
+        uint32 _nonce = nonces[_destinationDomain];
+        nonces[_destinationDomain] = _nonce + 1;
+        // format the message into packed bytes
         bytes memory _message = Message.formatMessage(
             localDomain(),
             bytes32(uint256(uint160(msg.sender))),
             _nonce,
-            _destination,
-            _recipient,
-            _body
+            _destinationDomain,
+            _recipientAddress,
+            _messageBody
         );
-        bytes32 _leaf = keccak256(_message);
-
-        tree.insert(_leaf);
-        queue.enqueue(root());
-
-        // leafIndex is count() - 1 since new leaf has already been inserted
+        // insert the hashed message into the Merkle tree
+        bytes32 _messageHash = keccak256(_message);
+        tree.insert(_messageHash);
+        // Emit Dispatch event with message information
+        // note: leafIndex is count() - 1 since new leaf has already been inserted
         emit Dispatch(
+            _messageHash,
             count() - 1,
-            _destinationAndNonce(_destination, _nonce),
-            _leaf,
+            _destinationAndNonce(_destinationDomain, _nonce),
+            bytes32(0),
             _message
         );
-        emit Enqueue(_destination, _recipient, _body);
-
-        nonces[_destination] = _nonce + 1;
     }
 
     function isReplica(address) public pure returns (bool) {

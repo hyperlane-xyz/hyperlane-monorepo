@@ -4,7 +4,6 @@
 export type { Common } from "./Common";
 export type { Home } from "./Home";
 export type { MerkleTreeManager } from "./MerkleTreeManager";
-export type { QueueManager } from "./QueueManager";
 export type { Replica } from "./Replica";
 export type { UpgradeBeaconProxy } from "./UpgradeBeaconProxy";
 export type { Version0 } from "./Version0";
@@ -34,7 +33,6 @@ export type { IWeth } from "./IWeth";
 export { Common__factory } from "./factories/Common__factory";
 export { Home__factory } from "./factories/Home__factory";
 export { MerkleTreeManager__factory } from "./factories/MerkleTreeManager__factory";
-export { QueueManager__factory } from "./factories/QueueManager__factory";
 export { Replica__factory } from "./factories/Replica__factory";
 export { UpgradeBeaconProxy__factory } from "./factories/UpgradeBeaconProxy__factory";
 export { Version0__factory } from "./factories/Version0__factory";
