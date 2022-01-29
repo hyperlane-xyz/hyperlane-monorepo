@@ -1,7 +1,7 @@
 import { rm, writeFile } from 'fs/promises';
 import { ChainJson } from './chain';
 import { ensure0x, execCmd, include, strip0x } from './utils';
-import { getAgentGCPKeys, memoryKeyIdentifier, SecretManagerPersistedKeys } from "./agents/gcp";
+import { AgentGCPKey, fetchAgentGCPKeys, memoryKeyIdentifier } from "./agents/gcp";
 
 export interface AgentConfig {
   environment: string;
@@ -74,10 +74,10 @@ async function helmValuesForChain(
   agentConfig: AgentConfig,
   configs: AgentChainConfigs,
 ) {
-  let gcpKeys: { [role: string]: SecretManagerPersistedKeys } | undefined =
+  let gcpKeys: { [role: string]: AgentGCPKey } | undefined =
     undefined;
   try {
-    gcpKeys = await getAgentGCPKeys(agentConfig.environment, chainName);
+    gcpKeys = await fetchAgentGCPKeys(agentConfig.environment, chainName);
   } catch (error) {
     if (
       !agentConfig.awsRegion ||
@@ -91,7 +91,7 @@ async function helmValuesForChain(
   const credentials = (role: KEY_ROLE_ENUM) => {
     if (!!gcpKeys) {
       const identifier = memoryKeyIdentifier(role, chainName);
-      return { hexKey: strip0x(gcpKeys![identifier].privateKey) };
+      return { hexKey: strip0x(gcpKeys![identifier].privateKey()) };
     } else {
       return awsSignerCredentials(role, agentConfig, chainName);
     }
@@ -194,12 +194,12 @@ export async function getAgentEnvVars(
   });
 
   try {
-    const gcpKeys = await getAgentGCPKeys(agentConfig.environment, home);
+    const gcpKeys = await fetchAgentGCPKeys(agentConfig.environment, home);
     // Signer keys
     Object.keys(configs).forEach((network) => {
       envVars.push(
         `OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(
-          gcpKeys[role].privateKey,
+          gcpKeys[role].privateKey(),
         )}`,
       );
     });
@@ -208,7 +208,7 @@ export async function getAgentEnvVars(
     if (role.startsWith('updater')) {
       envVars.push(
         `OPT_BASE_UPDATER_KEY=${strip0x(
-          gcpKeys[home + '-' + KEY_ROLE_ENUM.UpdaterAttestation].privateKey,
+          gcpKeys[home + '-' + KEY_ROLE_ENUM.UpdaterAttestation].privateKey(),
         )}`,
       );
     }
@@ -275,7 +275,7 @@ export async function runKeymasterHelmCommand(
   configs: AgentChainConfigs,
 ) {
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
-  const gcpKeys = await getAgentGCPKeys(
+  const gcpKeys = await fetchAgentGCPKeys(
     agentConfig.environment,
     configs[0].name,
   );
@@ -287,8 +287,8 @@ export async function runKeymasterHelmCommand(
         {
           endpoint: chain.rpc,
           bank: {
-            signer: ensure0x(bankKey.privateKey),
-            address: bankKey.address,
+            signer: ensure0x(bankKey.privateKey()),
+            address: bankKey.address(),
           },
           threshold: 200000000000000000,
         },
