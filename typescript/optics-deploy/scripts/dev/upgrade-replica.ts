@@ -1,39 +1,17 @@
 import { devCommunity } from 'optics-multi-provider-community';
-import * as alfajores from '../../config/testnets/alfajores';
-import * as gorli from '../../config/testnets/gorli';
-import * as kovan from '../../config/testnets/kovan';
-import * as mumbai from '../../config/testnets/mumbai';
-import * as fuji from '../../config/testnets/fuji';
-import { CoreDeploy } from '../../src/core/CoreDeploy';
 import { ethers } from 'ethers';
 import { expectCalls, ImplementationUpgrader } from '../../src/core/upgrade';
 import { writeJSON } from '../../src/utils';
 import { Call } from 'optics-multi-provider-community/dist/optics/govern';
+import { configPath, networks } from './agentConfig';
+import { makeCoreDeploys, CoreDeploy } from '../../src/core/CoreDeploy';
 
-const dir = '../../rust/config/dev-community/';
-let alfajoresConfig = alfajores.devConfig;
-let gorliConfig = gorli.devConfig;
-let kovanConfig = kovan.devConfig;
-let mumbaiConfig = mumbai.devConfig;
-let fujiConfig = fuji.devConfig;
-
-const alfajoresDeploy = CoreDeploy.fromDirectory(
-  dir,
-  alfajores.chain,
-  alfajoresConfig,
+const deploys = makeCoreDeploys(
+  configPath,
+  networks,
+  (_) => _.chain,
+  (_) => _.devConfig,
 );
-const gorliDeploy = CoreDeploy.fromDirectory(dir, gorli.chain, gorliConfig);
-const kovanDeploy = CoreDeploy.fromDirectory(dir, kovan.chain, kovanConfig);
-const mumbaiDeploy = CoreDeploy.fromDirectory(dir, mumbai.chain, mumbaiConfig);
-const fujiDeploy = CoreDeploy.fromDirectory(dir, fuji.chain, fujiConfig);
-
-const deploys = [
-  alfajoresDeploy,
-  mumbaiDeploy,
-  fujiDeploy,
-  gorliDeploy,
-  kovanDeploy,
-];
 
 async function main() {
   devCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!)
