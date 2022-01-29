@@ -18,26 +18,32 @@ const environment = 'dev';
 async function main() {
   const alfajoresDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, alfajores.chain),
-    await addAgentGCPAddresses(environment, alfajoresConfig)
+    await addAgentGCPAddresses(environment, alfajoresConfig),
   );
   const gorliDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, gorli.chain),
-    await addAgentGCPAddresses(environment, gorliConfig)
+    await addAgentGCPAddresses(environment, gorliConfig),
   );
   const kovanDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, kovan.chain),
-    await addAgentGCPAddresses(environment, kovanConfig)
+    await addAgentGCPAddresses(environment, kovanConfig),
   );
   const mumbaiDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, mumbai.chain),
-    await addAgentGCPAddresses(environment, mumbaiConfig)
+    await addAgentGCPAddresses(environment, mumbaiConfig),
   );
   const fujiDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, fuji.chain),
-    await addAgentGCPAddresses(environment, fujiConfig)
+    await addAgentGCPAddresses(environment, fujiConfig),
   );
 
-  await deployNChains([alfajoresDeploy, mumbaiDeploy, fujiDeploy, gorliDeploy, kovanDeploy]);
+  await deployNChains([
+    alfajoresDeploy,
+    mumbaiDeploy,
+    fujiDeploy,
+    gorliDeploy,
+    kovanDeploy,
+  ]);
 }
 
-main().then(console.log).catch(console.error)
+main().then(console.log).catch(console.error);

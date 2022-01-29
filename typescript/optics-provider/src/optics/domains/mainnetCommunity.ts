@@ -9,8 +9,14 @@ export const celo: OpticsDomain = {
   xAppConnectionManager: '0xaa099aF87ACE9E437b9B410a687F263eeaeC4321',
   replicas: [
     { domain: 6648936, address: '0xcDE146d1C673fE13f4fF1569d3F0d9f4d0b9c837' },
-    { domain: 1635148152, address: '0x2784a755690453035f32Ac5e28c52524d127AfE2' },
-    { domain: 1886350457, address: '0xfde0a96468ae91B4E13794E1B8e5B222E7Db6a23' },
+    {
+      domain: 1635148152,
+      address: '0x2784a755690453035f32Ac5e28c52524d127AfE2',
+    },
+    {
+      domain: 1886350457,
+      address: '0xfde0a96468ae91B4E13794E1B8e5B222E7Db6a23',
+    },
   ],
 };
 
@@ -23,9 +29,18 @@ export const ethereum: OpticsDomain = {
   governanceRouter: '0xcbcF180dbd02460dCFCdD282A0985DdC049a4c94',
   xAppConnectionManager: '0x8A926cE79f83A5A4C234BeE93feAFCC85b1E40cD',
   replicas: [
-    { domain: 1635148152, address: '0xaa099aF87ACE9E437b9B410a687F263eeaeC4321' },
-    { domain: 1667591279, address: '0x27658c5556A9a57f96E69Bbf6d3B8016f001a785' },
-    { domain: 1886350457, address: '0x4eA75c12eD058F0e6651475688a941555FA62395' },
+    {
+      domain: 1635148152,
+      address: '0xaa099aF87ACE9E437b9B410a687F263eeaeC4321',
+    },
+    {
+      domain: 1667591279,
+      address: '0x27658c5556A9a57f96E69Bbf6d3B8016f001a785',
+    },
+    {
+      domain: 1886350457,
+      address: '0x4eA75c12eD058F0e6651475688a941555FA62395',
+    },
   ],
 };
 
@@ -43,8 +58,14 @@ export const avalanche: OpticsDomain = {
   xAppConnectionManager: '0x81B97dfBB743c343983e9bE7B863dB636DbD7373',
   replicas: [
     { domain: 6648936, address: '0xCf9066ee2fF063dD09862B745414c8dEa4Cc0497' },
-    { domain: 1667591279, address: '0xA734EDE8229970776e1B68085D579b6b6E97dAd4' },
-    { domain: 1886350457, address: '0x706DC810c79dAAFb82D304D7C9ff9518D8B43Fae' },
+    {
+      domain: 1667591279,
+      address: '0xA734EDE8229970776e1B68085D579b6b6E97dAd4',
+    },
+    {
+      domain: 1886350457,
+      address: '0x706DC810c79dAAFb82D304D7C9ff9518D8B43Fae',
+    },
   ],
 };
 
@@ -63,8 +84,14 @@ export const polygon: OpticsDomain = {
   xAppConnectionManager: '0x4eA75c12eD058F0e6651475688a941555FA62395',
   replicas: [
     { domain: 6648936, address: '0x2784a755690453035f32Ac5e28c52524d127AfE2' },
-    { domain: 1635148152, address: '0xfde0a96468ae91B4E13794E1B8e5B222E7Db6a23' },
-    { domain: 1667591279, address: '0x45D35F60Ccf8F7031FB5A09954Cd923A9E84F89d' },
+    {
+      domain: 1635148152,
+      address: '0xfde0a96468ae91B4E13794E1B8e5B222E7Db6a23',
+    },
+    {
+      domain: 1667591279,
+      address: '0x45D35F60Ccf8F7031FB5A09954Cd923A9E84F89d',
+    },
   ],
 };
 

@@ -4,7 +4,12 @@ import { NonceManager } from '@ethersproject/experimental';
 import { ProxyAddresses } from './proxyUtils';
 
 type Address = string;
-export type DeployEnvironment = 'dev' | 'staging' | 'prod' | 'staging-community' | 'prod-community';
+export type DeployEnvironment =
+  | 'dev'
+  | 'staging'
+  | 'prod'
+  | 'staging-community'
+  | 'prod-community';
 
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;
@@ -71,8 +76,12 @@ export function toChain(config: ChainJson): Chain {
     gasPrice: BigNumber.from(config.gasPrice ?? '20000000000'),
     gasLimit: BigNumber.from(config.gasLimit ?? 6_000_000),
     config,
-    maxFeePerGas: config.maxFeePerGas ? BigNumber.from(config.maxFeePerGas) : undefined,
-    maxPriorityFeePerGas: config.maxPriorityFeePerGas ? BigNumber.from(config.maxPriorityFeePerGas) : undefined,
+    maxFeePerGas: config.maxFeePerGas
+      ? BigNumber.from(config.maxFeePerGas)
+      : undefined,
+    maxPriorityFeePerGas: config.maxPriorityFeePerGas
+      ? BigNumber.from(config.maxPriorityFeePerGas)
+      : undefined,
   };
 }
 
@@ -82,8 +91,8 @@ export function replaceDeployer(chain: Chain, privateKey: string): Chain {
   const deployer = new NonceManager(signer);
   return {
     ...chain,
-    deployer
-  }
+    deployer,
+  };
 }
 
 export type RustSigner = {

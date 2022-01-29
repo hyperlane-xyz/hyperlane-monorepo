@@ -1,4 +1,4 @@
-import { exec } from 'child_process'
+import { exec } from 'child_process';
 import fs from 'fs';
 import path from 'path';
 
@@ -19,33 +19,33 @@ export function toBytes32(address: string): string {
  * @param xs list of value
  * @param mapFn mapping function
  */
- export async function concurrentMap<A, B>(
+export async function concurrentMap<A, B>(
   concurrency: number,
   xs: A[],
-  mapFn: (val: A, idx: number) => Promise<B>
+  mapFn: (val: A, idx: number) => Promise<B>,
 ): Promise<B[]> {
-  let res: B[] = []
+  let res: B[] = [];
   for (let i = 0; i < xs.length; i += concurrency) {
-    const remaining = xs.length - i
-    const sliceSize = Math.min(remaining, concurrency)
-    const slice = xs.slice(i, i + sliceSize)
-    res = res.concat(await Promise.all(slice.map((elem, index) => mapFn(elem, i + index))))
+    const remaining = xs.length - i;
+    const sliceSize = Math.min(remaining, concurrency);
+    const slice = xs.slice(i, i + sliceSize);
+    res = res.concat(
+      await Promise.all(slice.map((elem, index) => mapFn(elem, i + index))),
+    );
   }
-  return res
+  return res;
 }
-
-
 
 export function execCmd(
   cmd: string,
   execOptions: any = {},
   rejectWithOutput = false,
-  pipeOutput = false
+  pipeOutput = false,
 ): Promise<[string, string]> {
   return new Promise((resolve, reject) => {
     if (process.env.VERBOSE === 'true') {
-      console.debug('$ ' + cmd)
-      pipeOutput = true
+      console.debug('$ ' + cmd);
+      pipeOutput = true;
     }
 
     const execProcess = exec(
@@ -53,36 +53,38 @@ export function execCmd(
       { maxBuffer: 1024 * 10000, ...execOptions },
       (err, stdout, stderr) => {
         if (process.env.VERBOSE === 'true') {
-          console.debug(stdout.toString())
+          console.debug(stdout.toString());
         }
         if (err || process.env.VERBOSE === 'true') {
-          console.error(stderr.toString())
+          console.error(stderr.toString());
         }
         if (err) {
           if (rejectWithOutput) {
-            reject([err, stdout.toString(), stderr.toString()])
+            reject([err, stdout.toString(), stderr.toString()]);
           } else {
-            reject(err)
+            reject(err);
           }
         } else {
-          resolve([stdout.toString(), stderr.toString()])
+          resolve([stdout.toString(), stderr.toString()]);
         }
-      }
-    )
+      },
+    );
 
     if (pipeOutput) {
       if (execProcess.stdout) {
-        execProcess.stdout.pipe(process.stdout)
+        execProcess.stdout.pipe(process.stdout);
       }
       if (execProcess.stderr) {
-        execProcess.stderr.pipe(process.stderr)
+        execProcess.stderr.pipe(process.stderr);
       }
     }
-  })
+  });
 }
 
-export const ensure0x = (hexstr: string) => (hexstr.startsWith('0x') ? hexstr : '0x' + hexstr)
-export const strip0x = (hexstr: string) => (hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr)
+export const ensure0x = (hexstr: string) =>
+  hexstr.startsWith('0x') ? hexstr : '0x' + hexstr;
+export const strip0x = (hexstr: string) =>
+  hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
 export function includeConditionally(condition: boolean, data: any) {
   return condition ? data : {};
 }

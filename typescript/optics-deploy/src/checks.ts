@@ -5,51 +5,53 @@ import { ProxyNames, BeaconProxy } from './proxyUtils';
 import { UpgradeBeaconController } from 'optics-ts-interface/dist/optics-core';
 
 export enum InvariantViolationType {
-  UpgradeBeacon
+  UpgradeBeacon,
 }
 
 interface UpgradeBeaconInvariantViolation {
-  domain: number
-  name: ProxyNames
-  upgradeBeaconController: UpgradeBeaconController,
-  type: InvariantViolationType.UpgradeBeacon,
-  beaconProxy: BeaconProxy<ethers.Contract>,
-  expectedImplementationAddress: string
-  actualImplementationAddress: string
+  domain: number;
+  name: ProxyNames;
+  upgradeBeaconController: UpgradeBeaconController;
+  type: InvariantViolationType.UpgradeBeacon;
+  beaconProxy: BeaconProxy<ethers.Contract>;
+  expectedImplementationAddress: string;
+  actualImplementationAddress: string;
 }
 
-export type InvariantViolation = UpgradeBeaconInvariantViolation
+export type InvariantViolation = UpgradeBeaconInvariantViolation;
 
-export type InvariantViolationHandler = (violation: InvariantViolation) => void
+export type InvariantViolationHandler = (violation: InvariantViolation) => void;
 
 export const assertInvariantViolation = (violation: InvariantViolation) => {
   switch (violation.type) {
     case InvariantViolationType.UpgradeBeacon:
-      throw new Error(`Expected UpgradeBeacon at address at ${violation.beaconProxy.beacon.address} to point to implementation at ${violation.expectedImplementationAddress}, found ${violation.actualImplementationAddress}`)
+      throw new Error(
+        `Expected UpgradeBeacon at address at ${violation.beaconProxy.beacon.address} to point to implementation at ${violation.expectedImplementationAddress}, found ${violation.actualImplementationAddress}`,
+      );
       break;
     default:
       break;
   }
-  return violation
-}
+  return violation;
+};
 
 export class InvariantViolationCollector {
   violations: InvariantViolation[];
 
   constructor() {
-    this.violations = []
+    this.violations = [];
   }
 
   // Declare method this way to retain scope
   handleViolation = (v: InvariantViolation) => {
-    const duplicateIndex = this.violations.findIndex((m: InvariantViolation) =>
-      m.domain === v.domain &&
-      m.actualImplementationAddress === v.actualImplementationAddress &&
-      m.expectedImplementationAddress === v.expectedImplementationAddress
-    )
-    if (duplicateIndex === -1)
-      this.violations.push(v);
-  }
+    const duplicateIndex = this.violations.findIndex(
+      (m: InvariantViolation) =>
+        m.domain === v.domain &&
+        m.actualImplementationAddress === v.actualImplementationAddress &&
+        m.expectedImplementationAddress === v.expectedImplementationAddress,
+    );
+    if (duplicateIndex === -1) this.violations.push(v);
+  };
 }
 
 export function checkVerificationInput(
@@ -58,8 +60,8 @@ export function checkVerificationInput(
   addr: string,
 ) {
   const match = deploy.verificationInput.find(
-    (contract) => contract.name == name && contract.address === addr
-  )
+    (contract) => contract.name == name && contract.address === addr,
+  );
   expect(match).to.not.be.undefined;
 }
 
@@ -76,7 +78,7 @@ export async function checkBeaconProxyImplementation(
   beaconProxy: BeaconProxy<Contract>,
   invariantViolationHandler: InvariantViolationHandler,
 ) {
-  assertBeaconProxy(beaconProxy)
+  assertBeaconProxy(beaconProxy);
 
   // Assert that the implementation is actually set
   const provider = beaconProxy.beacon.provider;
@@ -100,4 +102,3 @@ export async function checkBeaconProxyImplementation(
     });
   }
 }
-

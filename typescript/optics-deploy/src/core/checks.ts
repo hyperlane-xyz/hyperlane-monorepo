@@ -13,16 +13,23 @@ const emptyAddr = '0x' + '00'.repeat(20);
 export async function checkCoreDeploys(
   deploys: CoreDeploy[],
   governorDomain: number,
-  invariantViolationHandler: InvariantViolationHandler
+  invariantViolationHandler: InvariantViolationHandler,
 ) {
   const checkDeploy = async (deploy: CoreDeploy) => {
-    const remoteDomains = deploys.filter(_ => _.chain.domain !== deploy.chain.domain).map(_ => _.chain.domain)
+    const remoteDomains = deploys
+      .filter((_) => _.chain.domain !== deploy.chain.domain)
+      .map((_) => _.chain.domain);
 
-    console.info(`Checking core deploy on ${deploy.chain.name}`)
-    return checkCoreDeploy(deploy, remoteDomains, governorDomain, invariantViolationHandler)
-  }
+    console.info(`Checking core deploy on ${deploy.chain.name}`);
+    return checkCoreDeploy(
+      deploy,
+      remoteDomains,
+      governorDomain,
+      invariantViolationHandler,
+    );
+  };
 
-  await Promise.all(deploys.map(checkDeploy))
+  await Promise.all(deploys.map(checkDeploy));
 }
 
 export async function checkCoreDeploy(
@@ -143,7 +150,7 @@ export async function checkCoreDeploy(
   })
   */
 
-  checkCoreVerificationInput(deploy, remoteDomains)
+  checkCoreVerificationInput(deploy, remoteDomains);
 }
 
 function checkCoreVerificationInput(

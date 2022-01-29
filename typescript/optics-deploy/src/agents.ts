@@ -51,7 +51,7 @@ export const KEY_ROLES = [
 
 export enum HelmCommand {
   Install = 'install',
-  Upgrade = 'upgrade'
+  Upgrade = 'upgrade',
 }
 
 export async function deleteAgentGCPKeys(environment: string) {
@@ -157,22 +157,26 @@ function include(condition: boolean, data: any) {
   return condition ? data : {};
 }
 
-const awsSignerCredentials = (role: KEY_ROLE_ENUM, agentConfig: AgentConfig, homeChainName: string) => {
-    // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
-    const adjustedRole =
-      agentConfig.environment === 'staging-community' &&
-      role === KEY_ROLE_ENUM.UpdaterAttestation
-        ? KEY_ROLE_ENUM.UpdaterSigner
-        : agentConfig.environment === 'staging-community' &&
-          role === KEY_ROLE_ENUM.UpdaterSigner
-        ? KEY_ROLE_ENUM.UpdaterAttestation
-        : role;
-    return {
-      aws: {
-        keyId: `alias/${agentConfig.runEnv}-${homeChainName}-${adjustedRole}`,
-        region: agentConfig.awsRegion,
-      },
-    };
+const awsSignerCredentials = (
+  role: KEY_ROLE_ENUM,
+  agentConfig: AgentConfig,
+  homeChainName: string,
+) => {
+  // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
+  const adjustedRole =
+    agentConfig.environment === 'staging-community' &&
+    role === KEY_ROLE_ENUM.UpdaterAttestation
+      ? KEY_ROLE_ENUM.UpdaterSigner
+      : agentConfig.environment === 'staging-community' &&
+        role === KEY_ROLE_ENUM.UpdaterSigner
+      ? KEY_ROLE_ENUM.UpdaterAttestation
+      : role;
+  return {
+    aws: {
+      keyId: `alias/${agentConfig.runEnv}-${homeChainName}-${adjustedRole}`,
+      region: agentConfig.awsRegion,
+    },
+  };
 };
 
 async function helmValuesForChain(
@@ -198,7 +202,7 @@ async function helmValuesForChain(
     if (!!gcpKeys) {
       return { hexKey: strip0x(gcpKeys![role].privateKey) };
     } else {
-      return awsSignerCredentials(role, agentConfig, chainName)
+      return awsSignerCredentials(role, agentConfig, chainName);
     }
   };
 
@@ -253,7 +257,7 @@ async function helmValuesForChain(
           ...credentials(KEY_ROLE_ENUM.ProcessorSigner),
         })),
         indexonly: agentConfig.processorIndexOnly || [],
-        s3BucketName: agentConfig.processorS3Bucket || ''
+        s3BucketName: agentConfig.processorS3Bucket || '',
       },
     },
   };
@@ -319,23 +323,31 @@ export async function getAgentEnvVars(
     }
   } catch (error) {
     // Keys are in AWS
-    envVars.push(`AWS_ACCESS_KEY_ID=${valueDict.optics.aws.accessKeyId}`)
-    envVars.push(`AWS_SECRET_ACCESS_KEY=${valueDict.optics.aws.secretAccessKey}`)
+    envVars.push(`AWS_ACCESS_KEY_ID=${valueDict.optics.aws.accessKeyId}`);
+    envVars.push(
+      `AWS_SECRET_ACCESS_KEY=${valueDict.optics.aws.secretAccessKey}`,
+    );
 
     // Signers
     Object.keys(configs).forEach((network) => {
-      const awsSigner = awsSignerCredentials(role, agentConfig, home)
-      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`)
-      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_ID=${awsSigner.aws.keyId}`)
-      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_REGION=${awsSigner.aws.region}`)
-    })
+      const awsSigner = awsSignerCredentials(role, agentConfig, home);
+      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`);
+      envVars.push(
+        `OPT_BASE_SIGNERS_${network.toUpperCase()}_ID=${awsSigner.aws.keyId}`,
+      );
+      envVars.push(
+        `OPT_BASE_SIGNERS_${network.toUpperCase()}_REGION=${
+          awsSigner.aws.region
+        }`,
+      );
+    });
 
     // Updater attestation key
     if (role.startsWith('updater')) {
-      const awsSigner = awsSignerCredentials(role, agentConfig, home)
-      envVars.push(`OPT_BASE_UPDATER_TYPE=aws`)
-      envVars.push(`OPT_BASE_UPDATER_ID=${awsSigner.aws.keyId}`)
-      envVars.push(`OPT_BASE_UPDATER_REGION=${awsSigner.aws.region}`)
+      const awsSigner = awsSignerCredentials(role, agentConfig, home);
+      envVars.push(`OPT_BASE_UPDATER_TYPE=aws`);
+      envVars.push(`OPT_BASE_UPDATER_ID=${awsSigner.aws.keyId}`);
+      envVars.push(`OPT_BASE_UPDATER_REGION=${awsSigner.aws.region}`);
     }
   }
 
@@ -348,7 +360,11 @@ export async function runAgentHelmCommand(
   homeConfig: ChainJson,
   configs: AgentChainConfigs,
 ) {
-  const valueDict = await helmValuesForChain(homeConfig.name, agentConfig, configs);
+  const valueDict = await helmValuesForChain(
+    homeConfig.name,
+    agentConfig,
+    configs,
+  );
   const values = helmifyValues(valueDict);
   return execCmd(
     `helm ${action} ${

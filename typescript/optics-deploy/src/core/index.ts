@@ -301,13 +301,15 @@ export async function relinquish(deploy: CoreDeploy) {
     `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
 
-  Object.entries(deploy.contracts.replicas).forEach(async ([domain, replica]) => {
-    await replica.proxy.transferOwnership(govRouter, deploy.overrides);
-    log(
-      isTestDeploy,
-      `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
-    );
-  });
+  Object.entries(deploy.contracts.replicas).forEach(
+    async ([domain, replica]) => {
+      await replica.proxy.transferOwnership(govRouter, deploy.overrides);
+      log(
+        isTestDeploy,
+        `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
+      );
+    },
+  );
 
   let tx = await deploy.contracts.home!.proxy.transferOwnership(
     govRouter,
@@ -556,7 +558,7 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   ]);
   log(isTestDeploy, 'done readying');
 
-  await Promise.all(deploys.map(deployOptics))
+  await Promise.all(deploys.map(deployOptics));
 
   // enroll remotes on every chain
   //
