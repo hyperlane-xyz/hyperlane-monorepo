@@ -130,10 +130,8 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       owners.push(deploy.contracts.replicas[domain].proxy.owner()!)
     }
     const expectedOwner = deploy.contracts.governance?.proxy.address;
-    const expectOwnedByGovernance = async (owner: Promise<string>): Promise<void> => {
-      expect(await owner).to.equal(expectedOwner);
-    }
-    await Promise.all(owners.map(expectOwnedByGovernance))
+    const actualOwners = await Promise.all(owners)
+    actualOwners.map(_ => expect(_).to.equal(expectedOwner))
   }
 
   async checkXAppConnectionManager(deploy: CoreDeploy): Promise<void> {
