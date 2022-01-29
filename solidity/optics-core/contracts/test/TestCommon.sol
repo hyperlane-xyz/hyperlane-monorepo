@@ -13,11 +13,11 @@ contract TestCommon is Common {
     }
 
     function testIsUpdaterSignature(
-        bytes32 _oldRoot,
-        bytes32 _newRoot,
+        bytes32 _root,
+        uint256 _index,
         bytes memory _signature
     ) external view returns (bool) {
-        return _isUpdaterSignature(_oldRoot, _newRoot, _signature);
+        return _isUpdaterSignature(_root, _index, _signature);
     }
 
     /// @notice Hash of Home's domain concatenated with "OPTICS"

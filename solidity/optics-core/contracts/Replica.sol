@@ -57,6 +57,8 @@ contract Replica is Version0, Common {
     mapping(bytes32 => MessageStatus) public messages;
     // address responsible for Updater rotation
     address private _owner;
+    // The index of the latest update we've seen.
+    uint256 public latestUpdateIndex;
 
     // ============ Upgrade Gap ============
 
@@ -64,6 +66,20 @@ contract Replica is Version0, Common {
     uint256[44] private __GAP;
 
     // ============ Events ============
+
+    /**
+     * @notice Emitted when update is accepted.
+     * @param homeDomain Domain of home contract
+     * @param root Merkle root
+     * @param index Index
+     * @param signature Updater's signature on `root` and `index`
+     */
+    event Update(
+        uint32 indexed homeDomain,
+        bytes32 indexed root,
+        uint256 indexed index,
+        bytes signature
+    );
 
     event OwnershipTransferred(
         address indexed previousOwner,
@@ -101,14 +117,15 @@ contract Replica is Version0, Common {
     function initialize(
         uint32 _remoteDomain,
         address _updater,
-        bytes32 _committedRoot,
+        bytes32 _updateRoot,
+        uint256 _updateIndex,
         uint256 _optimisticSeconds
     ) public initializer {
         __Common_initialize(_updater);
         entered = 1;
         remoteDomain = _remoteDomain;
-        committedRoot = _committedRoot;
-        confirmAt[_committedRoot] = 1;
+        latestUpdateIndex = _updateIndex;
+        confirmAt[_updateRoot] = 1;
         optimisticSeconds = _optimisticSeconds;
         transferOwnership(msg.sender);
     }
@@ -138,33 +155,26 @@ contract Replica is Version0, Common {
     }
 
     /**
-     * @notice Called by external agent. Submits the signed update's new root,
-     * marks root's allowable confirmation time, and emits an `Update` event.
-     * @dev Reverts if update doesn't build off latest committedRoot
-     * or if signature is invalid.
-     * @param _oldRoot Old merkle root
-     * @param _newRoot New merkle root
-     * @param _signature Updater's signature on `_oldRoot` and `_newRoot`
+     * @notice Updates the latest root index given a signed update.
+     * @dev Reverts if update's index is not greater than our current index.
+     * @param _root Update's merkle root
+     * @param _index Update's index
+     * @param _signature Updater's signature on `_root` and `_index`
      */
     function update(
-        bytes32 _oldRoot,
-        bytes32 _newRoot,
+        bytes32 _root,
+        uint256 _index,
         bytes memory _signature
     ) external notFailed {
-        // ensure that update is building off the last submitted root
-        require(_oldRoot == committedRoot, "not current update");
+        // ensure that update is more recent than the latest we've seen
+        require(_index > latestUpdateIndex, "old update");
         // validate updater signature
-        require(
-            _isUpdaterSignature(_oldRoot, _newRoot, _signature),
-            "!updater sig"
-        );
-        // Hook for future use
-        _beforeUpdate();
+        require(_isUpdaterSignature(_root, _index, _signature), "!updater sig");
         // set the new root's confirmation timer
-        confirmAt[_newRoot] = block.timestamp + optimisticSeconds;
+        confirmAt[_root] = block.timestamp + optimisticSeconds;
         // update committedRoot
-        committedRoot = _newRoot;
-        emit Update(remoteDomain, _oldRoot, _newRoot, _signature);
+        latestUpdateIndex = _index;
+        emit Update(remoteDomain, _root, _index, _signature);
     }
 
     /**
@@ -338,8 +348,4 @@ contract Replica is Version0, Common {
     function _fail() internal override {
         _setFailed();
     }
-
-    /// @notice Hook for potential future use
-    // solhint-disable-next-line no-empty-blocks
-    function _beforeUpdate() internal {}
 }

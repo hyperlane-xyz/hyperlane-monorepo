@@ -27,8 +27,8 @@ contract TestReplica is Replica {
         messages[_m.keccak()] = MessageStatus.Proven;
     }
 
-    function setCommittedRoot(bytes32 _newRoot) external {
-        committedRoot = _newRoot;
+    function setUpdate(bytes32 _newRoot, uint256 _index) external {
+        latestUpdateIndex = _index;
         confirmAt[_newRoot] = 1;
     }
 

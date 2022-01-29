@@ -25,11 +25,10 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     "RESERVE_GAS()": FunctionFragment;
     "VERSION()": FunctionFragment;
     "acceptableRoot(bytes32)": FunctionFragment;
-    "committedRoot()": FunctionFragment;
     "confirmAt(bytes32)": FunctionFragment;
-    "doubleUpdate(bytes32,bytes32[2],bytes,bytes)": FunctionFragment;
     "homeDomainHash()": FunctionFragment;
-    "initialize(uint32,address,bytes32,uint256)": FunctionFragment;
+    "initialize(uint32,address,bytes32,uint256,uint256)": FunctionFragment;
+    "latestUpdateIndex()": FunctionFragment;
     "localDomain()": FunctionFragment;
     "messages(bytes32)": FunctionFragment;
     "optimisticSeconds()": FunctionFragment;
@@ -38,10 +37,10 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     "prove(bytes32,bytes32[32],uint256)": FunctionFragment;
     "proveAndProcess(bytes,bytes32[32],uint256)": FunctionFragment;
     "remoteDomain()": FunctionFragment;
-    "setCommittedRoot(bytes32)": FunctionFragment;
     "setFailed()": FunctionFragment;
     "setMessagePending(bytes)": FunctionFragment;
     "setRemoteDomain(uint32)": FunctionFragment;
+    "setUpdate(bytes32,uint256)": FunctionFragment;
     "setUpdater(address)": FunctionFragment;
     "state()": FunctionFragment;
     "testBranchRoot(bytes32,bytes32[32],uint256)": FunctionFragment;
@@ -49,7 +48,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     "testProcess(bytes)": FunctionFragment;
     "timestamp()": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
-    "update(bytes32,bytes32,bytes)": FunctionFragment;
+    "update(bytes32,uint256,bytes)": FunctionFragment;
     "updater()": FunctionFragment;
   };
 
@@ -67,16 +66,8 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "committedRoot",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "confirmAt",
     values: [BytesLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "doubleUpdate",
-    values: [BytesLike, [BytesLike, BytesLike], BytesLike, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "homeDomainHash",
@@ -84,7 +75,11 @@ interface TestReplicaInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "initialize",
-    values: [BigNumberish, string, BytesLike, BigNumberish]
+    values: [BigNumberish, string, BytesLike, BigNumberish, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "latestUpdateIndex",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "localDomain",
@@ -183,10 +178,6 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     functionFragment: "remoteDomain",
     values?: undefined
   ): string;
-  encodeFunctionData(
-    functionFragment: "setCommittedRoot",
-    values: [BytesLike]
-  ): string;
   encodeFunctionData(functionFragment: "setFailed", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "setMessagePending",
@@ -195,6 +186,10 @@ interface TestReplicaInterface extends ethers.utils.Interface {
   encodeFunctionData(
     functionFragment: "setRemoteDomain",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setUpdate",
+    values: [BytesLike, BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "setUpdater", values: [string]): string;
   encodeFunctionData(functionFragment: "state", values?: undefined): string;
@@ -254,7 +249,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "update",
-    values: [BytesLike, BytesLike, BytesLike]
+    values: [BytesLike, BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(functionFragment: "updater", values?: undefined): string;
 
@@ -271,20 +266,16 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     functionFragment: "acceptableRoot",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "committedRoot",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "confirmAt", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "doubleUpdate",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "homeDomainHash",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "latestUpdateIndex",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
@@ -305,10 +296,6 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     functionFragment: "remoteDomain",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "setCommittedRoot",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "setFailed", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "setMessagePending",
@@ -318,6 +305,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     functionFragment: "setRemoteDomain",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "setUpdate", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "setUpdater", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "state", data: BytesLike): Result;
   decodeFunctionResult(
@@ -341,14 +329,12 @@ interface TestReplicaInterface extends ethers.utils.Interface {
   decodeFunctionResult(functionFragment: "updater", data: BytesLike): Result;
 
   events: {
-    "DoubleUpdate(bytes32,bytes32[2],bytes,bytes)": EventFragment;
     "NewUpdater(address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
     "Process(bytes32,bool,bytes)": EventFragment;
-    "Update(uint32,bytes32,bytes32,bytes)": EventFragment;
+    "Update(uint32,bytes32,uint256,bytes)": EventFragment;
   };
 
-  getEvent(nameOrSignatureOrTopic: "DoubleUpdate"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "NewUpdater"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Process"): EventFragment;
@@ -410,27 +396,20 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[boolean]>;
 
-    committedRoot(overrides?: CallOverrides): Promise<[string]>;
-
     confirmAt(arg0: BytesLike, overrides?: CallOverrides): Promise<[BigNumber]>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
 
     homeDomainHash(overrides?: CallOverrides): Promise<[string]>;
 
     initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
-      _committedRoot: BytesLike,
+      _updateRoot: BytesLike,
+      _updateIndex: BigNumberish,
       _optimisticSeconds: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
+
+    latestUpdateIndex(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
@@ -527,11 +506,6 @@ export class TestReplica extends BaseContract {
 
     remoteDomain(overrides?: CallOverrides): Promise<[number]>;
 
-    setCommittedRoot(
-      _newRoot: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     setFailed(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -543,6 +517,12 @@ export class TestReplica extends BaseContract {
 
     setRemoteDomain(
       _remoteDomain: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    setUpdate(
+      _newRoot: BytesLike,
+      _index: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -608,8 +588,8 @@ export class TestReplica extends BaseContract {
     ): Promise<ContractTransaction>;
 
     update(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
+      _root: BytesLike,
+      _index: BigNumberish,
       _signature: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -625,27 +605,20 @@ export class TestReplica extends BaseContract {
 
   acceptableRoot(_root: BytesLike, overrides?: CallOverrides): Promise<boolean>;
 
-  committedRoot(overrides?: CallOverrides): Promise<string>;
-
   confirmAt(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
-
-  doubleUpdate(
-    _oldRoot: BytesLike,
-    _newRoot: [BytesLike, BytesLike],
-    _signature: BytesLike,
-    _signature2: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
 
   homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
   initialize(
     _remoteDomain: BigNumberish,
     _updater: string,
-    _committedRoot: BytesLike,
+    _updateRoot: BytesLike,
+    _updateIndex: BigNumberish,
     _optimisticSeconds: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
+
+  latestUpdateIndex(overrides?: CallOverrides): Promise<BigNumber>;
 
   localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -742,11 +715,6 @@ export class TestReplica extends BaseContract {
 
   remoteDomain(overrides?: CallOverrides): Promise<number>;
 
-  setCommittedRoot(
-    _newRoot: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   setFailed(
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -758,6 +726,12 @@ export class TestReplica extends BaseContract {
 
   setRemoteDomain(
     _remoteDomain: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  setUpdate(
+    _newRoot: BytesLike,
+    _index: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -823,8 +797,8 @@ export class TestReplica extends BaseContract {
   ): Promise<ContractTransaction>;
 
   update(
-    _oldRoot: BytesLike,
-    _newRoot: BytesLike,
+    _root: BytesLike,
+    _index: BigNumberish,
     _signature: BytesLike,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -843,27 +817,20 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<boolean>;
 
-    committedRoot(overrides?: CallOverrides): Promise<string>;
-
     confirmAt(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
 
     homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
     initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
-      _committedRoot: BytesLike,
+      _updateRoot: BytesLike,
+      _updateIndex: BigNumberish,
       _optimisticSeconds: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
+
+    latestUpdateIndex(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -957,11 +924,6 @@ export class TestReplica extends BaseContract {
 
     remoteDomain(overrides?: CallOverrides): Promise<number>;
 
-    setCommittedRoot(
-      _newRoot: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
     setFailed(overrides?: CallOverrides): Promise<void>;
 
     setMessagePending(
@@ -971,6 +933,12 @@ export class TestReplica extends BaseContract {
 
     setRemoteDomain(
       _remoteDomain: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    setUpdate(
+      _newRoot: BytesLike,
+      _index: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -1033,8 +1001,8 @@ export class TestReplica extends BaseContract {
     ): Promise<void>;
 
     update(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
+      _root: BytesLike,
+      _index: BigNumberish,
       _signature: BytesLike,
       overrides?: CallOverrides
     ): Promise<void>;
@@ -1043,21 +1011,6 @@ export class TestReplica extends BaseContract {
   };
 
   filters: {
-    DoubleUpdate(
-      oldRoot?: null,
-      newRoot?: null,
-      signature?: null,
-      signature2?: null
-    ): TypedEventFilter<
-      [string, [string, string], string, string],
-      {
-        oldRoot: string;
-        newRoot: [string, string];
-        signature: string;
-        signature2: string;
-      }
-    >;
-
     NewUpdater(updater?: null): TypedEventFilter<[string], { updater: string }>;
 
     OwnershipTransferred(
@@ -1079,17 +1032,12 @@ export class TestReplica extends BaseContract {
 
     Update(
       homeDomain?: BigNumberish | null,
-      oldRoot?: BytesLike | null,
-      newRoot?: BytesLike | null,
+      root?: BytesLike | null,
+      index?: BigNumberish | null,
       signature?: null
     ): TypedEventFilter<
-      [number, string, string, string],
-      {
-        homeDomain: number;
-        oldRoot: string;
-        newRoot: string;
-        signature: string;
-      }
+      [number, string, BigNumber, string],
+      { homeDomain: number; root: string; index: BigNumber; signature: string }
     >;
   };
 
@@ -1105,27 +1053,20 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    committedRoot(overrides?: CallOverrides): Promise<BigNumber>;
-
     confirmAt(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
 
     homeDomainHash(overrides?: CallOverrides): Promise<BigNumber>;
 
     initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
-      _committedRoot: BytesLike,
+      _updateRoot: BytesLike,
+      _updateIndex: BigNumberish,
       _optimisticSeconds: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
+
+    latestUpdateIndex(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -1222,11 +1163,6 @@ export class TestReplica extends BaseContract {
 
     remoteDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
-    setCommittedRoot(
-      _newRoot: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     setFailed(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
@@ -1238,6 +1174,12 @@ export class TestReplica extends BaseContract {
 
     setRemoteDomain(
       _remoteDomain: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    setUpdate(
+      _newRoot: BytesLike,
+      _index: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -1303,8 +1245,8 @@ export class TestReplica extends BaseContract {
     ): Promise<BigNumber>;
 
     update(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
+      _root: BytesLike,
+      _index: BigNumberish,
       _signature: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
@@ -1324,19 +1266,9 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    committedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
     confirmAt(
       arg0: BytesLike,
       overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     homeDomainHash(overrides?: CallOverrides): Promise<PopulatedTransaction>;
@@ -1344,10 +1276,13 @@ export class TestReplica extends BaseContract {
     initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
-      _committedRoot: BytesLike,
+      _updateRoot: BytesLike,
+      _updateIndex: BigNumberish,
       _optimisticSeconds: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
+
+    latestUpdateIndex(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
@@ -1447,11 +1382,6 @@ export class TestReplica extends BaseContract {
 
     remoteDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    setCommittedRoot(
-      _newRoot: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
     setFailed(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
@@ -1463,6 +1393,12 @@ export class TestReplica extends BaseContract {
 
     setRemoteDomain(
       _remoteDomain: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    setUpdate(
+      _newRoot: BytesLike,
+      _index: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -1530,8 +1466,8 @@ export class TestReplica extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     update(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
+      _root: BytesLike,
+      _index: BigNumberish,
       _signature: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;

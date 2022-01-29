@@ -25,37 +25,6 @@
     "inputs": [
       {
         "indexed": false,
-        "internalType": "bytes32",
-        "name": "oldRoot",
-        "type": "bytes32"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32[2]",
-        "name": "newRoot",
-        "type": "bytes32[2]"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "signature",
-        "type": "bytes"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes",
-        "name": "signature2",
-        "type": "bytes"
-      }
-    ],
-    "name": "DoubleUpdate",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
         "internalType": "address",
         "name": "updater",
         "type": "address"
@@ -120,14 +89,14 @@
       {
         "indexed": true,
         "internalType": "bytes32",
-        "name": "oldRoot",
+        "name": "root",
         "type": "bytes32"
       },
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "newRoot",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "index",
+        "type": "uint256"
       },
       {
         "indexed": false,
@@ -198,19 +167,6 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "committedRoot",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -227,34 +183,6 @@
       }
     ],
     "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "_oldRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32[2]",
-        "name": "_newRoot",
-        "type": "bytes32[2]"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_signature",
-        "type": "bytes"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_signature2",
-        "type": "bytes"
-      }
-    ],
-    "name": "doubleUpdate",
-    "outputs": [],
-    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -284,8 +212,13 @@
       },
       {
         "internalType": "bytes32",
-        "name": "_committedRoot",
+        "name": "_updateRoot",
         "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_updateIndex",
+        "type": "uint256"
       },
       {
         "internalType": "uint256",
@@ -296,6 +229,19 @@
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "latestUpdateIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -483,13 +429,13 @@
     "inputs": [
       {
         "internalType": "bytes32",
-        "name": "_oldRoot",
+        "name": "_root",
         "type": "bytes32"
       },
       {
-        "internalType": "bytes32",
-        "name": "_newRoot",
-        "type": "bytes32"
+        "internalType": "uint256",
+        "name": "_index",
+        "type": "uint256"
       },
       {
         "internalType": "bytes",

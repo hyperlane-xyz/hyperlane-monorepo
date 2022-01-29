@@ -4,11 +4,9 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {Version0} from "./Version0.sol";
 import {Common} from "./Common.sol";
-import {QueueLib} from "../libs/Queue.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {MerkleTreeManager} from "./Merkle.sol";
-import {QueueManager} from "./Queue.sol";
 import {IUpdaterManager} from "../interfaces/IUpdaterManager.sol";
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -24,16 +22,9 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
  * Accepts submissions of fraudulent signatures
  * by the Updater and slashes the Updater in this case.
  */
-contract Home is
-    Version0,
-    QueueManager,
-    MerkleTreeManager,
-    Common,
-    OwnableUpgradeable
-{
+contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
     // ============ Libraries ============
 
-    using QueueLib for QueueLib.Queue;
     using MerkleLib for MerkleLib.Tree;
 
     // ============ Constants ============
@@ -44,10 +35,14 @@ contract Home is
 
     // ============ Public Storage Variables ============
 
+    // root => leaf index
+    mapping(bytes32 => uint256) public snapshots;
     // domain => next available nonce for the domain
     mapping(uint32 => uint32) public nonces;
     // contract responsible for Updater bonding, slashing and rotation
     IUpdaterManager public updaterManager;
+    // The latest root that has been snapshotted
+    bytes32 public latestSnapshotRoot;
 
     // ============ Upgrade Gap ============
 
@@ -57,34 +52,41 @@ contract Home is
     // ============ Events ============
 
     /**
+     * @notice Emitted when a root is snapshotted.
+     * @param root Merkle root
+     * @param index Leaf index
+     */
+    event Snapshot(bytes32 indexed root, uint256 indexed index);
+
+    /**
      * @notice Emitted when a new message is dispatched via Optics
+     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
      * @param leafIndex Index of message's leaf in merkle tree
      * @param destinationAndNonce Destination and destination-specific
      * nonce combined in single field ((destination << 32) & nonce)
-     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
-     * @param committedRoot the latest notarized root submitted in the last signed Update
+     * @param latestSnapshotRoot the latest root that has been snapshotted
      * @param message Raw bytes of message
      */
     event Dispatch(
         bytes32 indexed messageHash,
         uint256 indexed leafIndex,
         uint64 indexed destinationAndNonce,
-        bytes32 committedRoot,
+        bytes32 latestSnapshotRoot,
         bytes message
     );
 
     /**
      * @notice Emitted when proof of an improper update is submitted,
      * which sets the contract to FAILED state
-     * @param oldRoot Old root of the improper update
-     * @param newRoot New root of the improper update
-     * @param signature Signature on `oldRoot` and `newRoot
+     * @param root Root of the improper update
+     * @param index Index of the improper update
+     * @param signature Signature on `root` and `index`
      */
-    event ImproperUpdate(bytes32 oldRoot, bytes32 newRoot, bytes signature);
+    event ImproperUpdate(bytes32 root, uint256 index, bytes signature);
 
     /**
      * @notice Emitted when the Updater is slashed
-     * (should be paired with ImproperUpdater or DoubleUpdate event)
+     * (should be paired with ImproperUpdater event)
      * @param updater The address of the updater
      * @param reporter The address of the entity that reported the updater misbehavior
      */
@@ -103,9 +105,8 @@ contract Home is
     // ============ Initializer ============
 
     function initialize(IUpdaterManager _updaterManager) public initializer {
-        // initialize owner & queue
+        // initialize owner
         __Ownable_init();
-        __QueueManager_initialize();
         // set Updater Manager contract and initialize Updater
         _setUpdaterManager(_updaterManager);
         address _updater = updaterManager.updater();
@@ -175,66 +176,44 @@ contract Home is
         // insert the hashed message into the Merkle tree
         bytes32 _messageHash = keccak256(_message);
         tree.insert(_messageHash);
-        // enqueue the new Merkle root after inserting the message
-        queue.enqueue(root());
         // Emit Dispatch event with message information
         // note: leafIndex is count() - 1 since new leaf has already been inserted
         emit Dispatch(
             _messageHash,
             count() - 1,
             _destinationAndNonce(_destinationDomain, _nonce),
-            committedRoot,
+            latestSnapshotRoot,
             _message
         );
     }
 
     /**
-     * @notice Submit a signature from the Updater "notarizing" a root,
-     * which updates the Home contract's `committedRoot`,
-     * and publishes the signature which will be relayed to Replica contracts
-     * @dev emits Update event
-     * @dev If _newRoot is not contained in the queue,
-     * the Update is a fraudulent Improper Update, so
-     * the Updater is slashed & Home is set to FAILED state
-     * @param _committedRoot Current updated merkle root which the update is building off of
-     * @param _newRoot New merkle root to update the contract state to
-     * @param _signature Updater signature on `_committedRoot` and `_newRoot`
+     * @notice Snapshots the latest root on the Home contract.
+     * Updaters are expected to sign this snapshot so that the signature can be
+     * relayed to the Replica contracts.
+     * @dev emits Snapshot event
      */
-    function update(
-        bytes32 _committedRoot,
-        bytes32 _newRoot,
-        bytes memory _signature
-    ) external notFailed {
-        // check that the update is not fraudulent;
-        // if fraud is detected, Updater is slashed & Home is set to FAILED state
-        // Opportunity for gas savings, we iterate through the queue twice.
-        if (improperUpdate(_committedRoot, _newRoot, _signature)) return;
-        // clear all of the intermediate roots contained in this update from the queue
-        while (true) {
-            bytes32 _next = queue.dequeue();
-            if (_next == _newRoot) break;
-        }
-        // update the Home state with the latest signed root & emit event
-        committedRoot = _newRoot;
-        emit Update(localDomain, _committedRoot, _newRoot, _signature);
+    function snapshot() external notFailed {
+        bytes32 root = root();
+        uint256 index = count() - 1;
+        snapshots[root] = index;
+        emit Snapshot(root, index);
     }
 
     /**
      * @notice Suggest an update for the Updater to sign and submit.
      * @dev If queue is empty, null bytes returned for both
      * (No update is necessary because no messages have been dispatched since the last update)
-     * @return _committedRoot Latest root signed by the Updater
-     * @return _new Latest enqueued Merkle root
+     * @return root Latest snapshotted root
+     * @return index Latest snapshotted index
      */
-    function suggestUpdate()
+    function latestSnapshot()
         external
         view
-        returns (bytes32 _committedRoot, bytes32 _new)
+        returns (bytes32 root, uint256 index)
     {
-        if (queue.length() != 0) {
-            _committedRoot = committedRoot;
-            _new = queue.lastItem();
-        }
+        root = latestSnapshotRoot;
+        index = snapshots[latestSnapshotRoot];
     }
 
     // ============ Public Functions  ============
@@ -250,49 +229,22 @@ contract Home is
      * @notice Check if an Update is an Improper Update;
      * if so, slash the Updater and set the contract to FAILED state.
      *
-     * An Improper Update is an update building off of the Home's `committedRoot`
-     * for which the `_newRoot` does not currently exist in the Home's queue.
-     * This would mean that message(s) that were not truly
-     * dispatched on Home were falsely included in the signed root.
-     *
-     * An Improper Update will only be accepted as valid by the Replica
-     * If an Improper Update is attempted on Home,
-     * the Updater will be slashed immediately.
-     * If an Improper Update is submitted to the Replica,
-     * it should be relayed to the Home contract using this function
-     * in order to slash the Updater with an Improper Update.
-     *
-     * An Improper Update submitted to the Replica is only valid
-     * while the `_oldRoot` is still equal to the `committedRoot` on Home;
-     * if the `committedRoot` on Home has already been updated with a valid Update,
-     * then the Updater should be slashed with a Double Update.
-     * @dev Reverts (and doesn't slash updater) if signature is invalid or
-     * update not current
-     * @param _oldRoot Old merkle tree root (should equal home's committedRoot)
-     * @param _newRoot New merkle tree root
-     * @param _signature Updater signature on `_oldRoot` and `_newRoot`
+     * An Improper Update is an update that was not previously snapshotted.
+     * @param _root Merkle root of the improper update
+     * @param _index Index root of the improper update
+     * @param _signature Updater signature on `_root` and `_index`
      * @return TRUE if update was an Improper Update (implying Updater was slashed)
      */
     function improperUpdate(
-        bytes32 _oldRoot,
-        bytes32 _newRoot,
+        bytes32 _root,
+        uint256 _index,
         bytes memory _signature
     ) public notFailed returns (bool) {
-        require(
-            _isUpdaterSignature(_oldRoot, _newRoot, _signature),
-            "!updater sig"
-        );
-        require(_oldRoot == committedRoot, "not a current update");
-        // if the _newRoot is not currently contained in the queue,
-        // slash the Updater and set the contract to FAILED state
-        if (!queue.contains(_newRoot)) {
-            _fail();
-            emit ImproperUpdate(_oldRoot, _newRoot, _signature);
-            return true;
-        }
-        // if the _newRoot is contained in the queue,
-        // this is not an improper update
-        return false;
+        require(_isUpdaterSignature(_root, _index, _signature), "!updater sig");
+        require(snapshots[_root] != _index, "!improper");
+        _fail();
+        emit ImproperUpdate(_root, _index, _signature);
+        return true;
     }
 
     // ============ Internal Functions  ============

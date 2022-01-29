@@ -4,7 +4,6 @@ pragma solidity >=0.6.11;
 import "../Home.sol";
 
 contract TestHome is Home {
-    using QueueLib for QueueLib.Queue;
     using MerkleLib for MerkleLib.Tree;
 
     constructor(uint32 _localDomain) Home(_localDomain) {} // solhint-disable-line no-empty-blocks

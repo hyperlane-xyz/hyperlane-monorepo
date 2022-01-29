@@ -23,32 +23,29 @@ interface TestHomeInterface extends ethers.utils.Interface {
   functions: {
     "MAX_MESSAGE_BODY_BYTES()": FunctionFragment;
     "VERSION()": FunctionFragment;
-    "committedRoot()": FunctionFragment;
     "count()": FunctionFragment;
     "dispatch(uint32,bytes32,bytes)": FunctionFragment;
-    "doubleUpdate(bytes32,bytes32[2],bytes,bytes)": FunctionFragment;
     "homeDomainHash()": FunctionFragment;
-    "improperUpdate(bytes32,bytes32,bytes)": FunctionFragment;
+    "improperUpdate(bytes32,uint256,bytes)": FunctionFragment;
     "initialize(address)": FunctionFragment;
+    "latestSnapshot()": FunctionFragment;
+    "latestSnapshotRoot()": FunctionFragment;
     "localDomain()": FunctionFragment;
     "nextLeafIndex()": FunctionFragment;
     "nonces(uint32)": FunctionFragment;
     "owner()": FunctionFragment;
-    "queueContains(bytes32)": FunctionFragment;
-    "queueEnd()": FunctionFragment;
-    "queueLength()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
     "root()": FunctionFragment;
     "setFailed()": FunctionFragment;
     "setUpdater(address)": FunctionFragment;
     "setUpdaterManager(address)": FunctionFragment;
+    "snapshot()": FunctionFragment;
+    "snapshots(bytes32)": FunctionFragment;
     "state()": FunctionFragment;
-    "suggestUpdate()": FunctionFragment;
     "testDestinationAndNonce(uint32,uint32)": FunctionFragment;
     "testHomeDomainHash()": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "tree()": FunctionFragment;
-    "update(bytes32,bytes32,bytes)": FunctionFragment;
     "updater()": FunctionFragment;
     "updaterManager()": FunctionFragment;
   };
@@ -58,18 +55,10 @@ interface TestHomeInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "VERSION", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "committedRoot",
-    values?: undefined
-  ): string;
   encodeFunctionData(functionFragment: "count", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "dispatch",
     values: [BigNumberish, BytesLike, BytesLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "doubleUpdate",
-    values: [BytesLike, [BytesLike, BytesLike], BytesLike, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "homeDomainHash",
@@ -77,9 +66,17 @@ interface TestHomeInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "improperUpdate",
-    values: [BytesLike, BytesLike, BytesLike]
+    values: [BytesLike, BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(functionFragment: "initialize", values: [string]): string;
+  encodeFunctionData(
+    functionFragment: "latestSnapshot",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "latestSnapshotRoot",
+    values?: undefined
+  ): string;
   encodeFunctionData(
     functionFragment: "localDomain",
     values?: undefined
@@ -94,15 +91,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "queueContains",
-    values: [BytesLike]
-  ): string;
-  encodeFunctionData(functionFragment: "queueEnd", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "queueLength",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "renounceOwnership",
     values?: undefined
   ): string;
@@ -113,11 +101,12 @@ interface TestHomeInterface extends ethers.utils.Interface {
     functionFragment: "setUpdaterManager",
     values: [string]
   ): string;
-  encodeFunctionData(functionFragment: "state", values?: undefined): string;
+  encodeFunctionData(functionFragment: "snapshot", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "suggestUpdate",
-    values?: undefined
+    functionFragment: "snapshots",
+    values: [BytesLike]
   ): string;
+  encodeFunctionData(functionFragment: "state", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "testDestinationAndNonce",
     values: [BigNumberish, BigNumberish]
@@ -131,10 +120,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(functionFragment: "tree", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "update",
-    values: [BytesLike, BytesLike, BytesLike]
-  ): string;
   encodeFunctionData(functionFragment: "updater", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "updaterManager",
@@ -146,16 +131,8 @@ interface TestHomeInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "VERSION", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "committedRoot",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "count", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "dispatch", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "doubleUpdate",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "homeDomainHash",
     data: BytesLike
@@ -165,6 +142,14 @@ interface TestHomeInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "latestSnapshot",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "latestSnapshotRoot",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
@@ -176,15 +161,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
   decodeFunctionResult(functionFragment: "nonces", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "queueContains",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(functionFragment: "queueEnd", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "queueLength",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "renounceOwnership",
     data: BytesLike
   ): Result;
@@ -195,11 +171,9 @@ interface TestHomeInterface extends ethers.utils.Interface {
     functionFragment: "setUpdaterManager",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "snapshot", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "snapshots", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "state", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "suggestUpdate",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "testDestinationAndNonce",
     data: BytesLike
@@ -213,7 +187,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "tree", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "update", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "updater", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "updaterManager",
@@ -222,22 +195,20 @@ interface TestHomeInterface extends ethers.utils.Interface {
 
   events: {
     "Dispatch(bytes32,uint256,uint64,bytes32,bytes)": EventFragment;
-    "DoubleUpdate(bytes32,bytes32[2],bytes,bytes)": EventFragment;
-    "ImproperUpdate(bytes32,bytes32,bytes)": EventFragment;
+    "ImproperUpdate(bytes32,uint256,bytes)": EventFragment;
     "NewUpdater(address)": EventFragment;
     "NewUpdaterManager(address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
-    "Update(uint32,bytes32,bytes32,bytes)": EventFragment;
+    "Snapshot(bytes32,uint256)": EventFragment;
     "UpdaterSlashed(address,address)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "Dispatch"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "DoubleUpdate"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "ImproperUpdate"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "NewUpdater"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "NewUpdaterManager"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "Update"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Snapshot"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "UpdaterSlashed"): EventFragment;
 }
 
@@ -289,8 +260,6 @@ export class TestHome extends BaseContract {
 
     VERSION(overrides?: CallOverrides): Promise<[number]>;
 
-    committedRoot(overrides?: CallOverrides): Promise<[string]>;
-
     count(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     dispatch(
@@ -300,19 +269,11 @@ export class TestHome extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     homeDomainHash(overrides?: CallOverrides): Promise<[string]>;
 
     improperUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
+      _root: BytesLike,
+      _index: BigNumberish,
       _signature: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -322,6 +283,12 @@ export class TestHome extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    latestSnapshot(
+      overrides?: CallOverrides
+    ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
+
+    latestSnapshotRoot(overrides?: CallOverrides): Promise<[string]>;
+
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
     nextLeafIndex(overrides?: CallOverrides): Promise<[BigNumber]>;
@@ -329,15 +296,6 @@ export class TestHome extends BaseContract {
     nonces(arg0: BigNumberish, overrides?: CallOverrides): Promise<[number]>;
 
     owner(overrides?: CallOverrides): Promise<[string]>;
-
-    queueContains(
-      _item: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<[boolean]>;
-
-    queueEnd(overrides?: CallOverrides): Promise<[string]>;
-
-    queueLength(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -359,11 +317,13 @@ export class TestHome extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    state(overrides?: CallOverrides): Promise<[number]>;
+    snapshot(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
 
-    suggestUpdate(
-      overrides?: CallOverrides
-    ): Promise<[string, string] & { _committedRoot: string; _new: string }>;
+    snapshots(arg0: BytesLike, overrides?: CallOverrides): Promise<[BigNumber]>;
+
+    state(overrides?: CallOverrides): Promise<[number]>;
 
     testDestinationAndNonce(
       _destination: BigNumberish,
@@ -382,13 +342,6 @@ export class TestHome extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[BigNumber] & { count: BigNumber }>;
 
-    update(
-      _committedRoot: BytesLike,
-      _newRoot: BytesLike,
-      _signature: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     updater(overrides?: CallOverrides): Promise<[string]>;
 
     updaterManager(overrides?: CallOverrides): Promise<[string]>;
@@ -397,8 +350,6 @@ export class TestHome extends BaseContract {
   MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<BigNumber>;
 
   VERSION(overrides?: CallOverrides): Promise<number>;
-
-  committedRoot(overrides?: CallOverrides): Promise<string>;
 
   count(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -409,19 +360,11 @@ export class TestHome extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  doubleUpdate(
-    _oldRoot: BytesLike,
-    _newRoot: [BytesLike, BytesLike],
-    _signature: BytesLike,
-    _signature2: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
   improperUpdate(
-    _oldRoot: BytesLike,
-    _newRoot: BytesLike,
+    _root: BytesLike,
+    _index: BigNumberish,
     _signature: BytesLike,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -431,6 +374,12 @@ export class TestHome extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
+  latestSnapshot(
+    overrides?: CallOverrides
+  ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
+
+  latestSnapshotRoot(overrides?: CallOverrides): Promise<string>;
+
   localDomain(overrides?: CallOverrides): Promise<number>;
 
   nextLeafIndex(overrides?: CallOverrides): Promise<BigNumber>;
@@ -438,12 +387,6 @@ export class TestHome extends BaseContract {
   nonces(arg0: BigNumberish, overrides?: CallOverrides): Promise<number>;
 
   owner(overrides?: CallOverrides): Promise<string>;
-
-  queueContains(_item: BytesLike, overrides?: CallOverrides): Promise<boolean>;
-
-  queueEnd(overrides?: CallOverrides): Promise<string>;
-
-  queueLength(overrides?: CallOverrides): Promise<BigNumber>;
 
   renounceOwnership(
     overrides?: Overrides & { from?: string | Promise<string> }
@@ -465,11 +408,13 @@ export class TestHome extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  state(overrides?: CallOverrides): Promise<number>;
+  snapshot(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
-  suggestUpdate(
-    overrides?: CallOverrides
-  ): Promise<[string, string] & { _committedRoot: string; _new: string }>;
+  snapshots(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
+
+  state(overrides?: CallOverrides): Promise<number>;
 
   testDestinationAndNonce(
     _destination: BigNumberish,
@@ -486,13 +431,6 @@ export class TestHome extends BaseContract {
 
   tree(overrides?: CallOverrides): Promise<BigNumber>;
 
-  update(
-    _committedRoot: BytesLike,
-    _newRoot: BytesLike,
-    _signature: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   updater(overrides?: CallOverrides): Promise<string>;
 
   updaterManager(overrides?: CallOverrides): Promise<string>;
@@ -501,8 +439,6 @@ export class TestHome extends BaseContract {
     MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<BigNumber>;
 
     VERSION(overrides?: CallOverrides): Promise<number>;
-
-    committedRoot(overrides?: CallOverrides): Promise<string>;
 
     count(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -513,19 +449,11 @@ export class TestHome extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
     homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
     improperUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
+      _root: BytesLike,
+      _index: BigNumberish,
       _signature: BytesLike,
       overrides?: CallOverrides
     ): Promise<boolean>;
@@ -535,6 +463,12 @@ export class TestHome extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
+    latestSnapshot(
+      overrides?: CallOverrides
+    ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
+
+    latestSnapshotRoot(overrides?: CallOverrides): Promise<string>;
+
     localDomain(overrides?: CallOverrides): Promise<number>;
 
     nextLeafIndex(overrides?: CallOverrides): Promise<BigNumber>;
@@ -542,15 +476,6 @@ export class TestHome extends BaseContract {
     nonces(arg0: BigNumberish, overrides?: CallOverrides): Promise<number>;
 
     owner(overrides?: CallOverrides): Promise<string>;
-
-    queueContains(
-      _item: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<boolean>;
-
-    queueEnd(overrides?: CallOverrides): Promise<string>;
-
-    queueLength(overrides?: CallOverrides): Promise<BigNumber>;
 
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
@@ -565,11 +490,11 @@ export class TestHome extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    state(overrides?: CallOverrides): Promise<number>;
+    snapshot(overrides?: CallOverrides): Promise<void>;
 
-    suggestUpdate(
-      overrides?: CallOverrides
-    ): Promise<[string, string] & { _committedRoot: string; _new: string }>;
+    snapshots(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
+
+    state(overrides?: CallOverrides): Promise<number>;
 
     testDestinationAndNonce(
       _destination: BigNumberish,
@@ -586,13 +511,6 @@ export class TestHome extends BaseContract {
 
     tree(overrides?: CallOverrides): Promise<BigNumber>;
 
-    update(
-      _committedRoot: BytesLike,
-      _newRoot: BytesLike,
-      _signature: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
     updater(overrides?: CallOverrides): Promise<string>;
 
     updaterManager(overrides?: CallOverrides): Promise<string>;
@@ -603,7 +521,7 @@ export class TestHome extends BaseContract {
       messageHash?: BytesLike | null,
       leafIndex?: BigNumberish | null,
       destinationAndNonce?: BigNumberish | null,
-      committedRoot?: null,
+      latestSnapshotRoot?: null,
       message?: null
     ): TypedEventFilter<
       [string, BigNumber, BigNumber, string, string],
@@ -611,33 +529,18 @@ export class TestHome extends BaseContract {
         messageHash: string;
         leafIndex: BigNumber;
         destinationAndNonce: BigNumber;
-        committedRoot: string;
+        latestSnapshotRoot: string;
         message: string;
       }
     >;
 
-    DoubleUpdate(
-      oldRoot?: null,
-      newRoot?: null,
-      signature?: null,
-      signature2?: null
-    ): TypedEventFilter<
-      [string, [string, string], string, string],
-      {
-        oldRoot: string;
-        newRoot: [string, string];
-        signature: string;
-        signature2: string;
-      }
-    >;
-
     ImproperUpdate(
-      oldRoot?: null,
-      newRoot?: null,
+      root?: null,
+      index?: null,
       signature?: null
     ): TypedEventFilter<
-      [string, string, string],
-      { oldRoot: string; newRoot: string; signature: string }
+      [string, BigNumber, string],
+      { root: string; index: BigNumber; signature: string }
     >;
 
     NewUpdater(updater?: null): TypedEventFilter<[string], { updater: string }>;
@@ -654,19 +557,12 @@ export class TestHome extends BaseContract {
       { previousOwner: string; newOwner: string }
     >;
 
-    Update(
-      homeDomain?: BigNumberish | null,
-      oldRoot?: BytesLike | null,
-      newRoot?: BytesLike | null,
-      signature?: null
+    Snapshot(
+      root?: BytesLike | null,
+      index?: BigNumberish | null
     ): TypedEventFilter<
-      [number, string, string, string],
-      {
-        homeDomain: number;
-        oldRoot: string;
-        newRoot: string;
-        signature: string;
-      }
+      [string, BigNumber],
+      { root: string; index: BigNumber }
     >;
 
     UpdaterSlashed(
@@ -683,8 +579,6 @@ export class TestHome extends BaseContract {
 
     VERSION(overrides?: CallOverrides): Promise<BigNumber>;
 
-    committedRoot(overrides?: CallOverrides): Promise<BigNumber>;
-
     count(overrides?: CallOverrides): Promise<BigNumber>;
 
     dispatch(
@@ -694,19 +588,11 @@ export class TestHome extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     homeDomainHash(overrides?: CallOverrides): Promise<BigNumber>;
 
     improperUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
+      _root: BytesLike,
+      _index: BigNumberish,
       _signature: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
@@ -716,6 +602,10 @@ export class TestHome extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
+    latestSnapshot(overrides?: CallOverrides): Promise<BigNumber>;
+
+    latestSnapshotRoot(overrides?: CallOverrides): Promise<BigNumber>;
+
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
     nextLeafIndex(overrides?: CallOverrides): Promise<BigNumber>;
@@ -723,15 +613,6 @@ export class TestHome extends BaseContract {
     nonces(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
 
     owner(overrides?: CallOverrides): Promise<BigNumber>;
-
-    queueContains(
-      _item: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
-
-    queueEnd(overrides?: CallOverrides): Promise<BigNumber>;
-
-    queueLength(overrides?: CallOverrides): Promise<BigNumber>;
 
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -753,9 +634,13 @@ export class TestHome extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    state(overrides?: CallOverrides): Promise<BigNumber>;
+    snapshot(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
 
-    suggestUpdate(overrides?: CallOverrides): Promise<BigNumber>;
+    snapshots(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
+
+    state(overrides?: CallOverrides): Promise<BigNumber>;
 
     testDestinationAndNonce(
       _destination: BigNumberish,
@@ -772,13 +657,6 @@ export class TestHome extends BaseContract {
 
     tree(overrides?: CallOverrides): Promise<BigNumber>;
 
-    update(
-      _committedRoot: BytesLike,
-      _newRoot: BytesLike,
-      _signature: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     updater(overrides?: CallOverrides): Promise<BigNumber>;
 
     updaterManager(overrides?: CallOverrides): Promise<BigNumber>;
@@ -791,8 +669,6 @@ export class TestHome extends BaseContract {
 
     VERSION(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    committedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
     count(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     dispatch(
@@ -802,19 +678,11 @@ export class TestHome extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
     homeDomainHash(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     improperUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
+      _root: BytesLike,
+      _index: BigNumberish,
       _signature: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
@@ -822,6 +690,12 @@ export class TestHome extends BaseContract {
     initialize(
       _updaterManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    latestSnapshot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    latestSnapshotRoot(
+      overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
@@ -834,15 +708,6 @@ export class TestHome extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    queueContains(
-      _item: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
-    queueEnd(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    queueLength(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -864,9 +729,16 @@ export class TestHome extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    state(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    snapshot(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
 
-    suggestUpdate(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    snapshots(
+      arg0: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    state(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     testDestinationAndNonce(
       _destination: BigNumberish,
@@ -884,13 +756,6 @@ export class TestHome extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     tree(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    update(
-      _committedRoot: BytesLike,
-      _newRoot: BytesLike,
-      _signature: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
 
     updater(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 

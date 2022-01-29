@@ -38,8 +38,6 @@ abstract contract Common is Initializable {
     address public updater;
     // Current state of contract
     States public state;
-    // The latest root that has been signed by the Updater
-    bytes32 public committedRoot;
 
     // ============ Upgrade Gap ============
 
@@ -47,36 +45,6 @@ abstract contract Common is Initializable {
     uint256[47] private __GAP;
 
     // ============ Events ============
-
-    /**
-     * @notice Emitted when update is made on Home
-     * or unconfirmed update root is submitted on Replica
-     * @param homeDomain Domain of home contract
-     * @param oldRoot Old merkle root
-     * @param newRoot New merkle root
-     * @param signature Updater's signature on `oldRoot` and `newRoot`
-     */
-    event Update(
-        uint32 indexed homeDomain,
-        bytes32 indexed oldRoot,
-        bytes32 indexed newRoot,
-        bytes signature
-    );
-
-    /**
-     * @notice Emitted when proof of a double update is submitted,
-     * which sets the contract to FAILED state
-     * @param oldRoot Old root shared between two conflicting updates
-     * @param newRoot Array containing two conflicting new roots
-     * @param signature Signature on `oldRoot` and `newRoot`[0]
-     * @param signature2 Signature on `oldRoot` and `newRoot`[1]
-     */
-    event DoubleUpdate(
-        bytes32 oldRoot,
-        bytes32[2] newRoot,
-        bytes signature,
-        bytes signature2
-    );
 
     /**
      * @notice Emitted when Updater is rotated
@@ -105,35 +73,6 @@ abstract contract Common is Initializable {
     function __Common_initialize(address _updater) internal initializer {
         updater = _updater;
         state = States.Active;
-    }
-
-    // ============ External Functions ============
-
-    /**
-     * @notice Called by external agent. Checks that signatures on two sets of
-     * roots are valid and that the new roots conflict with each other. If both
-     * cases hold true, the contract is failed and a `DoubleUpdate` event is
-     * emitted.
-     * @dev When `fail()` is called on Home, updater is slashed.
-     * @param _oldRoot Old root shared between two conflicting updates
-     * @param _newRoot Array containing two conflicting new roots
-     * @param _signature Signature on `_oldRoot` and `_newRoot`[0]
-     * @param _signature2 Signature on `_oldRoot` and `_newRoot`[1]
-     */
-    function doubleUpdate(
-        bytes32 _oldRoot,
-        bytes32[2] calldata _newRoot,
-        bytes calldata _signature,
-        bytes calldata _signature2
-    ) external notFailed {
-        if (
-            Common._isUpdaterSignature(_oldRoot, _newRoot[0], _signature) &&
-            Common._isUpdaterSignature(_oldRoot, _newRoot[1], _signature2) &&
-            _newRoot[0] != _newRoot[1]
-        ) {
-            _fail();
-            emit DoubleUpdate(_oldRoot, _newRoot, _signature, _signature2);
-        }
     }
 
     // ============ Public Functions ============
@@ -175,18 +114,18 @@ abstract contract Common is Initializable {
 
     /**
      * @notice Checks that signature was signed by Updater
-     * @param _oldRoot Old merkle root
-     * @param _newRoot New merkle root
-     * @param _signature Signature on `_oldRoot` and `_newRoot`
+     * @param _root Merkle root
+     * @param _index Corresponding leaf index
+     * @param _signature Signature on `_root` and `_index`
      * @return TRUE iff signature is valid signed by updater
      **/
     function _isUpdaterSignature(
-        bytes32 _oldRoot,
-        bytes32 _newRoot,
+        bytes32 _root,
+        uint256 _index,
         bytes memory _signature
     ) internal view returns (bool) {
         bytes32 _digest = keccak256(
-            abi.encodePacked(homeDomainHash(), _oldRoot, _newRoot)
+            abi.encodePacked(homeDomainHash(), _root, _index)
         );
         _digest = ECDSA.toEthSignedMessageHash(_digest);
         return (ECDSA.recover(_digest, _signature) == updater);
