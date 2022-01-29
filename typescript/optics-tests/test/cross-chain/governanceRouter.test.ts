@@ -6,12 +6,12 @@ import { increaseTimestampBy, UpgradeTestHelpers } from '../utils';
 import { getTestDeploy } from '../testChain';
 import { Updater } from '../../lib/core';
 import { Address, Signer } from '../../lib/types';
-import { CoreDeploy as Deploy } from '@optics-xyz/deploy/dist/src/core/CoreDeploy';
+import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
 import {
   deployNChains,
   deployUnenrolledReplica,
-} from '@optics-xyz/deploy/dist/src/core';
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-deploy/dist/src/core';
+import * as contracts from 'optics-ts-interface/dist/optics-core';
 
 const helpers = require('../../../../vectors/proof.json');
 

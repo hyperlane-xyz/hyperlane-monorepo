@@ -2,7 +2,7 @@ import { BigNumber, BytesLike, Signer } from 'ethers';
 import {
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-} from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-ts-interface/dist/optics-core';
 import {
   BridgeRouter,
   BridgeToken,
@@ -11,7 +11,7 @@ import {
   MockCore__factory,
   MockWeth,
   MockWeth__factory,
-} from '@optics-xyz/ts-interface/dist/optics-xapps';
+} from 'optics-ts-interface/dist/optics-xapps';
 import { BridgeContracts } from './BridgeContracts';
 import * as process from '.';
 import { Chain } from '../chain';
