@@ -16,6 +16,7 @@
     "./src/*.ts",
     "./src/core/*.ts",
     "./src/bridge/*.ts",
-    "./src/verification/*.ts"
+    "./src/verification/*.ts",
+    "./src/agents/*.ts"
   ]
 }
