@@ -4,12 +4,12 @@ import { BigNumber, BytesLike } from 'ethers';
 
 import * as types from '../../lib/types';
 import { toBytes32 } from '../../lib/utils';
-import TestBridgeDeploy from '@optics-xyz/deploy/dist/src/bridge/TestBridgeDeploy';
+import TestBridgeDeploy from 'optics-deploy/dist/src/bridge/TestBridgeDeploy';
 import {
   BridgeToken,
   BridgeToken__factory,
   IERC20,
-} from '@optics-xyz/ts-interface/dist/optics-xapps';
+} from 'optics-ts-interface/dist/optics-xapps';
 import { stringToBytes32 } from '../utils';
 
 const { BridgeMessageTypes } = bridge;

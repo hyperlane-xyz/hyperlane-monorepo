@@ -16,11 +16,11 @@
     "typescript": "^4.3.2"
   },
   "dependencies": {
-    "@optics-xyz/deploy": "^0.0.3",
-    "@optics-xyz/multi-provider": "^0.0.4",
-    "@optics-xyz/ts-interface": "^1.0.9",
     "@types/node": "^15.14.7",
-    "dotenv": "^10.0.0"
+    "dotenv": "^10.0.0",
+    "optics-deploy": "0.0.4",
+    "optics-multi-provider-community": "^0.1.26",
+    "optics-ts-interface": "^1.1.2"
   },
   "name": "@optics-xyz/optics-test",
   "version": "1.0.0",

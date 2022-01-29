@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { Deploy } from './deploy';
 import { ProxyNames, BeaconProxy } from './proxyUtils';
-import { UpgradeBeaconController } from '@optics-xyz/ts-interface/dist/optics-core';
+import { UpgradeBeaconController } from 'optics-ts-interface/dist/optics-core';
 
 export enum InvariantViolationType {
   UpgradeBeacon

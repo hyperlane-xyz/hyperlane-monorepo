@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { OpticsContext } from '@optics-xyz/multi-provider';
+import { OpticsContext } from 'optics-multi-provider-community';
 
 describe('optics multi-provider', () => {
   it('compiles', () => {
