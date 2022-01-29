@@ -5,7 +5,7 @@ import fs from 'fs';
 import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
 import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
-import { checkCoreDeploy } from './checks';
+import { CoreInvariantChecker } from './checks';
 import { log, warn, toBytes32 } from '../utils';
 
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
@@ -301,6 +301,14 @@ export async function relinquish(deploy: CoreDeploy) {
     `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
 
+  Object.entries(deploy.contracts.replicas).forEach(async ([domain, replica]) => {
+    await replica.proxy.transferOwnership(govRouter, deploy.overrides);
+    log(
+      isTestDeploy,
+      `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
+    );
+  });
+
   let tx = await deploy.contracts.home!.proxy.transferOwnership(
     govRouter,
     deploy.overrides,
@@ -498,10 +506,9 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   await Promise.all([relinquish(gov), relinquish(non)]);
 
   // checks deploys are correct
-  const govDomain = gov.chain.domain;
-  const nonDomain = non.chain.domain;
-  await checkCoreDeploy(gov, [nonDomain], govDomain);
-  await checkCoreDeploy(non, [govDomain], govDomain);
+  const checker = new CoreInvariantChecker([gov, non])
+  await checker.checkDeploys()
+  checker.expectEmpty()
 
   if (!isTestDeploy) {
     writeDeployOutput([gov, non]);
@@ -593,16 +600,9 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   }
 
   // checks deploys are correct
-  const govDomain = deploys[0].chain.domain;
-  for (var i = 0; i < deploys.length; i++) {
-    const localDomain = deploys[i].chain.domain;
-    const remoteDomains = deploys
-      .map((deploy) => deploy.chain.domain)
-      .filter((domain) => {
-        return domain != localDomain;
-      });
-    await checkCoreDeploy(deploys[i], remoteDomains, govDomain);
-  }
+  const checker = new CoreInvariantChecker(deploys)
+  await checker.checkDeploys()
+  checker.expectEmpty()
 
   // write config outputs again, should write under a different dir
   if (!isTestDeploy) {
