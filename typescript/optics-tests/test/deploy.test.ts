@@ -7,10 +7,7 @@ import { Signer } from '../lib/types';
 import { CoreContractAddresses } from 'optics-deploy/dist/src/chain';
 import { deployBridges } from 'optics-deploy/dist/src/bridge';
 import { BridgeDeploy } from 'optics-deploy/dist/src/bridge/BridgeDeploy';
-import {
-  deployTwoChains,
-  deployNChains,
-} from 'optics-deploy/dist/src/core';
+import { deployTwoChains, deployNChains } from 'optics-deploy/dist/src/core';
 import { CoreDeploy } from 'optics-deploy/dist/src/core/CoreDeploy';
 import {
   MockWeth,

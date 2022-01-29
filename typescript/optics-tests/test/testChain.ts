@@ -1,9 +1,6 @@
 import { ethers } from 'hardhat';
 
-import {
-  CoreConfig,
-  CoreDeploy,
-} from 'optics-deploy/dist/src/core/CoreDeploy';
+import { CoreConfig, CoreDeploy } from 'optics-deploy/dist/src/core/CoreDeploy';
 import { Chain } from 'optics-deploy/dist/src/chain';
 
 const { BigNumber } = ethers;
