@@ -23,7 +23,7 @@ async function main() {
 
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
-  checker.expectViolations([{ type: ViolationType.ReplicaUpdater }, { type: ViolationType.HomeUpdater }], [4, 1])
+  checker.expectViolations([ViolationType.ReplicaUpdater, ViolationType.HomeUpdater ], [4, 1])
   const builder = new GovernanceCallBatchBuilder(deploys, devCommunity, checker.violations);
   const batch = await builder.build()
 
