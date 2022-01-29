@@ -66,9 +66,7 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
   }
 
   async checkDeploys(): Promise<void> {
-    for (const deploy of this._deploys) {
-      await this.checkDeploy(deploy)
-    }
+    await Promise.all(this._deploys.map(this.checkDeploy))
   }
 
   addViolation(v: Violation) {
