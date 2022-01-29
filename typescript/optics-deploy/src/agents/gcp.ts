@@ -20,7 +20,7 @@ export interface SecretManagerPersistedKeys {
   chainName?: string;
 }
 
-function gcpKeyIdentifier(
+function identifier(
   environment: string,
   role: string,
   chainName: string,
@@ -50,33 +50,32 @@ export class AgentGCPKey {
     private remoteKey: RemoteKey = { fetched: false },
   ) {}
 
-  static async create(environment: string,role: string,  chainName: string) {
+  static async create(environment: string, role: string, chainName: string) {
     const key = new AgentGCPKey(environment, role, chainName);
     await key.create();
     return key;
   }
 
-  persistKeyAsAddress() {
-    if (!this.remoteKey.fetched) {
-      throw new Error("Can't persist without address");
-    }
-
+  serializeAsAddress() {
+    this.requireFetched()
     return {
       role: isAttestationKey(this.role)
         ? `${this.chainName}-${this.role}`
         : this.role,
+      // @ts-ignore
       address: this.remoteKey.address,
     };
   }
 
   isAttestationKey() {
-    return isAttestationKey(this.role)
+    return isAttestationKey(this.role);
   }
 
-  gcpKeyIdentifier() {
-    return gcpKeyIdentifier(this.environment, this.role, this.chainName);
+  identifier() {
+    return identifier(this.environment, this.role, this.chainName);
   }
 
+  // The identifier for this key within a set of keys for an enrivonment
   memoryKeyIdentifier() {
     return isAttestationKey(this.role)
       ? `${this.chainName}-${this.role}`
@@ -84,22 +83,20 @@ export class AgentGCPKey {
   }
 
   privateKey() {
-    if (!this.remoteKey.fetched) {
-      throw new Error('Key material has not been fetched')
-    }
-    return this.remoteKey.privateKey
+    this.requireFetched()
+    // @ts-ignore
+    return this.remoteKey.privateKey;
   }
 
   address() {
-    if (!this.remoteKey.fetched) {
-      throw new Error('Key material has not been fetched')
-    }
-    return this.remoteKey.address
+    this.requireFetched()
+    // @ts-ignore
+    return this.remoteKey.address;
   }
 
   async fetchFromGCP() {
     const [secretRaw] = await execCmd(
-      `gcloud secrets versions access latest --secret ${this.gcpKeyIdentifier()}`,
+      `gcloud secrets versions access latest --secret ${this.identifier()}`,
     );
     const secret: SecretManagerPersistedKeys = JSON.parse(secretRaw);
     this.remoteKey = {
@@ -110,13 +107,46 @@ export class AgentGCPKey {
   }
 
   async create() {
-    this.remoteKey = await this.createGcpKey(false);
+    this.remoteKey = await this._create(false);
   }
 
-  private async createGcpKey(rotate: boolean) {
+  // Creates a rotation of this key
+  async update() {
+    this.remoteKey = await this._create(true);
+    const addressesIdentifier = `optics-key-${this.environment}-addresses`;
+    const fileName = `${addressesIdentifier}.txt`;
+    const [addressesRaw] = await execCmd(
+      `gcloud secrets versions access latest --secret ${addressesIdentifier}`,
+    );
+    const addresses = JSON.parse(addressesRaw);
+    const filteredAddresses = addresses.filter((_: any) => {
+      const matchingRole = memoryKeyIdentifier(this.role, this.chainName);
+      return _.role !== matchingRole;
+    });
+
+    filteredAddresses.push(this.serializeAsAddress());
+
+    await writeFile(fileName, JSON.stringify(filteredAddresses));
+    await execCmd(
+      `gcloud secrets versions add ${addressesIdentifier} --data-file=${fileName}`,
+    );
+    await rm(fileName);
+  }
+
+  async delete() {
+    await execCmd(`gcloud secrets delete ${this.identifier()} --quiet`);
+  }
+
+  private requireFetched() {
+    if (!this.remoteKey.fetched) {
+      throw new Error("Can't persist without address");
+    }
+  }
+
+  private async _create(rotate: boolean) {
     const wallet = Wallet.createRandom();
     const address = await wallet.getAddress();
-    const identifier = this.gcpKeyIdentifier();
+    const identifier = this.identifier();
     const fileName = `${identifier}.txt`;
 
     let labels = `environment=${this.environment},role=${this.role}`;
@@ -150,35 +180,6 @@ export class AgentGCPKey {
       address,
     };
   }
-
-  // Creates a rotation of this key
-  async update() {
-    this.remoteKey = await this.createGcpKey(true);
-    const addressesIdentifier = `optics-key-${this.environment}-addresses`;
-    const fileName = `${addressesIdentifier}.txt`;
-    const [addressesRaw] = await execCmd(
-      `gcloud secrets versions access latest --secret ${addressesIdentifier}`,
-    );
-    const addresses = JSON.parse(addressesRaw);
-    const filteredAddresses = addresses.filter((_: any) => {
-      const matchingRole = memoryKeyIdentifier(this.role, this.chainName);
-      return _.role !== matchingRole;
-    });
-
-    filteredAddresses.push(this.persistKeyAsAddress());
-
-    await writeFile(fileName, JSON.stringify(filteredAddresses));
-    await execCmd(
-      `gcloud secrets versions add ${addressesIdentifier} --data-file=${fileName}`,
-    );
-    await rm(fileName);
-  }
-
-  async delete() {
-    await execCmd(
-      `gcloud secrets delete ${this.gcpKeyIdentifier()} --quiet`,
-    )
-  }
 }
 
 export async function deleteAgentGCPKeys(
@@ -190,13 +191,13 @@ export async function deleteAgentGCPKeys(
       if (isAttestationKey(role)) {
         await Promise.all(
           chainNames.map((chainName) => {
-            const key = new AgentGCPKey(environment, role, chainName)
-            return key.delete()
+            const key = new AgentGCPKey(environment, role, chainName);
+            return key.delete();
           }),
         );
       } else {
-        const key = new AgentGCPKey(environment, role, 'any')
-        await key.delete()
+        const key = new AgentGCPKey(environment, role, 'any');
+        await key.delete();
       }
     }),
   );
@@ -230,7 +231,7 @@ export async function createAgentGCPKeys(
 
   await writeFile(
     fileName,
-    JSON.stringify(keys.map((_) => _.persistKeyAsAddress)),
+    JSON.stringify(keys.map((_) => _.serializeAsAddress)),
   );
   await execCmd(
     `gcloud secrets create optics-key-${environment}-addresses --data-file=${fileName} --replication-policy=automatic --labels=environment=${environment}`,
@@ -239,7 +240,10 @@ export async function createAgentGCPKeys(
 }
 
 // This function returns all the GCP keys for a given home chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
-export async function fetchAgentGCPKeys(environment: string, chainName: string) : Promise<Record<string, AgentGCPKey>> {
+export async function fetchAgentGCPKeys(
+  environment: string,
+  chainName: string,
+): Promise<Record<string, AgentGCPKey>> {
   const secrets = await Promise.all(
     KEY_ROLES.map(async (role) => {
       const key = new AgentGCPKey(environment, role, chainName);
