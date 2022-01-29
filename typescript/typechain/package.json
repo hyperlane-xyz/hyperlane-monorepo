@@ -5,7 +5,7 @@
     "copy-files": "cp optics-core/*.d.ts dist/optics-core && cp optics-xapps/*.d.ts dist/optics-xapps"
   },
   "devDependencies": {
-    "ethers": "^5.4.7"
+    "ethers": "^5.5.3"
   },
   "name": "@optics-xyz/ts-interface",
   "version": "1.1.0",
