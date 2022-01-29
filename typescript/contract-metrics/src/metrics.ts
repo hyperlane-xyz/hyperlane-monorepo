@@ -6,6 +6,8 @@ export class MetricCollector {
   private numDispatchedGauge: Gauge<string>
   private numProcessedGauge: Gauge<string>
   private numUnprocessedGauge: Gauge<string>
+  private homeStateGauge: Gauge<string>
+  private replicaStateGauge: Gauge<string>
 
   private readonly logger: Logger
 
@@ -29,6 +31,18 @@ export class MetricCollector {
       help: 'Gauge that indicates how many messages are unprocessed for a network.',
       labelNames: ['network', 'environment']
     })
+
+    this.homeStateGauge = new Gauge({
+      name: 'optics_home_state',
+      help: 'Gauge that tracks the state of a home contract for a network',
+      labelNames: ['network', 'environment']
+    })
+
+    this.replicaStateGauge = new Gauge({
+      name: 'optics_replica_state',
+      help: 'Gauge that tracks the state of a replica contract',
+      labelNames: ['home', 'network', 'environment']
+    })
   }
   /** 
    * Sets the state for a bridge.
@@ -37,6 +51,14 @@ export class MetricCollector {
     this.numDispatchedGauge.set({network, environment}, dispatched)
     this.numProcessedGauge.set({network, environment}, processed)
     this.numUnprocessedGauge.set({network, environment}, unprocessed)
+  }
+
+  setHomeState(network: string, environment: string, state: number) {
+    this.homeStateGauge.set({ network, environment }, state)
+  }
+
+  setReplicaState(home: string, network: string, environment: string, state: number) {
+    this.replicaStateGauge.set({ home, network, environment }, state)
   }
 
   /**
