@@ -67,7 +67,6 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
 
   async checkDeploys(): Promise<void> {
     for (const deploy of this._deploys) {
-      console.log('checking deploy')
       await this.checkDeploy(deploy)
     }
   }
