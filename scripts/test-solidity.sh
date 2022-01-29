@@ -11,12 +11,12 @@ npm run compile
 
 cd ../../
 # copy artifacts
-cp -R ./solidity/optics-core/artifacts ./typescript/optics-tests
 cp -R ./solidity/optics-xapps/artifacts ./typescript/optics-tests
+cp -R ./solidity/optics-core/artifacts ./typescript/optics-tests
 
 # copy cache
-cp -R ./solidity/optics-core/cache ./typescript/optics-tests
 cp -R ./solidity/optics-xapps/cache ./typescript/optics-tests
+cp -R ./solidity/optics-core/cache ./typescript/optics-tests
 
 # run tests
 cd ./typescript/optics-tests
