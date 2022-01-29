@@ -68,15 +68,13 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     // Check if the Replicas on *remote* domains are set to the updater
     // configured on our domain.
     const domain = deploy.chain.domain
-    for (const d of this._deploys) {
-      if (d.chain.domain == domain) continue;
-      const replica = d.contracts.replicas[domain];
+    this._deploys.filter((d) => d.chain.domain === domain).map((remoteDeploy) => {
+      const replica = remoteDeploy.contracts.replicas[domain];
       const actual = await replica.updater();
       const expected = deploy.config.updater;
       if (actual !== expected) {
         const violation: ReplicaUpdaterViolation = {
-          // TODO: NAM IS THIS IDIOMATIC TO ABACUS?
-          domain: d.chain.domain,
+          domain: remoteDeploy.chain.domain,
           remoteDomain: domain,
           type: ViolationType.ReplicaUpdater,
           actual,
@@ -84,23 +82,15 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
         }
         this.addViolation(violation)
       }
-    }
-    const remoteDomains = this._deploys.map((d: CoreDeploy) => d.chain.domain).filter((d: number) => d !== domain)
-    if (remoteDomains.length > 0) {
-      // expect all replicas to have to same implementation and upgradeBeacon
-      const firstReplica = deploy.contracts.replicas[remoteDomains[0]]!;
-      const replicaImpl = firstReplica.implementation.address;
-      const replicaBeacon = firstReplica.beacon.address;
-      // check every other implementation/beacon matches the first
-      remoteDomains.slice(1).forEach((domain) => {
-        const replica = deploy.contracts.replicas[domain]!;
-        expect(replica).to.not.be.undefined;
-        const implementation = replica.implementation.address;
-        const beacon = replica.beacon.address;
-        expect(implementation).to.equal(replicaImpl);
-        expect(beacon).to.equal(replicaBeacon);
-      });
-    }
+    })
+    // Check that all replicas on this domain share the same implementation and
+    // UpgradeBeacon.
+    const replicas = Object.values(deploy.contract.replicas)
+    const implementations = replicas.map((r) => r.implementation.address);
+    const identical = (a: any, b: any) => (a === b) ? a : false;
+    const upgradeBeacons = replicas.map((r) => r.beacon.address);
+    expect(implementations.reduce(identical)).to.be.true;
+    expect(upgradeBeacons.reduce(identical)).to.be.true;
   }
 
   async checkGovernance(deploy: CoreDeploy): Promise<void> {
