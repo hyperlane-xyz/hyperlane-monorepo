@@ -1,8 +1,8 @@
-import * as xAppContracts from '@optics-xyz/ts-interface/dist/optics-xapps';
+import * as xAppContracts from 'optics-ts-interface/dist/optics-xapps';
 import {BeaconProxy, ProxyAddresses} from '../proxyUtils';
 import { Contracts } from '../contracts';
 import * as ethers from "ethers";
-import * as contracts from "@optics-xyz/ts-interface/dist/optics-core";
+import * as contracts from "optics-ts-interface/dist/optics-core";
 
 export type BridgeContractAddresses = {
   bridgeRouter: ProxyAddresses;

@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { xapps } from '@optics-xyz/ts-interface';
+import { xapps } from 'optics-ts-interface';
 import { Contracts } from '../../contracts';
 
 type Address = string;

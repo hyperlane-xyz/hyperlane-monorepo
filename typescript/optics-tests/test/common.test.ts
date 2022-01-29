@@ -7,7 +7,7 @@ import { Signer } from '../lib/types';
 import {
   TestCommon__factory,
   TestCommon,
-} from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-ts-interface/dist/optics-core';
 
 const signedUpdateTestCases = require('../../../vectors/signedUpdate.json');
 const localDomain = 1000;

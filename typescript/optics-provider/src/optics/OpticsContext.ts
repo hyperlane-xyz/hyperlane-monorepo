@@ -1,6 +1,6 @@
 import { BigNumberish, ethers } from 'ethers';
 import { MultiProvider } from '..';
-import { xapps, core } from '@optics-xyz/ts-interface';
+import { xapps, core } from 'optics-ts-interface';
 import { BridgeContracts } from './contracts/BridgeContracts';
 import { CoreContracts } from './contracts/CoreContracts';
 import { ResolvedTokenInfo, TokenIdentifier } from './tokens';

@@ -4,7 +4,7 @@ import fs from 'fs';
 
 import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { checkCoreDeploy } from './checks';
 import { log, warn, toBytes32 } from '../utils';
 

@@ -1,7 +1,7 @@
 import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
 import { writeDeployOutput } from './index';
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { log, warn } from '../utils';
 
 export class ImplementationDeployer {

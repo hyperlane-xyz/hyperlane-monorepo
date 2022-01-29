@@ -1,5 +1,5 @@
 import { BytesLike } from 'ethers';
-import { xapps } from '@optics-xyz/ts-interface';
+import { xapps } from 'optics-ts-interface';
 import wellKnown from './wellKnown';
 import testnetWellKnown from './testnetWellKnown';
 
