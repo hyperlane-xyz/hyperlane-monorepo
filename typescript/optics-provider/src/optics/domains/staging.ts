@@ -3,42 +3,60 @@ import { OpticsDomain } from './domain';
 export const alfajores: OpticsDomain = {
   name: 'alfajores',
   id: 1000,
-  bridgeRouter: '0xd6930Ee55C141E5Bb4079d5963cF64320956bb3E',
-  home: '0xc8abA9c65A292C84EA00441B81124d9507fB22A8',
-  governanceRouter: '0x760AbbE9496BD9cEe159402E2B4d96E3d76dbE6a',
-  xAppConnectionManager: '0x02c144AeBA550634c8EE185F78657fd3C4a3F9B5',
+  bridgeRouter: '0xe29Abbc3669064d8aF9F6BE378179a133664a92C',
+  home: '0xDf89d5d4039ada018BCDb992Bb6C2e05fEf86328',
+  governanceRouter: '0x1E2DE9CD3f64c4e9AadE11a60C7b3620dD026888',
+  xAppConnectionManager: '0x56Bf96be9ab395aa2861E7Ae4aCEFc11D8C2Ec49',
   replicas: [
-    { domain: 2000, address: '0x7149bF9f804F27e7259d0Ce328Dd5f6D5639ef19' },
-    { domain: 3000, address: '0xE469D8587D45BF85297BD924b159E726E7CA5408' },
+    { domain: 3, address: '0xC9e581Cd4fF6533f5ccBA4Dc5d5f642B8b658B93' },
+    { domain: 5, address: '0x4eAD31e37b950B32b9EBbE747f0ef4BffAc336a5' },
+    { domain: 3000, address: '0x15fA9169F7495162ac52b4A7957c9054097Ab0FF' },
+  ],
+};
+
+export const ropsten: OpticsDomain = {
+  name: 'ropsten',
+  id: 3,
+  bridgeRouter: '0xe29Abbc3669064d8aF9F6BE378179a133664a92C',
+  ethHelper: '0x9A0e88a3D8CF09F3dc5Ba65640299DE3D87f926C',
+  home: '0x7E26E170dB94E81979927d2D39CB703048Ad599D',
+  governanceRouter: '0xa8C889D257d9eE02cb957941cd785CfffDe5a453',
+  xAppConnectionManager: '0xe5C92bC2a443016c00b3908dFA63f55bEe1a7a16',
+  replicas: [
+    { domain: 5, address: '0x15C1edbf6E6161d50d58682dF7587F0d61db5C38' },
+    { domain: 1000, address: '0x30dAE25E9eBd644841d1A1fF25e303331B1CdEb3' },
+    { domain: 3000, address: '0xF782C67AA111a9D75f6ccEf3d7aDB54620D5A8e9' },
   ],
 };
 
 export const kovan: OpticsDomain = {
   name: 'kovan',
   id: 3000,
-  bridgeRouter: '0x359089D34687bDbFD019fCC5093fFC21bE9905f5',
-  ethHelper: '0x411ABcFD947212a0D64b97C9882556367b61704a',
-  home: '0xB6Ee3e8fE5b577Bd6aB9a06FA169F97303586E7C',
-  governanceRouter: '0xa95868Ffaed7489e9059d4a08A0C1B0F78041b33',
-  xAppConnectionManager: '0x1d9Af80594930574201d919Af0fBfe6bb89800E2',
+  bridgeRouter: '0x9A0e88a3D8CF09F3dc5Ba65640299DE3D87f926C',
+  ethHelper: '0x8c7510966c0312dEb2305A5E1C923CE48bbf55Ce',
+  home: '0x7E26E170dB94E81979927d2D39CB703048Ad599D',
+  governanceRouter: '0xa8C889D257d9eE02cb957941cd785CfffDe5a453',
+  xAppConnectionManager: '0xe5C92bC2a443016c00b3908dFA63f55bEe1a7a16',
   replicas: [
-    { domain: 1000, address: '0xF76995174f3C02e2900d0F6261e8cbeC04078E1f' },
-    { domain: 2000, address: '0xFF47138c42119Fe0B1f267e2fa254321DE287Fc6' },
+    { domain: 3, address: '0x15C1edbf6E6161d50d58682dF7587F0d61db5C38' },
+    { domain: 5, address: '0xF782C67AA111a9D75f6ccEf3d7aDB54620D5A8e9' },
+    { domain: 1000, address: '0x30dAE25E9eBd644841d1A1fF25e303331B1CdEb3' },
   ],
 };
 
-export const rinkeby: OpticsDomain = {
-  name: 'rinkeby',
-  id: 2000,
-  bridgeRouter: '0x8FbEA25D0bFDbff68F2B920df180e9498E9c856A',
-  ethHelper: '0x1BEBC8F1260d16EE5d1CFEE9366bB474bD13DC5f',
-  home: '0x8459EDe1ed4dADD6D5B142d845240088A6530Cf8',
-  governanceRouter: '0x8f8424DC94b4c302984Ab5a03fc4c2d1Ec95DC92',
-  xAppConnectionManager: '0x53B94f2D4a3159b66fcCC4f406Ea388426A3f3cB',
+export const gorli: OpticsDomain = {
+  name: 'gorli',
+  id: 5,
+  bridgeRouter: '0xe29Abbc3669064d8aF9F6BE378179a133664a92C',
+  ethHelper: '0x9A0e88a3D8CF09F3dc5Ba65640299DE3D87f926C',
+  home: '0xDf89d5d4039ada018BCDb992Bb6C2e05fEf86328',
+  governanceRouter: '0x1E2DE9CD3f64c4e9AadE11a60C7b3620dD026888',
+  xAppConnectionManager: '0x56Bf96be9ab395aa2861E7Ae4aCEFc11D8C2Ec49',
   replicas: [
-    { domain: 1000, address: '0xb473F5e0AAf47Ba54dac048633e7b578c1eBde01' },
-    { domain: 3000, address: '0x7EB8450a5397b795F2d89BC48EA20c24fa147F11' },
+    { domain: 3, address: '0xC9e581Cd4fF6533f5ccBA4Dc5d5f642B8b658B93' },
+    { domain: 1000, address: '0x15fA9169F7495162ac52b4A7957c9054097Ab0FF' },
+    { domain: 3000, address: '0x4eAD31e37b950B32b9EBbE747f0ef4BffAc336a5' },
   ],
 };
 
-export const stagingDomains = [alfajores, kovan, rinkeby];
+export const stagingDomains = [alfajores, ropsten, kovan, gorli];

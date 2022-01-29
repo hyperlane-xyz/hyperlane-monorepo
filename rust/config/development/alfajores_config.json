@@ -1,38 +1,66 @@
 {
-  "environment": "dev",
+  "environment": "development",
   "index": {
-    "from": "7672149",
-    "chunk": "1999"
+    "from": "7712249",
+    "chunk": "2000"
   },
   "signers": {
     "alfajores": {
       "key": "",
       "type": "hexKey"
     },
-    "kovan": {
+    "mumbai": {
       "key": "",
       "type": "hexKey"
     },
-    "rinkeby": {
+    "fuji": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "gorli": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "kovan": {
       "key": "",
       "type": "hexKey"
     }
   },
   "replicas": {
-    "kovan": {
-      "address": "0xC6b39Ac67FBE3e029708390ffea130c8C0E7D30b",
-      "domain": "3000",
-      "name": "kovan",
+    "mumbai": {
+      "address": "0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964",
+      "domain": "80001",
+      "name": "mumbai",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
         "url": ""
       }
     },
-    "rinkeby": {
-      "address": "0x7f41a2A1D97DD5F75B6FF6E1b012f686fE8121E4",
-      "domain": "2000",
-      "name": "rinkeby",
+    "fuji": {
+      "address": "0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964",
+      "domain": "43113",
+      "name": "fuji",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "gorli": {
+      "address": "0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964",
+      "domain": "5",
+      "name": "gorli",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "kovan": {
+      "address": "0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964",
+      "domain": "3000",
+      "name": "kovan",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
@@ -41,7 +69,7 @@
     }
   },
   "home": {
-    "address": "0x01652e694BbD82C0900776c0406C3DFaa00e1e91",
+    "address": "0xeA057840858645bb68134a913A252a44a0C58652",
     "domain": "1000",
     "name": "alfajores",
     "rpcStyle": "ethereum",

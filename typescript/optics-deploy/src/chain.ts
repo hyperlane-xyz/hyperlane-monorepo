@@ -4,7 +4,7 @@ import { NonceManager } from '@ethersproject/experimental';
 import { ProxyAddresses } from './proxyUtils';
 
 type Address = string;
-export type DeployEnvironment = 'dev' | 'staging' | 'prod' | 'staging-community' | 'prod-community';
+export type DeployEnvironment = 'development' | 'staging' | 'production' | 'staging-legacy' | 'production-legacy';
 
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;
@@ -51,11 +51,11 @@ export function deployEnvironment(): DeployEnvironment {
 
   if (e === 'staging') {
     return 'staging';
-  } else if (e === 'prod') {
-    return 'prod';
+  } else if (e === 'production') {
+    return 'production';
   }
 
-  return 'dev';
+  return 'development';
 }
 
 export function toChain(config: ChainJson): Chain {

@@ -4,26 +4,30 @@
     "key": "",
     "type": "hexKey"
   },
-  "managers": {
-    "kovanBridgeRouter": {
-      "address": "0xAF24a3DB95Ca55eEFADD7b1753F71c774810Df80",
-      "domain": "3000",
-      "name": "kovan",
+  "connectionManagers": [
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "domain": "60",
+      "name": "ethereum",
       "rpcStyle": "ethereum",
-      "connection": {
-        "type": "http",
-        "url": ""
+      "config": {
+        "connection": {
+          "type": "ws",
+          "url": "ws://localhost:8545"
+        }
       }
     },
-    "alfajoresBridgeRouter": {
-      "address": "0x3e8391dEB0f2ad863d8b61dfbcadE009BD5243A1",
-      "domain": "1000",
-      "name": "alfajores",
+    {
+      "address": "0x0000000000000000000000000000000000000000",
+      "domain": "61",
+      "name": "eth-classic",
       "rpcStyle": "ethereum",
-      "connection": {
-        "type": "http",
-        "url": ""
+      "config": {
+        "connection": {
+          "type": "ws",
+          "url": "ws://localhost:8545"
+        }
       }
     }
-  }
+  ]
 }

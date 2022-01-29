@@ -1,19 +1,23 @@
 {
-  "environment": "staging",
+  "environment": "development",
   "index": {
-    "from": "7712249",
+    "from": "4879884",
     "chunk": "2000"
   },
   "signers": {
+    "gorli": {
+      "key": "",
+      "type": "hexKey"
+    },
     "alfajores": {
       "key": "",
       "type": "hexKey"
     },
-    "ropsten": {
+    "mumbai": {
       "key": "",
       "type": "hexKey"
     },
-    "gorli": {
+    "fuji": {
       "key": "",
       "type": "hexKey"
     },
@@ -23,20 +27,30 @@
     }
   },
   "replicas": {
-    "ropsten": {
-      "address": "0x30dAE25E9eBd644841d1A1fF25e303331B1CdEb3",
-      "domain": "3",
-      "name": "ropsten",
+    "alfajores": {
+      "address": "0x3354D5956612C38D0dD831dcdf83CF30BC674231",
+      "domain": "1000",
+      "name": "alfajores",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
         "url": ""
       }
     },
-    "gorli": {
-      "address": "0x15fA9169F7495162ac52b4A7957c9054097Ab0FF",
-      "domain": "5",
-      "name": "gorli",
+    "mumbai": {
+      "address": "0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A",
+      "domain": "80001",
+      "name": "mumbai",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "fuji": {
+      "address": "0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A",
+      "domain": "43113",
+      "name": "fuji",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
@@ -44,7 +58,7 @@
       }
     },
     "kovan": {
-      "address": "0x30dAE25E9eBd644841d1A1fF25e303331B1CdEb3",
+      "address": "0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa",
       "domain": "3000",
       "name": "kovan",
       "rpcStyle": "ethereum",
@@ -55,9 +69,9 @@
     }
   },
   "home": {
-    "address": "0xDf89d5d4039ada018BCDb992Bb6C2e05fEf86328",
-    "domain": "1000",
-    "name": "alfajores",
+    "address": "0xc53F82FAF17B4c521A85C514791593847Bdf1655",
+    "domain": "5",
+    "name": "gorli",
     "rpcStyle": "ethereum",
     "connection": {
       "type": "http",

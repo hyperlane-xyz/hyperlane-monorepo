@@ -1,6 +1,6 @@
 export type { OpticsDomain, ReplicaInfo } from './domain';
-export { mainnetDomains } from './mainnet';
-export { mainnetCommunityDomains } from './mainnetCommunity';
-export { devCommunityDomains } from './devCommunity';
+export { productionDomains } from './production';
 export { stagingDomains } from './staging';
-export { stagingCommunityDomains } from './stagingCommunity';
+export { developmentDomains } from './development';
+export { productionLegacyDomains } from './production';
+export { stagingLegacyDomains} from './staging';

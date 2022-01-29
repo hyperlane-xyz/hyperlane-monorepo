@@ -158,12 +158,12 @@ function include(condition: boolean, data: any) {
 }
 
 const awsSignerCredentials = (role: KEY_ROLE_ENUM, agentConfig: AgentConfig, homeChainName: string) => {
-    // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
+    // When staging was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
     const adjustedRole =
-      agentConfig.environment === 'staging-community' &&
+      agentConfig.environment === 'staging' &&
       role === KEY_ROLE_ENUM.UpdaterAttestation
         ? KEY_ROLE_ENUM.UpdaterSigner
-        : agentConfig.environment === 'staging-community' &&
+        : agentConfig.environment === 'staging' &&
           role === KEY_ROLE_ENUM.UpdaterSigner
         ? KEY_ROLE_ENUM.UpdaterAttestation
         : role;
