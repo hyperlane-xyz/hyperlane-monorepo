@@ -78,6 +78,12 @@ abstract contract Common is Initializable {
         bytes signature2
     );
 
+    /**
+     * @notice Emitted when Updater is rotated
+     * @param updater The address of the new updater
+     */
+    event NewUpdater(address updater);
+
     // ============ Modifiers ============
 
     /**
@@ -123,8 +129,7 @@ abstract contract Common is Initializable {
         if (
             Common._isUpdaterSignature(_oldRoot, _newRoot[0], _signature) &&
             Common._isUpdaterSignature(_oldRoot, _newRoot[1], _signature2) &&
-            _newRoot[0] != _newRoot[1] &&
-            !Common._isBenignDoubleUpdate(_oldRoot)
+            _newRoot[0] != _newRoot[1]
         ) {
             _fail();
             emit DoubleUpdate(_oldRoot, _newRoot, _signature, _signature2);
@@ -188,28 +193,11 @@ abstract contract Common is Initializable {
     }
 
     /**
-     * @notice Checks that a root is in a whitelist for which double updates
-     * are not enforced.
-     * @param _oldRoot Old merkle root
-     * @return TRUE iff the provided root is in the whitelist
-     **/
-    function _isBenignDoubleUpdate(bytes32 _oldRoot)
-        internal
-        view
-        returns (bool)
-    {
-        // The Polygon home temporarily forked from its replicas at this
-        // root due to a chain reorg.
-        // Polygon update txHash:
-        // 0x9cbe36b8d5365df013f138421b99283c014bbeee08f9c3b1f19ae428511e94ba
-        // Ethereum update txHash:
-        // 0xe8df2fc845356c1c75206982f8b707e8e5354c72a2ed250fcf839cbbf11101f9
-        // The fork was benign, as all roots were commitments to the same set
-        // of messages. The fork was resolved and therefore the system should
-        // not halt when presented with any double update that builds off of
-        // this root.
-        return
-            _oldRoot ==
-            0xde6e3d4540f861d08dfe4ac16334792de2fb44aa7bcd5b657238410791c67a81;
+     * @notice Set the Updater
+     * @param _updater Address of the Updater
+     */
+    function _setUpdater(address _updater) internal {
+        updater = _updater;
+        emit NewUpdater(_updater);
     }
 }

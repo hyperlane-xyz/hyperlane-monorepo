@@ -4,7 +4,7 @@ import fs from 'fs';
 
 import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { checkCoreDeploy } from './checks';
 import { log, warn, toBytes32 } from '../utils';
 
@@ -300,6 +300,14 @@ export async function relinquish(deploy: CoreDeploy) {
     isTestDeploy,
     `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
+
+  Object.entries(deploy.contracts.replicas).forEach(async ([domain, replica]) => {
+    await replica.proxy.transferOwnership(govRouter, deploy.overrides);
+    log(
+      isTestDeploy,
+      `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
+    );
+  });
 
   let tx = await deploy.contracts.home!.proxy.transferOwnership(
     govRouter,

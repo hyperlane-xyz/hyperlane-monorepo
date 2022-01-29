@@ -81,10 +81,12 @@ interface TestCommonInterface extends ethers.utils.Interface {
 
   events: {
     "DoubleUpdate(bytes32,bytes32[2],bytes,bytes)": EventFragment;
+    "NewUpdater(address)": EventFragment;
     "Update(uint32,bytes32,bytes32,bytes)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "DoubleUpdate"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewUpdater"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Update"): EventFragment;
 }
 
@@ -237,6 +239,8 @@ export class TestCommon extends BaseContract {
         signature2: string;
       }
     >;
+
+    NewUpdater(updater?: null): TypedEventFilter<[string], { updater: string }>;
 
     Update(
       homeDomain?: BigNumberish | null,

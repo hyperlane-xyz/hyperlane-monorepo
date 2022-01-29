@@ -4,9 +4,9 @@ import { expect } from 'chai';
 import { getTestDeploy } from './testChain';
 import { Updater } from '../lib/core';
 import { Signer } from '../lib/types';
-import { CoreDeploy as Deploy } from '@optics-xyz/deploy/dist/src/core/CoreDeploy';
-import * as deploys from '@optics-xyz/deploy/dist/src/core';
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
+import * as deploys from 'optics-deploy/dist/src/core';
+import * as contracts from 'optics-ts-interface/dist/optics-core';
 
 const signedFailureTestCases = require('../../../vectors/signedFailure.json');
 

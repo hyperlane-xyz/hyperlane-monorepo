@@ -1,6 +1,6 @@
 import * as proxyUtils from '../proxyUtils';
 import { checkBridgeDeploy } from './checks';
-import * as xAppContracts from '@optics-xyz/ts-interface/dist/optics-xapps';
+import * as xAppContracts from 'optics-ts-interface/dist/optics-xapps';
 import { toBytes32 } from '../utils';
 import fs from 'fs';
 import { BridgeDeploy } from './BridgeDeploy';
