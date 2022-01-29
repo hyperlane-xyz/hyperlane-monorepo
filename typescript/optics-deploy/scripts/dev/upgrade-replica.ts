@@ -1,9 +1,11 @@
 import { devCommunity } from 'optics-multi-provider-community';
 import { ethers } from 'ethers';
-import { expectCalls, ImplementationUpgrader } from '../../src/core/upgrade';
-import { Call } from 'optics-multi-provider-community/dist/optics/govern';
 import { configPath, networks } from './agentConfig';
+import { ViolationType } from '../../src/checks';
+import { CoreInvariantChecker } from '../../src/core/checks';
 import { makeCoreDeploys, CoreDeploy } from '../../src/core/CoreDeploy';
+import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
+import { Call } from 'optics-multi-provider-community/dist/optics/govern';
 
 const deploys = makeCoreDeploys(
   configPath,
@@ -20,10 +22,11 @@ async function main() {
   devCommunity.registerRpcProvider('fuji', process.env.FUJI_RPC!)
   devCommunity.registerSigner('alfajores', new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!))
 
-  const upgrader = new ImplementationUpgrader(deploys, devCommunity);
-  await upgrader.getViolations();
-  upgrader.expectViolations(['Replica'], [5]);
-  const batch = await upgrader.createCallBatch()
+  const checker = new CoreInvariantChecker(deploys);
+  await checker.checkDeploys();
+  checker.expectViolations([ViolationType.UpgradeBeacon], [5])
+  const builder = new GovernanceCallBatchBuilder(deploys, devCommunity, checker.violations);
+  const batch = await builder.build()
 
   const domains = deploys.map((d: CoreDeploy) => d.chain.domain)
   for (const home of domains) {

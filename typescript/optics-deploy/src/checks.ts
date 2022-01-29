@@ -66,7 +66,7 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
   }
 
   async checkDeploys(): Promise<void> {
-    await Promise.all(this._deploys.map(this.checkDeploy))
+    await Promise.all(this._deploys.map((deploy) => this.checkDeploy(deploy)))
   }
 
   addViolation(v: Violation) {
@@ -135,6 +135,15 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
   checkVerificationInputs(deploy: T) {
     const inputs = this.getVerificationInputs(deploy)
     inputs.map((input) => this.checkVerificationInput(deploy, input[0], input[1].address))
+  }
+
+  expectViolations(types: ViolationType[], expectedMatches: number[]) {
+    // Every type should have exactly the number of expected matches.
+    const actualMatches = types.map((t) => this.violations.map((v) => v.type === t).filter(Boolean).length)
+    expect(actualMatches).to.deep.equal(expectedMatches);
+    // Every violation should be matched by at least one partial.
+    const unmatched = this.violations.map((v) => types.map((t) => v.type === t).filter(Boolean).length)
+    expect(unmatched).to.not.include(0);
   }
 
   expectEmpty(): void {
