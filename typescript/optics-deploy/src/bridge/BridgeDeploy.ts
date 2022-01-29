@@ -1,7 +1,8 @@
-import { Chain, ChainJson, CoreContractAddresses, toChain } from '../chain';
-import { BridgeContracts } from './BridgeContracts';
-import { parseFileFromDeploy } from '../verification/readDeployOutput';
+import {Chain, ChainJson, CoreContractAddresses, toChain} from '../chain';
+import {BridgeContractAddresses, BridgeContracts} from './BridgeContracts';
+import {getPathToLatestConfig, parseFileFromDeploy} from '../verification/readDeployOutput';
 import { Deploy } from '../deploy';
+import fs from "fs";
 
 export type BridgeConfig = {
   weth?: string;
@@ -11,7 +12,6 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
   readonly config: BridgeConfig;
   readonly coreDeployPath: string;
   readonly coreContractAddresses: CoreContractAddresses;
-  readonly test: boolean;
 
   constructor(
     chain: Chain,
@@ -28,7 +28,6 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
       chain.config.name,
       'contracts',
     );
-    this.test = test;
   }
 
   get ubcAddress(): string | undefined {
@@ -41,4 +40,25 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
   ): BridgeDeploy {
     return new BridgeDeploy(toChain(config), {}, coreDeployPath);
   }
+
+  static fromDirectory(directory: string, chain: Chain, config: BridgeConfig, test: boolean = false, coreContracts?: CoreContractAddresses
+    ): BridgeDeploy {
+    const deploy = new BridgeDeploy(chain, config, directory, test, coreContracts)
+    const bridgeConfigPath = getPathToLatestConfig(`${directory}/bridge`);
+    const addresses: BridgeContractAddresses = JSON.parse(fs.readFileSync(`${bridgeConfigPath}/${chain.name}_contracts.json`) as any as string);
+    deploy.contracts = BridgeContracts.fromAddresses(addresses, chain.provider);
+    return deploy
+  }
+}
+
+// The accessors is necessary as a network may have multiple bridge/chain configs
+export function makeBridgeDeploys<V>(
+  directory: string,
+  data: V[],
+  chainAccessor: (data: V) => Chain,
+  bridgeConfigAccessor: (data: V) => BridgeConfig
+): BridgeDeploy[] {
+  return data.map(
+    (d: V) => BridgeDeploy.fromDirectory(directory, chainAccessor(d), bridgeConfigAccessor(d))
+  );
 }

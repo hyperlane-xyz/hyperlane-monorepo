@@ -4,7 +4,7 @@ image:
   repository: gcr.io/clabs-optics/keymaster
   pullPolicy: Always
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "latest"
+  tag: 0.0.2
 
 keymaster: 
   config: # Contents of JSON Config File

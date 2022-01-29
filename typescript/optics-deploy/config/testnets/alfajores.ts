@@ -15,15 +15,16 @@ export const chainJson: ChainJson = {
   rpc,
   deployerKey: process.env.ALFAJORES_DEPLOYER_KEY,
   domain: 1000,
+  confirmations: 1,
 };
 
 export const chain = toChain(chainJson);
 
 export const devConfig: CoreConfig = {
   environment: 'dev',
-  updater: '0x4177372FD9581ceb2367e0Ce84adC5DAD9DF8D55',
-  watchers: ['0x20aC2FD664bA5406A7262967C34107e708dCb18E'],
-  recoveryManager: '0x24F6c874F56533d9a1422e85e5C7A806ED11c036',
+  updater: '0x91631845fab02614e53e5F5A68dFBB0E2f1a9B6d',
+  watchers: ['0x3019Bf39Df97942F2C53EFc6e831b82D158593CF'],
+  recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
   optimisticSeconds: 10,
   recoveryTimelock: 180,
   processGas: 850_000,
@@ -40,5 +41,16 @@ export const stagingConfig: CoreConfig = {
   processGas: 850_000,
   reserveGas: 15_000,
 };
+
+export const stagingCommunityConfig: CoreConfig = {
+  environment: 'staging-community',
+  updater: '0x075fE802D26a983423caE0a16b8250F155AbeB03',
+  watchers: ['0xC3Ef93917f0d0AC4D70E675824270b290E0a2667'],
+  recoveryManager: '0x075fE802D26a983423caE0a16b8250F155AbeB03',
+  optimisticSeconds: 10,
+  recoveryTimelock: 180,
+  processGas: 850_000,
+  reserveGas: 15_000,
+}
 
 export const bridgeConfig: BridgeConfig = {};

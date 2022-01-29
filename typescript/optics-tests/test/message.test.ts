@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import {
   TestMessage,
   TestMessage__factory,
-} from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-ts-interface/dist/optics-core';
 
 const testCases = require('../../../vectors/message.json');
 

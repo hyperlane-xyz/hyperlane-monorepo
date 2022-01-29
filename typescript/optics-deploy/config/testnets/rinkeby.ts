@@ -16,6 +16,7 @@ const chainJson: ChainJson = {
   rpc,
   deployerKey: process.env.RINKEBY_DEPLOYER_KEY,
   domain: 2000,
+  confirmations: 3,
 };
 
 export const chain = toChain(chainJson);

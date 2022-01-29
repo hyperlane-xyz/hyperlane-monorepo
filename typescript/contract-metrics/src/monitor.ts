@@ -35,7 +35,7 @@ async function monitorAll(shouldWrite: boolean) {
   for (let network of config.networks) {
     const origin = network;
     const remotes = config.networks.filter((m) => m != origin);
-    const cont = (config.environment == 'production') ? contexts.mainnetCommunity : contexts.dev
+    const cont = (config.environment == 'production') ? contexts.mainnetCommunity : contexts.devCommunity
     try {
       await monitor(cont, origin, remotes, shouldWrite);
     } catch(e){

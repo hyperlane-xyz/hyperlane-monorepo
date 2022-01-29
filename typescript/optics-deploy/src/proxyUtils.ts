@@ -1,13 +1,10 @@
 import { BytesLike, ethers } from 'ethers';
 
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+import * as contracts from 'optics-ts-interface/dist/optics-core';
+import { Deploy } from './deploy';
 import { CoreDeploy } from './core/CoreDeploy';
-import { BridgeDeploy } from './bridge/BridgeDeploy';
-import TestBridgeDeploy from './bridge/TestBridgeDeploy';
 
-type Deploy = CoreDeploy | BridgeDeploy | TestBridgeDeploy;
-
-type ProxyNames =
+export type ProxyNames =
   | 'Home'
   | 'Replica'
   | 'Governance'
@@ -47,7 +44,7 @@ export type ProxyAddresses = {
  */
 export async function deployProxy<T extends ethers.Contract>(
   name: ProxyNames,
-  deploy: Deploy,
+  deploy: Deploy<any>,
   factory: ethers.ContractFactory,
   initData: BytesLike,
   ...deployArgs: any[]
@@ -56,7 +53,7 @@ export async function deployProxy<T extends ethers.Contract>(
   // we cast here because Factories don't have associated types
   // this is unsafe if the specified typevar doesn't match the factory output
   // :(
-  const implementation = await factory.deploy(...deployArgs, deploy.overrides);
+  const implementation = await _deployImplementation(deploy, factory, deployArgs);
   const beacon = await _deployBeacon(deploy, implementation);
   const proxy = await _deployProxy(deploy, beacon, initData);
 
@@ -64,7 +61,7 @@ export async function deployProxy<T extends ethers.Contract>(
   // due to nonce ordering
   await proxy.deployTransaction.wait(deploy.chain.confirmations);
 
-  // add UpgradeBeacon to Etherscan verification
+  // add Implementation to Etherscan verification
   deploy.verificationInput.push({
     name: `${name} Implementation`,
     address: implementation!.address,
@@ -100,7 +97,7 @@ export async function deployProxy<T extends ethers.Contract>(
  */
 export async function duplicate<T extends ethers.Contract>(
   name: ProxyNames,
-  deploy: Deploy,
+  deploy: Deploy<any>,
   prev: BeaconProxy<T>,
   initData: BytesLike,
 ): Promise<BeaconProxy<T>> {
@@ -124,6 +121,68 @@ export async function duplicate<T extends ethers.Contract>(
 }
 
 /**
+ * Deploys an Implementation for a given contract, updates the deploy with the
+ * implementation verification info, and returns the implementation contract.
+ *
+ * @param T - The contract
+ */
+export async function deployImplementation<T extends ethers.Contract>(
+  name: ProxyNames,
+  deploy: Deploy<any>,
+  factory: ethers.ContractFactory,
+  ...deployArgs: any[]
+): Promise<T> {
+  const implementation = await _deployImplementation(deploy, factory, deployArgs)
+  await implementation.deployTransaction.wait(deploy.chain.confirmations);
+
+  // add Implementation to Etherscan verification
+  deploy.verificationInput.push({
+    name: `${name} Implementation`,
+    address: implementation!.address,
+    constructorArguments: deployArgs,
+  });
+  return implementation as T;
+}
+
+/**
+ * Given an existing BeaconProxy, returns a new BeaconProxy with a different implementation.
+ *
+ * @param T - The contract
+ */
+export function overrideBeaconProxyImplementation<T extends ethers.Contract>(
+  implementation: T,
+  deploy: CoreDeploy,
+  factory: ethers.ContractFactory,
+  beaconProxy: BeaconProxy<T>
+): BeaconProxy<T> {
+  const beacon = contracts.UpgradeBeacon__factory.connect(beaconProxy.beacon.address, deploy.provider);
+  return new BeaconProxy(
+    implementation as T,
+    factory.attach(beaconProxy.proxy.address) as T,
+    beacon,
+  );
+}
+
+/**
+ * Returns an UNWAITED implementation
+ *
+ * @dev The TX to deploy may still be in-flight
+ * @dev We set manual gas here to suppress ethers's preflight checks
+ *
+ * @param deploy - The deploy
+ * @param factory - The implementation factory object
+ * @param deployArgs - The arguments to pass to the implementation constructor
+ */
+async function _deployImplementation<T extends ethers.Contract>(
+  deploy: Deploy<any>,
+  factory: ethers.ContractFactory,
+  deployArgs: any[]
+): Promise<T> {
+  const implementation = await factory.deploy(...deployArgs, deploy.overrides);
+  return implementation as T
+}
+
+/**
  * Returns an UNWAITED beacon
  *
  * @dev The TX to deploy may still be in-flight
@@ -133,7 +192,7 @@ export async function duplicate<T extends ethers.Contract>(
  * @param implementation - The implementation
  */
 async function _deployBeacon(
-  deploy: Deploy,
+  deploy: Deploy<any>,
   implementation: ethers.Contract,
 ): Promise<contracts.UpgradeBeacon> {
   let factory = new contracts.UpgradeBeacon__factory(deploy.chain.deployer);
@@ -157,7 +216,7 @@ async function _deployBeacon(
  * @param implementation - The implementation
  */
 async function _deployProxy<T>(
-  deploy: Deploy,
+  deploy: Deploy<any>,
   beacon: contracts.UpgradeBeacon,
   initData: BytesLike,
 ): Promise<contracts.UpgradeBeaconProxy> {

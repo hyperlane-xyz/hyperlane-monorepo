@@ -12,6 +12,7 @@
     "./scripts/alfajoresKovan/*.ts",
     "./scripts/fourTestnets/*.ts",
     "./scripts/mainnet/*.ts",
+    "./scripts/dev/*.ts",
     "./scripts/threeTestnets/*.ts",
     "./src/*.ts",
     "./src/core/*.ts",

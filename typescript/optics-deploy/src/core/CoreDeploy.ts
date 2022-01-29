@@ -9,6 +9,9 @@ import {
 import { CoreContracts } from './CoreContracts';
 import { Deploy } from '../deploy';
 import { BigNumberish } from '@ethersproject/bignumber';
+import { readFileSync } from 'fs';
+import { getVerificationInputFromDeploy } from '../verification/readDeployOutput';
+import path from 'path';
 
 type Address = string;
 
@@ -16,6 +19,7 @@ type Governor = {
   domain: number;
   address: Address;
 };
+
 export type CoreConfig = {
   environment: DeployEnvironment;
   updater: Address;
@@ -141,4 +145,24 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     let [chain, config] = CoreDeploy.parseCoreConfig(chainConfig);
     return new CoreDeploy(chain, config);
   }
+
+  static fromDirectory(directory: string, chain: Chain, config: CoreConfig, test: boolean = false): CoreDeploy {
+    let deploy = new CoreDeploy(chain, config, test);
+    const addresses: CoreDeployAddresses = JSON.parse(readFileSync(path.join(directory, `${chain.name}_contracts.json`)) as any as string);
+    deploy.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
+    deploy.verificationInput = getVerificationInputFromDeploy(directory, chain.config.name)
+    return deploy
+  }
+}
+
+// The accessors is necessary as a network may have multiple core configs
+export function makeCoreDeploys<V>(
+  directory: string,
+  data: V[],
+  chainAccessor: (data: V) => Chain,
+  coreConfigAccessor: (data: V) => CoreConfig
+): CoreDeploy[] {
+  return data.map(
+    (d: V) => CoreDeploy.fromDirectory(directory, chainAccessor(d), coreConfigAccessor(d))
+  );
 }

@@ -4,14 +4,14 @@ import { expect } from 'chai';
 import { getTestDeploy } from './testChain';
 import { Updater, OpticsState, MessageStatus } from '../lib/core';
 import { Signer, BytesArray } from '../lib/types';
-import { CoreDeploy as Deploy } from '@optics-xyz/deploy/dist/src/core/CoreDeploy';
+import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
 import {
   deployUnenrolledReplica,
   deployUpgradeBeaconController,
   deployUpdaterManager,
-} from '@optics-xyz/deploy/dist/src/core';
+} from 'optics-deploy/dist/src/core';
 
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
+import * as contracts from 'optics-ts-interface/dist/optics-core';
 
 const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
 const merkleTestCases = require('../../../vectors/merkle.json');
@@ -78,6 +78,34 @@ describe('Replica', async () => {
         data: initData,
       }),
     ).to.be.revertedWith('Initializable: contract is already initialized');
+  });
+
+  it('Owner can transfer ownership', async () => {
+    const oldOwner = await replica.owner();
+    const newOwner = fakeUpdater.address;
+    expect(oldOwner).to.not.be.equal(newOwner);
+    await replica.transferOwnership(newOwner);
+    expect(await replica.owner()).to.be.equal(newOwner);
+  });
+
+  it('Nonowner cannot transfer ownership', async () => {
+    const newOwner = fakeUpdater.address;
+    await expect(
+      replica.connect(fakeSigner).transferOwnership(newOwner),
+    ).to.be.revertedWith('!owner');
+  });
+
+  it('Owner can rotate updater', async () => {
+    const newUpdater = fakeUpdater.address;
+    await replica.setUpdater(newUpdater);
+    expect(await replica.updater()).to.equal(newUpdater);
+  });
+
+  it('Nonowner cannot rotate updater', async () => {
+    const newUpdater = fakeUpdater.address;
+    await expect(
+      replica.connect(fakeSigner).setUpdater(newUpdater),
+    ).to.be.revertedWith('!owner');
   });
 
   it('Halts on fail', async () => {

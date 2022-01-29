@@ -82,20 +82,11 @@ optics:
     transactionSigners:
       - name: "kovan"
         hexKey: ""
-        aws:
-          keyId: ""
-          region: ""
       - name: "alfajores"
         hexKey: ""
-        aws:
-          keyId: ""
-          region: ""
     # -- Specialized key used by updater and watcher used to sign attestations, separate from updater.transactionSigners
     attestationSigner:
       hexKey: ""
-      aws:
-        keyId: ""
-        region: ""
     # -- How long to wait between checking for updates
     pollingInterval: # 5
     updatePause: # 15
@@ -113,14 +104,8 @@ optics:
     transactionSigners:
       - name: "kovan"
         hexKey: ""
-        aws:
-          keyId: ""
-          region: ""
       - name: "alfajores"
         hexKey: ""
-        aws:
-          keyId: ""
-          region: ""
     pollingInterval: # 10
 
   processor:
@@ -136,14 +121,10 @@ optics:
     transactionSigners:
       - name: "kovan"
         hexKey: ""
-        aws:
-          keyId: ""
-          region: ""
       - name: "alfajores"
         hexKey: ""
-        aws:
-          keyId: ""
-          region: ""
+    s3BucketName:
+    indxonly: false
     pollingInterval: # 10
 
   kathy:
