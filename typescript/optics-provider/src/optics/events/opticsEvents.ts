@@ -2,7 +2,7 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { Result } from '@ethersproject/abi';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 
-import { TypedEvent } from '@optics-xyz/ts-interface/dist/optics-core/commons';
+import { TypedEvent } from 'optics-ts-interface/dist/optics-core/commons';
 
 // copied from the Home.d.ts
 export type DispatchTypes = [string, BigNumber, BigNumber, string, string];

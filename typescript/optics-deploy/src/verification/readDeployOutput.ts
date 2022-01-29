@@ -137,20 +137,15 @@ export function parseFileFromDeploy(
   fileSuffix: string,
 ): any {
   const targetFileName = `${network}_${fileSuffix}.json`;
+  const filePath = `${path}/${targetFileName}`
 
-  const file = fs
-    .readdirSync(path, { withFileTypes: true })
-    .find((dirEntry: fs.Dirent) => dirEntry.name == targetFileName);
-
-  if (!file) {
+  if (!fs.existsSync(filePath)) {
     throw new Error(
-      `No ${fileSuffix} files found for ${network} at ${path}/${targetFileName}`,
+      `No ${fileSuffix} files found for ${network} at ${filePath}`
     );
   }
 
-  const fileString: string = fs
-    .readFileSync(`${path}/${targetFileName}`)
-    .toString();
+  const fileString: string = fs.readFileSync(filePath).toString();
 
   return JSON.parse(fileString);
 }

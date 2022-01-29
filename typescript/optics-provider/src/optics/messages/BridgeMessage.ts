@@ -2,7 +2,7 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { ethers } from 'ethers';
-import { xapps } from '@optics-xyz/ts-interface';
+import { xapps } from 'optics-ts-interface';
 import { BridgeContracts, OpticsContext } from '..';
 import { ResolvedTokenInfo, TokenIdentifier } from '../tokens';
 import { OpticsMessage } from './OpticsMessage';

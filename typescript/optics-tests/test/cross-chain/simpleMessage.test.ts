@@ -5,12 +5,12 @@ import * as utils from './utils';
 import { getTestDeploy } from '../testChain';
 import { Updater, MessageStatus } from '../../lib/core';
 import { Update, Signer, BytesArray } from '../../lib/types';
-import { CoreDeploy as Deploy } from '@optics-xyz/deploy/dist/src/core/CoreDeploy';
-import { deployTwoChains } from '@optics-xyz/deploy/dist/src/core';
+import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
+import { deployTwoChains } from 'optics-deploy/dist/src/core';
 import {
   TestRecipient__factory,
   TestReplica,
-} from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-ts-interface/dist/optics-core';
 
 const proveAndProcessTestCases = require('../../../../vectors/proveAndProcess.json');
 

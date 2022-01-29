@@ -1,4 +1,4 @@
-import { TypedEvent } from '@optics-xyz/ts-interface/dist/optics-core/commons';
+import { TypedEvent } from 'optics-ts-interface/dist/optics-core/commons';
 import { BigNumber } from 'ethers';
 import { Annotated } from '.';
 

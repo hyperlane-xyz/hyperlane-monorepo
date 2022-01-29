@@ -4,18 +4,15 @@ import { expect } from 'chai';
 import { getTestDeploy } from './testChain';
 import { Updater } from '../lib/core';
 import { Signer } from '../lib/types';
-import { CoreContractAddresses } from '@optics-xyz/deploy/dist/src/chain';
-import { deployBridges } from '@optics-xyz/deploy/dist/src/bridge';
-import { BridgeDeploy } from '@optics-xyz/deploy/dist/src/bridge/BridgeDeploy';
-import {
-  deployTwoChains,
-  deployNChains,
-} from '@optics-xyz/deploy/dist/src/core';
-import { CoreDeploy } from '@optics-xyz/deploy/dist/src/core/CoreDeploy';
+import { CoreContractAddresses } from 'optics-deploy/dist/src/chain';
+import { deployBridges } from 'optics-deploy/dist/src/bridge';
+import { BridgeDeploy } from 'optics-deploy/dist/src/bridge/BridgeDeploy';
+import { deployTwoChains, deployNChains } from 'optics-deploy/dist/src/core';
+import { CoreDeploy } from 'optics-deploy/dist/src/core/CoreDeploy';
 import {
   MockWeth,
   MockWeth__factory,
-} from '@optics-xyz/ts-interface/dist/optics-xapps';
+} from 'optics-ts-interface/dist/optics-xapps';
 
 const domains = [1000, 2000, 3000, 4000];
 
