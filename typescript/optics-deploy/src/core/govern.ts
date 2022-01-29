@@ -48,8 +48,8 @@ export class GovernanceCallBatchBuilder {
     const domain = violation.domain
     const deploy = this.getDeploy(domain)
     const ubc = deploy.contracts.upgradeBeaconController;
-    expect(ubc).to.not.be.undefined;
-    const call = await ubc!.populateTransaction.upgrade(
+    if (ubc === undefined) throw new Error('Undefined ubc')
+    const call = await ubc.populateTransaction.upgrade(
       violation.beaconProxy.beacon.address,
       violation.expected
     );

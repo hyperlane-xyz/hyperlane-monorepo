@@ -2,7 +2,6 @@ import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { Deploy } from './deploy';
 import { ProxyNames, BeaconProxy } from './proxyUtils';
-import { isMatch } from 'lodash';
 
 export enum ViolationType {
   UpgradeBeacon = 'UpgradeBeacon',
@@ -138,12 +137,12 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
     inputs.map((input) => this.checkVerificationInput(deploy, input[0], input[1].address))
   }
 
-  expectViolations(partials: Partial<Violation>[], expectedMatches: number[]) {
-    // Every partial should have exactly the number of expected matches.
-    const actualMatches = partials.map((partial) => this.violations.map((full) => isMatch(full, partial)).filter(Boolean).length)
+  expectViolations(types: ViolationType[], expectedMatches: number[]) {
+    // Every type should have exactly the number of expected matches.
+    const actualMatches = types.map((t) => this.violations.map((v) => v.type === t).filter(Boolean).length)
     expect(actualMatches).to.deep.equal(expectedMatches);
     // Every violation should be matched by at least one partial.
-    const unmatched = this.violations.map((full) => partials.map((partial) => isMatch(full, partial)).filter(Boolean).length)
+    const unmatched = this.violations.map((v) => types.map((t) => v.type === t).filter(Boolean).length)
     expect(unmatched).to.not.include(0);
   }
 
