@@ -111,17 +111,8 @@ export class AgentGCPKey {
     this.remoteKey = await this._create(false);
   }
 
-  // Creates a rotation of this key
   async update() {
     this.remoteKey = await this._create(true);
-    const addresses = await fetchGCPKeyAddresses(this.environment);
-    const filteredAddresses = addresses.filter((_) => {
-      const matchingRole = memoryKeyIdentifier(this.role, this.chainName);
-      return _.role !== matchingRole;
-    });
-
-    filteredAddresses.push(this.serializeAsAddress());
-    await persistAddresses(this.environment, filteredAddresses);
   }
 
   async delete() {
@@ -223,6 +214,19 @@ export async function createAgentGCPKeys(
     environment,
     keys.map((_) => _.serializeAsAddress()),
   );
+}
+
+export async function rotateGCPKey(environment: string, role: string, chainName: string) {
+  const key = new AgentGCPKey(environment, role, chainName)
+  await key.update()
+  const addresses = await fetchGCPKeyAddresses(environment);
+  const filteredAddresses = addresses.filter((_) => {
+    const matchingRole = memoryKeyIdentifier(role, this.chainName);
+    return _.role !== matchingRole;
+  });
+
+  filteredAddresses.push(key.serializeAsAddress());
+  await persistAddresses(environment, filteredAddresses);
 }
 
 async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
