@@ -86,6 +86,14 @@ describe('Replica', async () => {
     expect(await replica.updater()).to.equal(newUpdater);
   });
 
+  /*
+  it('Nonowner cannot rotate updater', async () => {
+    const newUpdater = fakeUpdater.address
+    await replica.connect(fakeSigner)
+    await expect(replica.setUpdater(newUpdater)).to.be.revertedWith('!owner');
+  });
+  */
+
   it('Halts on fail', async () => {
     await replica.setFailed();
     expect(await replica.state()).to.equal(OpticsState.FAILED);
