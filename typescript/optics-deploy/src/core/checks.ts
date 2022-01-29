@@ -102,11 +102,11 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     expect(deploy.contracts.governance).to.not.be.undefined;
 
     // governanceRouter for each remote domain is registered
-		const registeredRouters = await Promise.all(
-			Object.keys(deploy.contracts.replicas)
-				.map(_ => deploy.contracts.governance?.proxy.routers(_))
-		)
-		registeredRouters.map(_ => expect(_).to.not.equal(emptyAddr))
+    const registeredRouters = await Promise.all(
+      Object.keys(deploy.contracts.replicas)
+        .map(_ => deploy.contracts.governance?.proxy.routers(_))
+    )
+    registeredRouters.map(_ => expect(_).to.not.equal(emptyAddr))
 
     // governor is set on governor chain, empty on others
     // TODO: assert all governance routers have the same governor domain
@@ -119,16 +119,16 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       expect(gov).to.equal(emptyAddr);
     }
 
-    const owners = [
+    let owners = [
       deploy.contracts.updaterManager?.owner()!,
       deploy.contracts.xAppConnectionManager?.owner()!,
       deploy.contracts.upgradeBeaconController?.owner()!,
       deploy.contracts.home?.proxy.owner()!,
     ]
-    // This bit fails when the replicas don't yet have the owner() function.
-    for (const domain in deploy.contracts.replicas) {
-      owners.push(deploy.contracts.replicas[domain].proxy.owner()!)
-    }
+    owners = owners.concat(
+      Object.values(deploy.contracts.replicas).map(_ => _.proxy.owner())
+    )
+
     const expectedOwner = deploy.contracts.governance?.proxy.address;
     const actualOwners = await Promise.all(owners)
     actualOwners.map(_ => expect(_).to.equal(expectedOwner))
@@ -195,14 +195,10 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       contracts.governance!
     );
 
-    for (const d in deploy.contracts.replicas) {
-      // Replica upgrade setup contracts are defined
-      await this.checkBeaconProxyImplementation(
-        domain,
-        'Replica',
-        contracts.replicas[d]!
-      );
-    }
+    await Promise.all(
+      Object.values(contracts.replicas).map(
+        _ => this.checkBeaconProxyImplementation(domain, 'Replica', _)
+      )
+    )
   }
-
 }
