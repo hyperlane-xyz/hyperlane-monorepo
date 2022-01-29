@@ -20,11 +20,12 @@ export interface SecretManagerPersistedKeys {
   chainName?: string;
 }
 
-function identifier(
-  environment: string,
-  role: string,
-  chainName: string,
-) {
+interface KeyAsAddress {
+  role: string;
+  address: string;
+}
+
+function identifier(environment: string, role: string, chainName: string) {
   return isAttestationKey(role)
     ? `optics-key-${environment}-${chainName}-${role}`
     : `optics-key-${environment}-${role}`;
@@ -57,7 +58,7 @@ export class AgentGCPKey {
   }
 
   serializeAsAddress() {
-    this.requireFetched()
+    this.requireFetched();
     return {
       role: isAttestationKey(this.role)
         ? `${this.chainName}-${this.role}`
@@ -83,13 +84,13 @@ export class AgentGCPKey {
   }
 
   privateKey() {
-    this.requireFetched()
+    this.requireFetched();
     // @ts-ignore
     return this.remoteKey.privateKey;
   }
 
   address() {
-    this.requireFetched()
+    this.requireFetched();
     // @ts-ignore
     return this.remoteKey.address;
   }
@@ -113,24 +114,14 @@ export class AgentGCPKey {
   // Creates a rotation of this key
   async update() {
     this.remoteKey = await this._create(true);
-    const addressesIdentifier = `optics-key-${this.environment}-addresses`;
-    const fileName = `${addressesIdentifier}.txt`;
-    const [addressesRaw] = await execCmd(
-      `gcloud secrets versions access latest --secret ${addressesIdentifier}`,
-    );
-    const addresses = JSON.parse(addressesRaw);
-    const filteredAddresses = addresses.filter((_: any) => {
+    const addresses = await fetchGCPKeyAddresses(this.environment);
+    const filteredAddresses = addresses.filter((_) => {
       const matchingRole = memoryKeyIdentifier(this.role, this.chainName);
       return _.role !== matchingRole;
     });
 
     filteredAddresses.push(this.serializeAsAddress());
-
-    await writeFile(fileName, JSON.stringify(filteredAddresses));
-    await execCmd(
-      `gcloud secrets versions add ${addressesIdentifier} --data-file=${fileName}`,
-    );
-    await rm(fileName);
+    await persistAddresses(this.environment, filteredAddresses);
   }
 
   async delete() {
@@ -227,12 +218,17 @@ export async function createAgentGCPKeys(
       }
     }),
   );
+
+  await persistAddresses(
+    environment,
+    keys.map((_) => _.serializeAsAddress()),
+  );
+}
+
+async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
   const fileName = `optics-key-${environment}-addresses.txt`;
 
-  await writeFile(
-    fileName,
-    JSON.stringify(keys.map((_) => _.serializeAsAddress)),
-  );
+  await writeFile(fileName, JSON.stringify(keys));
   await execCmd(
     `gcloud secrets create optics-key-${environment}-addresses --data-file=${fileName} --replication-policy=automatic --labels=environment=${environment}`,
   );
@@ -254,6 +250,14 @@ export async function fetchAgentGCPKeys(
   return Object.fromEntries(secrets);
 }
 
+async function fetchGCPKeyAddresses(environment: string) {
+  const [addressesRaw] = await execCmd(
+    `gcloud secrets versions access latest --secret optics-key-${environment}-addresses`,
+  );
+  const addresses = JSON.parse(addressesRaw);
+  return addresses as KeyAsAddress[];
+}
+
 // Modifies a Chain configuration with the deployer key pulled from GCP
 export async function addDeployerGCPKey(environment: string, chain: Chain) {
   const [deployerSecretRaw] = await execCmd(
@@ -269,17 +273,14 @@ export async function addAgentGCPAddresses(
   chain: Chain,
   config: CoreConfig,
 ): Promise<CoreConfig> {
-  const [addressesRaw] = await execCmd(
-    `gcloud secrets versions access latest --secret optics-key-${environment}-addresses`,
-  );
-  const addresses = JSON.parse(addressesRaw);
+  const addresses = await fetchGCPKeyAddresses(environment);
   const watcher = addresses.find(
-    (_: any) => _.role === `${chain.name}-watcher-attestation`,
-  ).address;
+    (_) => _.role === `${chain.name}-watcher-attestation`,
+  )!.address;
   const updater = addresses.find(
-    (_: any) => _.role === `${chain.name}-updater-attestation`,
-  ).address;
-  const deployer = addresses.find((_: any) => _.role === 'deployer').address;
+    (_) => _.role === `${chain.name}-updater-attestation`,
+  )!.address;
+  const deployer = addresses.find((_) => _.role === 'deployer')!.address;
   return {
     ...config,
     updater: updater,
