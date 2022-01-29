@@ -21,7 +21,7 @@ async function main() {
   devCommunity.registerSigner('alfajores', new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!))
 
   const upgrader = new ImplementationUpgrader(deploys, devCommunity);
-  await upgrader.getInvariantViolations();
+  await upgrader.getViolations();
   upgrader.expectViolations(['Replica'], [5]);
   const batch = await upgrader.createCallBatch()
 
