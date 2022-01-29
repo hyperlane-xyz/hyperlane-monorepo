@@ -70,9 +70,9 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     const domain = deploy.chain.domain
     const addReplicaUpdaterViolations = async (remoteDeploy: CoreDeploy) => {
       const replica = remoteDeploy.contracts.replicas[domain];
-      // Sanity check remote domain.
+      // Sanity check correct replica.
       const actualRemoteDomain = await replica.proxy.remoteDomain();
-      expect(actualRemoteDomain).to.be.equal(remoteDeploy.chain.domain);
+      expect(actualRemoteDomain).to.be.equal(domain);
       const actual = await replica.proxy.updater();
       const expected = deploy.config.updater;
       if (actual !== expected) {
