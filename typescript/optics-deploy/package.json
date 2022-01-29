@@ -27,6 +27,6 @@
     "axios": "^0.21.3",
     "chai": "^4.3.4",
     "dotenv": "^10.0.0",
-    "optics-multi-provider-community": "0.1.22"
+    "optics-multi-provider-community": "^0.1.25"
   }
 }
