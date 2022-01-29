@@ -36,16 +36,16 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
 
   async checkHome(deploy: CoreDeploy): Promise<void> {
     // contracts are defined
-    const home = deploy.contracts.home?.proxy;
+    const home = deploy.contracts.home!.proxy;
     // updaterManager is set on Home
-    const actualManager = await home?.updaterManager();
-    const expectedManager = deploy.contracts.updaterManager?.address;
+    const actualManager = await home.updaterManager();
+    const expectedManager = deploy.contracts.updaterManager!.address;
     if (actualManager !== expectedManager) {
       const violation: UpdaterManagerViolation = {
         domain: deploy.chain.domain,
         type: ViolationType.UpdaterManager,
-        actual: actualManager!,
-        expected: expectedManager!,
+        actual: actualManager,
+        expected: expectedManager,
       }
       this.addViolation(violation)
     }
