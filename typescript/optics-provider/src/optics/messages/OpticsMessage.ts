@@ -237,7 +237,9 @@ export class OpticsMessage {
     if (this.cache.homeUpdate) {
       return this.cache.homeUpdate;
     }
+    return undefined
 
+    /*
     // if not, attempt to query the event
     const updateFilter = this.home.filters.Update(
       undefined,
@@ -257,6 +259,7 @@ export class OpticsMessage {
     }
     // return the event or undefined if it doesn't exist
     return this.cache.homeUpdate;
+    */
   }
 
   /**

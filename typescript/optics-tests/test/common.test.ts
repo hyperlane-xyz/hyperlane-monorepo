@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
-import { OpticsState, Updater } from '../lib/core';
+import { Updater } from '../lib/core';
 import { Signer } from '../lib/types';
 
 import {
@@ -53,45 +53,6 @@ describe('Common', async () => {
     );
     expect(await common.testIsUpdaterSignature(oldRoot, newRoot, fakeSignature))
       .to.be.false;
-  });
-
-  it('Fails on valid double update proof', async () => {
-    const oldRoot = ethers.utils.formatBytes32String('old root');
-    const newRoot = ethers.utils.formatBytes32String('new root 1');
-    const newRoot2 = ethers.utils.formatBytes32String('new root 2');
-
-    const { signature } = await updater.signUpdate(oldRoot, newRoot);
-    const { signature: signature2 } = await updater.signUpdate(
-      oldRoot,
-      newRoot2,
-    );
-
-    await expect(
-      common.doubleUpdate(oldRoot, [newRoot, newRoot2], signature, signature2),
-    ).to.emit(common, 'DoubleUpdate');
-
-    expect(await common.state()).to.equal(OpticsState.FAILED);
-  });
-
-  it('Does not fail contract on invalid double update proof', async () => {
-    const oldRoot = ethers.utils.formatBytes32String('old root');
-    const newRoot = ethers.utils.formatBytes32String('new root');
-
-    const { signature } = await updater.signUpdate(oldRoot, newRoot);
-
-    // Double update proof uses same roots and signatures
-    await common.doubleUpdate(
-      oldRoot,
-      [newRoot, newRoot],
-      signature,
-      signature,
-    );
-
-    // State should not be failed because double update proof does not
-    // demonstrate fraud
-    const state = await common.state();
-    expect(state).not.to.equal(OpticsState.FAILED);
-    expect(state).to.equal(OpticsState.ACTIVE);
   });
 
   it('Checks Rust-produced SignedUpdate', async () => {

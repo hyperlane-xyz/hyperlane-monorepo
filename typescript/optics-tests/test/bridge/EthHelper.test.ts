@@ -5,7 +5,7 @@ import { expect } from 'chai';
 import * as types from '../../lib/types';
 import { toBytes32 } from '../../lib/utils';
 import TestBridgeDeploy from 'optics-deploy/dist/src/bridge/TestBridgeDeploy';
-import { TokenIdentifier } from 'optics-multi-provider-community/dist/optics';
+import { TokenIdentifier } from 'optics-multi-provider-community/src/optics';
 
 const { BridgeMessageTypes } = bridge;
 

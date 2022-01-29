@@ -164,6 +164,7 @@ export async function deployUnenrolledReplica(
     remote.chain.domain,
     remote.config.updater,
     ethers.constants.HashZero, // TODO: allow configuration
+    0,
     remote.config.optimisticSeconds,
   ]);
 
