@@ -83,7 +83,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
         this.addViolation(violation)
       }
     }
-    const remoteDeploys = this._deploys.filter((d) => d.chain.domain === domain)
+    const remoteDeploys = this._deploys.filter((d) => d.chain.domain !== domain)
     await Promise.all(remoteDeploys.map(addReplicaUpdaterViolations))
     // Check that all replicas on this domain share the same implementation and
     // UpgradeBeacon.
@@ -91,8 +91,8 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     const implementations = replicas.map((r) => r.implementation.address);
     const identical = (a: any, b: any) => (a === b) ? a : false;
     const upgradeBeacons = replicas.map((r) => r.beacon.address);
-    expect(implementations.reduce(identical)).to.be.true;
-    expect(upgradeBeacons.reduce(identical)).to.be.true;
+    expect(implementations.reduce(identical)).to.not.be.false;
+    expect(upgradeBeacons.reduce(identical)).to.not.be.false;
   }
 
   async checkGovernance(deploy: CoreDeploy): Promise<void> {
