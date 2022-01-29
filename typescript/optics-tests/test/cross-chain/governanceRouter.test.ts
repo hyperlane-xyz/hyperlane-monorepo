@@ -113,7 +113,6 @@ describe('GovernanceRouter', async () => {
     // dispatch call on local governorRouter
     let tx = await governorRouter.callRemote(nonGovernorDomain, [call]);
     let receipt = await tx.wait(0);
-    console.log('events', receipt.events)
     let leaf = receipt.events?.[0].topics[1];
 
     expect(leaf).to.equal(helpers.proof.leaf);
