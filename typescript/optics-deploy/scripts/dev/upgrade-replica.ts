@@ -1,7 +1,6 @@
 import { devCommunity } from 'optics-multi-provider-community';
 import { ethers } from 'ethers';
 import { expectCalls, ImplementationUpgrader } from '../../src/core/upgrade';
-import { writeJSON } from '../../src/utils';
 import { Call } from 'optics-multi-provider-community/dist/optics/govern';
 import { configPath, networks } from './agentConfig';
 import { makeCoreDeploys, CoreDeploy } from '../../src/core/CoreDeploy';
@@ -41,9 +40,8 @@ async function main() {
   // For each domain, expect one call to upgrade the contract and then four
   // calls to transfer replica ownership.
   expectCalls(batch, domains, new Array(5).fill(5))
-  const receipts = await batch.execute()
-  // const receipts = await batch.estimateGas()
+  // Change to `batch.execute` in order to run.
+  const receipts = await batch.estimateGas()
   console.log(receipts)
-  writeJSON('../../rust/config/dev-community/', `governance_${Date.now()}.json`, receipts)
 }
 main().then(console.log).catch(console.error)
