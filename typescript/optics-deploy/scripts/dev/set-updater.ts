@@ -3,9 +3,8 @@ import { ethers } from 'ethers';
 import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
-import { makeCoreDeploys, CoreDeploy } from '../../src/core/CoreDeploy';
+import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
-import { Call } from 'optics-multi-provider-community/dist/optics/govern';
 
 const deploys = makeCoreDeploys(
   configPath,
@@ -24,25 +23,14 @@ async function main() {
 
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
-  checker.expectViolations([{ type: ViolationType.UpgradeBeacon }], [5])
+  checker.expectViolations([{ type: ViolationType.ReplicaUpdater }, { type: ViolationType.HomeUpdater }], [4, 1])
   const builder = new GovernanceCallBatchBuilder(deploys, devCommunity, checker.violations);
   const batch = await builder.build()
 
-  const domains = deploys.map((d: CoreDeploy) => d.chain.domain)
-  for (const home of domains) {
-    for (const remote of domains) {
-      if (home === remote) continue;
-      const core = devCommunity.mustGetCore(remote)
-      const replica = core.getReplica(home)
-      const transferOwnership = await replica!.populateTransaction.transferOwnership(core._governanceRouter)
-      batch.push(remote, transferOwnership as Call)
-    }
-  }
-
   await batch.build()
-  // For each domain, expect one call to upgrade the contract and then four
-  // calls to transfer replica ownership.
-  expectCalls(batch, domains, new Array(5).fill(5))
+  const domains = deploys.map((deploy) => deploy.chain.domain)
+  // For each domain, expect one call to set the updater.
+  expectCalls(batch, domains, new Array(5).fill(1))
   // Change to `batch.execute` in order to run.
   const receipts = await batch.estimateGas()
   console.log(receipts)
