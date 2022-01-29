@@ -119,15 +119,13 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       expect(gov).to.equal(emptyAddr);
     }
 
-    let owners = [
+    const owners = [
       deploy.contracts.updaterManager?.owner()!,
       deploy.contracts.xAppConnectionManager?.owner()!,
       deploy.contracts.upgradeBeaconController?.owner()!,
       deploy.contracts.home?.proxy.owner()!,
     ]
-    owners = owners.concat(
-      Object.values(deploy.contracts.replicas).map(_ => _.proxy.owner())
-    )
+    Object.values(deploy.contracts.replicas).map(_ => owners.push(_.proxy.owner()))
 
     const expectedOwner = deploy.contracts.governance?.proxy.address;
     const actualOwners = await Promise.all(owners)
