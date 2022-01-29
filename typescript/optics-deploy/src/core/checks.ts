@@ -68,9 +68,9 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     // Check if the Replicas on *remote* domains are set to the updater
     // configured on our domain.
     const domain = deploy.chain.domain
-    this._deploys.filter((d) => d.chain.domain === domain).map((remoteDeploy) => {
+    const addReplicaUpdaterViolations = async (remoteDeploy: CoreDeploy) => {
       const replica = remoteDeploy.contracts.replicas[domain];
-      const actual = await replica.updater();
+      const actual = await replica.proxy.updater();
       const expected = deploy.config.updater;
       if (actual !== expected) {
         const violation: ReplicaUpdaterViolation = {
@@ -82,10 +82,12 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
         }
         this.addViolation(violation)
       }
-    })
+    }
+    const remoteDeploys = this._deploys.filter((d) => d.chain.domain === domain)
+    await Promise.all(remoteDeploys.map(addReplicaUpdaterViolations))
     // Check that all replicas on this domain share the same implementation and
     // UpgradeBeacon.
-    const replicas = Object.values(deploy.contract.replicas)
+    const replicas = Object.values(deploy.contracts.replicas)
     const implementations = replicas.map((r) => r.implementation.address);
     const identical = (a: any, b: any) => (a === b) ? a : false;
     const upgradeBeacons = replicas.map((r) => r.beacon.address);
