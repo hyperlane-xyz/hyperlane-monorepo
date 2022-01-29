@@ -36,16 +36,16 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
 
   async checkHome(deploy: CoreDeploy): Promise<void> {
     // contracts are defined
-    const home = deploy.contracts.home?.proxy;
+    const home = deploy.contracts.home!.proxy;
     // updaterManager is set on Home
-    const actualManager = await home?.updaterManager();
-    const expectedManager = deploy.contracts.updaterManager?.address;
+    const actualManager = await home.updaterManager();
+    const expectedManager = deploy.contracts.updaterManager!.address;
     if (actualManager !== expectedManager) {
       const violation: UpdaterManagerViolation = {
         domain: deploy.chain.domain,
         type: ViolationType.UpdaterManager,
-        actual: actualManager!,
-        expected: expectedManager!,
+        actual: actualManager,
+        expected: expectedManager,
       }
       this.addViolation(violation)
     }
@@ -102,12 +102,11 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     expect(deploy.contracts.governance).to.not.be.undefined;
 
     // governanceRouter for each remote domain is registered
-    for (const domain in deploy.contracts.replicas) {
-      const registeredRouter = await deploy.contracts.governance?.proxy.routers(
-        domain,
-      );
-      expect(registeredRouter).to.not.equal(emptyAddr);
-    }
+    const registeredRouters = await Promise.all(
+      Object.keys(deploy.contracts.replicas)
+        .map(_ => deploy.contracts.governance?.proxy.routers(_))
+    )
+    registeredRouters.map(_ => expect(_).to.not.equal(emptyAddr))
 
     // governor is set on governor chain, empty on others
     // TODO: assert all governance routers have the same governor domain
@@ -126,15 +125,11 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       deploy.contracts.upgradeBeaconController?.owner()!,
       deploy.contracts.home?.proxy.owner()!,
     ]
-    // This bit fails when the replicas don't yet have the owner() function.
-    for (const domain in deploy.contracts.replicas) {
-      owners.push(deploy.contracts.replicas[domain].proxy.owner()!)
-    }
+    Object.values(deploy.contracts.replicas).map(_ => owners.push(_.proxy.owner()))
+
     const expectedOwner = deploy.contracts.governance?.proxy.address;
-    const expectOwnedByGovernance = async (owner: Promise<string>): Promise<void> => {
-      expect(await owner).to.equal(expectedOwner);
-    }
-    await Promise.all(owners.map(expectOwnedByGovernance))
+    const actualOwners = await Promise.all(owners)
+    actualOwners.map(_ => expect(_).to.equal(expectedOwner))
   }
 
   async checkXAppConnectionManager(deploy: CoreDeploy): Promise<void> {
@@ -198,14 +193,10 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       contracts.governance!
     );
 
-    for (const d in deploy.contracts.replicas) {
-      // Replica upgrade setup contracts are defined
-      await this.checkBeaconProxyImplementation(
-        domain,
-        'Replica',
-        contracts.replicas[d]!
-      );
-    }
+    await Promise.all(
+      Object.values(contracts.replicas).map(
+        _ => this.checkBeaconProxyImplementation(domain, 'Replica', _)
+      )
+    )
   }
-
 }

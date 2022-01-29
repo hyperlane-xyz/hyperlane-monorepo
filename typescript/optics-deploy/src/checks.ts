@@ -107,7 +107,7 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
 
     if (actual != expected) {
       const violation: UpgradeBeaconViolation = {
-        domain, 
+        domain,
         type: ViolationType.UpgradeBeacon,
         name,
         beaconProxy,
@@ -135,10 +135,7 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
 
   checkVerificationInputs(deploy: T) {
     const inputs = this.getVerificationInputs(deploy)
-    const check = (input: VerificationInput) => {
-      this.checkVerificationInput(deploy, input[0], input[1].address)
-    }
-    inputs.map(check)
+    inputs.map((input) => this.checkVerificationInput(deploy, input[0], input[1].address))
   }
 
   expectViolations(partials: Partial<Violation>[], expectedMatches: number[]) {
