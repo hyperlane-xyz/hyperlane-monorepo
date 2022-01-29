@@ -30,7 +30,7 @@ interface UpgradeBeaconInvariantViolation {
   actualImplementationAddress: string
 }
 
-type InvariantViolation = UpgradeBeaconInvariantViolation
+export type InvariantViolation = UpgradeBeaconInvariantViolation
 
 export type InvariantViolationHandler = (violation: InvariantViolation) => void
 

@@ -46,7 +46,7 @@ export class ImplementationUpgrader {
       throw new Error('Must check invariants match expectation');
     const governorCore = await this._context.governorCore()
     const governanceMessages = await governorCore.newGovernanceBatch()
-    for (const violation of this._violations) {
+    const populate = this._violations.map(async (violation) => {
       const upgrade = await violation.upgradeBeaconController.populateTransaction.upgrade(
         violation.beaconProxy.beacon.address,
         violation.expectedImplementationAddress
@@ -55,7 +55,8 @@ export class ImplementationUpgrader {
         throw new Error('Missing "to" field in populated transaction')
       }
       governanceMessages.push(violation.domain, upgrade as Call)
-    }
+    })
+    await Promise.all(populate);
     return governanceMessages;
   }
 }
