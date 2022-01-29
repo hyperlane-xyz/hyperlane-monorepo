@@ -102,12 +102,11 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     expect(deploy.contracts.governance).to.not.be.undefined;
 
     // governanceRouter for each remote domain is registered
-    for (const domain in deploy.contracts.replicas) {
-      const registeredRouter = await deploy.contracts.governance?.proxy.routers(
-        domain,
-      );
-      expect(registeredRouter).to.not.equal(emptyAddr);
-    }
+		const registeredRouters = await Promise.all(
+			Object.keys(deploy.contracts.replicas)
+				.map(_ => deploy.contracts.governance?.proxy.routers(_))
+		)
+		registeredRouters.map(_ => expect(_).to.not.equal(emptyAddr))
 
     // governor is set on governor chain, empty on others
     // TODO: assert all governance routers have the same governor domain
