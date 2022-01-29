@@ -24,9 +24,9 @@ export class GovernanceCallBatchBuilder {
   async build(): Promise<CallBatch> {
     const governorCore = await this._context.governorCore()
     const batch = await governorCore.newGovernanceBatch()
-    const calls = await Promise.all(this._violations.map(this.handleViolation))
-    calls.map((call) => expect(call.call.to).to.not.be.undefined)
-    calls.map((call) => batch.push(call.domain, call.call as Call))
+    const txs = await Promise.all(this._violations.map(this.handleViolation))
+    txs.map((call) => expect(call.call.to).to.not.be.undefined)
+    txs.map((call) => batch.push(call.domain, call.call as Call))
     return batch
   }
 
