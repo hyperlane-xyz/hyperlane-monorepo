@@ -221,7 +221,7 @@ export async function rotateGCPKey(environment: string, role: string, chainName:
   await key.update()
   const addresses = await fetchGCPKeyAddresses(environment);
   const filteredAddresses = addresses.filter((_) => {
-    const matchingRole = memoryKeyIdentifier(role, this.chainName);
+    const matchingRole = memoryKeyIdentifier(role, chainName);
     return _.role !== matchingRole;
   });
 
