@@ -2,7 +2,7 @@ import { BigNumber, BytesLike, Signer } from 'ethers';
 import {
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-} from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-ts-interface/dist/optics-core';
 import {
   BridgeRouter,
   BridgeToken,
@@ -11,13 +11,14 @@ import {
   MockCore__factory,
   MockWeth,
   MockWeth__factory,
-} from '@optics-xyz/ts-interface/dist/optics-xapps';
-import { ContractVerificationInput } from '../deploy';
+} from 'optics-ts-interface/dist/optics-xapps';
 import { BridgeContracts } from './BridgeContracts';
 import * as process from '.';
 import { Chain } from '../chain';
+import { Deploy } from '../deploy';
 
-import { TokenIdentifier } from '@optics-xyz/multi-provider/dist/optics/tokens';
+
+import { TokenIdentifier } from 'optics-multi-provider-community/dist/optics/tokens'
 import { CoreConfig } from '../core/CoreDeploy';
 
 function toBytes32(address: string): string {
@@ -67,16 +68,12 @@ export async function getTestChain(
 // router's `handle` function. The test signer is pre-authorized. Messages the
 // router dispatches will be logged in the `Enqueue` event on the `MockCore`
 // contract.
-export default class TestBridgeDeploy {
+export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
   signer: Signer;
   ubc: UpgradeBeaconController;
   mockCore: MockCore;
   mockWeth: MockWeth;
-  contracts: BridgeContracts;
-  verificationInput: ContractVerificationInput[];
   localDomain: number;
-  chain: Chain;
-  test: boolean = true;
 
   constructor(
     signer: Signer,
@@ -91,15 +88,13 @@ export default class TestBridgeDeploy {
     if (!callerKnowsWhatTheyAreDoing) {
       throw new Error("Don't instantiate via new.");
     }
+    super(chain, contracts, true)
     this.signer = signer;
     this.ubc = ubc;
     this.mockCore = mockCore;
     this.mockWeth = mockWeth;
-    this.contracts = contracts;
-    this.verificationInput = [];
     this.localDomain = domain;
     this.config.weth = mockWeth.address;
-    this.chain = chain;
   }
 
   static async deploy(ethers: any, signer: Signer): Promise<TestBridgeDeploy> {

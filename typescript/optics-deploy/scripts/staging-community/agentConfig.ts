@@ -13,6 +13,10 @@ export const configs: AgentChainConfigs = {
   ropsten: ropsten.chainJson
 }
 
+
+export const configPath = '../../rust/config/staging-community';
+export const networks = [alfajores, ropsten, kovan, gorli]
+
 // Environment specific config
 export const agentConfig: AgentConfig = {
   environment: 'staging-community',

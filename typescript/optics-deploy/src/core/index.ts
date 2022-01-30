@@ -4,30 +4,9 @@ import fs from 'fs';
 
 import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
-import * as contracts from '@optics-xyz/ts-interface/dist/optics-core';
-import { checkCoreDeploy } from './checks';
-import { toBytes32 } from '../utils';
-
-function log(isTest: boolean, str: string) {
-  if (!isTest) {
-    console.log(str);
-  }
-}
-
-function warn(text: string, padded: boolean = false) {
-  if (padded) {
-    const padding = '*'.repeat(text.length + 8);
-    console.log(
-      `
-      ${padding}
-      *** ${text.toUpperCase()} ***
-      ${padding}
-      `,
-    );
-  } else {
-    console.log(`**** ${text.toUpperCase()} ****`);
-  }
-}
+import * as contracts from 'optics-ts-interface/dist/optics-core';
+import { CoreInvariantChecker } from './checks';
+import { log, warn, toBytes32 } from '../utils';
 
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
   let factory = new contracts.UpgradeBeaconController__factory(deploy.deployer);
@@ -322,6 +301,14 @@ export async function relinquish(deploy: CoreDeploy) {
     `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
 
+  Object.entries(deploy.contracts.replicas).forEach(async ([domain, replica]) => {
+    await replica.proxy.transferOwnership(govRouter, deploy.overrides);
+    log(
+      isTestDeploy,
+      `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
+    );
+  });
+
   let tx = await deploy.contracts.home!.proxy.transferOwnership(
     govRouter,
     deploy.overrides,
@@ -519,10 +506,9 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   await Promise.all([relinquish(gov), relinquish(non)]);
 
   // checks deploys are correct
-  const govDomain = gov.chain.domain;
-  const nonDomain = non.chain.domain;
-  await checkCoreDeploy(gov, [nonDomain], govDomain);
-  await checkCoreDeploy(non, [govDomain], govDomain);
+  const checker = new CoreInvariantChecker([gov, non])
+  await checker.checkDeploys()
+  checker.expectEmpty()
 
   if (!isTestDeploy) {
     writeDeployOutput([gov, non]);
@@ -614,16 +600,9 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   }
 
   // checks deploys are correct
-  const govDomain = deploys[0].chain.domain;
-  for (var i = 0; i < deploys.length; i++) {
-    const localDomain = deploys[i].chain.domain;
-    const remoteDomains = deploys
-      .map((deploy) => deploy.chain.domain)
-      .filter((domain) => {
-        return domain != localDomain;
-      });
-    await checkCoreDeploy(deploys[i], remoteDomains, govDomain);
-  }
+  const checker = new CoreInvariantChecker(deploys)
+  await checker.checkDeploys()
+  checker.expectEmpty()
 
   // write config outputs again, should write under a different dir
   if (!isTestDeploy) {
@@ -657,9 +636,9 @@ export function writePartials(dir: string) {
  *
  * @param deploys - The array of chain deploys
  */
-export function writeDeployOutput(deploys: CoreDeploy[]) {
+export function writeDeployOutput(deploys: CoreDeploy[], writeDir?: string) {
   log(deploys[0].test, `Have ${deploys.length} deploys`);
-  const dir = `../../rust/config/${Date.now()}`;
+  const dir = writeDir ? writeDir : `../../rust/config/${Date.now()}`;
   for (const local of deploys) {
     // get remotes
     const remotes = deploys

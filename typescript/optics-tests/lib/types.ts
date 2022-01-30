@@ -1,5 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { TokenIdentifier } from '@optics-xyz/multi-provider/dist/optics';
+import { TokenIdentifier } from 'opticsmulti-provider/dist/optics';
 import { BytesLike, ethers } from 'ethers';
 import { BridgeMessageTypes } from './bridge';
 

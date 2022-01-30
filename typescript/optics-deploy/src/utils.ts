@@ -1,4 +1,6 @@
 import { exec } from 'child_process'
+import fs from 'fs';
+import path from 'path';
 
 /*
  * Converts address to Bytes32
@@ -85,4 +87,32 @@ export const ensure0x = (hexstr: string) => (hexstr.startsWith('0x') ? hexstr : 
 export const strip0x = (hexstr: string) => (hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr)
 export function includeConditionally(condition: boolean, data: any) {
   return condition ? data : {};
+}
+
+export function log(isTest: boolean, str: string) {
+  if (!isTest) {
+    console.log(str);
+  }
+}
+
+export function warn(text: string, padded: boolean = false) {
+  if (padded) {
+    const padding = '*'.repeat(text.length + 8);
+    console.log(
+      `
+      ${padding}
+      *** ${text.toUpperCase()} ***
+      ${padding}
+      `,
+    );
+  } else {
+    console.log(`**** ${text.toUpperCase()} ****`);
+  }
+}
+
+export function writeJSON(directory: string, filename: string, obj: any) {
+  fs.writeFileSync(
+    path.join(directory, filename),
+    JSON.stringify(obj, null, 2),
+  );
 }

@@ -19,6 +19,7 @@ type Governor = {
   domain: number;
   address: Address;
 };
+
 export type CoreConfig = {
   environment: DeployEnvironment;
   updater: Address;
@@ -152,4 +153,16 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     deploy.verificationInput = getVerificationInputFromDeploy(directory, chain.config.name)
     return deploy
   }
+}
+
+// The accessors is necessary as a network may have multiple core configs
+export function makeCoreDeploys<V>(
+  directory: string,
+  data: V[],
+  chainAccessor: (data: V) => Chain,
+  coreConfigAccessor: (data: V) => CoreConfig
+): CoreDeploy[] {
+  return data.map(
+    (d: V) => CoreDeploy.fromDirectory(directory, chainAccessor(d), coreConfigAccessor(d))
+  );
 }

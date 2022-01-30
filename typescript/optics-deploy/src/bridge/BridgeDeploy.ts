@@ -12,7 +12,6 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
   readonly config: BridgeConfig;
   readonly coreDeployPath: string;
   readonly coreContractAddresses: CoreContractAddresses;
-  readonly test: boolean;
 
   constructor(
     chain: Chain,
@@ -29,7 +28,6 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
       chain.config.name,
       'contracts',
     );
-    this.test = test;
   }
 
   get ubcAddress(): string | undefined {
@@ -51,4 +49,16 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
     deploy.contracts = BridgeContracts.fromAddresses(addresses, chain.provider);
     return deploy
   }
+}
+
+// The accessors is necessary as a network may have multiple bridge/chain configs
+export function makeBridgeDeploys<V>(
+  directory: string,
+  data: V[],
+  chainAccessor: (data: V) => Chain,
+  bridgeConfigAccessor: (data: V) => BridgeConfig
+): BridgeDeploy[] {
+  return data.map(
+    (d: V) => BridgeDeploy.fromDirectory(directory, chainAccessor(d), bridgeConfigAccessor(d))
+  );
 }

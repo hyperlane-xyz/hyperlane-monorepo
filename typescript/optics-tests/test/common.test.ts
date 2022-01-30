@@ -7,7 +7,7 @@ import { Signer } from '../lib/types';
 import {
   TestCommon__factory,
   TestCommon,
-} from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-ts-interface/dist/optics-core';
 
 const signedUpdateTestCases = require('../../../vectors/signedUpdate.json');
 const localDomain = 1000;
@@ -89,31 +89,6 @@ describe('Common', async () => {
 
     // State should not be failed because double update proof does not
     // demonstrate fraud
-    const state = await common.state();
-    expect(state).not.to.equal(OpticsState.FAILED);
-    expect(state).to.equal(OpticsState.ACTIVE);
-  });
-
-  it('Does not fail contract on whitelisted double update proof', async () => {
-    const oldRoot = ethers.utils.hexlify(
-      '0xde6e3d4540f861d08dfe4ac16334792de2fb44aa7bcd5b657238410791c67a81');
-    const newRoot = ethers.utils.formatBytes32String('new root 1');
-    const newRoot2 = ethers.utils.formatBytes32String('new root 2');
-
-    const { signature } = await updater.signUpdate(oldRoot, newRoot);
-    const { signature: signature2 } = await updater.signUpdate(
-      oldRoot,
-      newRoot2,
-    );
-
-    await common.doubleUpdate(
-      oldRoot,
-      [newRoot, newRoot2],
-      signature,
-      signature2
-    );
-
-    // State should not be failed because double update proof is whitelisted
     const state = await common.state();
     expect(state).not.to.equal(OpticsState.FAILED);
     expect(state).to.equal(OpticsState.ACTIVE);

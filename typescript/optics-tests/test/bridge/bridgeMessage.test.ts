@@ -9,8 +9,8 @@ import * as types from '../../lib/types';
 import {
   TestBridgeMessage__factory,
   TestBridgeMessage,
-} from '@optics-xyz/ts-interface/dist/optics-xapps';
-import { TokenIdentifier } from '@optics-xyz/multi-provider/dist/optics';
+} from 'optics-ts-interface/dist/optics-xapps';
+import { TokenIdentifier } from 'optics-multi-provider-community/dist/optics';
 
 const stringToBytes32 = (s: string): string => {
   const str = Buffer.from(s.slice(0, 32), 'utf-8');

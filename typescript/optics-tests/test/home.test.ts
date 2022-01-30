@@ -3,14 +3,14 @@ import { expect } from 'chai';
 import { getTestDeploy } from './testChain';
 import { OpticsState, Updater } from '../lib/core';
 import { Signer } from '../lib/types';
-import { CoreDeploy as Deploy } from '@optics-xyz/deploy/dist/src/core/CoreDeploy';
-import * as deploys from '@optics-xyz/deploy/dist/src/core';
+import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
+import * as deploys from 'optics-deploy/dist/src/core';
 
 import {
   TestHome,
   UpdaterManager__factory,
   UpdaterManager,
-} from '@optics-xyz/ts-interface/dist/optics-core';
+} from 'optics-ts-interface/dist/optics-core';
 
 const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
 const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');
