@@ -1,6 +1,6 @@
 import { Wallet } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
-import { KEY_ROLES } from '../agents';
+import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
 import { Chain, replaceDeployer } from '../chain';
 import { CoreConfig } from '../core/CoreDeploy';
 import { execCmd, include, strip0x } from '../utils';
@@ -213,12 +213,17 @@ export async function createAgentGCPKeys(
   await persistAddresses(
     environment,
     keys.map((_) => _.serializeAsAddress()),
+    true
   );
 }
 
-export async function rotateGCPKey(environment: string, role: string, chainName: string) {
-  const key = new AgentGCPKey(environment, role, chainName)
-  await key.update()
+export async function rotateGCPKey(
+  environment: string,
+  role: string,
+  chainName: string,
+) {
+  const key = new AgentGCPKey(environment, role, chainName);
+  await key.update();
   const addresses = await fetchGCPKeyAddresses(environment);
   const filteredAddresses = addresses.filter((_) => {
     const matchingRole = memoryKeyIdentifier(role, chainName);
@@ -226,16 +231,26 @@ export async function rotateGCPKey(environment: string, role: string, chainName:
   });
 
   filteredAddresses.push(key.serializeAsAddress());
-  await persistAddresses(environment, filteredAddresses);
+  await persistAddresses(environment, filteredAddresses, false);
 }
 
-async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
-  const fileName = `optics-key-${environment}-addresses.txt`;
-
+async function persistAddresses(
+  environment: string,
+  keys: KeyAsAddress[],
+  create = false,
+) {
+  const addressesIdentifier = `optics-key-${environment}-addresses`;
+  const fileName = `${addressesIdentifier}.txt`;
   await writeFile(fileName, JSON.stringify(keys));
-  await execCmd(
-    `gcloud secrets create optics-key-${environment}-addresses --data-file=${fileName} --replication-policy=automatic --labels=environment=${environment}`,
-  );
+  if (create) {
+    await execCmd(
+      `gcloud secrets create ${addressesIdentifier} --data-file=${fileName} --replication-policy=automatic --labels=environment=${environment}`,
+    );
+  } else {
+    await execCmd(
+      `gcloud secrets versions add ${addressesIdentifier} --data-file=${fileName}`,
+    );
+  }
   await rm(fileName);
 }
 
@@ -264,10 +279,9 @@ async function fetchGCPKeyAddresses(environment: string) {
 
 // Modifies a Chain configuration with the deployer key pulled from GCP
 export async function addDeployerGCPKey(environment: string, chain: Chain) {
-  const [deployerSecretRaw] = await execCmd(
-    `gcloud secrets versions access latest --secret optics-key-${environment}-deployer`,
-  );
-  const deployerSecret = JSON.parse(deployerSecretRaw).privateKey;
+  const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chain.name)
+  await key.fetchFromGCP()
+  const deployerSecret = key.privateKey();
   return replaceDeployer(chain, strip0x(deployerSecret));
 }
 

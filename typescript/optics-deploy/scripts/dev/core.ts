@@ -4,7 +4,7 @@ import * as gorli from '../../config/testnets/gorli';
 import * as kovan from '../../config/testnets/kovan';
 import * as mumbai from '../../config/testnets/mumbai';
 import * as fuji from '../../config/testnets/fuji';
-import { addDeployerGCPKey, addAgentGCPAddresses } from '../../src/agents';
+import { addDeployerGCPKey, addAgentGCPAddresses } from '../../src/agents/gcp';
 import { CoreDeploy } from '../../src/core/CoreDeploy';
 
 let alfajoresConfig = alfajores.devConfig;
