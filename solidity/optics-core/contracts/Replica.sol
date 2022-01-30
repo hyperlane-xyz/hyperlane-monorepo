@@ -58,7 +58,7 @@ contract Replica is Version0, Common {
     // address responsible for Updater rotation
     address private _owner;
     // The index of the latest update we've seen.
-    uint256 public latestUpdateIndex;
+    uint256 public committedIndex;
 
     // ============ Upgrade Gap ============
 
@@ -117,15 +117,15 @@ contract Replica is Version0, Common {
     function initialize(
         uint32 _remoteDomain,
         address _updater,
-        bytes32 _updateRoot,
-        uint256 _updateIndex,
+        bytes32 _committedRoot,
+        uint256 _committedIndex,
         uint256 _optimisticSeconds
     ) public initializer {
         __Common_initialize(_updater);
         entered = 1;
         remoteDomain = _remoteDomain;
-        latestUpdateIndex = _updateIndex;
-        confirmAt[_updateRoot] = 1;
+        committedIndex = _committedIndex;
+        confirmAt[_committedRoot] = 1;
         optimisticSeconds = _optimisticSeconds;
         transferOwnership(msg.sender);
     }
@@ -155,7 +155,7 @@ contract Replica is Version0, Common {
     }
 
     /**
-     * @notice Updates the latest root index given a signed update.
+     * @notice Updates the committed index given a signed update.
      * @dev Reverts if update's index is not greater than our current index.
      * @param _root Update's merkle root
      * @param _index Update's index
@@ -167,13 +167,13 @@ contract Replica is Version0, Common {
         bytes memory _signature
     ) external notFailed {
         // ensure that update is more recent than the latest we've seen
-        require(_index > latestUpdateIndex, "old update");
+        require(_index > committedIndex, "old update");
         // validate updater signature
         require(_isUpdaterSignature(_root, _index, _signature), "!updater sig");
         // set the new root's confirmation timer
         confirmAt[_root] = block.timestamp + optimisticSeconds;
-        // update committedRoot
-        latestUpdateIndex = _index;
+        // update committedIndex
+        committedIndex = _index;
         emit Update(remoteDomain, _root, _index, _signature);
     }
 

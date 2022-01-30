@@ -38,11 +38,9 @@ describe('Replica', async () => {
     updater: Updater,
     fakeUpdater: Updater;
 
-  const submitValidUpdate = async (newRoot: string) => {
-    const oldRoot = await replica.committedRoot();
-
-    const { signature } = await updater.signUpdate(oldRoot, newRoot);
-    await replica.update(oldRoot, newRoot, signature);
+  const signAndSubmitUpdate = async (root: string, index: number) => {
+    const { signature } = await updater.signUpdate(root, ethers.BigNumber.from(index));
+    await replica.update(root, index, signature);
   };
 
   before(async () => {
@@ -69,6 +67,7 @@ describe('Replica', async () => {
       deploys[0].chain.domain,
       deploys[0].config.updater,
       ethers.constants.HashZero,
+      0,
       deploys[0].config.optimisticSeconds,
     ]);
 
@@ -112,8 +111,8 @@ describe('Replica', async () => {
     await replica.setFailed();
     expect(await replica.state()).to.equal(OpticsState.FAILED);
 
-    const newRoot = ethers.utils.formatBytes32String('new root');
-    await expect(submitValidUpdate(newRoot)).to.be.revertedWith('failed state');
+    const root = ethers.utils.formatBytes32String('new root');
+    await expect(signAndSubmitUpdate(root, 1)).to.be.revertedWith('failed state');
   });
 
   it('Calculated domain hash matches Rust-produced domain hash', async () => {
@@ -138,78 +137,42 @@ describe('Replica', async () => {
     }
   });
 
-  it('Enqueues pending updates', async () => {
-    const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await submitValidUpdate(firstNewRoot);
-    expect(await replica.committedRoot()).to.equal(firstNewRoot);
+  it('Accepts update with larger index', async () => {
+    const firstRoot = ethers.utils.formatBytes32String('first root');
+    const firstIndex = 1;
+    await signAndSubmitUpdate(firstRoot, firstIndex);
+    expect(await replica.committedIndex()).to.equal(firstIndex);
 
-    const secondNewRoot = ethers.utils.formatBytes32String('second next root');
-    await submitValidUpdate(secondNewRoot);
-    expect(await replica.committedRoot()).to.equal(secondNewRoot);
+    const tenthRoot = ethers.utils.formatBytes32String('tenth root');
+    const tenthIndex = 10
+    await signAndSubmitUpdate(tenthRoot, tenthIndex);
+    expect(await replica.committedIndex()).to.equal(tenthIndex);
+  });
+
+  it('Rejects updates with same index', async () => {
+    const root = ethers.utils.formatBytes32String('root');
+    const index = 10
+    await signAndSubmitUpdate(root, index);
+    await expect(signAndSubmitUpdate(root, index)).to.be.revertedWith('old update');
+  });
+
+  it('Rejects updates with zero index', async () => {
+    const root = ethers.utils.formatBytes32String('root');
+    const index = 0
+    await expect(signAndSubmitUpdate(root, index)).to.be.revertedWith('old update');
   });
 
   it('Rejects update with invalid signature', async () => {
-    const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await submitValidUpdate(firstNewRoot);
-
-    const secondNewRoot = ethers.utils.formatBytes32String('second new root');
+    const root = ethers.utils.formatBytes32String('root');
+    const index = 1;
     const { signature: fakeSignature } = await fakeUpdater.signUpdate(
-      firstNewRoot,
-      secondNewRoot,
+      root,
+      ethers.BigNumber.from(index)
     );
 
     await expect(
-      replica.update(firstNewRoot, secondNewRoot, fakeSignature),
+      replica.update(root, index, fakeSignature)
     ).to.be.revertedWith('!updater sig');
-  });
-
-  it('Rejects initial update not building off initial root', async () => {
-    const fakeInitialRoot = ethers.utils.formatBytes32String('fake root');
-    const newRoot = ethers.utils.formatBytes32String('new root');
-    const { signature } = await updater.signUpdate(fakeInitialRoot, newRoot);
-
-    await expect(
-      replica.update(fakeInitialRoot, newRoot, signature),
-    ).to.be.revertedWith('not current update');
-  });
-
-  it('Rejects updates not building off latest enqueued root', async () => {
-    const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await submitValidUpdate(firstNewRoot);
-
-    const fakeLatestRoot = ethers.utils.formatBytes32String('fake root');
-    const secondNewRoot = ethers.utils.formatBytes32String('second new root');
-    const { signature } = await updater.signUpdate(
-      fakeLatestRoot,
-      secondNewRoot,
-    );
-
-    await expect(
-      replica.update(fakeLatestRoot, secondNewRoot, signature),
-    ).to.be.revertedWith('not current update');
-  });
-
-  it('Accepts a double update proof', async () => {
-    const firstRoot = await replica.committedRoot();
-    const secondRoot = ethers.utils.formatBytes32String('second root');
-    const thirdRoot = ethers.utils.formatBytes32String('third root');
-
-    const { signature } = await updater.signUpdate(firstRoot, secondRoot);
-    const { signature: signature2 } = await updater.signUpdate(
-      firstRoot,
-      thirdRoot,
-    );
-
-    await expect(
-      replica.doubleUpdate(
-        firstRoot,
-        [secondRoot, thirdRoot],
-        signature,
-        signature2,
-      ),
-    ).to.emit(replica, 'DoubleUpdate');
-
-    expect(await replica.state()).to.equal(OpticsState.FAILED);
   });
 
   it('Proves a valid message', async () => {
@@ -217,7 +180,7 @@ describe('Replica', async () => {
     const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
-    await replica.setCommittedRoot(testCase.expectedRoot);
+    await replica.setUpdate(testCase.expectedRoot, index);
 
     // Ensure proper static call return value
     expect(await replica.callStatic.prove(leaf, path as BytesArray, index)).to
@@ -231,7 +194,7 @@ describe('Replica', async () => {
     const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
-    await replica.setCommittedRoot(testCase.expectedRoot);
+    await replica.setUpdate(testCase.expectedRoot, index);
 
     // Prove message, which changes status to MessageStatus.Pending
     await replica.prove(leaf, path as BytesArray, index);
@@ -253,7 +216,7 @@ describe('Replica', async () => {
     path[0] = path[1];
     path[1] = firstHash;
 
-    await replica.setCommittedRoot(testCase.expectedRoot);
+    await replica.setUpdate(testCase.expectedRoot, index);
 
     expect(await replica.callStatic.prove(leaf, path as BytesArray, index)).to
       .be.false;
@@ -449,7 +412,7 @@ describe('Replica', async () => {
       path as BytesArray,
       index,
     );
-    await replica.setCommittedRoot(proofRoot);
+    await replica.setUpdate(proofRoot, index);
 
     await replica.proveAndProcess(opticsMessage, path as BytesArray, index);
 
@@ -464,7 +427,7 @@ describe('Replica', async () => {
 
     // Use 1st proof of 1st merkle vector test case
     const testCase = merkleTestCases[0];
-    let { leaf, index, path } = testCase.proofs[0];
+    let { index, path } = testCase.proofs[0];
 
     // Create arbitrary message (contents not important)
     const opticsMessage = optics.formatMessage(
@@ -475,16 +438,6 @@ describe('Replica', async () => {
       recipient.address,
       '0x',
     );
-
-    // Ensure root given in proof and actual root don't match so that
-    // replica.prove(...) will fail
-    const actualRoot = await replica.committedRoot();
-    const proofRoot = await replica.testBranchRoot(
-      leaf,
-      path as BytesArray,
-      index,
-    );
-    expect(proofRoot).to.not.equal(actualRoot);
 
     await expect(
       replica.proveAndProcess(opticsMessage, path as BytesArray, index),

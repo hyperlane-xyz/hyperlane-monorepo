@@ -167,6 +167,19 @@
     "type": "function"
   },
   {
+    "inputs": [],
+    "name": "committedIndex",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [
       {
         "internalType": "bytes32",
@@ -212,12 +225,12 @@
       },
       {
         "internalType": "bytes32",
-        "name": "_updateRoot",
+        "name": "_committedRoot",
         "type": "bytes32"
       },
       {
         "internalType": "uint256",
-        "name": "_updateIndex",
+        "name": "_committedIndex",
         "type": "uint256"
       },
       {
@@ -229,19 +242,6 @@
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "latestUpdateIndex",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {

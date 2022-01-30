@@ -1,5 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { TokenIdentifier } from 'opticsmulti-provider/dist/optics';
+import { TokenIdentifier } from 'optics-multi-provider-community/src/optics';
 import { BytesLike, ethers } from 'ethers';
 import { BridgeMessageTypes } from './bridge';
 
@@ -81,8 +81,8 @@ export type BytesArray = [
 
 /********* OPTICS CORE *********/
 export type Update = {
-  oldRoot: string;
-  newRoot: string;
+  root: string;
+  index: ethers.BigNumber;
   signature: string;
 };
 

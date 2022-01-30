@@ -35,14 +35,14 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
 
     // ============ Public Storage Variables ============
 
-    // root => leaf index
-    mapping(bytes32 => uint256) public snapshots;
+    // Commitments of root => leaf index
+    mapping(bytes32 => uint256) public commitments;
     // domain => next available nonce for the domain
     mapping(uint32 => uint32) public nonces;
     // contract responsible for Updater bonding, slashing and rotation
     IUpdaterManager public updaterManager;
-    // The latest root that has been snapshotted
-    bytes32 public latestSnapshotRoot;
+    // The latest root that has been committed
+    bytes32 public committedRoot;
 
     // ============ Upgrade Gap ============
 
@@ -52,11 +52,11 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
     // ============ Events ============
 
     /**
-     * @notice Emitted when a root is snapshotted.
+     * @notice Emitted when a root is committed.
      * @param root Merkle root
      * @param index Leaf index
      */
-    event Snapshot(bytes32 indexed root, uint256 indexed index);
+    event Commit(bytes32 indexed root, uint256 indexed index);
 
     /**
      * @notice Emitted when a new message is dispatched via Optics
@@ -64,14 +64,14 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
      * @param leafIndex Index of message's leaf in merkle tree
      * @param destinationAndNonce Destination and destination-specific
      * nonce combined in single field ((destination << 32) & nonce)
-     * @param latestSnapshotRoot the latest root that has been snapshotted
+     * @param committedRoot the latest root that has been committed
      * @param message Raw bytes of message
      */
     event Dispatch(
         bytes32 indexed messageHash,
         uint256 indexed leafIndex,
         uint64 indexed destinationAndNonce,
-        bytes32 latestSnapshotRoot,
+        bytes32 committedRoot,
         bytes message
     );
 
@@ -182,41 +182,50 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
             _messageHash,
             count() - 1,
             _destinationAndNonce(_destinationDomain, _nonce),
-            latestSnapshotRoot,
+            committedRoot,
             _message
         );
     }
 
     /**
-     * @notice Snapshots the latest root on the Home contract.
-     * Updaters are expected to sign this snapshot so that the signature can be
+     * @notice Commits the latest root and index.
+     * Updaters are expected to sign this commitment so that it can be
      * relayed to the Replica contracts.
-     * @dev emits Snapshot event
+     * @dev emits Commit event
      */
-    function snapshot() external notFailed {
-        bytes32 root = root();
-        uint256 index = count() - 1;
-        snapshots[root] = index;
-        emit Snapshot(root, index);
+    function commit() external notFailed {
+        uint256 count = count();
+        require(count > 0, "!count");
+        uint256 index = count - 1;
+        bytes32 root = currentRoot();
+        committedRoot = root;
+        commitments[root] = index;
+        emit Commit(root, index);
     }
 
     /**
-     * @notice Suggest an update for the Updater to sign and submit.
-     * @dev If queue is empty, null bytes returned for both
-     * (No update is necessary because no messages have been dispatched since the last update)
-     * @return root Latest snapshotted root
-     * @return index Latest snapshotted index
+     * @notice Returns the latest commitment for the Updater to sign.
+     * @return root Latest committed root
+     * @return index Latest committed index
      */
-    function latestSnapshot()
+    function currentCommitment()
         external
         view
         returns (bytes32 root, uint256 index)
     {
-        root = latestSnapshotRoot;
-        index = snapshots[latestSnapshotRoot];
+        root = committedRoot;
+        index = commitments[committedRoot];
     }
 
     // ============ Public Functions  ============
+
+    function currentIndex() public view returns (uint256) {
+        return count() - 1;
+    }
+
+    function currentRoot() public view returns (bytes32) {
+        return root();
+    }
 
     /**
      * @notice Hash of Home domain concatenated with "OPTICS"
@@ -229,7 +238,7 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
      * @notice Check if an Update is an Improper Update;
      * if so, slash the Updater and set the contract to FAILED state.
      *
-     * An Improper Update is an update that was not previously snapshotted.
+     * An Improper Update is an update that was not previously committed.
      * @param _root Merkle root of the improper update
      * @param _index Index root of the improper update
      * @param _signature Updater signature on `_root` and `_index`
@@ -241,7 +250,7 @@ contract Home is Version0, MerkleTreeManager, Common, OwnableUpgradeable {
         bytes memory _signature
     ) public notFailed returns (bool) {
         require(_isUpdaterSignature(_root, _index, _signature), "!updater sig");
-        require(snapshots[_root] != _index, "!improper");
+        require(commitments[_root] != _index, "!improper");
         _fail();
         emit ImproperUpdate(_root, _index, _signature);
         return true;

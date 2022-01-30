@@ -38,8 +38,7 @@ describe('Home', async () => {
       optics.ethersAddressToBytes32(recipient.address),
       message,
     );
-    const [, latestRoot] = await home.suggestUpdate();
-    return latestRoot;
+    return home.currentRoot()
   };
 
   before(async () => {
@@ -162,111 +161,84 @@ describe('Home', async () => {
       );
   });
 
-  it('Suggests current root and latest root on suggestUpdate', async () => {
-    const committedRoot = await home.committedRoot();
+  it('Does not allow commitment to empty tree', async () => {
+    const [root, index] = await home.currentCommitment();
+    expect(root).to.equal(emptyAddress);
+    expect(index).to.equal(emptyAddress);
+
+    await expect(home.commit()).to.be.revertedWith('!count');
+  });
+
+
+  it('Updates root and index after commitment', async () => {
     const message = ethers.utils.formatBytes32String('message');
     await home.dispatch(
       destDomain,
       optics.ethersAddressToBytes32(recipient.address),
       message,
     );
-    const latestEnqueuedRoot = await home.queueEnd();
-    const [suggestedCommitted, suggestedNew] = await home.suggestUpdate();
-    expect(suggestedCommitted).to.equal(committedRoot);
-    expect(suggestedNew).to.equal(latestEnqueuedRoot);
+    const currentRoot = await home.currentRoot()
+    const currentIndex = await home.currentIndex()
+    await home.commit()
+
+    const [root, index] = await home.currentCommitment();
+    expect(root).to.equal(currentRoot);
+    expect(index).to.equal(currentIndex);
   });
 
-  it('Suggests empty update values when queue is empty', async () => {
-    const length = await home.queueLength();
-    expect(length).to.equal(0);
+  it('Batch commits several messages', async () => {
+    await dispatchMessageAndGetRoot('message1');
+    await dispatchMessageAndGetRoot('message2');
+    const currentRoot = await dispatchMessageAndGetRoot('message3');
 
-    const [suggestedCommitted, suggestedNew] = await home.suggestUpdate();
-    expect(suggestedCommitted).to.equal(emptyAddress);
-    expect(suggestedNew).to.equal(emptyAddress);
+    await expect(home.commit()).to.emit(home, 'Commit').withArgs(currentRoot, 2);
+    const [committedRoot, committedIndex] = await home.currentCommitment();
+    expect(committedRoot).to.equal(currentRoot);
+    expect(committedIndex).to.equal(2);
   });
 
-  it('Accepts a valid update', async () => {
-    const committedRoot = await home.committedRoot();
-    const newRoot = await dispatchMessageAndGetRoot('message');
-    const { signature } = await updater.signUpdate(committedRoot, newRoot);
+  // This may not fail because currentIndex may be zero
+  it('Fails on valid improper update', async () => {
+    const root = ethers.utils.formatBytes32String('root');
+    const index = ethers.BigNumber.from(1)
+    const { signature } = await updater.signUpdate(root, index);
 
-    await expect(home.update(committedRoot, newRoot, signature))
-      .to.emit(home, 'Update')
-      .withArgs(localDomain, committedRoot, newRoot, signature);
-    expect(await home.committedRoot()).to.equal(newRoot);
-    expect(await home.queueContains(newRoot)).to.be.false;
-  });
-
-  it('Batch-accepts several updates', async () => {
-    const committedRoot = await home.committedRoot();
-    const newRoot1 = await dispatchMessageAndGetRoot('message1');
-    const newRoot2 = await dispatchMessageAndGetRoot('message2');
-    const newRoot3 = await dispatchMessageAndGetRoot('message3');
-    const { signature } = await updater.signUpdate(committedRoot, newRoot3);
-
-    await expect(home.update(committedRoot, newRoot3, signature))
-      .to.emit(home, 'Update')
-      .withArgs(localDomain, committedRoot, newRoot3, signature);
-    expect(await home.committedRoot()).to.equal(newRoot3);
-    expect(await home.queueContains(newRoot1)).to.be.false;
-    expect(await home.queueContains(newRoot2)).to.be.false;
-    expect(await home.queueContains(newRoot3)).to.be.false;
-  });
-
-  it('Rejects update that does not build off of current root', async () => {
-    // First root is committedRoot
-    const secondRoot = await dispatchMessageAndGetRoot('message');
-    const thirdRoot = await dispatchMessageAndGetRoot('message2');
-
-    // Try to submit update that skips the current (first) root
-    const { signature } = await updater.signUpdate(secondRoot, thirdRoot);
     await expect(
-      home.update(secondRoot, thirdRoot, signature),
-    ).to.be.revertedWith('not a current update');
-  });
-
-  it('Rejects update that does not exist in queue', async () => {
-    const committedRoot = await home.committedRoot();
-    const fakeNewRoot = ethers.utils.formatBytes32String('fake root');
-    const { signature } = await updater.signUpdate(committedRoot, fakeNewRoot);
-
-    await expect(home.update(committedRoot, fakeNewRoot, signature)).to.emit(
-      home,
-      'ImproperUpdate',
-    );
+      home.improperUpdate(root, index, signature)
+    ).to.emit(home, 'ImproperUpdate');
     expect(await home.state()).to.equal(OpticsState.FAILED);
   });
 
-  it('Rejects update from non-updater address', async () => {
-    const committedRoot = await home.committedRoot();
-    const newRoot = await dispatchMessageAndGetRoot('message');
-    const { signature: fakeSignature } = await fakeUpdater.signUpdate(
-      committedRoot,
-      newRoot,
-    );
+  it('Does not fail on improper update signed by non-updater', async () => {
+    const root = ethers.utils.formatBytes32String('root');
+    const index = ethers.BigNumber.from(1)
+    const { signature } = await fakeUpdater.signUpdate(root, index);
+
     await expect(
-      home.update(committedRoot, newRoot, fakeSignature),
+      home.improperUpdate(root, index, signature)
     ).to.be.revertedWith('!updater sig');
   });
 
-  it('Fails on valid double update proof', async () => {
-    const firstRoot = await home.committedRoot();
-    const secondRoot = await dispatchMessageAndGetRoot('message');
-    const thirdRoot = await dispatchMessageAndGetRoot('message2');
-    const { signature } = await updater.signUpdate(firstRoot, secondRoot);
-    const { signature: signature2 } = await updater.signUpdate(
-      firstRoot,
-      thirdRoot,
-    );
+  it('Does not fail on improper updates with zero index', async () => {
+    const root = ethers.utils.formatBytes32String('root');
+    const index = ethers.BigNumber.from(0)
+    const { signature } = await updater.signUpdate(root, index);
+
     await expect(
-      home.doubleUpdate(
-        firstRoot,
-        [secondRoot, thirdRoot],
-        signature,
-        signature2,
-      ),
-    ).to.emit(home, 'DoubleUpdate');
-    expect(await home.state()).to.equal(OpticsState.FAILED);
+      home.improperUpdate(root, index, signature)
+    ).to.be.revertedWith('!improper');
+  })
+
+  it('Does not fail on valid updates', async () => {
+    await dispatchMessageAndGetRoot('message');
+    await dispatchMessageAndGetRoot('message2');
+    await home.commit();
+    const [root, index ] = await home.currentCommitment()
+    const { signature } = await updater.signUpdate(root, index);
+
+    await expect(
+      home.improperUpdate(root, index, signature)
+    ).to.be.revertedWith('!improper');
   });
 
   it('Correctly calculates destinationAndNonce', async () => {

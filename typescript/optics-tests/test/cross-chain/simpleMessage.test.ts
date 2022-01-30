@@ -49,29 +49,25 @@ describe('SimpleCrossChainMessage', async () => {
     // governorHome has 1 updates
     const governorHome = deploys[0].contracts.home?.proxy!;
 
-    let length = await governorHome.queueLength();
-    expect(length).to.equal(1);
-
-    let [suggestedCommitted, suggestedNew] = await governorHome.suggestUpdate();
-    expect(suggestedCommitted).to.equal(nullRoot);
-    expect(suggestedNew).to.not.equal(nullRoot);
+    let root = await governorHome.currentRoot();
+    let index = await governorHome.currentIndex();
+    expect(root).to.not.equal(nullRoot);
+    expect(index).to.equal(0);
 
     // nonGovernorHome has 2 updates
     const nonGovernorHome = deploys[1].contracts.home?.proxy!;
 
-    length = await nonGovernorHome.queueLength();
-    expect(length).to.equal(2);
-
-    [suggestedCommitted, suggestedNew] = await nonGovernorHome.suggestUpdate();
-    expect(suggestedCommitted).to.equal(nullRoot);
-    expect(suggestedNew).to.not.equal(nullRoot);
+    root = await nonGovernorHome.currentRoot();
+    index = await nonGovernorHome.currentIndex();
+    expect(root).to.not.equal(nullRoot);
+    expect(index).to.equal(1);
   });
 
   it('Origin Home Accepts one valid update', async () => {
     const messages = ['message'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    const update = await utils.dispatchMessagesAndUpdateHome(
+    const update = await utils.dispatchMessagesAndCommit(
       deploys[0].contracts.home?.proxy!,
       messages,
       updater,
@@ -91,7 +87,7 @@ describe('SimpleCrossChainMessage', async () => {
     const messages = ['message1', 'message2', 'message3'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    const update = await utils.dispatchMessagesAndUpdateHome(
+    const update = await utils.dispatchMessagesAndCommit(
       deploys[0].contracts.home?.proxy!,
       messages,
       updater,
@@ -106,10 +102,11 @@ describe('SimpleCrossChainMessage', async () => {
     );
   });
 
-  it('Destination Replica shows latest update as the committed root', async () => {
+  it('Destination Replica shows latest update committed', async () => {
     const replica = deploys[1].contracts.replicas[localDomain].proxy;
-    const { newRoot } = latestUpdate;
-    expect(await replica.committedRoot()).to.equal(newRoot);
+    const { root, index } = latestUpdate;
+    expect(await replica.committedIndex()).to.equal(index);
+    expect(await replica.confirmAt(root)).to.not.equal(0);
   });
 
   it('Proves and processes a message on Replica', async () => {
@@ -152,7 +149,7 @@ describe('SimpleCrossChainMessage', async () => {
       path as BytesArray,
       index,
     );
-    await replica.setCommittedRoot(proofRoot);
+    await replica.setUpdate(proofRoot, index);
 
     // prove and process message
     await replica.proveAndProcess(opticsMessage, path as BytesArray, index);

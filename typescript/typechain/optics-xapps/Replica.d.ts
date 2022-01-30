@@ -25,10 +25,10 @@ interface ReplicaInterface extends ethers.utils.Interface {
     "RESERVE_GAS()": FunctionFragment;
     "VERSION()": FunctionFragment;
     "acceptableRoot(bytes32)": FunctionFragment;
+    "committedIndex()": FunctionFragment;
     "confirmAt(bytes32)": FunctionFragment;
     "homeDomainHash()": FunctionFragment;
     "initialize(uint32,address,bytes32,uint256,uint256)": FunctionFragment;
-    "latestUpdateIndex()": FunctionFragment;
     "localDomain()": FunctionFragment;
     "messages(bytes32)": FunctionFragment;
     "optimisticSeconds()": FunctionFragment;
@@ -58,6 +58,10 @@ interface ReplicaInterface extends ethers.utils.Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
+    functionFragment: "committedIndex",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
     functionFragment: "confirmAt",
     values: [BytesLike]
   ): string;
@@ -68,10 +72,6 @@ interface ReplicaInterface extends ethers.utils.Interface {
   encodeFunctionData(
     functionFragment: "initialize",
     values: [BigNumberish, string, BytesLike, BigNumberish, BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "latestUpdateIndex",
-    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "localDomain",
@@ -195,16 +195,16 @@ interface ReplicaInterface extends ethers.utils.Interface {
     functionFragment: "acceptableRoot",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(
+    functionFragment: "committedIndex",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "confirmAt", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "homeDomainHash",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "latestUpdateIndex",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
@@ -302,6 +302,8 @@ export class Replica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[boolean]>;
 
+    committedIndex(overrides?: CallOverrides): Promise<[BigNumber]>;
+
     confirmAt(arg0: BytesLike, overrides?: CallOverrides): Promise<[BigNumber]>;
 
     homeDomainHash(overrides?: CallOverrides): Promise<[string]>;
@@ -309,13 +311,11 @@ export class Replica extends BaseContract {
     initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
-      _updateRoot: BytesLike,
-      _updateIndex: BigNumberish,
+      _committedRoot: BytesLike,
+      _committedIndex: BigNumberish,
       _optimisticSeconds: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
-
-    latestUpdateIndex(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
@@ -442,6 +442,8 @@ export class Replica extends BaseContract {
 
   acceptableRoot(_root: BytesLike, overrides?: CallOverrides): Promise<boolean>;
 
+  committedIndex(overrides?: CallOverrides): Promise<BigNumber>;
+
   confirmAt(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
   homeDomainHash(overrides?: CallOverrides): Promise<string>;
@@ -449,13 +451,11 @@ export class Replica extends BaseContract {
   initialize(
     _remoteDomain: BigNumberish,
     _updater: string,
-    _updateRoot: BytesLike,
-    _updateIndex: BigNumberish,
+    _committedRoot: BytesLike,
+    _committedIndex: BigNumberish,
     _optimisticSeconds: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
-
-  latestUpdateIndex(overrides?: CallOverrides): Promise<BigNumber>;
 
   localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -585,6 +585,8 @@ export class Replica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<boolean>;
 
+    committedIndex(overrides?: CallOverrides): Promise<BigNumber>;
+
     confirmAt(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
     homeDomainHash(overrides?: CallOverrides): Promise<string>;
@@ -592,13 +594,11 @@ export class Replica extends BaseContract {
     initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
-      _updateRoot: BytesLike,
-      _updateIndex: BigNumberish,
+      _committedRoot: BytesLike,
+      _committedIndex: BigNumberish,
       _optimisticSeconds: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
-
-    latestUpdateIndex(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -754,6 +754,8 @@ export class Replica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
+    committedIndex(overrides?: CallOverrides): Promise<BigNumber>;
+
     confirmAt(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
     homeDomainHash(overrides?: CallOverrides): Promise<BigNumber>;
@@ -761,13 +763,11 @@ export class Replica extends BaseContract {
     initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
-      _updateRoot: BytesLike,
-      _updateIndex: BigNumberish,
+      _committedRoot: BytesLike,
+      _committedIndex: BigNumberish,
       _optimisticSeconds: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
-
-    latestUpdateIndex(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -898,6 +898,8 @@ export class Replica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
+    committedIndex(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
     confirmAt(
       arg0: BytesLike,
       overrides?: CallOverrides
@@ -908,13 +910,11 @@ export class Replica extends BaseContract {
     initialize(
       _remoteDomain: BigNumberish,
       _updater: string,
-      _updateRoot: BytesLike,
-      _updateIndex: BigNumberish,
+      _committedRoot: BytesLike,
+      _committedIndex: BigNumberish,
       _optimisticSeconds: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
-
-    latestUpdateIndex(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 

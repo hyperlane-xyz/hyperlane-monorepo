@@ -35,18 +35,21 @@ export class Updater {
     return domainHash(this.localDomain);
   }
 
-  message(oldRoot: types.HexString, newRoot: types.HexString) {
-    return ethers.utils.concat([this.domainHash(), oldRoot, newRoot]);
+  message(root: types.HexString, index: ethers.BigNumber) {
+    return ethers.utils.solidityPack(
+      ['bytes32', 'bytes32', 'uint256'],
+      [this.domainHash(), root, index]
+    );
   }
 
-  async signUpdate(oldRoot: types.HexString, newRoot: types.HexString) {
-    let message = this.message(oldRoot, newRoot);
+  async signUpdate(root: types.HexString, index: ethers.BigNumber) {
+    let message = this.message(root, index);
     let msgHash = ethers.utils.arrayify(ethers.utils.keccak256(message));
     let signature = await this.signer.signMessage(msgHash);
     return {
       origin: this.localDomain,
-      oldRoot,
-      newRoot,
+      root,
+      index,
       signature,
     };
   }

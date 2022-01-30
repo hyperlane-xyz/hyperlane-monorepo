@@ -43,9 +43,7 @@ export async function dispatchMessage(
     ethers.utils.formatBytes32String(message),
   );
 
-  const [, newRoot] = await home.suggestUpdate();
-
-  return newRoot;
+  return home.currentRoot();
 }
 
 /*
@@ -58,51 +56,29 @@ export async function dispatchMessage(
  *
  * @return update - Update type
  */
-export async function dispatchMessagesAndUpdateHome(
+export async function dispatchMessagesAndCommit(
   home: Home,
   messages: MessageDetails[],
   updater: Updater,
 ): Promise<Update> {
-  const homeDomain = await home.localDomain();
-
-  const oldRoot = await home.committedRoot();
-
-  // dispatch each message from Home and get the intermediate root
-  const roots = [];
+  // dispatch each message from Home
   for (let message of messages) {
-    const newRoot = await dispatchMessage(home, message);
-
-    roots.push(newRoot);
+    await dispatchMessage(home, message);
   }
 
-  // ensure that Home queue contains
-  // all of the roots we just enqueued
-  for (let root of roots) {
-    expect(await home.queueContains(root)).to.be.true;
-  }
+  const root = await home.currentRoot();
+  const index = await home.currentIndex();
+  await expect(home.commit()).to.emit(home, 'Commit').withArgs(root, index);
 
-  // sign & submit an update from oldRoot to newRoot
-  const newRoot = roots[roots.length - 1];
+  // ensure that Home committed root
+  expect(await home.committedRoot()).to.equal(root);
 
-  const { signature } = await updater.signUpdate(oldRoot, newRoot);
-
-  await expect(home.update(oldRoot, newRoot, signature))
-    .to.emit(home, 'Update')
-    .withArgs(homeDomain, oldRoot, newRoot, signature);
-
-  // ensure that Home root is now newRoot
-  expect(await home.committedRoot()).to.equal(newRoot);
-
-  // ensure that Home queue no longer contains
-  // any of the roots we just enqueued -
-  // they should be removed from queue when update is submitted
-  for (let root of roots) {
-    expect(await home.queueContains(root)).to.be.false;
-  }
+  // sign the new commitment
+  const { signature } = await updater.signUpdate(root, index);
 
   return {
-    oldRoot,
-    newRoot,
+    root,
+    index,
     signature,
   };
 }
@@ -118,19 +94,19 @@ export async function dispatchMessagesAndUpdateHome(
  * @return finalRoot - updated state root submitted to the Replica
  */
 export async function updateReplica(
-  latestUpdateOnOriginChain: Update,
+  update: Update,
   replica: Replica,
 ): Promise<string> {
   const homeDomain = await replica.remoteDomain();
-  const { oldRoot, newRoot, signature } = latestUpdateOnOriginChain;
+  const { root, index, signature } = update;
 
-  await expect(replica.update(oldRoot, newRoot, signature))
+  await expect(replica.update(root, index, signature))
     .to.emit(replica, 'Update')
-    .withArgs(homeDomain, oldRoot, newRoot, signature);
+    .withArgs(homeDomain, root, index, signature);
 
-  expect(await replica.committedRoot()).to.equal(newRoot);
+  expect(await replica.committedIndex()).to.equal(index);
 
-  return newRoot;
+  return root;
 }
 
 /*

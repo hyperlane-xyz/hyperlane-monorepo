@@ -13,11 +13,17 @@ contract MockCore is MerkleTreeManager {
 
     uint256 public constant MAX_MESSAGE_BODY_BYTES = 2 * 2**10;
 
+    event Enqueue(
+        uint32 indexed _destination,
+        bytes32 indexed _recipient,
+        bytes _body
+    );
+
     event Dispatch(
         bytes32 indexed messageHash,
         uint256 indexed leafIndex,
         uint64 indexed destinationAndNonce,
-        bytes32 latestSnapshotRoot,
+        bytes32 committedRoot,
         bytes message
     );
 
@@ -62,6 +68,7 @@ contract MockCore is MerkleTreeManager {
             bytes32(0),
             _message
         );
+        emit Enqueue(_destinationDomain, _recipientAddress, _messageBody);
     }
 
     function isReplica(address) public pure returns (bool) {

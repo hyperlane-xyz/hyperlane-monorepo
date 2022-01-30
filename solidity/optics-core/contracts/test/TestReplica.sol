@@ -28,7 +28,7 @@ contract TestReplica is Replica {
     }
 
     function setUpdate(bytes32 _newRoot, uint256 _index) external {
-        latestUpdateIndex = _index;
+        committedIndex = _index;
         confirmAt[_newRoot] = 1;
     }
 

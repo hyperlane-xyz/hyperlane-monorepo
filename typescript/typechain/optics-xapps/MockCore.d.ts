@@ -72,9 +72,11 @@ interface MockCoreInterface extends ethers.utils.Interface {
 
   events: {
     "Dispatch(bytes32,uint256,uint64,bytes32,bytes)": EventFragment;
+    "Enqueue(uint32,bytes32,bytes)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "Dispatch"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Enqueue"): EventFragment;
 }
 
 export class MockCore extends BaseContract {
@@ -200,7 +202,7 @@ export class MockCore extends BaseContract {
       messageHash?: BytesLike | null,
       leafIndex?: BigNumberish | null,
       destinationAndNonce?: BigNumberish | null,
-      latestSnapshotRoot?: null,
+      committedRoot?: null,
       message?: null
     ): TypedEventFilter<
       [string, BigNumber, BigNumber, string, string],
@@ -208,9 +210,18 @@ export class MockCore extends BaseContract {
         messageHash: string;
         leafIndex: BigNumber;
         destinationAndNonce: BigNumber;
-        latestSnapshotRoot: string;
+        committedRoot: string;
         message: string;
       }
+    >;
+
+    Enqueue(
+      _destination?: BigNumberish | null,
+      _recipient?: BytesLike | null,
+      _body?: null
+    ): TypedEventFilter<
+      [number, string, string],
+      { _destination: number; _recipient: string; _body: string }
     >;
   };
 
