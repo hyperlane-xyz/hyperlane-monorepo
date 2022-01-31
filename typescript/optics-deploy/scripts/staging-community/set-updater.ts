@@ -10,7 +10,7 @@ const deploys = makeCoreDeploys(
   configPath,
   networks,
   (_) => _.chain,
-  (_) => _.stagingConfig,
+  (_) => _.stagingCommunityConfig,
 );
 
 async function main() {
@@ -22,14 +22,14 @@ async function main() {
 
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
-  checker.expectViolations([ViolationType.ReplicaUpdater, ViolationType.HomeUpdater ], [4, 1])
+  checker.expectViolations([ViolationType.ReplicaUpdater, ViolationType.HomeUpdater ], [3, 1])
   const builder = new GovernanceCallBatchBuilder(deploys, stagingCommunity, checker.violations);
   const batch = await builder.build()
 
   await batch.build()
   const domains = deploys.map((deploy) => deploy.chain.domain)
   // For each domain, expect one call to set the updater.
-  expectCalls(batch, domains, new Array(5).fill(1))
+  expectCalls(batch, domains, new Array(4).fill(1))
   // Change to `batch.execute` in order to run.
   const receipts = await batch.execute()
   console.log(receipts)
