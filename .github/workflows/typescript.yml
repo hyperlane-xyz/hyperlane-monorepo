@@ -13,9 +13,15 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
-    uses: actions/checkout@v2
 
     steps:
+      - uses: actions/checkout@v2
+      # Lint
+      - name: ls
+        run: |
+          cd .github/workflows/
+          ls
+
       # Lint
       - name: Prettier
         run: |
