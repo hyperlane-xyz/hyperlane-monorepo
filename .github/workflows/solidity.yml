@@ -22,7 +22,7 @@ jobs:
 
   solidity-lint:
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [solidity-install]
     steps:
       - uses: actions/checkout@v2
       - name: npm install
@@ -42,7 +42,7 @@ jobs:
       ETHERSCAN_API_KEY: ""
 
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [solidity-install]
 
     steps:
       - uses: actions/checkout@v2
