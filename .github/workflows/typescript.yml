@@ -13,14 +13,11 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    uses: ./.github/workflows/node
+    with:
+      runneros: abcdefg
 
     steps:
-      - uses: actions/checkout@v2
-
-      - name: Node
-        uses: ./.github/workflows/node
-        with:
-          runneros: abcdefg
       # Lint
       - name: ls
         run: |
