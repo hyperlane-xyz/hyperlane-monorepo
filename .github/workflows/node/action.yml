@@ -3,10 +3,9 @@ name: Node
 on:
   # Allows other workflows to call this one
   workflow_call:
-    inputs:
+    secrets:
       runneros:
         required: true
-        type: string
 
 
 jobs:
@@ -16,4 +15,4 @@ jobs:
     steps:
       # Print inputs
       - name: Print inputs
-        run: echo ${{ inputs.runneros }}
+        run: echo ${{ secrets.runneros }}
