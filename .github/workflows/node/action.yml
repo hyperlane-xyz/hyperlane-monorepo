@@ -15,9 +15,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: inputs
-        run: |
-          echo ${{inputs}}
+        with:
+          runneros: ${{ inputs.runneros }}
 
       # Get caches
       - name: Core Cache
