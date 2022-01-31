@@ -25,13 +25,7 @@ jobs:
     needs: [checkout]
     steps:
       # Lint
-      - name: ls
-        run: |
-          cd .github/workflows/
-          ls
-
-      # Lint
-      - name: Prettier
+      - name: Prettierr
         run: |
           cd ./typescript/contracts-metrics
           npm run prettier
