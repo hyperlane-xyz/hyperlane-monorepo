@@ -43,7 +43,7 @@ async function main() {
   // calls to transfer replica ownership.
   expectCalls(batch, domains, new Array(4).fill(4))
   // Change to `batch.execute` in order to run.
-  const receipts = await batch.estimateGas()
+  const receipts = await batch.execute()
   console.log(receipts)
 }
 main().then(console.log).catch(console.error)

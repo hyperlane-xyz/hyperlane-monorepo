@@ -31,7 +31,7 @@ async function main() {
   // For each domain, expect one call to set the updater.
   expectCalls(batch, domains, new Array(5).fill(1))
   // Change to `batch.execute` in order to run.
-  const receipts = await batch.estimateGas()
+  const receipts = await batch.execute()
   console.log(receipts)
 }
 main().then(console.log).catch(console.error)
