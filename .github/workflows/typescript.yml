@@ -13,7 +13,7 @@ on:
 jobs:
   node:
     runs-on: ubuntu-latest
-    uses: ./.github/workflows/node/action.yml
+    uses: .github/workflows/node/action.yml
     secrets:
       runneros: ${{ runner.os }}
 
