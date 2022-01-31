@@ -20,15 +20,20 @@ jobs:
         with:
           runneros: ${{ runner.os }}
 
-      # Lint
-      - name: Print stuff
-        shell: bash
+      - name: build
         run: |
-          ls
+          cd ./typescript/contract-metrics
+          npm run build
+          cd ../optics-deploy
+          npm run build
+          cd ../optics-provider
+          npm run build
+          cd ../ts-interface
+          npm run build
 
-      - name: Prettierr
+      - name: prettier
         run: |
-          cd ./typescript/contracts-metrics
+          cd ./typescript/contract-metrics
           npm run prettier
           cd ../optics-deploy
           npm run prettier
