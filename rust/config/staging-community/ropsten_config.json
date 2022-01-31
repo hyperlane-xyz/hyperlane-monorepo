@@ -1,9 +1,5 @@
 {
   "environment": "staging-community",
-  "index": {
-    "from": "9000000",
-    "chunk": "2000"
-  },
   "signers": {
     "ropsten": {
       "key": "",

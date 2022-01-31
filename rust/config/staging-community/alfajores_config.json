@@ -1,9 +1,5 @@
 {
   "environment": "staging-community",
-  "index": {
-    "from": "7712249",
-    "chunk": "2000"
-  },
   "signers": {
     "alfajores": {
       "key": "",
