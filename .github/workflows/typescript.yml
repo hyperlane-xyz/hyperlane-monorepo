@@ -20,7 +20,7 @@ jobs:
       - name: Node
         uses: ./.github/workflows/node
         with:
-          runneros: ${{ runner.os }}
+          runneros: abcdefg
       # Lint
       - name: ls
         run: |
