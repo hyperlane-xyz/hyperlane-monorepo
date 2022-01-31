@@ -11,8 +11,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  node:
-
   lint:
     runs-on: ubuntu-latest
     steps:
