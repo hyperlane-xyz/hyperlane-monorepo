@@ -53,7 +53,11 @@ export async function deployProxy<T extends ethers.Contract>(
   // we cast here because Factories don't have associated types
   // this is unsafe if the specified typevar doesn't match the factory output
   // :(
-  const implementation = await _deployImplementation(deploy, factory, deployArgs);
+  const implementation = await _deployImplementation(
+    deploy,
+    factory,
+    deployArgs,
+  );
   const beacon = await _deployBeacon(deploy, implementation);
   const proxy = await _deployProxy(deploy, beacon, initData);
 
@@ -78,9 +82,6 @@ export async function deployProxy<T extends ethers.Contract>(
   // add Proxy to Etherscan verification
   deploy.verificationInput.push({
     name: `${name} Proxy`,
-    // Is this somehow being copied by reference? Seeing behavior where the first
-    // Replica Proxy verification input element has the same address as the
-    // last.
     address: proxy!.address,
     constructorArguments: [beacon!.address, initData],
     isProxy: true,
@@ -135,7 +136,11 @@ export async function deployImplementation<T extends ethers.Contract>(
   factory: ethers.ContractFactory,
   ...deployArgs: any[]
 ): Promise<T> {
-  const implementation = await _deployImplementation(deploy, factory, deployArgs)
+  const implementation = await _deployImplementation(
+    deploy,
+    factory,
+    deployArgs,
+  );
   await implementation.deployTransaction.wait(deploy.chain.confirmations);
 
   // add Implementation to Etherscan verification
@@ -156,9 +161,12 @@ export function overrideBeaconProxyImplementation<T extends ethers.Contract>(
   implementation: T,
   deploy: CoreDeploy,
   factory: ethers.ContractFactory,
-  beaconProxy: BeaconProxy<T>
+  beaconProxy: BeaconProxy<T>,
 ): BeaconProxy<T> {
-  const beacon = contracts.UpgradeBeacon__factory.connect(beaconProxy.beacon.address, deploy.provider);
+  const beacon = contracts.UpgradeBeacon__factory.connect(
+    beaconProxy.beacon.address,
+    deploy.provider,
+  );
   return new BeaconProxy(
     implementation as T,
     factory.attach(beaconProxy.proxy.address) as T,
@@ -179,10 +187,10 @@ export function overrideBeaconProxyImplementation<T extends ethers.Contract>(
 async function _deployImplementation<T extends ethers.Contract>(
   deploy: Deploy<any>,
   factory: ethers.ContractFactory,
-  deployArgs: any[]
+  deployArgs: any[],
 ): Promise<T> {
   const implementation = await factory.deploy(...deployArgs, deploy.overrides);
-  return implementation as T
+  return implementation as T;
 }
 
 /**
