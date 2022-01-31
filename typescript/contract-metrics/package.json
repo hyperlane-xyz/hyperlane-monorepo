@@ -7,7 +7,7 @@
     "gas": "ts-node src/gas.ts",
     "build": "rm tsconfig.tsbuildinfo & tsc",
     "check": "rm tsconfig.tsbuildinfo & tsc --noEmit",
-    "prettier": "prettier --write ./src",
+    "prettier": "prettier --write .",
     "relink": "cd ../optics-provider && npm run build && cd ../contract-metrics && npm link optics-multi-provider-community"
   },
   "dependencies": {
