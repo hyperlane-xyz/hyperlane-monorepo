@@ -1,0 +1,19 @@
+name: Node
+
+on:
+  # Allows other workflows to call this one
+  workflow_call:
+    secrets:
+      runneros:
+        required: true
+
+
+jobs:
+  inputs:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+      # Print inputs
+      - name: Print inputs
+        run: echo ${{ secrets.runneros }}
