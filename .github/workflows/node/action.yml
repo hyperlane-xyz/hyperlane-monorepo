@@ -9,6 +9,7 @@ runs:
   steps:
     # Print inputs
     - name: Print inputs
+      shell: bash
       run: |
         ls
         echo ${{ inputs.runneros }}
