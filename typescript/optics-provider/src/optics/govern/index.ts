@@ -65,7 +65,7 @@ export class CallBatch {
     const receipts = []
     for (const tx of transactions) {
       const response = await signer.sendTransaction(tx)
-      receipts.push(await response.wait())
+      receipts.push(await response.wait(5))
     }
     return receipts
   }
