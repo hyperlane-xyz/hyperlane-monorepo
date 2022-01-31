@@ -18,7 +18,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v2
       - name: Node
-        uses: .github/workflows/node.yml
+        uses: ./.github/workflows/node.yml
       # Lint
       - name: Prettier
         run: |
