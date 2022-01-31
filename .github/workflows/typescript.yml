@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: node
-        uses: bridge-buddies/optics-monorepo/.github/workflows/node.yml
+        uses: ./.github/workflows/node.yml
         with:
           runneros: abcdefg
 
