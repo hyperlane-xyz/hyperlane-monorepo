@@ -13,7 +13,7 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build:
+  rust-build:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,7 +28,7 @@ jobs:
       - name: Build
         run: cd rust && cargo build --verbose
 
-  test:
+  rust-test:
     runs-on: ubuntu-latest
 
     steps:
@@ -43,7 +43,7 @@ jobs:
       - name: Run tests
         run: cd rust && cargo test --verbose
 
-  lint:
+  rust-lint:
     runs-on: ubuntu-latest
 
     steps:
