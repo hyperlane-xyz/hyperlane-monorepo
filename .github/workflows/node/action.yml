@@ -57,6 +57,13 @@ runs:
         path: ./typescript/optics-provider/node_modules
         key: ${{ inputs.runneros }}-provider-cache-${{ hashFiles('typescript/optics-provider/package-lock.json') }}
 
+    - name: Metrics Cache
+      id: metrics-cache
+      uses: actions/cache@v2
+      with:
+        path: ./typescript/contract-metrics/node_modules
+        key: ${{ inputs.runneros }}-metrics-cache-${{ hashFiles('typescript/contract-metrics/package-lock.json') }}
+
     # Install separately depending on cache hit
     - name: Install Core
       shell: bash
@@ -87,3 +94,8 @@ runs:
       shell: bash
       if: steps.provider-cache.outputs.cache-hit != 'true'
       run: cd ./typescript/optics-provider && npm i
+
+    - name: Install Metrics
+      shell: bash
+      if: steps.metrics-cache.outputs.cache-hit != 'true'
+      run: cd ./typescript/contract-metrics && npm i

@@ -11,6 +11,15 @@ on:
   workflow_dispatch:
 
 jobs:
+  install:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: node
+        uses: ./.github/workflows/node
+        with:
+          runneros: ${{ runner.os }}
+
   lint:
     runs-on: ubuntu-latest
     steps:
@@ -26,7 +35,7 @@ jobs:
           npm run build
           cd ../optics-provider
           npm run build
-          cd ../ts-interface
+          cd ../typechain
           npm run build
 
       - name: prettier
@@ -37,5 +46,5 @@ jobs:
           npm run prettier
           cd ../optics-tests
           npm run prettier
-          cd ../ts-interface
+          cd ../typechain
           npm run prettier
