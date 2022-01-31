@@ -19,4 +19,4 @@ jobs:
           runneros: ${{ runneros }}
       # Print inputs
       - name: Print inputs
-        run: echo ${{ github.event.inputs.varname }}
+        run: echo ${{ github.event.inputs.runneros }}
