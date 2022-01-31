@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
+  solidity-lint:
     runs-on: ubuntu-latest
     uses: actions/checkout@v2
 
