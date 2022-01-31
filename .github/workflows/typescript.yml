@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - name: node
-        uses: ./.github/workflows/node
+        uses: .github/workflows/node
         with:
           runneros: test 
   lint:
