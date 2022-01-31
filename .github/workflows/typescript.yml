@@ -11,12 +11,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  lint:
+  node:
     runs-on: ubuntu-latest
     uses: ./.github/workflows/node.yml
     with:
       runneros: abcdefg
 
+  lint:
     steps:
       # Lint
       - name: ls
