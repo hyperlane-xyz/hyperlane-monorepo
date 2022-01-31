@@ -20,7 +20,7 @@ jobs:
 
   ts-lint:
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [ts-install]
 
     steps:
       - uses: actions/checkout@v2
@@ -42,7 +42,7 @@ jobs:
 
   ts-build:
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [ts-install]
 
     steps:
       - name: Checkout
