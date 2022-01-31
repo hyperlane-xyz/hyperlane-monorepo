@@ -17,6 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
+      - name: Node
+        uses: .github/workflows/node.yml
+
       # Lint
       - name: Prettier
         run: |
@@ -36,11 +39,7 @@ jobs:
     needs: [lint]
 
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
-
-      - name: Cache
-        uses: .github/workflows/node-cache.yml
+      - uses: actions/checkout@v2
 
       - name: contracts-metrics
         run: cd ./typescript/contracts-metrics && npm run build
