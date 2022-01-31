@@ -10,13 +10,17 @@ on:
   workflow_call:
 
 jobs:
+  checkout:
+    runs-on: ubuntu-latest
+    uses: actions/checkout@v2
+  cache:
+    runs-on: ubuntu-latest
+    needs: [checkout]
+    uses: .github/workflows/node-cache.yml
   install:
     runs-on: ubuntu-latest
-
+    needs: [cache]
     steps:
-      - uses: actions/checkout@v2
-      - uses: ./.github/workflows/node-cache.yml
-
       # Install separately depending on cache hit
       - name: Install Core
         if: steps.core-cache.outputs.cache-hit != 'true'
