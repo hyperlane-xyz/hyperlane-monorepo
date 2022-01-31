@@ -126,7 +126,7 @@ impl Replica {
                                 replica_domain,
                                 nonce = next_message_nonce,
                                 replica = self.replica.name(),
-                                "Failed to find message_by_nonce or proof_by_leaf_index. Processor retrying message. Replica: {}. Nonce: {}. Domain: {}.",
+                                "Trying message failed, retrying. Replica: {}. Nonce: {}. Domain: {}.",
                                 self.replica.name(),
                                 next_message_nonce,
                                 replica_domain,
