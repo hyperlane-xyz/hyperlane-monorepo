@@ -301,13 +301,15 @@ export async function relinquish(deploy: CoreDeploy) {
     `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
 
-  Object.entries(deploy.contracts.replicas).forEach(async ([domain, replica]) => {
-    await replica.proxy.transferOwnership(govRouter, deploy.overrides);
-    log(
-      isTestDeploy,
-      `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
-    );
-  });
+  Object.entries(deploy.contracts.replicas).forEach(
+    async ([domain, replica]) => {
+      await replica.proxy.transferOwnership(govRouter, deploy.overrides);
+      log(
+        isTestDeploy,
+        `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
+      );
+    },
+  );
 
   let tx = await deploy.contracts.home!.proxy.transferOwnership(
     govRouter,
@@ -506,9 +508,9 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   await Promise.all([relinquish(gov), relinquish(non)]);
 
   // checks deploys are correct
-  const checker = new CoreInvariantChecker([gov, non])
-  await checker.checkDeploys()
-  checker.expectEmpty()
+  const checker = new CoreInvariantChecker([gov, non]);
+  await checker.checkDeploys();
+  checker.expectEmpty();
 
   if (!isTestDeploy) {
     writeDeployOutput([gov, non]);
@@ -555,7 +557,7 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   ]);
   log(isTestDeploy, 'done readying');
 
-  await Promise.all(deploys.map(deployOptics))
+  await Promise.all(deploys.map(deployOptics));
 
   // enroll remotes on every chain
   //
@@ -600,9 +602,9 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   }
 
   // checks deploys are correct
-  const checker = new CoreInvariantChecker(deploys)
-  await checker.checkDeploys()
-  checker.expectEmpty()
+  const checker = new CoreInvariantChecker(deploys);
+  await checker.checkDeploys();
+  checker.expectEmpty();
 
   // write config outputs again, should write under a different dir
   if (!isTestDeploy) {

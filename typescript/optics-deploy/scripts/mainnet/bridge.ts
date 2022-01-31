@@ -27,5 +27,4 @@ const avalancheDeploy = new BridgeDeploy(
   path,
 );
 
-
 deployBridges([celoDeploy, ethereumDeploy, polygonDeploy, avalancheDeploy]);

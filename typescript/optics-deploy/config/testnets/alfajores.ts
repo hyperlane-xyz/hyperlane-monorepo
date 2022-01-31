@@ -51,6 +51,6 @@ export const stagingCommunityConfig: CoreConfig = {
   recoveryTimelock: 180,
   processGas: 850_000,
   reserveGas: 15_000,
-}
+};
 
 export const bridgeConfig: BridgeConfig = {};
