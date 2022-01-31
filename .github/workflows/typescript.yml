@@ -13,6 +13,8 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    with:
+      runneros: abcdefg
 
     steps:
       - uses: actions/checkout@v2
