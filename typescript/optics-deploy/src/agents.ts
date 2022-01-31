@@ -1,8 +1,7 @@
-import { Wallet } from '@ethersproject/wallet';
 import { rm, writeFile } from 'fs/promises';
-import { Chain, ChainJson, replaceDeployer } from './chain';
-import { CoreConfig } from './core/CoreDeploy';
-import { ensure0x, execCmd, strip0x } from './utils';
+import { ChainJson } from './chain';
+import { ensure0x, execCmd, include, strip0x } from './utils';
+import { AgentGCPKey, fetchAgentGCPKeys, memoryKeyIdentifier } from "./agents/gcp";
 
 export interface AgentConfig {
   environment: string;
@@ -21,12 +20,6 @@ export interface AgentChainConfigs {
   [name: string]: ChainJson;
 }
 
-interface SecretManagerPersistedKeys {
-  privateKey: string;
-  address: string;
-  role: string;
-  environment: string;
-}
 
 export enum KEY_ROLE_ENUM {
   UpdaterAttestation = 'updater-attestation',
@@ -51,128 +44,29 @@ export const KEY_ROLES = [
 
 export enum HelmCommand {
   Install = 'install',
-  Upgrade = 'upgrade'
+  Upgrade = 'upgrade',
 }
 
-export async function deleteAgentGCPKeys(environment: string) {
-  await Promise.all(
-    KEY_ROLES.map(async (role) => {
-      await execCmd(
-        `gcloud secrets delete optics-key-${environment}-${role} --quiet`,
-      );
-    }),
-  );
-  await execCmd(
-    `gcloud secrets delete optics-key-${environment}-addresses --quiet`,
-  );
-}
-
-async function createAgentGCPKey(environment: string, role: string) {
-  const wallet = Wallet.createRandom();
-  const address = await wallet.getAddress();
-  await writeFile(
-    `optics-key-${environment}-${role}.txt`,
-    JSON.stringify({
-      role,
-      environment,
-      privateKey: wallet.privateKey,
-      address,
-    }),
-  );
-  await execCmd(
-    `gcloud secrets create optics-key-${environment}-${role} --data-file=optics-key-${environment}-${role}.txt --replication-policy=automatic --labels=environment=${environment},role=${role}`,
-  );
-  await rm(`optics-key-${environment}-${role}.txt`);
+const awsSignerCredentials = (
+  role: KEY_ROLE_ENUM,
+  agentConfig: AgentConfig,
+  homeChainName: string,
+) => {
+  // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
+  const adjustedRole =
+    agentConfig.environment === 'staging-community' &&
+    role === KEY_ROLE_ENUM.UpdaterAttestation
+      ? KEY_ROLE_ENUM.UpdaterSigner
+      : agentConfig.environment === 'staging-community' &&
+        role === KEY_ROLE_ENUM.UpdaterSigner
+      ? KEY_ROLE_ENUM.UpdaterAttestation
+      : role;
   return {
-    role,
-    environment,
-    address,
+    aws: {
+      keyId: `alias/${agentConfig.runEnv}-${homeChainName}-${adjustedRole}`,
+      region: agentConfig.awsRegion,
+    },
   };
-}
-
-export async function createAgentGCPKeys(environment: string) {
-  const keys = await Promise.all(
-    KEY_ROLES.map((role) => createAgentGCPKey(environment, role)),
-  );
-
-  await writeFile(
-    `optics-key-${environment}-addresses.txt`,
-    JSON.stringify(keys.map((_) => ({ role: _.role, address: _.address }))),
-  );
-  await execCmd(
-    `gcloud secrets create optics-key-${environment}-addresses --data-file=optics-key-${environment}-addresses.txt --replication-policy=automatic --labels=environment=${environment}`,
-  );
-  await rm(`optics-key-${environment}-addresses.txt`);
-}
-
-async function getAgentGCPKey(environment: string, role: string) {
-  const [secretRaw] = await execCmd(
-    `gcloud secrets versions access latest --secret optics-key-${environment}-${role}`,
-  );
-  const secret: SecretManagerPersistedKeys = JSON.parse(secretRaw);
-  return [role, secret] as [string, SecretManagerPersistedKeys];
-}
-
-async function getAgentGCPKeys(environment: string) {
-  const secrets = await Promise.all(
-    KEY_ROLES.map((role) => getAgentGCPKey(environment, role)),
-  );
-  return Object.fromEntries(secrets);
-}
-
-// Modifies a Chain configuration with the deployer key pulled from GCP
-export async function addDeployerGCPKey(environment: string, chain: Chain) {
-  const [deployerSecretRaw] = await execCmd(
-    `gcloud secrets versions access latest --secret optics-key-${environment}-deployer`,
-  );
-  const deployerSecret = JSON.parse(deployerSecretRaw).privateKey;
-  return replaceDeployer(chain, strip0x(deployerSecret));
-}
-
-// Modifies a Core configuration with the relevant watcher/updater addresses pulled from GCP
-export async function addAgentGCPAddresses(
-  environment: string,
-  config: CoreConfig,
-): Promise<CoreConfig> {
-  const [addressesRaw] = await execCmd(
-    `gcloud secrets versions access latest --secret optics-key-${environment}-addresses`,
-  );
-  const addresses = JSON.parse(addressesRaw);
-  const watcher = addresses.find(
-    (_: any) => _.role === 'watcher-attestation',
-  ).address;
-  const updater = addresses.find(
-    (_: any) => _.role === 'updater-attestation',
-  ).address;
-  const deployer = addresses.find((_: any) => _.role === 'deployer').address;
-  return {
-    ...config,
-    updater: updater,
-    recoveryManager: deployer,
-    watchers: [watcher],
-  };
-}
-
-function include(condition: boolean, data: any) {
-  return condition ? data : {};
-}
-
-const awsSignerCredentials = (role: KEY_ROLE_ENUM, agentConfig: AgentConfig, homeChainName: string) => {
-    // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
-    const adjustedRole =
-      agentConfig.environment === 'staging-community' &&
-      role === KEY_ROLE_ENUM.UpdaterAttestation
-        ? KEY_ROLE_ENUM.UpdaterSigner
-        : agentConfig.environment === 'staging-community' &&
-          role === KEY_ROLE_ENUM.UpdaterSigner
-        ? KEY_ROLE_ENUM.UpdaterAttestation
-        : role;
-    return {
-      aws: {
-        keyId: `alias/${agentConfig.runEnv}-${homeChainName}-${adjustedRole}`,
-        region: agentConfig.awsRegion,
-      },
-    };
 };
 
 async function helmValuesForChain(
@@ -180,10 +74,10 @@ async function helmValuesForChain(
   agentConfig: AgentConfig,
   configs: AgentChainConfigs,
 ) {
-  let gcpKeys: { [role: string]: SecretManagerPersistedKeys } | undefined =
+  let gcpKeys: { [role: string]: AgentGCPKey } | undefined =
     undefined;
   try {
-    gcpKeys = await getAgentGCPKeys(agentConfig.environment);
+    gcpKeys = await fetchAgentGCPKeys(agentConfig.environment, chainName);
   } catch (error) {
     if (
       !agentConfig.awsRegion ||
@@ -196,9 +90,10 @@ async function helmValuesForChain(
 
   const credentials = (role: KEY_ROLE_ENUM) => {
     if (!!gcpKeys) {
-      return { hexKey: strip0x(gcpKeys![role].privateKey) };
+      const identifier = memoryKeyIdentifier(role, chainName);
+      return { hexKey: strip0x(gcpKeys![identifier].privateKey()) };
     } else {
-      return awsSignerCredentials(role, agentConfig, chainName)
+      return awsSignerCredentials(role, agentConfig, chainName);
     }
   };
 
@@ -253,7 +148,7 @@ async function helmValuesForChain(
           ...credentials(KEY_ROLE_ENUM.ProcessorSigner),
         })),
         indexonly: agentConfig.processorIndexOnly || [],
-        s3BucketName: agentConfig.processorS3Bucket || ''
+        s3BucketName: agentConfig.processorS3Bucket || '',
       },
     },
   };
@@ -299,12 +194,12 @@ export async function getAgentEnvVars(
   });
 
   try {
-    const gcpKeys = await getAgentGCPKeys(agentConfig.environment);
+    const gcpKeys = await fetchAgentGCPKeys(agentConfig.environment, home);
     // Signer keys
     Object.keys(configs).forEach((network) => {
       envVars.push(
         `OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(
-          gcpKeys[role].privateKey,
+          gcpKeys[role].privateKey(),
         )}`,
       );
     });
@@ -313,29 +208,37 @@ export async function getAgentEnvVars(
     if (role.startsWith('updater')) {
       envVars.push(
         `OPT_BASE_UPDATER_KEY=${strip0x(
-          gcpKeys[KEY_ROLE_ENUM.UpdaterAttestation].privateKey,
+          gcpKeys[home + '-' + KEY_ROLE_ENUM.UpdaterAttestation].privateKey(),
         )}`,
       );
     }
   } catch (error) {
     // Keys are in AWS
-    envVars.push(`AWS_ACCESS_KEY_ID=${valueDict.optics.aws.accessKeyId}`)
-    envVars.push(`AWS_SECRET_ACCESS_KEY=${valueDict.optics.aws.secretAccessKey}`)
+    envVars.push(`AWS_ACCESS_KEY_ID=${valueDict.optics.aws.accessKeyId}`);
+    envVars.push(
+      `AWS_SECRET_ACCESS_KEY=${valueDict.optics.aws.secretAccessKey}`,
+    );
 
     // Signers
     Object.keys(configs).forEach((network) => {
-      const awsSigner = awsSignerCredentials(role, agentConfig, home)
-      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`)
-      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_ID=${awsSigner.aws.keyId}`)
-      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_REGION=${awsSigner.aws.region}`)
-    })
+      const awsSigner = awsSignerCredentials(role, agentConfig, home);
+      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`);
+      envVars.push(
+        `OPT_BASE_SIGNERS_${network.toUpperCase()}_ID=${awsSigner.aws.keyId}`,
+      );
+      envVars.push(
+        `OPT_BASE_SIGNERS_${network.toUpperCase()}_REGION=${
+          awsSigner.aws.region
+        }`,
+      );
+    });
 
     // Updater attestation key
     if (role.startsWith('updater')) {
-      const awsSigner = awsSignerCredentials(role, agentConfig, home)
-      envVars.push(`OPT_BASE_UPDATER_TYPE=aws`)
-      envVars.push(`OPT_BASE_UPDATER_ID=${awsSigner.aws.keyId}`)
-      envVars.push(`OPT_BASE_UPDATER_REGION=${awsSigner.aws.region}`)
+      const awsSigner = awsSignerCredentials(role, agentConfig, home);
+      envVars.push(`OPT_BASE_UPDATER_TYPE=aws`);
+      envVars.push(`OPT_BASE_UPDATER_ID=${awsSigner.aws.keyId}`);
+      envVars.push(`OPT_BASE_UPDATER_REGION=${awsSigner.aws.region}`);
     }
   }
 
@@ -348,7 +251,11 @@ export async function runAgentHelmCommand(
   homeConfig: ChainJson,
   configs: AgentChainConfigs,
 ) {
-  const valueDict = await helmValuesForChain(homeConfig.name, agentConfig, configs);
+  const valueDict = await helmValuesForChain(
+    homeConfig.name,
+    agentConfig,
+    configs,
+  );
   const values = helmifyValues(valueDict);
   return execCmd(
     `helm ${action} ${
@@ -367,7 +274,11 @@ export async function runKeymasterHelmCommand(
   agentConfig: AgentConfig,
   configs: AgentChainConfigs,
 ) {
-  const gcpKeys = await getAgentGCPKeys(agentConfig.environment);
+  // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
+  const gcpKeys = await fetchAgentGCPKeys(
+    agentConfig.environment,
+    configs[0].name,
+  );
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
     networks: mapPairs(configs, (home, chain) => {
@@ -376,8 +287,8 @@ export async function runKeymasterHelmCommand(
         {
           endpoint: chain.rpc,
           bank: {
-            signer: ensure0x(bankKey.privateKey),
-            address: bankKey.address,
+            signer: ensure0x(bankKey.privateKey()),
+            address: bankKey.address(),
           },
           threshold: 200000000000000000,
         },

@@ -1,7 +1,7 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
-import { core } from '@optics-xyz/ts-interface';
+import { core } from 'optics-ts-interface';
 import { OpticsContext } from '..';
 import { delay } from '../../utils';
 import {

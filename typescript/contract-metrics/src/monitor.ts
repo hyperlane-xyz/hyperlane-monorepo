@@ -63,10 +63,14 @@ async function monitor(
       dispatchFilter,
   );
 
+  const homeState = await home.state()
+  config.metrics.setHomeState(origin, config.environment, homeState)
   const processedLogs = [];
   for (let remote of remotes) {
     config.baseLogger.info(`Get Process logs from ${remote} for ${origin}`);
     const replica = context.mustGetReplicaFor(origin, remote);
+    const replicaState = await replica.state()
+    config.metrics.setReplicaState(origin, remote, config.environment, replicaState)
     const processFilter = replica.filters.Process();
     const processLogs = await getEvents(
         context,

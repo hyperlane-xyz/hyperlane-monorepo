@@ -1,16 +1,20 @@
-import * as alfajores from '../../config/testnets/alfajores';
-import * as kovan from '../../config/testnets/kovan';
-import * as gorli from '../../config/testnets/gorli';
-import * as ropsten from '../../config/testnets/ropsten';
+
 import { updateProviderDomain } from '../../src/provider';
-import { makeAllConfigs } from '../../src/config';
+import { makeCoreDeploys } from '../../src/core/CoreDeploy';
+import { makeBridgeDeploys } from '../../src/bridge/BridgeDeploy';
+import { configPath, networks } from './agentConfig';
 
-
-const configPath = '../../rust/config/staging-community';
-updateProviderDomain('stagingCommunity', configPath, [
-  makeAllConfigs(alfajores, (_) => _.devConfig),
-  makeAllConfigs(ropsten, (_) => _.devConfig),
-  makeAllConfigs(kovan, (_) => _.devConfig),
-  makeAllConfigs(gorli, (_) => _.devConfig),
-]);
+const coreDeploys = makeCoreDeploys(
+  configPath,
+  networks,
+  (_) => _.chain,
+  (_) => _.stagingCommunityConfig,
+);
+const bridgeDeploys = makeBridgeDeploys(
+  configPath,
+  networks,
+  (_) => _.chain,
+  (_) => _.bridgeConfig,
+);
+updateProviderDomain('mainnet', coreDeploys, bridgeDeploys);
 

@@ -16,6 +16,8 @@ export const configs: AgentChainConfigs = {
   fuji: fuji.chainJson
 }
 
+export const networks = [alfajores, kovan, gorli, fuji, mumbai];
+
 // Environment specific config
 export const agentConfig: AgentConfig = {
   environment: 'dev',

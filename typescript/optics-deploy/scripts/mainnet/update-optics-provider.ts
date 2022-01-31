@@ -1,14 +1,18 @@
-import * as celo from '../../config/mainnets/celo';
-import * as ethereum from '../../config/mainnets/ethereum';
-import * as polygon from '../../config/mainnets/polygon';
 import { updateProviderDomain } from '../../src/provider';
-import { makeAllConfigs } from '../../src/config';
+import { makeCoreDeploys } from '../../src/core/CoreDeploy';
+import { makeBridgeDeploys } from '../../src/bridge/BridgeDeploy';
+import { configPath, networks } from './agentConfig';
 
-
-const configPath = '../../rust/config/mainnet';
-updateProviderDomain('mainnet', configPath, [
-  makeAllConfigs(ethereum, (_) => _.config),
-  makeAllConfigs(polygon, (_) => _.config),
-  makeAllConfigs(celo, (_) => _.config),
-]);
-
+const coreDeploys = makeCoreDeploys(
+  configPath,
+  networks,
+  (_) => _.chain,
+  (_) => _.config,
+);
+const bridgeDeploys = makeBridgeDeploys(
+  configPath,
+  networks,
+  (_) => _.chain,
+  (_) => _.bridgeConfig,
+);
+updateProviderDomain('mainnetCommunity', coreDeploys, bridgeDeploys);

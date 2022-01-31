@@ -1,6 +1,6 @@
 import * as proxyUtils from '../proxyUtils';
-import { checkBridgeDeploy } from './checks';
-import * as xAppContracts from '@optics-xyz/ts-interface/dist/optics-xapps';
+import { BridgeInvariantChecker } from './checks';
+import * as xAppContracts from 'optics-ts-interface/dist/optics-xapps';
 import { toBytes32 } from '../utils';
 import fs from 'fs';
 import { BridgeDeploy } from './BridgeDeploy';
@@ -50,14 +50,9 @@ export async function deployBridges(deploys: Deploy[]) {
     }),
   );
 
-  await Promise.all(
-    deploys.map(async (local) => {
-      const remotes = deploys
-        .filter((remote) => remote.chain.domain != local.chain.domain)
-        .map((remote) => remote.chain.domain);
-      await checkBridgeDeploy(local, remotes);
-    }),
-  );
+  const checker = new BridgeInvariantChecker(deploys)
+  await checker.checkDeploys()
+  checker.expectEmpty()
 
   if (!isTestDeploy) {
     // output the Bridge deploy information to a subdirectory

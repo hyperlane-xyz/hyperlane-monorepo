@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { core } from '@optics-xyz/ts-interface';
+import { core } from 'optics-ts-interface';
 import { Contracts } from '../../contracts';
 import { ReplicaInfo } from '../domains/domain';
 import { CallBatch } from '../govern';

@@ -5,7 +5,7 @@ import { Result } from '@ethersproject/abi';
 import {
   TypedEvent,
   TypedEventFilter,
-} from '@optics-xyz/ts-interface/dist/optics-core/commons';
+} from 'optics-ts-interface/dist/optics-core/commons';
 
 // specifies an interface shared by the TS generated contracts
 export interface TSContract<T extends Result, U> {

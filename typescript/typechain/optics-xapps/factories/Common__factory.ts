@@ -42,6 +42,19 @@ const _abi = [
     anonymous: false,
     inputs: [
       {
+        indexed: false,
+        internalType: "address",
+        name: "updater",
+        type: "address",
+      },
+    ],
+    name: "NewUpdater",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
         indexed: true,
         internalType: "uint32",
         name: "homeDomain",

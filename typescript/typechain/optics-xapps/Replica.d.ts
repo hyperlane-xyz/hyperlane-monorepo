@@ -33,11 +33,14 @@ interface ReplicaInterface extends ethers.utils.Interface {
     "localDomain()": FunctionFragment;
     "messages(bytes32)": FunctionFragment;
     "optimisticSeconds()": FunctionFragment;
+    "owner()": FunctionFragment;
     "process(bytes)": FunctionFragment;
     "prove(bytes32,bytes32[32],uint256)": FunctionFragment;
     "proveAndProcess(bytes,bytes32[32],uint256)": FunctionFragment;
     "remoteDomain()": FunctionFragment;
+    "setUpdater(address)": FunctionFragment;
     "state()": FunctionFragment;
+    "transferOwnership(address)": FunctionFragment;
     "update(bytes32,bytes32,bytes)": FunctionFragment;
     "updater()": FunctionFragment;
   };
@@ -84,6 +87,7 @@ interface ReplicaInterface extends ethers.utils.Interface {
     functionFragment: "optimisticSeconds",
     values?: undefined
   ): string;
+  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(functionFragment: "process", values: [BytesLike]): string;
   encodeFunctionData(
     functionFragment: "prove",
@@ -171,7 +175,12 @@ interface ReplicaInterface extends ethers.utils.Interface {
     functionFragment: "remoteDomain",
     values?: undefined
   ): string;
+  encodeFunctionData(functionFragment: "setUpdater", values: [string]): string;
   encodeFunctionData(functionFragment: "state", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "transferOwnership",
+    values: [string]
+  ): string;
   encodeFunctionData(
     functionFragment: "update",
     values: [BytesLike, BytesLike, BytesLike]
@@ -214,6 +223,7 @@ interface ReplicaInterface extends ethers.utils.Interface {
     functionFragment: "optimisticSeconds",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "process", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "prove", data: BytesLike): Result;
   decodeFunctionResult(
@@ -224,17 +234,26 @@ interface ReplicaInterface extends ethers.utils.Interface {
     functionFragment: "remoteDomain",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "setUpdater", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "state", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "update", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "updater", data: BytesLike): Result;
 
   events: {
     "DoubleUpdate(bytes32,bytes32[2],bytes,bytes)": EventFragment;
+    "NewUpdater(address)": EventFragment;
+    "OwnershipTransferred(address,address)": EventFragment;
     "Process(bytes32,bool,bytes)": EventFragment;
     "Update(uint32,bytes32,bytes32,bytes)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "DoubleUpdate"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewUpdater"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Process"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Update"): EventFragment;
 }
@@ -321,6 +340,8 @@ export class Replica extends BaseContract {
     messages(arg0: BytesLike, overrides?: CallOverrides): Promise<[number]>;
 
     optimisticSeconds(overrides?: CallOverrides): Promise<[BigNumber]>;
+
+    owner(overrides?: CallOverrides): Promise<[string]>;
 
     process(
       _message: BytesLike,
@@ -409,7 +430,17 @@ export class Replica extends BaseContract {
 
     remoteDomain(overrides?: CallOverrides): Promise<[number]>;
 
+    setUpdater(
+      _updater: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     state(overrides?: CallOverrides): Promise<[number]>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
 
     update(
       _oldRoot: BytesLike,
@@ -456,6 +487,8 @@ export class Replica extends BaseContract {
   messages(arg0: BytesLike, overrides?: CallOverrides): Promise<number>;
 
   optimisticSeconds(overrides?: CallOverrides): Promise<BigNumber>;
+
+  owner(overrides?: CallOverrides): Promise<string>;
 
   process(
     _message: BytesLike,
@@ -544,7 +577,17 @@ export class Replica extends BaseContract {
 
   remoteDomain(overrides?: CallOverrides): Promise<number>;
 
+  setUpdater(
+    _updater: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   state(overrides?: CallOverrides): Promise<number>;
+
+  transferOwnership(
+    newOwner: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
   update(
     _oldRoot: BytesLike,
@@ -594,6 +637,8 @@ export class Replica extends BaseContract {
     messages(arg0: BytesLike, overrides?: CallOverrides): Promise<number>;
 
     optimisticSeconds(overrides?: CallOverrides): Promise<BigNumber>;
+
+    owner(overrides?: CallOverrides): Promise<string>;
 
     process(_message: BytesLike, overrides?: CallOverrides): Promise<boolean>;
 
@@ -679,7 +724,14 @@ export class Replica extends BaseContract {
 
     remoteDomain(overrides?: CallOverrides): Promise<number>;
 
+    setUpdater(_updater: string, overrides?: CallOverrides): Promise<void>;
+
     state(overrides?: CallOverrides): Promise<number>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
 
     update(
       _oldRoot: BytesLike,
@@ -705,6 +757,16 @@ export class Replica extends BaseContract {
         signature: string;
         signature2: string;
       }
+    >;
+
+    NewUpdater(updater?: null): TypedEventFilter<[string], { updater: string }>;
+
+    OwnershipTransferred(
+      previousOwner?: string | null,
+      newOwner?: string | null
+    ): TypedEventFilter<
+      [string, string],
+      { previousOwner: string; newOwner: string }
     >;
 
     Process(
@@ -771,6 +833,8 @@ export class Replica extends BaseContract {
     messages(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
     optimisticSeconds(overrides?: CallOverrides): Promise<BigNumber>;
+
+    owner(overrides?: CallOverrides): Promise<BigNumber>;
 
     process(
       _message: BytesLike,
@@ -859,7 +923,17 @@ export class Replica extends BaseContract {
 
     remoteDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
+    setUpdater(
+      _updater: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     state(overrides?: CallOverrides): Promise<BigNumber>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
 
     update(
       _oldRoot: BytesLike,
@@ -916,6 +990,8 @@ export class Replica extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     optimisticSeconds(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     process(
       _message: BytesLike,
@@ -1004,7 +1080,17 @@ export class Replica extends BaseContract {
 
     remoteDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
+    setUpdater(
+      _updater: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
     state(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
 
     update(
       _oldRoot: BytesLike,
