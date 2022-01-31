@@ -1,4 +1,4 @@
-name: Node
+name: npm install
 inputs:
   runneros:
     required: true

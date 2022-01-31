@@ -15,8 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - name: node
-        uses: ./.github/workflows/node
+      - name: npm install
+        uses: ./.github/workflows/npm
         with:
           runneros: ${{ runner.os }}
 
@@ -25,8 +25,8 @@ jobs:
     needs: [install]
     steps:
       - uses: actions/checkout@v2
-      - name: node
-        uses: ./.github/workflows/node
+      - name: npm install
+        uses: ./.github/workflows/npm
         with:
           runneros: ${{ runner.os }}
 
@@ -45,8 +45,8 @@ jobs:
     needs: [install]
     steps:
       - uses: actions/checkout@v2
-      - name: node
-        uses: ./.github/workflows/node
+      - name: npm install
+        uses: ./.github/workflows/npm
         with:
           runneros: ${{ runner.os }}
 
