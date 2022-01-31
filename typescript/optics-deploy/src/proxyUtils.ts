@@ -78,6 +78,9 @@ export async function deployProxy<T extends ethers.Contract>(
   // add Proxy to Etherscan verification
   deploy.verificationInput.push({
     name: `${name} Proxy`,
+    // Is this somehow being copied by reference? Seeing behavior where the first
+    // Replica Proxy verification input element has the same address as the
+    // last.
     address: proxy!.address,
     constructorArguments: [beacon!.address, initData],
     isProxy: true,

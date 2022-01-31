@@ -125,7 +125,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       deploy.contracts.upgradeBeaconController?.owner()!,
       deploy.contracts.home?.proxy.owner()!,
     ]
-    Object.values(deploy.contracts.replicas).map(_ => owners.push(_.proxy.owner()))
+    // Object.values(deploy.contracts.replicas).map(_ => owners.push(_.proxy.owner()))
 
     const expectedOwner = deploy.contracts.governance?.proxy.address;
     const actualOwners = await Promise.all(owners)
@@ -172,6 +172,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     addInputsForUpgradableContract(contracts.governance!, 'Governance')
     for (const domain in contracts.replicas) {
       addInputsForUpgradableContract(contracts.replicas[domain], 'Replica')
+      console.log(deploy.chain.domain, domain, contracts.replicas[domain].proxy.address)
     }
     return inputs
   }
