@@ -302,13 +302,10 @@ export class OpticsMessage {
     }
     // if not, attempt to query the event
     const processFilter = this.replica.filters.Process(this.leaf);
-    const processLogs = await findAnnotatedSingleEvent<ProcessTypes, ProcessArgs>(
-      this.context,
-      this.destination,
-      this.replica,
-      processFilter,
-      startBlock
-    );
+    const processLogs = await findAnnotatedSingleEvent<
+      ProcessTypes,
+      ProcessArgs
+    >(this.context, this.destination, this.replica, processFilter, startBlock);
     if (processLogs.length === 1) {
       // if event is returned, store it to the object
       this.cache.process = processLogs[0];

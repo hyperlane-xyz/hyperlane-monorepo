@@ -1,6 +1,6 @@
-import {OpticsContext, OpticsMessage} from 'optics-multi-provider-community';
-import * as contexts from "./registerContext";
-import {printStatus} from "./print";
+import { OpticsContext, OpticsMessage } from 'optics-multi-provider-community';
+import * as contexts from './registerContext';
+import { printStatus } from './print';
 
 const input: TraceInput[] = [
   {
@@ -42,7 +42,7 @@ async function traceTransfer(
     origin,
     transactionHash,
   );
-  console.log(`Leaf Index: ${message.leafIndex}`)
+  console.log(`Leaf Index: ${message.leafIndex}`);
   const status = await message.events();
   printStatus(context, status);
 }

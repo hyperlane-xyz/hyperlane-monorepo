@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
 import { CoreContracts } from '../contracts';
 
-
 import * as utils from './utils';
 
 export type Address = string;
@@ -49,45 +48,49 @@ export class CallBatch {
     this.built = await Promise.all(
       domains.map((domain: number, i: number) => {
         if (domain === this.core.domain) {
-          return this.core.governanceRouter.populateTransaction.callLocal(calls[i])
+          return this.core.governanceRouter.populateTransaction.callLocal(
+            calls[i],
+          );
         } else {
-          return this.core.governanceRouter.populateTransaction.callRemote(domain, calls[i])
+          return this.core.governanceRouter.populateTransaction.callRemote(
+            domain,
+            calls[i],
+          );
         }
-      })
-    )
+      }),
+    );
     return this.built;
   }
 
   // Sign each governance transaction and dispatch them to the chain
   async execute(): Promise<ethers.providers.TransactionReceipt[]> {
     const transactions = await this.build();
-    const signer = await this.governorSigner()
-    const receipts = []
+    const signer = await this.governorSigner();
+    const receipts = [];
     for (const tx of transactions) {
-      const response = await signer.sendTransaction(tx)
-      receipts.push(await response.wait(5))
+      const response = await signer.sendTransaction(tx);
+      receipts.push(await response.wait(5));
     }
-    return receipts
+    return receipts;
   }
 
   async estimateGas(): Promise<any[]> {
     const transactions = await this.build();
-    const signer = await this.governorSigner()
-    const responses = []
+    const signer = await this.governorSigner();
+    const responses = [];
     for (const tx of transactions) {
-      responses.push(await signer.estimateGas(tx))
+      responses.push(await signer.estimateGas(tx));
     }
-    return responses
+    return responses;
   }
 
   async governorSigner(): Promise<ethers.Signer> {
     const signer = this.core.governanceRouter.signer;
-    const governor = await this.core.governor()
-    const signerAddress = await signer.getAddress()
-    if (!governor.local)
-      throw new Error('Governor is not local');
+    const governor = await this.core.governor();
+    const signerAddress = await signer.getAddress();
+    if (!governor.local) throw new Error('Governor is not local');
     if (signerAddress !== governor.identifier)
       throw new Error('Signer is not Governor');
-    return signer
+    return signer;
   }
 }

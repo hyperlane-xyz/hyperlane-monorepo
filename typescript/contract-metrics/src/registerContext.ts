@@ -1,5 +1,10 @@
-import {devCommunity, mainnetCommunity, staging, mainnet} from "optics-multi-provider-community";
-import config from "./config";
+import {
+  devCommunity,
+  mainnetCommunity,
+  staging,
+  mainnet
+} from 'optics-multi-provider-community';
+import config from './config';
 
 // register mainnet
 mainnetCommunity.registerRpcProvider('celo', config.celoRpc);
@@ -19,6 +24,4 @@ staging.registerRpcProvider('kovan', config.kovanRpc);
 devCommunity.registerRpcProvider('alfajores', config.alfajoresRpc);
 devCommunity.registerRpcProvider('kovan', config.kovanRpc);
 
-export {
-    mainnetCommunity, staging, devCommunity, mainnet
-};
+export { mainnetCommunity, staging, devCommunity, mainnet };

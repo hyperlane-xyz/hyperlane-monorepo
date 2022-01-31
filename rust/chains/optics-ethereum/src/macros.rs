@@ -13,6 +13,7 @@ macro_rules! report_tx {
             data = %data,
             "Dispatching transaction"
         );
+        // We can set the gas higher here!
         let dispatch_fut = $tx.send();
         let dispatched = dispatch_fut.await?;
 

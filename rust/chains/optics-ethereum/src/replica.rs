@@ -4,7 +4,7 @@
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::contract::abigen;
-use ethers::core::types::{Signature, H256};
+use ethers::core::types::{Signature, H256, U256};
 use optics_core::{accumulator::merkle::Proof, *};
 use optics_core::{CommonIndexer, ContractLocator};
 use tracing::instrument;
@@ -257,7 +257,9 @@ where
     #[tracing::instrument(err)]
     async fn process(&self, message: &OpticsMessage) -> Result<TxOutcome, ChainCommunicationError> {
         let tx = self.contract.process(message.to_vec());
-        Ok(report_tx!(tx).into())
+        let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
+        let gassed = tx.gas(gas);
+        Ok(report_tx!(gassed).into())
     }
 
     #[tracing::instrument(err)]
@@ -272,10 +274,13 @@ where
             .enumerate()
             .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
 
+        //
         let tx = self
             .contract
             .prove_and_process(message.to_vec(), sol_proof, proof.index.into());
-        Ok(report_tx!(tx).into())
+        let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
+        let gassed = tx.gas(gas);
+        Ok(report_tx!(gassed).into())
     }
 
     #[tracing::instrument(err)]
