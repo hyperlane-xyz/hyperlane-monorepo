@@ -1,21 +1,15 @@
 name: Node
+inputs:
+  runneros:
+    required: true
+    default: 'test'
 
-on:
-  # Allows other workflows to call this one
-  workflow_call:
-    inputs:
-      runneros:
-        required: true
-        type: string
-
-
-jobs:
-  inputs:
-    runs-on: ubuntu-latest
-
-    steps:
-      # Print inputs
-      - name: Print inputs
-        run: |
-          ls
-          cat runneros.txt 
+runs:
+  using: "composite"
+  steps:
+    # Print inputs
+    - name: Print inputs
+      run: |
+        ls
+        echo ${{ inputs.runneros }}
+        cat runneros.txt 
