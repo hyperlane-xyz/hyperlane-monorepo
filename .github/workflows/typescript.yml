@@ -12,7 +12,7 @@ on:
 
 jobs:
   node:
-    uses: ./.github/workflows/node.yml
+    uses: bridge-buddies/optics-monorepo/.github/workflows/node.yml
     with:
       runneros: abcdefg
 
