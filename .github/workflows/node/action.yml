@@ -59,25 +59,31 @@ runs:
 
     # Install separately depending on cache hit
     - name: Install Core
+      shell: bash
       if: steps.core-cache.outputs.cache-hit != 'true'
       run: cd ./solidity/optics-core && npm i
 
     - name: Install XApps
+      shell: bash
       if: steps.xapps-cache.outputs.cache-hit != 'true'
       run: cd ./solidity/optics-xapps && npm i
 
     - name: Install Tests
+      shell: bash
       if: steps.tests-cache.outputs.cache-hit != 'true'
       run: cd ./typescript/optics-tests && npm i
 
     - name: Install Deploy
+      shell: bash
       if: steps.deploy-cache.outputs.cache-hit != 'true'
       run: cd ./typescript/optics-deploy && npm i
 
     - name: Install Typechain
+      shell: bash
       if: steps.typechain-cache.outputs.cache-hit != 'true'
       run: cd ./typescript/typechain && npm i
 
     - name: Install Multi-Provider
+      shell: bash
       if: steps.provider-cache.outputs.cache-hit != 'true'
       run: cd ./typescript/optics-provider && npm i
