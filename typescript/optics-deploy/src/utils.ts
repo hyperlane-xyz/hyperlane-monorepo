@@ -34,7 +34,9 @@ export function toBytes32(address: string): string {
   return res
 }
 
-
+export function include(condition: boolean, data: any) {
+  return condition ? data : {};
+}
 
 export function execCmd(
   cmd: string,
