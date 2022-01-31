@@ -13,10 +13,9 @@ on:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    uses: actions/checkout@v2
 
     steps:
-      - uses: actions/checkout@v2
-
       # Lint
       - name: Prettier
         run: |
