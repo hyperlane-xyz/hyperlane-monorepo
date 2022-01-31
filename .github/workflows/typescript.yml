@@ -15,9 +15,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: .github/workflows/node.yml
-
+      - name: Checkout
+        uses: actions/checkout@v2
+      - name: Node
+        uses: .github/workflows/node.yml
       # Lint
       - name: Prettier
         run: |
