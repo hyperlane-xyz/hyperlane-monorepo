@@ -18,7 +18,7 @@ jobs:
       - name: node
         uses: ./.github/workflows/node
         with:
-          runneros: ${{ runner.os }}
+          runneros: test 
   lint:
     runs-on: ubuntu-latest
     needs: [checkout]
