@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: ./.github/workflows/node.yml
-        secrets:
+        with:
           runneros: ${{ runner.os }}
       # Lint
       - name: ls
