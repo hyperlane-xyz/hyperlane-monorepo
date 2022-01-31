@@ -4,6 +4,7 @@ import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
 import { Chain, replaceDeployer } from '../chain';
 import { CoreConfig } from '../core/CoreDeploy';
 import { execCmd, include, strip0x } from '../utils';
+import { AgentKey } from './agent';
 
 function isAttestationKey(role: string) {
   return role.endsWith('attestation');
@@ -43,13 +44,15 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentGCPKey {
+export class AgentGCPKey extends AgentKey {
   constructor(
     public readonly environment: string,
     public readonly role: string,
     public readonly chainName: string,
     private remoteKey: RemoteKey = { fetched: false },
-  ) {}
+  ) {
+    super()
+  }
 
   static async create(environment: string, role: string, chainName: string) {
     const key = new AgentGCPKey(environment, role, chainName);
@@ -76,6 +79,12 @@ export class AgentGCPKey {
     return identifier(this.environment, this.role, this.chainName);
   }
 
+  get credentialsAsHelmValue() {
+    return {
+      hexKey: strip0x(this.privateKey)
+    }
+  }
+
   // The identifier for this key within a set of keys for an enrivonment
   get memoryKeyIdentifier() {
     return isAttestationKey(this.role)
@@ -95,7 +104,7 @@ export class AgentGCPKey {
     return this.remoteKey.address;
   }
 
-  async fetchFromGCP() {
+  async fetch() {
     const [secretRaw] = await execCmd(
       `gcloud secrets versions access latest --secret ${this.identifier}`,
     );
@@ -262,7 +271,7 @@ export async function fetchAgentGCPKeys(
   const secrets = await Promise.all(
     KEY_ROLES.map(async (role) => {
       const key = new AgentGCPKey(environment, role, chainName);
-      await key.fetchFromGCP();
+      await key.fetch();
       return [key.memoryKeyIdentifier, key];
     }),
   );
@@ -280,7 +289,7 @@ async function fetchGCPKeyAddresses(environment: string) {
 // Modifies a Chain configuration with the deployer key pulled from GCP
 export async function addDeployerGCPKey(environment: string, chain: Chain) {
   const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chain.name);
-  await key.fetchFromGCP();
+  await key.fetch();
   const deployerSecret = key.privateKey();
   return replaceDeployer(chain, strip0x(deployerSecret));
 }

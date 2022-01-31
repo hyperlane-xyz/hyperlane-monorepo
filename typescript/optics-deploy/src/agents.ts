@@ -72,7 +72,7 @@ async function helmValuesForChain(
   const credentials = (role: KEY_ROLE_ENUM) => {
     if (!!gcpKeys) {
       const identifier = memoryKeyIdentifier(role, chainName);
-      return { hexKey: strip0x(gcpKeys![identifier].privateKey) };
+      return gcpKeys![identifier].credentialsAsHelmValue
     } else {
       const key = new AgentAwsKey(agentConfig, role, chainName);
       return key.credentialsAsHelmValue;

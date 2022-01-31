@@ -12,6 +12,7 @@ import {
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
 import { getEthereumAddress } from '../utils';
+import { AgentKey } from "./agent";
 
 interface UnfetchedKey {
   fetched: false;
@@ -24,7 +25,7 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentAwsKey {
+export class AgentAwsKey extends AgentKey {
   private environment: string;
   private client: KMSClient;
   private awsRegion: string;
@@ -35,6 +36,7 @@ export class AgentAwsKey {
     public readonly role: string,
     public readonly chainName: string,
   ) {
+    super()
     if (
       !agentConfig.awsRegion ||
       !agentConfig.awsKeyId ||
@@ -53,7 +55,7 @@ export class AgentAwsKey {
     });
   }
 
-  get aliasName() {
+  get identifier() {
     // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
     const adjustedRole =
       this.environment === 'staging-community' &&
@@ -69,7 +71,7 @@ export class AgentAwsKey {
   get credentialsAsHelmValue() {
     return {
       aws: {
-        keyId: this.aliasName,
+        keyId: this.identifier,
         region: this.awsRegion,
       },
     };
@@ -81,7 +83,7 @@ export class AgentAwsKey {
     return this.remoteKey.address;
   }
 
-  async fetchFromAws() {
+  async fetch() {
     const address = await this.fetchAddressFromAws();
     this.remoteKey = {
       fetched: true,
@@ -105,7 +107,7 @@ export class AgentAwsKey {
    * Requires update to have been called on this key prior
    */
   async rotate() {
-    const canonicalAlias = this.aliasName;
+    const canonicalAlias = this.identifier;
     const newAlias = canonicalAlias + '-new';
     const oldAlias = canonicalAlias + '-old';
 
@@ -154,7 +156,7 @@ export class AgentAwsKey {
     await this.client.send(new DeleteAliasCommand({ AliasName: newAlias }));
 
     // Address should have changed now
-    this.fetchFromAws();
+    this.fetch();
   }
 
   private requireFetched() {
@@ -165,7 +167,7 @@ export class AgentAwsKey {
 
   // Creates a new key and returns its address
   private async _create(rotate: boolean) {
-    const alias = this.aliasName;
+    const alias = this.identifier;
     if (!rotate) {
       // Make sure the alias is not currently in use
       const listAliasResponse = await this.client.send(
@@ -206,7 +208,7 @@ export class AgentAwsKey {
   }
 
   private async fetchAddressFromAws(keyId?: string) {
-    const alias = this.aliasName;
+    const alias = this.identifier;
 
     if (!keyId) {
       const listAliasResponse = await this.client.send(
