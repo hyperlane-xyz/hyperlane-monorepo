@@ -17,7 +17,7 @@ jobs:
   install:
     runs-on: ubuntu-latest
     needs: [checkout]
-    uses: .github/workflows/node-install.yml
+    uses: .github/workflows/node-cache.yml
   lint:
     runs-on: ubuntu-latest
     needs: [install]
