@@ -45,15 +45,21 @@ jobs:
     needs: [install]
 
     steps:
-      - uses: actions/checkout@v2
-      - uses: ./.github/workflows/node-cache.yml
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Cache
+        uses: ./.github/workflows/node-cache.yml
 
       - name: contracts-metrics
         run: cd ./typescript/contracts-metrics && npm run build
+
       - name: optics-deploy
         run: cd ./typescript/optics-deploy && npm run build
+
       - name: optics-provider
         run: cd ./typescript/optics-provider && npm run build
+
       - name: typechain
         run: cd ./typescript/typechain && npm run build
 
