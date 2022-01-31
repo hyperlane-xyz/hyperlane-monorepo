@@ -17,8 +17,6 @@ jobs:
       - uses: actions/checkout@v2
       - name: node
         uses: ./.github/workflows/node
-        with:
-          runneros: ${{ runner.os }}
         secrets:
           runneros: ${{ runner.os }}
   lint:
