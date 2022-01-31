@@ -25,6 +25,11 @@ jobs:
     needs: [checkout]
     steps:
       # Lint
+      - name: Print inputs
+        shell: bash
+        run: |
+          ls
+
       - name: Prettierr
         run: |
           cd ./typescript/contracts-metrics

@@ -20,42 +20,42 @@ runs:
       uses: actions/cache@v2
       with:
         path: ./solidity/optics-core/node_modules
-        key: ${{ inputs.runner.os }}-core-cache-${{ hashFiles('solidity/optics-core/package-lock.json') }}
+        key: ${{ inputs.runneros }}-core-cache-${{ hashFiles('solidity/optics-core/package-lock.json') }}
 
     - name: XApps Cache
       id: xapps-cache
       uses: actions/cache@v2
       with:
         path: ./solidity/optics-xapps/node_modules
-        key: ${{ inputs.runner.os }}-xapps-cache-${{ hashFiles('solidity/optics-xapps/package-lock.json') }}
+        key: ${{ inputs.runneros }}-xapps-cache-${{ hashFiles('solidity/optics-xapps/package-lock.json') }}
 
     - name: Tests Cache
       id: tests-cache
       uses: actions/cache@v2
       with:
         path: ./typescript/optics-tests/node_modules
-        key: ${{ inputs.runner.os }}-tests-cache-${{ hashFiles('typescript/optics-tests/package-lock.json') }}
+        key: ${{ inputs.runneros }}-tests-cache-${{ hashFiles('typescript/optics-tests/package-lock.json') }}
 
     - name: Deploy Cache
       id: deploy-cache
       uses: actions/cache@v2
       with:
         path: ./typescript/optics-deploy/node_modules
-        key: ${{ inputs.runner.os }}-deploy-cache-${{ hashFiles('typescript/optics-deploy/package-lock.json') }}
+        key: ${{ inputs.runneros }}-deploy-cache-${{ hashFiles('typescript/optics-deploy/package-lock.json') }}
 
     - name: Typechain Cache
       id: typechain-cache
       uses: actions/cache@v2
       with:
         path: ./typescript/typechain/node_modules
-        key: ${{ inputs.runner.os }}-typechain-cache-${{ hashFiles('typescript/typechain/package-lock.json') }}
+        key: ${{ inputs.runneros }}-typechain-cache-${{ hashFiles('typescript/typechain/package-lock.json') }}
 
     - name: Multi-Provider Cache
       id: provider-cache
       uses: actions/cache@v2
       with:
         path: ./typescript/optics-provider/node_modules
-        key: ${{ inputs.runner.os }}-provider-cache-${{ hashFiles('typescript/optics-provider/package-lock.json') }}
+        key: ${{ inputs.runneros }}-provider-cache-${{ hashFiles('typescript/optics-provider/package-lock.json') }}
 
     # Install separately depending on cache hit
     - name: Install Core
