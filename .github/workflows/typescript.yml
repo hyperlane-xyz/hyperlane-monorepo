@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: ./.github/workflows/node-install.yml
+      - uses: .github/workflows/node-install.yml
 
   lint:
     runs-on: ubuntu-latest
@@ -24,7 +24,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: ./.github/workflows/node-cache.yml
+      - uses: .github/workflows/node-cache.yml
 
       # Lint
       - name: Prettier
