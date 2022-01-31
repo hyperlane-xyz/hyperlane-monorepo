@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-latest
     uses: actions/checkout@v2
     steps:
-      - uses: ./.github/workflows/node/
+      - uses: ./.github/workflows/node.yml
         with:
           runneros: ${{ runner.os }}
       # Lint
