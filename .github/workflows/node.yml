@@ -16,4 +16,6 @@ jobs:
     steps:
       # Print inputs
       - name: Print inputs
-        run: echo ${{ inputs.runneros }}
+        run: |
+          ls
+          cat runneros.txt 
