@@ -14,13 +14,9 @@ jobs:
   checkout:
     runs-on: ubuntu-latest
     uses: actions/checkout@v2
-  install:
-    runs-on: ubuntu-latest
-    needs: [install]
-    uses: .github/workflows/node-install.yml
   lint:
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [checkout]
 
     steps:
       # Lint
@@ -43,7 +39,7 @@ jobs:
       ETHERSCAN_API_KEY: ""
 
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [checkout]
 
     steps:
       - name: Checkout
