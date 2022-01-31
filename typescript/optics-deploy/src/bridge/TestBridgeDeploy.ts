@@ -17,8 +17,7 @@ import * as process from '.';
 import { Chain } from '../chain';
 import { Deploy } from '../deploy';
 
-
-import { TokenIdentifier } from 'optics-multi-provider-community/dist/optics/tokens'
+import { TokenIdentifier } from 'optics-multi-provider-community/dist/optics/tokens';
 import { CoreConfig } from '../core/CoreDeploy';
 
 function toBytes32(address: string): string {
@@ -88,7 +87,7 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
     if (!callerKnowsWhatTheyAreDoing) {
       throw new Error("Don't instantiate via new.");
     }
-    super(chain, contracts, true)
+    super(chain, contracts, true);
     this.signer = signer;
     this.ubc = ubc;
     this.mockCore = mockCore;

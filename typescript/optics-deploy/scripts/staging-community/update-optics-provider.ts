@@ -1,4 +1,3 @@
-
 import { updateProviderDomain } from '../../src/provider';
 import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { makeBridgeDeploys } from '../../src/bridge/BridgeDeploy';
@@ -17,4 +16,3 @@ const bridgeDeploys = makeBridgeDeploys(
   (_) => _.bridgeConfig,
 );
 updateProviderDomain('mainnet', coreDeploys, bridgeDeploys);
-

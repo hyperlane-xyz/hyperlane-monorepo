@@ -5,7 +5,7 @@ import * as mumbai from '../../config/testnets/mumbai';
 import * as fuji from '../../config/testnets/fuji';
 import { AgentChainConfigs, AgentConfig } from '../../src/agents';
 
-const configDirectory = 'dev-community'
+const configDirectory = 'dev-community';
 export const configPath = `../../rust/config/${configDirectory}`;
 
 export const configs: AgentChainConfigs = {
@@ -13,8 +13,8 @@ export const configs: AgentChainConfigs = {
   gorli: gorli.chainJson,
   kovan: kovan.chainJson,
   mumbai: mumbai.chainJson,
-  fuji: fuji.chainJson
-}
+  fuji: fuji.chainJson,
+};
 
 export const networks = [alfajores, kovan, gorli, fuji, mumbai];
 
@@ -23,6 +23,6 @@ export const agentConfig: AgentConfig = {
   environment: 'dev',
   namespace: 'optics-dev',
   runEnv: configDirectory,
-  dockerImageRepo: "gcr.io/clabs-optics/optics-agent",
-  dockerImageTag: "dev-2021-12-20"
-}
+  dockerImageRepo: 'gcr.io/clabs-optics/optics-agent',
+  dockerImageTag: 'dev-2021-12-20',
+};

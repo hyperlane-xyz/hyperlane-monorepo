@@ -51,7 +51,7 @@ export class AgentGCPKey extends AgentKey {
     public readonly chainName: string,
     private remoteKey: RemoteKey = { fetched: false },
   ) {
-    super()
+    super();
   }
 
   static async create(environment: string, role: string, chainName: string) {
@@ -81,8 +81,8 @@ export class AgentGCPKey extends AgentKey {
 
   get credentialsAsHelmValue() {
     return {
-      hexKey: strip0x(this.privateKey)
-    }
+      hexKey: strip0x(this.privateKey),
+    };
   }
 
   // The identifier for this key within a set of keys for an enrivonment

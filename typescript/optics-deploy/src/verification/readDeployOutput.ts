@@ -62,7 +62,14 @@ export function getPathToLatestDeployConfig() {
  * */
 export function getPathToLatestConfig(
   configPath: string,
-  ignoreFolders = ['development', 'staging', 'mainnet', 'default', 'staging-community', 'production-community'],
+  ignoreFolders = [
+    'development',
+    'staging',
+    'mainnet',
+    'default',
+    'staging-community',
+    'production-community',
+  ],
 ) {
   // get the names of all non-default config directories within the relative configPath
   let configFolders: string[] = fs
@@ -137,11 +144,11 @@ export function parseFileFromDeploy(
   fileSuffix: string,
 ): any {
   const targetFileName = `${network}_${fileSuffix}.json`;
-  const filePath = `${path}/${targetFileName}`
+  const filePath = `${path}/${targetFileName}`;
 
   if (!fs.existsSync(filePath)) {
     throw new Error(
-      `No ${fileSuffix} files found for ${network} at ${filePath}`
+      `No ${fileSuffix} files found for ${network} at ${filePath}`,
     );
   }
 
