@@ -68,28 +68,28 @@ export class AgentGCPKey {
     };
   }
 
-  isAttestationKey() {
+  get isAttestationKey() {
     return isAttestationKey(this.role);
   }
 
-  identifier() {
+  get identifier() {
     return identifier(this.environment, this.role, this.chainName);
   }
 
   // The identifier for this key within a set of keys for an enrivonment
-  memoryKeyIdentifier() {
+  get memoryKeyIdentifier() {
     return isAttestationKey(this.role)
       ? `${this.chainName}-${this.role}`
       : this.role;
   }
 
-  privateKey() {
+  get privateKey() {
     this.requireFetched();
     // @ts-ignore
     return this.remoteKey.privateKey;
   }
 
-  address() {
+  get address() {
     this.requireFetched();
     // @ts-ignore
     return this.remoteKey.address;
@@ -97,7 +97,7 @@ export class AgentGCPKey {
 
   async fetchFromGCP() {
     const [secretRaw] = await execCmd(
-      `gcloud secrets versions access latest --secret ${this.identifier()}`,
+      `gcloud secrets versions access latest --secret ${this.identifier}`,
     );
     const secret: SecretManagerPersistedKeys = JSON.parse(secretRaw);
     this.remoteKey = {
@@ -116,7 +116,7 @@ export class AgentGCPKey {
   }
 
   async delete() {
-    await execCmd(`gcloud secrets delete ${this.identifier()} --quiet`);
+    await execCmd(`gcloud secrets delete ${this.identifier} --quiet`);
   }
 
   private requireFetched() {
@@ -128,11 +128,11 @@ export class AgentGCPKey {
   private async _create(rotate: boolean) {
     const wallet = Wallet.createRandom();
     const address = await wallet.getAddress();
-    const identifier = this.identifier();
+    const identifier = this.identifier;
     const fileName = `${identifier}.txt`;
 
     let labels = `environment=${this.environment},role=${this.role}`;
-    if (this.isAttestationKey()) labels += `,chain=${this.chainName}`;
+    if (this.isAttestationKey) labels += `,chain=${this.chainName}`;
 
     await writeFile(
       fileName,
@@ -141,7 +141,7 @@ export class AgentGCPKey {
         environment: this.environment,
         privateKey: wallet.privateKey,
         address,
-        ...include(this.isAttestationKey(), { chainName: this.chainName }),
+        ...include(this.isAttestationKey, { chainName: this.chainName }),
       }),
     );
 
@@ -213,7 +213,7 @@ export async function createAgentGCPKeys(
   await persistAddresses(
     environment,
     keys.map((_) => _.serializeAsAddress()),
-    true
+    true,
   );
 }
 
@@ -263,7 +263,7 @@ export async function fetchAgentGCPKeys(
     KEY_ROLES.map(async (role) => {
       const key = new AgentGCPKey(environment, role, chainName);
       await key.fetchFromGCP();
-      return [key.memoryKeyIdentifier(), key];
+      return [key.memoryKeyIdentifier, key];
     }),
   );
   return Object.fromEntries(secrets);
@@ -279,8 +279,8 @@ async function fetchGCPKeyAddresses(environment: string) {
 
 // Modifies a Chain configuration with the deployer key pulled from GCP
 export async function addDeployerGCPKey(environment: string, chain: Chain) {
-  const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chain.name)
-  await key.fetchFromGCP()
+  const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chain.name);
+  await key.fetchFromGCP();
   const deployerSecret = key.privateKey();
   return replaceDeployer(chain, strip0x(deployerSecret));
 }

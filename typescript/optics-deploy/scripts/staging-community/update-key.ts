@@ -1,11 +1,11 @@
 import { KEY_ROLE_ENUM } from "../../src/agents";
-import { AwsKey } from "../../src/agents/aws";
+import { AgentAwsKey } from "../../src/agents/aws";
 import { agentConfig } from "./agentConfig";
 
 async function main() {
-  const key = new AwsKey(agentConfig, KEY_ROLE_ENUM.ProcessorSigner, 'fantomtest')
+  const key = new AgentAwsKey(agentConfig, KEY_ROLE_ENUM.ProcessorSigner, 'fantomtest')
   await key.fetchFromAws()
-  console.log(`Current key: ${key.address()}`)
+  console.log(`Current key: ${key.address}`)
   const newAddress = await key.update()
   console.log(`Create new key with address: ${newAddress}. Run rotate-key script to actually rotate the key via the alias.`)
 }

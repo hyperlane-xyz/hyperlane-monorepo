@@ -1,4 +1,4 @@
-import { AgentConfig } from '../agents';
+import { AgentConfig, KEY_ROLE_ENUM } from '../agents';
 import {
   CreateAliasCommand,
   CreateKeyCommand,
@@ -24,9 +24,10 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AwsKey {
+export class AgentAwsKey {
   private environment: string;
   private client: KMSClient;
+  private awsRegion: string;
   public remoteKey: RemoteKey = { fetched: false };
 
   constructor(
@@ -42,6 +43,7 @@ export class AwsKey {
       throw new Error('No AWS env vars set');
     }
     this.environment = agentConfig.environment;
+    this.awsRegion = agentConfig.awsRegion;
     this.client = new KMSClient({
       region: agentConfig.awsRegion,
       credentials: {
@@ -51,21 +53,39 @@ export class AwsKey {
     });
   }
 
-  aliasName() {
-    return `alias/${this.environment}-${this.chainName}-${this.role}`;
+  get aliasName() {
+    // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
+    const adjustedRole =
+      this.environment === 'staging-community' &&
+      this.role === KEY_ROLE_ENUM.UpdaterAttestation
+        ? KEY_ROLE_ENUM.UpdaterSigner
+        : this.environment === 'staging-community' &&
+          this.role === KEY_ROLE_ENUM.UpdaterSigner
+        ? KEY_ROLE_ENUM.UpdaterAttestation
+        : this.role;
+    return `alias/${this.environment}-${this.chainName}-${adjustedRole}`;
   }
 
-  address() {
+  get credentialsAsHelmValue() {
+    return {
+      aws: {
+        keyId: this.aliasName,
+        region: this.awsRegion,
+      },
+    };
+  }
+
+  get address(): string {
     this.requireFetched();
     // @ts-ignore
     return this.remoteKey.address;
   }
 
   async fetchFromAws() {
-    const address = await this.fetchAddressFromAws()
+    const address = await this.fetchAddressFromAws();
     this.remoteKey = {
       fetched: true,
-      address
+      address,
     };
   }
 
@@ -85,7 +105,7 @@ export class AwsKey {
    * Requires update to have been called on this key prior
    */
   async rotate() {
-    const canonicalAlias = this.aliasName();
+    const canonicalAlias = this.aliasName;
     const newAlias = canonicalAlias + '-new';
     const oldAlias = canonicalAlias + '-old';
 
@@ -134,7 +154,7 @@ export class AwsKey {
     await this.client.send(new DeleteAliasCommand({ AliasName: newAlias }));
 
     // Address should have changed now
-    this.fetchFromAws()
+    this.fetchFromAws();
   }
 
   private requireFetched() {
@@ -145,7 +165,7 @@ export class AwsKey {
 
   // Creates a new key and returns its address
   private async _create(rotate: boolean) {
-    const alias = this.aliasName();
+    const alias = this.aliasName;
     if (!rotate) {
       // Make sure the alias is not currently in use
       const listAliasResponse = await this.client.send(
@@ -181,32 +201,32 @@ export class AwsKey {
       new CreateAliasCommand({ TargetKeyId: keyId, AliasName: newAliasName }),
     );
 
-    const address = this.fetchAddressFromAws(keyId)
-    return address
+    const address = this.fetchAddressFromAws(keyId);
+    return address;
   }
 
-
   private async fetchAddressFromAws(keyId?: string) {
-    const alias = this.aliasName();
+    const alias = this.aliasName;
 
     if (!keyId) {
       const listAliasResponse = await this.client.send(
         new ListAliasesCommand({ Limit: 100 }),
       );
-  
-      const match = listAliasResponse.Aliases!.find((_) => _.AliasName === alias);
-  
+
+      const match = listAliasResponse.Aliases!.find(
+        (_) => _.AliasName === alias,
+      );
+
       if (!match || !match.TargetKeyId) {
         throw new Error('Couldnt find key');
       }
-      keyId = match.TargetKeyId
+      keyId = match.TargetKeyId;
     }
-    
+
     const publicKeyResponse = await this.client.send(
       new GetPublicKeyCommand({ KeyId: keyId }),
     );
 
-    return getEthereumAddress(Buffer.from(publicKeyResponse.PublicKey!))
+    return getEthereumAddress(Buffer.from(publicKeyResponse.PublicKey!));
   }
-
 }
