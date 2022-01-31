@@ -15,8 +15,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-        with:
-          runneros: ${{ runneros }}
       # Print inputs
       - name: Print inputs
-        run: echo ${{ github.event.inputs.runneros }}
+        run: echo ${{ inputs.runneros }}
