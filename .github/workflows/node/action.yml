@@ -16,5 +16,6 @@ jobs:
     steps:
       # Print inputs
       - name: Print inputs
-        uses: actions/checkout@v2
-        run: echo ${{ runneros }}
+        run: |
+          ls
+          cat runneros.txt 
