@@ -14,11 +14,11 @@ const deploys = makeCoreDeploys(
 );
 
 async function main() {
-  stagingCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!)
+  stagingCommunity.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!)
   stagingCommunity.registerRpcProvider('gorli', process.env.GORLI_RPC!)
   stagingCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!)
-  stagingCommunity.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!)
-  stagingCommunity.registerSigner('alfajores', new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!))
+  stagingCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!)
+  stagingCommunity.registerSigner('ropsten', new ethers.Wallet(process.env.ROPSTEN_DEPLOYER_KEY!))
 
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();

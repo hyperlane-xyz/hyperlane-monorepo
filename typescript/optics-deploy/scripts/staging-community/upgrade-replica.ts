@@ -15,15 +15,15 @@ const deploys = makeCoreDeploys(
 );
 
 async function main() {
-  stagingCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!)
+  stagingCommunity.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!)
   stagingCommunity.registerRpcProvider('gorli', process.env.GORLI_RPC!)
   stagingCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!)
-  stagingCommunity.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!)
-  stagingCommunity.registerSigner('alfajores', new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!))
+  stagingCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!)
+  stagingCommunity.registerSigner('ropsten', new ethers.Wallet(process.env.ROPSTEN_DEPLOYER_KEY!))
 
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
-  checker.expectViolations([ViolationType.UpgradeBeacon], [5])
+  checker.expectViolations([ViolationType.UpgradeBeacon], [4])
   const builder = new GovernanceCallBatchBuilder(deploys, stagingCommunity, checker.violations);
   const batch = await builder.build()
 
@@ -39,9 +39,9 @@ async function main() {
   }
 
   await batch.build()
-  // For each domain, expect one call to upgrade the contract and then four
+  // For each domain, expect one call to upgrade the contract and then three
   // calls to transfer replica ownership.
-  expectCalls(batch, domains, new Array(5).fill(5))
+  expectCalls(batch, domains, new Array(4).fill(4))
   // Change to `batch.execute` in order to run.
   const receipts = await batch.estimateGas()
   console.log(receipts)
