@@ -33,22 +33,3 @@ jobs:
           npm run prettier
           cd ../ts-interface
           npm run prettier
-
-  build:
-    runs-on: ubuntu-latest
-    needs: [lint]
-
-    steps:
-      - uses: actions/checkout@v2
-
-      - name: contracts-metrics
-        run: cd ./typescript/contracts-metrics && npm run build
-
-      - name: optics-deploy
-        run: cd ./typescript/optics-deploy && npm run build
-
-      - name: optics-provider
-        run: cd ./typescript/optics-provider && npm run build
-
-      - name: typechain
-        run: cd ./typescript/typechain && npm run build
