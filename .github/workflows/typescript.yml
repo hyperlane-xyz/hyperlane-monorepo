@@ -22,9 +22,7 @@ jobs:
 
       - name: build
         run: |
-          cd ./typescript/contract-metrics
-          npm run build
-          cd ../optics-deploy
+          cd ./typescript/optics-deploy
           npm run build
           cd ../optics-provider
           npm run build
@@ -33,9 +31,7 @@ jobs:
 
       - name: prettier
         run: |
-          cd ./typescript/contract-metrics
-          npm run prettier
-          cd ../optics-deploy
+          cd ./typescript/optics-deploy
           npm run prettier
           cd ../optics-provider
           npm run prettier
