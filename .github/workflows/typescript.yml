@@ -16,7 +16,7 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: .github/workflows/node.yml
+      - uses: ./.github/workflows/node.yml
 
       # Lint
       - name: Prettier
