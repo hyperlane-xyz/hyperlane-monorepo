@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  install:
+  solidity-install:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -20,7 +20,7 @@ jobs:
         with:
           runneros: ${{ runner.os }}
 
-  lint:
+  solidity-lint:
     runs-on: ubuntu-latest
     needs: [install]
     steps:
