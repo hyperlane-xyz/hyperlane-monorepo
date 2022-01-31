@@ -13,12 +13,9 @@ on:
 jobs:
   node:
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - name: node
-        uses: ./.github/workflows/node
-        secrets:
-          runneros: ${{ runner.os }}
+    uses: ./.github/workflows/node
+    secrets:
+      runneros: ${{ runner.os }}
 
   lint:
     runs-on: ubuntu-latest
