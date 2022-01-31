@@ -12,13 +12,13 @@ on:
 
 jobs:
   node:
-    uses: ./.github/workflows/node.yml
-    secrets:
-      runneros: ${{ runner.os }}
 
   lint:
     runs-on: ubuntu-latest
     steps:
+      - uses: ./.github/workflows/node.yml
+        secrets:
+          runneros: ${{ runner.os }}
       # Lint
       - name: ls
         run: |
