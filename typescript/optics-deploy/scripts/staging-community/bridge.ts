@@ -9,10 +9,17 @@ import { BridgeDeploy } from '../../src/bridge/BridgeDeploy';
 // get the path to the latest core system deploy
 const path = getPathToLatestDeploy();
 
-const alfajoresDeploy = new BridgeDeploy(alfajores.chain, alfajores.bridgeConfig, path);
+const alfajoresDeploy = new BridgeDeploy(
+  alfajores.chain,
+  alfajores.bridgeConfig,
+  path,
+);
 const gorliDeploy = new BridgeDeploy(gorli.chain, gorli.bridgeConfig, path);
 const kovanDeploy = new BridgeDeploy(kovan.chain, kovan.bridgeConfig, path);
-const ropstenDeploy = new BridgeDeploy(ropsten.chain, ropsten.bridgeConfig, path);
-
+const ropstenDeploy = new BridgeDeploy(
+  ropsten.chain,
+  ropsten.bridgeConfig,
+  path,
+);
 
 deployBridges([alfajoresDeploy, gorliDeploy, kovanDeploy, ropstenDeploy]);

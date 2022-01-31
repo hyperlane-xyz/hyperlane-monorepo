@@ -12,7 +12,7 @@ import {
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
 import { getEthereumAddress } from '../utils';
-import { AgentKey } from "./agent";
+import { AgentKey } from './agent';
 
 interface UnfetchedKey {
   fetched: false;
@@ -36,7 +36,7 @@ export class AgentAwsKey extends AgentKey {
     public readonly role: string,
     public readonly chainName: string,
   ) {
-    super()
+    super();
     if (
       !agentConfig.awsRegion ||
       !agentConfig.awsKeyId ||

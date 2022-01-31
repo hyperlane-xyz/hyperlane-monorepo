@@ -50,9 +50,9 @@ export async function deployBridges(deploys: Deploy[]) {
     }),
   );
 
-  const checker = new BridgeInvariantChecker(deploys)
-  await checker.checkDeploys()
-  checker.expectEmpty()
+  const checker = new BridgeInvariantChecker(deploys);
+  await checker.checkDeploys();
+  checker.expectEmpty();
 
   if (!isTestDeploy) {
     // output the Bridge deploy information to a subdirectory

@@ -146,12 +146,24 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     return new CoreDeploy(chain, config);
   }
 
-  static fromDirectory(directory: string, chain: Chain, config: CoreConfig, test: boolean = false): CoreDeploy {
+  static fromDirectory(
+    directory: string,
+    chain: Chain,
+    config: CoreConfig,
+    test: boolean = false,
+  ): CoreDeploy {
     let deploy = new CoreDeploy(chain, config, test);
-    const addresses: CoreDeployAddresses = JSON.parse(readFileSync(path.join(directory, `${chain.name}_contracts.json`)) as any as string);
+    const addresses: CoreDeployAddresses = JSON.parse(
+      readFileSync(
+        path.join(directory, `${chain.name}_contracts.json`),
+      ) as any as string,
+    );
     deploy.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
-    deploy.verificationInput = getVerificationInputFromDeploy(directory, chain.config.name)
-    return deploy
+    deploy.verificationInput = getVerificationInputFromDeploy(
+      directory,
+      chain.config.name,
+    );
+    return deploy;
   }
 }
 
@@ -160,9 +172,13 @@ export function makeCoreDeploys<V>(
   directory: string,
   data: V[],
   chainAccessor: (data: V) => Chain,
-  coreConfigAccessor: (data: V) => CoreConfig
+  coreConfigAccessor: (data: V) => CoreConfig,
 ): CoreDeploy[] {
-  return data.map(
-    (d: V) => CoreDeploy.fromDirectory(directory, chainAccessor(d), coreConfigAccessor(d))
+  return data.map((d: V) =>
+    CoreDeploy.fromDirectory(
+      directory,
+      chainAccessor(d),
+      coreConfigAccessor(d),
+    ),
   );
 }

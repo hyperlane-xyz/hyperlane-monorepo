@@ -100,17 +100,17 @@ export async function printDeployedTokens(
 
 export async function persistDeployedTokens(
   context: OpticsContext,
-  credentials: string
-): Promise <void> {
+  credentials: string,
+): Promise<void> {
   const deployed = await getDeployedTokens(context);
-  for(let domain of deployed.keys()){
-    let domainName = context.resolveDomainName(domain)
-    const tokens = deployed.get(domain)
-    uploadDeployedTokens(domainName!, tokens!, credentials)
+  for (let domain of deployed.keys()) {
+    let domainName = context.resolveDomainName(domain);
+    const tokens = deployed.get(domain);
+    uploadDeployedTokens(domainName!, tokens!, credentials);
   }
   //
 }
 
 (async function main() {
-  await persistDeployedTokens(mainnet, config.googleCredentialsFile)
+  await persistDeployedTokens(mainnet, config.googleCredentialsFile);
 })();
