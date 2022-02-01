@@ -1,4 +1,4 @@
-name: solidity
+name: typescript
 
 on:
   # Triggers the workflow on push or pull request events but only for the main branch
@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  solidity-install:
+  typescript-install:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -20,9 +20,9 @@ jobs:
         with:
           runneros: ${{ runner.os }}
 
-  solidity-lint:
+  typescript-build:
     runs-on: ubuntu-latest
-    needs: [solidity-install]
+    needs: [typescript-install]
     steps:
       - uses: actions/checkout@v2
       - name: npm install
@@ -30,25 +30,32 @@ jobs:
         with:
           runneros: ${{ runner.os }}
 
-      - name: lint
+      - name: build
         run: |
-          cd ./solidity/optics-core
-          npm run lint
-          cd ../optics-xapps
-          npm run lint
-
-  solidity-test:
-    env:
-      ETHERSCAN_API_KEY: ""
-
+          cd ./typescript/contract-metrics
+          npm run build
+          cd ../optics-deploy
+          npm run build
+          cd ../optics-provider
+          npm run build
+          cd ../typechain
+          npm run build
+  typescript-lint:
     runs-on: ubuntu-latest
-    needs: [solidity-install]
-
+    needs: [typescript-install]
     steps:
       - uses: actions/checkout@v2
       - name: npm install
         uses: ./.github/workflows/npm
         with:
           runneros: ${{ runner.os }}
-      - name: test
-        run: ./scripts/test-solidity.sh
+
+      - name: prettier
+        run: |
+          cd ./typescript/optics-deploy
+          npm run prettier
+          cd ../optics-provider
+          npm run prettier
+          cd ../optics-tests
+          npm run prettier
+          [[ -z $(git status -s) ]]

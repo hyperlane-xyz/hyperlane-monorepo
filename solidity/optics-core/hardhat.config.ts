@@ -1,4 +1,3 @@
-import "hardhat-gas-reporter";
 import "solidity-coverage";
 import "@typechain/hardhat";
 import "@nomiclabs/hardhat-etherscan";
@@ -33,10 +32,6 @@ module.exports = {
         runs: 999999,
       },
     },
-  },
-
-  gasReporter: {
-    currency: "USD",
   },
 
   networks: {

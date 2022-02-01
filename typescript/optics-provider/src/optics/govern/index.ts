@@ -91,7 +91,7 @@ export class CallBatch {
       if (false) {
         responses.push(await signer.estimateGas(tx));
       }
-    }
+=======
     return responses;
   }
 
@@ -100,9 +100,13 @@ export class CallBatch {
     const governor = await this.core.governor();
     const signerAddress = await signer.getAddress();
     if (!governor.local) throw new Error('Governor is not local');
+<<<<<<< HEAD
     // We're not the governor. Should reconfigure the object to have a boolean
     // that says whether or not we're acting as the governor.
     if (false && signerAddress !== governor.identifier)
+=======
+    if (signerAddress !== governor.identifier)
+>>>>>>> main
       throw new Error('Signer is not Governor');
     return signer;
   }
