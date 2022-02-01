@@ -1,4 +1,4 @@
-import { mainnetCommunity } from './registerContext';
+import { prod } from './registerContext';
 import config from './config';
 
 import {
@@ -87,5 +87,5 @@ async function persistDeployedTokens(
 }
 
 (async function main() {
-  await persistDeployedTokens(mainnetCommunity, config.googleCredentialsFile);
+  await persistDeployedTokens(prod, config.googleCredentialsFile);
 })();

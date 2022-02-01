@@ -4,7 +4,7 @@ import { MetricCollector } from './metrics';
 
 dotenv.config({ path: process.env.CONFIG_PATH ?? '.env' });
 
-const environment = process.env.ENVIRONMENT ?? 'development';
+const environment = process.env.ENVIRONMENT ?? 'dev';
 
 let networks = [];
 switch (environment) {

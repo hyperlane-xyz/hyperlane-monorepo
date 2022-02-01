@@ -1,27 +1,27 @@
 import {
-  devCommunity,
-  mainnetCommunity,
+  dev,
   staging,
-  mainnet
+  prod,
+  prodLegacy
 } from 'optics-multi-provider-community';
 import config from './config';
 
-// register mainnet
-mainnetCommunity.registerRpcProvider('celo', config.celoRpc);
-mainnetCommunity.registerRpcProvider('ethereum', config.ethereumRpc);
-mainnetCommunity.registerRpcProvider('polygon', config.polygonRpc);
-mainnetCommunity.registerRpcProvider('avalanche', config.avalancheRpc);
+// register prod
+prod.registerRpcProvider('celo', config.celoRpc);
+prod.registerRpcProvider('ethereum', config.ethereumRpc);
+prod.registerRpcProvider('polygon', config.polygonRpc);
+prod.registerRpcProvider('avalanche', config.avalancheRpc);
 
-mainnet.registerRpcProvider('celo', config.celoRpc);
-mainnet.registerRpcProvider('ethereum', config.ethereumRpc);
-mainnet.registerRpcProvider('polygon', config.polygonRpc);
+prodLegacy.registerRpcProvider('celo', config.celoRpc);
+prodLegacy.registerRpcProvider('ethereum', config.ethereumRpc);
+prodLegacy.registerRpcProvider('polygon', config.polygonRpc);
 
 // register staging
 staging.registerRpcProvider('alfajores', config.alfajoresRpc);
 staging.registerRpcProvider('kovan', config.kovanRpc);
 
-// register devCommunity
-devCommunity.registerRpcProvider('alfajores', config.alfajoresRpc);
-devCommunity.registerRpcProvider('kovan', config.kovanRpc);
+// register dev
+dev.registerRpcProvider('alfajores', config.alfajoresRpc);
+dev.registerRpcProvider('kovan', config.kovanRpc);
 
-export { mainnetCommunity, staging, devCommunity, mainnet };
+export { prod, staging, dev, prodLegacy };
