@@ -9,8 +9,14 @@ export const ethereum: OpticsDomain = {
   governanceRouter: '0x42303634F37956687fB7ff2c6146AC842481A052',
   xAppConnectionManager: '0xcEc158A719d11005Bd9339865965bed938BEafA3',
   replicas: [
-    { domain: 1667591279, address: '0x07b5B57b08202294E657D51Eb453A189290f6385' },
-    { domain: 1886350457, address: '0x7725EadaC5Ee986CAc8317a1d2fB16e59e079E8b' },
+    {
+      domain: 1667591279,
+      address: '0x07b5B57b08202294E657D51Eb453A189290f6385',
+    },
+    {
+      domain: 1886350457,
+      address: '0x7725EadaC5Ee986CAc8317a1d2fB16e59e079E8b',
+    },
   ],
 };
 
@@ -29,7 +35,10 @@ export const polygon: OpticsDomain = {
   xAppConnectionManager: '0x3BAD272559949B455f14ee394798E4D744342661',
   replicas: [
     { domain: 6648936, address: '0xf25C5932bb6EFc7afA4895D9916F2abD7151BF97' },
-    { domain: 1667591279, address: '0x681Edb6d52138cEa8210060C309230244BcEa61b' },
+    {
+      domain: 1667591279,
+      address: '0x681Edb6d52138cEa8210060C309230244BcEa61b',
+    },
   ],
 };
 
@@ -42,7 +51,10 @@ export const celo: OpticsDomain = {
   xAppConnectionManager: '0x3BAD272559949B455f14ee394798E4D744342661',
   replicas: [
     { domain: 6648936, address: '0xf25C5932bb6EFc7afA4895D9916F2abD7151BF97' },
-    { domain: 1886350457, address: '0x681Edb6d52138cEa8210060C309230244BcEa61b' },
+    {
+      domain: 1886350457,
+      address: '0x681Edb6d52138cEa8210060C309230244BcEa61b',
+    },
   ],
 };
 

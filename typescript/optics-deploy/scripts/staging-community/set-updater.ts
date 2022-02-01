@@ -14,24 +14,34 @@ const deploys = makeCoreDeploys(
 );
 
 async function main() {
-  stagingCommunity.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!)
-  stagingCommunity.registerRpcProvider('gorli', process.env.GORLI_RPC!)
-  stagingCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!)
-  stagingCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!)
-  stagingCommunity.registerSigner('ropsten', new ethers.Wallet(process.env.ROPSTEN_DEPLOYER_KEY!))
+  stagingCommunity.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!);
+  stagingCommunity.registerRpcProvider('gorli', process.env.GORLI_RPC!);
+  stagingCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!);
+  stagingCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!);
+  stagingCommunity.registerSigner(
+    'ropsten',
+    new ethers.Wallet(process.env.ROPSTEN_DEPLOYER_KEY!),
+  );
 
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
-  checker.expectViolations([ViolationType.ReplicaUpdater, ViolationType.HomeUpdater ], [3, 1])
-  const builder = new GovernanceCallBatchBuilder(deploys, stagingCommunity, checker.violations);
-  const batch = await builder.build()
+  checker.expectViolations(
+    [ViolationType.ReplicaUpdater, ViolationType.HomeUpdater],
+    [3, 1],
+  );
+  const builder = new GovernanceCallBatchBuilder(
+    deploys,
+    stagingCommunity,
+    checker.violations,
+  );
+  const batch = await builder.build();
 
-  await batch.build()
-  const domains = deploys.map((deploy) => deploy.chain.domain)
+  await batch.build();
+  const domains = deploys.map((deploy) => deploy.chain.domain);
   // For each domain, expect one call to set the updater.
-  expectCalls(batch, domains, new Array(4).fill(1))
+  expectCalls(batch, domains, new Array(4).fill(1));
   // Change to `batch.execute` in order to run.
-  const receipts = await batch.execute()
-  console.log(receipts)
+  const receipts = await batch.execute();
+  console.log(receipts);
 }
-main().then(console.log).catch(console.error)
+main().then(console.log).catch(console.error);

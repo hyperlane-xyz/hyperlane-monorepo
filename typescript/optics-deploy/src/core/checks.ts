@@ -193,7 +193,11 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     addInputsForUpgradableContract(contracts.governance!, 'Governance');
     for (const domain in contracts.replicas) {
       addInputsForUpgradableContract(contracts.replicas[domain], 'Replica');
-      console.log(deploy.chain.domain, domain, contracts.replicas[domain].proxy.address)
+      console.log(
+        deploy.chain.domain,
+        domain,
+        contracts.replicas[domain].proxy.address,
+      );
     }
     return inputs;
   }

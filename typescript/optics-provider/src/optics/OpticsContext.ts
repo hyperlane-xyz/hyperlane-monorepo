@@ -500,7 +500,11 @@ export class OpticsContext extends MultiProvider {
 }
 
 export const mainnet = OpticsContext.fromDomains(mainnetDomains);
-export const mainnetCommunity = OpticsContext.fromDomains(mainnetCommunityDomains);
+export const mainnetCommunity = OpticsContext.fromDomains(
+  mainnetCommunityDomains,
+);
 export const devCommunity = OpticsContext.fromDomains(devCommunityDomains);
 export const staging = OpticsContext.fromDomains(stagingDomains);
-export const stagingCommunity = OpticsContext.fromDomains(stagingCommunityDomains);
+export const stagingCommunity = OpticsContext.fromDomains(
+  stagingCommunityDomains,
+);
