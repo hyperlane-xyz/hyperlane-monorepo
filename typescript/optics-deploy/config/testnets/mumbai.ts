@@ -32,7 +32,6 @@ export const devConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-
 export const bridgeConfig: BridgeConfig = {
   weth: '0x9c3C9283D3e44854697Cd22D3Faa240Cfb032889',
 };

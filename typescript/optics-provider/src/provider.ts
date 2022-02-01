@@ -152,12 +152,12 @@ export class MultiProvider {
    */
   registerRpcProvider(nameOrDomain: string | number, rpc: string): void {
     const domain = this.resolveDomain(nameOrDomain);
-    const celoNames = ['alfajores', 'celo']
+    const celoNames = ['alfajores', 'celo'];
     for (const name of celoNames) {
       if (nameOrDomain === name) {
         const provider = new StaticCeloJsonRpcProvider(rpc);
         this.registerProvider(domain, provider);
-        return
+        return;
       }
     }
     const provider = new ethers.providers.StaticJsonRpcProvider(rpc);

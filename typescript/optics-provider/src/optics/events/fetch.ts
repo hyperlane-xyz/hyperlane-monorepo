@@ -167,12 +167,7 @@ async function findFromPaginatedEvents<T extends Result, U>(
   }
   // query domain pagination limit at a time, concurrently
   // eslint-disable-next-line for-direction
-  for (
-    let end = lastBlock;
-    end > firstBlock;
-    end -= domain.paginate.blocks
-  ) {
-
+  for (let end = lastBlock; end > firstBlock; end -= domain.paginate.blocks) {
     const nextEnd = end - domain.paginate.blocks;
     const from = Math.max(nextEnd, firstBlock);
     const queriedEvents = await contract.queryFilter(filter, from, end);

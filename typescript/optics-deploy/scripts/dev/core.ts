@@ -18,26 +18,32 @@ const environment = 'dev';
 async function main() {
   const alfajoresDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, alfajores.chain),
-    await addAgentGCPAddresses(environment, alfajores.chain, alfajoresConfig)
+    await addAgentGCPAddresses(environment, alfajores.chain, alfajoresConfig),
   );
   const gorliDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, gorli.chain),
-    await addAgentGCPAddresses(environment, gorli.chain, gorliConfig)
+    await addAgentGCPAddresses(environment, gorli.chain, gorliConfig),
   );
   const kovanDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, kovan.chain),
-    await addAgentGCPAddresses(environment, kovan.chain, kovanConfig)
+    await addAgentGCPAddresses(environment, kovan.chain, kovanConfig),
   );
   const mumbaiDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, mumbai.chain),
-    await addAgentGCPAddresses(environment, mumbai.chain, mumbaiConfig)
+    await addAgentGCPAddresses(environment, mumbai.chain, mumbaiConfig),
   );
   const fujiDeploy = new CoreDeploy(
     await addDeployerGCPKey(environment, fuji.chain),
-    await addAgentGCPAddresses(environment, fuji.chain, fujiConfig)
+    await addAgentGCPAddresses(environment, fuji.chain, fujiConfig),
   );
 
-  await deployNChains([alfajoresDeploy, mumbaiDeploy, fujiDeploy, gorliDeploy, kovanDeploy]);
+  await deployNChains([
+    alfajoresDeploy,
+    mumbaiDeploy,
+    fujiDeploy,
+    gorliDeploy,
+    kovanDeploy,
+  ]);
 }
 
-main().then(console.log).catch(console.error)
+main().then(console.log).catch(console.error);

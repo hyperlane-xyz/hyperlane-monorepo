@@ -34,7 +34,6 @@ export const devConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-
 export const stagingCommunityConfig: CoreConfig = {
   environment: 'staging-community',
   updater: '0x6f37CaE0b16589FA55152732f2E04f6F0F7dcE97',
