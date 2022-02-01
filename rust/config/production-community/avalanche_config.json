@@ -1,9 +1,5 @@
 {
   "environment": "prod-community",
-  "index": {
-    "from": "6765067",
-    "chunk": "2000"
-  },
   "signers": {
     "avalanche": {
       "key": "",
