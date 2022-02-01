@@ -2,18 +2,18 @@ import * as dotenv from 'dotenv';
 import Logger from 'bunyan';
 import { MetricCollector } from './metrics';
 
-dotenv.config({path: process.env.CONFIG_PATH ?? '.env'});
+dotenv.config({ path: process.env.CONFIG_PATH ?? '.env' });
 
-const environment = process.env.ENVIRONMENT ?? 'development'
+const environment = process.env.ENVIRONMENT ?? 'development';
 
-let networks = []
+let networks = [];
 switch (environment) {
   case 'production':
-    networks = ['celo', 'ethereum', 'polygon', 'avalanche']
+    networks = ['celo', 'ethereum', 'polygon', 'avalanche'];
     break;
 
   default:
-    networks = ['alfajores', 'rinkeby', 'kovan']
+    networks = ['alfajores', 'rinkeby', 'kovan'];
     break;
 }
 
@@ -21,10 +21,10 @@ const baseLogger = Logger.createLogger({
   name: 'contract-metrics',
   serializers: Logger.stdSerializers,
   level: 'debug',
-  environment: environment
-})
+  environment: environment,
+});
 
-const metrics = new MetricCollector(baseLogger)
+const metrics = new MetricCollector(baseLogger);
 
 export default {
   baseLogger: baseLogger,
@@ -39,5 +39,5 @@ export default {
   kovanRpc: process.env.KOVAN_RPC ?? '',
   rinkebyRpc: process.env.RINKEBY_RPC ?? '',
   googleCredentialsFile:
-    process.env.GOOGLE_CREDENTIALS_FILE ?? './credentials.json'
+    process.env.GOOGLE_CREDENTIALS_FILE ?? './credentials.json',
 };

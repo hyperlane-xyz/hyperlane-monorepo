@@ -126,7 +126,7 @@ impl Replica {
                                 replica_domain,
                                 nonce = next_message_nonce,
                                 replica = self.replica.name(),
-                                "Failed to find message_by_nonce or proof_by_leaf_index. Processor retrying message. Replica: {}. Nonce: {}. Domain: {}.",
+                                "Trying message failed, retrying. Replica: {}. Nonce: {}. Domain: {}.",
                                 self.replica.name(),
                                 next_message_nonce,
                                 replica_domain,
@@ -238,7 +238,11 @@ impl Replica {
             nonce
         );
 
-        self.process(message, proof).await?;
+        let process_outcome = self.process(message, proof).await;
+        match process_outcome {
+            Ok(()) => (),
+            Err(_) => return Ok(Flow::Repeat),
+        }
 
         Ok(Flow::Advance)
     }
@@ -248,15 +252,16 @@ impl Replica {
     async fn process(&self, message: CommittedMessage, proof: Proof) -> Result<()> {
         use optics_core::Replica;
         let status = self.replica.message_status(message.to_leaf()).await?;
-
+        let tx_outcome;
         match status {
             MessageStatus::None => {
-                self.replica
+                tx_outcome = self
+                    .replica
                     .prove_and_process(message.as_ref(), &proof)
                     .await?;
             }
             MessageStatus::Proven => {
-                self.replica.process(message.as_ref()).await?;
+                tx_outcome = self.replica.process(message.as_ref()).await?;
             }
             MessageStatus::Processed => {
                 info!(
@@ -277,11 +282,19 @@ impl Replica {
             nonce = message.message.nonce,
             leaf_index = message.leaf_index,
             leaf = ?message.message.to_leaf(),
-            "Processed message. Destination: {}. Nonce: {}. Leaf index: {}.",
+            "Processed message with tx hash {} and outcome {}. Destination: {}. Nonce: {}. Leaf index: {}.",
+            tx_outcome.txid,
+            tx_outcome.executed,
             message.message.destination,
             message.message.nonce,
             message.leaf_index,
         );
+
+        if !tx_outcome.executed {
+            let msg = eyre!("Process tx was not successful");
+            bail!(msg);
+        }
+
         Ok(())
     }
 }

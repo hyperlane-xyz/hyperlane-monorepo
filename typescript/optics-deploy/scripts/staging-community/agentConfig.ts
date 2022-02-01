@@ -10,12 +10,11 @@ export const configs: AgentChainConfigs = {
   alfajores: alfajores.chainJson,
   gorli: gorli.chainJson,
   kovan: kovan.chainJson,
-  ropsten: ropsten.chainJson
-}
-
+  ropsten: ropsten.chainJson,
+};
 
 export const configPath = '../../rust/config/staging-community';
-export const networks = [alfajores, ropsten, kovan, gorli]
+export const networks = [ropsten, gorli, kovan, alfajores];
 
 // Environment specific config
 export const agentConfig: AgentConfig = {
@@ -25,6 +24,6 @@ export const agentConfig: AgentConfig = {
   awsRegion: process.env.AWS_REGION!,
   awsKeyId: process.env.AWS_KEY_ID!,
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
-  dockerImageRepo: "gcr.io/clabs-optics/optics-agent",
-  dockerImageTag: "3594c7d715f0ad1def2b36cb0e29649e1f6712e6"
-}
+  dockerImageRepo: 'gcr.io/clabs-optics/optics-agent',
+  dockerImageTag: '3594c7d715f0ad1def2b36cb0e29649e1f6712e6',
+};

@@ -1,70 +1,89 @@
 import { expect } from 'chai';
 
-import { BridgeDeploy as Deploy } from './BridgeDeploy';
+import { BridgeDeploy } from './BridgeDeploy';
 import TestBridgeDeploy from './TestBridgeDeploy';
-import { assertBeaconProxy, checkVerificationInput } from '../checks';
+import { VerificationInput, InvariantChecker } from '../checks';
+import { BeaconProxy } from '../proxyUtils';
 
 const emptyAddr = '0x' + '00'.repeat(32);
 
-export async function checkBridgeDeploy(
-  deploy: Deploy | TestBridgeDeploy,
-  remotes: number[],
-) {
-  assertBeaconProxy(deploy.contracts.bridgeToken!);
-  assertBeaconProxy(deploy.contracts.bridgeRouter!);
+type AnyBridgeDeploy = BridgeDeploy | TestBridgeDeploy;
 
-  if (deploy.config.weth) {
-    expect(deploy.contracts.ethHelper).to.not.be.undefined;
-  } else {
-    expect(deploy.contracts.ethHelper).to.be.undefined;
+export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
+  constructor(deploys: AnyBridgeDeploy[]) {
+    super(deploys);
   }
 
-  const bridgeRouter = deploy.contracts.bridgeRouter?.proxy!;
-  await Promise.all(
-    remotes.map(async (remoteDomain) => {
-      const registeredRouter = await bridgeRouter.remotes(remoteDomain);
-      expect(registeredRouter).to.not.equal(emptyAddr);
-    }),
-  );
+  async checkDeploy(deploy: AnyBridgeDeploy): Promise<void> {
+    await this.checkBeaconProxies(deploy);
+    await this.checkBridgeRouter(deploy);
+    this.checkEthHelper(deploy);
+    this.checkVerificationInputs(deploy);
+  }
 
-  expect(await bridgeRouter.owner()).to.equal(
-    deploy.coreContractAddresses.governance.proxy,
-  );
-
-  // check verification addresses
-  checkVerificationInput(
-    deploy,
-    'BridgeToken Implementation',
-    deploy.contracts.bridgeToken?.implementation.address!,
-  );
-  checkVerificationInput(
-    deploy,
-    'BridgeToken UpgradeBeacon',
-    deploy.contracts.bridgeToken?.beacon.address!,
-  );
-  checkVerificationInput(
-    deploy,
-    'BridgeToken Proxy',
-    deploy.contracts.bridgeToken?.proxy.address!,
-  );
-  checkVerificationInput(
-    deploy,
-    'BridgeRouter Implementation',
-    deploy.contracts.bridgeRouter?.implementation.address!,
-  );
-  checkVerificationInput(
-    deploy,
-    'BridgeRouter UpgradeBeacon',
-    deploy.contracts.bridgeRouter?.beacon.address!,
-  );
-  checkVerificationInput(
-    deploy,
-    'BridgeRouter Proxy',
-    deploy.contracts.bridgeRouter?.proxy.address!,
-  );
-  if (deploy.config.weth) {
-    expect(deploy.verificationInput[6].address).to.equal(
-      deploy.contracts.ethHelper?.address,
+  async checkBeaconProxies(deploy: AnyBridgeDeploy): Promise<void> {
+    await this.checkBeaconProxyImplementation(
+      deploy.chain.domain,
+      'BridgeToken',
+      deploy.contracts.bridgeToken!,
     );
+    await this.checkBeaconProxyImplementation(
+      deploy.chain.domain,
+      'BridgeRouter',
+      deploy.contracts.bridgeRouter!,
+    );
+  }
+
+  async checkBridgeRouter(deploy: AnyBridgeDeploy): Promise<void> {
+    const bridgeRouter = deploy.contracts.bridgeRouter?.proxy!;
+    const domains = this._deploys.map((d: AnyBridgeDeploy) => d.chain.domain);
+    const remoteDomains = domains.filter(
+      (d: number) => d !== deploy.chain.domain,
+    );
+    await Promise.all(
+      remoteDomains.map(async (remoteDomain) => {
+        const registeredRouter = await bridgeRouter.remotes(remoteDomain);
+        expect(registeredRouter).to.not.equal(emptyAddr);
+      }),
+    );
+
+    expect(await bridgeRouter.owner()).to.equal(
+      deploy.coreContractAddresses.governance.proxy,
+    );
+  }
+
+  checkEthHelper(deploy: AnyBridgeDeploy): void {
+    if (deploy.config.weth) {
+      expect(deploy.contracts.ethHelper).to.not.be.undefined;
+    } else {
+      expect(deploy.contracts.ethHelper).to.be.undefined;
+    }
+  }
+
+  getVerificationInputs(deploy: AnyBridgeDeploy): VerificationInput[] {
+    const inputs: VerificationInput[] = [];
+    const addInputsForUpgradableContract = (
+      contract: BeaconProxy<any>,
+      name: string,
+    ) => {
+      inputs.push([`${name} Implementation`, contract.implementation]);
+      inputs.push([`${name} UpgradeBeacon`, contract.beacon]);
+      inputs.push([`${name} Proxy`, contract.proxy]);
+    };
+    expect(deploy.contracts.bridgeToken).to.not.be.undefined;
+    expect(deploy.contracts.bridgeRouter).to.not.be.undefined;
+    addInputsForUpgradableContract(
+      deploy.contracts.bridgeToken!,
+      'BridgeToken',
+    );
+    addInputsForUpgradableContract(
+      deploy.contracts.bridgeRouter!,
+      'BridgeRouter',
+    );
+    if (deploy.config.weth) {
+      expect(deploy.contracts.ethHelper).to.not.be.undefined;
+      inputs.push(['EthHelper', deploy.contracts.ethHelper!]);
+    }
+    return inputs;
   }
 }

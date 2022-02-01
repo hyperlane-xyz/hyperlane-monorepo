@@ -1,10 +1,6 @@
-import * as alfajores from '../../config/testnets/alfajores';
-import { InvariantViolationCollector } from '../../src/checks';
-import { checkCoreDeploys } from '../../src/core/checks';
+import { CoreInvariantChecker } from '../../src/core/checks';
 import { configPath, networks } from './agentConfig';
 import { makeCoreDeploys } from '../../src/core/CoreDeploy';
-
-const governorDomain = alfajores.chain.domain;
 
 const coreDeploys = makeCoreDeploys(
   configPath,
@@ -14,17 +10,9 @@ const coreDeploys = makeCoreDeploys(
 );
 
 async function check() {
-  const invariantViolationCollector = new InvariantViolationCollector();
-  await checkCoreDeploys(
-    coreDeploys,
-    governorDomain,
-    invariantViolationCollector.handleViolation,
-  );
-
-  if (invariantViolationCollector.violations.length > 0) {
-    console.error(`Invariant violations were found`);
-    console.log(invariantViolationCollector.violations);
-  }
+  const checker = new CoreInvariantChecker(coreDeploys);
+  await checker.checkDeploys();
+  checker.expectEmpty();
 }
 
 check().then(console.log).catch(console.error);
