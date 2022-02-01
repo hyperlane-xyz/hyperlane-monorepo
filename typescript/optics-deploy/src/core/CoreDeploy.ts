@@ -15,23 +15,6 @@ import path from 'path';
 
 type Address = string;
 
-type Governor = {
-  domain: number;
-  address: Address;
-};
-
-export type CoreConfig = {
-  environment: DeployEnvironment;
-  updater: Address;
-  recoveryTimelock: number;
-  recoveryManager: Address;
-  optimisticSeconds: number;
-  watchers: string[];
-  governor?: Governor;
-  processGas: BigNumberish;
-  reserveGas: BigNumberish;
-};
-
 export class CoreDeploy extends Deploy<CoreContracts> {
   config: CoreConfig;
 
