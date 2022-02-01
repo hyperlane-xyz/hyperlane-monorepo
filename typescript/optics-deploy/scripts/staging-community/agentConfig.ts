@@ -14,7 +14,7 @@ export const configs: AgentChainConfigs = {
 };
 
 export const configPath = '../../rust/config/staging-community';
-export const networks = [alfajores, ropsten, kovan, gorli];
+export const networks = [ropsten, gorli, kovan, alfajores];
 
 // Environment specific config
 export const agentConfig: AgentConfig = {

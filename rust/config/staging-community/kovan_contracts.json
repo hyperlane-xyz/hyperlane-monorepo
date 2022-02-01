@@ -14,17 +14,17 @@
   },
   "replicas": {
     "3": {
-      "implementation": "0xA3f4e4D4763dC9e9b55DbD11a3229448bB12FE86",
+      "implementation": "0x81B97dfBB743c343983e9bE7B863dB636DbD7373",
       "proxy": "0x15C1edbf6E6161d50d58682dF7587F0d61db5C38",
       "beacon": "0xC9e581Cd4fF6533f5ccBA4Dc5d5f642B8b658B93"
     },
     "5": {
-      "implementation": "0xA3f4e4D4763dC9e9b55DbD11a3229448bB12FE86",
+      "implementation": "0x81B97dfBB743c343983e9bE7B863dB636DbD7373",
       "proxy": "0xF782C67AA111a9D75f6ccEf3d7aDB54620D5A8e9",
       "beacon": "0xC9e581Cd4fF6533f5ccBA4Dc5d5f642B8b658B93"
     },
     "1000": {
-      "implementation": "0xA3f4e4D4763dC9e9b55DbD11a3229448bB12FE86",
+      "implementation": "0x81B97dfBB743c343983e9bE7B863dB636DbD7373",
       "proxy": "0x30dAE25E9eBd644841d1A1fF25e303331B1CdEb3",
       "beacon": "0xC9e581Cd4fF6533f5ccBA4Dc5d5f642B8b658B93"
     }
