@@ -12,7 +12,6 @@ const coreDeploys = makeCoreDeploys(
 async function main() {
   const deployer = new ImplementationDeployer(coreDeploys);
   await deployer.deployReplicaImplementations();
-  deployer.writeDeploys(configPath)
+  deployer.writeDeploys(configPath);
 }
 main().then(console.log).catch(console.error);
-

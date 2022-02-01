@@ -10,9 +10,9 @@ const coreDeploys = makeCoreDeploys(
 );
 
 async function check() {
-  const checker = new CoreInvariantChecker(coreDeploys)
-  await checker.checkDeploys()
-  checker.expectEmpty()
+  const checker = new CoreInvariantChecker(coreDeploys);
+  await checker.checkDeploys();
+  checker.expectEmpty();
 }
 
 check().then(console.log).catch(console.error);
