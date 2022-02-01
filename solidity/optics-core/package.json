@@ -11,7 +11,6 @@
     "ethereum-waffle": "^3.2.2",
     "ethers": "^5.4.4",
     "hardhat": "^2.0.8",
-    "hardhat-gas-reporter": "^1.0.4",
     "prettier": "^2.2.1",
     "prettier-plugin-solidity": "^1.0.0-beta.5",
     "solhint": "^3.3.2",
