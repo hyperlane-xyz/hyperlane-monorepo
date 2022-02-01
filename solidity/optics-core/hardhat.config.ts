@@ -48,7 +48,17 @@ module.exports = {
       url: "https://rinkeby.infura.io/v3/5c456d7844fa40a683e934df60534c60",
     },
     mainnet: {
-      url: "https://mainnet.infura.io/v3/5c456d7844fa40a683e934df60534c60",
+      url: "https://eth-mainnet.alchemyapi.io/v2/hPY2z3xUkRrFVnUDTEA247ogtEtbszHV",
+    },
+    polygon: {
+      url: "https://misty-divine-moon.matic.quiknode.pro/fb5067d9917063d4badbfa02afa7e69a10ec52d1/"
+    },
+    // To actually support avalanche, you have to go into the node_modules of the etherscan plugin and manually add it there
+    avalanche: {
+      url: 'https://api.avax.network/ext/bc/C/rpc'
+    },
+    celo: {
+      url: 'https://forno.celo.org'
     },
     arbitrum_rinkeby: {
       url: "rinkeby.arbitrum.io/rpc",

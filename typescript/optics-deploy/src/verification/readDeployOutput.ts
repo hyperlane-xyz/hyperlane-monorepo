@@ -48,7 +48,11 @@ export function getPathToLatestBridgeConfig() {
  * */
 export function getPathToLatestDeployConfig() {
   const configPath = '../../rust/config';
-  const ignoreFolders = ['default'];
+  const ignoreFolders = ['development',
+  'staging',
+  'mainnet',
+  'default',
+  'staging-community',];
   return getPathToLatestConfig(configPath, ignoreFolders);
 }
 
@@ -68,7 +72,6 @@ export function getPathToLatestConfig(
     'mainnet',
     'default',
     'staging-community',
-    'production-community',
   ],
 ) {
   // get the names of all non-default config directories within the relative configPath

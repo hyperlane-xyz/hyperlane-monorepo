@@ -18,6 +18,7 @@ const etherscanNetworks = [
   'ropsten',
   'rinkeby',
   'polygon',
+  'avalanche'
 ];
 
 /*
@@ -26,6 +27,10 @@ const etherscanNetworks = [
 function etherscanLink(network: string, address: string) {
   if (network === 'polygon') {
     return `https://polygonscan.com/address/${address}`;
+  }
+
+  if (network === 'avalanche') {
+    return `https://snowtrace.io/address/${address}`;
   }
 
   const prefix =
