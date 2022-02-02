@@ -1,30 +1,29 @@
 import { Network } from './chain';
 type Address = string;
 
-export type ProxyAddresses = {
-  implementation: Address;
-  proxy: Address;
-  beacon: Address;
+export type ProxiedAddress = {
+  address: Address;
+  _implementation: Address;
+  _beacon: Address;
 };
 
-type DomainedAddress = {
+type DomainedProxiedAddress = & ProxiedAddress {
   domain: number;
-  address: Address;
-  _proxy?: ProxyAddresses;
+  name: Network;
 }
 
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;
   xAppConnectionManager: Address;
   updaterManager: Address;
-  governanceRouter: ProxyAddresses;
-  home: DomainedAddress;
-  replicas?: Record<Network, DomainedAddress>;
+  governanceRouter: ProxiedAddress;
+  home: DomainedProxiedAddress;
+  replicas?: Record<Network, DomainedProxiedAddress>;
 };
 
 export type BridgeContractAddresses = {
-  bridgeRouter: ProxyAddresses;
-  bridgeToken: ProxyAddresses;
-  ethHelper?: Address;
+  bridgeRouter: ProxiedAddress;
+  bridgeToken: ProxiedAddress;
+  ethHelper?: ProxiedAddress;
 };
 
