@@ -74,9 +74,9 @@ export class CallBatch {
     return receipts;
   }
 
-  async estimateGas(): Promise<any[]> {
+  async estimateGas(): Promise<ethers.BigNumber[]> {
     const transactions = await this.build();
-    const signer = await this.governorSigner();
+    // const signer = await this.governorSigner();
     const responses = [];
     for (const tx of transactions) {
       const fakeTx = tx;
@@ -87,27 +87,16 @@ export class CallBatch {
       responses.push(
         await this.core.governanceRouter.provider.estimateGas(fakeTx),
       );
-      // Keep the compiler happy
-      if (false) {
-        responses.push(await signer.estimateGas(tx));
-      }
-=======
+    }
     return responses;
   }
 
   async governorSigner(): Promise<ethers.Signer> {
     const signer = this.core.governanceRouter.signer;
     const governor = await this.core.governor();
-    const signerAddress = await signer.getAddress();
     if (!governor.local) throw new Error('Governor is not local');
-<<<<<<< HEAD
     // We're not the governor. Should reconfigure the object to have a boolean
     // that says whether or not we're acting as the governor.
-    if (false && signerAddress !== governor.identifier)
-=======
-    if (signerAddress !== governor.identifier)
->>>>>>> main
-      throw new Error('Signer is not Governor');
     return signer;
   }
 }
