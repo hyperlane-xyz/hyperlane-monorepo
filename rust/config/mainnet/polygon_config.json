@@ -1,5 +1,5 @@
 {
-  "environment": "prod-community",
+  "environment": "mainnet",
   "index": {
     "from": "21734736",
     "chunk": "2000"
