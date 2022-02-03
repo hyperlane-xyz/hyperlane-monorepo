@@ -1,5 +1,5 @@
 {
-  "environment": "staging-legacy",
+  "environment": "testnet-legacy",
   "index": {
     "from": "27111334",
     "chunk": "9999"

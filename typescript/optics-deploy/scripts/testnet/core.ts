@@ -5,10 +5,10 @@ import * as kovan from '../../config/testnets/kovan';
 import * as ropsten from '../../config/testnets/ropsten';
 import { CoreDeploy } from '../../src/core/CoreDeploy';
 
-let alfajoresConfig = alfajores.stagingConfig;
-let gorliConfig = gorli.stagingConfig;
-let kovanConfig = kovan.stagingConfig;
-let ropstenConfig = ropsten.stagingConfig;
+let alfajoresConfig = alfajores.testnetConfig;
+let gorliConfig = gorli.testnetConfig;
+let kovanConfig = kovan.testnetConfig;
+let ropstenConfig = ropsten.testnetConfig;
 
 const alfajoresDeploy = new CoreDeploy(alfajores.chain, alfajoresConfig);
 const gorliDeploy = new CoreDeploy(gorli.chain, gorliConfig);

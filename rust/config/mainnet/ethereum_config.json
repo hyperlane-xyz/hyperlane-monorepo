@@ -1,5 +1,5 @@
 {
-  "environment": "prod",
+  "environment": "mainnet",
   "index": {
     "from": "11662268",
     "chunk": "2000"

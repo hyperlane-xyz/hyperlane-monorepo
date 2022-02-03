@@ -56,7 +56,10 @@ export class AgentAwsKey extends AgentKey {
   }
 
   get identifier() {
-    // When staging-community was deployed, we mixed up the attestation and signer keys, so we have to switch for this environment
+    // When testnet was deployed, we mixed up the attestation and
+    // signer keys, so we have to switch for this environment
+    // NB: The environment on GCP for testnet is "staging-community" for legacy
+    // reasons.
     const adjustedRole =
       this.environment === 'staging-community' &&
       this.role === KEY_ROLE_ENUM.UpdaterAttestation

@@ -6,7 +6,7 @@ const coreDeploys = makeCoreDeploys(
   configPath,
   networks,
   (_) => _.chain,
-  (_) => _.stagingConfig,
+  (_) => _.testnetConfig,
 );
 
 async function main() {

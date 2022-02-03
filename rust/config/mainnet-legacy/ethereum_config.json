@@ -1,5 +1,5 @@
 {
-  "environment": "prod-legacy",
+  "environment": "mainnet-legacy",
   "index": {
     "from": "13187674",
     "chunk": "2000"

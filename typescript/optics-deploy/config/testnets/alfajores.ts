@@ -31,8 +31,8 @@ export const devConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-export const stagingLegacyConfig: CoreConfig = {
-  environment: 'staging-legacy',
+export const testnetLegacyConfig: CoreConfig = {
+  environment: 'testnet-legacy',
   updater: '0x201dd86063Dc251cA5a576d1b7365C38e5fB4CD5',
   watchers: ['0x22B2855635154Baa41C306BcA979C8c9a077A180'],
   recoveryManager: '0x24F6c874F56533d9a1422e85e5C7A806ED11c036',
@@ -42,8 +42,8 @@ export const stagingLegacyConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-export const stagingConfig: CoreConfig = {
-  environment: 'staging',
+export const testnetConfig: CoreConfig = {
+  environment: 'testnet',
   updater: '0xf0B3C01E16cE288f7Cd7112B4b2F5A859Ba72307',
   watchers: ['0xC3Ef93917f0d0AC4D70E675824270b290E0a2667'],
   recoveryManager: '0x075fE802D26a983423caE0a16b8250F155AbeB03',

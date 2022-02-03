@@ -1,5 +1,5 @@
 {
-  "environment": "staging",
+  "environment": "testnet",
   "index": {
     "from": "4879884",
     "chunk": "2000"

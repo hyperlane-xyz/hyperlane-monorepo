@@ -13,11 +13,12 @@ export const configs: AgentChainConfigs = {
   ropsten: ropsten.chainJson,
 };
 
-export const configPath = '../../rust/config/staging';
+export const configPath = '../../rust/config/testnet';
 export const networks = [ropsten, gorli, kovan, alfajores];
 
 // Environment specific config
-// Tech debt: remove "-community" suffix.
+// NB: environment and namespace are 'staging-community' for legacy
+// reasons, it's annoying to change GCP to match a new naming convention.
 export const agentConfig: AgentConfig = {
   environment: 'staging-community',
   namespace: 'optics-staging-community',

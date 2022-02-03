@@ -64,11 +64,11 @@ export function getPathToLatestConfig(
   configPath: string,
   ignoreFolders = [
     'dev-legacy',
-    'staging-legacy',
-    'prod-legacy',
+    'testnet-legacy',
+    'mainnet-legacy',
     'dev',
-    'staging',
-    'prod',
+    'testnet',
+    'mainnet',
     'default',
   ],
 ) {

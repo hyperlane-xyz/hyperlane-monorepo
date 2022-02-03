@@ -8,7 +8,7 @@ const environment = process.env.ENVIRONMENT ?? 'dev';
 
 let networks = [];
 switch (environment) {
-  case 'production':
+  case 'mainnet':
     networks = ['celo', 'ethereum', 'polygon', 'avalanche'];
     break;
 

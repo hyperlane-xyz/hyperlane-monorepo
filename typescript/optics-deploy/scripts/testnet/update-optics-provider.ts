@@ -7,7 +7,7 @@ const coreDeploys = makeCoreDeploys(
   configPath,
   networks,
   (_) => _.chain,
-  (_) => _.stagingConfig,
+  (_) => _.testnetConfig,
 );
 const bridgeDeploys = makeBridgeDeploys(
   configPath,
