@@ -1,6 +1,5 @@
 export { MultiProvider } from './provider';
 export {
-  devLegacy,
   testnetLegacy,
   mainnetLegacy,
   dev,
