@@ -95,19 +95,20 @@ describe('Common', async () => {
   });
 
   it('Rejects double update after updater rotation', async () => {
-    const firstRoot = await common.committedRoot();
-    const secondRoot = await dispatchMessageAndGetRoot('message');
-    const thirdRoot = await dispatchMessageAndGetRoot('message2');
-    const { signature } = await updater.signUpdate(firstRoot, secondRoot);
+    const oldRoot = ethers.utils.formatBytes32String('old root');
+    const newRoot = ethers.utils.formatBytes32String('new root 1');
+    const newRoot2 = ethers.utils.formatBytes32String('new root 2');
+
+    const { signature } = await updater.signUpdate(oldRoot, newRoot);
     const { signature: signature2 } = await updater.signUpdate(
-      firstRoot,
-      thirdRoot,
+      oldRoot,
+      newRoot2,
     );
     await common.setUpdater(fakeUpdater.address);
     await expect(
       common.doubleUpdate(
-        firstRoot,
-        [secondRoot, thirdRoot],
+        oldRoot,
+        [newRoot, newRoot2],
         signature,
         signature2,
       ),
