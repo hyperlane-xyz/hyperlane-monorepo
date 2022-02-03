@@ -21,7 +21,7 @@ export const networks = [ropsten, gorli, kovan, alfajores];
 export const agentConfig: AgentConfig = {
   environment: 'staging-community',
   namespace: 'optics-staging-community',
-  runEnv: 'staging-community',
+  runEnv: 'testnet',
   awsRegion: process.env.AWS_REGION!,
   awsKeyId: process.env.AWS_KEY_ID!,
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,

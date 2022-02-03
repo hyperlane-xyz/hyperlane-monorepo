@@ -164,7 +164,7 @@ for environment in environments:
                 key_id = key_response["KeyMetadata"]["KeyId"]
                 key_arn = key_response["KeyMetadata"]["Arn"]
                 key_description = key_response["KeyMetadata"]["Description"]
-            else: 
+            else:
                 logger.info(f"Existing alias for {key_name}, fetching key.")
 
                 key_response = kms.describe_key(
@@ -174,7 +174,7 @@ for environment in environments:
                 key_id = key_response["KeyMetadata"]["KeyId"]
                 key_arn = key_response["KeyMetadata"]["Arn"]
                 key_description = key_response["KeyMetadata"]["Description"]
-                
+
             logger.debug(f"Key Id: {key_id}")
             logger.debug(f"Key Arn: {key_arn}")
             logger.debug(f"Key Description: {key_description}")
@@ -184,7 +184,7 @@ for environment in environments:
             ethereum_address = calc_eth_address(public_key)
 
             data_rows.append([f'alias/{key_name}', region, key_id, key_arn, key_description, ethereum_address])
-    
+
 
 # Print out the results of the operation
 print(tabulate(data_rows, data_headers, tablefmt="fancy_grid"))
