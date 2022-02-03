@@ -94,7 +94,7 @@ describe('Common', async () => {
     expect(state).to.equal(OpticsState.ACTIVE);
   });
 
-  it('Rejects double update after updater rotation', async () => {
+  it('Does not fail on double update after updater rotation', async () => {
     const oldRoot = ethers.utils.formatBytes32String('old root');
     const newRoot = ethers.utils.formatBytes32String('new root 1');
     const newRoot2 = ethers.utils.formatBytes32String('new root 2');
@@ -105,14 +105,18 @@ describe('Common', async () => {
       newRoot2,
     );
     await common.setUpdater(fakeUpdater.address);
-    await expect(
-      common.doubleUpdate(
-        oldRoot,
-        [newRoot, newRoot2],
-        signature,
-        signature2,
-      ),
-    ).to.be.revertedWith('!updater sig');
+    await common.doubleUpdate(
+      oldRoot,
+      [newRoot, newRoot2],
+      signature,
+      signature2,
+    );
+
+    // State should not be failed because double update proof does not
+    // use current updater.
+    const state = await common.state();
+    expect(state).not.to.equal(OpticsState.FAILED);
+    expect(state).to.equal(OpticsState.ACTIVE);
   });
 
   it('Checks Rust-produced SignedUpdate', async () => {
