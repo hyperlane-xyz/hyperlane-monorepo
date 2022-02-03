@@ -33,6 +33,7 @@ async function main() {
   const domains = deploys.map((deploy) => deploy.chain.domain);
   // For each domain, expect one call to set the updater.
   expectCalls(batch, domains, new Array(4).fill(1));
+  await batch.estimateGas()
   console.log(txs)
 }
 main().then(console.log).catch(console.error);

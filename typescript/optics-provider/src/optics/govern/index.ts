@@ -76,14 +76,12 @@ export class CallBatch {
 
   async estimateGas(): Promise<ethers.BigNumber[]> {
     const transactions = await this.build();
+    const governor = await this.core.governor();
     // const signer = await this.governorSigner();
     const responses = [];
     for (const tx of transactions) {
       const fakeTx = tx;
-      // Governor address, gas estimation should succeed
-      fakeTx.from = '0x070c2843402Aa0637ae0F2E2edf601aAB5E72509';
-      // Non-Governor address, gas estimation should fail
-      //fakeTx.from = "0x2784a755690453035f32Ac5e28c52524d127AfE2";
+      fakeTx.from = governor.identifier;
       responses.push(
         await this.core.governanceRouter.provider.estimateGas(fakeTx),
       );
