@@ -94,6 +94,26 @@ describe('Common', async () => {
     expect(state).to.equal(OpticsState.ACTIVE);
   });
 
+  it('Rejects double update after updater rotation', async () => {
+    const firstRoot = await common.committedRoot();
+    const secondRoot = await dispatchMessageAndGetRoot('message');
+    const thirdRoot = await dispatchMessageAndGetRoot('message2');
+    const { signature } = await updater.signUpdate(firstRoot, secondRoot);
+    const { signature: signature2 } = await updater.signUpdate(
+      firstRoot,
+      thirdRoot,
+    );
+    await common.setUpdater(fakeUpdater.address);
+    await expect(
+      common.doubleUpdate(
+        firstRoot,
+        [secondRoot, thirdRoot],
+        signature,
+        signature2,
+      ),
+    ).to.be.revertedWith('!updater sig');
+  });
+
   it('Checks Rust-produced SignedUpdate', async () => {
     // Compare Rust output in json file to solidity output
     for (let testCase of signedUpdateTestCases) {
