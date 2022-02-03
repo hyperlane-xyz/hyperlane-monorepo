@@ -77,13 +77,13 @@ export class CallBatch {
   async estimateGas(): Promise<ethers.BigNumber[]> {
     const transactions = await this.build();
     const governor = await this.core.governor();
-    // const signer = await this.governorSigner();
     const responses = [];
     for (const tx of transactions) {
-      const fakeTx = tx;
-      fakeTx.from = governor.identifier;
+      const txToEstimate = tx;
+      // Estimate gas as the governor
+      txToEstimate.from = governor.identifier;
       responses.push(
-        await this.core.governanceRouter.provider.estimateGas(fakeTx),
+        await this.core.governanceRouter.provider.estimateGas(txToEstimate),
       );
     }
     return responses;
@@ -93,8 +93,6 @@ export class CallBatch {
     const signer = this.core.governanceRouter.signer;
     const governor = await this.core.governor();
     if (!governor.local) throw new Error('Governor is not local');
-    // We're not the governor. Should reconfigure the object to have a boolean
-    // that says whether or not we're acting as the governor.
     return signer;
   }
 }
