@@ -1,38 +1,38 @@
 {
-  "environment": "prod",
+  "environment": "staging",
   "index": {
-    "from": "8712249",
-    "chunk": "2000"
+    "from": "27111334",
+    "chunk": "9999"
   },
   "signers": {
-    "celo": {
+    "kovan": {
       "key": "",
       "type": "hexKey"
     },
-    "ethereum": {
+    "alfajores": {
       "key": "",
       "type": "hexKey"
     },
-    "polygon": {
+    "rinkeby": {
       "key": "",
       "type": "hexKey"
     }
   },
   "replicas": {
-    "ethereum": {
-      "address": "0x07b5B57b08202294E657D51Eb453A189290f6385",
-      "domain": "6648936",
-      "name": "ethereum",
+    "alfajores": {
+      "address": "0xE469D8587D45BF85297BD924b159E726E7CA5408",
+      "domain": "1000",
+      "name": "alfajores",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
         "url": ""
       }
     },
-    "polygon": {
-      "address": "0x681Edb6d52138cEa8210060C309230244BcEa61b",
-      "domain": "1886350457",
-      "name": "polygon",
+    "rinkeby": {
+      "address": "0x7EB8450a5397b795F2d89BC48EA20c24fa147F11",
+      "domain": "2000",
+      "name": "rinkeby",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
@@ -41,9 +41,9 @@
     }
   },
   "home": {
-    "address": "0x97bbda9A1D45D86631b243521380Bc070D6A4cBD",
-    "domain": "1667591279",
-    "name": "celo",
+    "address": "0xB6Ee3e8fE5b577Bd6aB9a06FA169F97303586E7C",
+    "domain": "3000",
+    "name": "kovan",
     "rpcStyle": "ethereum",
     "connection": {
       "type": "http",
