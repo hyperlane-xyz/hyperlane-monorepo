@@ -1,5 +1,5 @@
 {
-  "environment": "dev-legacy-legacy",
+  "environment": "dev-legacy",
   "index": {
     "from": "7672149",
     "chunk": "1999"

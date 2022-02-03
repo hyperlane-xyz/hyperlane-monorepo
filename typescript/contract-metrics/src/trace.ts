@@ -5,7 +5,7 @@ import { printStatus } from './print';
 const input: TraceInput[] = [
   {
     chain: 'celo',
-    context: contexts.mainnet,
+    context: mainnet,
     transactionHash:
       '0x6880039b2ed36e4283e027aeb4b46b0259582be16e459bf17999869ca4ef6d94',
   },
