@@ -79,4 +79,4 @@ export const mumbai: OpticsDomain = {
   xAppConnectionManager: '0xf9db87020527A5A5aeFd95099051Fb14058916C9',
 };
 
-export const devCommunityDomains = [alfajores, kovan, gorli, fuji, mumbai];
+export const devDomains = [alfajores, kovan, gorli, fuji, mumbai];

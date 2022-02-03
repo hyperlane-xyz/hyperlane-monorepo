@@ -59,4 +59,4 @@ export const gorli: OpticsDomain = {
   ],
 };
 
-export const stagingCommunityDomains = [alfajores, ropsten, kovan, gorli];
+export const testnetDomains = [alfajores, ropsten, kovan, gorli];

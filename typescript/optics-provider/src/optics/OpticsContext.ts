@@ -6,12 +6,12 @@ import { CoreContracts } from './contracts/CoreContracts';
 import { ResolvedTokenInfo, TokenIdentifier } from './tokens';
 import { canonizeId, evmId } from '../utils';
 import {
-  devCommunityDomains,
+  devDomains,
   mainnetDomains,
-  mainnetCommunityDomains,
+  mainnetLegacyDomains,
   OpticsDomain,
-  stagingDomains,
-  stagingCommunityDomains,
+  testnetDomains,
+  testnetLegacyDomains,
 } from './domains';
 import { TransferMessage } from './messages';
 import { hexlify } from '@ethersproject/bytes';
@@ -499,12 +499,8 @@ export class OpticsContext extends MultiProvider {
   }
 }
 
+export const testnetLegacy = OpticsContext.fromDomains(testnetLegacyDomains);
+export const mainnetLegacy = OpticsContext.fromDomains(mainnetLegacyDomains);
+export const dev = OpticsContext.fromDomains(devDomains);
+export const testnet = OpticsContext.fromDomains(testnetDomains);
 export const mainnet = OpticsContext.fromDomains(mainnetDomains);
-export const mainnetCommunity = OpticsContext.fromDomains(
-  mainnetCommunityDomains,
-);
-export const devCommunity = OpticsContext.fromDomains(devCommunityDomains);
-export const staging = OpticsContext.fromDomains(stagingDomains);
-export const stagingCommunity = OpticsContext.fromDomains(
-  stagingCommunityDomains,
-);

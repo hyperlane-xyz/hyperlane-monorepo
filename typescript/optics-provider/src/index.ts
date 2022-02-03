@@ -1,10 +1,11 @@
 export { MultiProvider } from './provider';
 export {
+  devLegacy,
+  testnetLegacy,
+  mainnetLegacy,
+  dev,
+  testnet,
   mainnet,
-  mainnetCommunity,
-  devCommunity,
-  staging,
-  stagingCommunity,
   OpticsContext,
   OpticsStatus,
   OpticsMessage,

@@ -41,4 +41,4 @@ export const rinkeby: OpticsDomain = {
   ],
 };
 
-export const stagingDomains = [alfajores, kovan, rinkeby];
+export const testnetLegacyDomains = [alfajores, kovan, rinkeby];
