@@ -2,7 +2,7 @@ import {
   dev,
   testnet,
   mainnet,
-  mainnetLegacy
+  mainnetLegacy,
 } from 'optics-multi-provider-community';
 import config from './config';
 
