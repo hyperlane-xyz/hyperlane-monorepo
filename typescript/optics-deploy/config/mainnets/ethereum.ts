@@ -18,7 +18,7 @@ export const chainJson: ChainJson = {
   // This isn't actually used because Ethereum supports EIP 1559 - but just in case
   gasPrice: '400000000000', // 400 gwei
   // EIP 1559 params
-  maxFeePerGas: '400000000000', // 400 gwei
+  maxFeePerGas: '300000000000', // 300 gwei
   maxPriorityFeePerGas: '4000000000', // 4 gwei
 };
 
