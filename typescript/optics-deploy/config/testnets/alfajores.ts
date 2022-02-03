@@ -44,7 +44,7 @@ export const stagingConfig: CoreConfig = {
 
 export const stagingCommunityConfig: CoreConfig = {
   environment: 'staging-community',
-  updater: '0x075fE802D26a983423caE0a16b8250F155AbeB03',
+  updater: '0xf0B3C01E16cE288f7Cd7112B4b2F5A859Ba72307',
   watchers: ['0xC3Ef93917f0d0AC4D70E675824270b290E0a2667'],
   recoveryManager: '0x075fE802D26a983423caE0a16b8250F155AbeB03',
   optimisticSeconds: 10,
