@@ -135,7 +135,6 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       deploy.contracts.upgradeBeaconController?.owner()!,
       deploy.contracts.home?.proxy.owner()!,
     ];
-
     Object.values(deploy.contracts.replicas).map((_) =>
       owners.push(_.proxy.owner()),
     );
