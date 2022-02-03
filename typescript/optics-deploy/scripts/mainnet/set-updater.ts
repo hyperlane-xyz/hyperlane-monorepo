@@ -17,13 +17,11 @@ async function main() {
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
   
-  // @ts-ignore
-  checker.violations = checker.violations.filter(_ => _.type != 'UpgradeBeacon')
-  console.log(checker.violations)
   checker.expectViolations(
     [ViolationType.ReplicaUpdater, ViolationType.HomeUpdater],
     [3, 1],
   );
+
   const builder = new GovernanceCallBatchBuilder(
     deploys,
     mainnetCommunity,
@@ -36,8 +34,5 @@ async function main() {
   // For each domain, expect one call to set the updater.
   expectCalls(batch, domains, new Array(4).fill(1));
   console.log(txs)
-  // Change to `batch.execute` in order to run.
-  // const receipts = await batch.estimateGas();
-  // console.log(receipts);
 }
 main().then(console.log).catch(console.error);
