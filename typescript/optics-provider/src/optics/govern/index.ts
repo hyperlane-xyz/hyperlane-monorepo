@@ -74,12 +74,17 @@ export class CallBatch {
     return receipts;
   }
 
-  async estimateGas(): Promise<any[]> {
+  async estimateGas(): Promise<ethers.BigNumber[]> {
     const transactions = await this.build();
-    const signer = await this.governorSigner();
+    const governor = await this.core.governor();
     const responses = [];
     for (const tx of transactions) {
-      responses.push(await signer.estimateGas(tx));
+      const txToEstimate = tx;
+      // Estimate gas as the governor
+      txToEstimate.from = governor.identifier;
+      responses.push(
+        await this.core.governanceRouter.provider.estimateGas(txToEstimate),
+      );
     }
     return responses;
   }

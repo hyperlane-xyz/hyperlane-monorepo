@@ -17,9 +17,9 @@ export const chainJson: ChainJson = {
   deployerKey: process.env.AVALANCHE_DEPLOYER_KEY,
   domain: 0x61766178, // b'avax' interpreted as an int
   // This isn't actually used because Avalanche supports EIP 1559 - but just in case
-  gasPrice: BigNumber.from(225_000_000_000), // 225 nAVAX (225 gwei)
+  gasPrice: BigNumber.from(50_000_000_000), // 50 nAVAX (50 gwei)
   // EIP 1559 params
-  maxFeePerGas: '225000000000', // 225 nAVAX (225 gwei)
+  maxFeePerGas: '50000000000', // 50 nAVAX (50 gwei)
   maxPriorityFeePerGas: '10000000000', // 10 nAVAX (10 gwei)
 };
 
