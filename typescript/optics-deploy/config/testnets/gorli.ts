@@ -34,8 +34,8 @@ export const devConfig: CoreConfig = {
 
 export const chain = toChain(chainJson);
 
-export const stagingCommunityConfig: CoreConfig = {
-  environment: 'staging-community',
+export const stagingConfig: CoreConfig = {
+  environment: 'staging',
   updater: '0xDd89dCA09Ef81154dAf919b4d7C33f9d8DCf6c7C',
   watchers: ['0x0b2bABd063CDc3e663489e32Bf9F74ACA1C6286f'],
   recoveryManager: '0xDd89dCA09Ef81154dAf919b4d7C33f9d8DCf6c7C',

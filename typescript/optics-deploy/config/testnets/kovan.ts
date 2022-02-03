@@ -33,8 +33,8 @@ export const devConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-export const stagingConfig: CoreConfig = {
-  environment: 'staging',
+export const stagingLegacyConfig: CoreConfig = {
+  environment: 'staging-legacy',
   updater: '0x201dd86063Dc251cA5a576d1b7365C38e5fB4CD5',
   watchers: ['0x22B2855635154Baa41C306BcA979C8c9a077A180'],
   recoveryManager: '0x24F6c874F56533d9a1422e85e5C7A806ED11c036',
@@ -44,8 +44,8 @@ export const stagingConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-export const stagingCommunityConfig: CoreConfig = {
-  environment: 'staging-community',
+export const stagingConfig: CoreConfig = {
+  environment: 'staging',
   updater: '0xED576b49c3bD42862340e21a7A0AcCA3814bfE18',
   watchers: ['0x5830e4a749e0eAEF5955069f12B37Fd82C234c23'],
   recoveryManager: '0xED576b49c3bD42862340e21a7A0AcCA3814bfE18',

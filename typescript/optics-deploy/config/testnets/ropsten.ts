@@ -34,8 +34,8 @@ export const devConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-export const stagingCommunityConfig: CoreConfig = {
-  environment: 'staging-community',
+export const stagingConfig: CoreConfig = {
+  environment: 'staging',
   updater: '0x6f37CaE0b16589FA55152732f2E04f6F0F7dcE97',
   watchers: ['0x405a8C080Ca64e038554a2B03eA1bdA96DAFA52C'],
   recoveryManager: '0x6f37CaE0b16589FA55152732f2E04f6F0F7dcE97',

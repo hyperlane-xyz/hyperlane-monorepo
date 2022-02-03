@@ -20,7 +20,7 @@ export const chainJson: ChainJson = {
 export const chain = toChain(chainJson);
 
 export const config: CoreConfig = {
-  environment: 'prod-community',
+  environment: 'prod',
   updater: '0x703643995262c92ab013E3CCA810BdcB9239d45a',
   recoveryTimelock: 60 * 60 * 24 * 14, // 14 days
   recoveryManager: '0x070c2843402Aa0637ae0F2E2edf601aAB5E72509',

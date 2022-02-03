@@ -15,4 +15,4 @@ const bridgeDeploys = makeBridgeDeploys(
   (_) => _.chain,
   (_) => _.bridgeConfig,
 );
-updateProviderDomain('mainnetCommunity', coreDeploys, bridgeDeploys);
+updateProviderDomain('mainnet', coreDeploys, bridgeDeploys);

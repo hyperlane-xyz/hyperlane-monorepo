@@ -1,4 +1,4 @@
-import { stagingCommunity } from 'optics-multi-provider-community';
+import { staging } from 'optics-multi-provider-community';
 import { ethers } from 'ethers';
 import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
@@ -10,15 +10,15 @@ const deploys = makeCoreDeploys(
   configPath,
   networks,
   (_) => _.chain,
-  (_) => _.stagingCommunityConfig,
+  (_) => _.stagingConfig,
 );
 
 async function main() {
-  stagingCommunity.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!);
-  stagingCommunity.registerRpcProvider('gorli', process.env.GORLI_RPC!);
-  stagingCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!);
-  stagingCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!);
-  stagingCommunity.registerSigner(
+  staging.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!);
+  staging.registerRpcProvider('gorli', process.env.GORLI_RPC!);
+  staging.registerRpcProvider('kovan', process.env.KOVAN_RPC!);
+  staging.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!);
+  staging.registerSigner(
     'ropsten',
     new ethers.Wallet(process.env.ROPSTEN_DEPLOYER_KEY!),
   );
@@ -31,7 +31,7 @@ async function main() {
   );
   const builder = new GovernanceCallBatchBuilder(
     deploys,
-    stagingCommunity,
+    staging,
     checker.violations,
   );
   const batch = await builder.build();

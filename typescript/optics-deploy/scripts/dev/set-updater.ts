@@ -1,4 +1,4 @@
-import { devCommunity } from 'optics-multi-provider-community';
+import { dev } from 'optics-multi-provider-community';
 import { ethers } from 'ethers';
 import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
@@ -14,12 +14,12 @@ const deploys = makeCoreDeploys(
 );
 
 async function main() {
-  devCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!);
-  devCommunity.registerRpcProvider('gorli', process.env.GORLI_RPC!);
-  devCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!);
-  devCommunity.registerRpcProvider('mumbai', process.env.MUMBAI_RPC!);
-  devCommunity.registerRpcProvider('fuji', process.env.FUJI_RPC!);
-  devCommunity.registerSigner(
+  dev.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!);
+  dev.registerRpcProvider('gorli', process.env.GORLI_RPC!);
+  dev.registerRpcProvider('kovan', process.env.KOVAN_RPC!);
+  dev.registerRpcProvider('mumbai', process.env.MUMBAI_RPC!);
+  dev.registerRpcProvider('fuji', process.env.FUJI_RPC!);
+  dev.registerSigner(
     'alfajores',
     new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!),
   );
@@ -32,7 +32,7 @@ async function main() {
   );
   const builder = new GovernanceCallBatchBuilder(
     deploys,
-    devCommunity,
+    dev,
     checker.violations,
   );
   const batch = await builder.build();
