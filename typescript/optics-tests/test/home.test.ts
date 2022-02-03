@@ -269,6 +269,27 @@ describe('Home', async () => {
     expect(await home.state()).to.equal(OpticsState.FAILED);
   });
 
+  it('Rejects invalid double update proof', async () => {
+    const firstRoot = await home.committedRoot();
+    const secondRoot = await dispatchMessageAndGetRoot('message');
+    const thirdRoot = await dispatchMessageAndGetRoot('message2');
+    const { signature } = await updater.signUpdate(firstRoot, secondRoot);
+    const { signature: signature2 } = await updater.signUpdate(
+      firstRoot,
+      thirdRoot,
+    );
+    await deploy.contracts.updaterManager!.setUpdater(fakeUpdater.address);
+    await expect(
+      home.doubleUpdate(
+        firstRoot,
+        [secondRoot, thirdRoot],
+        signature,
+        signature2,
+      ),
+    ).to.be.revertedWith('!updater sig');
+    expect(await home.state()).to.equal(OpticsState.FAILED);
+  });
+
   it('Correctly calculates destinationAndNonce', async () => {
     for (let testCase of destinationNonceTestCases) {
       let { destination, nonce, expectedDestinationAndNonce } = testCase;
