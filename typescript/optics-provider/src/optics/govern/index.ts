@@ -92,7 +92,11 @@ export class CallBatch {
   async governorSigner(): Promise<ethers.Signer> {
     const signer = this.core.governanceRouter.signer;
     const governor = await this.core.governor();
-    if (!governor.local) throw new Error('Governor is not local');
+    const signerAddress = await signer.getAddress();
+    if (signerAddress !== governor.identifier)
+      throw new Error('Signer is not Governor');
+    if (!governor.local)
+      throw new Error('Governor is not local');
     return signer;
   }
 }
