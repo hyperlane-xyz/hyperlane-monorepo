@@ -24,6 +24,5 @@ export const agentConfig: AgentConfig = {
   dockerImageTag: '3594c7d715f0ad1def2b36cb0e29649e1f6712e6',
 };
 
-
 export const configPath = `../../rust/config/${configDirectory}`;
 export const networks = [celo, polygon, avalanche, ethereum];
