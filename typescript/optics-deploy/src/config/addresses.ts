@@ -1,4 +1,4 @@
-import { Network } from './chain';
+import { DomainConfig } from './domain';
 type Address = string;
 
 export type ProxiedAddress = {
@@ -7,10 +7,7 @@ export type ProxiedAddress = {
   _beacon: Address;
 };
 
-type DomainedProxiedAddress = & ProxiedAddress {
-  domain: number;
-  name: Network;
-}
+type DomainedProxiedAddress = ProxiedAddress & DomainConfig;
 
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;

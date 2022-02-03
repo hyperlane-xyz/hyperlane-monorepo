@@ -1,4 +1,3 @@
-type Address = string;
 type Mainnet =
   | 'celo'
   | 'polygon'
@@ -13,9 +12,9 @@ type Testnet =
   | 'fuji'
   | 'rinkeby';
 
-export type Network = Mainnet | Testnet;
+export type NetworkName = Mainnet | Testnet;
 
-export interface ChainConfig {
-  name: Network;
+export type DomainConfig {
+  name: NetworkName;
   domain: number;
 }

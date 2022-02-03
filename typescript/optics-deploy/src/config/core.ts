@@ -5,15 +5,14 @@ type Governor = {
   address: Address;
 };
 
-
-export type DeployEnvironment =
+export type EnvironmentName =
   | 'dev'
   | 'staging'
   | 'prod'
   | 'staging-community'
   | 'prod-community';
 
-type CoreAddresses = {
+type CoreConfigAddresses = {
   updater: Address;
   watchers: Address[];
   recoveryManager: Address;
