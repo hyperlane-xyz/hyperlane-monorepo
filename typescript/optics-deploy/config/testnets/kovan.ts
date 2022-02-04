@@ -24,7 +24,7 @@ export const chain = toChain(chainJson);
 
 export const devConfig: CoreConfig = {
   environment: 'dev',
-  updater: '0xb890606a63Ef3b9d9Cd1E42e740672C84DC319A6',
+  updater: '0x2eA2B6cbc3fC269Bf91C2fCfcc460489378f1251',
   optimisticSeconds: 10,
   watchers: ['0x3019Bf39Df97942F2C53EFc6e831b82D158593CF'],
   recoveryTimelock: 180,
