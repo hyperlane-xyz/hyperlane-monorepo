@@ -2,7 +2,7 @@
   "upgradeBeaconController": "0xEf6E698463616abfC8248c26ECd5C71d362C0584",
   "xAppConnectionManager": "0xf9db87020527A5A5aeFd95099051Fb14058916C9",
   "updaterManager": "0x6d0c9B8722b37F1096ee50fA8773320281C3D456",
-  "governance": {
+  "governanceRouter": {
     "implementation": "0xc328163720f3c6F3dC9475804Feb091B041a09f4",
     "proxy": "0x11E94700D9E5Ab1F8Bd0b3bd13e331CEFe3acEB7",
     "beacon": "0x745C5161161D42464Dbcc9485C1DF679306d095b"
