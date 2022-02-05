@@ -2,7 +2,6 @@ import * as proxyUtils from '../proxyUtils';
 import { BridgeInvariantChecker } from './checks';
 import * as xAppContracts from 'optics-ts-interface/dist/optics-xapps';
 import { toBytes32 } from '../utils';
-import fs from 'fs';
 import { BridgeDeploy } from './BridgeDeploy';
 import TestBridgeDeploy from './TestBridgeDeploy';
 import assert from 'assert';
@@ -57,7 +56,7 @@ export async function deployBridges(deploys: Deploy[]) {
   if (!isTestDeploy) {
     // output the Bridge deploy information to a subdirectory
     // of the core system deploy config folder
-    writeBridgeDeployOutput(deploys);
+    deploys.map((d) => d.writeOutput())
   }
 }
 
@@ -220,37 +219,4 @@ export async function transferOwnershipToGovernance(deploy: Deploy) {
   await tx.wait(deploy.chainConfig.confirmations);
 
   console.log(`transferred ownership of ${deploy.chainConfig.name} BridgeRouter`);
-}
-
-/**
- * Outputs the values for bridges that have been deployed.
- *
- * @param deploys - The array of bridge deploys
- */
-export function writeBridgeDeployOutput(deploys: Deploy[]) {
-  console.log(`Have ${deploys.length} bridge deploys`);
-  if (deploys.length == 0) {
-    return;
-  }
-
-  // ensure bridge directory exists within core deploy config folder
-  const root = `${deploys[0].coreDeployPath}/bridge`;
-  fs.mkdirSync(root, { recursive: true });
-
-  // create dir for this bridge deploy's outputs
-  const dir = `${root}/${Date.now()}`;
-  fs.mkdirSync(dir, { recursive: true });
-
-  // for each deploy, write contracts and verification inputs to file
-  for (const deploy of deploys) {
-    const name = deploy.chainConfig.name;
-
-    const contracts = deploy.contracts.toJsonPretty();
-    fs.writeFileSync(`${dir}/${name}_contracts.json`, contracts);
-
-    fs.writeFileSync(
-      `${dir}/${name}_verification.json`,
-      JSON.stringify(deploy.verificationInput, null, 2),
-    );
-  }
 }

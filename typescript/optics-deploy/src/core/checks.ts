@@ -58,7 +58,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
 
     const actual = await home?.updater()!;
     expect(actual).to.not.be.undefined;
-    const expected = deploy.config.addresses[deploy.chainConfig.name].updater;
+    const expected = deploy.updater;
     if (actual !== expected) {
       const violation: HomeUpdaterViolation = {
         domain: deploy.chainConfig.domain,
@@ -80,7 +80,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       const actualRemoteDomain = await replica.proxy.remoteDomain();
       expect(actualRemoteDomain).to.be.equal(domain);
       const actual = await replica.proxy.updater();
-      const expected = deploy.config.addresses[deploy.chainConfig.name].updater;
+      const expected = deploy.updater;
       if (actual !== expected) {
         const violation: ReplicaUpdaterViolation = {
           domain: remoteDeploy.chainConfig.domain,
@@ -153,7 +153,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       expect(enrolledReplica).to.not.equal(emptyAddr);
       //watchers have permission in xAppConnectionManager
       await Promise.all(
-        deploy.config.addresses[deploy.chainConfig.name].watchers.map(async (watcher) => {
+        deploy.watchers.map(async (watcher) => {
           const watcherPermissions =
             await deploy.contracts.xAppConnectionManager?.watcherPermission(
               watcher,

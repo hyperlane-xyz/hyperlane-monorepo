@@ -1,13 +1,15 @@
 import { ethers } from 'ethers';
 import { ChainConfig } from './config/chain';
 import { Contracts } from './contracts';
+import path from 'path';
 
 export type DeployEnvironment =
   | 'dev'
   | 'testnet'
   | 'mainnet'
   | 'testnet-legacy'
-  | 'mainnet-legacy';
+  | 'mainnet-legacy'
+  | 'test';
 
 type XAppConnectionName = 'XAppConnectionManager';
 type UpdaterManagerName = 'UpdaterManager';
@@ -52,16 +54,18 @@ export type ContractVerificationInput = {
 export abstract class Deploy<T extends Contracts> {
   readonly chainConfig: ChainConfig;
   readonly test: boolean;
+  readonly environment: DeployEnvironment;
   contracts: T;
   verificationInput: ContractVerificationInput[];
 
   abstract get ubcAddress(): string | undefined;
 
-  constructor(chainConfig: ChainConfig, contracts: T, test: boolean = false) {
+  constructor(chainConfig: ChainConfig, contracts: T, environment: DeployEnvironment, test: boolean = false) {
     this.chainConfig = chainConfig;
     this.verificationInput = [];
     this.test = test;
     this.contracts = contracts;
+    this.environment = environment;
   }
 
   get signer(): ethers.Signer {
@@ -79,6 +83,10 @@ export abstract class Deploy<T extends Contracts> {
   get supports1559(): boolean {
     let notSupported = ['kovan', 'alfajores', 'baklava', 'celo', 'polygon'];
     return notSupported.indexOf(this.chainConfig.name) === -1;
+  }
+
+  get configPath(): string {
+    return path.join('../../../config/environments', this.environment)
   }
 
   // this is currently a kludge to account for ethers issues

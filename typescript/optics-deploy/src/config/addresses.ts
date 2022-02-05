@@ -1,4 +1,3 @@
-import { ChainName, DomainedChain } from './chain';
 type Address = string;
 
 export type ProxiedAddress = {
@@ -7,15 +6,14 @@ export type ProxiedAddress = {
   beacon: Address;
 };
 
-type DomainedProxiedAddress = ProxiedAddress & DomainedChain;
-
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;
   xAppConnectionManager: Address;
   updaterManager: Address;
   governanceRouter: ProxiedAddress;
-  home: DomainedProxiedAddress;
-  replicas?: Record<ChainName, DomainedProxiedAddress>;
+  home: ProxiedAddress;
+  // TODO: Put chain name in here
+  replicas?: Record<number, ProxiedAddress>;
 };
 
 export type BridgeContractAddresses = {
@@ -24,12 +22,11 @@ export type BridgeContractAddresses = {
   ethHelper?: Address;
 };
 
-type CoreConfigAddresses = {
+export type CoreConfigAddresses = {
   updater: Address;
   watchers: Address[];
   recoveryManager: Address;
   governor?: Address;
 };
-
 
 export type CoreDeployAddresses = CoreContractAddresses & CoreConfigAddresses;

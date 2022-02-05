@@ -14,7 +14,7 @@ import {
 } from 'optics-ts-interface/dist/optics-xapps';
 import { BridgeContracts } from './BridgeContracts';
 import * as process from '.';
-import { ChainConfig } from '../../src/config/chain';
+import { ChainName, ChainConfig, ChainConfigJson } from '../../src/config/chain';
 import { CoreConfig } from '../../src/config/core';
 import { Deploy } from '../deploy';
 
@@ -29,33 +29,34 @@ export async function getTestChain(
   domain: number,
   updater: string,
   watchers: string[],
-  recoveryManager?: string,
 ): Promise<[ChainConfig, CoreConfig]> {
   const [, , , , , , , signer] = await ethers.getSigners();
+  const chainConfigJson: ChainConfigJson = {
+    name: ChainName.ALFAJORES,
+    rpc: '',
+    deployerKey: '', 
+    domain,
+    confirmations: 0,
+    gasPrice: BigNumber.from(20000000000),
+    gasLimit: BigNumber.from(6_000_000),
+  }
+  const chainConfig = new ChainConfig(chainConfigJson);
+  chainConfig.replaceSigner(signer)
   return [
-    {
-      name: 'alfajores',
-      provider: ethers.provider,
-      signer,
-      gasPrice: BigNumber.from(20000000000),
-      gasLimit: BigNumber.from(6_000_000),
-      confirmations: 0,
-      domain,
-      json: {
-        domain,
-        name: 'alfajores',
-        rpc: 'NA',
-      },
-    },
+    chainConfig, 
     {
       environment: 'dev',
       recoveryTimelock: 1,
-      recoveryManager: recoveryManager || ethers.constants.AddressZero,
-      updater,
       optimisticSeconds: 3,
-      watchers,
       processGas: 850_000,
       reserveGas: 15_000,
+      addresses: {
+        alfajores: {
+          updater,
+          watchers,
+          recoveryManager: signer.address,
+        }
+      }
     },
   ];
 }
@@ -85,7 +86,7 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
     if (!callerKnowsWhatTheyAreDoing) {
       throw new Error("Don't instantiate via new.");
     }
-    super(chainConfig, contracts, true);
+    super(chainConfig, contracts, 'test', true);
     this.ubc = ubc;
     this.mockCore = mockCore;
     this.mockWeth = mockWeth;
@@ -103,7 +104,6 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
     chainConfig.signer = signer;
 
     let deploy = new TestBridgeDeploy(
-      signer,
       ubc,
       mockCore,
       mockWeth,
@@ -168,6 +168,8 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
       id: this.testToken,
     };
   }
+
+  writeOutput() {};
 
   async getTestRepresentation(): Promise<BridgeToken | undefined> {
     return await this.getRepresentation(this.remoteDomain, this.testToken);

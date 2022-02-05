@@ -31,9 +31,9 @@ export class BeaconProxy<T extends ethers.Contract> {
     };
   }
 
-  static fromAddresses<K>(factory: K extends ContractFactory, provider: ethers.Provider, addresses: PoxiedAddress): BeaconProxy<T> {
-    const implementation = factory.connect(addresses.implementation, provider);
-    const proxy = factory.connect(addresses.proxy, provider);
+  static fromAddresses<K extends ethers.Contract>(contract: K, provider: ethers.providers.JsonRpcProvider, addresses: ProxiedAddress): BeaconProxy<K> {
+    const implementation = contract.connect(provider).attach(addresses.implementation) as K;
+    const proxy = contract.connect(provider).attach(addresses.proxy) as K;
     const beacon = contracts.UpgradeBeacon__factory.connect(addresses.beacon, provider);
     return new BeaconProxy(implementation, proxy, beacon);
   }

@@ -26,8 +26,8 @@ export class BridgeContracts extends Contracts {
     provider: ethers.providers.JsonRpcProvider,
   ): BridgeContracts {
     const b = new BridgeContracts();
-    b.bridgeRouter = BeaconProxy.fromAddresses(xAppContracts.BridgeRouter__factory, provider, addresses.bridgeRouter);
-    b.bridgeToken = BeaconProxy.fromAddresses(xAppContracts.BridgeToken__factory, provider, addresses.bridgeToken);
+    b.bridgeRouter = BeaconProxy.fromAddresses(xAppContracts.BridgeRouter, provider, addresses.bridgeRouter);
+    b.bridgeToken = BeaconProxy.fromAddresses(xAppContracts.BridgeToken, provider, addresses.bridgeToken);
 
     if (addresses.ethHelper) {
       b.ethHelper = xAppContracts.ETHHelper__factory.connect(

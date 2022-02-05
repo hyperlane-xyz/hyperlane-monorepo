@@ -1,3 +1,4 @@
+import { CoreDeployAddresses } from '../../src/config/addresses';
 import { ChainConfig } from '../../src/config/chain';
 import { CoreConfig } from '../../src/config/core';
 import { RustConfig } from '../../src/config/agent';
@@ -13,26 +14,19 @@ export class CoreDeploy extends Deploy<CoreContracts> {
   config: CoreConfig;
 
   constructor(chainConfig: ChainConfig, config: CoreConfig, test: boolean = false) {
-    super(chainConfig, new CoreContracts(), test);
+    super(chainConfig, new CoreContracts(), config.environment, test);
     this.config = config;
   }
 
-  /*
   get contractOutput(): CoreDeployAddresses {
-    let addresses: CoreDeployAddresses = {
+    return {
       ...this.contracts.toObject(),
       recoveryManager: this.recoveryManager,
       updater: this.updater,
+      governor: this.governor,
+      watchers: this.watchers,
     };
-    if (this.config.governor) {
-      addresses.governor = {
-        address: this.config.governor.address,
-        domain: this.chainConfig.domain,
-      };
-    }
-    return addresses;
   }
-  */
 
   get ubcAddress(): Address | undefined {
     return this.contracts.upgradeBeaconController?.address;
@@ -50,8 +44,12 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     return this.config.addresses[this.chainConfig.name].watchers;
   }
 
-  async governor(): Promise<Address> {
-    return this.config.governor?.address ?? (await this.signer.getAddress());
+  get governor(): Address | undefined {
+    return this.config.addresses[this.chainConfig.name].governor
+  }
+
+  async governorOrSigner(): Promise<Address> {
+    return this.governor ?? (await this.signer.getAddress());
   }
 
   static toRustConfigs(deploys: CoreDeploy[]): RustConfig[] {

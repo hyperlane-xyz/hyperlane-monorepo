@@ -1,7 +1,7 @@
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { BeaconProxy } from '../proxyUtils';
 import { Contracts } from '../contracts';
-import { DomainedProxiedAddress, ProxiedAddress, CoreContractAddresses } from '../../src/config/addresses';
+import { CoreContractAddresses, ProxiedAddress } from '../../src/config/addresses';
 import * as ethers from 'ethers';
 
 export class CoreContracts extends Contracts {
@@ -10,7 +10,7 @@ export class CoreContracts extends Contracts {
   updaterManager?: contracts.UpdaterManager;
   governanceRouter?: BeaconProxy<contracts.GovernanceRouter>;
   home?: BeaconProxy<contracts.Home>;
-  replicas: Record<DomainedChain, BeaconProxy<contracts.Replica>>;
+  replicas: Record<number, BeaconProxy<contracts.Replica>>;
 
   constructor() {
     super();
@@ -18,12 +18,9 @@ export class CoreContracts extends Contracts {
   }
 
   toObject(): CoreContractAddresses {
-    const replicas: Record<ChainName, DomainedProxiedAddress> = {};
+    const replicas: Record<number, ProxiedAddress> = {};
     Object.entries(this.replicas).forEach(([k, v]) => {
-      replicas[k.name] = {
-        ...k,
-        ...v.toObject(),
-      }
+      replicas[k] = v.toObject();
     });
 
     return {
@@ -56,11 +53,11 @@ export class CoreContracts extends Contracts {
       provider,
     );
 
-    core.governanceRouter = BeaconProxy.from(contracts.GovernanceRouter__factory, provider, addresses.governanceRouter)
-    core.home = BeaconProxy.from(contracts.Home__factory, provider, addresses.home)
+    core.governanceRouter = BeaconProxy.fromAddresses(contracts.GovernanceRouter, provider, addresses.governanceRouter)
+    core.home = BeaconProxy.fromAddresses(contracts.Home, provider, addresses.home)
 
-    for (let domain of Object.keys(addresses.replicas!)) {
-      core.replicas[parseInt(domain)] = BeaconProxy.from(contracts.Replica__factory, provider, addresses.replicas![domain])
+    for (const domain of Object.keys(addresses.replicas!)) {
+      core.replicas[domain] = BeaconProxy.fromAddresses(contracts.Replica, provider, addresses.replicas![domain])
     }
     return core;
   }

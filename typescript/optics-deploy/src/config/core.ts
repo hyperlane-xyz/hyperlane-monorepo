@@ -1,10 +1,10 @@
 import { BigNumberish} from 'ethers';
 import { CoreConfigAddresses } from './addresses';
-import { ChainName, DomainedChain } from './chain';
-type Address = string;
+import { ChainName } from './chain';
+import { DeployEnvironment } from '../deploy';
 
 interface IDAddresses {
-  [chain in ChainName]?: CoreConfigAddresses;
+  [key in ChainName]?: CoreConfigAddresses;
 }
 
 export interface CoreConfig {

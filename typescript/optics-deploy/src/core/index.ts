@@ -432,15 +432,16 @@ export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
  * @param gov - The governor chain deploy instance
  */
 export async function appointGovernor(gov: CoreDeploy) {
-  let governor = gov.config.governor;
+  const domain = gov.chainConfig.domain;
+  const governor = await gov.governorOrSigner();
   if (governor) {
     log(
       gov.test,
-      `${gov.chainConfig.name}: transferring root governorship to ${governor.domain}:${governor.address}`,
+      `${gov.chainConfig.name}: transferring root governorship to ${domain}:${governor}`,
     );
     const tx = await gov.contracts.governanceRouter!.proxy.transferGovernor(
-      governor.domain,
-      governor.address,
+      domain,
+      governor,
       gov.overrides,
     );
     await tx.wait(gov.chainConfig.confirmations);
@@ -497,8 +498,8 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
     enrollGovernanceRouter(non, gov),
   ]);
 
-  if (gov.config.governor) {
-    log(isTestDeploy, `appoint governor: ${gov.config.governor}`);
+  if (gov.governor) {
+    log(isTestDeploy, `appoint governor: ${gov.governor}`);
     await appointGovernor(gov);
   }
 
@@ -581,8 +582,8 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   }
 
   // appoint the configured governance account as governor
-  if (govChain.config.governor) {
-    log(isTestDeploy, `appoint governor: ${govChain.config.governor}`);
+  if (govChain.governor) {
+    log(isTestDeploy, `appoint governor: ${govChain.governor}`);
     await appointGovernor(govChain);
   }
 
