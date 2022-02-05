@@ -1,23 +1,27 @@
 import * as ethers from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
 
-type Mainnet =
-  | 'celo'
-  | 'polygon'
-  | 'avalanche'
-  | 'polygon';
+type Address = string;
 
-type Testnet =
-  | 'alfajores'
-  | 'mumbai'
-  | 'kovan'
-  | 'gorli'
-  | 'fuji'
-  | 'rinkeby';
+export enum ChainName {
+  // Mainnets
+  CELO = 'celo',
+  ETHEREUM = 'ethereum',
+  AVALANCHE = 'avalanche',
+  POLYGON = 'polygon',
 
-export type ChainName = Mainnet | Testnet;
+  // Testnets
+  ALFAJORES = 'alfajores',
+  MUMBAI = 'mumbai',
+  KOVAN = 'kovan',
+  GORLI = 'gorli',
+  FUJI = 'fuji',
+  RINKARBY = 'rinkarby',
+  RINKEBY = 'rinkeby',
+  ROPSTEN = 'ropsten',
+}
 
-export type DomainedChain {
+export type DomainedChain = {
   name: ChainName;
   domain: number;
 }
@@ -41,7 +45,7 @@ export class ChainConfig {
   signer: ethers.Signer;
   gasPrice: ethers.BigNumber;
   gasLimit: ethers.BigNumber;
-  json: json;
+  json: ChainConfigJson;
   maxFeePerGas?: ethers.BigNumber;
   maxPriorityFeePerGas?: ethers.BigNumber;
   weth?: Address;
@@ -50,13 +54,13 @@ export class ChainConfig {
     this.name = json.name;
     this.domain = json.domain;
     this.confirmations = json.confirmations ?? 5;
+    this.json = json;
 
     this.provider = new ethers.providers.JsonRpcProvider(json.rpc);
     const wallet = new ethers.Wallet(json.deployerKey!, this.provider);
     this.signer = new NonceManager(wallet);
     this.gasPrice = ethers.BigNumber.from(json.gasPrice ?? '20000000000');
     this.gasLimit = ethers.BigNumber.from(json.gasLimit ?? 6_000_000);
-    this.
     this.maxFeePerGas = json.maxFeePerGas
       ? ethers.BigNumber.from(json.maxFeePerGas)
       : undefined;

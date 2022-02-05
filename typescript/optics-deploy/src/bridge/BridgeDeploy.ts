@@ -1,84 +1,51 @@
-import { Chain, ChainJson, CoreContractAddresses, toChain } from '../chain';
-import { BridgeContractAddresses, BridgeContracts } from './BridgeContracts';
+import { ChainConfig } from '../../src/config/chain';
+import { CoreContractAddresses, BridgeContractAddresses } from '../../src/config/addresses';
+import { BridgeContracts } from './BridgeContracts';
 import {
   getPathToLatestConfig,
-  parseFileFromDeploy,
 } from '../verification/readDeployOutput';
 import { Deploy } from '../deploy';
 import fs from 'fs';
+import path from 'path';
 
 export type BridgeConfig = {
   weth?: string;
 };
 
 export class BridgeDeploy extends Deploy<BridgeContracts> {
-  readonly config: BridgeConfig;
-  readonly coreDeployPath: string;
   readonly coreContractAddresses: CoreContractAddresses;
 
   constructor(
-    chain: Chain,
-    config: BridgeConfig,
-    coreDeployPath: string,
+    chainConfig: ChainConfig,
     test: boolean = false,
-    coreContracts?: CoreContractAddresses,
+    coreContractAddresses: CoreContractAddresses,
   ) {
-    super(chain, new BridgeContracts(), test);
-    this.config = config;
-    this.coreDeployPath = coreDeployPath;
-    this.coreContractAddresses =
-      coreContracts ||
-      parseFileFromDeploy(coreDeployPath, chain.config.name, 'contracts');
+    super(chainConfig, new BridgeContracts(), test);
+    this.coreContractAddresses = coreContractAddresses;
   }
 
   get ubcAddress(): string | undefined {
     return this.coreContractAddresses.upgradeBeaconController;
   }
 
-  static freshFromConfig(
-    config: ChainJson,
-    coreDeployPath: string,
-  ): BridgeDeploy {
-    return new BridgeDeploy(toChain(config), {}, coreDeployPath);
-  }
-
   static fromDirectory(
     directory: string,
-    chain: Chain,
-    config: BridgeConfig,
+    chainConfig: ChainConfig,
     test: boolean = false,
-    coreContracts?: CoreContractAddresses,
   ): BridgeDeploy {
-    const deploy = new BridgeDeploy(
-      chain,
-      config,
-      directory,
-      test,
-      coreContracts,
-    );
-    const bridgeConfigPath = getPathToLatestConfig(`${directory}/bridge`);
-    const addresses: BridgeContractAddresses = JSON.parse(
+    const coreAddresses: CoreDeployAddresses = JSON.parse(
       fs.readFileSync(
-        `${bridgeConfigPath}/${chain.name}_contracts.json`,
+        path.join(directory, `${chainConfig.name}_contracts.json`),
       ) as any as string,
     );
-    deploy.contracts = BridgeContracts.fromAddresses(addresses, chain.provider);
-    return deploy;
+    const bridgeConfigPath = getPathToLatestConfig(`${directory}/bridge`);
+    const bridgeAddresses: BridgeContractAddresses = JSON.parse(
+      fs.readFileSync(
+        path.join(bridgeConfigPath, `${chainConfig.name}_contracts.json`,
+      ) as any as string,
+    ));
+    const deploy = new BridgeDeploy(chainConfig, test, coreAddresses);
+    deploy.contracts = BridgeContracts.fromAddresses(bridgeAddresses, chainConfig.provider);
+    return deploy
   }
-}
-
-// The accessors is necessary as a network may have multiple bridge/chain configs
-export function makeBridgeDeploys<V>(
-  directory: string,
-  data: V[],
-  chainAccessor: (data: V) => Chain,
-  bridgeConfigAccessor: (data: V) => BridgeConfig,
-): BridgeDeploy[] {
-  return data.map((d: V) =>
-    BridgeDeploy.fromDirectory(
-      directory,
-      chainAccessor(d),
-      bridgeConfigAccessor(d),
-    ),
-  );
 }

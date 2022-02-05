@@ -1,9 +1,9 @@
 import { getPathToLatestDeploy } from '../../src/verification/readDeployOutput';
 import { deployBridges } from '../../src/bridge';
-import * as celo from '../../config/mainnets/celo';
-import * as ethereum from '../../config/mainnets/ethereum';
-import * as polygon from '../../config/mainnets/polygon';
-import * as avalanche from '../../config/mainnets/avalanche';
+import * as celo from '../../config/networks/mainnets/celo';
+import * as ethereum from '../../config/networks/mainnets/ethereum';
+import * as polygon from '../../config/networks/mainnets/polygon';
+import * as avalanche from '../../config/networks/mainnets/avalanche';
 import { BridgeDeploy } from '../../src/bridge/BridgeDeploy';
 
 // get the path to the latest core system deploy

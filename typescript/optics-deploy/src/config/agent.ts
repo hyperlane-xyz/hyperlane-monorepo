@@ -4,9 +4,9 @@ interface IndexingConfig {
 }
 
 interface AwsConfig {
-  awsRegion: string;
-  awsKeyId: string;
-  awsSecretAccessKey: string;
+  region: string;
+  keyId: string;
+  secretAccessKey: string;
 }
 
 interface ProcessorConfig {
@@ -23,8 +23,8 @@ export interface AgentConfig {
   environment: string;
   namespace: string;
   runEnv: string;
-  index: IndexingConfig;
   docker: DockerConfig;
+  index?: IndexingConfig;
   aws?: AwsConfig;
   processor?: ProcessorConfig;
 }

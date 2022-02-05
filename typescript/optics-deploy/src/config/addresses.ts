@@ -1,13 +1,13 @@
-import { DomainConfig } from './domain';
+import { ChainName, DomainedChain } from './chain';
 type Address = string;
 
 export type ProxiedAddress = {
-  address: Address;
-  _implementation: Address;
-  _beacon: Address;
+  proxy: Address;
+  implementation: Address;
+  beacon: Address;
 };
 
-type DomainedProxiedAddress = ProxiedAddress & DomainConfig;
+type DomainedProxiedAddress = ProxiedAddress & DomainedChain;
 
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;
@@ -15,11 +15,21 @@ export type CoreContractAddresses = {
   updaterManager: Address;
   governanceRouter: ProxiedAddress;
   home: DomainedProxiedAddress;
-  replicas?: Record<Network, DomainedProxiedAddress>;
+  replicas?: Record<ChainName, DomainedProxiedAddress>;
 };
 
 export type BridgeContractAddresses = {
   bridgeRouter: ProxiedAddress;
   bridgeToken: ProxiedAddress;
-  ethHelper?: ProxiedAddress;
+  ethHelper?: Address;
 };
+
+type CoreConfigAddresses = {
+  updater: Address;
+  watchers: Address[];
+  recoveryManager: Address;
+  governor?: Address;
+};
+
+
+export type CoreDeployAddresses = CoreContractAddresses & CoreConfigAddresses;

@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv';
 
-import { ChainConfig, ChainConfigJson } from '../../../src/chain';
+import { ChainName, ChainConfig, ChainConfigJson } from '../../../src/config/chain';
 import { BigNumber } from 'ethers';
 
 dotenv.config();
@@ -11,7 +11,7 @@ if (!rpc) {
 }
 
 export const chainJson: ChainConfigJson = {
-  name: 'kovan',
+  name: ChainName.KOVAN,
   rpc,
   deployerKey: process.env.KOVAN_DEPLOYER_KEY,
   domain: 3000,

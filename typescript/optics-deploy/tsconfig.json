@@ -6,18 +6,7 @@
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
   "extends": "../tsconfig.package.json",
   "include": [
-    "./config/mainnets/*.ts",
-    "./config/testnets/*.ts",
-    "./scripts/alfajoresArbitrum/*.ts",
-    "./scripts/alfajoresKovan/*.ts",
-    "./scripts/fourTestnets/*.ts",
-    "./scripts/mainnet/*.ts",
-    "./scripts/dev/*.ts",
-    "./scripts/threeTestnets/*.ts",
-    "./src/*.ts",
-    "./src/core/*.ts",
-    "./src/bridge/*.ts",
-    "./src/verification/*.ts",
-    "./src/agents/*.ts"
+    "./config/**/*.ts",
+    "./src/**/*.ts"
   ]
 }

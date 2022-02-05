@@ -1,4 +1,4 @@
-import { CoreConfig } from '../../../src/core/CoreDeploy';
+import { CoreConfig } from '../../../src/config/core';
 
 export const core: CoreConfig = {
   environment: 'dev',
@@ -47,5 +47,5 @@ export const core: CoreConfig = {
       watchers: ['0x20aC2FD664bA5406A7262967C34107e708dCb18E'],
       recoveryManager: '0x24F6c874F56533d9a1422e85e5C7A806ED11c036',
     },
-  }
+  },
 };

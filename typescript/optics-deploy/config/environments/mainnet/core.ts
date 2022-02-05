@@ -1,4 +1,4 @@
-import { CoreConfig } from '../../../src/core/CoreDeploy';
+import { CoreConfig } from '../../../src/config/core';
 
 export const core: CoreConfig = {
   environment: 'mainnet',
@@ -16,6 +16,7 @@ export const core: CoreConfig = {
       recoveryManager: '0x070c2843402Aa0637ae0F2E2edf601aAB5E72509',
       updater: '0x703643995262c92ab013E3CCA810BdcB9239d45a',
       watchers: ['0x97D510A1F9464d220E2716Cc52Cb03851D6d595c'],
+      governor: '0x070c2843402Aa0637ae0F2E2edf601aAB5E72509',
     },
     ethereum: {
       updater: '0x5Ef6e0F6A7E1f866612D806041799a9D762b62c0',
@@ -27,9 +28,5 @@ export const core: CoreConfig = {
       watchers: ['0x68015B84182c71F9c2EE6C8061405D6F1f56314B'],
       recoveryManager: '0x8A1405C70c8a45177b5ac71b1d22779272E5d48b',
     },
-    governor: {
-      name: 'celo',
-      domain: chainJson.domain,
-      address: '0x070c2843402Aa0637ae0F2E2edf601aAB5E72509',
-    },
+  },
 };

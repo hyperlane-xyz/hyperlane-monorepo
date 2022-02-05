@@ -1,4 +1,4 @@
-import { ChainConfig, ChainConfigJson } from '../../../src/chain';
+import { ChainName, ChainConfig, ChainConfigJson } from '../../../src/config/chain';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -9,7 +9,7 @@ if (!rpc) {
 }
 
 export const chainJson: ChainConfigJson = {
-  name: 'celo',
+  name: ChainName.CELO,
   rpc,
   deployerKey: process.env.CELO_DEPLOYER_KEY,
   domain: 0x63656c6f, // b'celo' interpreted as an int

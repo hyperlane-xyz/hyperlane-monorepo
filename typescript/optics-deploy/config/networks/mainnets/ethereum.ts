@@ -1,4 +1,4 @@
-import { ChainConfig, ChainConfigJson } from '../../../src/chain';
+import { ChainName, ChainConfig, ChainConfigJson } from '../../../src/config/chain';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -9,7 +9,7 @@ if (!rpc) {
 }
 
 export const chainJson: ChainConfigJson = {
-  name: 'ethereum',
+  name: ChainName.ETHEREUM,
   rpc,
   deployerKey: process.env.ETHEREUM_DEPLOYER_KEY,
   domain: 0x657468, // b'eth' interpreted as an int

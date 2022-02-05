@@ -23,12 +23,12 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
 
   async checkBeaconProxies(deploy: AnyBridgeDeploy): Promise<void> {
     await this.checkBeaconProxyImplementation(
-      deploy.chain.domain,
+      deploy.chainConfig.domain,
       'BridgeToken',
       deploy.contracts.bridgeToken!,
     );
     await this.checkBeaconProxyImplementation(
-      deploy.chain.domain,
+      deploy.chainConfig.domain,
       'BridgeRouter',
       deploy.contracts.bridgeRouter!,
     );
@@ -36,9 +36,9 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
 
   async checkBridgeRouter(deploy: AnyBridgeDeploy): Promise<void> {
     const bridgeRouter = deploy.contracts.bridgeRouter?.proxy!;
-    const domains = this._deploys.map((d: AnyBridgeDeploy) => d.chain.domain);
+    const domains = this._deploys.map((d: AnyBridgeDeploy) => d.chainConfig.domain);
     const remoteDomains = domains.filter(
-      (d: number) => d !== deploy.chain.domain,
+      (d: number) => d !== deploy.chainConfig.domain,
     );
     await Promise.all(
       remoteDomains.map(async (remoteDomain) => {
@@ -48,12 +48,12 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
     );
 
     expect(await bridgeRouter.owner()).to.equal(
-      deploy.coreContractAddresses.governance.proxy,
+      deploy.coreContractAddresses.governanceRouter.proxy,
     );
   }
 
   checkEthHelper(deploy: AnyBridgeDeploy): void {
-    if (deploy.config.weth) {
+    if (deploy.chainConfig.weth) {
       expect(deploy.contracts.ethHelper).to.not.be.undefined;
     } else {
       expect(deploy.contracts.ethHelper).to.be.undefined;
@@ -80,7 +80,7 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
       deploy.contracts.bridgeRouter!,
       'BridgeRouter',
     );
-    if (deploy.config.weth) {
+    if (deploy.chainConfig.weth) {
       expect(deploy.contracts.ethHelper).to.not.be.undefined;
       inputs.push(['EthHelper', deploy.contracts.ethHelper!]);
     }

@@ -1,6 +1,6 @@
 import * as dotenv from 'dotenv';
 
-import { ChainConfig, ChainConfigJson } from '../../../src/chain';
+import { ChainName, ChainConfig, ChainConfigJson } from '../../../src/config/chain';
 import { BigNumber } from 'ethers';
 
 dotenv.config();
@@ -11,7 +11,7 @@ if (!rpc) {
 }
 
 export const chainJson: ChainConfigJson = {
-  name: 'ropsten',
+  name: ChainName.ROPSTEN,
   rpc,
   deployerKey: process.env.ROPSTEN_DEPLOYER_KEY,
   domain: 3,

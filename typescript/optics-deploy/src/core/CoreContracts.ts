@@ -1,16 +1,16 @@
 import * as contracts from 'optics-ts-interface/dist/optics-core';
-import { BeaconProxy, ProxyAddresses } from '../proxyUtils';
+import { BeaconProxy } from '../proxyUtils';
 import { Contracts } from '../contracts';
-import { CoreContractAddresses } from '../chain';
+import { DomainedProxiedAddress, ProxiedAddress, CoreContractAddresses } from '../../src/config/addresses';
 import * as ethers from 'ethers';
 
 export class CoreContracts extends Contracts {
   upgradeBeaconController?: contracts.UpgradeBeaconController;
   xAppConnectionManager?: contracts.XAppConnectionManager;
   updaterManager?: contracts.UpdaterManager;
-  governance?: BeaconProxy<contracts.GovernanceRouter>;
+  governanceRouter?: BeaconProxy<contracts.GovernanceRouter>;
   home?: BeaconProxy<contracts.Home>;
-  replicas: Record<number, BeaconProxy<contracts.Replica>>;
+  replicas: Record<DomainedChain, BeaconProxy<contracts.Replica>>;
 
   constructor() {
     super();
@@ -18,16 +18,19 @@ export class CoreContracts extends Contracts {
   }
 
   toObject(): CoreContractAddresses {
-    const replicas: Record<string, ProxyAddresses> = {};
+    const replicas: Record<ChainName, DomainedProxiedAddress> = {};
     Object.entries(this.replicas).forEach(([k, v]) => {
-      replicas[k] = v.toObject();
+      replicas[k.name] = {
+        ...k,
+        ...v.toObject(),
+      }
     });
 
     return {
       upgradeBeaconController: this.upgradeBeaconController!.address,
       xAppConnectionManager: this.xAppConnectionManager!.address,
       updaterManager: this.updaterManager!.address,
-      governance: this.governance!.toObject(),
+      governanceRouter: this.governanceRouter!.toObject(),
       home: this.home!.toObject(),
       replicas,
     };
@@ -53,63 +56,11 @@ export class CoreContracts extends Contracts {
       provider,
     );
 
-    // TODO: needs type magic for turning governance, home and replicas to BeaconProxy contracts
-    const governanceRouterImplementation =
-      contracts.GovernanceRouter__factory.connect(
-        addresses.governance.implementation,
-        provider,
-      );
-    const governanceRouterProxy = contracts.GovernanceRouter__factory.connect(
-      addresses.governance.proxy,
-      provider,
-    );
-    const governanceRouterUpgradeBeacon =
-      contracts.UpgradeBeacon__factory.connect(
-        addresses.governance.beacon,
-        provider,
-      );
-    core.governance = new BeaconProxy<contracts.GovernanceRouter>(
-      governanceRouterImplementation,
-      governanceRouterProxy,
-      governanceRouterUpgradeBeacon,
-    );
-
-    const homeImplementation = contracts.Home__factory.connect(
-      addresses.home.implementation,
-      provider,
-    );
-    const homeProxy = contracts.Home__factory.connect(
-      addresses.home.proxy,
-      provider,
-    );
-    const homeUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
-      addresses.home.beacon,
-      provider,
-    );
-    core.home = new BeaconProxy<contracts.Home>(
-      homeImplementation,
-      homeProxy,
-      homeUpgradeBeacon,
-    );
+    core.governanceRouter = BeaconProxy.from(contracts.GovernanceRouter__factory, provider, addresses.governanceRouter)
+    core.home = BeaconProxy.from(contracts.Home__factory, provider, addresses.home)
 
     for (let domain of Object.keys(addresses.replicas!)) {
-      const replicaImplementation = contracts.Replica__factory.connect(
-        addresses.replicas![domain].implementation,
-        provider,
-      );
-      const replicaProxy = contracts.Replica__factory.connect(
-        addresses.replicas![domain].proxy,
-        provider,
-      );
-      const replicaUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
-        addresses.replicas![domain].beacon,
-        provider,
-      );
-      core.replicas[parseInt(domain)] = new BeaconProxy<contracts.Replica>(
-        replicaImplementation,
-        replicaProxy,
-        replicaUpgradeBeacon,
-      );
+      core.replicas[parseInt(domain)] = BeaconProxy.from(contracts.Replica__factory, provider, addresses.replicas![domain])
     }
     return core;
   }

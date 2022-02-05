@@ -3,6 +3,7 @@ import { BytesLike, ethers } from 'ethers';
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { Deploy } from './deploy';
 import { CoreDeploy } from './core/CoreDeploy';
+import { ProxiedAddress } from './config/addresses';
 
 export type ProxyNames =
   | 'Home'
@@ -22,20 +23,21 @@ export class BeaconProxy<T extends ethers.Contract> {
     this.beacon = beacon;
   }
 
-  toObject(): ProxyAddresses {
+  toObject(): ProxiedAddress {
     return {
-      implementation: this.implementation.address,
       proxy: this.proxy.address,
+      implementation: this.implementation.address,
       beacon: this.beacon.address,
     };
   }
-}
 
-export type ProxyAddresses = {
-  implementation: string;
-  proxy: string;
-  beacon: string;
-};
+  static fromAddresses<K>(factory: K extends ContractFactory, provider: ethers.Provider, addresses: PoxiedAddress): BeaconProxy<T> {
+    const implementation = factory.connect(addresses.implementation, provider);
+    const proxy = factory.connect(addresses.proxy, provider);
+    const beacon = contracts.UpgradeBeacon__factory.connect(addresses.beacon, provider);
+    return new BeaconProxy(implementation, proxy, beacon);
+  }
+}
 
 /**
  * Deploys the UpgradeBeacon, Implementation and Proxy for a given contract
@@ -63,7 +65,7 @@ export async function deployProxy<T extends ethers.Contract>(
 
   // proxy wait(x) implies implementation and beacon wait(>=x)
   // due to nonce ordering
-  await proxy.deployTransaction.wait(deploy.chain.confirmations);
+  await proxy.deployTransaction.wait(deploy.chainConfig.confirmations);
 
   // add Implementation to Etherscan verification
   deploy.verificationInput.push({
@@ -106,7 +108,7 @@ export async function duplicate<T extends ethers.Contract>(
   initData: BytesLike,
 ): Promise<BeaconProxy<T>> {
   const proxy = await _deployProxy(deploy, prev.beacon, initData);
-  await proxy.deployTransaction.wait(deploy.chain.confirmations);
+  await proxy.deployTransaction.wait(deploy.chainConfig.confirmations);
 
   // add UpgradeBeacon to etherscan verification
   // add Proxy to etherscan verification
@@ -141,7 +143,7 @@ export async function deployImplementation<T extends ethers.Contract>(
     factory,
     deployArgs,
   );
-  await implementation.deployTransaction.wait(deploy.chain.confirmations);
+  await implementation.deployTransaction.wait(deploy.chainConfig.confirmations);
 
   // add Implementation to Etherscan verification
   deploy.verificationInput.push({
@@ -206,7 +208,7 @@ async function _deployBeacon(
   deploy: Deploy<any>,
   implementation: ethers.Contract,
 ): Promise<contracts.UpgradeBeacon> {
-  let factory = new contracts.UpgradeBeacon__factory(deploy.chain.deployer);
+  let factory = new contracts.UpgradeBeacon__factory(deploy.chainConfig.signer);
 
   let beacon = factory.deploy(
     implementation.address,
@@ -232,7 +234,7 @@ async function _deployProxy<T>(
   initData: BytesLike,
 ): Promise<contracts.UpgradeBeaconProxy> {
   let factory = new contracts.UpgradeBeaconProxy__factory(
-    deploy.chain.deployer,
+    deploy.chainConfig.signer,
   );
 
   return await factory.deploy(beacon.address, initData, deploy.overrides);

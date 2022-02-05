@@ -1,5 +1,5 @@
 import * as dotenv from 'dotenv';
-import { ChainConfig, ChainConfigJson } from '../../../src/chain';
+import { ChainName, ChainConfig, ChainConfigJson } from '../../../src/config/chain';
 import { BigNumber } from 'ethers';
 
 dotenv.config();
@@ -10,7 +10,7 @@ if (!rpc) {
 }
 
 export const chainJson: ChainConfigJson = {
-  name: 'gorli',
+  name: ChainName.GORLI,
   rpc,
   deployerKey: process.env.GORLI_DEPLOYER_KEY,
   domain: 5,

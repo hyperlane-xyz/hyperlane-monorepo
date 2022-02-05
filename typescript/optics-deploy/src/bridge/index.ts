@@ -69,7 +69,7 @@ export async function deployBridges(deploys: Deploy[]) {
  * @param deploy - The deploy instance
  */
 export async function deployTokenUpgradeBeacon(deploy: Deploy) {
-  console.log(`deploying ${deploy.chain.name} Token Upgrade Beacon`);
+  console.log(`deploying ${deploy.chainConfig.name} Token Upgrade Beacon`);
 
   // no initialize function called
   const initData = '0x';
@@ -78,11 +78,11 @@ export async function deployTokenUpgradeBeacon(deploy: Deploy) {
     await proxyUtils.deployProxy<xAppContracts.BridgeToken>(
       'BridgeToken',
       deploy,
-      new xAppContracts.BridgeToken__factory(deploy.chain.deployer),
+      new xAppContracts.BridgeToken__factory(deploy.chainConfig.signer),
       initData,
     );
 
-  console.log(`deployed ${deploy.chain.name} Token Upgrade Beacon`);
+  console.log(`deployed ${deploy.chainConfig.name} Token Upgrade Beacon`);
 }
 
 /**
@@ -92,7 +92,7 @@ export async function deployTokenUpgradeBeacon(deploy: Deploy) {
  * @param deploy - The deploy instance
  */
 export async function deployBridgeRouter(deploy: Deploy) {
-  console.log(`deploying ${deploy.chain.name} BridgeRouter`);
+  console.log(`deploying ${deploy.chainConfig.name} BridgeRouter`);
 
   const initData =
     xAppContracts.BridgeRouter__factory.createInterface().encodeFunctionData(
@@ -107,7 +107,7 @@ export async function deployBridgeRouter(deploy: Deploy) {
     await proxyUtils.deployProxy<xAppContracts.BridgeRouter>(
       'BridgeRouter',
       deploy,
-      new xAppContracts.BridgeRouter__factory(deploy.chain.deployer),
+      new xAppContracts.BridgeRouter__factory(deploy.chainConfig.signer),
       initData,
     );
 
@@ -120,7 +120,7 @@ export async function deployBridgeRouter(deploy: Deploy) {
       deploy.contracts.bridgeToken!.beacon.address,
   );
 
-  console.log(`deployed ${deploy.chain.name} BridgeRouter`);
+  console.log(`deployed ${deploy.chainConfig.name} BridgeRouter`);
 }
 
 /**
@@ -131,33 +131,33 @@ export async function deployBridgeRouter(deploy: Deploy) {
  * @param deploy - The deploy instance for the chain on which to deploy the contract
  */
 export async function deployEthHelper(deploy: Deploy) {
-  if (!deploy.config.weth) {
-    console.log(`skipping ${deploy.chain.name} EthHelper deploy`);
+  if (!deploy.chainConfig.weth) {
+    console.log(`skipping ${deploy.chainConfig.name} EthHelper deploy`);
     return;
   }
 
-  console.log(`deploying ${deploy.chain.name} EthHelper`);
+  console.log(`deploying ${deploy.chainConfig.name} EthHelper`);
 
-  const factory = new xAppContracts.ETHHelper__factory(deploy.chain.deployer);
+  const factory = new xAppContracts.ETHHelper__factory(deploy.chainConfig.signer);
 
   deploy.contracts.ethHelper = await factory.deploy(
-    deploy.config.weth!,
+    deploy.chainConfig.weth!,
     deploy.contracts.bridgeRouter?.proxy.address!,
     deploy.overrides,
   );
 
   await deploy.contracts.ethHelper.deployTransaction.wait(
-    deploy.chain.confirmations,
+    deploy.chainConfig.confirmations,
   );
   deploy.verificationInput.push({
     name: `ETH Helper`,
     address: deploy.contracts.ethHelper.address,
     constructorArguments: [
-      deploy.config.weth!,
+      deploy.chainConfig.weth!,
       deploy.contracts.bridgeRouter?.proxy.address!,
     ],
   });
-  console.log(`deployed ${deploy.chain.name} EthHelper`);
+  console.log(`deployed ${deploy.chainConfig.name} EthHelper`);
 }
 
 /**
@@ -172,7 +172,7 @@ export async function enrollAllBridgeRouters(
   allDeploys: Deploy[],
 ) {
   for (let remoteDeploy of allDeploys) {
-    if (deploy.chain.domain != remoteDeploy.chain.domain) {
+    if (deploy.chainConfig.domain != remoteDeploy.chainConfig.domain) {
       await enrollBridgeRouter(deploy, remoteDeploy);
     }
   }
@@ -187,19 +187,19 @@ export async function enrollAllBridgeRouters(
  */
 export async function enrollBridgeRouter(local: Deploy, remote: Deploy) {
   console.log(
-    `enrolling ${remote.chain.name} BridgeRouter on ${local.chain.name}`,
+    `enrolling ${remote.chainConfig.name} BridgeRouter on ${local.chainConfig.name}`,
   );
 
   let tx = await local.contracts.bridgeRouter!.proxy.enrollRemoteRouter(
-    remote.chain.domain,
+    remote.chainConfig.domain,
     toBytes32(remote.contracts.bridgeRouter!.proxy.address),
     local.overrides,
   );
 
-  await tx.wait(local.chain.confirmations);
+  await tx.wait(local.chainConfig.confirmations);
 
   console.log(
-    `enrolled ${remote.chain.name} BridgeRouter on ${local.chain.name}`,
+    `enrolled ${remote.chainConfig.name} BridgeRouter on ${local.chainConfig.name}`,
   );
 }
 
@@ -210,16 +210,16 @@ export async function enrollBridgeRouter(local: Deploy, remote: Deploy) {
  * @param deploy - The deploy instance for the chain
  */
 export async function transferOwnershipToGovernance(deploy: Deploy) {
-  console.log(`transfer ownership of ${deploy.chain.name} BridgeRouter`);
+  console.log(`transfer ownership of ${deploy.chainConfig.name} BridgeRouter`);
 
   let tx = await deploy.contracts.bridgeRouter!.proxy.transferOwnership(
-    deploy.coreContractAddresses.governance.proxy,
+    deploy.coreContractAddresses.governanceRouter.proxy,
     deploy.overrides,
   );
 
-  await tx.wait(deploy.chain.confirmations);
+  await tx.wait(deploy.chainConfig.confirmations);
 
-  console.log(`transferred ownership of ${deploy.chain.name} BridgeRouter`);
+  console.log(`transferred ownership of ${deploy.chainConfig.name} BridgeRouter`);
 }
 
 /**
@@ -243,7 +243,7 @@ export function writeBridgeDeployOutput(deploys: Deploy[]) {
 
   // for each deploy, write contracts and verification inputs to file
   for (const deploy of deploys) {
-    const name = deploy.chain.name;
+    const name = deploy.chainConfig.name;
 
     const contracts = deploy.contracts.toJsonPretty();
     fs.writeFileSync(`${dir}/${name}_contracts.json`, contracts);

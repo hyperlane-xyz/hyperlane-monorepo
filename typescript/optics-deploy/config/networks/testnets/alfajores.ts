@@ -1,4 +1,4 @@
-import { ChainConfig, ChainConfigJson } from '../../../src/chain';
+import { ChainName, ChainConfig, ChainConfigJson } from '../../../src/config/chain';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -9,7 +9,7 @@ if (!rpc) {
 }
 
 export const chainJson: ChainConfigJson = {
-  name: 'alfajores',
+  name: ChainName.ALFAJORES,
   rpc,
   deployerKey: process.env.ALFAJORES_DEPLOYER_KEY,
   domain: 1000,

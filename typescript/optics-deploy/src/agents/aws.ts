@@ -1,4 +1,5 @@
-import { AgentConfig, KEY_ROLE_ENUM } from '../agents';
+import { KEY_ROLE_ENUM } from '../agents';
+import { AgentConfig } from '../../src/config/agent';
 import {
   CreateAliasCommand,
   CreateKeyCommand,
@@ -28,7 +29,7 @@ type RemoteKey = UnfetchedKey | FetchedKey;
 export class AgentAwsKey extends AgentKey {
   private environment: string;
   private client: KMSClient;
-  private awsRegion: string;
+  private region: string;
   public remoteKey: RemoteKey = { fetched: false };
 
   constructor(
@@ -37,20 +38,16 @@ export class AgentAwsKey extends AgentKey {
     public readonly chainName: string,
   ) {
     super();
-    if (
-      !agentConfig.awsRegion ||
-      !agentConfig.awsKeyId ||
-      !agentConfig.awsSecretAccessKey
-    ) {
+    if (!agentConfig.aws) {
       throw new Error('No AWS env vars set');
     }
     this.environment = agentConfig.environment;
-    this.awsRegion = agentConfig.awsRegion;
+    this.region = agentConfig.aws.region;
     this.client = new KMSClient({
-      region: agentConfig.awsRegion,
+      region: this.region,
       credentials: {
-        accessKeyId: agentConfig.awsKeyId,
-        secretAccessKey: agentConfig.awsSecretAccessKey,
+        accessKeyId: agentConfig.aws.keyId,
+        secretAccessKey: agentConfig.aws.secretAccessKey,
       },
     });
   }
@@ -75,7 +72,7 @@ export class AgentAwsKey extends AgentKey {
     return {
       aws: {
         keyId: this.identifier,
-        region: this.awsRegion,
+        region: this.region,
       },
     };
   }

@@ -14,11 +14,11 @@ import {
 } from 'optics-ts-interface/dist/optics-xapps';
 import { BridgeContracts } from './BridgeContracts';
 import * as process from '.';
-import { Chain } from '../chain';
+import { ChainConfig } from '../../src/config/chain';
+import { CoreConfig } from '../../src/config/core';
 import { Deploy } from '../deploy';
 
 import { TokenIdentifier } from '@abacus-network/sdk/dist/optics/tokens';
-import { CoreConfig } from '../core/CoreDeploy';
 
 function toBytes32(address: string): string {
   return '0x' + '00'.repeat(12) + address.slice(2);
@@ -30,20 +30,20 @@ export async function getTestChain(
   updater: string,
   watchers: string[],
   recoveryManager?: string,
-): Promise<[Chain, CoreConfig]> {
-  const [, , , , , , , deployer] = await ethers.getSigners();
+): Promise<[ChainConfig, CoreConfig]> {
+  const [, , , , , , , signer] = await ethers.getSigners();
   return [
     {
-      name: 'hh',
+      name: 'alfajores',
       provider: ethers.provider,
-      deployer,
+      signer,
       gasPrice: BigNumber.from(20000000000),
       gasLimit: BigNumber.from(6_000_000),
       confirmations: 0,
       domain,
-      config: {
+      json: {
         domain,
-        name: 'hh',
+        name: 'alfajores',
         rpc: 'NA',
       },
     },
@@ -68,27 +68,24 @@ export async function getTestChain(
 // router dispatches will be logged in the `Enqueue` event on the `MockCore`
 // contract.
 export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
-  signer: Signer;
   ubc: UpgradeBeaconController;
   mockCore: MockCore;
   mockWeth: MockWeth;
   localDomain: number;
 
   constructor(
-    signer: Signer,
     ubc: UpgradeBeaconController,
     mockCore: MockCore,
     mockWeth: MockWeth,
     contracts: BridgeContracts,
     domain: number,
-    chain: Chain,
+    chainConfig: ChainConfig,
     callerKnowsWhatTheyAreDoing: boolean = false,
   ) {
     if (!callerKnowsWhatTheyAreDoing) {
       throw new Error("Don't instantiate via new.");
     }
-    super(chain, contracts, true);
-    this.signer = signer;
+    super(chainConfig, contracts, true);
     this.ubc = ubc;
     this.mockCore = mockCore;
     this.mockWeth = mockWeth;
@@ -102,8 +99,8 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
     const ubc = await new UpgradeBeaconController__factory(signer).deploy();
     const contracts = new BridgeContracts();
     const domain = await mockCore.localDomain();
-    const [chain] = await getTestChain(ethers, domain, '', []);
-    chain.deployer = signer;
+    const [chainConfig] = await getTestChain(ethers, domain, '', []);
+    chainConfig.signer = signer;
 
     let deploy = new TestBridgeDeploy(
       signer,
@@ -112,7 +109,7 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
       mockWeth,
       contracts,
       domain,
-      chain,
+      chainConfig,
       true,
     );
 
@@ -135,15 +132,11 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
     return this.ubc.address;
   }
 
-  get deployer(): Signer {
-    return this.chain.deployer;
-  }
-
   get coreContractAddresses() {
     return {
       xAppConnectionManager: this.mockCore.address,
       home: { proxy: this.mockCore.address },
-      governance: { proxy: this.mockCore.address },
+      governanceRouter: { proxy: this.mockCore.address },
     };
   }
 

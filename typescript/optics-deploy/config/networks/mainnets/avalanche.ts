@@ -1,4 +1,4 @@
-import { ChainConfigJson } from '../../../src/chain';
+import { ChainName, ChainConfig, ChainConfigJson } from '../../../src/config/chain';
 import * as dotenv from 'dotenv';
 import { BigNumber } from 'ethers';
 
@@ -10,7 +10,7 @@ if (!rpc) {
 }
 
 export const chainJson: ChainConfigJson = {
-  name: 'avalanche',
+  name: ChainName.AVALANCHE,
   rpc,
   deployerKey: process.env.AVALANCHE_DEPLOYER_KEY,
   domain: 0x61766178, // b'avax' interpreted as an int

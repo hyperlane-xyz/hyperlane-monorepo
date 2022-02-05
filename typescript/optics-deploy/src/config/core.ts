@@ -1,26 +1,17 @@
+import { BigNumberish} from 'ethers';
+import { CoreConfigAddresses } from './addresses';
 import { ChainName, DomainedChain } from './chain';
 type Address = string;
 
-type Governor = DomainedChain & {
-  address: Address;
-};
-
-type ChainAddresses = {
-  updater: Address;
-  watchers: Address[];
-  recoveryManager: Address;
+interface IDAddresses {
+  [chain in ChainName]?: CoreConfigAddresses;
 }
 
-type CoreConfigAddresses = {
-  [chain: ChainName]: ChainAddresses;
-  governor: Governor;
-}
-
-export type CoreConfig = {
+export interface CoreConfig {
   environment: DeployEnvironment;
   recoveryTimelock: number;
   optimisticSeconds: number;
   processGas: BigNumberish;
   reserveGas: BigNumberish;
-  addresses: CoreConfigAddresses;
+  addresses: IDAddresses;
 };

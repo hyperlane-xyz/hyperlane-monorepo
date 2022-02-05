@@ -39,15 +39,15 @@ export class ImplementationDeployer {
       await proxyUtils.deployImplementation<contracts.Home>(
         'Home',
         deploy,
-        new homeFactory(deploy.deployer),
-        deploy.chain.domain,
+        new homeFactory(deploy.signer),
+        deploy.chainConfig.domain,
       );
 
     deploy.contracts.home =
       proxyUtils.overrideBeaconProxyImplementation<contracts.Home>(
         implementation,
         deploy,
-        new homeFactory(deploy.deployer),
+        new homeFactory(deploy.signer),
         deploy.contracts.home!,
       );
   }
@@ -68,8 +68,8 @@ export class ImplementationDeployer {
       await proxyUtils.deployImplementation<contracts.Replica>(
         'Replica',
         deploy,
-        new replicaFactory(deploy.deployer),
-        deploy.chain.domain,
+        new replicaFactory(deploy.signer),
+        deploy.chainConfig.domain,
         deploy.config.processGas,
         deploy.config.reserveGas,
       );
@@ -79,7 +79,7 @@ export class ImplementationDeployer {
         proxyUtils.overrideBeaconProxyImplementation<contracts.Replica>(
           implementation,
           deploy,
-          new replicaFactory(deploy.deployer),
+          new replicaFactory(deploy.signer),
           deploy.contracts.replicas[domain],
         );
     }
@@ -107,7 +107,7 @@ export class ImplementationDeployer {
 
     log(isTestDeploy, `Beginning ${this._deploys.length} Chain deploy process`);
     log(isTestDeploy, `Deploy env is ${this._deploys[0].config.environment}`);
-    log(isTestDeploy, `${this._deploys[0].chain.name} is governing`);
+    log(isTestDeploy, `${this._deploys[0].chainConfig.name} is governing`);
 
     log(isTestDeploy, 'awaiting provider ready');
     await Promise.all([

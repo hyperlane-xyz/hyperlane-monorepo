@@ -1,4 +1,4 @@
-import { ChainConfig, ChainConfigJson } from '../../../src/chain';
+import { ChainName, ChainConfig, ChainConfigJson } from '../../../src/config/chain';
 import * as dotenv from 'dotenv';
 
 dotenv.config();
@@ -9,7 +9,7 @@ if (!rpc) {
 }
 
 export const chainJson: ChainConfigJson = {
-  name: 'polygon',
+  name: ChainName.POLYGON,
   rpc,
   deployerKey: process.env.POLYGON_DEPLOYER_KEY,
   domain: 0x706f6c79, // b'poly' interpreted as an int

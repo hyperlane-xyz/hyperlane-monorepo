@@ -1,6 +1,6 @@
 import { createAgentGCPKeys } from '../../src/agents/gcp';
-import { configs } from './agentConfig';
+import { chains } from '../../config/environments/dev/chains';
 
-createAgentGCPKeys('dev', Object.keys(configs))
+createAgentGCPKeys('dev', chains.map((c) => c.name))
   .then(console.log)
   .catch(console.error);

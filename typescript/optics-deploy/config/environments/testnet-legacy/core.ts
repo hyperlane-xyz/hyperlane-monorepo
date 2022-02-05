@@ -1,4 +1,4 @@
-import { CoreConfig } from '../../../src/core/CoreDeploy';
+import { CoreConfig } from '../../../src/config/core';
 
 export const core: CoreConfig = {
   environment: 'testnet-legacy',

@@ -98,7 +98,7 @@ export class GovernanceCallBatchBuilder {
   }
 
   getDeploy(domain: number): CoreDeploy {
-    const deploys = this._deploys.filter((d) => d.chain.domain == domain);
+    const deploys = this._deploys.filter((d) => d.chainConfig.domain == domain);
     expect(deploys).to.have.lengthOf(1);
     return deploys[0];
   }

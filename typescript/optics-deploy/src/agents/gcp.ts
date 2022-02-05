@@ -1,8 +1,8 @@
 import { Wallet } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
-import { Chain, replaceDeployer } from '../chain';
-import { CoreConfig } from '../core/CoreDeploy';
+import { ChainConfig, ChainName } from '../../src/config/chain';
+import { CoreConfig } from '../../src/config/core';
 import { execCmd, include, strip0x } from '../utils';
 import { AgentKey } from './agent';
 
@@ -287,31 +287,30 @@ async function fetchGCPKeyAddresses(environment: string) {
 }
 
 // Modifies a Chain configuration with the deployer key pulled from GCP
-export async function addDeployerGCPKey(environment: string, chain: Chain) {
-  const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chain.name);
+export async function addDeployerGCPKey(environment: string, chainConfig: ChainConfig) {
+  const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chainConfig.name);
   await key.fetch();
   const deployerSecret = key.privateKey();
-  return replaceDeployer(chain, strip0x(deployerSecret));
+  chainConfig.replaceSigner(strip0x(deployerSecret));
+  return chainConfig
 }
 
 // Modifies a Core configuration with the relevant watcher/updater addresses pulled from GCP
 export async function addAgentGCPAddresses(
-  environment: string,
-  chain: Chain,
-  config: CoreConfig,
+  environment: ChainName,
+  chainConfig: ChainConfig,
+  coreConfig: CoreConfig,
 ): Promise<CoreConfig> {
   const addresses = await fetchGCPKeyAddresses(environment);
   const watcher = addresses.find(
-    (_) => _.role === `${chain.name}-watcher-attestation`,
+    (_) => _.role === `${chainConfig.name}-watcher-attestation`,
   )!.address;
   const updater = addresses.find(
-    (_) => _.role === `${chain.name}-updater-attestation`,
+    (_) => _.role === `${chainConfig.name}-updater-attestation`,
   )!.address;
-  const deployer = addresses.find((_) => _.role === 'deployer')!.address;
-  return {
-    ...config,
-    updater: updater,
-    recoveryManager: deployer,
-    watchers: [watcher],
-  };
+  const recoveryManager = addresses.find((_) => _.role === 'deployer')!.address;
+  coreConfig.addresses[environment].updater = updater;
+  coreConfig.addresses[environment].recoveryManager = recoveryManager;
+  coreConfig.addresses[environment].watchers = [watcher];
+  return coreConfig
 }
