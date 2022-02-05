@@ -1,11 +1,11 @@
-import { dev } from 'optics-multi-provider-community';
+import { dev } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
 import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
 import { makeCoreDeploys, CoreDeploy } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
-import { Call } from 'optics-multi-provider-community/dist/optics/govern';
+import { Call } from '@abacus-network/sdk/dist/optics/govern';
 
 const deploys = makeCoreDeploys(
   configPath,

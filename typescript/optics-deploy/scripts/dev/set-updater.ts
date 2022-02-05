@@ -1,4 +1,4 @@
-import { dev } from 'optics-multi-provider-community';
+import { dev } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
 import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';

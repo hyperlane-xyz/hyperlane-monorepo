@@ -1,8 +1,8 @@
 import {
   AnnotatedLifecycleEvent,
   MessageStatus,
-} from 'optics-multi-provider-community/dist/optics';
-import { OpticsContext, OpticsStatus } from 'optics-multi-provider-community';
+} from '@abacus-network/sdk/dist/optics';
+import { OpticsContext, OpticsStatus } from '@abacus-network/sdk';
 import fs from 'fs';
 import config from './config';
 

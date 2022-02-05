@@ -1,5 +1,5 @@
-import { OpticsContext } from 'optics-multi-provider-community';
-import { getEvents } from 'optics-multi-provider-community/dist/optics/events/fetch';
+import { OpticsContext } from '@abacus-network/sdk';
+import { getEvents } from '@abacus-network/sdk/dist/optics/events/fetch';
 import * as contexts from './registerContext';
 import { logMonitorMetrics, writeUnprocessedMessages } from './print';
 import config from './config';

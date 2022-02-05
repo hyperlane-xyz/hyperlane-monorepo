@@ -3,7 +3,7 @@ import {
   testnet,
   mainnet,
   mainnetLegacy,
-} from 'optics-multi-provider-community';
+} from '@abacus-network/sdk';
 import config from './config';
 
 // register mainnet

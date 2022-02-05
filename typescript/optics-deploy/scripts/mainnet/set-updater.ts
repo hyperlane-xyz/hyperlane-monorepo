@@ -1,4 +1,4 @@
-import { mainnetCommunity } from 'optics-multi-provider-community';
+import { mainnetCommunity } from '@abacus-network/sdk';
 import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';

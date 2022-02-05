@@ -1,4 +1,4 @@
-import { OpticsContext, OpticsMessage } from 'optics-multi-provider-community';
+import { OpticsContext, OpticsMessage } from '@abacus-network/sdk';
 import { mainnet } from './registerContext';
 import { printStatus } from './print';
 

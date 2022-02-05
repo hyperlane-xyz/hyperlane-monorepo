@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { OpticsContext } from 'optics-multi-provider-community';
+import { OpticsContext } from '@abacus-network/sdk';
 import { CoreDeploy } from './CoreDeploy';
 import {
   HomeUpdaterViolation,
@@ -11,7 +11,7 @@ import {
 import {
   Call,
   CallBatch,
-} from 'optics-multi-provider-community/dist/optics/govern';
+} from '@abacus-network/sdk/dist/optics/govern';
 
 interface DomainedCall {
   domain: number;
