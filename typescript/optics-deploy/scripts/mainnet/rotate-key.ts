@@ -1,6 +1,6 @@
 import { KEY_ROLE_ENUM } from '../../src/agents';
 import { AgentAwsKey } from '../../src/agents/aws';
-import { agentConfig } from './agentConfig';
+import { agentConfig } from '../../config/environments/mainnet/agent';
 
 async function rotateKey() {
   const key = new AgentAwsKey(

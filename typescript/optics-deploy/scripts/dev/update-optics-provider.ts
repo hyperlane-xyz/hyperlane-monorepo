@@ -7,6 +7,6 @@ import { chains } from '../../config/environments/dev/chains';
 const environment = 'dev';
 const directory = `../../config/environments/${environment}/contracts`;
 const coreDeploys = chains.map((c) => CoreDeploy.fromDirectory(directory, c, core))
-const bridgeDeploys = chains.map((c) => BridgeDeploy.fromDirectory(directory, c, core))
+const bridgeDeploys = chains.map((c) => BridgeDeploy.fromDirectory(directory, c, environment))
 
-updateProviderDomain('dev', coreDeploys, bridgeDeploys);
+updateProviderDomain(environment, coreDeploys, bridgeDeploys);

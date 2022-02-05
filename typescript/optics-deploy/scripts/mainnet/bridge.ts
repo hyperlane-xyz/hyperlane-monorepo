@@ -1,30 +1,14 @@
-import { getPathToLatestDeploy } from '../../src/verification/readDeployOutput';
 import { deployBridges } from '../../src/bridge';
-import * as celo from '../../config/networks/mainnets/celo';
-import * as ethereum from '../../config/networks/mainnets/ethereum';
-import * as polygon from '../../config/networks/mainnets/polygon';
-import * as avalanche from '../../config/networks/mainnets/avalanche';
+import { chains } from '../../config/environments/mainnet/chains';
+import { addDeployerGCPKey } from '../../src/agents/gcp';
 import { BridgeDeploy } from '../../src/bridge/BridgeDeploy';
 
-// get the path to the latest core system deploy
-const path = getPathToLatestDeploy();
+const environment = 'mainnet';
 
-const celoDeploy = new BridgeDeploy(celo.chain, celo.bridgeConfig, path);
-const ethereumDeploy = new BridgeDeploy(
-  ethereum.chain,
-  ethereum.bridgeConfig,
-  path,
-);
+async function main() {
+  const _chains = await Promise.all(chains.map((c) => addDeployerGCPKey(environment, c)))
+  const deploys = _chains.map((c) => new BridgeDeploy(c, environment))
+  await deployBridges(deploys)
+}
 
-const polygonDeploy = new BridgeDeploy(
-  polygon.chain,
-  polygon.bridgeConfig,
-  path,
-);
-const avalancheDeploy = new BridgeDeploy(
-  avalanche.chain,
-  avalanche.bridgeConfig,
-  path,
-);
-
-deployBridges([celoDeploy, ethereumDeploy, polygonDeploy, avalancheDeploy]);
+main().then(console.log).catch(console.error);

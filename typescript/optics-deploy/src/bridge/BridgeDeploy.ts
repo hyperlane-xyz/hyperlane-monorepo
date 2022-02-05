@@ -3,6 +3,7 @@ import { CoreDeployAddresses, CoreContractAddresses, BridgeContractAddresses } f
 import { BridgeContracts } from './BridgeContracts';
 import {
   getPathToLatestConfig,
+  parseFileFromDeploy,
 } from '../verification/readDeployOutput';
 import { Deploy, DeployEnvironment } from '../deploy';
 import fs from 'fs';
@@ -19,10 +20,10 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
     chainConfig: ChainConfig,
     environment: DeployEnvironment,
     test: boolean = false,
-    coreContractAddresses: CoreContractAddresses,
+    coreContractAddresses?: CoreContractAddresses,
   ) {
     super(chainConfig, new BridgeContracts(), environment, test);
-    this.coreContractAddresses = coreContractAddresses;
+    this.coreContractAddresses = coreContractAddresses || parseFileFromDeploy(path.join(this.configPath, 'contracts'), chain.config.name, 'contracts');;
   }
 
   get ubcAddress(): string | undefined {

@@ -1,22 +1,20 @@
 import { mainnet } from '@abacus-network/sdk';
-import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
-import { makeCoreDeploys } from '../../src/core/CoreDeploy';
+import { CoreDeploy } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
+import { core } from '../../config/environments/mainnet/core';
+import { chains } from '../../config/environments/mainnet/chains';
 
-const deploys = makeCoreDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.config,
-);
+const environment = 'mainnet';
+const directory = `../../config/environments/${environment}/contracts`;
+const coreDeploys = chains.map((c) => CoreDeploy.fromDirectory(directory, c, core))
 
 async function main() {
-  deploys.map((_) =>
-    mainnet.registerRpcProvider(_.chain.name, _.chain.config.rpc),
+  coreDeploys.map((_) =>
+    mainnet.registerRpcProvider(_.chainConfig.name, _.chainConfig.json.rpc),
   );
-  const checker = new CoreInvariantChecker(deploys);
+  const checker = new CoreInvariantChecker(coreDeploys);
   await checker.checkDeploys();
 
   checker.expectViolations(
@@ -25,14 +23,14 @@ async function main() {
   );
 
   const builder = new GovernanceCallBatchBuilder(
-    deploys,
+    coreDeploys,
     mainnet,
     checker.violations,
   );
   const batch = await builder.build();
 
   const txs = await batch.build();
-  const domains = deploys.map((deploy) => deploy.chain.domain);
+  const domains = coreDeploys.map((deploy) => deploy.chainConfig.domain);
   // For each domain, expect one call to set the updater.
   expectCalls(batch, domains, new Array(4).fill(1));
   await batch.estimateGas();

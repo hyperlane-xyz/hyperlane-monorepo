@@ -1,7 +1,8 @@
 import { Wallet } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
-import { ChainConfig, ChainName } from '../../src/config/chain';
+import { ChainConfig } from '../../src/config/chain';
+import { DeployEnvironment } from '../../src/deploy';
 import { CoreConfig } from '../../src/config/core';
 import { execCmd, include, strip0x } from '../utils';
 import { AgentKey } from './agent';
@@ -297,7 +298,7 @@ export async function addDeployerGCPKey(environment: string, chainConfig: ChainC
 
 // Modifies a Core configuration with the relevant watcher/updater addresses pulled from GCP
 export async function addAgentGCPAddresses(
-  environment: ChainName,
+  environment: DeployEnvironment,
   chainConfig: ChainConfig,
   coreConfig: CoreConfig,
 ): Promise<CoreConfig> {
