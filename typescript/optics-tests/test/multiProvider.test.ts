@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { OpticsContext } from 'optics-multi-provider-community';
+import { OpticsContext } from '@abacus-network/sdk';
 
 describe('optics multi-provider', () => {
   it('compiles', () => {

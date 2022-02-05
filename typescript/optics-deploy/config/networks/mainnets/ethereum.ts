@@ -18,14 +18,14 @@ export const chainJson: ChainJson = {
   // This isn't actually used because Ethereum supports EIP 1559 - but just in case
   gasPrice: '400000000000', // 400 gwei
   // EIP 1559 params
-  maxFeePerGas: '400000000000', // 400 gwei
+  maxFeePerGas: '300000000000', // 300 gwei
   maxPriorityFeePerGas: '4000000000', // 4 gwei
 };
 
 export const chain = toChain(chainJson);
 
 export const config: CoreConfig = {
-  environment: 'prod-community',
+  environment: 'mainnet',
   updater: '0x5Ef6e0F6A7E1f866612D806041799a9D762b62c0',
   recoveryTimelock: 60 * 60 * 24 * 14, // 14 days
   recoveryManager: '0x2bb2a5a724170357cb691841f40d26a950d8c33d',

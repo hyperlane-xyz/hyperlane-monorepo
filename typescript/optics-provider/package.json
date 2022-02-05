@@ -1,7 +1,7 @@
 {
-  "name": "optics-multi-provider-community",
-  "version": "0.1.26",
-  "description": "multi-provider for Optics",
+  "name": "@abacus-network/sdk",
+  "version": "0.0.0",
+  "description": "Abacus Network SDK",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {

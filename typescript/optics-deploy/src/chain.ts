@@ -5,10 +5,10 @@ import { ProxyAddresses } from './proxyUtils';
 export function deployEnvironment(): DeployEnvironment {
   const e = process.env.OPTICS_DEPLOY_ENVIRONMENT;
 
-  if (e === 'staging') {
-    return 'staging';
-  } else if (e === 'prod') {
-    return 'prod';
+  if (e === 'testnet') {
+    return 'testnet';
+  } else if (e === 'mainnet') {
+    return 'mainnet';
   }
 
   return 'dev';

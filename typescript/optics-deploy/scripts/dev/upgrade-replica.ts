@@ -1,11 +1,11 @@
-import { devCommunity } from 'optics-multi-provider-community';
+import { dev } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
 import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
 import { makeCoreDeploys, CoreDeploy } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
-import { Call } from 'optics-multi-provider-community/dist/optics/govern';
+import { Call } from '@abacus-network/sdk/dist/optics/govern';
 
 const deploys = makeCoreDeploys(
   configPath,
@@ -15,12 +15,12 @@ const deploys = makeCoreDeploys(
 );
 
 async function main() {
-  devCommunity.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!);
-  devCommunity.registerRpcProvider('gorli', process.env.GORLI_RPC!);
-  devCommunity.registerRpcProvider('kovan', process.env.KOVAN_RPC!);
-  devCommunity.registerRpcProvider('mumbai', process.env.MUMBAI_RPC!);
-  devCommunity.registerRpcProvider('fuji', process.env.FUJI_RPC!);
-  devCommunity.registerSigner(
+  dev.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!);
+  dev.registerRpcProvider('gorli', process.env.GORLI_RPC!);
+  dev.registerRpcProvider('kovan', process.env.KOVAN_RPC!);
+  dev.registerRpcProvider('mumbai', process.env.MUMBAI_RPC!);
+  dev.registerRpcProvider('fuji', process.env.FUJI_RPC!);
+  dev.registerSigner(
     'alfajores',
     new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!),
   );
@@ -30,7 +30,7 @@ async function main() {
   checker.expectViolations([ViolationType.UpgradeBeacon], [5]);
   const builder = new GovernanceCallBatchBuilder(
     deploys,
-    devCommunity,
+    dev,
     checker.violations,
   );
   const batch = await builder.build();
@@ -39,7 +39,7 @@ async function main() {
   for (const home of domains) {
     for (const remote of domains) {
       if (home === remote) continue;
-      const core = devCommunity.mustGetCore(remote);
+      const core = dev.mustGetCore(remote);
       const replica = core.getReplica(home);
       const transferOwnership =
         await replica!.populateTransaction.transferOwnership(

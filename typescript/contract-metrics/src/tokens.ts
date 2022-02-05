@@ -1,16 +1,16 @@
-import { mainnetCommunity } from './registerContext';
+import { mainnet } from './registerContext';
 import config from './config';
 
 import {
   AnnotatedTokenDeployed,
   TokenDeployedArgs,
   TokenDeployedTypes,
-} from 'optics-multi-provider-community/dist/optics/events/bridgeEvents';
+} from '@abacus-network/sdk/dist/optics/events/bridgeEvents';
 import {
   OpticsContext,
   queryAnnotatedEvents,
-} from 'optics-multi-provider-community/dist/optics';
-import { TSContract } from 'optics-multi-provider-community/dist/optics/events/fetch';
+} from '@abacus-network/sdk/dist/optics';
+import { TSContract } from '@abacus-network/sdk/dist/optics/events/fetch';
 // import { ethers } from 'ethers';
 import { uploadDeployedTokens } from './googleSheets';
 
@@ -87,5 +87,5 @@ async function persistDeployedTokens(
 }
 
 (async function main() {
-  await persistDeployedTokens(mainnetCommunity, config.googleCredentialsFile);
+  await persistDeployedTokens(mainnet, config.googleCredentialsFile);
 })();

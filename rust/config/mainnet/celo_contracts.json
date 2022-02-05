@@ -1,29 +1,38 @@
 {
-  "upgradeBeaconController": "0x30d643D1dc05bBc72BA5775b0d9D48a4DC31adC1",
-  "xAppConnectionManager": "0x3BAD272559949B455f14ee394798E4D744342661",
-  "updaterManager": "0x1459a5C667DEf8d4E051cafb89239668848ecA72",
+  "upgradeBeaconController": "0xDB2E83bA806C637086Be7174e3636bd7aCE3ae0e",
+  "xAppConnectionManager": "0xaa099aF87ACE9E437b9B410a687F263eeaeC4321",
+  "updaterManager": "0xCf9066ee2fF063dD09862B745414c8dEa4Cc0497",
   "governance": {
-    "implementation": "0xbB6d6333FAFd2cae7ef4c5EFBF8f048F2F109D1B",
-    "proxy": "0xcEc158A719d11005Bd9339865965bed938BEafA3",
-    "beacon": "0x2CC80EE8a3f9c85309866F4C6BDF82f6846891EC"
+    "implementation": "0xd37d1f682Ff556C5B6C4Eb58075a93747379A3d7",
+    "proxy": "0xd13aC1024d266B73180cA7445Ca0E78b3Acfe8CE",
+    "beacon": "0x45D35F60Ccf8F7031FB5A09954Cd923A9E84F89d"
   },
   "home": {
-    "implementation": "0x98381B012f3101E53AC06Ad3fc8244ee088E4e31",
-    "proxy": "0x97bbda9A1D45D86631b243521380Bc070D6A4cBD",
-    "beacon": "0x9D3e2F6797E6c4645935567d1d6bd72E8C793264"
+    "implementation": "0xC7C7A9dB0e17D394d41B7DE59f0cB6b5a7462D2C",
+    "proxy": "0x913EE05036f3cbc94Ee4afDea87ceb430524648a",
+    "beacon": "0x4aE0c50aA547472808e873F7E60CDAD08822A7bf"
   },
   "replicas": {
     "6648936": {
-      "implementation": "0xfAc41463ef1E01546F2130F92184a053A0E3Fa14",
-      "proxy": "0xf25C5932bb6EFc7afA4895D9916F2abD7151BF97",
-      "beacon": "0x9E4C2547307e221383A4bcba6065389C69Bd4628"
+      "implementation": "0xa964a637B68BDCAeFEeCAee02bd7d2633C9d31c4",
+      "proxy": "0xcDE146d1C673fE13f4fF1569d3F0d9f4d0b9c837",
+      "beacon": "0xd45DFF1ec44509122AF097685bFfD16cd9e32820"
+    },
+    "1635148152": {
+      "implementation": "0xa964a637B68BDCAeFEeCAee02bd7d2633C9d31c4",
+      "proxy": "0x2784a755690453035f32Ac5e28c52524d127AfE2",
+      "beacon": "0xd45DFF1ec44509122AF097685bFfD16cd9e32820"
     },
     "1886350457": {
-      "implementation": "0xfAc41463ef1E01546F2130F92184a053A0E3Fa14",
-      "proxy": "0x681Edb6d52138cEa8210060C309230244BcEa61b",
-      "beacon": "0x9E4C2547307e221383A4bcba6065389C69Bd4628"
+      "implementation": "0xa964a637B68BDCAeFEeCAee02bd7d2633C9d31c4",
+      "proxy": "0xfde0a96468ae91B4E13794E1B8e5B222E7Db6a23",
+      "beacon": "0xd45DFF1ec44509122AF097685bFfD16cd9e32820"
     }
   },
-  "recoveryManager": "0x3D9330014952Bf0A3863FEB7a657bfFA5C9D40B9",
-  "updater": "0xDB2091535eb0Ee447Ce170DDC25204FEA822dd81"
+  "recoveryManager": "0x070c2843402Aa0637ae0F2E2edf601aAB5E72509",
+  "updater": "0x703643995262c92ab013E3CCA810BdcB9239d45a",
+  "governor": {
+    "address": "0x070c2843402Aa0637ae0F2E2edf601aAB5E72509",
+    "domain": 1667591279
+  }
 }

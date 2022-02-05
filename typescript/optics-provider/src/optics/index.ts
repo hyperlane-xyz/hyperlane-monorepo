@@ -18,11 +18,11 @@ export { tokens, testnetTokens } from './tokens';
 
 export type { OpticsDomain } from './domains';
 export {
+  testnetLegacyDomains,
+  mainnetLegacyDomains,
+  devDomains,
+  testnetDomains,
   mainnetDomains,
-  mainnetCommunityDomains,
-  devCommunityDomains,
-  stagingDomains,
-  stagingCommunityDomains,
 } from './domains';
 
 export type { AnnotatedLifecycleEvent, OpticsLifecyleEvent } from './events';
@@ -34,9 +34,9 @@ export {
 
 export {
   OpticsContext,
+  testnetLegacy,
+  mainnetLegacy,
+  dev,
+  testnet,
   mainnet,
-  mainnetCommunity,
-  devCommunity,
-  staging,
-  stagingCommunity,
 } from './OpticsContext';

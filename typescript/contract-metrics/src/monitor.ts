@@ -1,5 +1,5 @@
-import { OpticsContext } from 'optics-multi-provider-community';
-import { getEvents } from 'optics-multi-provider-community/dist/optics/events/fetch';
+import { OpticsContext } from '@abacus-network/sdk';
+import { getEvents } from '@abacus-network/sdk/dist/optics/events/fetch';
 import * as contexts from './registerContext';
 import { logMonitorMetrics, writeUnprocessedMessages } from './print';
 import config from './config';
@@ -35,9 +35,7 @@ async function monitorAll(shouldWrite: boolean) {
     const origin = network;
     const remotes = config.networks.filter((m) => m != origin);
     const cont =
-      config.environment == 'production'
-        ? contexts.mainnetCommunity
-        : contexts.devCommunity;
+      config.environment == 'mainnet' ? contexts.mainnet : contexts.dev;
     try {
       await monitor(cont, origin, remotes, shouldWrite);
     } catch (e) {
