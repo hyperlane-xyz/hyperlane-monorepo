@@ -1,9 +1,4 @@
-import {
-  dev,
-  testnet,
-  mainnet,
-  mainnetLegacy,
-} from '@abacus-network/sdk';
+import { dev, testnet, mainnet, mainnetLegacy } from '@abacus-network/sdk';
 import config from './config';
 
 // register mainnet

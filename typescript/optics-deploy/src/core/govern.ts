@@ -8,10 +8,7 @@ import {
   Violation,
   ViolationType,
 } from '../checks';
-import {
-  Call,
-  CallBatch,
-} from '@abacus-network/sdk/dist/optics/govern';
+import { Call, CallBatch } from '@abacus-network/sdk/dist/optics/govern';
 
 interface DomainedCall {
   domain: number;
