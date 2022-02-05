@@ -23,4 +23,3 @@ export type BridgeContractAddresses = {
   bridgeToken: ProxiedAddress;
   ethHelper?: ProxiedAddress;
 };
-

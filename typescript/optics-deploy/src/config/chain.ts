@@ -1,9 +1,28 @@
 import * as ethers from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-import { NetworkName } from './domain';
 
-export type TransactionConfigJson {
-  name: NetworkName;
+type Mainnet =
+  | 'celo'
+  | 'polygon'
+  | 'avalanche'
+  | 'polygon';
+
+type Testnet =
+  | 'alfajores'
+  | 'mumbai'
+  | 'kovan'
+  | 'gorli'
+  | 'fuji'
+  | 'rinkeby';
+
+export type ChainName = Mainnet | Testnet;
+
+export type DomainedChain {
+  name: ChainName;
+  domain: number;
+}
+
+export type ChainConfigJson = DomainedChain & {
   rpc: string;
   deployerKey?: string;
   gasLimit?: ethers.BigNumberish;
@@ -11,10 +30,11 @@ export type TransactionConfigJson {
   confirmations?: number;
   maxFeePerGas?: ethers.BigNumberish;
   maxPriorityFeePerGas?: ethers.BigNumberish;
+  weth?: Address;
 }
 
-export class TransactionConfig {
-  name: NetworkName;
+export class ChainConfig {
+  name: ChainName;
   domain: number;
   confirmations: number;
   provider: ethers.providers.JsonRpcProvider;
@@ -24,8 +44,9 @@ export class TransactionConfig {
   json: json;
   maxFeePerGas?: ethers.BigNumber;
   maxPriorityFeePerGas?: ethers.BigNumber;
+  weth?: Address;
 
-  constructor(json: TransactionConfigJson) {
+  constructor(json: ChainConfigJson) {
     this.name = json.name;
     this.domain = json.domain;
     this.confirmations = json.confirmations ?? 5;
@@ -42,6 +63,7 @@ export class TransactionConfig {
     this.maxPriorityFeePerGas = json.maxPriorityFeePerGas
       ? ethers.BigNumber.from(json.maxPriorityFeePerGas)
       : undefined;
+    this.weth = json.weth;
   }
 
   replaceSigner(privateKey: string) {

@@ -1,21 +1,18 @@
+import { ChainName, DomainedChain } from './chain';
 type Address = string;
 
-type Governor = {
-  domain: number;
+type Governor = DomainedChain & {
   address: Address;
 };
 
-export type EnvironmentName =
-  | 'dev'
-  | 'staging'
-  | 'prod'
-  | 'staging-community'
-  | 'prod-community';
-
-type CoreConfigAddresses = {
+type ChainAddresses = {
   updater: Address;
   watchers: Address[];
   recoveryManager: Address;
+}
+
+type CoreConfigAddresses = {
+  [chain: ChainName]: ChainAddresses;
   governor: Governor;
 }
 
@@ -25,5 +22,5 @@ export type CoreConfig = {
   optimisticSeconds: number;
   processGas: BigNumberish;
   reserveGas: BigNumberish;
-  addresses: CoreAddresses;
+  addresses: CoreConfigAddresses;
 };

@@ -2,6 +2,13 @@ import { ethers } from 'ethers';
 import { Chain } from './chain';
 import { Contracts } from './contracts';
 
+export type DeployEnvironment =
+  | 'dev'
+  | 'testnet'
+  | 'mainnet'
+  | 'testnet-legacy'
+  | 'mainnet-legacy';
+
 type XAppConnectionName = 'XAppConnectionManager';
 type UpdaterManagerName = 'UpdaterManager';
 type UBCName = 'UpgradeBeaconController';
