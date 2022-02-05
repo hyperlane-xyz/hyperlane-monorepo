@@ -1,4 +1,4 @@
-import { TokenIdentifier } from 'optics-multi-provider-community/dist/optics';
+import { TokenIdentifier } from '@abacus-network/sdk/dist/optics';
 import { assert } from 'chai';
 import { ethers } from 'ethers';
 

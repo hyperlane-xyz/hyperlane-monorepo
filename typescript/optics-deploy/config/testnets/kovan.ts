@@ -24,7 +24,7 @@ export const chain = toChain(chainJson);
 
 export const devConfig: CoreConfig = {
   environment: 'dev',
-  updater: '0xb890606a63Ef3b9d9Cd1E42e740672C84DC319A6',
+  updater: '0x2eA2B6cbc3fC269Bf91C2fCfcc460489378f1251',
   optimisticSeconds: 10,
   watchers: ['0x3019Bf39Df97942F2C53EFc6e831b82D158593CF'],
   recoveryTimelock: 180,
@@ -33,8 +33,8 @@ export const devConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-export const stagingConfig: CoreConfig = {
-  environment: 'staging',
+export const testnetLegacyConfig: CoreConfig = {
+  environment: 'testnet-legacy',
   updater: '0x201dd86063Dc251cA5a576d1b7365C38e5fB4CD5',
   watchers: ['0x22B2855635154Baa41C306BcA979C8c9a077A180'],
   recoveryManager: '0x24F6c874F56533d9a1422e85e5C7A806ED11c036',
@@ -44,8 +44,8 @@ export const stagingConfig: CoreConfig = {
   reserveGas: 15_000,
 };
 
-export const stagingCommunityConfig: CoreConfig = {
-  environment: 'staging-community',
+export const testnetConfig: CoreConfig = {
+  environment: 'testnet',
   updater: '0xED576b49c3bD42862340e21a7A0AcCA3814bfE18',
   watchers: ['0x5830e4a749e0eAEF5955069f12B37Fd82C234c23'],
   recoveryManager: '0xED576b49c3bD42862340e21a7A0AcCA3814bfE18',

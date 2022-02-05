@@ -1,0 +1,58 @@
+{
+  "environment": "testnet-legacy",
+  "index": {
+    "from": "27111334",
+    "chunk": "9999"
+  },
+  "signers": {
+    "kovan": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "alfajores": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "rinkeby": {
+      "key": "",
+      "type": "hexKey"
+    }
+  },
+  "replicas": {
+    "alfajores": {
+      "address": "0xE469D8587D45BF85297BD924b159E726E7CA5408",
+      "domain": "1000",
+      "name": "alfajores",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "rinkeby": {
+      "address": "0x7EB8450a5397b795F2d89BC48EA20c24fa147F11",
+      "domain": "2000",
+      "name": "rinkeby",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    }
+  },
+  "home": {
+    "address": "0xB6Ee3e8fE5b577Bd6aB9a06FA169F97303586E7C",
+    "domain": "3000",
+    "name": "kovan",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path"
+}

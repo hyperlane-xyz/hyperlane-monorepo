@@ -9,8 +9,11 @@ import {
 import { AgentAwsKey } from './agents/aws';
 
 export interface AgentConfig {
+  // Used to reference key names
   environment: string;
+  // Kubernetes namespace
   namespace: string;
+  // Directory name in rust/config/
   runEnv: string;
   awsRegion?: string;
   awsKeyId?: string;

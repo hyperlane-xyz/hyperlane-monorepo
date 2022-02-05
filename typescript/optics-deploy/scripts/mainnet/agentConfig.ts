@@ -4,7 +4,7 @@ import * as polygon from '../../config/mainnets/polygon';
 import * as avalanche from '../../config/mainnets/avalanche';
 import { AgentChainConfigs, AgentConfig } from '../../src/agents';
 
-const configDirectory = 'production-community';
+const configDirectory = 'mainnet';
 
 export const configs: AgentChainConfigs = {
   celo: celo.chainJson,
@@ -16,7 +16,7 @@ export const configs: AgentChainConfigs = {
 export const agentConfig: AgentConfig = {
   environment: 'production',
   namespace: 'optics-production-community',
-  runEnv: 'production-community',
+  runEnv: configDirectory,
   awsRegion: process.env.AWS_REGION!,
   awsKeyId: process.env.AWS_KEY_ID!,
   awsSecretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,

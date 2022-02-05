@@ -1,11 +1,11 @@
-import { mainnetCommunity } from 'optics-multi-provider-community';
+import { mainnet } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
 import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
 import { makeCoreDeploys, CoreDeploy } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
-import { Call } from 'optics-multi-provider-community/dist/optics/govern';
+import { Call } from '@abacus-network/sdk/dist/optics/govern';
 
 const deploys = makeCoreDeploys(
   configPath,
@@ -15,11 +15,11 @@ const deploys = makeCoreDeploys(
 );
 
 async function main() {
-  mainnetCommunity.registerRpcProvider('celo', process.env.CELO_RPC!);
-  mainnetCommunity.registerRpcProvider('polygon', process.env.POLYGON_RPC!);
-  mainnetCommunity.registerRpcProvider('avalanche', process.env.AVALANCHE_RPC!);
-  mainnetCommunity.registerRpcProvider('ethereum', process.env.ETHEREUM_RPC!);
-  mainnetCommunity.registerSigner(
+  mainnet.registerRpcProvider('celo', process.env.CELO_RPC!);
+  mainnet.registerRpcProvider('polygon', process.env.POLYGON_RPC!);
+  mainnet.registerRpcProvider('avalanche', process.env.AVALANCHE_RPC!);
+  mainnet.registerRpcProvider('ethereum', process.env.ETHEREUM_RPC!);
+  mainnet.registerSigner(
     'celo',
     new ethers.Wallet(process.env.CELO_DEPLOYER_KEY!),
   );
@@ -29,7 +29,7 @@ async function main() {
   checker.expectViolations([ViolationType.UpgradeBeacon], [4]);
   const builder = new GovernanceCallBatchBuilder(
     deploys,
-    mainnetCommunity,
+    mainnet,
     checker.violations,
   );
   const batch = await builder.build();
@@ -38,7 +38,7 @@ async function main() {
   for (const home of domains) {
     for (const remote of domains) {
       if (home === remote) continue;
-      const core = mainnetCommunity.mustGetCore(remote);
+      const core = mainnet.mustGetCore(remote);
       const replica = core.getReplica(home);
       const transferOwnership =
         await replica!.populateTransaction.transferOwnership(

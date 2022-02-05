@@ -6,10 +6,10 @@ import { ProxyAddresses } from './proxyUtils';
 type Address = string;
 export type DeployEnvironment =
   | 'dev'
-  | 'staging'
-  | 'prod'
-  | 'staging-community'
-  | 'prod-community';
+  | 'testnet'
+  | 'mainnet'
+  | 'testnet-legacy'
+  | 'mainnet-legacy';
 
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;
@@ -54,10 +54,10 @@ export type Chain = {
 export function deployEnvironment(): DeployEnvironment {
   const e = process.env.OPTICS_DEPLOY_ENVIRONMENT;
 
-  if (e === 'staging') {
-    return 'staging';
-  } else if (e === 'prod') {
-    return 'prod';
+  if (e === 'testnet') {
+    return 'testnet';
+  } else if (e === 'mainnet') {
+    return 'mainnet';
   }
 
   return 'dev';

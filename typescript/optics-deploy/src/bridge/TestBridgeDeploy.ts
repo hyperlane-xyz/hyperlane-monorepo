@@ -17,7 +17,7 @@ import * as process from '.';
 import { Chain } from '../chain';
 import { Deploy } from '../deploy';
 
-import { TokenIdentifier } from 'optics-multi-provider-community/dist/optics/tokens';
+import { TokenIdentifier } from '@abacus-network/sdk/dist/optics/tokens';
 import { CoreConfig } from '../core/CoreDeploy';
 
 function toBytes32(address: string): string {
