@@ -38,6 +38,10 @@ export default {
   alfajoresRpc: process.env.ALFAJORES_RPC ?? '',
   kovanRpc: process.env.KOVAN_RPC ?? '',
   rinkebyRpc: process.env.RINKEBY_RPC ?? '',
+  gorliRpc: process.env.GORLI_RPC ?? '',
+  ropstenRpc: process.env.ROPSTEN_RPC ?? '',
+  fujiRpc: process.env.FUJI_RPC ?? '',
+  mumbaiRpc: process.env.MUMBAI_RPC ?? '',
   googleCredentialsFile:
     process.env.GOOGLE_CREDENTIALS_FILE ?? './credentials.json',
 };
