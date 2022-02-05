@@ -309,8 +309,8 @@ export async function addAgentGCPAddresses(
     (_) => _.role === `${chainConfig.name}-updater-attestation`,
   )!.address;
   const recoveryManager = addresses.find((_) => _.role === 'deployer')!.address;
-  coreConfig.addresses[environment].updater = updater;
-  coreConfig.addresses[environment].recoveryManager = recoveryManager;
-  coreConfig.addresses[environment].watchers = [watcher];
+  coreConfig.addresses[environment]!.updater = updater;
+  coreConfig.addresses[environment]!.recoveryManager = recoveryManager;
+  coreConfig.addresses[environment]!.watchers = [watcher];
   return coreConfig
 }

@@ -1,4 +1,4 @@
-import { CoreDeployAddresses } from '../../src/config/addresses';
+import { CoreConfigAddresses, CoreDeployAddresses } from '../../src/config/addresses';
 import { ChainConfig } from '../../src/config/chain';
 import { CoreConfig } from '../../src/config/core';
 import { RustConfig } from '../../src/config/agent';
@@ -28,24 +28,28 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     };
   }
 
+  get coreConfigAddresses(): CoreConfigAddresses {
+    return this.config.addresses[this.chainConfig.name]!;
+  }
+
   get ubcAddress(): Address | undefined {
     return this.contracts.upgradeBeaconController?.address;
   }
 
   get updater(): Address {
-    return this.config.addresses[this.chainConfig.name].updater;
+    return this.coreConfigAddresses.updater;
   }
 
   get recoveryManager(): Address {
-    return this.config.addresses[this.chainConfig.name].recoveryManager;
+    return this.coreConfigAddresses.recoveryManager;
   }
 
   get watchers(): Address[] {
-    return this.config.addresses[this.chainConfig.name].watchers;
+    return this.coreConfigAddresses.watchers;
   }
 
   get governor(): Address | undefined {
-    return this.config.addresses[this.chainConfig.name].governor
+    return this.coreConfigAddresses.governor
   }
 
   async governorOrSigner(): Promise<Address> {

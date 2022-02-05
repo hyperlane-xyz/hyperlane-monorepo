@@ -43,7 +43,7 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
   static fromDirectory(
     directory: string,
     chainConfig: ChainConfig,
-    environment: DeployEnvironment
+    environment: DeployEnvironment,
     test: boolean = false,
   ): BridgeDeploy {
     const coreAddresses: CoreDeployAddresses = JSON.parse(

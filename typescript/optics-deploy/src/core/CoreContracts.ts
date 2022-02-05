@@ -19,8 +19,8 @@ export class CoreContracts extends Contracts {
 
   toObject(): CoreContractAddresses {
     const replicas: Record<number, ProxiedAddress> = {};
-    Object.entries(this.replicas).forEach(([k, v]) => {
-      replicas[k] = v.toObject();
+    Object.keys(this.replicas!).map((d) => parseInt(d)).map((domain: number) => {
+      replicas[domain] = this.replicas[domain].toObject();
     });
 
     return {
@@ -53,12 +53,65 @@ export class CoreContracts extends Contracts {
       provider,
     );
 
-    core.governanceRouter = BeaconProxy.fromAddresses(contracts.GovernanceRouter, provider, addresses.governanceRouter)
-    core.home = BeaconProxy.fromAddresses(contracts.Home, provider, addresses.home)
+    // TODO: needs type magic for turning governance, home and replicas to BeaconProxy contracts
+    const governanceRouterImplementation =
+      contracts.GovernanceRouter__factory.connect(
+        addresses.governanceRouter.implementation,
+        provider,
+      );
+    const governanceRouterProxy = contracts.GovernanceRouter__factory.connect(
+      addresses.governanceRouter.proxy,
+      provider,
+    );
+    const governanceRouterUpgradeBeacon =
+      contracts.UpgradeBeacon__factory.connect(
+        addresses.governanceRouter.beacon,
+        provider,
+      );
+    core.governanceRouter = new BeaconProxy<contracts.GovernanceRouter>(
+      governanceRouterImplementation,
+      governanceRouterProxy,
+      governanceRouterUpgradeBeacon,
+    );
 
-    for (const domain of Object.keys(addresses.replicas!)) {
-      core.replicas[domain] = BeaconProxy.fromAddresses(contracts.Replica, provider, addresses.replicas![domain])
-    }
+    const homeImplementation = contracts.Home__factory.connect(
+      addresses.home.implementation,
+      provider,
+    );
+    const homeProxy = contracts.Home__factory.connect(
+      addresses.home.proxy,
+      provider,
+    );
+    const homeUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
+      addresses.home.beacon,
+      provider,
+    );
+    core.home = new BeaconProxy<contracts.Home>(
+      homeImplementation,
+      homeProxy,
+      homeUpgradeBeacon,
+    );
+
+    Object.keys(addresses.replicas!).map((d) => parseInt(d)).map((domain: number) => {
+      const replicaImplementation = contracts.Replica__factory.connect(
+        addresses.replicas![domain].implementation,
+        provider,
+      );
+      const replicaProxy = contracts.Replica__factory.connect(
+        addresses.replicas![domain].proxy,
+        provider,
+      );
+      const replicaUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
+        addresses.replicas![domain].beacon,
+        provider,
+      );
+      core.replicas[domain] = new BeaconProxy<contracts.Replica>(
+        replicaImplementation,
+        replicaProxy,
+        replicaUpgradeBeacon,
+      );
+    });
+
     return core;
   }
 }
