@@ -48,6 +48,11 @@ contract TestReplica is Replica {
         return MerkleLib.branchRoot(leaf, proof, index);
     }
 
+    function testProve(bytes32 leaf) external returns (bool _success) {
+        messages[leaf] = MessageStatus.Proven;
+        return true;
+    }
+
     function testProcess(bytes memory _message)
         external
         returns (bool _success)

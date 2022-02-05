@@ -22,6 +22,9 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 interface GovernanceRouterInterface extends ethers.utils.Interface {
   functions: {
     "VERSION()": FunctionFragment;
+    "_dispatchCalls(tuple[])": FunctionFragment;
+    "_setRouter(uint32,address)": FunctionFragment;
+    "_transferGovernor(uint32,address)": FunctionFragment;
     "callLocal(tuple[])": FunctionFragment;
     "callRemote(uint32,tuple[])": FunctionFragment;
     "domains(uint256)": FunctionFragment;
@@ -37,8 +40,8 @@ interface GovernanceRouterInterface extends ethers.utils.Interface {
     "recoveryManager()": FunctionFragment;
     "recoveryTimelock()": FunctionFragment;
     "routers(uint32)": FunctionFragment;
-    "setRouter(uint32,bytes32)": FunctionFragment;
-    "setRouterLocal(uint32,bytes32)": FunctionFragment;
+    "setRouter(uint32,address)": FunctionFragment;
+    "setRouterLocal(uint32,address)": FunctionFragment;
     "setXAppConnectionManager(address)": FunctionFragment;
     "transferGovernor(uint32,address)": FunctionFragment;
     "transferRecoveryManager(address)": FunctionFragment;
@@ -47,12 +50,24 @@ interface GovernanceRouterInterface extends ethers.utils.Interface {
 
   encodeFunctionData(functionFragment: "VERSION", values?: undefined): string;
   encodeFunctionData(
+    functionFragment: "_dispatchCalls",
+    values: [{ to: string; data: BytesLike }[]]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "_setRouter",
+    values: [BigNumberish, string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "_transferGovernor",
+    values: [BigNumberish, string]
+  ): string;
+  encodeFunctionData(
     functionFragment: "callLocal",
-    values: [{ to: BytesLike; data: BytesLike }[]]
+    values: [{ to: string; data: BytesLike }[]]
   ): string;
   encodeFunctionData(
     functionFragment: "callRemote",
-    values: [BigNumberish, { to: BytesLike; data: BytesLike }[]]
+    values: [BigNumberish, { to: string; data: BytesLike }[]]
   ): string;
   encodeFunctionData(
     functionFragment: "domains",
@@ -105,11 +120,11 @@ interface GovernanceRouterInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "setRouter",
-    values: [BigNumberish, BytesLike]
+    values: [BigNumberish, string]
   ): string;
   encodeFunctionData(
     functionFragment: "setRouterLocal",
-    values: [BigNumberish, BytesLike]
+    values: [BigNumberish, string]
   ): string;
   encodeFunctionData(
     functionFragment: "setXAppConnectionManager",
@@ -129,6 +144,15 @@ interface GovernanceRouterInterface extends ethers.utils.Interface {
   ): string;
 
   decodeFunctionResult(functionFragment: "VERSION", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "_dispatchCalls",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "_setRouter", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "_transferGovernor",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "callLocal", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "callRemote", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "domains", data: BytesLike): Result;
@@ -190,7 +214,7 @@ interface GovernanceRouterInterface extends ethers.utils.Interface {
   events: {
     "ExitRecovery(address)": EventFragment;
     "InitiateRecovery(address,uint256)": EventFragment;
-    "SetRouter(uint32,bytes32,bytes32)": EventFragment;
+    "SetRouter(uint32,address,address)": EventFragment;
     "TransferGovernor(uint32,uint32,address,address)": EventFragment;
     "TransferRecoveryManager(address,address)": EventFragment;
   };
@@ -248,14 +272,31 @@ export class GovernanceRouter extends BaseContract {
   functions: {
     VERSION(overrides?: CallOverrides): Promise<[number]>;
 
+    _dispatchCalls(
+      _calls: { to: string; data: BytesLike }[],
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    _setRouter(
+      _domain: BigNumberish,
+      _newRouter: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    _transferGovernor(
+      _newDomain: BigNumberish,
+      _newGovernor: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     callLocal(
-      _calls: { to: BytesLike; data: BytesLike }[],
+      _calls: { to: string; data: BytesLike }[],
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
     callRemote(
       _destination: BigNumberish,
-      _calls: { to: BytesLike; data: BytesLike }[],
+      _calls: { to: string; data: BytesLike }[],
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -300,13 +341,13 @@ export class GovernanceRouter extends BaseContract {
 
     setRouter(
       _domain: BigNumberish,
-      _router: BytesLike,
+      _router: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
     setRouterLocal(
       _domain: BigNumberish,
-      _router: BytesLike,
+      _router: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -331,14 +372,31 @@ export class GovernanceRouter extends BaseContract {
 
   VERSION(overrides?: CallOverrides): Promise<number>;
 
+  _dispatchCalls(
+    _calls: { to: string; data: BytesLike }[],
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  _setRouter(
+    _domain: BigNumberish,
+    _newRouter: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  _transferGovernor(
+    _newDomain: BigNumberish,
+    _newGovernor: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   callLocal(
-    _calls: { to: BytesLike; data: BytesLike }[],
+    _calls: { to: string; data: BytesLike }[],
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
   callRemote(
     _destination: BigNumberish,
-    _calls: { to: BytesLike; data: BytesLike }[],
+    _calls: { to: string; data: BytesLike }[],
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -383,13 +441,13 @@ export class GovernanceRouter extends BaseContract {
 
   setRouter(
     _domain: BigNumberish,
-    _router: BytesLike,
+    _router: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
   setRouterLocal(
     _domain: BigNumberish,
-    _router: BytesLike,
+    _router: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -414,14 +472,31 @@ export class GovernanceRouter extends BaseContract {
   callStatic: {
     VERSION(overrides?: CallOverrides): Promise<number>;
 
+    _dispatchCalls(
+      _calls: { to: string; data: BytesLike }[],
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    _setRouter(
+      _domain: BigNumberish,
+      _newRouter: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    _transferGovernor(
+      _newDomain: BigNumberish,
+      _newGovernor: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
     callLocal(
-      _calls: { to: BytesLike; data: BytesLike }[],
+      _calls: { to: string; data: BytesLike }[],
       overrides?: CallOverrides
     ): Promise<void>;
 
     callRemote(
       _destination: BigNumberish,
-      _calls: { to: BytesLike; data: BytesLike }[],
+      _calls: { to: string; data: BytesLike }[],
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -462,13 +537,13 @@ export class GovernanceRouter extends BaseContract {
 
     setRouter(
       _domain: BigNumberish,
-      _router: BytesLike,
+      _router: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
     setRouterLocal(
       _domain: BigNumberish,
-      _router: BytesLike,
+      _router: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -540,14 +615,31 @@ export class GovernanceRouter extends BaseContract {
   estimateGas: {
     VERSION(overrides?: CallOverrides): Promise<BigNumber>;
 
+    _dispatchCalls(
+      _calls: { to: string; data: BytesLike }[],
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    _setRouter(
+      _domain: BigNumberish,
+      _newRouter: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    _transferGovernor(
+      _newDomain: BigNumberish,
+      _newGovernor: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     callLocal(
-      _calls: { to: BytesLike; data: BytesLike }[],
+      _calls: { to: string; data: BytesLike }[],
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     callRemote(
       _destination: BigNumberish,
-      _calls: { to: BytesLike; data: BytesLike }[],
+      _calls: { to: string; data: BytesLike }[],
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -592,13 +684,13 @@ export class GovernanceRouter extends BaseContract {
 
     setRouter(
       _domain: BigNumberish,
-      _router: BytesLike,
+      _router: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     setRouterLocal(
       _domain: BigNumberish,
-      _router: BytesLike,
+      _router: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -624,14 +716,31 @@ export class GovernanceRouter extends BaseContract {
   populateTransaction: {
     VERSION(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
+    _dispatchCalls(
+      _calls: { to: string; data: BytesLike }[],
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    _setRouter(
+      _domain: BigNumberish,
+      _newRouter: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    _transferGovernor(
+      _newDomain: BigNumberish,
+      _newGovernor: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
     callLocal(
-      _calls: { to: BytesLike; data: BytesLike }[],
+      _calls: { to: string; data: BytesLike }[],
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     callRemote(
       _destination: BigNumberish,
-      _calls: { to: BytesLike; data: BytesLike }[],
+      _calls: { to: string; data: BytesLike }[],
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -682,13 +791,13 @@ export class GovernanceRouter extends BaseContract {
 
     setRouter(
       _domain: BigNumberish,
-      _router: BytesLike,
+      _router: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     setRouterLocal(
       _domain: BigNumberish,
-      _router: BytesLike,
+      _router: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 

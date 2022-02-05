@@ -47,6 +47,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     "testBranchRoot(bytes32,bytes32[32],uint256)": FunctionFragment;
     "testHomeDomainHash()": FunctionFragment;
     "testProcess(bytes)": FunctionFragment;
+    "testProve(bytes32)": FunctionFragment;
     "timestamp()": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "update(bytes32,bytes32,bytes)": FunctionFragment;
@@ -247,6 +248,10 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     functionFragment: "testProcess",
     values: [BytesLike]
   ): string;
+  encodeFunctionData(
+    functionFragment: "testProve",
+    values: [BytesLike]
+  ): string;
   encodeFunctionData(functionFragment: "timestamp", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
@@ -332,6 +337,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     functionFragment: "testProcess",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "testProve", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "timestamp", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
@@ -600,6 +606,11 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    testProve(
+      leaf: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     timestamp(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     transferOwnership(
@@ -815,6 +826,11 @@ export class TestReplica extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
+  testProve(
+    leaf: BytesLike,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   timestamp(overrides?: CallOverrides): Promise<BigNumber>;
 
   transferOwnership(
@@ -1024,6 +1040,8 @@ export class TestReplica extends BaseContract {
       _message: BytesLike,
       overrides?: CallOverrides
     ): Promise<boolean>;
+
+    testProve(leaf: BytesLike, overrides?: CallOverrides): Promise<boolean>;
 
     timestamp(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -1295,6 +1313,11 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
+    testProve(
+      leaf: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     timestamp(overrides?: CallOverrides): Promise<BigNumber>;
 
     transferOwnership(
@@ -1519,6 +1542,11 @@ export class TestReplica extends BaseContract {
 
     testProcess(
       _message: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    testProve(
+      leaf: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 

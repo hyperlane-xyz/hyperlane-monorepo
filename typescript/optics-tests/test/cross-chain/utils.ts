@@ -194,7 +194,7 @@ export async function formatCall(
   );
 
   return {
-    to: optics.ethersAddressToBytes32(destinationContract.address),
+    to: destinationContract.address,
     data: callDataEncoded,
   };
 }

@@ -6,7 +6,7 @@ import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { CoreInvariantChecker } from './checks';
-import { log, warn, toBytes32 } from '../utils';
+import { log, warn } from '../utils';
 
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
   let factory = new contracts.UpgradeBeaconController__factory(deploy.deployer);
@@ -385,7 +385,7 @@ export async function enrollGovernanceRouter(
   );
   let tx = await local.contracts.governance!.proxy.setRouter(
     remote.chain.domain,
-    toBytes32(remote.contracts.governance!.proxy.address),
+    remote.contracts.governance!.proxy.address,
     local.overrides,
   );
   await tx.wait(local.chain.confirmations);
