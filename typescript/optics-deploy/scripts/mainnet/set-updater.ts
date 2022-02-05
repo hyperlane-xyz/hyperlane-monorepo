@@ -1,4 +1,4 @@
-import { mainnetCommunity } from '@abacus-network/sdk';
+import { mainnet } from '@abacus-network/sdk';
 import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
@@ -14,7 +14,7 @@ const deploys = makeCoreDeploys(
 
 async function main() {
   deploys.map((_) =>
-    mainnetCommunity.registerRpcProvider(_.chain.name, _.chain.config.rpc),
+    mainnet.registerRpcProvider(_.chain.name, _.chain.config.rpc),
   );
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
@@ -26,7 +26,7 @@ async function main() {
 
   const builder = new GovernanceCallBatchBuilder(
     deploys,
-    mainnetCommunity,
+    mainnet,
     checker.violations,
   );
   const batch = await builder.build();
