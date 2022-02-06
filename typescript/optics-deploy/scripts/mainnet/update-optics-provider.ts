@@ -5,7 +5,7 @@ import { core } from '../../config/environments/mainnet/core';
 import { chains } from '../../config/environments/mainnet/chains';
 
 const environment = 'mainnet';
-const directory = `../../config/environments/${environment}/contracts`;
+const directory = `./config/environments/${environment}/contracts`;
 const coreDeploys = chains.map((c) => CoreDeploy.fromDirectory(directory, c, core))
 const bridgeDeploys = chains.map((c) => BridgeDeploy.fromDirectory(directory, c, environment))
 
