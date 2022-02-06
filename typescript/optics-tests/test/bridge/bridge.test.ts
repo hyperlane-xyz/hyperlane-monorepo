@@ -4,7 +4,7 @@ import { BigNumber, BytesLike } from 'ethers';
 
 import * as types from '../../lib/types';
 import { toBytes32 } from '../../lib/utils';
-import TestBridgeDeploy from 'optics-deploy/dist/src/bridge/TestBridgeDeploy';
+import TestBridgeDeploy from '../TestBridgeDeploy';
 import {
   BridgeToken,
   BridgeToken__factory,

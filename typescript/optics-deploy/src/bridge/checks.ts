@@ -1,27 +1,24 @@
 import { expect } from 'chai';
 
 import { BridgeDeploy } from './BridgeDeploy';
-import TestBridgeDeploy from './TestBridgeDeploy';
 import { VerificationInput, InvariantChecker } from '../checks';
 import { BeaconProxy } from '../proxyUtils';
 
 const emptyAddr = '0x' + '00'.repeat(32);
 
-type AnyBridgeDeploy = BridgeDeploy | TestBridgeDeploy;
-
-export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
-  constructor(deploys: AnyBridgeDeploy[]) {
+export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
+  constructor(deploys: BridgeDeploy[]) {
     super(deploys);
   }
 
-  async checkDeploy(deploy: AnyBridgeDeploy): Promise<void> {
+  async checkDeploy(deploy: BridgeDeploy): Promise<void> {
     await this.checkBeaconProxies(deploy);
     await this.checkBridgeRouter(deploy);
     this.checkEthHelper(deploy);
     this.checkVerificationInputs(deploy);
   }
 
-  async checkBeaconProxies(deploy: AnyBridgeDeploy): Promise<void> {
+  async checkBeaconProxies(deploy: BridgeDeploy): Promise<void> {
     await this.checkBeaconProxyImplementation(
       deploy.chain.domain,
       'BridgeToken',
@@ -34,9 +31,9 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
     );
   }
 
-  async checkBridgeRouter(deploy: AnyBridgeDeploy): Promise<void> {
+  async checkBridgeRouter(deploy: BridgeDeploy): Promise<void> {
     const bridgeRouter = deploy.contracts.bridgeRouter?.proxy!;
-    const domains = this._deploys.map((d: AnyBridgeDeploy) => d.chain.domain);
+    const domains = this._deploys.map((d: BridgeDeploy) => d.chain.domain);
     const remoteDomains = domains.filter(
       (d: number) => d !== deploy.chain.domain,
     );
@@ -52,7 +49,7 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
     );
   }
 
-  checkEthHelper(deploy: AnyBridgeDeploy): void {
+  checkEthHelper(deploy: BridgeDeploy): void {
     if (deploy.chain.weth) {
       expect(deploy.contracts.ethHelper).to.not.be.undefined;
     } else {
@@ -60,7 +57,7 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
     }
   }
 
-  getVerificationInputs(deploy: AnyBridgeDeploy): VerificationInput[] {
+  getVerificationInputs(deploy: BridgeDeploy): VerificationInput[] {
     const inputs: VerificationInput[] = [];
     const addInputsForUpgradableContract = (
       contract: BeaconProxy<any>,

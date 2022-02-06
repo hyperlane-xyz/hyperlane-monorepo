@@ -4,7 +4,7 @@ import { expect } from 'chai';
 
 import * as types from '../../lib/types';
 import { toBytes32 } from '../../lib/utils';
-import TestBridgeDeploy from 'optics-deploy/dist/src/bridge/TestBridgeDeploy';
+import TestBridgeDeploy from '../TestBridgeDeploy';
 import { TokenIdentifier } from '@abacus-network/sdk/dist/optics';
 import { getTestChain } from '../testChain';
 

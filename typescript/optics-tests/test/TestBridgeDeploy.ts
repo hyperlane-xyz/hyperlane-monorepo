@@ -1,4 +1,4 @@
-import { BigNumber, BytesLike, Signer } from 'ethers';
+import { BytesLike, Signer } from 'ethers';
 import {
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
@@ -12,53 +12,17 @@ import {
   MockWeth,
   MockWeth__factory,
 } from 'optics-ts-interface/dist/optics-xapps';
-import { BridgeContracts } from './BridgeContracts';
-import * as process from '.';
-import { ChainName, ChainConfig, ChainConfigJson } from '../../src/config/chain';
-import { CoreConfig } from '../../src/config/core';
-import { Deploy } from '../deploy';
-
 import { TokenIdentifier } from '@abacus-network/sdk/dist/optics/tokens';
+
+
+import { BridgeDeploy } from 'optics-deploy/dist/src/bridge/BridgeDeploy';
+import { BridgeContracts } from 'optics-deploy/dist/src/bridge/BridgeContracts';
+import * as process from 'optics-deploy/dist/src/bridge';
+import { ChainConfig } from 'optics-deploy/dist/src/config/chain';
+import { CoreConfig } from 'optics-deploy/dist/src/config/core';
 
 function toBytes32(address: string): string {
   return '0x' + '00'.repeat(12) + address.slice(2);
-}
-
-export async function getTestChain(
-  ethers: any,
-  domain: number,
-  updater: string,
-  watchers: string[],
-): Promise<[ChainConfig, CoreConfig]> {
-  const [, , , , , , , signer] = await ethers.getSigners();
-  const chainJson: ChainConfigJson = {
-    name: ChainName.ALFAJORES,
-    rpc: '',
-    deployerKey: '',
-    domain,
-    confirmations: 0,
-    gasPrice: BigNumber.from(20000000000),
-    gasLimit: BigNumber.from(6_000_000),
-  }
-  const chain = new ChainConfig(chainJson);
-  chain.replaceSigner(signer)
-  return [
-    chain,
-    {
-      environment: 'dev',
-      recoveryTimelock: 1,
-      optimisticSeconds: 3,
-      processGas: 850_000,
-      reserveGas: 15_000,
-      addresses: {
-        alfajores: {
-          updater,
-          watchers,
-          recoveryManager: signer.address,
-        }
-      }
-    },
-  ];
 }
 
 // A BridgeRouter deployed with a mock Core suite.
@@ -68,7 +32,7 @@ export async function getTestChain(
 // router's `handle` function. The test signer is pre-authorized. Messages the
 // router dispatches will be logged in the `Enqueue` event on the `MockCore`
 // contract.
-export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
+export default class TestBridgeDeploy extends BridgeDeploy {
   ubc: UpgradeBeaconController;
   mockCore: MockCore;
   mockWeth: MockWeth;
@@ -86,12 +50,20 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
     if (!callerKnowsWhatTheyAreDoing) {
       throw new Error("Don't instantiate via new.");
     }
-    super(chain, contracts, 'test', true);
+    const coreContractAddresses = {
+      home: { proxy: mockCore.address, implementation: mockCore.address, beacon: mockCore.address },
+      governanceRouter: { proxy: mockCore.address, implementation: mockCore.address, beacon: mockCore.address },
+      xAppConnectionManager: mockCore.address,
+      upgradeBeaconController: mockCore.address,
+      updaterManager: mockCore.address,
+    };
+    super(chain, 'test', true, coreContractAddresses);
     this.ubc = ubc;
     this.mockCore = mockCore;
     this.mockWeth = mockWeth;
     this.localDomain = domain;
     this.config.weth = mockWeth.address;
+    this.contracts = contracts;
   }
 
   static async deploy(gtc: (domain: number, updater: string, watchers: string[], recoveryManager?: string | undefined, weth?: string | undefined) => Promise<[ChainConfig, CoreConfig]>, ethers: any, signer: Signer): Promise<TestBridgeDeploy> {
@@ -130,14 +102,6 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
 
   get ubcAddress(): string {
     return this.ubc.address;
-  }
-
-  get coreContractAddresses() {
-    return {
-      xAppConnectionManager: this.mockCore.address,
-      home: { proxy: this.mockCore.address },
-      governanceRouter: { proxy: this.mockCore.address },
-    };
   }
 
   get coreDeployPath() {
