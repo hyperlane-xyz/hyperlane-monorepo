@@ -31,19 +31,19 @@ export async function getTestChain(
   watchers: string[],
 ): Promise<[ChainConfig, CoreConfig]> {
   const [, , , , , , , signer] = await ethers.getSigners();
-  const chainConfigJson: ChainConfigJson = {
+  const chainJson: ChainConfigJson = {
     name: ChainName.ALFAJORES,
     rpc: '',
-    deployerKey: '', 
+    deployerKey: '',
     domain,
     confirmations: 0,
     gasPrice: BigNumber.from(20000000000),
     gasLimit: BigNumber.from(6_000_000),
   }
-  const chainConfig = new ChainConfig(chainConfigJson);
-  chainConfig.replaceSigner(signer)
+  const chain = new ChainConfig(chainJson);
+  chain.replaceSigner(signer)
   return [
-    chainConfig, 
+    chain,
     {
       environment: 'dev',
       recoveryTimelock: 1,
@@ -80,13 +80,13 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
     mockWeth: MockWeth,
     contracts: BridgeContracts,
     domain: number,
-    chainConfig: ChainConfig,
+    chain: ChainConfig,
     callerKnowsWhatTheyAreDoing: boolean = false,
   ) {
     if (!callerKnowsWhatTheyAreDoing) {
       throw new Error("Don't instantiate via new.");
     }
-    super(chainConfig, contracts, 'test', true);
+    super(chain, contracts, 'test', true);
     this.ubc = ubc;
     this.mockCore = mockCore;
     this.mockWeth = mockWeth;
@@ -94,14 +94,14 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
     this.config.weth = mockWeth.address;
   }
 
-  static async deploy(ethers: any, signer: Signer): Promise<TestBridgeDeploy> {
+  static async deploy(gtc: (domain: number, updater: string, watchers: string[], recoveryManager?: string | undefined, weth?: string | undefined) => Promise<[ChainConfig, CoreConfig]>, ethers: any, signer: Signer): Promise<TestBridgeDeploy> {
     const mockCore = await new MockCore__factory(signer).deploy();
     const mockWeth = await new MockWeth__factory(signer).deploy();
     const ubc = await new UpgradeBeaconController__factory(signer).deploy();
     const contracts = new BridgeContracts();
     const domain = await mockCore.localDomain();
-    const [chainConfig] = await getTestChain(ethers, domain, '', []);
-    chainConfig.signer = signer;
+    const [chain] = await gtc(domain, '', [], '', mockWeth.address);
+    chain.signer = signer;
 
     let deploy = new TestBridgeDeploy(
       ubc,
@@ -109,7 +109,7 @@ export default class TestBridgeDeploy extends Deploy<BridgeContracts> {
       mockWeth,
       contracts,
       domain,
-      chainConfig,
+      chain,
       true,
     );
 

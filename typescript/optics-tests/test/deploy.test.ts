@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import { getTestDeploy } from './testChain';
 import { Updater } from '../lib/core';
 import { Signer } from '../lib/types';
-import { CoreContractAddresses } from 'optics-deploy/dist/src/chain';
+import { CoreContractAddresses } from 'optics-deploy/dist/src/config/addresses';
 import { deployBridges } from 'optics-deploy/dist/src/bridge';
 import { BridgeDeploy } from 'optics-deploy/dist/src/bridge/BridgeDeploy';
 import { deployTwoChains, deployNChains } from 'optics-deploy/dist/src/core';
@@ -103,6 +103,8 @@ describe('bridge deploy scripts', async () => {
         ]),
       );
     }
+    deploys[1].chain.weth = mockWeth.address;
+    deploys[2].chain.weth = mockWeth.address;
     await deployNChains(deploys);
 
     for (let i = 0; i < numChains; i++) {
@@ -114,15 +116,13 @@ describe('bridge deploy scripts', async () => {
     // instantiate alfajores and kovan bridge deploys
     const alfajoresDeploy = new BridgeDeploy(
       deploys[0].chain,
-      {},
-      '',
+      'test',
       true,
       coreAddresses[0],
     );
     const kovanDeploy = new BridgeDeploy(
       deploys[1].chain,
-      { weth: mockWeth.address },
-      '',
+      'test',
       true,
       coreAddresses[1],
     );
@@ -135,22 +135,19 @@ describe('bridge deploy scripts', async () => {
     // instantiate 3 deploys: alfajores, kovan and rinkeby
     const alfajoresDeploy = new BridgeDeploy(
       deploys[0].chain,
-      {},
-      '',
+      'test',
       true,
       coreAddresses[0],
     );
     const kovanDeploy = new BridgeDeploy(
       deploys[1].chain,
-      { weth: mockWeth.address },
-      '',
+      'test',
       true,
       coreAddresses[1],
     );
     const rinkebyDeploy = new BridgeDeploy(
       deploys[2].chain,
-      { weth: mockWeth.address },
-      '',
+      'test',
       true,
       coreAddresses[2],
     );

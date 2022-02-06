@@ -15,7 +15,7 @@ export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
   );
   assert(deploy.contracts.upgradeBeaconController);
   await deploy.contracts.upgradeBeaconController.deployTransaction.wait(
-    deploy.chainConfig.confirmations,
+    deploy.chain.confirmations,
   );
 
   // add contract information to Etherscan verification array
@@ -39,7 +39,7 @@ export async function deployUpdaterManager(deploy: CoreDeploy) {
     deploy.overrides,
   );
   await deploy.contracts.updaterManager.deployTransaction.wait(
-    deploy.chainConfig.confirmations,
+    deploy.chain.confirmations,
   );
 
   // add contract information to Etherscan verification array
@@ -69,7 +69,7 @@ export async function deployXAppConnectionManager(deploy: CoreDeploy) {
     deploy.overrides,
   );
   await deploy.contracts.xAppConnectionManager.deployTransaction.wait(
-    deploy.chainConfig.confirmations,
+    deploy.chain.confirmations,
   );
 
   // add contract information to Etherscan verification array
@@ -103,7 +103,7 @@ export async function deployHome(deploy: CoreDeploy) {
     deploy,
     new homeFactory(deploy.signer),
     initData,
-    deploy.chainConfig.domain,
+    deploy.chain.domain,
   );
 }
 
@@ -136,7 +136,7 @@ export async function deployGovernanceRouter(deploy: CoreDeploy) {
       deploy,
       new governanceRouter(deploy.signer),
       initData,
-      deploy.chainConfig.domain,
+      deploy.chain.domain,
       recoveryTimelock,
     );
 }
@@ -160,7 +160,7 @@ export async function deployUnenrolledReplica(
     : contracts.Replica__factory;
 
   let initData = replica.createInterface().encodeFunctionData('initialize', [
-    remote.chainConfig.domain,
+    remote.chain.domain,
     remote.updater,
     ethers.constants.HashZero, // TODO: allow configuration
     remote.config.optimisticSeconds,
@@ -172,21 +172,21 @@ export async function deployUnenrolledReplica(
   if (Object.keys(local.contracts.replicas).length === 0) {
     log(
       isTestDeploy,
-      `${local.chainConfig.name}: deploying initial Replica for ${remote.chainConfig.name}`,
+      `${local.chain.name}: deploying initial Replica for ${remote.chain.name}`,
     );
     proxy = await proxyUtils.deployProxy<contracts.Replica>(
       'Replica',
       local,
       new replica(local.signer),
       initData,
-      local.chainConfig.domain,
+      local.chain.domain,
       local.config.processGas,
       local.config.reserveGas,
     );
   } else {
     log(
       isTestDeploy,
-      `${local.chainConfig.name}: deploying additional Replica for ${remote.chainConfig.name}`,
+      `${local.chain.name}: deploying additional Replica for ${remote.chain.name}`,
     );
     const prev = Object.entries(local.contracts.replicas)[0][1];
     proxy = await proxyUtils.duplicate<contracts.Replica>(
@@ -196,10 +196,10 @@ export async function deployUnenrolledReplica(
       initData,
     );
   }
-  local.contracts.replicas[remote.chainConfig.domain] = proxy;
+  local.contracts.replicas[remote.chain.domain] = proxy;
   log(
     isTestDeploy,
-    `${local.chainConfig.name}: replica deployed for ${remote.chainConfig.name}`,
+    `${local.chain.name}: replica deployed for ${remote.chain.name}`,
   );
 }
 
@@ -215,27 +215,27 @@ export async function deployOptics(deploy: CoreDeploy) {
     warn('deploying test contracts', true);
   }
 
-  log(isTestDeploy, `${deploy.chainConfig.name}: awaiting deploy UBC(deploy);`);
+  log(isTestDeploy, `${deploy.chain.name}: awaiting deploy UBC(deploy);`);
   await deployUpgradeBeaconController(deploy);
 
   log(
     isTestDeploy,
-    `${deploy.chainConfig.name}: awaiting deploy UpdaterManager(deploy);`,
+    `${deploy.chain.name}: awaiting deploy UpdaterManager(deploy);`,
   );
   await deployUpdaterManager(deploy);
 
   log(
     isTestDeploy,
-    `${deploy.chainConfig.name}: awaiting deploy XappConnectionManager(deploy);`,
+    `${deploy.chain.name}: awaiting deploy XappConnectionManager(deploy);`,
   );
   await deployXAppConnectionManager(deploy);
 
-  log(isTestDeploy, `${deploy.chainConfig.name}: awaiting deploy Home(deploy);`);
+  log(isTestDeploy, `${deploy.chain.name}: awaiting deploy Home(deploy);`);
   await deployHome(deploy);
 
   log(
     isTestDeploy,
-    `${deploy.chainConfig.name}: awaiting XAppConnectionManager.setHome(...);`,
+    `${deploy.chain.name}: awaiting XAppConnectionManager.setHome(...);`,
   );
   await deploy.contracts.xAppConnectionManager!.setHome(
     deploy.contracts.home!.proxy.address,
@@ -244,7 +244,7 @@ export async function deployOptics(deploy: CoreDeploy) {
 
   log(
     isTestDeploy,
-    `${deploy.chainConfig.name}: awaiting updaterManager.setHome(...);`,
+    `${deploy.chain.name}: awaiting updaterManager.setHome(...);`,
   );
   await deploy.contracts.updaterManager!.setHome(
     deploy.contracts.home!.proxy.address,
@@ -253,11 +253,11 @@ export async function deployOptics(deploy: CoreDeploy) {
 
   log(
     isTestDeploy,
-    `${deploy.chainConfig.name}: awaiting deploy GovernanceRouter(deploy);`,
+    `${deploy.chain.name}: awaiting deploy GovernanceRouter(deploy);`,
   );
   await deployGovernanceRouter(deploy);
 
-  log(isTestDeploy, `${deploy.chainConfig.name}: initial chain deploy completed`);
+  log(isTestDeploy, `${deploy.chain.name}: initial chain deploy completed`);
 }
 
 /**
@@ -269,7 +269,7 @@ export async function relinquish(deploy: CoreDeploy) {
   const isTestDeploy = deploy.test;
   const govRouter = await deploy.contracts.governanceRouter!.proxy.address;
 
-  log(isTestDeploy, `${deploy.chainConfig.name}: Relinquishing control`);
+  log(isTestDeploy, `${deploy.chain.name}: Relinquishing control`);
   await deploy.contracts.updaterManager!.transferOwnership(
     govRouter,
     deploy.overrides,
@@ -277,7 +277,7 @@ export async function relinquish(deploy: CoreDeploy) {
 
   log(
     isTestDeploy,
-    `${deploy.chainConfig.name}: Dispatched relinquish updatermanager`,
+    `${deploy.chain.name}: Dispatched relinquish updatermanager`,
   );
 
   await deploy.contracts.xAppConnectionManager!.transferOwnership(
@@ -287,7 +287,7 @@ export async function relinquish(deploy: CoreDeploy) {
 
   log(
     isTestDeploy,
-    `${deploy.chainConfig.name}: Dispatched relinquish XAppConnectionManager`,
+    `${deploy.chain.name}: Dispatched relinquish XAppConnectionManager`,
   );
 
   await deploy.contracts.upgradeBeaconController!.transferOwnership(
@@ -297,7 +297,7 @@ export async function relinquish(deploy: CoreDeploy) {
 
   log(
     isTestDeploy,
-    `${deploy.chainConfig.name}: Dispatched relinquish upgradeBeaconController`,
+    `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
 
   Object.entries(deploy.contracts.replicas).forEach(
@@ -305,7 +305,7 @@ export async function relinquish(deploy: CoreDeploy) {
       await replica.proxy.transferOwnership(govRouter, deploy.overrides);
       log(
         isTestDeploy,
-        `${deploy.chainConfig.name}: Dispatched relinquish Replica for domain ${domain}`,
+        `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
       );
     },
   );
@@ -315,10 +315,10 @@ export async function relinquish(deploy: CoreDeploy) {
     deploy.overrides,
   );
 
-  log(isTestDeploy, `${deploy.chainConfig.name}: Dispatched relinquish home`);
+  log(isTestDeploy, `${deploy.chain.name}: Dispatched relinquish home`);
 
-  await tx.wait(deploy.chainConfig.confirmations);
-  log(isTestDeploy, `${deploy.chainConfig.name}: Control relinquished`);
+  await tx.wait(deploy.chain.confirmations);
+  log(isTestDeploy, `${deploy.chain.name}: Control relinquished`);
 }
 
 /**
@@ -329,16 +329,16 @@ export async function relinquish(deploy: CoreDeploy) {
  */
 export async function enrollReplica(local: CoreDeploy, remote: CoreDeploy) {
   const isTestDeploy = local.test;
-  log(isTestDeploy, `${local.chainConfig.name}: starting replica enrollment`);
+  log(isTestDeploy, `${local.chain.name}: starting replica enrollment`);
 
   let tx = await local.contracts.xAppConnectionManager!.ownerEnrollReplica(
-    local.contracts.replicas[remote.chainConfig.domain].proxy.address,
-    remote.chainConfig.domain,
+    local.contracts.replicas[remote.chain.domain].proxy.address,
+    remote.chain.domain,
     local.overrides,
   );
-  await tx.wait(local.chainConfig.confirmations);
+  await tx.wait(local.chain.confirmations);
 
-  log(isTestDeploy, `${local.chainConfig.name}: replica enrollment done`);
+  log(isTestDeploy, `${local.chain.name}: replica enrollment done`);
 }
 
 /**
@@ -349,22 +349,22 @@ export async function enrollReplica(local: CoreDeploy, remote: CoreDeploy) {
  */
 export async function enrollWatchers(left: CoreDeploy, right: CoreDeploy) {
   const isTestDeploy = left.test;
-  log(isTestDeploy, `${left.chainConfig.name}: starting watcher enrollment`);
+  log(isTestDeploy, `${left.chain.name}: starting watcher enrollment`);
 
   await Promise.all(
     left.watchers.map(async (watcher) => {
       const tx =
         await left.contracts.xAppConnectionManager!.setWatcherPermission(
           watcher,
-          right.chainConfig.domain,
+          right.chain.domain,
           true,
           left.overrides,
         );
-      await tx.wait(left.chainConfig.confirmations);
+      await tx.wait(left.chain.confirmations);
     }),
   );
 
-  log(isTestDeploy, `${left.chainConfig.name}: watcher enrollment done`);
+  log(isTestDeploy, `${left.chain.name}: watcher enrollment done`);
 }
 
 /**
@@ -380,17 +380,17 @@ export async function enrollGovernanceRouter(
   const isTestDeploy = local.test;
   log(
     isTestDeploy,
-    `${local.chainConfig.name}: starting enroll ${remote.chainConfig.name} governance router`,
+    `${local.chain.name}: starting enroll ${remote.chain.name} governance router`,
   );
   let tx = await local.contracts.governanceRouter!.proxy.setRouter(
-    remote.chainConfig.domain,
+    remote.chain.domain,
     toBytes32(remote.contracts.governanceRouter!.proxy.address),
     local.overrides,
   );
-  await tx.wait(local.chainConfig.confirmations);
+  await tx.wait(local.chain.confirmations);
   log(
     isTestDeploy,
-    `${local.chainConfig.name}: enrolled ${remote.chainConfig.name} governance router`,
+    `${local.chain.name}: enrolled ${remote.chain.name} governance router`,
   );
 }
 
@@ -414,15 +414,15 @@ export async function enrollRemote(local: CoreDeploy, remote: CoreDeploy) {
  * @param non - The non-governor chain deploy instance
  */
 export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
-  log(gov.test, `${non.chainConfig.name}: transferring governorship`);
+  log(gov.test, `${non.chain.name}: transferring governorship`);
   let governorAddress = await gov.contracts.governanceRouter!.proxy.governor();
   let tx = await non.contracts.governanceRouter!.proxy.transferGovernor(
-    gov.chainConfig.domain,
+    gov.chain.domain,
     governorAddress,
     non.overrides,
   );
-  await tx.wait(gov.chainConfig.confirmations);
-  log(gov.test, `${non.chainConfig.name}: governorship transferred`);
+  await tx.wait(gov.chain.confirmations);
+  log(gov.test, `${non.chain.name}: governorship transferred`);
 }
 
 /**
@@ -432,20 +432,20 @@ export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
  * @param gov - The governor chain deploy instance
  */
 export async function appointGovernor(gov: CoreDeploy) {
-  const domain = gov.chainConfig.domain;
+  const domain = gov.chain.domain;
   const governor = await gov.governorOrSigner();
   if (governor) {
     log(
       gov.test,
-      `${gov.chainConfig.name}: transferring root governorship to ${domain}:${governor}`,
+      `${gov.chain.name}: transferring root governorship to ${domain}:${governor}`,
     );
     const tx = await gov.contracts.governanceRouter!.proxy.transferGovernor(
       domain,
       governor,
       gov.overrides,
     );
-    await tx.wait(gov.chainConfig.confirmations);
-    log(gov.test, `${gov.chainConfig.name}: root governorship transferred`);
+    await tx.wait(gov.chain.confirmations);
+    log(gov.test, `${gov.chain.name}: root governorship transferred`);
   }
 }
 
@@ -462,14 +462,14 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
 
   log(isTestDeploy, 'Beginning Two Chain deploy process');
   log(isTestDeploy, `Deploy env is ${gov.config.environment}`);
-  log(isTestDeploy, `${gov.chainConfig.name} is governing`);
+  log(isTestDeploy, `${gov.chain.name} is governing`);
   log(
     isTestDeploy,
-    `Updater for ${gov.chainConfig.name} Home is ${gov.updater}`,
+    `Updater for ${gov.chain.name} Home is ${gov.updater}`,
   );
   log(
     isTestDeploy,
-    `Updater for ${non.chainConfig.name} Home is ${non.updater}`,
+    `Updater for ${non.chain.name} Home is ${non.updater}`,
   );
 
   log(isTestDeploy, 'awaiting provider ready');
@@ -521,7 +521,7 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
 
 /**
  * Deploy the entire suite of Optics contracts
- * on each chain within the chainConfigs array
+ * on each chain within the chains array
  * including the upgradable Home, Replicas, and GovernanceRouter
  * that have been deployed, initialized, and configured
  * according to the deployOptics script
@@ -540,11 +540,11 @@ export async function deployNChains(deploys: CoreDeploy[]) {
 
   log(isTestDeploy, `Beginning ${deploys.length} Chain deploy process`);
   log(isTestDeploy, `Deploy env is ${deploys[0].config.environment}`);
-  log(isTestDeploy, `${deploys[0].chainConfig.name} is governing`);
+  log(isTestDeploy, `${deploys[0].chain.name} is governing`);
   deploys.forEach((deploy) => {
     log(
       isTestDeploy,
-      `Updater for ${deploy.chainConfig.name} Home is ${deploy.updater}`,
+      `Updater for ${deploy.chain.name} Home is ${deploy.updater}`,
     );
   });
 
@@ -568,17 +568,17 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   //
   for (let local of deploys) {
     const remotes = deploys.filter(
-      (d) => d.chainConfig.domain !== local.chainConfig.domain,
+      (d) => d.chain.domain !== local.chain.domain,
     );
     for (let remote of remotes) {
       log(
         isTestDeploy,
-        `connecting ${remote.chainConfig.name} on ${local.chainConfig.name}`,
+        `connecting ${remote.chain.name} on ${local.chain.name}`,
       );
       await enrollRemote(local, remote);
       log(
         isTestDeploy,
-        `connected ${remote.chainConfig.name} on ${local.chainConfig.name}`,
+        `connected ${remote.chain.name} on ${local.chain.name}`,
       );
     }
   }
@@ -643,10 +643,10 @@ export function writeRustConfigs(deploys: CoreDeploy[], writeDir?: string) {
     // get remotes
     const remotes = deploys
       .slice()
-      .filter((remote) => remote.chainConfig.domain !== local.chainConfig.domain);
+      .filter((remote) => remote.chain.domain !== local.chain.domain);
 
     const rustConfig = CoreDeploy.buildRustConfig(local, remotes);
-    const name = local.chainConfig.name;
+    const name = local.chain.name;
 
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(

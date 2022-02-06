@@ -35,7 +35,7 @@ async function main() {
   const batch = await builder.build();
 
   await batch.build();
-  const domains = coreDeploys.map((deploy) => deploy.chainConfig.domain);
+  const domains = coreDeploys.map((deploy) => deploy.chain.domain);
   // For each domain, expect one call to set the updater.
   expectCalls(batch, domains, new Array(5).fill(1));
   // Change to `batch.execute` in order to run.

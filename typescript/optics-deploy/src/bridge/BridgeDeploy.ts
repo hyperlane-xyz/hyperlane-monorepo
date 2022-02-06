@@ -9,21 +9,17 @@ import { Deploy, DeployEnvironment } from '../deploy';
 import fs from 'fs';
 import path from 'path';
 
-export type BridgeConfig = {
-  weth?: string;
-};
-
 export class BridgeDeploy extends Deploy<BridgeContracts> {
   readonly coreContractAddresses: CoreContractAddresses;
 
   constructor(
-    chainConfig: ChainConfig,
+    chain: ChainConfig,
     environment: DeployEnvironment,
     test: boolean = false,
     coreContractAddresses?: CoreContractAddresses,
   ) {
-    super(chainConfig, new BridgeContracts(), environment, test);
-    this.coreContractAddresses = coreContractAddresses || parseFileFromDeploy(path.join(this.configPath, 'contracts'), chainConfig.name, 'contracts');;
+    super(chain, new BridgeContracts(), environment, test);
+    this.coreContractAddresses = coreContractAddresses || parseFileFromDeploy(path.join(this.configPath, 'contracts'), chain.name, 'contracts');;
   }
 
   get ubcAddress(): string | undefined {
@@ -33,7 +29,7 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
   writeOutput() {
     const directory = path.join(this.configPath, 'contracts/bridge', `${Date.now()}`)
     fs.mkdirSync(directory, { recursive: true });
-    const name = this.chainConfig.name;
+    const name = this.chain.name;
 
     const contracts = this.contracts.toJsonPretty();
     fs.writeFileSync(path.join(directory, `${name}_contracts.json`), contracts);
@@ -43,28 +39,28 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
 
   static fromDirectory(
     directory: string,
-    chainConfig: ChainConfig,
+    chain: ChainConfig,
     environment: DeployEnvironment,
     test: boolean = false,
   ): BridgeDeploy {
     const coreAddresses: CoreDeployAddresses = JSON.parse(
       fs.readFileSync(
-        path.join(directory, `${chainConfig.name}_contracts.json`),
+        path.join(directory, `${chain.name}_contracts.json`),
       ) as any as string,
     );
     const bridgeConfigPath = getPathToLatestConfig(path.join(directory, 'bridge'));
     const bridgeAddresses: BridgeContractAddresses = JSON.parse(
       fs.readFileSync(
-        path.join(bridgeConfigPath, `${chainConfig.name}_contracts.json`),
+        path.join(bridgeConfigPath, `${chain.name}_contracts.json`),
       ) as any as string,
     );
-    const deploy = new BridgeDeploy(chainConfig, environment, test, coreAddresses);
-    deploy.contracts = BridgeContracts.fromAddresses(bridgeAddresses, chainConfig.provider);
+    const deploy = new BridgeDeploy(chain, environment, test, coreAddresses);
+    deploy.contracts = BridgeContracts.fromAddresses(bridgeAddresses, chain.provider);
     return deploy
   }
 }
 
-export function makeBridgeDeploys(environment: DeployEnvironment, chainConfigs: ChainConfig[]): BridgeDeploy[] {
+export function makeBridgeDeploys(environment: DeployEnvironment, chains: ChainConfig[]): BridgeDeploy[] {
   const directory = path.join('./config/environments', environment, 'contracts/bridge');
-  return chainConfigs.map((c) => BridgeDeploy.fromDirectory(directory, c, environment))
+  return chains.map((c) => BridgeDeploy.fromDirectory(directory, c, environment))
 }

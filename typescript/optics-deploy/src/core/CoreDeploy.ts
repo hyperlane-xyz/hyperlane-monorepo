@@ -14,8 +14,8 @@ type Address = string;
 export class CoreDeploy extends Deploy<CoreContracts> {
   config: CoreConfig;
 
-  constructor(chainConfig: ChainConfig, config: CoreConfig, test: boolean = false) {
-    super(chainConfig, new CoreContracts(), config.environment, test);
+  constructor(chain: ChainConfig, config: CoreConfig, test: boolean = false) {
+    super(chain, new CoreContracts(), config.environment, test);
     this.config = config;
   }
 
@@ -30,7 +30,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
   }
 
   get coreConfigAddresses(): CoreConfigAddresses {
-    return this.config.addresses[this.chainConfig.name]!;
+    return this.config.addresses[this.chain.name]!;
   }
 
   get ubcAddress(): Address | undefined {
@@ -61,11 +61,11 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     const dir = path.join(this.configPath, 'contracts');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
-      path.join(dir, `${this.chainConfig.name}_contracts.json`),
+      path.join(dir, `${this.chain.name}_contracts.json`),
       JSON.stringify(this.coreDeployAddresses, null, 2),
     );
     fs.writeFileSync(
-      path.join(dir, `${this.chainConfig.name}_verification.json`),
+      path.join(dir, `${this.chain.name}_verification.json`),
       JSON.stringify(this.verificationInput, null, 2),
     );
   }
@@ -78,7 +78,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
       // copy array so original is not altered
       const remotes = deploys
         .slice()
-        .filter((remote) => remote.chainConfig.domain !== local.chainConfig.domain);
+        .filter((remote) => remote.chain.domain !== local.chain.domain);
 
       // build and add new config
       configs.push(CoreDeploy.buildRustConfig(local, remotes));
@@ -89,8 +89,8 @@ export class CoreDeploy extends Deploy<CoreContracts> {
   static buildRustConfig(local: CoreDeploy, remotes: CoreDeploy[]): RustConfig {
     const home = {
       address: local.contracts.home!.proxy.address,
-      domain: local.chainConfig.domain.toString(),
-      name: local.chainConfig.name,
+      domain: local.chain.domain.toString(),
+      name: local.chain.name,
       rpcStyle: 'ethereum',
       connection: {
         type: 'http',
@@ -114,9 +114,9 @@ export class CoreDeploy extends Deploy<CoreContracts> {
 
     for (var remote of remotes) {
       const replica = {
-        address: remote.contracts.replicas[local.chainConfig.domain].proxy.address,
-        domain: remote.chainConfig.domain.toString(),
-        name: remote.chainConfig.name,
+        address: remote.contracts.replicas[local.chain.domain].proxy.address,
+        domain: remote.chain.domain.toString(),
+        name: remote.chain.name,
         rpcStyle: 'ethereum',
         connection: {
           type: 'http',
@@ -133,27 +133,27 @@ export class CoreDeploy extends Deploy<CoreContracts> {
 
   static fromDirectory(
     directory: string,
-    chainConfig: ChainConfig,
+    chain: ChainConfig,
     config: CoreConfig,
     test: boolean = false,
   ): CoreDeploy {
-    let deploy = new CoreDeploy(chainConfig, config, test);
+    let deploy = new CoreDeploy(chain, config, test);
     const addresses: CoreDeployAddresses = JSON.parse(
       readFileSync(
-        path.join(directory, `${chainConfig.name}_contracts.json`),
+        path.join(directory, `${chain.name}_contracts.json`),
       ) as any as string,
     );
-    deploy.contracts = CoreContracts.fromAddresses(addresses, chainConfig.provider);
+    deploy.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
     deploy.verificationInput = getVerificationInputFromDeploy(
       directory,
-      chainConfig.name,
+      chain.name,
     );
     return deploy;
   }
 
 }
 
-export function makeCoreDeploys(environment: DeployEnvironment, chainConfigs: ChainConfig[], core: CoreConfig): CoreDeploy[] {
+export function makeCoreDeploys(environment: DeployEnvironment, chains: ChainConfig[], core: CoreConfig): CoreDeploy[] {
   const directory = path.join('./config/environments', environment, 'contracts');
-  return chainConfigs.map((c) => CoreDeploy.fromDirectory(directory, c, core))
+  return chains.map((c) => CoreDeploy.fromDirectory(directory, c, core))
 }

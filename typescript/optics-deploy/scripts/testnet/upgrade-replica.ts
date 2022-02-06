@@ -31,7 +31,7 @@ async function main() {
   );
   const batch = await builder.build();
 
-  const domains = deploys.map((d) => d.chainConfig.domain);
+  const domains = deploys.map((d) => d.chain.domain);
   for (const home of domains) {
     for (const remote of domains) {
       if (home === remote) continue;

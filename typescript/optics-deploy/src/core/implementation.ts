@@ -41,7 +41,7 @@ export class ImplementationDeployer {
         'Home',
         deploy,
         new homeFactory(deploy.signer),
-        deploy.chainConfig.domain,
+        deploy.chain.domain,
       );
 
     deploy.contracts.home =
@@ -70,7 +70,7 @@ export class ImplementationDeployer {
         'Replica',
         deploy,
         new replicaFactory(deploy.signer),
-        deploy.chainConfig.domain,
+        deploy.chain.domain,
         deploy.config.processGas,
         deploy.config.reserveGas,
       );
@@ -108,7 +108,7 @@ export class ImplementationDeployer {
 
     log(isTestDeploy, `Beginning ${this._deploys.length} Chain deploy process`);
     log(isTestDeploy, `Deploy env is ${this._deploys[0].config.environment}`);
-    log(isTestDeploy, `${this._deploys[0].chainConfig.name} is governing`);
+    log(isTestDeploy, `${this._deploys[0].chain.name} is governing`);
 
     log(isTestDeploy, 'awaiting provider ready');
     await Promise.all([

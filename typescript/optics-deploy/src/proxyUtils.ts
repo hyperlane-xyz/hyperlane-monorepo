@@ -58,7 +58,7 @@ export async function deployProxy<T extends ethers.Contract>(
 
   // proxy wait(x) implies implementation and beacon wait(>=x)
   // due to nonce ordering
-  await proxy.deployTransaction.wait(deploy.chainConfig.confirmations);
+  await proxy.deployTransaction.wait(deploy.chain.confirmations);
 
   // add Implementation to Etherscan verification
   deploy.verificationInput.push({
@@ -101,7 +101,7 @@ export async function duplicate<T extends ethers.Contract>(
   initData: BytesLike,
 ): Promise<BeaconProxy<T>> {
   const proxy = await _deployProxy(deploy, prev.beacon, initData);
-  await proxy.deployTransaction.wait(deploy.chainConfig.confirmations);
+  await proxy.deployTransaction.wait(deploy.chain.confirmations);
 
   // add UpgradeBeacon to etherscan verification
   // add Proxy to etherscan verification
@@ -136,7 +136,7 @@ export async function deployImplementation<T extends ethers.Contract>(
     factory,
     deployArgs,
   );
-  await implementation.deployTransaction.wait(deploy.chainConfig.confirmations);
+  await implementation.deployTransaction.wait(deploy.chain.confirmations);
 
   // add Implementation to Etherscan verification
   deploy.verificationInput.push({
@@ -201,7 +201,7 @@ async function _deployBeacon(
   deploy: Deploy<any>,
   implementation: ethers.Contract,
 ): Promise<contracts.UpgradeBeacon> {
-  let factory = new contracts.UpgradeBeacon__factory(deploy.chainConfig.signer);
+  let factory = new contracts.UpgradeBeacon__factory(deploy.chain.signer);
 
   let beacon = factory.deploy(
     implementation.address,
@@ -227,7 +227,7 @@ async function _deployProxy<T>(
   initData: BytesLike,
 ): Promise<contracts.UpgradeBeaconProxy> {
   let factory = new contracts.UpgradeBeaconProxy__factory(
-    deploy.chainConfig.signer,
+    deploy.chain.signer,
   );
 
   return await factory.deploy(beacon.address, initData, deploy.overrides);

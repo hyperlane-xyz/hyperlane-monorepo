@@ -48,7 +48,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     const expectedManager = deploy.contracts.updaterManager!.address;
     if (actualManager !== expectedManager) {
       const violation: UpdaterManagerViolation = {
-        domain: deploy.chainConfig.domain,
+        domain: deploy.chain.domain,
         type: ViolationType.UpdaterManager,
         actual: actualManager,
         expected: expectedManager,
@@ -61,7 +61,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     const expected = deploy.updater;
     if (actual !== expected) {
       const violation: HomeUpdaterViolation = {
-        domain: deploy.chainConfig.domain,
+        domain: deploy.chain.domain,
         type: ViolationType.HomeUpdater,
         actual,
         expected,
@@ -73,7 +73,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
   async checkReplicas(deploy: CoreDeploy): Promise<void> {
     // Check if the Replicas on *remote* domains are set to the updater
     // configured on our domain.
-    const domain = deploy.chainConfig.domain;
+    const domain = deploy.chain.domain;
     const addReplicaUpdaterViolations = async (remoteDeploy: CoreDeploy) => {
       const replica = remoteDeploy.contracts.replicas[domain];
       // Sanity check correct replica.
@@ -83,7 +83,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       const expected = deploy.updater;
       if (actual !== expected) {
         const violation: ReplicaUpdaterViolation = {
-          domain: remoteDeploy.chainConfig.domain,
+          domain: remoteDeploy.chain.domain,
           remoteDomain: domain,
           type: ViolationType.ReplicaUpdater,
           actual,
@@ -93,17 +93,19 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       }
     };
     const remoteDeploys = this._deploys.filter(
-      (d) => d.chainConfig.domain !== domain,
+      (d) => d.chain.domain !== domain,
     );
-    await Promise.all(remoteDeploys.map(addReplicaUpdaterViolations));
-    // Check that all replicas on this domain share the same implementation and
-    // UpgradeBeacon.
-    const replicas = Object.values(deploy.contracts.replicas);
-    const implementations = replicas.map((r) => r.implementation.address);
-    const identical = (a: any, b: any) => (a === b ? a : false);
-    const upgradeBeacons = replicas.map((r) => r.beacon.address);
-    expect(implementations.reduce(identical)).to.not.be.false;
-    expect(upgradeBeacons.reduce(identical)).to.not.be.false;
+    if (remoteDeploys.length > 0) {
+      await Promise.all(remoteDeploys.map(addReplicaUpdaterViolations));
+      // Check that all replicas on this domain share the same implementation and
+      // UpgradeBeacon.
+      const replicas = Object.values(deploy.contracts.replicas);
+      const implementations = replicas.map((r) => r.implementation.address);
+      const identical = (a: any, b: any) => (a === b ? a : false);
+      const upgradeBeacons = replicas.map((r) => r.beacon.address);
+      expect(implementations.reduce(identical)).to.not.be.false;
+      expect(upgradeBeacons.reduce(identical)).to.not.be.false;
+    }
   }
 
   async checkGovernance(deploy: CoreDeploy): Promise<void> {
@@ -196,7 +198,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
   }
 
   async checkBeaconProxies(deploy: CoreDeploy): Promise<void> {
-    const domain = deploy.chainConfig.domain;
+    const domain = deploy.chain.domain;
     const contracts = deploy.contracts;
     // Home upgrade setup contracts are defined
     await this.checkBeaconProxyImplementation(domain, 'Home', contracts.home!);

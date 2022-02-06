@@ -52,7 +52,7 @@ export type ContractVerificationInput = {
 };
 
 export abstract class Deploy<T extends Contracts> {
-  readonly chainConfig: ChainConfig;
+  readonly chain: ChainConfig;
   readonly test: boolean;
   readonly environment: DeployEnvironment;
   contracts: T;
@@ -60,8 +60,8 @@ export abstract class Deploy<T extends Contracts> {
 
   abstract get ubcAddress(): string | undefined;
 
-  constructor(chainConfig: ChainConfig, contracts: T, environment: DeployEnvironment, test: boolean = false) {
-    this.chainConfig = chainConfig;
+  constructor(chain: ChainConfig, contracts: T, environment: DeployEnvironment, test: boolean = false) {
+    this.chain = chain;
     this.verificationInput = [];
     this.test = test;
     this.contracts = contracts;
@@ -69,7 +69,7 @@ export abstract class Deploy<T extends Contracts> {
   }
 
   get signer(): ethers.Signer {
-    return this.chainConfig.signer;
+    return this.chain.signer;
   }
 
   async ready(): Promise<ethers.providers.Network> {
@@ -77,12 +77,12 @@ export abstract class Deploy<T extends Contracts> {
   }
 
   get provider(): ethers.providers.JsonRpcProvider {
-    return this.chainConfig.provider;
+    return this.chain.provider;
   }
 
   get supports1559(): boolean {
     let notSupported = ['kovan', 'alfajores', 'baklava', 'celo', 'polygon'];
-    return notSupported.indexOf(this.chainConfig.name) === -1;
+    return notSupported.indexOf(this.chain.name) === -1;
   }
 
   get configPath(): string {
@@ -95,15 +95,15 @@ export abstract class Deploy<T extends Contracts> {
 
     if (this.supports1559) {
       overrides = {
-        maxFeePerGas: this.chainConfig.maxFeePerGas,
-        maxPriorityFeePerGas: this.chainConfig.maxPriorityFeePerGas,
-        gasLimit: this.chainConfig.gasLimit,
+        maxFeePerGas: this.chain.maxFeePerGas,
+        maxPriorityFeePerGas: this.chain.maxPriorityFeePerGas,
+        gasLimit: this.chain.gasLimit,
       };
     } else {
       overrides = {
         type: 0,
-        gasPrice: this.chainConfig.gasPrice,
-        gasLimit: this.chainConfig.gasLimit,
+        gasPrice: this.chain.gasPrice,
+        gasLimit: this.chain.gasLimit,
       };
     }
 

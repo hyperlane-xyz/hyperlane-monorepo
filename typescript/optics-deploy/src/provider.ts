@@ -12,9 +12,9 @@ export function updateProviderDomain(
   coreDeploys.forEach((coreDeploy: CoreDeploy, i: number) => {
     const bridgeDeploy = bridgeDeploys[i];
     ret += `
-export const ${coreDeploy.chainConfig.name}: OpticsDomain = {
-  name: '${coreDeploy.chainConfig.name}',
-  id: ${coreDeploy.chainConfig.domain},
+export const ${coreDeploy.chain.name}: OpticsDomain = {
+  name: '${coreDeploy.chain.name}',
+  id: ${coreDeploy.chain.domain},
   bridgeRouter: '${bridgeDeploy.contracts.bridgeRouter!.proxy.address}',${
       !!bridgeDeploy.contracts.ethHelper
         ? `\n  ethHelper: '${bridgeDeploy.contracts.ethHelper?.address}',`
@@ -38,7 +38,7 @@ ${Object.keys(coreDeploy.contracts.replicas)
   });
 
   ret += `\nexport const ${environment}Domains = [${coreDeploys
-    .map((_) => _.chainConfig.name)
+    .map((_) => _.chain.name)
     .join(', ')}];`;
   writeFileSync(
     resolve(

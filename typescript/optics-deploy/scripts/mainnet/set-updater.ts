@@ -11,7 +11,7 @@ const coreDeploys = makeCoreDeploys(environment, chains, core);
 
 async function main() {
   coreDeploys.map((_) =>
-    mainnet.registerRpcProvider(_.chainConfig.name, _.chainConfig.json.rpc),
+    mainnet.registerRpcProvider(_.chain.name, _.chain.json.rpc),
   );
   const checker = new CoreInvariantChecker(coreDeploys);
   await checker.checkDeploys();
@@ -29,7 +29,7 @@ async function main() {
   const batch = await builder.build();
 
   const txs = await batch.build();
-  const domains = coreDeploys.map((deploy) => deploy.chainConfig.domain);
+  const domains = coreDeploys.map((deploy) => deploy.chain.domain);
   // For each domain, expect one call to set the updater.
   expectCalls(batch, domains, new Array(4).fill(1));
   await batch.estimateGas();

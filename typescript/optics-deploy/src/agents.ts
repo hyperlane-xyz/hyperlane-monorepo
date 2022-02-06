@@ -38,7 +38,7 @@ export enum HelmCommand {
 async function helmValuesForChain(
   chainName: ChainName,
   agentConfig: AgentConfig,
-  chainConfigs: ChainConfig[],
+  chains: ChainConfig[],
 ) {
   let gcpKeys: { [role: string]: AgentGCPKey } | undefined = undefined;
   try {
@@ -73,12 +73,12 @@ async function helmValuesForChain(
       baseConfig: `${chainName}_config.json`,
       homeChain: {
         name: chainName,
-        connectionUrl: chainConfigs.filter((_) => _.name === chainName)[0].json.rpc
+        connectionUrl: chains.filter((_) => _.name === chainName)[0].json.rpc
       },
       ...include(!gcpKeys, {
         aws,
       }),
-      replicaChains: chainConfigs.filter((_) => _.name !== chainName)
+      replicaChains: chains.filter((_) => _.name !== chainName)
         .map((remoteChain) => {
           return {
             name: remoteChain.name,
@@ -87,8 +87,8 @@ async function helmValuesForChain(
         }),
       updater: {
         enabled: true,
-        transactionSigners: chainConfigs.map((chainConfig) => ({
-          name: chainConfig.name,
+        transactionSigners: chains.map((chain) => ({
+          name: chain.name,
           ...credentials(KEY_ROLE_ENUM.UpdaterSigner),
         })),
         attestationSigner: {
@@ -97,15 +97,15 @@ async function helmValuesForChain(
       },
       relayer: {
         enabled: true,
-        transactionSigners: chainConfigs.map((chainConfig) => ({
-          name: chainConfig.name,
+        transactionSigners: chains.map((chain) => ({
+          name: chain.name,
           ...credentials(KEY_ROLE_ENUM.RelayerSigner),
         })),
       },
       processor: {
         enabled: true,
-        transactionSigners: chainConfigs.map((chainConfig) => ({
-          name: chainConfig.name,
+        transactionSigners: chains.map((chain) => ({
+          name: chain.name,
           ...credentials(KEY_ROLE_ENUM.ProcessorSigner),
         })),
         indexonly: agentConfig.processor?.indexOnly || [],
@@ -135,9 +135,9 @@ export async function getAgentEnvVars(
   homeChainName: ChainName,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
-  chainConfigs: ChainConfig[],
+  chains: ChainConfig[],
 ) {
-  const valueDict = await helmValuesForChain(homeChainName, agentConfig, chainConfigs);
+  const valueDict = await helmValuesForChain(homeChainName, agentConfig, chains);
   const envVars: string[] = [];
 
   // Base vars from config map
@@ -157,7 +157,7 @@ export async function getAgentEnvVars(
   try {
     const gcpKeys = await fetchAgentGCPKeys(agentConfig.environment, homeChainName);
     // Signer keys
-    Object.keys(chainConfigs).forEach((network) => {
+    Object.keys(chains).forEach((network) => {
       envVars.push(
         `OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(
           gcpKeys[role].privateKey,
@@ -181,7 +181,7 @@ export async function getAgentEnvVars(
     );
 
     // Signers
-    Object.keys(chainConfigs).forEach((network) => {
+    Object.keys(chains).forEach((network) => {
       const key = new AgentAwsKey(agentConfig, role, network);
       envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`);
       envVars.push(
@@ -216,12 +216,12 @@ export async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
   homeChainConfig: ChainConfig,
-  chainConfigs: ChainConfig[],
+  chains: ChainConfig[],
 ) {
   const valueDict = await helmValuesForChain(
     homeChainConfig.name,
     agentConfig,
-    chainConfigs,
+    chains,
   );
   const values = helmifyValues(valueDict);
   return execCmd(
@@ -239,20 +239,20 @@ export async function runAgentHelmCommand(
 export async function runKeymasterHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  chainConfigs: ChainConfig[],
+  chains: ChainConfig[],
 ) {
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
   const gcpKeys = await fetchAgentGCPKeys(
     agentConfig.environment,
-    chainConfigs[0].name,
+    chains[0].name,
   );
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
-    networks: Object.fromEntries(chainConfigs.map((chainConfig) => {
+    networks: Object.fromEntries(chains.map((chain) => {
       return [
-        chainConfig.name,
+        chain.name,
         {
-          endpoint: chainConfig.json.rpc,
+          endpoint: chain.json.rpc,
           bank: {
             signer: ensure0x(bankKey.privateKey),
             address: bankKey.address,
@@ -261,11 +261,11 @@ export async function runKeymasterHelmCommand(
         },
       ];
     })),
-    homes: Object.fromEntries(chainConfigs.map((chainConfig) => {
+    homes: Object.fromEntries(chains.map((chain) => {
       return [
-        chainConfig.name,
+        chain.name,
         {
-          replicas: chainConfigs.map((c) => c.name),
+          replicas: chains.map((c) => c.name),
           addresses: Object.fromEntries(
             KEY_ROLES.filter((_) => _.endsWith('signer')).map((role) => [
               role,

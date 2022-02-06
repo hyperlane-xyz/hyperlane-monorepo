@@ -63,9 +63,9 @@ describe('GovernanceRouter', async () => {
     await deployNChains([deploys[0], deploys[1]]);
 
     // get both governanceRouters
-    governorRouter = deploys[0].contracts.governance
+    governorRouter = deploys[0].contracts.governanceRouter
       ?.proxy! as contracts.TestGovernanceRouter;
-    nonGovernorRouter = deploys[1].contracts.governance
+    nonGovernorRouter = deploys[1].contracts.governanceRouter
       ?.proxy! as contracts.TestGovernanceRouter;
 
     firstGovernor = await governorRouter.governor();
@@ -431,7 +431,7 @@ describe('GovernanceRouter', async () => {
 
     // check current Updater address on Home
     let currentUpdaterAddr = await governorHome.updater();
-    expect(currentUpdaterAddr).to.equal(deploys[0].config.updater);
+    expect(currentUpdaterAddr).to.equal(deploys[0].updater);
 
     // format optics call message
     const call = await formatCall(updaterManager, 'setUpdater', [

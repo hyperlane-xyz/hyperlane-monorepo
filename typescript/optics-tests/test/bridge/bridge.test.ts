@@ -11,6 +11,7 @@ import {
   IERC20,
 } from 'optics-ts-interface/dist/optics-xapps';
 import { stringToBytes32 } from '../utils';
+import { getTestChain } from '../testChain';
 
 const { BridgeMessageTypes } = bridge;
 
@@ -34,7 +35,7 @@ describe('BridgeRouter', async () => {
 
   describe('invalid messages', async () => {
     before(async () => {
-      deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+      deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
     });
 
     it('rejects invalid messages', async () => {
@@ -50,7 +51,7 @@ describe('BridgeRouter', async () => {
 
   describe('transfer message', async () => {
     before(async () => {
-      deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+      deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
     });
 
     describe('remotely-originating asset roundtrup', async () => {
@@ -58,7 +59,7 @@ describe('BridgeRouter', async () => {
       let repr: IERC20;
 
       before(async () => {
-        deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+        deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
 
         // generate transfer action
         const transferMessageObj: types.Message = {
@@ -194,7 +195,7 @@ describe('BridgeRouter', async () => {
       let localToken: BridgeToken;
 
       before(async () => {
-        deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+        deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
 
         localToken = await new BridgeToken__factory(deployer).deploy();
         await localToken.initialize();
@@ -300,7 +301,7 @@ describe('BridgeRouter', async () => {
 
   describe('prefill', async () => {
     before(async () => {
-      deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+      deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
     });
 
     it('errors for non-existing assets', async () => {
@@ -328,7 +329,7 @@ describe('BridgeRouter', async () => {
       let transferMessage: string;
 
       before(async () => {
-        deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+        deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
 
         // generate actions
         recipient = `0x${'00'.repeat(19)}ff`;
@@ -410,7 +411,7 @@ describe('BridgeRouter', async () => {
       let transferMessage: string;
 
       before(async () => {
-        deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+        deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
         localToken = await new BridgeToken__factory(deployer).deploy();
         await localToken.initialize();
         await localToken.mint(deployerAddress, TOKEN_VALUE);
@@ -483,7 +484,7 @@ describe('BridgeRouter', async () => {
     const TEST_DECIMALS = 8;
 
     before(async () => {
-      deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+      deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
       localToken = await new BridgeToken__factory(deployer).deploy();
       await localToken.initialize();
       await localToken.setDetails(TEST_NAME, TEST_SYMBOL, TEST_DECIMALS);
@@ -645,7 +646,7 @@ describe('BridgeRouter', async () => {
     const VALUE = `0xffffffffffffffff`;
 
     before(async () => {
-      deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+      deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
 
       // generate transfer action
       const transferMessageObj: types.Message = {

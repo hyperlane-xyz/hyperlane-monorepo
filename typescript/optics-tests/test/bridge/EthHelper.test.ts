@@ -6,6 +6,7 @@ import * as types from '../../lib/types';
 import { toBytes32 } from '../../lib/utils';
 import TestBridgeDeploy from 'optics-deploy/dist/src/bridge/TestBridgeDeploy';
 import { TokenIdentifier } from '@abacus-network/sdk/dist/optics';
+import { getTestChain } from '../testChain';
 
 const { BridgeMessageTypes } = bridge;
 
@@ -31,7 +32,7 @@ describe('EthHelper', async () => {
     deployerId = toBytes32(deployerAddress).toLowerCase();
     recipientAddress = await recipient.getAddress();
     recipientId = toBytes32(recipientAddress).toLowerCase();
-    deploy = await TestBridgeDeploy.deploy(ethers, deployer);
+    deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
 
     const tokenId: TokenIdentifier = {
       domain: deploy.localDomain,

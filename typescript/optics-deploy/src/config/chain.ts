@@ -19,6 +19,9 @@ export enum ChainName {
   RINKARBY = 'rinkarby',
   RINKEBY = 'rinkeby',
   ROPSTEN = 'ropsten',
+
+  // Local
+  LOCAL = 'local',
 }
 
 export type DomainedChain = {

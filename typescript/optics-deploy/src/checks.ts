@@ -129,7 +129,7 @@ export abstract class InvariantChecker<T extends Deploy<any>> {
     );
     if (match === undefined) {
       const violation: VerificationInputViolation = {
-        domain: deploy.chainConfig.domain,
+        domain: deploy.chain.domain,
         type: ViolationType.VerificationInput,
         name,
         address,
