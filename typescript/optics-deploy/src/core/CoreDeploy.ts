@@ -61,11 +61,11 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     const dir = path.join(this.configPath, 'contracts');
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
-      path.join(dir, `${name}_contracts.json`),
+      path.join(dir, `${this.chainConfig.name}_contracts.json`),
       JSON.stringify(this.coreDeployAddresses, null, 2),
     );
     fs.writeFileSync(
-      path.join(dir, `${name}_verification.json`),
+      path.join(dir, `${this.chainConfig.name}_verification.json`),
       JSON.stringify(this.verificationInput, null, 2),
     );
   }
