@@ -97,14 +97,20 @@ describe('bridge deploy scripts', async () => {
 
     // deploy core contracts on 2 chains
     for (let i = 0; i < numChains; i++) {
-      deploys.push(
-        await getTestDeploy(domains[i], updater.address, [
-          recoveryManager.address,
-        ]),
-      );
+      if (i == 0) {
+        deploys.push(
+          await getTestDeploy(domains[i], updater.address, [
+            recoveryManager.address,
+          ]),
+        );
+      } else {
+        deploys.push(
+          await getTestDeploy(domains[i], updater.address, [
+            recoveryManager.address,
+          ], recoveryManager.address, mockWeth.address),
+        );
+      }
     }
-    deploys[1].chain.weth = mockWeth.address;
-    deploys[2].chain.weth = mockWeth.address;
     await deployNChains(deploys);
 
     for (let i = 0; i < numChains; i++) {

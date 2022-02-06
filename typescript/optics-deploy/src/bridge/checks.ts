@@ -82,7 +82,7 @@ export class BridgeInvariantChecker extends InvariantChecker<AnyBridgeDeploy> {
     );
     if (deploy.chain.weth) {
       expect(deploy.contracts.ethHelper).to.not.be.undefined;
-      inputs.push(['EthHelper', deploy.contracts.ethHelper!]);
+      inputs.push(['ETH Helper', deploy.contracts.ethHelper!]);
     }
     return inputs;
   }
