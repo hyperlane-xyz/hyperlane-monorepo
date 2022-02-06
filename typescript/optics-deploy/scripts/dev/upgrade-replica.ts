@@ -2,15 +2,14 @@ import { dev } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
-import { CoreDeploy } from '../../src/core/CoreDeploy';
+import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
 import { Call } from '@abacus-network/sdk/dist/optics/govern';
 import { core } from '../../config/environments/dev/core';
 import { chains } from '../../config/environments/dev/chains';
 
 const environment = 'dev';
-const directory = `../../config/environments/${environment}/contracts`;
-const coreDeploys = chains.map((c) => CoreDeploy.fromDirectory(directory, c, core))
+const coreDeploys = makeCoreDeploys(environment, chains, core);
 
 async function main() {
   dev.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!);
@@ -33,7 +32,7 @@ async function main() {
   );
   const batch = await builder.build();
 
-  const domains = coreDeploys.map((d: CoreDeploy) => d.chainConfig.domain);
+  const domains = coreDeploys.map((d) => d.chainConfig.domain);
   for (const home of domains) {
     for (const remote of domains) {
       if (home === remote) continue;

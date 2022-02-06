@@ -3,7 +3,7 @@ import { ChainConfig } from '../../src/config/chain';
 import { CoreConfig } from '../../src/config/core';
 import { RustConfig } from '../../src/config/agent';
 import { CoreContracts } from './CoreContracts';
-import { Deploy } from '../deploy';
+import { Deploy, DeployEnvironment } from '../deploy';
 import { readFileSync } from 'fs';
 import { getVerificationInputFromDeploy } from '../verification/readDeployOutput';
 import path from 'path';
@@ -136,4 +136,10 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     );
     return deploy;
   }
+
+}
+
+export function makeCoreDeploys(environment: DeployEnvironment, chainConfigs: ChainConfig[], core: CoreConfig): CoreDeploy[] {
+  const directory = path.join('./config/environments', environment, 'contracts');
+  return chainConfigs.map((c) => CoreDeploy.fromDirectory(directory, c, core))
 }

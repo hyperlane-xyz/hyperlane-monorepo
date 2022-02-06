@@ -3,13 +3,12 @@ import { ethers } from 'ethers';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
-import { CoreDeploy } from '../../src/core/CoreDeploy';
+import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { core } from '../../config/environments/testnet/core';
 import { chains } from '../../config/environments/testnet/chains';
 
 const environment = 'testnet';
-const directory = `../../config/environments/${environment}/contracts`;
-const deploys = chains.map((c) => CoreDeploy.fromDirectory(directory, c, core))
+const deploys = makeCoreDeploys(environment, chains, core);
 
 async function main() {
   testnet.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!);

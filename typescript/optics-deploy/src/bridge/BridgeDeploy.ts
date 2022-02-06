@@ -63,3 +63,8 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
     return deploy
   }
 }
+
+export function makeBridgeDeploys(environment: DeployEnvironment, chainConfigs: ChainConfig[]): BridgeDeploy[] {
+  const directory = path.join('./config/environments', environment, 'contracts/bridge');
+  return chainConfigs.map((c) => BridgeDeploy.fromDirectory(directory, c, environment))
+}

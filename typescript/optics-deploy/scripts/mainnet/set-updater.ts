@@ -1,14 +1,13 @@
 import { mainnet } from '@abacus-network/sdk';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
-import { CoreDeploy } from '../../src/core/CoreDeploy';
+import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
 import { core } from '../../config/environments/mainnet/core';
 import { chains } from '../../config/environments/mainnet/chains';
 
 const environment = 'mainnet';
-const directory = `../../config/environments/${environment}/contracts`;
-const coreDeploys = chains.map((c) => CoreDeploy.fromDirectory(directory, c, core))
+const coreDeploys = makeCoreDeploys(environment, chains, core);
 
 async function main() {
   coreDeploys.map((_) =>
