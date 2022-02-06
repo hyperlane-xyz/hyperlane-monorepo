@@ -86,7 +86,7 @@ export abstract class Deploy<T extends Contracts> {
   }
 
   get configPath(): string {
-    return path.join('../../../config/environments', this.environment)
+    return path.join('./config/environments', this.environment)
   }
 
   // this is currently a kludge to account for ethers issues
