@@ -14,7 +14,6 @@ import {
 } from 'optics-ts-interface/dist/optics-xapps';
 import { TokenIdentifier } from '@abacus-network/sdk/dist/optics/tokens';
 
-
 import { BridgeDeploy } from 'optics-deploy/dist/src/bridge/BridgeDeploy';
 import { BridgeContracts } from 'optics-deploy/dist/src/bridge/BridgeContracts';
 import * as process from 'optics-deploy/dist/src/bridge';
@@ -51,8 +50,16 @@ export default class TestBridgeDeploy extends BridgeDeploy {
       throw new Error("Don't instantiate via new.");
     }
     const coreContractAddresses = {
-      home: { proxy: mockCore.address, implementation: mockCore.address, beacon: mockCore.address },
-      governanceRouter: { proxy: mockCore.address, implementation: mockCore.address, beacon: mockCore.address },
+      home: {
+        proxy: mockCore.address,
+        implementation: mockCore.address,
+        beacon: mockCore.address,
+      },
+      governanceRouter: {
+        proxy: mockCore.address,
+        implementation: mockCore.address,
+        beacon: mockCore.address,
+      },
       xAppConnectionManager: mockCore.address,
       upgradeBeaconController: mockCore.address,
       updaterManager: mockCore.address,
@@ -66,7 +73,17 @@ export default class TestBridgeDeploy extends BridgeDeploy {
     this.contracts = contracts;
   }
 
-  static async deploy(gtc: (domain: number, updater: string, watchers: string[], recoveryManager?: string | undefined, weth?: string | undefined) => Promise<[ChainConfig, CoreConfig]>, ethers: any, signer: Signer): Promise<TestBridgeDeploy> {
+  static async deploy(
+    gtc: (
+      domain: number,
+      updater: string,
+      watchers: string[],
+      recoveryManager?: string | undefined,
+      weth?: string | undefined,
+    ) => Promise<[ChainConfig, CoreConfig]>,
+    ethers: any,
+    signer: Signer,
+  ): Promise<TestBridgeDeploy> {
     const mockCore = await new MockCore__factory(signer).deploy();
     const mockWeth = await new MockWeth__factory(signer).deploy();
     const ubc = await new UpgradeBeaconController__factory(signer).deploy();
@@ -133,7 +150,7 @@ export default class TestBridgeDeploy extends BridgeDeploy {
     };
   }
 
-  writeOutput() {};
+  writeOutput() {}
 
   async getTestRepresentation(): Promise<BridgeToken | undefined> {
     return await this.getRepresentation(this.remoteDomain, this.testToken);

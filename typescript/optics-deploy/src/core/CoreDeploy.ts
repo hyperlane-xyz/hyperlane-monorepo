@@ -1,4 +1,7 @@
-import { CoreConfigAddresses, CoreDeployAddresses } from '../../src/config/addresses';
+import {
+  CoreConfigAddresses,
+  CoreDeployAddresses,
+} from '../../src/config/addresses';
 import { ChainConfig } from '../../src/config/chain';
 import { CoreConfig } from '../../src/config/core';
 import { RustConfig } from '../../src/config/agent';
@@ -50,7 +53,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
   }
 
   get governor(): Address | undefined {
-    return this.coreConfigAddresses.governor
+    return this.coreConfigAddresses.governor;
   }
 
   async governorOrSigner(): Promise<Address> {
@@ -150,10 +153,17 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     );
     return deploy;
   }
-
 }
 
-export function makeCoreDeploys(environment: DeployEnvironment, chains: ChainConfig[], core: CoreConfig): CoreDeploy[] {
-  const directory = path.join('./config/environments', environment, 'contracts');
-  return chains.map((c) => CoreDeploy.fromDirectory(directory, c, core))
+export function makeCoreDeploys(
+  environment: DeployEnvironment,
+  chains: ChainConfig[],
+  core: CoreConfig,
+): CoreDeploy[] {
+  const directory = path.join(
+    './config/environments',
+    environment,
+    'contracts',
+  );
+  return chains.map((c) => CoreDeploy.fromDirectory(directory, c, core));
 }

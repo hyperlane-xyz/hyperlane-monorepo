@@ -1,4 +1,4 @@
-import { BigNumberish} from 'ethers';
+import { BigNumberish } from 'ethers';
 import { CoreConfigAddresses } from './addresses';
 import { ChainName } from './chain';
 import { DeployEnvironment } from '../deploy';
@@ -10,4 +10,4 @@ export interface CoreConfig {
   processGas: BigNumberish;
   reserveGas: BigNumberish;
   addresses: Partial<Record<ChainName, CoreConfigAddresses>>;
-};
+}

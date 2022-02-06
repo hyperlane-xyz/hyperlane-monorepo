@@ -1,7 +1,10 @@
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { BeaconProxy } from '../proxyUtils';
 import { Contracts } from '../contracts';
-import { CoreContractAddresses, ProxiedAddress } from '../../src/config/addresses';
+import {
+  CoreContractAddresses,
+  ProxiedAddress,
+} from '../../src/config/addresses';
 import * as ethers from 'ethers';
 
 export class CoreContracts extends Contracts {
@@ -19,9 +22,11 @@ export class CoreContracts extends Contracts {
 
   toObject(): CoreContractAddresses {
     const replicas: Record<number, ProxiedAddress> = {};
-    Object.keys(this.replicas!).map((d) => parseInt(d)).map((domain: number) => {
-      replicas[domain] = this.replicas[domain].toObject();
-    });
+    Object.keys(this.replicas!)
+      .map((d) => parseInt(d))
+      .map((domain: number) => {
+        replicas[domain] = this.replicas[domain].toObject();
+      });
 
     return {
       upgradeBeaconController: this.upgradeBeaconController!.address,
@@ -92,25 +97,27 @@ export class CoreContracts extends Contracts {
       homeUpgradeBeacon,
     );
 
-    Object.keys(addresses.replicas!).map((d) => parseInt(d)).map((domain: number) => {
-      const replicaImplementation = contracts.Replica__factory.connect(
-        addresses.replicas![domain].implementation,
-        provider,
-      );
-      const replicaProxy = contracts.Replica__factory.connect(
-        addresses.replicas![domain].proxy,
-        provider,
-      );
-      const replicaUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
-        addresses.replicas![domain].beacon,
-        provider,
-      );
-      core.replicas[domain] = new BeaconProxy<contracts.Replica>(
-        replicaImplementation,
-        replicaProxy,
-        replicaUpgradeBeacon,
-      );
-    });
+    Object.keys(addresses.replicas!)
+      .map((d) => parseInt(d))
+      .map((domain: number) => {
+        const replicaImplementation = contracts.Replica__factory.connect(
+          addresses.replicas![domain].implementation,
+          provider,
+        );
+        const replicaProxy = contracts.Replica__factory.connect(
+          addresses.replicas![domain].proxy,
+          provider,
+        );
+        const replicaUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
+          addresses.replicas![domain].beacon,
+          provider,
+        );
+        core.replicas[domain] = new BeaconProxy<contracts.Replica>(
+          replicaImplementation,
+          replicaProxy,
+          replicaUpgradeBeacon,
+        );
+      });
 
     return core;
   }

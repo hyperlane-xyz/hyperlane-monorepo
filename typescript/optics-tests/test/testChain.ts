@@ -2,7 +2,11 @@ import { ethers } from 'hardhat';
 
 import { CoreDeploy } from 'optics-deploy/dist/src/core/CoreDeploy';
 import { CoreConfig } from 'optics-deploy/dist/src/config/core';
-import { ChainName, ChainConfig, ChainConfigJson } from 'optics-deploy/dist/src/config/chain';
+import {
+  ChainName,
+  ChainConfig,
+  ChainConfigJson,
+} from 'optics-deploy/dist/src/config/chain';
 
 const { BigNumber } = ethers;
 
@@ -11,7 +15,7 @@ export async function getTestChain(
   updater: string,
   watchers: string[],
   recoveryManager?: string,
-  weth?: string
+  weth?: string,
 ): Promise<[ChainConfig, CoreConfig]> {
   const [, , , , , , , signer] = await ethers.getSigners();
   const chainJson: ChainConfigJson = {
@@ -23,10 +27,10 @@ export async function getTestChain(
     gasPrice: BigNumber.from(20000000000),
     gasLimit: BigNumber.from(6_000_000),
     weth,
-  }
+  };
   const chain = new ChainConfig(chainJson);
-  chain.signer = signer
-  chain.provider = ethers.provider
+  chain.signer = signer;
+  chain.provider = ethers.provider;
   return [
     chain,
     {
@@ -39,9 +43,9 @@ export async function getTestChain(
         local: {
           updater,
           watchers,
-					recoveryManager: recoveryManager || ethers.constants.AddressZero,
-        }
-      }
+          recoveryManager: recoveryManager || ethers.constants.AddressZero,
+        },
+      },
     },
   ];
 }
@@ -58,7 +62,7 @@ export async function getTestDeploy(
     updater,
     watchers,
     recoveryManager,
-    weth
+    weth,
   );
   return new CoreDeploy(chain, config, true);
 }

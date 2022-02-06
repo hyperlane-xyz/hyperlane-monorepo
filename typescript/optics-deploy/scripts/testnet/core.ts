@@ -5,7 +5,7 @@ import { chains } from '../../config/environments/testnet/chains';
 
 async function main() {
   const coreDeploys = chains.map((c) => new CoreDeploy(c, core));
-  await deployNChains(coreDeploys)
+  await deployNChains(coreDeploys);
 }
 
 main().then(console.log).catch(console.error);

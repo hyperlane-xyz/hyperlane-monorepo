@@ -53,7 +53,7 @@ export async function deployBridges(deploys: BridgeDeploy[]) {
   if (!isTestDeploy) {
     // output the Bridge deploy information to a subdirectory
     // of the core system deploy config folder
-    deploys.map((d) => d.writeOutput())
+    deploys.map((d) => d.writeOutput());
   }
 }
 
@@ -181,7 +181,10 @@ export async function enrollAllBridgeRouters(
  * @param local - The deploy instance for the chain on which to enroll the router
  * @param remote - The deploy instance for the chain to enroll on the local router
  */
-export async function enrollBridgeRouter(local: BridgeDeploy, remote: BridgeDeploy) {
+export async function enrollBridgeRouter(
+  local: BridgeDeploy,
+  remote: BridgeDeploy,
+) {
   console.log(
     `enrolling ${remote.chain.name} BridgeRouter on ${local.chain.name}`,
   );

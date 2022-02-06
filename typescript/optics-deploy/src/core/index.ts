@@ -463,14 +463,8 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   log(isTestDeploy, 'Beginning Two Chain deploy process');
   log(isTestDeploy, `Deploy env is ${gov.config.environment}`);
   log(isTestDeploy, `${gov.chain.name} is governing`);
-  log(
-    isTestDeploy,
-    `Updater for ${gov.chain.name} Home is ${gov.updater}`,
-  );
-  log(
-    isTestDeploy,
-    `Updater for ${non.chain.name} Home is ${non.updater}`,
-  );
+  log(isTestDeploy, `Updater for ${gov.chain.name} Home is ${gov.updater}`);
+  log(isTestDeploy, `Updater for ${non.chain.name} Home is ${non.updater}`);
 
   log(isTestDeploy, 'awaiting provider ready');
   await Promise.all([gov.ready(), non.ready()]);
@@ -513,8 +507,8 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   checker.expectEmpty();
 
   if (!isTestDeploy) {
-    gov.writeDeployOutput()
-    non.writeDeployOutput()
+    gov.writeDeployOutput();
+    non.writeDeployOutput();
     writeRustConfigs([gov, non]);
   }
 }
@@ -600,7 +594,7 @@ export async function deployNChains(deploys: CoreDeploy[]) {
 
   // write config outputs
   if (!isTestDeploy) {
-    deploys.map((d) => d.writeDeployOutput())
+    deploys.map((d) => d.writeDeployOutput());
     writeRustConfigs(deploys);
   }
 

@@ -27,5 +27,5 @@ export const core: CoreConfig = {
       watchers: ['0x22B2855635154Baa41C306BcA979C8c9a077A180'],
       recoveryManager: '0x24F6c874F56533d9a1422e85e5C7A806ED11c036',
     },
-  }
+  },
 };

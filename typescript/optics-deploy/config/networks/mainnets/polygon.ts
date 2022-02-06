@@ -1,4 +1,8 @@
-import { ChainName, ChainConfig, ChainConfigJson } from '../../../src/config/chain';
+import {
+  ChainName,
+  ChainConfig,
+  ChainConfigJson,
+} from '../../../src/config/chain';
 import * as dotenv from 'dotenv';
 
 dotenv.config();

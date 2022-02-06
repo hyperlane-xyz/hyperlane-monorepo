@@ -226,9 +226,7 @@ async function _deployProxy<T>(
   beacon: contracts.UpgradeBeacon,
   initData: BytesLike,
 ): Promise<contracts.UpgradeBeaconProxy> {
-  let factory = new contracts.UpgradeBeaconProxy__factory(
-    deploy.chain.signer,
-  );
+  let factory = new contracts.UpgradeBeaconProxy__factory(deploy.chain.signer);
 
   return await factory.deploy(beacon.address, initData, deploy.overrides);
 }

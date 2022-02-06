@@ -60,7 +60,12 @@ export abstract class Deploy<T extends Contracts> {
 
   abstract get ubcAddress(): string | undefined;
 
-  constructor(chain: ChainConfig, contracts: T, environment: DeployEnvironment, test: boolean = false) {
+  constructor(
+    chain: ChainConfig,
+    contracts: T,
+    environment: DeployEnvironment,
+    test: boolean = false,
+  ) {
     this.chain = chain;
     this.verificationInput = [];
     this.test = test;
@@ -86,7 +91,7 @@ export abstract class Deploy<T extends Contracts> {
   }
 
   get configPath(): string {
-    return path.join('./config/environments', this.environment)
+    return path.join('./config/environments', this.environment);
   }
 
   // this is currently a kludge to account for ethers issues

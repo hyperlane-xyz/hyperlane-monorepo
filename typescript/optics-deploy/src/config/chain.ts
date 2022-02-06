@@ -27,7 +27,7 @@ export enum ChainName {
 export type DomainedChain = {
   name: ChainName;
   domain: number;
-}
+};
 
 export type ChainConfigJson = DomainedChain & {
   rpc: string;
@@ -38,7 +38,7 @@ export type ChainConfigJson = DomainedChain & {
   maxFeePerGas?: ethers.BigNumberish;
   maxPriorityFeePerGas?: ethers.BigNumberish;
   weth?: Address;
-}
+};
 
 export class ChainConfig {
   name: ChainName;

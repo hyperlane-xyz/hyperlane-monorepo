@@ -288,12 +288,15 @@ async function fetchGCPKeyAddresses(environment: string) {
 }
 
 // Modifies a Chain configuration with the deployer key pulled from GCP
-export async function addDeployerGCPKey(environment: string, chain: ChainConfig) {
+export async function addDeployerGCPKey(
+  environment: string,
+  chain: ChainConfig,
+) {
   const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chain.name);
   await key.fetch();
   const deployerSecret = key.privateKey();
   chain.replaceSigner(strip0x(deployerSecret));
-  return chain
+  return chain;
 }
 
 // Modifies a Core configuration with the relevant watcher/updater addresses pulled from GCP
@@ -313,5 +316,5 @@ export async function addAgentGCPAddresses(
   coreConfig.addresses[chain.name]!.updater = updater;
   coreConfig.addresses[chain.name]!.recoveryManager = recoveryManager;
   coreConfig.addresses[chain.name]!.watchers = [watcher];
-  return coreConfig
+  return coreConfig;
 }

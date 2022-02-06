@@ -105,9 +105,13 @@ describe('bridge deploy scripts', async () => {
         );
       } else {
         deploys.push(
-          await getTestDeploy(domains[i], updater.address, [
+          await getTestDeploy(
+            domains[i],
+            updater.address,
+            [recoveryManager.address],
             recoveryManager.address,
-          ], recoveryManager.address, mockWeth.address),
+            mockWeth.address,
+          ),
         );
       }
     }
