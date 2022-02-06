@@ -6,6 +6,7 @@ import { CoreContracts } from './CoreContracts';
 import { Deploy, DeployEnvironment } from '../deploy';
 import { readFileSync } from 'fs';
 import { getVerificationInputFromDeploy } from '../verification/readDeployOutput';
+import fs from 'fs';
 import path from 'path';
 
 type Address = string;
@@ -18,7 +19,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     this.config = config;
   }
 
-  get contractOutput(): CoreDeployAddresses {
+  get coreDeployAddresses(): CoreDeployAddresses {
     return {
       ...this.contracts.toObject(),
       recoveryManager: this.recoveryManager,
@@ -54,6 +55,19 @@ export class CoreDeploy extends Deploy<CoreContracts> {
 
   async governorOrSigner(): Promise<Address> {
     return this.governor ?? (await this.signer.getAddress());
+  }
+
+  writeDeployOutput() {
+    const dir = path.join(this.configPath, 'contracts');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, `${name}_contracts.json`),
+      JSON.stringify(this.coreDeployAddresses, null, 2),
+    );
+    fs.writeFileSync(
+      path.join(dir, `${name}_verification.json`),
+      JSON.stringify(this.verificationInput, null, 2),
+    );
   }
 
   static toRustConfigs(deploys: CoreDeploy[]): RustConfig[] {

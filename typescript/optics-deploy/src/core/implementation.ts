@@ -1,6 +1,6 @@
 import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
-import { writeDeployOutput } from './index';
+import { writeRustConfigs } from './index';
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { log, warn } from '../utils';
 
@@ -20,7 +20,8 @@ export class ImplementationDeployer {
   }
 
   writeDeploys(dir: string): void {
-    writeDeployOutput(this._deploys, dir);
+    this._deploys.map((d) => d.writeDeployOutput());
+    writeRustConfigs(this._deploys, dir);
   }
 
   /**

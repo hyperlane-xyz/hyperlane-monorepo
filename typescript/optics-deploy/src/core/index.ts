@@ -513,7 +513,9 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   checker.expectEmpty();
 
   if (!isTestDeploy) {
-    writeDeployOutput([gov, non]);
+    gov.writeDeployOutput()
+    non.writeDeployOutput()
+    writeRustConfigs([gov, non]);
   }
 }
 
@@ -598,18 +600,14 @@ export async function deployNChains(deploys: CoreDeploy[]) {
 
   // write config outputs
   if (!isTestDeploy) {
-    writeDeployOutput(deploys);
+    deploys.map((d) => d.writeDeployOutput())
+    writeRustConfigs(deploys);
   }
 
   // checks deploys are correct
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
   checker.expectEmpty();
-
-  // write config outputs again, should write under a different dir
-  if (!isTestDeploy) {
-    writeDeployOutput(deploys);
-  }
 }
 
 /**
@@ -638,7 +636,7 @@ export function writePartials(dir: string) {
  *
  * @param deploys - The array of chain deploys
  */
-export function writeDeployOutput(deploys: CoreDeploy[], writeDir?: string) {
+export function writeRustConfigs(deploys: CoreDeploy[], writeDir?: string) {
   log(deploys[0].test, `Have ${deploys.length} deploys`);
   const dir = writeDir ? writeDir : `../../rust/config/${Date.now()}`;
   for (const local of deploys) {
@@ -654,14 +652,6 @@ export function writeDeployOutput(deploys: CoreDeploy[], writeDir?: string) {
     fs.writeFileSync(
       `${dir}/${name}_config.json`,
       JSON.stringify(rustConfig, null, 2),
-    );
-    fs.writeFileSync(
-      `${dir}/${name}_contracts.json`,
-      JSON.stringify(local.contractOutput, null, 2),
-    );
-    fs.writeFileSync(
-      `${dir}/${name}_verification.json`,
-      JSON.stringify(local.verificationInput, null, 2),
     );
   }
   writePartials(dir);
