@@ -1,18 +1,11 @@
 import { deployNChains } from '../../src/core';
-import * as alfajores from '../../config/networks/testnets/alfajores';
-import * as gorli from '../../config/networks/testnets/gorli';
-import * as kovan from '../../config/networks/testnets/kovan';
-import * as ropsten from '../../config/networks/testnets/ropsten';
 import { CoreDeploy } from '../../src/core/CoreDeploy';
+import { core } from '../../config/environments/testnet/core';
+import { chains } from '../../config/environments/testnet/chains';
 
-let alfajoresConfig = alfajores.testnetConfig;
-let gorliConfig = gorli.testnetConfig;
-let kovanConfig = kovan.testnetConfig;
-let ropstenConfig = ropsten.testnetConfig;
+async function main() {
+  const coreDeploys = chains.map((c) => new CoreDeploy(c, core));
+  await deployNChains(coreDeploys)
+}
 
-const alfajoresDeploy = new CoreDeploy(alfajores.chain, alfajoresConfig);
-const gorliDeploy = new CoreDeploy(gorli.chain, gorliConfig);
-const kovanDeploy = new CoreDeploy(kovan.chain, kovanConfig);
-const ropstenDeploy = new CoreDeploy(ropsten.chain, ropstenConfig);
-
-deployNChains([ropstenDeploy, gorliDeploy, kovanDeploy, alfajoresDeploy]);
+main().then(console.log).catch(console.error);

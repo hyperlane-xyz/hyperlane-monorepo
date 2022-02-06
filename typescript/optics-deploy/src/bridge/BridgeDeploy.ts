@@ -23,7 +23,7 @@ export class BridgeDeploy extends Deploy<BridgeContracts> {
     coreContractAddresses?: CoreContractAddresses,
   ) {
     super(chainConfig, new BridgeContracts(), environment, test);
-    this.coreContractAddresses = coreContractAddresses || parseFileFromDeploy(path.join(this.configPath, 'contracts'), chain.config.name, 'contracts');;
+    this.coreContractAddresses = coreContractAddresses || parseFileFromDeploy(path.join(this.configPath, 'contracts'), chainConfig.name, 'contracts');;
   }
 
   get ubcAddress(): string | undefined {

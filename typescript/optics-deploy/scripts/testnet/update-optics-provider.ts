@@ -1,18 +1,12 @@
 import { updateProviderDomain } from '../../src/provider';
-import { makeCoreDeploys } from '../../src/core/CoreDeploy';
-import { makeBridgeDeploys } from '../../src/bridge/BridgeDeploy';
-import { configPath, networks } from './agentConfig';
+import { CoreDeploy } from '../../src/core/CoreDeploy';
+import { BridgeDeploy } from '../../src/bridge/BridgeDeploy';
+import { core } from '../../config/environments/testnet/core';
+import { chains } from '../../config/environments/testnet/chains';
 
-const coreDeploys = makeCoreDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.testnetConfig,
-);
-const bridgeDeploys = makeBridgeDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.bridgeConfig,
-);
-updateProviderDomain('mainnet', coreDeploys, bridgeDeploys);
+const environment = 'testnet';
+const directory = `../../config/environments/${environment}/contracts`;
+const coreDeploys = chains.map((c) => CoreDeploy.fromDirectory(directory, c, core))
+const bridgeDeploys = chains.map((c) => BridgeDeploy.fromDirectory(directory, c, environment))
+
+updateProviderDomain(environment, coreDeploys, bridgeDeploys);
