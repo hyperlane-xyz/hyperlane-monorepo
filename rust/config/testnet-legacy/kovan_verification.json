@@ -7,9 +7,7 @@
   {
     "name": "UpdaterManager",
     "address": "0x52f914eA839Aa79cA0861e0da6Dd3FC84E1217b5",
-    "constructorArguments": [
-      "0x201dd86063Dc251cA5a576d1b7365C38e5fB4CD5"
-    ]
+    "constructorArguments": ["0x201dd86063Dc251cA5a576d1b7365C38e5fB4CD5"]
   },
   {
     "name": "XAppConnectionManager",
@@ -19,9 +17,7 @@
   {
     "name": "Home Implementation",
     "address": "0x381a17128605D6edC2e6566CB79F5C4777e7Cd53",
-    "constructorArguments": [
-      3000
-    ]
+    "constructorArguments": [3000]
   },
   {
     "name": "Home UpgradeBeacon",
@@ -43,10 +39,7 @@
   {
     "name": "Governance Implementation",
     "address": "0xF7c37D971768ce0A1667216F7355351760Ef3DA3",
-    "constructorArguments": [
-      3000,
-      1
-    ]
+    "constructorArguments": [3000, 1]
   },
   {
     "name": "Governance UpgradeBeacon",
@@ -68,11 +61,7 @@
   {
     "name": "Replica Implementation",
     "address": "0xFeCCa57b596B041447CEAA2C438D4d4D9a1C94BB",
-    "constructorArguments": [
-      3000,
-      850000,
-      15000
-    ]
+    "constructorArguments": [3000, 850000, 15000]
   },
   {
     "name": "Replica UpgradeBeacon",
