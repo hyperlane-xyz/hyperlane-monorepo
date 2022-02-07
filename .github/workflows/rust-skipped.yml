@@ -1,10 +1,6 @@
 name: Rust
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - 'rust/**'
   pull_request:
     branches: [main]
     paths-ignore:
