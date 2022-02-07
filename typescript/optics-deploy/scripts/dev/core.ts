@@ -1,5 +1,5 @@
 import { deployNChains } from '../../src/core';
-import { addDeployerGCPKey, addAgentGCPAddresses } from '../../src/agents/gcp';
+import { addDeployerGCPKey } from '../../src/agents/gcp';
 import { CoreDeploy } from '../../src/core/CoreDeploy';
 import { core } from '../../config/environments/dev/core';
 import { chains } from '../../config/environments/dev/chains';
@@ -12,7 +12,7 @@ async function main() {
       async (c) =>
         new CoreDeploy(
           await addDeployerGCPKey(environment, c),
-          await addAgentGCPAddresses(environment, c, core),
+          core,
         ),
     ),
   );

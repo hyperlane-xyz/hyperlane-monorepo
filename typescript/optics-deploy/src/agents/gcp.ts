@@ -298,23 +298,3 @@ export async function addDeployerGCPKey(
   chain.replaceSigner(strip0x(deployerSecret));
   return chain;
 }
-
-// Modifies a Core configuration with the relevant watcher/updater addresses pulled from GCP
-export async function addAgentGCPAddresses(
-  environment: DeployEnvironment,
-  chain: ChainConfig,
-  coreConfig: CoreConfig,
-): Promise<CoreConfig> {
-  const addresses = await fetchGCPKeyAddresses(environment);
-  const watcher = addresses.find(
-    (_) => _.role === `${chain.name}-watcher-attestation`,
-  )!.address;
-  const updater = addresses.find(
-    (_) => _.role === `${chain.name}-updater-attestation`,
-  )!.address;
-  const recoveryManager = addresses.find((_) => _.role === 'deployer')!.address;
-  coreConfig.addresses[chain.name]!.updater = updater;
-  coreConfig.addresses[chain.name]!.recoveryManager = recoveryManager;
-  coreConfig.addresses[chain.name]!.watchers = [watcher];
-  return coreConfig;
-}
