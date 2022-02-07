@@ -1,0 +1,32 @@
+name: Rust
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'rust/**'
+  pull_request:
+    branches: [main]
+    paths-ignore:
+      - 'rust/**'
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust-build:
+    runs-on: ubuntu-latest
+    steps:
+      - run: 'echo "No build required" '
+
+  rust-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - run: 'echo "No test required" '
+
+  rust-lint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - run: 'echo "No lint required" '
