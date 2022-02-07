@@ -3,6 +3,7 @@ import { BytesLike, ethers } from 'ethers';
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { Deploy } from './deploy';
 import { CoreDeploy } from './core/CoreDeploy';
+import { ProxiedAddress } from './config/addresses';
 
 export type ProxyNames =
   | 'Home'
@@ -22,20 +23,14 @@ export class BeaconProxy<T extends ethers.Contract> {
     this.beacon = beacon;
   }
 
-  toObject(): ProxyAddresses {
+  toObject(): ProxiedAddress {
     return {
-      implementation: this.implementation.address,
       proxy: this.proxy.address,
+      implementation: this.implementation.address,
       beacon: this.beacon.address,
     };
   }
 }
-
-export type ProxyAddresses = {
-  implementation: string;
-  proxy: string;
-  beacon: string;
-};
 
 /**
  * Deploys the UpgradeBeacon, Implementation and Proxy for a given contract
@@ -206,7 +201,7 @@ async function _deployBeacon(
   deploy: Deploy<any>,
   implementation: ethers.Contract,
 ): Promise<contracts.UpgradeBeacon> {
-  let factory = new contracts.UpgradeBeacon__factory(deploy.chain.deployer);
+  let factory = new contracts.UpgradeBeacon__factory(deploy.chain.signer);
 
   let beacon = factory.deploy(
     implementation.address,
@@ -231,9 +226,7 @@ async function _deployProxy<T>(
   beacon: contracts.UpgradeBeacon,
   initData: BytesLike,
 ): Promise<contracts.UpgradeBeaconProxy> {
-  let factory = new contracts.UpgradeBeaconProxy__factory(
-    deploy.chain.deployer,
-  );
+  let factory = new contracts.UpgradeBeaconProxy__factory(deploy.chain.signer);
 
   return await factory.deploy(beacon.address, initData, deploy.overrides);
 }

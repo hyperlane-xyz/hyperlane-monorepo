@@ -1,17 +1,14 @@
-import { ImplementationDeployer } from '../../src/core/implementation';
-import { configPath, networks } from './agentConfig';
 import { makeCoreDeploys } from '../../src/core/CoreDeploy';
+import { ImplementationDeployer } from '../../src/core/implementation';
+import { core } from '../../config/environments/testnet/core';
+import { chains } from '../../config/environments/testnet/chains';
 
-const coreDeploys = makeCoreDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.testnetConfig,
-);
+const environment = 'testnet';
+const coreDeploys = makeCoreDeploys(environment, chains, core);
 
 async function main() {
   const deployer = new ImplementationDeployer(coreDeploys);
   await deployer.deployReplicaImplementations();
-  deployer.writeDeploys(configPath);
+  deployer.writeDeploys(environment);
 }
 main().then(console.log).catch(console.error);

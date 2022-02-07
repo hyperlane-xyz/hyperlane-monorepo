@@ -20,11 +20,11 @@
     "@types/node": "^15.14.7",
     "dotenv": "^10.0.0",
     "hardhat-gas-reporter": "^1.0.7",
-    "optics-deploy": "0.0.4",
+    "optics-deploy": "0.0.5",
     "optics-ts-interface": "^1.1.2"
   },
-  "name": "@optics-xyz/optics-test",
-  "version": "1.0.0",
+  "name": "@abacus-network/test",
+  "version": "0.0.0",
   "description": "Optics typescript tests and tools",
   "main": "index.ts",
   "scripts": {

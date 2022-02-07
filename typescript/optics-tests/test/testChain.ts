@@ -1,7 +1,12 @@
 import { ethers } from 'hardhat';
 
-import { CoreConfig, CoreDeploy } from 'optics-deploy/dist/src/core/CoreDeploy';
-import { Chain } from 'optics-deploy/dist/src/chain';
+import { CoreDeploy } from 'optics-deploy/dist/src/core/CoreDeploy';
+import { CoreConfig } from 'optics-deploy/dist/src/config/core';
+import {
+  ChainName,
+  ChainConfig,
+  ChainConfigJson,
+} from 'optics-deploy/dist/src/config/chain';
 
 const { BigNumber } = ethers;
 
@@ -10,32 +15,37 @@ export async function getTestChain(
   updater: string,
   watchers: string[],
   recoveryManager?: string,
-): Promise<[Chain, CoreConfig]> {
-  const [, , , , , , , deployer] = await ethers.getSigners();
+  weth?: string,
+): Promise<[ChainConfig, CoreConfig]> {
+  const [, , , , , , , signer] = await ethers.getSigners();
+  const chainJson: ChainConfigJson = {
+    name: ChainName.LOCAL,
+    rpc: '', // Replaced below
+    deployerKey: '0x1234', // Replaced below
+    domain,
+    confirmations: 0,
+    gasPrice: BigNumber.from(20000000000),
+    gasLimit: BigNumber.from(6_000_000),
+    weth,
+  };
+  const chain = new ChainConfig(chainJson);
+  chain.signer = signer;
+  chain.provider = ethers.provider;
   return [
-    {
-      name: 'hh',
-      provider: ethers.provider,
-      deployer,
-      gasPrice: BigNumber.from(20000000000),
-      gasLimit: BigNumber.from(6_000_000),
-      confirmations: 0,
-      domain,
-      config: {
-        domain,
-        name: 'hh',
-        rpc: 'NA',
-      },
-    },
+    chain,
     {
       environment: 'dev',
       recoveryTimelock: 1,
-      recoveryManager: recoveryManager || ethers.constants.AddressZero,
-      updater,
       optimisticSeconds: 3,
-      watchers,
       processGas: 850_000,
       reserveGas: 15_000,
+      addresses: {
+        local: {
+          updater,
+          watchers,
+          recoveryManager: recoveryManager || ethers.constants.AddressZero,
+        },
+      },
     },
   ];
 }
@@ -45,12 +55,14 @@ export async function getTestDeploy(
   updater: string,
   watchers: string[],
   recoveryManager?: string,
+  weth?: string,
 ): Promise<CoreDeploy> {
   const [chain, config] = await getTestChain(
     domain,
     updater,
     watchers,
     recoveryManager,
+    weth,
   );
   return new CoreDeploy(chain, config, true);
 }

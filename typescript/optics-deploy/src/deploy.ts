@@ -1,6 +1,15 @@
 import { ethers } from 'ethers';
-import { Chain } from './chain';
+import { ChainConfig } from './config/chain';
 import { Contracts } from './contracts';
+import path from 'path';
+
+export type DeployEnvironment =
+  | 'dev'
+  | 'testnet'
+  | 'mainnet'
+  | 'testnet-legacy'
+  | 'mainnet-legacy'
+  | 'test';
 
 type XAppConnectionName = 'XAppConnectionManager';
 type UpdaterManagerName = 'UpdaterManager';
@@ -43,22 +52,29 @@ export type ContractVerificationInput = {
 };
 
 export abstract class Deploy<T extends Contracts> {
-  readonly chain: Chain;
+  readonly chain: ChainConfig;
   readonly test: boolean;
+  readonly environment: DeployEnvironment;
   contracts: T;
   verificationInput: ContractVerificationInput[];
 
   abstract get ubcAddress(): string | undefined;
 
-  constructor(chain: Chain, contracts: T, test: boolean = false) {
+  constructor(
+    chain: ChainConfig,
+    contracts: T,
+    environment: DeployEnvironment,
+    test: boolean = false,
+  ) {
     this.chain = chain;
     this.verificationInput = [];
     this.test = test;
     this.contracts = contracts;
+    this.environment = environment;
   }
 
-  get deployer(): ethers.Signer {
-    return this.chain.deployer;
+  get signer(): ethers.Signer {
+    return this.chain.signer;
   }
 
   async ready(): Promise<ethers.providers.Network> {
@@ -72,6 +88,10 @@ export abstract class Deploy<T extends Contracts> {
   get supports1559(): boolean {
     let notSupported = ['kovan', 'alfajores', 'baklava', 'celo', 'polygon'];
     return notSupported.indexOf(this.chain.name) === -1;
+  }
+
+  get configPath(): string {
+    return path.join('./config/environments', this.environment);
   }
 
   // this is currently a kludge to account for ethers issues

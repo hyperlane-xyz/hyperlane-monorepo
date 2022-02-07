@@ -1,16 +1,19 @@
 import { HelmCommand, runAgentHelmCommand } from '../../src/agents';
-import { agentConfig, configs } from './agentConfig';
+import { chains } from '../../config/environments/testnet/chains';
+import { agentConfig } from '../../config/environments/testnet/agent';
+import { ChainConfig } from '../../src/config/chain';
 
 async function deploy() {
-  for (const config in configs) {
-    await runAgentHelmCommand(
-      HelmCommand.Install,
-      agentConfig,
-      configs[config],
-      configs,
-    ),
-      { depth: null };
-  }
+  await Promise.all(
+    chains.map((chain: ChainConfig) => {
+      return runAgentHelmCommand(
+        HelmCommand.Install,
+        agentConfig,
+        chain,
+        chains,
+      );
+    }),
+  );
 }
 
 deploy().then(console.log).catch(console.error);

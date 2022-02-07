@@ -9,7 +9,7 @@ import { CoreInvariantChecker } from './checks';
 import { log, warn, toBytes32 } from '../utils';
 
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
-  let factory = new contracts.UpgradeBeaconController__factory(deploy.deployer);
+  let factory = new contracts.UpgradeBeaconController__factory(deploy.signer);
   deploy.contracts.upgradeBeaconController = await factory.deploy(
     deploy.overrides,
   );
@@ -33,9 +33,9 @@ export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
  * @param deploy - The deploy instance
  */
 export async function deployUpdaterManager(deploy: CoreDeploy) {
-  let factory = new contracts.UpdaterManager__factory(deploy.deployer);
+  let factory = new contracts.UpdaterManager__factory(deploy.signer);
   deploy.contracts.updaterManager = await factory.deploy(
-    deploy.config.updater,
+    deploy.updater,
     deploy.overrides,
   );
   await deploy.contracts.updaterManager.deployTransaction.wait(
@@ -46,7 +46,7 @@ export async function deployUpdaterManager(deploy: CoreDeploy) {
   deploy.verificationInput.push({
     name: 'UpdaterManager',
     address: deploy.contracts.updaterManager!.address,
-    constructorArguments: [deploy.config.updater],
+    constructorArguments: [deploy.updater],
   });
 }
 
@@ -60,10 +60,10 @@ export async function deployXAppConnectionManager(deploy: CoreDeploy) {
   const isTestDeploy: boolean = deploy.test;
   if (isTestDeploy) warn('deploying test XAppConnectionManager');
 
-  const deployer = deploy.deployer;
+  const signer = deploy.signer;
   const factory = isTestDeploy
-    ? new contracts.TestXAppConnectionManager__factory(deployer)
-    : new contracts.XAppConnectionManager__factory(deployer);
+    ? new contracts.TestXAppConnectionManager__factory(signer)
+    : new contracts.XAppConnectionManager__factory(signer);
 
   deploy.contracts.xAppConnectionManager = await factory.deploy(
     deploy.overrides,
@@ -101,7 +101,7 @@ export async function deployHome(deploy: CoreDeploy) {
   deploy.contracts.home = await proxyUtils.deployProxy<contracts.Home>(
     'Home',
     deploy,
-    new homeFactory(deploy.deployer),
+    new homeFactory(deploy.signer),
     initData,
     deploy.chain.domain,
   );
@@ -121,21 +121,20 @@ export async function deployGovernanceRouter(deploy: CoreDeploy) {
     : contracts.GovernanceRouter__factory;
 
   let { xAppConnectionManager } = deploy.contracts;
-  const recoveryManager = deploy.config.recoveryManager;
   const recoveryTimelock = deploy.config.recoveryTimelock;
 
   let initData = governanceRouter
     .createInterface()
     .encodeFunctionData('initialize', [
       xAppConnectionManager!.address,
-      recoveryManager,
+      deploy.recoveryManager,
     ]);
 
-  deploy.contracts.governance =
+  deploy.contracts.governanceRouter =
     await proxyUtils.deployProxy<contracts.GovernanceRouter>(
       'Governance',
       deploy,
-      new governanceRouter(deploy.deployer),
+      new governanceRouter(deploy.signer),
       initData,
       deploy.chain.domain,
       recoveryTimelock,
@@ -162,7 +161,7 @@ export async function deployUnenrolledReplica(
 
   let initData = replica.createInterface().encodeFunctionData('initialize', [
     remote.chain.domain,
-    remote.config.updater,
+    remote.updater,
     ethers.constants.HashZero, // TODO: allow configuration
     remote.config.optimisticSeconds,
   ]);
@@ -178,7 +177,7 @@ export async function deployUnenrolledReplica(
     proxy = await proxyUtils.deployProxy<contracts.Replica>(
       'Replica',
       local,
-      new replica(local.deployer),
+      new replica(local.signer),
       initData,
       local.chain.domain,
       local.config.processGas,
@@ -268,7 +267,7 @@ export async function deployOptics(deploy: CoreDeploy) {
  */
 export async function relinquish(deploy: CoreDeploy) {
   const isTestDeploy = deploy.test;
-  const govRouter = await deploy.contracts.governance!.proxy.address;
+  const govRouter = await deploy.contracts.governanceRouter!.proxy.address;
 
   log(isTestDeploy, `${deploy.chain.name}: Relinquishing control`);
   await deploy.contracts.updaterManager!.transferOwnership(
@@ -353,7 +352,7 @@ export async function enrollWatchers(left: CoreDeploy, right: CoreDeploy) {
   log(isTestDeploy, `${left.chain.name}: starting watcher enrollment`);
 
   await Promise.all(
-    left.config.watchers.map(async (watcher) => {
+    left.watchers.map(async (watcher) => {
       const tx =
         await left.contracts.xAppConnectionManager!.setWatcherPermission(
           watcher,
@@ -383,9 +382,9 @@ export async function enrollGovernanceRouter(
     isTestDeploy,
     `${local.chain.name}: starting enroll ${remote.chain.name} governance router`,
   );
-  let tx = await local.contracts.governance!.proxy.setRouter(
+  let tx = await local.contracts.governanceRouter!.proxy.setRouter(
     remote.chain.domain,
-    toBytes32(remote.contracts.governance!.proxy.address),
+    toBytes32(remote.contracts.governanceRouter!.proxy.address),
     local.overrides,
   );
   await tx.wait(local.chain.confirmations);
@@ -416,8 +415,8 @@ export async function enrollRemote(local: CoreDeploy, remote: CoreDeploy) {
  */
 export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
   log(gov.test, `${non.chain.name}: transferring governorship`);
-  let governorAddress = await gov.contracts.governance!.proxy.governor();
-  let tx = await non.contracts.governance!.proxy.transferGovernor(
+  let governorAddress = await gov.contracts.governanceRouter!.proxy.governor();
+  let tx = await non.contracts.governanceRouter!.proxy.transferGovernor(
     gov.chain.domain,
     governorAddress,
     non.overrides,
@@ -428,20 +427,21 @@ export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
 
 /**
  * Appints the intended ultimate governor in that domain's Governance Router.
- * If the governor address is not configured, it will remain the deployer
+ * If the governor address is not configured, it will remain the signer
  * address.
  * @param gov - The governor chain deploy instance
  */
 export async function appointGovernor(gov: CoreDeploy) {
-  let governor = gov.config.governor;
+  const domain = gov.chain.domain;
+  const governor = await gov.governorOrSigner();
   if (governor) {
     log(
       gov.test,
-      `${gov.chain.name}: transferring root governorship to ${governor.domain}:${governor.address}`,
+      `${gov.chain.name}: transferring root governorship to ${domain}:${governor}`,
     );
-    const tx = await gov.contracts.governance!.proxy.transferGovernor(
-      governor.domain,
-      governor.address,
+    const tx = await gov.contracts.governanceRouter!.proxy.transferGovernor(
+      domain,
+      governor,
       gov.overrides,
     );
     await tx.wait(gov.chain.confirmations);
@@ -463,14 +463,8 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   log(isTestDeploy, 'Beginning Two Chain deploy process');
   log(isTestDeploy, `Deploy env is ${gov.config.environment}`);
   log(isTestDeploy, `${gov.chain.name} is governing`);
-  log(
-    isTestDeploy,
-    `Updater for ${gov.chain.name} Home is ${gov.config.updater}`,
-  );
-  log(
-    isTestDeploy,
-    `Updater for ${non.chain.name} Home is ${non.config.updater}`,
-  );
+  log(isTestDeploy, `Updater for ${gov.chain.name} Home is ${gov.updater}`);
+  log(isTestDeploy, `Updater for ${non.chain.name} Home is ${non.updater}`);
 
   log(isTestDeploy, 'awaiting provider ready');
   await Promise.all([gov.ready(), non.ready()]);
@@ -498,8 +492,8 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
     enrollGovernanceRouter(non, gov),
   ]);
 
-  if (gov.config.governor) {
-    log(isTestDeploy, `appoint governor: ${gov.config.governor}`);
+  if (gov.governor) {
+    log(isTestDeploy, `appoint governor: ${gov.governor}`);
     await appointGovernor(gov);
   }
 
@@ -513,13 +507,15 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   checker.expectEmpty();
 
   if (!isTestDeploy) {
-    writeDeployOutput([gov, non]);
+    gov.writeDeployOutput();
+    non.writeDeployOutput();
+    writeRustConfigs([gov, non]);
   }
 }
 
 /**
  * Deploy the entire suite of Optics contracts
- * on each chain within the chainConfigs array
+ * on each chain within the chains array
  * including the upgradable Home, Replicas, and GovernanceRouter
  * that have been deployed, initialized, and configured
  * according to the deployOptics script
@@ -542,7 +538,7 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   deploys.forEach((deploy) => {
     log(
       isTestDeploy,
-      `Updater for ${deploy.chain.name} Home is ${deploy.config.updater}`,
+      `Updater for ${deploy.chain.name} Home is ${deploy.updater}`,
     );
   });
 
@@ -582,8 +578,8 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   }
 
   // appoint the configured governance account as governor
-  if (govChain.config.governor) {
-    log(isTestDeploy, `appoint governor: ${govChain.config.governor}`);
+  if (govChain.governor) {
+    log(isTestDeploy, `appoint governor: ${govChain.governor}`);
     await appointGovernor(govChain);
   }
 
@@ -598,18 +594,14 @@ export async function deployNChains(deploys: CoreDeploy[]) {
 
   // write config outputs
   if (!isTestDeploy) {
-    writeDeployOutput(deploys);
+    deploys.map((d) => d.writeDeployOutput());
+    writeRustConfigs(deploys);
   }
 
   // checks deploys are correct
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
   checker.expectEmpty();
-
-  // write config outputs again, should write under a different dir
-  if (!isTestDeploy) {
-    writeDeployOutput(deploys);
-  }
 }
 
 /**
@@ -638,7 +630,7 @@ export function writePartials(dir: string) {
  *
  * @param deploys - The array of chain deploys
  */
-export function writeDeployOutput(deploys: CoreDeploy[], writeDir?: string) {
+export function writeRustConfigs(deploys: CoreDeploy[], writeDir?: string) {
   log(deploys[0].test, `Have ${deploys.length} deploys`);
   const dir = writeDir ? writeDir : `../../rust/config/${Date.now()}`;
   for (const local of deploys) {
@@ -647,21 +639,13 @@ export function writeDeployOutput(deploys: CoreDeploy[], writeDir?: string) {
       .slice()
       .filter((remote) => remote.chain.domain !== local.chain.domain);
 
-    const config = CoreDeploy.buildConfig(local, remotes);
+    const rustConfig = CoreDeploy.buildRustConfig(local, remotes);
     const name = local.chain.name;
 
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(
       `${dir}/${name}_config.json`,
-      JSON.stringify(config, null, 2),
-    );
-    fs.writeFileSync(
-      `${dir}/${name}_contracts.json`,
-      JSON.stringify(local.contractOutput, null, 2),
-    );
-    fs.writeFileSync(
-      `${dir}/${name}_verification.json`,
-      JSON.stringify(local.verificationInput, null, 2),
+      JSON.stringify(rustConfig, null, 2),
     );
   }
   writePartials(dir);

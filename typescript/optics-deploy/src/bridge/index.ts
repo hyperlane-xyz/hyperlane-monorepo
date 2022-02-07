@@ -2,12 +2,8 @@ import * as proxyUtils from '../proxyUtils';
 import { BridgeInvariantChecker } from './checks';
 import * as xAppContracts from 'optics-ts-interface/dist/optics-xapps';
 import { toBytes32 } from '../utils';
-import fs from 'fs';
 import { BridgeDeploy } from './BridgeDeploy';
-import TestBridgeDeploy from './TestBridgeDeploy';
 import assert from 'assert';
-
-type Deploy = BridgeDeploy | TestBridgeDeploy;
 
 export type BridgeDeployOutput = {
   bridgeRouter?: string;
@@ -20,7 +16,7 @@ export type BridgeDeployOutput = {
  *
  * @param deploys - The list of deploy instances for each chain
  */
-export async function deployBridges(deploys: Deploy[]) {
+export async function deployBridges(deploys: BridgeDeploy[]) {
   const isTestDeploy: boolean = deploys.filter((c) => c.test).length > 0;
 
   // deploy BridgeTokens & BridgeRouters
@@ -57,7 +53,7 @@ export async function deployBridges(deploys: Deploy[]) {
   if (!isTestDeploy) {
     // output the Bridge deploy information to a subdirectory
     // of the core system deploy config folder
-    writeBridgeDeployOutput(deploys);
+    deploys.map((d) => d.writeOutput());
   }
 }
 
@@ -68,7 +64,7 @@ export async function deployBridges(deploys: Deploy[]) {
  *
  * @param deploy - The deploy instance
  */
-export async function deployTokenUpgradeBeacon(deploy: Deploy) {
+export async function deployTokenUpgradeBeacon(deploy: BridgeDeploy) {
   console.log(`deploying ${deploy.chain.name} Token Upgrade Beacon`);
 
   // no initialize function called
@@ -78,7 +74,7 @@ export async function deployTokenUpgradeBeacon(deploy: Deploy) {
     await proxyUtils.deployProxy<xAppContracts.BridgeToken>(
       'BridgeToken',
       deploy,
-      new xAppContracts.BridgeToken__factory(deploy.chain.deployer),
+      new xAppContracts.BridgeToken__factory(deploy.chain.signer),
       initData,
     );
 
@@ -91,7 +87,7 @@ export async function deployTokenUpgradeBeacon(deploy: Deploy) {
  *
  * @param deploy - The deploy instance
  */
-export async function deployBridgeRouter(deploy: Deploy) {
+export async function deployBridgeRouter(deploy: BridgeDeploy) {
   console.log(`deploying ${deploy.chain.name} BridgeRouter`);
 
   const initData =
@@ -107,7 +103,7 @@ export async function deployBridgeRouter(deploy: Deploy) {
     await proxyUtils.deployProxy<xAppContracts.BridgeRouter>(
       'BridgeRouter',
       deploy,
-      new xAppContracts.BridgeRouter__factory(deploy.chain.deployer),
+      new xAppContracts.BridgeRouter__factory(deploy.chain.signer),
       initData,
     );
 
@@ -130,18 +126,18 @@ export async function deployBridgeRouter(deploy: Deploy) {
  *
  * @param deploy - The deploy instance for the chain on which to deploy the contract
  */
-export async function deployEthHelper(deploy: Deploy) {
-  if (!deploy.config.weth) {
+export async function deployEthHelper(deploy: BridgeDeploy) {
+  if (!deploy.chain.weth) {
     console.log(`skipping ${deploy.chain.name} EthHelper deploy`);
     return;
   }
 
   console.log(`deploying ${deploy.chain.name} EthHelper`);
 
-  const factory = new xAppContracts.ETHHelper__factory(deploy.chain.deployer);
+  const factory = new xAppContracts.ETHHelper__factory(deploy.chain.signer);
 
   deploy.contracts.ethHelper = await factory.deploy(
-    deploy.config.weth!,
+    deploy.chain.weth!,
     deploy.contracts.bridgeRouter?.proxy.address!,
     deploy.overrides,
   );
@@ -153,7 +149,7 @@ export async function deployEthHelper(deploy: Deploy) {
     name: `ETH Helper`,
     address: deploy.contracts.ethHelper.address,
     constructorArguments: [
-      deploy.config.weth!,
+      deploy.chain.weth!,
       deploy.contracts.bridgeRouter?.proxy.address!,
     ],
   });
@@ -168,8 +164,8 @@ export async function deployEthHelper(deploy: Deploy) {
  * @param allDeploys - Array of all deploy instances for the Bridge deploy
  */
 export async function enrollAllBridgeRouters(
-  deploy: Deploy,
-  allDeploys: Deploy[],
+  deploy: BridgeDeploy,
+  allDeploys: BridgeDeploy[],
 ) {
   for (let remoteDeploy of allDeploys) {
     if (deploy.chain.domain != remoteDeploy.chain.domain) {
@@ -185,7 +181,10 @@ export async function enrollAllBridgeRouters(
  * @param local - The deploy instance for the chain on which to enroll the router
  * @param remote - The deploy instance for the chain to enroll on the local router
  */
-export async function enrollBridgeRouter(local: Deploy, remote: Deploy) {
+export async function enrollBridgeRouter(
+  local: BridgeDeploy,
+  remote: BridgeDeploy,
+) {
   console.log(
     `enrolling ${remote.chain.name} BridgeRouter on ${local.chain.name}`,
   );
@@ -209,48 +208,15 @@ export async function enrollBridgeRouter(local: Deploy, remote: Deploy) {
  *
  * @param deploy - The deploy instance for the chain
  */
-export async function transferOwnershipToGovernance(deploy: Deploy) {
+export async function transferOwnershipToGovernance(deploy: BridgeDeploy) {
   console.log(`transfer ownership of ${deploy.chain.name} BridgeRouter`);
 
   let tx = await deploy.contracts.bridgeRouter!.proxy.transferOwnership(
-    deploy.coreContractAddresses.governance.proxy,
+    deploy.coreContractAddresses.governanceRouter.proxy,
     deploy.overrides,
   );
 
   await tx.wait(deploy.chain.confirmations);
 
   console.log(`transferred ownership of ${deploy.chain.name} BridgeRouter`);
-}
-
-/**
- * Outputs the values for bridges that have been deployed.
- *
- * @param deploys - The array of bridge deploys
- */
-export function writeBridgeDeployOutput(deploys: Deploy[]) {
-  console.log(`Have ${deploys.length} bridge deploys`);
-  if (deploys.length == 0) {
-    return;
-  }
-
-  // ensure bridge directory exists within core deploy config folder
-  const root = `${deploys[0].coreDeployPath}/bridge`;
-  fs.mkdirSync(root, { recursive: true });
-
-  // create dir for this bridge deploy's outputs
-  const dir = `${root}/${Date.now()}`;
-  fs.mkdirSync(dir, { recursive: true });
-
-  // for each deploy, write contracts and verification inputs to file
-  for (const deploy of deploys) {
-    const name = deploy.chain.name;
-
-    const contracts = deploy.contracts.toJsonPretty();
-    fs.writeFileSync(`${dir}/${name}_contracts.json`, contracts);
-
-    fs.writeFileSync(
-      `${dir}/${name}_verification.json`,
-      JSON.stringify(deploy.verificationInput, null, 2),
-    );
-  }
 }
