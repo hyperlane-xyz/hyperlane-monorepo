@@ -10,10 +10,7 @@ async function main() {
   const coreDeploys = await Promise.all(
     chains.map(
       async (c) =>
-        new CoreDeploy(
-          await addDeployerGCPKey(environment, c),
-          core,
-        ),
+        new CoreDeploy(await addDeployerGCPKey(environment, c), core),
     ),
   );
   await deployNChains(coreDeploys);

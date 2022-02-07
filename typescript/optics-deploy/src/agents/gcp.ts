@@ -2,8 +2,6 @@ import { Wallet } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
 import { ChainConfig } from '../../src/config/chain';
-import { DeployEnvironment } from '../../src/deploy';
-import { CoreConfig } from '../../src/config/core';
 import { execCmd, include, strip0x } from '../utils';
 import { AgentKey } from './agent';
 
