@@ -1,5 +1,6 @@
 import { rm, writeFile } from 'fs/promises';
-import { ChainJson } from './chain';
+import { ChainName, ChainConfig } from './config/chain';
+import { AgentConfig } from './config/agent';
 import { ensure0x, execCmd, include, strip0x } from './utils';
 import {
   AgentGCPKey,
@@ -7,26 +8,6 @@ import {
   memoryKeyIdentifier,
 } from './agents/gcp';
 import { AgentAwsKey } from './agents/aws';
-
-export interface AgentConfig {
-  // Used to reference key names
-  environment: string;
-  // Kubernetes namespace
-  namespace: string;
-  // Directory name in rust/config/
-  runEnv: string;
-  awsRegion?: string;
-  awsKeyId?: string;
-  awsSecretAccessKey?: string;
-  processorIndexOnly?: string[];
-  processorS3Bucket?: string;
-  dockerImageRepo: string;
-  dockerImageTag: string;
-}
-
-export interface AgentChainConfigs {
-  [name: string]: ChainJson;
-}
 
 export enum KEY_ROLE_ENUM {
   UpdaterAttestation = 'updater-attestation',
@@ -55,19 +36,15 @@ export enum HelmCommand {
 }
 
 async function helmValuesForChain(
-  chainName: string,
+  chainName: ChainName,
   agentConfig: AgentConfig,
-  configs: AgentChainConfigs,
+  chains: ChainConfig[],
 ) {
   let gcpKeys: { [role: string]: AgentGCPKey } | undefined = undefined;
   try {
     gcpKeys = await fetchAgentGCPKeys(agentConfig.environment, chainName);
   } catch (error) {
-    if (
-      !agentConfig.awsRegion ||
-      !agentConfig.awsKeyId ||
-      !agentConfig.awsSecretAccessKey
-    ) {
+    if (!agentConfig.aws) {
       throw new Error("agents' keys are neither in GCP nor in AWS");
     }
   }
@@ -81,38 +58,38 @@ async function helmValuesForChain(
       return key.credentialsAsHelmValue;
     }
   };
-
+  const aws: any = {};
+  if (agentConfig.aws) {
+    aws.accessKeyId = agentConfig.aws.keyId;
+    aws.secretAccessKey = agentConfig.aws.secretAccessKey;
+  }
   return {
     image: {
-      repository: agentConfig.dockerImageRepo,
-      tag: agentConfig.dockerImageTag,
+      repository: agentConfig.docker.repo,
+      tag: agentConfig.docker.tag,
     },
     optics: {
       runEnv: agentConfig.runEnv,
       baseConfig: `${chainName}_config.json`,
       homeChain: {
         name: chainName,
-        connectionUrl: configs[chainName].rpc,
+        connectionUrl: chains.filter((_) => _.name === chainName)[0].json.rpc,
       },
       ...include(!gcpKeys, {
-        aws: {
-          accessKeyId: agentConfig.awsKeyId,
-          secretAccessKey: agentConfig.awsSecretAccessKey,
-        },
+        aws,
       }),
-      replicaChains: Object.keys(configs)
-        .filter((_) => _ !== chainName)
-        .map((replica) => {
-          const replicaConfig = configs[replica];
+      replicaChains: chains
+        .filter((_) => _.name !== chainName)
+        .map((remoteChain) => {
           return {
-            name: replica,
-            connectionUrl: replicaConfig.rpc,
+            name: remoteChain.name,
+            connectionUrl: remoteChain.json.rpc,
           };
         }),
       updater: {
         enabled: true,
-        transactionSigners: Object.keys(configs).map((chain) => ({
-          name: configs[chain].name,
+        transactionSigners: chains.map((chain) => ({
+          name: chain.name,
           ...credentials(KEY_ROLE_ENUM.UpdaterSigner),
         })),
         attestationSigner: {
@@ -121,19 +98,19 @@ async function helmValuesForChain(
       },
       relayer: {
         enabled: true,
-        transactionSigners: Object.keys(configs).map((chain) => ({
-          name: configs[chain].name,
+        transactionSigners: chains.map((chain) => ({
+          name: chain.name,
           ...credentials(KEY_ROLE_ENUM.RelayerSigner),
         })),
       },
       processor: {
         enabled: true,
-        transactionSigners: Object.keys(configs).map((chain) => ({
-          name: configs[chain].name,
+        transactionSigners: chains.map((chain) => ({
+          name: chain.name,
           ...credentials(KEY_ROLE_ENUM.ProcessorSigner),
         })),
-        indexonly: agentConfig.processorIndexOnly || [],
-        s3BucketName: agentConfig.processorS3Bucket || '',
+        indexonly: agentConfig.processor?.indexOnly || [],
+        s3BucketName: agentConfig.processor?.s3Bucket || '',
       },
     },
   };
@@ -156,12 +133,16 @@ function helmifyValues(config: any, prefix?: string): string[] {
 }
 
 export async function getAgentEnvVars(
-  home: string,
+  homeChainName: ChainName,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
-  configs: AgentChainConfigs,
+  chains: ChainConfig[],
 ) {
-  const valueDict = await helmValuesForChain(home, agentConfig, configs);
+  const valueDict = await helmValuesForChain(
+    homeChainName,
+    agentConfig,
+    chains,
+  );
   const envVars: string[] = [];
 
   // Base vars from config map
@@ -179,9 +160,12 @@ export async function getAgentEnvVars(
   });
 
   try {
-    const gcpKeys = await fetchAgentGCPKeys(agentConfig.environment, home);
+    const gcpKeys = await fetchAgentGCPKeys(
+      agentConfig.environment,
+      homeChainName,
+    );
     // Signer keys
-    Object.keys(configs).forEach((network) => {
+    Object.keys(chains).forEach((network) => {
       envVars.push(
         `OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(
           gcpKeys[role].privateKey,
@@ -193,7 +177,8 @@ export async function getAgentEnvVars(
     if (role.startsWith('updater')) {
       envVars.push(
         `OPT_BASE_UPDATER_KEY=${strip0x(
-          gcpKeys[home + '-' + KEY_ROLE_ENUM.UpdaterAttestation].privateKey,
+          gcpKeys[homeChainName + '-' + KEY_ROLE_ENUM.UpdaterAttestation]
+            .privateKey,
         )}`,
       );
     }
@@ -205,7 +190,7 @@ export async function getAgentEnvVars(
     );
 
     // Signers
-    Object.keys(configs).forEach((network) => {
+    Object.keys(chains).forEach((network) => {
       const key = new AgentAwsKey(agentConfig, role, network);
       envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`);
       envVars.push(
@@ -222,7 +207,7 @@ export async function getAgentEnvVars(
 
     // Updater attestation key
     if (role.startsWith('updater')) {
-      const key = new AgentAwsKey(agentConfig, role, home);
+      const key = new AgentAwsKey(agentConfig, role, homeChainName);
       envVars.push(`OPT_BASE_UPDATER_TYPE=aws`);
       envVars.push(
         `OPT_BASE_UPDATER_ID=${key.credentialsAsHelmValue.aws.keyId}`,
@@ -239,18 +224,18 @@ export async function getAgentEnvVars(
 export async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  homeConfig: ChainJson,
-  configs: AgentChainConfigs,
+  homeChainConfig: ChainConfig,
+  chains: ChainConfig[],
 ) {
   const valueDict = await helmValuesForChain(
-    homeConfig.name,
+    homeChainConfig.name,
     agentConfig,
-    configs,
+    chains,
   );
   const values = helmifyValues(valueDict);
   return execCmd(
     `helm ${action} ${
-      homeConfig.name
+      homeChainConfig.name
     } ../../rust/helm/optics-agent/ --namespace ${
       agentConfig.namespace
     } ${values.join(' ')}`,
@@ -263,42 +248,46 @@ export async function runAgentHelmCommand(
 export async function runKeymasterHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  configs: AgentChainConfigs,
+  chains: ChainConfig[],
 ) {
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
   const gcpKeys = await fetchAgentGCPKeys(
     agentConfig.environment,
-    configs[0].name,
+    chains[0].name,
   );
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
-    networks: mapPairs(configs, (home, chain) => {
-      return [
-        home,
-        {
-          endpoint: chain.rpc,
-          bank: {
-            signer: ensure0x(bankKey.privateKey),
-            address: bankKey.address,
+    networks: Object.fromEntries(
+      chains.map((chain) => {
+        return [
+          chain.name,
+          {
+            endpoint: chain.json.rpc,
+            bank: {
+              signer: ensure0x(bankKey.privateKey),
+              address: bankKey.address,
+            },
+            threshold: 200000000000000000,
           },
-          threshold: 200000000000000000,
-        },
-      ];
-    }),
-    homes: mapPairs(configs, (home, chain) => {
-      return [
-        home,
-        {
-          replicas: Object.keys(configs),
-          addresses: Object.fromEntries(
-            KEY_ROLES.filter((_) => _.endsWith('signer')).map((role) => [
-              role,
-              gcpKeys[role].address,
-            ]),
-          ),
-        },
-      ];
-    }),
+        ];
+      }),
+    ),
+    homes: Object.fromEntries(
+      chains.map((chain) => {
+        return [
+          chain.name,
+          {
+            replicas: chains.map((c) => c.name),
+            addresses: Object.fromEntries(
+              KEY_ROLES.filter((_) => _.endsWith('signer')).map((role) => [
+                role,
+                gcpKeys[role].address,
+              ]),
+            ),
+          },
+        ];
+      }),
+    ),
   };
 
   await writeFile(`config.json`, JSON.stringify(config));
@@ -312,11 +301,4 @@ export async function runKeymasterHelmCommand(
 
   await rm('config.json');
   return;
-}
-
-function mapPairs<V, R>(
-  dict: { [k: string]: V },
-  f: (key: string, value: V) => [string, R],
-) {
-  return Object.fromEntries(Object.keys(dict).map((key) => f(key, dict[key])));
 }

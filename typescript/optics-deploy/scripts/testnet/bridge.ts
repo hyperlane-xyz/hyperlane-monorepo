@@ -1,25 +1,12 @@
-import { getPathToLatestDeploy } from '../../src/verification/readDeployOutput';
 import { deployBridges } from '../../src/bridge';
-import * as alfajores from '../../config/testnets/alfajores';
-import * as gorli from '../../config/testnets/gorli';
-import * as kovan from '../../config/testnets/kovan';
-import * as ropsten from '../../config/testnets/ropsten';
 import { BridgeDeploy } from '../../src/bridge/BridgeDeploy';
+import { chains } from '../../config/environments/testnet/chains';
 
-// get the path to the latest core system deploy
-const path = getPathToLatestDeploy();
+const environment = 'testnet';
 
-const alfajoresDeploy = new BridgeDeploy(
-  alfajores.chain,
-  alfajores.bridgeConfig,
-  path,
-);
-const gorliDeploy = new BridgeDeploy(gorli.chain, gorli.bridgeConfig, path);
-const kovanDeploy = new BridgeDeploy(kovan.chain, kovan.bridgeConfig, path);
-const ropstenDeploy = new BridgeDeploy(
-  ropsten.chain,
-  ropsten.bridgeConfig,
-  path,
-);
+async function main() {
+  const deploys = chains.map((c) => new BridgeDeploy(c, environment));
+  await deployBridges(deploys);
+}
 
-deployBridges([alfajoresDeploy, gorliDeploy, kovanDeploy, ropstenDeploy]);
+main().then(console.log).catch(console.error);

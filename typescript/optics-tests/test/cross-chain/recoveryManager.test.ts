@@ -231,7 +231,7 @@ describe('RecoveryManager', async () => {
 
     await deployNChains(deploys);
 
-    governanceRouter = deploys[0].contracts.governance
+    governanceRouter = deploys[0].contracts.governanceRouter
       ?.proxy! as contracts.TestGovernanceRouter;
     home = deploys[0].contracts.home?.proxy! as contracts.TestHome;
     updaterManager = deploys[0].contracts.updaterManager!;

@@ -71,7 +71,7 @@ export function getPathToLatestConfig(
     'mainnet',
     'default',
   ],
-) {
+): string {
   // get the names of all non-default config directories within the relative configPath
   let configFolders: string[] = fs
     .readdirSync(configPath, { withFileTypes: true })

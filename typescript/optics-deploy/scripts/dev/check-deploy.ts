@@ -1,13 +1,10 @@
-import { CoreInvariantChecker } from '../../src/core/checks';
-import { configPath, networks } from './agentConfig';
 import { makeCoreDeploys } from '../../src/core/CoreDeploy';
+import { CoreInvariantChecker } from '../../src/core/checks';
+import { core } from '../../config/environments/dev/core';
+import { chains } from '../../config/environments/dev/chains';
 
-const coreDeploys = makeCoreDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.devConfig,
-);
+const environment = 'dev';
+const coreDeploys = makeCoreDeploys(environment, chains, core);
 
 async function check() {
   const checker = new CoreInvariantChecker(coreDeploys);

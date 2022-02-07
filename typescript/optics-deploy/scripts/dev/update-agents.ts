@@ -1,15 +1,10 @@
 import { HelmCommand, runAgentHelmCommand } from '../../src/agents';
-import { agentConfig, configs } from './agentConfig';
+import { chains } from '../../config/environments/dev/chains';
+import { agentConfig } from '../../config/environments/dev/agent';
 
 async function deploy() {
-  for (const config in configs) {
-    await runAgentHelmCommand(
-      HelmCommand.Upgrade,
-      agentConfig,
-      configs[config],
-      configs,
-    ),
-      { depth: null };
+  for (const chain of chains) {
+    await runAgentHelmCommand(HelmCommand.Upgrade, agentConfig, chain, chains);
   }
 }
 

@@ -114,8 +114,8 @@ describe('SimpleCrossChainMessage', async () => {
 
   it('Proves and processes a message on Replica', async () => {
     // get governance routers
-    const governorRouter = deploys[0].contracts.governance!.proxy;
-    const nonGovernorRouter = deploys[1].contracts.governance!.proxy;
+    const governorRouter = deploys[0].contracts.governanceRouter!.proxy;
+    const nonGovernorRouter = deploys[1].contracts.governanceRouter!.proxy;
 
     const replica = deploys[1].contracts.replicas[localDomain]
       .proxy as TestReplica;

@@ -1,17 +1,14 @@
 import { dev } from '@abacus-network/sdk';
+import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { ethers } from 'ethers';
-import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
-import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
+import { core } from '../../config/environments/dev/core';
+import { chains } from '../../config/environments/dev/chains';
 
-const deploys = makeCoreDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.devConfig,
-);
+const environment = 'dev';
+const coreDeploys = makeCoreDeploys(environment, chains, core);
 
 async function main() {
   dev.registerRpcProvider('alfajores', process.env.ALFAJORES_RPC!);
@@ -24,21 +21,21 @@ async function main() {
     new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!),
   );
 
-  const checker = new CoreInvariantChecker(deploys);
+  const checker = new CoreInvariantChecker(coreDeploys);
   await checker.checkDeploys();
   checker.expectViolations(
     [ViolationType.ReplicaUpdater, ViolationType.HomeUpdater],
     [4, 1],
   );
   const builder = new GovernanceCallBatchBuilder(
-    deploys,
+    coreDeploys,
     dev,
     checker.violations,
   );
   const batch = await builder.build();
 
   await batch.build();
-  const domains = deploys.map((deploy) => deploy.chain.domain);
+  const domains = coreDeploys.map((deploy) => deploy.chain.domain);
   // For each domain, expect one call to set the updater.
   expectCalls(batch, domains, new Array(5).fill(1));
   // Change to `batch.execute` in order to run.

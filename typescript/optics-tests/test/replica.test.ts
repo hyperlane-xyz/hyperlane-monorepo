@@ -67,7 +67,7 @@ describe('Replica', async () => {
   it('Cannot be initialized twice', async () => {
     let initData = replica.interface.encodeFunctionData('initialize', [
       deploys[0].chain.domain,
-      deploys[0].config.updater,
+      deploys[0].updater,
       ethers.constants.HashZero,
       deploys[0].config.optimisticSeconds,
     ]);

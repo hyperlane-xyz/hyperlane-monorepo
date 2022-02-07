@@ -1,18 +1,15 @@
 import { testnet } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
-import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
-import { makeCoreDeploys, CoreDeploy } from '../../src/core/CoreDeploy';
+import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
 import { Call } from '@abacus-network/sdk/dist/optics/govern';
+import { core } from '../../config/environments/testnet/core';
+import { chains } from '../../config/environments/testnet/chains';
 
-const deploys = makeCoreDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.testnetConfig,
-);
+const environment = 'testnet';
+const deploys = makeCoreDeploys(environment, chains, core);
 
 async function main() {
   testnet.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!);
@@ -34,7 +31,7 @@ async function main() {
   );
   const batch = await builder.build();
 
-  const domains = deploys.map((d: CoreDeploy) => d.chain.domain);
+  const domains = deploys.map((d) => d.chain.domain);
   for (const home of domains) {
     for (const remote of domains) {
       if (home === remote) continue;

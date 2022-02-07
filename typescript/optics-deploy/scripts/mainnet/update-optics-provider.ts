@@ -1,18 +1,11 @@
 import { updateProviderDomain } from '../../src/provider';
 import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { makeBridgeDeploys } from '../../src/bridge/BridgeDeploy';
-import { configPath, networks } from './agentConfig';
+import { core } from '../../config/environments/mainnet/core';
+import { chains } from '../../config/environments/mainnet/chains';
 
-const coreDeploys = makeCoreDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.config,
-);
-const bridgeDeploys = makeBridgeDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.bridgeConfig,
-);
-updateProviderDomain('mainnet', coreDeploys, bridgeDeploys);
+const environment = 'mainnet';
+const coreDeploys = makeCoreDeploys(environment, chains, core);
+const bridgeDeploys = makeBridgeDeploys(environment, chains);
+
+updateProviderDomain(environment, coreDeploys, bridgeDeploys);

@@ -1,11 +1,11 @@
 import { KEY_ROLE_ENUM } from '../../src/agents';
 import { AgentAwsKey } from '../../src/agents/aws';
-import { agentConfig } from './agentConfig';
+import { agentConfig } from '../../config/environments/testnet/agent';
 
 async function rotateKey() {
   const key = new AgentAwsKey(
     agentConfig,
-    KEY_ROLE_ENUM.ProcessorSigner,
+    KEY_ROLE_ENUM.UpdaterAttestation,
     'fantomtest',
   );
   await key.fetch();

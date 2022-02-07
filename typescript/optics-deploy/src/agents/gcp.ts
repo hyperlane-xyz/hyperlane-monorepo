@@ -1,8 +1,7 @@
 import { Wallet } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
-import { Chain, replaceDeployer } from '../chain';
-import { CoreConfig } from '../core/CoreDeploy';
+import { ChainConfig } from '../../src/config/chain';
 import { execCmd, include, strip0x } from '../utils';
 import { AgentKey } from './agent';
 
@@ -287,31 +286,13 @@ async function fetchGCPKeyAddresses(environment: string) {
 }
 
 // Modifies a Chain configuration with the deployer key pulled from GCP
-export async function addDeployerGCPKey(environment: string, chain: Chain) {
+export async function addDeployerGCPKey(
+  environment: string,
+  chain: ChainConfig,
+) {
   const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chain.name);
   await key.fetch();
   const deployerSecret = key.privateKey();
-  return replaceDeployer(chain, strip0x(deployerSecret));
-}
-
-// Modifies a Core configuration with the relevant watcher/updater addresses pulled from GCP
-export async function addAgentGCPAddresses(
-  environment: string,
-  chain: Chain,
-  config: CoreConfig,
-): Promise<CoreConfig> {
-  const addresses = await fetchGCPKeyAddresses(environment);
-  const watcher = addresses.find(
-    (_) => _.role === `${chain.name}-watcher-attestation`,
-  )!.address;
-  const updater = addresses.find(
-    (_) => _.role === `${chain.name}-updater-attestation`,
-  )!.address;
-  const deployer = addresses.find((_) => _.role === 'deployer')!.address;
-  return {
-    ...config,
-    updater: updater,
-    recoveryManager: deployer,
-    watchers: [watcher],
-  };
+  chain.replaceSigner(strip0x(deployerSecret));
+  return chain;
 }

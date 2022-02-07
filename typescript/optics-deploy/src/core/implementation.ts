@@ -1,6 +1,6 @@
 import * as proxyUtils from '../proxyUtils';
 import { CoreDeploy } from './CoreDeploy';
-import { writeDeployOutput } from './index';
+import { writeRustConfigs } from './index';
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { log, warn } from '../utils';
 
@@ -20,7 +20,8 @@ export class ImplementationDeployer {
   }
 
   writeDeploys(dir: string): void {
-    writeDeployOutput(this._deploys, dir);
+    this._deploys.map((d) => d.writeDeployOutput());
+    writeRustConfigs(this._deploys, dir);
   }
 
   /**
@@ -39,7 +40,7 @@ export class ImplementationDeployer {
       await proxyUtils.deployImplementation<contracts.Home>(
         'Home',
         deploy,
-        new homeFactory(deploy.deployer),
+        new homeFactory(deploy.signer),
         deploy.chain.domain,
       );
 
@@ -47,7 +48,7 @@ export class ImplementationDeployer {
       proxyUtils.overrideBeaconProxyImplementation<contracts.Home>(
         implementation,
         deploy,
-        new homeFactory(deploy.deployer),
+        new homeFactory(deploy.signer),
         deploy.contracts.home!,
       );
   }
@@ -68,7 +69,7 @@ export class ImplementationDeployer {
       await proxyUtils.deployImplementation<contracts.Replica>(
         'Replica',
         deploy,
-        new replicaFactory(deploy.deployer),
+        new replicaFactory(deploy.signer),
         deploy.chain.domain,
         deploy.config.processGas,
         deploy.config.reserveGas,
@@ -79,7 +80,7 @@ export class ImplementationDeployer {
         proxyUtils.overrideBeaconProxyImplementation<contracts.Replica>(
           implementation,
           deploy,
-          new replicaFactory(deploy.deployer),
+          new replicaFactory(deploy.signer),
           deploy.contracts.replicas[domain],
         );
     }

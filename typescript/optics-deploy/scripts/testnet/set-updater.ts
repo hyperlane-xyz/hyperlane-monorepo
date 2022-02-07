@@ -1,17 +1,14 @@
 import { testnet } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
-import { configPath, networks } from './agentConfig';
 import { ViolationType } from '../../src/checks';
 import { CoreInvariantChecker } from '../../src/core/checks';
-import { makeCoreDeploys } from '../../src/core/CoreDeploy';
 import { expectCalls, GovernanceCallBatchBuilder } from '../../src/core/govern';
+import { makeCoreDeploys } from '../../src/core/CoreDeploy';
+import { core } from '../../config/environments/testnet/core';
+import { chains } from '../../config/environments/testnet/chains';
 
-const deploys = makeCoreDeploys(
-  configPath,
-  networks,
-  (_) => _.chain,
-  (_) => _.testnetConfig,
-);
+const environment = 'testnet';
+const deploys = makeCoreDeploys(environment, chains, core);
 
 async function main() {
   testnet.registerRpcProvider('ropsten', process.env.ROPSTEN_RPC!);

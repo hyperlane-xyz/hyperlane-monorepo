@@ -1,6 +1,9 @@
 import { deleteAgentGCPKeys } from '../../src/agents/gcp';
-import { configs } from './agentConfig';
+import { chains } from '../../config/environments/dev/chains';
 
-deleteAgentGCPKeys('dev', Object.keys(configs))
+deleteAgentGCPKeys(
+  'dev',
+  chains.map((c) => c.name),
+)
   .then(console.log)
   .catch(console.error);

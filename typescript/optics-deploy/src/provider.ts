@@ -21,7 +21,7 @@ export const ${coreDeploy.chain.name}: OpticsDomain = {
         : ''
     }
   home: '${coreDeploy.contracts.home!.proxy.address}',
-  governanceRouter: '${coreDeploy.contracts.governance!.proxy.address}',
+  governanceRouter: '${coreDeploy.contracts.governanceRouter!.proxy.address}',
   xAppConnectionManager: '${
     coreDeploy.contracts.xAppConnectionManager!.address
   }',

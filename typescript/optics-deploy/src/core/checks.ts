@@ -31,7 +31,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
   checkContractsDefined(deploy: CoreDeploy): void {
     const contracts = deploy.contracts;
     expect(contracts.home).to.not.be.undefined;
-    expect(contracts.governance).to.not.be.undefined;
+    expect(contracts.governanceRouter).to.not.be.undefined;
     expect(contracts.upgradeBeaconController).to.not.be.undefined;
     expect(contracts.xAppConnectionManager).to.not.be.undefined;
     expect(contracts.updaterManager).to.not.be.undefined;
@@ -58,7 +58,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
 
     const actual = await home?.updater()!;
     expect(actual).to.not.be.undefined;
-    const expected = deploy.config.updater;
+    const expected = deploy.updater;
     if (actual !== expected) {
       const violation: HomeUpdaterViolation = {
         domain: deploy.chain.domain,
@@ -80,7 +80,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       const actualRemoteDomain = await replica.proxy.remoteDomain();
       expect(actualRemoteDomain).to.be.equal(domain);
       const actual = await replica.proxy.updater();
-      const expected = deploy.config.updater;
+      const expected = deploy.updater;
       if (actual !== expected) {
         const violation: ReplicaUpdaterViolation = {
           domain: remoteDeploy.chain.domain,
@@ -95,24 +95,26 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     const remoteDeploys = this._deploys.filter(
       (d) => d.chain.domain !== domain,
     );
-    await Promise.all(remoteDeploys.map(addReplicaUpdaterViolations));
-    // Check that all replicas on this domain share the same implementation and
-    // UpgradeBeacon.
-    const replicas = Object.values(deploy.contracts.replicas);
-    const implementations = replicas.map((r) => r.implementation.address);
-    const identical = (a: any, b: any) => (a === b ? a : false);
-    const upgradeBeacons = replicas.map((r) => r.beacon.address);
-    expect(implementations.reduce(identical)).to.not.be.false;
-    expect(upgradeBeacons.reduce(identical)).to.not.be.false;
+    if (remoteDeploys.length > 0) {
+      await Promise.all(remoteDeploys.map(addReplicaUpdaterViolations));
+      // Check that all replicas on this domain share the same implementation and
+      // UpgradeBeacon.
+      const replicas = Object.values(deploy.contracts.replicas);
+      const implementations = replicas.map((r) => r.implementation.address);
+      const identical = (a: any, b: any) => (a === b ? a : false);
+      const upgradeBeacons = replicas.map((r) => r.beacon.address);
+      expect(implementations.reduce(identical)).to.not.be.false;
+      expect(upgradeBeacons.reduce(identical)).to.not.be.false;
+    }
   }
 
   async checkGovernance(deploy: CoreDeploy): Promise<void> {
-    expect(deploy.contracts.governance).to.not.be.undefined;
+    expect(deploy.contracts.governanceRouter).to.not.be.undefined;
 
     // governanceRouter for each remote domain is registered
     const registeredRouters = await Promise.all(
       Object.keys(deploy.contracts.replicas).map((_) =>
-        deploy.contracts.governance?.proxy.routers(_),
+        deploy.contracts.governanceRouter?.proxy.routers(_),
       ),
     );
     registeredRouters.map((_) => expect(_).to.not.equal(emptyAddr));
@@ -120,8 +122,8 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     // governor is set on governor chain, empty on others
     // TODO: assert all governance routers have the same governor domain
     const governorDomain =
-      await deploy.contracts.governance?.proxy.governorDomain();
-    const gov = await deploy.contracts.governance?.proxy.governor();
+      await deploy.contracts.governanceRouter?.proxy.governorDomain();
+    const gov = await deploy.contracts.governanceRouter?.proxy.governor();
     const localDomain = await deploy.contracts.home?.proxy.localDomain();
     if (governorDomain == localDomain) {
       expect(gov).to.not.equal(emptyAddr);
@@ -139,7 +141,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       owners.push(_.proxy.owner()),
     );
 
-    const expectedOwner = deploy.contracts.governance?.proxy.address;
+    const expectedOwner = deploy.contracts.governanceRouter?.proxy.address;
     const actualOwners = await Promise.all(owners);
     actualOwners.map((_) => expect(_).to.equal(expectedOwner));
   }
@@ -153,7 +155,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       expect(enrolledReplica).to.not.equal(emptyAddr);
       //watchers have permission in xAppConnectionManager
       await Promise.all(
-        deploy.config.watchers.map(async (watcher) => {
+        deploy.watchers.map(async (watcher) => {
           const watcherPermissions =
             await deploy.contracts.xAppConnectionManager?.watcherPermission(
               watcher,
@@ -188,7 +190,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       inputs.push([`${name} Proxy`, contract.proxy]);
     };
     addInputsForUpgradableContract(contracts.home!, 'Home');
-    addInputsForUpgradableContract(contracts.governance!, 'Governance');
+    addInputsForUpgradableContract(contracts.governanceRouter!, 'Governance');
     for (const domain in contracts.replicas) {
       addInputsForUpgradableContract(contracts.replicas[domain], 'Replica');
     }
@@ -205,7 +207,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     await this.checkBeaconProxyImplementation(
       domain,
       'Governance',
-      contracts.governance!,
+      contracts.governanceRouter!,
     );
 
     await Promise.all(

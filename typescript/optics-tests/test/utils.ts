@@ -46,7 +46,7 @@ export class UpgradeTestHelpers {
 
     // deploy and set upgrade beacon
     const beaconFactory = new contracts.UpgradeBeacon__factory(
-      deploy.chain.deployer,
+      deploy.chain.signer,
     );
     const beacon = await beaconFactory.deploy(
       mysteryMathImplementation.address,
@@ -56,7 +56,7 @@ export class UpgradeTestHelpers {
 
     // deploy proxy
     let factory = new contracts.UpgradeBeaconProxy__factory(
-      deploy.chain.deployer,
+      deploy.chain.signer,
     );
     const upgradeBeaconProxy = await factory.deploy(beacon.address, [], {
       gasPrice: deploy.chain.gasPrice,

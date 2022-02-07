@@ -1,83 +1,76 @@
 import {
-  Chain,
-  ChainJson,
+  CoreConfigAddresses,
   CoreDeployAddresses,
-  DeployEnvironment,
-  RustConfig,
-  toChain,
-} from '../chain';
+} from '../../src/config/addresses';
+import { ChainConfig } from '../../src/config/chain';
+import { CoreConfig } from '../../src/config/core';
+import { RustConfig } from '../../src/config/agent';
 import { CoreContracts } from './CoreContracts';
-import { Deploy } from '../deploy';
-import { BigNumberish } from '@ethersproject/bignumber';
+import { Deploy, DeployEnvironment } from '../deploy';
 import { readFileSync } from 'fs';
 import { getVerificationInputFromDeploy } from '../verification/readDeployOutput';
+import fs from 'fs';
 import path from 'path';
 
 type Address = string;
 
-type Governor = {
-  domain: number;
-  address: Address;
-};
-
-export type CoreConfig = {
-  environment: DeployEnvironment;
-  updater: Address;
-  recoveryTimelock: number;
-  recoveryManager: Address;
-  optimisticSeconds: number;
-  watchers: string[];
-  governor?: Governor;
-  processGas: BigNumberish;
-  reserveGas: BigNumberish;
-};
-
 export class CoreDeploy extends Deploy<CoreContracts> {
   config: CoreConfig;
 
-  constructor(chain: Chain, config: CoreConfig, test: boolean = false) {
-    super(chain, new CoreContracts(), test);
+  constructor(chain: ChainConfig, config: CoreConfig, test: boolean = false) {
+    super(chain, new CoreContracts(), config.environment, test);
     this.config = config;
   }
 
-  get contractOutput(): CoreDeployAddresses {
-    let addresses: CoreDeployAddresses = {
+  get coreDeployAddresses(): CoreDeployAddresses {
+    return {
       ...this.contracts.toObject(),
-      recoveryManager: this.config.recoveryManager,
-      updater: this.config.updater,
+      recoveryManager: this.recoveryManager,
+      updater: this.updater,
+      governor: this.governor,
+      watchers: this.watchers,
     };
-    if (this.config.governor) {
-      addresses.governor = {
-        address: this.config.governor.address,
-        domain: this.chain.domain,
-      };
-    }
-    return addresses;
+  }
+
+  get coreConfigAddresses(): CoreConfigAddresses {
+    return this.config.addresses[this.chain.name]!;
   }
 
   get ubcAddress(): Address | undefined {
     return this.contracts.upgradeBeaconController?.address;
   }
 
-  async governor(): Promise<Address> {
-    return this.config.governor?.address ?? (await this.deployer.getAddress());
+  get updater(): Address {
+    return this.coreConfigAddresses.updater;
   }
 
-  static parseCoreConfig(config: ChainJson & CoreConfig): [Chain, CoreConfig] {
-    const chain = toChain(config);
-    return [
-      chain,
-      {
-        environment: config.environment,
-        updater: config.updater,
-        watchers: config.watchers ?? [],
-        recoveryManager: config.recoveryManager,
-        recoveryTimelock: config.recoveryTimelock,
-        optimisticSeconds: config.optimisticSeconds,
-        processGas: config.processGas ?? 850_000,
-        reserveGas: config.reserveGas ?? 15_000,
-      },
-    ];
+  get recoveryManager(): Address {
+    return this.coreConfigAddresses.recoveryManager;
+  }
+
+  get watchers(): Address[] {
+    return this.coreConfigAddresses.watchers;
+  }
+
+  get governor(): Address | undefined {
+    return this.coreConfigAddresses.governor;
+  }
+
+  async governorOrSigner(): Promise<Address> {
+    return this.governor ?? (await this.signer.getAddress());
+  }
+
+  writeDeployOutput() {
+    const dir = path.join(this.configPath, 'contracts');
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(
+      path.join(dir, `${this.chain.name}_contracts.json`),
+      JSON.stringify(this.coreDeployAddresses, null, 2),
+    );
+    fs.writeFileSync(
+      path.join(dir, `${this.chain.name}_verification.json`),
+      JSON.stringify(this.verificationInput, null, 2),
+    );
   }
 
   static toRustConfigs(deploys: CoreDeploy[]): RustConfig[] {
@@ -91,12 +84,12 @@ export class CoreDeploy extends Deploy<CoreContracts> {
         .filter((remote) => remote.chain.domain !== local.chain.domain);
 
       // build and add new config
-      configs.push(CoreDeploy.buildConfig(local, remotes));
+      configs.push(CoreDeploy.buildRustConfig(local, remotes));
     }
     return configs;
   }
 
-  static buildConfig(local: CoreDeploy, remotes: CoreDeploy[]): RustConfig {
+  static buildRustConfig(local: CoreDeploy, remotes: CoreDeploy[]): RustConfig {
     const home = {
       address: local.contracts.home!.proxy.address,
       domain: local.chain.domain.toString(),
@@ -141,14 +134,9 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     return rustConfig;
   }
 
-  static freshFromConfig(chainConfig: ChainJson & CoreConfig): CoreDeploy {
-    let [chain, config] = CoreDeploy.parseCoreConfig(chainConfig);
-    return new CoreDeploy(chain, config);
-  }
-
   static fromDirectory(
     directory: string,
-    chain: Chain,
+    chain: ChainConfig,
     config: CoreConfig,
     test: boolean = false,
   ): CoreDeploy {
@@ -161,24 +149,21 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     deploy.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
     deploy.verificationInput = getVerificationInputFromDeploy(
       directory,
-      chain.config.name,
+      chain.name,
     );
     return deploy;
   }
 }
 
-// The accessors is necessary as a network may have multiple core configs
-export function makeCoreDeploys<V>(
-  directory: string,
-  data: V[],
-  chainAccessor: (data: V) => Chain,
-  coreConfigAccessor: (data: V) => CoreConfig,
+export function makeCoreDeploys(
+  environment: DeployEnvironment,
+  chains: ChainConfig[],
+  core: CoreConfig,
 ): CoreDeploy[] {
-  return data.map((d: V) =>
-    CoreDeploy.fromDirectory(
-      directory,
-      chainAccessor(d),
-      coreConfigAccessor(d),
-    ),
+  const directory = path.join(
+    './config/environments',
+    environment,
+    'contracts',
   );
+  return chains.map((c) => CoreDeploy.fromDirectory(directory, c, core));
 }
