@@ -23,6 +23,7 @@ pub struct Pusher {
     region: Region,
     db: OpticsDB,
     client: S3Client,
+    message_leaf_index_gauge: prometheus::IntGauge,
 }
 
 impl std::fmt::Debug for Pusher {
@@ -37,7 +38,13 @@ impl std::fmt::Debug for Pusher {
 
 impl Pusher {
     /// Instantiate a new pusher with a region
-    pub fn new(name: &str, bucket: &str, region: Region, db: OpticsDB) -> Self {
+    pub fn new(
+        name: &str,
+        bucket: &str,
+        region: Region,
+        db: OpticsDB,
+        message_leaf_index_gauge: prometheus::IntGauge,
+    ) -> Self {
         let client = S3Client::new_with(
             HttpClient::new().unwrap(),
             EnvironmentProvider::default(),
@@ -49,6 +56,7 @@ impl Pusher {
             region,
             db,
             client,
+            message_leaf_index_gauge,
         }
     }
 
@@ -127,7 +135,7 @@ impl Pusher {
                         if !self.already_uploaded(&proven).await? {
                             self.upload_proof(&proven).await?;
                         }
-
+                        self.message_leaf_index_gauge.set(index as i64);
                         index += 1;
                     }
                     None => sleep(Duration::from_millis(500)).await,

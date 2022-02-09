@@ -139,8 +139,7 @@ pub trait OpticsAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
                 let indexer = &self.as_ref().indexer;
                 let sync_task =
                     self.home()
-                        .sync(indexer.from(), indexer.chunk_size(), block_height);
-
+                        .sync(indexer.from(), indexer.chunk_size(), block_height, None);
                 tasks.push(sync_task);
             }
 

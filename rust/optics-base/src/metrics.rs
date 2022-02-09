@@ -15,6 +15,7 @@ pub struct CoreMetrics {
     wallet_balance: Box<IntGaugeVec>,
     rpc_latencies: Box<HistogramVec>,
     span_durations: Box<HistogramVec>,
+    last_known_message_leaf_index: Box<IntGaugeVec>,
     listen_port: Option<u16>,
     /// Metrics registry for adding new metrics and gathering reports
     registry: Arc<Registry>,
@@ -65,6 +66,17 @@ impl CoreMetrics {
                 .const_label("VERSION", env!("CARGO_PKG_VERSION")),
                 &["span_name", "target"],
             )?),
+            last_known_message_leaf_index: Box::new(IntGaugeVec::new(
+                Opts::new(
+                    "last_known_message_leaf_index
+                    ",
+                    "The latest known message leaf index",
+                )
+                .namespace("optics")
+                .const_label("VERSION", env!("CARGO_PKG_VERSION")),
+                // "remote is unknown where remote is unavailable"
+                &["phase", "origin", "remote"],
+            )?),
             registry,
             listen_port,
         };
@@ -75,6 +87,9 @@ impl CoreMetrics {
         metrics.registry.register(metrics.wallet_balance.clone())?;
         metrics.registry.register(metrics.rpc_latencies.clone())?;
         metrics.registry.register(metrics.span_durations.clone())?;
+        metrics
+            .registry
+            .register(metrics.last_known_message_leaf_index.clone())?;
 
         Ok(metrics)
     }
@@ -137,6 +152,11 @@ impl CoreMetrics {
         self.rpc_latencies
             .with_label_values(&[chain, method, &self.agent_name])
             .observe(duration_ms)
+    }
+
+    /// Gauge for measuing the last known message leaf index
+    pub fn last_known_message_leaf_index(&self) -> IntGaugeVec {
+        *self.last_known_message_leaf_index.clone()
     }
 
     /// Histogram for measuring span durations.
