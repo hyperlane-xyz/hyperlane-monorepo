@@ -151,7 +151,9 @@ where
 
             // Set the metrics with the latest known leaf index
             if let Ok(Some(idx)) = db.retrieve_latest_leaf_index() {
-                indexed_message_leaf.as_ref().map(|gauge| gauge.set(idx as i64));
+                if let Some(gauge) = indexed_message_leaf.as_ref() {
+                    gauge.set(idx as i64);
+                }
             }
 
             loop {
@@ -181,7 +183,10 @@ where
                         &committed_message.message.destination,
                         &committed_message.message.nonce
                     );
-                    indexed_message_leaf.as_ref().map(|gauge| gauge.set(committed_message.leaf_index as i64));
+
+                    if let Some(gauge) = indexed_message_leaf.as_ref() {
+                        gauge.set(committed_message.leaf_index as i64);
+                    }
                 }
 
                 db
