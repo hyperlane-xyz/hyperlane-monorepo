@@ -159,6 +159,7 @@ export async function getAgentEnvVars(
       }`,
     );
   });
+  envVars.push(`OPT_BASE_METRICS=9090`);
 
   try {
     const gcpKeys = await fetchAgentGCPKeys(
