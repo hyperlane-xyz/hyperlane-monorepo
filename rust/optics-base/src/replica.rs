@@ -58,7 +58,7 @@ impl CachingReplica {
         from_height: u32,
         chunk_size: u32,
         indexed_height: prometheus::IntGauge,
-        indexed_message_leaf_index: Option<prometheus:: IntGauge>,
+        indexed_message_leaf_index: Option<prometheus::IntGauge>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("ReplicaContractSync", self = %self);
 

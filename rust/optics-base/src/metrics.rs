@@ -68,8 +68,7 @@ impl CoreMetrics {
             )?),
             last_known_message_leaf_index: Box::new(IntGaugeVec::new(
                 Opts::new(
-                    "last_known_message_leaf_index
-                    ",
+                    "last_known_message_leaf_index",
                     "The latest known message leaf index",
                 )
                 .namespace("optics")

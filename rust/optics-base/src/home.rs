@@ -66,7 +66,7 @@ impl CachingHome {
             from_height,
             chunk_size,
             indexed_height,
-            indexed_message_leaf_index
+            indexed_message_leaf_index,
         );
 
         tokio::spawn(async move {
