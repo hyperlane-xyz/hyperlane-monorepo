@@ -26,6 +26,7 @@ pub struct ContractSync<I> {
     from_height: u32,
     chunk_size: u32,
     indexed_height: prometheus::IntGauge,
+    indexed_message_leaf: Option<prometheus::IntGauge>,
 }
 
 impl<I> ContractSync<I>
@@ -40,6 +41,7 @@ where
         from_height: u32,
         chunk_size: u32,
         indexed_height: prometheus::IntGauge,
+        indexed_message_leaf: Option<prometheus::IntGauge>,
     ) -> Self {
         Self {
             db,
@@ -48,6 +50,7 @@ where
             from_height,
             chunk_size,
             indexed_height,
+            indexed_message_leaf,
         }
     }
 
@@ -130,6 +133,7 @@ where
         let db = self.db.clone();
         let indexer = self.indexer.clone();
         let indexed_height = self.indexed_height.clone();
+        let indexed_message_leaf = self.indexed_message_leaf.clone();
 
         let from_height = self.from_height;
         let chunk_size = self.chunk_size;
@@ -143,6 +147,14 @@ where
                 next_height = next_height,
                 "resuming indexer from {}", next_height
             );
+
+
+            // Set the metrics with the latest known leaf index
+            if let Ok(Some(idx)) = db.retrieve_latest_leaf_index() {
+                if let Some(gauge) = indexed_message_leaf.as_ref() {
+                    gauge.set(idx as i64);
+                }
+            }
 
             loop {
                 indexed_height.set(next_height as i64);
@@ -171,6 +183,10 @@ where
                         &committed_message.message.destination,
                         &committed_message.message.nonce
                     );
+
+                    if let Some(gauge) = indexed_message_leaf.as_ref() {
+                        gauge.set(committed_message.leaf_index as i64);
+                    }
                 }
 
                 db

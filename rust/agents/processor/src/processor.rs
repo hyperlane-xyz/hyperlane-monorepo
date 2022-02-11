@@ -44,6 +44,7 @@ pub(crate) struct Replica {
     allowed: Option<Arc<HashSet<H256>>>,
     denied: Option<Arc<HashSet<H256>>>,
     next_message_nonce: Arc<prometheus::IntGaugeVec>,
+    message_leaf_index_gauge: prometheus::IntGauge,
 }
 
 impl std::fmt::Display for Replica {
@@ -92,6 +93,9 @@ impl Replica {
                     replica_domain,
                     next_message_nonce
                 );
+
+                let last_processed_message_leaf = self.get_last_processed_message_leaf(replica_domain, next_message_nonce).await;
+                self.message_leaf_index_gauge.set(last_processed_message_leaf);
 
                 loop {
                     let seq_span = tracing::trace_span!(
@@ -142,6 +146,19 @@ impl Replica {
             }
             .in_current_span(),
         )
+    }
+
+    // Attempt to get the leaf index of the previously processed message
+    async fn get_last_processed_message_leaf(&self, domain: u32, next_nonce: u32) -> i64 {
+        if next_nonce == 0 {
+            return 0;
+        }
+
+        match self.home.message_by_nonce(domain, next_nonce - 1).await {
+            Ok(Some(m)) => m.leaf_index as i64,
+            Ok(None) => 0,
+            Err(_) => 0,
+        }
     }
 
     /// Attempt to process a message.
@@ -238,11 +255,14 @@ impl Replica {
             nonce
         );
 
+        let leaf_index = message.leaf_index;
         let process_outcome = self.process(message, proof).await;
         match process_outcome {
             Ok(()) => (),
             Err(_) => return Ok(Flow::Repeat),
         }
+
+        self.message_leaf_index_gauge.set(leaf_index as i64);
 
         Ok(Flow::Advance)
     }
@@ -370,6 +390,11 @@ impl OpticsAgent for Processor {
     fn run(&self, name: &str) -> Instrumented<JoinHandle<Result<()>>> {
         let home = self.home();
         let next_message_nonce = self.next_message_nonce.clone();
+        let message_leaf_index_gauge = self
+            .core
+            .metrics
+            .last_known_message_leaf_index()
+            .with_label_values(&["process", self.home().name(), name]);
         let interval = self.interval;
         let db = OpticsDB::new(home.name(), self.db());
 
@@ -390,6 +415,7 @@ impl OpticsAgent for Processor {
                 allowed,
                 denied,
                 next_message_nonce,
+                message_leaf_index_gauge,
             }
             .main()
             .await?
@@ -423,9 +449,17 @@ impl OpticsAgent for Processor {
                 .expect("failed to register block_height metric")
                 .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
             let indexer = &self.as_ref().indexer;
-            let home_sync_task =
-                self.home()
-                    .sync(indexer.from(), indexer.chunk_size(), block_height);
+            let home_sync_task = self.home().sync(
+                indexer.from(),
+                indexer.chunk_size(),
+                block_height,
+                Some(
+                    self.as_ref()
+                        .metrics
+                        .last_known_message_leaf_index()
+                        .with_label_values(&["dispatch", self.home().name(), "unknown"]),
+                ),
+            );
 
             info!("started indexer and sync");
 
@@ -455,6 +489,10 @@ impl OpticsAgent for Processor {
                         &config.bucket,
                         config.region.parse().expect("invalid s3 region"),
                         db.clone(),
+                        self.core
+                            .metrics
+                            .last_known_message_leaf_index()
+                            .with_label_values(&["proving", self.core.home.name(), "unknown"]),
                     )
                     .spawn(),
                 )

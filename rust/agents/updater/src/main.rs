@@ -54,7 +54,7 @@ async fn _main() -> Result<()> {
 
     let sync_task = agent
         .home()
-        .sync(indexer.from(), indexer.chunk_size(), block_height);
+        .sync(indexer.from(), indexer.chunk_size(), block_height, None);
     let run_task = agent.run("");
 
     let futs = vec![sync_task, run_task];
