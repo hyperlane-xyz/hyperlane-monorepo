@@ -1,6 +1,6 @@
 import { HelmCommand, runAgentHelmCommand } from '../../src/agents';
-import { chains } from '../../config/environments/dev/chains';
-import { agentConfig } from '../../config/environments/dev/agent';
+import { chains } from '../../config/environments/testnet/chains';
+import { agentConfig } from '../../config/environments/testnet/agent';
 
 async function deploy() {
   for (const chain of chains) {
