@@ -1,4 +1,4 @@
-import { HelmChartRepositoryConfig } from './config/infrastructure';
+import { HelmChartRepositoryConfig } from '../config/infrastructure';
 import { execCmd } from './utils';
 
 export function helmifyValues(config: any, prefix?: string): string[] {

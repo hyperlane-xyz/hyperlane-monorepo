@@ -1,8 +1,8 @@
 import { rm, writeFile } from 'fs/promises';
 import { ChainName, ChainConfig } from './config/chain';
 import { AgentConfig } from './config/agent';
-import { helmifyValues } from './helmUtils';
-import { ensure0x, execCmd, include, strip0x } from './utils';
+import { helmifyValues } from './utils/helm';
+import { ensure0x, execCmd, include, strip0x } from './utils/utils';
 import {
   AgentGCPKey,
   fetchAgentGCPKeys,

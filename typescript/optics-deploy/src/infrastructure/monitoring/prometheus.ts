@@ -1,8 +1,9 @@
 import { HelmCommand } from '../../agents';
 import { InfrastructureConfig } from '../../config/infrastructure';
-import { fetchGCPSecret } from '../../gcloudUtils';
-import { addHelmRepoIfNotExists, helmifyValues } from '../../helmUtils';
-import { execCmd } from '../../utils';
+import { fetchGCPSecret } from '../../utils/gcloud';
+import { addHelmRepoIfNotExists, helmifyValues } from '../../utils/helm';
+import { createNamespaceIfNotExists } from '../../utils/kubectl';
+import { execCmd } from '../../utils/utils';
 
 interface PrometheusSecrets {
   remote_write_uri: string,
@@ -90,8 +91,4 @@ async function getPrometheusConfig(infraConfig: InfrastructureConfig, environmen
 async function fetchPrometheusSecrets(): Promise<PrometheusSecrets> {
   const secrets = await fetchGCPSecret('optics-prometheus-remote_write_config')
   return secrets as PrometheusSecrets
-}
-
-export async function createNamespaceIfNotExists(namespace: string) {
-  await execCmd(`kubectl get namespace ${namespace} >/dev/null 2>&1 || kubectl create namespace ${namespace}`)
 }
