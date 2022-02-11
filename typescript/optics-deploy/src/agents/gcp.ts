@@ -105,7 +105,9 @@ export class AgentGCPKey extends AgentKey {
   }
 
   async fetch() {
-    const secret: SecretManagerPersistedKeys = await fetchGCPSecret(this.identifier);
+    const secret: SecretManagerPersistedKeys = await fetchGCPSecret(
+      this.identifier,
+    );
     this.remoteKey = {
       fetched: true,
       privateKey: secret.privateKey,
@@ -276,7 +278,7 @@ export async function fetchAgentGCPKeys(
 }
 
 async function fetchGCPKeyAddresses(environment: string) {
-  const addresses = await fetchGCPSecret(`optics-key-${environment}-addresses`)
+  const addresses = await fetchGCPSecret(`optics-key-${environment}-addresses`);
   return addresses as KeyAsAddress[];
 }
 

@@ -17,7 +17,9 @@ export function helmifyValues(config: any, prefix?: string): string[] {
   });
 }
 
-export async function addHelmRepoIfNotExists(repoConfig: HelmChartRepositoryConfig) {
+export async function addHelmRepoIfNotExists(
+  repoConfig: HelmChartRepositoryConfig,
+) {
   const helmRepos = await listHelmRepos();
   // Note this only finds matches based off the name - URL differences are
   // not handled
@@ -38,7 +40,9 @@ export async function addHelmRepoIfNotExists(repoConfig: HelmChartRepositoryConf
 }
 
 function addHelmRepo(repoConfig: HelmChartRepositoryConfig) {
-  return execCmd(`helm repo add ${repoConfig.name} ${repoConfig.url} && helm repo update`);
+  return execCmd(
+    `helm repo add ${repoConfig.name} ${repoConfig.url} && helm repo update`,
+  );
 }
 
 function removeHelmRepo(repoName: string) {
