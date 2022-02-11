@@ -6,9 +6,9 @@ import { createNamespaceIfNotExists } from '../../utils/kubectl';
 import { execCmd } from '../../utils/utils';
 
 interface PrometheusSecrets {
-  remote_write_uri: string,
-  remote_write_username: string,
-  remote_write_password: string,
+  remote_write_uri: string;
+  remote_write_username: string;
+  remote_write_password: string;
 }
 
 export async function runPrometheusHelmCommand(
@@ -21,6 +21,7 @@ export async function runPrometheusHelmCommand(
 
   // Prometheus's helm chart requires a repository to be added
   await addHelmRepoIfNotExists(infraConfig.monitoring.prometheus.helmChart.repository!);
+  // The name passed in must be in the form `repo/chartName`
   const helmChartName = `${
     infraConfig.monitoring.prometheus.helmChart.repository!.name
   }/${

@@ -29,4 +29,4 @@ interface MonitoringConfig {
 export interface InfrastructureConfig {
   kubernetes: KubernetesConfig;
   monitoring: MonitoringConfig;
-};
+}
