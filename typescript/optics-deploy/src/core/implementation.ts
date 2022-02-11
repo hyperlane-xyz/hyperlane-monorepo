@@ -1,4 +1,4 @@
-import * as proxyUtils from '../utils/proxyUtils';
+import * as proxyUtils from '../utils/proxy';
 import { CoreDeploy } from './CoreDeploy';
 import { writeRustConfigs } from './index';
 import * as contracts from 'optics-ts-interface/dist/optics-core';

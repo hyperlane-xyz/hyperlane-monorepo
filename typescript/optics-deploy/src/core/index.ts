@@ -2,7 +2,7 @@ import * as ethers from 'ethers';
 import { assert } from 'console';
 import fs from 'fs';
 
-import * as proxyUtils from '../utils/proxyUtils';
+import * as proxyUtils from '../utils/proxy';
 import { CoreDeploy } from './CoreDeploy';
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { CoreInvariantChecker } from './checks';

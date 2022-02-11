@@ -2,8 +2,9 @@ import { Wallet } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
 import { ChainConfig } from '../../src/config/chain';
-import { execCmd, include, strip0x } from '../utils';
+import { execCmd, include, strip0x } from '../utils/utils';
 import { AgentKey } from './agent';
+import { fetchGCPSecret } from '../utils/gcloud';
 
 function isAttestationKey(role: string) {
   return role.endsWith('attestation');
@@ -104,10 +105,7 @@ export class AgentGCPKey extends AgentKey {
   }
 
   async fetch() {
-    const [secretRaw] = await execCmd(
-      `gcloud secrets versions access latest --secret ${this.identifier}`,
-    );
-    const secret: SecretManagerPersistedKeys = JSON.parse(secretRaw);
+    const secret: SecretManagerPersistedKeys = await fetchGCPSecret(this.identifier);
     this.remoteKey = {
       fetched: true,
       privateKey: secret.privateKey,
@@ -278,10 +276,7 @@ export async function fetchAgentGCPKeys(
 }
 
 async function fetchGCPKeyAddresses(environment: string) {
-  const [addressesRaw] = await execCmd(
-    `gcloud secrets versions access latest --secret optics-key-${environment}-addresses`,
-  );
-  const addresses = JSON.parse(addressesRaw);
+  const addresses = await fetchGCPSecret(`optics-key-${environment}-addresses`)
   return addresses as KeyAsAddress[];
 }
 

@@ -1,4 +1,4 @@
-import * as proxyUtils from '../utils/proxyUtils';
+import * as proxyUtils from '../utils/proxy';
 import { BridgeInvariantChecker } from './checks';
 import * as xAppContracts from 'optics-ts-interface/dist/optics-xapps';
 import { toBytes32 } from '../utils/utils';

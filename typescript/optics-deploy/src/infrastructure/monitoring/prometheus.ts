@@ -28,7 +28,6 @@ export async function runPrometheusHelmCommand(
   }`;
 
   const values = await getPrometheusHelmChartValues(infraConfig, environment);
-  
 
   return execCmd(
     `helm ${action} ${

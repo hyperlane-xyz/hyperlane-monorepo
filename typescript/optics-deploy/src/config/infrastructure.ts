@@ -1,6 +1,5 @@
 interface KubernetesConfig {
   clusterName: string;
-  context: string;
 }
 
 export interface HelmChartRepositoryConfig {
@@ -21,6 +20,7 @@ interface PrometheusConfig {
 }
 
 interface MonitoringConfig {
+  // Namespace where all monitoring resources live
   namespace: string;
   prometheus: PrometheusConfig;
 }

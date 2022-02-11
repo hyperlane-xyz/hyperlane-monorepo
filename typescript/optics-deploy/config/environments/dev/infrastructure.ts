@@ -1,7 +1,6 @@
 export const infrastructure = {
     kubernetes: {
         clusterName: 'optics-dev',
-        context: 'optics-dev',
     },
     monitoring: {
         namespace: 'monitoring',
