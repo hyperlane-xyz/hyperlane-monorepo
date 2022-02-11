@@ -1,5 +1,5 @@
 import * as contracts from 'optics-ts-interface/dist/optics-core';
-import { BeaconProxy } from '../proxyUtils';
+import { BeaconProxy } from '../utils/proxy';
 import { Contracts } from '../contracts';
 import {
   CoreContractAddresses,

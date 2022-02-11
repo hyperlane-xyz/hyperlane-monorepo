@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { BridgeDeploy } from './BridgeDeploy';
 import { VerificationInput, InvariantChecker } from '../checks';
-import { BeaconProxy } from '../proxyUtils';
+import { BeaconProxy } from '../utils/proxy';
 
 const emptyAddr = '0x' + '00'.repeat(32);
 

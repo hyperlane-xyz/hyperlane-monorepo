@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { Deploy } from './deploy';
-import { ProxyNames, BeaconProxy } from './proxyUtils';
+import { ProxyNames, BeaconProxy } from './utils/proxy';
 
 export enum ViolationType {
   UpgradeBeacon = 'UpgradeBeacon',

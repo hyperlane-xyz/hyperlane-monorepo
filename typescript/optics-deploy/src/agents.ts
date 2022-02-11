@@ -1,7 +1,8 @@
 import { rm, writeFile } from 'fs/promises';
 import { ChainName, ChainConfig } from './config/chain';
 import { AgentConfig } from './config/agent';
-import { ensure0x, execCmd, include, strip0x } from './utils';
+import { helmifyValues } from './utils/helm';
+import { ensure0x, execCmd, include, strip0x } from './utils/utils';
 import {
   AgentGCPKey,
   fetchAgentGCPKeys,
@@ -115,22 +116,6 @@ async function helmValuesForChain(
       },
     },
   };
-}
-
-function helmifyValues(config: any, prefix?: string): string[] {
-  if (typeof config !== 'object') {
-    return [`--set ${prefix}=${JSON.stringify(config)}`];
-  }
-
-  if (config.flatMap) {
-    return config.flatMap((value: any, index: number) => {
-      return helmifyValues(value, `${prefix}[${index}]`);
-    });
-  }
-  return Object.keys(config).flatMap((key) => {
-    const value = config[key];
-    return helmifyValues(value, prefix ? `${prefix}.${key}` : key);
-  });
 }
 
 export async function getAgentEnvVars(
