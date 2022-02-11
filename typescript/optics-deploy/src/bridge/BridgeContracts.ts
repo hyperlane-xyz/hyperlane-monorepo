@@ -1,7 +1,7 @@
 import * as xAppContracts from 'optics-ts-interface/dist/optics-xapps';
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { BridgeContractAddresses } from '../../src/config/addresses';
-import { BeaconProxy } from '../proxyUtils';
+import { BeaconProxy } from '../utils/proxy';
 import { Contracts } from '../contracts';
 import * as ethers from 'ethers';
 

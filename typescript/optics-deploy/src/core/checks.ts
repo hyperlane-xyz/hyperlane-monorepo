@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { BeaconProxy } from '../proxyUtils';
+import { BeaconProxy } from '../utils/proxy';
 import { CoreDeploy } from './CoreDeploy';
 import {
   VerificationInput,
