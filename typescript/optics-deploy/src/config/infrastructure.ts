@@ -16,6 +16,7 @@ interface HelmChartConfig {
 
 interface PrometheusConfig {
   deployName: string;
+  nodeExporterEnabled: boolean;
   helmChart: HelmChartConfig;
 }
 

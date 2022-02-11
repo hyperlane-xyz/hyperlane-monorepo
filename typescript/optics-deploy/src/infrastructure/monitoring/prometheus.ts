@@ -80,7 +80,7 @@ async function getPrometheusConfig(infraConfig: InfrastructureConfig, environmen
       ]
     },
     nodeExporter: {
-      enabled: false,
+      enabled: infraConfig.monitoring.prometheus.nodeExporterEnabled,
     }
   }
 }
