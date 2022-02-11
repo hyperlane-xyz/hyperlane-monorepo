@@ -2,11 +2,11 @@ import * as ethers from 'ethers';
 import { assert } from 'console';
 import fs from 'fs';
 
-import * as proxyUtils from '../proxyUtils';
+import * as proxyUtils from '../utils/proxy';
 import { CoreDeploy } from './CoreDeploy';
 import * as contracts from 'optics-ts-interface/dist/optics-core';
 import { CoreInvariantChecker } from './checks';
-import { log, warn, toBytes32 } from '../utils';
+import { log, warn, toBytes32 } from '../utils/utils';
 
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
   let factory = new contracts.UpgradeBeaconController__factory(deploy.signer);

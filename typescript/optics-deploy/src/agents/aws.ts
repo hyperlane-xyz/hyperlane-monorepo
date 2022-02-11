@@ -12,7 +12,7 @@ import {
   OriginType,
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
-import { getEthereumAddress } from '../utils';
+import { getEthereumAddress } from '../utils/utils';
 import { AgentKey } from './agent';
 
 interface UnfetchedKey {
