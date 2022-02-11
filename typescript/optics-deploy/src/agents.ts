@@ -34,6 +34,7 @@ export const KEY_ROLES = [
 export enum HelmCommand {
   Install = 'install',
   Upgrade = 'upgrade',
+  UpgradeDiff = 'template --debug',
 }
 
 async function helmValuesForChain(
@@ -143,6 +144,7 @@ export async function getAgentEnvVars(
       }`,
     );
   });
+  envVars.push(`OPT_BASE_METRICS=9090`);
 
   try {
     const gcpKeys = await fetchAgentGCPKeys(
@@ -218,12 +220,18 @@ export async function runAgentHelmCommand(
     chains,
   );
   const values = helmifyValues(valueDict);
+
+  const extraPipe =
+    action === HelmCommand.UpgradeDiff
+      ? ` | kubectl diff -n ${agentConfig.namespace} --field-manager="Go-http-client" -f - || true`
+      : '';
+
   return execCmd(
     `helm ${action} ${
       homeChainConfig.name
     } ../../rust/helm/optics-agent/ --namespace ${
       agentConfig.namespace
-    } ${values.join(' ')}`,
+    } ${values.join(' ')} ${extraPipe}`,
     {},
     false,
     true,
