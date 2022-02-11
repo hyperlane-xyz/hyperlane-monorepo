@@ -155,9 +155,9 @@ impl Replica {
         }
 
         match self.home.message_by_nonce(domain, next_nonce - 1).await {
-            Ok(Some(m)) => return m.leaf_index as i64,
-            Ok(None) => return 0,
-            Err(_) => return 0,
+            Ok(Some(m)) => m.leaf_index as i64,
+            Ok(None) => 0,
+            Err(_) => 0,
         }
     }
 
