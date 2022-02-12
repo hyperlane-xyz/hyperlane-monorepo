@@ -11,7 +11,7 @@ import {XAppConnectionClient} from "../XAppConnectionClient.sol";
 /*
 ============ PingPong xApp ============
 The PingPong xApp is capable of initiating PingPong "matches" between two chains.
-A match consists of "volleys" sent back-and-forth between the two chains via Optics.
+A match consists of "volleys" sent back-and-forth between the two chains via Abacus.
 
 The first volley in a match is always a Ping volley.
 When a Router receives a Ping volley, it returns a Pong.
@@ -55,7 +55,7 @@ contract PingPongRouter is Router {
     // ============ Handle message functions ============
 
     /**
-     * @notice Handle "volleys" sent via Optics from other remote PingPong Routers
+     * @notice Handle "volleys" sent via Abacus from other remote PingPong Routers
      * @param _origin The domain the message is coming from
      * @param _sender The address the message is coming from
      * @param _message The message in the form of raw bytes

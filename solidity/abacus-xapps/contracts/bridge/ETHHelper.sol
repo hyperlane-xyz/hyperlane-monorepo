@@ -5,7 +5,7 @@ pragma solidity >=0.6.11;
 import {BridgeRouter} from "./BridgeRouter.sol";
 import {IWeth} from "../../interfaces/bridge/IWeth.sol";
 // ============ External Imports ============
-import {TypeCasts} from "@celo-org/optics-sol/contracts/XAppConnectionManager.sol";
+import {TypeCasts} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
 
 contract ETHHelper {
     // ============ Immutables ============
@@ -26,7 +26,7 @@ contract ETHHelper {
     // ============ External Functions ============
 
     /**
-     * @notice Sends ETH over the Optics Bridge. Sends to a full-width Optics
+     * @notice Sends ETH over the Abacus Bridge. Sends to a full-width Abacus
      * identifer on the other side.
      * @dev As with all bridges, improper use may result in loss of funds.
      * @param _domain The domain to send funds to.
@@ -38,7 +38,7 @@ contract ETHHelper {
     }
 
     /**
-     * @notice Sends ETH over the Optics Bridge. Sends to the same address on
+     * @notice Sends ETH over the Abacus Bridge. Sends to the same address on
      * the other side.
      * @dev WARNING: This function should only be used when sending TO an
      * EVM-like domain. As with all bridges, improper use may result in loss of
@@ -50,7 +50,7 @@ contract ETHHelper {
     }
 
     /**
-     * @notice Sends ETH over the Optics Bridge. Sends to a specified EVM
+     * @notice Sends ETH over the Abacus Bridge. Sends to a specified EVM
      * address on the other side.
      * @dev This function should only be used when sending TO an EVM-like
      * domain. As with all bridges, improper use may result in loss of funds

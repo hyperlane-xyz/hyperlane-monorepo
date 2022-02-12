@@ -182,9 +182,9 @@ contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
     // ============ External Functions ============
 
     /**
-     * @notice Handle Optics messages
+     * @notice Handle Abacus messages
      * For all non-Governor chains to handle messages
-     * sent from the Governor chain via Optics.
+     * sent from the Governor chain via Abacus.
      * Governor chain should never receive messages,
      * because non-Governor chains are not able to send them
      * @param _origin The domain (of the Governor Router)
@@ -234,7 +234,7 @@ contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
         bytes32 _router = _mustHaveRouter(_destination);
         // format call message
         bytes memory _msg = GovernanceMessage.formatCalls(_calls);
-        // dispatch call message using Optics
+        // dispatch call message using Abacus
         Home(xAppConnectionManager.home()).dispatch(
             _destination,
             _router,

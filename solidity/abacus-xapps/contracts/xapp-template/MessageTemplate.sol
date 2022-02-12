@@ -19,8 +19,8 @@ We use a 1-byte type tag on the front of the message.
 Message Flow Between xApps:
 1. xApp Router A receives a command on chain A
 2. xApp Router A encodes (formats) the information into a message
-2. xApp Router A sends the message to xApp Router B on chain B via Optics
-3. xApp Router B receives the message via Optics
+2. xApp Router A sends the message to xApp Router B on chain B via Abacus
+3. xApp Router B receives the message via Abacus
 4. xApp Router B decodes (gets) the information from the message and acts on it
 
 The Message Library should contain the following for each type of message:

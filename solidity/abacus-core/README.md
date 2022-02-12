@@ -1,6 +1,6 @@
-## Optics Solidity
+## Abacus Solidity
 
-On-chain implementations of Optics in Solidity.
+On-chain implementations of Abacus in Solidity.
 
 ### Setup
 
