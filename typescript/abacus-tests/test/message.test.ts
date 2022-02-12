@@ -1,9 +1,9 @@
-import { ethers, optics } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 import {
   TestMessage,
   TestMessage__factory,
-} from 'optics-ts-interface/dist/optics-core';
+} from '@abacus-network/ts-interface/dist/abacus-core';
 
 const testCases = require('../../../vectors/message.json');
 
@@ -25,7 +25,7 @@ describe('Message', async () => {
     const nonce = 1;
     const body = ethers.utils.formatBytes32String('message');
 
-    const message = optics.formatMessage(
+    const message = abacus.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -36,12 +36,12 @@ describe('Message', async () => {
 
     expect(await messageLib.origin(message)).to.equal(remoteDomain);
     expect(await messageLib.sender(message)).to.equal(
-      optics.ethersAddressToBytes32(sender.address),
+      abacus.ethersAddressToBytes32(sender.address),
     );
     expect(await messageLib.nonce(message)).to.equal(nonce);
     expect(await messageLib.destination(message)).to.equal(localDomain);
     expect(await messageLib.recipient(message)).to.equal(
-      optics.ethersAddressToBytes32(recipient.address),
+      abacus.ethersAddressToBytes32(recipient.address),
     );
     expect(await messageLib.recipientAddress(message)).to.equal(
       recipient.address,
@@ -57,7 +57,7 @@ describe('Message', async () => {
     const recipient = '0x2222222222222222222222222222222222222222';
     const body = ethers.utils.arrayify('0x1234');
 
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       origin,
       sender,
       nonce,
@@ -76,17 +76,17 @@ describe('Message', async () => {
       messageHash,
     } = testCases[0];
 
-    expect(await messageLib.origin(opticsMessage)).to.equal(testOrigin);
-    expect(await messageLib.sender(opticsMessage)).to.equal(testSender);
-    expect(await messageLib.nonce(opticsMessage)).to.equal(testNonce);
-    expect(await messageLib.destination(opticsMessage)).to.equal(
+    expect(await messageLib.origin(abacusMessage)).to.equal(testOrigin);
+    expect(await messageLib.sender(abacusMessage)).to.equal(testSender);
+    expect(await messageLib.nonce(abacusMessage)).to.equal(testNonce);
+    expect(await messageLib.destination(abacusMessage)).to.equal(
       testDestination,
     );
-    expect(await messageLib.recipient(opticsMessage)).to.equal(testRecipient);
-    expect(await messageLib.body(opticsMessage)).to.equal(
+    expect(await messageLib.recipient(abacusMessage)).to.equal(testRecipient);
+    expect(await messageLib.body(abacusMessage)).to.equal(
       ethers.utils.hexlify(testBody),
     );
-    expect(await messageLib.leaf(opticsMessage)).to.equal(messageHash);
-    expect(optics.messageHash(opticsMessage)).to.equal(messageHash);
+    expect(await messageLib.leaf(abacusMessage)).to.equal(messageHash);
+    expect(abacus.messageHash(abacusMessage)).to.equal(messageHash);
   });
 });

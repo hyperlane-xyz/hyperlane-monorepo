@@ -1,6 +1,6 @@
 import { ethers } from 'hardhat';
 
-import * as contracts from 'optics-ts-interface/dist/optics-xapps';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-xapps';
 
 describe('Encoding', async () => {
   it('encodes', async () => {

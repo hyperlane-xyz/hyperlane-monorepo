@@ -9,7 +9,7 @@ import * as types from '../../lib/types';
 import {
   TestBridgeMessage__factory,
   TestBridgeMessage,
-} from 'optics-ts-interface/dist/optics-xapps';
+} from '@abacus-network/ts-interface/dist/abacus-xapps';
 import { TokenIdentifier } from '@abacus-network/sdk/dist/optics';
 
 const stringToBytes32 = (s: string): string => {

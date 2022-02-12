@@ -5,7 +5,7 @@ import { BytesArray } from '../lib/types';
 import {
   TestMerkle,
   TestMerkle__factory,
-} from 'optics-ts-interface/dist/optics-core';
+} from '@abacus-network/ts-interface/dist/abacus-core';
 
 const merkleTestCases = require('../../../vectors/merkle.json');
 

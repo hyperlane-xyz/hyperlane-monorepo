@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import {
   TestQueue,
   TestQueue__factory,
-} from 'optics-ts-interface/dist/optics-core';
+} from '@abacus-network/ts-interface/dist/abacus-core';
 
 // create a proper hex encoded bytes32 filled with number. e.g 0x01010101...
 const bytes32 = (num: number) => `0x${Buffer.alloc(32, num).toString('hex')}`;

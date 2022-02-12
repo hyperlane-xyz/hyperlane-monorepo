@@ -1,4 +1,4 @@
-import { optics, ethers } from 'hardhat';
+import { abacus, ethers } from 'hardhat';
 import { expect } from 'chai';
 
 import * as utils from './utils';
@@ -10,7 +10,7 @@ import { deployTwoChains } from 'optics-deploy/dist/src/core';
 import {
   TestRecipient__factory,
   TestReplica,
-} from 'optics-ts-interface/dist/optics-core';
+} from '@abacus-network/ts-interface/dist/abacus-core';
 
 const proveAndProcessTestCases = require('../../../../vectors/proveAndProcess.json');
 
@@ -128,12 +128,12 @@ describe('SimpleCrossChainMessage', async () => {
     // create Call message to test recipient that calls `processCall`
     const arg = true;
     const call = await utils.formatCall(TestRecipient, 'processCall', [arg]);
-    const callMessage = optics.governance.formatCalls([call]);
+    const callMessage = abacus.governance.formatCalls([call]);
 
     // Create Optics message that is sent from the governor domain and governor
     // to the nonGovernorRouter on the nonGovernorDomain
     const nonce = 0;
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       1000,
       governorRouter.address,
       nonce,
@@ -144,7 +144,7 @@ describe('SimpleCrossChainMessage', async () => {
 
     // get merkle proof
     const { path, index } = proveAndProcessTestCases[0];
-    const messageHash = optics.messageHash(opticsMessage);
+    const messageHash = abacus.messageHash(abacusMessage);
 
     // set root
     const proofRoot = await replica.testBranchRoot(
@@ -155,7 +155,7 @@ describe('SimpleCrossChainMessage', async () => {
     await replica.setCommittedRoot(proofRoot);
 
     // prove and process message
-    await replica.proveAndProcess(opticsMessage, path as BytesArray, index);
+    await replica.proveAndProcess(abacusMessage, path as BytesArray, index);
 
     // expect call to have been processed
     expect(await TestRecipient.processed()).to.be.true;

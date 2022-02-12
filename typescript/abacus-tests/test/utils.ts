@@ -7,7 +7,7 @@ import {
   deployUpdaterManager,
   deployUpgradeBeaconController,
 } from 'optics-deploy/dist/src/core';
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 
 export const increaseTimestampBy = async (
   provider: ethers.providers.JsonRpcProvider,

@@ -186,7 +186,7 @@ function formatCalls(callsData: types.CallData[]): string {
   );
 }
 
-export const optics: types.HardhatOpticsHelpers = {
+export const abacus: types.HardhatAbacusHelpers = {
   formatMessage,
   governance: {
     formatTransferGovernor,
