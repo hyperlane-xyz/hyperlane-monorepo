@@ -1,4 +1,11 @@
-import { getCoreDeploys, getChainConfigs, getContext, getEnvironment, registerRpcProviders, registerGovernorSigner } from './utils';
+import {
+  getCoreDeploys,
+  getChainConfigs,
+  getContext,
+  getEnvironment,
+  registerRpcProviders,
+  registerGovernorSigner,
+} from './utils';
 import { ViolationType } from '../src/checks';
 import { CoreInvariantChecker } from '../src/core/checks';
 import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
