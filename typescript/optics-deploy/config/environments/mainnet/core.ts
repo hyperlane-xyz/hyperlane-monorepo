@@ -1,7 +1,8 @@
 import { CoreConfig } from '../../../src/config/core';
+import { DeployEnvironment } from '../../../src/deploy';
 
 export const core: CoreConfig = {
-  environment: 'mainnet',
+  environment: DeployEnvironment.mainnet,
   recoveryTimelock: 60 * 60 * 24 * 14, // 14 days
   optimisticSeconds: 60 * 30, // 30 minutes
   processGas: 850_000,
