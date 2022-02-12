@@ -40,9 +40,9 @@ contract RouterTemplate is Router {
     // ============ Handle message functions ============
 
     /**
-     * @notice Receive messages sent via Optics from other remote xApp Routers;
+     * @notice Receive messages sent via Abacus from other remote xApp Routers;
      * parse the contents of the message and enact the message's effects on the local chain
-     * @dev Called by an Optics Replica contract while processing a message sent via Optics
+     * @dev Called by an Abacus Replica contract while processing a message sent via Abacus
      * @param _origin The domain the message is coming from
      * @param _sender The address the message is coming from
      * @param _message The message in the form of raw bytes
@@ -80,7 +80,7 @@ contract RouterTemplate is Router {
     // ============ Dispatch message functions ============
 
     /**
-     * @notice Send a message of "Type A" to a remote xApp Router via Optics;
+     * @notice Send a message of "Type A" to a remote xApp Router via Abacus;
      * this message is called to take some action in the cross-chain context
      * Example message types:
      * Sending tokens from this chain to the destination chain;

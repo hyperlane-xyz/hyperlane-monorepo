@@ -57,7 +57,7 @@ contract Home is
     // ============ Events ============
 
     /**
-     * @notice Emitted when a new message is dispatched via Optics
+     * @notice Emitted when a new message is dispatched via Abacus
      * @param leafIndex Index of message's leaf in merkle tree
      * @param destinationAndNonce Destination and destination-specific
      * nonce combined in single field ((destination << 32) & nonce)

@@ -8,9 +8,9 @@ import {XAppConnectionClient} from "../XAppConnectionClient.sol";
 import {IBridgeToken} from "../../interfaces/bridge/IBridgeToken.sol";
 import {BridgeMessage} from "./BridgeMessage.sol";
 // ============ External Imports ============
-import {Home} from "@celo-org/optics-sol/contracts/Home.sol";
-import {Version0} from "@celo-org/optics-sol/contracts/Version0.sol";
-import {TypeCasts} from "@celo-org/optics-sol/contracts/XAppConnectionManager.sol";
+import {Home} from "@abacus-network/abacus-sol/contracts/Home.sol";
+import {Version0} from "@abacus-network/abacus-sol/contracts/Version0.sol";
+import {TypeCasts} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
@@ -145,7 +145,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         }
         // format Transfer Tokens action
         bytes29 _action = BridgeMessage.formatTransfer(_recipient, _amount);
-        // send message to remote chain via Optics
+        // send message to remote chain via Abacus
         Home(xAppConnectionManager.home()).dispatch(
             _destination,
             _remote,
@@ -354,7 +354,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
             TypeCasts.coerceBytes32(_bridgeToken.symbol()),
             _bridgeToken.decimals()
         );
-        // send message to remote chain via Optics
+        // send message to remote chain via Abacus
         Home(xAppConnectionManager.home()).dispatch(
             _messageOrigin,
             _messageRemoteRouter,
@@ -392,7 +392,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         }
         // format Request Details message
         bytes29 _action = BridgeMessage.formatRequestDetails();
-        // send message to remote chain via Optics
+        // send message to remote chain via Abacus
         Home(xAppConnectionManager.home()).dispatch(
             _destination,
             _remote,

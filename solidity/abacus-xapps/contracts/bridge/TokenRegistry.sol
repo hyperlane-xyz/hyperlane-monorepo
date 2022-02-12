@@ -7,8 +7,8 @@ import {Encoding} from "./Encoding.sol";
 import {IBridgeToken} from "../../interfaces/bridge/IBridgeToken.sol";
 import {XAppConnectionClient} from "../XAppConnectionClient.sol";
 // ============ External Imports ============
-import {TypeCasts} from "@celo-org/optics-sol/contracts/XAppConnectionManager.sol";
-import {UpgradeBeaconProxy} from "@celo-org/optics-sol/contracts/upgrade/UpgradeBeaconProxy.sol";
+import {TypeCasts} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
+import {UpgradeBeaconProxy} from "@abacus-network/abacus-sol/contracts/upgrade/UpgradeBeaconProxy.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";

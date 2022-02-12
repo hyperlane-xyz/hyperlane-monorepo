@@ -2,8 +2,8 @@
 pragma solidity >=0.6.11;
 
 // ============ External Imports ============
-import {Home} from "@celo-org/optics-sol/contracts/Home.sol";
-import {XAppConnectionManager} from "@celo-org/optics-sol/contracts/XAppConnectionManager.sol";
+import {Home} from "@abacus-network/abacus-sol/contracts/Home.sol";
+import {XAppConnectionManager} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 abstract contract XAppConnectionClient is OwnableUpgradeable {
@@ -15,7 +15,7 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
     // ============ Modifiers ============
 
     /**
-     * @notice Only accept messages from an Optics Replica contract
+     * @notice Only accept messages from an Abacus Replica contract
      */
     modifier onlyReplica() {
         require(_isReplica(msg.sender), "!replica");

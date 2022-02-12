@@ -1,4 +1,4 @@
-# Optics Token Bridge
+# Abacus Token Bridge
 
 ### Message Format
 
