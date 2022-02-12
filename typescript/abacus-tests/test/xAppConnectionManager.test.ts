@@ -1,4 +1,4 @@
-import { ethers, optics } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
 import { getTestDeploy } from './testChain';
@@ -6,7 +6,7 @@ import { Updater } from '../lib/core';
 import { Signer } from '../lib/types';
 import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
 import * as deploys from 'optics-deploy/dist/src/core';
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 
 const signedFailureTestCases = require('../../../vectors/signedFailure.json');
 
@@ -30,13 +30,13 @@ describe('XAppConnectionManager', async () => {
     localDeploy = await getTestDeploy(localDomain, updater.address, []);
     remoteDeploy = await getTestDeploy(remoteDomain, updater.address, []);
 
-    // deploy optics on remote domain
+    // deploy abacus on remote domain
     // NB: as tests stand currently, this only needs to be done once
     await deploys.deployOptics(remoteDeploy);
   });
 
   beforeEach(async () => {
-    // deploy optics on local domain
+    // deploy abacus on local domain
     await deploys.deployOptics(localDeploy);
 
     // deploy replica and enroll on local deploy
@@ -153,7 +153,7 @@ describe('XAppConnectionManager', async () => {
 
     // Create signed failure notification and signature
     const { failureNotification, signature } =
-      await optics.signedFailureNotification(
+      await abacus.signedFailureNotification(
         watcher,
         remoteDomain,
         updater.signer.address,
@@ -195,7 +195,7 @@ describe('XAppConnectionManager', async () => {
 
     // Create signed failure notification and signature for noReplicaDomain
     const { failureNotification, signature } =
-      await optics.signedFailureNotification(
+      await abacus.signedFailureNotification(
         watcher,
         noReplicaDomain,
         updater.signer.address,
@@ -223,7 +223,7 @@ describe('XAppConnectionManager', async () => {
 
     // Create signed failure notification and signature with nonUpdater
     const { failureNotification, signature } =
-      await optics.signedFailureNotification(
+      await abacus.signedFailureNotification(
         watcher,
         remoteDomain,
         nonUpdater.address,
@@ -251,7 +251,7 @@ describe('XAppConnectionManager', async () => {
 
     // Create signed failure notification and signature with nonWatcher
     const { failureNotification, signature } =
-      await optics.signedFailureNotification(
+      await abacus.signedFailureNotification(
         nonWatcher,
         remoteDomain,
         updater.signer.address,

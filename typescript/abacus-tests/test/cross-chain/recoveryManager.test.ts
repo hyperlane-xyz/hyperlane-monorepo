@@ -1,4 +1,4 @@
-import { ethers, optics } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 import * as types from 'ethers';
 
@@ -9,7 +9,7 @@ import { Updater } from '../../lib/core';
 import { Signer } from '../../lib/types';
 import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
 import { deployNChains } from 'optics-deploy/dist/src/core';
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 
 async function expectNotInRecovery(
   updaterManager: contracts.UpdaterManager,
@@ -21,7 +21,7 @@ async function expectNotInRecovery(
 ) {
   expect(await governanceRouter.inRecovery()).to.be.false;
 
-  // Format optics call message
+  // Format abacus call message
   const call = await formatCall(updaterManager, 'setUpdater', [
     randomSigner.address,
   ]);
@@ -57,14 +57,14 @@ async function expectNotInRecovery(
   await expect(
     sendFromSigner(governor, governanceRouter, 'setRouterLocal', [
       2000,
-      optics.ethersAddressToBytes32(randomSigner.address),
+      abacus.ethersAddressToBytes32(randomSigner.address),
     ]),
   )
     .to.emit(governanceRouter, 'SetRouter')
     .withArgs(
       otherDomain,
       previousRouter,
-      optics.ethersAddressToBytes32(randomSigner.address),
+      abacus.ethersAddressToBytes32(randomSigner.address),
     );
 
   // Expect that Recovery Manager CANNOT Call Local OR Call Remote
@@ -95,7 +95,7 @@ async function expectNotInRecovery(
   await expect(
     sendFromSigner(recoveryManager, governanceRouter, 'setRouterLocal', [
       2000,
-      optics.ethersAddressToBytes32(randomSigner.address),
+      abacus.ethersAddressToBytes32(randomSigner.address),
     ]),
   ).to.be.revertedWith('! called by governor');
 }
@@ -336,7 +336,7 @@ describe('RecoveryManager', async () => {
   });
 
   it('Recovery Active: RecoveryManager CAN call local', async () => {
-    // Format optics call message
+    // Format abacus call message
     const call = await formatCall(updaterManager, 'setUpdater', [
       randomSigner.address,
     ]);
@@ -350,7 +350,7 @@ describe('RecoveryManager', async () => {
   });
 
   it('Recovery Active: RecoveryManager CANNOT call remote', async () => {
-    // Format optics call message
+    // Format abacus call message
     const call = await formatCall(updaterManager, 'setUpdater', [
       randomSigner.address,
     ]);
@@ -391,19 +391,19 @@ describe('RecoveryManager', async () => {
     await expect(
       sendFromSigner(recoveryManager, governanceRouter, 'setRouterLocal', [
         2000,
-        optics.ethersAddressToBytes32(randomSigner.address),
+        abacus.ethersAddressToBytes32(randomSigner.address),
       ]),
     )
       .to.emit(governanceRouter, 'SetRouter')
       .withArgs(
         otherDomain,
         previousRouter,
-        optics.ethersAddressToBytes32(randomSigner.address),
+        abacus.ethersAddressToBytes32(randomSigner.address),
       );
   });
 
   it('Recovery Active: Governor CANNOT call local OR remote', async () => {
-    // Format optics call message
+    // Format abacus call message
     const call = await formatCall(updaterManager, 'setUpdater', [
       randomSigner.address,
     ]);
@@ -433,7 +433,7 @@ describe('RecoveryManager', async () => {
     await expect(
       sendFromSigner(governor, governanceRouter, 'setRouterLocal', [
         2000,
-        optics.ethersAddressToBytes32(randomSigner.address),
+        abacus.ethersAddressToBytes32(randomSigner.address),
       ]),
     ).to.be.revertedWith('! called by recovery manager');
   });

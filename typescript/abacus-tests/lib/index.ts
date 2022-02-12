@@ -1,12 +1,12 @@
 import '@nomiclabs/hardhat-waffle';
 import { extendEnvironment } from 'hardhat/config';
 
-import { optics } from './core';
+import { abacus } from './core';
 
 import { bridge } from './bridge';
 
 // HardhatRuntimeEnvironment
 extendEnvironment((hre) => {
-  hre.optics = optics;
+  hre.abacus = abacus;
   hre.bridge = bridge;
 });

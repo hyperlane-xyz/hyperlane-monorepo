@@ -1,4 +1,4 @@
-import { ethers, optics } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
 import { getTestDeploy } from './testChain';
@@ -11,7 +11,7 @@ import {
   deployUpdaterManager,
 } from 'optics-deploy/dist/src/core';
 
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 
 const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
 const merkleTestCases = require('../../../vectors/merkle.json');
@@ -34,7 +34,7 @@ describe('Replica', async () => {
   let replica: contracts.TestReplica,
     signer: Signer,
     fakeSigner: Signer,
-    opticsMessageSender: Signer,
+    abacusMessageSender: Signer,
     updater: Updater,
     fakeUpdater: Updater;
 
@@ -46,7 +46,7 @@ describe('Replica', async () => {
   };
 
   before(async () => {
-    [signer, fakeSigner, opticsMessageSender] = await ethers.getSigners();
+    [signer, fakeSigner, abacusMessageSender] = await ethers.getSigners();
     updater = await Updater.fromSigner(signer, remoteDomain);
     fakeUpdater = await Updater.fromSigner(fakeSigner, remoteDomain);
 
@@ -263,13 +263,13 @@ describe('Replica', async () => {
   });
 
   it('Processes a proved message', async () => {
-    const sender = opticsMessageSender;
+    const sender = abacusMessageSender;
 
     const testRecipientFactory = new contracts.TestRecipient__factory(signer);
     const testRecipient = await testRecipientFactory.deploy();
 
     const nonce = 0;
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -279,16 +279,16 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessagePending(opticsMessage);
+    await replica.setMessagePending(abacusMessage);
 
     // Ensure proper static call return value
-    const success = await replica.callStatic.process(opticsMessage);
+    const success = await replica.callStatic.process(abacusMessage);
     expect(success).to.be.true;
 
-    const processTx = replica.process(opticsMessage);
+    const processTx = replica.process(abacusMessage);
     await expect(processTx)
       .to.emit(replica, 'Process')
-      .withArgs(optics.messageHash(opticsMessage), true, '0x');
+      .withArgs(abacus.messageHash(abacusMessage), true, '0x');
   });
 
   it('Fails to process an unproved message', async () => {
@@ -296,7 +296,7 @@ describe('Replica', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -305,19 +305,19 @@ describe('Replica', async () => {
       body,
     );
 
-    await expect(replica.process(opticsMessage)).to.be.revertedWith('!proven');
+    await expect(replica.process(abacusMessage)).to.be.revertedWith('!proven');
   });
 
   for (let i = 0; i < badRecipientFactories.length; i++) {
     it(`Processes a message from a badly implemented recipient (${
       i + 1
     })`, async () => {
-      const sender = opticsMessageSender;
+      const sender = abacusMessageSender;
       const factory = new badRecipientFactories[i](signer);
       const badRecipient = await factory.deploy();
 
       const nonce = 0;
-      const opticsMessage = optics.formatMessage(
+      const abacusMessage = abacus.formatMessage(
         remoteDomain,
         sender.address,
         nonce,
@@ -327,8 +327,8 @@ describe('Replica', async () => {
       );
 
       // Set message status to MessageStatus.Pending
-      await replica.setMessagePending(opticsMessage);
-      await replica.process(opticsMessage);
+      await replica.setMessagePending(abacusMessage);
+      await replica.process(abacusMessage);
     });
   }
 
@@ -337,7 +337,7 @@ describe('Replica', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -347,7 +347,7 @@ describe('Replica', async () => {
       body,
     );
 
-    await expect(replica.process(opticsMessage)).to.be.revertedWith(
+    await expect(replica.process(abacusMessage)).to.be.revertedWith(
       '!destination',
     );
   });
@@ -356,9 +356,9 @@ describe('Replica', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       remoteDomain,
-      opticsMessageSender.address,
+      abacusMessageSender.address,
       nonce,
       localDomain,
       '0x1234567890123456789012345678901234567890', // non-existent contract address
@@ -366,8 +366,8 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessagePending(opticsMessage);
-    await expect(replica.process(opticsMessage)).to.not.be.reverted;
+    await replica.setMessagePending(abacusMessage);
+    await expect(replica.process(abacusMessage)).to.not.be.reverted;
   });
 
   it('Fails to process an undergased transaction', async () => {
@@ -375,7 +375,7 @@ describe('Replica', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -385,22 +385,22 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessagePending(opticsMessage);
+    await replica.setMessagePending(abacusMessage);
 
     // Required gas is >= 510,000 (we provide 500,000)
     await expect(
-      replica.process(opticsMessage, { gasLimit: 500000 }),
+      replica.process(abacusMessage, { gasLimit: 500000 }),
     ).to.be.revertedWith('!gas');
   });
 
   it('Returns false when processing message for bad handler function', async () => {
-    const sender = opticsMessageSender;
+    const sender = abacusMessageSender;
     const [recipient] = await ethers.getSigners();
     const factory = new contracts.BadRecipientHandle__factory(recipient);
     const testRecipient = await factory.deploy();
 
     const nonce = 0;
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -410,15 +410,15 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessagePending(opticsMessage);
+    await replica.setMessagePending(abacusMessage);
 
     // Ensure bad handler function causes process to return false
-    let success = await replica.callStatic.process(opticsMessage);
+    let success = await replica.callStatic.process(abacusMessage);
     expect(success).to.be.false;
   });
 
   it('Proves and processes a message', async () => {
-    const sender = opticsMessageSender;
+    const sender = abacusMessageSender;
     const testRecipientFactory = new contracts.TestRecipient__factory(signer);
     const testRecipient = await testRecipientFactory.deploy();
 
@@ -426,7 +426,7 @@ describe('Replica', async () => {
 
     // Note that hash of this message specifically matches leaf of 1st
     // proveAndProcess test case
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -437,7 +437,7 @@ describe('Replica', async () => {
 
     // Assert above message and test case have matching leaves
     const { path, index } = proveAndProcessTestCases[0];
-    const messageHash = optics.messageHash(opticsMessage);
+    const messageHash = abacus.messageHash(abacusMessage);
 
     // Set replica's current root to match newly computed root that includes
     // the new leaf (normally root will have already been computed and path
@@ -451,7 +451,7 @@ describe('Replica', async () => {
     );
     await replica.setCommittedRoot(proofRoot);
 
-    await replica.proveAndProcess(opticsMessage, path as BytesArray, index);
+    await replica.proveAndProcess(abacusMessage, path as BytesArray, index);
 
     expect(await replica.messages(messageHash)).to.equal(
       MessageStatus.PROCESSED,
@@ -467,7 +467,7 @@ describe('Replica', async () => {
     let { leaf, index, path } = testCase.proofs[0];
 
     // Create arbitrary message (contents not important)
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -487,7 +487,7 @@ describe('Replica', async () => {
     expect(proofRoot).to.not.equal(actualRoot);
 
     await expect(
-      replica.proveAndProcess(opticsMessage, path as BytesArray, index),
+      replica.proveAndProcess(abacusMessage, path as BytesArray, index),
     ).to.be.revertedWith('!prove');
   });
 });

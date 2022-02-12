@@ -9,7 +9,7 @@ import {
   BridgeToken,
   BridgeToken__factory,
   IERC20,
-} from 'optics-ts-interface/dist/optics-xapps';
+} from '@abacus-network/ts-interface/dist/abacus-xapps';
 import { stringToBytes32 } from '../utils';
 import { getTestChain } from '../testChain';
 

@@ -5,7 +5,7 @@ import { BridgeMessageTypes } from './bridge';
 
 /********* HRE *********/
 
-export interface HardhatOpticsHelpers {
+export interface HardhatAbacusHelpers {
   formatMessage: Function;
   governance: {
     formatTransferGovernor: Function;
@@ -33,7 +33,7 @@ export interface HardhatBridgeHelpers {
 
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
-    optics: HardhatOpticsHelpers;
+    abacus: HardhatAbacusHelpers;
     bridge: HardhatBridgeHelpers;
   }
 }

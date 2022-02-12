@@ -1,4 +1,4 @@
-import { ethers, optics } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 import { getTestDeploy } from './testChain';
 import { OpticsState, Updater } from '../lib/core';
@@ -10,7 +10,7 @@ import {
   TestHome,
   UpdaterManager__factory,
   UpdaterManager,
-} from 'optics-ts-interface/dist/optics-core';
+} from '@abacus-network/ts-interface/dist/abacus-core';
 
 const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
 const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');
@@ -35,7 +35,7 @@ describe('Home', async () => {
     message = ethers.utils.formatBytes32String(message);
     await home.dispatch(
       destDomain,
-      optics.ethersAddressToBytes32(recipient.address),
+      abacus.ethersAddressToBytes32(recipient.address),
       message,
     );
     const [, latestRoot] = await home.suggestUpdate();
@@ -84,7 +84,7 @@ describe('Home', async () => {
     await expect(
       home.dispatch(
         destDomain,
-        optics.ethersAddressToBytes32(recipient.address),
+        abacus.ethersAddressToBytes32(recipient.address),
         message,
       ),
     ).to.be.revertedWith('failed state');
@@ -117,7 +117,7 @@ describe('Home', async () => {
         .connect(signer)
         .dispatch(
           destDomain,
-          optics.ethersAddressToBytes32(recipient.address),
+          abacus.ethersAddressToBytes32(recipient.address),
           message,
         ),
     ).to.be.revertedWith('msg too long');
@@ -128,9 +128,9 @@ describe('Home', async () => {
     const nonce = await home.nonces(localDomain);
 
     // Format data that will be emitted from Dispatch event
-    const destinationAndNonce = optics.destinationAndNonce(destDomain, nonce);
+    const destinationAndNonce = abacus.destinationAndNonce(destDomain, nonce);
 
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       localDomain,
       signer.address,
       nonce,
@@ -138,7 +138,7 @@ describe('Home', async () => {
       recipient.address,
       message,
     );
-    const messageHash = optics.messageHash(opticsMessage);
+    const messageHash = abacus.messageHash(abacusMessage);
     const leafIndex = await home.nextLeafIndex();
     const committedRoot = await home.committedRoot();
 
@@ -148,7 +148,7 @@ describe('Home', async () => {
         .connect(signer)
         .dispatch(
           destDomain,
-          optics.ethersAddressToBytes32(recipient.address),
+          abacus.ethersAddressToBytes32(recipient.address),
           message,
         ),
     )
@@ -158,7 +158,7 @@ describe('Home', async () => {
         leafIndex,
         destinationAndNonce,
         committedRoot,
-        opticsMessage,
+        abacusMessage,
       );
   });
 
@@ -167,7 +167,7 @@ describe('Home', async () => {
     const message = ethers.utils.formatBytes32String('message');
     await home.dispatch(
       destDomain,
-      optics.ethersAddressToBytes32(recipient.address),
+      abacus.ethersAddressToBytes32(recipient.address),
       message,
     );
     const latestEnqueuedRoot = await home.queueEnd();

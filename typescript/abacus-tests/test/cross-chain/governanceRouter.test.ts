@@ -1,4 +1,4 @@
-import { ethers, optics } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
 import { updateReplica, formatCall, formatOpticsMessage } from './utils';
@@ -11,7 +11,7 @@ import {
   deployNChains,
   deployUnenrolledReplica,
 } from 'optics-deploy/dist/src/core';
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 
 const helpers = require('../../../../vectors/proof.json');
 
@@ -102,7 +102,7 @@ describe('GovernanceRouter', async () => {
     const factory2 = new contracts.MysteryMathV2__factory(signer);
     const implementation2 = await factory2.deploy();
 
-    // Format optics call message
+    // Format abacus call message
     const call = await formatCall(upgradeBeaconController, 'upgrade', [
       mysteryMath.beacon.address,
       implementation2.address,
@@ -143,10 +143,10 @@ describe('GovernanceRouter', async () => {
       latestRoot,
     );
 
-    const callMessage = optics.governance.formatCalls([call]);
+    const callMessage = abacus.governance.formatCalls([call]);
 
     const nonce = await governorHome.nonces(nonGovernorDomain);
-    const opticsMessage = optics.formatMessage(
+    const abacusMessage = abacus.formatMessage(
       governorDomain,
       governorRouter.address,
       nonce - 1,
@@ -155,11 +155,11 @@ describe('GovernanceRouter', async () => {
       callMessage,
     );
 
-    expect(ethers.utils.keccak256(opticsMessage)).to.equal(leaf);
+    expect(ethers.utils.keccak256(abacusMessage)).to.equal(leaf);
 
     const { path, index } = helpers.proof;
     await governorReplicaOnNonGovernorChain.proveAndProcess(
-      opticsMessage,
+      abacusMessage,
       path,
       index,
     );
@@ -175,12 +175,12 @@ describe('GovernanceRouter', async () => {
       .proxy! as contracts.TestReplica;
 
     // Create TransferGovernor message
-    const transferGovernorMessage = optics.governance.formatTransferGovernor(
+    const transferGovernorMessage = abacus.governance.formatTransferGovernor(
       thirdDomain,
-      optics.ethersAddressToBytes32(secondGovernor),
+      abacus.ethersAddressToBytes32(secondGovernor),
     );
 
-    const opticsMessage = await formatOpticsMessage(
+    const abacusMessage = await formatOpticsMessage(
       unenrolledReplica,
       governorRouter,
       nonGovernorRouter,
@@ -188,18 +188,18 @@ describe('GovernanceRouter', async () => {
     );
 
     // Expect replica processing to fail when nonGovernorRouter reverts in handle
-    let success = await unenrolledReplica.callStatic.testProcess(opticsMessage);
+    let success = await unenrolledReplica.callStatic.testProcess(abacusMessage);
     expect(success).to.be.false;
   });
 
   it('Rejects message not from governor router', async () => {
     // Create TransferGovernor message
-    const transferGovernorMessage = optics.governance.formatTransferGovernor(
+    const transferGovernorMessage = abacus.governance.formatTransferGovernor(
       nonGovernorDomain,
-      optics.ethersAddressToBytes32(nonGovernorRouter.address),
+      abacus.ethersAddressToBytes32(nonGovernorRouter.address),
     );
 
-    const opticsMessage = await formatOpticsMessage(
+    const abacusMessage = await formatOpticsMessage(
       governorReplicaOnNonGovernorChain,
       nonGovernorRouter,
       governorRouter,
@@ -207,12 +207,12 @@ describe('GovernanceRouter', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await nonGovernorReplicaOnGovernorChain.setMessagePending(opticsMessage);
+    await nonGovernorReplicaOnGovernorChain.setMessagePending(abacusMessage);
 
     // Expect replica processing to fail when nonGovernorRouter reverts in handle
     let success =
       await nonGovernorReplicaOnGovernorChain.callStatic.testProcess(
-        opticsMessage,
+        abacusMessage,
       );
     expect(success).to.be.false;
   });
@@ -222,16 +222,16 @@ describe('GovernanceRouter', async () => {
     // be executed with an Optics message sent to the nonGovernorRouter)
     await nonGovernorRouter.testSetRouter(
       thirdDomain,
-      optics.ethersAddressToBytes32(thirdRouter.address),
+      abacus.ethersAddressToBytes32(thirdRouter.address),
     );
 
     // Create TransferGovernor message
-    const transferGovernorMessage = optics.governance.formatTransferGovernor(
+    const transferGovernorMessage = abacus.governance.formatTransferGovernor(
       thirdDomain,
-      optics.ethersAddressToBytes32(thirdRouter.address),
+      abacus.ethersAddressToBytes32(thirdRouter.address),
     );
 
-    const opticsMessage = await formatOpticsMessage(
+    const abacusMessage = await formatOpticsMessage(
       governorReplicaOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
@@ -240,11 +240,11 @@ describe('GovernanceRouter', async () => {
 
     // Expect successful tx on static call
     let success = await governorReplicaOnNonGovernorChain.callStatic.process(
-      opticsMessage,
+      abacusMessage,
     );
     expect(success).to.be.true;
 
-    await governorReplicaOnNonGovernorChain.process(opticsMessage);
+    await governorReplicaOnNonGovernorChain.process(abacusMessage);
     await expectGovernor(
       nonGovernorRouter,
       thirdDomain,
@@ -257,12 +257,12 @@ describe('GovernanceRouter', async () => {
     const [router] = await ethers.getSigners();
 
     // Create SetRouter message
-    const setRouterMessage = optics.governance.formatSetRouter(
+    const setRouterMessage = abacus.governance.formatSetRouter(
       thirdDomain,
-      optics.ethersAddressToBytes32(router.address),
+      abacus.ethersAddressToBytes32(router.address),
     );
 
-    const opticsMessage = await formatOpticsMessage(
+    const abacusMessage = await formatOpticsMessage(
       governorReplicaOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
@@ -271,32 +271,32 @@ describe('GovernanceRouter', async () => {
 
     // Expect successful tx
     let success = await governorReplicaOnNonGovernorChain.callStatic.process(
-      opticsMessage,
+      abacusMessage,
     );
     expect(success).to.be.true;
 
     // Expect new router to be registered for domain and for new domain to be
     // in domains array
-    await governorReplicaOnNonGovernorChain.process(opticsMessage);
+    await governorReplicaOnNonGovernorChain.process(abacusMessage);
     expect(await nonGovernorRouter.routers(thirdDomain)).to.equal(
-      optics.ethersAddressToBytes32(router.address),
+      abacus.ethersAddressToBytes32(router.address),
     );
     expect(await nonGovernorRouter.containsDomain(thirdDomain)).to.be.true;
   });
 
   it('Accepts valid call messages', async () => {
-    // const TestRecipient = await optics.deployImplementation('TestRecipient');
+    // const TestRecipient = await abacus.deployImplementation('TestRecipient');
     const testRecipientFactory = new contracts.TestRecipient__factory(signer);
     const TestRecipient = await testRecipientFactory.deploy();
 
-    // Format optics call message
+    // Format abacus call message
     const arg = 'String!';
     const call = await formatCall(TestRecipient, 'receiveString', [arg]);
 
     // Create Call message to test recipient that calls receiveString
-    const callMessage = optics.governance.formatCalls([call, call]);
+    const callMessage = abacus.governance.formatCalls([call, call]);
 
-    const opticsMessage = await formatOpticsMessage(
+    const abacusMessage = await formatOpticsMessage(
       governorReplicaOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
@@ -306,7 +306,7 @@ describe('GovernanceRouter', async () => {
     // Expect successful tx
     let success =
       await governorReplicaOnNonGovernorChain.callStatic.testProcess(
-        opticsMessage,
+        abacusMessage,
       );
 
     expect(success).to.be.true;
@@ -350,12 +350,12 @@ describe('GovernanceRouter', async () => {
     // update governor chain home
     await governorHome.update(committedRoot, newRoot, signature);
 
-    const transferGovernorMessage = optics.governance.formatTransferGovernor(
+    const transferGovernorMessage = abacus.governance.formatTransferGovernor(
       nonGovernorDomain,
-      optics.ethersAddressToBytes32(secondGovernor),
+      abacus.ethersAddressToBytes32(secondGovernor),
     );
 
-    const opticsMessage = await formatOpticsMessage(
+    const abacusMessage = await formatOpticsMessage(
       governorReplicaOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
@@ -379,7 +379,7 @@ describe('GovernanceRouter', async () => {
     );
 
     // Process transfer governor message on Replica
-    await governorReplicaOnNonGovernorChain.process(opticsMessage);
+    await governorReplicaOnNonGovernorChain.process(abacusMessage);
 
     // Governor HAS been transferred on original governor domain
     await expectGovernor(
@@ -409,7 +409,7 @@ describe('GovernanceRouter', async () => {
     const v2Factory = new contracts.MysteryMathV2__factory(signer);
     const implementation = await v2Factory.deploy();
 
-    // Format optics call message
+    // Format abacus call message
     const call = await formatCall(upgradeBeaconController, 'upgrade', [
       mysteryMath.beacon.address,
       implementation.address,
@@ -433,7 +433,7 @@ describe('GovernanceRouter', async () => {
     let currentUpdaterAddr = await governorHome.updater();
     expect(currentUpdaterAddr).to.equal(deploys[0].updater);
 
-    // format optics call message
+    // format abacus call message
     const call = await formatCall(updaterManager, 'setUpdater', [
       newUpdater.address,
     ]);

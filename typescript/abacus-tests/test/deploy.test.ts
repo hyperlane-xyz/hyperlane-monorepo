@@ -12,7 +12,7 @@ import { CoreDeploy } from 'optics-deploy/dist/src/core/CoreDeploy';
 import {
   MockWeth,
   MockWeth__factory,
-} from 'optics-ts-interface/dist/optics-xapps';
+} from '@abacus-network/ts-interface/dist/abacus-xapps';
 
 const domains = [1000, 2000, 3000, 4000];
 
@@ -38,7 +38,7 @@ describe('core deploy scripts', async () => {
         );
       }
 
-      // deploy optics contracts on 2 chains
+      // deploy abacus contracts on 2 chains
       // will test inside deploy function
       await deployTwoChains(deploys[0], deploys[1]);
     });
@@ -57,7 +57,7 @@ describe('core deploy scripts', async () => {
           );
         }
 
-        // deploy optics contracts on `i` chains
+        // deploy abacus contracts on `i` chains
         // will test inside deploy function
         await deployNChains(deploys);
       });

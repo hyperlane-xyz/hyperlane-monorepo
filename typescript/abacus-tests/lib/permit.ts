@@ -1,5 +1,5 @@
 import { BigNumber, BigNumberish, ethers } from 'ethers';
-import { BridgeToken } from 'optics-ts-interface/dist/optics-xapps';
+import { BridgeToken } from '@abacus-network/ts-interface/dist/abacus-xapps';
 
 const PERMIT_TYPEHASH = ethers.utils.keccak256(
   ethers.utils.toUtf8Bytes(

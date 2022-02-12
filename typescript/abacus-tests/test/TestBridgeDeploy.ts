@@ -2,7 +2,7 @@ import { BytesLike, Signer } from 'ethers';
 import {
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-} from 'optics-ts-interface/dist/optics-core';
+} from '@abacus-network/ts-interface/dist/abacus-core';
 import {
   BridgeRouter,
   BridgeToken,
@@ -11,7 +11,7 @@ import {
   MockCore__factory,
   MockWeth,
   MockWeth__factory,
-} from 'optics-ts-interface/dist/optics-xapps';
+} from '@abacus-network/ts-interface/dist/abacus-xapps';
 import { TokenIdentifier } from '@abacus-network/sdk/dist/optics/tokens';
 
 import { BridgeDeploy } from 'optics-deploy/dist/src/bridge/BridgeDeploy';

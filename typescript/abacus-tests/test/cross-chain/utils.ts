@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers, optics } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import * as types from 'ethers';
 
 import { Updater } from '../../lib/core';
@@ -9,7 +9,7 @@ import {
   TestReplica,
   Home,
   TestGovernanceRouter,
-} from 'optics-ts-interface/dist/optics-core';
+} from '@abacus-network/ts-interface/dist/abacus-core';
 
 type MessageDetails = {
   message: string;
@@ -39,7 +39,7 @@ export async function dispatchMessage(
   // Send message with random signer address as msg.sender
   await home.dispatch(
     destinationDomain,
-    optics.ethersAddressToBytes32(recipientAddress),
+    abacus.ethersAddressToBytes32(recipientAddress),
     ethers.utils.formatBytes32String(message),
   );
 
@@ -166,7 +166,7 @@ export async function formatOpticsMessage(
 
   // Create Optics message that is sent from the governor domain and governor
   // to the nonGovernorRouter on the nonGovernorDomain
-  const opticsMessage = optics.formatMessage(
+  const abacusMessage = abacus.formatMessage(
     governorDomain,
     governorRouter.address,
     nonce,
@@ -176,9 +176,9 @@ export async function formatOpticsMessage(
   );
 
   // Set message status to MessageStatus.Pending
-  await replica.setMessagePending(opticsMessage);
+  await replica.setMessagePending(abacusMessage);
 
-  return opticsMessage;
+  return abacusMessage;
 }
 
 export async function formatCall(
@@ -194,7 +194,7 @@ export async function formatCall(
   );
 
   return {
-    to: optics.ethersAddressToBytes32(destinationContract.address),
+    to: abacus.ethersAddressToBytes32(destinationContract.address),
     data: callDataEncoded,
   };
 }
