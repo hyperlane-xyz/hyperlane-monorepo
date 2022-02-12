@@ -2,14 +2,14 @@
   "scripts": {
     "build": "tsc && npm run copy-files",
     "check": "tsc --noEmit",
-    "copy-files": "cp optics-core/*.d.ts dist/optics-core && cp optics-xapps/*.d.ts dist/optics-xapps"
+    "copy-files": "cp abacus-core/*.d.ts dist/abacus-core && cp abacus-xapps/*.d.ts dist/abacus-xapps"
   },
   "devDependencies": {
     "ethers": "^5.5.3"
   },
-  "name": "optics-ts-interface",
+  "name": "@abacus-network/ts-interface",
   "version": "1.1.2",
-  "description": "Optics contract typechain gens",
+  "description": "Abacus contract typechain gens",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "author": "Celo Labs Inc.",
