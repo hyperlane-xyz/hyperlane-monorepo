@@ -6,15 +6,15 @@
   "exclude": [
     "./node_modules/",
     "./dist/",
-    "./optics-core/hardhat.d.ts",
-    "./optics-xapps/hardhat.d.ts"
+    "./abacus-core/hardhat.d.ts",
+    "./abacus-xapps/hardhat.d.ts"
   ],
   "extends": "../tsconfig.package.json",
   "include": [
     "./index.ts",
-    "./optics-core/*.ts",
-    "./optics-xapps/*.ts",
-    "./optics-core/factories/*.ts",
-    "./optics-xapps/factories/*.ts"
+    "./abacus-core/*.ts",
+    "./abacus-xapps/*.ts",
+    "./abacus-core/factories/*.ts",
+    "./abacus-xapps/factories/*.ts"
   ]
 }
