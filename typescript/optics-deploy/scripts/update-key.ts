@@ -1,5 +1,4 @@
 import { getKeyRoleAndChainArgs, getAgentConfig, getEnvironment } from './utils';
-import { rotateGCPKey } from '../src/agents/gcp';
 import { AgentAwsKey } from '../src/agents/aws';
 import { DeployEnvironment } from '../src/deploy';
 
@@ -11,10 +10,6 @@ async function rotateKey() {
   const agentConfig = await getAgentConfig(environment);
 
   switch(environment) {
-   case DeployEnvironment.dev: {
-      await rotateGCPKey(environment, argv.r, argv.c)
-      break;
-   }
    case DeployEnvironment.testnet:
    case DeployEnvironment.mainnet:
       const key = new AgentAwsKey(
@@ -24,8 +19,9 @@ async function rotateKey() {
       );
       await key.fetch();
       console.log(`Current key: ${key.address}`);
-      await key.rotate();
-      console.log(`Key was rotated to ${key.address}. `);
+      await key.update();
+      console.log(`Create new key with address: ${key.address}`);
+      console.log('Run rotate-key script to rotate the key via the alias.')
       break;
    default: {
      throw new Error('invalid environment')

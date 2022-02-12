@@ -1,8 +1,9 @@
 import { OpticsContext, dev, testnet, mainnet } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
 import { DeployEnvironment } from '../src/deploy';
+import { KEY_ROLE_ENUM } from '../src/agents';
 import { addDeployerGCPKey } from '../src/agents/gcp';
-import { ChainConfig } from '../src/config/chain';
+import { ChainName, ChainConfig } from '../src/config/chain';
 import { InfrastructureConfig } from '../src/config/infrastructure';
 import { CoreConfig } from '../src/config/core';
 import { AgentConfig } from '../src/config/agent';
@@ -90,4 +91,17 @@ export async function registerGovernorSigner(context: OpticsContext, chains: Cha
   if (govChains.length !== 1) throw new Error('could not find governor chain')
   const govChain = govChains[0]
   context.registerSigner(govChain.name, new ethers.Wallet(process.env[`${govChain.name.toUpperCase()}_DEPLOYER_KEY`]!))
+}
+
+export async function getKeyRoleAndChainArgs() {
+  const args = await getArgs();
+  return args
+    .alias('r', 'role')
+    .describe('r', 'key role')
+    .choices('r', Object.values(KEY_ROLE_ENUM))
+    .require('r')
+    .alias('c', 'chain')
+    .describe('c', 'chain name')
+    .choices('c', Object.values(ChainName))
+    .require('c')
 }
