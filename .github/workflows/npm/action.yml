@@ -78,7 +78,7 @@ runs:
     - name: Install Tests
       shell: bash
       if: steps.tests-cache.outputs.cache-hit != 'true'
-      run: cd ./typescript/optics-tests && npm i
+      run: cd ./typescript/abacus-tests && npm i
 
     - name: Install Deploy
       shell: bash
