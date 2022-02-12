@@ -56,6 +56,6 @@ jobs:
           npm run prettier
           cd ../optics-provider
           npm run prettier
-          cd ../optics-tests
+          cd ../abacus-tests
           npm run prettier
           [[ -z $(git status -s) ]]
