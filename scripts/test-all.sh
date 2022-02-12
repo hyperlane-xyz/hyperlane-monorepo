@@ -45,5 +45,5 @@ set -xe
 
 # Run solidity tests
 echo "+Running solidity tests"
-cd ./typescript/optics-tests
+cd ./typescript/abacus-tests
 npm run testNoCompile
