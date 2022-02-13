@@ -4,12 +4,12 @@ import { expect } from 'chai';
 import { getTestDeploy } from './testChain';
 import { Updater, OpticsState, MessageStatus } from '../lib/core';
 import { Signer, BytesArray } from '../lib/types';
-import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
+import { CoreDeploy as Deploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
 import {
   deployUnenrolledReplica,
   deployUpgradeBeaconController,
   deployUpdaterManager,
-} from 'optics-deploy/dist/src/core';
+} from '@abacus-network/abacus-deploy/dist/src/core';
 
 import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 

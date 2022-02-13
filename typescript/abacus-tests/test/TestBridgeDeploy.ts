@@ -14,11 +14,11 @@ import {
 } from '@abacus-network/ts-interface/dist/abacus-xapps';
 import { TokenIdentifier } from '@abacus-network/sdk/dist/optics/tokens';
 
-import { BridgeDeploy } from 'optics-deploy/dist/src/bridge/BridgeDeploy';
-import { BridgeContracts } from 'optics-deploy/dist/src/bridge/BridgeContracts';
-import * as process from 'optics-deploy/dist/src/bridge';
-import { ChainConfig } from 'optics-deploy/dist/src/config/chain';
-import { CoreConfig } from 'optics-deploy/dist/src/config/core';
+import { BridgeDeploy } from '@abacus-network/abacus-deploy/dist/src/bridge/BridgeDeploy';
+import { BridgeContracts } from '@abacus-network/abacus-deploy/dist/src/bridge/BridgeContracts';
+import * as process from '@abacus-network/abacus-deploy/dist/src/bridge';
+import { ChainConfig } from '@abacus-network/abacus-deploy/dist/src/config/chain';
+import { CoreConfig } from '@abacus-network/abacus-deploy/dist/src/config/core';
 
 function toBytes32(address: string): string {
   return '0x' + '00'.repeat(12) + address.slice(2);

@@ -1,12 +1,12 @@
 import { ethers } from 'hardhat';
 
-import { CoreDeploy } from 'optics-deploy/dist/src/core/CoreDeploy';
-import { CoreConfig } from 'optics-deploy/dist/src/config/core';
+import { CoreDeploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
+import { CoreConfig } from '@abacus-network/abacus-deploy/dist/src/config/core';
 import {
   ChainName,
   ChainConfig,
   ChainConfigJson,
-} from 'optics-deploy/dist/src/config/chain';
+} from '@abacus-network/abacus-deploy/dist/src/config/chain';
 
 const { BigNumber } = ethers;
 

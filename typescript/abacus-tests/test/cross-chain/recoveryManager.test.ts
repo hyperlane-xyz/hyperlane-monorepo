@@ -7,8 +7,8 @@ import { increaseTimestampBy } from '../utils';
 import { getTestDeploy } from '../testChain';
 import { Updater } from '../../lib/core';
 import { Signer } from '../../lib/types';
-import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
-import { deployNChains } from 'optics-deploy/dist/src/core';
+import { CoreDeploy as Deploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
+import { deployNChains } from '@abacus-network/abacus-deploy/dist/src/core';
 import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 
 async function expectNotInRecovery(

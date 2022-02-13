@@ -5,8 +5,8 @@ import * as utils from './utils';
 import { getTestDeploy } from '../testChain';
 import { Updater, MessageStatus } from '../../lib/core';
 import { Update, Signer, BytesArray } from '../../lib/types';
-import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
-import { deployTwoChains } from 'optics-deploy/dist/src/core';
+import { CoreDeploy as Deploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
+import { deployTwoChains } from '@abacus-network/abacus-deploy/dist/src/core';
 import {
   TestRecipient__factory,
   TestReplica,

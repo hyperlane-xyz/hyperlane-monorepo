@@ -4,11 +4,14 @@ import { expect } from 'chai';
 import { getTestDeploy } from './testChain';
 import { Updater } from '../lib/core';
 import { Signer } from '../lib/types';
-import { CoreContractAddresses } from 'optics-deploy/dist/src/config/addresses';
-import { deployBridges } from 'optics-deploy/dist/src/bridge';
-import { BridgeDeploy } from 'optics-deploy/dist/src/bridge/BridgeDeploy';
-import { deployTwoChains, deployNChains } from 'optics-deploy/dist/src/core';
-import { CoreDeploy } from 'optics-deploy/dist/src/core/CoreDeploy';
+import { CoreContractAddresses } from '@abacus-network/abacus-deploy/dist/src/config/addresses';
+import { deployBridges } from '@abacus-network/abacus-deploy/dist/src/bridge';
+import { BridgeDeploy } from '@abacus-network/abacus-deploy/dist/src/bridge/BridgeDeploy';
+import {
+  deployTwoChains,
+  deployNChains,
+} from '@abacus-network/abacus-deploy/dist/src/core';
+import { CoreDeploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
 import {
   MockWeth,
   MockWeth__factory,

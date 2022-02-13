@@ -6,11 +6,11 @@ import { increaseTimestampBy, UpgradeTestHelpers } from '../utils';
 import { getTestDeploy } from '../testChain';
 import { Updater } from '../../lib/core';
 import { Address, Signer } from '../../lib/types';
-import { CoreDeploy as Deploy } from 'optics-deploy/dist/src/core/CoreDeploy';
+import { CoreDeploy as Deploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
 import {
   deployNChains,
   deployUnenrolledReplica,
-} from 'optics-deploy/dist/src/core';
+} from '@abacus-network/abacus-deploy/dist/src/core';
 import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 
 const helpers = require('../../../../vectors/proof.json');
