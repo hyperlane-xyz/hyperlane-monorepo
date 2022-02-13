@@ -1,0 +1,5 @@
+ds-test/=lib/ds-test/src/
+@openzeppelin=node_modules/@openzeppelin
+@celo-org=node_modules/@celo-org
+@summa-tx=node_modules/@summa-tx
+@celo-org=node_modules/@celo-org
