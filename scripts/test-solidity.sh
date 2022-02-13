@@ -4,22 +4,22 @@
 set -e
 
 # compile contracts
-cd ./solidity/optics-core
+cd ./solidity/abacus-core
 npm run compile
-cd ../optics-xapps
+cd ../abacus-xapps
 npm run compile
 
 cd ../../
 # copy artifacts
-cp -R ./solidity/optics-xapps/artifacts ./typescript/optics-tests
-cp -R ./solidity/optics-core/artifacts ./typescript/optics-tests
+cp -R ./solidity/abacus-xapps/artifacts ./typescript/abacus-tests
+cp -R ./solidity/abacus-core/artifacts ./typescript/abacus-tests
 
 # copy cache
-cp -R ./solidity/optics-xapps/cache ./typescript/optics-tests
-cp -R ./solidity/optics-core/cache ./typescript/optics-tests
+cp -R ./solidity/abacus-xapps/cache ./typescript/abacus-tests
+cp -R ./solidity/abacus-core/cache ./typescript/abacus-tests
 
 # run tests
-cd ./typescript/optics-tests
+cd ./typescript/abacus-tests
 npm i
 npm run testNoCompile
 cd ../..
