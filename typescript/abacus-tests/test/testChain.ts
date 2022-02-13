@@ -7,7 +7,7 @@ import {
   ChainConfig,
   ChainConfigJson,
 } from '@abacus-network/abacus-deploy/dist/src/config/chain';
-import { DeployEnvironment } from "@abacus-network/abacus-deploy/dist/src/deploy";
+import { DeployEnvironment } from '@abacus-network/abacus-deploy/dist/src/deploy';
 
 const { BigNumber } = ethers;
 

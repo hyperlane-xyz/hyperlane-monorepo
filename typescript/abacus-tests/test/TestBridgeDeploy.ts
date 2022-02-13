@@ -18,7 +18,7 @@ import { BridgeContracts } from '@abacus-network/abacus-deploy/dist/src/bridge/B
 import * as process from '@abacus-network/abacus-deploy/dist/src/bridge';
 import { ChainConfig } from '@abacus-network/abacus-deploy/dist/src/config/chain';
 import { CoreConfig } from '@abacus-network/abacus-deploy/dist/src/config/core';
-import { DeployEnvironment } from "@abacus-network/abacus-deploy/dist/src/deploy";
+import { DeployEnvironment } from '@abacus-network/abacus-deploy/dist/src/deploy';
 
 function toBytes32(address: string): string {
   return '0x' + '00'.repeat(12) + address.slice(2);

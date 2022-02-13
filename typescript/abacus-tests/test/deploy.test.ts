@@ -16,7 +16,7 @@ import {
   MockWeth,
   MockWeth__factory,
 } from '@abacus-network/ts-interface/dist/abacus-xapps';
-import { DeployEnvironment } from "@abacus-network/abacus-deploy/dist/src/deploy";
+import { DeployEnvironment } from '@abacus-network/abacus-deploy/dist/src/deploy';
 
 const domains = [1000, 2000, 3000, 4000];
 
