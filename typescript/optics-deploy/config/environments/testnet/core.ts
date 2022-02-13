@@ -1,7 +1,8 @@
 import { CoreConfig } from '../../../src/config/core';
+import { DeployEnvironment } from '../../../src/deploy';
 
 export const core: CoreConfig = {
-  environment: 'testnet',
+  environment: DeployEnvironment.testnet,
   optimisticSeconds: 10,
   recoveryTimelock: 180,
   processGas: 850_000,

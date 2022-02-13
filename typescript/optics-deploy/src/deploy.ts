@@ -3,13 +3,14 @@ import { ChainConfig } from './config/chain';
 import { Contracts } from './contracts';
 import path from 'path';
 
-export type DeployEnvironment =
-  | 'dev'
-  | 'testnet'
-  | 'mainnet'
-  | 'testnet-legacy'
-  | 'mainnet-legacy'
-  | 'test';
+export enum DeployEnvironment {
+  dev = 'dev',
+  testnet = 'testnet',
+  mainnet = 'mainnet',
+  testnetLegacy = 'testnet-legacy',
+  mainnetLegacy = 'mainnet-legacy',
+  test = 'test',
+}
 
 type XAppConnectionName = 'XAppConnectionManager';
 type UpdaterManagerName = 'UpdaterManager';

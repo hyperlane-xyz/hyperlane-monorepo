@@ -289,7 +289,7 @@ export async function addDeployerGCPKey(
 ) {
   const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chain.name);
   await key.fetch();
-  const deployerSecret = key.privateKey();
+  const deployerSecret = key.privateKey;
   chain.replaceSigner(strip0x(deployerSecret));
   return chain;
 }
