@@ -1,6 +1,6 @@
 import { BytesLike, ethers } from 'ethers';
 
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 import { Deploy } from '../deploy';
 import { CoreDeploy } from '../core/CoreDeploy';
 import { ProxiedAddress } from '../config/addresses';

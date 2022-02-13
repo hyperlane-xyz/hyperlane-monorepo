@@ -1,4 +1,4 @@
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 import { BeaconProxy } from '../utils/proxy';
 import { Contracts } from '../contracts';
 import {

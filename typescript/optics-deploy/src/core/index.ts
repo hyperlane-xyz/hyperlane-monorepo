@@ -4,7 +4,7 @@ import fs from 'fs';
 
 import * as proxyUtils from '../utils/proxy';
 import { CoreDeploy } from './CoreDeploy';
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 import { CoreInvariantChecker } from './checks';
 import { log, warn, toBytes32 } from '../utils/utils';
 

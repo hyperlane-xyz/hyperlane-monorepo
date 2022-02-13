@@ -1,5 +1,5 @@
-import * as xAppContracts from 'optics-ts-interface/dist/optics-xapps';
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as xAppContracts from '@abacus-network/ts-interface/dist/optics-xapps';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 import { BridgeContractAddresses } from '../../src/config/addresses';
 import { BeaconProxy } from '../utils/proxy';
 import { Contracts } from '../contracts';

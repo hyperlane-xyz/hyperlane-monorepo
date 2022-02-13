@@ -8,9 +8,9 @@
     "typescript": "^4.3.2"
   },
   "prepublish": "npm run build",
-  "name": "optics-deploy",
+  "name": "@abacus-network/abacus-deploy",
   "version": "0.0.5",
-  "description": "Optics deploy tools",
+  "description": "Abacus deploy tools",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
   "scripts": {
@@ -30,7 +30,7 @@
     "axios": "^0.21.3",
     "chai": "^4.3.4",
     "dotenv": "^10.0.0",
-    "optics-ts-interface": "1.1.2",
+    "@abacus-network/ts-interface": "1.1.2",
     "yargs": "^17.3.1"
   }
 }

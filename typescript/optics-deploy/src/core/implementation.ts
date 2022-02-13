@@ -1,7 +1,7 @@
 import * as proxyUtils from '../utils/proxy';
 import { CoreDeploy } from './CoreDeploy';
 import { writeRustConfigs } from './index';
-import * as contracts from 'optics-ts-interface/dist/optics-core';
+import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 import { log, warn } from '../utils/utils';
 
 export class ImplementationDeployer {
