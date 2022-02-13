@@ -19,6 +19,7 @@ import { BridgeContracts } from '@abacus-network/abacus-deploy/dist/src/bridge/B
 import * as process from '@abacus-network/abacus-deploy/dist/src/bridge';
 import { ChainConfig } from '@abacus-network/abacus-deploy/dist/src/config/chain';
 import { CoreConfig } from '@abacus-network/abacus-deploy/dist/src/config/core';
+import { DeployEnvironment } from "@abacus-network/abacus-deploy/dist/src/deploy";
 
 function toBytes32(address: string): string {
   return '0x' + '00'.repeat(12) + address.slice(2);
@@ -64,7 +65,7 @@ export default class TestBridgeDeploy extends BridgeDeploy {
       upgradeBeaconController: mockCore.address,
       updaterManager: mockCore.address,
     };
-    super(chain, 'test', true, coreContractAddresses);
+    super(chain, DeployEnvironment.test, true, coreContractAddresses);
     this.ubc = ubc;
     this.mockCore = mockCore;
     this.mockWeth = mockWeth;
