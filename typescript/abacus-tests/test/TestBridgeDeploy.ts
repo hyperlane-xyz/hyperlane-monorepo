@@ -4,7 +4,6 @@ import {
   UpgradeBeaconController__factory,
 } from '@abacus-network/ts-interface/dist/abacus-core';
 import {
-  BridgeRouter,
   BridgeToken,
   BridgeToken__factory,
   MockCore,
@@ -132,7 +131,7 @@ export default class TestBridgeDeploy extends BridgeDeploy {
     return { weth: this.mockWeth.address };
   }
 
-  get bridgeRouter(): BridgeRouter | undefined {
+  get bridgeRouter() {
     return this.contracts.bridgeRouter?.proxy;
   }
 

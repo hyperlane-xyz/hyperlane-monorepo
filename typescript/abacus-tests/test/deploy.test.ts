@@ -16,6 +16,7 @@ import {
   MockWeth,
   MockWeth__factory,
 } from '@abacus-network/ts-interface/dist/abacus-xapps';
+import { DeployEnvironment } from "@abacus-network/abacus-deploy/dist/src/deploy";
 
 const domains = [1000, 2000, 3000, 4000];
 
@@ -129,13 +130,13 @@ describe('bridge deploy scripts', async () => {
     // instantiate alfajores and kovan bridge deploys
     const alfajoresDeploy = new BridgeDeploy(
       deploys[0].chain,
-      'test',
+      DeployEnvironment.test,
       true,
       coreAddresses[0],
     );
     const kovanDeploy = new BridgeDeploy(
       deploys[1].chain,
-      'test',
+      DeployEnvironment.test,
       true,
       coreAddresses[1],
     );
@@ -148,19 +149,19 @@ describe('bridge deploy scripts', async () => {
     // instantiate 3 deploys: alfajores, kovan and rinkeby
     const alfajoresDeploy = new BridgeDeploy(
       deploys[0].chain,
-      'test',
+      DeployEnvironment.test,
       true,
       coreAddresses[0],
     );
     const kovanDeploy = new BridgeDeploy(
       deploys[1].chain,
-      'test',
+      DeployEnvironment.test,
       true,
       coreAddresses[1],
     );
     const rinkebyDeploy = new BridgeDeploy(
       deploys[2].chain,
-      'test',
+      DeployEnvironment.test,
       true,
       coreAddresses[2],
     );

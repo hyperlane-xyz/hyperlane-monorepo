@@ -7,6 +7,7 @@ import {
   ChainConfig,
   ChainConfigJson,
 } from '@abacus-network/abacus-deploy/dist/src/config/chain';
+import { DeployEnvironment } from "@abacus-network/abacus-deploy/dist/src/deploy";
 
 const { BigNumber } = ethers;
 
@@ -34,7 +35,7 @@ export async function getTestChain(
   return [
     chain,
     {
-      environment: 'dev',
+      environment: DeployEnvironment.dev,
       recoveryTimelock: 1,
       optimisticSeconds: 3,
       processGas: 850_000,
