@@ -17,7 +17,7 @@ mod settings;
 use color_eyre::Result;
 
 use crate::{processor::Processor, settings::ProcessorSettings};
-use optics_base::OpticsAgent;
+use abacus_base::AbacusAgent;
 
 async fn _main() -> Result<()> {
     color_eyre::install()?;

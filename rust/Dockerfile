@@ -13,9 +13,9 @@ RUN apt-get update && \
 COPY agents ./agents
 COPY chains ./chains
 COPY tools ./tools
-COPY optics-base ./optics-base 
-COPY optics-core ./optics-core
-COPY optics-test ./optics-test
+COPY abacus-base ./abacus-base 
+COPY abacus-core ./abacus-core
+COPY abacus-test ./abacus-test
 
 COPY Cargo.toml .
 COPY Cargo.lock .
@@ -35,7 +35,7 @@ RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/relea
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/processor .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/kathy .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/kms-cli .
-RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/optics-cli .
+RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/abacus-cli .
 
 # 2: Copy the binaries to release image
 FROM ubuntu:20.04
@@ -50,7 +50,7 @@ COPY --from=builder /release/relayer .
 COPY --from=builder /release/processor .
 COPY --from=builder /release/kathy .
 COPY --from=builder /release/kms-cli .
-COPY --from=builder /release/optics-cli .
+COPY --from=builder /release/abacus-cli .
 COPY config ./config
 RUN chmod 777 /app
 RUN mkdir /usr/share/optics/ && chmod 1000 /usr/share/optics

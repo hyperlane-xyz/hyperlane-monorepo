@@ -4,8 +4,8 @@ use std::{sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
 use tracing::{info, instrument::Instrumented, Instrument};
 
-use optics_base::{AgentCore, CachingHome, CachingReplica, OpticsAgent};
-use optics_core::{Common, CommonEvents};
+use abacus_base::{AgentCore, CachingHome, CachingReplica, AbacusAgent};
+use abacus_core::{Common, CommonEvents};
 
 use crate::settings::RelayerSettings as Settings;
 
@@ -142,7 +142,7 @@ impl Relayer {
 
 #[async_trait]
 #[allow(clippy::unit_arg)]
-impl OpticsAgent for Relayer {
+impl AbacusAgent for Relayer {
     const AGENT_NAME: &'static str = "relayer";
 
     type Settings = Settings;

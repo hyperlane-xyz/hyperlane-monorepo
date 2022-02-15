@@ -1,4 +1,4 @@
-## Optics Rust implementations
+## Abacus Rust implementations
 
 ### Setup
 
@@ -49,7 +49,7 @@ The on-chain portions of optics are written in Solidity. The rust portions are
 exclusively off-chain. Later, there may be on-chain rust for Near/Solana/
 Polkadot.
 
-Optics will be managed by a number of small off-chain programs ("agents"). Each
+Abacus will be managed by a number of small off-chain programs ("agents"). Each
 of these will have a specific role. We want these roles to be simple, and
 easily described. Each of these agents will connect to a home chain and any
 number of replicas. They need to be configured with chain connection details
@@ -97,7 +97,7 @@ We use the tokio async runtime environment. Please see the docs
     - trait implementations for different chains
     - shared configuration file formats
     - basic setup for an off-chain agent
-- `chains/optics-ethereum`
+- `chains/abacus-ethereum`
   - interfaces to the ethereum contracts
 - `agents`
   - each of the off-chain agents implemented thus far
@@ -109,10 +109,10 @@ We use the tokio async runtime environment. Please see the docs
   - copy most of the dependencies from `optics-base`
 - create a new module in `src/$AGENT_NAME.rs`
   - add a new struct
-  - implement `optics_base::OpticsAgent` for your struct
+  - implement `abacus_base::AbacusAgent` for your struct
   - your `run` function is the business logic of your agent
 - create a new settings module `src/settings.rs`
-  - reuse the `Settings` objects from `optics_base::settings`
+  - reuse the `Settings` objects from `abacus_base::settings`
   - make sure to read the docs :)
   - add your own new settings
 - in `$AGENT_NAME/src/main.rs`

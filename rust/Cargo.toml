@@ -3,16 +3,16 @@ cargo-features = ["edition2021"]
 [workspace]
 
 members = [
-    "optics-core",
-    "optics-base",
-    "optics-test",
-    "chains/optics-ethereum",
+    "abacus-core",
+    "abacus-base",
+    "abacus-test",
+    "chains/abacus-ethereum",
     "agents/kathy",
     "agents/updater",
     "agents/relayer",
     "agents/watcher",
     "agents/processor",
     "tools/kms-cli",
-    "tools/optics-cli",
+    "tools/abacus-cli",
     "tools/balance-exporter"
 ]
