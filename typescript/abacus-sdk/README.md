@@ -1,6 +1,6 @@
-## Abacus Provider
+## Abacus SDK
 
-Abacus Provider is a management system for
+Abacus SDK is a management system for
 [ethers.js](https://docs.ethers.io/v5/) providers and signers that helps
 developers connect to multiple networks simultaneously. It is part
 of the [Abacus](https://github.com/celo-org/optics-monorepo) project, but may
