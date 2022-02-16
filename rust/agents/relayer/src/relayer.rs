@@ -4,7 +4,7 @@ use std::{sync::Arc, time::Duration};
 use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
 use tracing::{info, instrument::Instrumented, Instrument};
 
-use abacus_base::{AgentCore, CachingHome, CachingReplica, AbacusAgent};
+use abacus_base::{AbacusAgent, AgentCore, CachingHome, CachingReplica};
 use abacus_core::{Common, CommonEvents};
 
 use crate::settings::RelayerSettings as Settings;

@@ -1,7 +1,7 @@
-use async_trait::async_trait;
-use color_eyre::Result;
 use abacus_core::{CommonIndexer, HomeIndexer, RawCommittedMessage, SignedUpdateWithMeta};
 use abacus_test::mocks::MockIndexer;
+use async_trait::async_trait;
+use color_eyre::Result;
 
 /// Home/Replica CommonIndexer type
 #[derive(Debug)]

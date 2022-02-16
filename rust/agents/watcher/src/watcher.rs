@@ -12,7 +12,7 @@ use tokio::{
 };
 use tracing::{error, info, info_span, instrument::Instrumented, Instrument};
 
-use abacus_base::{cancel_task, AgentCore, CachingHome, ConnectionManagers, AbacusAgent};
+use abacus_base::{cancel_task, AbacusAgent, AgentCore, CachingHome, ConnectionManagers};
 use abacus_core::{
     db::AbacusDB, ChainCommunicationError, Common, CommonEvents, ConnectionManager, DoubleUpdate,
     FailureNotification, Home, SignedUpdate, Signers, TxOutcome,

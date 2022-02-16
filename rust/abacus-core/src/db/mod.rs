@@ -14,7 +14,7 @@ pub use typed_db::*;
 mod abacus_db;
 pub use abacus_db::*;
 
-use crate::{Decode, Encode, AbacusError, Update};
+use crate::{AbacusError, Decode, Encode, Update};
 
 #[derive(Debug, Clone)]
 /// A KV Store

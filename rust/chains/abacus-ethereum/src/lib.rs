@@ -4,10 +4,10 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+use abacus_core::*;
 use color_eyre::eyre::Result;
 use ethers::prelude::*;
 use num::Num;
-use abacus_core::*;
 use std::convert::TryFrom;
 use std::sync::Arc;
 

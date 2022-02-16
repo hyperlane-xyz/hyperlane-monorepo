@@ -140,8 +140,8 @@ impl std::iter::Extend<H256> for Prover {
 #[cfg(test)]
 mod test {
     use super::*;
-    use ethers::utils::hash_message;
     use abacus_core::test_utils;
+    use ethers::utils::hash_message;
 
     #[test]
     fn it_produces_and_verifies_proofs() {

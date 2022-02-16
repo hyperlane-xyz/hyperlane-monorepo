@@ -1,9 +1,9 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use abacus_core::*;
 use async_trait::async_trait;
 use ethers::contract::abigen;
-use abacus_core::*;
 use std::sync::Arc;
 
 use crate::report_tx;

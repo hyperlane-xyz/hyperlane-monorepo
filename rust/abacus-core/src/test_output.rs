@@ -5,7 +5,7 @@ use crate::{
     },
     test_utils::find_vector,
     utils::{destination_and_nonce, home_domain_hash},
-    FailureNotification, AbacusMessage, Update,
+    AbacusMessage, FailureNotification, Update,
 };
 use ethers::{
     core::types::{H160, H256},

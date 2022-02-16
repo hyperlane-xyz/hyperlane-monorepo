@@ -37,15 +37,15 @@
 //!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
 
 use crate::{agent::AgentCore, CachingHome, CachingReplica, CommonIndexers, HomeIndexers};
-use color_eyre::{eyre::bail, Report};
-use config::{Config, ConfigError, Environment, File};
-use ethers::prelude::AwsSigner;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
     Common, ContractLocator, Signers,
 };
 use abacus_ethereum::{make_home_indexer, make_replica_indexer};
+use color_eyre::{eyre::bail, Report};
+use config::{Config, ConfigError, Environment, File};
+use ethers::prelude::AwsSigner;
 use rusoto_core::{credential::EnvironmentProvider, HttpClient};
 use rusoto_kms::KmsClient;
 use serde::Deserialize;

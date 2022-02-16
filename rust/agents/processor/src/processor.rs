@@ -13,7 +13,7 @@ use std::{
 use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use abacus_base::{cancel_task, decl_agent, AgentCore, CachingHome, CachingReplica, AbacusAgent};
+use abacus_base::{cancel_task, decl_agent, AbacusAgent, AgentCore, CachingHome, CachingReplica};
 use abacus_core::{
     accumulator::merkle::Proof, db::AbacusDB, CommittedMessage, Common, Home, HomeEvents,
     MessageStatus,

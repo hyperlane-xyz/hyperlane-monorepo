@@ -1,10 +1,10 @@
 use std::{path::PathBuf, time::Duration};
 
+use abacus_base::ChainSetup;
 use clap::Arg;
 use color_eyre::eyre::anyhow;
 use futures::StreamExt;
 use human_panic::setup_panic;
-use abacus_base::ChainSetup;
 use tokio::time::Instant;
 
 #[derive(serde::Deserialize, Debug)]

@@ -11,7 +11,7 @@ use tracing::{info, instrument::Instrumented, Instrument};
 use crate::{
     produce::UpdateProducer, settings::UpdaterSettings as Settings, submit::UpdateSubmitter,
 };
-use abacus_base::{AgentCore, AbacusAgent};
+use abacus_base::{AbacusAgent, AgentCore};
 use abacus_core::{db::AbacusDB, Common, Signers};
 
 /// An updater agent

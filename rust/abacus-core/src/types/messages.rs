@@ -1,6 +1,6 @@
 use ethers::{types::H256, utils::keccak256};
 
-use crate::{utils, Decode, Encode, AbacusError};
+use crate::{utils, AbacusError, Decode, Encode};
 
 const OPTICS_MESSAGE_PREFIX_LEN: usize = 76;
 

@@ -1,7 +1,3 @@
-use async_trait::async_trait;
-use color_eyre::eyre::Result;
-use ethers::core::types::H256;
-use futures_util::future::select_all;
 use abacus_core::db::AbacusDB;
 use abacus_core::{
     ChainCommunicationError, Common, CommonEvents, DoubleUpdate, Home, HomeEvents, Message,
@@ -9,6 +5,10 @@ use abacus_core::{
 };
 use abacus_ethereum::EthereumHome;
 use abacus_test::mocks::MockHomeContract;
+use async_trait::async_trait;
+use color_eyre::eyre::Result;
+use ethers::core::types::H256;
+use futures_util::future::select_all;
 use std::str::FromStr;
 use std::sync::Arc;
 use tokio::task::JoinHandle;

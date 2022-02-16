@@ -1,15 +1,15 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use async_trait::async_trait;
-use color_eyre::Result;
-use ethers::contract::abigen;
-use ethers::core::types::{Signature, H256};
 use abacus_core::*;
 use abacus_core::{
     ChainCommunicationError, Common, DoubleUpdate, Home, Message, RawCommittedMessage,
     SignedUpdate, State, TxOutcome, Update,
 };
+use async_trait::async_trait;
+use color_eyre::Result;
+use ethers::contract::abigen;
+use ethers::core::types::{Signature, H256};
 use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
 use tracing::instrument;
 

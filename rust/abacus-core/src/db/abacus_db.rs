@@ -1,7 +1,7 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::UpdateMeta;
 use crate::{
-    accumulator::merkle::Proof, traits::RawCommittedMessage, utils, Decode, AbacusMessage,
+    accumulator::merkle::Proof, traits::RawCommittedMessage, utils, AbacusMessage, Decode,
     SignedUpdate,
 };
 use color_eyre::Result;

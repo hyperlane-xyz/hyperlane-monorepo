@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use abacus_base::{CachingHome, AbacusAgent};
+use abacus_base::{AbacusAgent, CachingHome};
 use abacus_core::{db::AbacusDB, Common};
 use prometheus::IntCounterVec;
 use std::time::Duration;

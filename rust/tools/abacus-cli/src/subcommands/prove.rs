@@ -6,7 +6,7 @@ use crate::{replicas, rpc};
 use abacus_core::{
     accumulator::merkle::Proof,
     db::{AbacusDB, DB},
-    ContractLocator, Decode, MessageStatus, AbacusMessage, Replica, Signers,
+    AbacusMessage, ContractLocator, Decode, MessageStatus, Replica, Signers,
 };
 use abacus_ethereum::EthereumReplica;
 

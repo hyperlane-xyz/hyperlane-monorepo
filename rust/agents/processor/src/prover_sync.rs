@@ -1,11 +1,11 @@
 use crate::prover::{Prover, ProverError};
-use color_eyre::eyre::{bail, Result};
-use ethers::core::types::H256;
 use abacus_core::{
     accumulator::{incremental::IncrementalMerkle, INITIAL_ROOT},
-    db::{DbError, AbacusDB},
+    db::{AbacusDB, DbError},
     ChainCommunicationError,
 };
+use color_eyre::eyre::{bail, Result};
+use ethers::core::types::H256;
 use std::{fmt::Display, ops::Range, time::Duration};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};

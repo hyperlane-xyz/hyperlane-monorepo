@@ -1,8 +1,8 @@
-use async_trait::async_trait;
 use abacus_core::{
-    ChainCommunicationError, ConnectionManager, AbacusIdentifier, SignedFailureNotification,
+    AbacusIdentifier, ChainCommunicationError, ConnectionManager, SignedFailureNotification,
     TxOutcome,
 };
+use async_trait::async_trait;
 
 use abacus_ethereum::EthereumConnectionManager;
 use abacus_test::mocks::MockConnectionManagerContract;

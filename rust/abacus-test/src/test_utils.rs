@@ -1,5 +1,5 @@
-use futures_util::FutureExt;
 use abacus_core::db::DB;
+use futures_util::FutureExt;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use std::{future::Future, panic};
@@ -40,10 +40,10 @@ where
 #[cfg(test)]
 mod test {
     use super::*;
-    use ethers::types::H256;
     use abacus_core::{
-        accumulator::merkle::Proof, db::AbacusDB, Encode, AbacusMessage, RawCommittedMessage,
+        accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage,
     };
+    use ethers::types::H256;
 
     #[tokio::test]
     async fn db_stores_and_retrieves_messages() {

@@ -1,10 +1,10 @@
+use abacus_core::{
+    accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, ChainCommunicationError, Common,
+    CommonEvents, DoubleUpdate, MessageStatus, Replica, SignedUpdate, State, TxOutcome,
+};
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
 use ethers::core::types::H256;
-use abacus_core::{
-    accumulator::merkle::Proof, db::AbacusDB, ChainCommunicationError, Common, CommonEvents,
-    DoubleUpdate, MessageStatus, AbacusMessage, Replica, SignedUpdate, State, TxOutcome,
-};
 
 use abacus_ethereum::EthereumReplica;
 use abacus_test::mocks::MockReplicaContract;

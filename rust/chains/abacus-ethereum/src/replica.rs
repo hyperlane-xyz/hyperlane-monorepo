@@ -1,12 +1,12 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use abacus_core::{accumulator::merkle::Proof, *};
+use abacus_core::{CommonIndexer, ContractLocator};
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::contract::abigen;
 use ethers::core::types::{Signature, H256, U256};
-use abacus_core::{accumulator::merkle::Proof, *};
-use abacus_core::{CommonIndexer, ContractLocator};
 use tracing::instrument;
 
 use std::{convert::TryFrom, error::Error as StdError, sync::Arc};

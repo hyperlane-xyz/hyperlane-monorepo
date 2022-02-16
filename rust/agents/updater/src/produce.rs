@@ -2,9 +2,9 @@ use ethers::core::types::H256;
 use prometheus::IntCounterVec;
 use std::{sync::Arc, time::Duration};
 
-use color_eyre::Result;
-use abacus_base::{CachingHome, AbacusAgent};
+use abacus_base::{AbacusAgent, CachingHome};
 use abacus_core::{db::AbacusDB, Common, Home, Signers};
+use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 

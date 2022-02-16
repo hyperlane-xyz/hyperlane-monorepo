@@ -10,7 +10,7 @@ use tracing::{info, Instrument};
 
 use ethers::core::types::H256;
 
-use abacus_base::{decl_agent, AgentCore, AbacusAgent};
+use abacus_base::{decl_agent, AbacusAgent, AgentCore};
 use abacus_core::{Home, Message, Replica};
 
 use crate::settings::KathySettings as Settings;

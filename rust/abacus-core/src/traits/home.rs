@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use crate::{
     traits::{ChainCommunicationError, Common, TxOutcome},
     utils::home_domain_hash,
-    Decode, Encode, Message, AbacusError, AbacusMessage, SignedUpdate, Update,
+    AbacusError, AbacusMessage, Decode, Encode, Message, SignedUpdate, Update,
 };
 use async_trait::async_trait;
 use color_eyre::Result;

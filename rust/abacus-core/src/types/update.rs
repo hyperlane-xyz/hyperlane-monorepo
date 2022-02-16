@@ -1,4 +1,4 @@
-use crate::{utils::home_domain_hash, Decode, Encode, AbacusError, SignerExt};
+use crate::{utils::home_domain_hash, AbacusError, Decode, Encode, SignerExt};
 use ethers::{
     prelude::{Address, Signature},
     types::H256,
