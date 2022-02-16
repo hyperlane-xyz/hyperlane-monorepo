@@ -36,7 +36,7 @@ jobs:
           npm run build
           cd ../optics-deploy
           npm run build
-          cd ../optics-provider
+          cd ../abacus-sdk
           npm run build
           cd ../typechain
           npm run build
@@ -54,7 +54,7 @@ jobs:
         run: |
           cd ./typescript/optics-deploy
           npm run prettier
-          cd ../optics-provider
+          cd ../abacus-sdk
           npm run prettier
           cd ../abacus-tests
           npm run prettier-ci
