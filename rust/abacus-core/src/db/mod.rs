@@ -37,7 +37,7 @@ pub enum DbError {
     AbacusError(#[from] AbacusError),
     /// UpdaterConflictError
     ///
-    /// TODO(luke): move this agent-related stuff into optics-base
+    /// TODO(luke): move this agent-related stuff into abacus-base
     #[error("Updater attempted to store conflicting signed update. Existing: {existing:?}. New conflicting: {conflicting:?}.")]
     UpdaterConflictError {
         /// Existing signed update

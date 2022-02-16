@@ -85,7 +85,7 @@ impl ProveCommand {
         Ok(())
     }
 
-    // mostly copied from optics-base settings
+    // mostly copied from abacus-base settings
     async fn signer(&self) -> Result<Signers> {
         if let Some(key) = &self.key {
             Ok(Signers::Local(key.parse()?))

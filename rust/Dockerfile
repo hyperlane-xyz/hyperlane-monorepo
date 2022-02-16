@@ -53,6 +53,6 @@ COPY --from=builder /release/kms-cli .
 COPY --from=builder /release/abacus-cli .
 COPY config ./config
 RUN chmod 777 /app
-RUN mkdir /usr/share/optics/ && chmod 1000 /usr/share/optics
+RUN mkdir /usr/share/abacus/ && chmod 1000 /usr/share/abacus
 USER 1000
 CMD ["./watcher"]

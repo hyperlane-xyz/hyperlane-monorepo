@@ -33,7 +33,7 @@ pub mod utils;
 /// Testing utilities
 pub mod test_utils;
 
-/// Core optics system data structures
+/// Core abacus system data structures
 mod types;
 pub use types::*;
 
