@@ -3,7 +3,7 @@ use ethers::prelude::H256;
 use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 
-use optics_base::decl_settings;
+use abacus_base::decl_settings;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct S3Config {

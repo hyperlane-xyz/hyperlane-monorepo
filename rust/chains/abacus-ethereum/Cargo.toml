@@ -1,0 +1,27 @@
+[package]
+name = "abacus-ethereum"
+version = "0.1.0"
+authors = ["Erin Hales <mcbridee093@gmail.com>"]
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+# Main block
+serde = "1.0.120"
+serde_json = { version = "1.0.61", default-features = false }
+ethers = {git = "https://github.com/gakonst/ethers-rs", branch = "master", features = ["abigen"]}
+ethers-signers = {git = "https://github.com/gakonst/ethers-rs", branch = "master", features = ["aws"]}
+ethers-contract = { git = "https://github.com/gakonst/ethers-rs", branch = "master", features=["legacy"] }
+async-trait = { version = "0.1.42", default-features = false }
+tracing = "0.1.22"
+color-eyre = "0.5.0"
+anyhow = "1"
+num = "0.4"
+
+abacus-core = { path = "../../abacus-core" }
+tokio = "1.7.1"
+hex = "0.4.3"
+prometheus = "0.12"
+rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
+tracing-futures = "0.2.5"

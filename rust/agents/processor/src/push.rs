@@ -6,7 +6,7 @@ use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3
 
 use color_eyre::eyre::{bail, eyre, Result};
 
-use optics_core::{accumulator::merkle::Proof, db::OpticsDB};
+use abacus_core::{accumulator::merkle::Proof, db::AbacusDB};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
@@ -21,7 +21,7 @@ pub struct Pusher {
     name: String,
     bucket: String,
     region: Region,
-    db: OpticsDB,
+    db: AbacusDB,
     client: S3Client,
     message_leaf_index_gauge: prometheus::IntGauge,
 }
@@ -42,7 +42,7 @@ impl Pusher {
         name: &str,
         bucket: &str,
         region: Region,
-        db: OpticsDB,
+        db: AbacusDB,
         message_leaf_index_gauge: prometheus::IntGauge,
     ) -> Self {
         let client = S3Client::new_with(
