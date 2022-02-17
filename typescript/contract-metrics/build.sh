@@ -15,4 +15,4 @@ FULL_IMAGE=$REPOSITORY:$TAG
 
 echo "Building $FULL_IMAGE"
 
-docker build --platform amd64 -t $FULL_IMAGE . 
+docker build --platform amd64 -t $FULL_IMAGE .
