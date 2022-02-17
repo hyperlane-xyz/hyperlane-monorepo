@@ -49,7 +49,7 @@ export class MetricCollector {
       name: 'optics_governor_recovery_active_at',
       help: 'Gauge that tracks the timestamp (seconds) of the governor recovery mode being active',
       labelNames: ['network', 'environment'],
-    })
+    });
   }
   /**
    * Sets the state for a bridge.
@@ -84,7 +84,10 @@ export class MetricCollector {
     environment: string,
     recoveryActiveAt: number,
   ) {
-    this.governorRecoveryActiveAt.set({ network, environment }, recoveryActiveAt);
+    this.governorRecoveryActiveAt.set(
+      { network, environment },
+      recoveryActiveAt,
+    );
   }
 
   /**

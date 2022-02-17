@@ -31,7 +31,7 @@ async function main(forever: boolean) {
 
 async function monitorAll() {
   const context =
-      config.environment == 'mainnet' ? contexts.mainnet : contexts.dev;
+    config.environment == 'mainnet' ? contexts.mainnet : contexts.dev;
 
   await monitorGovernor(context);
   for (let network of config.networks) {

@@ -83,7 +83,7 @@ export function logMonitorMetrics(
   dispatchLogs: any[],
   processedLogs: any[],
   unprocessedDetails: any[],
-  logger: Logger = config.baseLogger
+  logger: Logger = config.baseLogger,
 ) {
   const oldest =
     unprocessedDetails.length != 0
