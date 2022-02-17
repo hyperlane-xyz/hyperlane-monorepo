@@ -1,7 +1,6 @@
-import { HelmCommand } from '../../agents';
 import { InfrastructureConfig } from '../../config/infrastructure';
 import { fetchGCPSecret } from '../../utils/gcloud';
-import { addHelmRepoIfNotExists, helmifyValues } from '../../utils/helm';
+import { addHelmRepoIfNotExists, HelmCommand, helmifyValues } from '../../utils/helm';
 import { createNamespaceIfNotExists } from '../../utils/kubectl';
 import { execCmd } from '../../utils/utils';
 

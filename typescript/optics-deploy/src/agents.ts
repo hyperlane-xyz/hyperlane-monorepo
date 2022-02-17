@@ -1,7 +1,7 @@
 import { rm, writeFile } from 'fs/promises';
 import { ChainName, ChainConfig } from './config/chain';
 import { AgentConfig } from './config/agent';
-import { helmifyValues } from './utils/helm';
+import { HelmCommand, helmifyValues } from './utils/helm';
 import { ensure0x, execCmd, include, strip0x } from './utils/utils';
 import {
   AgentGCPKey,
@@ -30,12 +30,6 @@ export const KEY_ROLES = [
   'deployer',
   'bank',
 ];
-
-export enum HelmCommand {
-  Install = 'install',
-  Upgrade = 'upgrade',
-  UpgradeDiff = 'template --debug',
-}
 
 async function helmValuesForChain(
   chainName: ChainName,

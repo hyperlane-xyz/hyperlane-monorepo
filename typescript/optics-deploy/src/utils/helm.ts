@@ -1,6 +1,12 @@
 import { HelmChartRepositoryConfig } from '../config/infrastructure';
 import { execCmd } from './utils';
 
+export enum HelmCommand {
+  Install = 'install',
+  Upgrade = 'upgrade',
+  UpgradeDiff = 'template --debug',
+}
+
 export function helmifyValues(config: any, prefix?: string): string[] {
   if (typeof config !== 'object') {
     return [`--set ${prefix}=${JSON.stringify(config)}`];
