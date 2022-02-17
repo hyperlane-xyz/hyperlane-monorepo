@@ -35,7 +35,7 @@ impl CoreMetrics {
                     "transactions_total",
                     "Number of transactions sent by this agent since boot",
                 )
-                .namespace("optics")
+                .namespace("abacus")
                 .const_label("VERSION", env!("CARGO_PKG_VERSION")),
                 &["chain", "wallet", "agent"],
             )?),
@@ -44,7 +44,7 @@ impl CoreMetrics {
                     "wallet_balance_total",
                     "Balance of the smart contract wallet",
                 )
-                .namespace("optics")
+                .namespace("abacus")
                 .const_label("VERSION", env!("CARGO_PKG_VERSION")),
                 &["chain", "wallet", "agent"],
             )?),
@@ -53,7 +53,7 @@ impl CoreMetrics {
                     "rpc_duration_ms",
                     "Duration from dispatch to receipt-of-response for RPC calls",
                 )
-                .namespace("optics")
+                .namespace("abacus")
                 .const_label("VERSION", env!("CARGO_PKG_VERSION")),
                 &["chain", "method", "agent"],
             )?),
@@ -62,7 +62,7 @@ impl CoreMetrics {
                     "span_duration_sec",
                     "Duration from span creation to span destruction",
                 )
-                .namespace("optics")
+                .namespace("abacus")
                 .const_label("VERSION", env!("CARGO_PKG_VERSION")),
                 &["span_name", "target"],
             )?),
@@ -71,7 +71,7 @@ impl CoreMetrics {
                     "last_known_message_leaf_index",
                     "The latest known message leaf index",
                 )
-                .namespace("optics")
+                .namespace("abacus")
                 .const_label("VERSION", env!("CARGO_PKG_VERSION")),
                 // "remote is unknown where remote is unavailable"
                 &["phase", "origin", "remote"],
@@ -104,7 +104,7 @@ impl CoreMetrics {
     ) -> Result<prometheus::IntGaugeVec> {
         let gauge = IntGaugeVec::new(
             Opts::new(metric_name, help)
-                .namespace("optics")
+                .namespace("abacus")
                 .const_label("VERSION", env!("CARGO_PKG_VERSION")),
             labels,
         )?;
@@ -124,7 +124,7 @@ impl CoreMetrics {
     ) -> Result<prometheus::IntCounterVec> {
         let counter = IntCounterVec::new(
             Opts::new(metric_name, help)
-                .namespace("optics")
+                .namespace("abacus")
                 .const_label("VERSION", env!("CARGO_PKG_VERSION")),
             labels,
         )?;
