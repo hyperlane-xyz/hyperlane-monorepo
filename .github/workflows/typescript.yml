@@ -34,7 +34,7 @@ jobs:
         run: |
           cd ./typescript/contract-metrics
           npm run build
-          cd ../optics-deploy
+          cd ../abacus-deploy
           npm run build
           cd ../abacus-sdk
           npm run build
@@ -52,7 +52,7 @@ jobs:
 
       - name: prettier
         run: |
-          cd ./typescript/optics-deploy
+          cd ./typescript/abacus-deploy
           npm run prettier
           cd ../abacus-sdk
           npm run prettier

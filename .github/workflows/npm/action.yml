@@ -40,8 +40,8 @@ runs:
       id: deploy-cache
       uses: actions/cache@v2
       with:
-        path: ./typescript/optics-deploy/node_modules
-        key: ${{ inputs.runneros }}-deploy-cache-${{ hashFiles('typescript/optics-deploy/package-lock.json') }}
+        path: ./typescript/abacus-deploy/node_modules
+        key: ${{ inputs.runneros }}-deploy-cache-${{ hashFiles('typescript/abacus-deploy/package-lock.json') }}
 
     - name: Typechain Cache
       id: typechain-cache
@@ -83,7 +83,7 @@ runs:
     - name: Install Deploy
       shell: bash
       if: steps.deploy-cache.outputs.cache-hit != 'true'
-      run: cd ./typescript/optics-deploy && npm i
+      run: cd ./typescript/abacus-deploy && npm i
 
     - name: Install Typechain
       shell: bash

@@ -9,7 +9,7 @@ mod settings;
 
 use color_eyre::Result;
 
-use optics_base::OpticsAgent;
+use abacus_base::AbacusAgent;
 
 use crate::{kathy::Kathy, settings::KathySettings as Settings};
 
