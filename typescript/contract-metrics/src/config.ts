@@ -12,8 +12,12 @@ switch (environment) {
     networks = ['celo', 'ethereum', 'polygon', 'avalanche'];
     break;
 
-  default:
-    networks = ['alfajores', 'rinkeby', 'kovan'];
+  case 'testnet':
+    networks = ['alfajores', 'gorli', 'kovan', 'ropsten'];
+    break;
+
+  default: // dev
+    networks = ['alfajores', 'fuji', 'gorli', 'kovan', 'mumbai'];
     break;
 }
 
