@@ -1,8 +1,7 @@
-import { OpticsContext } from '@abacus-network/sdk';
 import config from './config';
 import * as contexts from './registerContext';
 import { monitorCore } from './monitor/core';
-import { monitorGovernance } from './monitor/governance';
+import { monitorGovernor } from './monitor/governance';
 
 const cliArgs = process.argv.slice(2);
 
@@ -47,8 +46,4 @@ async function monitorAll() {
       continue;
     }
   }
-}
-
-async function monitorGovernor(context: OpticsContext) {
-  await monitorGovernance(context, await context.governorDomain());
 }

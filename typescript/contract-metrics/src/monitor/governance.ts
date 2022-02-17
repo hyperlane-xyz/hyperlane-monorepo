@@ -1,10 +1,11 @@
 import { OpticsContext } from '@abacus-network/sdk';
 import config from '../config';
 
-export async function monitorGovernance(
-  context: OpticsContext,
-  domain: number,
-) {
+export async function monitorGovernor(context: OpticsContext) {
+  await monitorGovernanceRouter(context, await context.governorDomain());
+}
+
+async function monitorGovernanceRouter(context: OpticsContext, domain: number) {
   const network = context.mustGetDomain(domain).name;
   const logger = config.baseLogger.child({
     network,
