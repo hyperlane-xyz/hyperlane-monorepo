@@ -99,7 +99,7 @@ Note: In the event you need to bypass the pre-commit hooks, pass the
 2. Setup your `.env` files
 
    ```bash
-   cd typescript/optics-deploy
+   cd typescript/abacus-deploy
    touch .env && cat .env.example > .env
    cd ../../solidity/optics-core
    touch .env && cat .env.example > .env

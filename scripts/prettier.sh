@@ -9,6 +9,6 @@ npm --prefix ./solidity/abacus-xapps run prettier
 
 # typescript
 npm --prefix ./typescript/contract-metrics run prettier
-npm --prefix ./typescript/optics-deploy run prettier
+npm --prefix ./typescript/abacus-deploy run prettier
 npm --prefix ./typescript/optics-provider run prettier
 npm --prefix ./typescript/abacus-tests run prettier
