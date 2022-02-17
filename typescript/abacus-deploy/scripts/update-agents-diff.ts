@@ -1,4 +1,5 @@
-import { HelmCommand, runAgentHelmCommand } from '../src/agents';
+import { runAgentHelmCommand } from '../src/agents';
+import { HelmCommand } from '../src/utils/helm';
 import { getAgentConfig, getEnvironment, getChainConfigs } from './utils';
 
 async function deploy() {
