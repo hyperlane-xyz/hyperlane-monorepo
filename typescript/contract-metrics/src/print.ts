@@ -3,6 +3,7 @@ import {
   MessageStatus,
 } from '@abacus-network/sdk/dist/optics';
 import { OpticsContext, OpticsStatus } from '@abacus-network/sdk';
+import Logger from 'bunyan';
 import fs from 'fs';
 import config from './config';
 
@@ -82,6 +83,7 @@ export function logMonitorMetrics(
   dispatchLogs: any[],
   processedLogs: any[],
   unprocessedDetails: any[],
+  logger: Logger = config.baseLogger,
 ) {
   const oldest =
     unprocessedDetails.length != 0
@@ -99,5 +101,5 @@ export function logMonitorMetrics(
       oldest,
     },
   };
-  config.baseLogger.info(summary, `${origin} Summary`);
+  logger.info(summary, `Summary for ${origin}`);
 }
