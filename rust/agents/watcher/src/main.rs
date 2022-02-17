@@ -14,7 +14,7 @@ mod watcher;
 
 use color_eyre::Result;
 
-use optics_base::OpticsAgent;
+use abacus_base::AbacusAgent;
 
 use crate::{settings::WatcherSettings as Settings, watcher::Watcher};
 

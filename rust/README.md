@@ -1,4 +1,4 @@
-## Optics Rust implementations
+## Abacus Rust implementations
 
 ### Setup
 
@@ -45,11 +45,11 @@ info: The currently active `rustc` version is `rustc 1.52.1 (9bc8c42bb 2021-05-0
 
 ### Architecture
 
-The on-chain portions of optics are written in Solidity. The rust portions are
+The on-chain portions of Abacus are written in Solidity. The rust portions are
 exclusively off-chain. Later, there may be on-chain rust for Near/Solana/
 Polkadot.
 
-Optics will be managed by a number of small off-chain programs ("agents"). Each
+Abacus will be managed by a number of small off-chain programs ("agents"). Each
 of these will have a specific role. We want these roles to be simple, and
 easily described. Each of these agents will connect to a home chain and any
 number of replicas. They need to be configured with chain connection details
@@ -85,19 +85,19 @@ We use the tokio async runtime environment. Please see the docs
 
 ### Repo layout
 
-- `optics-core`
+- `abacus-core`
   - contains implementations of core primitives
   - this includes
     - traits (interfaces) for the on-chain contracts
     - model implementations of the contracts in rust
     - merkle tree implementations (for provers)
-- `optics-base`
+- `abacus-base`
   - contains shared utilities for building off-chain agents
   - this includes
     - trait implementations for different chains
     - shared configuration file formats
     - basic setup for an off-chain agent
-- `chains/optics-ethereum`
+- `chains/abacus-ethereum`
   - interfaces to the ethereum contracts
 - `agents`
   - each of the off-chain agents implemented thus far
@@ -106,19 +106,19 @@ We use the tokio async runtime environment. Please see the docs
 - `cargo new $AGENT_NAME`
 - add the new directory name to the workspace `Cargo.toml`
 - add dependencies to the new directory's `Cargo.toml`
-  - copy most of the dependencies from `optics-base`
+  - copy most of the dependencies from `abacus-base`
 - create a new module in `src/$AGENT_NAME.rs`
   - add a new struct
-  - implement `optics_base::OpticsAgent` for your struct
+  - implement `abacus_base::AbacusAgent` for your struct
   - your `run` function is the business logic of your agent
 - create a new settings module `src/settings.rs`
-  - reuse the `Settings` objects from `optics_base::settings`
+  - reuse the `Settings` objects from `abacus_base::settings`
   - make sure to read the docs :)
   - add your own new settings
 - in `$AGENT_NAME/src/main.rs`
   - add `mod _____` declarations for your agent and settings modules
   - create `main` and `setup` functions
-  - follow the pattern in `optics-base/src/main.rs`
+  - follow the pattern in `abacus-base/src/main.rs`
 - make a `config` folder and a toml file
   - Make sure to include your own settings from above
 

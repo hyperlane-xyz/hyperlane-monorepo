@@ -2,9 +2,9 @@ use ethers::core::types::H256;
 use prometheus::IntCounterVec;
 use std::{sync::Arc, time::Duration};
 
+use abacus_base::{AbacusAgent, CachingHome};
+use abacus_core::{db::AbacusDB, Common, Home, Signers};
 use color_eyre::Result;
-use optics_base::{CachingHome, OpticsAgent};
-use optics_core::{db::OpticsDB, Common, Home, Signers};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
@@ -13,7 +13,7 @@ use crate::updater::Updater;
 #[derive(Debug)]
 pub(crate) struct UpdateProducer {
     home: Arc<CachingHome>,
-    db: OpticsDB,
+    db: AbacusDB,
     signer: Arc<Signers>,
     interval_seconds: u64,
     update_pause: u64,
@@ -23,7 +23,7 @@ pub(crate) struct UpdateProducer {
 impl UpdateProducer {
     pub(crate) fn new(
         home: Arc<CachingHome>,
-        db: OpticsDB,
+        db: AbacusDB,
         signer: Arc<Signers>,
         interval_seconds: u64,
         update_pause: u64,

@@ -4,7 +4,7 @@
 
 use ethers::core::types::H256;
 
-use optics_core::accumulator::{
+use abacus_core::accumulator::{
     merkle::{merkle_root_from_branch, MerkleTree, MerkleTreeError, Proof},
     TREE_DEPTH,
 };
@@ -140,8 +140,8 @@ impl std::iter::Extend<H256> for Prover {
 #[cfg(test)]
 mod test {
     use super::*;
+    use abacus_core::test_utils;
     use ethers::utils::hash_message;
-    use optics_core::test_utils;
 
     #[test]
     fn it_produces_and_verifies_proofs() {

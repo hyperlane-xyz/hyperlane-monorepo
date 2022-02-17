@@ -20,12 +20,12 @@ tracing-futures = "0.2.4"
 tracing-subscriber = "0.2.15"
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
 
-optics-core = { path = "../../optics-core" }
-optics-base = { path = "../../optics-base" }
-optics-ethereum = { path = "../../chains/optics-ethereum" }
+abacus-core = { path = "../../abacus-core" }
+abacus-base = { path = "../../abacus-base" }
+abacus-ethereum = { path = "../../chains/abacus-ethereum" }
 paste = "1.0.5"
 
 [dev-dependencies]
 tokio-test = "0.4.0"
-optics-test = { path = "../../optics-test" }
+abacus-test = { path = "../../abacus-test" }
 prometheus = "0.12"
