@@ -1,10 +1,10 @@
 use std::{path::PathBuf, time::Duration};
 
+use abacus_base::ChainSetup;
 use clap::Arg;
 use color_eyre::eyre::anyhow;
 use futures::StreamExt;
 use human_panic::setup_panic;
-use optics_base::ChainSetup;
 use tokio::time::Instant;
 
 #[derive(serde::Deserialize, Debug)]
@@ -143,7 +143,7 @@ async fn mainnet_works() {
                 name: "ethereum".into(),
                 domain: "6648936".into(),
                 // i would love for this to just be ChainConf::ethereum()
-                chain: optics_base::chains::ChainConf::Ethereum(optics_ethereum::Connection::Ws {
+                chain: abacus_base::chains::ChainConf::Ethereum(abacus_ethereum::Connection::Ws {
                     url: "wss://main-light.eth.linkpool.io/ws".into(),
                 }),
                 address: "0xcEc158A719d11005Bd9339865965bed938BEafA3".into(),

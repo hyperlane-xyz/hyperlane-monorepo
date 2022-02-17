@@ -1,8 +1,8 @@
-# Optics-Agent Helm Chart
+# Abacus-Agent Helm Chart
 
 ![Version: 0.1.0](https://img.shields.io/badge/Version-0.1.0-informational?style=flat-square) ![Type: application](https://img.shields.io/badge/Type-application-informational?style=flat-square) ![AppVersion: 0.1.0](https://img.shields.io/badge/AppVersion-0.1.0-informational?style=flat-square)
 
-A Helm Chart that encapsulates the deployment of the Optics Rust Agent(s). It is currently designed to be deployed against a Google Kubernetes Engine cluster, but specification of another PVC Storage Class should be sufficient to make it compatible with other cloud providers.
+A Helm Chart that encapsulates the deployment of the Abacus Rust Agent(s). It is currently designed to be deployed against a Google Kubernetes Engine cluster, but specification of another PVC Storage Class should be sufficient to make it compatible with other cloud providers.
 
 Additional documentation is present in comments in `yalues.yaml`.
 
@@ -13,12 +13,12 @@ Additional documentation is present in comments in `yalues.yaml`.
 | affinity | object | `{}` |  |
 | fullnameOverride | string | `""` |  |
 | image.pullPolicy | string | `"Always"` |  |
-| image.repository | string | `"gcr.io/clabs-optics/optics-agent"` | Main repository for Optics Agent binaries, provided by cLabs |
+| image.repository | string | `"gcr.io/clabs-optics/optics-agent"` | Main repository for Abacus Agent binaries, provided by cLabs |
 | image.tag | string | `"latest"` | Overrides the image tag whose default is the chart appVersion. |
 | imagePullSecrets | list | `[]` |  |
 | nameOverride | string | `""` |  |
 | nodeSelector | object | `{}` |  |
-| optics | object | `{"baseConfig":"base.json","homeChain":{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"goerli","rpcStyle":null},"kathy":{"chatGenConfig":{"destination":null,"message":null,"recipient":null,"type":null},"enabled":false,"messageInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"processor":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"relayer":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"replicaChains":[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}],"runEnv":"default","updater":{"attestationSigner":"","enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}],"updatePause":null}}` | Optics Overrides By Default, Optics Agents load the config baked into the Docker Image Pass values here in order to override the values in the config Note: For successful operation, one _must_ pass signer keys as       they are not baked into the image for security reasons.  |
+| optics | object | `{"baseConfig":"base.json","homeChain":{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"goerli","rpcStyle":null},"kathy":{"chatGenConfig":{"destination":null,"message":null,"recipient":null,"type":null},"enabled":false,"messageInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"processor":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"relayer":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"replicaChains":[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}],"runEnv":"default","updater":{"attestationSigner":"","enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}],"updatePause":null}}` | Abacus Overrides By Default, Abacus Agents load the config baked into the Docker Image Pass values here in order to override the values in the config Note: For successful operation, one _must_ pass signer keys as       they are not baked into the image for security reasons.  |
 | optics.homeChain.address | string | `nil` | The contract address for the home contract |
 | optics.homeChain.connectionUrl | string | `nil` | Connection string pointing to an RPC endpoint for the home chain  |
 | optics.homeChain.domain | string | `nil` | The hard-coded domain corresponding to this blockchain |
