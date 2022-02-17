@@ -47,9 +47,8 @@ export function getPathToLatestBridgeConfig() {
  * of Optics core system deploys
  * */
 export function getPathToLatestDeployConfig() {
-  const configPath = '../../rust/config';
-  const ignoreFolders = ['default'];
-  return getPathToLatestConfig(configPath, ignoreFolders);
+  const configPath = '../../typescript/abacus-deploy/config/environments';
+  return getPathToLatestConfig(configPath);
 }
 
 /*
@@ -91,7 +90,7 @@ export function getPathToLatestConfig(
   const newestConfigFolder: string = configFolders.reduce((a, b) => {
     return a > b ? a : b;
   });
-  return `${configPath}/${newestConfigFolder}`;
+  return `${configPath}/${newestConfigFolder}/contracts`;
 }
 
 /*
