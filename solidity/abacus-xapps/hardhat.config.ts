@@ -3,7 +3,7 @@ import "@typechain/hardhat";
 import "@nomiclabs/hardhat-etherscan";
 
 import { task } from "hardhat/config";
-import { verifyLatestBridgeDeploy } from "../../typescript/optics-deploy/src/verification/verifyLatestDeploy";
+import { verifyLatestBridgeDeploy } from "../../typescript/abacus-deploy/src/verification/verifyLatestDeploy";
 
 import * as dotenv from "dotenv";
 dotenv.config();
