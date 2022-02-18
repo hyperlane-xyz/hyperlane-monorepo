@@ -48,7 +48,8 @@ export const avalanche: AbacusDomain = {
   name: 'avalanche',
   id: 1635148152,
   paginate: {
-    blocks: 1000000,
+    // Needs to be low to avoid RPC timeouts
+    blocks: 100000,
     from: 6765067,
   },
   bridgeRouter: '0xB6bB41B1fb8c381b002C405B8abB5D1De0C0abFE',

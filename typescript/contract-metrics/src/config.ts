@@ -7,6 +7,7 @@ dotenv.config({ path: process.env.CONFIG_PATH ?? '.env' });
 const environment = process.env.ENVIRONMENT ?? 'dev';
 
 let networks = [];
+
 switch (environment) {
   case 'mainnet':
     networks = ['celo', 'ethereum', 'polygon', 'avalanche'];

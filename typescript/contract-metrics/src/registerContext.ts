@@ -1,4 +1,4 @@
-import { dev, testnet, mainnet, mainnetLegacy } from '@abacus-network/sdk';
+import { dev, testnet, mainnet, mainnetLegacy, OpticsContext } from '@abacus-network/sdk';
 import config from './config';
 
 // register mainnet
@@ -24,4 +24,21 @@ dev.registerRpcProvider('gorli', config.gorliRpc);
 dev.registerRpcProvider('mumbai', config.mumbaiRpc);
 dev.registerRpcProvider('fuji', config.fujiRpc);
 
-export { mainnet, testnet, dev, mainnetLegacy };
+let context: OpticsContext;
+
+switch (config.environment) {
+  case 'mainnet':
+    context = mainnet;
+    break;
+
+  case 'testnet':
+    context = testnet;
+    break;
+
+  default:
+    // dev
+    context = dev;
+    break;
+}
+
+export { context, mainnet, testnet, dev, mainnetLegacy };
