@@ -58,4 +58,8 @@ jobs:
           npm run prettier
           cd ../abacus-tests
           npm run prettier-ci
-          [[ -z $(git status -s) ]]
+          CHANGES=$(git status -s)
+          if [[ ! -z $CHANGES ]]; then
+            echo "Changes found: $CHANGES"
+            exit 1
+          fi
