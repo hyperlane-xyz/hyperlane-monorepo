@@ -4,11 +4,14 @@ import { HelmCommand, helmifyValues } from './utils/helm';
 import { execCmd } from './utils/utils';
 
 export async function runContractMetricsHelmCommand(
-    action: HelmCommand,
-    contractMetricsConfig: ContractMetricsConfig,
-    chainConfigs: ChainConfig[],
+  action: HelmCommand,
+  contractMetricsConfig: ContractMetricsConfig,
+  chainConfigs: ChainConfig[],
 ) {
-  const values = await getPrometheusHelmChartValues(contractMetricsConfig, chainConfigs);
+  const values = await getPrometheusHelmChartValues(
+    contractMetricsConfig,
+    chainConfigs,
+  );
 
   return execCmd(
     `helm ${action} contract-metrics ../contract-metrics/helm/optics-monitor --namespace ${
@@ -24,12 +27,10 @@ async function getPrometheusHelmChartValues(
   contractMetricsConfig: ContractMetricsConfig,
   chainConfigs: ChainConfig[],
 ) {
-  const envVars = [
-    `ENVIRONMENT=${contractMetricsConfig.environment}`,
-  ];
+  const envVars = [`ENVIRONMENT=${contractMetricsConfig.environment}`];
   for (const chainConfig of chainConfigs) {
     envVars.push(
-      `${chainConfig.name.toUpperCase()}_RPC='${chainConfig.json.rpc}'`
+      `${chainConfig.name.toUpperCase()}_RPC='${chainConfig.json.rpc}'`,
     );
   }
 

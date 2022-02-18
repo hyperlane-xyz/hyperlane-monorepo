@@ -1,4 +1,4 @@
-import { InfrastructureConfig } from "../../../src/config/infrastructure";
+import { InfrastructureConfig } from '../../../src/config/infrastructure';
 
 export const infrastructure: InfrastructureConfig = {
   kubernetes: {

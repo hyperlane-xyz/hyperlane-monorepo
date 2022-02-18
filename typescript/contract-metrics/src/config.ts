@@ -16,7 +16,8 @@ switch (environment) {
     networks = ['alfajores', 'gorli', 'kovan', 'ropsten'];
     break;
 
-  default: // dev
+  default:
+    // dev
     networks = ['alfajores', 'fuji', 'gorli', 'kovan', 'mumbai'];
     break;
 }
