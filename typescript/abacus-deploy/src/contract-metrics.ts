@@ -24,9 +24,13 @@ async function getPrometheusHelmChartValues(
   contractMetricsConfig: ContractMetricsConfig,
   chainConfigs: ChainConfig[],
 ) {
-  let envFileContents = `ENVIRONMENT=${contractMetricsConfig.environment}`;
+  const envVars = [
+    `ENVIRONMENT=${contractMetricsConfig.environment}`,
+  ];
   for (const chainConfig of chainConfigs) {
-    envFileContents += `\n${chainConfig.name.toUpperCase()}_RPC='${chainConfig.json.rpc}'`;
+    envVars.push(
+      `${chainConfig.name.toUpperCase()}_RPC='${chainConfig.json.rpc}'`
+    );
   }
 
   const config = {
@@ -35,7 +39,7 @@ async function getPrometheusHelmChartValues(
       tag: contractMetricsConfig.docker.tag,
     },
     monitor: {
-      config: envFileContents,
+      config: envVars,
     },
     fullnameOverride: 'contract-metrics',
   };
