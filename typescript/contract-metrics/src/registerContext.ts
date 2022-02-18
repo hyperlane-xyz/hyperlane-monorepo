@@ -25,7 +25,6 @@ dev.registerRpcProvider('mumbai', config.mumbaiRpc);
 dev.registerRpcProvider('fuji', config.fujiRpc);
 
 let context: OpticsContext;
-
 switch (config.environment) {
   case 'mainnet':
     context = mainnet;
