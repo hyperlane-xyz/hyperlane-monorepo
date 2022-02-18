@@ -1,5 +1,6 @@
 import { OpticsContext } from '@abacus-network/sdk';
 import { getEvents } from '@abacus-network/sdk/dist/optics/events/fetch';
+import Logger from 'bunyan';
 import { logMonitorMetrics, writeUnprocessedMessages } from '../print';
 import config from '../config';
 
@@ -31,22 +32,11 @@ export async function monitorCore(
     const remoteLogger = originLogger.child({
       remoteNetwork,
     });
-    remoteLogger.info(`Getting replica state and Process logs`);
-
-    const replica = context.mustGetReplicaFor(originNetwork, remoteNetwork);
-    const replicaState = await replica.state();
-    config.metrics.setReplicaState(
+    const processLogs = await monitorCoreReplica(
+      context,
       originNetwork,
       remoteNetwork,
-      config.environment,
-      replicaState,
-    );
-    const processFilter = replica.filters.Process();
-    const processLogs = await getEvents(
-      context,
-      remoteNetwork,
-      replica,
-      processFilter,
+      remoteLogger,
     );
     processedLogs.push(...processLogs);
   }
@@ -73,6 +63,32 @@ export async function monitorCore(
   );
   // write details to file
   writeUnprocessedMessages(unprocessedDetails, originNetwork);
+}
+
+async function monitorCoreReplica(
+  context: OpticsContext,
+  originNetwork: string,
+  remoteNetwork: string,
+  logger: Logger,
+) {
+  logger.info(`Getting replica state and Process logs`);
+
+  const replica = context.mustGetReplicaFor(originNetwork, remoteNetwork);
+  const replicaState = await replica.state();
+  config.metrics.setReplicaState(
+    originNetwork,
+    remoteNetwork,
+    config.environment,
+    replicaState,
+  );
+  const processFilter = replica.filters.Process();
+  const processLogs = await getEvents(
+    context,
+    remoteNetwork,
+    replica,
+    processFilter,
+  );
+  return processLogs;
 }
 
 async function getUnprocessedDetails(

@@ -5,6 +5,7 @@ import { KEY_ROLE_ENUM } from '../src/agents';
 import { addDeployerGCPKey } from '../src/agents/gcp';
 import { ChainName, ChainConfig } from '../src/config/chain';
 import { InfrastructureConfig } from '../src/config/infrastructure';
+import { ContractMetricsConfig } from '../src/config/contract-metrics';
 import { CoreConfig } from '../src/config/core';
 import { AgentConfig } from '../src/config/agent';
 import { CoreDeploy, makeCoreDeploys } from '../src/core/CoreDeploy';
@@ -59,6 +60,13 @@ export async function getAgentConfig(
 ): Promise<AgentConfig> {
   const moduleName = `../config/environments/${environment}/agent`;
   return (await importModule(moduleName)).agentConfig;
+}
+
+export async function getContractMetricsConfig(
+  environment: DeployEnvironment,
+): Promise<ContractMetricsConfig> {
+  const moduleName = `../config/environments/${environment}/contract-metrics`;
+  return (await importModule(moduleName)).contractMetrics;
 }
 
 export async function getEnvironment(): Promise<DeployEnvironment> {
