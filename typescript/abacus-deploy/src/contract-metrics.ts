@@ -11,7 +11,7 @@ export async function runContractMetricsHelmCommand(
   const values = await getPrometheusHelmChartValues(contractMetricsConfig, chainConfigs);
 
   return execCmd(
-    `helm ${action} contract-metrics ../../contract-metrics/helm/optics-monitor --namespace ${
+    `helm ${action} contract-metrics ../contract-metrics/helm/optics-monitor --namespace ${
       contractMetricsConfig.namespace
     } ${values.join(' ')}`,
     {},
@@ -37,6 +37,7 @@ async function getPrometheusHelmChartValues(
     monitor: {
       config: envFileContents,
     },
+    fullnameOverride: 'contract-metrics',
   };
   return helmifyValues(config);
 }
