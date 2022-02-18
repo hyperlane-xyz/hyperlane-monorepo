@@ -32,19 +32,13 @@ export async function monitorCore(
     const remoteLogger = originLogger.child({
       remoteNetwork,
     });
-    try {
-      const processLogs = await monitorCoreReplica(
-        context,
-        originNetwork,
-        remoteNetwork,
-        remoteLogger,
-      );
-      processedLogs.push(...processLogs);
-    } catch (err: any) {
-      remoteLogger.warn({
-        err
-      }, 'Error monitoring core replica');
-    }
+    const processLogs = await monitorCoreReplica(
+      context,
+      originNetwork,
+      remoteNetwork,
+      remoteLogger,
+    );
+    processedLogs.push(...processLogs);
   }
 
   const unprocessedDetails = await getUnprocessedDetails(
