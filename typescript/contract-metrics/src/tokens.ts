@@ -5,12 +5,12 @@ import {
   AnnotatedTokenDeployed,
   TokenDeployedArgs,
   TokenDeployedTypes,
-} from '@abacus-network/sdk/dist/optics/events/bridgeEvents';
+} from '@abacus-network/sdk/dist/abacus/events/bridgeEvents';
 import {
-  OpticsContext,
+  AbacusContext,
   queryAnnotatedEvents,
-} from '@abacus-network/sdk/dist/optics';
-import { TSContract } from '@abacus-network/sdk/dist/optics/events/fetch';
+} from '@abacus-network/sdk/dist/abacus';
+import { TSContract } from '@abacus-network/sdk/dist/abacus/events/fetch';
 // import { ethers } from 'ethers';
 import { uploadDeployedTokens } from './googleSheets';
 
@@ -23,7 +23,7 @@ type TokenDetails = {
 export type Deploy = AnnotatedTokenDeployed & { token: TokenDetails };
 
 async function getDomainDeployedTokens(
-  context: OpticsContext,
+  context: AbacusContext,
   nameOrDomain: string | number,
 ): Promise<Deploy[]> {
   const domain = context.resolveDomain(nameOrDomain);
@@ -64,7 +64,7 @@ async function getDomainDeployedTokens(
 }
 
 async function getDeployedTokens(
-  context: OpticsContext,
+  context: AbacusContext,
 ): Promise<Map<number, Deploy[]>> {
   const events = new Map();
   for (const domain of context.domainNumbers) {
@@ -74,7 +74,7 @@ async function getDeployedTokens(
 }
 
 async function persistDeployedTokens(
-  context: OpticsContext,
+  context: AbacusContext,
   credentials: string,
 ): Promise<void> {
   const deployed = await getDeployedTokens(context);

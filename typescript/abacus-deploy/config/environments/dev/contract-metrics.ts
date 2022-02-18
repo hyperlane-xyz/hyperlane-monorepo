@@ -5,6 +5,6 @@ export const contractMetrics: ContractMetricsConfig = {
   environment: 'dev',
   docker: {
     repo: 'gcr.io/clabs-optics/optics-monitor',
-    tag: '7c31c8623301f73fce69171695288119971295d1',
+    tag: 'f0a935c3a199143cb397748f57a32072f8d77d06',
   },
 };

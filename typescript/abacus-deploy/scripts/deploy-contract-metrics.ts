@@ -11,7 +11,7 @@ async function main() {
   const contractMetricsConfig = await getContractMetricsConfig(environment);
   const chainConfigs = await getChainConfigs(environment);
   return runContractMetricsHelmCommand(
-    HelmCommand.Install,
+    HelmCommand.Upgrade,
     contractMetricsConfig,
     chainConfigs,
   );
