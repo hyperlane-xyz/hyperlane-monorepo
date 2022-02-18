@@ -1,4 +1,3 @@
-
 import { ContractMetricsConfig } from "../../../src/config/contract-metrics";
 
 export const contractMetrics: ContractMetricsConfig = {
