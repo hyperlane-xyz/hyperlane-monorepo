@@ -159,7 +159,7 @@ impl OpticsDB {
     }
 
     /// Store the latest committed
-    fn store_latest_root(&self, root: H256) -> Result<(), DbError> {
+    pub fn store_latest_root(&self, root: H256) -> Result<(), DbError> {
         debug!(root = ?root, "storing new latest root in DB");
         self.store_encodable("", LATEST_ROOT, &root)
     }

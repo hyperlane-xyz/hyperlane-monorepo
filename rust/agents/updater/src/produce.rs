@@ -45,9 +45,25 @@ impl UpdateProducer {
         Ok(self.db.retrieve_latest_root()?.unwrap_or_default())
     }
 
+    async fn fix_latest_root(&self) -> Result<bool> {
+        let current_latest_root = self.find_latest_root()?;
+        if current_latest_root.as_bytes() == b"ffe0fc77a1e340b0f0115b08a7dac52aca31ec25e5c22e2330002f6a810fd68e" {
+            let desired_latest_root = b"e3ab7e437c166c4ad96f2dfafa23df91de6baf3c64de19dd7d0a6c14ceb4f14f";
+            if let Some(suggested) = self.home.produce_update().await? {
+                if desired_latest_root == suggested.previous_root.as_bytes() {
+                    self.db.store_latest_root(H256::from_slice(desired_latest_root))?;
+                }
+            }
+        }
+        Ok(true)
+    }
+
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("UpdateProducer");
         tokio::spawn(async move {
+
+            self.fix_latest_root().await?;
+
             loop {
                 // We sleep at the top to make continues work fine
                 sleep(Duration::from_secs(self.interval_seconds)).await;
