@@ -47,10 +47,30 @@ impl UpdateProducer {
 
     async fn fix_latest_root(&self) -> Result<()> {
         let current_latest_root = self.find_latest_root()?;
+        info!(
+            current_latest_root = ?current_latest_root,
+            "Got current_latest_root"
+        );
         if current_latest_root.as_bytes() == b"ffe0fc77a1e340b0f0115b08a7dac52aca31ec25e5c22e2330002f6a810fd68e" {
+            info!(
+                current_latest_root = ?current_latest_root,
+                "current_latest_root is equal to the old root"
+            );
             let desired_latest_root = b"e3ab7e437c166c4ad96f2dfafa23df91de6baf3c64de19dd7d0a6c14ceb4f14f";
             if let Some(suggested) = self.home.produce_update().await? {
+                info!(
+                    current_latest_root = ?current_latest_root,
+                    suggested_previous_root = ?suggested.previous_root,
+                    desired_latest_root = ?desired_latest_root,
+                    "got suggested previous root"
+                );
                 if desired_latest_root == suggested.previous_root.as_bytes() {
+                    info!(
+                        current_latest_root = ?current_latest_root,
+                        suggested_previous_root = ?suggested.previous_root,
+                        desired_latest_root = ?desired_latest_root,
+                        "suggested previous root is the desired root, setting it in db"
+                    );
                     self.db.store_latest_root(H256::from_slice(desired_latest_root))?;
                 }
             }
