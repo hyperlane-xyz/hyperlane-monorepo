@@ -47,11 +47,13 @@ impl UpdateProducer {
 
     async fn fix_latest_root(&self) -> Result<()> {
         let current_latest_root = self.find_latest_root()?;
+        let expected_incorrect_latest_root = b"ffe0fc77a1e340b0f0115b08a7dac52aca31ec25e5c22e2330002f6a810fd68e";
         info!(
             current_latest_root = ?current_latest_root,
+            expected_incorrect_latest_root = ?expected_incorrect_latest_root,
             "Got current_latest_root"
         );
-        if current_latest_root.as_bytes() == b"ffe0fc77a1e340b0f0115b08a7dac52aca31ec25e5c22e2330002f6a810fd68e" {
+        if current_latest_root.as_bytes() == expected_incorrect_latest_root {
             info!(
                 current_latest_root = ?current_latest_root,
                 "current_latest_root is equal to the old root"
