@@ -1,4 +1,6 @@
-export const infrastructure = {
+import { InfrastructureConfig } from '../../../src/config/infrastructure';
+
+export const infrastructure: InfrastructureConfig = {
   kubernetes: {
     clusterName: 'optics-staging',
   },

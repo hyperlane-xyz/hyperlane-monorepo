@@ -14,7 +14,7 @@ interface ProcessorConfig {
   s3Bucket: string;
 }
 
-interface DockerConfig {
+export interface DockerConfig {
   repo: string;
   tag: string;
 }

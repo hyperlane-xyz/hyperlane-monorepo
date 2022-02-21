@@ -66,6 +66,11 @@ export const fuji: AbacusDomain = {
 export const mumbai: AbacusDomain = {
   name: 'mumbai',
   id: 80001,
+  paginate: {
+    // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
+    blocks: 10000,
+    from: 22900000,
+  },
   bridgeRouter: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
   ethHelper: '0x7B99a9cf26c9813b16E3DDb3D6E593c3624c9EBA',
   home: '0xc53F82FAF17B4c521A85C514791593847Bdf1655',

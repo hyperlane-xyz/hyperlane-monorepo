@@ -1,8 +1,7 @@
-import { OpticsContext } from '@abacus-network/sdk';
-import { getEvents } from '@abacus-network/sdk/dist/optics/events/fetch';
-import * as contexts from './registerContext';
-import { logMonitorMetrics, writeUnprocessedMessages } from './print';
 import config from './config';
+import { monitorCore } from './monitor/core';
+import { monitorGovernor } from './monitor/governance';
+import { context } from './registerContext';
 
 const cliArgs = process.argv.slice(2);
 
@@ -21,8 +20,7 @@ async function main(forever: boolean) {
     config.metrics.startServer(9090);
   }
   do {
-    // write results to disk if we're not running forever
-    await monitorAll(!forever);
+    await monitorAll();
     if (forever) {
       config.baseLogger.info('Sleeping for 120 seconds.');
       await new Promise((resolve) => setTimeout(resolve, 120000));
@@ -30,14 +28,13 @@ async function main(forever: boolean) {
   } while (forever);
 }
 
-async function monitorAll(shouldWrite: boolean) {
+async function monitorAll() {
+  await monitorGovernor(context);
   for (let network of config.networks) {
     const origin = network;
     const remotes = config.networks.filter((m) => m != origin);
-    const cont =
-      config.environment == 'mainnet' ? contexts.mainnet : contexts.dev;
     try {
-      await monitor(cont, origin, remotes, shouldWrite);
+      await monitorCore(context, origin, remotes);
     } catch (e) {
       config.baseLogger.error(
         { error: e },
@@ -46,81 +43,4 @@ async function monitorAll(shouldWrite: boolean) {
       continue;
     }
   }
-}
-
-async function monitor(
-  context: OpticsContext,
-  origin: string,
-  remotes: string[],
-  shouldWrite: boolean,
-) {
-  config.baseLogger.info(`Checking ${origin}`);
-  config.baseLogger.info(`Get Dispatch logs from ${origin}`);
-  const home = context.mustGetCore(origin).home;
-  const dispatchFilter = home.filters.Dispatch();
-  const dispatchLogs = await getEvents(context, origin, home, dispatchFilter);
-
-  const homeState = await home.state();
-  config.metrics.setHomeState(origin, config.environment, homeState);
-  const processedLogs = [];
-  for (let remote of remotes) {
-    config.baseLogger.info(`Get Process logs from ${remote} for ${origin}`);
-    const replica = context.mustGetReplicaFor(origin, remote);
-    const replicaState = await replica.state();
-    config.metrics.setReplicaState(
-      origin,
-      remote,
-      config.environment,
-      replicaState,
-    );
-    const processFilter = replica.filters.Process();
-    const processLogs = await getEvents(
-      context,
-      remote,
-      replica,
-      processFilter,
-    );
-    processedLogs.push(...processLogs);
-  }
-
-  const unprocessedDetails = await getUnprocessedDetails(
-    origin,
-    dispatchLogs,
-    processedLogs,
-  );
-
-  // console.log
-  logMonitorMetrics(origin, dispatchLogs, processedLogs, unprocessedDetails);
-  config.metrics.setBridgeState(
-    origin,
-    config.environment,
-    dispatchLogs.length,
-    processedLogs.length,
-    unprocessedDetails.length,
-  );
-  // write details to file
-  await writeUnprocessedMessages(unprocessedDetails, origin);
-}
-
-async function getUnprocessedDetails(
-  origin: string,
-  dispatchLogs: any[],
-  processedLogs: any[],
-) {
-  const processedMessageHashes = processedLogs.map(
-    (log: any) => log.args.messageHash,
-  );
-  const unprocessedMessages = dispatchLogs.filter(
-    (log: any) => !processedMessageHashes.includes(log.args.messageHash),
-  );
-  const promises = unprocessedMessages.map(async (log) => {
-    const transaction = await log.getTransaction();
-    return {
-      chain: origin,
-      transactionHash: transaction.hash,
-      messageHash: log.args[0],
-      leafIndex: log.args[1].toNumber(),
-    };
-  });
-  return Promise.all(promises);
 }
