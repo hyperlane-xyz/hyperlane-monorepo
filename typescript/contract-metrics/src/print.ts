@@ -1,8 +1,8 @@
 import {
   AnnotatedLifecycleEvent,
   MessageStatus,
-} from '@abacus-network/sdk/dist/optics';
-import { OpticsContext, OpticsStatus } from '@abacus-network/sdk';
+} from '@abacus-network/sdk/dist/abacus';
+import { AbacusContext, AbacusStatus } from '@abacus-network/sdk';
 import Logger from 'bunyan';
 import fs from 'fs';
 import config from './config';
@@ -38,7 +38,7 @@ interface QuietEvent {
 }
 
 function quietEvent(
-  context: OpticsContext,
+  context: AbacusContext,
   lifecyleEvent: AnnotatedLifecycleEvent,
 ): QuietEvent {
   const { domain, receipt } = lifecyleEvent;
@@ -56,8 +56,8 @@ function quietEvent(
 }
 
 export function printStatus(
-  context: OpticsContext,
-  opticsStatus: OpticsStatus,
+  context: AbacusContext,
+  opticsStatus: AbacusStatus,
 ) {
   const { status, events } = opticsStatus;
   const printable = {

@@ -3,7 +3,7 @@ import {
   testnet,
   mainnet,
   mainnetLegacy,
-  OpticsContext,
+  AbacusContext,
 } from '@abacus-network/sdk';
 import config from './config';
 
@@ -30,7 +30,7 @@ dev.registerRpcProvider('gorli', config.gorliRpc);
 dev.registerRpcProvider('mumbai', config.mumbaiRpc);
 dev.registerRpcProvider('fuji', config.fujiRpc);
 
-let context: OpticsContext;
+let context: AbacusContext;
 switch (config.environment) {
   case 'mainnet':
     context = mainnet;

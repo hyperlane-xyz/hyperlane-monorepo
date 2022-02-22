@@ -1,11 +1,11 @@
-import { OpticsContext } from '@abacus-network/sdk';
-import { getEvents } from '@abacus-network/sdk/dist/optics/events/fetch';
+import { AbacusContext } from '@abacus-network/sdk';
+import { getEvents } from '@abacus-network/sdk/dist/abacus/events/fetch';
 import Logger from 'bunyan';
 import { logMonitorMetrics, writeUnprocessedMessages } from '../print';
 import config from '../config';
 
 export async function monitorCore(
-  context: OpticsContext,
+  context: AbacusContext,
   originNetwork: string,
   remoteNetworks: string[],
 ) {
@@ -66,7 +66,7 @@ export async function monitorCore(
 }
 
 async function monitorCoreReplica(
-  context: OpticsContext,
+  context: AbacusContext,
   originNetwork: string,
   remoteNetwork: string,
   logger: Logger,
