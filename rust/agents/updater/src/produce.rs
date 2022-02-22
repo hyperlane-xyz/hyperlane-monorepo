@@ -48,7 +48,7 @@ impl UpdateProducer {
 
     async fn fix_latest_root(&self) -> Result<()> {
         let current_latest_root = self.find_latest_root()?;
-        let expected_incorrect_latest_root = H256::from_str("0xffe0fc77a1e340b0f0115b08a7dac52aca31ec25e5c22e2330002f6a810fd68e")?;
+        let expected_incorrect_latest_root = H256::from_str("0x78f3c0d0689f1f09e5e65b12aa475c670d40c592b23a37d40105788229f0332a")?;
         info!(
             current_latest_root = ?current_latest_root,
             expected_incorrect_latest_root = ?expected_incorrect_latest_root,
@@ -59,7 +59,7 @@ impl UpdateProducer {
                 current_latest_root = ?current_latest_root,
                 "current_latest_root is equal to the old root"
             );
-            let desired_latest_root = H256::from_str("0xe3ab7e437c166c4ad96f2dfafa23df91de6baf3c64de19dd7d0a6c14ceb4f14f")?;
+            let desired_latest_root = H256::from_str("0x2f40f42538e245d216f0e08b664f5025940bd6ae49ba08bb881827cad02eedfb")?;
             if let Some(suggested) = self.home.produce_update().await? {
                 info!(
                     current_latest_root = ?current_latest_root,
