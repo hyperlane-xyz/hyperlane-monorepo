@@ -5,6 +5,10 @@ import { execCmd } from '../../utils/utils';
 
 const SECRET_ACCESSOR_ROLE = 'roles/secretmanager.secretAccessor';
 
+// Ensures the out of the box external-secrets (with the CRDs etc) is properly deployed,
+// deploying/upgrading otherwise, and performs a helm command for the separate
+// `external-secrets-gcp` Helm chart (located in ./helm), which contains some environment-specific
+// resources to allow ExternalSecrets in the cluster to read from GCP secret manager.
 export async function runExternalSecretsHelmCommand(
   helmCommand: HelmCommand,
   infraConfig: InfrastructureConfig,
