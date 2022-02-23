@@ -38,6 +38,10 @@ export type ChainConfigJson = DomainedChain & {
   maxFeePerGas?: ethers.BigNumberish;
   maxPriorityFeePerGas?: ethers.BigNumberish;
   weth?: Address;
+  // How often an updater should check for new updates
+  updaterInterval?: number;
+  // How long an updater should wait for relevant state changes afterwords
+  updaterPause?: number;
 };
 
 export class ChainConfig {
@@ -52,6 +56,10 @@ export class ChainConfig {
   maxFeePerGas?: ethers.BigNumber;
   maxPriorityFeePerGas?: ethers.BigNumber;
   weth?: Address;
+  // How often an updater should check for new updates
+  updaterInterval?: number;
+  // How long an updater should wait for relevant state changes afterwords
+  updaterPause?: number;
 
   constructor(json: ChainConfigJson) {
     this.name = json.name;
@@ -71,6 +79,8 @@ export class ChainConfig {
       ? ethers.BigNumber.from(json.maxPriorityFeePerGas)
       : undefined;
     this.weth = json.weth;
+    this.updaterInterval = json.updaterInterval;
+    this.updaterPause = json.updaterPause;
   }
 
   replaceSigner(privateKey: string) {
