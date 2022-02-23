@@ -17,6 +17,8 @@ export const chainJson: ChainConfigJson = {
   rpc,
   deployerKey: process.env.CELO_DEPLOYER_KEY,
   domain: 0x63656c6f, // b'celo' interpreted as an int
+  updaterInterval: 300,
+  updaterPause: 15
 };
 
 export const chain = new ChainConfig(chainJson);
