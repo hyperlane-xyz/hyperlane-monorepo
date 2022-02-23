@@ -452,6 +452,7 @@ impl AbacusAgent for Processor {
             let home_sync_task = self.home().sync(
                 indexer.from(),
                 indexer.chunk_size(),
+                indexer.tip_buffer(),
                 block_height,
                 Some(
                     self.as_ref()

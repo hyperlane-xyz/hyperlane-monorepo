@@ -127,6 +127,8 @@ pub struct IndexSettings {
     from: Option<String>,
     /// The number of blocks to query at once at which to start indexing the Home contract
     chunk: Option<String>,
+    /// The number of blocks away from tip to search for logs in
+    tip_buffer: Option<String>,
 }
 
 impl IndexSettings {
@@ -144,6 +146,14 @@ impl IndexSettings {
             .as_ref()
             .and_then(|s| s.parse::<u32>().ok())
             .unwrap_or(1999)
+    }
+
+    /// Get the `tip_buffer` setting
+    pub fn tip_buffer(&self) -> u32 {
+        self.tip_buffer
+            .as_ref()
+            .and_then(|s| s.parse::<u32>().ok())
+            .unwrap_or_default()
     }
 }
 

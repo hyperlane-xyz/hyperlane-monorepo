@@ -25,6 +25,7 @@ pub struct ContractSync<I> {
     indexer: Arc<I>,
     from_height: u32,
     chunk_size: u32,
+    tip_buffer: u32,
     indexed_height: prometheus::IntGauge,
     indexed_message_leaf: Option<prometheus::IntGauge>,
 }
@@ -40,6 +41,7 @@ where
         indexer: Arc<I>,
         from_height: u32,
         chunk_size: u32,
+        tip_buffer: u32,
         indexed_height: prometheus::IntGauge,
         indexed_message_leaf: Option<prometheus::IntGauge>,
     ) -> Self {
@@ -49,6 +51,7 @@ where
             indexer,
             from_height,
             chunk_size,
+            tip_buffer,
             indexed_height,
             indexed_message_leaf,
         }
@@ -65,6 +68,7 @@ where
 
         let from_height = self.from_height;
         let chunk_size = self.chunk_size;
+        let tip_buffer = self.tip_buffer;
 
         tokio::spawn(async move {
             let mut next_height: u32 = db
@@ -80,7 +84,7 @@ where
                 indexed_height.set(next_height as i64);
                 let tip = indexer.get_block_number().await?;
                 let candidate = next_height + chunk_size;
-                let to = min(tip, candidate);
+                let to = min(tip - tip_buffer, candidate);
 
                 info!(
                     next_height = next_height,

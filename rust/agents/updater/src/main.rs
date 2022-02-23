@@ -52,9 +52,13 @@ async fn _main() -> Result<()> {
         .expect("failed to register block_height metric")
         .with_label_values(&[agent.home().name(), Updater::AGENT_NAME]);
 
-    let sync_task = agent
-        .home()
-        .sync(indexer.from(), indexer.chunk_size(), block_height, None);
+    let sync_task = agent.home().sync(
+        indexer.from(),
+        indexer.chunk_size(),
+        indexer.tip_buffer(),
+        block_height,
+        None,
+    );
     let run_task = agent.run("");
 
     let futs = vec![sync_task, run_task];

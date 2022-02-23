@@ -137,9 +137,13 @@ pub trait AbacusAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
                     .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
 
                 let indexer = &self.as_ref().indexer;
-                let sync_task =
-                    self.home()
-                        .sync(indexer.from(), indexer.chunk_size(), block_height, None);
+                let sync_task = self.home().sync(
+                    indexer.from(),
+                    indexer.chunk_size(),
+                    indexer.tip_buffer(),
+                    block_height,
+                    None,
+                );
                 tasks.push(sync_task);
             }
 

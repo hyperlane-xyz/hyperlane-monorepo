@@ -54,6 +54,7 @@ impl CachingHome {
         &self,
         from_height: u32,
         chunk_size: u32,
+        tip_buffer: u32,
         indexed_height: prometheus::IntGauge,
         indexed_message_leaf_index: Option<prometheus::IntGauge>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
@@ -65,6 +66,7 @@ impl CachingHome {
             self.indexer.clone(),
             from_height,
             chunk_size,
+            tip_buffer,
             indexed_height,
             indexed_message_leaf_index,
         );
