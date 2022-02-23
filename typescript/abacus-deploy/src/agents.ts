@@ -72,7 +72,7 @@ async function helmValuesForChain(
       homeChain: {
         name: chainName,
         connectionUrl: chains.filter((_) => _.name === chainName)[0].json.rpc,
-        ...include(!!chain.tipBuffer, { tipBuffer: chain.tipBuffer })
+        ...include(!!chain.tipBuffer, { tipBuffer: chain.tipBuffer }),
       },
       ...include(!gcpKeys, {
         aws,
@@ -147,10 +147,12 @@ export async function getAgentEnvVars(
     );
   });
   envVars.push(`OPT_BASE_METRICS=9090`);
-  envVars.push(`OPT_BASE_TRACING_LEVEL=info`)
+  envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
 
   if (valueDict.optics.homeChain?.tipBuffer) {
-    envVars.push(`OPT_BASE_INDEX_TIPBUFFER=${valueDict.optics.homeChain.tipBuffer}`)
+    envVars.push(
+      `OPT_BASE_INDEX_TIPBUFFER=${valueDict.optics.homeChain.tipBuffer}`,
+    );
   }
   try {
     const gcpKeys = await fetchAgentGCPKeys(
