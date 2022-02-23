@@ -15,7 +15,7 @@ export const agentConfig: AgentConfig = {
   },
   docker: {
     repo: 'gcr.io/clabs-optics/optics-agent',
-    tag: '0cd3c5e4e856f6eb77f04276eee411de5809e03c',
+    tag: 'e3c1b3bdcc8f92d506626785e4e7c058ba8d79be',
   },
   processor: {
     s3Bucket: 'optics-staging-community',
