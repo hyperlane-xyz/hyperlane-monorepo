@@ -42,6 +42,8 @@ export type ChainConfigJson = DomainedChain & {
   updaterInterval?: number;
   // How long an updater should wait for relevant state changes afterwords
   updaterPause?: number;
+  // How close to the tip state should be considered "finalized"
+  tipBuffer?: number;
 };
 
 export class ChainConfig {
@@ -60,6 +62,8 @@ export class ChainConfig {
   updaterInterval?: number;
   // How long an updater should wait for relevant state changes afterwords
   updaterPause?: number;
+  // How close to the tip state should be considered "finalized"
+  tipBuffer?: number;
 
   constructor(json: ChainConfigJson) {
     this.name = json.name;
@@ -81,6 +85,7 @@ export class ChainConfig {
     this.weth = json.weth;
     this.updaterInterval = json.updaterInterval;
     this.updaterPause = json.updaterPause;
+    this.tipBuffer = json.tipBuffer;
   }
 
   replaceSigner(privateKey: string) {

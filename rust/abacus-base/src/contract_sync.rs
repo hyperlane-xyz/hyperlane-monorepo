@@ -77,9 +77,9 @@ where
 
             loop {
                 indexed_height.set(next_height as i64);
-                let tip = indexer.get_block_number().await?;
+                let tip = indexer.get_block_number().await? - tip_buffer;
                 let candidate = next_height + chunk_size;
-                let to = min(tip - tip_buffer, candidate);
+                let to = min(tip, candidate);
 
                 info!(
                     next_height = next_height,
@@ -157,9 +157,9 @@ where
 
             loop {
                 indexed_height.set(next_height as i64);
-                let tip = indexer.get_block_number().await?;
+                let tip = indexer.get_block_number().await? - tip_buffer;
                 let candidate = next_height + chunk_size;
-                let to = min(tip - tip_buffer, candidate);
+                let to = min(tip, candidate);
 
                 info!(
                     next_height = next_height,
