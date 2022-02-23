@@ -49,3 +49,10 @@ Selector labels
 app.kubernetes.io/name: {{ include "monitor.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 {{- end }}
+
+{{/*
+The name of the ClusterSecretStore
+*/}}
+{{- define "monitor.cluster-secret-store.name" -}}
+{{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.clusterSecretStore }}
+{{- end }}

@@ -1,13 +1,13 @@
-kind: ConfigMap 
-apiVersion: v1 
-metadata:
-  name: {{.Release.Name}}-config
-data:
-  .env: |
-{{- if kindIs "string" .Values.monitor.config -}} # if a string is provided, just use that
-{{ .Values.monitor.config | indent 4 }}
-{{- else -}} # assume it's a list / array of strings
-{{ range $value := .Values.monitor.config }}
-{{ $value | indent 4 }}
-{{- end -}}
-{{- end -}}
+# kind: ConfigMap 
+# apiVersion: v1 
+# metadata:
+#   name: {{.Release.Name}}-config
+# data:
+#   .env: |
+# {{- if kindIs "string" .Values.monitor.config -}} # if a string is provided, just use that
+# {{ .Values.monitor.config | indent 4 }}
+# {{- else -}} # assume it's a list / array of strings
+# {{ range $value := .Values.monitor.config }}
+# {{ $value | indent 4 }}
+# {{- end -}}
+# {{- end -}}
