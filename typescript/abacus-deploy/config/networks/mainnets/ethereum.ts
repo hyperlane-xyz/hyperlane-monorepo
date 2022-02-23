@@ -23,7 +23,7 @@ export const chainJson: ChainConfigJson = {
   maxFeePerGas: '300000000000', // 300 gwei
   maxPriorityFeePerGas: '4000000000', // 4 gwei
   weth: '0xc02aaa39b223fe8d0a0e5c4f27ead9083c756cc2',
-  updaterInterval: 300
+  updaterInterval: 300,
 };
 
 export const chain = new ChainConfig(chainJson);

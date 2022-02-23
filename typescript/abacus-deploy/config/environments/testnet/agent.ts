@@ -18,7 +18,7 @@ export const agentConfig: AgentConfig = {
     tag: '0cd3c5e4e856f6eb77f04276eee411de5809e03c',
   },
   processor: {
-    s3Bucket: "optics-staging-community",
-    indexOnly: ["kovan"]
-  }
+    s3Bucket: 'optics-staging-community',
+    indexOnly: ['kovan'],
+  },
 };

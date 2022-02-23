@@ -79,8 +79,8 @@ export class ChainConfig {
       ? ethers.BigNumber.from(json.maxPriorityFeePerGas)
       : undefined;
     this.weth = json.weth;
-    this.updaterInterval = json.updaterInterval
-    this.updaterPause = json.updaterPause
+    this.updaterInterval = json.updaterInterval;
+    this.updaterPause = json.updaterPause;
   }
 
   replaceSigner(privateKey: string) {

@@ -24,7 +24,7 @@ export const chainJson: ChainConfigJson = {
   maxFeePerGas: '50000000000', // 50 nAVAX (50 gwei)
   maxPriorityFeePerGas: '10000000000', // 10 nAVAX (10 gwei)
   weth: '0xB31f66AA3C1e785363F0875A1B74E27b85FD66c7', // Actually WAVAX but ok
-  updaterInterval: 300
+  updaterInterval: 300,
 };
 
 export const chain = new ChainConfig(chainJson);
