@@ -30,6 +30,6 @@ export const infrastructure: InfrastructureConfig = {
       name: 'external-secrets',
       version: '0.4.4',
     },
-    gcpServiceAccountName: 'k8s-external-secrets-dev',
+    gcpServiceAccountName: 'k8s-external-secrets-mainnet',
   },
 };
