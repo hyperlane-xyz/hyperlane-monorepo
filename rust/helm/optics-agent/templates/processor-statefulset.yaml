@@ -54,16 +54,16 @@ spec:
           {{- if .Values.optics.processor.pollingInterval }}
           - name: OPT_PROCESSOR_INTERVAL
             value: {{ .Values.optics.processor.pollingInterval | quote }}
+          {{ end }}
           {{ range .Values.optics.processor.indexonly }}
           - name: OPT_PROCESSOR_INDEXON_{{ . | upper }}
             value: "true"
           {{ end }}
-          {{- if .hexKey }}
+          {{- if .Values.optics.processor.s3BucketName }}
           - name: OPT_PROCESSOR_S3_BUCKET
             value: {{ .Values.optics.processor.s3BucketName }}
           - name: OPT_PROCESSOR_S3_REGION
-            value: {{ .aws.region }}
-          {{- end }}
+            value: {{ .Values.optics.processor.s3BucketRegion }}
           {{- end }}
           {{- range .Values.optics.processor.transactionSigners }}
           {{- if .hexKey }}
