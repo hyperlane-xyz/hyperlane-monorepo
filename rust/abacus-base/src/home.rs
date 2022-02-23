@@ -16,7 +16,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{info_span, Instrument};
 use tracing::{instrument, instrument::Instrumented};
 
-use crate::{ContractSync, HomeIndexers};
+use crate::{ContractSync, HomeIndexers, IndexSettings};
 
 /// Caching replica type
 #[derive(Debug)]
@@ -52,9 +52,7 @@ impl CachingHome {
     /// data
     pub fn sync(
         &self,
-        from_height: u32,
-        chunk_size: u32,
-        tip_buffer: u32,
+        index_settings: IndexSettings,
         indexed_height: prometheus::IntGauge,
         indexed_message_leaf_index: Option<prometheus::IntGauge>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
@@ -64,9 +62,7 @@ impl CachingHome {
             self.db.clone(),
             String::from_str(self.home.name()).expect("!string"),
             self.indexer.clone(),
-            from_height,
-            chunk_size,
-            tip_buffer,
+            index_settings,
             indexed_height,
             indexed_message_leaf_index,
         );

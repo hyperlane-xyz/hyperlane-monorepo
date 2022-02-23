@@ -136,14 +136,8 @@ pub trait AbacusAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
                     .expect("failed to register block_height metric")
                     .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
 
-                let indexer = &self.as_ref().indexer;
-                let sync_task = self.home().sync(
-                    indexer.from(),
-                    indexer.chunk_size(),
-                    indexer.tip_buffer(),
-                    block_height,
-                    None,
-                );
+                let index_settings = self.as_ref().indexer.clone();
+                let sync_task = self.home().sync(index_settings, block_height, None);
                 tasks.push(sync_task);
             }
 
