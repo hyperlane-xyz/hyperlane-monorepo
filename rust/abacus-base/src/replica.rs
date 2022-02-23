@@ -15,7 +15,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{info_span, Instrument};
 use tracing::{instrument, instrument::Instrumented};
 
-use crate::{CommonIndexers, ContractSync};
+use crate::{CommonIndexers, ContractSync, IndexSettings};
 
 /// Caching replica type
 #[derive(Debug)]
@@ -55,8 +55,7 @@ impl CachingReplica {
     /// data
     pub fn sync(
         &self,
-        from_height: u32,
-        chunk_size: u32,
+        index_settings: IndexSettings,
         indexed_height: prometheus::IntGauge,
         indexed_message_leaf_index: Option<prometheus::IntGauge>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
@@ -66,8 +65,7 @@ impl CachingReplica {
             self.db.clone(),
             String::from_str(self.replica.name()).expect("!string"),
             self.indexer.clone(),
-            from_height,
-            chunk_size,
+            index_settings,
             indexed_height,
             indexed_message_leaf_index,
         );

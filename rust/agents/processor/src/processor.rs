@@ -448,10 +448,9 @@ impl AbacusAgent for Processor {
                 )
                 .expect("failed to register block_height metric")
                 .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
-            let indexer = &self.as_ref().indexer;
+            let index_settings = self.as_ref().indexer.clone();
             let home_sync_task = self.home().sync(
-                indexer.from(),
-                indexer.chunk_size(),
+                index_settings,
                 block_height,
                 Some(
                     self.as_ref()
