@@ -1,11 +1,11 @@
 import { InfrastructureConfig } from '../../config/infrastructure';
 import { fetchGCPSecret } from '../../utils/gcloud';
 import {
-  addHelmRepoIfNotExists,
+  addHelmRepoIfRequired,
+  getDeployableHelmChartName,
   HelmCommand,
   helmifyValues,
 } from '../../utils/helm';
-import { createNamespaceIfNotExists } from '../../utils/kubectl';
 import { execCmd } from '../../utils/utils';
 
 interface PrometheusSecrets {
@@ -19,24 +19,19 @@ export async function runPrometheusHelmCommand(
   infraConfig: InfrastructureConfig,
   environment: string,
 ) {
-  const namespace = infraConfig.monitoring.namespace;
-  await createNamespaceIfNotExists(namespace);
-
   // Prometheus's helm chart requires a repository to be added
-  await addHelmRepoIfNotExists(
-    infraConfig.monitoring.prometheus.helmChart.repository!,
-  );
+  await addHelmRepoIfRequired(infraConfig.monitoring.prometheus.helmChart);
   // The name passed in must be in the form `repo/chartName`
-  const helmChartName = `${
-    infraConfig.monitoring.prometheus.helmChart.repository!.name
-  }/${infraConfig.monitoring.prometheus.helmChart.name}`;
+  const helmChartName = getDeployableHelmChartName(infraConfig.monitoring.prometheus.helmChart);
 
   const values = await getPrometheusHelmChartValues(infraConfig, environment);
 
   return execCmd(
     `helm ${action} ${
       infraConfig.monitoring.prometheus.deployName
-    } ${helmChartName} --namespace ${namespace} ${values.join(' ')}`,
+    } ${helmChartName} --namespace ${
+      infraConfig.monitoring.namespace
+    } --create-namespace --version ${infraConfig.monitoring.prometheus.helmChart.version} ${values.join(' ')}`,
     {},
     false,
     true,
