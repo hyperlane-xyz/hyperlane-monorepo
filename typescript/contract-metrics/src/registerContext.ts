@@ -46,4 +46,6 @@ switch (config.environment) {
     break;
 }
 
+console.log('config', config)
+
 export { context, mainnet, testnet, dev, mainnetLegacy };

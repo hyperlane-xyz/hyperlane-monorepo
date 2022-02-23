@@ -7,12 +7,13 @@ image:
   tag: "latest"
 
 monitor:
-  environment: "dev"
+  environment: dev
   networks:
-  - 'alfajores'
-  - 'kovan'
-  - 'gorli'
-  - 'mumbai'
+  - alfajores
+  - kovan
+  - gorli
+  - mumbai
+  - fuji
   config: # Contents of .env file
 
 externalSecrets:
