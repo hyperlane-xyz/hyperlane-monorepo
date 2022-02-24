@@ -37,12 +37,6 @@ export async function grantServiceAccountRoleIfNotExists(
 ) {
   const bindings = await getIamMemberPolicyBindings(serviceAccountEmail);
   const matchedBinding = bindings.find((binding: any) => binding.role === role);
-  console.log(
-    'matchedBinding',
-    matchedBinding,
-    'matchedBinding.condition',
-    matchedBinding.condition,
-  );
   if (iamConditionsEqual(condition, matchedBinding.condition)) {
     return;
   }
