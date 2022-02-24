@@ -37,14 +37,21 @@ export async function grantServiceAccountRoleIfNotExists(
 ) {
   const bindings = await getIamMemberPolicyBindings(serviceAccountEmail);
   const matchedBinding = bindings.find((binding: any) => binding.role === role);
-  console.log('matchedBinding', matchedBinding, 'matchedBinding.condition', matchedBinding.condition)
+  console.log(
+    'matchedBinding',
+    matchedBinding,
+    'matchedBinding.condition',
+    matchedBinding.condition,
+  );
   if (iamConditionsEqual(condition, matchedBinding.condition)) {
     return;
   }
   await execCmd(
     `gcloud projects add-iam-policy-binding $(gcloud config get-value project) --member="serviceAccount:${serviceAccountEmail}" --role="${role}" ${
-      condition ? `--condition=title='${condition.title}',expression='${condition.expression}'` : ''
-    }`
+      condition
+        ? `--condition=title='${condition.title}',expression='${condition.expression}'`
+        : ''
+    }`,
   );
 }
 
@@ -58,7 +65,7 @@ export async function createServiceAccountKey(serviceAccountEmail: string) {
   return key;
 }
 
-// The alphanumeric project name / ID 
+// The alphanumeric project name / ID
 export async function getCurrentProject() {
   const [result] = await execCmd('gcloud config get-value project');
   return result.trim();
@@ -66,7 +73,9 @@ export async function getCurrentProject() {
 
 // The numeric project number
 export async function getCurrentProjectNumber() {
-  const [result] = await execCmd('gcloud projects list --filter="$(gcloud config get-value project)" --format="value(PROJECT_NUMBER)"');
+  const [result] = await execCmd(
+    'gcloud projects list --filter="$(gcloud config get-value project)" --format="value(PROJECT_NUMBER)"',
+  );
   return result.trim();
 }
 
@@ -75,12 +84,10 @@ async function getIamMemberPolicyBindings(memberEmail: string) {
   const unprocessedRoles = await execCmdAndParseJson(
     `gcloud projects get-iam-policy $(gcloud config get-value project) --format "json(bindings)" --flatten="bindings[].members" --filter="bindings.members:${memberEmail}"`,
   );
-  return unprocessedRoles.map(
-    (unprocessedRoleObject: any) => ({
-      role: unprocessedRoleObject.bindings.role,
-      condition: unprocessedRoleObject.bindings.condition,
-    })
-  );
+  return unprocessedRoles.map((unprocessedRoleObject: any) => ({
+    role: unprocessedRoleObject.bindings.role,
+    condition: unprocessedRoleObject.bindings.condition,
+  }));
 }
 
 async function createServiceAccount(serviceAccountName: string) {
@@ -101,7 +108,10 @@ async function getServiceAccountInfo(serviceAccountName: string) {
   return matches[0];
 }
 
-function iamConditionsEqual(a: IamCondition | undefined, b: IamCondition | undefined) {
+function iamConditionsEqual(
+  a: IamCondition | undefined,
+  b: IamCondition | undefined,
+) {
   // If both are undefined, they're equal
   if (a === undefined && b === undefined) {
     return true;

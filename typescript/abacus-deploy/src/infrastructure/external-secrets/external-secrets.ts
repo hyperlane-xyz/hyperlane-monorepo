@@ -27,7 +27,10 @@ export async function runExternalSecretsHelmCommand(
 ) {
   await ensureExternalSecretsRelease(infraConfig);
 
-  const values = await getGcpExternalSecretsHelmChartValues(infraConfig, environment);
+  const values = await getGcpExternalSecretsHelmChartValues(
+    infraConfig,
+    environment,
+  );
   return execCmd(
     `helm ${helmCommand} external-secrets-gcp ./src/infrastructure/external-secrets/helm --namespace ${
       infraConfig.externalSecrets.namespace
@@ -43,7 +46,10 @@ async function getGcpExternalSecretsHelmChartValues(
   return helmifyValues(config);
 }
 
-async function getGcpExternalSecretsConfig(infraConfig: InfrastructureConfig, environment: string) {
+async function getGcpExternalSecretsConfig(
+  infraConfig: InfrastructureConfig,
+  environment: string,
+) {
   const serviceAccountEmail = await createServiceAccountIfNotExists(
     infraConfig.externalSecrets.gcpServiceAccountName,
   );
@@ -55,7 +61,7 @@ async function getGcpExternalSecretsConfig(infraConfig: InfrastructureConfig, en
     {
       title: `Only ${environment} secrets`,
       expression: `resource.name.startsWith("projects/${currentProjectNumber}/secrets/${environment}-")`,
-    }
+    },
   );
 
   const serviceAccountKey = await createServiceAccountKey(serviceAccountEmail);
