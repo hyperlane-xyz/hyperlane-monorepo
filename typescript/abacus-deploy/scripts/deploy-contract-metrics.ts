@@ -14,6 +14,7 @@ async function main() {
     HelmCommand.Install,
     contractMetricsConfig,
     chainConfigs,
+    environment,
   );
 }
 

@@ -7,7 +7,7 @@ export interface HelmChartRepositoryConfig {
   url: string;
 }
 
-interface HelmChartConfig {
+export interface HelmChartConfig {
   name: string;
   version: string;
   // Present if the helm chart requires a repo to be installed
@@ -26,7 +26,17 @@ interface MonitoringConfig {
   prometheus: PrometheusConfig;
 }
 
+// Config for external-secrets, which is used to access secrets in GCP secret manager
+// via Kubernetes secrets.
+// See https://external-secrets.io/v0.4.4/provider-google-secrets-manager
+interface ExternalSecretsConfig {
+  namespace: string;
+  gcpServiceAccountName: string;
+  helmChart: HelmChartConfig;
+}
+
 export interface InfrastructureConfig {
   kubernetes: KubernetesConfig;
+  externalSecrets: ExternalSecretsConfig;
   monitoring: MonitoringConfig;
 }

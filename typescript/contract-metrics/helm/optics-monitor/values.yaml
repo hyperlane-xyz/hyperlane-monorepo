@@ -6,8 +6,18 @@ image:
   # Overrides the image tag whose default is the chart appVersion.
   tag: "latest"
 
-monitor: 
+monitor:
+  environment: dev
+  networks:
+  - alfajores
+  - kovan
+  - gorli
+  - mumbai
+  - fuji
   config: # Contents of .env file
+
+externalSecrets:
+  clusterSecretStore:
 
 imagePullSecrets: []
 nameOverride: ""
