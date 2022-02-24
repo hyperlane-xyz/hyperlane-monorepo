@@ -5,10 +5,7 @@ import { runExternalSecretsHelmCommand } from '../src/infrastructure/external-se
 async function main() {
   const environment = await getEnvironment();
   const infraConfig = await getInfrastructureConfig(environment);
-  return runExternalSecretsHelmCommand(
-    HelmCommand.Install,
-    infraConfig,
-  );
+  return runExternalSecretsHelmCommand(HelmCommand.Install, infraConfig);
 }
 
 main().then(console.log).catch(console.error);

@@ -118,7 +118,12 @@ export async function execCmdAndParseJson(
   rejectWithOutput = false,
   pipeOutput = false,
 ) {
-  const [stdout] = await execCmd(cmd, execOptions, rejectWithOutput, pipeOutput);
+  const [stdout] = await execCmd(
+    cmd,
+    execOptions,
+    rejectWithOutput,
+    pipeOutput,
+  );
   return JSON.parse(stdout);
 }
 

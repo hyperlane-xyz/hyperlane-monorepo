@@ -1,4 +1,4 @@
 # nameOverride: ""
 gcp:
-  project: ""
-  serviceAccountCredentialsBase64: ""
+  project: ''
+  serviceAccountCredentialsBase64: ''

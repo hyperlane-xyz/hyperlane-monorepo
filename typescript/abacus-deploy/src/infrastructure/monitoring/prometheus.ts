@@ -22,7 +22,9 @@ export async function runPrometheusHelmCommand(
   // Prometheus's helm chart requires a repository to be added
   await addHelmRepoIfRequired(infraConfig.monitoring.prometheus.helmChart);
   // The name passed in must be in the form `repo/chartName`
-  const helmChartName = getDeployableHelmChartName(infraConfig.monitoring.prometheus.helmChart);
+  const helmChartName = getDeployableHelmChartName(
+    infraConfig.monitoring.prometheus.helmChart,
+  );
 
   const values = await getPrometheusHelmChartValues(infraConfig, environment);
 
@@ -31,7 +33,9 @@ export async function runPrometheusHelmCommand(
       infraConfig.monitoring.prometheus.deployName
     } ${helmChartName} --namespace ${
       infraConfig.monitoring.namespace
-    } --create-namespace --version ${infraConfig.monitoring.prometheus.helmChart.version} ${values.join(' ')}`,
+    } --create-namespace --version ${
+      infraConfig.monitoring.prometheus.helmChart.version
+    } ${values.join(' ')}`,
     {},
     false,
     true,

@@ -1,4 +1,7 @@
-import { HelmChartConfig, HelmChartRepositoryConfig } from '../config/infrastructure';
+import {
+  HelmChartConfig,
+  HelmChartRepositoryConfig,
+} from '../config/infrastructure';
 import { execCmd } from './utils';
 
 export enum HelmCommand {
@@ -31,9 +34,7 @@ export async function addHelmRepoIfRequired(helmChartConfig: HelmChartConfig) {
   return addHelmRepoIfNotExists(helmChartConfig.repository);
 }
 
-async function addHelmRepoIfNotExists(
-  repoConfig: HelmChartRepositoryConfig,
-) {
+async function addHelmRepoIfNotExists(repoConfig: HelmChartRepositoryConfig) {
   const helmRepos = await listHelmRepos();
   // Note this only finds matches based off the name - URL differences are
   // not handled
