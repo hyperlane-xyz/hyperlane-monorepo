@@ -1,5 +1,7 @@
 import { AgentConfig } from '../../../src/config/agent';
+import * as dotenv from 'dotenv';
 
+dotenv.config();
 export const agentConfig: AgentConfig = {
   environment: 'production',
   namespace: 'optics-production-community',
@@ -11,6 +13,10 @@ export const agentConfig: AgentConfig = {
   },
   docker: {
     repo: 'gcr.io/clabs-optics/optics-agent',
-    tag: '3594c7d715f0ad1def2b36cb0e29649e1f6712e6',
+    tag: 'e3c1b3bdcc8f92d506626785e4e7c058ba8d79be',
+  },
+  processor: {
+    s3Bucket: 'optics-production-community-proofs',
+    indexOnly: ['ethereum'],
   },
 };

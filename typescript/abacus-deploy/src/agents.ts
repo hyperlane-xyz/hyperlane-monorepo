@@ -59,6 +59,8 @@ async function helmValuesForChain(
     aws.accessKeyId = agentConfig.aws.keyId;
     aws.secretAccessKey = agentConfig.aws.secretAccessKey;
   }
+
+  const chain = chains.find((_) => _.name === chainName)!;
   return {
     image: {
       repository: agentConfig.docker.repo,
@@ -70,6 +72,7 @@ async function helmValuesForChain(
       homeChain: {
         name: chainName,
         connectionUrl: chains.filter((_) => _.name === chainName)[0].json.rpc,
+        ...include(!!chain.tipBuffer, { tipBuffer: chain.tipBuffer }),
       },
       ...include(!gcpKeys, {
         aws,
@@ -91,6 +94,10 @@ async function helmValuesForChain(
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.UpdaterAttestation),
         },
+        ...include(!!chain.updaterInterval, {
+          pollingInterval: chain.updaterInterval,
+        }),
+        ...include(!!chain.updaterPause, { updatePause: chain.updaterPause }),
       },
       relayer: {
         enabled: true,
@@ -107,6 +114,7 @@ async function helmValuesForChain(
         })),
         indexonly: agentConfig.processor?.indexOnly || [],
         s3BucketName: agentConfig.processor?.s3Bucket || '',
+        s3BucketRegion: agentConfig.aws?.region || '',
       },
     },
   };
@@ -139,16 +147,22 @@ export async function getAgentEnvVars(
     );
   });
   envVars.push(`OPT_BASE_METRICS=9090`);
+  envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
 
+  if (valueDict.optics.homeChain?.tipBuffer) {
+    envVars.push(
+      `OPT_BASE_INDEX_TIPBUFFER=${valueDict.optics.homeChain.tipBuffer}`,
+    );
+  }
   try {
     const gcpKeys = await fetchAgentGCPKeys(
       agentConfig.environment,
       homeChainName,
     );
     // Signer keys
-    Object.keys(chains).forEach((network) => {
+    chains.forEach((network) => {
       envVars.push(
-        `OPT_BASE_SIGNERS_${network.toUpperCase()}_KEY=${strip0x(
+        `OPT_BASE_SIGNERS_${network.name.toUpperCase()}_KEY=${strip0x(
           gcpKeys[role].privateKey,
         )}`,
       );

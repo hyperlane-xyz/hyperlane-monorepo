@@ -39,7 +39,7 @@ async fn _main() -> Result<()> {
     // this is deliberately different from other agents because the updater
     // does not run replicas. As a result, most of the contents of run_all are
     // broken out here
-    let indexer = &agent.as_ref().indexer;
+    let index_settings = agent.as_ref().indexer.clone();
 
     let block_height = agent
         .as_ref()
@@ -52,9 +52,7 @@ async fn _main() -> Result<()> {
         .expect("failed to register block_height metric")
         .with_label_values(&[agent.home().name(), Updater::AGENT_NAME]);
 
-    let sync_task = agent
-        .home()
-        .sync(indexer.from(), indexer.chunk_size(), block_height, None);
+    let sync_task = agent.home().sync(index_settings, block_height, None);
     let run_task = agent.run("");
 
     let futs = vec![sync_task, run_task];

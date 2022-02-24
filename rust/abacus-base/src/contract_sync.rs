@@ -1,3 +1,4 @@
+use crate::settings::IndexSettings;
 use abacus_core::db::AbacusDB;
 use abacus_core::{CommittedMessage, CommonIndexer, HomeIndexer};
 
@@ -23,8 +24,7 @@ pub struct ContractSync<I> {
     db: AbacusDB,
     contract_name: String,
     indexer: Arc<I>,
-    from_height: u32,
-    chunk_size: u32,
+    index_settings: IndexSettings,
     indexed_height: prometheus::IntGauge,
     indexed_message_leaf: Option<prometheus::IntGauge>,
 }
@@ -38,8 +38,7 @@ where
         db: AbacusDB,
         contract_name: String,
         indexer: Arc<I>,
-        from_height: u32,
-        chunk_size: u32,
+        index_settings: IndexSettings,
         indexed_height: prometheus::IntGauge,
         indexed_message_leaf: Option<prometheus::IntGauge>,
     ) -> Self {
@@ -47,8 +46,7 @@ where
             db,
             contract_name,
             indexer,
-            from_height,
-            chunk_size,
+            index_settings,
             indexed_height,
             indexed_message_leaf,
         }
@@ -63,8 +61,9 @@ where
         let indexer = self.indexer.clone();
         let indexed_height = self.indexed_height.clone();
 
-        let from_height = self.from_height;
-        let chunk_size = self.chunk_size;
+        let from_height = self.index_settings.from();
+        let chunk_size = self.index_settings.chunk_size();
+        let tip_buffer = self.index_settings.tip_buffer();
 
         tokio::spawn(async move {
             let mut next_height: u32 = db
@@ -78,7 +77,7 @@ where
 
             loop {
                 indexed_height.set(next_height as i64);
-                let tip = indexer.get_block_number().await?;
+                let tip = indexer.get_block_number().await? - tip_buffer;
                 let candidate = next_height + chunk_size;
                 let to = min(tip, candidate);
 
@@ -135,9 +134,9 @@ where
         let indexed_height = self.indexed_height.clone();
         let indexed_message_leaf = self.indexed_message_leaf.clone();
 
-        let from_height = self.from_height;
-        let chunk_size = self.chunk_size;
-
+        let from_height = self.index_settings.from();
+        let chunk_size = self.index_settings.chunk_size();
+        let tip_buffer = self.index_settings.tip_buffer();
         tokio::spawn(async move {
             let mut next_height: u32 = db
                 .retrieve_decodable("", MESSAGES_LAST_INSPECTED)
@@ -158,7 +157,7 @@ where
 
             loop {
                 indexed_height.set(next_height as i64);
-                let tip = indexer.get_block_number().await?;
+                let tip = indexer.get_block_number().await? - tip_buffer;
                 let candidate = next_height + chunk_size;
                 let to = min(tip, candidate);
 

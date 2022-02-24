@@ -51,6 +51,8 @@ optics:
     connectionType: # "http"
     # -- Connection string pointing to an RPC endpoint for the home chain
     connectionUrl: # "https://kovan.infura.io/v3/<KEY>"
+    # -- How close to the tip state should be considered "finalized"
+    tipBuffer: # 10
   aws:
     # accessKeyId: ""
     # secretAccessKey: ""
@@ -124,7 +126,7 @@ optics:
       - name: "alfajores"
         hexKey: ""
     s3BucketName:
-    indxonly: false
+    indexonly: []
     pollingInterval: # 10
 
   kathy:

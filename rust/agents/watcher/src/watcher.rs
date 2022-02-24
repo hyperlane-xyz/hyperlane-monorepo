@@ -496,13 +496,13 @@ impl AbacusAgent for Watcher {
                     .expect("processor metric already registered -- should have be a singleton"),
             );
 
-            let indexer = &self.as_ref().indexer;
+            let index_settings = &self.as_ref().indexer;
             let home_sync_task = self
                 .home()
-                .sync(indexer.from(), indexer.chunk_size(), block_height.with_label_values(&[self.home().name(), Self::AGENT_NAME]), None);
+                .sync( index_settings.clone(),block_height.with_label_values(&[self.home().name(), Self::AGENT_NAME]), None);
             let replica_sync_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self.replicas().iter().map(|(name, replica)| {
                 replica
-                .sync(indexer.from(), indexer.chunk_size(), block_height.with_label_values(&[name, Self::AGENT_NAME]), None)
+                .sync(index_settings.clone() ,block_height.with_label_values(&[name, Self::AGENT_NAME]), None)
             }).collect();
 
             // Watcher watch tasks setup
