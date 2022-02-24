@@ -1,4 +1,7 @@
-import { HelmChartRepositoryConfig } from '../config/infrastructure';
+import {
+  HelmChartConfig,
+  HelmChartRepositoryConfig,
+} from '../config/infrastructure';
 import { execCmd } from './utils';
 
 export enum HelmCommand {
@@ -23,9 +26,15 @@ export function helmifyValues(config: any, prefix?: string): string[] {
   });
 }
 
-export async function addHelmRepoIfNotExists(
-  repoConfig: HelmChartRepositoryConfig,
-) {
+export async function addHelmRepoIfRequired(helmChartConfig: HelmChartConfig) {
+  if (!helmChartConfig.repository) {
+    // Nothing to do
+    return;
+  }
+  return addHelmRepoIfNotExists(helmChartConfig.repository);
+}
+
+async function addHelmRepoIfNotExists(repoConfig: HelmChartRepositoryConfig) {
   const helmRepos = await listHelmRepos();
   // Note this only finds matches based off the name - URL differences are
   // not handled
@@ -59,4 +68,11 @@ function removeHelmRepo(repoName: string) {
 async function listHelmRepos() {
   const [output] = await execCmd('helm repo list -o json');
   return JSON.parse(output);
+}
+
+export function getDeployableHelmChartName(helmChartConfig: HelmChartConfig) {
+  if (helmChartConfig.repository) {
+    return `${helmChartConfig.repository.name}/${helmChartConfig.name}`;
+  }
+  return helmChartConfig.name;
 }

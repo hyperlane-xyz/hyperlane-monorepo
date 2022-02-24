@@ -16,8 +16,20 @@ export const infrastructure: InfrastructureConfig = {
           url: 'https://prometheus-community.github.io/helm-charts',
         },
         name: 'prometheus',
-        version: '14.1.2',
+        version: '15.0.1',
       },
     },
+  },
+  externalSecrets: {
+    namespace: 'external-secrets',
+    helmChart: {
+      repository: {
+        name: 'external-secrets',
+        url: 'https://charts.external-secrets.io',
+      },
+      name: 'external-secrets',
+      version: '0.4.4',
+    },
+    gcpServiceAccountName: 'k8s-external-secrets-mainnet',
   },
 };

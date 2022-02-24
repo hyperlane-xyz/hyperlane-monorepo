@@ -112,6 +112,21 @@ export function execCmd(
   });
 }
 
+export async function execCmdAndParseJson(
+  cmd: string,
+  execOptions: any = {},
+  rejectWithOutput = false,
+  pipeOutput = false,
+) {
+  const [stdout] = await execCmd(
+    cmd,
+    execOptions,
+    rejectWithOutput,
+    pipeOutput,
+  );
+  return JSON.parse(stdout);
+}
+
 export const ensure0x = (hexstr: string) =>
   hexstr.startsWith('0x') ? hexstr : '0x' + hexstr;
 export const strip0x = (hexstr: string) =>

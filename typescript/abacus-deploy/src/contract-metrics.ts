@@ -7,10 +7,12 @@ export async function runContractMetricsHelmCommand(
   action: HelmCommand,
   contractMetricsConfig: ContractMetricsConfig,
   chainConfigs: ChainConfig[],
+  environment: string,
 ) {
-  const values = await getPrometheusHelmChartValues(
+  const values = await getContractMetricsHelmChartValues(
     contractMetricsConfig,
     chainConfigs,
+    environment,
   );
 
   return execCmd(
@@ -23,24 +25,19 @@ export async function runContractMetricsHelmCommand(
   );
 }
 
-async function getPrometheusHelmChartValues(
+async function getContractMetricsHelmChartValues(
   contractMetricsConfig: ContractMetricsConfig,
   chainConfigs: ChainConfig[],
+  environment: string,
 ) {
-  const envVars = [`ENVIRONMENT=${contractMetricsConfig.environment}`];
-  for (const chainConfig of chainConfigs) {
-    envVars.push(
-      `${chainConfig.name.toUpperCase()}_RPC='${chainConfig.json.rpc}'`,
-    );
-  }
-
   const config = {
     image: {
       repository: contractMetricsConfig.docker.repo,
       tag: contractMetricsConfig.docker.tag,
     },
     monitor: {
-      config: envVars,
+      environment,
+      networks: chainConfigs.map((chainConfig) => chainConfig.name),
     },
     fullnameOverride: 'contract-metrics',
   };
