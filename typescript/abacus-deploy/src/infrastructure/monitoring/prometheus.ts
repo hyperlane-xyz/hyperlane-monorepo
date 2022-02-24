@@ -78,7 +78,7 @@ async function getPrometheusConfig(
           write_relabel_configs: [
             {
               action: 'keep',
-              regex: '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*)',
+              regex: '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*|abacus.*)',
               source_labels: ['__name__'],
             },
           ],
