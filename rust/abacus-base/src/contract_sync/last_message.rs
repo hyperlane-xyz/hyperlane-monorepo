@@ -34,10 +34,12 @@ impl OptLatestLeafIndex {
         }
 
         // If we have seen another leaf in a previous block range, ensure
-        // first leaf in new batch is the consecutive next leaf
+        // the batch contains the consecutive next leaf
         if let Some(last_seen) = self.as_ref() {
-            let first_message = sorted_messages.first().unwrap();
-            if *last_seen != first_message.leaf_index - 1 {
+            let has_desired_message = sorted_messages
+                .iter()
+                .any(|message| *last_seen == message.leaf_index - 1);
+            if !has_desired_message {
                 return ListValidity::Invalid;
             }
         }

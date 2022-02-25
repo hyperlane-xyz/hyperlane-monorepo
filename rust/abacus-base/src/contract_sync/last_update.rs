@@ -35,10 +35,12 @@ impl OptLatestNewRoot {
         }
 
         // If we have seen another update in a previous block range, ensure
-        // first update in new batch builds off last seen update
+        // the batch contains an update building off latest known root
         if let Some(last_seen) = self.as_ref() {
-            let first_update = sorted_updates.first().unwrap();
-            if *last_seen != first_update.signed_update.update.previous_root {
+            let has_desired_update = sorted_updates
+                .iter()
+                .any(|update| *last_seen == update.signed_update.update.previous_root);
+            if !has_desired_update {
                 return ListValidity::Invalid;
             }
         }
