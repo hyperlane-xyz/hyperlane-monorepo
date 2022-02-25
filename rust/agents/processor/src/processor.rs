@@ -440,7 +440,10 @@ impl AbacusAgent for Processor {
             let prover_sync_task = sync.spawn();
 
             info!("Starting indexer");
-            let sync_metrics = ContractSyncMetrics::new(self.metrics());
+            let sync_metrics = ContractSyncMetrics::new(
+                self.metrics(),
+                Some(&["dispatch", self.home().name(), "unknown"]),
+            );
             let index_settings = self.as_ref().indexer.clone();
             let home_sync_task = self.home().sync(
                 Self::AGENT_NAME.to_owned(),

@@ -232,6 +232,8 @@ where
             &self.agent_name,
         ]);
 
+        let message_leaf_index = self.metrics.message_leaf_index.clone();
+
         let config_from = self.index_settings.from();
         let chunk_size = self.index_settings.chunk_size();
 
@@ -246,6 +248,13 @@ where
             let mut exponential = 0;
 
             info!(from = from, "[Messages]: resuming indexer from {}", from);
+
+            // Set the metrics with the latest known leaf index
+            if let Ok(Some(idx)) = db.retrieve_latest_leaf_index() {
+                if let Some(gauge) = message_leaf_index.as_ref() {
+                    gauge.set(idx as i64);
+                }
+            }
 
             loop {
                 indexed_height.set(from as i64);
@@ -301,10 +310,15 @@ where
                 match &last_leaf_index.valid_continuation(&sorted_messages) {
                     ListValidity::Valid => {
                         // Store messages
-                        db.store_messages(&sorted_messages)?;
+                        let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
 
                         // Report amount of messages stored into db
                         stored_messages.add(sorted_messages.len().try_into()?);
+
+                        // Report latest leaf index to gauge
+                        if let Some(gauge) = message_leaf_index.as_ref() {
+                            gauge.set(max_leaf_index_of_batch as i64);
+                        }
 
                         // Move forward next height
                         db.store_message_latest_block_end(to)?;
@@ -570,7 +584,7 @@ mod test {
                 .expect("could not make metrics"),
             );
 
-            let sync_metrics = ContractSyncMetrics::new(metrics);
+            let sync_metrics = ContractSyncMetrics::new(metrics, None);
 
             let contract_sync = ContractSync::new(
                 "agent".to_owned(),
@@ -580,7 +594,6 @@ mod test {
                 IndexSettings {
                     from: Some("0".to_string()),
                     chunk: Some("10".to_string()),
-                    tipbuffer: None,
                 },
                 sync_metrics,
             );
@@ -803,7 +816,7 @@ mod test {
                 .expect("could not make metrics"),
             );
 
-            let sync_metrics = ContractSyncMetrics::new(metrics);
+            let sync_metrics = ContractSyncMetrics::new(metrics, None);
 
             let contract_sync = ContractSync::new(
                 "agent".to_owned(),
@@ -813,7 +826,6 @@ mod test {
                 IndexSettings {
                     from: Some("0".to_string()),
                     chunk: Some("10".to_string()),
-                    tipbuffer: None,
                 },
                 sync_metrics,
             );

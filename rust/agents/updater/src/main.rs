@@ -38,7 +38,7 @@ async fn _main() -> Result<()> {
     // this is deliberately different from other agents because the updater
     // does not run replicas. As a result, most of the contents of run_all are
     // broken out here
-    let sync_metrics = ContractSyncMetrics::new(agent.metrics());
+    let sync_metrics = ContractSyncMetrics::new(agent.metrics(), None);
     let index_settings = agent.as_ref().indexer.clone();
     let sync_task = agent.home().sync(
         Updater::AGENT_NAME.to_owned(),

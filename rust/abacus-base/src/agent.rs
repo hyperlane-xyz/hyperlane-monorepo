@@ -126,7 +126,7 @@ pub trait AbacusAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
             // kludge
             if Self::AGENT_NAME != "kathy" {
                 let index_settings = self.as_ref().indexer.clone();
-                let sync_metrics = ContractSyncMetrics::new(self.metrics());
+                let sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
 
                 // Only the processor needs to index messages so default is
                 // just indexing updates
