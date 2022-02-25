@@ -7,7 +7,7 @@ export const agentConfig: AgentConfig = {
   namespace: 'optics-production-community',
   runEnv: 'mainnet',
   aws: {
-    region: process.env.AWS_REGION!,
+    region: 'us-west-2',
   },
   docker: {
     repo: 'gcr.io/clabs-optics/optics-agent',
