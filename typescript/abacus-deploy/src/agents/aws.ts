@@ -1,4 +1,4 @@
-import { KEY_ROLE_ENUM } from '../agents';
+import { getSecretAwsCredentials, KEY_ROLE_ENUM } from '../agents';
 import { AgentConfig } from '../../src/config/agent';
 import {
   CreateAliasCommand,
@@ -28,7 +28,8 @@ type RemoteKey = UnfetchedKey | FetchedKey;
 
 export class AgentAwsKey extends AgentKey {
   private environment: string;
-  private client: KMSClient;
+  private agentConfig: AgentConfig;
+  private client: KMSClient | undefined;
   private region: string;
   public remoteKey: RemoteKey = { fetched: false };
 
@@ -42,14 +43,20 @@ export class AgentAwsKey extends AgentKey {
       throw new Error('No AWS env vars set');
     }
     this.environment = agentConfig.environment;
+    this.agentConfig = agentConfig;
     this.region = agentConfig.aws.region;
+  }
+
+  async getClient(): Promise<KMSClient> {
+    if (this.client) {
+      return this.client;
+    }
+    const awsCredentials = await getSecretAwsCredentials(this.agentConfig)
     this.client = new KMSClient({
       region: this.region,
-      credentials: {
-        accessKeyId: agentConfig.aws.keyId,
-        secretAccessKey: agentConfig.aws.secretAccessKey,
-      },
+      credentials: awsCredentials,
     });
+    return this.client;
   }
 
   get identifier() {
@@ -111,8 +118,10 @@ export class AgentAwsKey extends AgentKey {
     const newAlias = canonicalAlias + '-new';
     const oldAlias = canonicalAlias + '-old';
 
+    const client = await this.getClient();
+
     // Get the key IDs
-    const listAliasResponse = await this.client.send(
+    const listAliasResponse = await client.send(
       new ListAliasesCommand({ Limit: 100 }),
     );
     const canonicalMatch = listAliasResponse.Aliases!.find(
@@ -140,12 +149,12 @@ export class AgentAwsKey extends AgentKey {
     const newKeyId = newMatch.TargetKeyId!;
 
     // alias the current with oldAlias
-    await this.client.send(
+    await client.send(
       new CreateAliasCommand({ TargetKeyId: oldKeyId, AliasName: oldAlias }),
     );
 
     // alias the newKey with canonicalAlias
-    await this.client.send(
+    await client.send(
       new UpdateAliasCommand({
         TargetKeyId: newKeyId,
         AliasName: canonicalAlias,
@@ -153,7 +162,7 @@ export class AgentAwsKey extends AgentKey {
     );
 
     // Remove the old alias
-    await this.client.send(new DeleteAliasCommand({ AliasName: newAlias }));
+    await client.send(new DeleteAliasCommand({ AliasName: newAlias }));
 
     // Address should have changed now
     this.fetch();
@@ -167,10 +176,11 @@ export class AgentAwsKey extends AgentKey {
 
   // Creates a new key and returns its address
   private async _create(rotate: boolean) {
+    const client = await this.getClient();
     const alias = this.identifier;
     if (!rotate) {
       // Make sure the alias is not currently in use
-      const listAliasResponse = await this.client.send(
+      const listAliasResponse = await client.send(
         new ListAliasesCommand({ Limit: 100 }),
       );
       const match = listAliasResponse.Aliases!.find(
@@ -192,14 +202,14 @@ export class AgentAwsKey extends AgentKey {
       Tags: [{ TagKey: 'environment', TagValue: this.environment }],
     });
 
-    const createResponse = await this.client.send(command);
+    const createResponse = await client.send(command);
     if (!createResponse.KeyMetadata) {
       throw new Error('KeyMetadata was not returned when creating the key');
     }
     const keyId = createResponse.KeyMetadata?.KeyId;
 
     const newAliasName = rotate ? `${alias}-new` : alias;
-    await this.client.send(
+    await client.send(
       new CreateAliasCommand({ TargetKeyId: keyId, AliasName: newAliasName }),
     );
 
@@ -208,10 +218,11 @@ export class AgentAwsKey extends AgentKey {
   }
 
   private async fetchAddressFromAws(keyId?: string) {
+    const client = await this.getClient();
     const alias = this.identifier;
 
     if (!keyId) {
-      const listAliasResponse = await this.client.send(
+      const listAliasResponse = await client.send(
         new ListAliasesCommand({ Limit: 100 }),
       );
 
@@ -225,7 +236,7 @@ export class AgentAwsKey extends AgentKey {
       keyId = match.TargetKeyId;
     }
 
-    const publicKeyResponse = await this.client.send(
+    const publicKeyResponse = await client.send(
       new GetPublicKeyCommand({ KeyId: keyId }),
     );
 

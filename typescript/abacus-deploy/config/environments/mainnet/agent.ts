@@ -8,8 +8,6 @@ export const agentConfig: AgentConfig = {
   runEnv: 'mainnet',
   aws: {
     region: process.env.AWS_REGION!,
-    keyId: process.env.AWS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
   },
   docker: {
     repo: 'gcr.io/clabs-optics/optics-agent',
