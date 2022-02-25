@@ -1,7 +1,5 @@
 import { AgentConfig } from '../../../src/config/agent';
-import * as dotenv from 'dotenv';
 
-dotenv.config();
 // NB: environment and namespace are 'staging-community' for legacy
 // reasons, it's annoying to change GCP to match a new naming convention.
 export const agentConfig: AgentConfig = {

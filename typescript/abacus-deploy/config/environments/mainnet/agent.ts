@@ -1,7 +1,5 @@
 import { AgentConfig } from '../../../src/config/agent';
-import * as dotenv from 'dotenv';
 
-dotenv.config();
 export const agentConfig: AgentConfig = {
   environment: 'production',
   namespace: 'optics-production-community',
