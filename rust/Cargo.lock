@@ -25,6 +25,7 @@ dependencies = [
  "ethers",
  "futures-util",
  "lazy_static",
+ "mockall 0.10.2",
  "once_cell",
  "opentelemetry",
  "opentelemetry-jaeger",
@@ -121,7 +122,7 @@ dependencies = [
  "config 0.10.1",
  "ethers",
  "futures-util",
- "mockall",
+ "mockall 0.10.2",
  "prometheus",
  "rand 0.8.4",
  "rocksdb",
@@ -2281,7 +2282,22 @@ dependencies = [
  "downcast",
  "fragile",
  "lazy_static",
- "mockall_derive",
+ "mockall_derive 0.9.1",
+ "predicates",
+ "predicates-tree",
+]
+
+[[package]]
+name = "mockall"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ab571328afa78ae322493cacca3efac6a0f2e0a67305b4df31fd439ef129ac0"
+dependencies = [
+ "cfg-if 1.0.0",
+ "downcast",
+ "fragile",
+ "lazy_static",
+ "mockall_derive 0.10.2",
  "predicates",
  "predicates-tree",
 ]
@@ -2291,6 +2307,18 @@ name = "mockall_derive"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5dd4234635bca06fc96c7368d038061e0aae1b00a764dc817e900dc974e3deea"
+dependencies = [
+ "cfg-if 1.0.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "mockall_derive"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7e25b214433f669161f414959594216d8e6ba83b6679d3db96899c0b4639033"
 dependencies = [
  "cfg-if 1.0.0",
  "proc-macro2",
@@ -4329,7 +4357,7 @@ dependencies = [
  "futures-util",
  "hex",
  "log",
- "mockall",
+ "mockall 0.9.1",
  "paste",
  "prometheus",
  "rocksdb",

@@ -13,7 +13,10 @@ use std::{
 use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use abacus_base::{cancel_task, decl_agent, AbacusAgent, AgentCore, CachingHome, CachingReplica};
+use abacus_base::{
+    cancel_task, decl_agent, AbacusAgent, AgentCore, CachingHome, CachingReplica,
+    ContractSyncMetrics,
+};
 use abacus_core::{
     accumulator::merkle::Proof, db::AbacusDB, CommittedMessage, Common, Home, HomeEvents,
     MessageStatus,
@@ -437,28 +440,11 @@ impl AbacusAgent for Processor {
             let prover_sync_task = sync.spawn();
 
             info!("Starting indexer");
-            // indexer setup
-            let block_height = self
-                .as_ref()
-                .metrics
-                .new_int_gauge(
-                    "block_height",
-                    "Height of a recently observed block",
-                    &["network", "agent"],
-                )
-                .expect("failed to register block_height metric")
-                .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
+            let sync_metrics = ContractSyncMetrics::new(self.metrics());
             let index_settings = self.as_ref().indexer.clone();
-            let home_sync_task = self.home().sync(
-                index_settings,
-                block_height,
-                Some(
-                    self.as_ref()
-                        .metrics
-                        .last_known_message_leaf_index()
-                        .with_label_values(&["dispatch", self.home().name(), "unknown"]),
-                ),
-            );
+            let home_sync_task =
+                self.home()
+                    .sync(Self::AGENT_NAME.to_owned(), index_settings, sync_metrics);
 
             info!("started indexer and sync");
 

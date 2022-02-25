@@ -2,9 +2,9 @@ use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingHome, CachingReplica,
+    CachingHome, CachingReplica, ContractSyncMetrics,
 };
-use abacus_core::{db::DB, Common};
+use abacus_core::db::DB;
 use async_trait::async_trait;
 use color_eyre::{eyre::WrapErr, Result};
 use futures_util::future::select_all;
@@ -125,19 +125,14 @@ pub trait AbacusAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
 
             // kludge
             if Self::AGENT_NAME != "kathy" {
-                let block_height = self
-                    .as_ref()
-                    .metrics
-                    .new_int_gauge(
-                        "block_height",
-                        "Height of a recently observed block",
-                        &["network", "agent"],
-                    )
-                    .expect("failed to register block_height metric")
-                    .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
-
                 let index_settings = self.as_ref().indexer.clone();
-                let sync_task = self.home().sync(index_settings, block_height, None);
+                let sync_metrics = ContractSyncMetrics::new(self.metrics());
+
+                // Only the processor needs to index messages so default is
+                // just indexing updates
+                let sync_task =
+                    self.home()
+                        .sync(Self::AGENT_NAME.to_owned(), index_settings, sync_metrics);
                 tasks.push(sync_task);
             }
 

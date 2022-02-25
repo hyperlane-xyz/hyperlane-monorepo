@@ -16,7 +16,7 @@ use tokio::time::{sleep, Duration};
 use tracing::{info_span, Instrument};
 use tracing::{instrument, instrument::Instrumented};
 
-use crate::{ContractSync, HomeIndexers, IndexSettings};
+use crate::{ContractSync, ContractSyncMetrics, HomeIndexers, IndexSettings};
 
 /// Caching replica type
 #[derive(Debug)]
@@ -52,21 +52,22 @@ impl CachingHome {
     /// data
     pub fn sync(
         &self,
+        agent_name: String,
         index_settings: IndexSettings,
-        indexed_height: prometheus::IntGauge,
-        indexed_message_leaf_index: Option<prometheus::IntGauge>,
+        metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("HomeContractSync", self = %self);
 
         let sync = ContractSync::new(
-            self.db.clone(),
+            agent_name,
             String::from_str(self.home.name()).expect("!string"),
+            self.db.clone(),
             self.indexer.clone(),
             index_settings,
-            indexed_height,
-            indexed_message_leaf_index,
+            metrics,
         );
 
+        // TODO copy over data_types
         tokio::spawn(async move {
             let tasks = vec![sync.sync_updates(), sync.sync_messages()];
 

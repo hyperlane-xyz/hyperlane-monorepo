@@ -1,13 +1,13 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::UpdateMeta;
 use crate::{
-    accumulator::merkle::Proof, traits::RawCommittedMessage, utils, AbacusMessage, Decode,
-    SignedUpdate,
+    accumulator::merkle::Proof, traits::RawCommittedMessage, utils, AbacusMessage,
+    CommittedMessage, Decode, SignedUpdate, SignedUpdateWithMeta,
 };
 use color_eyre::Result;
 use ethers::core::types::H256;
 use tokio::time::sleep;
-use tracing::{debug, error, warn};
+use tracing::{debug, error, info, warn};
 
 use std::future::Future;
 use std::time::Duration;
@@ -55,6 +55,46 @@ impl AbacusDB {
     /// Instantiated new `AbacusDB`
     pub fn new(entity: impl AsRef<str>, db: DB) -> Self {
         Self(TypedDB::new(entity.as_ref().to_owned(), db))
+    }
+
+    /// Store list of messages
+    pub fn store_messages(&self, messages: &[RawCommittedMessage]) -> Result<()> {
+        for message in messages {
+            self.store_latest_message(message)?;
+
+            let committed_message: CommittedMessage = message.clone().try_into()?;
+            info!(
+                leaf_index = &committed_message.leaf_index,
+                origin = &committed_message.message.origin,
+                destination = &committed_message.message.destination,
+                nonce = &committed_message.message.nonce,
+                "Stored new message in db.",
+            );
+        }
+
+        Ok(())
+    }
+
+    /// Store a raw committed message building off of the latest leaf index
+    pub fn store_latest_message(&self, message: &RawCommittedMessage) -> Result<()> {
+        // If there is no latest root, or if this update is on the latest root
+        // update latest root
+        match self.retrieve_latest_leaf_index()? {
+            Some(idx) => {
+                if idx == message.leaf_index - 1 {
+                    self.update_latest_leaf_index(message.leaf_index)?;
+                } else {
+                    debug!(
+                            "Attempted to store message not building off latest leaf index. Latest leaf index: {}. Attempted leaf index: {}.",
+                            idx,
+                            message.leaf_index,
+                        )
+                }
+            }
+            None => self.update_latest_leaf_index(message.leaf_index)?,
+        }
+
+        self.store_raw_committed_message(message)
     }
 
     /// Store a raw committed message
@@ -169,15 +209,34 @@ impl AbacusDB {
         self.retrieve_decodable("", LATEST_ROOT)
     }
 
+    /// Store list of sorted updates and their metadata
+    pub fn store_updates_and_meta(&self, updates: &[SignedUpdateWithMeta]) -> Result<()> {
+        for update_with_meta in updates {
+            self.store_latest_update(&update_with_meta.signed_update)?;
+            self.store_update_metadata(update_with_meta)?;
+
+            info!(
+                block_number = update_with_meta.metadata.block_number,
+                previous_root = ?&update_with_meta.signed_update.update.previous_root,
+                new_root = ?&update_with_meta.signed_update.update.new_root,
+                "Stored new update in db.",
+            );
+        }
+
+        Ok(())
+    }
+
     /// Store update metadata (by update's new root)
     ///
     /// Keys --> Values:
     /// - `update_new_root` --> `update_metadata`
     pub fn store_update_metadata(
         &self,
-        new_root: H256,
-        metadata: UpdateMeta,
+        update_with_meta: &SignedUpdateWithMeta,
     ) -> Result<(), DbError> {
+        let new_root = update_with_meta.signed_update.update.new_root;
+        let metadata = update_with_meta.metadata;
+
         debug!(new_root = ?new_root, metadata = ?metadata, "storing update metadata in DB");
 
         self.store_keyed_encodable(UPDATE_META, &new_root, &metadata)

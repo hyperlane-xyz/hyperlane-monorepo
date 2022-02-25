@@ -61,6 +61,17 @@ use ethers::{
     signers::{AwsSignerError, LocalWallet, Signer},
 };
 
+/// Enum for validity of a list (of updates or messages)
+#[derive(Debug)]
+pub enum ListValidity {
+    /// Empty list
+    Empty,
+    /// Valid list
+    Valid,
+    /// Invalid list
+    Invalid,
+}
+
 /// Error types for Abacus
 #[derive(Debug, thiserror::Error)]
 pub enum AbacusError {

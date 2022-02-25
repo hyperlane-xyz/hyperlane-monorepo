@@ -124,11 +124,11 @@ impl SignerConf {
 #[serde(rename_all = "camelCase")]
 pub struct IndexSettings {
     /// The height at which to start indexing the Home contract
-    from: Option<String>,
+    pub from: Option<String>,
     /// The number of blocks to query at once at which to start indexing the Home contract
-    chunk: Option<String>,
+    pub chunk: Option<String>,
     /// The number of blocks away from tip to search for logs in
-    tipbuffer: Option<String>,
+    pub tipbuffer: Option<String>,
 }
 
 impl IndexSettings {
