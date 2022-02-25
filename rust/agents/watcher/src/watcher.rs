@@ -13,7 +13,8 @@ use tokio::{
 use tracing::{error, info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{
-    cancel_task, AbacusAgent, AgentCore, CachingHome, ConnectionManagers, ContractSyncMetrics, IndexDataTypes,
+    cancel_task, AbacusAgent, AgentCore, CachingHome, ConnectionManagers, ContractSyncMetrics,
+    IndexDataTypes,
 };
 use abacus_core::{
     db::AbacusDB, ChainCommunicationError, Common, CommonEvents, ConnectionManager, DoubleUpdate,
