@@ -1,24 +1,20 @@
+import { getSecretRpcEndpoint } from '../../../src/agents';
 import {
   ChainName,
   ChainConfig,
   ChainConfigJson,
 } from '../../../src/config/chain';
-import * as dotenv from 'dotenv';
+import { fetchGCPSecret } from '../../../src/utils/gcloud';
 
-dotenv.config();
-
-const rpc = process.env.CELO_RPC;
-if (!rpc) {
-  throw new Error('Missing RPC URI');
+export async function getChain(environment: string, deployerKeySecretName: string) {
+  const name = ChainName.CELO;
+  const chainJson: ChainConfigJson = {
+    name,
+    rpc: await getSecretRpcEndpoint(environment, name),
+    deployerKey: await fetchGCPSecret(deployerKeySecretName, false),
+    domain: 0x63656c6f, // b'celo' interpreted as an int
+    updaterInterval: 300,
+    updaterPause: 15,
+  };
+  return new ChainConfig(chainJson);
 }
-
-export const chainJson: ChainConfigJson = {
-  name: ChainName.CELO,
-  rpc,
-  deployerKey: process.env.CELO_DEPLOYER_KEY,
-  domain: 0x63656c6f, // b'celo' interpreted as an int
-  updaterInterval: 300,
-  updaterPause: 15,
-};
-
-export const chain = new ChainConfig(chainJson);

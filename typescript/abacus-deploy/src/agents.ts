@@ -221,6 +221,13 @@ export async function getSecretAwsCredentials(agentConfig: AgentConfig) {
   }
 }
 
+export async function getSecretRpcEndpoint(
+  environment: string,
+  network: string,
+) {
+  return fetchGCPSecret(`${environment}-rpc-endpoint-${network}`);
+}
+
 async function getSecretRpcEndpoints(
   agentConfig: AgentConfig,
   chains: ChainConfig[],

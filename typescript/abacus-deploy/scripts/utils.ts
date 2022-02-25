@@ -31,7 +31,7 @@ export async function getChainConfigs(
   environment: DeployEnvironment,
 ): Promise<ChainConfig[]> {
   const moduleName = `../config/environments/${environment}/chains`;
-  let chains: ChainConfig[] = (await importModule(moduleName)).chains;
+  let chains: ChainConfig[] = await (await importModule(moduleName)).getChains();
   // dev deployer keys are stored in GCP
   if (environment === DeployEnvironment.dev) {
     chains = await Promise.all(

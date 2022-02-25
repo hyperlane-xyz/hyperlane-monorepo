@@ -1,24 +1,20 @@
-import * as dotenv from 'dotenv';
+import { getSecretRpcEndpoint } from '../../../src/agents';
 import {
   ChainName,
   ChainConfig,
   ChainConfigJson,
 } from '../../../src/config/chain';
+import { fetchGCPSecret } from '../../../src/utils/gcloud';
 
-dotenv.config();
-
-const rpc = process.env.FUJI_RPC;
-if (!rpc) {
-  throw new Error('Missing RPC URI');
+export async function getChain(environment: string, deployerKeySecretName: string) {
+  const name = ChainName.FUJI;
+  const chainJson: ChainConfigJson = {
+    name,
+    rpc: await getSecretRpcEndpoint(environment, name),
+    deployerKey: await fetchGCPSecret(deployerKeySecretName, false),
+    domain: 43113,
+    confirmations: 3,
+    weth: '0xd00ae08403b9bbb9124bb305c09058e32c39a48c',
+  };
+  return new ChainConfig(chainJson);
 }
-
-export const chainJson: ChainConfigJson = {
-  name: ChainName.FUJI,
-  rpc,
-  deployerKey: process.env.FUJI_DEPLOYER_KEY,
-  domain: 43113,
-  confirmations: 3,
-  weth: '0xd00ae08403b9bbb9124bb305c09058e32c39a48c',
-};
-
-export const chain = new ChainConfig(chainJson);
