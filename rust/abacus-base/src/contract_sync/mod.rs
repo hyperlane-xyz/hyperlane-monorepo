@@ -113,6 +113,7 @@ where
                 // original missing start block, turn off finding_missing and
                 // TRY to resume normal indexing
                 if finding_missing && from >= realized_missing_start_block {
+                    info!("Turning off finding_missing mode");
                     finding_missing = false;
                 }
 
@@ -170,7 +171,6 @@ where
                     }
                     ListValidity::Invalid => {
                         if finding_missing {
-                            db.store_updates_and_meta(&sorted_updates)?;
                             from = to + 1;
                         } else {
                             warn!(
@@ -254,6 +254,7 @@ where
                 // original missing start block, turn off finding_missing and
                 // TRY to resume normal indexing
                 if finding_missing && from >= realized_missing_start_block {
+                    info!("Turning off finding_missing mode");
                     finding_missing = false;
                 }
 
@@ -311,7 +312,6 @@ where
                     }
                     ListValidity::Invalid => {
                         if finding_missing {
-                            db.store_messages(&sorted_messages)?;
                             from = to + 1;
                         } else {
                             warn!(
