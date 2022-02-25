@@ -12,6 +12,9 @@ serviceAccount:
   annotations: {}
   name: ""
 
+externalSecrets:
+  clusterSecretStore:
+
 podAnnotations: {}
 podCommonLabels: {}
 
@@ -50,10 +53,7 @@ optics:
     rpcStyle: # "ethereum"
     connectionType: # "http"
     # -- Connection string pointing to an RPC endpoint for the home chain
-    connectionUrl: # "https://kovan.infura.io/v3/<KEY>"
-  aws:
-    # accessKeyId: ""
-    # secretAccessKey: ""
+  aws: # true | false
 
   # -- Replica chain overrides, a sequence
   replicaChains:
@@ -64,7 +64,6 @@ optics:
       rpcStyle: # "ethereum"
       connectionType: # "http"
       # -- Connection string pointing to an RPC endpoint for the replica chain
-      connectionUrl: # "https://alfajores-forno.celo-testnet.org"
 
   # Abacus Agent Roles
   # Individually Switchable via <role>.enabled
@@ -83,12 +82,12 @@ optics:
     # -- Transaction Signing keys for home and replica(s)
     transactionSigners:
       - name: "kovan"
-        hexKey: ""
+        # aws:
       - name: "alfajores"
-        hexKey: ""
+        # aws:
     # -- Specialized key used by updater and watcher used to sign attestations, separate from updater.transactionSigners
-    attestationSigner:
-      hexKey: ""
+    attestationSigner: {}
+        # aws:
     # -- How long to wait between checking for updates
     pollingInterval: # 5
     updatePause: # 15
@@ -107,9 +106,9 @@ optics:
     resources: {}
     transactionSigners:
       - name: "kovan"
-        hexKey: ""
+        # aws:
       - name: "alfajores"
-        hexKey: ""
+        # aws:
     pollingInterval: # 10
 
   processor:
@@ -126,9 +125,9 @@ optics:
     resources: {}
     transactionSigners:
       - name: "kovan"
-        hexKey: ""
+        # aws:
       - name: "alfajores"
-        hexKey: ""
+        # aws:
     s3BucketName:
     indexonly: []
     pollingInterval: # 10
@@ -145,12 +144,10 @@ optics:
     resources: {}
     transactionSigners:
       - name: "kovan"
-        hexKey: ""
         aws:
           keyId: ""
           region: ""
       - name: "alfajores"
-        hexKey: ""
         aws:
           keyId: ""
           region: ""

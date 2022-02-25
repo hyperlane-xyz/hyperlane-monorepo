@@ -88,3 +88,21 @@ export class ChainConfig {
     this.signer = new NonceManager(wallet);
   }
 }
+
+export type ChainConfigGetter = (
+  environment: string,
+  deployerKeySecretName: string,
+) => Promise<ChainConfig>;
+
+export function chainConfigsGetterForEnvironment(
+  chainConfigGetters: ChainConfigGetter[],
+  environment: string,
+  deployerKeySecretName: string,
+) {
+  return () =>
+    Promise.all(
+      chainConfigGetters.map((chainConfigGetter: ChainConfigGetter) =>
+        chainConfigGetter(environment, deployerKeySecretName),
+      ),
+    );
+}

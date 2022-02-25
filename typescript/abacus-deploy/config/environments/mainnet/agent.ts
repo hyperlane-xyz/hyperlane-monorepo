@@ -1,15 +1,11 @@
 import { AgentConfig } from '../../../src/config/agent';
-import * as dotenv from 'dotenv';
 
-dotenv.config();
 export const agentConfig: AgentConfig = {
   environment: 'production',
   namespace: 'optics-production-community',
   runEnv: 'mainnet',
   aws: {
-    region: process.env.AWS_REGION!,
-    keyId: process.env.AWS_KEY_ID!,
-    secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY!,
+    region: 'us-west-2',
   },
   docker: {
     repo: 'gcr.io/clabs-optics/optics-agent',

@@ -5,8 +5,6 @@ interface IndexingConfig {
 
 interface AwsConfig {
   region: string;
-  keyId: string;
-  secretAccessKey: string;
 }
 
 interface ProcessorConfig {
