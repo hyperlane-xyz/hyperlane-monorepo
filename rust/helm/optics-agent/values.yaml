@@ -12,6 +12,9 @@ serviceAccount:
   annotations: {}
   name: ""
 
+externalSecrets:
+  clusterSecretStore:
+
 podAnnotations: {}
 podCommonLabels: {}
 

@@ -50,6 +50,10 @@ spec:
         envFrom:
         - configMapRef:
             name: {{ include "optics-agent.fullname" . }}
+        - secretRef:
+            name: {{ include "optics-agent.fullname" . }}-secret
+        - secretRef:
+            name: {{ include "optics-agent.fullname" . }}-processor-secret
         env: 
           {{- if .Values.optics.processor.pollingInterval }}
           - name: OPT_PROCESSOR_INTERVAL
@@ -66,10 +70,7 @@ spec:
             value: {{ .Values.optics.processor.s3BucketRegion }}
           {{- end }}
           {{- range .Values.optics.processor.transactionSigners }}
-          {{- if .hexKey }}
-          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_KEY
-            value: {{ .hexKey }}
-          {{- else }}
+          {{- if not .hexKey }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID
