@@ -15,7 +15,7 @@ use tracing::{debug, error, info, info_span, instrument, instrument::Instrumente
 
 use abacus_base::{
     cancel_task, decl_agent, AbacusAgent, AgentCore, CachingHome, CachingReplica,
-    ContractSyncMetrics,
+    ContractSyncMetrics, IndexDataTypes,
 };
 use abacus_core::{
     accumulator::merkle::Proof, db::AbacusDB, CommittedMessage, Common, Home, HomeEvents,
@@ -442,9 +442,12 @@ impl AbacusAgent for Processor {
             info!("Starting indexer");
             let sync_metrics = ContractSyncMetrics::new(self.metrics());
             let index_settings = self.as_ref().indexer.clone();
-            let home_sync_task =
-                self.home()
-                    .sync(Self::AGENT_NAME.to_owned(), index_settings, sync_metrics);
+            let home_sync_task = self.home().sync(
+                Self::AGENT_NAME.to_owned(),
+                index_settings,
+                sync_metrics,
+                IndexDataTypes::Messages,
+            );
 
             info!("started indexer and sync");
 

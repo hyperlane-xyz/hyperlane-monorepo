@@ -2,7 +2,7 @@ use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingHome, CachingReplica, ContractSyncMetrics,
+    CachingHome, CachingReplica, ContractSyncMetrics, IndexDataTypes,
 };
 use abacus_core::db::DB;
 use async_trait::async_trait;
@@ -130,9 +130,12 @@ pub trait AbacusAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
 
                 // Only the processor needs to index messages so default is
                 // just indexing updates
-                let sync_task =
-                    self.home()
-                        .sync(Self::AGENT_NAME.to_owned(), index_settings, sync_metrics);
+                let sync_task = self.home().sync(
+                    Self::AGENT_NAME.to_owned(),
+                    index_settings,
+                    sync_metrics,
+                    IndexDataTypes::Updates,
+                );
                 tasks.push(sync_task);
             }
 

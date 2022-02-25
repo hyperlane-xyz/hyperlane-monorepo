@@ -16,7 +16,7 @@ use color_eyre::Result;
 
 use futures_util::future::select_all;
 
-use abacus_base::{cancel_task, AbacusAgent, ContractSyncMetrics};
+use abacus_base::{cancel_task, AbacusAgent, ContractSyncMetrics, IndexDataTypes};
 
 use crate::{settings::UpdaterSettings as Settings, updater::Updater};
 
@@ -40,9 +40,12 @@ async fn _main() -> Result<()> {
     // broken out here
     let sync_metrics = ContractSyncMetrics::new(agent.metrics());
     let index_settings = agent.as_ref().indexer.clone();
-    let sync_task = agent
-        .home()
-        .sync(Updater::AGENT_NAME.to_owned(), index_settings, sync_metrics);
+    let sync_task = agent.home().sync(
+        Updater::AGENT_NAME.to_owned(),
+        index_settings,
+        sync_metrics,
+        IndexDataTypes::Updates,
+    );
     let run_task = agent.run("");
 
     let futs = vec![sync_task, run_task];

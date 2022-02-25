@@ -13,7 +13,7 @@ use tokio::{
 use tracing::{error, info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{
-    cancel_task, AbacusAgent, AgentCore, CachingHome, ConnectionManagers, ContractSyncMetrics,
+    cancel_task, AbacusAgent, AgentCore, CachingHome, ConnectionManagers, ContractSyncMetrics, IndexDataTypes,
 };
 use abacus_core::{
     db::AbacusDB, ChainCommunicationError, Common, CommonEvents, ConnectionManager, DoubleUpdate,
@@ -491,7 +491,7 @@ impl AbacusAgent for Watcher {
             let index_settings = &self.as_ref().indexer;
             let home_sync_task = self
                 .home()
-                .sync(Self::AGENT_NAME.to_owned(), index_settings.clone(), sync_metrics);
+                .sync(Self::AGENT_NAME.to_owned(), index_settings.clone(), sync_metrics, IndexDataTypes::Updates);
                 // TODO: fix this
             let replica_sync_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self.replicas().iter().map(|(_name, replica)| {
                 let replica_sync_metrics = ContractSyncMetrics::new(self.metrics());

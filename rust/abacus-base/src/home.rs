@@ -18,6 +18,17 @@ use tracing::{instrument, instrument::Instrumented};
 
 use crate::{ContractSync, ContractSyncMetrics, HomeIndexers, IndexSettings};
 
+/// Which data types the home ContractSync should index
+#[derive(Debug, Clone)]
+pub enum IndexDataTypes {
+    /// Updates
+    Updates,
+    /// Messages
+    Messages,
+    /// Updates and messages
+    Both,
+}
+
 /// Caching replica type
 #[derive(Debug)]
 pub struct CachingHome {
@@ -55,6 +66,7 @@ impl CachingHome {
         agent_name: String,
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
+        data_types: IndexDataTypes,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("HomeContractSync", self = %self);
 
@@ -67,9 +79,12 @@ impl CachingHome {
             metrics,
         );
 
-        // TODO copy over data_types
         tokio::spawn(async move {
-            let tasks = vec![sync.sync_updates(), sync.sync_messages()];
+            let tasks = match data_types {
+                IndexDataTypes::Updates => vec![sync.sync_updates()],
+                IndexDataTypes::Messages => vec![sync.sync_messages()],
+                IndexDataTypes::Both => vec![sync.sync_updates(), sync.sync_messages()],
+            };
 
             let (_, _, remaining) = select_all(tasks).await;
             for task in remaining.into_iter() {
