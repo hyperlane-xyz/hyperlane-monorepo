@@ -1,6 +1,11 @@
 import fs from 'fs';
 import { execCmd, execCmdAndParseJson } from './utils';
 
+interface IamCondition {
+  title: string;
+  expression: string;
+}
+
 export async function fetchGCPSecret(
   secretName: string,
   parseJson: boolean = true,
@@ -28,13 +33,19 @@ export async function createServiceAccountIfNotExists(
 export async function grantServiceAccountRoleIfNotExists(
   serviceAccountEmail: string,
   role: string,
+  condition?: IamCondition,
 ) {
-  const existingRoles = await getIamMemberRoles(serviceAccountEmail);
-  if (existingRoles.includes(role)) {
+  const bindings = await getIamMemberPolicyBindings(serviceAccountEmail);
+  const matchedBinding = bindings.find((binding: any) => binding.role === role);
+  if (iamConditionsEqual(condition, matchedBinding.condition)) {
     return;
   }
   await execCmd(
-    `gcloud projects add-iam-policy-binding $(gcloud config get-value project) --member="serviceAccount:${serviceAccountEmail}" --role="${role}"`,
+    `gcloud projects add-iam-policy-binding $(gcloud config get-value project) --member="serviceAccount:${serviceAccountEmail}" --role="${role}" ${
+      condition
+        ? `--condition=title='${condition.title}',expression='${condition.expression}'`
+        : ''
+    }`,
   );
 }
 
@@ -48,19 +59,29 @@ export async function createServiceAccountKey(serviceAccountEmail: string) {
   return key;
 }
 
+// The alphanumeric project name / ID
 export async function getCurrentProject() {
   const [result] = await execCmd('gcloud config get-value project');
   return result.trim();
 }
 
-async function getIamMemberRoles(memberEmail: string) {
+// The numeric project number
+export async function getCurrentProjectNumber() {
+  const [result] = await execCmd(
+    'gcloud projects list --filter="$(gcloud config get-value project)" --format="value(PROJECT_NUMBER)"',
+  );
+  return result.trim();
+}
+
+async function getIamMemberPolicyBindings(memberEmail: string) {
   // This puts out an ugly array of the form: [{ "bindings": { "role": "roles/..." }}, ...]
   const unprocessedRoles = await execCmdAndParseJson(
-    `gcloud projects get-iam-policy $(gcloud config get-value project) --format "json(bindings.role)" --flatten="bindings[].members" --filter="bindings.members:${memberEmail}"`,
+    `gcloud projects get-iam-policy $(gcloud config get-value project) --format "json(bindings)" --flatten="bindings[].members" --filter="bindings.members:${memberEmail}"`,
   );
-  return unprocessedRoles.map(
-    (unprocessedRoleObject: any) => unprocessedRoleObject.bindings.role,
-  );
+  return unprocessedRoles.map((unprocessedRoleObject: any) => ({
+    role: unprocessedRoleObject.bindings.role,
+    condition: unprocessedRoleObject.bindings.condition,
+  }));
 }
 
 async function createServiceAccount(serviceAccountName: string) {
@@ -79,4 +100,15 @@ async function getServiceAccountInfo(serviceAccountName: string) {
     return undefined;
   }
   return matches[0];
+}
+
+function iamConditionsEqual(
+  a: IamCondition | undefined,
+  b: IamCondition | undefined,
+) {
+  // If both are undefined, they're equal
+  if (a === undefined && b === undefined) {
+    return true;
+  }
+  return a && b && a.title === b.title && a.expression === b.expression;
 }

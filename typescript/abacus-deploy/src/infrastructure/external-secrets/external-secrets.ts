@@ -3,6 +3,7 @@ import {
   createServiceAccountIfNotExists,
   createServiceAccountKey,
   getCurrentProject,
+  getCurrentProjectNumber,
   grantServiceAccountRoleIfNotExists,
 } from '../../utils/gcloud';
 import {
@@ -22,10 +23,14 @@ const SECRET_ACCESSOR_ROLE = 'roles/secretmanager.secretAccessor';
 export async function runExternalSecretsHelmCommand(
   helmCommand: HelmCommand,
   infraConfig: InfrastructureConfig,
+  environment: string,
 ) {
   await ensureExternalSecretsRelease(infraConfig);
 
-  const values = await getGcpExternalSecretsHelmChartValues(infraConfig);
+  const values = await getGcpExternalSecretsHelmChartValues(
+    infraConfig,
+    environment,
+  );
   return execCmd(
     `helm ${helmCommand} external-secrets-gcp ./src/infrastructure/external-secrets/helm --namespace ${
       infraConfig.externalSecrets.namespace
@@ -35,18 +40,28 @@ export async function runExternalSecretsHelmCommand(
 
 async function getGcpExternalSecretsHelmChartValues(
   infraConfig: InfrastructureConfig,
+  environment: string,
 ) {
-  const config = await getGcpExternalSecretsConfig(infraConfig);
+  const config = await getGcpExternalSecretsConfig(infraConfig, environment);
   return helmifyValues(config);
 }
 
-async function getGcpExternalSecretsConfig(infraConfig: InfrastructureConfig) {
+async function getGcpExternalSecretsConfig(
+  infraConfig: InfrastructureConfig,
+  environment: string,
+) {
   const serviceAccountEmail = await createServiceAccountIfNotExists(
     infraConfig.externalSecrets.gcpServiceAccountName,
   );
+  const currentProjectNumber = await getCurrentProjectNumber();
   await grantServiceAccountRoleIfNotExists(
     serviceAccountEmail,
     SECRET_ACCESSOR_ROLE,
+    // A condition that only allows the service account to access secrets prefixed with `${environment}-`
+    {
+      title: `Only ${environment} secrets`,
+      expression: `resource.name.startsWith("projects/${currentProjectNumber}/secrets/${environment}-")`,
+    },
   );
 
   const serviceAccountKey = await createServiceAccountKey(serviceAccountEmail);
