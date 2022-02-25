@@ -70,7 +70,7 @@ spec:
             value: {{ .Values.optics.processor.s3BucketRegion }}
           {{- end }}
           {{- range .Values.optics.processor.transactionSigners }}
-          {{- if not .hexKey }}
+          {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID

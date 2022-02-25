@@ -60,7 +60,7 @@ spec:
             value: {{ .Values.optics.relayer.pollingInterval | quote }}
           {{- end }}
           {{- range .Values.optics.relayer.transactionSigners }}
-          {{- if not .hexKey }}
+          {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID

@@ -64,7 +64,7 @@ spec:
             value: {{ .Values.optics.updater.updatePause | quote }}
           {{- end }}
           {{- range .Values.optics.updater.transactionSigners }}
-          {{- if not .hexKey }}
+          {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID
@@ -73,7 +73,7 @@ spec:
             value: {{ .aws.region }}
           {{- end }}
           {{- end }}
-          {{- if not .Values.optics.updater.attestationSigner.hexKey }}
+          {{- if (hasKey .Values.optics.updater.attestationSigner "aws") }}
           - name: OPT_BASE_UPDATER_TYPE
             value: "aws"
           - name: OPT_BASE_UPDATER_ID

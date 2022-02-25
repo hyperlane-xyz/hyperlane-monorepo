@@ -5,9 +5,7 @@ import { fetchGCPSecret } from './utils/gcloud';
 import { HelmCommand, helmifyValues } from './utils/helm';
 import { ensure0x, execCmd, include, strip0x } from './utils/utils';
 import {
-  AgentGCPKey,
   fetchAgentGCPKeys,
-  memoryKeyIdentifier,
 } from './agents/gcp';
 import { AgentAwsKey } from './agents/aws';
 
@@ -37,23 +35,14 @@ async function helmValuesForChain(
   agentConfig: AgentConfig,
   chains: ChainConfig[],
 ) {
-  let gcpKeys: { [role: string]: AgentGCPKey } | undefined = undefined;
-  try {
-    gcpKeys = await fetchAgentGCPKeys(agentConfig.environment, chainName);
-  } catch (error) {
-    if (!agentConfig.aws) {
-      throw new Error("agents' keys are neither in GCP nor in AWS");
-    }
-  }
-
+  // Credentials are only needed if AWS keys are needed -- otherwise, the
+  // key is pulled from GCP Secret Manager by the helm chart
   const credentials = (role: KEY_ROLE_ENUM) => {
-    if (!!gcpKeys) {
-      const identifier = memoryKeyIdentifier(role, chainName);
-      return gcpKeys![identifier].credentialsAsHelmValue;
-    } else {
+    if (agentConfig.aws) {
       const key = new AgentAwsKey(agentConfig, role, chainName);
       return key.credentialsAsHelmValue;
     }
+    return undefined;
   };
 
   const chain = chains.find((_) => _.name === chainName)!;
@@ -67,16 +56,14 @@ async function helmValuesForChain(
       baseConfig: `${chainName}_config.json`,
       homeChain: {
         name: chainName,
-        connectionUrl: chains.filter((_) => _.name === chainName)[0].json.rpc,
         ...include(!!chain.tipBuffer, { tipBuffer: chain.tipBuffer }),
       },
-      aws: !gcpKeys,
+      aws: !!agentConfig.aws,
       replicaChains: chains
         .filter((_) => _.name !== chainName)
         .map((remoteChain) => {
           return {
             name: remoteChain.name,
-            connectionUrl: remoteChain.json.rpc,
           };
         }),
       updater: {
