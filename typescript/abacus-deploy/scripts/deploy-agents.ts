@@ -9,7 +9,7 @@ async function deploy() {
   await Promise.all(
     chains.map((chain) => {
       return runAgentHelmCommand(
-        HelmCommand.Install,
+        HelmCommand.Upgrade,
         agentConfig,
         chain,
         chains,

@@ -1,23 +1,24 @@
 import {
+  getSecretDeployerKey,
+  getSecretRpcEndpoint,
+} from '../../../src/agents';
+import {
   ChainName,
   ChainConfig,
   ChainConfigJson,
 } from '../../../src/config/chain';
-import * as dotenv from 'dotenv';
 
-dotenv.config();
-
-const rpc = process.env.ALFAJORES_RPC;
-if (!rpc) {
-  throw new Error('Missing RPC URI');
+export async function getChain(
+  environment: string,
+  deployerKeySecretName: string,
+) {
+  const name = ChainName.ALFAJORES;
+  const chainJson: ChainConfigJson = {
+    name,
+    rpc: await getSecretRpcEndpoint(environment, name),
+    deployerKey: await getSecretDeployerKey(deployerKeySecretName),
+    domain: 1000,
+    confirmations: 1,
+  };
+  return new ChainConfig(chainJson);
 }
-
-export const chainJson: ChainConfigJson = {
-  name: ChainName.ALFAJORES,
-  rpc,
-  deployerKey: process.env.ALFAJORES_DEPLOYER_KEY,
-  domain: 1000,
-  confirmations: 1,
-};
-
-export const chain = new ChainConfig(chainJson);

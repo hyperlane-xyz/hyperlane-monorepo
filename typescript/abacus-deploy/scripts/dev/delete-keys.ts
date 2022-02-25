@@ -1,9 +1,12 @@
 import { deleteAgentGCPKeys } from '../../src/agents/gcp';
-import { chains } from '../../config/environments/dev/chains';
+import { getChains } from '../../config/environments/dev/chains';
 
-deleteAgentGCPKeys(
-  'dev',
-  chains.map((c) => c.name),
-)
-  .then(console.log)
-  .catch(console.error);
+async function main() {
+  const chains = await getChains();
+  return deleteAgentGCPKeys(
+    'dev',
+    chains.map((c) => c.name),
+  );
+}
+
+main().then(console.log).catch(console.error);
