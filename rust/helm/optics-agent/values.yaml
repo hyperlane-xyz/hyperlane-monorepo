@@ -72,7 +72,9 @@ optics:
   # Individually Switchable via <role>.enabled
   updater:
     enabled: false
-    podAnnotations: {}
+    podAnnotations:
+      prometheus.io/port: "9090"
+      prometheus.io/scrape: "true"
     podLabels: {}
     storage:
       size: 10Gi
@@ -95,7 +97,9 @@ optics:
 
   relayer:
     enabled: false
-    podAnnotations: {}
+    podAnnotations:
+      prometheus.io/port: "9090"
+      prometheus.io/scrape: "true"
     podLabels: {}
     storage:
       size: 10Gi
@@ -112,7 +116,9 @@ optics:
 
   processor:
     enabled: false
-    podAnnotations: {}
+    podAnnotations:
+      prometheus.io/port: "9090"
+      prometheus.io/scrape: "true"
     podLabels: {}
     storage:
       size: 10Gi
