@@ -6,7 +6,7 @@ import {
 } from '../../../src/config/chain';
 
 export async function getChain(environment: string, deployerKeySecretName: string) {
-  const name = ChainName.ETHEREUM;
+  const name = ChainName.POLYGON;
   const chainJson: ChainConfigJson = {
     name,
     rpc: await getSecretRpcEndpoint(environment, name),

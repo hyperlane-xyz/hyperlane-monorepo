@@ -88,12 +88,6 @@ export class ChainConfig {
     this.tipBuffer = json.tipBuffer;
   }
 
-  // async initialize(environment: string) {
-  //   // Gets the RPC endpoint from GCP Secret Manager
-  //   const rpcEndpoint = await getSecretRpcEndpoint(environment, this.name);
-
-  // }
-
   replaceSigner(privateKey: string) {
     const wallet = new ethers.Wallet(privateKey, this.provider);
     this.signer = new NonceManager(wallet);
