@@ -446,7 +446,7 @@ impl AbacusAgent for Processor {
                 Self::AGENT_NAME.to_owned(),
                 index_settings,
                 sync_metrics,
-                IndexDataTypes::Messages,
+                IndexDataTypes::Both,
             );
 
             info!("started indexer and sync");
