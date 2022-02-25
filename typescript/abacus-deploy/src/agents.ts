@@ -74,9 +74,7 @@ async function helmValuesForChain(
         connectionUrl: chains.filter((_) => _.name === chainName)[0].json.rpc,
         ...include(!!chain.tipBuffer, { tipBuffer: chain.tipBuffer }),
       },
-      ...include(!gcpKeys, {
-        aws,
-      }),
+      aws: !gcpKeys,
       replicaChains: chains
         .filter((_) => _.name !== chainName)
         .map((remoteChain) => {
@@ -179,10 +177,10 @@ export async function getAgentEnvVars(
     }
   } catch (error) {
     // Keys are in AWS
-    envVars.push(`AWS_ACCESS_KEY_ID=${valueDict.optics.aws.accessKeyId}`);
-    envVars.push(
-      `AWS_SECRET_ACCESS_KEY=${valueDict.optics.aws.secretAccessKey}`,
-    );
+    // envVars.push(`AWS_ACCESS_KEY_ID=${valueDict.optics.aws.accessKeyId}`);
+    // envVars.push(
+    //   `AWS_SECRET_ACCESS_KEY=${valueDict.optics.aws.secretAccessKey}`,
+    // );
 
     // Signers
     Object.keys(chains).forEach((network) => {

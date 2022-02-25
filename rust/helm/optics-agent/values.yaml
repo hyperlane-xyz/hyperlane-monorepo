@@ -56,9 +56,7 @@ optics:
     connectionUrl: # "https://kovan.infura.io/v3/<KEY>"
     # -- How close to the tip state should be considered "finalized"
     tipBuffer: # 10
-  aws:
-    # accessKeyId: ""
-    # secretAccessKey: ""
+  aws: # true | false
 
   # -- Replica chain overrides, a sequence
   replicaChains:

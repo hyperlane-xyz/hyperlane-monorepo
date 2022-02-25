@@ -7,10 +7,6 @@ metadata:
 data:
   RUN_ENV: {{ .Values.optics.runEnv | quote }}
   BASE_CONFIG: {{ .Values.optics.baseConfig }}
-  {{- if .Values.optics.aws }}
-  AWS_ACCESS_KEY_ID: {{ .Values.optics.aws.accessKeyId }}
-  AWS_SECRET_ACCESS_KEY: {{ .Values.optics.aws.secretAccessKey }}
-  {{- end }}
   RUST_BACKTRACE: {{ .Values.optics.rustBacktrace }}
   OPT_BASE_DB: {{ .Values.optics.dbPath }}
   OPT_BASE_TRACING_FMT: {{ .Values.optics.tracing.format }}
