@@ -594,7 +594,6 @@ mod test {
                 IndexSettings {
                     from: Some("0".to_string()),
                     chunk: Some("10".to_string()),
-                    tipbuffer: None,
                 },
                 sync_metrics,
             );
@@ -827,7 +826,6 @@ mod test {
                 IndexSettings {
                     from: Some("0".to_string()),
                     chunk: Some("10".to_string()),
-                    tipbuffer: None,
                 },
                 sync_metrics,
             );
