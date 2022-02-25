@@ -1,17 +1,16 @@
-import { getSecretRpcEndpoint } from '../../../src/agents';
+import { getSecretDeployerKey, getSecretRpcEndpoint } from '../../../src/agents';
 import {
   ChainName,
   ChainConfig,
   ChainConfigJson,
 } from '../../../src/config/chain';
-import { fetchGCPSecret } from '../../../src/utils/gcloud';
 
 export async function getChain(environment: string, deployerKeySecretName: string) {
   const name = ChainName.ETHEREUM;
   const chainJson: ChainConfigJson = {
     name,
     rpc: await getSecretRpcEndpoint(environment, name),
-    deployerKey: await fetchGCPSecret(deployerKeySecretName, false),
+    deployerKey: await getSecretDeployerKey(deployerKeySecretName),
     domain: 0x657468, // b'eth' interpreted as an int
     // This isn't actually used because Ethereum supports EIP 1559 - but just in case
     gasPrice: '400000000000', // 400 gwei

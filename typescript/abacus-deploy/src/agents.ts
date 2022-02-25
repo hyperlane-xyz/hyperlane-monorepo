@@ -225,7 +225,14 @@ export async function getSecretRpcEndpoint(
   environment: string,
   network: string,
 ) {
-  return fetchGCPSecret(`${environment}-rpc-endpoint-${network}`);
+  return fetchGCPSecret(`${environment}-rpc-endpoint-${network}`, false);
+}
+
+export async function getSecretDeployerKey(
+  deployerKeySecretName: string,
+) {
+  const keyObject = await fetchGCPSecret(deployerKeySecretName, true);
+  return keyObject.privateKey;
 }
 
 async function getSecretRpcEndpoints(

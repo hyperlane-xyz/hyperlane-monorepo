@@ -1,18 +1,17 @@
 import { BigNumber } from 'ethers';
-import { getSecretRpcEndpoint } from '../../../src/agents';
+import { getSecretDeployerKey, getSecretRpcEndpoint } from '../../../src/agents';
 import {
   ChainName,
   ChainConfig,
   ChainConfigJson,
 } from '../../../src/config/chain';
-import { fetchGCPSecret } from '../../../src/utils/gcloud';
 
 export async function getChain(environment: string, deployerKeySecretName: string) {
   const name = ChainName.AVALANCHE;
   const chainJson: ChainConfigJson = {
     name,
     rpc: await getSecretRpcEndpoint(environment, name),
-    deployerKey: await fetchGCPSecret(deployerKeySecretName, false),
+    deployerKey: await getSecretDeployerKey(deployerKeySecretName),
     domain: 0x61766178, // b'avax' interpreted as an int
     // This isn't actually used because Avalanche supports EIP 1559 - but just in case
     gasPrice: BigNumber.from(50_000_000_000), // 50 nAVAX (50 gwei)
