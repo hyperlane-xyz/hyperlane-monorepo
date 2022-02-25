@@ -51,7 +51,7 @@ export class AgentAwsKey extends AgentKey {
     if (this.client) {
       return this.client;
     }
-    const awsCredentials = await getSecretAwsCredentials(this.agentConfig)
+    const awsCredentials = await getSecretAwsCredentials(this.agentConfig);
     this.client = new KMSClient({
       region: this.region,
       credentials: awsCredentials,

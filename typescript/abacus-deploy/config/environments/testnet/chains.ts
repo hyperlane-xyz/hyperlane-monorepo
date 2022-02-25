@@ -8,7 +8,7 @@ const environment = 'testnet';
 const deployerKeySecretName = 'staging-community-deployer-key';
 
 export const getChains = chainConfigsGetterForEnvironment(
-    [alfajores, ropsten, kovan, gorli],
-    environment,
-    deployerKeySecretName
+  [alfajores, ropsten, kovan, gorli],
+  environment,
+  deployerKeySecretName,
 );

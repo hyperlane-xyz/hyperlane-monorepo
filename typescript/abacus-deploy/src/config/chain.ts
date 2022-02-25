@@ -94,10 +94,20 @@ export class ChainConfig {
   }
 }
 
-export type ChainConfigGetter = (environment: string, deployerKeySecretName: string) => Promise<ChainConfig>;
+export type ChainConfigGetter = (
+  environment: string,
+  deployerKeySecretName: string,
+) => Promise<ChainConfig>;
 
-export function chainConfigsGetterForEnvironment(chainConfigGetters: ChainConfigGetter[], environment: string, deployerKeySecretName: string) {
-  return () => Promise.all(
-    chainConfigGetters.map((chainConfigGetter: ChainConfigGetter) => chainConfigGetter(environment, deployerKeySecretName))
-  );
+export function chainConfigsGetterForEnvironment(
+  chainConfigGetters: ChainConfigGetter[],
+  environment: string,
+  deployerKeySecretName: string,
+) {
+  return () =>
+    Promise.all(
+      chainConfigGetters.map((chainConfigGetter: ChainConfigGetter) =>
+        chainConfigGetter(environment, deployerKeySecretName),
+      ),
+    );
 }

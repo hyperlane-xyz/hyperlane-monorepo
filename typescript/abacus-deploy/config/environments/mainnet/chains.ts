@@ -8,7 +8,7 @@ const environment = 'mainnet';
 const deployerKeySecretName = 'v2-deployer-key';
 
 export const getChains = chainConfigsGetterForEnvironment(
-    [celo, ethereum, avalanche, polygon],
-    environment,
-    deployerKeySecretName
+  [celo, ethereum, avalanche, polygon],
+  environment,
+  deployerKeySecretName,
 );

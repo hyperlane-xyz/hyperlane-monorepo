@@ -4,9 +4,7 @@ import { AgentConfig } from './config/agent';
 import { fetchGCPSecret } from './utils/gcloud';
 import { HelmCommand, helmifyValues } from './utils/helm';
 import { ensure0x, execCmd, include, strip0x } from './utils/utils';
-import {
-  fetchAgentGCPKeys,
-} from './agents/gcp';
+import { fetchAgentGCPKeys } from './agents/gcp';
 import { AgentAwsKey } from './agents/aws';
 
 export enum KEY_ROLE_ENUM {
@@ -115,9 +113,7 @@ export async function getAgentEnvVars(
   const envVars: string[] = [];
 
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chains);
-  envVars.push(
-    `OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`,
-  );
+  envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
   valueDict.optics.replicaChains.forEach((replicaChain: any) => {
     envVars.push(
       `OPT_BASE_REPLICAS_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
@@ -165,9 +161,7 @@ export async function getAgentEnvVars(
     const awsKeys = await getSecretAwsCredentials(agentConfig);
 
     envVars.push(`AWS_ACCESS_KEY_ID=${awsKeys.accessKeyId}`);
-    envVars.push(
-      `AWS_SECRET_ACCESS_KEY=${awsKeys.secretAccessKey}`,
-    );
+    envVars.push(`AWS_SECRET_ACCESS_KEY=${awsKeys.secretAccessKey}`);
 
     // Signers
     Object.keys(chains).forEach((network) => {
@@ -203,9 +197,15 @@ export async function getAgentEnvVars(
 
 export async function getSecretAwsCredentials(agentConfig: AgentConfig) {
   return {
-    accessKeyId: await fetchGCPSecret(`${agentConfig.runEnv}-aws-access-key-id`, false),
-    secretAccessKey: await fetchGCPSecret(`${agentConfig.runEnv}-aws-secret-access-key`, false),
-  }
+    accessKeyId: await fetchGCPSecret(
+      `${agentConfig.runEnv}-aws-access-key-id`,
+      false,
+    ),
+    secretAccessKey: await fetchGCPSecret(
+      `${agentConfig.runEnv}-aws-secret-access-key`,
+      false,
+    ),
+  };
 }
 
 export async function getSecretRpcEndpoint(
@@ -215,9 +215,7 @@ export async function getSecretRpcEndpoint(
   return fetchGCPSecret(`${environment}-rpc-endpoint-${network}`, false);
 }
 
-export async function getSecretDeployerKey(
-  deployerKeySecretName: string,
-) {
+export async function getSecretDeployerKey(deployerKeySecretName: string) {
   const keyObject = await fetchGCPSecret(deployerKeySecretName, true);
   return keyObject.privateKey;
 }
@@ -230,7 +228,7 @@ async function getSecretRpcEndpoints(
   return getSecretForEachChain(
     chains,
     (chain: ChainConfig) => `${environment}-rpc-endpoint-${chain.name}`,
-    false
+    false,
   );
 }
 
@@ -240,13 +238,17 @@ async function getSecretForEachChain(
   parseJson: boolean,
 ) {
   const secrets = await Promise.all(
-    chains
-      .map((chain: ChainConfig) => fetchGCPSecret(secretNameGetter(chain), parseJson))
+    chains.map((chain: ChainConfig) =>
+      fetchGCPSecret(secretNameGetter(chain), parseJson),
+    ),
   );
-  return secrets.reduce((prev: any, secret: string, index: number) => ({
-    ...prev,
-    [chains[index].name]: secret,
-  }), {});
+  return secrets.reduce(
+    (prev: any, secret: string, index: number) => ({
+      ...prev,
+      [chains[index].name]: secret,
+    }),
+    {},
+  );
 }
 
 export async function runAgentHelmCommand(

@@ -1,12 +1,18 @@
 import { BigNumber } from 'ethers';
-import { getSecretDeployerKey, getSecretRpcEndpoint } from '../../../src/agents';
+import {
+  getSecretDeployerKey,
+  getSecretRpcEndpoint,
+} from '../../../src/agents';
 import {
   ChainName,
   ChainConfig,
   ChainConfigJson,
 } from '../../../src/config/chain';
 
-export async function getChain(environment: string, deployerKeySecretName: string) {
+export async function getChain(
+  environment: string,
+  deployerKeySecretName: string,
+) {
   const name = ChainName.AVALANCHE;
   const chainJson: ChainConfigJson = {
     name,

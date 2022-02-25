@@ -9,7 +9,7 @@ const environment = 'dev';
 const deployerKeySecretName = 'optics-key-dev-deployer';
 
 export const getChains = chainConfigsGetterForEnvironment(
-    [alfajores, kovan, gorli, fuji, mumbai],
-    environment,
-    deployerKeySecretName
+  [alfajores, kovan, gorli, fuji, mumbai],
+  environment,
+  deployerKeySecretName,
 );
