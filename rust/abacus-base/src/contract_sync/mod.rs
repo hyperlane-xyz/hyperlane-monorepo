@@ -386,6 +386,7 @@ mod test {
             let third_root = H256::from([2; 32]);
             let fourth_root = H256::from([3; 32]);
             let fifth_root = H256::from([4; 32]);
+            let sixth_root = H256::from([4; 32]);
 
             let first_update = Update {
                 home_domain: 1,
@@ -423,6 +424,15 @@ mod test {
             .await
             .expect("!sign");
 
+            let fifth_update = Update {
+                home_domain: 1,
+                previous_root: fifth_root,
+                new_root: sixth_root,
+            }
+            .sign_with(&signer)
+            .await
+            .expect("!sign");
+
             let mut mock_indexer = MockIndexer::new();
             {
                 let mut seq = Sequence::new();
@@ -445,10 +455,18 @@ mod test {
 
                 let fourth_update_with_meta = SignedUpdateWithMeta {
                     signed_update: fourth_update.clone(),
-                    metadata: UpdateMeta { block_number: 35 },
+                    metadata: UpdateMeta { block_number: 25 },
                 };
                 let fourth_update_with_meta_clone_1 = fourth_update_with_meta.clone();
                 let fourth_update_with_meta_clone_2 = fourth_update_with_meta.clone();
+
+                let fifth_update_with_meta = SignedUpdateWithMeta {
+                    signed_update: fifth_update.clone(),
+                    metadata: UpdateMeta { block_number: 55 },
+                };
+                let fifth_update_with_meta_clone_1 = fifth_update_with_meta.clone();
+                let fifth_update_with_meta_clone_2 = fifth_update_with_meta.clone();
+                let fifth_update_with_meta_clone_3 = fifth_update_with_meta.clone();
 
                 // Return first update
                 mock_indexer
@@ -474,6 +492,18 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![second_update_with_meta]));
 
+                // --> miss fourth update
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_updates()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![]));
+
                 // Next block range is empty updates
                 mock_indexer
                     .expect__get_block_number()
@@ -486,7 +516,7 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // second --> fourth update seen as invalid
+                // second --> return fifth update is invalid
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
@@ -496,7 +526,7 @@ mod test {
                     .expect__fetch_sorted_updates()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fourth_update_with_meta]));
+                    .return_once(move |_, _| Ok(vec![fifth_update_with_meta]));
 
                 // Indexer goes back and tries empty block range
                 mock_indexer
@@ -521,9 +551,45 @@ mod test {
                     .expect__fetch_sorted_updates()
                     .times(1)
                     .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![fifth_update_with_meta_clone_1]));
+
+                // Indexer goes back further and gets to the fourth update
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_updates()
+                    .times(1)
+                    .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![fourth_update_with_meta_clone_1]));
 
-                // Indexer goes back further and gets missing third update
+                // Indexer goes further for empty range
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_updates()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![]));
+
+                // Indexer goes back further and gets to the fifth update
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_updates()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![fifth_update_with_meta_clone_2]));
+
+                // Indexer goes back even further to find 2nd and 3rd update
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
@@ -537,7 +603,19 @@ mod test {
                         Ok(vec![second_update_with_meta_clone, third_update_with_meta])
                     });
 
-                // Reindexes the empty block range
+                // Indexer goes forward and gets to the fourth update again
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_updates()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![fourth_update_with_meta_clone_2]));
+
+                // Indexer goes further for empty range
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
@@ -549,7 +627,7 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // Return fourth update
+                // Indexer goes back further and gets to the fifth update
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
@@ -559,7 +637,7 @@ mod test {
                     .expect__fetch_sorted_updates()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fourth_update_with_meta_clone_2]));
+                    .return_once(move |_, _| Ok(vec![fifth_update_with_meta_clone_3]));
 
                 // Return empty vec for remaining calls
                 mock_indexer
@@ -630,6 +708,14 @@ mod test {
                     .expect("!update"),
                 fourth_update.clone()
             );
+
+            assert_eq!(
+                abacus_db
+                    .update_by_previous_root(fifth_root)
+                    .expect("!db")
+                    .expect("!update"),
+                fifth_update.clone()
+            );
         })
         .await
     }
@@ -640,6 +726,7 @@ mod test {
             let first_root = H256::from([0; 32]);
             let second_root = H256::from([1; 32]);
             let third_root = H256::from([2; 32]);
+            let fourth_root = H256::from([2; 32]);
 
             let mut message_vec = vec![];
             AbacusMessage {
@@ -680,6 +767,15 @@ mod test {
             let fourth_message_clone_1 = fourth_message.clone();
             let fourth_message_clone_2 = fourth_message.clone();
 
+            let fifth_message = RawCommittedMessage {
+                leaf_index: 4,
+                committed_root: fourth_root,
+                message: message_vec.clone(),
+            };
+            let fifth_message_clone_1 = fifth_message.clone();
+            let fifth_message_clone_2 = fifth_message.clone();
+            let fifth_message_clone_3 = fifth_message.clone();
+
             let mut mock_indexer = MockIndexer::new();
             {
                 let mut seq = Sequence::new();
@@ -708,7 +804,7 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![second_message]));
 
-                // Next block range is empty updates
+                // misses the fourth
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
@@ -720,7 +816,7 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // second --> fourth message seen as invalid
+                // empty range
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
@@ -730,7 +826,19 @@ mod test {
                     .expect__fetch_sorted_messages()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fourth_message]));
+                    .return_once(move |_, _| Ok(vec![]));
+
+                // second --> fifth message seen as invalid
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_messages()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![fifth_message]));
 
                 // Indexer goes back and tries empty block range
                 mock_indexer
@@ -755,9 +863,45 @@ mod test {
                     .expect__fetch_sorted_messages()
                     .times(1)
                     .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![fifth_message_clone_1]));
+
+                // Indexer goes back further and gets to fourth message
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_messages()
+                    .times(1)
+                    .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![fourth_message_clone_1]));
 
-                // Indexer goes back further and gets missing third message
+                // Indexer gets empty range again
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_messages()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![]));
+
+                // Indexer gets fifth message again
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_messages()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![fifth_message_clone_2]));
+
+                // Indexer goes back even further and gets to message 2 and 3
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
@@ -768,6 +912,18 @@ mod test {
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![second_message_clone, third_message]));
+
+                // Return fourth message
+                mock_indexer
+                    .expect__get_block_number()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(|| Ok(100));
+                mock_indexer
+                    .expect__fetch_sorted_messages()
+                    .times(1)
+                    .in_sequence(&mut seq)
+                    .return_once(move |_, _| Ok(vec![fourth_message_clone_2]));
 
                 // Reindexes empty block range
                 mock_indexer
@@ -781,7 +937,7 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // Return fourth message
+                // Return fifth message
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
@@ -791,7 +947,7 @@ mod test {
                     .expect__fetch_sorted_messages()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fourth_message_clone_2]));
+                    .return_once(move |_, _| Ok(vec![fifth_message_clone_3]));
 
                 // Return empty vec for remaining calls
                 mock_indexer
@@ -838,6 +994,7 @@ mod test {
             assert!(abacus_db.message_by_leaf_index(1).expect("!db").is_some());
             assert!(abacus_db.message_by_leaf_index(2).expect("!db").is_some());
             assert!(abacus_db.message_by_leaf_index(3).expect("!db").is_some());
+            assert!(abacus_db.message_by_leaf_index(4).expect("!db").is_some());
         })
         .await
     }
