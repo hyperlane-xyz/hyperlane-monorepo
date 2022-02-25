@@ -88,7 +88,7 @@ optics:
       - name: "alfajores"
         # aws:
     # -- Specialized key used by updater and watcher used to sign attestations, separate from updater.transactionSigners
-    attestationSigner:
+    attestationSigner: {}
         # aws:
     # -- How long to wait between checking for updates
     pollingInterval: # 5
