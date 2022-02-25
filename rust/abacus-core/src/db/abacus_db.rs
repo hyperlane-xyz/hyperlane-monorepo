@@ -58,7 +58,8 @@ impl AbacusDB {
     }
 
     /// Store list of messages
-    pub fn store_messages(&self, messages: &[RawCommittedMessage]) -> Result<()> {
+    pub fn store_messages(&self, messages: &[RawCommittedMessage]) -> Result<u32> {
+        let mut latest_leaf_index: u32 = 0;
         for message in messages {
             self.store_latest_message(message)?;
 
@@ -70,9 +71,10 @@ impl AbacusDB {
                 nonce = &committed_message.message.nonce,
                 "Stored new message in db.",
             );
+            latest_leaf_index = committed_message.leaf_index;
         }
 
-        Ok(())
+        Ok(latest_leaf_index)
     }
 
     /// Store a raw committed message building off of the latest leaf index

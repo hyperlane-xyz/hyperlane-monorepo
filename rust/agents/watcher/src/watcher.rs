@@ -488,14 +488,14 @@ impl AbacusAgent for Watcher {
         tokio::spawn(async move {
             info!("Starting Watcher tasks");
 
-            let sync_metrics = ContractSyncMetrics::new(self.metrics());
+            let sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
             let index_settings = &self.as_ref().indexer;
             let home_sync_task = self
                 .home()
                 .sync(Self::AGENT_NAME.to_owned(), index_settings.clone(), sync_metrics, IndexDataTypes::Updates);
                 // TODO: fix this
             let replica_sync_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self.replicas().iter().map(|(_name, replica)| {
-                let replica_sync_metrics = ContractSyncMetrics::new(self.metrics());
+                let replica_sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
                 replica
                 .sync(Self::AGENT_NAME.to_owned(),index_settings.clone() , replica_sync_metrics)
             }).collect();

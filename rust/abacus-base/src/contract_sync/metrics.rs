@@ -1,5 +1,5 @@
 use crate::CoreMetrics;
-use prometheus::IntGaugeVec;
+use prometheus::{IntGauge, IntGaugeVec};
 use std::sync::Arc;
 
 /// Struct encapsulating prometheus metrics used by the ContractSync.
@@ -13,11 +13,13 @@ pub struct ContractSyncMetrics {
     /// Unique occasions when agent missed an event (label values
     /// differentiate updates vs. messages)
     pub missed_events: IntGaugeVec,
+    /// An optional gauge for tracking the latest message leafs that are being indexed
+    pub message_leaf_index: Option<IntGauge>,
 }
 
 impl ContractSyncMetrics {
     /// Instantiate a new ContractSyncMetrics object.
-    pub fn new(metrics: Arc<CoreMetrics>) -> Self {
+    pub fn new(metrics: Arc<CoreMetrics>, opt_labels: Option<&[&str]>) -> Self {
         let indexed_height = metrics
             .new_int_gauge(
                 "contract_sync_block_height",
@@ -42,10 +44,16 @@ impl ContractSyncMetrics {
             )
             .expect("failed to register missed_events metric");
 
+        let message_leaf_index = opt_labels.map(|labels| {
+            metrics
+                .last_known_message_leaf_index()
+                .with_label_values(labels)
+        });
         ContractSyncMetrics {
             indexed_height,
             stored_events,
             missed_events,
+            message_leaf_index,
         }
     }
 }
