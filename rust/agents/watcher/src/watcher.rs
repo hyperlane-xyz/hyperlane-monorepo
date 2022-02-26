@@ -12,7 +12,10 @@ use tokio::{
 };
 use tracing::{error, info, info_span, instrument::Instrumented, Instrument};
 
-use abacus_base::{cancel_task, AbacusAgent, AgentCore, CachingHome, ConnectionManagers};
+use abacus_base::{
+    cancel_task, AbacusAgent, AgentCore, CachingHome, ConnectionManagers, ContractSyncMetrics,
+    IndexDataTypes,
+};
 use abacus_core::{
     db::AbacusDB, ChainCommunicationError, Common, CommonEvents, ConnectionManager, DoubleUpdate,
     FailureNotification, Home, SignedUpdate, Signers, TxOutcome,
@@ -485,24 +488,15 @@ impl AbacusAgent for Watcher {
         tokio::spawn(async move {
             info!("Starting Watcher tasks");
 
-            // CommonIndexer setup
-            let block_height = Arc::new(
-                self.core.metrics
-                    .new_int_gauge(
-                        "block_height",
-                        "Height of a recently observed block",
-                        &["network", "agent"],
-                    )
-                    .expect("processor metric already registered -- should have be a singleton"),
-            );
-
+            let sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
             let index_settings = &self.as_ref().indexer;
             let home_sync_task = self
                 .home()
-                .sync( index_settings.clone(),block_height.with_label_values(&[self.home().name(), Self::AGENT_NAME]), None);
-            let replica_sync_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self.replicas().iter().map(|(name, replica)| {
+                .sync(Self::AGENT_NAME.to_owned(), index_settings.clone(), sync_metrics, IndexDataTypes::Updates);
+            let replica_sync_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self.replicas().iter().map(|(_name, replica)| {
+                let replica_sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
                 replica
-                .sync(index_settings.clone() ,block_height.with_label_values(&[name, Self::AGENT_NAME]), None)
+                .sync(Self::AGENT_NAME.to_owned(),index_settings.clone() , replica_sync_metrics)
             }).collect();
 
             // Watcher watch tasks setup

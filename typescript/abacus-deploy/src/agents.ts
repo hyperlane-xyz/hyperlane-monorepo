@@ -54,7 +54,6 @@ async function helmValuesForChain(
       baseConfig: `${chainName}_config.json`,
       homeChain: {
         name: chainName,
-        ...include(!!chain.tipBuffer, { tipBuffer: chain.tipBuffer }),
       },
       aws: !!agentConfig.aws,
       replicaChains: chains
@@ -128,11 +127,6 @@ export async function getAgentEnvVars(
   envVars.push(`OPT_BASE_METRICS=9090`);
   envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
 
-  if (valueDict.optics.homeChain?.tipBuffer) {
-    envVars.push(
-      `OPT_BASE_INDEX_TIPBUFFER=${valueDict.optics.homeChain.tipBuffer}`,
-    );
-  }
   try {
     const gcpKeys = await fetchAgentGCPKeys(
       agentConfig.environment,

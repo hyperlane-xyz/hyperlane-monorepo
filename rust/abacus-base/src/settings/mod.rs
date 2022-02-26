@@ -124,11 +124,9 @@ impl SignerConf {
 #[serde(rename_all = "camelCase")]
 pub struct IndexSettings {
     /// The height at which to start indexing the Home contract
-    from: Option<String>,
+    pub from: Option<String>,
     /// The number of blocks to query at once at which to start indexing the Home contract
-    chunk: Option<String>,
-    /// The number of blocks away from tip to search for logs in
-    tipbuffer: Option<String>,
+    pub chunk: Option<String>,
 }
 
 impl IndexSettings {
@@ -146,14 +144,6 @@ impl IndexSettings {
             .as_ref()
             .and_then(|s| s.parse::<u32>().ok())
             .unwrap_or(1999)
-    }
-
-    /// Get the `tip_buffer` setting
-    pub fn tip_buffer(&self) -> u32 {
-        self.tipbuffer
-            .as_ref()
-            .and_then(|s| s.parse::<u32>().ok())
-            .unwrap_or_default()
     }
 }
 

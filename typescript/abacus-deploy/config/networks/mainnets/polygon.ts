@@ -21,7 +21,6 @@ export async function getChain(
     gasPrice: '5000000000', // 50 gwei
     weth: '0x0d500b1d8e8ef31e21c99d1db9a6444d3adf1270', // Actually WMATIC but ok
     updaterInterval: 300,
-    tipBuffer: 20,
   };
   return new ChainConfig(chainJson);
 }

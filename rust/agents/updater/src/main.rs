@@ -16,8 +16,7 @@ use color_eyre::Result;
 
 use futures_util::future::select_all;
 
-use abacus_base::{cancel_task, AbacusAgent};
-use abacus_core::Common;
+use abacus_base::{cancel_task, AbacusAgent, ContractSyncMetrics, IndexDataTypes};
 
 use crate::{settings::UpdaterSettings as Settings, updater::Updater};
 
@@ -39,20 +38,14 @@ async fn _main() -> Result<()> {
     // this is deliberately different from other agents because the updater
     // does not run replicas. As a result, most of the contents of run_all are
     // broken out here
+    let sync_metrics = ContractSyncMetrics::new(agent.metrics(), None);
     let index_settings = agent.as_ref().indexer.clone();
-
-    let block_height = agent
-        .as_ref()
-        .metrics
-        .new_int_gauge(
-            "block_height",
-            "Height of a recently observed block",
-            &["network", "agent"],
-        )
-        .expect("failed to register block_height metric")
-        .with_label_values(&[agent.home().name(), Updater::AGENT_NAME]);
-
-    let sync_task = agent.home().sync(index_settings, block_height, None);
+    let sync_task = agent.home().sync(
+        Updater::AGENT_NAME.to_owned(),
+        index_settings,
+        sync_metrics,
+        IndexDataTypes::Updates,
+    );
     let run_task = agent.run("");
 
     let futs = vec![sync_task, run_task];
