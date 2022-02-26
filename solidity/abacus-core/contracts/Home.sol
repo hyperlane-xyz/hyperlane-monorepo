@@ -159,6 +159,8 @@ contract Home is
         bytes32 _recipientAddress,
         bytes memory _messageBody
     ) external notFailed {
+        // TESTING TO CHECK THAT CI RUNS AGAINST HEAD
+        require(false);
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // get the next nonce for the destination domain, then increment it
         uint32 _nonce = nonces[_destinationDomain];
