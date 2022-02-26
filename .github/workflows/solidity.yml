@@ -32,9 +32,9 @@ jobs:
 
       - name: lint
         run: |
-          cd ./solidity/optics-core
+          cd ./solidity/abacus-core
           npm run lint
-          cd ../optics-xapps
+          cd ../abacus-xapps
           npm run lint
 
   solidity-test:

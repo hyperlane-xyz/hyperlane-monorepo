@@ -11,8 +11,8 @@ use tracing::{info, instrument::Instrumented, Instrument};
 use crate::{
     produce::UpdateProducer, settings::UpdaterSettings as Settings, submit::UpdateSubmitter,
 };
-use optics_base::{AgentCore, OpticsAgent};
-use optics_core::{db::OpticsDB, Common, Signers};
+use abacus_base::{AbacusAgent, AgentCore};
+use abacus_core::{db::AbacusDB, Common, Signers};
 
 /// An updater agent
 #[derive(Debug)]
@@ -67,7 +67,7 @@ impl Updater {
 // This is a bit of a kludge to make from_settings work.
 // Ideally this hould be generic across all signers.
 // Right now we only have one
-impl OpticsAgent for Updater {
+impl AbacusAgent for Updater {
     const AGENT_NAME: &'static str = "updater";
 
     type Settings = Settings;
@@ -87,7 +87,7 @@ impl OpticsAgent for Updater {
         // First we check that we have the correct key to sign with.
         let home = self.home();
         let address = self.signer.address();
-        let db = OpticsDB::new(self.home().name(), self.db());
+        let db = AbacusDB::new(self.home().name(), self.db());
 
         info!(
             "Updater is running with interval {:?} and pause {:?}",

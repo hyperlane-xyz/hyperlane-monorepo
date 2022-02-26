@@ -12,9 +12,12 @@ use tokio::{
 };
 use tracing::{error, info, info_span, instrument::Instrumented, Instrument};
 
-use optics_base::{cancel_task, AgentCore, CachingHome, ConnectionManagers, OpticsAgent};
-use optics_core::{
-    db::OpticsDB, ChainCommunicationError, Common, CommonEvents, ConnectionManager, DoubleUpdate,
+use abacus_base::{
+    cancel_task, AbacusAgent, AgentCore, CachingHome, ConnectionManagers, ContractSyncMetrics,
+    IndexDataTypes,
+};
+use abacus_core::{
+    db::AbacusDB, ChainCommunicationError, Common, CommonEvents, ConnectionManager, DoubleUpdate,
     FailureNotification, Home, SignedUpdate, Signers, TxOutcome,
 };
 
@@ -190,14 +193,14 @@ where
 #[derive(Debug)]
 pub struct UpdateHandler {
     rx: mpsc::Receiver<SignedUpdate>,
-    watcher_db: OpticsDB,
+    watcher_db: AbacusDB,
     home: Arc<CachingHome>,
 }
 
 impl UpdateHandler {
     pub fn new(
         rx: mpsc::Receiver<SignedUpdate>,
-        watcher_db: OpticsDB,
+        watcher_db: AbacusDB,
         home: Arc<CachingHome>,
     ) -> Self {
         Self {
@@ -361,7 +364,7 @@ impl Watcher {
         let home = self.home();
         let replicas = self.replicas().clone();
         let watcher_db_name = format!("{}_{}", home.name(), AGENT_NAME);
-        let watcher_db = OpticsDB::new(watcher_db_name, self.db());
+        let watcher_db = AbacusDB::new(watcher_db_name, self.db());
         let interval_seconds = self.interval_seconds;
         let sync_tasks = self.sync_tasks.clone();
         let watch_tasks = self.watch_tasks.clone();
@@ -428,7 +431,7 @@ impl Watcher {
 
 #[async_trait]
 #[allow(clippy::unit_arg)]
-impl OpticsAgent for Watcher {
+impl AbacusAgent for Watcher {
     const AGENT_NAME: &'static str = AGENT_NAME;
 
     type Settings = Settings;
@@ -485,24 +488,15 @@ impl OpticsAgent for Watcher {
         tokio::spawn(async move {
             info!("Starting Watcher tasks");
 
-            // CommonIndexer setup
-            let block_height = Arc::new(
-                self.core.metrics
-                    .new_int_gauge(
-                        "block_height",
-                        "Height of a recently observed block",
-                        &["network", "agent"],
-                    )
-                    .expect("processor metric already registered -- should have be a singleton"),
-            );
-
-            let indexer = &self.as_ref().indexer;
+            let sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
+            let index_settings = &self.as_ref().indexer;
             let home_sync_task = self
                 .home()
-                .sync(indexer.from(), indexer.chunk_size(), block_height.with_label_values(&[self.home().name(), Self::AGENT_NAME]), None);
-            let replica_sync_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self.replicas().iter().map(|(name, replica)| {
+                .sync(Self::AGENT_NAME.to_owned(), index_settings.clone(), sync_metrics, IndexDataTypes::Updates);
+            let replica_sync_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self.replicas().iter().map(|(_name, replica)| {
+                let replica_sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
                 replica
-                .sync(indexer.from(), indexer.chunk_size(), block_height.with_label_values(&[name, Self::AGENT_NAME]), None)
+                .sync(Self::AGENT_NAME.to_owned(),index_settings.clone() , replica_sync_metrics)
             }).collect();
 
             // Watcher watch tasks setup
@@ -552,17 +546,17 @@ impl OpticsAgent for Watcher {
 
 #[cfg(test)]
 mod test {
-    use optics_base::IndexSettings;
-    use optics_test::mocks::MockIndexer;
+    use abacus_base::IndexSettings;
+    use abacus_test::mocks::MockIndexer;
     use std::sync::Arc;
     use tokio::sync::mpsc;
 
     use ethers::core::types::H256;
     use ethers::signers::{LocalWallet, Signer};
 
-    use optics_base::{CachingReplica, CommonIndexers, HomeIndexers, Homes, Replicas};
-    use optics_core::{DoubleUpdate, SignedFailureNotification, Update};
-    use optics_test::{
+    use abacus_base::{CachingReplica, CommonIndexers, HomeIndexers, Homes, Replicas};
+    use abacus_core::{DoubleUpdate, SignedFailureNotification, Update};
+    use abacus_test::{
         mocks::{MockConnectionManagerContract, MockHomeContract, MockReplicaContract},
         test_utils,
     };
@@ -590,18 +584,18 @@ mod test {
             .expect("!sign");
 
             let mut mock_home = MockHomeContract::new();
-            let optics_db = OpticsDB::new("home_1", db.clone());
+            let abacus_db = AbacusDB::new("home_1", db.clone());
 
             {
                 mock_home.expect__name().return_const("home_1".to_owned());
 
                 // When home polls for new update it gets `signed_update`
-                optics_db.store_latest_update(&signed_update).unwrap();
+                abacus_db.store_latest_update(&signed_update).unwrap();
             }
 
             let mock_home_indexer = Arc::new(MockIndexer::new().into());
             let home: Arc<CachingHome> =
-                CachingHome::new(mock_home.into(), optics_db.clone(), mock_home_indexer).into();
+                CachingHome::new(mock_home.into(), abacus_db.clone(), mock_home_indexer).into();
 
             let (tx, mut rx) = mpsc::channel(200);
             let mut contract_watcher =
@@ -651,21 +645,21 @@ mod test {
             .expect("!sign");
 
             let mut mock_home = MockHomeContract::new();
-            let optics_db = OpticsDB::new("home_1", db.clone());
+            let abacus_db = AbacusDB::new("home_1", db.clone());
 
             {
                 mock_home.expect__name().return_const("home_1".to_owned());
 
                 // When HistorySync works through history it finds second and first signed updates
-                optics_db.store_latest_update(&first_signed_update).unwrap();
-                optics_db
+                abacus_db.store_latest_update(&first_signed_update).unwrap();
+                abacus_db
                     .store_latest_update(&second_signed_update)
                     .unwrap();
             }
 
             let mock_home_indexer = Arc::new(MockIndexer::new().into());
             let home: Arc<CachingHome> =
-                CachingHome::new(mock_home.into(), optics_db.clone(), mock_home_indexer).into();
+                CachingHome::new(mock_home.into(), abacus_db.clone(), mock_home_indexer).into();
 
             let (tx, mut rx) = mpsc::channel(200);
             let mut history_sync = HistorySync::new(3, second_root, tx.clone(), home.clone());
@@ -735,15 +729,15 @@ mod test {
             let mut mock_home = MockHomeContract::new();
             mock_home.expect__name().return_const("home_1".to_owned());
 
-            let optics_db = OpticsDB::new("home_1_watcher", db);
+            let abacus_db = AbacusDB::new("home_1_watcher", db);
             let mock_home_indexer = Arc::new(MockIndexer::new().into());
             let home: Arc<CachingHome> =
-                CachingHome::new(mock_home.into(), optics_db.clone(), mock_home_indexer).into();
+                CachingHome::new(mock_home.into(), abacus_db.clone(), mock_home_indexer).into();
 
             let (_tx, rx) = mpsc::channel(200);
             let mut handler = UpdateHandler {
                 rx,
-                watcher_db: optics_db.clone(),
+                watcher_db: abacus_db.clone(),
                 home,
             };
 
@@ -923,9 +917,9 @@ mod test {
             let mut mock_replica_1: Replicas = mock_replica_1.into();
             let mut mock_replica_2: Replicas = mock_replica_2.into();
 
-            let home_db = OpticsDB::new("home_1", db.clone());
-            let replica_1_db = OpticsDB::new("replica_1", db.clone());
-            let replica_2_db = OpticsDB::new("replica_2", db.clone());
+            let home_db = AbacusDB::new("home_1", db.clone());
+            let replica_1_db = AbacusDB::new("replica_1", db.clone());
+            let replica_2_db = AbacusDB::new("replica_2", db.clone());
 
             {
                 let home: Arc<CachingHome> = CachingHome::new(
@@ -956,9 +950,9 @@ mod test {
                     replicas: replica_map,
                     db,
                     indexer: IndexSettings::default(),
-                    settings: optics_base::Settings::default(),
+                    settings: abacus_base::Settings::default(),
                     metrics: Arc::new(
-                        optics_base::CoreMetrics::new(
+                        abacus_base::CoreMetrics::new(
                             "watcher_test",
                             None,
                             Arc::new(prometheus::Registry::new()),

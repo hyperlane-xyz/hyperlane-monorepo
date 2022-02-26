@@ -4,11 +4,11 @@
 set -e
 
 # solidity
-npm --prefix ./solidity/optics-core run prettier
-npm --prefix ./solidity/optics-xapps run prettier
+npm --prefix ./solidity/abacus-core run prettier
+npm --prefix ./solidity/abacus-xapps run prettier
 
 # typescript
 npm --prefix ./typescript/contract-metrics run prettier
-npm --prefix ./typescript/optics-deploy run prettier
+npm --prefix ./typescript/abacus-deploy run prettier
 npm --prefix ./typescript/optics-provider run prettier
-npm --prefix ./typescript/optics-tests run prettier
+npm --prefix ./typescript/abacus-tests run prettier

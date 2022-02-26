@@ -1,7 +1,7 @@
 #!/bin/bash
 set -e
 
-cd ./typescript/optics-deploy
+cd ./typescript/abacus-deploy
 npm run deploy-core
 npm run deploy-bridge
 cd ../../solidity/optics-core

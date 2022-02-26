@@ -13,6 +13,127 @@ dependencies = [
 ]
 
 [[package]]
+name = "abacus-base"
+version = "0.1.0"
+dependencies = [
+ "abacus-core",
+ "abacus-ethereum",
+ "abacus-test",
+ "async-trait",
+ "color-eyre",
+ "config 0.10.1",
+ "ethers",
+ "futures-util",
+ "lazy_static",
+ "mockall 0.10.2",
+ "once_cell",
+ "opentelemetry",
+ "opentelemetry-jaeger",
+ "opentelemetry-zipkin",
+ "paste",
+ "prometheus",
+ "rocksdb",
+ "rusoto_core",
+ "rusoto_kms",
+ "serde 1.0.130",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-error",
+ "tracing-futures",
+ "tracing-opentelemetry",
+ "tracing-subscriber",
+ "warp",
+]
+
+[[package]]
+name = "abacus-cli"
+version = "0.1.0"
+dependencies = [
+ "abacus-core",
+ "abacus-ethereum",
+ "color-eyre",
+ "ethers",
+ "ethers-signers",
+ "hex",
+ "once_cell",
+ "rusoto_core",
+ "rusoto_kms",
+ "serde_json",
+ "structopt",
+ "tokio",
+]
+
+[[package]]
+name = "abacus-core"
+version = "0.1.0"
+dependencies = [
+ "async-trait",
+ "bytes",
+ "color-eyre",
+ "ethers",
+ "ethers-providers",
+ "ethers-signers",
+ "hex",
+ "lazy_static",
+ "num",
+ "prometheus",
+ "rocksdb",
+ "serde 1.0.130",
+ "serde_json",
+ "sha3",
+ "thiserror",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "abacus-ethereum"
+version = "0.1.0"
+dependencies = [
+ "abacus-core",
+ "anyhow",
+ "async-trait",
+ "color-eyre",
+ "ethers",
+ "ethers-contract",
+ "ethers-signers",
+ "hex",
+ "num",
+ "prometheus",
+ "rocksdb",
+ "serde 1.0.130",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-futures",
+]
+
+[[package]]
+name = "abacus-test"
+version = "0.1.0"
+dependencies = [
+ "abacus-core",
+ "abacus-ethereum",
+ "async-trait",
+ "color-eyre",
+ "config 0.10.1",
+ "ethers",
+ "futures-util",
+ "mockall 0.10.2",
+ "prometheus",
+ "rand 0.8.4",
+ "rocksdb",
+ "serde 1.0.130",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "addr2line"
 version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -195,14 +316,14 @@ dependencies = [
 name = "balance-exporter"
 version = "0.1.0"
 dependencies = [
+ "abacus-base",
+ "abacus-ethereum",
  "clap 3.0.0-beta.5",
  "color-eyre",
  "futures",
  "human-panic",
  "metrics",
  "metrics-exporter-prometheus",
- "optics-base",
- "optics-ethereum",
  "serde 1.0.130",
  "serde_json",
  "tokio",
@@ -1847,14 +1968,14 @@ dependencies = [
 name = "kathy"
 version = "0.1.0"
 dependencies = [
+ "abacus-base",
+ "abacus-core",
  "async-trait",
  "color-eyre",
  "config 0.10.1",
  "ethers",
  "futures-util",
  "log",
- "optics-base",
- "optics-core",
  "paste",
  "rand 0.8.4",
  "serde 1.0.130",
@@ -2161,7 +2282,22 @@ dependencies = [
  "downcast",
  "fragile",
  "lazy_static",
- "mockall_derive",
+ "mockall_derive 0.9.1",
+ "predicates",
+ "predicates-tree",
+]
+
+[[package]]
+name = "mockall"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6ab571328afa78ae322493cacca3efac6a0f2e0a67305b4df31fd439ef129ac0"
+dependencies = [
+ "cfg-if 1.0.0",
+ "downcast",
+ "fragile",
+ "lazy_static",
+ "mockall_derive 0.10.2",
  "predicates",
  "predicates-tree",
 ]
@@ -2171,6 +2307,18 @@ name = "mockall_derive"
 version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5dd4234635bca06fc96c7368d038061e0aae1b00a764dc817e900dc974e3deea"
+dependencies = [
+ "cfg-if 1.0.0",
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "mockall_derive"
+version = "0.10.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7e25b214433f669161f414959594216d8e6ba83b6679d3db96899c0b4639033"
 dependencies = [
  "cfg-if 1.0.0",
  "proc-macro2",
@@ -2489,126 +2637,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "optics-base"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "color-eyre",
- "config 0.10.1",
- "ethers",
- "futures-util",
- "lazy_static",
- "once_cell",
- "opentelemetry",
- "opentelemetry-jaeger",
- "opentelemetry-zipkin",
- "optics-core",
- "optics-ethereum",
- "optics-test",
- "paste",
- "prometheus",
- "rocksdb",
- "rusoto_core",
- "rusoto_kms",
- "serde 1.0.130",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-error",
- "tracing-futures",
- "tracing-opentelemetry",
- "tracing-subscriber",
- "warp",
-]
-
-[[package]]
-name = "optics-cli"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "ethers",
- "ethers-signers",
- "hex",
- "once_cell",
- "optics-core",
- "optics-ethereum",
- "rusoto_core",
- "rusoto_kms",
- "serde_json",
- "structopt",
- "tokio",
-]
-
-[[package]]
-name = "optics-core"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "bytes",
- "color-eyre",
- "ethers",
- "ethers-providers",
- "ethers-signers",
- "hex",
- "lazy_static",
- "num",
- "prometheus",
- "rocksdb",
- "serde 1.0.130",
- "serde_json",
- "sha3",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "optics-ethereum"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "color-eyre",
- "ethers",
- "ethers-contract",
- "ethers-signers",
- "hex",
- "num",
- "optics-core",
- "prometheus",
- "rocksdb",
- "serde 1.0.130",
- "serde_json",
- "tokio",
- "tracing",
- "tracing-futures",
-]
-
-[[package]]
-name = "optics-test"
-version = "0.1.0"
-dependencies = [
- "async-trait",
- "color-eyre",
- "config 0.10.1",
- "ethers",
- "futures-util",
- "mockall",
- "optics-core",
- "optics-ethereum",
- "prometheus",
- "rand 0.8.4",
- "rocksdb",
- "serde 1.0.130",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
-]
-
-[[package]]
 name = "ordered-float"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2908,15 +2936,15 @@ dependencies = [
 name = "processor"
 version = "0.1.0"
 dependencies = [
+ "abacus-base",
+ "abacus-core",
+ "abacus-test",
  "async-trait",
  "color-eyre",
  "config 0.10.1",
  "ethers",
  "futures-util",
  "log",
- "optics-base",
- "optics-core",
- "optics-test",
  "paste",
  "prometheus",
  "rocksdb",
@@ -3150,15 +3178,15 @@ checksum = "f497285884f3fcff424ffc933e56d7cbca511def0c9831a7f9b5f6153e3cc89b"
 name = "relayer"
 version = "0.1.0"
 dependencies = [
+ "abacus-base",
+ "abacus-core",
+ "abacus-test",
  "async-trait",
  "color-eyre",
  "config 0.10.1",
  "ethers",
  "futures-util",
  "log",
- "optics-base",
- "optics-core",
- "optics-test",
  "paste",
  "prometheus",
  "serde 1.0.130",
@@ -4318,6 +4346,10 @@ checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 name = "updater"
 version = "0.1.0"
 dependencies = [
+ "abacus-base",
+ "abacus-core",
+ "abacus-ethereum",
+ "abacus-test",
  "async-trait",
  "color-eyre",
  "config 0.11.0",
@@ -4325,11 +4357,7 @@ dependencies = [
  "futures-util",
  "hex",
  "log",
- "mockall",
- "optics-base",
- "optics-core",
- "optics-ethereum",
- "optics-test",
+ "mockall 0.9.1",
  "paste",
  "prometheus",
  "rocksdb",
@@ -4536,16 +4564,16 @@ dependencies = [
 name = "watcher"
 version = "0.1.0"
 dependencies = [
+ "abacus-base",
+ "abacus-core",
+ "abacus-ethereum",
+ "abacus-test",
  "async-trait",
  "color-eyre",
  "config 0.10.1",
  "ethers",
  "futures-util",
  "log",
- "optics-base",
- "optics-core",
- "optics-ethereum",
- "optics-test",
  "paste",
  "prometheus",
  "rocksdb",

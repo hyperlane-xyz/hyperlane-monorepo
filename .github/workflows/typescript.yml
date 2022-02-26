@@ -34,9 +34,9 @@ jobs:
         run: |
           cd ./typescript/contract-metrics
           npm run build
-          cd ../optics-deploy
+          cd ../abacus-deploy
           npm run build
-          cd ../optics-provider
+          cd ../abacus-sdk
           npm run build
           cd ../typechain
           npm run build
@@ -52,10 +52,14 @@ jobs:
 
       - name: prettier
         run: |
-          cd ./typescript/optics-deploy
+          cd ./typescript/abacus-deploy
           npm run prettier
-          cd ../optics-provider
+          cd ../abacus-sdk
           npm run prettier
-          cd ../optics-tests
-          npm run prettier
-          [[ -z $(git status -s) ]]
+          cd ../abacus-tests
+          npm run prettier-ci
+          CHANGES=$(git status -s)
+          if [[ ! -z $CHANGES ]]; then
+            echo "Changes found: $CHANGES"
+            exit 1
+          fi

@@ -8,6 +8,7 @@ export class MetricCollector {
   private numUnprocessedGauge: Gauge<string>;
   private homeStateGauge: Gauge<string>;
   private replicaStateGauge: Gauge<string>;
+  private governorRecoveryActiveAt: Gauge<string>;
 
   private readonly logger: Logger;
 
@@ -43,6 +44,12 @@ export class MetricCollector {
       help: 'Gauge that tracks the state of a replica contract',
       labelNames: ['home', 'network', 'environment'],
     });
+
+    this.governorRecoveryActiveAt = new Gauge({
+      name: 'optics_governor_recovery_active_at',
+      help: 'Gauge that tracks the timestamp (seconds) of the governor recovery mode being active',
+      labelNames: ['network', 'environment'],
+    });
   }
   /**
    * Sets the state for a bridge.
@@ -70,6 +77,17 @@ export class MetricCollector {
     state: number,
   ) {
     this.replicaStateGauge.set({ home, network, environment }, state);
+  }
+
+  setGovernorRecoveryActiveAt(
+    network: string,
+    environment: string,
+    recoveryActiveAt: number,
+  ) {
+    this.governorRecoveryActiveAt.set(
+      { network, environment },
+      recoveryActiveAt,
+    );
   }
 
   /**

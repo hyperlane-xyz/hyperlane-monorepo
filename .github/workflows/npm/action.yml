@@ -19,29 +19,29 @@ runs:
       id: core-cache
       uses: actions/cache@v2
       with:
-        path: ./solidity/optics-core/node_modules
-        key: ${{ inputs.runneros }}-core-cache-${{ hashFiles('solidity/optics-core/package-lock.json') }}
+        path: ./solidity/abacus-core/node_modules
+        key: ${{ inputs.runneros }}-core-cache-${{ hashFiles('solidity/abacus-core/package-lock.json') }}
 
     - name: XApps Cache
       id: xapps-cache
       uses: actions/cache@v2
       with:
-        path: ./solidity/optics-xapps/node_modules
-        key: ${{ inputs.runneros }}-xapps-cache-${{ hashFiles('solidity/optics-xapps/package-lock.json') }}
+        path: ./solidity/abacus-xapps/node_modules
+        key: ${{ inputs.runneros }}-xapps-cache-${{ hashFiles('solidity/abacus-xapps/package-lock.json') }}
 
     - name: Tests Cache
       id: tests-cache
       uses: actions/cache@v2
       with:
-        path: ./typescript/optics-tests/node_modules
-        key: ${{ inputs.runneros }}-tests-cache-${{ hashFiles('typescript/optics-tests/package-lock.json') }}
+        path: ./typescript/abacus-tests/node_modules
+        key: ${{ inputs.runneros }}-tests-cache-${{ hashFiles('typescript/abacus-tests/package-lock.json') }}
 
     - name: Deploy Cache
       id: deploy-cache
       uses: actions/cache@v2
       with:
-        path: ./typescript/optics-deploy/node_modules
-        key: ${{ inputs.runneros }}-deploy-cache-${{ hashFiles('typescript/optics-deploy/package-lock.json') }}
+        path: ./typescript/abacus-deploy/node_modules
+        key: ${{ inputs.runneros }}-deploy-cache-${{ hashFiles('typescript/abacus-deploy/package-lock.json') }}
 
     - name: Typechain Cache
       id: typechain-cache
@@ -50,12 +50,12 @@ runs:
         path: ./typescript/typechain/node_modules
         key: ${{ inputs.runneros }}-typechain-cache-${{ hashFiles('typescript/typechain/package-lock.json') }}
 
-    - name: Multi-Provider Cache
-      id: provider-cache
+    - name: Abacus SDK Cache
+      id: sdk-cache
       uses: actions/cache@v2
       with:
-        path: ./typescript/optics-provider/node_modules
-        key: ${{ inputs.runneros }}-provider-cache-${{ hashFiles('typescript/optics-provider/package-lock.json') }}
+        path: ./typescript/abacus-sdk/node_modules
+        key: ${{ inputs.runneros }}-sdk-cache-${{ hashFiles('typescript/abacus-sdk/package-lock.json') }}
 
     - name: Metrics Cache
       id: metrics-cache
@@ -68,22 +68,22 @@ runs:
     - name: Install Core
       shell: bash
       if: steps.core-cache.outputs.cache-hit != 'true'
-      run: cd ./solidity/optics-core && npm i
+      run: cd ./solidity/abacus-core && npm i
 
     - name: Install XApps
       shell: bash
       if: steps.xapps-cache.outputs.cache-hit != 'true'
-      run: cd ./solidity/optics-xapps && npm i
+      run: cd ./solidity/abacus-xapps && npm i
 
     - name: Install Tests
       shell: bash
       if: steps.tests-cache.outputs.cache-hit != 'true'
-      run: cd ./typescript/optics-tests && npm i
+      run: cd ./typescript/abacus-tests && npm i
 
     - name: Install Deploy
       shell: bash
       if: steps.deploy-cache.outputs.cache-hit != 'true'
-      run: cd ./typescript/optics-deploy && npm i
+      run: cd ./typescript/abacus-deploy && npm i
 
     - name: Install Typechain
       shell: bash
@@ -93,7 +93,7 @@ runs:
     - name: Install Multi-Provider
       shell: bash
       if: steps.provider-cache.outputs.cache-hit != 'true'
-      run: cd ./typescript/optics-provider && npm i
+      run: cd ./typescript/abacus-sdk && npm i
 
     - name: Install Metrics
       shell: bash

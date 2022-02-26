@@ -13,9 +13,12 @@ use std::{
 use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use optics_base::{cancel_task, decl_agent, AgentCore, CachingHome, CachingReplica, OpticsAgent};
-use optics_core::{
-    accumulator::merkle::Proof, db::OpticsDB, CommittedMessage, Common, Home, HomeEvents,
+use abacus_base::{
+    cancel_task, decl_agent, AbacusAgent, AgentCore, CachingHome, CachingReplica,
+    ContractSyncMetrics, IndexDataTypes,
+};
+use abacus_core::{
+    accumulator::merkle::Proof, db::AbacusDB, CommittedMessage, Common, Home, HomeEvents,
     MessageStatus,
 };
 
@@ -40,7 +43,7 @@ pub(crate) struct Replica {
     interval: u64,
     replica: Arc<CachingReplica>,
     home: Arc<CachingHome>,
-    db: OpticsDB,
+    db: AbacusDB,
     allowed: Option<Arc<HashSet<H256>>>,
     denied: Option<Arc<HashSet<H256>>>,
     next_message_nonce: Arc<prometheus::IntGaugeVec>,
@@ -62,7 +65,7 @@ impl Replica {
     fn main(self) -> JoinHandle<Result<()>> {
         tokio::spawn(
             async move {
-                use optics_core::Replica;
+                use abacus_core::Replica;
 
                 let replica_domain = self.replica.local_domain();
 
@@ -171,7 +174,7 @@ impl Replica {
     /// In case of error: send help?
     #[instrument(err, skip(self), fields(self = %self))]
     async fn try_msg_by_domain_and_nonce(&self, domain: u32, nonce: u32) -> Result<Flow> {
-        use optics_core::Replica;
+        use abacus_core::Replica;
 
         let message = match self.home.message_by_nonce(domain, nonce).await {
             Ok(Some(m)) => m,
@@ -270,7 +273,7 @@ impl Replica {
     #[instrument(err, level = "trace", skip(self), fields(self = %self))]
     /// Dispatch a message for processing. If the message is already proven, process only.
     async fn process(&self, message: CommittedMessage, proof: Proof) -> Result<()> {
-        use optics_core::Replica;
+        use abacus_core::Replica;
         let status = self.replica.message_status(message.to_leaf()).await?;
         let tx_outcome;
         match status {
@@ -367,7 +370,7 @@ impl Processor {
 
 #[async_trait]
 #[allow(clippy::unit_arg)]
-impl OpticsAgent for Processor {
+impl AbacusAgent for Processor {
     const AGENT_NAME: &'static str = AGENT_NAME;
 
     type Settings = Settings;
@@ -396,7 +399,7 @@ impl OpticsAgent for Processor {
             .last_known_message_leaf_index()
             .with_label_values(&["process", self.home().name(), name]);
         let interval = self.interval;
-        let db = OpticsDB::new(home.name(), self.db());
+        let db = AbacusDB::new(home.name(), self.db());
 
         let replica_opt = self.replica_by_name(name);
         let name = name.to_owned();
@@ -432,33 +435,21 @@ impl OpticsAgent for Processor {
 
             // tree sync
             info!("Starting ProverSync");
-            let db = OpticsDB::new(self.home().name().to_owned(), self.db());
+            let db = AbacusDB::new(self.home().name().to_owned(), self.db());
             let sync = ProverSync::from_disk(db.clone());
             let prover_sync_task = sync.spawn();
 
             info!("Starting indexer");
-            // indexer setup
-            let block_height = self
-                .as_ref()
-                .metrics
-                .new_int_gauge(
-                    "block_height",
-                    "Height of a recently observed block",
-                    &["network", "agent"],
-                )
-                .expect("failed to register block_height metric")
-                .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
-            let indexer = &self.as_ref().indexer;
+            let sync_metrics = ContractSyncMetrics::new(
+                self.metrics(),
+                Some(&["dispatch", self.home().name(), "unknown"]),
+            );
+            let index_settings = self.as_ref().indexer.clone();
             let home_sync_task = self.home().sync(
-                indexer.from(),
-                indexer.chunk_size(),
-                block_height,
-                Some(
-                    self.as_ref()
-                        .metrics
-                        .last_known_message_leaf_index()
-                        .with_label_values(&["dispatch", self.home().name(), "unknown"]),
-                ),
+                Self::AGENT_NAME.to_owned(),
+                index_settings,
+                sync_metrics,
+                IndexDataTypes::Both,
             );
 
             info!("started indexer and sync");

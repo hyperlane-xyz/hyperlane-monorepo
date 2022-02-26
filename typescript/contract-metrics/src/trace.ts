@@ -1,4 +1,4 @@
-import { OpticsContext, OpticsMessage } from '@abacus-network/sdk';
+import { AbacusContext, AbacusMessage } from '@abacus-network/sdk';
 import { mainnet } from './registerContext';
 import { printStatus } from './print';
 
@@ -17,7 +17,7 @@ traceMany(input).then(() => {
 
 interface TraceInput {
   chain: string;
-  context: OpticsContext;
+  context: AbacusContext;
   transactionHash: string;
   messageHash?: string;
   leafIndex?: number;
@@ -31,13 +31,13 @@ async function traceMany(inputs: TraceInput[]) {
 }
 
 async function traceTransfer(
-  context: OpticsContext,
+  context: AbacusContext,
   origin: string,
   transactionHash: string,
 ) {
   console.log(`Trace ${transactionHash} on ${origin}`);
 
-  const message = await OpticsMessage.singleFromTransactionHash(
+  const message = await AbacusMessage.singleFromTransactionHash(
     context,
     origin,
     transactionHash,
