@@ -75,9 +75,6 @@ pub enum ChainCommunicationError {
     /// Any other error
     #[error("{0}")]
     CustomError(#[from] Box<dyn StdError + Send + Sync>),
-    /// A transaction was not able to get the receipt for
-    #[error("Error while waiting for receipt {0:?}")]
-    NoReceiptError(String),
     /// A transaction submission timed out
     #[error("Transaction submission timed out")]
     TransactionTimeout(),
