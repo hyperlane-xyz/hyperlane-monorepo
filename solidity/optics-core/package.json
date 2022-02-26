@@ -10,7 +10,7 @@
     "eslint": "^7.20.0",
     "ethereum-waffle": "^3.2.2",
     "ethers": "^5.4.4",
-    "hardhat": "^2.0.8",
+    "hardhat": "^2.8.4",
     "prettier": "^2.2.1",
     "prettier-plugin-solidity": "^1.0.0-beta.5",
     "solhint": "^3.3.2",
@@ -42,8 +42,8 @@
   "author": "James Prestwich",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "@openzeppelin/contracts": "^3.4.2",
-    "@openzeppelin/contracts-upgradeable": "~3.4.2",
+    "@openzeppelin/contracts": "^4.5.0",
+    "@openzeppelin/contracts-upgradeable": "~4.5.1",
     "@summa-tx/memview-sol": "^2.0.0",
     "dotenv": "^10.0.0",
     "ts-generator": "^0.1.1"

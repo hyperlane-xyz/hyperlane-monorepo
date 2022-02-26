@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.9;
 
 // ============ Internal Imports ============
 import {Version0} from "./Version0.sol";
@@ -318,7 +318,7 @@ contract Home is
         // set contract to FAILED
         _setFailed();
         // slash Updater
-        updaterManager.slashUpdater(msg.sender);
+        updaterManager.slashUpdater(payable(msg.sender));
         emit UpdaterSlashed(updater, msg.sender);
     }
 

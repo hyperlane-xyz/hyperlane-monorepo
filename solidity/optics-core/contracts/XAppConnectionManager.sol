@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.9;
 
 // ============ Internal Imports ============
 import {Home} from "./Home.sol";
 import {Replica} from "./Replica.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 // ============ External Imports ============
-import {ECDSA} from "@openzeppelin/contracts/cryptography/ECDSA.sol";
+import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**

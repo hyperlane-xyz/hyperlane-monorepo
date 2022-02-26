@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.9;
 
 // ============ Internal Imports ============
 import {QueueLib} from "../libs/Queue.sol";
 // ============ External Imports ============
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 
 /**
  * @title QueueManager

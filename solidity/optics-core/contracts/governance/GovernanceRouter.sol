@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
-pragma experimental ABIEncoderV2;
+pragma solidity >=0.8.9;
 
 // ============ Internal Imports ============
 import {Home} from "../Home.sol";
@@ -9,14 +8,12 @@ import {XAppConnectionManager, TypeCasts} from "../XAppConnectionManager.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 import {GovernanceMessage} from "./GovernanceMessage.sol";
 // ============ External Imports ============
-import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
 contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
     // ============ Libraries ============
 
-    using SafeMath for uint256;
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using GovernanceMessage for bytes29;
@@ -347,7 +344,7 @@ contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
     {
         require(recoveryActiveAt == 0, "recovery already initiated");
         // set the time that recovery will be active
-        recoveryActiveAt = block.timestamp.add(recoveryTimelock);
+        recoveryActiveAt = block.timestamp + recoveryTimelock;
         emit InitiateRecovery(recoveryManager, recoveryActiveAt);
     }
 
