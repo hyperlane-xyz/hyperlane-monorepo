@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.9;
 
 import {MerkleTreeManager} from "@abacus-network/abacus-sol/contracts/Merkle.sol";
 import {QueueManager} from "@abacus-network/abacus-sol/contracts/Queue.sol";

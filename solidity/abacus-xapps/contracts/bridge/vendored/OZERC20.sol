@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity >=0.6.0 <0.8.0;
+pragma solidity >=0.8.9;
 
 // This is modified from "@openzeppelin/contracts/token/ERC20/IERC20.sol"
 // Modifications were made to make the tokenName, tokenSymbol, and
@@ -8,7 +8,6 @@ pragma solidity >=0.6.0 <0.8.0;
 // removed to silence solidity inheritance issues
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
 
 /**
  * @dev Implementation of the {IERC20} interface.
@@ -35,8 +34,6 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
  * allowances. See {IERC20-approve}.
  */
 contract ERC20 is IERC20 {
-    using SafeMath for uint256;
-
     mapping(address => uint256) private balances;
 
     mapping(address => mapping(address => uint256)) private allowances;
@@ -108,10 +105,7 @@ contract ERC20 is IERC20 {
         _approve(
             _sender,
             msg.sender,
-            allowances[_sender][msg.sender].sub(
-                _amount,
-                "ERC20: transfer amount exceeds allowance"
-            )
+            allowances[_sender][msg.sender] - _amount
         );
         return true;
     }
@@ -136,7 +130,7 @@ contract ERC20 is IERC20 {
         _approve(
             msg.sender,
             _spender,
-            allowances[msg.sender][_spender].add(_addedValue)
+            allowances[msg.sender][_spender] + _addedValue
         );
         return true;
     }
@@ -163,10 +157,7 @@ contract ERC20 is IERC20 {
         _approve(
             msg.sender,
             _spender,
-            allowances[msg.sender][_spender].sub(
-                _subtractedValue,
-                "ERC20: decreased allowance below zero"
-            )
+            allowances[msg.sender][_spender] - _subtractedValue
         );
         return true;
     }
@@ -231,11 +222,8 @@ contract ERC20 is IERC20 {
 
         _beforeTokenTransfer(_sender, _recipient, amount);
 
-        balances[_sender] = balances[_sender].sub(
-            amount,
-            "ERC20: transfer amount exceeds balance"
-        );
-        balances[_recipient] = balances[_recipient].add(amount);
+        balances[_sender] = balances[_sender] - amount;
+        balances[_recipient] = balances[_recipient] + amount;
         emit Transfer(_sender, _recipient, amount);
     }
 
@@ -253,8 +241,8 @@ contract ERC20 is IERC20 {
 
         _beforeTokenTransfer(address(0), _account, _amount);
 
-        supply = supply.add(_amount);
-        balances[_account] = balances[_account].add(_amount);
+        supply = supply + _amount;
+        balances[_account] = balances[_account] + _amount;
         emit Transfer(address(0), _account, _amount);
     }
 
@@ -274,11 +262,8 @@ contract ERC20 is IERC20 {
 
         _beforeTokenTransfer(_account, address(0), _amount);
 
-        balances[_account] = balances[_account].sub(
-            _amount,
-            "ERC20: burn amount exceeds balance"
-        );
-        supply = supply.sub(_amount);
+        balances[_account] = balances[_account] - _amount;
+        supply = supply - _amount;
         emit Transfer(_account, address(0), _amount);
     }
 

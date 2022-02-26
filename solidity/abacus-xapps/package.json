@@ -11,7 +11,6 @@
     "eslint": "^7.20.0",
     "ethereum-waffle": "^3.2.2",
     "ethers": "^5.4.4",
-    "hardhat": "^2.0.8",
     "prettier": "^2.2.1",
     "prettier-plugin-solidity": "^1.0.0-beta.5",
     "solhint": "^3.3.2",
@@ -42,8 +41,9 @@
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@abacus-network/abacus-sol": "file:../abacus-core",
-    "@openzeppelin/contracts": "~3.4.2",
-    "@openzeppelin/contracts-upgradeable": "~3.4.2",
-    "@summa-tx/memview-sol": "^2.0.0"
+    "@openzeppelin/contracts": "^4.5.0",
+    "@openzeppelin/contracts-upgradeable": "^4.5.1",
+    "@summa-tx/memview-sol": "^2.0.0",
+    "hardhat": "^2.8.4"
   }
 }

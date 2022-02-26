@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.9;
 
 import {Encoding} from "../Encoding.sol";
 
@@ -32,7 +32,7 @@ contract TestEncoding {
 
         uint256 a;
         uint256 b;
-        (a, b) = Encoding.encodeHex(uint256(-1));
+        (a, b) = Encoding.encodeHex(type(uint256).max);
 
         assertEq(
             abi.encodePacked(a, b),

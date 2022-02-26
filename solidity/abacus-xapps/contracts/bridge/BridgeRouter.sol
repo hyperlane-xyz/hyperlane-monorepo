@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.9;
 
 // ============ Internal Imports ============
 import {TokenRegistry} from "./TokenRegistry.sol";
@@ -13,7 +13,7 @@ import {Version0} from "@abacus-network/abacus-sol/contracts/Version0.sol";
 import {TypeCasts} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/SafeERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /**
  * @title BridgeRouter

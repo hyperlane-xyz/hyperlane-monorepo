@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.9;
 
 // ============ Internal Imports ============
 import {BridgeRouter} from "./BridgeRouter.sol";
@@ -20,7 +20,7 @@ contract ETHHelper {
     constructor(address _weth, address _bridge) {
         weth = IWeth(_weth);
         bridge = BridgeRouter(_bridge);
-        IWeth(_weth).approve(_bridge, uint256(-1));
+        IWeth(_weth).approve(_bridge, type(uint256).max);
     }
 
     // ============ External Functions ============
