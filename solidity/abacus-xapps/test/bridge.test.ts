@@ -3,7 +3,7 @@ import { ethers, bridge, abacus } from 'hardhat';
 import { BigNumber, BytesLike } from 'ethers';
 
 import * as types from './lib/types';
-import { toBytes32 } from './lib/utils';
+import { stringToBytes32, toBytes32 } from './lib/utils';
 import {BridgeDeployment} from './lib/BridgeDeployment';
 import {AbacusDeployment} from './lib/AbacusDeployment';
 import {
@@ -11,7 +11,6 @@ import {
   BridgeToken__factory,
   IERC20,
 } from '../typechain';
-import { stringToBytes32 } from './utils';
 
 const { BridgeMessageTypes } = bridge;
 const localDomain = 1000;

@@ -1,3 +1,5 @@
+import { BytesLike } from 'ethers';
+
 /*
  * Gets the byte length of a hex string
  *
@@ -24,4 +26,17 @@ export function getHexStringByteLength(hexStr: string) {
  */
 export function toBytes32(address: string): string {
   return '0x' + '00'.repeat(12) + address.slice(2);
+}
+
+export const stringToBytes32 = (s: string): string => {
+  const str = Buffer.from(s.slice(0, 32), 'utf-8');
+  const result = Buffer.alloc(32);
+  str.copy(result);
+
+  return '0x' + result.toString('hex');
+};
+
+export interface TokenIdentifier {
+  domain: string | number;
+  id: BytesLike;
 }

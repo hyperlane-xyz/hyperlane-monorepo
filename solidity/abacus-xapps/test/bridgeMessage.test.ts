@@ -2,7 +2,7 @@ import { ethers, abacus, bridge } from 'hardhat';
 import { BytesLike } from 'ethers';
 import { expect } from 'chai';
 
-import { toBytes32 } from './lib/utils';
+import { TokenIdentifier, toBytes32 } from './lib/utils';
 import { formatTokenId } from './lib/bridge';
 import { TransferAction, DetailsAction, Message, RequestDetailsAction} from './lib/types';
 import {
@@ -11,10 +11,6 @@ import {
 } from '../typechain';
 
 const { BridgeMessageTypes } = bridge;
-interface TokenIdentifier {
-  domain: string | number;
-  id: BytesLike;
-}
 
 const stringToBytes32 = (s: string): string => {
   const str = Buffer.from(s.slice(0, 32), 'utf-8');

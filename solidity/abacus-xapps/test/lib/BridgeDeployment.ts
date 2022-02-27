@@ -76,6 +76,14 @@ export class BridgeDeployment {
     return this.instances[domain].signer;
   }
 
+  weth(domain: types.Domain): MockWeth {
+    return this.instances[domain].weth;
+  }
+
+  helper(domain: types.Domain): ETHHelper {
+    return this.instances[domain].helper;
+  }
+
   async bridgeToken(local: types.Domain, remote: types.Domain, address: ethers.BytesLike): Promise<BridgeToken> {
     const router = this.router(local);
     const reprAddr = await router[
