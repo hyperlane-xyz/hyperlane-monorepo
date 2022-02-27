@@ -1,16 +1,9 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
-import { getTestDeploy } from './testChain';
-import { AbacusState, Updater } from '../lib/core';
-import { Signer } from '../lib/types';
-import { CoreDeploy as Deploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
-import * as deploys from '@abacus-network/abacus-deploy/dist/src/core';
+import { AbacusState, Updater } from './lib/core';
+import { Signer } from './lib/types';
 
-import {
-  TestHome,
-  UpdaterManager__factory,
-  UpdaterManager,
-} from '@abacus-network/ts-interface/dist/abacus-core';
+import { TestHome, TestHome__factory, UpdaterManager__factory, UpdaterManager } from '../typechain'
 
 const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
 const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');
@@ -20,14 +13,13 @@ const destDomain = 2000;
 const emptyAddress: string = '0x' + '00'.repeat(32);
 
 describe.only('Home', async () => {
-  let deploy: Deploy,
-    home: TestHome,
+  let home: TestHome,
     signer: Signer,
     fakeSigner: Signer,
     recipient: Signer,
     updater: Updater,
     fakeUpdater: Updater,
-    fakeUpdaterManager: UpdaterManager;
+    updaterManager: UpdaterManager;
 
   // Helper function that dispatches message and returns intermediate root.
   // The message recipient is the same for all messages dispatched.
@@ -45,34 +37,25 @@ describe.only('Home', async () => {
   before(async () => {
     [signer, fakeSigner, recipient] = await ethers.getSigners();
     updater = await Updater.fromSigner(signer, localDomain);
-
-    deploy = await getTestDeploy(localDomain, updater.address, []);
-
-    await deploys.deployUpdaterManager(deploy);
-    await deploys.deployUpgradeBeaconController(deploy);
-
     fakeUpdater = await Updater.fromSigner(fakeSigner, localDomain);
 
-    // deploy fake UpdaterManager
+    // deploy UpdaterManagers
     const updaterManagerFactory = new UpdaterManager__factory(signer);
-    fakeUpdaterManager = await updaterManagerFactory.deploy(updater.address);
-
-    const ret = await fakeUpdaterManager.updater();
-    expect(ret).to.equal(signer.address);
+    updaterManager = await updaterManagerFactory.deploy(updater.address);
   });
 
   beforeEach(async () => {
     // redeploy the home before each test run
-    await deploys.deployHome(deploy);
-    home = deploy.contracts.home?.proxy as TestHome;
-
+    const homeFactory = new TestHome__factory(signer);
+    home = await homeFactory.deploy(localDomain);
+    await home.initialize(updaterManager.address)
     // set home on UpdaterManager
-    await deploy.contracts.updaterManager!.setHome(home.address);
+    await updaterManager.setHome(home.address);
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      home.initialize(fakeUpdaterManager.address),
+      home.initialize(updaterManager.address),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
@@ -94,16 +77,8 @@ describe.only('Home', async () => {
     // Compare Rust output in json file to solidity output (json file matches
     // hash for local domain of 1000)
     for (let testCase of homeDomainHashTestCases) {
-      let deploy = await getTestDeploy(
-        testCase.homeDomain,
-        fakeUpdaterManager.address,
-        [],
-      );
-      await deploys.deployUpdaterManager(deploy);
-      await deploys.deployUpgradeBeaconController(deploy);
-      await deploys.deployHome(deploy);
-
-      const tempHome = deploy.contracts.home?.proxy! as TestHome;
+      const homeFactory = new TestHome__factory(signer);
+      const tempHome = await homeFactory.deploy(testCase.homeDomain);
       const { expectedDomainHash } = testCase;
       const homeDomainHash = await tempHome.testHomeDomainHash();
       expect(homeDomainHash).to.equal(expectedDomainHash);

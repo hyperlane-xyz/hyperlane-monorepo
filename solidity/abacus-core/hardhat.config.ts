@@ -1,6 +1,9 @@
 import "solidity-coverage";
 import "@typechain/hardhat";
 import "@nomiclabs/hardhat-etherscan";
+import "@nomiclabs/hardhat-waffle";
+import "hardhat-gas-reporter";
+import './test/lib/index';
 
 import { task } from "hardhat/config";
 import { verifyLatestCoreDeploy } from "../../typescript/abacus-deploy/src/verification/verifyLatestDeploy";
@@ -33,7 +36,9 @@ module.exports = {
       },
     },
   },
-
+  gasReporter: {
+    currency: "USD",
+  },
   networks: {
     localhost: {
       url: "http://localhost:8545",
@@ -56,7 +61,8 @@ module.exports = {
     // TODO: add Ropsten
   },
   typechain: {
-    outDir: "../../typescript/typechain/abacus-core",
+    // outDir: "../../typescript/typechain/abacus-core",
+    outDir: "./typechain",
     target: "ethers-v5",
     alwaysGenerateOverloads: false, // should overloads with full signatures like deposit(uint256) be generated always, even if there are no overloads?
   },

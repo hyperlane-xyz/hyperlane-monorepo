@@ -10,7 +10,8 @@
     "eslint": "^7.20.0",
     "ethereum-waffle": "^3.2.2",
     "ethers": "^5.4.4",
-    "hardhat": "^2.0.8",
+    "hardhat": "^2.8.3",
+    "hardhat-gas-reporter": "^1.0.7",
     "prettier": "^2.2.1",
     "prettier-plugin-solidity": "^1.0.0-beta.5",
     "solhint": "^3.3.2",
@@ -20,7 +21,7 @@
     "typechain": "^5.0.0"
   },
   "version": "0.0.0",
-  "description": "Optimistic Interchain Communications",
+  "description": "Abacus Interchain Communications",
   "main": " ",
   "directories": {
     "test": "test"
@@ -29,8 +30,8 @@
     "prettier": "prettier --write ./contracts",
     "compile": "hardhat compile && hardhat typechain && npm run prettier && ./update_abis.sh",
     "build": "npm run compile",
+    "test": "hardhat test",
     "coverage": "npm run compile && hardhat coverage",
-    "test": "cd ../../ && ./scripts/test-solidity.sh",
     "lint": "solhint 'contracts/*.sol' && solhint 'contracts/**/*.sol'",
     "lint:fix": "solhint --fix 'contracts/*.sol' && solhint --fix 'contracts/**/*.sol'",
     "deploy": "npm run compile && cd ../../typescript/abacus-deploy && npm run deploy-core",
