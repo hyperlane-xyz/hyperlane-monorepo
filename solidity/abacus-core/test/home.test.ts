@@ -12,7 +12,7 @@ const localDomain = 1000;
 const destDomain = 2000;
 const emptyAddress: string = '0x' + '00'.repeat(32);
 
-describe.only('Home', async () => {
+describe('Home', async () => {
   let home: TestHome,
     signer: Signer,
     fakeSigner: Signer,
