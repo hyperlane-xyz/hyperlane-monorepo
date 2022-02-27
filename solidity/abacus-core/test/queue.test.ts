@@ -8,7 +8,7 @@ import {
 // create a proper hex encoded bytes32 filled with number. e.g 0x01010101...
 const bytes32 = (num: number) => `0x${Buffer.alloc(32, num).toString('hex')}`;
 
-describe.only('Queue', async () => {
+describe('Queue', async () => {
   let queue: TestQueue;
 
   before(async () => {
