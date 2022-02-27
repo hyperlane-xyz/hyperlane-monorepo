@@ -154,7 +154,7 @@ export function formatMessage(
   };
 }
 
-export async function formatOpticsMessage(
+export async function formatAbacusMessage(
   replica: TestReplica,
   governorRouter: TestGovernanceRouter,
   destinationRouter: TestGovernanceRouter,
@@ -164,7 +164,7 @@ export async function formatOpticsMessage(
   const governorDomain = await governorRouter.localDomain();
   const destinationDomain = await destinationRouter.localDomain();
 
-  // Create Optics message that is sent from the governor domain and governor
+  // Create Abacus message that is sent from the governor domain and governor
   // to the nonGovernorRouter on the nonGovernorDomain
   const abacusMessage = abacus.formatMessage(
     governorDomain,

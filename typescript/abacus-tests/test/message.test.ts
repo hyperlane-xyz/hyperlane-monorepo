@@ -49,7 +49,7 @@ describe('Message', async () => {
     expect(await messageLib.body(message)).to.equal(body);
   });
 
-  it('Matches Rust-output OpticsMessage and leaf', async () => {
+  it('Matches Rust-output AbacusMessage and leaf', async () => {
     const origin = 1000;
     const sender = '0x1111111111111111111111111111111111111111';
     const nonce = 1;

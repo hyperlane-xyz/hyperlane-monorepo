@@ -204,12 +204,12 @@ export async function deployUnenrolledReplica(
 }
 
 /**
- * Deploys the entire optics suite of contracts on the chain of the given deploy
+ * Deploys the entire abacus suite of contracts on the chain of the given deploy
  * and updates the deploy instance with the new contracts.
  *
  * @param deploy - The deploy instance
  */
-export async function deployOptics(deploy: CoreDeploy) {
+export async function deployAbacus(deploy: CoreDeploy) {
   const isTestDeploy: boolean = deploy.test;
   if (isTestDeploy) {
     warn('deploying test contracts', true);
@@ -450,7 +450,7 @@ export async function appointGovernor(gov: CoreDeploy) {
 }
 
 /**
- * Deploys the entire optics suite of contracts on two chains.
+ * Deploys the entire abacus suite of contracts on two chains.
  *
  * @notice `gov` has the governance capability after setup
  *
@@ -470,7 +470,7 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   await Promise.all([gov.ready(), non.ready()]);
   log(isTestDeploy, 'done readying');
 
-  await Promise.all([deployOptics(gov), deployOptics(non)]);
+  await Promise.all([deployAbacus(gov), deployAbacus(non)]);
 
   log(isTestDeploy, 'initial deploys done');
 
@@ -514,11 +514,11 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
 }
 
 /**
- * Deploy the entire suite of Optics contracts
+ * Deploy the entire suite of Abacus contracts
  * on each chain within the chains array
  * including the upgradable Home, Replicas, and GovernanceRouter
  * that have been deployed, initialized, and configured
- * according to the deployOptics script
+ * according to the deployAbacus script
  *
  * @dev The first chain in the array will be the governing chain
  *
@@ -553,7 +553,7 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   ]);
   log(isTestDeploy, 'done readying');
 
-  await Promise.all(deploys.map(deployOptics));
+  await Promise.all(deploys.map(deployAbacus));
 
   // enroll remotes on every chain
   //

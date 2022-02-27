@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { OpticsContext } from '@abacus-network/sdk';
+import { AbacusContext } from '@abacus-network/sdk';
 import { CoreDeploy } from './CoreDeploy';
 import {
   HomeUpdaterViolation,
@@ -8,7 +8,7 @@ import {
   Violation,
   ViolationType,
 } from '../checks';
-import { Call, CallBatch } from '@abacus-network/sdk/dist/optics/govern';
+import { Call, CallBatch } from '@abacus-network/sdk/dist/abacus/govern';
 
 interface DomainedCall {
   domain: number;
@@ -17,12 +17,12 @@ interface DomainedCall {
 
 export class GovernanceCallBatchBuilder {
   private _deploys: CoreDeploy[];
-  private _context: OpticsContext;
+  private _context: AbacusContext;
   private _violations: Violation[];
 
   constructor(
     deploys: CoreDeploy[],
-    context: OpticsContext,
+    context: AbacusContext,
     violations: Violation[],
   ) {
     this._deploys = deploys;

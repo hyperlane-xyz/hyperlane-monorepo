@@ -5,7 +5,7 @@ import { expect } from 'chai';
 import * as types from '../../lib/types';
 import { toBytes32 } from '../../lib/utils';
 import TestBridgeDeploy from '../TestBridgeDeploy';
-import { TokenIdentifier } from '@abacus-network/sdk/dist/optics';
+import { TokenIdentifier } from '@abacus-network/sdk/dist/abacus';
 import { getTestChain } from '../testChain';
 
 const { BridgeMessageTypes } = bridge;

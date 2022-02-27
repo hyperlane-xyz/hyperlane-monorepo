@@ -34,7 +34,7 @@ export function getNetworksFromDeploy(path: string): string[] {
 /*
  * Get path to *most recent* config folder
  * of Bridge deploys for the
- * most recent Optics core system deploy
+ * most recent Abacus core system deploy
  * */
 export function getPathToLatestBridgeConfig() {
   const configPath = getPathToLatestDeployConfig();
@@ -44,7 +44,7 @@ export function getPathToLatestBridgeConfig() {
 
 /*
  * Get path to *most recent* config folder
- * of Optics core system deploys
+ * of Abacus core system deploys
  * */
 export function getPathToLatestDeployConfig() {
   const configPath = '../../typescript/abacus-deploy/config/environments';

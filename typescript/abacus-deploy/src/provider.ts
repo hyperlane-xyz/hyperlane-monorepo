@@ -8,11 +8,11 @@ export function updateProviderDomain(
   coreDeploys: CoreDeploy[],
   bridgeDeploys: BridgeDeploy[],
 ) {
-  let ret = "import { OpticsDomain } from './domain';\n";
+  let ret = "import { AbacusDomain } from './domain';\n";
   coreDeploys.forEach((coreDeploy: CoreDeploy, i: number) => {
     const bridgeDeploy = bridgeDeploys[i];
     ret += `
-export const ${coreDeploy.chain.name}: OpticsDomain = {
+export const ${coreDeploy.chain.name}: AbacusDomain = {
   name: '${coreDeploy.chain.name}',
   id: ${coreDeploy.chain.domain},
   bridgeRouter: '${bridgeDeploy.contracts.bridgeRouter!.proxy.address}',${
@@ -41,10 +41,7 @@ ${Object.keys(coreDeploy.contracts.replicas)
     .map((_) => _.chain.name)
     .join(', ')}];`;
   writeFileSync(
-    resolve(
-      __dirname,
-      `../../optics-provider/src/optics/domains/${environment}.ts`,
-    ),
+    resolve(__dirname, `../../abacus-sdk/src/abacus/domains/${environment}.ts`),
     ret,
   );
 }

@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
-import { OpticsState, Updater } from '../lib/core';
+import { AbacusState, Updater } from '../lib/core';
 import { Signer } from '../lib/types';
 
 import {
@@ -70,7 +70,7 @@ describe('Common', async () => {
       common.doubleUpdate(oldRoot, [newRoot, newRoot2], signature, signature2),
     ).to.emit(common, 'DoubleUpdate');
 
-    expect(await common.state()).to.equal(OpticsState.FAILED);
+    expect(await common.state()).to.equal(AbacusState.FAILED);
   });
 
   it('Does not fail contract on invalid double update proof', async () => {
@@ -90,8 +90,8 @@ describe('Common', async () => {
     // State should not be failed because double update proof does not
     // demonstrate fraud
     const state = await common.state();
-    expect(state).not.to.equal(OpticsState.FAILED);
-    expect(state).to.equal(OpticsState.ACTIVE);
+    expect(state).not.to.equal(AbacusState.FAILED);
+    expect(state).to.equal(AbacusState.ACTIVE);
   });
 
   it('Does not fail on double update after updater rotation', async () => {
@@ -115,8 +115,8 @@ describe('Common', async () => {
     // State should not be failed because double update proof does not
     // use current updater.
     const state = await common.state();
-    expect(state).not.to.equal(OpticsState.FAILED);
-    expect(state).to.equal(OpticsState.ACTIVE);
+    expect(state).not.to.equal(AbacusState.FAILED);
+    expect(state).to.equal(AbacusState.ACTIVE);
   });
 
   it('Checks Rust-produced SignedUpdate', async () => {

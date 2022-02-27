@@ -1,0 +1,17 @@
+{
+  "name": "@abacus-network/monorepo",
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "prettier": "npm run prettier --workspaces"
+  },
+  "workspaces": [
+    "solidity/abacus-core",
+    "solidity/abacus-xapps",
+    "typescript/typechain",
+    "typescript/abacus-sdk",
+    "typescript/contract-metrics",
+    "typescript/abacus-deploy",
+    "typescript/abacus-tests"
+  ]
+}
+

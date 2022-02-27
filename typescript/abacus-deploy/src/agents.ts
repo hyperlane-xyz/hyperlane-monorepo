@@ -49,7 +49,7 @@ async function helmValuesForChain(
       repository: agentConfig.docker.repo,
       tag: agentConfig.docker.tag,
     },
-    optics: {
+    abacus: {
       runEnv: agentConfig.runEnv,
       baseConfig: `${chainName}_config.json`,
       homeChain: {
@@ -113,7 +113,7 @@ export async function getAgentEnvVars(
 
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chains);
   envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
-  valueDict.optics.replicaChains.forEach((replicaChain: any) => {
+  valueDict.abacus.replicaChains.forEach((replicaChain: any) => {
     envVars.push(
       `OPT_BASE_REPLICAS_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
         rpcEndpoints[replicaChain.name]
@@ -122,7 +122,7 @@ export async function getAgentEnvVars(
   });
 
   // Base vars from config map
-  envVars.push(`BASE_CONFIG=${valueDict.optics.baseConfig}`);
+  envVars.push(`BASE_CONFIG=${valueDict.abacus.baseConfig}`);
   envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
   envVars.push(`OPT_BASE_METRICS=9090`);
   envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
@@ -266,7 +266,7 @@ export async function runAgentHelmCommand(
   return execCmd(
     `helm ${action} ${
       homeChainConfig.name
-    } ../../rust/helm/optics-agent/ --namespace ${
+    } ../../rust/helm/abacus-agent/ --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},

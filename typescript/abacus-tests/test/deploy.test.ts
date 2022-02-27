@@ -21,7 +21,7 @@ import { DeployEnvironment } from '@abacus-network/abacus-deploy/dist/src/deploy
 const domains = [1000, 2000, 3000, 4000];
 
 /*
- * Deploy the full Optics suite on two chains
+ * Deploy the full Abacus suite on two chains
  */
 describe('core deploy scripts', async () => {
   let signer: Signer, recoveryManager: Signer, updater: Updater;

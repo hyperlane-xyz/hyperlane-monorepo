@@ -11,7 +11,7 @@ import {
   MockWeth,
   MockWeth__factory,
 } from '@abacus-network/ts-interface/dist/abacus-xapps';
-import { TokenIdentifier } from '@abacus-network/sdk/dist/optics/tokens';
+import { TokenIdentifier } from '@abacus-network/sdk/dist/abacus/tokens';
 
 import { BridgeDeploy } from '@abacus-network/abacus-deploy/dist/src/bridge/BridgeDeploy';
 import { BridgeContracts } from '@abacus-network/abacus-deploy/dist/src/bridge/BridgeContracts';

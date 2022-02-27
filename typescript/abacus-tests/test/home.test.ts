@@ -1,7 +1,7 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 import { getTestDeploy } from './testChain';
-import { OpticsState, Updater } from '../lib/core';
+import { AbacusState, Updater } from '../lib/core';
 import { Signer } from '../lib/types';
 import { CoreDeploy as Deploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
 import * as deploys from '@abacus-network/abacus-deploy/dist/src/core';
@@ -19,7 +19,7 @@ const localDomain = 1000;
 const destDomain = 2000;
 const emptyAddress: string = '0x' + '00'.repeat(32);
 
-describe('Home', async () => {
+describe.only('Home', async () => {
   let deploy: Deploy,
     home: TestHome,
     signer: Signer,
@@ -78,7 +78,7 @@ describe('Home', async () => {
 
   it('Halts on fail', async () => {
     await home.setFailed();
-    expect(await home.state()).to.equal(OpticsState.FAILED);
+    expect(await home.state()).to.equal(AbacusState.FAILED);
 
     const message = ethers.utils.formatBytes32String('message');
     await expect(
@@ -234,7 +234,7 @@ describe('Home', async () => {
       home,
       'ImproperUpdate',
     );
-    expect(await home.state()).to.equal(OpticsState.FAILED);
+    expect(await home.state()).to.equal(AbacusState.FAILED);
   });
 
   it('Rejects update from non-updater address', async () => {
@@ -266,7 +266,7 @@ describe('Home', async () => {
         signature2,
       ),
     ).to.emit(home, 'DoubleUpdate');
-    expect(await home.state()).to.equal(OpticsState.FAILED);
+    expect(await home.state()).to.equal(AbacusState.FAILED);
   });
 
   it('Correctly calculates destinationAndNonce', async () => {

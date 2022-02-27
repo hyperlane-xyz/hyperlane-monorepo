@@ -2,7 +2,7 @@ import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
 import { getTestDeploy } from './testChain';
-import { Updater, OpticsState, MessageStatus } from '../lib/core';
+import { Updater, AbacusState, MessageStatus } from '../lib/core';
 import { Signer, BytesArray } from '../lib/types';
 import { CoreDeploy as Deploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
 import {
@@ -110,7 +110,7 @@ describe('Replica', async () => {
 
   it('Halts on fail', async () => {
     await replica.setFailed();
-    expect(await replica.state()).to.equal(OpticsState.FAILED);
+    expect(await replica.state()).to.equal(AbacusState.FAILED);
 
     const newRoot = ethers.utils.formatBytes32String('new root');
     await expect(submitValidUpdate(newRoot)).to.be.revertedWith('failed state');
@@ -209,7 +209,7 @@ describe('Replica', async () => {
       ),
     ).to.emit(replica, 'DoubleUpdate');
 
-    expect(await replica.state()).to.equal(OpticsState.FAILED);
+    expect(await replica.state()).to.equal(AbacusState.FAILED);
   });
 
   it('Proves a valid message', async () => {

@@ -1,5 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { TokenIdentifier } from '@abacus-network/sdk/dist/optics';
+import { TokenIdentifier } from '@abacus-network/sdk/dist/abacus';
 import { BytesLike, ethers } from 'ethers';
 import { BridgeMessageTypes } from './bridge';
 

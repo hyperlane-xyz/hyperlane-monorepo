@@ -69,7 +69,7 @@ const formatMessage = (
   );
 };
 
-export enum OpticsState {
+export enum AbacusState {
   UNINITIALIZED = 0,
   ACTIVE,
   FAILED,
