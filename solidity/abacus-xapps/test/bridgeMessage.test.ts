@@ -1,4 +1,4 @@
-import { ethers, bridge } from 'hardhat';
+import { ethers, abacus, bridge } from 'hardhat';
 import { BytesLike } from 'ethers';
 import { expect } from 'chai';
 
@@ -24,7 +24,7 @@ const stringToBytes32 = (s: string): string => {
   return '0x' + result.toString('hex');
 };
 
-describe.only('BridgeMessage', async () => {
+describe('BridgeMessage', async () => {
   let bridgeMessage: TestBridgeMessage,
     transferBytes: BytesLike,
     detailsBytes: BytesLike,

@@ -4,19 +4,8 @@ import { BytesLike, ethers } from 'ethers';
 import { BridgeMessageTypes } from './bridge';
 
 /********* HRE *********/
-
 export interface HardhatAbacusHelpers {
-  formatMessage: Function;
-  governance: {
-    formatTransferGovernor: Function;
-    formatSetRouter: Function;
-    formatCalls: Function;
-  };
-  messageHash: Function;
-  ethersAddressToBytes32: Function;
-  destinationAndNonce: Function;
-  domainHash: Function;
-  signedFailureNotification: Function;
+  AbacusDeployment: any;
 }
 
 export interface HardhatBridgeHelpers {
