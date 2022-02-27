@@ -23,7 +23,7 @@ const testTokenId = {
             id: testToken,
           };
 
-describe.only('BridgeRouter', async () => {
+describe('BridgeRouter', async () => {
   let abacusDeployment: AbacusDeployment;
   let bridgeDeployment: BridgeDeployment;
   let deployer: types.Signer;
@@ -637,19 +637,17 @@ describe.only('BridgeRouter', async () => {
     });
   });
 
-  /*
   describe('custom token representations', async () => {
     let transferMessage: string;
     let defaultRepr: BridgeToken;
     let customRepr: BridgeToken;
     const VALUE = `0xffffffffffffffff`;
 
-    before(async () => {
-      deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
+    beforeEach(async () => {
 
       // generate transfer action
       const transferMessageObj: types.Message = {
-        tokenId: deploy.testTokenId,
+        tokenId: testTokenId,
         action: {
           type: BridgeMessageTypes.TRANSFER,
           recipient: deployerId,
@@ -659,15 +657,13 @@ describe.only('BridgeRouter', async () => {
       transferMessage = bridge.serializeMessage(transferMessageObj);
 
       // first send in a transfer to create the repr
-      await deploy.bridgeRouter!.handle(
-        deploy.remoteDomain,
+      await bridgeDeployment.router(localDomain).handle(
+        remoteDomain,
         deployerId,
         transferMessage,
       );
 
-      const representation = await deploy.getTestRepresentation();
-      expect(representation).to.not.be.undefined;
-      defaultRepr = representation!;
+      defaultRepr = await bridgeDeployment.bridgeToken(localDomain, remoteDomain, testToken);
       expect(await defaultRepr.balanceOf(deployerAddress)).to.equal(
         BigNumber.from(VALUE),
       );
@@ -681,19 +677,19 @@ describe.only('BridgeRouter', async () => {
     });
 
     it('migrate errors if old === new', async () => {
-      const migrate = deploy.bridgeRouter!.migrate(defaultRepr.address);
+      const migrate = bridgeDeployment.router(localDomain).migrate(defaultRepr.address);
       await expect(migrate).to.be.revertedWith('!different');
     });
 
     it('migrate errors if custom token is not enrolled', async () => {
-      const migrate = deploy.bridgeRouter!.migrate(customRepr.address);
+      const migrate = bridgeDeployment.router(localDomain).migrate(customRepr.address);
       await expect(migrate).to.be.revertedWith('!repr');
     });
 
     it('errors if no mint/burn privileges', async () => {
-      const enrollTx = deploy.bridgeRouter!.enrollCustom(
-        deploy.remoteDomain,
-        deploy.testToken,
+      const enrollTx = bridgeDeployment.router(localDomain).enrollCustom(
+        remoteDomain,
+        testToken,
         customRepr.address,
       );
 
@@ -701,103 +697,107 @@ describe.only('BridgeRouter', async () => {
         'Ownable: caller is not the owner',
       );
     });
+    describe('when registering a custom token', () => {
+      beforeEach(async () => {
+        await customRepr.transferOwnership(bridgeDeployment.router(localDomain).address);
 
-    it('registers the custom token', async () => {
-      await customRepr.transferOwnership(deploy.bridgeRouter!.address);
+        const enrollTx = bridgeDeployment.router(localDomain).enrollCustom(
+          remoteDomain,
+          testToken,
+          customRepr.address,
+        );
 
-      const enrollTx = deploy.bridgeRouter!.enrollCustom(
-        deploy.remoteDomain,
-        deploy.testToken,
-        customRepr.address,
-      );
+        await expect(enrollTx).to.not.be.reverted;
+      })
 
-      await expect(enrollTx).to.not.be.reverted;
-      expect(
-        await deploy.bridgeRouter!['getLocalAddress(uint32,bytes32)'](
-          deploy.remoteDomain,
-          deploy.testToken,
-        ),
-      ).to.equal(customRepr.address);
+      it('registers the custom token', async () => {
+        expect((await bridgeDeployment.bridgeToken(localDomain, remoteDomain, testToken)).address
+        ).to.equal(customRepr.address);
 
-      let [domain, token] = await deploy.bridgeRouter!.getCanonicalAddress(
-        customRepr.address,
-      );
-      expect(domain).to.equal(deploy.remoteDomain);
-      expect(token).to.equal(deploy.testToken);
+        let [domain, token] = await bridgeDeployment.router(localDomain).getCanonicalAddress(
+          customRepr.address,
+        );
+        expect(domain).to.equal(remoteDomain);
+        expect(token).to.equal(testToken);
 
-      [domain, token] = await deploy.bridgeRouter!.getCanonicalAddress(
-        defaultRepr.address,
-      );
-      expect(domain).to.equal(deploy.remoteDomain);
-      expect(token).to.equal(deploy.testToken);
-    });
+        [domain, token] = await bridgeDeployment.router(localDomain).getCanonicalAddress(
+          defaultRepr.address,
+        );
+        expect(domain).to.equal(remoteDomain);
+        expect(token).to.equal(testToken);
+      });
 
-    it('mints incoming tokens in the custom repr', async () => {
-      const defaultBalance = await defaultRepr.balanceOf(deployerAddress);
+      describe('when bridging a custom token', () => {
+        let defaultBalance: BigNumber;
+        beforeEach(async () => {
+          defaultBalance = await defaultRepr.balanceOf(deployerAddress);
+          // first send in a transfer to create the repr
+          await bridgeDeployment.router(localDomain).handle(
+            remoteDomain,
+            deployerId,
+            transferMessage,
+          );
+        })
 
-      // first send in a transfer to create the repr
-      await deploy.bridgeRouter!.handle(
-        deploy.remoteDomain,
-        deployerId,
-        transferMessage,
-      );
-      // did not mint default
-      expect(await defaultRepr.balanceOf(deployerAddress)).to.equal(
-        defaultBalance,
-      );
-      // did mint custom
-      expect(await customRepr.balanceOf(deployerAddress)).to.equal(
-        BigNumber.from(VALUE),
-      );
-    });
+        it('mints incoming tokens in the custom repr', async () => {
+          // did not mint default
+          expect(await defaultRepr.balanceOf(deployerAddress)).to.equal(
+            defaultBalance,
+          );
+          // did mint custom
+          expect(await customRepr.balanceOf(deployerAddress)).to.equal(
+          BigNumber.from(VALUE),
+          );
+        });
 
-    it('allows outbound transfers of both assets', async () => {
-      const smallTransfer: types.Message = {
-        tokenId: deploy.testTokenId,
-        action: {
-          type: BridgeMessageTypes.TRANSFER,
-          recipient: deployerId,
-          amount: TOKEN_VALUE,
-        },
-      };
-      const smallTransferMessage = bridge.serializeMessage(smallTransfer);
+        describe('when transferring a custom token', () => {
+          it('allows outbound transfers of both assets', async () => {
+            const smallTransfer: types.Message = {
+              tokenId: testTokenId,
+              action: {
+                type: BridgeMessageTypes.TRANSFER,
+                recipient: deployerId,
+                amount: TOKEN_VALUE,
+              },
+            };
+            const smallTransferMessage = bridge.serializeMessage(smallTransfer);
 
-      const defaultSendTx = await deploy.bridgeRouter!.send(
-        defaultRepr.address,
-        TOKEN_VALUE,
-        deploy.remoteDomain,
-        deployerId,
-      );
-      await expect(defaultSendTx)
-        .to.emit(deploy.mockCore, 'Enqueue')
-        .withArgs(deploy.remoteDomain, deployerId, smallTransferMessage);
+            const defaultSendTx = await bridgeDeployment.router(localDomain).send(
+              defaultRepr.address,
+              TOKEN_VALUE,
+              remoteDomain,
+              deployerId,
+            );
+            await expect(defaultSendTx)
+              .to.emit(abacusDeployment.home(localDomain), 'Dispatch');
 
-      const customSendTx = await deploy.bridgeRouter!.send(
-        customRepr.address,
-        TOKEN_VALUE,
-        deploy.remoteDomain,
-        deployerId,
-      );
-      await expect(customSendTx)
-        .to.emit(deploy.mockCore, 'Enqueue')
-        .withArgs(deploy.remoteDomain, deployerId, smallTransferMessage);
-    });
+            const customSendTx = await bridgeDeployment.router(localDomain).send(
+              customRepr.address,
+              TOKEN_VALUE,
+              remoteDomain,
+              deployerId,
+            );
+            await expect(customSendTx)
+              .to.emit(abacusDeployment.home(localDomain), 'Dispatch');
+          });
 
-    it('allows users to migrate', async () => {
-      const defaultBalance = await defaultRepr.balanceOf(deployerAddress);
-      const customBalance = await customRepr.balanceOf(deployerAddress);
+          it('allows users to migrate', async () => {
+            const defaultBalance = await defaultRepr.balanceOf(deployerAddress);
+            const customBalance = await customRepr.balanceOf(deployerAddress);
 
-      let migrateTx = deploy.bridgeRouter!.migrate(defaultRepr.address);
+            let migrateTx = bridgeDeployment.router(localDomain).migrate(defaultRepr.address);
 
-      await expect(migrateTx).to.not.be.reverted;
+            await expect(migrateTx).to.not.be.reverted;
 
-      expect(await defaultRepr.balanceOf(deployerAddress)).to.equal(
-        ethers.constants.Zero,
-      );
-      expect(await customRepr.balanceOf(deployerAddress)).to.equal(
-        defaultBalance.add(customBalance),
-      );
+            expect(await defaultRepr.balanceOf(deployerAddress)).to.equal(
+              ethers.constants.Zero,
+            );
+            expect(await customRepr.balanceOf(deployerAddress)).to.equal(
+              defaultBalance.add(customBalance),
+            );
+          });
+        });
+      });
     });
   });
-  */
 });
