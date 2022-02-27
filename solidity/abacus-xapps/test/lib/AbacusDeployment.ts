@@ -55,6 +55,14 @@ export class AbacusDeployment {
       replicas
     }
   }
+
+  home(domain: types.Domain): Home {
+    return this.instances[domain].home;
+  }
+
+  connectionManager(domain: types.Domain): XAppConnectionManager {
+    return this.instances[domain].connectionManager;
+  }
 }
 
 export const abacus: any = {

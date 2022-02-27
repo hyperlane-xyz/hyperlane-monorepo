@@ -4,10 +4,6 @@ import { BytesLike, ethers } from 'ethers';
 import { BridgeMessageTypes } from './bridge';
 
 /********* HRE *********/
-export interface HardhatAbacusHelpers {
-  AbacusDeployment: any;
-}
-
 export interface HardhatBridgeHelpers {
   BridgeMessageTypes: typeof BridgeMessageTypes;
   typeToByte: Function;
@@ -22,7 +18,7 @@ export interface HardhatBridgeHelpers {
 
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
-    abacus: HardhatAbacusHelpers;
+    abacus: any;
     bridge: HardhatBridgeHelpers;
   }
 }
