@@ -1,13 +1,8 @@
 import { expect } from 'chai';
 import ethers from 'ethers';
 
-import { Signer } from '../lib/types';
-import { CoreDeploy as Deploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
-import {
-  deployUpdaterManager,
-  deployUpgradeBeaconController,
-} from '@abacus-network/abacus-deploy/dist/src/core';
-import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
+import { Signer } from './lib/types';
+import { MysteryMathV1, MysteryMathV2, MysteryMathV1__factory, UpgradeBeacon, UpgradeBeaconController, UpgradeBeaconController__factory, UpgradeBeacon__factory, UpgradeBeaconProxy__factory} from '../typechain'
 
 export const increaseTimestampBy = async (
   provider: ethers.providers.JsonRpcProvider,
@@ -18,9 +13,10 @@ export const increaseTimestampBy = async (
 };
 
 export type MysteryMathUpgrade = {
-  proxy: contracts.MysteryMathV1 | contracts.MysteryMathV2;
-  beacon: contracts.UpgradeBeacon;
-  implementation: contracts.MysteryMathV1 | contracts.MysteryMathV2;
+  proxy: MysteryMathV1 | MysteryMathV2;
+  beacon: UpgradeBeacon;
+  implementation: MysteryMathV1 | MysteryMathV2;
+  ubc: UpgradeBeaconController;
 };
 
 export class UpgradeTestHelpers {
@@ -29,39 +25,24 @@ export class UpgradeTestHelpers {
   stateVar: number = 17;
 
   async deployMysteryMathUpgradeSetup(
-    deploy: Deploy,
     signer: Signer,
-    isNewDeploy?: boolean,
   ): Promise<MysteryMathUpgrade> {
     // deploy implementation
-    const mysteryMathFactory = new contracts.MysteryMathV1__factory(signer);
+    const mysteryMathFactory = new MysteryMathV1__factory(signer);
     const mysteryMathImplementation = await mysteryMathFactory.deploy();
 
-    if (isNewDeploy) {
-      // deploy UpdaterManager
-      await deployUpdaterManager(deploy);
-      // deploy and set UpgradeBeaconController
-      await deployUpgradeBeaconController(deploy);
-    }
+    const ubcFactory = new UpgradeBeaconController__factory(signer);
+    const ubc = await ubcFactory.deploy();
 
     // deploy and set upgrade beacon
-    const beaconFactory = new contracts.UpgradeBeacon__factory(
-      deploy.chain.signer,
-    );
+    const beaconFactory = new UpgradeBeacon__factory(signer);
     const beacon = await beaconFactory.deploy(
-      mysteryMathImplementation.address,
-      deploy.contracts.upgradeBeaconController!.address,
-      { gasPrice: deploy.chain.gasPrice, gasLimit: 2_000_000 },
-    );
+    mysteryMathImplementation.address,
+    ubc.address);
 
     // deploy proxy
-    let factory = new contracts.UpgradeBeaconProxy__factory(
-      deploy.chain.signer,
-    );
-    const upgradeBeaconProxy = await factory.deploy(beacon.address, [], {
-      gasPrice: deploy.chain.gasPrice,
-      gasLimit: 1_000_000,
-    });
+    const proxyFactory = new UpgradeBeaconProxy__factory(signer);
+    const upgradeBeaconProxy = await proxyFactory.deploy(beacon.address, []);
 
     // set proxy
     const proxy = mysteryMathFactory.attach(upgradeBeaconProxy.address);
@@ -69,10 +50,10 @@ export class UpgradeTestHelpers {
     // Set state of proxy
     await proxy.setState(this.stateVar);
 
-    return { proxy, beacon, implementation: mysteryMathImplementation };
+    return { proxy, beacon, implementation: mysteryMathImplementation, ubc};
   }
 
-  async expectMysteryMathV1(mysteryMathProxy: contracts.MysteryMathV1) {
+  async expectMysteryMathV1(mysteryMathProxy: MysteryMathV1) {
     const versionResult = await mysteryMathProxy.version();
     expect(versionResult).to.equal(1);
 
@@ -83,7 +64,7 @@ export class UpgradeTestHelpers {
     expect(stateResult).to.equal(this.stateVar);
   }
 
-  async expectMysteryMathV2(mysteryMathProxy: contracts.MysteryMathV2) {
+  async expectMysteryMathV2(mysteryMathProxy: MysteryMathV2) {
     const versionResult = await mysteryMathProxy.version();
     expect(versionResult).to.equal(2);
 
