@@ -4,7 +4,7 @@ import { Wallet } from 'ethers';
 
 import { Signer } from './lib/types';
 import { permitDigest } from './lib/permit';
-import {BridgeToken__factory, BridgeToken } from '../typechain';
+import { BridgeToken__factory, BridgeToken } from '../typechain';
 
 const VALUE = 100;
 

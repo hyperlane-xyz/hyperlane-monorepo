@@ -1,16 +1,13 @@
-import { ethers, abacus } from 'hardhat';
-import { expect } from 'chai';
-import {
-  TestMessage,
-  TestMessage__factory,
-} from '../typechain';
+import { ethers, abacus } from "hardhat";
+import { expect } from "chai";
+import { TestMessage, TestMessage__factory } from "../typechain";
 
-const testCases = require('../../../vectors/message.json');
+const testCases = require("../../../vectors/message.json");
 
 const remoteDomain = 1000;
 const localDomain = 2000;
 
-describe('Message', async () => {
+describe("Message", async () => {
   let messageLib: TestMessage;
 
   before(async () => {
@@ -20,10 +17,10 @@ describe('Message', async () => {
     messageLib = await Message.deploy();
   });
 
-  it('Returns fields from a message', async () => {
+  it("Returns fields from a message", async () => {
     const [sender, recipient] = await ethers.getSigners();
     const nonce = 1;
-    const body = ethers.utils.formatBytes32String('message');
+    const body = ethers.utils.formatBytes32String("message");
 
     const message = abacus.formatMessage(
       remoteDomain,
@@ -31,31 +28,31 @@ describe('Message', async () => {
       nonce,
       localDomain,
       recipient.address,
-      body,
+      body
     );
 
     expect(await messageLib.origin(message)).to.equal(remoteDomain);
     expect(await messageLib.sender(message)).to.equal(
-      abacus.ethersAddressToBytes32(sender.address),
+      abacus.ethersAddressToBytes32(sender.address)
     );
     expect(await messageLib.nonce(message)).to.equal(nonce);
     expect(await messageLib.destination(message)).to.equal(localDomain);
     expect(await messageLib.recipient(message)).to.equal(
-      abacus.ethersAddressToBytes32(recipient.address),
+      abacus.ethersAddressToBytes32(recipient.address)
     );
     expect(await messageLib.recipientAddress(message)).to.equal(
-      recipient.address,
+      recipient.address
     );
     expect(await messageLib.body(message)).to.equal(body);
   });
 
-  it('Matches Rust-output AbacusMessage and leaf', async () => {
+  it("Matches Rust-output AbacusMessage and leaf", async () => {
     const origin = 1000;
-    const sender = '0x1111111111111111111111111111111111111111';
+    const sender = "0x1111111111111111111111111111111111111111";
     const nonce = 1;
     const destination = 2000;
-    const recipient = '0x2222222222222222222222222222222222222222';
-    const body = ethers.utils.arrayify('0x1234');
+    const recipient = "0x2222222222222222222222222222222222222222";
+    const body = ethers.utils.arrayify("0x1234");
 
     const abacusMessage = abacus.formatMessage(
       origin,
@@ -63,7 +60,7 @@ describe('Message', async () => {
       nonce,
       destination,
       recipient,
-      body,
+      body
     );
 
     const {
@@ -80,11 +77,11 @@ describe('Message', async () => {
     expect(await messageLib.sender(abacusMessage)).to.equal(testSender);
     expect(await messageLib.nonce(abacusMessage)).to.equal(testNonce);
     expect(await messageLib.destination(abacusMessage)).to.equal(
-      testDestination,
+      testDestination
     );
     expect(await messageLib.recipient(abacusMessage)).to.equal(testRecipient);
     expect(await messageLib.body(abacusMessage)).to.equal(
-      ethers.utils.hexlify(testBody),
+      ethers.utils.hexlify(testBody)
     );
     expect(await messageLib.leaf(abacusMessage)).to.equal(messageHash);
     expect(abacus.messageHash(abacusMessage)).to.equal(messageHash);

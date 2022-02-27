@@ -4,8 +4,8 @@ import { expect } from 'chai';
 
 import * as types from './lib/types';
 import { TokenIdentifier, toBytes32 } from './lib/utils';
-import {BridgeDeployment} from './lib/BridgeDeployment';
-import {AbacusDeployment} from './lib/AbacusDeployment';
+import { BridgeDeployment } from './lib/BridgeDeployment';
+import { AbacusDeployment } from './lib/AbacusDeployment';
 
 const { BridgeMessageTypes } = bridge;
 const localDomain = 1000;
@@ -36,7 +36,10 @@ describe('EthHelper', async () => {
     recipientAddress = await recipient.getAddress();
     recipientId = toBytes32(recipientAddress).toLowerCase();
     abacusDeployment = await abacus.fromDomains(domains, deployer);
-    bridgeDeployment = await BridgeDeployment.fromAbacusDeployment(abacusDeployment, deployer);
+    bridgeDeployment = await BridgeDeployment.fromAbacusDeployment(
+      abacusDeployment,
+      deployer,
+    );
 
     const tokenId: TokenIdentifier = {
       domain: localDomain,
@@ -68,33 +71,35 @@ describe('EthHelper', async () => {
       value,
     });
 
-    await expect(sendTx)
-      .to.emit(abacusDeployment.home(localDomain), 'Dispatch');
+    await expect(sendTx).to.emit(
+      abacusDeployment.home(localDomain),
+      'Dispatch',
+    );
   });
 
   it('sendTo function', async () => {
-    let sendTx = bridgeDeployment.helper(localDomain).sendTo(
-      remoteDomain,
-      recipientId,
-      {
+    let sendTx = bridgeDeployment
+      .helper(localDomain)
+      .sendTo(remoteDomain, recipientId, {
         value,
-      },
-    );
+      });
 
-    await expect(sendTx)
-      .to.emit(abacusDeployment.home(localDomain), 'Dispatch');
+    await expect(sendTx).to.emit(
+      abacusDeployment.home(localDomain),
+      'Dispatch',
+    );
   });
 
   it('sendToEVMLike function', async () => {
-    let sendTx = bridgeDeployment.helper(localDomain).sendToEVMLike(
-      remoteDomain,
-      recipientAddress,
-      {
+    let sendTx = bridgeDeployment
+      .helper(localDomain)
+      .sendToEVMLike(remoteDomain, recipientAddress, {
         value,
-      },
-    );
+      });
 
-    await expect(sendTx)
-      .to.emit(abacusDeployment.home(localDomain), 'Dispatch');
+    await expect(sendTx).to.emit(
+      abacusDeployment.home(localDomain),
+      'Dispatch',
+    );
   });
 });

@@ -4,11 +4,13 @@ import { expect } from 'chai';
 
 import { TokenIdentifier, toBytes32 } from './lib/utils';
 import { formatTokenId } from './lib/bridge';
-import { TransferAction, DetailsAction, Message, RequestDetailsAction} from './lib/types';
 import {
-  TestBridgeMessage__factory,
-  TestBridgeMessage,
-} from '../typechain';
+  TransferAction,
+  DetailsAction,
+  Message,
+  RequestDetailsAction,
+} from './lib/types';
+import { TestBridgeMessage__factory, TestBridgeMessage } from '../typechain';
 
 const { BridgeMessageTypes } = bridge;
 
@@ -33,7 +35,6 @@ describe('BridgeMessage', async () => {
     testTokenId: TokenIdentifier,
     deployerAddress: string,
     tokenIdBytes: BytesLike;
-
 
   before(async () => {
     const [deployer] = await ethers.getSigners();
@@ -90,9 +91,7 @@ describe('BridgeMessage', async () => {
         type: BridgeMessageTypes.REQUEST_DETAILS,
       },
     };
-    requestDetailsMessageBytes = bridge.serializeMessage(
-      requestDetailsMessage,
-    );
+    requestDetailsMessageBytes = bridge.serializeMessage(requestDetailsMessage);
 
     const [signer] = await ethers.getSigners();
 
@@ -229,9 +228,18 @@ describe('BridgeMessage', async () => {
 
   it('fails for wrong action type', async () => {
     const invalidType = '0x00';
-    const badTransfer: BytesLike = ethers.utils.hexConcat([invalidType, ethers.utils.hexDataSlice(transferBytes, 1)]);
-    const badDetails: BytesLike = ethers.utils.hexConcat([invalidType, ethers.utils.hexDataSlice(detailsBytes, 1)]);
-    const badRequest: BytesLike = ethers.utils.hexConcat([invalidType, ethers.utils.hexDataSlice(requestDetailsBytes, 1)]);
+    const badTransfer: BytesLike = ethers.utils.hexConcat([
+      invalidType,
+      ethers.utils.hexDataSlice(transferBytes, 1),
+    ]);
+    const badDetails: BytesLike = ethers.utils.hexConcat([
+      invalidType,
+      ethers.utils.hexDataSlice(detailsBytes, 1),
+    ]);
+    const badRequest: BytesLike = ethers.utils.hexConcat([
+      invalidType,
+      ethers.utils.hexDataSlice(requestDetailsBytes, 1),
+    ]);
 
     const isTransfer = await bridgeMessage.testIsTransfer(badTransfer);
     expect(isTransfer).to.be.false;

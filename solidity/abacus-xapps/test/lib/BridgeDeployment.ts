@@ -6,8 +6,20 @@ import { AbacusDeployment } from './AbacusDeployment';
 import { toBytes32 } from './utils';
 import * as types from './types';
 
-import { MockWeth__factory, MockWeth, BridgeToken, BridgeToken__factory, BridgeRouter, BridgeRouter__factory, ETHHelper, ETHHelper__factory } from '../../typechain'
-import { UpgradeBeacon__factory, UpgradeBeacon } from '@abacus-network/abacus-sol/typechain';
+import {
+  MockWeth__factory,
+  MockWeth,
+  BridgeToken,
+  BridgeToken__factory,
+  BridgeRouter,
+  BridgeRouter__factory,
+  ETHHelper,
+  ETHHelper__factory,
+} from '../../typechain';
+import {
+  UpgradeBeacon__factory,
+  UpgradeBeacon,
+} from '@abacus-network/abacus-sol/typechain';
 
 export interface BridgeInstance {
   domain: types.Domain;
@@ -16,30 +28,47 @@ export interface BridgeInstance {
   beacon: UpgradeBeacon;
   token: BridgeToken;
   weth: MockWeth;
-  signer: ethers.Signer
+  signer: ethers.Signer;
 }
 
 export class BridgeDeployment {
-  constructor(public readonly domains: types.Domain[], public readonly instances: Record<number, BridgeInstance>) {}
+  constructor(
+    public readonly domains: types.Domain[],
+    public readonly instances: Record<number, BridgeInstance>,
+  ) {}
 
-  static async fromAbacusDeployment(abacus: AbacusDeployment, signer: ethers.Signer) {
+  static async fromAbacusDeployment(
+    abacus: AbacusDeployment,
+    signer: ethers.Signer,
+  ) {
     const instances: Record<number, BridgeInstance> = {};
     for (const domain of abacus.domains) {
-      const instance = await BridgeDeployment.deployInstance(domain, signer, abacus.instances[domain].connectionManager.address);
+      const instance = await BridgeDeployment.deployInstance(
+        domain,
+        signer,
+        abacus.instances[domain].connectionManager.address,
+      );
       instances[domain] = instance;
     }
 
     for (const local of abacus.domains) {
       for (const remote of abacus.domains) {
         if (local !== remote) {
-          await instances[local].router.enrollRemoteRouter(remote, toBytes32(instances[remote].router.address))
+          await instances[local].router.enrollRemoteRouter(
+            remote,
+            toBytes32(instances[remote].router.address),
+          );
         }
       }
     }
     return new BridgeDeployment(abacus.domains, instances);
   }
 
-  static async deployInstance(domain: types.Domain, signer: ethers.Signer, connectionManagerAddress: types.Address): Promise<BridgeInstance> {
+  static async deployInstance(
+    domain: types.Domain,
+    signer: ethers.Signer,
+    connectionManagerAddress: types.Address,
+  ): Promise<BridgeInstance> {
     const wethFactory = new MockWeth__factory(signer);
     const weth = await wethFactory.deploy();
     await weth.initialize();
@@ -49,8 +78,11 @@ export class BridgeDeployment {
     await token.initialize();
 
     const beaconFactory = new UpgradeBeacon__factory(signer);
-    const beacon = await beaconFactory.deploy(token.address, await signer.getAddress());
-    
+    const beacon = await beaconFactory.deploy(
+      token.address,
+      await signer.getAddress(),
+    );
+
     const routerFactory = new BridgeRouter__factory(signer);
     const router = await routerFactory.deploy();
     await router.initialize(beacon.address, connectionManagerAddress);
@@ -65,7 +97,7 @@ export class BridgeDeployment {
       token,
       weth,
       signer,
-    }
+    };
   }
 
   router(domain: types.Domain): BridgeRouter {
@@ -84,11 +116,16 @@ export class BridgeDeployment {
     return this.instances[domain].helper;
   }
 
-  async bridgeToken(local: types.Domain, remote: types.Domain, address: ethers.BytesLike): Promise<BridgeToken> {
+  async bridgeToken(
+    local: types.Domain,
+    remote: types.Domain,
+    address: ethers.BytesLike,
+  ): Promise<BridgeToken> {
     const router = this.router(local);
-    const reprAddr = await router[
-      'getLocalAddress(uint32,bytes32)'
-    ](remote, address);
+    const reprAddr = await router['getLocalAddress(uint32,bytes32)'](
+      remote,
+      address,
+    );
     return BridgeToken__factory.connect(reprAddr, this.signer(local));
   }
 }

@@ -1,5 +1,5 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { BytesLike, ethers } from 'ethers';
+import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+import { BytesLike, ethers } from "ethers";
 
 /********* HRE *********/
 
@@ -17,7 +17,7 @@ export interface HardhatAbacusHelpers {
   signedFailureNotification: Function;
 }
 
-declare module 'hardhat/types/runtime' {
+declare module "hardhat/types/runtime" {
   interface HardhatRuntimeEnvironment {
     abacus: HardhatAbacusHelpers;
   }
@@ -61,7 +61,7 @@ export type BytesArray = [
   BytesLike,
   BytesLike,
   BytesLike,
-  BytesLike,
+  BytesLike
 ];
 
 /********* OPTICS CORE *********/
