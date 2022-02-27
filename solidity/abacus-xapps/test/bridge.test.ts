@@ -200,14 +200,11 @@ describe.only('BridgeRouter', async () => {
       });
     });
 
-    /*
     describe('locally-originating asset roundtrip', async () => {
       let transferMessage: string;
       let localToken: BridgeToken;
 
-      before(async () => {
-        deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
-
+      beforeEach(async () => {
         localToken = await new BridgeToken__factory(deployer).deploy();
         await localToken.initialize();
         await localToken.mint(deployerAddress, TOKEN_VALUE);
@@ -215,7 +212,7 @@ describe.only('BridgeRouter', async () => {
         // generate protocol messages
         const transferMessageObj: types.Message = {
           tokenId: {
-            domain: deploy.localDomain,
+            domain: localDomain,
             id: toBytes32(localToken.address),
           },
           action: {
@@ -230,16 +227,16 @@ describe.only('BridgeRouter', async () => {
           BigNumber.from(TOKEN_VALUE),
         );
         expect(
-          await localToken.balanceOf(deploy.bridgeRouter!.address),
+          await localToken.balanceOf(bridgeDeployment.router(localDomain).address),
         ).to.equal(BigNumber.from(0));
       });
 
       it('errors if the token is not approved', async () => {
         // TOKEN NOT APPROVED
-        const unapproved = deploy.bridgeRouter!.send(
+        const unapproved = bridgeDeployment.router(localDomain).send(
           localToken.address,
           1,
-          deploy.remoteDomain,
+          remoteDomain,
           deployerId,
         );
 
@@ -247,20 +244,20 @@ describe.only('BridgeRouter', async () => {
           'ERC20: transfer amount exceeds allowance',
         );
         expect(
-          await localToken.balanceOf(deploy.bridgeRouter!.address),
+          await localToken.balanceOf(bridgeDeployment.router(localDomain).address)
         ).to.equal(BigNumber.from(0));
       });
 
       it('errors if insufficient balance', async () => {
         await localToken.approve(
-          deploy.bridgeRouter!.address,
+          bridgeDeployment.router(localDomain).address,
           ethers.constants.MaxUint256,
         );
 
-        const badTx = deploy.bridgeRouter!.send(
+        const badTx = bridgeDeployment.router(localDomain).send(
           localToken.address,
-          TOKEN_VALUE * 5,
-          deploy.remoteDomain,
+          TOKEN_VALUE + 1,
+          remoteDomain,
           deployerId,
         );
 
@@ -268,39 +265,54 @@ describe.only('BridgeRouter', async () => {
           'ERC20: transfer amount exceeds balance',
         );
         expect(
-          await localToken.balanceOf(deploy.bridgeRouter!.address),
+          await localToken.balanceOf(bridgeDeployment.router(localDomain).address)
         ).to.equal(BigNumber.from(0));
       });
 
       it('holds tokens on outbound transfer', async () => {
-        const sendTx = await deploy.bridgeRouter!.send(
+        await localToken.approve(
+          bridgeDeployment.router(localDomain).address,
+          ethers.constants.MaxUint256,
+        );
+
+        const sendTx = await bridgeDeployment.router(localDomain).send(
           localToken.address,
           TOKEN_VALUE,
-          deploy.remoteDomain,
+          remoteDomain,
           deployerId,
         );
 
-        await expect(sendTx)
-          .to.emit(deploy.mockCore, 'Enqueue')
-          .withArgs(deploy.remoteDomain, deployerId, transferMessage);
+        await expect(sendTx).to.emit(abacusDeployment.home(localDomain), 'Dispatch')
 
         expect(
-          await localToken.balanceOf(deploy.bridgeRouter!.address),
+          await localToken.balanceOf(bridgeDeployment.router(localDomain).address)
         ).to.equal(BigNumber.from(TOKEN_VALUE));
       });
 
       it('unlocks tokens on inbound transfer', async () => {
-        let handleTx = await deploy.bridgeRouter!.handle(
-          deploy.remoteDomain,
+        await localToken.approve(
+          bridgeDeployment.router(localDomain).address,
+          ethers.constants.MaxUint256,
+        );
+
+        const sendTx = await bridgeDeployment.router(localDomain).send(
+          localToken.address,
+          TOKEN_VALUE,
+          remoteDomain,
+          deployerId,
+        );
+
+        let handleTx = await bridgeDeployment.router(localDomain).handle(
+          remoteDomain,
           deployerId,
           transferMessage,
           { gasLimit: PROTOCOL_PROCESS_GAS },
         );
 
-        expect(handleTx).to.not.emit(deploy.bridgeRouter!, 'TokenDeployed');
+        expect(handleTx).to.not.emit(bridgeDeployment.router(localDomain), 'TokenDeployed');
 
         expect(
-          await localToken.balanceOf(deploy.bridgeRouter!.address),
+          await localToken.balanceOf(bridgeDeployment.router(localDomain).address)
         ).to.equal(BigNumber.from(0));
 
         expect(await localToken.balanceOf(deployerAddress)).to.equal(
@@ -308,7 +320,6 @@ describe.only('BridgeRouter', async () => {
         );
       });
     });
-    */
   });
 
   /*
