@@ -32,14 +32,10 @@ jobs:
 
       - name: build
         run: |
-          cd ./typescript/contract-metrics
-          npm run build
-          cd ../abacus-deploy
-          npm run build
-          cd ../abacus-sdk
-          npm run build
-          cd ../typechain
-          npm run build
+          npm --prefix ./typescript/typechain run build
+          npm --prefix ./typescript/abacus-sdk run build
+          npm --prefix ./typescript/abacus-deploy run build
+          npm --prefix ./typescript/contract-metrics run build
   typescript-lint:
     runs-on: ubuntu-latest
     needs: [typescript-install]

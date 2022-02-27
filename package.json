@@ -1,7 +1,7 @@
 {
   "name": "@abacus-network/monorepo",
   "scripts": {
-    "build": "npm run build --workspaces"
+    "build": "npm run build --workspaces",
     "prettier": "npm run prettier --workspaces"
   },
   "workspaces": [
