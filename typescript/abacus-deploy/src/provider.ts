@@ -41,10 +41,7 @@ ${Object.keys(coreDeploy.contracts.replicas)
     .map((_) => _.chain.name)
     .join(', ')}];`;
   writeFileSync(
-    resolve(
-      __dirname,
-      `../../abacus-sdk/src/abacus/domains/${environment}.ts`,
-    ),
+    resolve(__dirname, `../../abacus-sdk/src/abacus/domains/${environment}.ts`),
     ret,
   );
 }

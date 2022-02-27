@@ -4,9 +4,7 @@
 set -e
 
 # compile contracts
-npm --prefix ./solidity/abacus-core run compile
-npm --prefix ./solidity/abacus-xapps run compile
-npm --prefix ./typescript/typechain run build
+npm run build
 
 # copy artifacts
 cp -R ./solidity/abacus-xapps/artifacts ./typescript/abacus-tests

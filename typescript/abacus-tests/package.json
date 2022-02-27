@@ -31,7 +31,6 @@
     "build": "tsc",
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./test ./lib",
-    "prettier-ci": "prettier --check ./test",
     "test": "hardhat test",
     "testNoCompile": "hardhat test"
   },

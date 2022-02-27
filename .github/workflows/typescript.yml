@@ -52,12 +52,7 @@ jobs:
 
       - name: prettier
         run: |
-          cd ./typescript/abacus-deploy
           npm run prettier
-          cd ../abacus-sdk
-          npm run prettier
-          cd ../abacus-tests
-          npm run prettier-ci
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"
