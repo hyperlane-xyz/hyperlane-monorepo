@@ -476,7 +476,6 @@ describe.only('BridgeRouter', async () => {
     });
   });
 
-  /*
   describe('details message', async () => {
     let localToken: BridgeToken;
     let requestMessage: string;
@@ -489,15 +488,14 @@ describe.only('BridgeRouter', async () => {
     const TEST_SYMBOL = 'TEST';
     const TEST_DECIMALS = 8;
 
-    before(async () => {
-      deploy = await TestBridgeDeploy.deploy(getTestChain, ethers, deployer);
+    beforeEach(async () => {
       localToken = await new BridgeToken__factory(deployer).deploy();
       await localToken.initialize();
       await localToken.setDetails(TEST_NAME, TEST_SYMBOL, TEST_DECIMALS);
 
       const requestMessageObj: types.Message = {
         tokenId: {
-          domain: deploy.localDomain,
+          domain: localDomain,
           id: toBytes32(localToken.address),
         },
         action: {
@@ -508,7 +506,7 @@ describe.only('BridgeRouter', async () => {
 
       const outgoingDetailsObj: types.Message = {
         tokenId: {
-          domain: deploy.localDomain,
+          domain: localDomain,
           id: toBytes32(localToken.address),
         },
         action: {
@@ -522,7 +520,7 @@ describe.only('BridgeRouter', async () => {
 
       // generate transfer action
       const transferMessageObj: types.Message = {
-        tokenId: deploy.testTokenId,
+        tokenId: testTokenId,
         action: {
           type: BridgeMessageTypes.TRANSFER,
           recipient: deployerId,
@@ -532,7 +530,7 @@ describe.only('BridgeRouter', async () => {
       transferMessage = bridge.serializeMessage(transferMessageObj);
 
       const incomingDetailsObj: types.Message = {
-        tokenId: deploy.testTokenId,
+        tokenId: testTokenId,
         action: {
           type: BridgeMessageTypes.DETAILS,
           name: stringToBytes32(TEST_NAME),
@@ -543,52 +541,46 @@ describe.only('BridgeRouter', async () => {
       incomingDetails = bridge.serializeMessage(incomingDetailsObj);
 
       // first send in a transfer to create the repr
-      await deploy.bridgeRouter!.handle(
-        deploy.remoteDomain,
+      await bridgeDeployment.router(localDomain).handle(
+        remoteDomain,
         deployerId,
         transferMessage,
       );
 
-      const representation = await deploy.getTestRepresentation();
-      expect(representation).to.not.be.undefined;
-      repr = representation!;
+      repr = await bridgeDeployment.bridgeToken(localDomain, remoteDomain, testToken);
     });
 
     it('allows admins to dispatch requestDetails', async () => {
-      const requestTx = await deploy.bridgeRouter!.requestDetails(
-        deploy.remoteDomain,
-        deploy.testToken,
+      const requestTx = await bridgeDeployment.router(localDomain).requestDetails(
+        remoteDomain,
+        testToken,
       );
 
       const requestDetailsObj: types.Message = {
-        tokenId: deploy.testTokenId,
+        tokenId: testTokenId,
         action: {
           type: BridgeMessageTypes.REQUEST_DETAILS,
         },
       };
       const requestDetails = bridge.serializeMessage(requestDetailsObj);
 
-      await expect(requestTx)
-        .to.emit(deploy.mockCore, 'Enqueue')
-        .withArgs(deploy.remoteDomain, deployerId, requestDetails);
+      await expect(requestTx).to.emit(abacusDeployment.home(localDomain), 'Dispatch');
     });
 
     it('handles incoming requestDetails by dispatching a details message', async () => {
-      const handleTx = deploy.bridgeRouter!.handle(
-        deploy.remoteDomain,
+      const handleTx = bridgeDeployment.router(localDomain).handle(
+        remoteDomain,
         deployerId,
         requestMessage,
       );
 
-      await expect(handleTx)
-        .to.emit(deploy.mockCore, 'Enqueue')
-        .withArgs(deploy.remoteDomain, deployerId, outgoingDetails);
+      await expect(handleTx).to.emit(abacusDeployment.home(localDomain), 'Dispatch');
     });
 
     it('errors if token is a repr', async () => {
       const badRequestObj: types.Message = {
         tokenId: {
-          domain: deploy.localDomain,
+          domain: localDomain,
           id: toBytes32(repr.address),
         },
         action: {
@@ -597,8 +589,8 @@ describe.only('BridgeRouter', async () => {
       };
       const badRequest = bridge.serializeMessage(badRequestObj);
 
-      let badRequestTx = deploy.bridgeRouter?.handle(
-        deploy.remoteDomain,
+      let badRequestTx = bridgeDeployment.router(localDomain).handle(
+        remoteDomain,
         deployerId,
         badRequest,
       );
@@ -609,7 +601,7 @@ describe.only('BridgeRouter', async () => {
     it('errors if no registered router for response', async () => {
       const badRequestObj: types.Message = {
         tokenId: {
-          domain: deploy.localDomain,
+          domain: localDomain,
           id: toBytes32(localToken.address),
         },
         action: {
@@ -618,7 +610,7 @@ describe.only('BridgeRouter', async () => {
       };
       const badRequest = bridge.serializeMessage(badRequestObj);
 
-      let badRequestTx = deploy.bridgeRouter?.handle(
+      let badRequestTx = bridgeDeployment.router(localDomain).handle(
         3812,
         deployerId,
         badRequest,
@@ -633,8 +625,8 @@ describe.only('BridgeRouter', async () => {
       expect((await repr.symbol()).length).to.equal(15);
       expect(await repr.decimals()).to.equal(18);
 
-      await deploy.bridgeRouter!.handle(
-        deploy.remoteDomain,
+      await bridgeDeployment.router(localDomain).handle(
+        remoteDomain,
         deployerId,
         incomingDetails,
       );
@@ -645,6 +637,7 @@ describe.only('BridgeRouter', async () => {
     });
   });
 
+  /*
   describe('custom token representations', async () => {
     let transferMessage: string;
     let defaultRepr: BridgeToken;
