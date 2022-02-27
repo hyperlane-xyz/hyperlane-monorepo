@@ -9,7 +9,7 @@ import {
 
 const merkleTestCases = require('../../../vectors/merkle.json');
 
-describe.only('Merkle', async () => {
+describe('Merkle', async () => {
   for (let testCase of merkleTestCases) {
     const { testName, leaves, expectedRoot, proofs } = testCase;
 
