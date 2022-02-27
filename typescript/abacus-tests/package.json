@@ -16,9 +16,9 @@
     "typescript": "^4.3.2"
   },
   "dependencies": {
-    "@abacus-network/abacus-deploy": "*",
-    "@abacus-network/sdk": "*",
-    "@abacus-network/ts-interface": "*",
+    "@abacus-network/abacus-deploy": "^0.0.5",
+    "@abacus-network/sdk": "^0.0.1",
+    "@abacus-network/ts-interface": "^0.0.1",
     "@types/node": "^15.14.7",
     "dotenv": "^10.0.0",
     "hardhat-gas-reporter": "^1.0.7"

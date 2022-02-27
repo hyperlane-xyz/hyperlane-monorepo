@@ -50,7 +50,5 @@ jobs:
         uses: ./.github/workflows/npm
         with:
           runneros: ${{ runner.os }}
-      - name: link
-        run: ./scripts/link.sh
       - name: test
         run: ./scripts/test-solidity.sh

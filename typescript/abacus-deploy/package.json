@@ -21,8 +21,8 @@
   "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "@abacus-network/sdk": "*",
-    "@abacus-network/ts-interface": "*",
+    "@abacus-network/sdk": "^0.0.1",
+    "@abacus-network/ts-interface": "^0.0.1",
     "@aws-sdk/client-kms": "3.48.0",
     "@ethersproject/experimental": "^5.3.0",
     "@types/node": "^16.9.1",
