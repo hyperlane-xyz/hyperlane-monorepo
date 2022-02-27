@@ -1,7 +1,7 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
-import { updateReplica, formatCall, formatOpticsMessage } from './utils';
+import { updateReplica, formatCall, formatAbacusMessage } from './utils';
 import { increaseTimestampBy, UpgradeTestHelpers } from '../utils';
 import { getTestDeploy } from '../testChain';
 import { Updater } from '../../lib/core';
@@ -20,7 +20,7 @@ const nonGovernorDomain = 2000;
 const thirdDomain = 3000;
 
 /*
- * Deploy the full Optics suite on two chains
+ * Deploy the full Abacus suite on two chains
  */
 describe('GovernanceRouter', async () => {
   let deploys: Deploy[] = [];
@@ -59,7 +59,7 @@ describe('GovernanceRouter', async () => {
     deploys[1] = await getTestDeploy(nonGovernorDomain, updater.address, []);
     deploys[2] = await getTestDeploy(thirdDomain, updater.address, []);
 
-    // deploy the entire Optics suite on two chains
+    // deploy the entire Abacus suite on two chains
     await deployNChains([deploys[0], deploys[1]]);
 
     // get both governanceRouters
@@ -180,7 +180,7 @@ describe('GovernanceRouter', async () => {
       abacus.ethersAddressToBytes32(secondGovernor),
     );
 
-    const abacusMessage = await formatOpticsMessage(
+    const abacusMessage = await formatAbacusMessage(
       unenrolledReplica,
       governorRouter,
       nonGovernorRouter,
@@ -199,7 +199,7 @@ describe('GovernanceRouter', async () => {
       abacus.ethersAddressToBytes32(nonGovernorRouter.address),
     );
 
-    const abacusMessage = await formatOpticsMessage(
+    const abacusMessage = await formatAbacusMessage(
       governorReplicaOnNonGovernorChain,
       nonGovernorRouter,
       governorRouter,
@@ -219,7 +219,7 @@ describe('GovernanceRouter', async () => {
 
   it('Accepts a valid transfer governor message', async () => {
     // Enroll router for new domain (in real setting this would
-    // be executed with an Optics message sent to the nonGovernorRouter)
+    // be executed with an Abacus message sent to the nonGovernorRouter)
     await nonGovernorRouter.testSetRouter(
       thirdDomain,
       abacus.ethersAddressToBytes32(thirdRouter.address),
@@ -231,7 +231,7 @@ describe('GovernanceRouter', async () => {
       abacus.ethersAddressToBytes32(thirdRouter.address),
     );
 
-    const abacusMessage = await formatOpticsMessage(
+    const abacusMessage = await formatAbacusMessage(
       governorReplicaOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
@@ -262,7 +262,7 @@ describe('GovernanceRouter', async () => {
       abacus.ethersAddressToBytes32(router.address),
     );
 
-    const abacusMessage = await formatOpticsMessage(
+    const abacusMessage = await formatAbacusMessage(
       governorReplicaOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
@@ -296,7 +296,7 @@ describe('GovernanceRouter', async () => {
     // Create Call message to test recipient that calls receiveString
     const callMessage = abacus.governance.formatCalls([call, call]);
 
-    const abacusMessage = await formatOpticsMessage(
+    const abacusMessage = await formatAbacusMessage(
       governorReplicaOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
@@ -355,7 +355,7 @@ describe('GovernanceRouter', async () => {
       abacus.ethersAddressToBytes32(secondGovernor),
     );
 
-    const abacusMessage = await formatOpticsMessage(
+    const abacusMessage = await formatAbacusMessage(
       governorReplicaOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,

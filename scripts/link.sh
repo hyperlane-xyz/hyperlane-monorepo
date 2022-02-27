@@ -1,21 +1,28 @@
 # script for auto-formatting supported files
-# Run from root (./scripts/format.sh)
+# Run from root (./scripts/link.sh)
+# NB: Using --prefix here causes npm to create and expect a "lib" directory
+# at the prefix. Instead, we choose to use the global prefix so as not to
+# create those directories.
 
 set -e
 
 # create symlinks
-npm --prefix ./typescript/typechain link
-npm --prefix ./typescript/abacus-sdk link
-npm --prefix ./typescript/abacus-deploy link
+# NB: Using --prefix here would create a "lib" folder in the package
+cd ./typescript/typechain && npm link && cd ../../
+cd ./typescript/abacus-sdk && npm link && cd ../../
+cd ./typescript/abacus-deploy && npm link && cd ../../
 
 # link abacus-sdk
-npm --prefix ./typescript/abacus-sdk link @abacus-network/ts-interface
+cd ./typescript/abacus-sdk
+npm link @abacus-network/ts-interface
+cd ../../
 
 # link abacus-deploy
-npm --prefix ./typescript/abacus-deploy link @abacus-network/ts-interface
-npm --prefix ./typescript/abacus-deploy link @abacus-network/sdk
+cd ./typescript/abacus-deploy
+npm link @abacus-network/ts-interface @abacus-network/sdk
+cd ../../
 
 # link abacus-tests
-npm --prefix ./typescript/abacus-tests link @abacus-network/ts-interface
-npm --prefix ./typescript/abacus-tests link @abacus-network/sdk
-npm --prefix ./typescript/abacus-tests link @abacus-network/abacus-deploy
+cd ./typescript/abacus-tests
+npm link @abacus-network/ts-interface @abacus-network/sdk @abacus-network/abacus-deploy
+cd ../../

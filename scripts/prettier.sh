@@ -1,5 +1,5 @@
 # script for auto-formatting supported files
-# Run from root (./scripts/format.sh)
+# Run from root (./scripts/prettier.sh)
 
 set -e
 

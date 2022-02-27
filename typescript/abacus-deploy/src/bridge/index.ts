@@ -1,6 +1,6 @@
 import * as proxyUtils from '../utils/proxy';
 import { BridgeInvariantChecker } from './checks';
-import * as xAppContracts from '@abacus-network/ts-interface/dist/optics-xapps';
+import * as xAppContracts from '@abacus-network/ts-interface/dist/abacus-xapps';
 import { toBytes32 } from '../utils/utils';
 import { BridgeDeploy } from './BridgeDeploy';
 import assert from 'assert';
@@ -12,7 +12,7 @@ export type BridgeDeployOutput = {
 /**
  * Deploy and configure a cross-chain token bridge system
  * with one BridgeRouter on each of the provided chains
- * with ownership delegated to Optics governance
+ * with ownership delegated to Abacus governance
  *
  * @param deploys - The list of deploy instances for each chain
  */

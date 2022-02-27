@@ -1,8 +1,8 @@
 import { expect } from 'chai';
-import { OpticsContext } from '@abacus-network/sdk';
+import { AbacusContext } from '@abacus-network/sdk';
 
-describe('optics multi-provider', () => {
+describe('abacus sdk', () => {
   it('compiles', () => {
-    expect(OpticsContext).to.not.be.undefined;
+    expect(AbacusContext).to.not.be.undefined;
   });
 });

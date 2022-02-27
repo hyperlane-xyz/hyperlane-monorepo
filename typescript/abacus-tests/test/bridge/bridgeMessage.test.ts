@@ -10,7 +10,7 @@ import {
   TestBridgeMessage__factory,
   TestBridgeMessage,
 } from '@abacus-network/ts-interface/dist/abacus-xapps';
-import { TokenIdentifier } from '@abacus-network/sdk/dist/optics';
+import { TokenIdentifier } from '@abacus-network/sdk/dist/abacus';
 
 const stringToBytes32 = (s: string): string => {
   const str = Buffer.from(s.slice(0, 32), 'utf-8');

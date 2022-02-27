@@ -32,12 +32,12 @@ describe('XAppConnectionManager', async () => {
 
     // deploy abacus on remote domain
     // NB: as tests stand currently, this only needs to be done once
-    await deploys.deployOptics(remoteDeploy);
+    await deploys.deployAbacus(remoteDeploy);
   });
 
   beforeEach(async () => {
     // deploy abacus on local domain
-    await deploys.deployOptics(localDeploy);
+    await deploys.deployAbacus(localDeploy);
 
     // deploy replica and enroll on local deploy
     await deploys.enrollRemote(localDeploy, remoteDeploy);

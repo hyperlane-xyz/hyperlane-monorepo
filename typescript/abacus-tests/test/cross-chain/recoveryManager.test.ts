@@ -196,7 +196,7 @@ const localDomain = 1000;
 const remoteDomain = 2000;
 
 /*
- * Deploy the full Optics suite on two chains
+ * Deploy the full Abacus suite on two chains
  */
 describe('RecoveryManager', async () => {
   let governor: Signer,

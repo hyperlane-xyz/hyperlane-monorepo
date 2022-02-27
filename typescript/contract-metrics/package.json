@@ -11,8 +11,8 @@
     "relink": "cd ../optics-provider && npm run build && cd ../contract-metrics && npm link optics-multi-provider-community"
   },
   "dependencies": {
-    "@abacus-network/sdk": "0.0.1",
-    "@optics-xyz/ts-interface": "^1.0.9",
+    "@abacus-network/sdk": "*",
+    "@abacus-network/ts-interface": "*",
     "@types/bunyan": "^1.8.7",
     "@types/express": "^4.17.13",
     "@types/google-spreadsheet": "^3.1.5",

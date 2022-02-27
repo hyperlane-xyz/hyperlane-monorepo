@@ -4,12 +4,10 @@
 set -e
 
 # compile contracts
-cd ./solidity/abacus-core
-npm run compile
-cd ../abacus-xapps
-npm run compile
+npm --prefix ./solidity/abacus-core run compile
+npm --prefix ./solidity/abacus-xapps run compile
+npm --prefix ./typescript/typechain run build
 
-cd ../../
 # copy artifacts
 cp -R ./solidity/abacus-xapps/artifacts ./typescript/abacus-tests
 cp -R ./solidity/abacus-core/artifacts ./typescript/abacus-tests
@@ -19,7 +17,4 @@ cp -R ./solidity/abacus-xapps/cache ./typescript/abacus-tests
 cp -R ./solidity/abacus-core/cache ./typescript/abacus-tests
 
 # run tests
-cd ./typescript/abacus-tests
-npm i
-npm run testNoCompile
-cd ../..
+npm --prefix ./typescript/abacus-tests run testNoCompile

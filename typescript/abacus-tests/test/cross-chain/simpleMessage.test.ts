@@ -19,7 +19,7 @@ const localDomain = domains[0];
 const remoteDomain = domains[1];
 
 /*
- * Deploy the full Optics suite on two chains
+ * Deploy the full Abacus suite on two chains
  * dispatch messages to Home
  * sign and submit updates to Home
  * relay updates to Replica
@@ -130,7 +130,7 @@ describe('SimpleCrossChainMessage', async () => {
     const call = await utils.formatCall(TestRecipient, 'processCall', [arg]);
     const callMessage = abacus.governance.formatCalls([call]);
 
-    // Create Optics message that is sent from the governor domain and governor
+    // Create Abacus message that is sent from the governor domain and governor
     // to the nonGovernorRouter on the nonGovernorDomain
     const nonce = 0;
     const abacusMessage = abacus.formatMessage(
