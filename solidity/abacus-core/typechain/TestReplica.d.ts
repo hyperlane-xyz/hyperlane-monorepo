@@ -36,7 +36,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     "proveAndProcess(bytes,bytes32[32],uint256)": FunctionFragment;
     "remoteDomain()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
-    "setCheckpointedIndex(uint256)": FunctionFragment;
+    "setCheckpoint(bytes32,uint256)": FunctionFragment;
     "setMessageProven(bytes)": FunctionFragment;
     "setUpdaterManager(address)": FunctionFragment;
     "testBranchRoot(bytes32,bytes32[32],uint256)": FunctionFragment;
@@ -168,8 +168,8 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "setCheckpointedIndex",
-    values: [BigNumberish]
+    functionFragment: "setCheckpoint",
+    values: [BytesLike, BigNumberish]
   ): string;
   encodeFunctionData(
     functionFragment: "setMessageProven",
@@ -273,7 +273,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "setCheckpointedIndex",
+    functionFragment: "setCheckpoint",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -482,7 +482,8 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    setCheckpointedIndex(
+    setCheckpoint(
+      _root: BytesLike,
       _index: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -671,7 +672,8 @@ export class TestReplica extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  setCheckpointedIndex(
+  setCheckpoint(
+    _root: BytesLike,
     _index: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -855,7 +857,8 @@ export class TestReplica extends BaseContract {
 
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
-    setCheckpointedIndex(
+    setCheckpoint(
+      _root: BytesLike,
       _index: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
@@ -1076,7 +1079,8 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    setCheckpointedIndex(
+    setCheckpoint(
+      _root: BytesLike,
       _index: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
@@ -1272,7 +1276,8 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    setCheckpointedIndex(
+    setCheckpoint(
+      _root: BytesLike,
       _index: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;

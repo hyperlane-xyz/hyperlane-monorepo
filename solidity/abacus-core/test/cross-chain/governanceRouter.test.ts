@@ -1,7 +1,7 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
-import { updateReplica, formatCall, formatAbacusMessage } from './utils';
+import { formatCall, formatAbacusMessage } from './utils';
 import { increaseTimestampBy, UpgradeTestHelpers } from '../utils';
 import { Updater } from '../lib/core';
 import { Address, Signer } from '../lib/types';

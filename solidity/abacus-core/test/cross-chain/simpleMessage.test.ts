@@ -3,7 +3,7 @@ import { expect } from 'chai';
 
 import * as utils from './utils';
 import { Updater, MessageStatus } from '../lib/core';
-import { Update, Signer, BytesArray } from '../lib/types';
+import { Signer, BytesArray } from '../lib/types';
 import { TestRecipient__factory, TestReplica } from '../../typechain';
 import { AbacusDeployment } from '../lib/AbacusDeployment';
 import { GovernanceDeployment } from '../lib/GovernanceDeployment';
@@ -25,7 +25,7 @@ const remoteDomain = domains[1];
 describe('SimpleCrossChainMessage', async () => {
   let abacusDeployment: AbacusDeployment;
   let governanceDeployment: GovernanceDeployment;
-  let randomSigner: Signer, updater: Updater, latestUpdate: Update;
+  let randomSigner: Signer, updater: Updater
 
   before(async () => {
     [randomSigner] = await ethers.getSigners();
@@ -43,70 +43,49 @@ describe('SimpleCrossChainMessage', async () => {
   it('All Homes have correct initial state', async () => {
     const nullRoot = '0x' + '00'.repeat(32);
 
-    // governorHome has 0 updates
     const governorHome = abacusDeployment.home(localDomain);
 
-    let length = await governorHome.queueLength();
-    expect(length).to.equal(0);
+    let [root, index] = await governorHome.latestCheckpoint();
+    expect(root).to.equal(nullRoot);
+    expect(index).to.equal(0);
 
-    let [suggestedCommitted, suggestedNew] = await governorHome.suggestUpdate();
-    expect(suggestedCommitted).to.equal(nullRoot);
-    expect(suggestedNew).to.equal(nullRoot);
-
-    // nonGovernorHome has 2 updates
     const nonGovernorHome = abacusDeployment.home(remoteDomain);
 
-    length = await nonGovernorHome.queueLength();
-    expect(length).to.equal(2);
-
-    [suggestedCommitted, suggestedNew] = await nonGovernorHome.suggestUpdate();
-    expect(suggestedCommitted).to.equal(nullRoot);
-    expect(suggestedNew).to.not.equal(nullRoot);
+    [root, index] = await nonGovernorHome.latestCheckpoint();
+    expect(root).to.equal(nullRoot);
+    expect(index).to.equal(0);
   });
 
-  it('Origin Home Accepts one valid update', async () => {
+  it('Origin Home accepts valid messages', async () => {
     const messages = ['message'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    const update = await utils.dispatchMessagesAndUpdateHome(
+    const update = await utils.dispatchMessages(
       abacusDeployment.home(localDomain),
       messages,
-      updater,
-    );
-
-    latestUpdate = update;
-  });
-
-  it('Destination Replica Accepts the first update', async () => {
-    await utils.updateReplica(
-      latestUpdate,
-      abacusDeployment.replica(remoteDomain, localDomain),
     );
   });
 
-  it('Origin Home Accepts an update with several batched messages', async () => {
+  it('Destination Replica accepts a checkpoint', async () => {
+    const home = abacusDeployment.home(localDomain);
+    const replica = abacusDeployment.replica(remoteDomain, localDomain);
+    await utils.checkpoint(home, replica, updater);
+  });
+
+  it('Origin Home accepts batched messages', async () => {
     const messages = ['message1', 'message2', 'message3'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    const update = await utils.dispatchMessagesAndUpdateHome(
+    const update = await utils.dispatchMessages(
       abacusDeployment.home(localDomain),
       messages,
-      updater,
-    );
-    latestUpdate = update;
-  });
-
-  it('Destination Replica Accepts the second update', async () => {
-    await utils.updateReplica(
-      latestUpdate,
-      abacusDeployment.replica(remoteDomain, localDomain),
     );
   });
 
-  it('Destination Replica shows latest update as the committed root', async () => {
+  it('Destination Replica Accepts a second checkpoint', async () => {
+    const home = abacusDeployment.home(localDomain);
     const replica = abacusDeployment.replica(remoteDomain, localDomain);
-    const { newRoot } = latestUpdate;
-    expect(await replica.committedRoot()).to.equal(newRoot);
+    await utils.checkpoint(home, replica, updater);
   });
 
   it('Proves and processes a message on Replica', async () => {
@@ -148,7 +127,7 @@ describe('SimpleCrossChainMessage', async () => {
       path as BytesArray,
       index,
     );
-    await replica.setCommittedRoot(proofRoot);
+    await replica.setCheckpoint(proofRoot, 1);
 
     // prove and process message
     await replica.proveAndProcess(abacusMessage, path as BytesArray, index);

@@ -19,8 +19,8 @@ contract TestReplica is Replica {
         messages[_m.keccak()] = MessageStatus.Proven;
     }
 
-    function setCheckpointedIndex(uint256 _index) external {
-        checkpointedIndex = _index;
+    function setCheckpoint(bytes32 _root, uint256 _index) external {
+      checkpoints[_root] = _index;
     }
 
     function testBranchRoot(
