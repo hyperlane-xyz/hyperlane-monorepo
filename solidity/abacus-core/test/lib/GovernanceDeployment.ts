@@ -42,17 +42,20 @@ export class GovernanceDeployment {
     // Make all routers aware of eachother.
     for (const local of abacus.domains) {
       for (const remote of abacus.domains) {
-          await instances[local].router.setRouterLocal(
-            remote,
-            toBytes32(instances[remote].router.address)
-          );
+        await instances[local].router.setRouterLocal(
+          remote,
+          toBytes32(instances[remote].router.address)
+        );
       }
     }
 
     // Set the governor on all routers.
     for (let i = 0; i < abacus.domains.length; i++) {
       if (i > 0) {
-        await instances[abacus.domains[i]].router.transferGovernor(abacus.domains[0], instances[abacus.domains[0]].router.address)
+        await instances[abacus.domains[i]].router.transferGovernor(
+          abacus.domains[0],
+          instances[abacus.domains[0]].router.address
+        );
       }
     }
 

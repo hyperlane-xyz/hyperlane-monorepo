@@ -28,7 +28,8 @@
   },
   "scripts": {
     "prettier": "prettier --write ./contracts ./libs ./test",
-    "compile": "hardhat compile && hardhat typechain && npm run prettier && ./update_abis.sh",
+    "compile": "hardhat compile && hardhat typechain && npm run prettier && npm run copy-typechain",
+    "copy-typechain": "cp -r typechain ../../typescript/typechain/abacus-core/",
     "build": "npm run compile",
     "test": "hardhat test",
     "coverage": "npm run compile && hardhat coverage",

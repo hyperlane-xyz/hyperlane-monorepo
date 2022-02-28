@@ -68,7 +68,7 @@ export class AbacusDeployment {
     const homeFactory = new TestHome__factory(signer);
     const home = await homeFactory.deploy(local);
     await home.initialize(updaterManager.address);
-    await updaterManager.setHome(home.address)
+    await updaterManager.setHome(home.address);
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     const connectionManager = await connectionManagerFactory.deploy();
@@ -182,7 +182,11 @@ export class AbacusDeployment {
     const proof = await home.proof({ blockTag: dispatch.blockNumber });
     const destination = dispatch.args.destinationAndNonce.shr(32);
     const replica = this.replica(destination.toNumber(), local);
-    await replica.proveAndProcess(dispatch.args.message, proof, previousMessageCount)
+    await replica.proveAndProcess(
+      dispatch.args.message,
+      proof,
+      previousMessageCount
+    );
   }
 }
 
