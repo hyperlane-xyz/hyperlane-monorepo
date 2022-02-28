@@ -20,6 +20,7 @@ export interface HardhatAbacusHelpers {
 declare module "hardhat/types/runtime" {
   interface HardhatRuntimeEnvironment {
     abacus: HardhatAbacusHelpers;
+    deployment: any;
   }
 }
 

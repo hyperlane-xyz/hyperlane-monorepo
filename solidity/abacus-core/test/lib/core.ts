@@ -1,4 +1,4 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
+// import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
 import { assert } from "chai";
 import * as ethers from "ethers";
 
@@ -7,11 +7,11 @@ import { getHexStringByteLength } from "./utils";
 
 export class Updater {
   localDomain: types.Domain;
-  signer: SignerWithAddress;
+  signer: ethers.Signer;
   address: types.Address;
 
   constructor(
-    signer: SignerWithAddress,
+    signer: ethers.Signer,
     address: types.Address,
     localDomain: types.Domain,
     disableWarn: boolean
@@ -24,10 +24,7 @@ export class Updater {
     this.address = address;
   }
 
-  static async fromSigner(
-    signer: SignerWithAddress,
-    localDomain: types.Domain
-  ) {
+  static async fromSigner(signer: ethers.Signer, localDomain: types.Domain) {
     return new Updater(signer, await signer.getAddress(), localDomain, true);
   }
 

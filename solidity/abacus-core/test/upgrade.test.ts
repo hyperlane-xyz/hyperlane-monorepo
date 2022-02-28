@@ -2,20 +2,27 @@ import { ethers } from "hardhat";
 
 import { UpgradeTestHelpers, MysteryMathUpgrade } from "./utils";
 import { Signer } from "./lib/types";
-import { UpgradeBeaconController, MysteryMathV2__factory } from "../typechain";
+import {
+  UpgradeBeaconController__factory,
+  UpgradeBeaconController,
+  MysteryMathV2__factory,
+} from "../typechain";
 
 describe("Upgrade", async () => {
   const utils = new UpgradeTestHelpers();
   let signer: Signer,
     mysteryMath: MysteryMathUpgrade,
-    upgradeBeaconController: UpgradeBeaconController;
+    ubc: UpgradeBeaconController;
 
   before(async () => {
     // set signer
     [signer] = await ethers.getSigners();
 
+    const ubcFactory = new UpgradeBeaconController__factory(signer);
+    ubc = await ubcFactory.deploy();
+
     // deploy upgrade setup for mysteryMath contract
-    mysteryMath = await utils.deployMysteryMathUpgradeSetup(signer);
+    mysteryMath = await utils.deployMysteryMathUpgradeSetup(signer, ubc);
   });
 
   it("Pre-Upgrade returns values from MysteryMathV1", async () => {
@@ -28,10 +35,7 @@ describe("Upgrade", async () => {
     const implementation = await factory.deploy();
 
     // Upgrade to implementation 2
-    await mysteryMath.ubc.upgrade(
-      mysteryMath.beacon.address,
-      implementation.address
-    );
+    await ubc.upgrade(mysteryMath.beacon.address, implementation.address);
   });
 
   it("Post-Upgrade returns values from MysteryMathV2", async () => {

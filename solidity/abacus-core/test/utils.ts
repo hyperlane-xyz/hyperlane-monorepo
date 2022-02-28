@@ -6,9 +6,8 @@ import {
   MysteryMathV1,
   MysteryMathV2,
   MysteryMathV1__factory,
-  UpgradeBeacon,
   UpgradeBeaconController,
-  UpgradeBeaconController__factory,
+  UpgradeBeacon,
   UpgradeBeacon__factory,
   UpgradeBeaconProxy__factory,
 } from "../typechain";
@@ -25,7 +24,6 @@ export type MysteryMathUpgrade = {
   proxy: MysteryMathV1 | MysteryMathV2;
   beacon: UpgradeBeacon;
   implementation: MysteryMathV1 | MysteryMathV2;
-  ubc: UpgradeBeaconController;
 };
 
 export class UpgradeTestHelpers {
@@ -34,14 +32,12 @@ export class UpgradeTestHelpers {
   stateVar: number = 17;
 
   async deployMysteryMathUpgradeSetup(
-    signer: Signer
+    signer: Signer,
+    ubc: UpgradeBeaconController
   ): Promise<MysteryMathUpgrade> {
     // deploy implementation
     const mysteryMathFactory = new MysteryMathV1__factory(signer);
     const mysteryMathImplementation = await mysteryMathFactory.deploy();
-
-    const ubcFactory = new UpgradeBeaconController__factory(signer);
-    const ubc = await ubcFactory.deploy();
 
     // deploy and set upgrade beacon
     const beaconFactory = new UpgradeBeacon__factory(signer);
@@ -60,7 +56,7 @@ export class UpgradeTestHelpers {
     // Set state of proxy
     await proxy.setState(this.stateVar);
 
-    return { proxy, beacon, implementation: mysteryMathImplementation, ubc };
+    return { proxy, beacon, implementation: mysteryMathImplementation };
   }
 
   async expectMysteryMathV1(mysteryMathProxy: MysteryMathV1) {

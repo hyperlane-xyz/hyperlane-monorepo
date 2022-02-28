@@ -159,7 +159,7 @@ describe("XAppConnectionManager", async () => {
       await abacus.signedFailureNotification(
         watcher,
         remoteDomain,
-        updater.signer.address
+        await updater.signer.getAddress()
       );
 
     // Assert new replica considered replica before unenrolled
@@ -201,7 +201,7 @@ describe("XAppConnectionManager", async () => {
       await abacus.signedFailureNotification(
         watcher,
         noReplicaDomain,
-        updater.signer.address
+        await updater.signer.getAddress()
       );
 
     // Expect unenrollReplica call to revert
@@ -257,7 +257,7 @@ describe("XAppConnectionManager", async () => {
       await abacus.signedFailureNotification(
         nonWatcher,
         remoteDomain,
-        updater.signer.address
+        await updater.signer.getAddress()
       );
 
     // Expect unenrollReplica call to revert
