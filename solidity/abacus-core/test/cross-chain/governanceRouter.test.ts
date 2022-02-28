@@ -9,6 +9,8 @@ import { AbacusDeployment } from "../lib/AbacusDeployment";
 import { GovernanceDeployment } from "../lib/GovernanceDeployment";
 import {
   MysteryMathV2__factory,
+  TestReplica,
+  TestReplica__factory,
   TestGovernanceRouter,
   Replica,
   Home,
@@ -20,11 +22,13 @@ const governorDomain = 1000;
 const nonGovernorDomain = 2000;
 const thirdDomain = 3000;
 const domains = [governorDomain, nonGovernorDomain, thirdDomain];
+const processGas = 850000;
+const reserveGas = 15000;
 
 /*
  * Deploy the full Abacus suite on two chains
  */
-describe("GovernanceRouter", async () => {
+describe.only("GovernanceRouter", async () => {
   let abacusDeployment: AbacusDeployment;
   let governanceDeployment: GovernanceDeployment;
   let signer: Signer,
@@ -114,12 +118,19 @@ describe("GovernanceRouter", async () => {
     await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
   });
 
-  /*
   it('Rejects message from unenrolled replica', async () => {
-    await deployUnenrolledReplica(deploys[1], deploys[2]);
-
-    const unenrolledReplica = deploys[1].contracts.replicas[thirdDomain]
-      .proxy! as contracts.TestReplica;
+    const replicaFactory = new TestReplica__factory(signer);
+    const unenrolledReplica = await replicaFactory.deploy(
+      nonGovernorDomain,
+      processGas,
+      reserveGas
+    );
+    await unenrolledReplica.initialize(
+        thirdDomain,
+        await signer.getAddress(),
+        ethers.constants.HashZero,
+        0
+    );
 
     // Create TransferGovernor message
     const transferGovernorMessage = abacus.governance.formatTransferGovernor(
@@ -139,6 +150,7 @@ describe("GovernanceRouter", async () => {
     expect(success).to.be.false;
   });
 
+  /*
   it('Rejects message not from governor router', async () => {
     // Create TransferGovernor message
     const transferGovernorMessage = abacus.governance.formatTransferGovernor(
