@@ -14,18 +14,13 @@ contract TestReplica is Replica {
         uint256
     ) Replica(_localDomain, 850_000, 15_000) {} // solhint-disable-line no-empty-blocks
 
-    function setFailed() public {
-        _setFailed();
-    }
-
     function setMessageProven(bytes memory _message) external {
         bytes29 _m = _message.ref(0);
         messages[_m.keccak()] = MessageStatus.Proven;
     }
 
-    function setCommittedRoot(bytes32 _newRoot) external {
-        committedRoot = _newRoot;
-        confirmAt[_newRoot] = 1;
+    function setCheckpointedIndex(uint256 _index) external {
+        checkpointedIndex = _index;
     }
 
     function testBranchRoot(

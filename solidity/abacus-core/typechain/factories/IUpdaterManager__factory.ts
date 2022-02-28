@@ -13,24 +13,32 @@ const _abi = [
   {
     inputs: [
       {
-        internalType: "address payable",
-        name: "_reporter",
-        type: "address",
+        internalType: "uint32",
+        name: "_domain",
+        type: "uint32",
+      },
+      {
+        internalType: "bytes32",
+        name: "_root",
+        type: "bytes32",
+      },
+      {
+        internalType: "uint256",
+        name: "_index",
+        type: "uint256",
+      },
+      {
+        internalType: "bytes",
+        name: "_signature",
+        type: "bytes",
       },
     ],
-    name: "slashUpdater",
-    outputs: [],
-    stateMutability: "nonpayable",
-    type: "function",
-  },
-  {
-    inputs: [],
-    name: "updater",
+    name: "isUpdaterSignature",
     outputs: [
       {
-        internalType: "address",
+        internalType: "bool",
         name: "",
-        type: "address",
+        type: "bool",
       },
     ],
     stateMutability: "view",

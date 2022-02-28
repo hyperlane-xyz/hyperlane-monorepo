@@ -13,8 +13,4 @@ contract TestHome is Home {
     {
         return _destinationAndNonce(_destination, _nonce);
     }
-
-    function setFailed() public {
-        _setFailed();
-    }
 }

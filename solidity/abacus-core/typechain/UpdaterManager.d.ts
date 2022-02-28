@@ -21,57 +21,75 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface UpdaterManagerInterface extends ethers.utils.Interface {
   functions: {
+    "domainHash(uint32)": FunctionFragment;
+    "improperUpdate(address,bytes32,uint256,bytes)": FunctionFragment;
+    "isUpdaterSignature(uint32,bytes32,uint256,bytes)": FunctionFragment;
     "owner()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
-    "setHome(address)": FunctionFragment;
-    "setUpdater(address)": FunctionFragment;
-    "slashUpdater(address)": FunctionFragment;
+    "setUpdater(uint32,address)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
-    "updater()": FunctionFragment;
+    "updaters(uint32)": FunctionFragment;
   };
 
+  encodeFunctionData(
+    functionFragment: "domainHash",
+    values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "improperUpdate",
+    values: [string, BytesLike, BigNumberish, BytesLike]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "isUpdaterSignature",
+    values: [BigNumberish, BytesLike, BigNumberish, BytesLike]
+  ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "renounceOwnership",
     values?: undefined
   ): string;
-  encodeFunctionData(functionFragment: "setHome", values: [string]): string;
-  encodeFunctionData(functionFragment: "setUpdater", values: [string]): string;
   encodeFunctionData(
-    functionFragment: "slashUpdater",
-    values: [string]
+    functionFragment: "setUpdater",
+    values: [BigNumberish, string]
   ): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [string]
   ): string;
-  encodeFunctionData(functionFragment: "updater", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "updaters",
+    values: [BigNumberish]
+  ): string;
 
+  decodeFunctionResult(functionFragment: "domainHash", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "improperUpdate",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "isUpdaterSignature",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "setHome", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "setUpdater", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "slashUpdater",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "updater", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "updaters", data: BytesLike): Result;
 
   events: {
-    "FakeSlashed(address)": EventFragment;
-    "NewHome(address)": EventFragment;
+    "ImproperUpdate(address,uint32,address,bytes32,uint256,bytes)": EventFragment;
+    "NewUpdater(uint32,address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
   };
 
-  getEvent(nameOrSignatureOrTopic: "FakeSlashed"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "NewHome"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "ImproperUpdate"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewUpdater"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
 
@@ -119,24 +137,36 @@ export class UpdaterManager extends BaseContract {
   interface: UpdaterManagerInterface;
 
   functions: {
+    domainHash(
+      _domain: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<[string]>;
+
+    improperUpdate(
+      _home: string,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    isUpdaterSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<[boolean]>;
+
     owner(overrides?: CallOverrides): Promise<[string]>;
 
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    setHome(
-      _home: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     setUpdater(
-      _updaterAddress: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
-    slashUpdater(
-      _reporter: string,
+      _domain: BigNumberish,
+      _updater: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -145,8 +175,26 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    updater(overrides?: CallOverrides): Promise<[string]>;
+    updaters(arg0: BigNumberish, overrides?: CallOverrides): Promise<[string]>;
   };
+
+  domainHash(_domain: BigNumberish, overrides?: CallOverrides): Promise<string>;
+
+  improperUpdate(
+    _home: string,
+    _root: BytesLike,
+    _index: BigNumberish,
+    _signature: BytesLike,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  isUpdaterSignature(
+    _domain: BigNumberish,
+    _root: BytesLike,
+    _index: BigNumberish,
+    _signature: BytesLike,
+    overrides?: CallOverrides
+  ): Promise<boolean>;
 
   owner(overrides?: CallOverrides): Promise<string>;
 
@@ -154,18 +202,9 @@ export class UpdaterManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  setHome(
-    _home: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   setUpdater(
-    _updaterAddress: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
-  slashUpdater(
-    _reporter: string,
+    _domain: BigNumberish,
+    _updater: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -174,36 +213,72 @@ export class UpdaterManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  updater(overrides?: CallOverrides): Promise<string>;
+  updaters(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
+    domainHash(
+      _domain: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<string>;
+
+    improperUpdate(
+      _home: string,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<boolean>;
+
+    isUpdaterSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<boolean>;
+
     owner(overrides?: CallOverrides): Promise<string>;
 
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
-    setHome(_home: string, overrides?: CallOverrides): Promise<void>;
-
     setUpdater(
-      _updaterAddress: string,
+      _domain: BigNumberish,
+      _updater: string,
       overrides?: CallOverrides
     ): Promise<void>;
-
-    slashUpdater(_reporter: string, overrides?: CallOverrides): Promise<void>;
 
     transferOwnership(
       newOwner: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
-    updater(overrides?: CallOverrides): Promise<string>;
+    updaters(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
   };
 
   filters: {
-    FakeSlashed(
-      reporter?: null
-    ): TypedEventFilter<[string], { reporter: string }>;
+    ImproperUpdate(
+      home?: string | null,
+      domain?: BigNumberish | null,
+      updater?: string | null,
+      root?: null,
+      index?: null,
+      signature?: null
+    ): TypedEventFilter<
+      [string, number, string, string, BigNumber, string],
+      {
+        home: string;
+        domain: number;
+        updater: string;
+        root: string;
+        index: BigNumber;
+        signature: string;
+      }
+    >;
 
-    NewHome(home?: null): TypedEventFilter<[string], { home: string }>;
+    NewUpdater(
+      domain?: BigNumberish | null,
+      updater?: string | null
+    ): TypedEventFilter<[number, string], { domain: number; updater: string }>;
 
     OwnershipTransferred(
       previousOwner?: string | null,
@@ -215,24 +290,36 @@ export class UpdaterManager extends BaseContract {
   };
 
   estimateGas: {
+    domainHash(
+      _domain: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    improperUpdate(
+      _home: string,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    isUpdaterSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
     owner(overrides?: CallOverrides): Promise<BigNumber>;
 
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    setHome(
-      _home: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     setUpdater(
-      _updaterAddress: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
-    slashUpdater(
-      _reporter: string,
+      _domain: BigNumberish,
+      _updater: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -241,28 +328,40 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    updater(overrides?: CallOverrides): Promise<BigNumber>;
+    updaters(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   populateTransaction: {
+    domainHash(
+      _domain: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    improperUpdate(
+      _home: string,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    isUpdaterSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    setHome(
-      _home: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
     setUpdater(
-      _updaterAddress: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    slashUpdater(
-      _reporter: string,
+      _domain: BigNumberish,
+      _updater: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -271,6 +370,9 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    updater(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    updaters(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
   };
 }

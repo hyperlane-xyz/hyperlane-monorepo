@@ -11,7 +11,6 @@ import {
   PopulatedTransaction,
   BaseContract,
   ContractTransaction,
-  Overrides,
   CallOverrides,
 } from "ethers";
 import { BytesLike } from "@ethersproject/bytes";
@@ -21,21 +20,18 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface IUpdaterManagerInterface extends ethers.utils.Interface {
   functions: {
-    "slashUpdater(address)": FunctionFragment;
-    "updater()": FunctionFragment;
+    "isUpdaterSignature(uint32,bytes32,uint256,bytes)": FunctionFragment;
   };
 
   encodeFunctionData(
-    functionFragment: "slashUpdater",
-    values: [string]
+    functionFragment: "isUpdaterSignature",
+    values: [BigNumberish, BytesLike, BigNumberish, BytesLike]
   ): string;
-  encodeFunctionData(functionFragment: "updater", values?: undefined): string;
 
   decodeFunctionResult(
-    functionFragment: "slashUpdater",
+    functionFragment: "isUpdaterSignature",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "updater", data: BytesLike): Result;
 
   events: {};
 }
@@ -84,44 +80,52 @@ export class IUpdaterManager extends BaseContract {
   interface: IUpdaterManagerInterface;
 
   functions: {
-    slashUpdater(
-      _reporter: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
-    updater(overrides?: CallOverrides): Promise<[string]>;
+    isUpdaterSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<[boolean]>;
   };
 
-  slashUpdater(
-    _reporter: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
-  updater(overrides?: CallOverrides): Promise<string>;
+  isUpdaterSignature(
+    _domain: BigNumberish,
+    _root: BytesLike,
+    _index: BigNumberish,
+    _signature: BytesLike,
+    overrides?: CallOverrides
+  ): Promise<boolean>;
 
   callStatic: {
-    slashUpdater(_reporter: string, overrides?: CallOverrides): Promise<void>;
-
-    updater(overrides?: CallOverrides): Promise<string>;
+    isUpdaterSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<boolean>;
   };
 
   filters: {};
 
   estimateGas: {
-    slashUpdater(
-      _reporter: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
+    isUpdaterSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
     ): Promise<BigNumber>;
-
-    updater(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   populateTransaction: {
-    slashUpdater(
-      _reporter: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
+    isUpdaterSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
-
-    updater(overrides?: CallOverrides): Promise<PopulatedTransaction>;
   };
 }
