@@ -1,22 +1,21 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { Signer } from 'ethers';
 
 import { getTestDeploy } from './testChain';
-import { Updater } from '../lib/core';
-import { Signer } from '../lib/types';
-import { CoreContractAddresses } from '@abacus-network/abacus-deploy/dist/src/config/addresses';
-import { deployBridges } from '@abacus-network/abacus-deploy/dist/src/bridge';
-import { BridgeDeploy } from '@abacus-network/abacus-deploy/dist/src/bridge/BridgeDeploy';
+import { CoreContractAddresses } from '../src/config/addresses';
+import { deployBridges } from '../src/bridge';
+import { BridgeDeploy } from '../src/bridge/BridgeDeploy';
 import {
   deployTwoChains,
   deployNChains,
-} from '@abacus-network/abacus-deploy/dist/src/core';
-import { CoreDeploy } from '@abacus-network/abacus-deploy/dist/src/core/CoreDeploy';
+} from '../src/core';
+import { CoreDeploy } from '../src/core/CoreDeploy';
+import { DeployEnvironment } from '../src/deploy';
 import {
   MockWeth,
   MockWeth__factory,
 } from '@abacus-network/ts-interface/dist/abacus-xapps';
-import { DeployEnvironment } from '@abacus-network/abacus-deploy/dist/src/deploy';
 
 const domains = [1000, 2000, 3000, 4000];
 
@@ -24,11 +23,10 @@ const domains = [1000, 2000, 3000, 4000];
  * Deploy the full Abacus suite on two chains
  */
 describe('core deploy scripts', async () => {
-  let signer: Signer, recoveryManager: Signer, updater: Updater;
+  let signer: Signer, recoveryManager: Signer
 
   before(async () => {
     [signer, recoveryManager] = await ethers.getSigners();
-    updater = await Updater.fromSigner(signer, domains[0]);
   });
 
   describe('deployTwoChains', async () => {
@@ -36,8 +34,8 @@ describe('core deploy scripts', async () => {
       let deploys: CoreDeploy[] = [];
       for (var i = 0; i < 2; i++) {
         deploys.push(
-          await getTestDeploy(domains[i], updater.address, [
-            recoveryManager.address,
+          await getTestDeploy(domains[i], await signer.getAddress(), [
+            await recoveryManager.getAddress(),
           ]),
         );
       }
@@ -55,8 +53,8 @@ describe('core deploy scripts', async () => {
         let deploys: CoreDeploy[] = [];
         for (let j = 0; j < i; j++) {
           deploys.push(
-            await getTestDeploy(domains[j], updater.address, [
-              recoveryManager.address,
+            await getTestDeploy(domains[j], await signer.getAddress(), [
+              await recoveryManager.getAddress(),
             ]),
           );
         }
@@ -89,31 +87,29 @@ describe('bridge deploy scripts', async () => {
 
   let signer: Signer,
     recoveryManager: Signer,
-    updater: Updater,
     mockWeth: MockWeth,
     deploys: CoreDeploy[] = [],
     coreAddresses: CoreContractAddresses[] = [];
 
   before(async () => {
     [signer, recoveryManager] = await ethers.getSigners();
-    updater = await Updater.fromSigner(signer, domains[0]);
     mockWeth = await new MockWeth__factory(signer).deploy();
 
     // deploy core contracts on 2 chains
     for (let i = 0; i < numChains; i++) {
       if (i == 0) {
         deploys.push(
-          await getTestDeploy(domains[i], updater.address, [
-            recoveryManager.address,
+          await getTestDeploy(domains[i], await signer.getAddress(), [
+            await recoveryManager.getAddress(),
           ]),
         );
       } else {
         deploys.push(
           await getTestDeploy(
             domains[i],
-            updater.address,
-            [recoveryManager.address],
-            recoveryManager.address,
+            await signer.getAddress(),
+            [await recoveryManager.getAddress()],
+            await recoveryManager.getAddress(),
             mockWeth.address,
           ),
         );
