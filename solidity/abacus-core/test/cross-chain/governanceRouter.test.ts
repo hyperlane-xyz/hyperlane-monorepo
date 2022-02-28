@@ -29,7 +29,7 @@ const reserveGas = 15000;
 /*
  * Deploy the full Abacus suite on two chains
  */
-describe.only("GovernanceRouter", async () => {
+describe("GovernanceRouter", async () => {
   let abacusDeployment: AbacusDeployment;
   let governanceDeployment: GovernanceDeployment;
   let signer: Signer,
@@ -271,7 +271,6 @@ describe.only("GovernanceRouter", async () => {
     expect(success).to.be.true;
   });
 
-  /*
   it('Transfers governorship', async () => {
     // Transfer governor on current governor chain
     // get root on governor chain before transferring governor
@@ -353,31 +352,32 @@ describe.only("GovernanceRouter", async () => {
 
   it('Upgrades using GovernanceRouter call', async () => {
     const upgradeUtils = new UpgradeTestHelpers();
-    const deploy = deploys[0];
 
+    // get upgradeBeaconController
+    const ubc = abacusDeployment.ubc(governorDomain);
+    // Transfer ownership of the UBC to governance.
+    await ubc.transferOwnership(governorRouter.address);
     const mysteryMath = await upgradeUtils.deployMysteryMathUpgradeSetup(
-      deploy,
       signer,
+      ubc
     );
-
-    const upgradeBeaconController = deploy.contracts.upgradeBeaconController!;
 
     // expect results before upgrade
     await upgradeUtils.expectMysteryMathV1(mysteryMath.proxy);
 
     // Deploy Implementation 2
-    const v2Factory = new contracts.MysteryMathV2__factory(signer);
+    const v2Factory = new MysteryMathV2__factory(signer);
     const implementation = await v2Factory.deploy();
 
     // Format abacus call message
-    const call = await formatCall(upgradeBeaconController, 'upgrade', [
+    const call = await formatCall(ubc, 'upgrade', [
       mysteryMath.beacon.address,
       implementation.address,
     ]);
 
     // dispatch call on local governorRouter
     await expect(governorRouter.callLocal([call])).to.emit(
-      upgradeBeaconController,
+      ubc,
       'BeaconUpgraded',
     );
 
@@ -387,11 +387,12 @@ describe.only("GovernanceRouter", async () => {
 
   it('Calls UpdaterManager to change the Updater on Home', async () => {
     const [newUpdater] = await ethers.getSigners();
-    const updaterManager = deploys[0].contracts.updaterManager!;
+    const updaterManager = abacusDeployment.updaterManager(governorDomain);
+    await updaterManager.transferOwnership(governorRouter.address);
 
     // check current Updater address on Home
     let currentUpdaterAddr = await governorHome.updater();
-    expect(currentUpdaterAddr).to.equal(deploys[0].updater);
+    expect(currentUpdaterAddr).to.equal(await abacusDeployment.updater(governorDomain).signer.getAddress());
 
     // format abacus call message
     const call = await formatCall(updaterManager, 'setUpdater', [
@@ -407,5 +408,4 @@ describe.only("GovernanceRouter", async () => {
     currentUpdaterAddr = await governorHome.updater();
     expect(currentUpdaterAddr).to.equal(newUpdater.address);
   });
-  */
 });

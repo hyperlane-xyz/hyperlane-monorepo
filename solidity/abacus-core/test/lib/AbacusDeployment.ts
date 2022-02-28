@@ -68,6 +68,7 @@ export class AbacusDeployment {
     const homeFactory = new TestHome__factory(signer);
     const home = await homeFactory.deploy(local);
     await home.initialize(updaterManager.address);
+    await updaterManager.setHome(home.address)
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     const connectionManager = await connectionManagerFactory.deploy();
@@ -122,6 +123,10 @@ export class AbacusDeployment {
     return this.instances[domain].connectionManager;
   }
 
+  updaterManager(domain: types.Domain): UpdaterManager {
+    return this.instances[domain].updaterManager;
+  }
+
   // NB: This function works iff a single message has been dispatched on the
   // home since the last update.
   // If multiple messages have been dispatched, the retrieved proofs will
@@ -129,6 +134,7 @@ export class AbacusDeployment {
   // To make this work to process *all* messages, we will need to implement
   // a merkle tree, at which point we can remove TestHome.proof() and
   // TestHome.zeroes() and switch back to using Home in this object.
+  // We can probably get rid of a bunch of messages in TestReplica as well.
   async processDispatchedMessage(local: types.Domain) {
     const home = this.home(local);
     const [committedRoot, latestRoot] = await home.suggestUpdate();
