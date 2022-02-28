@@ -2,7 +2,8 @@
   "extends": "../tsconfig.package.json",
   "compilerOptions": {
     "outDir": "./dist/",
-    "rootDir": "./src/"
+    "rootDir": "./src/",
+    "skipLibCheck": true
   },
   "exclude": ["./node_modules/", "./dist/", "./src/tmp.ts"],
   "include": [

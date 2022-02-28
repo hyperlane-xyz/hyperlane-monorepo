@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "outDir": "./dist/",
-    "rootDir": "./src/"
+    "rootDir": "./src/",
+    "skipLibCheck": true
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
   "extends": "../tsconfig.package.json",

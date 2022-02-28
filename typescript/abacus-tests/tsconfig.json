@@ -2,7 +2,8 @@
   "compilerOptions": {
     "outDir": "./dist/",
     "rootDir": "./",
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "skipLibCheck": true
   },
   "exclude": ["./node_modules/", "./dist/"],
   "extends": "../tsconfig.package.json",
