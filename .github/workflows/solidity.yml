@@ -32,10 +32,8 @@ jobs:
 
       - name: lint
         run: |
-          cd ./solidity/abacus-core
-          npm run lint
-          cd ../abacus-xapps
-          npm run lint
+          npm --prefix ./solidity/abacus-core run lint
+          npm --prefix ./solidity/abacus-xapps run lint
 
   solidity-test:
     env:
@@ -51,4 +49,6 @@ jobs:
         with:
           runneros: ${{ runner.os }}
       - name: test
-        run: ./scripts/test-solidity.sh
+        run: |
+          npm --prefix ./solidity/abacus-core run test
+          npm --prefix ./solidity/abacus-xapps run test
