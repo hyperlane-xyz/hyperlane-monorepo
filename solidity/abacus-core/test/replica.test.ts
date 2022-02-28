@@ -133,7 +133,7 @@ describe('Replica', async () => {
       );
 
       const { expectedDomainHash } = testCase;
-      const homeDomainHash = await tempReplica.testHomeDomainHash();
+      const homeDomainHash = await tempReplica.homeDomainHash();
       expect(homeDomainHash).to.equal(expectedDomainHash);
     }
   });
@@ -279,7 +279,7 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessagePending(abacusMessage);
+    await replica.setMessageProven(abacusMessage);
 
     // Ensure proper static call return value
     const success = await replica.callStatic.process(abacusMessage);
@@ -327,7 +327,7 @@ describe('Replica', async () => {
       );
 
       // Set message status to MessageStatus.Pending
-      await replica.setMessagePending(abacusMessage);
+      await replica.setMessageProven(abacusMessage);
       await replica.process(abacusMessage);
     });
   }
@@ -366,7 +366,7 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessagePending(abacusMessage);
+    await replica.setMessageProven(abacusMessage);
     await expect(replica.process(abacusMessage)).to.not.be.reverted;
   });
 
@@ -385,7 +385,7 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessagePending(abacusMessage);
+    await replica.setMessageProven(abacusMessage);
 
     // Required gas is >= 510,000 (we provide 500,000)
     await expect(
@@ -410,7 +410,7 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessagePending(abacusMessage);
+    await replica.setMessageProven(abacusMessage);
 
     // Ensure bad handler function causes process to return false
     let success = await replica.callStatic.process(abacusMessage);

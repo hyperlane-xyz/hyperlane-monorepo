@@ -114,7 +114,7 @@ describe('GovernanceRouter', async () => {
     // dispatch call on local governorRouter
     let tx = await governorRouter.callRemote(nonGovernorDomain, [call]);
 
-    await abacusDeployment.processDispatchedMessage(governorDomain);
+    await abacusDeployment.processMessages();
     // test implementation was upgraded
     await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
   });
@@ -165,8 +165,8 @@ describe('GovernanceRouter', async () => {
       transferGovernorMessage,
     );
 
-    // Set message status to MessageStatus.Pending
-    await nonGovernorReplicaOnGovernorChain.setMessagePending(abacusMessage);
+    // Set message status to MessageStatus.Proven
+    await nonGovernorReplicaOnGovernorChain.setMessageProven(abacusMessage);
 
     // Expect replica processing to fail when nonGovernorRouter reverts in handle
     let success =

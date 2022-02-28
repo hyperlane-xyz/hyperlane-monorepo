@@ -139,15 +139,11 @@ export class AbacusDeployment {
     return this.instances[domain].updaterManager;
   }
 
-  // NB: This function works iff a single message has been dispatched on the
-  // home since the last update.
-  // If multiple messages have been dispatched, the retrieved proofs will
-  // be incorrect.
-  // To make this work to process *all* messages, we will need to implement
-  // a merkle tree, at which point we can remove TestHome.proof() and
-  // TestHome.zeroes() and switch back to using Home in this object.
-  // We can probably get rid of a bunch of messages in TestReplica as well.
-  async processDispatchedMessage(local: types.Domain) {
+  async processMessages() {
+    await Promise.all(this.domains.map((d) => this.processMessagesFromDomain(d)))
+  }
+
+  async processMessagesFromDomain(local: types.Domain) {
     const home = this.home(local);
     const [committedRoot, latestRoot] = await home.suggestUpdate();
 
@@ -158,6 +154,8 @@ export class AbacusDeployment {
     const fromBlock = updates.length === 0 ? 0 : updates[0].blockNumber;
 
     // Update the Home and Replicas to the latest roots.
+    // This is technically not necessary given that we are not proving against
+    // a root in the TestReplica.
     const updater = this.updater(local);
     const { signature } = await updater.signUpdate(committedRoot, latestRoot);
     await home.update(committedRoot, latestRoot, signature);
@@ -169,24 +167,17 @@ export class AbacusDeployment {
       }
     }
 
-    const previousMessageCount =
-      fromBlock == 0
-        ? ethers.BigNumber.from(0)
-        : await home.nextLeafIndex({ blockTag: fromBlock });
-    const currentMessageCount = await home.nextLeafIndex();
-    assert(currentMessageCount.sub(previousMessageCount).eq(1));
-    const dispatchFilter = home.filters.Dispatch(null, previousMessageCount);
+    // Find all messages dispatched on the home since the previous update.
+    const dispatchFilter = home.filters.Dispatch();
     const dispatches = await home.queryFilter(dispatchFilter, fromBlock);
-    assert(dispatches.length == 1);
-    const dispatch = dispatches[0];
-    const proof = await home.proof({ blockTag: dispatch.blockNumber });
-    const destination = dispatch.args.destinationAndNonce.shr(32);
-    const replica = this.replica(destination.toNumber(), local);
-    await replica.proveAndProcess(
-      dispatch.args.message,
-      proof,
-      previousMessageCount,
-    );
+    for (const dispatch of dispatches) {
+      const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
+      if (destination !== local) {
+        const replica = this.replica(destination, local);
+        await replica.setMessageProven(dispatch.args.message);
+        await replica.testProcess(dispatch.args.message);
+      }
+    }
   }
 }
 

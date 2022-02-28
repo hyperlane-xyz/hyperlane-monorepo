@@ -175,8 +175,8 @@ export async function formatAbacusMessage(
     message,
   );
 
-  // Set message status to MessageStatus.Pending
-  await replica.setMessagePending(abacusMessage);
+  // Set message status to MessageStatus.Proven
+  await replica.setMessageProven(abacusMessage);
 
   return abacusMessage;
 }
