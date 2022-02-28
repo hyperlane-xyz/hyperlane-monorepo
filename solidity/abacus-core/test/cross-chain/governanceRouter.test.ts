@@ -39,8 +39,8 @@ describe.only("GovernanceRouter", async () => {
     governorRouter: TestGovernanceRouter,
     nonGovernorRouter: TestGovernanceRouter,
     governorHome: Home,
-    governorReplicaOnNonGovernorChain: Replica,
-    nonGovernorReplicaOnGovernorChain: Replica,
+    governorReplicaOnNonGovernorChain: TestReplica,
+    nonGovernorReplicaOnGovernorChain: TestReplica,
     updater: Updater;
 
   async function expectGovernor(
@@ -150,7 +150,6 @@ describe.only("GovernanceRouter", async () => {
     expect(success).to.be.false;
   });
 
-  /*
   it('Rejects message not from governor router', async () => {
     // Create TransferGovernor message
     const transferGovernorMessage = abacus.governance.formatTransferGovernor(
@@ -176,6 +175,7 @@ describe.only("GovernanceRouter", async () => {
     expect(success).to.be.false;
   });
 
+  /*
   it('Accepts a valid transfer governor message', async () => {
     // Enroll router for new domain (in real setting this would
     // be executed with an Abacus message sent to the nonGovernorRouter)
