@@ -1,3 +1,4 @@
+import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 
 import { CoreDeploy } from '../src/core/CoreDeploy';

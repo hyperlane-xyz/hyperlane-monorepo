@@ -5,8 +5,5 @@ import '@nomiclabs/hardhat-waffle';
  */
 module.exports = {
   solidity: '0.7.6',
-  gasReporter: {
-    currency: "USD",
-  },
 };
 
