@@ -5,7 +5,7 @@ import { expect } from 'chai';
 import * as types from './lib/types';
 import { TokenIdentifier, toBytes32 } from './lib/utils';
 import { BridgeDeployment } from './lib/BridgeDeployment';
-import { AbacusDeployment } from './lib/AbacusDeployment';
+import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
 
 const { BridgeMessageTypes } = bridge;
 const localDomain = 1000;
@@ -35,7 +35,7 @@ describe('EthHelper', async () => {
     deployerId = toBytes32(deployerAddress).toLowerCase();
     recipientAddress = await recipient.getAddress();
     recipientId = toBytes32(recipientAddress).toLowerCase();
-    abacusDeployment = await abacus.fromDomains(domains, deployer);
+    abacusDeployment = await abacus.deployment.fromDomains(domains, deployer);
     bridgeDeployment = await BridgeDeployment.fromAbacusDeployment(
       abacusDeployment,
       deployer,

@@ -18,7 +18,7 @@ export interface HardhatBridgeHelpers {
 
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
-    abacus: any;
+    deployment: any;
     bridge: HardhatBridgeHelpers;
   }
 }

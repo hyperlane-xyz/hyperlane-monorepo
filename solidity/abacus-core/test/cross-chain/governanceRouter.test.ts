@@ -1,4 +1,4 @@
-import { ethers, abacus, deployment } from "hardhat";
+import { ethers, abacus } from "hardhat";
 import { expect } from "chai";
 
 import { updateReplica, formatCall, formatAbacusMessage } from "./utils";
@@ -61,7 +61,7 @@ describe("GovernanceRouter", async () => {
   });
 
   beforeEach(async () => {
-    abacusDeployment = await deployment.fromDomains(domains, signer);
+    abacusDeployment = await abacus.deployment.fromDomains(domains, signer);
     governanceDeployment = await GovernanceDeployment.fromAbacusDeployment(
       abacusDeployment,
       signer

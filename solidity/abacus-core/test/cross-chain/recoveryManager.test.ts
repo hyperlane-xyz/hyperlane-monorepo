@@ -1,4 +1,4 @@
-import { ethers, abacus, deployment } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 import * as types from 'ethers';
 
@@ -198,7 +198,7 @@ const domains = [localDomain, remoteDomain];
 /*
  * Deploy the full Abacus suite on two chains
  */
-describe.only('RecoveryManager', async () => {
+describe('RecoveryManager', async () => {
   let abacusDeployment: AbacusDeployment;
   let governanceDeployment: GovernanceDeployment;
   let governor: Signer,
@@ -211,7 +211,7 @@ describe.only('RecoveryManager', async () => {
   before(async () => {
     [governor, recoveryManager, randomSigner] = await ethers.getSigners();
     const updater = await Updater.fromSigner(randomSigner, localDomain);
-    abacusDeployment = await deployment.fromDomains(domains, randomSigner);
+    abacusDeployment = await abacus.deployment.fromDomains(domains, randomSigner);
     governanceDeployment = await GovernanceDeployment.fromAbacusDeployment(
       abacusDeployment,
       recoveryManager

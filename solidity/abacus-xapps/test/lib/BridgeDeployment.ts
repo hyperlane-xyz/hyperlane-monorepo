@@ -2,7 +2,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { assert } from 'chai';
 import * as ethers from 'ethers';
 
-import { AbacusDeployment } from './AbacusDeployment';
+import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
 import { toBytes32 } from './utils';
 import * as types from './types';
 

@@ -4,6 +4,7 @@ import * as ethers from "ethers";
 
 import * as types from "./types";
 import { getHexStringByteLength } from "./utils";
+import { AbacusDeployment } from "./AbacusDeployment";
 
 export class Updater {
   localDomain: types.Domain;
@@ -184,6 +185,7 @@ function formatCalls(callsData: types.CallData[]): string {
 }
 
 export const abacus: types.HardhatAbacusHelpers = {
+  deployment: AbacusDeployment,
   formatMessage,
   governance: {
     formatTransferGovernor,

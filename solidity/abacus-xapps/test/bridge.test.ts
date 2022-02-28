@@ -5,7 +5,7 @@ import { BigNumber, BytesLike } from 'ethers';
 import * as types from './lib/types';
 import { stringToBytes32, toBytes32 } from './lib/utils';
 import { BridgeDeployment } from './lib/BridgeDeployment';
-import { AbacusDeployment } from './lib/AbacusDeployment';
+import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
 import { BridgeToken, BridgeToken__factory, IERC20 } from '../typechain';
 
 const { BridgeMessageTypes } = bridge;
@@ -35,7 +35,7 @@ describe('BridgeRouter', async () => {
     [deployer] = await ethers.getSigners();
     deployerAddress = await deployer.getAddress();
     deployerId = toBytes32(await deployer.getAddress()).toLowerCase();
-    abacusDeployment = await abacus.fromDomains(domains, deployer);
+    abacusDeployment = await abacus.deployment.fromDomains(domains, deployer);
     // Enroll ourselves as a replica so we can send messages directly to the
     // local router.
     await abacusDeployment

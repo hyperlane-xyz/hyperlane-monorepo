@@ -4,6 +4,7 @@ import { BytesLike, ethers } from "ethers";
 /********* HRE *********/
 
 export interface HardhatAbacusHelpers {
+  deployment: any;
   formatMessage: Function;
   governance: {
     formatTransferGovernor: Function;
@@ -20,7 +21,6 @@ export interface HardhatAbacusHelpers {
 declare module "hardhat/types/runtime" {
   interface HardhatRuntimeEnvironment {
     abacus: HardhatAbacusHelpers;
-    deployment: any;
   }
 }
 
