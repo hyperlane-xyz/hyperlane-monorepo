@@ -122,13 +122,11 @@ export class AbacusDeployment {
     return this.instances[domain].connectionManager;
   }
 
-
-  async update() {
-    await Promise.all(this.domains.map((d) => this.localUpdate(d)));
-  }
-
-
-  async localUpdate(local: types.Domain) {
+  // NB: This function works iff a single message has been dispatched on the
+  // home since the last update.
+  // If multiple messages have been dispatched, the retrieved proofs will
+  // be incorrect.
+  async processDispatchedMessage(local: types.Domain) {
     const home = this.home(local);
     const [committedRoot, latestRoot] = await home.suggestUpdate();
 
@@ -150,26 +148,20 @@ export class AbacusDeployment {
       }
     }
 
-    // Prove and process all dispatched messages since the previous update.
     const previousMessageCount =
       fromBlock == 0
         ? ethers.BigNumber.from(0)
         : await home.nextLeafIndex({ blockTag: fromBlock });
     const currentMessageCount = await home.nextLeafIndex();
-    for (
-      let i = previousMessageCount;
-      i.lt(currentMessageCount);
-      i = i.add(1)
-    ) {
-      const dispatchFilter = home.filters.Dispatch(null, i);
-      const dispatches = await home.queryFilter(dispatchFilter, fromBlock);
-      assert(dispatches.length == 1);
-      const dispatch = dispatches[0];
-      const proof = await home.proof({ blockTag: dispatch.blockNumber });
-      const destination = dispatch.args.destinationAndNonce.shr(32);
-      const replica = this.replica(destination.toNumber(), local);
-      await replica.proveAndProcess(dispatch.args.message, proof, i)
-    }
+    assert(currentMessageCount.sub(previousMessageCount).eq(1));
+    const dispatchFilter = home.filters.Dispatch(null, previousMessageCount);
+    const dispatches = await home.queryFilter(dispatchFilter, fromBlock);
+    assert(dispatches.length == 1);
+    const dispatch = dispatches[0];
+    const proof = await home.proof({ blockTag: dispatch.blockNumber });
+    const destination = dispatch.args.destinationAndNonce.shr(32);
+    const replica = this.replica(destination.toNumber(), local);
+    await replica.proveAndProcess(dispatch.args.message, proof, previousMessageCount)
   }
 }
 

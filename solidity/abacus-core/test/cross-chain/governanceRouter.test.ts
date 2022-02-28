@@ -109,7 +109,7 @@ describe("GovernanceRouter", async () => {
     // dispatch call on local governorRouter
     let tx = await governorRouter.callRemote(nonGovernorDomain, [call]);
 
-    await abacusDeployment.localUpdate(governorDomain);
+    await abacusDeployment.processDispatchedMessage(governorDomain);
     // test implementation was upgraded
     await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
   });
