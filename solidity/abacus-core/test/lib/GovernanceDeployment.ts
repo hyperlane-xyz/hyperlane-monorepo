@@ -28,6 +28,7 @@ export class GovernanceDeployment {
     abacus: AbacusDeployment,
     signer: ethers.Signer
   ) {
+    // Deploy routers.
     const instances: Record<number, GovernanceInstance> = {};
     for (const domain of abacus.domains) {
       const instance = await GovernanceDeployment.deployInstance(
@@ -38,16 +39,23 @@ export class GovernanceDeployment {
       instances[domain] = instance;
     }
 
+    // Make all routers aware of eachother.
     for (const local of abacus.domains) {
       for (const remote of abacus.domains) {
-        if (local !== remote) {
           await instances[local].router.setRouterLocal(
             remote,
             toBytes32(instances[remote].router.address)
           );
-        }
       }
     }
+
+    // Set the governor on all routers.
+    for (let i = 0; i < abacus.domains.length; i++) {
+      if (i > 0) {
+        await instances[abacus.domains[i]].router.transferGovernor(abacus.domains[0], instances[abacus.domains[0]].router.address)
+      }
+    }
+
     return new GovernanceDeployment(abacus.domains, instances);
   }
 

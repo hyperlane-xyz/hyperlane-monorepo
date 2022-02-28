@@ -122,7 +122,13 @@ export class AbacusDeployment {
     return this.instances[domain].connectionManager;
   }
 
-  async update(local: types.Domain) {
+
+  async update() {
+    await Promise.all(this.domains.map((d) => this.localUpdate(d)));
+  }
+
+
+  async localUpdate(local: types.Domain) {
     const home = this.home(local);
     const [committedRoot, latestRoot] = await home.suggestUpdate();
 
@@ -136,7 +142,6 @@ export class AbacusDeployment {
     const updater = this.updater(local);
     const { signature } = await updater.signUpdate(committedRoot, latestRoot);
     await home.update(committedRoot, latestRoot, signature);
-    console.log('latest root', latestRoot)
 
     for (const remote of this.domains) {
       if (remote !== local) {
@@ -151,7 +156,6 @@ export class AbacusDeployment {
         ? ethers.BigNumber.from(0)
         : await home.nextLeafIndex({ blockTag: fromBlock });
     const currentMessageCount = await home.nextLeafIndex();
-    console.log(previousMessageCount, currentMessageCount);
     for (
       let i = previousMessageCount;
       i.lt(currentMessageCount);
@@ -163,10 +167,8 @@ export class AbacusDeployment {
       const dispatch = dispatches[0];
       const proof = await home.proof({ blockTag: dispatch.blockNumber });
       const destination = dispatch.args.destinationAndNonce.shr(32);
-      console.log(dispatch, proof, destination);
       const replica = this.replica(destination.toNumber(), local);
-      console.log(await replica.testBranchRoot(dispatch.args.messageHash, proof, i));
-      await replica.proveAndProcess(dispatch.args.message, proof, i);
+      await replica.proveAndProcess(dispatch.args.message, proof, i)
     }
   }
 }

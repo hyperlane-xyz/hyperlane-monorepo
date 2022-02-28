@@ -86,6 +86,8 @@ describe("GovernanceRouter", async () => {
 
     // get upgradeBeaconController
     const ubc = abacusDeployment.ubc(nonGovernorDomain);
+    // Transfer ownership of the UBC to governance.
+    await ubc.transferOwnership(nonGovernorRouter.address);
     const mysteryMath = await upgradeUtils.deployMysteryMathUpgradeSetup(
       signer,
       ubc
@@ -107,11 +109,9 @@ describe("GovernanceRouter", async () => {
     // dispatch call on local governorRouter
     let tx = await governorRouter.callRemote(nonGovernorDomain, [call]);
 
-    await abacusDeployment.update(governorDomain);
+    await abacusDeployment.localUpdate(governorDomain);
     // test implementation was upgraded
-    console.log('1')
     await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
-    console.log('2')
   });
 
   /*
