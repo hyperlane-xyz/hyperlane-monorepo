@@ -103,6 +103,18 @@ export class AbacusDeployment {
     };
   }
 
+  async transferOwnership(domain: types.Domain, address: types.Address) {
+    await this.home(domain).transferOwnership(address);
+    await this.ubc(domain).transferOwnership(address);
+    await this.connectionManager(domain).transferOwnership(address);
+    await this.updaterManager(domain).transferOwnership(address);
+    for (const remote of this.domains) {
+      if (remote !== domain) {
+        await this.replica(domain, remote).transferOwnership(address);
+      }
+    }
+  }
+
   home(domain: types.Domain): TestHome {
     return this.instances[domain].home;
   }
