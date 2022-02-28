@@ -143,9 +143,9 @@ else
 fi
 
 # Test solidity contracts
-if ! git diff-index --quiet HEAD -- ./solidity/optics-core ./solidity/optics-xapps ./typescript/optics-tests ./typescript/optics-deploy; then
+if ! git diff-index --quiet HEAD -- ./solidity/optics-core ./solidity/optics-xapps ./typescript/abacus-tests ./typescript/abacus-deploy; then
     echo "+Running solidity tests"
-    cd ./typescript/optics-tests
+    cd ./typescript/abacus-tests
     npm run testNoCompile
     cd ../..
 else

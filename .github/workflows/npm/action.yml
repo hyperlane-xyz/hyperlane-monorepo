@@ -1,0 +1,101 @@
+name: npm install
+inputs:
+  runneros:
+    required: true
+    default: 'test'
+
+runs:
+  using: "composite"
+  steps:
+    - uses: actions/checkout@v2
+
+    - name: Print inputs
+      shell: bash
+      run: |
+        echo ${{ inputs.runneros }}
+
+    # Save caches individually
+    - name: Core Cache
+      id: core-cache
+      uses: actions/cache@v2
+      with:
+        path: ./solidity/abacus-core/node_modules
+        key: ${{ inputs.runneros }}-core-cache-${{ hashFiles('solidity/abacus-core/package-lock.json') }}
+
+    - name: XApps Cache
+      id: xapps-cache
+      uses: actions/cache@v2
+      with:
+        path: ./solidity/abacus-xapps/node_modules
+        key: ${{ inputs.runneros }}-xapps-cache-${{ hashFiles('solidity/abacus-xapps/package-lock.json') }}
+
+    - name: Tests Cache
+      id: tests-cache
+      uses: actions/cache@v2
+      with:
+        path: ./typescript/abacus-tests/node_modules
+        key: ${{ inputs.runneros }}-tests-cache-${{ hashFiles('typescript/abacus-tests/package-lock.json') }}
+
+    - name: Deploy Cache
+      id: deploy-cache
+      uses: actions/cache@v2
+      with:
+        path: ./typescript/abacus-deploy/node_modules
+        key: ${{ inputs.runneros }}-deploy-cache-${{ hashFiles('typescript/abacus-deploy/package-lock.json') }}
+
+    - name: Typechain Cache
+      id: typechain-cache
+      uses: actions/cache@v2
+      with:
+        path: ./typescript/typechain/node_modules
+        key: ${{ inputs.runneros }}-typechain-cache-${{ hashFiles('typescript/typechain/package-lock.json') }}
+
+    - name: Abacus SDK Cache
+      id: sdk-cache
+      uses: actions/cache@v2
+      with:
+        path: ./typescript/abacus-sdk/node_modules
+        key: ${{ inputs.runneros }}-sdk-cache-${{ hashFiles('typescript/abacus-sdk/package-lock.json') }}
+
+    - name: Metrics Cache
+      id: metrics-cache
+      uses: actions/cache@v2
+      with:
+        path: ./typescript/contract-metrics/node_modules
+        key: ${{ inputs.runneros }}-metrics-cache-${{ hashFiles('typescript/contract-metrics/package-lock.json') }}
+
+    # Install separately depending on cache hit
+    - name: Install Core
+      shell: bash
+      if: steps.core-cache.outputs.cache-hit != 'true'
+      run: cd ./solidity/abacus-core && npm i
+
+    - name: Install XApps
+      shell: bash
+      if: steps.xapps-cache.outputs.cache-hit != 'true'
+      run: cd ./solidity/abacus-xapps && npm i
+
+    - name: Install Tests
+      shell: bash
+      if: steps.tests-cache.outputs.cache-hit != 'true'
+      run: cd ./typescript/abacus-tests && npm i
+
+    - name: Install Deploy
+      shell: bash
+      if: steps.deploy-cache.outputs.cache-hit != 'true'
+      run: cd ./typescript/abacus-deploy && npm i
+
+    - name: Install Typechain
+      shell: bash
+      if: steps.typechain-cache.outputs.cache-hit != 'true'
+      run: cd ./typescript/typechain && npm i
+
+    - name: Install Multi-Provider
+      shell: bash
+      if: steps.provider-cache.outputs.cache-hit != 'true'
+      run: cd ./typescript/abacus-sdk && npm i
+
+    - name: Install Metrics
+      shell: bash
+      if: steps.metrics-cache.outputs.cache-hit != 'true'
+      run: cd ./typescript/contract-metrics && npm i

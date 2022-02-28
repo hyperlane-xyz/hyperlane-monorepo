@@ -1,13 +1,13 @@
-import {OpticsContext, OpticsMessage} from 'optics-multi-provider-community';
-import * as contexts from "./registerContext";
-import {printStatus} from "./print";
+import { AbacusContext, AbacusMessage } from '@abacus-network/sdk';
+import { mainnet } from './registerContext';
+import { printStatus } from './print';
 
 const input: TraceInput[] = [
   {
     chain: 'celo',
-    context: contexts.mainnetCommunity,
+    context: mainnet,
     transactionHash:
-      '0x8104d296ee0eb83c489453a8cc22129be614b8588e940a72e984c3ba7d8edade',
+      '0x6880039b2ed36e4283e027aeb4b46b0259582be16e459bf17999869ca4ef6d94',
   },
 ];
 
@@ -17,7 +17,7 @@ traceMany(input).then(() => {
 
 interface TraceInput {
   chain: string;
-  context: OpticsContext;
+  context: AbacusContext;
   transactionHash: string;
   messageHash?: string;
   leafIndex?: number;
@@ -31,18 +31,18 @@ async function traceMany(inputs: TraceInput[]) {
 }
 
 async function traceTransfer(
-  context: OpticsContext,
+  context: AbacusContext,
   origin: string,
   transactionHash: string,
 ) {
   console.log(`Trace ${transactionHash} on ${origin}`);
 
-  const message = await OpticsMessage.singleFromTransactionHash(
+  const message = await AbacusMessage.singleFromTransactionHash(
     context,
     origin,
     transactionHash,
   );
-  console.log(`Leaf Index: ${message.leafIndex}`)
+  console.log(`Leaf Index: ${message.leafIndex}`);
   const status = await message.events();
   printStatus(context, status);
 }

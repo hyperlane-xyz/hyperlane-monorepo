@@ -19,8 +19,8 @@ storage:
   storageClass: "standard"
   accessModes: ReadWriteOnce
 
-# -- Optics Overrides
-# By Default, Optics Agents load the config baked into the Docker Image
+# -- Abacus Overrides
+# By Default, Abacus Agents load the config baked into the Docker Image
 # Pass values here in order to override the values in the config
 # Note: For successful operation, one _must_ pass signer keys as
 #       they are not baked into the image for security reasons.
@@ -51,6 +51,8 @@ optics:
     connectionType: # "http"
     # -- Connection string pointing to an RPC endpoint for the home chain
     connectionUrl: # "https://kovan.infura.io/v3/<KEY>"
+    # -- How close to the tip state should be considered "finalized"
+    tipBuffer: # 10
   aws:
     # accessKeyId: ""
     # secretAccessKey: ""
@@ -66,7 +68,7 @@ optics:
       # -- Connection string pointing to an RPC endpoint for the replica chain
       connectionUrl: # "https://alfajores-forno.celo-testnet.org"
 
-  # Optics Agent Roles
+  # Abacus Agent Roles
   # Individually Switchable via <role>.enabled
   updater:
     enabled: false
@@ -124,7 +126,7 @@ optics:
       - name: "alfajores"
         hexKey: ""
     s3BucketName:
-    indxonly: false
+    indexonly: []
     pollingInterval: # 10
 
   kathy:

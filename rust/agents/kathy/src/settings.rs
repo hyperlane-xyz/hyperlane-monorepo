@@ -4,7 +4,7 @@ use ethers::core::types::H256;
 
 use crate::kathy::ChatGenerator;
 
-use optics_base::decl_settings;
+use abacus_base::decl_settings;
 
 #[derive(Debug, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]

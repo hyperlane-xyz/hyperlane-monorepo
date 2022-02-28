@@ -13,9 +13,9 @@ use std::{
 use tokio::{sync::RwLock, task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use optics_base::{cancel_task, decl_agent, AgentCore, CachingHome, CachingReplica, OpticsAgent};
-use optics_core::{
-    accumulator::merkle::Proof, db::OpticsDB, CommittedMessage, Common, Home, HomeEvents,
+use abacus_base::{cancel_task, decl_agent, AbacusAgent, AgentCore, CachingHome, CachingReplica};
+use abacus_core::{
+    accumulator::merkle::Proof, db::AbacusDB, CommittedMessage, Common, Home, HomeEvents,
     MessageStatus,
 };
 
@@ -40,10 +40,11 @@ pub(crate) struct Replica {
     interval: u64,
     replica: Arc<CachingReplica>,
     home: Arc<CachingHome>,
-    db: OpticsDB,
+    db: AbacusDB,
     allowed: Option<Arc<HashSet<H256>>>,
     denied: Option<Arc<HashSet<H256>>>,
     next_message_nonce: Arc<prometheus::IntGaugeVec>,
+    message_leaf_index_gauge: prometheus::IntGauge,
 }
 
 impl std::fmt::Display for Replica {
@@ -61,7 +62,7 @@ impl Replica {
     fn main(self) -> JoinHandle<Result<()>> {
         tokio::spawn(
             async move {
-                use optics_core::Replica;
+                use abacus_core::Replica;
 
                 let replica_domain = self.replica.local_domain();
 
@@ -92,6 +93,9 @@ impl Replica {
                     replica_domain,
                     next_message_nonce
                 );
+
+                let last_processed_message_leaf = self.get_last_processed_message_leaf(replica_domain, next_message_nonce).await;
+                self.message_leaf_index_gauge.set(last_processed_message_leaf);
 
                 loop {
                     let seq_span = tracing::trace_span!(
@@ -126,7 +130,7 @@ impl Replica {
                                 replica_domain,
                                 nonce = next_message_nonce,
                                 replica = self.replica.name(),
-                                "Failed to find message_by_nonce or proof_by_leaf_index. Processor retrying message. Replica: {}. Nonce: {}. Domain: {}.",
+                                "Trying message failed, retrying. Replica: {}. Nonce: {}. Domain: {}.",
                                 self.replica.name(),
                                 next_message_nonce,
                                 replica_domain,
@@ -144,6 +148,19 @@ impl Replica {
         )
     }
 
+    // Attempt to get the leaf index of the previously processed message
+    async fn get_last_processed_message_leaf(&self, domain: u32, next_nonce: u32) -> i64 {
+        if next_nonce == 0 {
+            return 0;
+        }
+
+        match self.home.message_by_nonce(domain, next_nonce - 1).await {
+            Ok(Some(m)) => m.leaf_index as i64,
+            Ok(None) => 0,
+            Err(_) => 0,
+        }
+    }
+
     /// Attempt to process a message.
     ///
     /// Postcondition: ```match retval? {
@@ -154,7 +171,7 @@ impl Replica {
     /// In case of error: send help?
     #[instrument(err, skip(self), fields(self = %self))]
     async fn try_msg_by_domain_and_nonce(&self, domain: u32, nonce: u32) -> Result<Flow> {
-        use optics_core::Replica;
+        use abacus_core::Replica;
 
         let message = match self.home.message_by_nonce(domain, nonce).await {
             Ok(Some(m)) => m,
@@ -238,7 +255,14 @@ impl Replica {
             nonce
         );
 
-        self.process(message, proof).await?;
+        let leaf_index = message.leaf_index;
+        let process_outcome = self.process(message, proof).await;
+        match process_outcome {
+            Ok(()) => (),
+            Err(_) => return Ok(Flow::Repeat),
+        }
+
+        self.message_leaf_index_gauge.set(leaf_index as i64);
 
         Ok(Flow::Advance)
     }
@@ -246,17 +270,18 @@ impl Replica {
     #[instrument(err, level = "trace", skip(self), fields(self = %self))]
     /// Dispatch a message for processing. If the message is already proven, process only.
     async fn process(&self, message: CommittedMessage, proof: Proof) -> Result<()> {
-        use optics_core::Replica;
+        use abacus_core::Replica;
         let status = self.replica.message_status(message.to_leaf()).await?;
-
+        let tx_outcome;
         match status {
             MessageStatus::None => {
-                self.replica
+                tx_outcome = self
+                    .replica
                     .prove_and_process(message.as_ref(), &proof)
                     .await?;
             }
             MessageStatus::Proven => {
-                self.replica.process(message.as_ref()).await?;
+                tx_outcome = self.replica.process(message.as_ref()).await?;
             }
             MessageStatus::Processed => {
                 info!(
@@ -277,11 +302,19 @@ impl Replica {
             nonce = message.message.nonce,
             leaf_index = message.leaf_index,
             leaf = ?message.message.to_leaf(),
-            "Processed message. Destination: {}. Nonce: {}. Leaf index: {}.",
+            "Processed message with tx hash {} and outcome {}. Destination: {}. Nonce: {}. Leaf index: {}.",
+            tx_outcome.txid,
+            tx_outcome.executed,
             message.message.destination,
             message.message.nonce,
             message.leaf_index,
         );
+
+        if !tx_outcome.executed {
+            let msg = eyre!("Process tx was not successful");
+            bail!(msg);
+        }
+
         Ok(())
     }
 }
@@ -334,7 +367,7 @@ impl Processor {
 
 #[async_trait]
 #[allow(clippy::unit_arg)]
-impl OpticsAgent for Processor {
+impl AbacusAgent for Processor {
     const AGENT_NAME: &'static str = AGENT_NAME;
 
     type Settings = Settings;
@@ -357,8 +390,13 @@ impl OpticsAgent for Processor {
     fn run(&self, name: &str) -> Instrumented<JoinHandle<Result<()>>> {
         let home = self.home();
         let next_message_nonce = self.next_message_nonce.clone();
+        let message_leaf_index_gauge = self
+            .core
+            .metrics
+            .last_known_message_leaf_index()
+            .with_label_values(&["process", self.home().name(), name]);
         let interval = self.interval;
-        let db = OpticsDB::new(home.name(), self.db());
+        let db = AbacusDB::new(home.name(), self.db());
 
         let replica_opt = self.replica_by_name(name);
         let name = name.to_owned();
@@ -377,6 +415,7 @@ impl OpticsAgent for Processor {
                 allowed,
                 denied,
                 next_message_nonce,
+                message_leaf_index_gauge,
             }
             .main()
             .await?
@@ -393,7 +432,7 @@ impl OpticsAgent for Processor {
 
             // tree sync
             info!("Starting ProverSync");
-            let db = OpticsDB::new(self.home().name().to_owned(), self.db());
+            let db = AbacusDB::new(self.home().name().to_owned(), self.db());
             let sync = ProverSync::from_disk(db.clone());
             let prover_sync_task = sync.spawn();
 
@@ -409,10 +448,17 @@ impl OpticsAgent for Processor {
                 )
                 .expect("failed to register block_height metric")
                 .with_label_values(&[self.home().name(), Self::AGENT_NAME]);
-            let indexer = &self.as_ref().indexer;
-            let home_sync_task =
-                self.home()
-                    .sync(indexer.from(), indexer.chunk_size(), block_height);
+            let index_settings = self.as_ref().indexer.clone();
+            let home_sync_task = self.home().sync(
+                index_settings,
+                block_height,
+                Some(
+                    self.as_ref()
+                        .metrics
+                        .last_known_message_leaf_index()
+                        .with_label_values(&["dispatch", self.home().name(), "unknown"]),
+                ),
+            );
 
             info!("started indexer and sync");
 
@@ -442,6 +488,10 @@ impl OpticsAgent for Processor {
                         &config.bucket,
                         config.region.parse().expect("invalid s3 region"),
                         db.clone(),
+                        self.core
+                            .metrics
+                            .last_known_message_leaf_index()
+                            .with_label_values(&["proving", self.core.home.name(), "unknown"]),
                     )
                     .spawn(),
                 )

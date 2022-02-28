@@ -6,7 +6,7 @@ use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3
 
 use color_eyre::eyre::{bail, eyre, Result};
 
-use optics_core::{accumulator::merkle::Proof, db::OpticsDB};
+use abacus_core::{accumulator::merkle::Proof, db::AbacusDB};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
@@ -21,8 +21,9 @@ pub struct Pusher {
     name: String,
     bucket: String,
     region: Region,
-    db: OpticsDB,
+    db: AbacusDB,
     client: S3Client,
+    message_leaf_index_gauge: prometheus::IntGauge,
 }
 
 impl std::fmt::Debug for Pusher {
@@ -37,7 +38,13 @@ impl std::fmt::Debug for Pusher {
 
 impl Pusher {
     /// Instantiate a new pusher with a region
-    pub fn new(name: &str, bucket: &str, region: Region, db: OpticsDB) -> Self {
+    pub fn new(
+        name: &str,
+        bucket: &str,
+        region: Region,
+        db: AbacusDB,
+        message_leaf_index_gauge: prometheus::IntGauge,
+    ) -> Self {
         let client = S3Client::new_with(
             HttpClient::new().unwrap(),
             EnvironmentProvider::default(),
@@ -49,6 +56,7 @@ impl Pusher {
             region,
             db,
             client,
+            message_leaf_index_gauge,
         }
     }
 
@@ -127,7 +135,7 @@ impl Pusher {
                         if !self.already_uploaded(&proven).await? {
                             self.upload_proof(&proven).await?;
                         }
-
+                        self.message_leaf_index_gauge.set(index as i64);
                         index += 1;
                     }
                     None => sleep(Duration::from_millis(500)).await,

@@ -1,11 +1,11 @@
 use crate::prover::{Prover, ProverError};
-use color_eyre::eyre::{bail, Result};
-use ethers::core::types::H256;
-use optics_core::{
+use abacus_core::{
     accumulator::{incremental::IncrementalMerkle, INITIAL_ROOT},
-    db::{DbError, OpticsDB},
+    db::{AbacusDB, DbError},
     ChainCommunicationError,
 };
+use color_eyre::eyre::{bail, Result};
+use ethers::core::types::H256;
 use std::{fmt::Display, ops::Range, time::Duration};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
@@ -13,7 +13,7 @@ use tracing::{debug, error, info, info_span, instrument, instrument::Instrumente
 /// Struct to sync prover.
 #[derive(Debug)]
 pub struct ProverSync {
-    db: OpticsDB,
+    db: AbacusDB,
     prover: Prover,
     incremental: IncrementalMerkle,
 }
@@ -90,7 +90,7 @@ impl ProverSync {
     /// Given rocksdb handle `db` containing merkle tree leaves,
     /// instantiates new `ProverSync` and fills prover's merkle tree
     #[instrument(level = "debug", skip(db))]
-    pub fn from_disk(db: OpticsDB) -> Self {
+    pub fn from_disk(db: AbacusDB) -> Self {
         // Ingest all leaves in db into prover tree
         let mut prover = Prover::default();
         let mut incremental = IncrementalMerkle::default();

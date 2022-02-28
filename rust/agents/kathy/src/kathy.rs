@@ -10,8 +10,8 @@ use tracing::{info, Instrument};
 
 use ethers::core::types::H256;
 
-use optics_base::{decl_agent, AgentCore, OpticsAgent};
-use optics_core::{Home, Message, Replica};
+use abacus_base::{decl_agent, AbacusAgent, AgentCore};
+use abacus_core::{Home, Message, Replica};
 
 use crate::settings::KathySettings as Settings;
 
@@ -33,7 +33,7 @@ impl Kathy {
 }
 
 #[async_trait::async_trait]
-impl OpticsAgent for Kathy {
+impl AbacusAgent for Kathy {
     const AGENT_NAME: &'static str = "kathy";
 
     type Settings = Settings;

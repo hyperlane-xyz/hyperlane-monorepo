@@ -1,10 +1,11 @@
 node_modules
 test_deploy.env
 
-typescript/optics-deploy/.env
+typescript/abacus-deploy/.env
 **/.env
 **/tsconfig.tsbuildinfo
 **/tmp.*
+**/*.swp
 
 rust/vendor/
 rust/tmp_db

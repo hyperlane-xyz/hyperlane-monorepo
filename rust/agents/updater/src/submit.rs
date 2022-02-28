@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use optics_base::{CachingHome, OpticsAgent};
-use optics_core::{db::OpticsDB, Common};
+use abacus_base::{AbacusAgent, CachingHome};
+use abacus_core::{db::AbacusDB, Common};
 use prometheus::IntCounterVec;
 use std::time::Duration;
 
@@ -13,7 +13,7 @@ use crate::updater::Updater;
 
 pub(crate) struct UpdateSubmitter {
     home: Arc<CachingHome>,
-    db: OpticsDB,
+    db: AbacusDB,
     interval_seconds: u64,
     submitted_update_count: IntCounterVec,
 }
@@ -21,7 +21,7 @@ pub(crate) struct UpdateSubmitter {
 impl UpdateSubmitter {
     pub(crate) fn new(
         home: Arc<CachingHome>,
-        db: OpticsDB,
+        db: AbacusDB,
         interval_seconds: u64,
         submitted_update_count: IntCounterVec,
     ) -> Self {

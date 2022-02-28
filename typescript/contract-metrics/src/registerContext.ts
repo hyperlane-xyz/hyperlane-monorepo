@@ -1,20 +1,49 @@
-import {dev, mainnetCommunity, staging} from "optics-multi-provider-community";
-import config from "./config";
+import {
+  dev,
+  testnet,
+  mainnet,
+  mainnetLegacy,
+  AbacusContext,
+} from '@abacus-network/sdk';
+import config from './config';
 
 // register mainnet
-mainnetCommunity.registerRpcProvider('celo', config.celoRpc);
-mainnetCommunity.registerRpcProvider('ethereum', config.ethereumRpc);
-mainnetCommunity.registerRpcProvider('polygon', config.polygonRpc);
-mainnetCommunity.registerRpcProvider('avalanche', config.avalancheRpc);
+mainnet.registerRpcProvider('celo', config.celoRpc);
+mainnet.registerRpcProvider('ethereum', config.ethereumRpc);
+mainnet.registerRpcProvider('polygon', config.polygonRpc);
+mainnet.registerRpcProvider('avalanche', config.avalancheRpc);
 
-// register staging
-staging.registerRpcProvider('alfajores', config.alfajoresRpc);
-staging.registerRpcProvider('kovan', config.kovanRpc);
+mainnetLegacy.registerRpcProvider('celo', config.celoRpc);
+mainnetLegacy.registerRpcProvider('ethereum', config.ethereumRpc);
+mainnetLegacy.registerRpcProvider('polygon', config.polygonRpc);
+
+// register testnet
+testnet.registerRpcProvider('alfajores', config.alfajoresRpc);
+testnet.registerRpcProvider('kovan', config.kovanRpc);
+testnet.registerRpcProvider('gorli', config.gorliRpc);
+testnet.registerRpcProvider('ropsten', config.ropstenRpc);
 
 // register dev
 dev.registerRpcProvider('alfajores', config.alfajoresRpc);
 dev.registerRpcProvider('kovan', config.kovanRpc);
+dev.registerRpcProvider('gorli', config.gorliRpc);
+dev.registerRpcProvider('mumbai', config.mumbaiRpc);
+dev.registerRpcProvider('fuji', config.fujiRpc);
 
-export {
-    mainnetCommunity, staging, dev
-};
+let context: AbacusContext;
+switch (config.environment) {
+  case 'mainnet':
+    context = mainnet;
+    break;
+
+  case 'testnet':
+    context = testnet;
+    break;
+
+  default:
+    // dev
+    context = dev;
+    break;
+}
+
+export { context, mainnet, testnet, dev, mainnetLegacy };
