@@ -126,6 +126,9 @@ export class AbacusDeployment {
   // home since the last update.
   // If multiple messages have been dispatched, the retrieved proofs will
   // be incorrect.
+  // To make this work to process *all* messages, we will need to implement
+  // a merkle tree, at which point we can remove TestHome.proof() and
+  // TestHome.zeroes() and switch back to using Home in this object.
   async processDispatchedMessage(local: types.Domain) {
     const home = this.home(local);
     const [committedRoot, latestRoot] = await home.suggestUpdate();

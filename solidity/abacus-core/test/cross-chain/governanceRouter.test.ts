@@ -11,6 +11,7 @@ import {
   MysteryMathV2__factory,
   TestReplica,
   TestReplica__factory,
+  TestRecipient__factory,
   TestGovernanceRouter,
   Replica,
   Home,
@@ -210,7 +211,6 @@ describe.only("GovernanceRouter", async () => {
     );
   });
 
-  /*
   it('Accepts valid set router message', async () => {
     // Create address for router to enroll and domain for router
     const [router] = await ethers.getSigners();
@@ -245,12 +245,12 @@ describe.only("GovernanceRouter", async () => {
 
   it('Accepts valid call messages', async () => {
     // const TestRecipient = await abacus.deployImplementation('TestRecipient');
-    const testRecipientFactory = new contracts.TestRecipient__factory(signer);
-    const TestRecipient = await testRecipientFactory.deploy();
+    const testRecipientFactory = new TestRecipient__factory(signer);
+    const testRecipient = await testRecipientFactory.deploy();
 
     // Format abacus call message
     const arg = 'String!';
-    const call = await formatCall(TestRecipient, 'receiveString', [arg]);
+    const call = await formatCall(testRecipient, 'receiveString', [arg]);
 
     // Create Call message to test recipient that calls receiveString
     const callMessage = abacus.governance.formatCalls([call, call]);
@@ -271,6 +271,7 @@ describe.only("GovernanceRouter", async () => {
     expect(success).to.be.true;
   });
 
+  /*
   it('Transfers governorship', async () => {
     // Transfer governor on current governor chain
     // get root on governor chain before transferring governor
