@@ -3,7 +3,7 @@ import { Signer } from 'ethers';
 import { expect } from 'chai';
 
 import * as types from './lib/types';
-import { TokenIdentifier, toBytes32 } from './lib/utils';
+import { toBytes32 } from './lib/utils';
 import { BridgeDeployment } from './lib/BridgeDeployment';
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
 
@@ -41,7 +41,7 @@ describe('EthHelper', async () => {
       deployer,
     );
 
-    const tokenId: TokenIdentifier = {
+    const tokenId: types.TokenIdentifier = {
       domain: localDomain,
       id: toBytes32(bridgeDeployment.weth(localDomain).address),
     };

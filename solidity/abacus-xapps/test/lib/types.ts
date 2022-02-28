@@ -1,5 +1,4 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { TokenIdentifier } from '@abacus-network/sdk/dist/abacus';
 import { BytesLike, ethers } from 'ethers';
 import { BridgeMessageTypes } from './bridge';
 
@@ -120,3 +119,8 @@ export type DetailsAction = {
 export type RequestDetailsAction = {
   type: BridgeMessageTypes.REQUEST_DETAILS;
 };
+
+export interface TokenIdentifier {
+  domain: string | number;
+  id: BytesLike;
+}

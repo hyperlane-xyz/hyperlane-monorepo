@@ -1,8 +1,8 @@
-import { TokenIdentifier } from '@abacus-network/sdk/dist/abacus';
 import { assert } from 'chai';
 import { ethers } from 'ethers';
 
 import * as types from './types';
+import { TokenIdentifier } from './types';
 
 export enum BridgeMessageTypes {
   INVALID = 0,

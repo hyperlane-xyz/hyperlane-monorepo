@@ -35,8 +35,3 @@ export const stringToBytes32 = (s: string): string => {
 
   return '0x' + result.toString('hex');
 };
-
-export interface TokenIdentifier {
-  domain: string | number;
-  id: BytesLike;
-}
