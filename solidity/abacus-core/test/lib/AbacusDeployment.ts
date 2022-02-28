@@ -140,7 +140,9 @@ export class AbacusDeployment {
   }
 
   async processMessages() {
-    await Promise.all(this.domains.map((d) => this.processMessagesFromDomain(d)))
+    await Promise.all(
+      this.domains.map((d) => this.processMessagesFromDomain(d)),
+    );
   }
 
   async processMessagesFromDomain(local: types.Domain) {
