@@ -18,11 +18,7 @@ contract TestReplica is Replica {
         _setFailed();
     }
 
-    function setRemoteDomain(uint32 _remoteDomain) external {
-        remoteDomain = _remoteDomain;
-    }
-
-    function setMessagePending(bytes memory _message) external {
+    function setMessageProven(bytes memory _message) external {
         bytes29 _m = _message.ref(0);
         messages[_m.keccak()] = MessageStatus.Proven;
     }
@@ -30,14 +26,6 @@ contract TestReplica is Replica {
     function setCommittedRoot(bytes32 _newRoot) external {
         committedRoot = _newRoot;
         confirmAt[_newRoot] = 1;
-    }
-
-    function timestamp() external view returns (uint256) {
-        return block.timestamp;
-    }
-
-    function testHomeDomainHash() external view returns (bytes32) {
-        return homeDomainHash();
     }
 
     function testBranchRoot(

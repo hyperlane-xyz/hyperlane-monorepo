@@ -34,6 +34,7 @@ interface TestHomeInterface extends ethers.utils.Interface {
     "nextLeafIndex()": FunctionFragment;
     "nonces(uint32)": FunctionFragment;
     "owner()": FunctionFragment;
+    "proof()": FunctionFragment;
     "queueContains(bytes32)": FunctionFragment;
     "queueEnd()": FunctionFragment;
     "queueLength()": FunctionFragment;
@@ -93,6 +94,7 @@ interface TestHomeInterface extends ethers.utils.Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
+  encodeFunctionData(functionFragment: "proof", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "queueContains",
     values: [BytesLike]
@@ -175,6 +177,7 @@ interface TestHomeInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "nonces", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "proof", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "queueContains",
     data: BytesLike
@@ -330,6 +333,47 @@ export class TestHome extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<[string]>;
 
+    proof(
+      overrides?: CallOverrides
+    ): Promise<
+      [
+        [
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string,
+          string
+        ]
+      ]
+    >;
+
     queueContains(
       _item: BytesLike,
       overrides?: CallOverrides
@@ -439,6 +483,45 @@ export class TestHome extends BaseContract {
 
   owner(overrides?: CallOverrides): Promise<string>;
 
+  proof(
+    overrides?: CallOverrides
+  ): Promise<
+    [
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string,
+      string
+    ]
+  >;
+
   queueContains(_item: BytesLike, overrides?: CallOverrides): Promise<boolean>;
 
   queueEnd(overrides?: CallOverrides): Promise<string>;
@@ -542,6 +625,45 @@ export class TestHome extends BaseContract {
     nonces(arg0: BigNumberish, overrides?: CallOverrides): Promise<number>;
 
     owner(overrides?: CallOverrides): Promise<string>;
+
+    proof(
+      overrides?: CallOverrides
+    ): Promise<
+      [
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string,
+        string
+      ]
+    >;
 
     queueContains(
       _item: BytesLike,
@@ -724,6 +846,8 @@ export class TestHome extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<BigNumber>;
 
+    proof(overrides?: CallOverrides): Promise<BigNumber>;
+
     queueContains(
       _item: BytesLike,
       overrides?: CallOverrides
@@ -834,6 +958,8 @@ export class TestHome extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    proof(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     queueContains(
       _item: BytesLike,

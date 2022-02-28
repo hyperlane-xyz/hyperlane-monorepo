@@ -10,8 +10,7 @@
     "typescript/typechain",
     "typescript/abacus-sdk",
     "typescript/contract-metrics",
-    "typescript/abacus-deploy",
-    "typescript/abacus-tests"
+    "typescript/abacus-deploy"
   ]
 }
 
