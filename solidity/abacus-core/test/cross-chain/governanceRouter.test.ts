@@ -126,12 +126,7 @@ describe('GovernanceRouter', async () => {
       processGas,
       reserveGas,
     );
-    await unenrolledReplica.initialize(
-      thirdDomain,
-      await signer.getAddress(),
-      ethers.constants.HashZero,
-      0,
-    );
+    await unenrolledReplica.initialize(thirdDomain, '0x', 0);
 
     // Create TransferGovernor message
     const transferGovernorMessage = abacus.governance.formatTransferGovernor(
@@ -273,8 +268,6 @@ describe('GovernanceRouter', async () => {
 
   it('Transfers governorship', async () => {
     // Transfer governor on current governor chain
-    // get root on governor chain before transferring governor
-    const committedRoot = await governorHome.committedRoot();
 
     // Governor HAS NOT been transferred on original governor domain
     await expectGovernor(governorRouter, governorDomain, firstGovernor);
@@ -301,13 +294,8 @@ describe('GovernanceRouter', async () => {
       ethers.constants.AddressZero,
     );
 
-    // get new root and signed update
-    const newRoot = await governorHome.queueEnd();
-
-    const { signature } = await updater.signUpdate(committedRoot, newRoot);
-
-    // update governor chain home
-    await governorHome.update(committedRoot, newRoot, signature);
+    // checkpoint governor chain home
+    await governorHome.checkpoint();
 
     const transferGovernorMessage = abacus.governance.formatTransferGovernor(
       nonGovernorDomain,
@@ -321,8 +309,10 @@ describe('GovernanceRouter', async () => {
       transferGovernorMessage,
     );
 
-    // Set current root on replica
-    await governorReplicaOnNonGovernorChain.setCommittedRoot(newRoot);
+    // Set checkpoint on replica
+    const [root, index] = await governorHome.latestCheckpoint();
+    const { signature } = await updater.signCheckpoint(root, index.toNumber());
+    await governorReplicaOnNonGovernorChain.checkpoint(root, index, signature);
 
     // Governor HAS been transferred on original governor domain
     await expectGovernor(
@@ -385,29 +375,30 @@ describe('GovernanceRouter', async () => {
     await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
   });
 
-  it('Calls UpdaterManager to change the Updater on Home', async () => {
+  it('Calls UpdaterManager to set the updater for a domain', async () => {
     const [newUpdater] = await ethers.getSigners();
     const updaterManager = abacusDeployment.updaterManager(governorDomain);
     await updaterManager.transferOwnership(governorRouter.address);
 
     // check current Updater address on Home
-    let currentUpdaterAddr = await governorHome.updater();
+    let currentUpdaterAddr = await updaterManager.updaters(governorDomain);
     expect(currentUpdaterAddr).to.equal(
       await abacusDeployment.updater(governorDomain).signer.getAddress(),
     );
 
     // format abacus call message
     const call = await formatCall(updaterManager, 'setUpdater', [
+      governorDomain,
       newUpdater.address,
     ]);
 
     await expect(governorRouter.callLocal([call])).to.emit(
-      governorHome,
+      updaterManager,
       'NewUpdater',
     );
 
     // check for new updater
-    currentUpdaterAddr = await governorHome.updater();
+    currentUpdaterAddr = await updaterManager.updaters(governorDomain);
     expect(currentUpdaterAddr).to.equal(newUpdater.address);
   });
 });
