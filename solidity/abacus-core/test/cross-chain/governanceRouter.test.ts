@@ -175,7 +175,6 @@ describe.only("GovernanceRouter", async () => {
     expect(success).to.be.false;
   });
 
-  /*
   it('Accepts a valid transfer governor message', async () => {
     // Enroll router for new domain (in real setting this would
     // be executed with an Abacus message sent to the nonGovernorRouter)
@@ -211,6 +210,7 @@ describe.only("GovernanceRouter", async () => {
     );
   });
 
+  /*
   it('Accepts valid set router message', async () => {
     // Create address for router to enroll and domain for router
     const [router] = await ethers.getSigners();
