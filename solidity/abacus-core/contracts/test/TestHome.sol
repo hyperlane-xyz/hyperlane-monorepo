@@ -18,7 +18,7 @@ contract TestHome is Home {
             uint256 _ithBit = (index >> i) & 0x01;
             bytes32 _next = tree.branch[i];
             if (_ithBit == 1) {
-                _proof[i] = _next;
+                _proof[i] = _current;
                 _current = keccak256(abi.encodePacked(_next, _current));
             } else {
                 _current = keccak256(abi.encodePacked(_current, zeroes[i]));
