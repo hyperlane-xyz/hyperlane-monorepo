@@ -50,7 +50,6 @@
     "@abacus-network/abacus-sol": "file:../abacus-core",
     "@openzeppelin/contracts": "^4.5.0",
     "@openzeppelin/contracts-upgradeable": "^4.5.1",
-    "@summa-tx/memview-sol": "^2.0.0",
-    "hardhat": "^2.8.4"
+    "@summa-tx/memview-sol": "^2.0.0"
   }
 }
