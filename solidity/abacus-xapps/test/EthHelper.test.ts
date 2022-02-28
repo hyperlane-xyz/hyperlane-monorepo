@@ -3,9 +3,9 @@ import { Signer } from 'ethers';
 import { expect } from 'chai';
 
 import * as types from './lib/types';
-import { toBytes32 } from './lib/utils';
 import { BridgeDeployment } from './lib/BridgeDeployment';
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
+import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
 
 const { BridgeMessageTypes } = bridge;
 const localDomain = 1000;

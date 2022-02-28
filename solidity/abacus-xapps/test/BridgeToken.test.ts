@@ -2,7 +2,7 @@ import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
-import { Signer } from './lib/types';
+import { Signer } from '@abacus-network/abacus-sol/test/lib/types';
 import { permitDigest } from './lib/permit';
 import { BridgeToken__factory, BridgeToken } from '../typechain';
 

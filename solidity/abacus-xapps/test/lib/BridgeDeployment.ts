@@ -3,8 +3,8 @@ import { assert } from 'chai';
 import * as ethers from 'ethers';
 
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
-import { toBytes32 } from './utils';
-import * as types from './types';
+import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
+import * as types from '@abacus-network/abacus-sol/test/lib/types';
 
 import {
   MockWeth__factory,

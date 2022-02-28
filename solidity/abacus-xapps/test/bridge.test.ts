@@ -3,9 +3,10 @@ import { ethers, bridge, abacus } from 'hardhat';
 import { BigNumber, BytesLike } from 'ethers';
 
 import * as types from './lib/types';
-import { stringToBytes32, toBytes32 } from './lib/utils';
 import { BridgeDeployment } from './lib/BridgeDeployment';
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
+import { Signer } from '@abacus-network/abacus-sol/test/lib/types';
+import { stringToBytes32, toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
 import { BridgeToken, BridgeToken__factory, IERC20 } from '../typechain';
 
 const { BridgeMessageTypes } = bridge;
@@ -21,7 +22,7 @@ const testTokenId = {
 describe('BridgeRouter', async () => {
   let abacusDeployment: AbacusDeployment;
   let bridgeDeployment: BridgeDeployment;
-  let deployer: types.Signer;
+  let deployer: Signer;
   let deployerAddress: string;
   let deployerId: BytesLike;
 

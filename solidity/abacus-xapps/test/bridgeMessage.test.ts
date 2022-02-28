@@ -2,7 +2,7 @@ import { ethers, abacus, bridge } from 'hardhat';
 import { BytesLike } from 'ethers';
 import { expect } from 'chai';
 
-import { toBytes32 } from './lib/utils';
+import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
 import { formatTokenId } from './lib/bridge';
 import {
   TokenIdentifier,
