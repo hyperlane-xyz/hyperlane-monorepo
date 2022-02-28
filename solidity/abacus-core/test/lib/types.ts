@@ -66,9 +66,9 @@ export type BytesArray = [
 ];
 
 /********* OPTICS CORE *********/
-export type Update = {
-  oldRoot: string;
-  newRoot: string;
+export type Checkpoint = {
+  root: string;
+  index: number;
   signature: string;
 };
 

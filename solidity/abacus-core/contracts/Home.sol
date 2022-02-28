@@ -18,11 +18,7 @@ import {MerkleTreeManager} from "./Merkle.sol";
  * Accepts submissions of fraudulent signatures
  * by the Updater and slashes the Updater in this case.
  */
-contract Home is
-    Version0,
-    MerkleTreeManager,
-    Common
-{
+contract Home is Version0, MerkleTreeManager, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -56,7 +52,7 @@ contract Home is
     // domain => next available nonce for the domain
     mapping(uint32 => uint32) public nonces;
     // The latest checkpointed root
-    bytes32 checkpointedRoot;
+    bytes32 public checkpointedRoot;
 
     // ============ Upgrade Gap ============
 

@@ -58,8 +58,12 @@ export class AbacusDeployment {
     signer: ethers.Signer,
   ): Promise<AbacusInstance> {
     const updaterManagerFactory = new UpdaterManager__factory(signer);
-    const updaterManager = await updaterManagerFactory.deploy(
-      await signer.getAddress(),
+    const updaterManager = await updaterManagerFactory.deploy();
+    await updaterManager.setUpdater(local, await signer.getAddress());
+    await Promise.all(
+      remotes.map(async (remoteDomain) =>
+        updaterManager.setUpdater(remoteDomain, await signer.getAddress()),
+      ),
     );
 
     const ubcFactory = new UpgradeBeaconController__factory(signer);
@@ -68,7 +72,6 @@ export class AbacusDeployment {
     const homeFactory = new TestHome__factory(signer);
     const home = await homeFactory.deploy(local);
     await home.initialize(updaterManager.address);
-    await updaterManager.setHome(home.address);
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     const connectionManager = await connectionManagerFactory.deploy();
@@ -82,13 +85,8 @@ export class AbacusDeployment {
         processGas,
         reserveGas,
       );
-      await replica.initialize(
-        remoteDomain,
-        await signer.getAddress(),
-        ethers.constants.HashZero,
-        optimisticSeconds,
-      );
-      await connectionManager.ownerEnrollReplica(replica.address, remoteDomain);
+      await replica.initialize(remoteDomain, updaterManager.address, 0);
+      await connectionManager.enrollReplica(replica.address, remoteDomain);
       replicas[remoteDomain] = replica;
     });
     await Promise.all(deploys);
@@ -147,25 +145,26 @@ export class AbacusDeployment {
 
   async processMessagesFromDomain(local: types.Domain) {
     const home = this.home(local);
-    const [committedRoot, latestRoot] = await home.suggestUpdate();
+    const [checkpointedRoot] = await home.latestCheckpoint();
 
-    // Find the block number of the last update submitted on Home.
-    const updateFilter = home.filters.Update(null, null, committedRoot);
-    const updates = await home.queryFilter(updateFilter);
-    assert(updates.length === 0 || updates.length === 1);
-    const fromBlock = updates.length === 0 ? 0 : updates[0].blockNumber;
+    // Find the block number of the last checkpoint submitted on Home.
+    const checkpointFilter = home.filters.Checkpoint(checkpointedRoot);
+    const checkpoints = await home.queryFilter(checkpointFilter);
+    assert(checkpoints.length === 0 || checkpoints.length === 1);
+    const fromBlock = checkpoints.length === 0 ? 0 : checkpoints[0].blockNumber;
 
+    await home.checkpoint();
+    const [root, index] = await home.latestCheckpoint();
     // Update the Home and Replicas to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestReplica.
     const updater = this.updater(local);
-    const { signature } = await updater.signUpdate(committedRoot, latestRoot);
-    await home.update(committedRoot, latestRoot, signature);
+    const { signature } = await updater.signCheckpoint(root, index.toNumber());
 
     for (const remote of this.domains) {
       if (remote !== local) {
         const replica = this.replica(remote, local);
-        await replica.update(committedRoot, latestRoot, signature);
+        await replica.checkpoint(root, index, signature);
       }
     }
 

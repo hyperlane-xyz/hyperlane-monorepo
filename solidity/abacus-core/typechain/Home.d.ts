@@ -24,6 +24,7 @@ interface HomeInterface extends ethers.utils.Interface {
     "MAX_MESSAGE_BODY_BYTES()": FunctionFragment;
     "VERSION()": FunctionFragment;
     "checkpoint()": FunctionFragment;
+    "checkpointedRoot()": FunctionFragment;
     "checkpoints(bytes32)": FunctionFragment;
     "count()": FunctionFragment;
     "dispatch(uint32,bytes32,bytes)": FunctionFragment;
@@ -49,6 +50,10 @@ interface HomeInterface extends ethers.utils.Interface {
   encodeFunctionData(functionFragment: "VERSION", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "checkpoint",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "checkpointedRoot",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -101,6 +106,10 @@ interface HomeInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "VERSION", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "checkpoint", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "checkpointedRoot",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "checkpoints",
     data: BytesLike
@@ -204,6 +213,8 @@ export class Home extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    checkpointedRoot(overrides?: CallOverrides): Promise<[string]>;
+
     checkpoints(
       arg0: BytesLike,
       overrides?: CallOverrides
@@ -270,6 +281,8 @@ export class Home extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
+  checkpointedRoot(overrides?: CallOverrides): Promise<string>;
+
   checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
   count(overrides?: CallOverrides): Promise<BigNumber>;
@@ -328,6 +341,8 @@ export class Home extends BaseContract {
     VERSION(overrides?: CallOverrides): Promise<number>;
 
     checkpoint(overrides?: CallOverrides): Promise<void>;
+
+    checkpointedRoot(overrides?: CallOverrides): Promise<string>;
 
     checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -426,6 +441,8 @@ export class Home extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
+    checkpointedRoot(overrides?: CallOverrides): Promise<BigNumber>;
+
     checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
     count(overrides?: CallOverrides): Promise<BigNumber>;
@@ -487,6 +504,8 @@ export class Home extends BaseContract {
     checkpoint(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
+
+    checkpointedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     checkpoints(
       arg0: BytesLike,

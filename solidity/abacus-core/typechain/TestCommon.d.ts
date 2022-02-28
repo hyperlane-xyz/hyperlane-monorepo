@@ -21,73 +21,70 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface TestCommonInterface extends ethers.utils.Interface {
   functions: {
-    "committedRoot()": FunctionFragment;
-    "doubleUpdate(bytes32,bytes32[2],bytes,bytes)": FunctionFragment;
-    "homeDomainHash()": FunctionFragment;
+    "initialize(address)": FunctionFragment;
     "localDomain()": FunctionFragment;
-    "setUpdater(address)": FunctionFragment;
-    "state()": FunctionFragment;
-    "testIsUpdaterSignature(bytes32,bytes32,bytes)": FunctionFragment;
-    "updater()": FunctionFragment;
+    "owner()": FunctionFragment;
+    "renounceOwnership()": FunctionFragment;
+    "setUpdaterManager(address)": FunctionFragment;
+    "transferOwnership(address)": FunctionFragment;
+    "updaterManager()": FunctionFragment;
   };
 
-  encodeFunctionData(
-    functionFragment: "committedRoot",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
-    functionFragment: "doubleUpdate",
-    values: [BytesLike, [BytesLike, BytesLike], BytesLike, BytesLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "homeDomainHash",
-    values?: undefined
-  ): string;
+  encodeFunctionData(functionFragment: "initialize", values: [string]): string;
   encodeFunctionData(
     functionFragment: "localDomain",
     values?: undefined
   ): string;
-  encodeFunctionData(functionFragment: "setUpdater", values: [string]): string;
-  encodeFunctionData(functionFragment: "state", values?: undefined): string;
+  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "testIsUpdaterSignature",
-    values: [BytesLike, BytesLike, BytesLike]
+    functionFragment: "renounceOwnership",
+    values?: undefined
   ): string;
-  encodeFunctionData(functionFragment: "updater", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "setUpdaterManager",
+    values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "transferOwnership",
+    values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "updaterManager",
+    values?: undefined
+  ): string;
 
-  decodeFunctionResult(
-    functionFragment: "committedRoot",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "doubleUpdate",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "homeDomainHash",
-    data: BytesLike
-  ): Result;
+  decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "setUpdater", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "state", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "testIsUpdaterSignature",
+    functionFragment: "renounceOwnership",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "updater", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "setUpdaterManager",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "updaterManager",
+    data: BytesLike
+  ): Result;
 
   events: {
-    "DoubleUpdate(bytes32,bytes32[2],bytes,bytes)": EventFragment;
-    "NewUpdater(address)": EventFragment;
-    "Update(uint32,bytes32,bytes32,bytes)": EventFragment;
+    "Checkpoint(bytes32,uint256)": EventFragment;
+    "NewUpdaterManager(address)": EventFragment;
+    "OwnershipTransferred(address,address)": EventFragment;
   };
 
-  getEvent(nameOrSignatureOrTopic: "DoubleUpdate"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "NewUpdater"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "Update"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Checkpoint"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewUpdaterManager"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
 
 export class TestCommon extends BaseContract {
@@ -134,191 +131,155 @@ export class TestCommon extends BaseContract {
   interface: TestCommonInterface;
 
   functions: {
-    committedRoot(overrides?: CallOverrides): Promise<[string]>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
+    initialize(
+      _updaterManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
-
-    homeDomainHash(overrides?: CallOverrides): Promise<[string]>;
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
-    setUpdater(
-      _updater: string,
+    owner(overrides?: CallOverrides): Promise<[string]>;
+
+    renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    state(overrides?: CallOverrides): Promise<[number]>;
+    setUpdaterManager(
+      _updaterManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
 
-    testIsUpdaterSignature(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
-      _signature: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<[boolean]>;
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
 
-    updater(overrides?: CallOverrides): Promise<[string]>;
+    updaterManager(overrides?: CallOverrides): Promise<[string]>;
   };
 
-  committedRoot(overrides?: CallOverrides): Promise<string>;
-
-  doubleUpdate(
-    _oldRoot: BytesLike,
-    _newRoot: [BytesLike, BytesLike],
-    _signature: BytesLike,
-    _signature2: BytesLike,
+  initialize(
+    _updaterManager: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
-
-  homeDomainHash(overrides?: CallOverrides): Promise<string>;
 
   localDomain(overrides?: CallOverrides): Promise<number>;
 
-  setUpdater(
-    _updater: string,
+  owner(overrides?: CallOverrides): Promise<string>;
+
+  renounceOwnership(
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  state(overrides?: CallOverrides): Promise<number>;
+  setUpdaterManager(
+    _updaterManager: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
-  testIsUpdaterSignature(
-    _oldRoot: BytesLike,
-    _newRoot: BytesLike,
-    _signature: BytesLike,
-    overrides?: CallOverrides
-  ): Promise<boolean>;
+  transferOwnership(
+    newOwner: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
-  updater(overrides?: CallOverrides): Promise<string>;
+  updaterManager(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
-    committedRoot(overrides?: CallOverrides): Promise<string>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
+    initialize(
+      _updaterManager: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
-    homeDomainHash(overrides?: CallOverrides): Promise<string>;
-
     localDomain(overrides?: CallOverrides): Promise<number>;
 
-    setUpdater(_updater: string, overrides?: CallOverrides): Promise<void>;
+    owner(overrides?: CallOverrides): Promise<string>;
 
-    state(overrides?: CallOverrides): Promise<number>;
+    renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
-    testIsUpdaterSignature(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
-      _signature: BytesLike,
+    setUpdaterManager(
+      _updaterManager: string,
       overrides?: CallOverrides
-    ): Promise<boolean>;
+    ): Promise<void>;
 
-    updater(overrides?: CallOverrides): Promise<string>;
+    transferOwnership(
+      newOwner: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    updaterManager(overrides?: CallOverrides): Promise<string>;
   };
 
   filters: {
-    DoubleUpdate(
-      oldRoot?: null,
-      newRoot?: null,
-      signature?: null,
-      signature2?: null
+    Checkpoint(
+      root?: BytesLike | null,
+      index?: BigNumberish | null
     ): TypedEventFilter<
-      [string, [string, string], string, string],
-      {
-        oldRoot: string;
-        newRoot: [string, string];
-        signature: string;
-        signature2: string;
-      }
+      [string, BigNumber],
+      { root: string; index: BigNumber }
     >;
 
-    NewUpdater(updater?: null): TypedEventFilter<[string], { updater: string }>;
+    NewUpdaterManager(
+      updaterManager?: null
+    ): TypedEventFilter<[string], { updaterManager: string }>;
 
-    Update(
-      homeDomain?: BigNumberish | null,
-      oldRoot?: BytesLike | null,
-      newRoot?: BytesLike | null,
-      signature?: null
+    OwnershipTransferred(
+      previousOwner?: string | null,
+      newOwner?: string | null
     ): TypedEventFilter<
-      [number, string, string, string],
-      {
-        homeDomain: number;
-        oldRoot: string;
-        newRoot: string;
-        signature: string;
-      }
+      [string, string],
+      { previousOwner: string; newOwner: string }
     >;
   };
 
   estimateGas: {
-    committedRoot(overrides?: CallOverrides): Promise<BigNumber>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
+    initialize(
+      _updaterManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
-
-    homeDomainHash(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
-    setUpdater(
-      _updater: string,
+    owner(overrides?: CallOverrides): Promise<BigNumber>;
+
+    renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    state(overrides?: CallOverrides): Promise<BigNumber>;
-
-    testIsUpdaterSignature(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
-      _signature: BytesLike,
-      overrides?: CallOverrides
+    setUpdaterManager(
+      _updaterManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    updater(overrides?: CallOverrides): Promise<BigNumber>;
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    updaterManager(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   populateTransaction: {
-    committedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
+    initialize(
+      _updaterManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
-
-    homeDomainHash(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    setUpdater(
-      _updater: string,
+    owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    state(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    testIsUpdaterSignature(
-      _oldRoot: BytesLike,
-      _newRoot: BytesLike,
-      _signature: BytesLike,
-      overrides?: CallOverrides
+    setUpdaterManager(
+      _updaterManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    updater(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    updaterManager(overrides?: CallOverrides): Promise<PopulatedTransaction>;
   };
 }

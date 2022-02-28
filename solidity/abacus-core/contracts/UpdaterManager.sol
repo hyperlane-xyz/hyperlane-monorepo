@@ -34,7 +34,14 @@ contract UpdaterManager is IUpdaterManager, Ownable {
      * @param index Index of the improper update
      * @param signature Signature on `root` and `index`
      */
-    event ImproperUpdate(address indexed home, uint32 indexed domain, address indexed updater, bytes32 root, uint256 index, bytes signature);
+    event ImproperUpdate(
+        address indexed home,
+        uint32 indexed domain,
+        address indexed updater,
+        bytes32 root,
+        uint256 index,
+        bytes signature
+    );
 
     // ============ Constructor ============
 
@@ -49,8 +56,8 @@ contract UpdaterManager is IUpdaterManager, Ownable {
      * @param _updater The address of the updater
      */
     function setUpdater(uint32 _domain, address _updater) external onlyOwner {
-      updaters[_domain] = _updater;
-      emit NewUpdater(_domain, _updater);
+        updaters[_domain] = _updater;
+        emit NewUpdater(_domain, _updater);
     }
 
     /**
@@ -71,10 +78,20 @@ contract UpdaterManager is IUpdaterManager, Ownable {
         bytes memory _signature
     ) external returns (bool) {
         uint32 _domain = Home(_home).localDomain();
-        require(isUpdaterSignature(_domain, _root, _index, _signature), "!updater sig");
+        require(
+            isUpdaterSignature(_domain, _root, _index, _signature),
+            "!updater sig"
+        );
         require(Home(_home).checkpoints(_root) != _index, "!improper");
         Home(_home).fail();
-        emit ImproperUpdate(_home, _domain, updaters[_domain], _root, _index, _signature);
+        emit ImproperUpdate(
+            _home,
+            _domain,
+            updaters[_domain],
+            _root,
+            _index,
+            _signature
+        );
         return true;
     }
 
@@ -105,11 +122,7 @@ contract UpdaterManager is IUpdaterManager, Ownable {
      * @notice Hash of domain concatenated with "ABACUS"
      * @param _domain the domain to hash
      */
-    function domainHash(uint32 _domain)
-        public
-        pure
-        returns (bytes32)
-    {
+    function domainHash(uint32 _domain) public pure returns (bytes32) {
         return keccak256(abi.encodePacked(_domain, "ABACUS"));
     }
 }

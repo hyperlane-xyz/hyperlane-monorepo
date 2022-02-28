@@ -119,7 +119,15 @@ contract Replica is Version0, Common {
         // ensure that update is more recent than the latest we've seen
         require(_index > checkpointedIndex, "old update");
         // validate updater signature
-        require(updaterManager.isUpdaterSignature(remoteDomain, _root, _index, _signature), "!updater sig");
+        require(
+            updaterManager.isUpdaterSignature(
+                remoteDomain,
+                _root,
+                _index,
+                _signature
+            ),
+            "!updater sig"
+        );
         // checkpoint the root
         checkpoints[_root] = _index;
         // update checkpointedIndex

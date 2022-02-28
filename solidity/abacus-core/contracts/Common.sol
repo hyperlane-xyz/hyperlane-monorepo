@@ -32,7 +32,7 @@ abstract contract Common is OwnableUpgradeable {
 
     /**
      * @notice Emitted when a root is checkpointed on Home or a signed
-		 * checkpoint is relayed to a Replica.
+     * checkpoint is relayed to a Replica.
      * @param root Merkle root
      * @param index Leaf index
      */
@@ -45,7 +45,6 @@ abstract contract Common is OwnableUpgradeable {
     event NewUpdaterManager(address updaterManager);
 
     // ============ Modifiers ============
-
 
     // ============ Constructor ============
 

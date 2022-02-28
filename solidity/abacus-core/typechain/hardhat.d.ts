@@ -41,10 +41,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MerkleTreeManager__factory>;
     getContractFactory(
-      name: "QueueManager",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.QueueManager__factory>;
-    getContractFactory(
       name: "Replica",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Replica__factory>;
@@ -109,10 +105,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestMessage__factory>;
     getContractFactory(
-      name: "TestQueue",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.TestQueue__factory>;
-    getContractFactory(
       name: "TestRecipient",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestRecipient__factory>;
@@ -120,10 +112,6 @@ declare module "hardhat/types/runtime" {
       name: "TestReplica",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestReplica__factory>;
-    getContractFactory(
-      name: "TestXAppConnectionManager",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.TestXAppConnectionManager__factory>;
     getContractFactory(
       name: "UpdaterManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
