@@ -40,14 +40,11 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     "remoteDomain()": FunctionFragment;
     "setCommittedRoot(bytes32)": FunctionFragment;
     "setFailed()": FunctionFragment;
-    "setMessagePending(bytes)": FunctionFragment;
-    "setRemoteDomain(uint32)": FunctionFragment;
+    "setMessageProven(bytes)": FunctionFragment;
     "setUpdater(address)": FunctionFragment;
     "state()": FunctionFragment;
     "testBranchRoot(bytes32,bytes32[32],uint256)": FunctionFragment;
-    "testHomeDomainHash()": FunctionFragment;
     "testProcess(bytes)": FunctionFragment;
-    "timestamp()": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "update(bytes32,bytes32,bytes)": FunctionFragment;
     "updater()": FunctionFragment;
@@ -189,12 +186,8 @@ interface TestReplicaInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(functionFragment: "setFailed", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "setMessagePending",
+    functionFragment: "setMessageProven",
     values: [BytesLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "setRemoteDomain",
-    values: [BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "setUpdater", values: [string]): string;
   encodeFunctionData(functionFragment: "state", values?: undefined): string;
@@ -240,14 +233,9 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     ]
   ): string;
   encodeFunctionData(
-    functionFragment: "testHomeDomainHash",
-    values?: undefined
-  ): string;
-  encodeFunctionData(
     functionFragment: "testProcess",
     values: [BytesLike]
   ): string;
-  encodeFunctionData(functionFragment: "timestamp", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [string]
@@ -311,11 +299,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "setFailed", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "setMessagePending",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "setRemoteDomain",
+    functionFragment: "setMessageProven",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "setUpdater", data: BytesLike): Result;
@@ -325,14 +309,9 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "testHomeDomainHash",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "testProcess",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "timestamp", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
@@ -536,13 +515,8 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    setMessagePending(
+    setMessageProven(
       _message: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
-    setRemoteDomain(
-      _remoteDomain: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -593,14 +567,10 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[string]>;
 
-    testHomeDomainHash(overrides?: CallOverrides): Promise<[string]>;
-
     testProcess(
       _message: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
-
-    timestamp(overrides?: CallOverrides): Promise<[BigNumber]>;
 
     transferOwnership(
       newOwner: string,
@@ -751,13 +721,8 @@ export class TestReplica extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  setMessagePending(
+  setMessageProven(
     _message: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
-  setRemoteDomain(
-    _remoteDomain: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -808,14 +773,10 @@ export class TestReplica extends BaseContract {
     overrides?: CallOverrides
   ): Promise<string>;
 
-  testHomeDomainHash(overrides?: CallOverrides): Promise<string>;
-
   testProcess(
     _message: BytesLike,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
-
-  timestamp(overrides?: CallOverrides): Promise<BigNumber>;
 
   transferOwnership(
     newOwner: string,
@@ -964,13 +925,8 @@ export class TestReplica extends BaseContract {
 
     setFailed(overrides?: CallOverrides): Promise<void>;
 
-    setMessagePending(
+    setMessageProven(
       _message: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    setRemoteDomain(
-      _remoteDomain: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -1018,14 +974,10 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<string>;
 
-    testHomeDomainHash(overrides?: CallOverrides): Promise<string>;
-
     testProcess(
       _message: BytesLike,
       overrides?: CallOverrides
     ): Promise<boolean>;
-
-    timestamp(overrides?: CallOverrides): Promise<BigNumber>;
 
     transferOwnership(
       newOwner: string,
@@ -1231,13 +1183,8 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    setMessagePending(
+    setMessageProven(
       _message: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
-    setRemoteDomain(
-      _remoteDomain: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -1288,14 +1235,10 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    testHomeDomainHash(overrides?: CallOverrides): Promise<BigNumber>;
-
     testProcess(
       _message: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
-
-    timestamp(overrides?: CallOverrides): Promise<BigNumber>;
 
     transferOwnership(
       newOwner: string,
@@ -1456,13 +1399,8 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    setMessagePending(
+    setMessageProven(
       _message: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    setRemoteDomain(
-      _remoteDomain: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -1513,16 +1451,10 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    testHomeDomainHash(
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
     testProcess(
       _message: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
-
-    timestamp(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     transferOwnership(
       newOwner: string,

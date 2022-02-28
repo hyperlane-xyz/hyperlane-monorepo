@@ -85,7 +85,7 @@ describe('Home', async () => {
       const homeFactory = new TestHome__factory(signer);
       const tempHome = await homeFactory.deploy(testCase.homeDomain);
       const { expectedDomainHash } = testCase;
-      const homeDomainHash = await tempHome.testHomeDomainHash();
+      const homeDomainHash = await tempHome.homeDomainHash();
       expect(homeDomainHash).to.equal(expectedDomainHash);
     }
   });
@@ -119,7 +119,7 @@ describe('Home', async () => {
       message,
     );
     const messageHash = abacus.messageHash(abacusMessage);
-    const leafIndex = await home.nextLeafIndex();
+    const leafIndex = await home.tree();
     const committedRoot = await home.committedRoot();
 
     // Send message with signer address as msg.sender
@@ -252,7 +252,7 @@ describe('Home', async () => {
   it('Correctly calculates destinationAndNonce', async () => {
     for (let testCase of destinationNonceTestCases) {
       let { destination, nonce, expectedDestinationAndNonce } = testCase;
-      const solidityDestinationAndNonce = await home.testDestinationAndNonce(
+      const solidityDestinationAndNonce = await home.destinationAndNonce(
         destination,
         nonce,
       );
