@@ -1,9 +1,9 @@
-import { assert } from "chai";
-import * as ethers from "ethers";
+import { assert } from 'chai';
+import * as ethers from 'ethers';
 
-import * as types from "./types";
-import { getHexStringByteLength } from "./utils";
-import { AbacusDeployment } from "./AbacusDeployment";
+import * as types from './types';
+import { getHexStringByteLength } from './utils';
+import { AbacusDeployment } from './AbacusDeployment';
 
 export class Updater {
   localDomain: types.Domain;
@@ -14,10 +14,10 @@ export class Updater {
     signer: ethers.Signer,
     address: types.Address,
     localDomain: types.Domain,
-    disableWarn: boolean
+    disableWarn: boolean,
   ) {
     if (!disableWarn) {
-      throw new Error("Please use `Updater.fromSigner()` to instantiate.");
+      throw new Error('Please use `Updater.fromSigner()` to instantiate.');
     }
     this.localDomain = localDomain ? localDomain : 0;
     this.signer = signer;
@@ -55,14 +55,14 @@ const formatMessage = (
   sequence: number,
   destinationDomain: types.Domain,
   recipientAddr: types.Address,
-  body: types.HexString
+  body: types.HexString,
 ): string => {
   senderAddr = ethersAddressToBytes32(senderAddr);
   recipientAddr = ethersAddressToBytes32(recipientAddr);
 
   return ethers.utils.solidityPack(
-    ["uint32", "bytes32", "uint32", "uint32", "bytes32", "bytes"],
-    [localDomain, senderAddr, sequence, destinationDomain, recipientAddr, body]
+    ['uint32', 'bytes32', 'uint32', 'uint32', 'bytes32', 'bytes'],
+    [localDomain, senderAddr, sequence, destinationDomain, recipientAddr, body],
   );
 };
 
@@ -86,23 +86,23 @@ export enum MessageStatus {
 
 function formatTransferGovernor(
   newDomain: types.Domain,
-  newAddress: types.Address
+  newAddress: types.Address,
 ): string {
   return ethers.utils.solidityPack(
-    ["bytes1", "uint32", "bytes32"],
-    [GovernanceMessage.TRANSFERGOVERNOR, newDomain, newAddress]
+    ['bytes1', 'uint32', 'bytes32'],
+    [GovernanceMessage.TRANSFERGOVERNOR, newDomain, newAddress],
   );
 }
 
 function formatSetRouter(domain: types.Domain, address: types.Address): string {
   return ethers.utils.solidityPack(
-    ["bytes1", "uint32", "bytes32"],
-    [GovernanceMessage.SETROUTER, domain, address]
+    ['bytes1', 'uint32', 'bytes32'],
+    [GovernanceMessage.SETROUTER, domain, address],
   );
 }
 
 function messageHash(message: types.HexString): string {
-  return ethers.utils.solidityKeccak256(["bytes"], [message]);
+  return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 
 function ethersAddressToBytes32(address: types.Address): string {
@@ -113,7 +113,7 @@ function ethersAddressToBytes32(address: types.Address): string {
 
 function destinationAndNonce(
   destination: types.Domain,
-  sequence: number
+  sequence: number,
 ): ethers.BigNumber {
   assert(destination < Math.pow(2, 32) - 1);
   assert(sequence < Math.pow(2, 32) - 1);
@@ -125,25 +125,25 @@ function destinationAndNonce(
 
 function domainHash(domain: Number): string {
   return ethers.utils.solidityKeccak256(
-    ["uint32", "string"],
-    [domain, "OPTICS"]
+    ['uint32', 'string'],
+    [domain, 'OPTICS'],
   );
 }
 
 async function signedFailureNotification(
   signer: ethers.Signer,
   domain: types.Domain,
-  updaterAddress: types.Address
+  updaterAddress: types.Address,
 ): Promise<types.SignedFailureNotification> {
   const domainCommitment = domainHash(domain);
   const updaterBytes32 = ethersAddressToBytes32(updaterAddress);
 
   const failureNotification = ethers.utils.solidityPack(
-    ["bytes32", "uint32", "bytes32"],
-    [domainCommitment, domain, updaterBytes32]
+    ['bytes32', 'uint32', 'bytes32'],
+    [domainCommitment, domain, updaterBytes32],
   );
   const signature = await signer.signMessage(
-    ethers.utils.arrayify(ethers.utils.keccak256(failureNotification))
+    ethers.utils.arrayify(ethers.utils.keccak256(failureNotification)),
   );
 
   return {
@@ -157,7 +157,7 @@ async function signedFailureNotification(
 }
 
 function formatCalls(callsData: types.CallData[]): string {
-  let callBody = "0x";
+  let callBody = '0x';
   const numCalls = callsData.length;
 
   for (let i = 0; i < numCalls; i++) {
@@ -169,8 +169,8 @@ function formatCalls(callsData: types.CallData[]): string {
     }
 
     let hexBytes = ethers.utils.solidityPack(
-      ["bytes32", "uint256", "bytes"],
-      [to, dataLen, data]
+      ['bytes32', 'uint256', 'bytes'],
+      [to, dataLen, data],
     );
 
     // remove 0x before appending
@@ -178,8 +178,8 @@ function formatCalls(callsData: types.CallData[]): string {
   }
 
   return ethers.utils.solidityPack(
-    ["bytes1", "bytes1", "bytes"],
-    [GovernanceMessage.CALL, numCalls, callBody]
+    ['bytes1', 'bytes1', 'bytes'],
+    [GovernanceMessage.CALL, numCalls, callBody],
   );
 }
 

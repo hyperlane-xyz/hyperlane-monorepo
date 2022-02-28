@@ -1,7 +1,7 @@
-import { expect } from "chai";
-import ethers from "ethers";
+import { expect } from 'chai';
+import ethers from 'ethers';
 
-import { Signer } from "./lib/types";
+import { Signer } from './lib/types';
 import {
   MysteryMathV1,
   MysteryMathV2,
@@ -10,14 +10,14 @@ import {
   UpgradeBeacon,
   UpgradeBeacon__factory,
   UpgradeBeaconProxy__factory,
-} from "../typechain";
+} from '../typechain';
 
 export const increaseTimestampBy = async (
   provider: ethers.providers.JsonRpcProvider,
-  increaseTime: number
+  increaseTime: number,
 ) => {
-  await provider.send("evm_increaseTime", [increaseTime]);
-  await provider.send("evm_mine", []);
+  await provider.send('evm_increaseTime', [increaseTime]);
+  await provider.send('evm_mine', []);
 };
 
 export type MysteryMathUpgrade = {
@@ -33,7 +33,7 @@ export class UpgradeTestHelpers {
 
   async deployMysteryMathUpgradeSetup(
     signer: Signer,
-    ubc: UpgradeBeaconController
+    ubc: UpgradeBeaconController,
   ): Promise<MysteryMathUpgrade> {
     // deploy implementation
     const mysteryMathFactory = new MysteryMathV1__factory(signer);
@@ -43,7 +43,7 @@ export class UpgradeTestHelpers {
     const beaconFactory = new UpgradeBeacon__factory(signer);
     const beacon = await beaconFactory.deploy(
       mysteryMathImplementation.address,
-      ubc.address
+      ubc.address,
     );
 
     // deploy proxy
@@ -83,9 +83,9 @@ export class UpgradeTestHelpers {
 }
 
 export const stringToBytes32 = (s: string): string => {
-  const str = Buffer.from(s.slice(0, 32), "utf-8");
+  const str = Buffer.from(s.slice(0, 32), 'utf-8');
   const result = Buffer.alloc(32);
   str.copy(result);
 
-  return "0x" + result.toString("hex");
+  return '0x' + result.toString('hex');
 };

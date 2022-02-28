@@ -1,9 +1,9 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { assert } from "chai";
-import * as ethers from "ethers";
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { assert } from 'chai';
+import * as ethers from 'ethers';
 
-import * as types from "./types";
-import { Updater } from "./core";
+import * as types from './types';
+import { Updater } from './core';
 
 import {
   TestHome,
@@ -16,7 +16,7 @@ import {
   XAppConnectionManager__factory,
   TestReplica,
   TestReplica__factory,
-} from "../../typechain";
+} from '../../typechain';
 
 export interface AbacusInstance {
   domain: types.Domain;
@@ -36,7 +36,7 @@ export class AbacusDeployment {
   constructor(
     public readonly domains: types.Domain[],
     public readonly instances: Record<number, AbacusInstance>,
-    public readonly signer: ethers.Signer
+    public readonly signer: ethers.Signer,
   ) {}
 
   static async fromDomains(domains: types.Domain[], signer: ethers.Signer) {
@@ -45,7 +45,7 @@ export class AbacusDeployment {
       const instance = await AbacusDeployment.deployInstance(
         local,
         domains.filter((d) => d !== local),
-        signer
+        signer,
       );
       instances[local] = instance;
     }
@@ -55,11 +55,11 @@ export class AbacusDeployment {
   static async deployInstance(
     local: types.Domain,
     remotes: types.Domain[],
-    signer: ethers.Signer
+    signer: ethers.Signer,
   ): Promise<AbacusInstance> {
     const updaterManagerFactory = new UpdaterManager__factory(signer);
     const updaterManager = await updaterManagerFactory.deploy(
-      await signer.getAddress()
+      await signer.getAddress(),
     );
 
     const ubcFactory = new UpgradeBeaconController__factory(signer);
@@ -80,13 +80,13 @@ export class AbacusDeployment {
       const replica = await replicaFactory.deploy(
         local,
         processGas,
-        reserveGas
+        reserveGas,
       );
       await replica.initialize(
         remoteDomain,
         await signer.getAddress(),
         ethers.constants.HashZero,
-        optimisticSeconds
+        optimisticSeconds,
       );
       await connectionManager.ownerEnrollReplica(replica.address, remoteDomain);
       replicas[remoteDomain] = replica;
@@ -185,7 +185,7 @@ export class AbacusDeployment {
     await replica.proveAndProcess(
       dispatch.args.message,
       proof,
-      previousMessageCount
+      previousMessageCount,
     );
   }
 }

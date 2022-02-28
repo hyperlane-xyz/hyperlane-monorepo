@@ -1,15 +1,15 @@
-import { expect } from "chai";
-import { ethers, abacus } from "hardhat";
-import * as types from "ethers";
+import { expect } from 'chai';
+import { ethers, abacus } from 'hardhat';
+import * as types from 'ethers';
 
-import { Updater } from "../lib/core";
-import { Update, CallData, Address } from "../lib/types";
+import { Updater } from '../lib/core';
+import { Update, CallData, Address } from '../lib/types';
 import {
   Replica,
   TestReplica,
   Home,
   TestGovernanceRouter,
-} from "../../typechain";
+} from '../../typechain';
 
 type MessageDetails = {
   message: string;
@@ -32,7 +32,7 @@ type MessageDetails = {
  */
 export async function dispatchMessage(
   home: Home,
-  messageDetails: MessageDetails
+  messageDetails: MessageDetails,
 ): Promise<string> {
   const { message, destinationDomain, recipientAddress } = messageDetails;
 
@@ -40,7 +40,7 @@ export async function dispatchMessage(
   await home.dispatch(
     destinationDomain,
     abacus.ethersAddressToBytes32(recipientAddress),
-    ethers.utils.formatBytes32String(message)
+    ethers.utils.formatBytes32String(message),
   );
 
   const [, newRoot] = await home.suggestUpdate();
@@ -61,7 +61,7 @@ export async function dispatchMessage(
 export async function dispatchMessagesAndUpdateHome(
   home: Home,
   messages: MessageDetails[],
-  updater: Updater
+  updater: Updater,
 ): Promise<Update> {
   const homeDomain = await home.localDomain();
 
@@ -87,7 +87,7 @@ export async function dispatchMessagesAndUpdateHome(
   const { signature } = await updater.signUpdate(oldRoot, newRoot);
 
   await expect(home.update(oldRoot, newRoot, signature))
-    .to.emit(home, "Update")
+    .to.emit(home, 'Update')
     .withArgs(homeDomain, oldRoot, newRoot, signature);
 
   // ensure that Home root is now newRoot
@@ -119,13 +119,13 @@ export async function dispatchMessagesAndUpdateHome(
  */
 export async function updateReplica(
   latestUpdateOnOriginChain: Update,
-  replica: Replica
+  replica: Replica,
 ): Promise<string> {
   const homeDomain = await replica.remoteDomain();
   const { oldRoot, newRoot, signature } = latestUpdateOnOriginChain;
 
   await expect(replica.update(oldRoot, newRoot, signature))
-    .to.emit(replica, "Update")
+    .to.emit(replica, 'Update')
     .withArgs(homeDomain, oldRoot, newRoot, signature);
 
   expect(await replica.committedRoot()).to.equal(newRoot);
@@ -145,7 +145,7 @@ export async function updateReplica(
 export function formatMessage(
   message: string,
   destinationDomain: number,
-  recipientAddress: Address
+  recipientAddress: Address,
 ): MessageDetails {
   return {
     message,
@@ -158,7 +158,7 @@ export async function formatAbacusMessage(
   replica: TestReplica,
   governorRouter: TestGovernanceRouter,
   destinationRouter: TestGovernanceRouter,
-  message: string
+  message: string,
 ): Promise<string> {
   const nonce = 0;
   const governorDomain = await governorRouter.localDomain();
@@ -172,7 +172,7 @@ export async function formatAbacusMessage(
     nonce,
     destinationDomain,
     destinationRouter.address,
-    message
+    message,
   );
 
   // Set message status to MessageStatus.Pending
@@ -184,13 +184,13 @@ export async function formatAbacusMessage(
 export async function formatCall(
   destinationContract: types.Contract,
   functionStr: string,
-  functionArgs: any[]
+  functionArgs: any[],
 ): Promise<CallData> {
   // Set up data for call message
   const callFunc = destinationContract.interface.getFunction(functionStr);
   const callDataEncoded = destinationContract.interface.encodeFunctionData(
     callFunc,
-    functionArgs
+    functionArgs,
   );
 
   return {
@@ -204,7 +204,7 @@ export async function sendFromSigner(
   signer: types.Signer,
   contract: types.Contract,
   functionName: string,
-  args: any[]
+  args: any[],
 ) {
   const data = encodeData(contract, functionName, args);
 
@@ -217,7 +217,7 @@ export async function sendFromSigner(
 function encodeData(
   contract: types.Contract,
   functionName: string,
-  args: any[]
+  args: any[],
 ): string {
   const func = contract.interface.getFunction(functionName);
   return contract.interface.encodeFunctionData(func, args);

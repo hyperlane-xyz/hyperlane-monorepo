@@ -1,15 +1,15 @@
-import { SignerWithAddress } from "@nomiclabs/hardhat-ethers/signers";
-import { assert } from "chai";
-import * as ethers from "ethers";
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { assert } from 'chai';
+import * as ethers from 'ethers';
 
-import { AbacusDeployment } from "./AbacusDeployment";
-import { toBytes32 } from "./utils";
-import * as types from "./types";
+import { AbacusDeployment } from './AbacusDeployment';
+import { toBytes32 } from './utils';
+import * as types from './types';
 
 import {
   TestGovernanceRouter__factory,
   TestGovernanceRouter,
-} from "../../typechain";
+} from '../../typechain';
 
 export interface GovernanceInstance {
   domain: types.Domain;
@@ -21,12 +21,12 @@ const recoveryTimelock = 60 * 60 * 24 * 7;
 export class GovernanceDeployment {
   constructor(
     public readonly domains: types.Domain[],
-    public readonly instances: Record<number, GovernanceInstance>
+    public readonly instances: Record<number, GovernanceInstance>,
   ) {}
 
   static async fromAbacusDeployment(
     abacus: AbacusDeployment,
-    signer: ethers.Signer
+    signer: ethers.Signer,
   ) {
     // Deploy routers.
     const instances: Record<number, GovernanceInstance> = {};
@@ -34,7 +34,7 @@ export class GovernanceDeployment {
       const instance = await GovernanceDeployment.deployInstance(
         domain,
         signer,
-        abacus.connectionManager(domain).address
+        abacus.connectionManager(domain).address,
       );
       instances[domain] = instance;
     }
@@ -44,7 +44,7 @@ export class GovernanceDeployment {
       for (const remote of abacus.domains) {
         await instances[local].router.setRouterLocal(
           remote,
-          toBytes32(instances[remote].router.address)
+          toBytes32(instances[remote].router.address),
         );
       }
     }
@@ -54,7 +54,7 @@ export class GovernanceDeployment {
       if (i > 0) {
         await instances[abacus.domains[i]].router.transferGovernor(
           abacus.domains[0],
-          instances[abacus.domains[0]].router.address
+          instances[abacus.domains[0]].router.address,
         );
       }
     }
@@ -65,13 +65,13 @@ export class GovernanceDeployment {
   static async deployInstance(
     domain: types.Domain,
     signer: ethers.Signer,
-    connectionManagerAddress: types.Address
+    connectionManagerAddress: types.Address,
   ): Promise<GovernanceInstance> {
     const routerFactory = new TestGovernanceRouter__factory(signer);
     const router = await routerFactory.deploy(domain, recoveryTimelock);
     await router.initialize(
       connectionManagerAddress,
-      await signer.getAddress()
+      await signer.getAddress(),
     );
     return {
       domain,

@@ -1,11 +1,11 @@
-import { ethers } from "hardhat";
-import { expect } from "chai";
-import { TestQueue, TestQueue__factory } from "../typechain";
+import { ethers } from 'hardhat';
+import { expect } from 'chai';
+import { TestQueue, TestQueue__factory } from '../typechain';
 
 // create a proper hex encoded bytes32 filled with number. e.g 0x01010101...
-const bytes32 = (num: number) => `0x${Buffer.alloc(32, num).toString("hex")}`;
+const bytes32 = (num: number) => `0x${Buffer.alloc(32, num).toString('hex')}`;
 
-describe("Queue", async () => {
+describe('Queue', async () => {
   let queue: TestQueue;
 
   before(async () => {
@@ -14,7 +14,7 @@ describe("Queue", async () => {
     queue = await queueFactory.deploy();
   });
 
-  it("should function as a queue", async () => {
+  it('should function as a queue', async () => {
     // we put this here for coverage to check that init properly does nothing
     await queue.initializeAgain();
 
@@ -46,8 +46,8 @@ describe("Queue", async () => {
     }
 
     // reverts
-    await expect(queue.dequeue()).to.be.revertedWith("Empty");
-    await expect(queue.peek()).to.be.revertedWith("Empty");
+    await expect(queue.dequeue()).to.be.revertedWith('Empty');
+    await expect(queue.peek()).to.be.revertedWith('Empty');
 
     // Multi-enq
     await queue.enqueueMany(items);
@@ -62,7 +62,7 @@ describe("Queue", async () => {
 
     // Multi-deq that exceeds size reverts
     await expect(queue.dequeueMany(items.length + 1)).to.be.revertedWith(
-      "Insufficient"
+      'Insufficient',
     );
 
     // Multi-deq tx to check function

@@ -1,5 +1,5 @@
-import { ethers, abacus } from "hardhat";
-import { expect } from "chai";
+import { ethers, abacus } from 'hardhat';
+import { expect } from 'chai';
 
 import {
   TestHome__factory,
@@ -7,20 +7,20 @@ import {
   TestXAppConnectionManager,
   TestXAppConnectionManager__factory,
   TestReplica,
-} from "../typechain";
-import { Updater } from "./lib/core";
-import { Signer } from "./lib/types";
+} from '../typechain';
+import { Updater } from './lib/core';
+import { Signer } from './lib/types';
 
-const signedFailureTestCases = require("../../../vectors/signedFailure.json");
+const signedFailureTestCases = require('../../../vectors/signedFailure.json');
 
-const ONLY_OWNER_REVERT_MSG = "Ownable: caller is not the owner";
+const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 const localDomain = 1000;
 const remoteDomain = 2000;
 const processGas = 850000;
 const reserveGas = 15000;
 const optimisticSeconds = 3;
 
-describe("XAppConnectionManager", async () => {
+describe('XAppConnectionManager', async () => {
   let connectionManager: TestXAppConnectionManager,
     enrolledReplica: TestReplica,
     signer: Signer,
@@ -39,38 +39,38 @@ describe("XAppConnectionManager", async () => {
     enrolledReplica = await replicaFactory.deploy(
       localDomain,
       processGas,
-      reserveGas
+      reserveGas,
     );
     await enrolledReplica.initialize(
       remoteDomain,
       updater.address,
       ethers.constants.HashZero,
-      optimisticSeconds
+      optimisticSeconds,
     );
 
     const connectionManagerFactory = new TestXAppConnectionManager__factory(
-      signer
+      signer,
     );
     connectionManager = await connectionManagerFactory.deploy();
     await connectionManager.setHome(home.address);
     await connectionManager.ownerEnrollReplica(
       enrolledReplica.address,
-      remoteDomain
+      remoteDomain,
     );
   });
 
-  it("Returns the local domain", async () => {
+  it('Returns the local domain', async () => {
     expect(await connectionManager!.localDomain()).to.equal(localDomain);
   });
 
-  it("onlyOwner function rejects call from non-owner", async () => {
+  it('onlyOwner function rejects call from non-owner', async () => {
     const [nonHome, nonOwner] = await ethers.getSigners();
     await expect(
-      connectionManager.connect(nonOwner).setHome(nonHome.address)
+      connectionManager.connect(nonOwner).setHome(nonHome.address),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
   });
 
-  it("isReplica returns true for enrolledReplica and false for non-enrolled Replica", async () => {
+  it('isReplica returns true for enrolledReplica and false for non-enrolled Replica', async () => {
     const [nonEnrolledReplica] = await ethers.getSigners();
     expect(await connectionManager.isReplica(enrolledReplica.address)).to.be
       .true;
@@ -78,7 +78,7 @@ describe("XAppConnectionManager", async () => {
       .false;
   });
 
-  it("Allows owner to set the home", async () => {
+  it('Allows owner to set the home', async () => {
     const homeFactory = new TestHome__factory(signer);
     const newHome = await homeFactory.deploy(localDomain);
 
@@ -86,72 +86,72 @@ describe("XAppConnectionManager", async () => {
     expect(await connectionManager.home()).to.equal(newHome.address);
   });
 
-  it("Owner can enroll a new replica", async () => {
+  it('Owner can enroll a new replica', async () => {
     const newRemoteDomain = 3000;
     const replicaFactory = new TestReplica__factory(signer);
     const newReplica = await replicaFactory.deploy(
       localDomain,
       processGas,
-      reserveGas
+      reserveGas,
     );
 
     // Assert new replica not considered replica before enrolled
     expect(await connectionManager.isReplica(newReplica.address)).to.be.false;
 
     await expect(
-      connectionManager.ownerEnrollReplica(newReplica.address, newRemoteDomain)
-    ).to.emit(connectionManager, "ReplicaEnrolled");
+      connectionManager.ownerEnrollReplica(newReplica.address, newRemoteDomain),
+    ).to.emit(connectionManager, 'ReplicaEnrolled');
 
     expect(await connectionManager.domainToReplica(newRemoteDomain)).to.equal(
-      newReplica.address
+      newReplica.address,
     );
     expect(
-      await connectionManager.replicaToDomain(newReplica.address)
+      await connectionManager.replicaToDomain(newReplica.address),
     ).to.equal(newRemoteDomain);
     expect(await connectionManager.isReplica(newReplica.address)).to.be.true;
   });
 
-  it("Owner can unenroll a replica", async () => {
+  it('Owner can unenroll a replica', async () => {
     await expect(
-      connectionManager.ownerUnenrollReplica(enrolledReplica.address)
-    ).to.emit(connectionManager, "ReplicaUnenrolled");
+      connectionManager.ownerUnenrollReplica(enrolledReplica.address),
+    ).to.emit(connectionManager, 'ReplicaUnenrolled');
 
     expect(
-      await connectionManager.replicaToDomain(enrolledReplica.address)
+      await connectionManager.replicaToDomain(enrolledReplica.address),
     ).to.equal(0);
     expect(await connectionManager.domainToReplica(localDomain)).to.equal(
-      ethers.constants.AddressZero
+      ethers.constants.AddressZero,
     );
     expect(await connectionManager.isReplica(enrolledReplica.address)).to.be
       .false;
   });
 
-  it("Owner can set watcher permissions", async () => {
+  it('Owner can set watcher permissions', async () => {
     const [watcher] = await ethers.getSigners();
     expect(
-      await connectionManager.watcherPermission(watcher.address, remoteDomain)
+      await connectionManager.watcherPermission(watcher.address, remoteDomain),
     ).to.be.false;
 
     await expect(
       connectionManager.setWatcherPermission(
         watcher.address,
         remoteDomain,
-        true
-      )
-    ).to.emit(connectionManager, "WatcherPermissionSet");
+        true,
+      ),
+    ).to.emit(connectionManager, 'WatcherPermissionSet');
 
     expect(
-      await connectionManager.watcherPermission(watcher.address, remoteDomain)
+      await connectionManager.watcherPermission(watcher.address, remoteDomain),
     ).to.be.true;
   });
 
-  it("Unenrolls a replica given valid SignedFailureNotification", async () => {
+  it('Unenrolls a replica given valid SignedFailureNotification', async () => {
     // Set watcher permissions for domain of currently enrolled replica
     const [watcher] = await ethers.getSigners();
     await connectionManager.setWatcherPermission(
       watcher.address,
       remoteDomain,
-      true
+      true,
     );
 
     // Create signed failure notification and signature
@@ -159,7 +159,7 @@ describe("XAppConnectionManager", async () => {
       await abacus.signedFailureNotification(
         watcher,
         remoteDomain,
-        await updater.signer.getAddress()
+        await updater.signer.getAddress(),
       );
 
     // Assert new replica considered replica before unenrolled
@@ -171,21 +171,21 @@ describe("XAppConnectionManager", async () => {
       connectionManager.unenrollReplica(
         failureNotification.domain,
         failureNotification.updaterBytes32,
-        signature
-      )
-    ).to.emit(connectionManager, "ReplicaUnenrolled");
+        signature,
+      ),
+    ).to.emit(connectionManager, 'ReplicaUnenrolled');
 
     expect(
-      await connectionManager.replicaToDomain(enrolledReplica.address)
+      await connectionManager.replicaToDomain(enrolledReplica.address),
     ).to.equal(0);
     expect(await connectionManager.domainToReplica(localDomain)).to.equal(
-      ethers.constants.AddressZero
+      ethers.constants.AddressZero,
     );
     expect(await connectionManager.isReplica(enrolledReplica.address)).to.be
       .false;
   });
 
-  it("unenrollReplica reverts if there is no replica for provided domain", async () => {
+  it('unenrollReplica reverts if there is no replica for provided domain', async () => {
     const noReplicaDomain = 3000;
 
     // Set watcher permissions for noReplicaDomain
@@ -193,7 +193,7 @@ describe("XAppConnectionManager", async () => {
     await connectionManager.setWatcherPermission(
       watcher.address,
       noReplicaDomain,
-      true
+      true,
     );
 
     // Create signed failure notification and signature for noReplicaDomain
@@ -201,7 +201,7 @@ describe("XAppConnectionManager", async () => {
       await abacus.signedFailureNotification(
         watcher,
         noReplicaDomain,
-        await updater.signer.getAddress()
+        await updater.signer.getAddress(),
       );
 
     // Expect unenrollReplica call to revert
@@ -209,19 +209,19 @@ describe("XAppConnectionManager", async () => {
       connectionManager.unenrollReplica(
         failureNotification.domain,
         failureNotification.updaterBytes32,
-        signature
-      )
-    ).to.be.revertedWith("!replica exists");
+        signature,
+      ),
+    ).to.be.revertedWith('!replica exists');
   });
 
-  it("unenrollReplica reverts if provided updater does not match replica updater", async () => {
+  it('unenrollReplica reverts if provided updater does not match replica updater', async () => {
     const [watcher, nonUpdater] = await ethers.getSigners();
 
     // Set watcher permissions
     await connectionManager.setWatcherPermission(
       watcher.address,
       remoteDomain,
-      true
+      true,
     );
 
     // Create signed failure notification and signature with nonUpdater
@@ -229,7 +229,7 @@ describe("XAppConnectionManager", async () => {
       await abacus.signedFailureNotification(
         watcher,
         remoteDomain,
-        nonUpdater.address
+        nonUpdater.address,
       );
 
     // Expect unenrollReplica call to revert
@@ -237,19 +237,19 @@ describe("XAppConnectionManager", async () => {
       connectionManager.unenrollReplica(
         failureNotification.domain,
         failureNotification.updaterBytes32,
-        signature
-      )
-    ).to.be.revertedWith("!current updater");
+        signature,
+      ),
+    ).to.be.revertedWith('!current updater');
   });
 
-  it("unenrollReplica reverts if incorrect watcher provided", async () => {
+  it('unenrollReplica reverts if incorrect watcher provided', async () => {
     const [watcher, nonWatcher] = await ethers.getSigners();
 
     // Set watcher permissions
     await connectionManager.setWatcherPermission(
       watcher.address,
       remoteDomain,
-      true
+      true,
     );
 
     // Create signed failure notification and signature with nonWatcher
@@ -257,7 +257,7 @@ describe("XAppConnectionManager", async () => {
       await abacus.signedFailureNotification(
         nonWatcher,
         remoteDomain,
-        await updater.signer.getAddress()
+        await updater.signer.getAddress(),
       );
 
     // Expect unenrollReplica call to revert
@@ -265,12 +265,12 @@ describe("XAppConnectionManager", async () => {
       connectionManager.unenrollReplica(
         failureNotification.domain,
         failureNotification.updaterBytes32,
-        signature
-      )
-    ).to.be.revertedWith("!valid watcher");
+        signature,
+      ),
+    ).to.be.revertedWith('!valid watcher');
   });
 
-  it("Checks Rust-produced SignedFailureNotification", async () => {
+  it('Checks Rust-produced SignedFailureNotification', async () => {
     // Compare Rust output in json file to solidity output
     const testCase = signedFailureTestCases[0];
     const { domain, updater, signature, signer } = testCase;
@@ -284,7 +284,7 @@ describe("XAppConnectionManager", async () => {
       domain,
       enrolledReplica.address,
       updater,
-      ethers.utils.joinSignature(signature)
+      ethers.utils.joinSignature(signature),
     );
 
     expect(watcher.toLowerCase()).to.equal(signer);

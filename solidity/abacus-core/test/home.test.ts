@@ -1,23 +1,23 @@
-import { ethers, abacus } from "hardhat";
-import { expect } from "chai";
-import { AbacusState, Updater } from "./lib/core";
-import { Signer } from "./lib/types";
+import { ethers, abacus } from 'hardhat';
+import { expect } from 'chai';
+import { AbacusState, Updater } from './lib/core';
+import { Signer } from './lib/types';
 
 import {
   TestHome,
   TestHome__factory,
   UpdaterManager__factory,
   UpdaterManager,
-} from "../typechain";
+} from '../typechain';
 
-const homeDomainHashTestCases = require("../../../vectors/homeDomainHash.json");
-const destinationNonceTestCases = require("../../../vectors/destinationNonce.json");
+const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
+const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');
 
 const localDomain = 1000;
 const destDomain = 2000;
-const emptyAddress: string = "0x" + "00".repeat(32);
+const emptyAddress: string = '0x' + '00'.repeat(32);
 
-describe("Home", async () => {
+describe('Home', async () => {
   let home: TestHome,
     signer: Signer,
     fakeSigner: Signer,
@@ -33,7 +33,7 @@ describe("Home", async () => {
     await home.dispatch(
       destDomain,
       abacus.ethersAddressToBytes32(recipient.address),
-      message
+      message,
     );
     const [, latestRoot] = await home.suggestUpdate();
     return latestRoot;
@@ -58,27 +58,27 @@ describe("Home", async () => {
     await updaterManager.setHome(home.address);
   });
 
-  it("Cannot be initialized twice", async () => {
+  it('Cannot be initialized twice', async () => {
     await expect(home.initialize(updaterManager.address)).to.be.revertedWith(
-      "Initializable: contract is already initialized"
+      'Initializable: contract is already initialized',
     );
   });
 
-  it("Halts on fail", async () => {
+  it('Halts on fail', async () => {
     await home.setFailed();
     expect(await home.state()).to.equal(AbacusState.FAILED);
 
-    const message = ethers.utils.formatBytes32String("message");
+    const message = ethers.utils.formatBytes32String('message');
     await expect(
       home.dispatch(
         destDomain,
         abacus.ethersAddressToBytes32(recipient.address),
-        message
-      )
-    ).to.be.revertedWith("failed state");
+        message,
+      ),
+    ).to.be.revertedWith('failed state');
   });
 
-  it("Calculated domain hash matches Rust-produced domain hash", async () => {
+  it('Calculated domain hash matches Rust-produced domain hash', async () => {
     // Compare Rust output in json file to solidity output (json file matches
     // hash for local domain of 1000)
     for (let testCase of homeDomainHashTestCases) {
@@ -90,21 +90,21 @@ describe("Home", async () => {
     }
   });
 
-  it("Does not dispatch too large messages", async () => {
-    const message = `0x${Buffer.alloc(3000).toString("hex")}`;
+  it('Does not dispatch too large messages', async () => {
+    const message = `0x${Buffer.alloc(3000).toString('hex')}`;
     await expect(
       home
         .connect(signer)
         .dispatch(
           destDomain,
           abacus.ethersAddressToBytes32(recipient.address),
-          message
-        )
-    ).to.be.revertedWith("msg too long");
+          message,
+        ),
+    ).to.be.revertedWith('msg too long');
   });
 
-  it("Dispatches a message", async () => {
-    const message = ethers.utils.formatBytes32String("message");
+  it('Dispatches a message', async () => {
+    const message = ethers.utils.formatBytes32String('message');
     const nonce = await home.nonces(localDomain);
 
     // Format data that will be emitted from Dispatch event
@@ -116,7 +116,7 @@ describe("Home", async () => {
       nonce,
       destDomain,
       recipient.address,
-      message
+      message,
     );
     const messageHash = abacus.messageHash(abacusMessage);
     const leafIndex = await home.nextLeafIndex();
@@ -129,26 +129,26 @@ describe("Home", async () => {
         .dispatch(
           destDomain,
           abacus.ethersAddressToBytes32(recipient.address),
-          message
-        )
+          message,
+        ),
     )
-      .to.emit(home, "Dispatch")
+      .to.emit(home, 'Dispatch')
       .withArgs(
         messageHash,
         leafIndex,
         destinationAndNonce,
         committedRoot,
-        abacusMessage
+        abacusMessage,
       );
   });
 
-  it("Suggests current root and latest root on suggestUpdate", async () => {
+  it('Suggests current root and latest root on suggestUpdate', async () => {
     const committedRoot = await home.committedRoot();
-    const message = ethers.utils.formatBytes32String("message");
+    const message = ethers.utils.formatBytes32String('message');
     await home.dispatch(
       destDomain,
       abacus.ethersAddressToBytes32(recipient.address),
-      message
+      message,
     );
     const latestEnqueuedRoot = await home.queueEnd();
     const [suggestedCommitted, suggestedNew] = await home.suggestUpdate();
@@ -156,7 +156,7 @@ describe("Home", async () => {
     expect(suggestedNew).to.equal(latestEnqueuedRoot);
   });
 
-  it("Suggests empty update values when queue is empty", async () => {
+  it('Suggests empty update values when queue is empty', async () => {
     const length = await home.queueLength();
     expect(length).to.equal(0);
 
@@ -165,27 +165,27 @@ describe("Home", async () => {
     expect(suggestedNew).to.equal(emptyAddress);
   });
 
-  it("Accepts a valid update", async () => {
+  it('Accepts a valid update', async () => {
     const committedRoot = await home.committedRoot();
-    const newRoot = await dispatchMessageAndGetRoot("message");
+    const newRoot = await dispatchMessageAndGetRoot('message');
     const { signature } = await updater.signUpdate(committedRoot, newRoot);
 
     await expect(home.update(committedRoot, newRoot, signature))
-      .to.emit(home, "Update")
+      .to.emit(home, 'Update')
       .withArgs(localDomain, committedRoot, newRoot, signature);
     expect(await home.committedRoot()).to.equal(newRoot);
     expect(await home.queueContains(newRoot)).to.be.false;
   });
 
-  it("Batch-accepts several updates", async () => {
+  it('Batch-accepts several updates', async () => {
     const committedRoot = await home.committedRoot();
-    const newRoot1 = await dispatchMessageAndGetRoot("message1");
-    const newRoot2 = await dispatchMessageAndGetRoot("message2");
-    const newRoot3 = await dispatchMessageAndGetRoot("message3");
+    const newRoot1 = await dispatchMessageAndGetRoot('message1');
+    const newRoot2 = await dispatchMessageAndGetRoot('message2');
+    const newRoot3 = await dispatchMessageAndGetRoot('message3');
     const { signature } = await updater.signUpdate(committedRoot, newRoot3);
 
     await expect(home.update(committedRoot, newRoot3, signature))
-      .to.emit(home, "Update")
+      .to.emit(home, 'Update')
       .withArgs(localDomain, committedRoot, newRoot3, signature);
     expect(await home.committedRoot()).to.equal(newRoot3);
     expect(await home.queueContains(newRoot1)).to.be.false;
@@ -193,68 +193,68 @@ describe("Home", async () => {
     expect(await home.queueContains(newRoot3)).to.be.false;
   });
 
-  it("Rejects update that does not build off of current root", async () => {
+  it('Rejects update that does not build off of current root', async () => {
     // First root is committedRoot
-    const secondRoot = await dispatchMessageAndGetRoot("message");
-    const thirdRoot = await dispatchMessageAndGetRoot("message2");
+    const secondRoot = await dispatchMessageAndGetRoot('message');
+    const thirdRoot = await dispatchMessageAndGetRoot('message2');
 
     // Try to submit update that skips the current (first) root
     const { signature } = await updater.signUpdate(secondRoot, thirdRoot);
     await expect(
-      home.update(secondRoot, thirdRoot, signature)
-    ).to.be.revertedWith("not a current update");
+      home.update(secondRoot, thirdRoot, signature),
+    ).to.be.revertedWith('not a current update');
   });
 
-  it("Rejects update that does not exist in queue", async () => {
+  it('Rejects update that does not exist in queue', async () => {
     const committedRoot = await home.committedRoot();
-    const fakeNewRoot = ethers.utils.formatBytes32String("fake root");
+    const fakeNewRoot = ethers.utils.formatBytes32String('fake root');
     const { signature } = await updater.signUpdate(committedRoot, fakeNewRoot);
 
     await expect(home.update(committedRoot, fakeNewRoot, signature)).to.emit(
       home,
-      "ImproperUpdate"
+      'ImproperUpdate',
     );
     expect(await home.state()).to.equal(AbacusState.FAILED);
   });
 
-  it("Rejects update from non-updater address", async () => {
+  it('Rejects update from non-updater address', async () => {
     const committedRoot = await home.committedRoot();
-    const newRoot = await dispatchMessageAndGetRoot("message");
+    const newRoot = await dispatchMessageAndGetRoot('message');
     const { signature: fakeSignature } = await fakeUpdater.signUpdate(
       committedRoot,
-      newRoot
+      newRoot,
     );
     await expect(
-      home.update(committedRoot, newRoot, fakeSignature)
-    ).to.be.revertedWith("!updater sig");
+      home.update(committedRoot, newRoot, fakeSignature),
+    ).to.be.revertedWith('!updater sig');
   });
 
-  it("Fails on valid double update proof", async () => {
+  it('Fails on valid double update proof', async () => {
     const firstRoot = await home.committedRoot();
-    const secondRoot = await dispatchMessageAndGetRoot("message");
-    const thirdRoot = await dispatchMessageAndGetRoot("message2");
+    const secondRoot = await dispatchMessageAndGetRoot('message');
+    const thirdRoot = await dispatchMessageAndGetRoot('message2');
     const { signature } = await updater.signUpdate(firstRoot, secondRoot);
     const { signature: signature2 } = await updater.signUpdate(
       firstRoot,
-      thirdRoot
+      thirdRoot,
     );
     await expect(
       home.doubleUpdate(
         firstRoot,
         [secondRoot, thirdRoot],
         signature,
-        signature2
-      )
-    ).to.emit(home, "DoubleUpdate");
+        signature2,
+      ),
+    ).to.emit(home, 'DoubleUpdate');
     expect(await home.state()).to.equal(AbacusState.FAILED);
   });
 
-  it("Correctly calculates destinationAndNonce", async () => {
+  it('Correctly calculates destinationAndNonce', async () => {
     for (let testCase of destinationNonceTestCases) {
       let { destination, nonce, expectedDestinationAndNonce } = testCase;
       const solidityDestinationAndNonce = await home.testDestinationAndNonce(
         destination,
-        nonce
+        nonce,
       );
       expect(solidityDestinationAndNonce).to.equal(expectedDestinationAndNonce);
     }

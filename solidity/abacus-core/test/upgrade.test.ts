@@ -1,14 +1,14 @@
-import { ethers } from "hardhat";
+import { ethers } from 'hardhat';
 
-import { UpgradeTestHelpers, MysteryMathUpgrade } from "./utils";
-import { Signer } from "./lib/types";
+import { UpgradeTestHelpers, MysteryMathUpgrade } from './utils';
+import { Signer } from './lib/types';
 import {
   UpgradeBeaconController__factory,
   UpgradeBeaconController,
   MysteryMathV2__factory,
-} from "../typechain";
+} from '../typechain';
 
-describe("Upgrade", async () => {
+describe('Upgrade', async () => {
   const utils = new UpgradeTestHelpers();
   let signer: Signer,
     mysteryMath: MysteryMathUpgrade,
@@ -25,11 +25,11 @@ describe("Upgrade", async () => {
     mysteryMath = await utils.deployMysteryMathUpgradeSetup(signer, ubc);
   });
 
-  it("Pre-Upgrade returns values from MysteryMathV1", async () => {
+  it('Pre-Upgrade returns values from MysteryMathV1', async () => {
     await utils.expectMysteryMathV1(mysteryMath.proxy);
   });
 
-  it("Upgrades without problem", async () => {
+  it('Upgrades without problem', async () => {
     // Deploy Implementation 2
     const factory = new MysteryMathV2__factory(signer);
     const implementation = await factory.deploy();
@@ -38,7 +38,7 @@ describe("Upgrade", async () => {
     await ubc.upgrade(mysteryMath.beacon.address, implementation.address);
   });
 
-  it("Post-Upgrade returns values from MysteryMathV2", async () => {
+  it('Post-Upgrade returns values from MysteryMathV2', async () => {
     await utils.expectMysteryMathV2(mysteryMath.proxy);
   });
 });
