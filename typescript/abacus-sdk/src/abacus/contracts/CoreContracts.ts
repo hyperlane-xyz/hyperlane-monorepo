@@ -59,10 +59,7 @@ export class CoreContracts extends Contracts {
     }
     const inbox = this._inboxs.get(domain);
     if (!inbox) return;
-    return core.Inbox__factory.connect(
-      inbox.address,
-      this.providerOrSigner,
-    );
+    return core.Inbox__factory.connect(inbox.address, this.providerOrSigner);
   }
 
   get outbox(): core.Outbox {

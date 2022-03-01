@@ -178,7 +178,11 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     const domain = deploy.chain.domain;
     const contracts = deploy.contracts;
     // Outbox upgrade setup contracts are defined
-    await this.checkBeaconProxyImplementation(domain, 'Outbox', contracts.outbox!);
+    await this.checkBeaconProxyImplementation(
+      domain,
+      'Outbox',
+      contracts.outbox!,
+    );
 
     // GovernanceRouter upgrade setup contracts are defined
     await this.checkBeaconProxyImplementation(

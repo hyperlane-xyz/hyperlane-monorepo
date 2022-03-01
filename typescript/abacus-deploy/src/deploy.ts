@@ -15,11 +15,11 @@ export enum DeployEnvironment {
 type XAppConnectionName = 'XAppConnectionManager';
 type ValidatorManagerName = 'ValidatorManager';
 type UBCName = 'UpgradeBeaconController';
-type OutboxName = 'Outbox UpgradeBeacon' | 'Outbox Proxy' | 'Outbox Implementation';
-type InboxName =
-  | 'Inbox UpgradeBeacon'
-  | 'Inbox Proxy'
-  | 'Inbox Implementation';
+type OutboxName =
+  | 'Outbox UpgradeBeacon'
+  | 'Outbox Proxy'
+  | 'Outbox Implementation';
+type InboxName = 'Inbox UpgradeBeacon' | 'Inbox Proxy' | 'Inbox Implementation';
 type GovernanceName =
   | 'Governance UpgradeBeacon'
   | 'Governance Proxy'

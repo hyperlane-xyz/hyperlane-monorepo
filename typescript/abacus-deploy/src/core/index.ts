@@ -295,15 +295,13 @@ export async function relinquish(deploy: CoreDeploy) {
     `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
 
-  Object.entries(deploy.contracts.inboxs).forEach(
-    async ([domain, inbox]) => {
-      await inbox.proxy.transferOwnership(govRouter, deploy.overrides);
-      log(
-        isTestDeploy,
-        `${deploy.chain.name}: Dispatched relinquish Inbox for domain ${domain}`,
-      );
-    },
-  );
+  Object.entries(deploy.contracts.inboxs).forEach(async ([domain, inbox]) => {
+    await inbox.proxy.transferOwnership(govRouter, deploy.overrides);
+    log(
+      isTestDeploy,
+      `${deploy.chain.name}: Dispatched relinquish Inbox for domain ${domain}`,
+    );
+  });
 
   let tx = await deploy.contracts.outbox!.proxy.transferOwnership(
     govRouter,
