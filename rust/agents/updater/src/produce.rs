@@ -72,7 +72,7 @@ impl UpdateProducer {
                                     suggested_new_root = ?suggested.new_root,
                                     "Suggested previous root matches produced previous update in DB"
                                 );
-                                self.db.store_latest_root(suggested.new_root)?;
+                                self.db.store_latest_update(&previously_produced_update)?;
                             }
                         }
 

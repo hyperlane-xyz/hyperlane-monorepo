@@ -201,7 +201,7 @@ impl AbacusDB {
     }
 
     /// Store the latest committed
-    pub fn store_latest_root(&self, root: H256) -> Result<(), DbError> {
+    fn store_latest_root(&self, root: H256) -> Result<(), DbError> {
         debug!(root = ?root, "storing new latest root in DB");
         self.store_encodable("", LATEST_ROOT, &root)
     }
