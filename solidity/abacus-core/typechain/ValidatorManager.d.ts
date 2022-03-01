@@ -22,7 +22,7 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 interface ValidatorManagerInterface extends ethers.utils.Interface {
   functions: {
     "domainHash(uint32)": FunctionFragment;
-    "improperUpdate(address,bytes32,uint256,bytes)": FunctionFragment;
+    "improperCheckpoint(address,bytes32,uint256,bytes)": FunctionFragment;
     "isValidatorSignature(uint32,bytes32,uint256,bytes)": FunctionFragment;
     "owner()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
@@ -36,7 +36,7 @@ interface ValidatorManagerInterface extends ethers.utils.Interface {
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "improperUpdate",
+    functionFragment: "improperCheckpoint",
     values: [string, BytesLike, BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
@@ -63,7 +63,7 @@ interface ValidatorManagerInterface extends ethers.utils.Interface {
 
   decodeFunctionResult(functionFragment: "domainHash", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "improperUpdate",
+    functionFragment: "improperCheckpoint",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -145,7 +145,7 @@ export class ValidatorManager extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[string]>;
 
-    improperUpdate(
+    improperCheckpoint(
       _home: string,
       _root: BytesLike,
       _index: BigNumberish,
@@ -186,7 +186,7 @@ export class ValidatorManager extends BaseContract {
 
   domainHash(_domain: BigNumberish, overrides?: CallOverrides): Promise<string>;
 
-  improperUpdate(
+  improperCheckpoint(
     _home: string,
     _root: BytesLike,
     _index: BigNumberish,
@@ -227,7 +227,7 @@ export class ValidatorManager extends BaseContract {
       overrides?: CallOverrides
     ): Promise<string>;
 
-    improperUpdate(
+    improperCheckpoint(
       _home: string,
       _root: BytesLike,
       _index: BigNumberish,
@@ -304,7 +304,7 @@ export class ValidatorManager extends BaseContract {
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    improperUpdate(
+    improperCheckpoint(
       _home: string,
       _root: BytesLike,
       _index: BigNumberish,
@@ -349,7 +349,7 @@ export class ValidatorManager extends BaseContract {
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    improperUpdate(
+    improperCheckpoint(
       _home: string,
       _root: BytesLike,
       _index: BigNumberish,
