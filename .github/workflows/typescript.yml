@@ -54,3 +54,15 @@ jobs:
             echo "Changes found: $CHANGES"
             exit 1
           fi
+  typescript-test:
+    runs-on: ubuntu-latest
+    needs: [typescript-install]
+    steps:
+      - uses: actions/checkout@v2
+      - name: npm install
+        uses: ./.github/workflows/npm
+        with:
+          runneros: ${{ runner.os }}
+
+      - name: test
+        run: npm --prefix ./typescript/abacus-deploy run test
