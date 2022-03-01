@@ -31,6 +31,7 @@ describe('ValidatorManager', async () => {
   beforeEach(async () => {
     const validatorManagerFactory = new ValidatorManager__factory(signer);
     validatorManager = await validatorManagerFactory.deploy();
+    await validatorManager.setValidator(localDomain, validator.address);
   });
 
   it('Accepts validator signature', async () => {

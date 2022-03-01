@@ -158,11 +158,10 @@ contract Home is Version0, MerkleTreeManager, Common {
     function checkpoint() external notFailed {
         uint256 count = count();
         require(count > 0, "!count");
-        uint256 index = count - 1;
         bytes32 root = root();
         checkpointedRoot = root;
-        checkpoints[root] = index;
-        emit Checkpoint(root, index);
+        checkpoints[root] = count;
+        emit Checkpoint(root, count);
     }
 
     /**

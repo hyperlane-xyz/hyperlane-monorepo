@@ -26,6 +26,7 @@ async function expectNotInRecovery(
 
   // Format abacus call message
   const call = await formatCall(validatorManager, 'setValidator', [
+    1000,
     randomSigner.address,
   ]);
 
@@ -34,8 +35,8 @@ async function expectNotInRecovery(
   await expect(
     sendFromSigner(governor, governanceRouter, 'callLocal', [[call]]),
   )
-    .to.emit(home, 'NewValidator')
-    .withArgs(randomSigner.address);
+    .to.emit(validatorManager, 'NewValidator')
+    .withArgs(1000, randomSigner.address);
 
   // dispatch call on local governorRouter
   await expect(
@@ -336,6 +337,7 @@ describe('RecoveryManager', async () => {
   it('Recovery Active: RecoveryManager CAN call local', async () => {
     // Format abacus call message
     const call = await formatCall(validatorManager, 'setValidator', [
+      localDomain,
       randomSigner.address,
     ]);
 
@@ -343,13 +345,14 @@ describe('RecoveryManager', async () => {
     await expect(
       sendFromSigner(recoveryManager, governanceRouter, 'callLocal', [[call]]),
     )
-      .to.emit(home, 'NewValidator')
-      .withArgs(randomSigner.address);
+      .to.emit(validatorManager, 'NewValidator')
+      .withArgs(localDomain, randomSigner.address);
   });
 
   it('Recovery Active: RecoveryManager CANNOT call remote', async () => {
     // Format abacus call message
     const call = await formatCall(validatorManager, 'setValidator', [
+      localDomain,
       randomSigner.address,
     ]);
 
@@ -403,6 +406,7 @@ describe('RecoveryManager', async () => {
   it('Recovery Active: Governor CANNOT call local OR remote', async () => {
     // Format abacus call message
     const call = await formatCall(validatorManager, 'setValidator', [
+      localDomain,
       randomSigner.address,
     ]);
 

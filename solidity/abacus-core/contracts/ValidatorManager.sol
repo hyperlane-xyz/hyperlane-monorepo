@@ -122,10 +122,10 @@ contract ValidatorManager is IValidatorManager, Ownable {
     }
 
     /**
-     * @notice Hash of domain concatenated with "ABACUS"
+     * @notice Hash of domain concatenated with "OPTICS"
      * @param _domain the domain to hash
      */
     function domainHash(uint32 _domain) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_domain, "ABACUS"));
+        return keccak256(abi.encodePacked(_domain, "OPTICS"));
     }
 }

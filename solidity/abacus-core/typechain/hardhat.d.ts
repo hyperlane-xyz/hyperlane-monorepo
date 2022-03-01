@@ -113,10 +113,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestReplica__factory>;
     getContractFactory(
-      name: "ValidatorManager",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.ValidatorManager__factory>;
-    getContractFactory(
       name: "UpgradeBeacon",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.UpgradeBeacon__factory>;

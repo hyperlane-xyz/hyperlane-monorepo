@@ -129,7 +129,7 @@ function destinationAndNonce(
 function domainHash(domain: Number): string {
   return ethers.utils.solidityKeccak256(
     ['uint32', 'string'],
-    [domain, 'ABACUS'],
+    [domain, 'OPTICS'],
   );
 }
 

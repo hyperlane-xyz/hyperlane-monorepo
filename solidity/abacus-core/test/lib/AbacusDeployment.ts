@@ -155,6 +155,10 @@ export class AbacusDeployment {
 
     await home.checkpoint();
     const [root, index] = await home.latestCheckpoint();
+    // If there have been no checkpoints since the last checkpoint, return.
+    if (index.eq(0) || checkpoints.length == 1 && index.eq(checkpoints[0].args.index)) {
+      return;
+    }
     // Update the Home and Replicas to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestReplica.

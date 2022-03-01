@@ -40,7 +40,9 @@ describe('XAppConnectionManager', async () => {
       processGas,
       reserveGas,
     );
-    await enrolledReplica.initialize(remoteDomain, validator.address, 0);
+    // The ValidatorManager is unused in these tests *but* needs to be a
+    // contract.
+    await enrolledReplica.initialize(remoteDomain, home.address, 0);
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     connectionManager = await connectionManagerFactory.deploy();

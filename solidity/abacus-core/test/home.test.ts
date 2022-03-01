@@ -22,16 +22,19 @@ describe('Home', async () => {
     // redeploy the home before each test run
     const homeFactory = new TestHome__factory(signer);
     home = await homeFactory.deploy(localDomain);
-    await home.initialize(signer.address);
+    // The ValidatorManager is unused in these tests *but* needs to be a
+    // contract.
+    await home.initialize(home.address);
   });
 
   it('Cannot be initialized twice', async () => {
-    await expect(home.initialize(signer.address)).to.be.revertedWith(
+    await expect(home.initialize(home.address)).to.be.revertedWith(
       'Initializable: contract is already initialized',
     );
   });
 
   it('ValidatorManager can fail', async () => {
+    await home.testSetValidatorManager(signer.address);
     await home.fail();
     expect(await home.state()).to.equal(AbacusState.FAILED);
 

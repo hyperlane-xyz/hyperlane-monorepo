@@ -39,7 +39,7 @@ describe('Common', async () => {
     expect(await common.validatorManager()).to.equal(newValidatorManager.address);
   });
 
-  it('Does not allow nonowner to validator the ValidatorManager', async () => {
+  it('Does not allow nonowner to update the ValidatorManager', async () => {
     await expect(
       common.connect(nonowner).setValidatorManager(common.address),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);

@@ -114,7 +114,7 @@ describe('GovernanceRouter', async () => {
     // dispatch call on local governorRouter
     let tx = await governorRouter.callRemote(nonGovernorDomain, [call]);
 
-    await abacusDeployment.processMessages();
+    await abacusDeployment.processMessagesFromDomain(governorDomain);
     // test implementation was upgraded
     await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
   });
@@ -126,7 +126,8 @@ describe('GovernanceRouter', async () => {
       processGas,
       reserveGas,
     );
-    await unenrolledReplica.initialize(thirdDomain, '0x', 0);
+    // The UpdaterManager is unused in this test, but needs to be a contract.
+    await unenrolledReplica.initialize(thirdDomain, unenrolledReplica.address, 0);
 
     // Create TransferGovernor message
     const transferGovernorMessage = abacus.governance.formatTransferGovernor(
@@ -294,9 +295,6 @@ describe('GovernanceRouter', async () => {
       ethers.constants.AddressZero,
     );
 
-    // checkpoint governor chain home
-    await governorHome.checkpoint();
-
     const transferGovernorMessage = abacus.governance.formatTransferGovernor(
       nonGovernorDomain,
       abacus.ethersAddressToBytes32(secondGovernor),
@@ -307,24 +305,6 @@ describe('GovernanceRouter', async () => {
       governorRouter,
       nonGovernorRouter,
       transferGovernorMessage,
-    );
-
-    // Set checkpoint on replica
-    const [root, index] = await governorHome.latestCheckpoint();
-    const { signature } = await validator.signCheckpoint(root, index.toNumber());
-    await governorReplicaOnNonGovernorChain.checkpoint(root, index, signature);
-
-    // Governor HAS been transferred on original governor domain
-    await expectGovernor(
-      governorRouter,
-      nonGovernorDomain,
-      ethers.constants.AddressZero,
-    );
-    // Governor HAS NOT been transferred on original non-governor domain
-    await expectGovernor(
-      nonGovernorRouter,
-      governorDomain,
-      ethers.constants.AddressZero,
     );
 
     // Process transfer governor message on Replica

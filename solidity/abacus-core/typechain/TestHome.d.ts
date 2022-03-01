@@ -39,6 +39,7 @@ interface TestHomeInterface extends ethers.utils.Interface {
     "root()": FunctionFragment;
     "setValidatorManager(address)": FunctionFragment;
     "state()": FunctionFragment;
+    "testSetValidatorManager(address)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "tree()": FunctionFragment;
     "validatorManager()": FunctionFragment;
@@ -96,6 +97,10 @@ interface TestHomeInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(functionFragment: "state", values?: undefined): string;
   encodeFunctionData(
+    functionFragment: "testSetValidatorManager",
+    values: [string]
+  ): string;
+  encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [string]
   ): string;
@@ -147,6 +152,10 @@ interface TestHomeInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "state", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "testSetValidatorManager",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
@@ -276,6 +285,11 @@ export class TestHome extends BaseContract {
 
     state(overrides?: CallOverrides): Promise<[number]>;
 
+    testSetValidatorManager(
+      _validatorManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     transferOwnership(
       newOwner: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -347,6 +361,11 @@ export class TestHome extends BaseContract {
 
   state(overrides?: CallOverrides): Promise<number>;
 
+  testSetValidatorManager(
+    _validatorManager: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   transferOwnership(
     newOwner: string,
     overrides?: Overrides & { from?: string | Promise<string> }
@@ -409,6 +428,11 @@ export class TestHome extends BaseContract {
     ): Promise<void>;
 
     state(overrides?: CallOverrides): Promise<number>;
+
+    testSetValidatorManager(
+      _validatorManager: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
 
     transferOwnership(
       newOwner: string,
@@ -517,6 +541,11 @@ export class TestHome extends BaseContract {
 
     state(overrides?: CallOverrides): Promise<BigNumber>;
 
+    testSetValidatorManager(
+      _validatorManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     transferOwnership(
       newOwner: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -592,6 +621,11 @@ export class TestHome extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     state(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    testSetValidatorManager(
+      _validatorManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
 
     transferOwnership(
       newOwner: string,

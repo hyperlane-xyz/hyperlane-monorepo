@@ -97,7 +97,7 @@ describe('Replica', async () => {
     index = 9;
     ({ signature } = await validator.signCheckpoint(root, index));
     await expect(replica.checkpoint(root, index, signature)).to.be.revertedWith(
-      'not current update',
+      'old checkpoint',
     );
   });
 
