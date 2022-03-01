@@ -216,7 +216,7 @@ describe('RecoveryManager', async () => {
   before(async () => {
     [governor, recoveryManager, randomSigner] = await ethers.getSigners();
     const validator = await Validator.fromSigner(randomSigner, localDomain);
-    abacusDeployment = await abacus.deployment.fromDomains(
+    abacusDeployment = await AbacusDeployment.fromDomains(
       domains,
       randomSigner,
     );
