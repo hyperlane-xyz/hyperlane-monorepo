@@ -2,11 +2,11 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import "../Home.sol";
+import "../Outbox.sol";
 import {IValidatorManager} from "../../interfaces/IValidatorManager.sol";
 
-contract TestHome is Home {
-    constructor(uint32 _localDomain) Home(_localDomain) {} // solhint-disable-line no-empty-blocks
+contract TestOutbox is Outbox {
+    constructor(uint32 _localDomain) Outbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     function destinationAndNonce(uint32 _destination, uint32 _nonce)
         external

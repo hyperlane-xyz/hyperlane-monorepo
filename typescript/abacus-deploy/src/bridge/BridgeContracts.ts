@@ -28,7 +28,7 @@ export class BridgeContracts extends Contracts {
   ): BridgeContracts {
     const b = new BridgeContracts();
 
-    // TODO: needs type magic for turning governance, home and replicas to BeaconProxy contracts
+    // TODO: needs type magic for turning governance, outbox and inboxs to BeaconProxy contracts
     const routerImplementation = xAppContracts.BridgeRouter__factory.connect(
       addresses.bridgeRouter.implementation,
       provider,

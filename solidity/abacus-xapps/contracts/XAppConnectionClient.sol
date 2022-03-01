@@ -2,7 +2,7 @@
 pragma solidity >=0.6.11;
 
 // ============ External Imports ============
-import {Home} from "@abacus-network/abacus-sol/contracts/Home.sol";
+import {Outbox} from "@abacus-network/abacus-sol/contracts/Outbox.sol";
 import {XAppConnectionManager} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
@@ -15,10 +15,10 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
     // ============ Modifiers ============
 
     /**
-     * @notice Only accept messages from an Abacus Replica contract
+     * @notice Only accept messages from an Abacus Inbox contract
      */
-    modifier onlyReplica() {
-        require(_isReplica(msg.sender), "!replica");
+    modifier onlyInbox() {
+        require(_isInbox(msg.sender), "!inbox");
         _;
     }
 
@@ -35,7 +35,7 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
     // ============ External functions ============
 
     /**
-     * @notice Modify the contract the xApp uses to validate Replica contracts
+     * @notice Modify the contract the xApp uses to validate Inbox contracts
      * @param _xAppConnectionManager The address of the xAppConnectionManager contract
      */
     function setXAppConnectionManager(address _xAppConnectionManager)
@@ -48,23 +48,23 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
     // ============ Internal functions ============
 
     /**
-     * @notice Get the local Home contract from the xAppConnectionManager
-     * @return The local Home contract
+     * @notice Get the local Outbox contract from the xAppConnectionManager
+     * @return The local Outbox contract
      */
-    function _home() internal view returns (Home) {
-        return xAppConnectionManager.home();
+    function _outbox() internal view returns (Outbox) {
+        return xAppConnectionManager.outbox();
     }
 
     /**
-     * @notice Determine whether _potentialReplcia is an enrolled Replica from the xAppConnectionManager
-     * @return True if _potentialReplica is an enrolled Replica
+     * @notice Determine whether _potentialReplcia is an enrolled Inbox from the xAppConnectionManager
+     * @return True if _potentialInbox is an enrolled Inbox
      */
-    function _isReplica(address _potentialReplica)
+    function _isInbox(address _potentialInbox)
         internal
         view
         returns (bool)
     {
-        return xAppConnectionManager.isReplica(_potentialReplica);
+        return xAppConnectionManager.isInbox(_potentialInbox);
     }
 
     /**

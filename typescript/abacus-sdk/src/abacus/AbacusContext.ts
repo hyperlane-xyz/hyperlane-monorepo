@@ -187,42 +187,42 @@ export class AbacusContext extends MultiProvider {
   }
 
   /**
-   * Resolve the replica for the Home domain on the Remote domain (if any).
+   * Resolve the inbox for the Outbox domain on the Remote domain (if any).
    *
    * WARNING: do not hold references to this contract, as it will not be
    * reconnected in the event the chain connection changes.
    *
-   * @param home the sending domain
+   * @param outbox the sending domain
    * @param remote the receiving domain
-   * @returns An interface for the Replica (if any)
+   * @returns An interface for the Inbox (if any)
    */
-  getReplicaFor(
-    home: string | number,
+  getInboxFor(
+    outbox: string | number,
     remote: string | number,
-  ): core.Replica | undefined {
-    return this.getCore(remote)?.getReplica(this.resolveDomain(home));
+  ): core.Inbox | undefined {
+    return this.getCore(remote)?.getInbox(this.resolveDomain(outbox));
   }
 
   /**
-   * Resolve the replica for the Home domain on the Remote domain (or throws).
+   * Resolve the inbox for the Outbox domain on the Remote domain (or throws).
    *
    * WARNING: do not hold references to this contract, as it will not be
    * reconnected in the event the chain connection changes.
    *
-   * @param home the sending domain
+   * @param outbox the sending domain
    * @param remote the receiving domain
-   * @returns An interface for the Replica
-   * @throws If no replica is found.
+   * @returns An interface for the Inbox
+   * @throws If no inbox is found.
    */
-  mustGetReplicaFor(
-    home: string | number,
+  mustGetInboxFor(
+    outbox: string | number,
     remote: string | number,
-  ): core.Replica {
-    const replica = this.getReplicaFor(home, remote);
-    if (!replica) {
-      throw new Error(`Missing replica for home ${home} & remote ${remote}`);
+  ): core.Inbox {
+    const inbox = this.getInboxFor(outbox, remote);
+    if (!inbox) {
+      throw new Error(`Missing inbox for outbox ${outbox} & remote ${remote}`);
     }
-    return replica;
+    return inbox;
   }
 
   /**

@@ -12,20 +12,20 @@ export class CoreContracts extends Contracts {
   xAppConnectionManager?: contracts.XAppConnectionManager;
   validatorManager?: contracts.ValidatorManager;
   governanceRouter?: BeaconProxy<contracts.GovernanceRouter>;
-  home?: BeaconProxy<contracts.Home>;
-  replicas: Record<number, BeaconProxy<contracts.Replica>>;
+  outbox?: BeaconProxy<contracts.Outbox>;
+  inboxs: Record<number, BeaconProxy<contracts.Inbox>>;
 
   constructor() {
     super();
-    this.replicas = {};
+    this.inboxs = {};
   }
 
   toObject(): CoreContractAddresses {
-    const replicas: Record<number, ProxiedAddress> = {};
-    Object.keys(this.replicas!)
+    const inboxs: Record<number, ProxiedAddress> = {};
+    Object.keys(this.inboxs!)
       .map((d) => parseInt(d))
       .map((domain: number) => {
-        replicas[domain] = this.replicas[domain].toObject();
+        inboxs[domain] = this.inboxs[domain].toObject();
       });
 
     return {
@@ -33,8 +33,8 @@ export class CoreContracts extends Contracts {
       xAppConnectionManager: this.xAppConnectionManager!.address,
       validatorManager: this.validatorManager!.address,
       governanceRouter: this.governanceRouter!.toObject(),
-      home: this.home!.toObject(),
-      replicas,
+      outbox: this.outbox!.toObject(),
+      inboxs,
     };
   }
 
@@ -58,7 +58,7 @@ export class CoreContracts extends Contracts {
       provider,
     );
 
-    // TODO: needs type magic for turning governance, home and replicas to BeaconProxy contracts
+    // TODO: needs type magic for turning governance, outbox and inboxs to BeaconProxy contracts
     const governanceRouterImplementation =
       contracts.GovernanceRouter__factory.connect(
         addresses.governanceRouter.implementation,
@@ -79,43 +79,43 @@ export class CoreContracts extends Contracts {
       governanceRouterUpgradeBeacon,
     );
 
-    const homeImplementation = contracts.Home__factory.connect(
-      addresses.home.implementation,
+    const outboxImplementation = contracts.Outbox__factory.connect(
+      addresses.outbox.implementation,
       provider,
     );
-    const homeProxy = contracts.Home__factory.connect(
-      addresses.home.proxy,
+    const outboxProxy = contracts.Outbox__factory.connect(
+      addresses.outbox.proxy,
       provider,
     );
-    const homeUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
-      addresses.home.beacon,
+    const outboxUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
+      addresses.outbox.beacon,
       provider,
     );
-    core.home = new BeaconProxy<contracts.Home>(
-      homeImplementation,
-      homeProxy,
-      homeUpgradeBeacon,
+    core.outbox = new BeaconProxy<contracts.Outbox>(
+      outboxImplementation,
+      outboxProxy,
+      outboxUpgradeBeacon,
     );
 
-    Object.keys(addresses.replicas!)
+    Object.keys(addresses.inboxs!)
       .map((d) => parseInt(d))
       .map((domain: number) => {
-        const replicaImplementation = contracts.Replica__factory.connect(
-          addresses.replicas![domain].implementation,
+        const inboxImplementation = contracts.Inbox__factory.connect(
+          addresses.inboxs![domain].implementation,
           provider,
         );
-        const replicaProxy = contracts.Replica__factory.connect(
-          addresses.replicas![domain].proxy,
+        const inboxProxy = contracts.Inbox__factory.connect(
+          addresses.inboxs![domain].proxy,
           provider,
         );
-        const replicaUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
-          addresses.replicas![domain].beacon,
+        const inboxUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
+          addresses.inboxs![domain].beacon,
           provider,
         );
-        core.replicas[domain] = new BeaconProxy<contracts.Replica>(
-          replicaImplementation,
-          replicaProxy,
-          replicaUpgradeBeacon,
+        core.inboxs[domain] = new BeaconProxy<contracts.Inbox>(
+          inboxImplementation,
+          inboxProxy,
+          inboxUpgradeBeacon,
         );
       });
 

@@ -159,7 +159,7 @@ export class AgentGCPKey extends AgentKey {
       );
     } else {
       await execCmd(
-        `gcloud secrets create ${identifier} --data-file=${fileName} --replication-policy=automatic --labels=${labels}`,
+        `gcloud secrets create ${identifier} --data-file=${fileName} --inboxtion-policy=automatic --labels=${labels}`,
       );
     }
 
@@ -252,7 +252,7 @@ async function persistAddresses(
   await writeFile(fileName, JSON.stringify(keys));
   if (create) {
     await execCmd(
-      `gcloud secrets create ${addressesIdentifier} --data-file=${fileName} --replication-policy=automatic --labels=environment=${environment}`,
+      `gcloud secrets create ${addressesIdentifier} --data-file=${fileName} --inboxtion-policy=automatic --labels=environment=${environment}`,
     );
   } else {
     await execCmd(
@@ -262,7 +262,7 @@ async function persistAddresses(
   await rm(fileName);
 }
 
-// This function returns all the GCP keys for a given home chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
+// This function returns all the GCP keys for a given outbox chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
 export async function fetchAgentGCPKeys(
   environment: string,
   chainName: string,

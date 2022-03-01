@@ -11,14 +11,14 @@ import {
   BadRecipient5__factory,
   BadRecipient6__factory,
   BadRecipientHandle__factory,
-  TestReplica,
-  TestReplica__factory,
+  TestInbox,
+  TestInbox__factory,
   ValidatorManager,
   ValidatorManager__factory,
   TestRecipient__factory,
 } from '../typechain';
 
-const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
+const outboxDomainHashTestCases = require('../../../vectors/outboxDomainHash.json');
 const merkleTestCases = require('../../../vectors/merkle.json');
 const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json');
 
@@ -28,7 +28,7 @@ const processGas = 850000;
 const reserveGas = 15000;
 const nullRoot = '0x' + '00'.repeat(32);
 
-describe('Replica', async () => {
+describe('Inbox', async () => {
   const badRecipientFactories = [
     BadRecipient1__factory,
     BadRecipient2__factory,
@@ -38,7 +38,7 @@ describe('Replica', async () => {
     BadRecipient6__factory,
   ];
 
-  let replica: TestReplica,
+  let inbox: TestInbox,
     validatorManager: ValidatorManager,
     signer: Signer,
     fakeSigner: Signer,
@@ -56,9 +56,9 @@ describe('Replica', async () => {
   });
 
   beforeEach(async () => {
-    const replicaFactory = new TestReplica__factory(signer);
-    replica = await replicaFactory.deploy(localDomain, processGas, reserveGas);
-    await replica.initialize(
+    const inboxFactory = new TestInbox__factory(signer);
+    inbox = await inboxFactory.deploy(localDomain, processGas, reserveGas);
+    await inbox.initialize(
       remoteDomain,
       validatorManager.address,
       nullRoot,
@@ -68,7 +68,7 @@ describe('Replica', async () => {
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      replica.initialize(remoteDomain, validatorManager.address, nullRoot, 0),
+      inbox.initialize(remoteDomain, validatorManager.address, nullRoot, 0),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
@@ -76,8 +76,8 @@ describe('Replica', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
     const index = 1;
     const { signature } = await validator.signCheckpoint(root, index);
-    await replica.checkpoint(root, index, signature);
-    const [croot, cindex] = await replica.latestCheckpoint();
+    await inbox.checkpoint(root, index, signature);
+    const [croot, cindex] = await inbox.latestCheckpoint();
     expect(croot).to.equal(root);
     expect(cindex).to.equal(index);
   });
@@ -86,7 +86,7 @@ describe('Replica', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
     const index = 1;
     const { signature } = await fakeValidator.signCheckpoint(root, index);
-    await expect(replica.checkpoint(root, index, signature)).to.be.revertedWith(
+    await expect(inbox.checkpoint(root, index, signature)).to.be.revertedWith(
       '!validator sig',
     );
   });
@@ -95,15 +95,15 @@ describe('Replica', async () => {
     let root = ethers.utils.formatBytes32String('first new root');
     let index = 10;
     let { signature } = await validator.signCheckpoint(root, index);
-    await replica.checkpoint(root, index, signature);
-    const [croot, cindex] = await replica.latestCheckpoint();
+    await inbox.checkpoint(root, index, signature);
+    const [croot, cindex] = await inbox.latestCheckpoint();
     expect(croot).to.equal(root);
     expect(cindex).to.equal(index);
 
     root = ethers.utils.formatBytes32String('second new root');
     index = 9;
     ({ signature } = await validator.signCheckpoint(root, index));
-    await expect(replica.checkpoint(root, index, signature)).to.be.revertedWith(
+    await expect(inbox.checkpoint(root, index, signature)).to.be.revertedWith(
       'old checkpoint',
     );
   });
@@ -113,29 +113,29 @@ describe('Replica', async () => {
     const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
-    await replica.setCheckpoint(testCase.expectedRoot, 1);
+    await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
     // Ensure proper static call return value
-    expect(await replica.callStatic.prove(leaf, path as BytesArray, index)).to
+    expect(await inbox.callStatic.prove(leaf, path as BytesArray, index)).to
       .be.true;
 
-    await replica.prove(leaf, path as BytesArray, index);
-    expect(await replica.messages(leaf)).to.equal(MessageStatus.PENDING);
+    await inbox.prove(leaf, path as BytesArray, index);
+    expect(await inbox.messages(leaf)).to.equal(MessageStatus.PENDING);
   });
 
   it('Rejects an already-proven message', async () => {
     const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
-    await replica.setCheckpoint(testCase.expectedRoot, 1);
+    await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
     // Prove message, which changes status to MessageStatus.Pending
-    await replica.prove(leaf, path as BytesArray, index);
-    expect(await replica.messages(leaf)).to.equal(MessageStatus.PENDING);
+    await inbox.prove(leaf, path as BytesArray, index);
+    expect(await inbox.messages(leaf)).to.equal(MessageStatus.PENDING);
 
     // Try to prove message again
     await expect(
-      replica.prove(leaf, path as BytesArray, index),
+      inbox.prove(leaf, path as BytesArray, index),
     ).to.be.revertedWith('!MessageStatus.None');
   });
 
@@ -149,13 +149,13 @@ describe('Replica', async () => {
     path[0] = path[1];
     path[1] = firstHash;
 
-    await replica.setCheckpoint(testCase.expectedRoot, 1);
+    await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
-    expect(await replica.callStatic.prove(leaf, path as BytesArray, index)).to
+    expect(await inbox.callStatic.prove(leaf, path as BytesArray, index)).to
       .be.false;
 
-    await replica.prove(leaf, path as BytesArray, index);
-    expect(await replica.messages(leaf)).to.equal(MessageStatus.NONE);
+    await inbox.prove(leaf, path as BytesArray, index);
+    expect(await inbox.messages(leaf)).to.equal(MessageStatus.NONE);
   });
 
   it('Processes a proved message', async () => {
@@ -175,15 +175,15 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessageProven(abacusMessage);
+    await inbox.setMessageProven(abacusMessage);
 
     // Ensure proper static call return value
-    const success = await replica.callStatic.process(abacusMessage);
+    const success = await inbox.callStatic.process(abacusMessage);
     expect(success).to.be.true;
 
-    const processTx = replica.process(abacusMessage);
+    const processTx = inbox.process(abacusMessage);
     await expect(processTx)
-      .to.emit(replica, 'Process')
+      .to.emit(inbox, 'Process')
       .withArgs(abacus.messageHash(abacusMessage), true, '0x');
   });
 
@@ -201,7 +201,7 @@ describe('Replica', async () => {
       body,
     );
 
-    await expect(replica.process(abacusMessage)).to.be.revertedWith('!proven');
+    await expect(inbox.process(abacusMessage)).to.be.revertedWith('!proven');
   });
 
   for (let i = 0; i < badRecipientFactories.length; i++) {
@@ -223,8 +223,8 @@ describe('Replica', async () => {
       );
 
       // Set message status to MessageStatus.Pending
-      await replica.setMessageProven(abacusMessage);
-      await replica.process(abacusMessage);
+      await inbox.setMessageProven(abacusMessage);
+      await inbox.process(abacusMessage);
     });
   }
 
@@ -243,7 +243,7 @@ describe('Replica', async () => {
       body,
     );
 
-    await expect(replica.process(abacusMessage)).to.be.revertedWith(
+    await expect(inbox.process(abacusMessage)).to.be.revertedWith(
       '!destination',
     );
   });
@@ -262,8 +262,8 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessageProven(abacusMessage);
-    await expect(replica.process(abacusMessage)).to.not.be.reverted;
+    await inbox.setMessageProven(abacusMessage);
+    await expect(inbox.process(abacusMessage)).to.not.be.reverted;
   });
 
   it('Fails to process an undergased transaction', async () => {
@@ -281,11 +281,11 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessageProven(abacusMessage);
+    await inbox.setMessageProven(abacusMessage);
 
     // Required gas is >= 510,000 (we provide 500,000)
     await expect(
-      replica.process(abacusMessage, { gasLimit: 500000 }),
+      inbox.process(abacusMessage, { gasLimit: 500000 }),
     ).to.be.revertedWith('!gas');
   });
 
@@ -306,10 +306,10 @@ describe('Replica', async () => {
     );
 
     // Set message status to MessageStatus.Pending
-    await replica.setMessageProven(abacusMessage);
+    await inbox.setMessageProven(abacusMessage);
 
     // Ensure bad handler function causes process to return false
-    let success = await replica.callStatic.process(abacusMessage);
+    let success = await inbox.callStatic.process(abacusMessage);
     expect(success).to.be.false;
   });
 
@@ -335,21 +335,21 @@ describe('Replica', async () => {
     const { path, index } = proveAndProcessTestCases[0];
     const messageHash = abacus.messageHash(abacusMessage);
 
-    // Set replica's current root to match newly computed root that includes
+    // Set inbox's current root to match newly computed root that includes
     // the new leaf (normally root will have already been computed and path
     // simply verifies leaf is in tree but because it is cryptographically
     // impossible to find the inputs that create a pre-determined root, we
     // simply recalculate root with the leaf using branchRoot)
-    const proofRoot = await replica.testBranchRoot(
+    const proofRoot = await inbox.testBranchRoot(
       messageHash,
       path as BytesArray,
       index,
     );
-    await replica.setCheckpoint(proofRoot, 1);
+    await inbox.setCheckpoint(proofRoot, 1);
 
-    await replica.proveAndProcess(abacusMessage, path as BytesArray, index);
+    await inbox.proveAndProcess(abacusMessage, path as BytesArray, index);
 
-    expect(await replica.messages(messageHash)).to.equal(
+    expect(await inbox.messages(messageHash)).to.equal(
       MessageStatus.PROCESSED,
     );
   });
@@ -373,17 +373,17 @@ describe('Replica', async () => {
     );
 
     // Ensure root given in proof and actual root don't match so that
-    // replica.prove(...) will fail
-    const proofRoot = await replica.testBranchRoot(
+    // inbox.prove(...) will fail
+    const proofRoot = await inbox.testBranchRoot(
       leaf,
       path as BytesArray,
       index,
     );
-    const rootIndex = await replica.checkpoints(proofRoot);
+    const rootIndex = await inbox.checkpoints(proofRoot);
     expect(rootIndex).to.equal(0);
 
     await expect(
-      replica.proveAndProcess(abacusMessage, path as BytesArray, index),
+      inbox.proveAndProcess(abacusMessage, path as BytesArray, index),
     ).to.be.revertedWith('!prove');
   });
 });

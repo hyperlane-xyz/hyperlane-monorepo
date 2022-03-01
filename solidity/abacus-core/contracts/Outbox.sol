@@ -9,7 +9,7 @@ import {Message} from "../libs/Message.sol";
 import {MerkleTreeManager} from "./Merkle.sol";
 
 /**
- * @title Home
+ * @title Outbox
  * @author Celo Labs Inc.
  * @notice Accepts messages to be dispatched to remote chains,
  * constructs a Merkle tree of the messages,
@@ -18,7 +18,7 @@ import {MerkleTreeManager} from "./Merkle.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Home is Version0, MerkleTreeManager, Common {
+contract Outbox is Version0, MerkleTreeManager, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -151,7 +151,7 @@ contract Home is Version0, MerkleTreeManager, Common {
     /**
      * @notice Checkpoints the latest root and index.
      * Validators are expected to sign this checkpoint so that it can be
-     * relayed to the Replica contracts.
+     * relayed to the Inbox contracts.
      * @dev emits Checkpoint event
      */
     function checkpoint() external notFailed {

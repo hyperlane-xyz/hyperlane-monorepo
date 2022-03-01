@@ -11,12 +11,12 @@ import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
 /**
- * @title Replica
+ * @title Inbox
  * @author Celo Labs Inc.
- * @notice Track root updates on Home,
+ * @notice Track root updates on Outbox,
  * prove and dispatch messages to end recipients.
  */
-contract Replica is Version0, Common {
+contract Inbox is Version0, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -45,7 +45,7 @@ contract Replica is Version0, Common {
 
     // ============ Public Storage ============
 
-    // Domain of home chain
+    // Domain of outbox chain
     uint32 public remoteDomain;
     // re-entrancy guard
     uint8 private entered;
@@ -135,7 +135,7 @@ contract Replica is Version0, Common {
      * @dev Reverts if `prove` call returns false
      * @param _message Formatted message (refer to Common.sol Message library)
      * @param _proof Merkle proof of inclusion for message's leaf
-     * @param _index Index of leaf in home's merkle tree
+     * @param _index Index of leaf in outbox's merkle tree
      */
     function proveAndProcess(
         bytes memory _message,
@@ -152,7 +152,7 @@ contract Replica is Version0, Common {
      * @notice Given formatted message, attempts to dispatch
      * message payload to end recipient.
      * @dev Recipient must implement a `handle` method (refer to IMessageRecipient.sol)
-     * Reverts if formatted message's destination domain is not the Replica's domain,
+     * Reverts if formatted message's destination domain is not the Inbox's domain,
      * if message has not been proven,
      * or if not enough gas is provided for the dispatch transaction.
      * @param _message Formatted message
@@ -231,7 +231,7 @@ contract Replica is Version0, Common {
      * This means that witnesses never need to be updated for the new root
      * @param _leaf Leaf of message to prove
      * @param _proof Merkle proof of inclusion for leaf
-     * @param _index Index of leaf in home's merkle tree
+     * @param _index Index of leaf in outbox's merkle tree
      * @return Returns true if proof was valid and `prove` call succeeded
      **/
     function prove(

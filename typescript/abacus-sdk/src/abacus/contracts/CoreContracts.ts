@@ -1,15 +1,15 @@
 import { ethers } from 'ethers';
 import { core } from '@abacus-network/ts-interface';
 import { Contracts } from '../../contracts';
-import { ReplicaInfo } from '../domains/domain';
+import { InboxInfo } from '../domains/domain';
 import { CallBatch } from '../govern';
 
 type Address = string;
 
 interface Core {
   id: number;
-  home: Address;
-  replicas: ReplicaInfo[];
+  outbox: Address;
+  inboxs: InboxInfo[];
   governanceRouter: Address;
   xAppConnectionManager: Address;
 }
@@ -22,8 +22,8 @@ export type Governor = {
 
 export class CoreContracts extends Contracts {
   readonly domain: number;
-  readonly _home: Address;
-  readonly _replicas: Map<number, ReplicaInfo>;
+  readonly _outbox: Address;
+  readonly _inboxs: Map<number, InboxInfo>;
   readonly _governanceRouter: Address;
   readonly _xAppConnectionManager: Address;
   private providerOrSigner?: ethers.providers.Provider | ethers.Signer;
@@ -31,45 +31,45 @@ export class CoreContracts extends Contracts {
 
   constructor(
     domain: number,
-    home: Address,
-    replicas: ReplicaInfo[],
+    outbox: Address,
+    inboxs: InboxInfo[],
     governanceRouter: Address,
     xAppConnectionManager: Address,
     providerOrSigner?: ethers.providers.Provider | ethers.Signer,
   ) {
-    super(domain, home, replicas, providerOrSigner);
+    super(domain, outbox, inboxs, providerOrSigner);
     this.providerOrSigner = providerOrSigner;
     this.domain = domain;
-    this._home = home;
+    this._outbox = outbox;
     this._governanceRouter = governanceRouter;
     this._xAppConnectionManager = xAppConnectionManager;
 
-    this._replicas = new Map();
-    replicas.forEach((replica) => {
-      this._replicas.set(replica.domain, {
-        address: replica.address,
-        domain: replica.domain,
+    this._inboxs = new Map();
+    inboxs.forEach((inbox) => {
+      this._inboxs.set(inbox.domain, {
+        address: inbox.address,
+        domain: inbox.domain,
       });
     });
   }
 
-  getReplica(domain: number): core.Replica | undefined {
+  getInbox(domain: number): core.Inbox | undefined {
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
-    const replica = this._replicas.get(domain);
-    if (!replica) return;
-    return core.Replica__factory.connect(
-      replica.address,
+    const inbox = this._inboxs.get(domain);
+    if (!inbox) return;
+    return core.Inbox__factory.connect(
+      inbox.address,
       this.providerOrSigner,
     );
   }
 
-  get home(): core.Home {
+  get outbox(): core.Outbox {
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
-    return core.Home__factory.connect(this._home, this.providerOrSigner);
+    return core.Outbox__factory.connect(this._outbox, this.providerOrSigner);
   }
 
   get governanceRouter(): core.GovernanceRouter {
@@ -114,23 +114,23 @@ export class CoreContracts extends Contracts {
   }
 
   toObject(): Core {
-    const replicas: ReplicaInfo[] = Array.from(this._replicas.values());
+    const inboxs: InboxInfo[] = Array.from(this._inboxs.values());
     return {
       id: this.domain,
-      home: this._home,
-      replicas: replicas,
+      outbox: this._outbox,
+      inboxs: inboxs,
       governanceRouter: this._governanceRouter,
       xAppConnectionManager: this._xAppConnectionManager,
     };
   }
 
   static fromObject(data: Core, signer?: ethers.Signer): CoreContracts {
-    const { id, home, replicas, governanceRouter, xAppConnectionManager } =
+    const { id, outbox, inboxs, governanceRouter, xAppConnectionManager } =
       data;
     if (
       !id ||
-      !home ||
-      !replicas ||
+      !outbox ||
+      !inboxs ||
       !governanceRouter ||
       !xAppConnectionManager
     ) {
@@ -138,8 +138,8 @@ export class CoreContracts extends Contracts {
     }
     return new CoreContracts(
       id,
-      home,
-      replicas,
+      outbox,
+      inboxs,
       governanceRouter,
       xAppConnectionManager,
       signer,

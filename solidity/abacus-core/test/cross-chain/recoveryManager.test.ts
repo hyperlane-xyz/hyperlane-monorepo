@@ -9,7 +9,7 @@ import { Signer } from '../lib/types';
 import {
   ValidatorManager,
   TestGovernanceRouter,
-  TestHome,
+  TestOutbox,
 } from '../../typechain';
 import { AbacusDeployment } from '../lib/AbacusDeployment';
 import { GovernanceDeployment } from '../lib/GovernanceDeployment';
@@ -20,7 +20,7 @@ async function expectNotInRecovery(
   randomSigner: Signer,
   governor: Signer,
   governanceRouter: TestGovernanceRouter,
-  home: TestHome,
+  outbox: TestOutbox,
 ) {
   expect(await governanceRouter.inRecovery()).to.be.false;
 
@@ -41,7 +41,7 @@ async function expectNotInRecovery(
   // dispatch call on local governorRouter
   await expect(
     sendFromSigner(governor, governanceRouter, 'callRemote', [2000, [call]]),
-  ).to.emit(home, 'Dispatch');
+  ).to.emit(outbox, 'Dispatch');
 
   // set xApp Connection Manager
   const xAppConnectionManager = await governanceRouter.xAppConnectionManager();
@@ -210,7 +210,7 @@ describe('RecoveryManager', async () => {
     recoveryManager: Signer,
     randomSigner: Signer,
     governanceRouter: TestGovernanceRouter,
-    home: TestHome,
+    outbox: TestOutbox,
     validatorManager: ValidatorManager;
 
   before(async () => {
@@ -232,7 +232,7 @@ describe('RecoveryManager', async () => {
     }
 
     governanceRouter = governanceDeployment.router(localDomain);
-    home = abacusDeployment.home(localDomain);
+    outbox = abacusDeployment.outbox(localDomain);
     validatorManager = abacusDeployment.validatorManager(localDomain);
 
     // set governor
@@ -256,7 +256,7 @@ describe('RecoveryManager', async () => {
       randomSigner,
       governor,
       governanceRouter,
-      home,
+      outbox,
     );
   });
 
@@ -296,7 +296,7 @@ describe('RecoveryManager', async () => {
       randomSigner,
       governor,
       governanceRouter,
-      home,
+      outbox,
     );
   });
 
@@ -469,7 +469,7 @@ describe('RecoveryManager', async () => {
       randomSigner,
       governor,
       governanceRouter,
-      home,
+      outbox,
     );
   });
 

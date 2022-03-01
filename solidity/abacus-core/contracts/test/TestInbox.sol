@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import "../Replica.sol";
+import "../Inbox.sol";
 
-contract TestReplica is Replica {
+contract TestInbox is Inbox {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
     using Message for bytes29;
@@ -12,7 +12,7 @@ contract TestReplica is Replica {
         uint32 _localDomain,
         uint256,
         uint256
-    ) Replica(_localDomain, 850_000, 15_000) {} // solhint-disable-line no-empty-blocks
+    ) Inbox(_localDomain, 850_000, 15_000) {} // solhint-disable-line no-empty-blocks
 
     function setMessageProven(bytes memory _message) external {
         bytes29 _m = _message.ref(0);

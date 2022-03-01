@@ -30,13 +30,13 @@ async function main() {
   const batch = await builder.build();
 
   const domains = deploys.map((d) => d.chain.domain);
-  for (const home of domains) {
+  for (const outbox of domains) {
     for (const remote of domains) {
-      if (home === remote) continue;
+      if (outbox === remote) continue;
       const core = context.mustGetCore(remote);
-      const replica = core.getReplica(home);
+      const inbox = core.getInbox(outbox);
       const transferOwnership =
-        await replica!.populateTransaction.transferOwnership(
+        await inbox!.populateTransaction.transferOwnership(
           core._governanceRouter,
         );
       batch.push(remote, transferOwnership as Call);
@@ -45,7 +45,7 @@ async function main() {
 
   const txs = await batch.build();
   // For each domain, expect one call to upgrade the contract and then three
-  // calls to transfer replica ownership.
+  // calls to transfer inbox ownership.
   expectCalls(batch, domains, new Array(chains.length).fill(chains.length));
   // Change to `batch.execute` in order to run.
   const receipts = await batch.estimateGas();

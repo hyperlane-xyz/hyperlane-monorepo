@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { AbacusState, Validator } from './lib/core';
 import { Signer } from './lib/types';
 
-import { TestHome, TestHome__factory } from '../typechain';
+import { TestOutbox, TestOutbox__factory } from '../typechain';
 
 const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');
 
@@ -11,36 +11,36 @@ const localDomain = 1000;
 const destDomain = 2000;
 const nullAddress: string = '0x' + '00'.repeat(32);
 
-describe('Home', async () => {
-  let home: TestHome, signer: Signer, recipient: Signer;
+describe('Outbox', async () => {
+  let outbox: TestOutbox, signer: Signer, recipient: Signer;
 
   before(async () => {
     [signer, recipient] = await ethers.getSigners();
   });
 
   beforeEach(async () => {
-    // redeploy the home before each test run
-    const homeFactory = new TestHome__factory(signer);
-    home = await homeFactory.deploy(localDomain);
+    // redeploy the outbox before each test run
+    const outboxFactory = new TestOutbox__factory(signer);
+    outbox = await outboxFactory.deploy(localDomain);
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.
-    await home.initialize(home.address);
+    await outbox.initialize(outbox.address);
   });
 
   it('Cannot be initialized twice', async () => {
-    await expect(home.initialize(home.address)).to.be.revertedWith(
+    await expect(outbox.initialize(outbox.address)).to.be.revertedWith(
       'Initializable: contract is already initialized',
     );
   });
 
   it('ValidatorManager can fail', async () => {
-    await home.testSetValidatorManager(signer.address);
-    await home.fail();
-    expect(await home.state()).to.equal(AbacusState.FAILED);
+    await outbox.testSetValidatorManager(signer.address);
+    await outbox.fail();
+    expect(await outbox.state()).to.equal(AbacusState.FAILED);
 
     const message = ethers.utils.formatBytes32String('message');
     await expect(
-      home.dispatch(
+      outbox.dispatch(
         destDomain,
         abacus.ethersAddressToBytes32(recipient.address),
         message,
@@ -49,7 +49,7 @@ describe('Home', async () => {
   });
 
   it('Non ValidatorManager cannot fail', async () => {
-    await expect(home.connect(recipient).fail()).to.be.revertedWith(
+    await expect(outbox.connect(recipient).fail()).to.be.revertedWith(
       '!validatorManager',
     );
   });
@@ -57,7 +57,7 @@ describe('Home', async () => {
   it('Does not dispatch too large messages', async () => {
     const message = `0x${Buffer.alloc(3000).toString('hex')}`;
     await expect(
-      home.dispatch(
+      outbox.dispatch(
         destDomain,
         abacus.ethersAddressToBytes32(recipient.address),
         message,
@@ -67,7 +67,7 @@ describe('Home', async () => {
 
   it('Dispatches a message', async () => {
     const message = ethers.utils.formatBytes32String('message');
-    const nonce = await home.nonces(localDomain);
+    const nonce = await outbox.nonces(localDomain);
 
     // Format data that will be emitted from Dispatch event
     const destinationAndNonce = abacus.destinationAndNonce(destDomain, nonce);
@@ -81,12 +81,12 @@ describe('Home', async () => {
       message,
     );
     const messageHash = abacus.messageHash(abacusMessage);
-    const leafIndex = await home.tree();
-    const [checkpointedRoot] = await home.latestCheckpoint();
+    const leafIndex = await outbox.tree();
+    const [checkpointedRoot] = await outbox.latestCheckpoint();
 
     // Send message with signer address as msg.sender
     await expect(
-      home
+      outbox
         .connect(signer)
         .dispatch(
           destDomain,
@@ -94,7 +94,7 @@ describe('Home', async () => {
           message,
         ),
     )
-      .to.emit(home, 'Dispatch')
+      .to.emit(outbox, 'Dispatch')
       .withArgs(
         messageHash,
         leafIndex,
@@ -106,13 +106,13 @@ describe('Home', async () => {
 
   it('Checkpoints the latest root', async () => {
     const message = ethers.utils.formatBytes32String('message');
-    await home.dispatch(
+    await outbox.dispatch(
       destDomain,
       abacus.ethersAddressToBytes32(recipient.address),
       message,
     );
-    await home.checkpoint();
-    const [root, index] = await home.latestCheckpoint();
+    await outbox.checkpoint();
+    const [root, index] = await outbox.latestCheckpoint();
     expect(root).to.not.equal(nullAddress);
     expect(index).to.equal(1);
   });
@@ -120,7 +120,7 @@ describe('Home', async () => {
   it('Correctly calculates destinationAndNonce', async () => {
     for (let testCase of destinationNonceTestCases) {
       let { destination, nonce, expectedDestinationAndNonce } = testCase;
-      const solidityDestinationAndNonce = await home.destinationAndNonce(
+      const solidityDestinationAndNonce = await outbox.destinationAndNonce(
         destination,
         nonce,
       );

@@ -4,13 +4,13 @@ import { Address } from '../../utils';
 export interface AbacusDomain extends Domain {
   bridgeRouter: Address;
   ethHelper?: Address;
-  home: Address;
-  replicas: ReplicaInfo[];
+  outbox: Address;
+  inboxs: InboxInfo[];
   governanceRouter: Address;
   xAppConnectionManager: Address;
 }
 
-export interface ReplicaInfo {
+export interface InboxInfo {
   domain: number;
   address: Address;
 }

@@ -20,17 +20,17 @@ export const ${coreDeploy.chain.name}: AbacusDomain = {
         ? `\n  ethHelper: '${bridgeDeploy.contracts.ethHelper?.address}',`
         : ''
     }
-  home: '${coreDeploy.contracts.home!.proxy.address}',
+  outbox: '${coreDeploy.contracts.outbox!.proxy.address}',
   governanceRouter: '${coreDeploy.contracts.governanceRouter!.proxy.address}',
   xAppConnectionManager: '${
     coreDeploy.contracts.xAppConnectionManager!.address
   }',
-  replicas: [
-${Object.keys(coreDeploy.contracts.replicas)
+  inboxs: [
+${Object.keys(coreDeploy.contracts.inboxs)
   .map(Number)
   .map(
-    (replicaDomain) =>
-      `    { domain: ${replicaDomain}, address: '${coreDeploy.contracts.replicas[replicaDomain].proxy.address}' },`,
+    (inboxDomain) =>
+      `    { domain: ${inboxDomain}, address: '${coreDeploy.contracts.inboxs[inboxDomain].proxy.address}' },`,
   )
   .join('\n')}
   ],

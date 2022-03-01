@@ -5,9 +5,9 @@ import * as types from 'ethers';
 import { Validator } from '../lib/core';
 import { CallData, Address } from '../lib/types';
 import {
-  Replica,
-  TestReplica,
-  Home,
+  Inbox,
+  TestInbox,
+  Outbox,
   TestGovernanceRouter,
 } from '../../typechain';
 
@@ -18,7 +18,7 @@ type MessageDetails = {
 };
 
 /*
- * Dispatch a message from the specified Home contract.
+ * Dispatch a message from the specified Outbox contract.
  *
  * @param messageDetails - Message type containing
  *   the message string,
@@ -26,13 +26,13 @@ type MessageDetails = {
  *   the recipient address on the destination domain to which the message will be dispatched
  */
 export async function dispatchMessage(
-  home: Home,
+  outbox: Outbox,
   messageDetails: MessageDetails,
 ) {
   const { message, destinationDomain, recipientAddress } = messageDetails;
 
   // Send message with random signer address as msg.sender
-  await home.dispatch(
+  await outbox.dispatch(
     destinationDomain,
     abacus.ethersAddressToBytes32(recipientAddress),
     ethers.utils.formatBytes32String(message),
@@ -40,33 +40,33 @@ export async function dispatchMessage(
 }
 
 /*
- * Dispatch a set of messages to the specified Home contract.
+ * Dispatch a set of messages to the specified Outbox contract.
  *
  * @param messages - Message[]
  */
-export async function dispatchMessages(home: Home, messages: MessageDetails[]) {
+export async function dispatchMessages(outbox: Outbox, messages: MessageDetails[]) {
   for (let message of messages) {
-    await dispatchMessage(home, message);
+    await dispatchMessage(outbox, message);
   }
 }
 
 /*
- * Checkpoints a Home, signs that checkpoint, and checkpoints the Replica
+ * Checkpoints a Outbox, signs that checkpoint, and checkpoints the Inbox
  *
- * @param home - The Home contract
- * @param replica - The Replica contract
+ * @param outbox - The Outbox contract
+ * @param inbox - The Inbox contract
  * @param validator - The Validator
  */
 export async function checkpoint(
-  home: Home,
-  replica: Replica,
+  outbox: Outbox,
+  inbox: Inbox,
   validator: Validator,
 ) {
-  await home.checkpoint();
-  const [root, index] = await home.latestCheckpoint();
+  await outbox.checkpoint();
+  const [root, index] = await outbox.latestCheckpoint();
   const { signature } = await validator.signCheckpoint(root, index.toNumber());
-  await replica.checkpoint(root, index, signature);
-  const checkpointedIndex = await replica.checkpoints(root);
+  await inbox.checkpoint(root, index, signature);
+  const checkpointedIndex = await inbox.checkpoints(root);
   expect(checkpointedIndex).to.equal(index);
 }
 
@@ -92,7 +92,7 @@ export function formatMessage(
 }
 
 export async function formatAbacusMessage(
-  replica: TestReplica,
+  inbox: TestInbox,
   governorRouter: TestGovernanceRouter,
   destinationRouter: TestGovernanceRouter,
   message: string,
@@ -113,7 +113,7 @@ export async function formatAbacusMessage(
   );
 
   // Set message status to MessageStatus.Proven
-  await replica.setMessageProven(abacusMessage);
+  await inbox.setMessageProven(abacusMessage);
 
   return abacusMessage;
 }

@@ -73,27 +73,27 @@ export async function deployXAppConnectionManager(deploy: CoreDeploy) {
 }
 
 /**
- * Deploys the Home proxy on the chain of the given deploy and updates
+ * Deploys the Outbox proxy on the chain of the given deploy and updates
  * the deploy instance with the new contract.
  *
  * @param deploy - The deploy instance
  */
-export async function deployHome(deploy: CoreDeploy) {
+export async function deployOutbox(deploy: CoreDeploy) {
   const isTestDeploy: boolean = deploy.test;
-  if (isTestDeploy) warn('deploying test Home');
-  const homeFactory = isTestDeploy
-    ? contracts.TestHome__factory
-    : contracts.Home__factory;
+  if (isTestDeploy) warn('deploying test Outbox');
+  const outboxFactory = isTestDeploy
+    ? contracts.TestOutbox__factory
+    : contracts.Outbox__factory;
 
   let { validatorManager } = deploy.contracts;
-  let initData = homeFactory
+  let initData = outboxFactory
     .createInterface()
     .encodeFunctionData('initialize', [validatorManager!.address]);
 
-  deploy.contracts.home = await proxyUtils.deployProxy<contracts.Home>(
-    'Home',
+  deploy.contracts.outbox = await proxyUtils.deployProxy<contracts.Outbox>(
+    'Outbox',
     deploy,
-    new homeFactory(deploy.signer),
+    new outboxFactory(deploy.signer),
     initData,
     deploy.chain.domain,
   );
@@ -134,24 +134,24 @@ export async function deployGovernanceRouter(deploy: CoreDeploy) {
 }
 
 /**
- * Deploys an unenrolled Replica proxy on the local chain and updates the local
+ * Deploys an unenrolled Inbox proxy on the local chain and updates the local
  * deploy instance with the new contract.
  *
  * @param local - The local deploy instance
  * @param remote - The remote deploy instance
  */
-export async function deployUnenrolledReplica(
+export async function deployUnenrolledInbox(
   local: CoreDeploy,
   remote: CoreDeploy,
 ) {
   const isTestDeploy: boolean = remote.test;
-  if (isTestDeploy) warn('deploying test Replica');
+  if (isTestDeploy) warn('deploying test Inbox');
 
-  const replica = isTestDeploy
-    ? contracts.TestReplica__factory
-    : contracts.Replica__factory;
+  const inbox = isTestDeploy
+    ? contracts.TestInbox__factory
+    : contracts.Inbox__factory;
 
-  let initData = replica
+  let initData = inbox
     .createInterface()
     .encodeFunctionData('initialize', [
       remote.chain.domain,
@@ -160,18 +160,18 @@ export async function deployUnenrolledReplica(
       0,
     ]);
 
-  // if we have no replicas, deploy the whole setup.
+  // if we have no inboxs, deploy the whole setup.
   // otherwise just deploy a fresh proxy
   let proxy;
-  if (Object.keys(local.contracts.replicas).length === 0) {
+  if (Object.keys(local.contracts.inboxs).length === 0) {
     log(
       isTestDeploy,
-      `${local.chain.name}: deploying initial Replica for ${remote.chain.name}`,
+      `${local.chain.name}: deploying initial Inbox for ${remote.chain.name}`,
     );
-    proxy = await proxyUtils.deployProxy<contracts.Replica>(
-      'Replica',
+    proxy = await proxyUtils.deployProxy<contracts.Inbox>(
+      'Inbox',
       local,
-      new replica(local.signer),
+      new inbox(local.signer),
       initData,
       local.chain.domain,
       local.config.processGas,
@@ -180,20 +180,20 @@ export async function deployUnenrolledReplica(
   } else {
     log(
       isTestDeploy,
-      `${local.chain.name}: deploying additional Replica for ${remote.chain.name}`,
+      `${local.chain.name}: deploying additional Inbox for ${remote.chain.name}`,
     );
-    const prev = Object.entries(local.contracts.replicas)[0][1];
-    proxy = await proxyUtils.duplicate<contracts.Replica>(
-      'Replica',
+    const prev = Object.entries(local.contracts.inboxs)[0][1];
+    proxy = await proxyUtils.duplicate<contracts.Inbox>(
+      'Inbox',
       local,
       prev,
       initData,
     );
   }
-  local.contracts.replicas[remote.chain.domain] = proxy;
+  local.contracts.inboxs[remote.chain.domain] = proxy;
   log(
     isTestDeploy,
-    `${local.chain.name}: replica deployed for ${remote.chain.name}`,
+    `${local.chain.name}: inbox deployed for ${remote.chain.name}`,
   );
 }
 
@@ -224,15 +224,15 @@ export async function deployAbacus(deploy: CoreDeploy) {
   );
   await deployXAppConnectionManager(deploy);
 
-  log(isTestDeploy, `${deploy.chain.name}: awaiting deploy Home(deploy);`);
-  await deployHome(deploy);
+  log(isTestDeploy, `${deploy.chain.name}: awaiting deploy Outbox(deploy);`);
+  await deployOutbox(deploy);
 
   log(
     isTestDeploy,
-    `${deploy.chain.name}: awaiting XAppConnectionManager.setHome(...);`,
+    `${deploy.chain.name}: awaiting XAppConnectionManager.setOutbox(...);`,
   );
-  await deploy.contracts.xAppConnectionManager!.setHome(
-    deploy.contracts.home!.proxy.address,
+  await deploy.contracts.xAppConnectionManager!.setOutbox(
+    deploy.contracts.outbox!.proxy.address,
     deploy.overrides,
   );
 
@@ -295,45 +295,45 @@ export async function relinquish(deploy: CoreDeploy) {
     `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
 
-  Object.entries(deploy.contracts.replicas).forEach(
-    async ([domain, replica]) => {
-      await replica.proxy.transferOwnership(govRouter, deploy.overrides);
+  Object.entries(deploy.contracts.inboxs).forEach(
+    async ([domain, inbox]) => {
+      await inbox.proxy.transferOwnership(govRouter, deploy.overrides);
       log(
         isTestDeploy,
-        `${deploy.chain.name}: Dispatched relinquish Replica for domain ${domain}`,
+        `${deploy.chain.name}: Dispatched relinquish Inbox for domain ${domain}`,
       );
     },
   );
 
-  let tx = await deploy.contracts.home!.proxy.transferOwnership(
+  let tx = await deploy.contracts.outbox!.proxy.transferOwnership(
     govRouter,
     deploy.overrides,
   );
 
-  log(isTestDeploy, `${deploy.chain.name}: Dispatched relinquish home`);
+  log(isTestDeploy, `${deploy.chain.name}: Dispatched relinquish outbox`);
 
   await tx.wait(deploy.chain.confirmations);
   log(isTestDeploy, `${deploy.chain.name}: Control relinquished`);
 }
 
 /**
- * Enrolls a remote replica on the local chain.
+ * Enrolls a remote inbox on the local chain.
  *
  * @param local - The local deploy instance
  * @param remote - The remote deploy instance
  */
-export async function enrollReplica(local: CoreDeploy, remote: CoreDeploy) {
+export async function enrollInbox(local: CoreDeploy, remote: CoreDeploy) {
   const isTestDeploy = local.test;
-  log(isTestDeploy, `${local.chain.name}: starting replica enrollment`);
+  log(isTestDeploy, `${local.chain.name}: starting inbox enrollment`);
 
-  let tx = await local.contracts.xAppConnectionManager!.enrollReplica(
-    local.contracts.replicas[remote.chain.domain].proxy.address,
+  let tx = await local.contracts.xAppConnectionManager!.enrollInbox(
+    local.contracts.inboxs[remote.chain.domain].proxy.address,
     remote.chain.domain,
     local.overrides,
   );
   await tx.wait(local.chain.confirmations);
 
-  log(isTestDeploy, `${local.chain.name}: replica enrollment done`);
+  log(isTestDeploy, `${local.chain.name}: inbox enrollment done`);
 }
 
 /**
@@ -384,14 +384,14 @@ export async function enrollValidator(local: CoreDeploy, remote: CoreDeploy) {
 }
 
 /**
- * Enrolls a remote Replica, GovernanceRouter and Watchers on the local chain.
+ * Enrolls a remote Inbox, GovernanceRouter and Watchers on the local chain.
  *
  * @param local - The local deploy instance
  * @param remote - The remote deploy instance
  */
 export async function enrollRemote(local: CoreDeploy, remote: CoreDeploy) {
-  await deployUnenrolledReplica(local, remote);
-  await enrollReplica(local, remote);
+  await deployUnenrolledInbox(local, remote);
+  await enrollInbox(local, remote);
   await enrollGovernanceRouter(local, remote);
   await enrollValidator(local, remote);
 }
@@ -441,7 +441,7 @@ export async function appointGovernor(gov: CoreDeploy) {
 /**
  * Deploy the entire suite of Abacus contracts
  * on each chain within the chains array
- * including the upgradable Home, Replicas, and GovernanceRouter
+ * including the upgradable Outbox, Inboxs, and GovernanceRouter
  * that have been deployed, initialized, and configured
  * according to the deployAbacus script
  *
@@ -463,7 +463,7 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   deploys.forEach((deploy) => {
     log(
       isTestDeploy,
-      `Updater for ${deploy.chain.name} Home is ${deploy.validator}`,
+      `Updater for ${deploy.chain.name} Outbox is ${deploy.validator}`,
     );
   });
 
@@ -483,7 +483,7 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   // enroll remotes on every chain
   //
   //    NB: do not use Promise.all for this block. It introduces a race condition
-  //    which results in multiple replica implementations on the home chain.
+  //    which results in multiple inbox implementations on the outbox chain.
   //
   for (let local of deploys) {
     const remotes = deploys.filter(

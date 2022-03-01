@@ -10,7 +10,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 /**
  * @title Common
  * @author Celo Labs Inc.
- * @notice Shared utilities between Home and Replica.
+ * @notice Shared utilities between Outbox and Inbox.
  */
 abstract contract Common is OwnableUpgradeable {
     // ============ Immutable Variables ============
@@ -35,8 +35,8 @@ abstract contract Common is OwnableUpgradeable {
     // ============ Events ============
 
     /**
-     * @notice Emitted when a root is checkpointed on Home or a signed
-     * checkpoint is relayed to a Replica.
+     * @notice Emitted when a root is checkpointed on Outbox or a signed
+     * checkpoint is relayed to a Inbox.
      * @param root Merkle root
      * @param index Leaf index
      */
@@ -71,7 +71,7 @@ abstract contract Common is OwnableUpgradeable {
 
     /**
      * @notice Set a new ValidatorManager contract
-     * @dev Home(s) will initially be initialized using a trusted ValidatorManager contract;
+     * @dev Outbox(s) will initially be initialized using a trusted ValidatorManager contract;
      * we will progressively decentralize by swapping the trusted contract with a new implementation
      * that implements Validator bonding & slashing, and rules for Validator selection & rotation
      * @param _validatorManager the new ValidatorManager contract

@@ -2,11 +2,11 @@ import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
 import {
-  TestHome__factory,
-  TestReplica__factory,
+  TestOutbox__factory,
+  TestInbox__factory,
   XAppConnectionManager,
   XAppConnectionManager__factory,
-  TestReplica,
+  TestInbox,
 } from '../typechain';
 import { Validator } from './lib/core';
 import { Signer } from './lib/types';
@@ -22,7 +22,7 @@ const nullRoot = '0x' + '00'.repeat(32);
 
 describe('XAppConnectionManager', async () => {
   let connectionManager: XAppConnectionManager,
-    enrolledReplica: TestReplica,
+    enrolledInbox: TestInbox,
     signer: Signer,
     validator: Validator;
 
@@ -32,24 +32,24 @@ describe('XAppConnectionManager', async () => {
   });
 
   beforeEach(async () => {
-    const homeFactory = new TestHome__factory(signer);
-    const home = await homeFactory.deploy(localDomain);
+    const outboxFactory = new TestOutbox__factory(signer);
+    const outbox = await outboxFactory.deploy(localDomain);
 
-    const replicaFactory = new TestReplica__factory(signer);
-    enrolledReplica = await replicaFactory.deploy(
+    const inboxFactory = new TestInbox__factory(signer);
+    enrolledInbox = await inboxFactory.deploy(
       localDomain,
       processGas,
       reserveGas,
     );
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.
-    await enrolledReplica.initialize(remoteDomain, home.address, nullRoot, 0);
+    await enrolledInbox.initialize(remoteDomain, outbox.address, nullRoot, 0);
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     connectionManager = await connectionManagerFactory.deploy();
-    await connectionManager.setHome(home.address);
-    await connectionManager.enrollReplica(
-      enrolledReplica.address,
+    await connectionManager.setOutbox(outbox.address);
+    await connectionManager.enrollInbox(
+      enrolledInbox.address,
       remoteDomain,
     );
   });
@@ -59,65 +59,65 @@ describe('XAppConnectionManager', async () => {
   });
 
   it('onlyOwner function rejects call from non-owner', async () => {
-    const [nonHome, nonOwner] = await ethers.getSigners();
+    const [nonOutbox, nonOwner] = await ethers.getSigners();
     await expect(
-      connectionManager.connect(nonOwner).setHome(nonHome.address),
+      connectionManager.connect(nonOwner).setOutbox(nonOutbox.address),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
   });
 
-  it('isReplica returns true for enrolledReplica and false for non-enrolled Replica', async () => {
-    const [nonEnrolledReplica] = await ethers.getSigners();
-    expect(await connectionManager.isReplica(enrolledReplica.address)).to.be
+  it('isInbox returns true for enrolledInbox and false for non-enrolled Inbox', async () => {
+    const [nonEnrolledInbox] = await ethers.getSigners();
+    expect(await connectionManager.isInbox(enrolledInbox.address)).to.be
       .true;
-    expect(await connectionManager.isReplica(nonEnrolledReplica.address)).to.be
+    expect(await connectionManager.isInbox(nonEnrolledInbox.address)).to.be
       .false;
   });
 
-  it('Allows owner to set the home', async () => {
-    const homeFactory = new TestHome__factory(signer);
-    const newHome = await homeFactory.deploy(localDomain);
+  it('Allows owner to set the outbox', async () => {
+    const outboxFactory = new TestOutbox__factory(signer);
+    const newOutbox = await outboxFactory.deploy(localDomain);
 
-    await connectionManager.setHome(newHome.address);
-    expect(await connectionManager.home()).to.equal(newHome.address);
+    await connectionManager.setOutbox(newOutbox.address);
+    expect(await connectionManager.outbox()).to.equal(newOutbox.address);
   });
 
-  it('Owner can enroll a replica', async () => {
+  it('Owner can enroll a inbox', async () => {
     const newRemoteDomain = 3000;
-    const replicaFactory = new TestReplica__factory(signer);
-    const newReplica = await replicaFactory.deploy(
+    const inboxFactory = new TestInbox__factory(signer);
+    const newInbox = await inboxFactory.deploy(
       localDomain,
       processGas,
       reserveGas,
     );
 
-    // Assert new replica not considered replica before enrolled
-    expect(await connectionManager.isReplica(newReplica.address)).to.be.false;
+    // Assert new inbox not considered inbox before enrolled
+    expect(await connectionManager.isInbox(newInbox.address)).to.be.false;
 
     await expect(
-      connectionManager.enrollReplica(newReplica.address, newRemoteDomain),
-    ).to.emit(connectionManager, 'ReplicaEnrolled');
+      connectionManager.enrollInbox(newInbox.address, newRemoteDomain),
+    ).to.emit(connectionManager, 'InboxEnrolled');
 
-    expect(await connectionManager.domainToReplica(newRemoteDomain)).to.equal(
-      newReplica.address,
+    expect(await connectionManager.domainToInbox(newRemoteDomain)).to.equal(
+      newInbox.address,
     );
     expect(
-      await connectionManager.replicaToDomain(newReplica.address),
+      await connectionManager.inboxToDomain(newInbox.address),
     ).to.equal(newRemoteDomain);
-    expect(await connectionManager.isReplica(newReplica.address)).to.be.true;
+    expect(await connectionManager.isInbox(newInbox.address)).to.be.true;
   });
 
-  it('Owner can unenroll a replica', async () => {
+  it('Owner can unenroll a inbox', async () => {
     await expect(
-      connectionManager.unenrollReplica(enrolledReplica.address),
-    ).to.emit(connectionManager, 'ReplicaUnenrolled');
+      connectionManager.unenrollInbox(enrolledInbox.address),
+    ).to.emit(connectionManager, 'InboxUnenrolled');
 
     expect(
-      await connectionManager.replicaToDomain(enrolledReplica.address),
+      await connectionManager.inboxToDomain(enrolledInbox.address),
     ).to.equal(0);
-    expect(await connectionManager.domainToReplica(localDomain)).to.equal(
+    expect(await connectionManager.domainToInbox(localDomain)).to.equal(
       ethers.constants.AddressZero,
     );
-    expect(await connectionManager.isReplica(enrolledReplica.address)).to.be
+    expect(await connectionManager.isInbox(enrolledInbox.address)).to.be
       .false;
   });
 });

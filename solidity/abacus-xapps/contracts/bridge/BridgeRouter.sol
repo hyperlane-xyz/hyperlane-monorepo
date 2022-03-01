@@ -8,7 +8,7 @@ import {XAppConnectionClient} from "../XAppConnectionClient.sol";
 import {IBridgeToken} from "../../interfaces/bridge/IBridgeToken.sol";
 import {BridgeMessage} from "./BridgeMessage.sol";
 // ============ External Imports ============
-import {Home} from "@abacus-network/abacus-sol/contracts/Home.sol";
+import {Outbox} from "@abacus-network/abacus-sol/contracts/Outbox.sol";
 import {Version0} from "@abacus-network/abacus-sol/contracts/Version0.sol";
 import {TypeCasts} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
@@ -82,7 +82,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         uint32 _origin,
         bytes32 _sender,
         bytes memory _message
-    ) external override onlyReplica onlyRemoteRouter(_origin, _sender) {
+    ) external override onlyInbox onlyRemoteRouter(_origin, _sender) {
         // parse tokenId and action from message
         bytes29 _msg = _message.ref(0).mustBeMessage();
         bytes29 _tokenId = _msg.tokenId();
@@ -146,7 +146,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         // format Transfer Tokens action
         bytes29 _action = BridgeMessage.formatTransfer(_recipient, _amount);
         // send message to remote chain via Abacus
-        Home(xAppConnectionManager.home()).dispatch(
+        Outbox(xAppConnectionManager.outbox()).dispatch(
             _destination,
             _remote,
             BridgeMessage.formatMessage(_formatTokenId(_token), _action)
@@ -355,7 +355,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
             _bridgeToken.decimals()
         );
         // send message to remote chain via Abacus
-        Home(xAppConnectionManager.home()).dispatch(
+        Outbox(xAppConnectionManager.outbox()).dispatch(
             _messageOrigin,
             _messageRemoteRouter,
             BridgeMessage.formatMessage(_tokenId, _updateDetailsAction)
@@ -393,7 +393,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         // format Request Details message
         bytes29 _action = BridgeMessage.formatRequestDetails();
         // send message to remote chain via Abacus
-        Home(xAppConnectionManager.home()).dispatch(
+        Outbox(xAppConnectionManager.outbox()).dispatch(
             _destination,
             _remote,
             BridgeMessage.formatMessage(_tokenId, _action)

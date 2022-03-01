@@ -42,15 +42,15 @@ export enum MessageStatus {
   Processed = 3,
 }
 
-export enum ReplicaMessageStatus {
+export enum InboxMessageStatus {
   None = 0,
   Proven,
   Processed,
 }
 
 export type EventCache = {
-  homeCheckpoint?: AnnotatedCheckpoint;
-  replicaCheckpoint?: AnnotatedCheckpoint;
+  outboxCheckpoint?: AnnotatedCheckpoint;
+  inboxCheckpoint?: AnnotatedCheckpoint;
   process?: AnnotatedProcess;
 };
 
@@ -77,8 +77,8 @@ export function parseMessage(message: string): ParsedMessage {
 export class AbacusMessage {
   readonly dispatch: AnnotatedDispatch;
   readonly message: ParsedMessage;
-  readonly home: core.Home;
-  readonly replica: core.Replica;
+  readonly outbox: core.Outbox;
+  readonly inbox: core.Inbox;
 
   readonly context: AbacusContext;
   protected cache: EventCache;
@@ -87,8 +87,8 @@ export class AbacusMessage {
     this.context = context;
     this.message = parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
-    this.home = context.mustGetCore(this.message.from).home;
-    this.replica = context.mustGetReplicaFor(
+    this.outbox = context.mustGetCore(this.message.from).outbox;
+    this.inbox = context.mustGetInboxFor(
       this.message.from,
       this.message.destination,
     );
@@ -116,11 +116,11 @@ export class AbacusMessage {
     receipt: TransactionReceipt,
   ): AbacusMessage[] {
     const messages: AbacusMessage[] = [];
-    const home = new core.Home__factory().interface;
+    const outbox = new core.Outbox__factory().interface;
 
     for (const log of receipt.logs) {
       try {
-        const parsed = home.parseLog(log);
+        const parsed = outbox.parseLog(log);
         if (parsed.name === 'Dispatch') {
           const dispatch = parsed as unknown as DispatchEvent;
           dispatch.getBlock = () => {
@@ -227,20 +227,20 @@ export class AbacusMessage {
   }
 
   /**
-   * Get the Home `Checkpoint` event associated with this message (if any)
+   * Get the Outbox `Checkpoint` event associated with this message (if any)
    *
    * @returns An {@link AnnotatedCheckpoint} (if any)
    */
-  async getHomeCheckpoint(): Promise<AnnotatedCheckpoint | undefined> {
+  async getOutboxCheckpoint(): Promise<AnnotatedCheckpoint | undefined> {
     // if we have already gotten the event,
     // return it without re-querying
-    if (this.cache.homeCheckpoint) {
-      return this.cache.homeCheckpoint;
+    if (this.cache.outboxCheckpoint) {
+      return this.cache.outboxCheckpoint;
     }
 
     const leafIndex = this.dispatch.event.args.leafIndex;
     const [checkpointRoot, checkpointIndex] =
-      await this.home.latestCheckpoint();
+      await this.outbox.latestCheckpoint();
     // The checkpoint index needs to be at least leafIndex + 1 to include
     // the message.
     if (checkpointIndex.lte(leafIndex)) {
@@ -248,7 +248,7 @@ export class AbacusMessage {
     }
 
     // Query the latest checkpoint event.
-    const checkpointFilter = this.home.filters.Checkpoint(
+    const checkpointFilter = this.outbox.filters.Checkpoint(
       checkpointRoot,
       checkpointIndex,
     );
@@ -257,35 +257,35 @@ export class AbacusMessage {
       await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
         this.context,
         this.origin,
-        this.home,
+        this.outbox,
         checkpointFilter,
       );
 
     if (checkpointLogs.length === 1) {
       // if event is returned, store it to the object
-      this.cache.homeCheckpoint = checkpointLogs[0];
+      this.cache.outboxCheckpoint = checkpointLogs[0];
     } else if (checkpointLogs.length > 1) {
-      throw new Error('multiple home checkpoints for same root and index');
+      throw new Error('multiple outbox checkpoints for same root and index');
     }
     // return the event or undefined if it doesn't exist
-    return this.cache.homeCheckpoint;
+    return this.cache.outboxCheckpoint;
   }
 
   /**
-   * Get the Replica `Checkpoint` event associated with this message (if any)
+   * Get the Inbox `Checkpoint` event associated with this message (if any)
    *
    * @returns An {@link AnnotatedCheckpoint} (if any)
    */
-  async getReplicaCheckpoint(): Promise<AnnotatedCheckpoint | undefined> {
+  async getInboxCheckpoint(): Promise<AnnotatedCheckpoint | undefined> {
     // if we have already gotten the event,
     // return it without re-querying
-    if (this.cache.replicaCheckpoint) {
-      return this.cache.replicaCheckpoint;
+    if (this.cache.inboxCheckpoint) {
+      return this.cache.inboxCheckpoint;
     }
 
     const leafIndex = this.dispatch.event.args.leafIndex;
     const [checkpointRoot, checkpointIndex] =
-      await this.replica.latestCheckpoint();
+      await this.inbox.latestCheckpoint();
     // The checkpoint index needs to be at least leafIndex + 1 to include
     // the message.
     if (checkpointIndex.lte(leafIndex)) {
@@ -293,7 +293,7 @@ export class AbacusMessage {
     }
 
     // if not, attempt to query the event
-    const checkpointFilter = this.replica.filters.Checkpoint(
+    const checkpointFilter = this.inbox.filters.Checkpoint(
       checkpointRoot,
       checkpointIndex,
     );
@@ -301,21 +301,21 @@ export class AbacusMessage {
       await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
         this.context,
         this.destination,
-        this.replica,
+        this.inbox,
         checkpointFilter,
       );
     if (checkpointLogs.length === 1) {
       // if event is returned, store it to the object
-      this.cache.replicaCheckpoint = checkpointLogs[0];
+      this.cache.inboxCheckpoint = checkpointLogs[0];
     } else if (checkpointLogs.length > 1) {
-      throw new Error('multiple replica checkpoints for same root');
+      throw new Error('multiple inbox checkpoints for same root');
     }
     // return the event or undefined if it wasn't found
-    return this.cache.replicaCheckpoint;
+    return this.cache.inboxCheckpoint;
   }
 
   /**
-   * Get the Replica `Process` event associated with this message (if any)
+   * Get the Inbox `Process` event associated with this message (if any)
    *
    * @returns An {@link AnnotatedProcess} (if any)
    */
@@ -326,16 +326,16 @@ export class AbacusMessage {
       return this.cache.process;
     }
     // if not, attempt to query the event
-    const processFilter = this.replica.filters.Process(this.leaf);
+    const processFilter = this.inbox.filters.Process(this.leaf);
     const processLogs = await findAnnotatedSingleEvent<
       ProcessTypes,
       ProcessArgs
-    >(this.context, this.destination, this.replica, processFilter, startBlock);
+    >(this.context, this.destination, this.inbox, processFilter, startBlock);
     if (processLogs.length === 1) {
       // if event is returned, store it to the object
       this.cache.process = processLogs[0];
     } else if (processLogs.length > 1) {
-      throw new Error('multiple replica process for same message');
+      throw new Error('multiple inbox process for same message');
     }
     // return the process or undefined if it doesn't exist
     return this.cache.process;
@@ -348,32 +348,32 @@ export class AbacusMessage {
    */
   async events(): Promise<AbacusStatus> {
     const events: AnnotatedLifecycleEvent[] = [this.dispatch];
-    // attempt to get Home checkpoint
-    const homeCheckpoint = await this.getHomeCheckpoint();
-    if (!homeCheckpoint) {
+    // attempt to get Outbox checkpoint
+    const outboxCheckpoint = await this.getOutboxCheckpoint();
+    if (!outboxCheckpoint) {
       return {
         status: MessageStatus.Dispatched, // the message has been sent; nothing more
         events,
       };
     }
-    events.push(homeCheckpoint);
-    // attempt to get Replica checkpoint
-    const replicaCheckpoint = await this.getReplicaCheckpoint();
-    if (!replicaCheckpoint) {
+    events.push(outboxCheckpoint);
+    // attempt to get Inbox checkpoint
+    const inboxCheckpoint = await this.getInboxCheckpoint();
+    if (!inboxCheckpoint) {
       return {
-        status: MessageStatus.Included, // the message was sent, then included in an Checkpoint on Home
+        status: MessageStatus.Included, // the message was sent, then included in an Checkpoint on Outbox
         events,
       };
     }
-    events.push(replicaCheckpoint);
-    // attempt to get Replica process
-    const process = await this.getProcess(replicaCheckpoint.blockNumber);
+    events.push(inboxCheckpoint);
+    // attempt to get Inbox process
+    const process = await this.getProcess(inboxCheckpoint.blockNumber);
     if (!process) {
       // NOTE: when this is the status, you may way to
       // query confirmAt() to check if challenge period
-      // on the Replica has elapsed or not
+      // on the Inbox has elapsed or not
       return {
-        status: MessageStatus.Relayed, // the message was sent, included in an Checkpoint, then relayed to the Replica
+        status: MessageStatus.Relayed, // the message was sent, included in an Checkpoint, then relayed to the Inbox
         events,
       };
     }
@@ -385,13 +385,13 @@ export class AbacusMessage {
   }
 
   /**
-   * Retrieve the replica status of this message.
+   * Retrieve the inbox status of this message.
    *
-   * @returns The {@link ReplicaMessageStatus} corresponding to the solidity
+   * @returns The {@link InboxMessageStatus} corresponding to the solidity
    * status of the message.
    */
-  async replicaStatus(): Promise<ReplicaMessageStatus> {
-    return this.replica.messages(this.leaf);
+  async inboxStatus(): Promise<InboxMessageStatus> {
+    return this.inbox.messages(this.leaf);
   }
 
   /**
@@ -400,8 +400,8 @@ export class AbacusMessage {
    * @returns true if processed, else false.
    */
   async delivered(): Promise<boolean> {
-    const status = await this.replicaStatus();
-    return status === ReplicaMessageStatus.Processed;
+    const status = await this.inboxStatus();
+    return status === InboxMessageStatus.Processed;
   }
 
   /**
@@ -487,7 +487,7 @@ export class AbacusMessage {
   }
 
   /**
-   * The messageHash committed to the tree in the Home contract.
+   * The messageHash committed to the tree in the Outbox contract.
    */
   get leaf(): string {
     return this.dispatch.event.args.messageHash;
