@@ -18,8 +18,8 @@ export async function getChain(
     rpc: await getSecretRpcEndpoint(environment, name),
     deployerKey: await getSecretDeployerKey(deployerKeySecretName),
     domain: 0x63656c6f, // b'celo' interpreted as an int
-    updaterInterval: 300,
-    updaterPause: 15,
+    validatorInterval: 300,
+    validatorPause: 15,
   };
   return new ChainConfig(chainJson);
 }

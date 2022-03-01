@@ -8,8 +8,8 @@ import { fetchAgentGCPKeys } from './agents/gcp';
 import { AgentAwsKey } from './agents/aws';
 
 export enum KEY_ROLE_ENUM {
-  UpdaterAttestation = 'updater-attestation',
-  UpdaterSigner = 'updater-signer',
+  UpdaterAttestation = 'validator-attestation',
+  UpdaterSigner = 'validator-signer',
   ProcessorSigner = 'processor-signer',
   RelayerSigner = 'relayer-signer',
   WatcherAttestation = 'watcher-attestation',
@@ -18,8 +18,8 @@ export enum KEY_ROLE_ENUM {
   Bank = 'bank',
 }
 export const KEY_ROLES = [
-  'updater-attestation',
-  'updater-signer',
+  'validator-attestation',
+  'validator-signer',
   'processor-signer',
   'relayer-signer',
   'watcher-attestation',
@@ -63,7 +63,7 @@ async function helmValuesForChain(
             name: remoteChain.name,
           };
         }),
-      updater: {
+      validator: {
         enabled: true,
         transactionSigners: chains.map((chain) => ({
           name: chain.name,
@@ -72,10 +72,10 @@ async function helmValuesForChain(
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.UpdaterAttestation),
         },
-        ...include(!!chain.updaterInterval, {
-          pollingInterval: chain.updaterInterval,
+        ...include(!!chain.validatorInterval, {
+          pollingInterval: chain.validatorInterval,
         }),
-        ...include(!!chain.updaterPause, { updatePause: chain.updaterPause }),
+        ...include(!!chain.validatorPause, { updatePause: chain.validatorPause }),
       },
       relayer: {
         enabled: true,
@@ -142,7 +142,7 @@ export async function getAgentEnvVars(
     });
 
     // Updater attestation key
-    if (role.startsWith('updater')) {
+    if (role.startsWith('validator')) {
       envVars.push(
         `OPT_BASE_UPDATER_KEY=${strip0x(
           gcpKeys[homeChainName + '-' + KEY_ROLE_ENUM.UpdaterAttestation]
@@ -174,7 +174,7 @@ export async function getAgentEnvVars(
     });
 
     // Updater attestation key
-    if (role.startsWith('updater')) {
+    if (role.startsWith('validator')) {
       const key = new AgentAwsKey(agentConfig, role, homeChainName);
       envVars.push(`OPT_BASE_UPDATER_TYPE=aws`);
       envVars.push(

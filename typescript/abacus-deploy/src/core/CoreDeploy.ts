@@ -26,9 +26,8 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     return {
       ...this.contracts.toObject(),
       recoveryManager: this.recoveryManager,
-      updater: this.updater,
+      validator: this.validator,
       governor: this.governor,
-      watchers: this.watchers,
     };
   }
 
@@ -40,17 +39,14 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     return this.contracts.upgradeBeaconController?.address;
   }
 
-  get updater(): Address {
-    return this.coreConfigAddresses.updater;
+  get validator(): Address {
+    return this.coreConfigAddresses.validator;
   }
 
   get recoveryManager(): Address {
     return this.coreConfigAddresses.recoveryManager;
   }
 
-  get watchers(): Address[] {
-    return this.coreConfigAddresses.watchers;
-  }
 
   get governor(): Address | undefined {
     return this.coreConfigAddresses.governor;

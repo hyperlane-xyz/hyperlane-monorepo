@@ -1,4 +1,3 @@
-import * as ethers from 'ethers';
 import { assert } from 'console';
 import fs from 'fs';
 
@@ -8,6 +7,7 @@ import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 import { CoreInvariantChecker } from './checks';
 import { log, warn, toBytes32 } from '../utils/utils';
 
+const nullRoot: string = '0x' + '00'.repeat(32);
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
   let factory = new contracts.UpgradeBeaconController__factory(deploy.signer);
   deploy.contracts.upgradeBeaconController = await factory.deploy(
@@ -27,26 +27,25 @@ export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
 }
 
 /**
- * Deploys the UpdaterManager on the chain of the given deploy and updates
+ * Deploys the ValidatorManager on the chain of the given deploy and updates
  * the deploy instance with the new contract.
  *
  * @param deploy - The deploy instance
  */
-export async function deployUpdaterManager(deploy: CoreDeploy) {
-  let factory = new contracts.UpdaterManager__factory(deploy.signer);
-  deploy.contracts.updaterManager = await factory.deploy(
-    deploy.updater,
-    deploy.overrides,
+export async function deployValidatorManager(deploy: CoreDeploy) {
+  let factory = new contracts.ValidatorManager__factory(deploy.signer);
+  deploy.contracts.validatorManager = await factory.deploy(
+    deploy.overrides
   );
-  await deploy.contracts.updaterManager.deployTransaction.wait(
+  await deploy.contracts.validatorManager.deployTransaction.wait(
     deploy.chain.confirmations,
   );
 
   // add contract information to Etherscan verification array
   deploy.verificationInput.push({
-    name: 'UpdaterManager',
-    address: deploy.contracts.updaterManager!.address,
-    constructorArguments: [deploy.updater],
+    name: 'ValidatorManager',
+    address: deploy.contracts.validatorManager!.address,
+    constructorArguments: [deploy.validator],
   });
 }
 
@@ -57,13 +56,8 @@ export async function deployUpdaterManager(deploy: CoreDeploy) {
  * @param deploy - The deploy instance
  */
 export async function deployXAppConnectionManager(deploy: CoreDeploy) {
-  const isTestDeploy: boolean = deploy.test;
-  if (isTestDeploy) warn('deploying test XAppConnectionManager');
-
   const signer = deploy.signer;
-  const factory = isTestDeploy
-    ? new contracts.TestXAppConnectionManager__factory(signer)
-    : new contracts.XAppConnectionManager__factory(signer);
+  const factory = new contracts.XAppConnectionManager__factory(signer);
 
   deploy.contracts.xAppConnectionManager = await factory.deploy(
     deploy.overrides,
@@ -93,10 +87,10 @@ export async function deployHome(deploy: CoreDeploy) {
     ? contracts.TestHome__factory
     : contracts.Home__factory;
 
-  let { updaterManager } = deploy.contracts;
+  let { validatorManager } = deploy.contracts;
   let initData = homeFactory
     .createInterface()
-    .encodeFunctionData('initialize', [updaterManager!.address]);
+    .encodeFunctionData('initialize', [validatorManager!.address]);
 
   deploy.contracts.home = await proxyUtils.deployProxy<contracts.Home>(
     'Home',
@@ -161,9 +155,9 @@ export async function deployUnenrolledReplica(
 
   let initData = replica.createInterface().encodeFunctionData('initialize', [
     remote.chain.domain,
-    remote.updater,
-    ethers.constants.HashZero, // TODO: allow configuration
-    remote.config.optimisticSeconds,
+    remote.validator,
+    nullRoot,
+    0
   ]);
 
   // if we have no replicas, deploy the whole setup.
@@ -220,9 +214,9 @@ export async function deployAbacus(deploy: CoreDeploy) {
 
   log(
     isTestDeploy,
-    `${deploy.chain.name}: awaiting deploy UpdaterManager(deploy);`,
+    `${deploy.chain.name}: awaiting deploy ValidatorManager(deploy);`,
   );
-  await deployUpdaterManager(deploy);
+  await deployValidatorManager(deploy);
 
   log(
     isTestDeploy,
@@ -244,10 +238,11 @@ export async function deployAbacus(deploy: CoreDeploy) {
 
   log(
     isTestDeploy,
-    `${deploy.chain.name}: awaiting updaterManager.setHome(...);`,
+    `${deploy.chain.name}: awaiting validatorManager.setValidator(...);`,
   );
-  await deploy.contracts.updaterManager!.setHome(
-    deploy.contracts.home!.proxy.address,
+  await deploy.contracts.validatorManager!.setValidator(
+    deploy.chain.domain,
+    deploy.validator,
     deploy.overrides,
   );
 
@@ -270,14 +265,14 @@ export async function relinquish(deploy: CoreDeploy) {
   const govRouter = await deploy.contracts.governanceRouter!.proxy.address;
 
   log(isTestDeploy, `${deploy.chain.name}: Relinquishing control`);
-  await deploy.contracts.updaterManager!.transferOwnership(
+  await deploy.contracts.validatorManager!.transferOwnership(
     govRouter,
     deploy.overrides,
   );
 
   log(
     isTestDeploy,
-    `${deploy.chain.name}: Dispatched relinquish updatermanager`,
+    `${deploy.chain.name}: Dispatched relinquish validatormanager`,
   );
 
   await deploy.contracts.xAppConnectionManager!.transferOwnership(
@@ -331,7 +326,7 @@ export async function enrollReplica(local: CoreDeploy, remote: CoreDeploy) {
   const isTestDeploy = local.test;
   log(isTestDeploy, `${local.chain.name}: starting replica enrollment`);
 
-  let tx = await local.contracts.xAppConnectionManager!.ownerEnrollReplica(
+  let tx = await local.contracts.xAppConnectionManager!.enrollReplica(
     local.contracts.replicas[remote.chain.domain].proxy.address,
     remote.chain.domain,
     local.overrides,
@@ -339,32 +334,6 @@ export async function enrollReplica(local: CoreDeploy, remote: CoreDeploy) {
   await tx.wait(local.chain.confirmations);
 
   log(isTestDeploy, `${local.chain.name}: replica enrollment done`);
-}
-
-/**
- * Enrolls a remote watcher on the local chain.
- *
- * @param local - The local deploy instance
- * @param remote - The remote deploy instance
- */
-export async function enrollWatchers(left: CoreDeploy, right: CoreDeploy) {
-  const isTestDeploy = left.test;
-  log(isTestDeploy, `${left.chain.name}: starting watcher enrollment`);
-
-  await Promise.all(
-    left.watchers.map(async (watcher) => {
-      const tx =
-        await left.contracts.xAppConnectionManager!.setWatcherPermission(
-          watcher,
-          right.chain.domain,
-          true,
-          left.overrides,
-        );
-      await tx.wait(left.chain.confirmations);
-    }),
-  );
-
-  log(isTestDeploy, `${left.chain.name}: watcher enrollment done`);
 }
 
 /**
@@ -403,7 +372,6 @@ export async function enrollGovernanceRouter(
 export async function enrollRemote(local: CoreDeploy, remote: CoreDeploy) {
   await deployUnenrolledReplica(local, remote);
   await enrollReplica(local, remote);
-  await enrollWatchers(local, remote);
   await enrollGovernanceRouter(local, remote);
 }
 
@@ -463,8 +431,8 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   log(isTestDeploy, 'Beginning Two Chain deploy process');
   log(isTestDeploy, `Deploy env is ${gov.config.environment}`);
   log(isTestDeploy, `${gov.chain.name} is governing`);
-  log(isTestDeploy, `Updater for ${gov.chain.name} Home is ${gov.updater}`);
-  log(isTestDeploy, `Updater for ${non.chain.name} Home is ${non.updater}`);
+  log(isTestDeploy, `Updater for ${gov.chain.name} Home is ${gov.validator}`);
+  log(isTestDeploy, `Updater for ${non.chain.name} Home is ${non.validator}`);
 
   log(isTestDeploy, 'awaiting provider ready');
   await Promise.all([gov.ready(), non.ready()]);
@@ -484,8 +452,6 @@ export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
   await Promise.all([enrollReplica(gov, non), enrollReplica(non, gov)]);
 
   log(isTestDeploy, 'replica enrollment done');
-
-  await Promise.all([enrollWatchers(gov, non), enrollWatchers(non, gov)]);
 
   await Promise.all([
     enrollGovernanceRouter(gov, non),
@@ -538,7 +504,7 @@ export async function deployNChains(deploys: CoreDeploy[]) {
   deploys.forEach((deploy) => {
     log(
       isTestDeploy,
-      `Updater for ${deploy.chain.name} Home is ${deploy.updater}`,
+      `Updater for ${deploy.chain.name} Home is ${deploy.validator}`,
     );
   });
 
@@ -613,7 +579,7 @@ export function writePartials(dir: string) {
   // make folder if it doesn't exist already
   fs.mkdirSync(dir, { recursive: true });
   const defaultDir = '../../rust/config/default';
-  const partialNames = ['kathy', 'processor', 'relayer', 'updater', 'watcher'];
+  const partialNames = ['kathy', 'processor', 'relayer', 'validator'];
   // copy partial config from default directory to given directory
   for (let partialName of partialNames) {
     const filename = `${partialName}-partial.json`;

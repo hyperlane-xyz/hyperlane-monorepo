@@ -21,8 +21,8 @@ async function main() {
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
   checker.expectViolations(
-    [ViolationType.ReplicaUpdater, ViolationType.HomeUpdater],
-    [chains.length - 1, 1],
+    [ViolationType.Validator],
+    [chains.length],
   );
 
   const builder = new GovernanceCallBatchBuilder(

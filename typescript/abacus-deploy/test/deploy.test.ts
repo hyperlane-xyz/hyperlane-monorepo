@@ -24,10 +24,10 @@ const domains = [1000, 2000, 3000, 4000];
  * Deploy the full Abacus suite on two chains
  */
 describe('core deploy scripts', async () => {
-  let signer: Signer, recoveryManager: Signer
+  let signer: Signer
 
   before(async () => {
-    [signer, recoveryManager] = await ethers.getSigners();
+    [signer] = await ethers.getSigners();
   });
 
   describe('deployTwoChains', async () => {
@@ -35,9 +35,7 @@ describe('core deploy scripts', async () => {
       let deploys: CoreDeploy[] = [];
       for (var i = 0; i < 2; i++) {
         deploys.push(
-          await getTestDeploy(domains[i], await signer.getAddress(), [
-            await recoveryManager.getAddress(),
-          ]),
+          await getTestDeploy(domains[i], await signer.getAddress())
         );
       }
 
@@ -54,9 +52,7 @@ describe('core deploy scripts', async () => {
         let deploys: CoreDeploy[] = [];
         for (let j = 0; j < i; j++) {
           deploys.push(
-            await getTestDeploy(domains[j], await signer.getAddress(), [
-              await recoveryManager.getAddress(),
-            ]),
+            await getTestDeploy(domains[j], await signer.getAddress())
           );
         }
 
@@ -100,16 +96,13 @@ describe('bridge deploy scripts', async () => {
     for (let i = 0; i < numChains; i++) {
       if (i == 0) {
         deploys.push(
-          await getTestDeploy(domains[i], await signer.getAddress(), [
-            await recoveryManager.getAddress(),
-          ]),
+          await getTestDeploy(domains[i], await signer.getAddress())
         );
       } else {
         deploys.push(
           await getTestDeploy(
             domains[i],
             await signer.getAddress(),
-            [await recoveryManager.getAddress()],
             await recoveryManager.getAddress(),
             mockWeth.address,
           ),
