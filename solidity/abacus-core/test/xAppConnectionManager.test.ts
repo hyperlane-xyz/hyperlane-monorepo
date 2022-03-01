@@ -40,15 +40,9 @@ describe('XAppConnectionManager', async () => {
       processGas,
       reserveGas,
     );
-    await enrolledReplica.initialize(
-      remoteDomain,
-      updater.address,
-      0
-    );
+    await enrolledReplica.initialize(remoteDomain, updater.address, 0);
 
-    const connectionManagerFactory = new XAppConnectionManager__factory(
-      signer,
-    );
+    const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     connectionManager = await connectionManagerFactory.deploy();
     await connectionManager.setHome(home.address);
     await connectionManager.enrollReplica(

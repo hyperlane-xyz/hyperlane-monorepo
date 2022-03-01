@@ -4,7 +4,12 @@ import { expect } from 'chai';
 import { AbacusState, Updater } from './lib/core';
 import { Signer } from './lib/types';
 
-import { Home__factory, Home, UpdaterManager__factory, UpdaterManager } from '../typechain';
+import {
+  Home__factory,
+  Home,
+  UpdaterManager__factory,
+  UpdaterManager,
+} from '../typechain';
 
 const homeDomainHashCases = require('../../../vectors/homeDomainHash.json');
 const signedUpdateCases = require('../../../vectors/signedUpdate.json');
@@ -53,8 +58,7 @@ describe('UpdaterManager', async () => {
       index,
       signature,
     );
-    expect(isValid)
-      .to.be.false;
+    expect(isValid).to.be.false;
   });
 
   it('Calculated domain hash matches Rust-produced domain hash', async () => {
@@ -82,11 +86,17 @@ describe('UpdaterManager', async () => {
       const { signature } = await updater.signCheckpoint(root, index);
       // Send message with signer address as msg.sender
       await expect(
-        updaterManager.improperUpdate(home.address, root, index, signature)
+        updaterManager.improperUpdate(home.address, root, index, signature),
       )
         .to.emit(updaterManager, 'ImproperUpdate')
         .withArgs(
-          home.address, localDomain, updater.address, root, index, signature);
+          home.address,
+          localDomain,
+          updater.address,
+          root,
+          index,
+          signature,
+        );
       expect(await home.state()).to.equal(AbacusState.FAILED);
     });
 
@@ -97,26 +107,28 @@ describe('UpdaterManager', async () => {
       const { signature } = await fakeUpdater.signCheckpoint(root, index);
       // Send message with signer address as msg.sender
       await expect(
-        updaterManager.improperUpdate(home.address, root, index, signature)
-    ).to.be.revertedWith('!updater sig');
+        updaterManager.improperUpdate(home.address, root, index, signature),
+      ).to.be.revertedWith('!updater sig');
     });
 
     it('Rejects proper update from updater', async () => {
       const message = `0x${Buffer.alloc(10).toString('hex')}`;
-      await home
-          .dispatch(
-            localDomain,
-            abacus.ethersAddressToBytes32(signer.address),
-            message,
-          );
-        await  home.checkpoint()
+      await home.dispatch(
+        localDomain,
+        abacus.ethersAddressToBytes32(signer.address),
+        message,
+      );
+      await home.checkpoint();
       const [root, index] = await home.latestCheckpoint();
 
-      const { signature } = await updater.signCheckpoint(root, index.toNumber());
+      const { signature } = await updater.signCheckpoint(
+        root,
+        index.toNumber(),
+      );
       // Send message with signer address as msg.sender
       await expect(
-        updaterManager.improperUpdate(home.address, root, index, signature)
-    ).to.be.revertedWith('!improper');
+        updaterManager.improperUpdate(home.address, root, index, signature),
+      ).to.be.revertedWith('!improper');
     });
   });
 });

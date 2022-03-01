@@ -3,10 +3,7 @@ import { expect } from 'chai';
 import { AbacusState, Updater } from './lib/core';
 import { Signer } from './lib/types';
 
-import {
-  TestHome,
-  TestHome__factory,
-} from '../typechain';
+import { TestHome, TestHome__factory } from '../typechain';
 
 const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');
 
@@ -15,9 +12,7 @@ const destDomain = 2000;
 const nullAddress: string = '0x' + '00'.repeat(32);
 
 describe('Home', async () => {
-  let home: TestHome,
-    signer: Signer,
-    recipient: Signer;
+  let home: TestHome, signer: Signer, recipient: Signer;
 
   before(async () => {
     [signer, recipient] = await ethers.getSigners();
@@ -51,20 +46,19 @@ describe('Home', async () => {
   });
 
   it('Non UpdaterManager cannot fail', async () => {
-    await expect(
-    home.connect(recipient).fail()
-    ).to.be.revertedWith('!updaterManager');
+    await expect(home.connect(recipient).fail()).to.be.revertedWith(
+      '!updaterManager',
+    );
   });
 
   it('Does not dispatch too large messages', async () => {
     const message = `0x${Buffer.alloc(3000).toString('hex')}`;
     await expect(
-      home
-        .dispatch(
-          destDomain,
-          abacus.ethersAddressToBytes32(recipient.address),
-          message,
-        ),
+      home.dispatch(
+        destDomain,
+        abacus.ethersAddressToBytes32(recipient.address),
+        message,
+      ),
     ).to.be.revertedWith('msg too long');
   });
 

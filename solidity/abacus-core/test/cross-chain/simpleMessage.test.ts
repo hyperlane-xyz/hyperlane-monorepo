@@ -25,7 +25,7 @@ const remoteDomain = domains[1];
 describe('SimpleCrossChainMessage', async () => {
   let abacusDeployment: AbacusDeployment;
   let governanceDeployment: GovernanceDeployment;
-  let randomSigner: Signer, updater: Updater
+  let randomSigner: Signer, updater: Updater;
 
   before(async () => {
     [randomSigner] = await ethers.getSigners();

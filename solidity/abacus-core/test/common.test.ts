@@ -5,7 +5,7 @@ import { Address, Signer } from './lib/types';
 
 import { TestCommon__factory, TestCommon } from '../typechain';
 
-const localDomain = 1000; 
+const localDomain = 1000;
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Common', async () => {
@@ -33,15 +33,19 @@ describe('Common', async () => {
   });
 
   it('Allows owner to update the UpdaterManager', async () => {
-    const newUpdaterManager = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    const newUpdaterManager = ethers.utils.hexlify(
+      ethers.utils.randomBytes(20),
+    );
     await common.setUpdaterManager(newUpdaterManager);
     expect(await common.updaterManager()).to.equal(newUpdaterManager);
   });
 
   it('Does not allow nonowner to updater the UpdaterManager', async () => {
-    const newUpdaterManager = ethers.utils.hexlify(ethers.utils.randomBytes(20));
+    const newUpdaterManager = ethers.utils.hexlify(
+      ethers.utils.randomBytes(20),
+    );
     await expect(
-    common.connect(nonowner).setUpdaterManager(newUpdaterManager)
+      common.connect(nonowner).setUpdaterManager(newUpdaterManager),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
   });
 });

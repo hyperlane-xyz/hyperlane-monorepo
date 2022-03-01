@@ -20,7 +20,7 @@ contract TestReplica is Replica {
     }
 
     function setCheckpoint(bytes32 _root, uint256 _index) external {
-      checkpoints[_root] = _index;
+        checkpoints[_root] = _index;
     }
 
     function testBranchRoot(

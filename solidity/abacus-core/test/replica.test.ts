@@ -58,27 +58,19 @@ describe('Replica', async () => {
   beforeEach(async () => {
     const replicaFactory = new TestReplica__factory(signer);
     replica = await replicaFactory.deploy(localDomain, processGas, reserveGas);
-    await replica.initialize(
-      remoteDomain,
-      updaterManager.address,
-      0
-    );
+    await replica.initialize(remoteDomain, updaterManager.address, 0);
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      replica.initialize(
-      remoteDomain,
-      updaterManager.address,
-      0
-      ),
+      replica.initialize(remoteDomain, updaterManager.address, 0),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
   it('Accepts signed checkpoint from updater', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
-    const index = 1
-    const {signature } = await updater.signCheckpoint(root, index);
+    const index = 1;
+    const { signature } = await updater.signCheckpoint(root, index);
     await replica.checkpoint(root, index, signature);
     expect(await replica.checkpoints(root)).to.equal(index);
     expect(await replica.checkpointedIndex()).to.equal(index);
@@ -86,27 +78,27 @@ describe('Replica', async () => {
 
   it('Rejects signed checkpoint from non-updater', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
-    const index = 1
-    const {signature } = await fakeUpdater.signCheckpoint(root, index);
-    await expect(
-      replica.checkpoint(root, index, signature)
-    ).to.be.revertedWith('!updater sig');
+    const index = 1;
+    const { signature } = await fakeUpdater.signCheckpoint(root, index);
+    await expect(replica.checkpoint(root, index, signature)).to.be.revertedWith(
+      '!updater sig',
+    );
   });
 
   it('Rejects old signed checkpoint from updater', async () => {
     let root = ethers.utils.formatBytes32String('first new root');
-    let index = 10
-    let {signature } = await updater.signCheckpoint(root, index);
+    let index = 10;
+    let { signature } = await updater.signCheckpoint(root, index);
     await replica.checkpoint(root, index, signature);
     expect(await replica.checkpoints(root)).to.equal(index);
     expect(await replica.checkpointedIndex()).to.equal(index);
 
     root = ethers.utils.formatBytes32String('second new root');
     index = 9;
-    ({signature } = await updater.signCheckpoint(root, index));
-    await expect(
-      replica.checkpoint(root, index, signature)
-    ).to.be.revertedWith('not current update');
+    ({ signature } = await updater.signCheckpoint(root, index));
+    await expect(replica.checkpoint(root, index, signature)).to.be.revertedWith(
+      'not current update',
+    );
   });
 
   it('Proves a valid message', async () => {

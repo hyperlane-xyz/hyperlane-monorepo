@@ -44,9 +44,7 @@ export async function dispatchMessage(
  *
  * @param messages - Message[]
  */
-export async function dispatchMessages(
-  home: Home,
-  messages: MessageDetails[]) {
+export async function dispatchMessages(home: Home, messages: MessageDetails[]) {
   for (let message of messages) {
     await dispatchMessage(home, message);
   }
@@ -62,14 +60,14 @@ export async function dispatchMessages(
 export async function checkpoint(
   home: Home,
   replica: Replica,
-  updater: Updater
+  updater: Updater,
 ) {
-    await home.checkpoint();
-    const [root, index] = await home.latestCheckpoint();
-    const {signature} = await updater.signCheckpoint(root, index.toNumber());
-    await replica.checkpoint(root, index, signature);
-    const checkpointedIndex = await replica.checkpoints(root);
-    expect(checkpointedIndex).to.equal(index);
+  await home.checkpoint();
+  const [root, index] = await home.latestCheckpoint();
+  const { signature } = await updater.signCheckpoint(root, index.toNumber());
+  await replica.checkpoint(root, index, signature);
+  const checkpointedIndex = await replica.checkpoints(root);
+  expect(checkpointedIndex).to.equal(index);
 }
 
 /*
