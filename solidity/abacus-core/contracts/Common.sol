@@ -54,7 +54,10 @@ abstract contract Common is OwnableUpgradeable {
 
     // ============ Initializer ============
 
-    function __Common_initialize(address _validatorManager) internal initializer {
+    function __Common_initialize(address _validatorManager)
+        internal
+        initializer
+    {
         // initialize owner
         __Ownable_init();
         _setValidatorManager(IValidatorManager(_validatorManager));
@@ -79,7 +82,9 @@ abstract contract Common is OwnableUpgradeable {
      * @notice Set the ValidatorManager
      * @param _validatorManager Address of the ValidatorManager
      */
-    function _setValidatorManager(IValidatorManager _validatorManager) internal {
+    function _setValidatorManager(IValidatorManager _validatorManager)
+        internal
+    {
         require(
             Address.isContract(address(_validatorManager)),
             "!contract validatorManager"

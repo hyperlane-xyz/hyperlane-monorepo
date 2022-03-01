@@ -55,7 +55,10 @@ contract ValidatorManager is IValidatorManager, Ownable {
      * @param _domain The domain for which the validator is being set
      * @param _validator The address of the validator
      */
-    function setValidator(uint32 _domain, address _validator) external onlyOwner {
+    function setValidator(uint32 _domain, address _validator)
+        external
+        onlyOwner
+    {
         validators[_domain] = _validator;
         emit NewValidator(_domain, _validator);
     }
@@ -71,7 +74,7 @@ contract ValidatorManager is IValidatorManager, Ownable {
      * @param _signature Validator signature on `_root` and `_index`
      * @return TRUE if update was an Improper Update (implying Validator was slashed)
      */
-    function improperUpdate(
+    function improperCheckpoint(
         address _home,
         bytes32 _root,
         uint256 _index,

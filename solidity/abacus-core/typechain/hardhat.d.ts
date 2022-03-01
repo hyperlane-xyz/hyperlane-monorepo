@@ -113,9 +113,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestReplica__factory>;
     getContractFactory(
-      name: "UpdaterManager",
+      name: "ValidatorManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.UpdaterManager__factory>;
+    ): Promise<Contracts.ValidatorManager__factory>;
     getContractFactory(
       name: "UpgradeBeacon",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -141,9 +141,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IMessageRecipient__factory>;
     getContractFactory(
-      name: "IUpdaterManager",
+      name: "IValidatorManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IUpdaterManager__factory>;
+    ): Promise<Contracts.IValidatorManager__factory>;
 
     // default types
     getContractFactory(

@@ -19,16 +19,16 @@ import { Listener, Provider } from "@ethersproject/providers";
 import { FunctionFragment, EventFragment, Result } from "@ethersproject/abi";
 import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
-interface UpdaterManagerInterface extends ethers.utils.Interface {
+interface ValidatorManagerInterface extends ethers.utils.Interface {
   functions: {
     "domainHash(uint32)": FunctionFragment;
     "improperUpdate(address,bytes32,uint256,bytes)": FunctionFragment;
-    "isUpdaterSignature(uint32,bytes32,uint256,bytes)": FunctionFragment;
+    "isValidatorSignature(uint32,bytes32,uint256,bytes)": FunctionFragment;
     "owner()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
-    "setUpdater(uint32,address)": FunctionFragment;
+    "setValidator(uint32,address)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
-    "updaters(uint32)": FunctionFragment;
+    "validators(uint32)": FunctionFragment;
   };
 
   encodeFunctionData(
@@ -40,7 +40,7 @@ interface UpdaterManagerInterface extends ethers.utils.Interface {
     values: [string, BytesLike, BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "isUpdaterSignature",
+    functionFragment: "isValidatorSignature",
     values: [BigNumberish, BytesLike, BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
@@ -49,7 +49,7 @@ interface UpdaterManagerInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "setUpdater",
+    functionFragment: "setValidator",
     values: [BigNumberish, string]
   ): string;
   encodeFunctionData(
@@ -57,7 +57,7 @@ interface UpdaterManagerInterface extends ethers.utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(
-    functionFragment: "updaters",
+    functionFragment: "validators",
     values: [BigNumberish]
   ): string;
 
@@ -67,7 +67,7 @@ interface UpdaterManagerInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "isUpdaterSignature",
+    functionFragment: "isValidatorSignature",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
@@ -75,25 +75,28 @@ interface UpdaterManagerInterface extends ethers.utils.Interface {
     functionFragment: "renounceOwnership",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "setUpdater", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "setValidator",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "updaters", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "validators", data: BytesLike): Result;
 
   events: {
     "ImproperUpdate(address,uint32,address,bytes32,uint256,bytes)": EventFragment;
-    "NewUpdater(uint32,address)": EventFragment;
+    "NewValidator(uint32,address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "ImproperUpdate"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "NewUpdater"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewValidator"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
 
-export class UpdaterManager extends BaseContract {
+export class ValidatorManager extends BaseContract {
   connect(signerOrProvider: Signer | Provider | string): this;
   attach(addressOrName: string): this;
   deployed(): Promise<this>;
@@ -134,7 +137,7 @@ export class UpdaterManager extends BaseContract {
     toBlock?: string | number | undefined
   ): Promise<Array<TypedEvent<EventArgsArray & EventArgsObject>>>;
 
-  interface: UpdaterManagerInterface;
+  interface: ValidatorManagerInterface;
 
   functions: {
     domainHash(
@@ -150,7 +153,7 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    isUpdaterSignature(
+    isValidatorSignature(
       _domain: BigNumberish,
       _root: BytesLike,
       _index: BigNumberish,
@@ -164,9 +167,9 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    setUpdater(
+    setValidator(
       _domain: BigNumberish,
-      _updater: string,
+      _validator: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -175,7 +178,10 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    updaters(arg0: BigNumberish, overrides?: CallOverrides): Promise<[string]>;
+    validators(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<[string]>;
   };
 
   domainHash(_domain: BigNumberish, overrides?: CallOverrides): Promise<string>;
@@ -188,7 +194,7 @@ export class UpdaterManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  isUpdaterSignature(
+  isValidatorSignature(
     _domain: BigNumberish,
     _root: BytesLike,
     _index: BigNumberish,
@@ -202,9 +208,9 @@ export class UpdaterManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  setUpdater(
+  setValidator(
     _domain: BigNumberish,
-    _updater: string,
+    _validator: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -213,7 +219,7 @@ export class UpdaterManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  updaters(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
+  validators(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
     domainHash(
@@ -229,7 +235,7 @@ export class UpdaterManager extends BaseContract {
       overrides?: CallOverrides
     ): Promise<boolean>;
 
-    isUpdaterSignature(
+    isValidatorSignature(
       _domain: BigNumberish,
       _root: BytesLike,
       _index: BigNumberish,
@@ -241,9 +247,9 @@ export class UpdaterManager extends BaseContract {
 
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
-    setUpdater(
+    setValidator(
       _domain: BigNumberish,
-      _updater: string,
+      _validator: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -252,14 +258,14 @@ export class UpdaterManager extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    updaters(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
+    validators(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
   };
 
   filters: {
     ImproperUpdate(
       home?: string | null,
       domain?: BigNumberish | null,
-      updater?: string | null,
+      validator?: string | null,
       root?: null,
       index?: null,
       signature?: null
@@ -268,17 +274,20 @@ export class UpdaterManager extends BaseContract {
       {
         home: string;
         domain: number;
-        updater: string;
+        validator: string;
         root: string;
         index: BigNumber;
         signature: string;
       }
     >;
 
-    NewUpdater(
+    NewValidator(
       domain?: BigNumberish | null,
-      updater?: string | null
-    ): TypedEventFilter<[number, string], { domain: number; updater: string }>;
+      validator?: string | null
+    ): TypedEventFilter<
+      [number, string],
+      { domain: number; validator: string }
+    >;
 
     OwnershipTransferred(
       previousOwner?: string | null,
@@ -303,7 +312,7 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    isUpdaterSignature(
+    isValidatorSignature(
       _domain: BigNumberish,
       _root: BytesLike,
       _index: BigNumberish,
@@ -317,9 +326,9 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    setUpdater(
+    setValidator(
       _domain: BigNumberish,
-      _updater: string,
+      _validator: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -328,7 +337,10 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    updaters(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
+    validators(
+      arg0: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
   };
 
   populateTransaction: {
@@ -345,7 +357,7 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    isUpdaterSignature(
+    isValidatorSignature(
       _domain: BigNumberish,
       _root: BytesLike,
       _index: BigNumberish,
@@ -359,9 +371,9 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    setUpdater(
+    setValidator(
       _domain: BigNumberish,
-      _updater: string,
+      _validator: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -370,7 +382,7 @@ export class UpdaterManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    updaters(
+    validators(
       arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;

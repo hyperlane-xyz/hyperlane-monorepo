@@ -32,11 +32,11 @@ const _abi = [
       {
         indexed: false,
         internalType: "address",
-        name: "updaterManager",
+        name: "validatorManager",
         type: "address",
       },
     ],
-    name: "NewUpdaterManager",
+    name: "NewValidatorManager",
     type: "event",
   },
   {
@@ -95,11 +95,11 @@ const _abi = [
     inputs: [
       {
         internalType: "address",
-        name: "_updaterManager",
+        name: "_validatorManager",
         type: "address",
       },
     ],
-    name: "setUpdaterManager",
+    name: "setValidatorManager",
     outputs: [],
     stateMutability: "nonpayable",
     type: "function",
@@ -119,10 +119,10 @@ const _abi = [
   },
   {
     inputs: [],
-    name: "updaterManager",
+    name: "validatorManager",
     outputs: [
       {
-        internalType: "contract IUpdaterManager",
+        internalType: "contract IValidatorManager",
         name: "",
         type: "address",
       },

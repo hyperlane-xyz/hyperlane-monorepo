@@ -36,11 +36,11 @@ interface HomeInterface extends ethers.utils.Interface {
     "owner()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
     "root()": FunctionFragment;
-    "setUpdaterManager(address)": FunctionFragment;
+    "setValidatorManager(address)": FunctionFragment;
     "state()": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "tree()": FunctionFragment;
-    "updaterManager()": FunctionFragment;
+    "validatorManager()": FunctionFragment;
   };
 
   encodeFunctionData(
@@ -86,7 +86,7 @@ interface HomeInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(functionFragment: "root", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "setUpdaterManager",
+    functionFragment: "setValidatorManager",
     values: [string]
   ): string;
   encodeFunctionData(functionFragment: "state", values?: undefined): string;
@@ -96,7 +96,7 @@ interface HomeInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(functionFragment: "tree", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "updaterManager",
+    functionFragment: "validatorManager",
     values?: undefined
   ): string;
 
@@ -134,7 +134,7 @@ interface HomeInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "root", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "setUpdaterManager",
+    functionFragment: "setValidatorManager",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "state", data: BytesLike): Result;
@@ -144,20 +144,20 @@ interface HomeInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "tree", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "updaterManager",
+    functionFragment: "validatorManager",
     data: BytesLike
   ): Result;
 
   events: {
     "Checkpoint(bytes32,uint256)": EventFragment;
     "Dispatch(bytes32,uint256,uint64,bytes32,bytes)": EventFragment;
-    "NewUpdaterManager(address)": EventFragment;
+    "NewValidatorManager(address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "Checkpoint"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Dispatch"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "NewUpdaterManager"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewValidatorManager"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
 
@@ -234,7 +234,7 @@ export class Home extends BaseContract {
     ): Promise<ContractTransaction>;
 
     initialize(
-      _updaterManager: string,
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -254,8 +254,8 @@ export class Home extends BaseContract {
 
     root(overrides?: CallOverrides): Promise<[string]>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -270,7 +270,7 @@ export class Home extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[BigNumber] & { count: BigNumber }>;
 
-    updaterManager(overrides?: CallOverrides): Promise<[string]>;
+    validatorManager(overrides?: CallOverrides): Promise<[string]>;
   };
 
   MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<BigNumber>;
@@ -299,7 +299,7 @@ export class Home extends BaseContract {
   ): Promise<ContractTransaction>;
 
   initialize(
-    _updaterManager: string,
+    _validatorManager: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -319,8 +319,8 @@ export class Home extends BaseContract {
 
   root(overrides?: CallOverrides): Promise<string>;
 
-  setUpdaterManager(
-    _updaterManager: string,
+  setValidatorManager(
+    _validatorManager: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -333,7 +333,7 @@ export class Home extends BaseContract {
 
   tree(overrides?: CallOverrides): Promise<BigNumber>;
 
-  updaterManager(overrides?: CallOverrides): Promise<string>;
+  validatorManager(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
     MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<BigNumber>;
@@ -358,7 +358,7 @@ export class Home extends BaseContract {
     fail(overrides?: CallOverrides): Promise<void>;
 
     initialize(
-      _updaterManager: string,
+      _validatorManager: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -376,8 +376,8 @@ export class Home extends BaseContract {
 
     root(overrides?: CallOverrides): Promise<string>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -390,7 +390,7 @@ export class Home extends BaseContract {
 
     tree(overrides?: CallOverrides): Promise<BigNumber>;
 
-    updaterManager(overrides?: CallOverrides): Promise<string>;
+    validatorManager(overrides?: CallOverrides): Promise<string>;
   };
 
   filters: {
@@ -419,9 +419,9 @@ export class Home extends BaseContract {
       }
     >;
 
-    NewUpdaterManager(
-      updaterManager?: null
-    ): TypedEventFilter<[string], { updaterManager: string }>;
+    NewValidatorManager(
+      validatorManager?: null
+    ): TypedEventFilter<[string], { validatorManager: string }>;
 
     OwnershipTransferred(
       previousOwner?: string | null,
@@ -459,7 +459,7 @@ export class Home extends BaseContract {
     ): Promise<BigNumber>;
 
     initialize(
-      _updaterManager: string,
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -477,8 +477,8 @@ export class Home extends BaseContract {
 
     root(overrides?: CallOverrides): Promise<BigNumber>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -491,7 +491,7 @@ export class Home extends BaseContract {
 
     tree(overrides?: CallOverrides): Promise<BigNumber>;
 
-    updaterManager(overrides?: CallOverrides): Promise<BigNumber>;
+    validatorManager(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   populateTransaction: {
@@ -526,7 +526,7 @@ export class Home extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     initialize(
-      _updaterManager: string,
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -547,8 +547,8 @@ export class Home extends BaseContract {
 
     root(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -561,6 +561,6 @@ export class Home extends BaseContract {
 
     tree(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    updaterManager(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    validatorManager(overrides?: CallOverrides): Promise<PopulatedTransaction>;
   };
 }

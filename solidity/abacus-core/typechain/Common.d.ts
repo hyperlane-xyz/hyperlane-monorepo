@@ -24,9 +24,9 @@ interface CommonInterface extends ethers.utils.Interface {
     "localDomain()": FunctionFragment;
     "owner()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
-    "setUpdaterManager(address)": FunctionFragment;
+    "setValidatorManager(address)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
-    "updaterManager()": FunctionFragment;
+    "validatorManager()": FunctionFragment;
   };
 
   encodeFunctionData(
@@ -39,7 +39,7 @@ interface CommonInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "setUpdaterManager",
+    functionFragment: "setValidatorManager",
     values: [string]
   ): string;
   encodeFunctionData(
@@ -47,7 +47,7 @@ interface CommonInterface extends ethers.utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(
-    functionFragment: "updaterManager",
+    functionFragment: "validatorManager",
     values?: undefined
   ): string;
 
@@ -61,7 +61,7 @@ interface CommonInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "setUpdaterManager",
+    functionFragment: "setValidatorManager",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -69,18 +69,18 @@ interface CommonInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "updaterManager",
+    functionFragment: "validatorManager",
     data: BytesLike
   ): Result;
 
   events: {
     "Checkpoint(bytes32,uint256)": EventFragment;
-    "NewUpdaterManager(address)": EventFragment;
+    "NewValidatorManager(address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "Checkpoint"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "NewUpdaterManager"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewValidatorManager"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
 
@@ -136,8 +136,8 @@ export class Common extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -146,7 +146,7 @@ export class Common extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    updaterManager(overrides?: CallOverrides): Promise<[string]>;
+    validatorManager(overrides?: CallOverrides): Promise<[string]>;
   };
 
   localDomain(overrides?: CallOverrides): Promise<number>;
@@ -157,8 +157,8 @@ export class Common extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  setUpdaterManager(
-    _updaterManager: string,
+  setValidatorManager(
+    _validatorManager: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -167,7 +167,7 @@ export class Common extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  updaterManager(overrides?: CallOverrides): Promise<string>;
+  validatorManager(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
     localDomain(overrides?: CallOverrides): Promise<number>;
@@ -176,8 +176,8 @@ export class Common extends BaseContract {
 
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -186,7 +186,7 @@ export class Common extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    updaterManager(overrides?: CallOverrides): Promise<string>;
+    validatorManager(overrides?: CallOverrides): Promise<string>;
   };
 
   filters: {
@@ -198,9 +198,9 @@ export class Common extends BaseContract {
       { root: string; index: BigNumber }
     >;
 
-    NewUpdaterManager(
-      updaterManager?: null
-    ): TypedEventFilter<[string], { updaterManager: string }>;
+    NewValidatorManager(
+      validatorManager?: null
+    ): TypedEventFilter<[string], { validatorManager: string }>;
 
     OwnershipTransferred(
       previousOwner?: string | null,
@@ -220,8 +220,8 @@ export class Common extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -230,7 +230,7 @@ export class Common extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    updaterManager(overrides?: CallOverrides): Promise<BigNumber>;
+    validatorManager(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   populateTransaction: {
@@ -242,8 +242,8 @@ export class Common extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -252,6 +252,6 @@ export class Common extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    updaterManager(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    validatorManager(overrides?: CallOverrides): Promise<PopulatedTransaction>;
   };
 }

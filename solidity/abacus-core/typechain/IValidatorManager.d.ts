@@ -18,37 +18,25 @@ import { Listener, Provider } from "@ethersproject/providers";
 import { FunctionFragment, EventFragment, Result } from "@ethersproject/abi";
 import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
-interface QueueManagerInterface extends ethers.utils.Interface {
+interface IValidatorManagerInterface extends ethers.utils.Interface {
   functions: {
-    "queueContains(bytes32)": FunctionFragment;
-    "queueEnd()": FunctionFragment;
-    "queueLength()": FunctionFragment;
+    "isValidatorSignature(uint32,bytes32,uint256,bytes)": FunctionFragment;
   };
 
   encodeFunctionData(
-    functionFragment: "queueContains",
-    values: [BytesLike]
-  ): string;
-  encodeFunctionData(functionFragment: "queueEnd", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "queueLength",
-    values?: undefined
+    functionFragment: "isValidatorSignature",
+    values: [BigNumberish, BytesLike, BigNumberish, BytesLike]
   ): string;
 
   decodeFunctionResult(
-    functionFragment: "queueContains",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(functionFragment: "queueEnd", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "queueLength",
+    functionFragment: "isValidatorSignature",
     data: BytesLike
   ): Result;
 
   events: {};
 }
 
-export class QueueManager extends BaseContract {
+export class IValidatorManager extends BaseContract {
   connect(signerOrProvider: Signer | Provider | string): this;
   attach(addressOrName: string): this;
   deployed(): Promise<this>;
@@ -89,57 +77,55 @@ export class QueueManager extends BaseContract {
     toBlock?: string | number | undefined
   ): Promise<Array<TypedEvent<EventArgsArray & EventArgsObject>>>;
 
-  interface: QueueManagerInterface;
+  interface: IValidatorManagerInterface;
 
   functions: {
-    queueContains(
-      _item: BytesLike,
+    isValidatorSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
       overrides?: CallOverrides
     ): Promise<[boolean]>;
-
-    queueEnd(overrides?: CallOverrides): Promise<[string]>;
-
-    queueLength(overrides?: CallOverrides): Promise<[BigNumber]>;
   };
 
-  queueContains(_item: BytesLike, overrides?: CallOverrides): Promise<boolean>;
-
-  queueEnd(overrides?: CallOverrides): Promise<string>;
-
-  queueLength(overrides?: CallOverrides): Promise<BigNumber>;
+  isValidatorSignature(
+    _domain: BigNumberish,
+    _root: BytesLike,
+    _index: BigNumberish,
+    _signature: BytesLike,
+    overrides?: CallOverrides
+  ): Promise<boolean>;
 
   callStatic: {
-    queueContains(
-      _item: BytesLike,
+    isValidatorSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
       overrides?: CallOverrides
     ): Promise<boolean>;
-
-    queueEnd(overrides?: CallOverrides): Promise<string>;
-
-    queueLength(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   filters: {};
 
   estimateGas: {
-    queueContains(
-      _item: BytesLike,
+    isValidatorSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
-
-    queueEnd(overrides?: CallOverrides): Promise<BigNumber>;
-
-    queueLength(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   populateTransaction: {
-    queueContains(
-      _item: BytesLike,
+    isValidatorSignature(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
-
-    queueEnd(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    queueLength(overrides?: CallOverrides): Promise<PopulatedTransaction>;
   };
 }

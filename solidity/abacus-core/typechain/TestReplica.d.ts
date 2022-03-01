@@ -38,11 +38,11 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     "renounceOwnership()": FunctionFragment;
     "setCheckpoint(bytes32,uint256)": FunctionFragment;
     "setMessageProven(bytes)": FunctionFragment;
-    "setUpdaterManager(address)": FunctionFragment;
+    "setValidatorManager(address)": FunctionFragment;
     "testBranchRoot(bytes32,bytes32[32],uint256)": FunctionFragment;
     "testProcess(bytes)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
-    "updaterManager()": FunctionFragment;
+    "validatorManager()": FunctionFragment;
   };
 
   encodeFunctionData(
@@ -176,7 +176,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "setUpdaterManager",
+    functionFragment: "setValidatorManager",
     values: [string]
   ): string;
   encodeFunctionData(
@@ -229,7 +229,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(
-    functionFragment: "updaterManager",
+    functionFragment: "validatorManager",
     values?: undefined
   ): string;
 
@@ -281,7 +281,7 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "setUpdaterManager",
+    functionFragment: "setValidatorManager",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -297,19 +297,19 @@ interface TestReplicaInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "updaterManager",
+    functionFragment: "validatorManager",
     data: BytesLike
   ): Result;
 
   events: {
     "Checkpoint(bytes32,uint256)": EventFragment;
-    "NewUpdaterManager(address)": EventFragment;
+    "NewValidatorManager(address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
     "Process(bytes32,bool,bytes)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "Checkpoint"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "NewUpdaterManager"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewValidatorManager"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Process"): EventFragment;
 }
@@ -380,7 +380,7 @@ export class TestReplica extends BaseContract {
 
     initialize(
       _remoteDomain: BigNumberish,
-      _updaterManager: string,
+      _validatorManager: string,
       _checkpointedIndex: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
@@ -493,8 +493,8 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -548,7 +548,7 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    updaterManager(overrides?: CallOverrides): Promise<[string]>;
+    validatorManager(overrides?: CallOverrides): Promise<[string]>;
   };
 
   PROCESS_GAS(overrides?: CallOverrides): Promise<BigNumber>;
@@ -570,7 +570,7 @@ export class TestReplica extends BaseContract {
 
   initialize(
     _remoteDomain: BigNumberish,
-    _updaterManager: string,
+    _validatorManager: string,
     _checkpointedIndex: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
@@ -683,8 +683,8 @@ export class TestReplica extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  setUpdaterManager(
-    _updaterManager: string,
+  setValidatorManager(
+    _validatorManager: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -738,7 +738,7 @@ export class TestReplica extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  updaterManager(overrides?: CallOverrides): Promise<string>;
+  validatorManager(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
     PROCESS_GAS(overrides?: CallOverrides): Promise<BigNumber>;
@@ -760,7 +760,7 @@ export class TestReplica extends BaseContract {
 
     initialize(
       _remoteDomain: BigNumberish,
-      _updaterManager: string,
+      _validatorManager: string,
       _checkpointedIndex: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
@@ -868,8 +868,8 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -923,7 +923,7 @@ export class TestReplica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    updaterManager(overrides?: CallOverrides): Promise<string>;
+    validatorManager(overrides?: CallOverrides): Promise<string>;
   };
 
   filters: {
@@ -935,9 +935,9 @@ export class TestReplica extends BaseContract {
       { root: string; index: BigNumber }
     >;
 
-    NewUpdaterManager(
-      updaterManager?: null
-    ): TypedEventFilter<[string], { updaterManager: string }>;
+    NewValidatorManager(
+      validatorManager?: null
+    ): TypedEventFilter<[string], { validatorManager: string }>;
 
     OwnershipTransferred(
       previousOwner?: string | null,
@@ -977,7 +977,7 @@ export class TestReplica extends BaseContract {
 
     initialize(
       _remoteDomain: BigNumberish,
-      _updaterManager: string,
+      _validatorManager: string,
       _checkpointedIndex: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
@@ -1090,8 +1090,8 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -1145,7 +1145,7 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    updaterManager(overrides?: CallOverrides): Promise<BigNumber>;
+    validatorManager(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   populateTransaction: {
@@ -1171,7 +1171,7 @@ export class TestReplica extends BaseContract {
 
     initialize(
       _remoteDomain: BigNumberish,
-      _updaterManager: string,
+      _validatorManager: string,
       _checkpointedIndex: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
@@ -1287,8 +1287,8 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    setUpdaterManager(
-      _updaterManager: string,
+    setValidatorManager(
+      _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -1342,6 +1342,6 @@ export class TestReplica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    updaterManager(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    validatorManager(overrides?: CallOverrides): Promise<PopulatedTransaction>;
   };
 }

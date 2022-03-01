@@ -5,9 +5,9 @@
 import { Contract, Signer, utils } from "ethers";
 import { Provider } from "@ethersproject/providers";
 import type {
-  IUpdaterManager,
-  IUpdaterManagerInterface,
-} from "../IUpdaterManager";
+  IValidatorManager,
+  IValidatorManagerInterface,
+} from "../IValidatorManager";
 
 const _abi = [
   {
@@ -33,7 +33,7 @@ const _abi = [
         type: "bytes",
       },
     ],
-    name: "isUpdaterSignature",
+    name: "isValidatorSignature",
     outputs: [
       {
         internalType: "bool",
@@ -46,15 +46,15 @@ const _abi = [
   },
 ];
 
-export class IUpdaterManager__factory {
+export class IValidatorManager__factory {
   static readonly abi = _abi;
-  static createInterface(): IUpdaterManagerInterface {
-    return new utils.Interface(_abi) as IUpdaterManagerInterface;
+  static createInterface(): IValidatorManagerInterface {
+    return new utils.Interface(_abi) as IValidatorManagerInterface;
   }
   static connect(
     address: string,
     signerOrProvider: Signer | Provider
-  ): IUpdaterManager {
-    return new Contract(address, _abi, signerOrProvider) as IUpdaterManager;
+  ): IValidatorManager {
+    return new Contract(address, _abi, signerOrProvider) as IValidatorManager;
   }
 }
