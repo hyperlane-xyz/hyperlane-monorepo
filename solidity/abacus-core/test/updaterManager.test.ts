@@ -6,6 +6,7 @@ import { Signer } from './lib/types';
 
 import { TestCommon__factory, TestCommon } from '../typechain';
 
+const homeDomainHashTestCases = require('../../../vectors/homeDomainHash.json');
 const signedUpdateTestCases = require('../../../vectors/signedUpdate.json');
 const localDomain = 1000;
 
@@ -133,4 +134,16 @@ describe('Common', async () => {
       ).to.be.true;
     }
   });
+  it('Calculated domain hash matches Rust-produced domain hash', async () => {
+    // Compare Rust output in json file to solidity output (json file matches
+    // hash for local domain of 1000)
+    for (let testCase of homeDomainHashTestCases) {
+      const homeFactory = new TestHome__factory(signer);
+      const tempHome = await homeFactory.deploy(testCase.homeDomain);
+      const { expectedDomainHash } = testCase;
+      const homeDomainHash = await tempHome.homeDomainHash();
+      expect(homeDomainHash).to.equal(expectedDomainHash);
+    }
+  });
+
 });
