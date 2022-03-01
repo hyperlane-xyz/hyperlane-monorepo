@@ -1,7 +1,7 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
-import { Updater, AbacusState, MessageStatus } from './lib/core';
+import { Validator, AbacusState, MessageStatus } from './lib/core';
 import { Signer, BytesArray } from './lib/types';
 import {
   BadRecipient1__factory,
@@ -13,8 +13,8 @@ import {
   BadRecipientHandle__factory,
   TestReplica,
   TestReplica__factory,
-  UpdaterManager,
-  UpdaterManager__factory,
+  ValidatorManager,
+  ValidatorManager__factory,
   TestRecipient__factory,
 } from '../typechain';
 
@@ -39,63 +39,63 @@ describe('Replica', async () => {
   ];
 
   let replica: TestReplica,
-    updaterManager: UpdaterManager,
+    validatorManager: ValidatorManager,
     signer: Signer,
     fakeSigner: Signer,
     abacusMessageSender: Signer,
-    updater: Updater,
-    fakeUpdater: Updater;
+    validator: Validator,
+    fakeValidator: Validator;
 
   before(async () => {
     [signer, fakeSigner, abacusMessageSender] = await ethers.getSigners();
-    updater = await Updater.fromSigner(signer, remoteDomain);
-    fakeUpdater = await Updater.fromSigner(fakeSigner, remoteDomain);
-    const updaterManagerFactory = new UpdaterManager__factory(signer);
-    updaterManager = await updaterManagerFactory.deploy();
-    await updaterManager.setUpdater(remoteDomain, updater.address);
+    validator = await Validator.fromSigner(signer, remoteDomain);
+    fakeValidator = await Validator.fromSigner(fakeSigner, remoteDomain);
+    const validatorManagerFactory = new ValidatorManager__factory(signer);
+    validatorManager = await validatorManagerFactory.deploy();
+    await validatorManager.setValidator(remoteDomain, validator.address);
   });
 
   beforeEach(async () => {
     const replicaFactory = new TestReplica__factory(signer);
     replica = await replicaFactory.deploy(localDomain, processGas, reserveGas);
-    await replica.initialize(remoteDomain, updaterManager.address, 0);
+    await replica.initialize(remoteDomain, validatorManager.address, 0);
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      replica.initialize(remoteDomain, updaterManager.address, 0),
+      replica.initialize(remoteDomain, validatorManager.address, 0),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
-  it('Accepts signed checkpoint from updater', async () => {
+  it('Accepts signed checkpoint from validator', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
     const index = 1;
-    const { signature } = await updater.signCheckpoint(root, index);
+    const { signature } = await validator.signCheckpoint(root, index);
     await replica.checkpoint(root, index, signature);
     expect(await replica.checkpoints(root)).to.equal(index);
     expect(await replica.checkpointedIndex()).to.equal(index);
   });
 
-  it('Rejects signed checkpoint from non-updater', async () => {
+  it('Rejects signed checkpoint from non-validator', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
     const index = 1;
-    const { signature } = await fakeUpdater.signCheckpoint(root, index);
+    const { signature } = await fakeValidator.signCheckpoint(root, index);
     await expect(replica.checkpoint(root, index, signature)).to.be.revertedWith(
-      '!updater sig',
+      '!validator sig',
     );
   });
 
-  it('Rejects old signed checkpoint from updater', async () => {
+  it('Rejects old signed checkpoint from validator', async () => {
     let root = ethers.utils.formatBytes32String('first new root');
     let index = 10;
-    let { signature } = await updater.signCheckpoint(root, index);
+    let { signature } = await validator.signCheckpoint(root, index);
     await replica.checkpoint(root, index, signature);
     expect(await replica.checkpoints(root)).to.equal(index);
     expect(await replica.checkpointedIndex()).to.equal(index);
 
     root = ethers.utils.formatBytes32String('second new root');
     index = 9;
-    ({ signature } = await updater.signCheckpoint(root, index));
+    ({ signature } = await validator.signCheckpoint(root, index));
     await expect(replica.checkpoint(root, index, signature)).to.be.revertedWith(
       'not current update',
     );

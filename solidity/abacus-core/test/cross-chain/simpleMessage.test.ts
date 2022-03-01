@@ -2,7 +2,7 @@ import { abacus, ethers } from 'hardhat';
 import { expect } from 'chai';
 
 import * as utils from './utils';
-import { Updater, MessageStatus } from '../lib/core';
+import { Validator, MessageStatus } from '../lib/core';
 import { Signer, BytesArray } from '../lib/types';
 import { TestRecipient__factory, TestReplica } from '../../typechain';
 import { AbacusDeployment } from '../lib/AbacusDeployment';
@@ -25,11 +25,11 @@ const remoteDomain = domains[1];
 describe('SimpleCrossChainMessage', async () => {
   let abacusDeployment: AbacusDeployment;
   let governanceDeployment: GovernanceDeployment;
-  let randomSigner: Signer, updater: Updater;
+  let randomSigner: Signer, validator: Validator;
 
   before(async () => {
     [randomSigner] = await ethers.getSigners();
-    updater = await Updater.fromSigner(randomSigner, localDomain);
+    validator = await Validator.fromSigner(randomSigner, localDomain);
     abacusDeployment = await abacus.deployment.fromDomains(
       domains,
       randomSigner,
@@ -69,7 +69,7 @@ describe('SimpleCrossChainMessage', async () => {
   it('Destination Replica accepts a checkpoint', async () => {
     const home = abacusDeployment.home(localDomain);
     const replica = abacusDeployment.replica(remoteDomain, localDomain);
-    await utils.checkpoint(home, replica, updater);
+    await utils.checkpoint(home, replica, validator);
   });
 
   it('Origin Home accepts batched messages', async () => {
@@ -85,7 +85,7 @@ describe('SimpleCrossChainMessage', async () => {
   it('Destination Replica Accepts a second checkpoint', async () => {
     const home = abacusDeployment.home(localDomain);
     const replica = abacusDeployment.replica(remoteDomain, localDomain);
-    await utils.checkpoint(home, replica, updater);
+    await utils.checkpoint(home, replica, validator);
   });
 
   it('Proves and processes a message on Replica', async () => {

@@ -93,10 +93,10 @@ contract Replica is Version0, Common {
 
     function initialize(
         uint32 _remoteDomain,
-        address _updaterManager,
+        address _validatorManager,
         uint256 _checkpointedIndex
     ) public initializer {
-        __Common_initialize(_updaterManager);
+        __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
         checkpointedIndex = _checkpointedIndex;
@@ -109,7 +109,7 @@ contract Replica is Version0, Common {
      * @dev Reverts if checkpoints's index is not greater than our latest index.
      * @param _root Checkpoint's merkle root
      * @param _index Checkpoint's index
-     * @param _signature Updater's signature on `_root` and `_index`
+     * @param _signature Validator's signature on `_root` and `_index`
      */
     function checkpoint(
         bytes32 _root,
@@ -117,16 +117,16 @@ contract Replica is Version0, Common {
         bytes memory _signature
     ) external {
         // ensure that update is more recent than the latest we've seen
-        require(_index > checkpointedIndex, "old update");
-        // validate updater signature
+        require(_index > checkpointedIndex, "old checkpoint");
+        // validate validator signature
         require(
-            updaterManager.isUpdaterSignature(
+            validatorManager.isValidatorSignature(
                 remoteDomain,
                 _root,
                 _index,
                 _signature
             ),
-            "!updater sig"
+            "!validator sig"
         );
         // checkpoint the root
         checkpoints[_root] = _index;

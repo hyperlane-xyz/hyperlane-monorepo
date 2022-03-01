@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { ethers, abacus } from 'hardhat';
 import * as types from 'ethers';
 
-import { Updater } from '../lib/core';
+import { Validator } from '../lib/core';
 import { CallData, Address } from '../lib/types';
 import {
   Replica,
@@ -55,16 +55,16 @@ export async function dispatchMessages(home: Home, messages: MessageDetails[]) {
  *
  * @param home - The Home contract
  * @param replica - The Replica contract
- * @param updater - The Updater
+ * @param validator - The Validator
  */
 export async function checkpoint(
   home: Home,
   replica: Replica,
-  updater: Updater,
+  validator: Validator,
 ) {
   await home.checkpoint();
   const [root, index] = await home.latestCheckpoint();
-  const { signature } = await updater.signCheckpoint(root, index.toNumber());
+  const { signature } = await validator.signCheckpoint(root, index.toNumber());
   await replica.checkpoint(root, index, signature);
   const checkpointedIndex = await replica.checkpoints(root);
   expect(checkpointedIndex).to.equal(index);

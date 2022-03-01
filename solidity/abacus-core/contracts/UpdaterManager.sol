@@ -2,30 +2,30 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {IUpdaterManager} from "../interfaces/IUpdaterManager.sol";
+import {IValidatorManager} from "../interfaces/IValidatorManager.sol";
 import {Home} from "./Home.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/cryptography/ECDSA.sol";
 
 /**
- * @title UpdaterManager
+ * @title ValidatorManager
  * @author Celo Labs Inc.
- * @notice MVP version of contract that will manage Updater selection and
+ * @notice MVP version of contract that will manage Validator selection and
  * rotataion.
  */
-contract UpdaterManager is IUpdaterManager, Ownable {
-    // Mapping of domain -> updater address.
-    mapping(uint32 => address) public updaters;
+contract ValidatorManager is IValidatorManager, Ownable {
+    // Mapping of domain -> validator address.
+    mapping(uint32 => address) public validators;
 
     // ============ Events ============
 
     /**
-     * @notice Emitted when an updater is set
-     * @param domain The domain for which the updater is being set
-     * @param updater The address of the updater
+     * @notice Emitted when an validator is set
+     * @param domain The domain for which the validator is being set
+     * @param validator The address of the validator
      */
-    event NewUpdater(uint32 indexed domain, address indexed updater);
+    event NewValidator(uint32 indexed domain, address indexed validator);
 
     /**
      * @notice Emitted when proof of an improper update is submitted,
@@ -37,7 +37,7 @@ contract UpdaterManager is IUpdaterManager, Ownable {
     event ImproperUpdate(
         address indexed home,
         uint32 indexed domain,
-        address indexed updater,
+        address indexed validator,
         bytes32 root,
         uint256 index,
         bytes signature
@@ -50,14 +50,14 @@ contract UpdaterManager is IUpdaterManager, Ownable {
     // ============ External Functions ============
 
     /**
-     * @notice Set the address of a new updater
+     * @notice Set the address of a new validator
      * @dev only callable by trusted owner
-     * @param _domain The domain for which the updater is being set
-     * @param _updater The address of the updater
+     * @param _domain The domain for which the validator is being set
+     * @param _validator The address of the validator
      */
-    function setUpdater(uint32 _domain, address _updater) external onlyOwner {
-        updaters[_domain] = _updater;
-        emit NewUpdater(_domain, _updater);
+    function setValidator(uint32 _domain, address _validator) external onlyOwner {
+        validators[_domain] = _validator;
+        emit NewValidator(_domain, _validator);
     }
 
     /**
@@ -68,8 +68,8 @@ contract UpdaterManager is IUpdaterManager, Ownable {
      * @param _home Address of the Home contract to set to FAILED.
      * @param _root Merkle root of the improper update
      * @param _index Index root of the improper update
-     * @param _signature Updater signature on `_root` and `_index`
-     * @return TRUE if update was an Improper Update (implying Updater was slashed)
+     * @param _signature Validator signature on `_root` and `_index`
+     * @return TRUE if update was an Improper Update (implying Validator was slashed)
      */
     function improperUpdate(
         address _home,
@@ -79,15 +79,15 @@ contract UpdaterManager is IUpdaterManager, Ownable {
     ) external returns (bool) {
         uint32 _domain = Home(_home).localDomain();
         require(
-            isUpdaterSignature(_domain, _root, _index, _signature),
-            "!updater sig"
+            isValidatorSignature(_domain, _root, _index, _signature),
+            "!validator sig"
         );
         require(Home(_home).checkpoints(_root) != _index, "!improper");
         Home(_home).fail();
         emit ImproperUpdate(
             _home,
             _domain,
-            updaters[_domain],
+            validators[_domain],
             _root,
             _index,
             _signature
@@ -98,14 +98,14 @@ contract UpdaterManager is IUpdaterManager, Ownable {
     // ============ Public Functions ============
 
     /**
-     * @notice Checks that signature was signed by Updater
+     * @notice Checks that signature was signed by Validator
      * @param _domain Domain of Home contract
      * @param _root Merkle root
      * @param _index Corresponding leaf index
      * @param _signature Signature on `_root` and `_index`
-     * @return TRUE iff signature is valid signed by updater
+     * @return TRUE iff signature is valid signed by validator
      **/
-    function isUpdaterSignature(
+    function isValidatorSignature(
         uint32 _domain,
         bytes32 _root,
         uint256 _index,
@@ -115,7 +115,7 @@ contract UpdaterManager is IUpdaterManager, Ownable {
             abi.encodePacked(domainHash(_domain), _root, _index)
         );
         _digest = ECDSA.toEthSignedMessageHash(_digest);
-        return (ECDSA.recover(_digest, _signature) == updaters[_domain]);
+        return (ECDSA.recover(_digest, _signature) == validators[_domain]);
     }
 
     /**

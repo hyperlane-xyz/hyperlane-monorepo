@@ -5,7 +5,7 @@ import * as types from './types';
 import { getHexStringByteLength } from './utils';
 import { AbacusDeployment } from './AbacusDeployment';
 
-export class Updater {
+export class Validator {
   localDomain: types.Domain;
   signer: ethers.Signer;
   address: types.Address;
@@ -17,7 +17,7 @@ export class Updater {
     disableWarn: boolean,
   ) {
     if (!disableWarn) {
-      throw new Error('Please use `Updater.fromSigner()` to instantiate.');
+      throw new Error('Please use `Validator.fromSigner()` to instantiate.');
     }
     this.localDomain = localDomain ? localDomain : 0;
     this.signer = signer;
@@ -25,7 +25,7 @@ export class Updater {
   }
 
   static async fromSigner(signer: ethers.Signer, localDomain: types.Domain) {
-    return new Updater(signer, await signer.getAddress(), localDomain, true);
+    return new Validator(signer, await signer.getAddress(), localDomain, true);
   }
 
   domainHash() {

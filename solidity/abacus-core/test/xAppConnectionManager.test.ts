@@ -8,7 +8,7 @@ import {
   XAppConnectionManager__factory,
   TestReplica,
 } from '../typechain';
-import { Updater } from './lib/core';
+import { Validator } from './lib/core';
 import { Signer } from './lib/types';
 
 const signedFailureTestCases = require('../../../vectors/signedFailure.json');
@@ -23,11 +23,11 @@ describe('XAppConnectionManager', async () => {
   let connectionManager: XAppConnectionManager,
     enrolledReplica: TestReplica,
     signer: Signer,
-    updater: Updater;
+    validator: Validator;
 
   before(async () => {
     [signer] = await ethers.getSigners();
-    updater = await Updater.fromSigner(signer, localDomain);
+    validator = await Validator.fromSigner(signer, localDomain);
   });
 
   beforeEach(async () => {
@@ -40,7 +40,7 @@ describe('XAppConnectionManager', async () => {
       processGas,
       reserveGas,
     );
-    await enrolledReplica.initialize(remoteDomain, updater.address, 0);
+    await enrolledReplica.initialize(remoteDomain, validator.address, 0);
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     connectionManager = await connectionManagerFactory.deploy();

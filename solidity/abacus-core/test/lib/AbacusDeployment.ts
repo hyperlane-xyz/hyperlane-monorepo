@@ -3,13 +3,13 @@ import { assert } from 'chai';
 import * as ethers from 'ethers';
 
 import * as types from './types';
-import { Updater } from './core';
+import { Validator } from './core';
 
 import {
   TestHome,
   TestHome__factory,
-  UpdaterManager,
-  UpdaterManager__factory,
+  ValidatorManager,
+  ValidatorManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
   XAppConnectionManager,
@@ -20,8 +20,8 @@ import {
 
 export interface AbacusInstance {
   domain: types.Domain;
-  updater: Updater;
-  updaterManager: UpdaterManager;
+  validator: Validator;
+  validatorManager: ValidatorManager;
   home: TestHome;
   connectionManager: XAppConnectionManager;
   ubc: UpgradeBeaconController;
@@ -57,12 +57,12 @@ export class AbacusDeployment {
     remotes: types.Domain[],
     signer: ethers.Signer,
   ): Promise<AbacusInstance> {
-    const updaterManagerFactory = new UpdaterManager__factory(signer);
-    const updaterManager = await updaterManagerFactory.deploy();
-    await updaterManager.setUpdater(local, await signer.getAddress());
+    const validatorManagerFactory = new ValidatorManager__factory(signer);
+    const validatorManager = await validatorManagerFactory.deploy();
+    await validatorManager.setValidator(local, await signer.getAddress());
     await Promise.all(
       remotes.map(async (remoteDomain) =>
-        updaterManager.setUpdater(remoteDomain, await signer.getAddress()),
+        validatorManager.setValidator(remoteDomain, await signer.getAddress()),
       ),
     );
 
@@ -71,7 +71,7 @@ export class AbacusDeployment {
 
     const homeFactory = new TestHome__factory(signer);
     const home = await homeFactory.deploy(local);
-    await home.initialize(updaterManager.address);
+    await home.initialize(validatorManager.address);
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     const connectionManager = await connectionManagerFactory.deploy();
@@ -85,17 +85,17 @@ export class AbacusDeployment {
         processGas,
         reserveGas,
       );
-      await replica.initialize(remoteDomain, updaterManager.address, 0);
+      await replica.initialize(remoteDomain, validatorManager.address, 0);
       await connectionManager.enrollReplica(replica.address, remoteDomain);
       replicas[remoteDomain] = replica;
     });
     await Promise.all(deploys);
     return {
       domain: local,
-      updater: await Updater.fromSigner(signer, local),
+      validator: await Validator.fromSigner(signer, local),
       home,
       connectionManager,
-      updaterManager,
+      validatorManager,
       replicas,
       ubc,
     };
@@ -105,7 +105,7 @@ export class AbacusDeployment {
     await this.home(domain).transferOwnership(address);
     await this.ubc(domain).transferOwnership(address);
     await this.connectionManager(domain).transferOwnership(address);
-    await this.updaterManager(domain).transferOwnership(address);
+    await this.validatorManager(domain).transferOwnership(address);
     for (const remote of this.domains) {
       if (remote !== domain) {
         await this.replica(domain, remote).transferOwnership(address);
@@ -121,8 +121,8 @@ export class AbacusDeployment {
     return this.instances[domain].ubc;
   }
 
-  updater(domain: types.Domain): Updater {
-    return this.instances[domain].updater;
+  validator(domain: types.Domain): Validator {
+    return this.instances[domain].validator;
   }
 
   replica(local: types.Domain, remote: types.Domain): TestReplica {
@@ -133,8 +133,8 @@ export class AbacusDeployment {
     return this.instances[domain].connectionManager;
   }
 
-  updaterManager(domain: types.Domain): UpdaterManager {
-    return this.instances[domain].updaterManager;
+  validatorManager(domain: types.Domain): ValidatorManager {
+    return this.instances[domain].validatorManager;
   }
 
   async processMessages() {
@@ -158,8 +158,8 @@ export class AbacusDeployment {
     // Update the Home and Replicas to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestReplica.
-    const updater = this.updater(local);
-    const { signature } = await updater.signCheckpoint(root, index.toNumber());
+    const validator = this.validator(local);
+    const { signature } = await validator.signCheckpoint(root, index.toNumber());
 
     for (const remote of this.domains) {
       if (remote !== local) {

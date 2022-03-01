@@ -3,7 +3,7 @@ import { expect } from 'chai';
 
 import { formatCall, formatAbacusMessage } from './utils';
 import { increaseTimestampBy, UpgradeTestHelpers } from '../utils';
-import { Updater } from '../lib/core';
+import { Validator } from '../lib/core';
 import { Address, Signer } from '../lib/types';
 import { AbacusDeployment } from '../lib/AbacusDeployment';
 import { GovernanceDeployment } from '../lib/GovernanceDeployment';
@@ -42,7 +42,7 @@ describe('GovernanceRouter', async () => {
     governorHome: Home,
     governorReplicaOnNonGovernorChain: TestReplica,
     nonGovernorReplicaOnGovernorChain: TestReplica,
-    updater: Updater;
+    validator: Validator;
 
   async function expectGovernor(
     governanceRouter: TestGovernanceRouter,
@@ -57,7 +57,7 @@ describe('GovernanceRouter', async () => {
 
   before(async () => {
     [thirdRouter, signer, secondSigner] = await ethers.getSigners();
-    updater = await Updater.fromSigner(signer, governorDomain);
+    validator = await Validator.fromSigner(signer, governorDomain);
   });
 
   beforeEach(async () => {
@@ -311,7 +311,7 @@ describe('GovernanceRouter', async () => {
 
     // Set checkpoint on replica
     const [root, index] = await governorHome.latestCheckpoint();
-    const { signature } = await updater.signCheckpoint(root, index.toNumber());
+    const { signature } = await validator.signCheckpoint(root, index.toNumber());
     await governorReplicaOnNonGovernorChain.checkpoint(root, index, signature);
 
     // Governor HAS been transferred on original governor domain
@@ -375,30 +375,30 @@ describe('GovernanceRouter', async () => {
     await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
   });
 
-  it('Calls UpdaterManager to set the updater for a domain', async () => {
-    const [newUpdater] = await ethers.getSigners();
-    const updaterManager = abacusDeployment.updaterManager(governorDomain);
-    await updaterManager.transferOwnership(governorRouter.address);
+  it('Calls ValidatorManager to set the validator for a domain', async () => {
+    const [newValidator] = await ethers.getSigners();
+    const validatorManager = abacusDeployment.validatorManager(governorDomain);
+    await validatorManager.transferOwnership(governorRouter.address);
 
-    // check current Updater address on Home
-    let currentUpdaterAddr = await updaterManager.updaters(governorDomain);
-    expect(currentUpdaterAddr).to.equal(
-      await abacusDeployment.updater(governorDomain).signer.getAddress(),
+    // check current Validator address on Home
+    let currentValidatorAddr = await validatorManager.validators(governorDomain);
+    expect(currentValidatorAddr).to.equal(
+      await abacusDeployment.validator(governorDomain).signer.getAddress(),
     );
 
     // format abacus call message
-    const call = await formatCall(updaterManager, 'setUpdater', [
+    const call = await formatCall(validatorManager, 'setValidator', [
       governorDomain,
-      newUpdater.address,
+      newValidator.address,
     ]);
 
     await expect(governorRouter.callLocal([call])).to.emit(
-      updaterManager,
-      'NewUpdater',
+      validatorManager,
+      'NewValidator',
     );
 
-    // check for new updater
-    currentUpdaterAddr = await updaterManager.updaters(governorDomain);
-    expect(currentUpdaterAddr).to.equal(newUpdater.address);
+    // check for new validator
+    currentValidatorAddr = await validatorManager.validators(governorDomain);
+    expect(currentValidatorAddr).to.equal(newValidator.address);
   });
 });

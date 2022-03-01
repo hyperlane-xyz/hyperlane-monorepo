@@ -1,44 +1,44 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
-import { AbacusState, Updater } from './lib/core';
+import { AbacusState, Validator } from './lib/core';
 import { Signer } from './lib/types';
 
 import {
   Home__factory,
   Home,
-  UpdaterManager__factory,
-  UpdaterManager,
+  ValidatorManager__factory,
+  ValidatorManager,
 } from '../typechain';
 
 const homeDomainHashCases = require('../../../vectors/homeDomainHash.json');
 const signedUpdateCases = require('../../../vectors/signedUpdate.json');
 const localDomain = 1000;
 
-describe('UpdaterManager', async () => {
+describe('ValidatorManager', async () => {
   let signer: Signer,
     fakeSigner: Signer,
-    updaterManager: UpdaterManager,
-    updater: Updater,
-    fakeUpdater: Updater;
+    validatorManager: ValidatorManager,
+    validator: Validator,
+    fakeValidator: Validator;
 
   before(async () => {
     [signer, fakeSigner] = await ethers.getSigners();
-    updater = await Updater.fromSigner(signer, localDomain);
-    fakeUpdater = await Updater.fromSigner(fakeSigner, localDomain);
+    validator = await Validator.fromSigner(signer, localDomain);
+    fakeValidator = await Validator.fromSigner(fakeSigner, localDomain);
   });
 
   beforeEach(async () => {
-    const updaterManagerFactory = new UpdaterManager__factory(signer);
-    updaterManager = await updaterManagerFactory.deploy();
+    const validatorManagerFactory = new ValidatorManager__factory(signer);
+    validatorManager = await validatorManagerFactory.deploy();
   });
 
-  it('Accepts updater signature', async () => {
+  it('Accepts validator signature', async () => {
     const root = ethers.utils.formatBytes32String('root');
     const index = 1;
 
-    const { signature } = await updater.signCheckpoint(root, index);
-    const isValid = await updaterManager.isUpdaterSignature(
+    const { signature } = await validator.signCheckpoint(root, index);
+    const isValid = await validatorManager.isValidatorSignature(
       localDomain,
       root,
       index,
@@ -47,12 +47,12 @@ describe('UpdaterManager', async () => {
     expect(isValid).to.be.true;
   });
 
-  it('Rejects non-updater signature', async () => {
+  it('Rejects non-validator signature', async () => {
     const root = ethers.utils.formatBytes32String('root');
     const index = 1;
 
-    const { signature } = await fakeUpdater.signCheckpoint(root, index);
-    const isValid = await updaterManager.isUpdaterSignature(
+    const { signature } = await fakeValidator.signCheckpoint(root, index);
+    const isValid = await validatorManager.isValidatorSignature(
       localDomain,
       root,
       index,
@@ -66,7 +66,7 @@ describe('UpdaterManager', async () => {
     // hash for local domain of 1000)
     for (let testCase of homeDomainHashCases) {
       const { expectedDomainHash } = testCase;
-      const domainHash = await updaterManager.domainHash(testCase.homeDomain);
+      const domainHash = await validatorManager.domainHash(testCase.homeDomain);
       expect(domainHash).to.equal(expectedDomainHash);
     }
   });
@@ -76,23 +76,23 @@ describe('UpdaterManager', async () => {
     beforeEach(async () => {
       const homeFactory = new Home__factory(signer);
       home = await homeFactory.deploy(localDomain);
-      await home.initialize(updaterManager.address);
+      await home.initialize(validatorManager.address);
     });
 
-    it('Accepts improper update from updater', async () => {
+    it('Accepts improper update from validator', async () => {
       const root = ethers.utils.formatBytes32String('root');
       const index = 1;
 
-      const { signature } = await updater.signCheckpoint(root, index);
+      const { signature } = await validator.signCheckpoint(root, index);
       // Send message with signer address as msg.sender
       await expect(
-        updaterManager.improperUpdate(home.address, root, index, signature),
+        validatorManager.improperUpdate(home.address, root, index, signature),
       )
-        .to.emit(updaterManager, 'ImproperUpdate')
+        .to.emit(validatorManager, 'ImproperUpdate')
         .withArgs(
           home.address,
           localDomain,
-          updater.address,
+          validator.address,
           root,
           index,
           signature,
@@ -100,18 +100,18 @@ describe('UpdaterManager', async () => {
       expect(await home.state()).to.equal(AbacusState.FAILED);
     });
 
-    it('Rejects improper update from non-updater', async () => {
+    it('Rejects improper update from non-validator', async () => {
       const root = ethers.utils.formatBytes32String('root');
       const index = 1;
 
-      const { signature } = await fakeUpdater.signCheckpoint(root, index);
+      const { signature } = await fakeValidator.signCheckpoint(root, index);
       // Send message with signer address as msg.sender
       await expect(
-        updaterManager.improperUpdate(home.address, root, index, signature),
-      ).to.be.revertedWith('!updater sig');
+        validatorManager.improperUpdate(home.address, root, index, signature),
+      ).to.be.revertedWith('!validator sig');
     });
 
-    it('Rejects proper update from updater', async () => {
+    it('Rejects proper update from validator', async () => {
       const message = `0x${Buffer.alloc(10).toString('hex')}`;
       await home.dispatch(
         localDomain,
@@ -121,13 +121,13 @@ describe('UpdaterManager', async () => {
       await home.checkpoint();
       const [root, index] = await home.latestCheckpoint();
 
-      const { signature } = await updater.signCheckpoint(
+      const { signature } = await validator.signCheckpoint(
         root,
         index.toNumber(),
       );
       // Send message with signer address as msg.sender
       await expect(
-        updaterManager.improperUpdate(home.address, root, index, signature),
+        validatorManager.improperUpdate(home.address, root, index, signature),
       ).to.be.revertedWith('!improper');
     });
   });

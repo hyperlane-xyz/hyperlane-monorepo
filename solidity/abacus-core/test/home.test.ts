@@ -1,6 +1,6 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
-import { AbacusState, Updater } from './lib/core';
+import { AbacusState, Validator } from './lib/core';
 import { Signer } from './lib/types';
 
 import { TestHome, TestHome__factory } from '../typechain';
@@ -31,7 +31,7 @@ describe('Home', async () => {
     );
   });
 
-  it('UpdaterManager can fail', async () => {
+  it('ValidatorManager can fail', async () => {
     await home.fail();
     expect(await home.state()).to.equal(AbacusState.FAILED);
 
@@ -45,9 +45,9 @@ describe('Home', async () => {
     ).to.be.revertedWith('failed state');
   });
 
-  it('Non UpdaterManager cannot fail', async () => {
+  it('Non ValidatorManager cannot fail', async () => {
     await expect(home.connect(recipient).fail()).to.be.revertedWith(
-      '!updaterManager',
+      '!validatorManager',
     );
   });
 

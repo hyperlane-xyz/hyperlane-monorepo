@@ -13,10 +13,10 @@ import {MerkleTreeManager} from "./Merkle.sol";
  * @author Celo Labs Inc.
  * @notice Accepts messages to be dispatched to remote chains,
  * constructs a Merkle tree of the messages,
- * and accepts signatures from a bonded Updater
+ * and accepts signatures from a bonded Validator
  * which notarize the Merkle tree roots.
  * Accepts submissions of fraudulent signatures
- * by the Updater and slashes the Updater in this case.
+ * by the Validator and slashes the Validator in this case.
  */
 contract Home is Version0, MerkleTreeManager, Common {
     // ============ Libraries ============
@@ -84,8 +84,8 @@ contract Home is Version0, MerkleTreeManager, Common {
 
     // ============ Initializer ============
 
-    function initialize(address _updaterManager) public initializer {
-        __Common_initialize(_updaterManager);
+    function initialize(address _validatorManager) public initializer {
+        __Common_initialize(_validatorManager);
         state = States.Active;
     }
 
@@ -100,10 +100,10 @@ contract Home is Version0, MerkleTreeManager, Common {
     }
 
     /**
-     * @notice Ensures that function is called by the UpdaterManager contract
+     * @notice Ensures that function is called by the ValidatorManager contract
      */
-    modifier onlyUpdaterManager() {
-        require(msg.sender == address(updaterManager), "!updaterManager");
+    modifier onlyValidatorManager() {
+        require(msg.sender == address(validatorManager), "!validatorManager");
         _;
     }
 
@@ -151,7 +151,7 @@ contract Home is Version0, MerkleTreeManager, Common {
 
     /**
      * @notice Checkpoints the latest root and index.
-     * Updaters are expected to sign this checkpoint so that it can be
+     * Validators are expected to sign this checkpoint so that it can be
      * relayed to the Replica contracts.
      * @dev emits Checkpoint event
      */
@@ -167,15 +167,15 @@ contract Home is Version0, MerkleTreeManager, Common {
 
     /**
      * @notice Set contract state to FAILED.
-     * @dev Called by the UpdaterManager when fraud is proven.
+     * @dev Called by the ValidatorManager when fraud is proven.
      */
-    function fail() external onlyUpdaterManager {
+    function fail() external onlyValidatorManager {
         // set contract to FAILED
         state = States.Failed;
     }
 
     /**
-     * @notice Returns the latest checkpoint for the Updaters to sign.
+     * @notice Returns the latest checkpoint for the Validators to sign.
      * @return root Latest checkpointed root
      * @return index Latest checkpointed index
      */

@@ -2,7 +2,7 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {IUpdaterManager} from "../interfaces/IUpdaterManager.sol";
+import {IValidatorManager} from "../interfaces/IValidatorManager.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -20,8 +20,8 @@ abstract contract Common is OwnableUpgradeable {
 
     // ============ Public Variables ============
 
-    // Address of UpdaterManager contract.
-    IUpdaterManager public updaterManager;
+    // Address of ValidatorManager contract.
+    IValidatorManager public validatorManager;
 
     // ============ Upgrade Gap ============
 
@@ -39,10 +39,10 @@ abstract contract Common is OwnableUpgradeable {
     event Checkpoint(bytes32 indexed root, uint256 indexed index);
 
     /**
-     * @notice Emitted when the UpdaterManager contract is changed
-     * @param updaterManager The address of the new updaterManager
+     * @notice Emitted when the ValidatorManager contract is changed
+     * @param validatorManager The address of the new validatorManager
      */
-    event NewUpdaterManager(address updaterManager);
+    event NewValidatorManager(address validatorManager);
 
     // ============ Modifiers ============
 
@@ -54,37 +54,37 @@ abstract contract Common is OwnableUpgradeable {
 
     // ============ Initializer ============
 
-    function __Common_initialize(address _updaterManager) internal initializer {
+    function __Common_initialize(address _validatorManager) internal initializer {
         // initialize owner
         __Ownable_init();
-        _setUpdaterManager(IUpdaterManager(_updaterManager));
+        _setValidatorManager(IValidatorManager(_validatorManager));
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Set a new UpdaterManager contract
-     * @dev Home(s) will initially be initialized using a trusted UpdaterManager contract;
+     * @notice Set a new ValidatorManager contract
+     * @dev Home(s) will initially be initialized using a trusted ValidatorManager contract;
      * we will progressively decentralize by swapping the trusted contract with a new implementation
-     * that implements Updater bonding & slashing, and rules for Updater selection & rotation
-     * @param _updaterManager the new UpdaterManager contract
+     * that implements Validator bonding & slashing, and rules for Validator selection & rotation
+     * @param _validatorManager the new ValidatorManager contract
      */
-    function setUpdaterManager(address _updaterManager) external onlyOwner {
-        _setUpdaterManager(IUpdaterManager(_updaterManager));
+    function setValidatorManager(address _validatorManager) external onlyOwner {
+        _setValidatorManager(IValidatorManager(_validatorManager));
     }
 
     // ============ Internal Functions ============
 
     /**
-     * @notice Set the UpdaterManager
-     * @param _updaterManager Address of the UpdaterManager
+     * @notice Set the ValidatorManager
+     * @param _validatorManager Address of the ValidatorManager
      */
-    function _setUpdaterManager(IUpdaterManager _updaterManager) internal {
+    function _setValidatorManager(IValidatorManager _validatorManager) internal {
         require(
-            Address.isContract(address(_updaterManager)),
-            "!contract updaterManager"
+            Address.isContract(address(_validatorManager)),
+            "!contract validatorManager"
         );
-        updaterManager = IUpdaterManager(_updaterManager);
-        emit NewUpdaterManager(address(_updaterManager));
+        validatorManager = IValidatorManager(_validatorManager);
+        emit NewValidatorManager(address(_validatorManager));
     }
 }

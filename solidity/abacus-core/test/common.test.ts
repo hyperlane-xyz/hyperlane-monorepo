@@ -11,7 +11,6 @@ const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 describe('Common', async () => {
   let owner: Signer,
     nonowner: Signer,
-    updaterManager: Address,
     common: TestCommon;
 
   before(async () => {
@@ -21,31 +20,28 @@ describe('Common', async () => {
   beforeEach(async () => {
     const commonFactory = new TestCommon__factory(owner);
     common = await commonFactory.deploy(localDomain);
-    updaterManager = ethers.utils.hexlify(ethers.utils.randomBytes(20));
-    await common.initialize(updaterManager);
-    expect(await common.updaterManager()).to.equal(updaterManager);
+    // The ValidatorManager is unused in these tests *but* needs to be a
+    // contract.
+    await common.initialize(common.address);
+    expect(await common.validatorManager()).to.equal(common.address);
   });
 
   it('Cannot be initialized twice', async () => {
-    await expect(common.initialize(updaterManager)).to.be.revertedWith(
+    await expect(common.initialize(common.address)).to.be.revertedWith(
       'Initializable: contract is already initialized',
     );
   });
 
-  it('Allows owner to update the UpdaterManager', async () => {
-    const newUpdaterManager = ethers.utils.hexlify(
-      ethers.utils.randomBytes(20),
-    );
-    await common.setUpdaterManager(newUpdaterManager);
-    expect(await common.updaterManager()).to.equal(newUpdaterManager);
+  it('Allows owner to update the ValidatorManager', async () => {
+    const commonFactory = new TestCommon__factory(owner);
+    const newValidatorManager = await commonFactory.deploy(localDomain);
+    await common.setValidatorManager(newValidatorManager.address);
+    expect(await common.validatorManager()).to.equal(newValidatorManager.address);
   });
 
-  it('Does not allow nonowner to updater the UpdaterManager', async () => {
-    const newUpdaterManager = ethers.utils.hexlify(
-      ethers.utils.randomBytes(20),
-    );
+  it('Does not allow nonowner to validator the ValidatorManager', async () => {
     await expect(
-      common.connect(nonowner).setUpdaterManager(newUpdaterManager),
+      common.connect(nonowner).setValidatorManager(common.address),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
   });
 });
