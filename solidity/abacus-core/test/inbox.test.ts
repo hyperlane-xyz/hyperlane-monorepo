@@ -140,16 +140,18 @@ describe('Inbox', async () => {
     let { leaf, index, path } = testCase.proofs[0];
 
     // Switch ordering of proof hashes
-    const firstHash = path[0];
-    path[0] = path[1];
-    path[1] = firstHash;
+    // NB: We copy 'path' here to avoid mutating the test cases for
+    // other tests.
+    const newPath = [...path]
+    newPath[0] = path[1];
+    newPath[1] = path[0];
 
     await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
-    expect(await inbox.callStatic.prove(leaf, path as BytesArray, index)).to.be
+    expect(await inbox.callStatic.prove(leaf, newPath as BytesArray, index)).to.be
       .false;
 
-    await inbox.prove(leaf, path as BytesArray, index);
+    await inbox.prove(leaf, newPath as BytesArray, index);
     expect(await inbox.messages(leaf)).to.equal(MessageStatus.NONE);
   });
 

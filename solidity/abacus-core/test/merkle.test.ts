@@ -11,7 +11,7 @@ describe('Merkle', async () => {
     const { testName, leaves, expectedRoot, proofs } = testCase;
 
     describe(testName, async () => {
-      let merkle: TestMerkle, root: string;
+      let merkle: TestMerkle;
 
       before(async () => {
         const [signer] = await ethers.getSigners();
@@ -32,8 +32,7 @@ describe('Merkle', async () => {
       });
 
       it('produces the proper root', async () => {
-        root = await merkle.root();
-        expect(root).to.equal(expectedRoot);
+        expect(await merkle.root()).to.equal(expectedRoot);
       });
 
       it("can verify the leaves' proofs", async () => {
@@ -45,7 +44,7 @@ describe('Merkle', async () => {
             path as BytesArray,
             index,
           );
-          expect(proofRoot).to.equal(root);
+          expect(proofRoot).to.equal(expectedRoot);
         }
       });
     });
