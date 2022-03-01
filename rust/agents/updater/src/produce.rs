@@ -59,6 +59,23 @@ impl UpdateProducer {
                         // This either indicates that the indexer is catching
                         // up or that the chain is awaiting a new update. We 
                         // should ignore it.
+
+                        // Hack: Sometimes the indexers misses the update which causes
+                        // the updater to stay stuck forever. We should detect those
+                        // situations and "auto-heal"
+
+                        if let Some(previously_produced_update) = self.db.retrieve_produced_update(current_root)? {
+                            if previously_produced_update.update.previous_root == current_root && previously_produced_update.update.new_root == suggested.new_root {
+                                info!(
+                                    previous_root = ?previously_produced_update.update.previous_root,
+                                    new_root = ?previously_produced_update.update.new_root,
+                                    suggested_new_root = ?suggested.new_root,
+                                    "Suggested previous root matches produced previous update in DB"
+                                );
+                                self.db.store_latest_root(suggested.new_root)?;
+                            }
+                        }
+
                         debug!(
                             local = ?suggested.previous_root,
                             remote = ?current_root,
