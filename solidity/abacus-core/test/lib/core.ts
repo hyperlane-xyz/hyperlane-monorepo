@@ -133,32 +133,6 @@ function domainHash(domain: Number): string {
   );
 }
 
-async function signedFailureNotification(
-  signer: ethers.Signer,
-  domain: types.Domain,
-  updaterAddress: types.Address,
-): Promise<types.SignedFailureNotification> {
-  const domainCommitment = domainHash(domain);
-  const updaterBytes32 = ethersAddressToBytes32(updaterAddress);
-
-  const failureNotification = ethers.utils.solidityPack(
-    ['bytes32', 'uint32', 'bytes32'],
-    [domainCommitment, domain, updaterBytes32],
-  );
-  const signature = await signer.signMessage(
-    ethers.utils.arrayify(ethers.utils.keccak256(failureNotification)),
-  );
-
-  return {
-    failureNotification: {
-      domainCommitment,
-      domain,
-      updaterBytes32,
-    },
-    signature,
-  };
-}
-
 function formatCalls(callsData: types.CallData[]): string {
   let callBody = '0x';
   const numCalls = callsData.length;
@@ -198,5 +172,4 @@ export const abacus: types.HardhatAbacusHelpers = {
   ethersAddressToBytes32,
   destinationAndNonce,
   domainHash,
-  signedFailureNotification,
 };

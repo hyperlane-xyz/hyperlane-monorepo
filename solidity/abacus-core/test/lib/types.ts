@@ -15,7 +15,6 @@ export interface HardhatAbacusHelpers {
   ethersAddressToBytes32: Function;
   destinationAndNonce: Function;
   domainHash: Function;
-  signedFailureNotification: Function;
 }
 
 declare module 'hardhat/types/runtime' {
@@ -75,15 +74,4 @@ export type Checkpoint = {
 export type CallData = {
   to: Address;
   data: string;
-};
-
-export type FailureNotification = {
-  domainCommitment: string;
-  domain: number;
-  updaterBytes32: string;
-};
-
-export type SignedFailureNotification = {
-  failureNotification: FailureNotification;
-  signature: string;
 };
