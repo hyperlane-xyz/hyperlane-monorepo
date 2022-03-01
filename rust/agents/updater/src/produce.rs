@@ -1,7 +1,7 @@
 use ethers::core::types::H256;
 use prometheus::IntCounterVec;
-use std::{sync::Arc, time::Duration};
 use std::str::FromStr;
+use std::{sync::Arc, time::Duration};
 
 use abacus_base::{AbacusAgent, CachingHome};
 use abacus_core::{db::AbacusDB, Common, Home, Signers};
@@ -95,6 +95,8 @@ impl UpdateProducer {
                 sleep(Duration::from_secs(self.interval_seconds)).await;
 
                 let current_root = self.find_latest_root()?;
+                info!(current_root = ?current_root, "Producer latest root");
+
 
                 if let Some(suggested) = self.home.produce_update().await? {
                     if suggested.previous_root != current_root {
