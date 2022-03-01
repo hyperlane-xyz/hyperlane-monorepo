@@ -21,20 +21,20 @@ contract ValidatorManager is IValidatorManager, Ownable {
     // ============ Events ============
 
     /**
-     * @notice Emitted when an validator is set
+     * @notice Emitted when a validator is set
      * @param domain The domain for which the validator is being set
      * @param validator The address of the validator
      */
     event NewValidator(uint32 indexed domain, address indexed validator);
 
     /**
-     * @notice Emitted when proof of an improper update is submitted,
+     * @notice Emitted when proof of an improper checkpoint is submitted,
      * which sets the contract to FAILED state
-     * @param root Root of the improper update
-     * @param index Index of the improper update
+     * @param root Root of the improper checkpoint
+     * @param index Index of the improper checkpoint
      * @param signature Signature on `root` and `index`
      */
-    event ImproperUpdate(
+    event ImproperCheckpoint(
         address indexed home,
         uint32 indexed domain,
         address indexed validator,
@@ -64,15 +64,15 @@ contract ValidatorManager is IValidatorManager, Ownable {
     }
 
     /**
-     * @notice Check if an Update is an Improper Update;
+     * @notice Check if an Checkpoint is an Improper Checkpoint;
      * if so, set the provided Home contract to FAILED state.
      *
-     * An Improper Update is an update that was not previously checkpointed.
+     * An Improper Checkpoint is an checkpoint that was not previously checkpointed.
      * @param _home Address of the Home contract to set to FAILED.
-     * @param _root Merkle root of the improper update
-     * @param _index Index root of the improper update
+     * @param _root Merkle root of the improper checkpoint
+     * @param _index Index root of the improper checkpoint
      * @param _signature Validator signature on `_root` and `_index`
-     * @return TRUE if update was an Improper Update (implying Validator was slashed)
+     * @return TRUE if checkpoint was an Improper Checkpoint (implying Validator was slashed)
      */
     function improperCheckpoint(
         address _home,
@@ -87,7 +87,7 @@ contract ValidatorManager is IValidatorManager, Ownable {
         );
         require(Home(_home).checkpoints(_root) != _index, "!improper");
         Home(_home).fail();
-        emit ImproperUpdate(
+        emit ImproperCheckpoint(
             _home,
             _domain,
             validators[_domain],

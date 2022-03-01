@@ -86,12 +86,12 @@ interface ValidatorManagerInterface extends ethers.utils.Interface {
   decodeFunctionResult(functionFragment: "validators", data: BytesLike): Result;
 
   events: {
-    "ImproperUpdate(address,uint32,address,bytes32,uint256,bytes)": EventFragment;
+    "ImproperCheckpoint(address,uint32,address,bytes32,uint256,bytes)": EventFragment;
     "NewValidator(uint32,address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
   };
 
-  getEvent(nameOrSignatureOrTopic: "ImproperUpdate"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "ImproperCheckpoint"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "NewValidator"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
@@ -262,7 +262,7 @@ export class ValidatorManager extends BaseContract {
   };
 
   filters: {
-    ImproperUpdate(
+    ImproperCheckpoint(
       home?: string | null,
       domain?: BigNumberish | null,
       validator?: string | null,

@@ -127,7 +127,7 @@ describe('GovernanceRouter', async () => {
       processGas,
       reserveGas,
     );
-    // The UpdaterManager is unused in this test, but needs to be a contract.
+    // The ValdiatorManager is unused in this test, but needs to be a contract.
     await unenrolledReplica.initialize(
       thirdDomain,
       unenrolledReplica.address,

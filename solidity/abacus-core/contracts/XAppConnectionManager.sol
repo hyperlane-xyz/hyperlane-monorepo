@@ -27,6 +27,10 @@ contract XAppConnectionManager is Ownable {
 
     // ============ Events ============
 
+    /**
+     * @notice Emitted when a new Home is set.
+     * @param home the address of the Home
+     */
     event NewHome(address indexed home);
 
     /**

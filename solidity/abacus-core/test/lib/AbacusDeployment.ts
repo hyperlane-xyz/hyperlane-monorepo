@@ -183,7 +183,7 @@ export class AbacusDeployment {
       }
     }
 
-    // Find all messages dispatched on the home since the previous update.
+    // Find all messages dispatched on the home since the previous checkpoint.
     const dispatchFilter = home.filters.Dispatch();
     const dispatches = await home.queryFilter(dispatchFilter, fromBlock);
     for (const dispatch of dispatches) {

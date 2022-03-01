@@ -59,11 +59,11 @@ contract Home is Version0, MerkleTreeManager, Common {
 
     /**
      * @notice Emitted when a new message is dispatched via Abacus
+     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
      * @param leafIndex Index of message's leaf in merkle tree
      * @param destinationAndNonce Destination and destination-specific
      * nonce combined in single field ((destination << 32) & nonce)
-     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
-     * @param checkpointedRoot the latest notarized root submitted in the last signed Update
+     * @param checkpointedRoot the latest checkpointed root
      * @param message Raw bytes of message
      */
     event Dispatch(
@@ -74,6 +74,8 @@ contract Home is Version0, MerkleTreeManager, Common {
         bytes32 checkpointedRoot,
         bytes message
     );
+
+    event Fail();
 
     // ============ Constructor ============
 
@@ -166,6 +168,7 @@ contract Home is Version0, MerkleTreeManager, Common {
     function fail() external onlyValidatorManager {
         // set contract to FAILED
         state = States.Failed;
+        emit Fail();
     }
 
     // ============ Internal Functions  ============

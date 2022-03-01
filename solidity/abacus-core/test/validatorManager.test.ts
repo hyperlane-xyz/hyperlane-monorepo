@@ -12,7 +12,6 @@ import {
 } from '../typechain';
 
 const homeDomainHashCases = require('../../../vectors/homeDomainHash.json');
-const signedUpdateCases = require('../../../vectors/signedUpdate.json');
 const localDomain = 1000;
 
 describe('ValidatorManager', async () => {
@@ -72,7 +71,7 @@ describe('ValidatorManager', async () => {
     }
   });
 
-  describe('improper updates', async () => {
+  describe('improper checkpoints', async () => {
     let home: Home;
     beforeEach(async () => {
       const homeFactory = new Home__factory(signer);
@@ -80,7 +79,7 @@ describe('ValidatorManager', async () => {
       await home.initialize(validatorManager.address);
     });
 
-    it('Accepts improper update from validator', async () => {
+    it('Accepts improper checkpoint from validator', async () => {
       const root = ethers.utils.formatBytes32String('root');
       const index = 1;
 
@@ -94,7 +93,7 @@ describe('ValidatorManager', async () => {
           signature,
         ),
       )
-        .to.emit(validatorManager, 'ImproperUpdate')
+        .to.emit(validatorManager, 'ImproperCheckpoint')
         .withArgs(
           home.address,
           localDomain,
@@ -106,7 +105,7 @@ describe('ValidatorManager', async () => {
       expect(await home.state()).to.equal(AbacusState.FAILED);
     });
 
-    it('Rejects improper update from non-validator', async () => {
+    it('Rejects improper checkpoint from non-validator', async () => {
       const root = ethers.utils.formatBytes32String('root');
       const index = 1;
 
@@ -122,7 +121,7 @@ describe('ValidatorManager', async () => {
       ).to.be.revertedWith('!validator sig');
     });
 
-    it('Rejects proper update from validator', async () => {
+    it('Rejects proper checkpoint from validator', async () => {
       const message = `0x${Buffer.alloc(10).toString('hex')}`;
       await home.dispatch(
         localDomain,

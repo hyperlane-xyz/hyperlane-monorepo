@@ -17,9 +17,8 @@ const remoteDomain = domains[1];
 /*
  * Deploy the full Abacus suite on two chains
  * dispatch messages to Home
- * sign and submit updates to Home
- * relay updates to Replica
- * confirm updates on Replica
+ * checkpoint on  Home
+ * Sign and relay checkpoints to Replica
  * TODO prove and process messages on Replica
  */
 describe('SimpleCrossChainMessage', async () => {
@@ -60,7 +59,7 @@ describe('SimpleCrossChainMessage', async () => {
     const messages = ['message'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    const update = await utils.dispatchMessages(
+    await utils.dispatchMessages(
       abacusDeployment.home(localDomain),
       messages,
     );
@@ -76,7 +75,7 @@ describe('SimpleCrossChainMessage', async () => {
     const messages = ['message1', 'message2', 'message3'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    const update = await utils.dispatchMessages(
+    await utils.dispatchMessages(
       abacusDeployment.home(localDomain),
       messages,
     );
