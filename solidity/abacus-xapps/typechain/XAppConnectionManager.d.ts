@@ -22,24 +22,25 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 interface XAppConnectionManagerInterface extends ethers.utils.Interface {
   functions: {
     "domainToReplica(uint32)": FunctionFragment;
+    "enrollReplica(address,uint32)": FunctionFragment;
     "home()": FunctionFragment;
     "isReplica(address)": FunctionFragment;
     "localDomain()": FunctionFragment;
     "owner()": FunctionFragment;
-    "ownerEnrollReplica(address,uint32)": FunctionFragment;
-    "ownerUnenrollReplica(address)": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
     "replicaToDomain(address)": FunctionFragment;
     "setHome(address)": FunctionFragment;
-    "setWatcherPermission(address,uint32,bool)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
-    "unenrollReplica(uint32,bytes32,bytes)": FunctionFragment;
-    "watcherPermission(address,uint32)": FunctionFragment;
+    "unenrollReplica(address)": FunctionFragment;
   };
 
   encodeFunctionData(
     functionFragment: "domainToReplica",
     values: [BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "enrollReplica",
+    values: [string, BigNumberish]
   ): string;
   encodeFunctionData(functionFragment: "home", values?: undefined): string;
   encodeFunctionData(functionFragment: "isReplica", values: [string]): string;
@@ -48,14 +49,6 @@ interface XAppConnectionManagerInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "ownerEnrollReplica",
-    values: [string, BigNumberish]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "ownerUnenrollReplica",
-    values: [string]
-  ): string;
   encodeFunctionData(
     functionFragment: "renounceOwnership",
     values?: undefined
@@ -66,24 +59,20 @@ interface XAppConnectionManagerInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(functionFragment: "setHome", values: [string]): string;
   encodeFunctionData(
-    functionFragment: "setWatcherPermission",
-    values: [string, BigNumberish, boolean]
-  ): string;
-  encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [string]
   ): string;
   encodeFunctionData(
     functionFragment: "unenrollReplica",
-    values: [BigNumberish, BytesLike, BytesLike]
-  ): string;
-  encodeFunctionData(
-    functionFragment: "watcherPermission",
-    values: [string, BigNumberish]
+    values: [string]
   ): string;
 
   decodeFunctionResult(
     functionFragment: "domainToReplica",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "enrollReplica",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "home", data: BytesLike): Result;
@@ -94,14 +83,6 @@ interface XAppConnectionManagerInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "ownerEnrollReplica",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
-    functionFragment: "ownerUnenrollReplica",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "renounceOwnership",
     data: BytesLike
   ): Result;
@@ -111,10 +92,6 @@ interface XAppConnectionManagerInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "setHome", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "setWatcherPermission",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
   ): Result;
@@ -122,22 +99,18 @@ interface XAppConnectionManagerInterface extends ethers.utils.Interface {
     functionFragment: "unenrollReplica",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "watcherPermission",
-    data: BytesLike
-  ): Result;
 
   events: {
+    "NewHome(address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
     "ReplicaEnrolled(uint32,address)": EventFragment;
     "ReplicaUnenrolled(uint32,address)": EventFragment;
-    "WatcherPermissionSet(uint32,address,bool)": EventFragment;
   };
 
+  getEvent(nameOrSignatureOrTopic: "NewHome"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "ReplicaEnrolled"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "ReplicaUnenrolled"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "WatcherPermissionSet"): EventFragment;
 }
 
 export class XAppConnectionManager extends BaseContract {
@@ -189,6 +162,12 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: CallOverrides
     ): Promise<[string]>;
 
+    enrollReplica(
+      _replica: string,
+      _domain: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     home(overrides?: CallOverrides): Promise<[string]>;
 
     isReplica(_replica: string, overrides?: CallOverrides): Promise<[boolean]>;
@@ -196,17 +175,6 @@ export class XAppConnectionManager extends BaseContract {
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
     owner(overrides?: CallOverrides): Promise<[string]>;
-
-    ownerEnrollReplica(
-      _replica: string,
-      _domain: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
-    ownerUnenrollReplica(
-      _replica: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
 
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -219,36 +187,27 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    setWatcherPermission(
-      _watcher: string,
-      _domain: BigNumberish,
-      _access: boolean,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     transferOwnership(
       newOwner: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
     unenrollReplica(
-      _domain: BigNumberish,
-      _updater: BytesLike,
-      _signature: BytesLike,
+      _replica: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
-
-    watcherPermission(
-      _watcher: string,
-      _domain: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<[boolean]>;
   };
 
   domainToReplica(
     arg0: BigNumberish,
     overrides?: CallOverrides
   ): Promise<string>;
+
+  enrollReplica(
+    _replica: string,
+    _domain: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
 
   home(overrides?: CallOverrides): Promise<string>;
 
@@ -257,17 +216,6 @@ export class XAppConnectionManager extends BaseContract {
   localDomain(overrides?: CallOverrides): Promise<number>;
 
   owner(overrides?: CallOverrides): Promise<string>;
-
-  ownerEnrollReplica(
-    _replica: string,
-    _domain: BigNumberish,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
-  ownerUnenrollReplica(
-    _replica: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
 
   renounceOwnership(
     overrides?: Overrides & { from?: string | Promise<string> }
@@ -280,36 +228,27 @@ export class XAppConnectionManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  setWatcherPermission(
-    _watcher: string,
-    _domain: BigNumberish,
-    _access: boolean,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   transferOwnership(
     newOwner: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
   unenrollReplica(
-    _domain: BigNumberish,
-    _updater: BytesLike,
-    _signature: BytesLike,
+    _replica: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
-
-  watcherPermission(
-    _watcher: string,
-    _domain: BigNumberish,
-    overrides?: CallOverrides
-  ): Promise<boolean>;
 
   callStatic: {
     domainToReplica(
       arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<string>;
+
+    enrollReplica(
+      _replica: string,
+      _domain: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
 
     home(overrides?: CallOverrides): Promise<string>;
 
@@ -319,50 +258,23 @@ export class XAppConnectionManager extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<string>;
 
-    ownerEnrollReplica(
-      _replica: string,
-      _domain: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    ownerUnenrollReplica(
-      _replica: string,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
     replicaToDomain(arg0: string, overrides?: CallOverrides): Promise<number>;
 
     setHome(_home: string, overrides?: CallOverrides): Promise<void>;
 
-    setWatcherPermission(
-      _watcher: string,
-      _domain: BigNumberish,
-      _access: boolean,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
     transferOwnership(
       newOwner: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
-    unenrollReplica(
-      _domain: BigNumberish,
-      _updater: BytesLike,
-      _signature: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    watcherPermission(
-      _watcher: string,
-      _domain: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<boolean>;
+    unenrollReplica(_replica: string, overrides?: CallOverrides): Promise<void>;
   };
 
   filters: {
+    NewHome(home?: string | null): TypedEventFilter<[string], { home: string }>;
+
     OwnershipTransferred(
       previousOwner?: string | null,
       newOwner?: string | null
@@ -380,21 +292,18 @@ export class XAppConnectionManager extends BaseContract {
       domain?: BigNumberish | null,
       replica?: null
     ): TypedEventFilter<[number, string], { domain: number; replica: string }>;
-
-    WatcherPermissionSet(
-      domain?: BigNumberish | null,
-      watcher?: null,
-      access?: null
-    ): TypedEventFilter<
-      [number, string, boolean],
-      { domain: number; watcher: string; access: boolean }
-    >;
   };
 
   estimateGas: {
     domainToReplica(
       arg0: BigNumberish,
       overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    enrollReplica(
+      _replica: string,
+      _domain: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     home(overrides?: CallOverrides): Promise<BigNumber>;
@@ -404,17 +313,6 @@ export class XAppConnectionManager extends BaseContract {
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
     owner(overrides?: CallOverrides): Promise<BigNumber>;
-
-    ownerEnrollReplica(
-      _replica: string,
-      _domain: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
-    ownerUnenrollReplica(
-      _replica: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
 
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -430,29 +328,14 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    setWatcherPermission(
-      _watcher: string,
-      _domain: BigNumberish,
-      _access: boolean,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     transferOwnership(
       newOwner: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
     unenrollReplica(
-      _domain: BigNumberish,
-      _updater: BytesLike,
-      _signature: BytesLike,
+      _replica: string,
       overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
-    watcherPermission(
-      _watcher: string,
-      _domain: BigNumberish,
-      overrides?: CallOverrides
     ): Promise<BigNumber>;
   };
 
@@ -460,6 +343,12 @@ export class XAppConnectionManager extends BaseContract {
     domainToReplica(
       arg0: BigNumberish,
       overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    enrollReplica(
+      _replica: string,
+      _domain: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     home(overrides?: CallOverrides): Promise<PopulatedTransaction>;
@@ -473,17 +362,6 @@ export class XAppConnectionManager extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    ownerEnrollReplica(
-      _replica: string,
-      _domain: BigNumberish,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    ownerUnenrollReplica(
-      _replica: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
     renounceOwnership(
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
@@ -498,29 +376,14 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    setWatcherPermission(
-      _watcher: string,
-      _domain: BigNumberish,
-      _access: boolean,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
     transferOwnership(
       newOwner: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
     unenrollReplica(
-      _domain: BigNumberish,
-      _updater: BytesLike,
-      _signature: BytesLike,
+      _replica: string,
       overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    watcherPermission(
-      _watcher: string,
-      _domain: BigNumberish,
-      overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
   };
 }

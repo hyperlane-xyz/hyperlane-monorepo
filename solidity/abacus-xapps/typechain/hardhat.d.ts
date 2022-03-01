@@ -53,6 +53,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IUpdaterManager__factory>;
     getContractFactory(
+      name: "IValidatorManager",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.IValidatorManager__factory>;
+    getContractFactory(
       name: "OwnableUpgradeable",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.OwnableUpgradeable__factory>;
@@ -80,6 +84,10 @@ declare module "hardhat/types/runtime" {
       name: "ETHHelper",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ETHHelper__factory>;
+    getContractFactory(
+      name: "MockCore",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.MockCore__factory>;
     getContractFactory(
       name: "MockWeth",
       signerOrOptions?: ethers.Signer | FactoryOptions
