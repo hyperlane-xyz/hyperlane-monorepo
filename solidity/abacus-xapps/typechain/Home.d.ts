@@ -151,12 +151,14 @@ interface HomeInterface extends ethers.utils.Interface {
   events: {
     "Checkpoint(bytes32,uint256)": EventFragment;
     "Dispatch(bytes32,uint256,uint64,bytes32,bytes)": EventFragment;
+    "Fail()": EventFragment;
     "NewValidatorManager(address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "Checkpoint"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Dispatch"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Fail"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "NewValidatorManager"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
@@ -418,6 +420,8 @@ export class Home extends BaseContract {
         message: string;
       }
     >;
+
+    Fail(): TypedEventFilter<[], {}>;
 
     NewValidatorManager(
       validatorManager?: null

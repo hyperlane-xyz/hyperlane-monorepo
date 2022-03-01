@@ -59,10 +59,7 @@ describe('SimpleCrossChainMessage', async () => {
     const messages = ['message'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    await utils.dispatchMessages(
-      abacusDeployment.home(localDomain),
-      messages,
-    );
+    await utils.dispatchMessages(abacusDeployment.home(localDomain), messages);
   });
 
   it('Destination Replica accepts a checkpoint', async () => {
@@ -75,10 +72,7 @@ describe('SimpleCrossChainMessage', async () => {
     const messages = ['message1', 'message2', 'message3'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    await utils.dispatchMessages(
-      abacusDeployment.home(localDomain),
-      messages,
-    );
+    await utils.dispatchMessages(abacusDeployment.home(localDomain), messages);
   });
 
   it('Destination Replica Accepts a second checkpoint', async () => {
