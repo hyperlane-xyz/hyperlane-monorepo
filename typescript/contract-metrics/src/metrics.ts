@@ -7,7 +7,6 @@ export class MetricCollector {
   private numProcessedGauge: Gauge<string>;
   private numUnprocessedGauge: Gauge<string>;
   private homeStateGauge: Gauge<string>;
-  private replicaStateGauge: Gauge<string>;
   private governorRecoveryActiveAt: Gauge<string>;
 
   private readonly logger: Logger;
@@ -39,12 +38,6 @@ export class MetricCollector {
       labelNames: ['network', 'environment'],
     });
 
-    this.replicaStateGauge = new Gauge({
-      name: 'optics_replica_state',
-      help: 'Gauge that tracks the state of a replica contract',
-      labelNames: ['home', 'network', 'environment'],
-    });
-
     this.governorRecoveryActiveAt = new Gauge({
       name: 'optics_governor_recovery_active_at',
       help: 'Gauge that tracks the timestamp (seconds) of the governor recovery mode being active',
@@ -68,15 +61,6 @@ export class MetricCollector {
 
   setHomeState(network: string, environment: string, state: number) {
     this.homeStateGauge.set({ network, environment }, state);
-  }
-
-  setReplicaState(
-    home: string,
-    network: string,
-    environment: string,
-    state: number,
-  ) {
-    this.replicaStateGauge.set({ home, network, environment }, state);
   }
 
   setGovernorRecoveryActiveAt(

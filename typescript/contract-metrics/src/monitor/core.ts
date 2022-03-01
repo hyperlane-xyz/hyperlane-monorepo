@@ -74,13 +74,6 @@ async function monitorCoreReplica(
   logger.info(`Getting replica state and Process logs`);
 
   const replica = context.mustGetReplicaFor(originNetwork, remoteNetwork);
-  const replicaState = await replica.state();
-  config.metrics.setReplicaState(
-    originNetwork,
-    remoteNetwork,
-    config.environment,
-    replicaState,
-  );
   const processFilter = replica.filters.Process();
   const processLogs = await getEvents(
     context,
