@@ -47,7 +47,6 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     return this.coreConfigAddresses.recoveryManager;
   }
 
-
   get governor(): Address | undefined {
     return this.coreConfigAddresses.governor;
   }

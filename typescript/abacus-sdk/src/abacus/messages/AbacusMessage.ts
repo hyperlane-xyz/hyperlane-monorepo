@@ -239,22 +239,27 @@ export class AbacusMessage {
     }
 
     const leafIndex = this.dispatch.event.args.leafIndex;
-    const [checkpointRoot, checkpointIndex] = await this.home.latestCheckpoint()
+    const [checkpointRoot, checkpointIndex] =
+      await this.home.latestCheckpoint();
     // The checkpoint index needs to be at least leafIndex + 1 to include
     // the message.
     if (checkpointIndex.lte(leafIndex)) {
-      return undefined
+      return undefined;
     }
 
     // Query the latest checkpoint event.
     const checkpointFilter = this.home.filters.Checkpoint(
-      checkpointRoot, checkpointIndex
+      checkpointRoot,
+      checkpointIndex,
     );
 
-    const checkpointLogs: AnnotatedCheckpoint[] = await findAnnotatedSingleEvent<
-      CheckpointTypes,
-      CheckpointArgs
-    >(this.context, this.origin, this.home, checkpointFilter);
+    const checkpointLogs: AnnotatedCheckpoint[] =
+      await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
+        this.context,
+        this.origin,
+        this.home,
+        checkpointFilter,
+      );
 
     if (checkpointLogs.length === 1) {
       // if event is returned, store it to the object
@@ -279,21 +284,26 @@ export class AbacusMessage {
     }
 
     const leafIndex = this.dispatch.event.args.leafIndex;
-    const [checkpointRoot, checkpointIndex] = await this.replica.latestCheckpoint()
+    const [checkpointRoot, checkpointIndex] =
+      await this.replica.latestCheckpoint();
     // The checkpoint index needs to be at least leafIndex + 1 to include
     // the message.
     if (checkpointIndex.lte(leafIndex)) {
-      return undefined
+      return undefined;
     }
 
     // if not, attempt to query the event
     const checkpointFilter = this.replica.filters.Checkpoint(
-      checkpointRoot, checkpointIndex
+      checkpointRoot,
+      checkpointIndex,
     );
-    const checkpointLogs: AnnotatedCheckpoint[] = await findAnnotatedSingleEvent<
-      CheckpointTypes,
-      CheckpointArgs
-    >(this.context, this.destination, this.replica, checkpointFilter);
+    const checkpointLogs: AnnotatedCheckpoint[] =
+      await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
+        this.context,
+        this.destination,
+        this.replica,
+        checkpointFilter,
+      );
     if (checkpointLogs.length === 1) {
       // if event is returned, store it to the object
       this.cache.replicaCheckpoint = checkpointLogs[0];

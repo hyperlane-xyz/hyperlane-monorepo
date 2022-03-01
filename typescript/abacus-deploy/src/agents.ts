@@ -75,7 +75,9 @@ async function helmValuesForChain(
         ...include(!!chain.validatorInterval, {
           pollingInterval: chain.validatorInterval,
         }),
-        ...include(!!chain.validatorPause, { updatePause: chain.validatorPause }),
+        ...include(!!chain.validatorPause, {
+          updatePause: chain.validatorPause,
+        }),
       },
       relayer: {
         enabled: true,

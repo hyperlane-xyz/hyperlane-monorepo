@@ -75,7 +75,7 @@ export class GovernanceCallBatchBuilder {
     expect(manager).to.not.be.undefined;
     const tx = await manager!.populateTransaction.setValidator(
       violation.remote,
-      violation.expected
+      violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
     return { domain, call: tx as Call };

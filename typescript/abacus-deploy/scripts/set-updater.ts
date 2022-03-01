@@ -20,10 +20,7 @@ async function main() {
   const deploys = await getCoreDeploys(environment);
   const checker = new CoreInvariantChecker(deploys);
   await checker.checkDeploys();
-  checker.expectViolations(
-    [ViolationType.Validator],
-    [chains.length],
-  );
+  checker.expectViolations([ViolationType.Validator], [chains.length]);
 
   const builder = new GovernanceCallBatchBuilder(
     deploys,

@@ -17,8 +17,7 @@ export type DispatchEvent = TypedEvent<DispatchTypes & DispatchArgs>;
 
 // copied from the Home.d.ts
 export type CheckpointTypes = [string, BigNumber];
-export type CheckpointArgs =
-      { root: string; index: BigNumber; };
+export type CheckpointArgs = { root: string; index: BigNumber };
 export type CheckpointEvent = TypedEvent<CheckpointTypes & CheckpointArgs>;
 
 // copied from the Replica.d.ts
@@ -30,7 +29,10 @@ export type ProcessArgs = {
 };
 export type ProcessEvent = TypedEvent<ProcessTypes & ProcessArgs>;
 
-export type AbacusLifecyleEvent = ProcessEvent | CheckpointEvent | DispatchEvent;
+export type AbacusLifecyleEvent =
+  | ProcessEvent
+  | CheckpointEvent
+  | DispatchEvent;
 
 export class Annotated<U extends Result, T extends TypedEvent<U>> {
   readonly domain: number;

@@ -34,9 +34,7 @@ export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
  */
 export async function deployValidatorManager(deploy: CoreDeploy) {
   let factory = new contracts.ValidatorManager__factory(deploy.signer);
-  deploy.contracts.validatorManager = await factory.deploy(
-    deploy.overrides
-  );
+  deploy.contracts.validatorManager = await factory.deploy(deploy.overrides);
   await deploy.contracts.validatorManager.deployTransaction.wait(
     deploy.chain.confirmations,
   );
@@ -153,12 +151,14 @@ export async function deployUnenrolledReplica(
     ? contracts.TestReplica__factory
     : contracts.Replica__factory;
 
-  let initData = replica.createInterface().encodeFunctionData('initialize', [
-    remote.chain.domain,
-    local.contracts.validatorManager!.address,
-    nullRoot,
-    0
-  ]);
+  let initData = replica
+    .createInterface()
+    .encodeFunctionData('initialize', [
+      remote.chain.domain,
+      local.contracts.validatorManager!.address,
+      nullRoot,
+      0,
+    ]);
 
   // if we have no replicas, deploy the whole setup.
   // otherwise just deploy a fresh proxy
