@@ -56,7 +56,7 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
     }
 
     /**
-     * @notice Determine whether _potentialReplcia is an enrolled Inbox from the xAppConnectionManager
+     * @notice Determine whether _potentialInbox is an enrolled Inbox from the xAppConnectionManager
      * @return True if _potentialInbox is an enrolled Inbox
      */
     function _isInbox(address _potentialInbox) internal view returns (bool) {
