@@ -20,13 +20,17 @@ abstract contract Common is OwnableUpgradeable {
 
     // ============ Public Variables ============
 
+    // Checkpoints of root => leaf index
+    mapping(bytes32 => uint256) public checkpoints;
+    // The latest checkpointed root
+    bytes32 public checkpointedRoot;
     // Address of ValidatorManager contract.
     IValidatorManager public validatorManager;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[49] private __GAP;
+    uint256[47] private __GAP;
 
     // ============ Events ============
 
@@ -76,6 +80,20 @@ abstract contract Common is OwnableUpgradeable {
         _setValidatorManager(IValidatorManager(_validatorManager));
     }
 
+    /**
+     * @notice Returns the latest checkpoint for the Validators to sign.
+     * @return root Latest checkpointed root
+     * @return index Latest checkpointed index
+     */
+    function latestCheckpoint()
+        external
+        view
+        returns (bytes32 root, uint256 index)
+    {
+        root = checkpointedRoot;
+        index = checkpoints[root];
+    }
+
     // ============ Internal Functions ============
 
     /**
@@ -91,5 +109,11 @@ abstract contract Common is OwnableUpgradeable {
         );
         validatorManager = IValidatorManager(_validatorManager);
         emit NewValidatorManager(address(_validatorManager));
+    }
+
+    function _checkpoint(bytes32 _root, uint256 _index) internal {
+        checkpoints[_root] = _index;
+        checkpointedRoot = _root;
+        emit Checkpoint(_root, _index);
     }
 }

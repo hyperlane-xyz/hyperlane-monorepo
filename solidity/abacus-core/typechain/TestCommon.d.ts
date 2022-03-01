@@ -21,7 +21,10 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface TestCommonInterface extends ethers.utils.Interface {
   functions: {
+    "checkpointedRoot()": FunctionFragment;
+    "checkpoints(bytes32)": FunctionFragment;
     "initialize(address)": FunctionFragment;
+    "latestCheckpoint()": FunctionFragment;
     "localDomain()": FunctionFragment;
     "owner()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
@@ -30,7 +33,19 @@ interface TestCommonInterface extends ethers.utils.Interface {
     "validatorManager()": FunctionFragment;
   };
 
+  encodeFunctionData(
+    functionFragment: "checkpointedRoot",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "checkpoints",
+    values: [BytesLike]
+  ): string;
   encodeFunctionData(functionFragment: "initialize", values: [string]): string;
+  encodeFunctionData(
+    functionFragment: "latestCheckpoint",
+    values?: undefined
+  ): string;
   encodeFunctionData(
     functionFragment: "localDomain",
     values?: undefined
@@ -53,7 +68,19 @@ interface TestCommonInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
 
+  decodeFunctionResult(
+    functionFragment: "checkpointedRoot",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "checkpoints",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "latestCheckpoint",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
@@ -131,10 +158,21 @@ export class TestCommon extends BaseContract {
   interface: TestCommonInterface;
 
   functions: {
+    checkpointedRoot(overrides?: CallOverrides): Promise<[string]>;
+
+    checkpoints(
+      arg0: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<[BigNumber]>;
+
     initialize(
       _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
+
+    latestCheckpoint(
+      overrides?: CallOverrides
+    ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
@@ -157,10 +195,18 @@ export class TestCommon extends BaseContract {
     validatorManager(overrides?: CallOverrides): Promise<[string]>;
   };
 
+  checkpointedRoot(overrides?: CallOverrides): Promise<string>;
+
+  checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
+
   initialize(
     _validatorManager: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
+
+  latestCheckpoint(
+    overrides?: CallOverrides
+  ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
 
   localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -183,10 +229,18 @@ export class TestCommon extends BaseContract {
   validatorManager(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
+    checkpointedRoot(overrides?: CallOverrides): Promise<string>;
+
+    checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
+
     initialize(
       _validatorManager: string,
       overrides?: CallOverrides
     ): Promise<void>;
+
+    latestCheckpoint(
+      overrides?: CallOverrides
+    ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
 
     localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -230,10 +284,16 @@ export class TestCommon extends BaseContract {
   };
 
   estimateGas: {
+    checkpointedRoot(overrides?: CallOverrides): Promise<BigNumber>;
+
+    checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
+
     initialize(
       _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
+
+    latestCheckpoint(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -257,10 +317,19 @@ export class TestCommon extends BaseContract {
   };
 
   populateTransaction: {
+    checkpointedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    checkpoints(
+      arg0: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     initialize(
       _validatorManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
+
+    latestCheckpoint(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 

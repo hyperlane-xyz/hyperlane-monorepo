@@ -9,9 +9,7 @@ const localDomain = 1000;
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Common', async () => {
-  let owner: Signer,
-    nonowner: Signer,
-    common: TestCommon;
+  let owner: Signer, nonowner: Signer, common: TestCommon;
 
   before(async () => {
     [owner, nonowner] = await ethers.getSigners();
@@ -36,7 +34,9 @@ describe('Common', async () => {
     const commonFactory = new TestCommon__factory(owner);
     const newValidatorManager = await commonFactory.deploy(localDomain);
     await common.setValidatorManager(newValidatorManager.address);
-    expect(await common.validatorManager()).to.equal(newValidatorManager.address);
+    expect(await common.validatorManager()).to.equal(
+      newValidatorManager.address,
+    );
   });
 
   it('Does not allow nonowner to update the ValidatorManager', async () => {

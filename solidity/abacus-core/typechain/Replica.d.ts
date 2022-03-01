@@ -25,9 +25,10 @@ interface ReplicaInterface extends ethers.utils.Interface {
     "RESERVE_GAS()": FunctionFragment;
     "VERSION()": FunctionFragment;
     "checkpoint(bytes32,uint256,bytes)": FunctionFragment;
-    "checkpointedIndex()": FunctionFragment;
+    "checkpointedRoot()": FunctionFragment;
     "checkpoints(bytes32)": FunctionFragment;
-    "initialize(uint32,address,uint256)": FunctionFragment;
+    "initialize(uint32,address,bytes32,uint256)": FunctionFragment;
+    "latestCheckpoint()": FunctionFragment;
     "localDomain()": FunctionFragment;
     "messages(bytes32)": FunctionFragment;
     "owner()": FunctionFragment;
@@ -55,7 +56,7 @@ interface ReplicaInterface extends ethers.utils.Interface {
     values: [BytesLike, BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "checkpointedIndex",
+    functionFragment: "checkpointedRoot",
     values?: undefined
   ): string;
   encodeFunctionData(
@@ -64,7 +65,11 @@ interface ReplicaInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(
     functionFragment: "initialize",
-    values: [BigNumberish, string, BigNumberish]
+    values: [BigNumberish, string, BytesLike, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "latestCheckpoint",
+    values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "localDomain",
@@ -187,7 +192,7 @@ interface ReplicaInterface extends ethers.utils.Interface {
   decodeFunctionResult(functionFragment: "VERSION", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "checkpoint", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "checkpointedIndex",
+    functionFragment: "checkpointedRoot",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -195,6 +200,10 @@ interface ReplicaInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "latestCheckpoint",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
@@ -298,7 +307,7 @@ export class Replica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    checkpointedIndex(overrides?: CallOverrides): Promise<[BigNumber]>;
+    checkpointedRoot(overrides?: CallOverrides): Promise<[string]>;
 
     checkpoints(
       arg0: BytesLike,
@@ -308,9 +317,14 @@ export class Replica extends BaseContract {
     initialize(
       _remoteDomain: BigNumberish,
       _validatorManager: string,
+      _checkpointedRoot: BytesLike,
       _checkpointedIndex: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
+
+    latestCheckpoint(
+      overrides?: CallOverrides
+    ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
@@ -435,16 +449,21 @@ export class Replica extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  checkpointedIndex(overrides?: CallOverrides): Promise<BigNumber>;
+  checkpointedRoot(overrides?: CallOverrides): Promise<string>;
 
   checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
   initialize(
     _remoteDomain: BigNumberish,
     _validatorManager: string,
+    _checkpointedRoot: BytesLike,
     _checkpointedIndex: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
+
+  latestCheckpoint(
+    overrides?: CallOverrides
+  ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
 
   localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -569,16 +588,21 @@ export class Replica extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    checkpointedIndex(overrides?: CallOverrides): Promise<BigNumber>;
+    checkpointedRoot(overrides?: CallOverrides): Promise<string>;
 
     checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
     initialize(
       _remoteDomain: BigNumberish,
       _validatorManager: string,
+      _checkpointedRoot: BytesLike,
       _checkpointedIndex: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
+
+    latestCheckpoint(
+      overrides?: CallOverrides
+    ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
 
     localDomain(overrides?: CallOverrides): Promise<number>;
 
@@ -730,16 +754,19 @@ export class Replica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    checkpointedIndex(overrides?: CallOverrides): Promise<BigNumber>;
+    checkpointedRoot(overrides?: CallOverrides): Promise<BigNumber>;
 
     checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
     initialize(
       _remoteDomain: BigNumberish,
       _validatorManager: string,
+      _checkpointedRoot: BytesLike,
       _checkpointedIndex: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
+
+    latestCheckpoint(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -865,7 +892,7 @@ export class Replica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    checkpointedIndex(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    checkpointedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     checkpoints(
       arg0: BytesLike,
@@ -875,9 +902,12 @@ export class Replica extends BaseContract {
     initialize(
       _remoteDomain: BigNumberish,
       _validatorManager: string,
+      _checkpointedRoot: BytesLike,
       _checkpointedIndex: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
+
+    latestCheckpoint(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 

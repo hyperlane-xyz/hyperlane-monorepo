@@ -25,10 +25,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MerkleTreeManager__factory>;
     getContractFactory(
-      name: "QueueManager",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.QueueManager__factory>;
-    getContractFactory(
       name: "Replica",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Replica__factory>;
@@ -48,10 +44,6 @@ declare module "hardhat/types/runtime" {
       name: "IMessageRecipient",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IMessageRecipient__factory>;
-    getContractFactory(
-      name: "IUpdaterManager",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IUpdaterManager__factory>;
     getContractFactory(
       name: "IValidatorManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -84,10 +76,6 @@ declare module "hardhat/types/runtime" {
       name: "ETHHelper",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.ETHHelper__factory>;
-    getContractFactory(
-      name: "MockCore",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.MockCore__factory>;
     getContractFactory(
       name: "MockWeth",
       signerOrOptions?: ethers.Signer | FactoryOptions

@@ -87,7 +87,12 @@ describe('ValidatorManager', async () => {
       const { signature } = await validator.signCheckpoint(root, index);
       // Send message with signer address as msg.sender
       await expect(
-        validatorManager.improperCheckpoint(home.address, root, index, signature),
+        validatorManager.improperCheckpoint(
+          home.address,
+          root,
+          index,
+          signature,
+        ),
       )
         .to.emit(validatorManager, 'ImproperUpdate')
         .withArgs(
@@ -108,7 +113,12 @@ describe('ValidatorManager', async () => {
       const { signature } = await fakeValidator.signCheckpoint(root, index);
       // Send message with signer address as msg.sender
       await expect(
-        validatorManager.improperCheckpoint(home.address, root, index, signature),
+        validatorManager.improperCheckpoint(
+          home.address,
+          root,
+          index,
+          signature,
+        ),
       ).to.be.revertedWith('!validator sig');
     });
 
@@ -128,7 +138,12 @@ describe('ValidatorManager', async () => {
       );
       // Send message with signer address as msg.sender
       await expect(
-        validatorManager.improperCheckpoint(home.address, root, index, signature),
+        validatorManager.improperCheckpoint(
+          home.address,
+          root,
+          index,
+          signature,
+        ),
       ).to.be.revertedWith('!improper');
     });
   });

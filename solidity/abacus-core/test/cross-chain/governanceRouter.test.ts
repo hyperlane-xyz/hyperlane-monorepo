@@ -25,6 +25,7 @@ const thirdDomain = 3000;
 const domains = [governorDomain, nonGovernorDomain, thirdDomain];
 const processGas = 850000;
 const reserveGas = 15000;
+const nullRoot = '0x' + '00'.repeat(32);
 
 /*
  * Deploy the full Abacus suite on two chains
@@ -127,7 +128,12 @@ describe('GovernanceRouter', async () => {
       reserveGas,
     );
     // The UpdaterManager is unused in this test, but needs to be a contract.
-    await unenrolledReplica.initialize(thirdDomain, unenrolledReplica.address, 0);
+    await unenrolledReplica.initialize(
+      thirdDomain,
+      unenrolledReplica.address,
+      nullRoot,
+      0,
+    );
 
     // Create TransferGovernor message
     const transferGovernorMessage = abacus.governance.formatTransferGovernor(
@@ -361,7 +367,9 @@ describe('GovernanceRouter', async () => {
     await validatorManager.transferOwnership(governorRouter.address);
 
     // check current Validator address on Home
-    let currentValidatorAddr = await validatorManager.validators(governorDomain);
+    let currentValidatorAddr = await validatorManager.validators(
+      governorDomain,
+    );
     expect(currentValidatorAddr).to.equal(
       await abacusDeployment.validator(governorDomain).signer.getAddress(),
     );

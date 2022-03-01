@@ -26,7 +26,7 @@ const localDomain = 2000;
 const remoteDomain = 1000;
 const processGas = 850000;
 const reserveGas = 15000;
-const optimisticSeconds = 3;
+const nullRoot = '0x' + '00'.repeat(32);
 
 describe('Replica', async () => {
   const badRecipientFactories = [
@@ -58,12 +58,17 @@ describe('Replica', async () => {
   beforeEach(async () => {
     const replicaFactory = new TestReplica__factory(signer);
     replica = await replicaFactory.deploy(localDomain, processGas, reserveGas);
-    await replica.initialize(remoteDomain, validatorManager.address, 0);
+    await replica.initialize(
+      remoteDomain,
+      validatorManager.address,
+      nullRoot,
+      0,
+    );
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      replica.initialize(remoteDomain, validatorManager.address, 0),
+      replica.initialize(remoteDomain, validatorManager.address, nullRoot, 0),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
@@ -72,8 +77,9 @@ describe('Replica', async () => {
     const index = 1;
     const { signature } = await validator.signCheckpoint(root, index);
     await replica.checkpoint(root, index, signature);
-    expect(await replica.checkpoints(root)).to.equal(index);
-    expect(await replica.checkpointedIndex()).to.equal(index);
+    const [croot, cindex] = await replica.latestCheckpoint();
+    expect(croot).to.equal(root);
+    expect(cindex).to.equal(index);
   });
 
   it('Rejects signed checkpoint from non-validator', async () => {
@@ -90,8 +96,9 @@ describe('Replica', async () => {
     let index = 10;
     let { signature } = await validator.signCheckpoint(root, index);
     await replica.checkpoint(root, index, signature);
-    expect(await replica.checkpoints(root)).to.equal(index);
-    expect(await replica.checkpointedIndex()).to.equal(index);
+    const [croot, cindex] = await replica.latestCheckpoint();
+    expect(croot).to.equal(root);
+    expect(cindex).to.equal(index);
 
     root = ethers.utils.formatBytes32String('second new root');
     index = 9;

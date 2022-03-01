@@ -47,17 +47,13 @@ contract Home is Version0, MerkleTreeManager, Common {
 
     // Current state of contract
     States public state;
-    // Checkpoints of root => leaf index
-    mapping(bytes32 => uint256) public checkpoints;
     // domain => next available nonce for the domain
     mapping(uint32 => uint32) public nonces;
-    // The latest checkpointed root
-    bytes32 public checkpointedRoot;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[46] private __GAP;
+    uint256[48] private __GAP;
 
     // ============ Events ============
 
@@ -74,6 +70,7 @@ contract Home is Version0, MerkleTreeManager, Common {
         bytes32 indexed messageHash,
         uint256 indexed leafIndex,
         uint64 indexed destinationAndNonce,
+        // Remove checkpointedRoot.
         bytes32 checkpointedRoot,
         bytes message
     );
@@ -159,9 +156,7 @@ contract Home is Version0, MerkleTreeManager, Common {
         uint256 count = count();
         require(count > 0, "!count");
         bytes32 root = root();
-        checkpointedRoot = root;
-        checkpoints[root] = count;
-        emit Checkpoint(root, count);
+        _checkpoint(root, count);
     }
 
     /**
@@ -171,20 +166,6 @@ contract Home is Version0, MerkleTreeManager, Common {
     function fail() external onlyValidatorManager {
         // set contract to FAILED
         state = States.Failed;
-    }
-
-    /**
-     * @notice Returns the latest checkpoint for the Validators to sign.
-     * @return root Latest checkpointed root
-     * @return index Latest checkpointed index
-     */
-    function latestCheckpoint()
-        external
-        view
-        returns (bytes32 root, uint256 index)
-    {
-        root = checkpointedRoot;
-        index = checkpoints[root];
     }
 
     // ============ Internal Functions  ============

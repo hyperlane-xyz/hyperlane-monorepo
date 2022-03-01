@@ -51,15 +51,11 @@ contract Replica is Version0, Common {
     uint8 private entered;
     // Mapping of message leaves to MessageStatus
     mapping(bytes32 => MessageStatus) public messages;
-    // Checkpoints of root => leaf index
-    mapping(bytes32 => uint256) public checkpoints;
-    // The index of the latest checkpoint we've seen.
-    uint256 public checkpointedIndex;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[44] private __GAP;
+    uint256[47] private __GAP;
 
     // ============ Events ============
 
@@ -94,12 +90,13 @@ contract Replica is Version0, Common {
     function initialize(
         uint32 _remoteDomain,
         address _validatorManager,
+        bytes32 _checkpointedRoot,
         uint256 _checkpointedIndex
     ) public initializer {
         __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
-        checkpointedIndex = _checkpointedIndex;
+        _checkpoint(_checkpointedRoot, _checkpointedIndex);
     }
 
     // ============ External Functions ============
@@ -117,7 +114,7 @@ contract Replica is Version0, Common {
         bytes memory _signature
     ) external {
         // ensure that update is more recent than the latest we've seen
-        require(_index > checkpointedIndex, "old checkpoint");
+        require(_index > checkpoints[checkpointedRoot], "old checkpoint");
         // validate validator signature
         require(
             validatorManager.isValidatorSignature(
@@ -128,11 +125,7 @@ contract Replica is Version0, Common {
             ),
             "!validator sig"
         );
-        // checkpoint the root
-        checkpoints[_root] = _index;
-        // update checkpointedIndex
-        checkpointedIndex = _index;
-        emit Checkpoint(_root, _index);
+        _checkpoint(_root, _index);
     }
 
     /**

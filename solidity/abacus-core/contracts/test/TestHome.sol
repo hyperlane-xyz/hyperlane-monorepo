@@ -20,9 +20,7 @@ contract TestHome is Home {
      * @notice Set the ValidatorManager
      * @param _validatorManager Address of the ValidatorManager
      */
-    function testSetValidatorManager(address _validatorManager)
-        external
-    {
+    function testSetValidatorManager(address _validatorManager) external {
         validatorManager = IValidatorManager(_validatorManager);
     }
 }
