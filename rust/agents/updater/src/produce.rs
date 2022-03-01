@@ -65,7 +65,7 @@ impl UpdateProducer {
                         // situations and "auto-heal"
 
                         if let Some(previously_produced_update) = self.db.retrieve_produced_update(current_root)? {
-                            if previously_produced_update.update.previous_root == current_root && previously_produced_update.update.new_root == suggested.new_root {
+                            if previously_produced_update.update.previous_root == current_root && previously_produced_update.update.new_root == suggested.previous_root {
                                 info!(
                                     previous_root = ?previously_produced_update.update.previous_root,
                                     new_root = ?previously_produced_update.update.new_root,
