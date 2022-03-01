@@ -25,6 +25,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TypedMemView__factory>;
     getContractFactory(
+      name: "CheckpointVerifier",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.CheckpointVerifier__factory>;
+    getContractFactory(
       name: "Common",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Common__factory>;
@@ -140,6 +144,10 @@ declare module "hardhat/types/runtime" {
       name: "IMessageRecipient",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IMessageRecipient__factory>;
+    getContractFactory(
+      name: "ISovereignRecipient",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.ISovereignRecipient__factory>;
     getContractFactory(
       name: "IValidatorManager",
       signerOrOptions?: ethers.Signer | FactoryOptions

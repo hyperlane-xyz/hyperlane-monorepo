@@ -6,7 +6,8 @@ import {Version0} from "./Version0.sol";
 import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
-import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
+import {IMessageRecipient, ISovereignRecipient } from "../interfaces/IMessageRecipient.sol";
+import {CheckpointVerifier} from "./Checkpoint.sol";
 // ============ External Imports ============
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
@@ -16,7 +17,7 @@ import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
  * @notice Track root updates on Home,
  * prove and dispatch messages to end recipients.
  */
-contract Replica is Version0, Common {
+contract Replica is Version0, Common, CheckpointVerifier {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -50,7 +51,7 @@ contract Replica is Version0, Common {
     // re-entrancy guard
     uint8 private entered;
     // Mapping of message leaves to MessageStatus
-    mapping(bytes32 => MessageStatus) public messages;
+    mapping(bytes32 => bytes32) public messages;
 
     // ============ Upgrade Gap ============
 
@@ -147,29 +148,47 @@ contract Replica is Version0, Common {
     }
 
     // ============ Public Functions ============
-
-    /**
-     * @notice Given formatted message, attempts to dispatch
-     * message payload to end recipient.
-     * @dev Recipient must implement a `handle` method (refer to IMessageRecipient.sol)
-     * Reverts if formatted message's destination domain is not the Replica's domain,
-     * if message has not been proven,
-     * or if not enough gas is provided for the dispatch transaction.
-     * @param _message Formatted message
-     * @return _success TRUE iff dispatch transaction succeeded
-     */
-    function process(bytes memory _message) public returns (bool _success) {
-        bytes29 _m = _message.ref(0);
-        // ensure message was meant for this domain
-        require(_m.destination() == localDomain, "!destination");
-        // ensure message has been proven
-        bytes32 _messageHash = _m.keccak();
-        require(messages[_messageHash] == MessageStatus.Proven, "!proven");
+    function process(bytes memory _message) public returns (bool) {
         // check re-entrancy guard
         require(entered == 1, "!reentrant");
         entered = 0;
+        bytes29 _m = _message.ref(0);
+        bytes32 _messageHash = _m.keccak();
+        uint32 _origin = _m.origin();
+        address _recipient = _m.recipientAddress();
+
+        require(ISovereignRecipient(_recipient).sovereign() == address(0), "!sovereign");
+        return _process(_m, _messageHash, _origin, _recipient);
+    }
+
+    function sovereignProcess(bytes memory _message, bytes memory _signature) public returns (bool) {
+        // check re-entrancy guard
+        require(entered == 1, "!reentrant");
+        entered = 0;
+        bytes29 _m = _message.ref(0);
+        bytes32 _messageHash = _m.keccak();
+        uint32 _origin = _m.origin();
+        address _recipient = _m.recipientAddress();
+
+        // Sovereign consensus.
+        address _sovereign = ISovereignRecipient(_recipient).sovereign();
+        bytes32 _root = messages[_messageHash];
+        uint256 _index = checkpoints[_root];
+        address _signer = checkpointSigner(_origin, _root, _index, _signature);
+        require(_sovereign == _signer, "!sovereign");
+        return _process(_m, _messageHash, _origin, _recipient);
+    }
+
+    function _process(bytes29 _m, bytes32 _messageHash, uint32 _origin, address _recipient) internal returns (bool _success) {
+        // ensure message was meant for this domain
+        require(_m.destination() == localDomain, "!destination");
+        // ensure message has been proven
+        require(messageStatus(_messageHash) == MessageStatus.Proven, "!proven");
         // update message status as processed
-        messages[_messageHash] = MessageStatus.Processed;
+        messages[_messageHash] = bytes32(uint256(MessageStatus.Processed));
+        // check re-entrancy guard
+        require(entered == 1, "!reentrant");
+        entered = 0;
         // A call running out of gas TYPICALLY errors the whole tx. We want to
         // a) ensure the call has a sufficient amount of gas to make a
         //    meaningful state change.
@@ -178,17 +197,16 @@ contract Replica is Version0, Common {
         // To do this, we require that we have enough gas to process
         // and still return. We then delegate only the minimum processing gas.
         require(gasleft() >= PROCESS_GAS + RESERVE_GAS, "!gas");
-        // get the message recipient
-        address _recipient = _m.recipientAddress();
         // set up for assembly call
         uint256 _toCopy;
         uint256 _maxCopy = 256;
         uint256 _gas = PROCESS_GAS;
+
         // allocate memory for returndata
         bytes memory _returnData = new bytes(_maxCopy);
         bytes memory _calldata = abi.encodeWithSignature(
             "handle(uint32,bytes32,bytes)",
-            _m.origin(),
+            _origin,
             _m.sender(),
             _m.body().clone()
         );
@@ -239,15 +257,26 @@ contract Replica is Version0, Common {
         bytes32[32] calldata _proof,
         uint256 _index
     ) public returns (bool) {
-        // ensure that message has not been proven or processed
-        require(messages[_leaf] == MessageStatus.None, "!MessageStatus.None");
+        // ensure that message has not been processed
+        require(messages[_leaf] != bytes32(uint256(MessageStatus.Processed)), "processed");
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(_leaf, _proof, _index);
         // if the root is valid, change status to Proven
         if (checkpoints[_calculatedRoot] > 0) {
-            messages[_leaf] = MessageStatus.Proven;
+            messages[_leaf] = _calculatedRoot;
             return true;
         }
         return false;
+    }
+
+    function messageStatus(bytes32 _leaf) public view returns(MessageStatus) {
+      bytes32 status = messages[_leaf];
+      if (status == bytes32(uint256(MessageStatus.None))) {
+        return MessageStatus.None;
+      }
+      if (status == bytes32(uint256(MessageStatus.Processed))) {
+        return MessageStatus.Processed;
+      }
+      return MessageStatus.Proven;
     }
 }

@@ -16,7 +16,7 @@ contract TestReplica is Replica {
 
     function setMessageProven(bytes memory _message) external {
         bytes29 _m = _message.ref(0);
-        messages[_m.keccak()] = MessageStatus.Proven;
+        messages[_m.keccak()] = bytes32(uint256(MessageStatus.Proven));
     }
 
     function setCheckpoint(bytes32 _root, uint256 _index) external {

@@ -8,3 +8,11 @@ interface IMessageRecipient {
         bytes memory _message
     ) external;
 }
+interface ISovereignRecipient {
+    function handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes memory _message
+    ) external;
+    function sovereign() external view returns (address);
+}

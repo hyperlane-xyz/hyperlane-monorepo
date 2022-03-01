@@ -4,6 +4,7 @@
 export type { OwnableUpgradeable } from "./OwnableUpgradeable";
 export type { Ownable } from "./Ownable";
 export type { TypedMemView } from "./TypedMemView";
+export type { CheckpointVerifier } from "./CheckpointVerifier";
 export type { Common } from "./Common";
 export type { GovernanceRouter } from "./GovernanceRouter";
 export type { Home } from "./Home";
@@ -33,11 +34,13 @@ export type { ValidatorManager } from "./ValidatorManager";
 export type { Version0 } from "./Version0";
 export type { XAppConnectionManager } from "./XAppConnectionManager";
 export type { IMessageRecipient } from "./IMessageRecipient";
+export type { ISovereignRecipient } from "./ISovereignRecipient";
 export type { IValidatorManager } from "./IValidatorManager";
 
 export { OwnableUpgradeable__factory } from "./factories/OwnableUpgradeable__factory";
 export { Ownable__factory } from "./factories/Ownable__factory";
 export { TypedMemView__factory } from "./factories/TypedMemView__factory";
+export { CheckpointVerifier__factory } from "./factories/CheckpointVerifier__factory";
 export { Common__factory } from "./factories/Common__factory";
 export { GovernanceRouter__factory } from "./factories/GovernanceRouter__factory";
 export { Home__factory } from "./factories/Home__factory";
@@ -67,4 +70,5 @@ export { ValidatorManager__factory } from "./factories/ValidatorManager__factory
 export { Version0__factory } from "./factories/Version0__factory";
 export { XAppConnectionManager__factory } from "./factories/XAppConnectionManager__factory";
 export { IMessageRecipient__factory } from "./factories/IMessageRecipient__factory";
+export { ISovereignRecipient__factory } from "./factories/ISovereignRecipient__factory";
 export { IValidatorManager__factory } from "./factories/IValidatorManager__factory";

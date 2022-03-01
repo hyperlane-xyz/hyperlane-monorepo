@@ -30,6 +30,7 @@ interface XAppConnectionManagerInterface extends ethers.utils.Interface {
     "renounceOwnership()": FunctionFragment;
     "replicaToDomain(address)": FunctionFragment;
     "setHome(address)": FunctionFragment;
+    "sovereigns(address)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "unenrollReplica(address)": FunctionFragment;
   };
@@ -58,6 +59,7 @@ interface XAppConnectionManagerInterface extends ethers.utils.Interface {
     values: [string]
   ): string;
   encodeFunctionData(functionFragment: "setHome", values: [string]): string;
+  encodeFunctionData(functionFragment: "sovereigns", values: [string]): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [string]
@@ -91,6 +93,7 @@ interface XAppConnectionManagerInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "setHome", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "sovereigns", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
@@ -187,6 +190,8 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    sovereigns(arg0: string, overrides?: CallOverrides): Promise<[string]>;
+
     transferOwnership(
       newOwner: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -228,6 +233,8 @@ export class XAppConnectionManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
+  sovereigns(arg0: string, overrides?: CallOverrides): Promise<string>;
+
   transferOwnership(
     newOwner: string,
     overrides?: Overrides & { from?: string | Promise<string> }
@@ -263,6 +270,8 @@ export class XAppConnectionManager extends BaseContract {
     replicaToDomain(arg0: string, overrides?: CallOverrides): Promise<number>;
 
     setHome(_home: string, overrides?: CallOverrides): Promise<void>;
+
+    sovereigns(arg0: string, overrides?: CallOverrides): Promise<string>;
 
     transferOwnership(
       newOwner: string,
@@ -328,6 +337,8 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
+    sovereigns(arg0: string, overrides?: CallOverrides): Promise<BigNumber>;
+
     transferOwnership(
       newOwner: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -374,6 +385,11 @@ export class XAppConnectionManager extends BaseContract {
     setHome(
       _home: string,
       overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    sovereigns(
+      arg0: string,
+      overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
     transferOwnership(

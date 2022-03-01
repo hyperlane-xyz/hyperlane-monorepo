@@ -21,6 +21,7 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface ValidatorManagerInterface extends ethers.utils.Interface {
   functions: {
+    "checkpointSigner(uint32,bytes32,uint256,bytes)": FunctionFragment;
     "domainHash(uint32)": FunctionFragment;
     "improperCheckpoint(address,bytes32,uint256,bytes)": FunctionFragment;
     "isValidatorSignature(uint32,bytes32,uint256,bytes)": FunctionFragment;
@@ -31,6 +32,10 @@ interface ValidatorManagerInterface extends ethers.utils.Interface {
     "validators(uint32)": FunctionFragment;
   };
 
+  encodeFunctionData(
+    functionFragment: "checkpointSigner",
+    values: [BigNumberish, BytesLike, BigNumberish, BytesLike]
+  ): string;
   encodeFunctionData(
     functionFragment: "domainHash",
     values: [BigNumberish]
@@ -61,6 +66,10 @@ interface ValidatorManagerInterface extends ethers.utils.Interface {
     values: [BigNumberish]
   ): string;
 
+  decodeFunctionResult(
+    functionFragment: "checkpointSigner",
+    data: BytesLike
+  ): Result;
   decodeFunctionResult(functionFragment: "domainHash", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "improperCheckpoint",
@@ -140,6 +149,14 @@ export class ValidatorManager extends BaseContract {
   interface: ValidatorManagerInterface;
 
   functions: {
+    checkpointSigner(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<[string]>;
+
     domainHash(
       _domain: BigNumberish,
       overrides?: CallOverrides
@@ -184,6 +201,14 @@ export class ValidatorManager extends BaseContract {
     ): Promise<[string]>;
   };
 
+  checkpointSigner(
+    _domain: BigNumberish,
+    _root: BytesLike,
+    _index: BigNumberish,
+    _signature: BytesLike,
+    overrides?: CallOverrides
+  ): Promise<string>;
+
   domainHash(_domain: BigNumberish, overrides?: CallOverrides): Promise<string>;
 
   improperCheckpoint(
@@ -222,6 +247,14 @@ export class ValidatorManager extends BaseContract {
   validators(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
+    checkpointSigner(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<string>;
+
     domainHash(
       _domain: BigNumberish,
       overrides?: CallOverrides
@@ -299,6 +332,14 @@ export class ValidatorManager extends BaseContract {
   };
 
   estimateGas: {
+    checkpointSigner(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
     domainHash(
       _domain: BigNumberish,
       overrides?: CallOverrides
@@ -344,6 +385,14 @@ export class ValidatorManager extends BaseContract {
   };
 
   populateTransaction: {
+    checkpointSigner(
+      _domain: BigNumberish,
+      _root: BytesLike,
+      _index: BigNumberish,
+      _signature: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
     domainHash(
       _domain: BigNumberish,
       overrides?: CallOverrides

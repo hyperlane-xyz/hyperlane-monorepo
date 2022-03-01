@@ -4,6 +4,7 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {IValidatorManager} from "../interfaces/IValidatorManager.sol";
 import {Home} from "./Home.sol";
+import {CheckpointVerifier} from "./Checkpoint.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/cryptography/ECDSA.sol";
@@ -14,7 +15,7 @@ import {ECDSA} from "@openzeppelin/contracts/cryptography/ECDSA.sol";
  * @notice MVP version of contract that will manage Validator selection and
  * rotataion.
  */
-contract ValidatorManager is IValidatorManager, Ownable {
+contract ValidatorManager is IValidatorManager, CheckpointVerifier, Ownable {
     // Mapping of domain -> validator address.
     mapping(uint32 => address) public validators;
 
@@ -114,18 +115,6 @@ contract ValidatorManager is IValidatorManager, Ownable {
         uint256 _index,
         bytes memory _signature
     ) public view override returns (bool) {
-        bytes32 _digest = keccak256(
-            abi.encodePacked(domainHash(_domain), _root, _index)
-        );
-        _digest = ECDSA.toEthSignedMessageHash(_digest);
-        return (ECDSA.recover(_digest, _signature) == validators[_domain]);
-    }
-
-    /**
-     * @notice Hash of domain concatenated with "OPTICS"
-     * @param _domain the domain to hash
-     */
-    function domainHash(uint32 _domain) public pure returns (bytes32) {
-        return keccak256(abi.encodePacked(_domain, "OPTICS"));
+      return checkpointSigner(_domain, _root, _index, _signature) == validators[_domain];
     }
 }

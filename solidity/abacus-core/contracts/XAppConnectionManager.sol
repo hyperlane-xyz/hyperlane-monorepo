@@ -24,6 +24,7 @@ contract XAppConnectionManager is Ownable {
     mapping(address => uint32) public replicaToDomain;
     // remote Home domain => local Replica address
     mapping(uint32 => address) public domainToReplica;
+    mapping(address => address) public sovereigns;
 
     // ============ Events ============
 
