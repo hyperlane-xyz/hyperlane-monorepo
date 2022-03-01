@@ -159,7 +159,7 @@ export class AgentGCPKey extends AgentKey {
       );
     } else {
       await execCmd(
-        `gcloud secrets create ${identifier} --data-file=${fileName} --inboxtion-policy=automatic --labels=${labels}`,
+        `gcloud secrets create ${identifier} --data-file=${fileName} --replication-policy=automatic --labels=${labels}`,
       );
     }
 
@@ -252,7 +252,7 @@ async function persistAddresses(
   await writeFile(fileName, JSON.stringify(keys));
   if (create) {
     await execCmd(
-      `gcloud secrets create ${addressesIdentifier} --data-file=${fileName} --inboxtion-policy=automatic --labels=environment=${environment}`,
+      `gcloud secrets create ${addressesIdentifier} --data-file=${fileName} --replication-policy=automatic --labels=environment=${environment}`,
     );
   } else {
     await execCmd(

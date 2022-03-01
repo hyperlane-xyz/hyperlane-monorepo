@@ -71,7 +71,7 @@ abstract contract Common is OwnableUpgradeable {
 
     /**
      * @notice Set a new ValidatorManager contract
-     * @dev Outbox(s) will initially be initialized using a trusted ValidatorManager contract;
+     * @dev Outbox(es) will initially be initialized using a trusted ValidatorManager contract;
      * we will progressively decentralize by swapping the trusted contract with a new implementation
      * that implements Validator bonding & slashing, and rules for Validator selection & rotation
      * @param _validatorManager the new ValidatorManager contract

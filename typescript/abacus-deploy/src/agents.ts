@@ -304,7 +304,7 @@ export async function runKeymasterHelmCommand(
         ];
       }),
     ),
-    outboxs: Object.fromEntries(
+    outboxes: Object.fromEntries(
       chains.map((chain) => {
         return [
           chain.name,
