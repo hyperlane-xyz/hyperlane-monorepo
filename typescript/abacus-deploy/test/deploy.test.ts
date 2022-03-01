@@ -8,7 +8,6 @@ import { CoreContractAddresses } from '../src/config/addresses';
 import { deployBridges } from '../src/bridge';
 import { BridgeDeploy } from '../src/bridge/BridgeDeploy';
 import {
-  deployTwoChains,
   deployNChains,
 } from '../src/core';
 import { CoreDeploy } from '../src/core/CoreDeploy';
@@ -41,7 +40,7 @@ describe('core deploy scripts', async () => {
 
       // deploy abacus contracts on 2 chains
       // will test inside deploy function
-      await deployTwoChains(deploys[0], deploys[1]);
+      await deployNChains([deploys[0], deploys[1]]);
     });
   });
 

@@ -155,7 +155,7 @@ export async function deployUnenrolledReplica(
 
   let initData = replica.createInterface().encodeFunctionData('initialize', [
     remote.chain.domain,
-    remote.validator,
+    local.contracts.validatorManager!.address,
     nullRoot,
     0
   ]);
@@ -364,6 +364,26 @@ export async function enrollGovernanceRouter(
 }
 
 /**
+ * Enrolls a remote validator on the local chain.
+ *
+ * @param local - The local deploy instance
+ * @param remote - The remote deploy instance
+ */
+export async function enrollValidator(local: CoreDeploy, remote: CoreDeploy) {
+  const isTestDeploy = local.test;
+  log(isTestDeploy, `${local.chain.name}: starting validator enrollment`);
+
+  let tx = await local.contracts.validatorManager!.setValidator(
+    remote.chain.domain,
+    remote.validator,
+    local.overrides,
+  );
+  await tx.wait(local.chain.confirmations);
+
+  log(isTestDeploy, `${local.chain.name}: validator enrollment done`);
+}
+
+/**
  * Enrolls a remote Replica, GovernanceRouter and Watchers on the local chain.
  *
  * @param local - The local deploy instance
@@ -373,6 +393,7 @@ export async function enrollRemote(local: CoreDeploy, remote: CoreDeploy) {
   await deployUnenrolledReplica(local, remote);
   await enrollReplica(local, remote);
   await enrollGovernanceRouter(local, remote);
+  await enrollValidator(local, remote);
 }
 
 /**
@@ -414,68 +435,6 @@ export async function appointGovernor(gov: CoreDeploy) {
     );
     await tx.wait(gov.chain.confirmations);
     log(gov.test, `${gov.chain.name}: root governorship transferred`);
-  }
-}
-
-/**
- * Deploys the entire abacus suite of contracts on two chains.
- *
- * @notice `gov` has the governance capability after setup
- *
- * @param gov - The governor chain deploy instance
- * @param non - The non-governor chain deploy instance
- */
-export async function deployTwoChains(gov: CoreDeploy, non: CoreDeploy) {
-  const isTestDeploy: boolean = gov.test || non.test;
-
-  log(isTestDeploy, 'Beginning Two Chain deploy process');
-  log(isTestDeploy, `Deploy env is ${gov.config.environment}`);
-  log(isTestDeploy, `${gov.chain.name} is governing`);
-  log(isTestDeploy, `Updater for ${gov.chain.name} Home is ${gov.validator}`);
-  log(isTestDeploy, `Updater for ${non.chain.name} Home is ${non.validator}`);
-
-  log(isTestDeploy, 'awaiting provider ready');
-  await Promise.all([gov.ready(), non.ready()]);
-  log(isTestDeploy, 'done readying');
-
-  await Promise.all([deployAbacus(gov), deployAbacus(non)]);
-
-  log(isTestDeploy, 'initial deploys done');
-
-  await Promise.all([
-    deployUnenrolledReplica(gov, non),
-    deployUnenrolledReplica(non, gov),
-  ]);
-
-  log(isTestDeploy, 'replica deploys done');
-
-  await Promise.all([enrollReplica(gov, non), enrollReplica(non, gov)]);
-
-  log(isTestDeploy, 'replica enrollment done');
-
-  await Promise.all([
-    enrollGovernanceRouter(gov, non),
-    enrollGovernanceRouter(non, gov),
-  ]);
-
-  if (gov.governor) {
-    log(isTestDeploy, `appoint governor: ${gov.governor}`);
-    await appointGovernor(gov);
-  }
-
-  await transferGovernorship(gov, non);
-
-  await Promise.all([relinquish(gov), relinquish(non)]);
-
-  // checks deploys are correct
-  const checker = new CoreInvariantChecker([gov, non]);
-  await checker.checkDeploys();
-  checker.expectEmpty();
-
-  if (!isTestDeploy) {
-    gov.writeDeployOutput();
-    non.writeDeployOutput();
-    writeRustConfigs([gov, non]);
   }
 }
 
