@@ -146,7 +146,7 @@ export class ValidatorManager extends BaseContract {
     ): Promise<[string]>;
 
     improperCheckpoint(
-      _home: string,
+      _outbox: string,
       _root: BytesLike,
       _index: BigNumberish,
       _signature: BytesLike,
@@ -187,7 +187,7 @@ export class ValidatorManager extends BaseContract {
   domainHash(_domain: BigNumberish, overrides?: CallOverrides): Promise<string>;
 
   improperCheckpoint(
-    _home: string,
+    _outbox: string,
     _root: BytesLike,
     _index: BigNumberish,
     _signature: BytesLike,
@@ -228,7 +228,7 @@ export class ValidatorManager extends BaseContract {
     ): Promise<string>;
 
     improperCheckpoint(
-      _home: string,
+      _outbox: string,
       _root: BytesLike,
       _index: BigNumberish,
       _signature: BytesLike,
@@ -263,7 +263,7 @@ export class ValidatorManager extends BaseContract {
 
   filters: {
     ImproperCheckpoint(
-      home?: string | null,
+      outbox?: string | null,
       domain?: BigNumberish | null,
       validator?: string | null,
       root?: null,
@@ -272,7 +272,7 @@ export class ValidatorManager extends BaseContract {
     ): TypedEventFilter<
       [string, number, string, string, BigNumber, string],
       {
-        home: string;
+        outbox: string;
         domain: number;
         validator: string;
         root: string;
@@ -305,7 +305,7 @@ export class ValidatorManager extends BaseContract {
     ): Promise<BigNumber>;
 
     improperCheckpoint(
-      _home: string,
+      _outbox: string,
       _root: BytesLike,
       _index: BigNumberish,
       _signature: BytesLike,
@@ -350,7 +350,7 @@ export class ValidatorManager extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     improperCheckpoint(
-      _home: string,
+      _outbox: string,
       _root: BytesLike,
       _index: BigNumberish,
       _signature: BytesLike,

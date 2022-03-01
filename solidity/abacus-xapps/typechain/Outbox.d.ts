@@ -19,7 +19,7 @@ import { Listener, Provider } from "@ethersproject/providers";
 import { FunctionFragment, EventFragment, Result } from "@ethersproject/abi";
 import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
-interface TestHomeInterface extends ethers.utils.Interface {
+interface OutboxInterface extends ethers.utils.Interface {
   functions: {
     "MAX_MESSAGE_BODY_BYTES()": FunctionFragment;
     "VERSION()": FunctionFragment;
@@ -27,7 +27,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
     "checkpointedRoot()": FunctionFragment;
     "checkpoints(bytes32)": FunctionFragment;
     "count()": FunctionFragment;
-    "destinationAndNonce(uint32,uint32)": FunctionFragment;
     "dispatch(uint32,bytes32,bytes)": FunctionFragment;
     "fail()": FunctionFragment;
     "initialize(address)": FunctionFragment;
@@ -39,7 +38,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
     "root()": FunctionFragment;
     "setValidatorManager(address)": FunctionFragment;
     "state()": FunctionFragment;
-    "testSetValidatorManager(address)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "tree()": FunctionFragment;
     "validatorManager()": FunctionFragment;
@@ -63,10 +61,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
     values: [BytesLike]
   ): string;
   encodeFunctionData(functionFragment: "count", values?: undefined): string;
-  encodeFunctionData(
-    functionFragment: "destinationAndNonce",
-    values: [BigNumberish, BigNumberish]
-  ): string;
   encodeFunctionData(
     functionFragment: "dispatch",
     values: [BigNumberish, BytesLike, BytesLike]
@@ -97,10 +91,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(functionFragment: "state", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "testSetValidatorManager",
-    values: [string]
-  ): string;
-  encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [string]
   ): string;
@@ -125,10 +115,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "count", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "destinationAndNonce",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "dispatch", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "fail", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "initialize", data: BytesLike): Result;
@@ -152,10 +138,6 @@ interface TestHomeInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "state", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "testSetValidatorManager",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
@@ -181,7 +163,7 @@ interface TestHomeInterface extends ethers.utils.Interface {
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
 
-export class TestHome extends BaseContract {
+export class Outbox extends BaseContract {
   connect(signerOrProvider: Signer | Provider | string): this;
   attach(addressOrName: string): this;
   deployed(): Promise<this>;
@@ -222,7 +204,7 @@ export class TestHome extends BaseContract {
     toBlock?: string | number | undefined
   ): Promise<Array<TypedEvent<EventArgsArray & EventArgsObject>>>;
 
-  interface: TestHomeInterface;
+  interface: OutboxInterface;
 
   functions: {
     MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<[BigNumber]>;
@@ -241,12 +223,6 @@ export class TestHome extends BaseContract {
     ): Promise<[BigNumber]>;
 
     count(overrides?: CallOverrides): Promise<[BigNumber]>;
-
-    destinationAndNonce(
-      _destination: BigNumberish,
-      _nonce: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<[BigNumber]>;
 
     dispatch(
       _destinationDomain: BigNumberish,
@@ -287,11 +263,6 @@ export class TestHome extends BaseContract {
 
     state(overrides?: CallOverrides): Promise<[number]>;
 
-    testSetValidatorManager(
-      _validatorManager: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     transferOwnership(
       newOwner: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -317,12 +288,6 @@ export class TestHome extends BaseContract {
   checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
   count(overrides?: CallOverrides): Promise<BigNumber>;
-
-  destinationAndNonce(
-    _destination: BigNumberish,
-    _nonce: BigNumberish,
-    overrides?: CallOverrides
-  ): Promise<BigNumber>;
 
   dispatch(
     _destinationDomain: BigNumberish,
@@ -363,11 +328,6 @@ export class TestHome extends BaseContract {
 
   state(overrides?: CallOverrides): Promise<number>;
 
-  testSetValidatorManager(
-    _validatorManager: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   transferOwnership(
     newOwner: string,
     overrides?: Overrides & { from?: string | Promise<string> }
@@ -389,12 +349,6 @@ export class TestHome extends BaseContract {
     checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
     count(overrides?: CallOverrides): Promise<BigNumber>;
-
-    destinationAndNonce(
-      _destination: BigNumberish,
-      _nonce: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
 
     dispatch(
       _destinationDomain: BigNumberish,
@@ -430,11 +384,6 @@ export class TestHome extends BaseContract {
     ): Promise<void>;
 
     state(overrides?: CallOverrides): Promise<number>;
-
-    testSetValidatorManager(
-      _validatorManager: string,
-      overrides?: CallOverrides
-    ): Promise<void>;
 
     transferOwnership(
       newOwner: string,
@@ -502,12 +451,6 @@ export class TestHome extends BaseContract {
 
     count(overrides?: CallOverrides): Promise<BigNumber>;
 
-    destinationAndNonce(
-      _destination: BigNumberish,
-      _nonce: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
-
     dispatch(
       _destinationDomain: BigNumberish,
       _recipientAddress: BytesLike,
@@ -545,11 +488,6 @@ export class TestHome extends BaseContract {
 
     state(overrides?: CallOverrides): Promise<BigNumber>;
 
-    testSetValidatorManager(
-      _validatorManager: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     transferOwnership(
       newOwner: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -579,12 +517,6 @@ export class TestHome extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     count(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    destinationAndNonce(
-      _destination: BigNumberish,
-      _nonce: BigNumberish,
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
 
     dispatch(
       _destinationDomain: BigNumberish,
@@ -625,11 +557,6 @@ export class TestHome extends BaseContract {
     ): Promise<PopulatedTransaction>;
 
     state(overrides?: CallOverrides): Promise<PopulatedTransaction>;
-
-    testSetValidatorManager(
-      _validatorManager: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
 
     transferOwnership(
       newOwner: string,

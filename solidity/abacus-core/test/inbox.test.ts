@@ -58,12 +58,7 @@ describe('Inbox', async () => {
   beforeEach(async () => {
     const inboxFactory = new TestInbox__factory(signer);
     inbox = await inboxFactory.deploy(localDomain, processGas, reserveGas);
-    await inbox.initialize(
-      remoteDomain,
-      validatorManager.address,
-      nullRoot,
-      0,
-    );
+    await inbox.initialize(remoteDomain, validatorManager.address, nullRoot, 0);
   });
 
   it('Cannot be initialized twice', async () => {
@@ -116,8 +111,8 @@ describe('Inbox', async () => {
     await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
     // Ensure proper static call return value
-    expect(await inbox.callStatic.prove(leaf, path as BytesArray, index)).to
-      .be.true;
+    expect(await inbox.callStatic.prove(leaf, path as BytesArray, index)).to.be
+      .true;
 
     await inbox.prove(leaf, path as BytesArray, index);
     expect(await inbox.messages(leaf)).to.equal(MessageStatus.PENDING);
@@ -151,8 +146,8 @@ describe('Inbox', async () => {
 
     await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
-    expect(await inbox.callStatic.prove(leaf, path as BytesArray, index)).to
-      .be.false;
+    expect(await inbox.callStatic.prove(leaf, path as BytesArray, index)).to.be
+      .false;
 
     await inbox.prove(leaf, path as BytesArray, index);
     expect(await inbox.messages(leaf)).to.equal(MessageStatus.NONE);
@@ -349,9 +344,7 @@ describe('Inbox', async () => {
 
     await inbox.proveAndProcess(abacusMessage, path as BytesArray, index);
 
-    expect(await inbox.messages(messageHash)).to.equal(
-      MessageStatus.PROCESSED,
-    );
+    expect(await inbox.messages(messageHash)).to.equal(MessageStatus.PROCESSED);
   });
 
   it('Has proveAndProcess fail if prove fails', async () => {

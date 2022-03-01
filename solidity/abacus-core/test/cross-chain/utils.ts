@@ -44,7 +44,10 @@ export async function dispatchMessage(
  *
  * @param messages - Message[]
  */
-export async function dispatchMessages(outbox: Outbox, messages: MessageDetails[]) {
+export async function dispatchMessages(
+  outbox: Outbox,
+  messages: MessageDetails[],
+) {
   for (let message of messages) {
     await dispatchMessage(outbox, message);
   }

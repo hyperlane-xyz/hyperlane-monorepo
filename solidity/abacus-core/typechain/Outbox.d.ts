@@ -19,7 +19,7 @@ import { Listener, Provider } from "@ethersproject/providers";
 import { FunctionFragment, EventFragment, Result } from "@ethersproject/abi";
 import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
-interface HomeInterface extends ethers.utils.Interface {
+interface OutboxInterface extends ethers.utils.Interface {
   functions: {
     "MAX_MESSAGE_BODY_BYTES()": FunctionFragment;
     "VERSION()": FunctionFragment;
@@ -163,7 +163,7 @@ interface HomeInterface extends ethers.utils.Interface {
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
 
-export class Home extends BaseContract {
+export class Outbox extends BaseContract {
   connect(signerOrProvider: Signer | Provider | string): this;
   attach(addressOrName: string): this;
   deployed(): Promise<this>;
@@ -204,7 +204,7 @@ export class Home extends BaseContract {
     toBlock?: string | number | undefined
   ): Promise<Array<TypedEvent<EventArgsArray & EventArgsObject>>>;
 
-  interface: HomeInterface;
+  interface: OutboxInterface;
 
   functions: {
     MAX_MESSAGE_BODY_BYTES(overrides?: CallOverrides): Promise<[BigNumber]>;

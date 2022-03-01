@@ -66,7 +66,9 @@ describe('ValidatorManager', async () => {
     // hash for local domain of 1000)
     for (let testCase of outboxDomainHashCases) {
       const { expectedDomainHash } = testCase;
-      const domainHash = await validatorManager.domainHash(testCase.outboxDomain);
+      const domainHash = await validatorManager.domainHash(
+        testCase.outboxDomain,
+      );
       expect(domainHash).to.equal(expectedDomainHash);
     }
   });

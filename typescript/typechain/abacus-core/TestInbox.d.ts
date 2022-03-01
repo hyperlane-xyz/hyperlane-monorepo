@@ -19,7 +19,7 @@ import { Listener, Provider } from "@ethersproject/providers";
 import { FunctionFragment, EventFragment, Result } from "@ethersproject/abi";
 import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
-interface ReplicaInterface extends ethers.utils.Interface {
+interface TestInboxInterface extends ethers.utils.Interface {
   functions: {
     "PROCESS_GAS()": FunctionFragment;
     "RESERVE_GAS()": FunctionFragment;
@@ -37,7 +37,11 @@ interface ReplicaInterface extends ethers.utils.Interface {
     "proveAndProcess(bytes,bytes32[32],uint256)": FunctionFragment;
     "remoteDomain()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
+    "setCheckpoint(bytes32,uint256)": FunctionFragment;
+    "setMessageProven(bytes)": FunctionFragment;
     "setValidatorManager(address)": FunctionFragment;
+    "testBranchRoot(bytes32,bytes32[32],uint256)": FunctionFragment;
+    "testProcess(bytes)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "validatorManager()": FunctionFragment;
   };
@@ -169,8 +173,61 @@ interface ReplicaInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
   encodeFunctionData(
+    functionFragment: "setCheckpoint",
+    values: [BytesLike, BigNumberish]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setMessageProven",
+    values: [BytesLike]
+  ): string;
+  encodeFunctionData(
     functionFragment: "setValidatorManager",
     values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "testBranchRoot",
+    values: [
+      BytesLike,
+      [
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike
+      ],
+      BigNumberish
+    ]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "testProcess",
+    values: [BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
@@ -225,7 +282,23 @@ interface ReplicaInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "setCheckpoint",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setMessageProven",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "setValidatorManager",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "testBranchRoot",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "testProcess",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -250,7 +323,7 @@ interface ReplicaInterface extends ethers.utils.Interface {
   getEvent(nameOrSignatureOrTopic: "Process"): EventFragment;
 }
 
-export class Replica extends BaseContract {
+export class TestInbox extends BaseContract {
   connect(signerOrProvider: Signer | Provider | string): this;
   attach(addressOrName: string): this;
   deployed(): Promise<this>;
@@ -291,7 +364,7 @@ export class Replica extends BaseContract {
     toBlock?: string | number | undefined
   ): Promise<Array<TypedEvent<EventArgsArray & EventArgsObject>>>;
 
-  interface: ReplicaInterface;
+  interface: TestInboxInterface;
 
   functions: {
     PROCESS_GAS(overrides?: CallOverrides): Promise<[BigNumber]>;
@@ -423,8 +496,64 @@ export class Replica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
+    setCheckpoint(
+      _root: BytesLike,
+      _index: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    setMessageProven(
+      _message: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
     setValidatorManager(
       _validatorManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    testBranchRoot(
+      leaf: BytesLike,
+      proof: [
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike
+      ],
+      index: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<[string]>;
+
+    testProcess(
+      _message: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -562,8 +691,64 @@ export class Replica extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
+  setCheckpoint(
+    _root: BytesLike,
+    _index: BigNumberish,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  setMessageProven(
+    _message: BytesLike,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
   setValidatorManager(
     _validatorManager: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  testBranchRoot(
+    leaf: BytesLike,
+    proof: [
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike,
+      BytesLike
+    ],
+    index: BigNumberish,
+    overrides?: CallOverrides
+  ): Promise<string>;
+
+  testProcess(
+    _message: BytesLike,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -696,10 +881,66 @@ export class Replica extends BaseContract {
 
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
+    setCheckpoint(
+      _root: BytesLike,
+      _index: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    setMessageProven(
+      _message: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
     setValidatorManager(
       _validatorManager: string,
       overrides?: CallOverrides
     ): Promise<void>;
+
+    testBranchRoot(
+      leaf: BytesLike,
+      proof: [
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike
+      ],
+      index: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<string>;
+
+    testProcess(
+      _message: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<boolean>;
 
     transferOwnership(
       newOwner: string,
@@ -865,8 +1106,64 @@ export class Replica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
+    setCheckpoint(
+      _root: BytesLike,
+      _index: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    setMessageProven(
+      _message: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
     setValidatorManager(
       _validatorManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    testBranchRoot(
+      leaf: BytesLike,
+      proof: [
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike
+      ],
+      index: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<BigNumber>;
+
+    testProcess(
+      _message: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -1009,8 +1306,64 @@ export class Replica extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
+    setCheckpoint(
+      _root: BytesLike,
+      _index: BigNumberish,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    setMessageProven(
+      _message: BytesLike,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
     setValidatorManager(
       _validatorManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    testBranchRoot(
+      leaf: BytesLike,
+      proof: [
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike,
+        BytesLike
+      ],
+      index: BigNumberish,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
+
+    testProcess(
+      _message: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 

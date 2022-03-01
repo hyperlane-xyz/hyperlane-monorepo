@@ -48,10 +48,7 @@ describe('XAppConnectionManager', async () => {
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     connectionManager = await connectionManagerFactory.deploy();
     await connectionManager.setOutbox(outbox.address);
-    await connectionManager.enrollInbox(
-      enrolledInbox.address,
-      remoteDomain,
-    );
+    await connectionManager.enrollInbox(enrolledInbox.address, remoteDomain);
   });
 
   it('Returns the local domain', async () => {
@@ -67,8 +64,7 @@ describe('XAppConnectionManager', async () => {
 
   it('isInbox returns true for enrolledInbox and false for non-enrolled Inbox', async () => {
     const [nonEnrolledInbox] = await ethers.getSigners();
-    expect(await connectionManager.isInbox(enrolledInbox.address)).to.be
-      .true;
+    expect(await connectionManager.isInbox(enrolledInbox.address)).to.be.true;
     expect(await connectionManager.isInbox(nonEnrolledInbox.address)).to.be
       .false;
   });
@@ -100,9 +96,9 @@ describe('XAppConnectionManager', async () => {
     expect(await connectionManager.domainToInbox(newRemoteDomain)).to.equal(
       newInbox.address,
     );
-    expect(
-      await connectionManager.inboxToDomain(newInbox.address),
-    ).to.equal(newRemoteDomain);
+    expect(await connectionManager.inboxToDomain(newInbox.address)).to.equal(
+      newRemoteDomain,
+    );
     expect(await connectionManager.isInbox(newInbox.address)).to.be.true;
   });
 
@@ -117,7 +113,6 @@ describe('XAppConnectionManager', async () => {
     expect(await connectionManager.domainToInbox(localDomain)).to.equal(
       ethers.constants.AddressZero,
     );
-    expect(await connectionManager.isInbox(enrolledInbox.address)).to.be
-      .false;
+    expect(await connectionManager.isInbox(enrolledInbox.address)).to.be.false;
   });
 });

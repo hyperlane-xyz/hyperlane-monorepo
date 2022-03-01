@@ -59,7 +59,10 @@ describe('SimpleCrossChainMessage', async () => {
     const messages = ['message'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    await utils.dispatchMessages(abacusDeployment.outbox(localDomain), messages);
+    await utils.dispatchMessages(
+      abacusDeployment.outbox(localDomain),
+      messages,
+    );
   });
 
   it('Destination Inbox accepts a checkpoint', async () => {
@@ -72,7 +75,10 @@ describe('SimpleCrossChainMessage', async () => {
     const messages = ['message1', 'message2', 'message3'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    await utils.dispatchMessages(abacusDeployment.outbox(localDomain), messages);
+    await utils.dispatchMessages(
+      abacusDeployment.outbox(localDomain),
+      messages,
+    );
   });
 
   it('Destination Inbox Accepts a second checkpoint', async () => {
@@ -127,8 +133,6 @@ describe('SimpleCrossChainMessage', async () => {
 
     // expect call to have been processed
     expect(await TestRecipient.processed()).to.be.true;
-    expect(await inbox.messages(messageHash)).to.equal(
-      MessageStatus.PROCESSED,
-    );
+    expect(await inbox.messages(messageHash)).to.equal(MessageStatus.PROCESSED);
   });
 });

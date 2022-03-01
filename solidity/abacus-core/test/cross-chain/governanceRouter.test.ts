@@ -171,10 +171,9 @@ describe('GovernanceRouter', async () => {
     await nonGovernorInboxOnGovernorChain.setMessageProven(abacusMessage);
 
     // Expect inbox processing to fail when nonGovernorRouter reverts in handle
-    let success =
-      await nonGovernorInboxOnGovernorChain.callStatic.testProcess(
-        abacusMessage,
-      );
+    let success = await nonGovernorInboxOnGovernorChain.callStatic.testProcess(
+      abacusMessage,
+    );
     expect(success).to.be.false;
   });
 
@@ -265,10 +264,9 @@ describe('GovernanceRouter', async () => {
     );
 
     // Expect successful tx
-    let success =
-      await governorInboxOnNonGovernorChain.callStatic.testProcess(
-        abacusMessage,
-      );
+    let success = await governorInboxOnNonGovernorChain.callStatic.testProcess(
+      abacusMessage,
+    );
 
     expect(success).to.be.true;
   });
