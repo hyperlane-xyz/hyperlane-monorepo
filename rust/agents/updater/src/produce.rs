@@ -95,11 +95,10 @@ impl UpdateProducer {
                 sleep(Duration::from_secs(self.interval_seconds)).await;
 
                 let current_root = self.find_latest_root()?;
-                info!(current_root = ?current_root, "Producer latest root");
-
 
                 if let Some(suggested) = self.home.produce_update().await? {
                     if suggested.previous_root != current_root {
+                        info!(current_root = ?current_root, "Producer latest root");
                         // This either indicates that the indexer is catching
                         // up or that the chain is awaiting a new update. We 
                         // should ignore it.
