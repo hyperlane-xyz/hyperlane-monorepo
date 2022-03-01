@@ -47,28 +47,17 @@ contract Replica is Version0, Common {
 
     // Domain of home chain
     uint32 public remoteDomain;
-    // Number of seconds to wait before root becomes confirmable
-    uint256 public optimisticSeconds;
     // re-entrancy guard
     uint8 private entered;
-    // Mapping of roots to allowable confirmation times
-    mapping(bytes32 => uint256) public confirmAt;
     // Mapping of message leaves to MessageStatus
     mapping(bytes32 => MessageStatus) public messages;
-    // address responsible for Updater rotation
-    address private _owner;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[44] private __GAP;
+    uint256[47] private __GAP;
 
     // ============ Events ============
-
-    event OwnershipTransferred(
-        address indexed previousOwner,
-        address indexed newOwner
-    );
 
     /**
      * @notice Emitted when message is processed
@@ -100,71 +89,43 @@ contract Replica is Version0, Common {
 
     function initialize(
         uint32 _remoteDomain,
-        address _updater,
-        bytes32 _committedRoot,
-        uint256 _optimisticSeconds
+        address _validatorManager,
+        bytes32 _checkpointedRoot,
+        uint256 _checkpointedIndex
     ) public initializer {
-        __Common_initialize(_updater);
+        __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
-        committedRoot = _committedRoot;
-        confirmAt[_committedRoot] = 1;
-        optimisticSeconds = _optimisticSeconds;
-        transferOwnership(msg.sender);
-    }
-
-    // ============ Modifiers ============
-
-    /**
-     * @notice Ensures that function is called by the owner
-     * @dev NOTE THAT WHEN OWNER IS THE NULL ADDRESS ANYONE CAN CALL ONLYOWNER
-     * FUNCTIONS. This is to allow the owner to be set post-facto. As such,
-     * renouncing ownership to the null address is unsafe and disabled.
-     */
-    modifier onlyOwner() {
-        bool ok = msg.sender == owner() || owner() == address(0);
-        require(ok, "!owner");
-        _;
+        _checkpoint(_checkpointedRoot, _checkpointedIndex);
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Set a new Updater
-     * @param _updater the new Updater
+     * @notice Checkpoints the provided root and index given a signature.
+     * @dev Reverts if checkpoints's index is not greater than our latest index.
+     * @param _root Checkpoint's merkle root
+     * @param _index Checkpoint's index
+     * @param _signature Validator's signature on `_root` and `_index`
      */
-    function setUpdater(address _updater) external onlyOwner {
-        _setUpdater(_updater);
-    }
-
-    /**
-     * @notice Called by external agent. Submits the signed update's new root,
-     * marks root's allowable confirmation time, and emits an `Update` event.
-     * @dev Reverts if update doesn't build off latest committedRoot
-     * or if signature is invalid.
-     * @param _oldRoot Old merkle root
-     * @param _newRoot New merkle root
-     * @param _signature Updater's signature on `_oldRoot` and `_newRoot`
-     */
-    function update(
-        bytes32 _oldRoot,
-        bytes32 _newRoot,
+    function checkpoint(
+        bytes32 _root,
+        uint256 _index,
         bytes memory _signature
-    ) external notFailed {
-        // ensure that update is building off the last submitted root
-        require(_oldRoot == committedRoot, "not current update");
-        // validate updater signature
+    ) external {
+        // ensure that update is more recent than the latest we've seen
+        require(_index > checkpoints[checkpointedRoot], "old checkpoint");
+        // validate validator signature
         require(
-            _isUpdaterSignature(_oldRoot, _newRoot, _signature),
-            "!updater sig"
+            validatorManager.isValidatorSignature(
+                remoteDomain,
+                _root,
+                _index,
+                _signature
+            ),
+            "!validator sig"
         );
-        // Hook for future use
-        _beforeUpdate();
-        // set the new root's confirmation timer
-        confirmAt[_newRoot] = block.timestamp + optimisticSeconds;
-        // update committedRoot
-        committedRoot = _newRoot;
-        emit Update(remoteDomain, _oldRoot, _newRoot, _signature);
+        _checkpoint(_root, _index);
     }
 
     /**
@@ -186,23 +147,6 @@ contract Replica is Version0, Common {
     }
 
     // ============ Public Functions ============
-
-    /**
-     * @notice Returns the address of the current owner.
-     */
-    function owner() public view returns (address) {
-        return _owner;
-    }
-
-    /**
-     * @dev Transfers ownership of the contract to a new account (`newOwner`).
-     * Can only be called by the current owner.
-     */
-    function transferOwnership(address newOwner) public onlyOwner {
-        require(newOwner != address(0), "!newOwner");
-        emit OwnershipTransferred(_owner, newOwner);
-        _owner = newOwner;
-    }
 
     /**
      * @notice Given formatted message, attempts to dispatch
@@ -279,21 +223,6 @@ contract Replica is Version0, Common {
     }
 
     /**
-     * @notice Check that the root has been submitted
-     * and that the optimistic timeout period has expired,
-     * meaning the root can be processed
-     * @param _root the Merkle root, submitted in an update, to check
-     * @return TRUE iff root has been submitted & timeout has expired
-     */
-    function acceptableRoot(bytes32 _root) public view returns (bool) {
-        uint256 _time = confirmAt[_root];
-        if (_time == 0) {
-            return false;
-        }
-        return block.timestamp >= _time;
-    }
-
-    /**
      * @notice Attempts to prove the validity of message given its leaf, the
      * merkle proof of inclusion for the leaf, and the index of the leaf.
      * @dev Reverts if message's MessageStatus != None (i.e. if message was
@@ -315,31 +244,10 @@ contract Replica is Version0, Common {
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(_leaf, _proof, _index);
         // if the root is valid, change status to Proven
-        if (acceptableRoot(_calculatedRoot)) {
+        if (checkpoints[_calculatedRoot] > 0) {
             messages[_leaf] = MessageStatus.Proven;
             return true;
         }
         return false;
     }
-
-    /**
-     * @notice Hash of Home domain concatenated with "OPTICS"
-     */
-    function homeDomainHash() public view override returns (bytes32) {
-        return _homeDomainHash(remoteDomain);
-    }
-
-    // ============ Internal Functions ============
-
-    /**
-     * @notice Moves the contract into failed state
-     * @dev Called when a Double Update is submitted
-     */
-    function _fail() internal override {
-        _setFailed();
-    }
-
-    /// @notice Hook for potential future use
-    // solhint-disable-next-line no-empty-blocks
-    function _beforeUpdate() internal {}
 }

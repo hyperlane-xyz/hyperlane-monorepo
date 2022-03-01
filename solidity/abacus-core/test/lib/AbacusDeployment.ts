@@ -3,13 +3,13 @@ import { assert } from 'chai';
 import * as ethers from 'ethers';
 
 import * as types from './types';
-import { Updater } from './core';
+import { Validator } from './core';
 
 import {
   TestHome,
   TestHome__factory,
-  UpdaterManager,
-  UpdaterManager__factory,
+  ValidatorManager,
+  ValidatorManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
   XAppConnectionManager,
@@ -20,8 +20,8 @@ import {
 
 export interface AbacusInstance {
   domain: types.Domain;
-  updater: Updater;
-  updaterManager: UpdaterManager;
+  validator: Validator;
+  validatorManager: ValidatorManager;
   home: TestHome;
   connectionManager: XAppConnectionManager;
   ubc: UpgradeBeaconController;
@@ -30,7 +30,7 @@ export interface AbacusInstance {
 
 const processGas = 850000;
 const reserveGas = 15000;
-const optimisticSeconds = 0;
+const nullRoot = '0x' + '00'.repeat(32);
 
 export class AbacusDeployment {
   constructor(
@@ -57,9 +57,13 @@ export class AbacusDeployment {
     remotes: types.Domain[],
     signer: ethers.Signer,
   ): Promise<AbacusInstance> {
-    const updaterManagerFactory = new UpdaterManager__factory(signer);
-    const updaterManager = await updaterManagerFactory.deploy(
-      await signer.getAddress(),
+    const validatorManagerFactory = new ValidatorManager__factory(signer);
+    const validatorManager = await validatorManagerFactory.deploy();
+    await validatorManager.setValidator(local, await signer.getAddress());
+    await Promise.all(
+      remotes.map(async (remoteDomain) =>
+        validatorManager.setValidator(remoteDomain, await signer.getAddress()),
+      ),
     );
 
     const ubcFactory = new UpgradeBeaconController__factory(signer);
@@ -67,8 +71,7 @@ export class AbacusDeployment {
 
     const homeFactory = new TestHome__factory(signer);
     const home = await homeFactory.deploy(local);
-    await home.initialize(updaterManager.address);
-    await updaterManager.setHome(home.address);
+    await home.initialize(validatorManager.address);
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     const connectionManager = await connectionManagerFactory.deploy();
@@ -84,20 +87,20 @@ export class AbacusDeployment {
       );
       await replica.initialize(
         remoteDomain,
-        await signer.getAddress(),
-        ethers.constants.HashZero,
-        optimisticSeconds,
+        validatorManager.address,
+        nullRoot,
+        0,
       );
-      await connectionManager.ownerEnrollReplica(replica.address, remoteDomain);
+      await connectionManager.enrollReplica(replica.address, remoteDomain);
       replicas[remoteDomain] = replica;
     });
     await Promise.all(deploys);
     return {
       domain: local,
-      updater: await Updater.fromSigner(signer, local),
+      validator: await Validator.fromSigner(signer, local),
       home,
       connectionManager,
-      updaterManager,
+      validatorManager,
       replicas,
       ubc,
     };
@@ -107,7 +110,7 @@ export class AbacusDeployment {
     await this.home(domain).transferOwnership(address);
     await this.ubc(domain).transferOwnership(address);
     await this.connectionManager(domain).transferOwnership(address);
-    await this.updaterManager(domain).transferOwnership(address);
+    await this.validatorManager(domain).transferOwnership(address);
     for (const remote of this.domains) {
       if (remote !== domain) {
         await this.replica(domain, remote).transferOwnership(address);
@@ -123,8 +126,8 @@ export class AbacusDeployment {
     return this.instances[domain].ubc;
   }
 
-  updater(domain: types.Domain): Updater {
-    return this.instances[domain].updater;
+  validator(domain: types.Domain): Validator {
+    return this.instances[domain].validator;
   }
 
   replica(local: types.Domain, remote: types.Domain): TestReplica {
@@ -135,8 +138,8 @@ export class AbacusDeployment {
     return this.instances[domain].connectionManager;
   }
 
-  updaterManager(domain: types.Domain): UpdaterManager {
-    return this.instances[domain].updaterManager;
+  validatorManager(domain: types.Domain): ValidatorManager {
+    return this.instances[domain].validatorManager;
   }
 
   async processMessages() {
@@ -147,29 +150,40 @@ export class AbacusDeployment {
 
   async processMessagesFromDomain(local: types.Domain) {
     const home = this.home(local);
-    const [committedRoot, latestRoot] = await home.suggestUpdate();
+    const [checkpointedRoot] = await home.latestCheckpoint();
 
-    // Find the block number of the last update submitted on Home.
-    const updateFilter = home.filters.Update(null, null, committedRoot);
-    const updates = await home.queryFilter(updateFilter);
-    assert(updates.length === 0 || updates.length === 1);
-    const fromBlock = updates.length === 0 ? 0 : updates[0].blockNumber;
+    // Find the block number of the last checkpoint submitted on Home.
+    const checkpointFilter = home.filters.Checkpoint(checkpointedRoot);
+    const checkpoints = await home.queryFilter(checkpointFilter);
+    assert(checkpoints.length === 0 || checkpoints.length === 1);
+    const fromBlock = checkpoints.length === 0 ? 0 : checkpoints[0].blockNumber;
 
+    await home.checkpoint();
+    const [root, index] = await home.latestCheckpoint();
+    // If there have been no checkpoints since the last checkpoint, return.
+    if (
+      index.eq(0) ||
+      (checkpoints.length == 1 && index.eq(checkpoints[0].args.index))
+    ) {
+      return;
+    }
     // Update the Home and Replicas to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestReplica.
-    const updater = this.updater(local);
-    const { signature } = await updater.signUpdate(committedRoot, latestRoot);
-    await home.update(committedRoot, latestRoot, signature);
+    const validator = this.validator(local);
+    const { signature } = await validator.signCheckpoint(
+      root,
+      index.toNumber(),
+    );
 
     for (const remote of this.domains) {
       if (remote !== local) {
         const replica = this.replica(remote, local);
-        await replica.update(committedRoot, latestRoot, signature);
+        await replica.checkpoint(root, index, signature);
       }
     }
 
-    // Find all messages dispatched on the home since the previous update.
+    // Find all messages dispatched on the home since the previous checkpoint.
     const dispatchFilter = home.filters.Dispatch();
     const dispatches = await home.queryFilter(dispatchFilter, fromBlock);
     for (const dispatch of dispatches) {

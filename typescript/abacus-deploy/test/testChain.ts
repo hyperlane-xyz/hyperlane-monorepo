@@ -14,8 +14,7 @@ const { BigNumber } = ethers;
 
 export async function getTestChain(
   domain: number,
-  updater: string,
-  watchers: string[],
+  validator: string,
   recoveryManager?: string,
   weth?: string,
 ): Promise<[ChainConfig, CoreConfig]> {
@@ -38,13 +37,11 @@ export async function getTestChain(
     {
       environment: DeployEnvironment.dev,
       recoveryTimelock: 1,
-      optimisticSeconds: 3,
       processGas: 850_000,
       reserveGas: 15_000,
       addresses: {
         local: {
-          updater,
-          watchers,
+          validator,
           recoveryManager: recoveryManager || ethers.constants.AddressZero,
         },
       },
@@ -54,15 +51,13 @@ export async function getTestChain(
 
 export async function getTestDeploy(
   domain: number,
-  updater: string,
-  watchers: string[],
+  validator: string,
   recoveryManager?: string,
   weth?: string,
 ): Promise<CoreDeploy> {
   const [chain, config] = await getTestChain(
     domain,
-    updater,
-    watchers,
+    validator,
     recoveryManager,
     weth,
   );

@@ -10,7 +10,7 @@ import * as ethers from 'ethers';
 export class CoreContracts extends Contracts {
   upgradeBeaconController?: contracts.UpgradeBeaconController;
   xAppConnectionManager?: contracts.XAppConnectionManager;
-  updaterManager?: contracts.UpdaterManager;
+  validatorManager?: contracts.ValidatorManager;
   governanceRouter?: BeaconProxy<contracts.GovernanceRouter>;
   home?: BeaconProxy<contracts.Home>;
   replicas: Record<number, BeaconProxy<contracts.Replica>>;
@@ -31,7 +31,7 @@ export class CoreContracts extends Contracts {
     return {
       upgradeBeaconController: this.upgradeBeaconController!.address,
       xAppConnectionManager: this.xAppConnectionManager!.address,
-      updaterManager: this.updaterManager!.address,
+      validatorManager: this.validatorManager!.address,
       governanceRouter: this.governanceRouter!.toObject(),
       home: this.home!.toObject(),
       replicas,
@@ -53,8 +53,8 @@ export class CoreContracts extends Contracts {
         addresses.xAppConnectionManager,
         provider,
       );
-    core.updaterManager = contracts.UpdaterManager__factory.connect(
-      addresses.updaterManager,
+    core.validatorManager = contracts.ValidatorManager__factory.connect(
+      addresses.validatorManager,
       provider,
     );
 

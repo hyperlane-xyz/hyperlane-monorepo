@@ -2,31 +2,17 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {Message} from "../libs/Message.sol";
+import {IValidatorManager} from "../interfaces/IValidatorManager.sol";
 // ============ External Imports ============
-import {ECDSA} from "@openzeppelin/contracts/cryptography/ECDSA.sol";
-import {Initializable} from "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
  * @title Common
  * @author Celo Labs Inc.
  * @notice Shared utilities between Home and Replica.
  */
-abstract contract Common is Initializable {
-    // ============ Enums ============
-
-    // States:
-    //   0 - UnInitialized - before initialize function is called
-    //   note: the contract is initialized at deploy time, so it should never be in this state
-    //   1 - Active - as long as the contract has not become fraudulent
-    //   2 - Failed - after a valid fraud proof has been submitted;
-    //   contract will no longer accept updates or new messages
-    enum States {
-        UnInitialized,
-        Active,
-        Failed
-    }
-
+abstract contract Common is OwnableUpgradeable {
     // ============ Immutable Variables ============
 
     // Domain of chain on which the contract is deployed
@@ -34,12 +20,12 @@ abstract contract Common is Initializable {
 
     // ============ Public Variables ============
 
-    // Address of bonded Updater
-    address public updater;
-    // Current state of contract
-    States public state;
-    // The latest root that has been signed by the Updater
-    bytes32 public committedRoot;
+    // Checkpoints of root => leaf index
+    mapping(bytes32 => uint256) public checkpoints;
+    // The latest checkpointed root
+    bytes32 public checkpointedRoot;
+    // Address of ValidatorManager contract.
+    IValidatorManager public validatorManager;
 
     // ============ Upgrade Gap ============
 
@@ -49,50 +35,20 @@ abstract contract Common is Initializable {
     // ============ Events ============
 
     /**
-     * @notice Emitted when update is made on Home
-     * or unconfirmed update root is submitted on Replica
-     * @param homeDomain Domain of home contract
-     * @param oldRoot Old merkle root
-     * @param newRoot New merkle root
-     * @param signature Updater's signature on `oldRoot` and `newRoot`
+     * @notice Emitted when a root is checkpointed on Home or a signed
+     * checkpoint is relayed to a Replica.
+     * @param root Merkle root
+     * @param index Leaf index
      */
-    event Update(
-        uint32 indexed homeDomain,
-        bytes32 indexed oldRoot,
-        bytes32 indexed newRoot,
-        bytes signature
-    );
+    event Checkpoint(bytes32 indexed root, uint256 indexed index);
 
     /**
-     * @notice Emitted when proof of a double update is submitted,
-     * which sets the contract to FAILED state
-     * @param oldRoot Old root shared between two conflicting updates
-     * @param newRoot Array containing two conflicting new roots
-     * @param signature Signature on `oldRoot` and `newRoot`[0]
-     * @param signature2 Signature on `oldRoot` and `newRoot`[1]
+     * @notice Emitted when the ValidatorManager contract is changed
+     * @param validatorManager The address of the new validatorManager
      */
-    event DoubleUpdate(
-        bytes32 oldRoot,
-        bytes32[2] newRoot,
-        bytes signature,
-        bytes signature2
-    );
-
-    /**
-     * @notice Emitted when Updater is rotated
-     * @param updater The address of the new updater
-     */
-    event NewUpdater(address updater);
+    event NewValidatorManager(address validatorManager);
 
     // ============ Modifiers ============
-
-    /**
-     * @notice Ensures that contract state != FAILED when the function is called
-     */
-    modifier notFailed() {
-        require(state != States.Failed, "failed state");
-        _;
-    }
 
     // ============ Constructor ============
 
@@ -102,102 +58,67 @@ abstract contract Common is Initializable {
 
     // ============ Initializer ============
 
-    function __Common_initialize(address _updater) internal initializer {
-        updater = _updater;
-        state = States.Active;
+    function __Common_initialize(address _validatorManager)
+        internal
+        initializer
+    {
+        // initialize owner
+        __Ownable_init();
+        _setValidatorManager(IValidatorManager(_validatorManager));
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Called by external agent. Checks that signatures on two sets of
-     * roots are valid and that the new roots conflict with each other. If both
-     * cases hold true, the contract is failed and a `DoubleUpdate` event is
-     * emitted.
-     * @dev When `fail()` is called on Home, updater is slashed.
-     * @param _oldRoot Old root shared between two conflicting updates
-     * @param _newRoot Array containing two conflicting new roots
-     * @param _signature Signature on `_oldRoot` and `_newRoot`[0]
-     * @param _signature2 Signature on `_oldRoot` and `_newRoot`[1]
+     * @notice Set a new ValidatorManager contract
+     * @dev Home(s) will initially be initialized using a trusted ValidatorManager contract;
+     * we will progressively decentralize by swapping the trusted contract with a new implementation
+     * that implements Validator bonding & slashing, and rules for Validator selection & rotation
+     * @param _validatorManager the new ValidatorManager contract
      */
-    function doubleUpdate(
-        bytes32 _oldRoot,
-        bytes32[2] calldata _newRoot,
-        bytes calldata _signature,
-        bytes calldata _signature2
-    ) external notFailed {
-        if (
-            Common._isUpdaterSignature(_oldRoot, _newRoot[0], _signature) &&
-            Common._isUpdaterSignature(_oldRoot, _newRoot[1], _signature2) &&
-            _newRoot[0] != _newRoot[1]
-        ) {
-            _fail();
-            emit DoubleUpdate(_oldRoot, _newRoot, _signature, _signature2);
-        }
+    function setValidatorManager(address _validatorManager) external onlyOwner {
+        _setValidatorManager(IValidatorManager(_validatorManager));
     }
 
-    // ============ Public Functions ============
-
     /**
-     * @notice Hash of Home domain concatenated with "OPTICS"
+     * @notice Returns the latest checkpoint for the Validators to sign.
+     * @return root Latest checkpointed root
+     * @return index Latest checkpointed index
      */
-    function homeDomainHash() public view virtual returns (bytes32);
+    function latestCheckpoint()
+        external
+        view
+        returns (bytes32 root, uint256 index)
+    {
+        root = checkpointedRoot;
+        index = checkpoints[root];
+    }
 
     // ============ Internal Functions ============
 
     /**
-     * @notice Hash of Home domain concatenated with "OPTICS"
-     * @param _homeDomain the Home domain to hash
+     * @notice Set the ValidatorManager
+     * @param _validatorManager Address of the ValidatorManager
      */
-    function _homeDomainHash(uint32 _homeDomain)
+    function _setValidatorManager(IValidatorManager _validatorManager)
         internal
-        pure
-        returns (bytes32)
     {
-        return keccak256(abi.encodePacked(_homeDomain, "OPTICS"));
-    }
-
-    /**
-     * @notice Set contract state to FAILED
-     * @dev Called when a valid fraud proof is submitted
-     */
-    function _setFailed() internal {
-        state = States.Failed;
-    }
-
-    /**
-     * @notice Moves the contract into failed state
-     * @dev Called when fraud is proven
-     * (Double Update is submitted on Home or Replica,
-     * or Improper Update is submitted on Home)
-     */
-    function _fail() internal virtual;
-
-    /**
-     * @notice Checks that signature was signed by Updater
-     * @param _oldRoot Old merkle root
-     * @param _newRoot New merkle root
-     * @param _signature Signature on `_oldRoot` and `_newRoot`
-     * @return TRUE iff signature is valid signed by updater
-     **/
-    function _isUpdaterSignature(
-        bytes32 _oldRoot,
-        bytes32 _newRoot,
-        bytes memory _signature
-    ) internal view returns (bool) {
-        bytes32 _digest = keccak256(
-            abi.encodePacked(homeDomainHash(), _oldRoot, _newRoot)
+        require(
+            Address.isContract(address(_validatorManager)),
+            "!contract validatorManager"
         );
-        _digest = ECDSA.toEthSignedMessageHash(_digest);
-        return (ECDSA.recover(_digest, _signature) == updater);
+        validatorManager = _validatorManager;
+        emit NewValidatorManager(address(_validatorManager));
     }
 
     /**
-     * @notice Set the Updater
-     * @param _updater Address of the Updater
+     * @notice Store the provided checkpoint.
+     * @param _root The merkle root
+     * @param _index The next available leaf index of the merkle tree.
      */
-    function _setUpdater(address _updater) internal {
-        updater = _updater;
-        emit NewUpdater(_updater);
+    function _checkpoint(bytes32 _root, uint256 _index) internal {
+        checkpoints[_root] = _index;
+        checkpointedRoot = _root;
+        emit Checkpoint(_root, _index);
     }
 }

@@ -24,7 +24,7 @@ export function blockExplorerURL(
 
 export const STATUS_TO_STRING = {
   [MessageStatus.Dispatched]: 'Dispatched on Home',
-  [MessageStatus.Included]: 'Included in Home Update',
+  [MessageStatus.Included]: 'Included in Home Checkpoint',
   [MessageStatus.Relayed]: 'Relayed to Replica',
   [MessageStatus.Processed]: 'Processed',
 };

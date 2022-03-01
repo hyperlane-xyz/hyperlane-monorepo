@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import { ethers, abacus } from 'hardhat';
 import * as types from 'ethers';
 
-import { Updater } from '../lib/core';
-import { Update, CallData, Address } from '../lib/types';
+import { Validator } from '../lib/core';
+import { CallData, Address } from '../lib/types';
 import {
   Replica,
   TestReplica,
@@ -18,22 +18,17 @@ type MessageDetails = {
 };
 
 /*
- * Dispatch a message from the specified Home contract
- * and return the updated root
+ * Dispatch a message from the specified Home contract.
  *
- * @param chainDetails - ChainDetails type containing every deployed domain
- * @param homeDomain - domain of the Home contract
  * @param messageDetails - Message type containing
  *   the message string,
  *   the destination domain to which the message will be sent,
  *   the recipient address on the destination domain to which the message will be dispatched
- *
- * @return newRoot - bytes32 of the latest root
  */
 export async function dispatchMessage(
   home: Home,
   messageDetails: MessageDetails,
-): Promise<string> {
+) {
   const { message, destinationDomain, recipientAddress } = messageDetails;
 
   // Send message with random signer address as msg.sender
@@ -42,95 +37,37 @@ export async function dispatchMessage(
     abacus.ethersAddressToBytes32(recipientAddress),
     ethers.utils.formatBytes32String(message),
   );
-
-  const [, newRoot] = await home.suggestUpdate();
-
-  return newRoot;
 }
 
 /*
- * Dispatch a set of messages to the specified Home contract,
- * then sign and submit an update to the Home contract
+ * Dispatch a set of messages to the specified Home contract.
  *
- * @param chainDetails - ChainDetails type containing every deployed domain
- * @param homeDomain - domain of the Home contract
  * @param messages - Message[]
- *
- * @return update - Update type
  */
-export async function dispatchMessagesAndUpdateHome(
-  home: Home,
-  messages: MessageDetails[],
-  updater: Updater,
-): Promise<Update> {
-  const homeDomain = await home.localDomain();
-
-  const oldRoot = await home.committedRoot();
-
-  // dispatch each message from Home and get the intermediate root
-  const roots = [];
+export async function dispatchMessages(home: Home, messages: MessageDetails[]) {
   for (let message of messages) {
-    const newRoot = await dispatchMessage(home, message);
-
-    roots.push(newRoot);
+    await dispatchMessage(home, message);
   }
-
-  // ensure that Home queue contains
-  // all of the roots we just enqueued
-  for (let root of roots) {
-    expect(await home.queueContains(root)).to.be.true;
-  }
-
-  // sign & submit an update from oldRoot to newRoot
-  const newRoot = roots[roots.length - 1];
-
-  const { signature } = await updater.signUpdate(oldRoot, newRoot);
-
-  await expect(home.update(oldRoot, newRoot, signature))
-    .to.emit(home, 'Update')
-    .withArgs(homeDomain, oldRoot, newRoot, signature);
-
-  // ensure that Home root is now newRoot
-  expect(await home.committedRoot()).to.equal(newRoot);
-
-  // ensure that Home queue no longer contains
-  // any of the roots we just enqueued -
-  // they should be removed from queue when update is submitted
-  for (let root of roots) {
-    expect(await home.queueContains(root)).to.be.false;
-  }
-
-  return {
-    oldRoot,
-    newRoot,
-    signature,
-  };
 }
 
 /*
- * Submit a signed update to the Replica contract
+ * Checkpoints a Home, signs that checkpoint, and checkpoints the Replica
  *
- * @param chainDetails - ChainDetails type containing every deployed domain
- * @param latestUpdateOnOriginChain - Update type, the last Update submitted to the Home chain for this Replica
- * @param homeDomain - domain of the Home contract from which the update originated
- * @param replicaDomain - domain of the Replica contract where the update will be submitted
- *
- * @return finalRoot - updated state root submitted to the Replica
+ * @param home - The Home contract
+ * @param replica - The Replica contract
+ * @param validator - The Validator
  */
-export async function updateReplica(
-  latestUpdateOnOriginChain: Update,
+export async function checkpoint(
+  home: Home,
   replica: Replica,
-): Promise<string> {
-  const homeDomain = await replica.remoteDomain();
-  const { oldRoot, newRoot, signature } = latestUpdateOnOriginChain;
-
-  await expect(replica.update(oldRoot, newRoot, signature))
-    .to.emit(replica, 'Update')
-    .withArgs(homeDomain, oldRoot, newRoot, signature);
-
-  expect(await replica.committedRoot()).to.equal(newRoot);
-
-  return newRoot;
+  validator: Validator,
+) {
+  await home.checkpoint();
+  const [root, index] = await home.latestCheckpoint();
+  const { signature } = await validator.signCheckpoint(root, index.toNumber());
+  await replica.checkpoint(root, index, signature);
+  const checkpointedIndex = await replica.checkpoints(root);
+  expect(checkpointedIndex).to.equal(index);
 }
 
 /*

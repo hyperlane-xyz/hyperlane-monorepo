@@ -5,9 +5,8 @@ import { CoreDeploy } from './CoreDeploy';
 import {
   VerificationInput,
   ViolationType,
-  HomeUpdaterViolation,
-  ReplicaUpdaterViolation,
-  UpdaterManagerViolation,
+  ValidatorViolation,
+  ValidatorManagerViolation,
   InvariantChecker,
 } from '../checks';
 
@@ -25,6 +24,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     await this.checkReplicas(deploy);
     await this.checkGovernance(deploy);
     await this.checkXAppConnectionManager(deploy);
+    await this.checkValidatorManager(deploy);
     this.checkVerificationInputs(deploy);
   }
 
@@ -34,7 +34,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     expect(contracts.governanceRouter).to.not.be.undefined;
     expect(contracts.upgradeBeaconController).to.not.be.undefined;
     expect(contracts.xAppConnectionManager).to.not.be.undefined;
-    expect(contracts.updaterManager).to.not.be.undefined;
+    expect(contracts.validatorManager).to.not.be.undefined;
     for (const domain in contracts.replicas) {
       expect(contracts.replicas[domain]).to.not.be.undefined;
     }
@@ -43,60 +43,48 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
   async checkHome(deploy: CoreDeploy): Promise<void> {
     // contracts are defined
     const home = deploy.contracts.home!.proxy;
-    // updaterManager is set on Home
-    const actualManager = await home.updaterManager();
-    const expectedManager = deploy.contracts.updaterManager!.address;
+    // validatorManager is set on Home
+    const actualManager = await home.validatorManager();
+    const expectedManager = deploy.contracts.validatorManager!.address;
     if (actualManager !== expectedManager) {
-      const violation: UpdaterManagerViolation = {
+      const violation: ValidatorManagerViolation = {
         domain: deploy.chain.domain,
-        type: ViolationType.UpdaterManager,
+        type: ViolationType.ValidatorManager,
         actual: actualManager,
         expected: expectedManager,
       };
       this.addViolation(violation);
     }
-
-    const actual = await home?.updater()!;
-    expect(actual).to.not.be.undefined;
-    const expected = deploy.updater;
-    if (actual !== expected) {
-      const violation: HomeUpdaterViolation = {
-        domain: deploy.chain.domain,
-        type: ViolationType.HomeUpdater,
-        actual,
-        expected,
-      };
-      this.addViolation(violation);
-    }
   }
 
-  async checkReplicas(deploy: CoreDeploy): Promise<void> {
-    // Check if the Replicas on *remote* domains are set to the updater
-    // configured on our domain.
-    const domain = deploy.chain.domain;
-    const addReplicaUpdaterViolations = async (remoteDeploy: CoreDeploy) => {
-      const replica = remoteDeploy.contracts.replicas[domain];
-      // Sanity check correct replica.
-      const actualRemoteDomain = await replica.proxy.remoteDomain();
-      expect(actualRemoteDomain).to.be.equal(domain);
-      const actual = await replica.proxy.updater();
-      const expected = deploy.updater;
+  async checkValidatorManager(deploy: CoreDeploy): Promise<void> {
+    const manager = deploy.contracts.validatorManager!;
+
+    for (const _deploy of this._deploys) {
+      const expected = _deploy.validator;
+      const actual = await manager.validators(_deploy.chain.domain)!;
+      expect(actual).to.not.be.undefined;
       if (actual !== expected) {
-        const violation: ReplicaUpdaterViolation = {
-          domain: remoteDeploy.chain.domain,
-          remoteDomain: domain,
-          type: ViolationType.ReplicaUpdater,
+        const violation: ValidatorViolation = {
+          local: deploy.chain.domain,
+          remote: _deploy.chain.domain,
+          type: ViolationType.Validator,
           actual,
           expected,
         };
         this.addViolation(violation);
       }
-    };
+    }
+  }
+
+  async checkReplicas(deploy: CoreDeploy): Promise<void> {
+    // Check if the Replicas on *remote* domains are set to the validator
+    // configured on our domain.
+    const domain = deploy.chain.domain;
     const remoteDeploys = this._deploys.filter(
       (d) => d.chain.domain !== domain,
     );
     if (remoteDeploys.length > 0) {
-      await Promise.all(remoteDeploys.map(addReplicaUpdaterViolations));
       // Check that all replicas on this domain share the same implementation and
       // UpgradeBeacon.
       const replicas = Object.values(deploy.contracts.replicas);
@@ -132,7 +120,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     }
 
     const owners = [
-      deploy.contracts.updaterManager?.owner()!,
+      deploy.contracts.validatorManager?.owner()!,
       deploy.contracts.xAppConnectionManager?.owner()!,
       deploy.contracts.upgradeBeaconController?.owner()!,
       deploy.contracts.home?.proxy.owner()!,
@@ -153,17 +141,6 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       const enrolledReplica =
         await deploy.contracts.xAppConnectionManager?.domainToReplica(domain);
       expect(enrolledReplica).to.not.equal(emptyAddr);
-      //watchers have permission in xAppConnectionManager
-      await Promise.all(
-        deploy.watchers.map(async (watcher) => {
-          const watcherPermissions =
-            await deploy.contracts.xAppConnectionManager?.watcherPermission(
-              watcher,
-              domain,
-            );
-          expect(watcherPermissions).to.be.true;
-        }),
-      );
     }
     // Home is set on xAppConnectionManager
     const xAppManagerHome =
@@ -180,7 +157,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       contracts.upgradeBeaconController!,
     ]);
     inputs.push(['XAppConnectionManager', contracts.xAppConnectionManager!]);
-    inputs.push(['UpdaterManager', contracts.updaterManager!]);
+    inputs.push(['ValidatorManager', contracts.validatorManager!]);
     const addInputsForUpgradableContract = (
       contract: BeaconProxy<any>,
       name: string,
