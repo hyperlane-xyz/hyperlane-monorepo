@@ -6,11 +6,6 @@ import { BytesLike, ethers } from 'ethers';
 export interface HardhatAbacusHelpers {
   deployment: any;
   formatMessage: Function;
-  governance: {
-    formatTransferGovernor: Function;
-    formatSetRouter: Function;
-    formatCalls: Function;
-  };
   messageHash: Function;
   ethersAddressToBytes32: Function;
   destinationAndNonce: Function;

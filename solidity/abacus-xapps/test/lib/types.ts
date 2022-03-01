@@ -15,9 +15,15 @@ export interface HardhatBridgeHelpers {
   serializeMessage: Function;
 }
 
+export interface HardhatGovernanceHelpers {
+  formatTransferGovernor: Function;
+  formatSetRouter: Function;
+  formatCalls: Function;
+}
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
     bridge: HardhatBridgeHelpers;
+    governance: HardhatGovernanceHelpers;
   }
 }
 

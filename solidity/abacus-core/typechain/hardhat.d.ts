@@ -29,10 +29,6 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Common__factory>;
     getContractFactory(
-      name: "GovernanceRouter",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.GovernanceRouter__factory>;
-    getContractFactory(
       name: "Inbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Inbox__factory>;
@@ -88,10 +84,6 @@ declare module "hardhat/types/runtime" {
       name: "TestCommon",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestCommon__factory>;
-    getContractFactory(
-      name: "TestGovernanceRouter",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.TestGovernanceRouter__factory>;
     getContractFactory(
       name: "TestInbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
