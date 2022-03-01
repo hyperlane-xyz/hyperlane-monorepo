@@ -146,4 +146,28 @@ describe('Common', async () => {
     }
   });
 
+  it('Calculated domain hash matches Rust-produced domain hash', async () => {
+    // Compare Rust output in json file to solidity output (json file matches
+    // hash for remote domain of 1000)
+    for (let testCase of homeDomainHashTestCases) {
+      // deploy replica
+      const replicaFactory = new TestReplica__factory(signer);
+      const tempReplica = await replicaFactory.deploy(
+        testCase.homeDomain,
+        processGas,
+        reserveGas,
+      );
+      await tempReplica.initialize(
+        testCase.homeDomain,
+        updater.address,
+        ethers.constants.HashZero,
+        optimisticSeconds,
+      );
+
+      const { expectedDomainHash } = testCase;
+      const homeDomainHash = await tempReplica.homeDomainHash();
+      expect(homeDomainHash).to.equal(expectedDomainHash);
+    }
+  });
+
 });

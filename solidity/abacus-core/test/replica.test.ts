@@ -13,6 +13,8 @@ import {
   BadRecipientHandle__factory,
   TestReplica,
   TestReplica__factory,
+  UpdaterManager,
+  UpdaterManager__factory,
   TestRecipient__factory,
 } from '../typechain';
 
@@ -37,23 +39,20 @@ describe('Replica', async () => {
   ];
 
   let replica: TestReplica,
+    updaterManager: UpdaterManager,
     signer: Signer,
     fakeSigner: Signer,
     abacusMessageSender: Signer,
     updater: Updater,
     fakeUpdater: Updater;
 
-  const submitValidUpdate = async (newRoot: string) => {
-    const oldRoot = await replica.committedRoot();
-
-    const { signature } = await updater.signUpdate(oldRoot, newRoot);
-    await replica.update(oldRoot, newRoot, signature);
-  };
-
   before(async () => {
     [signer, fakeSigner, abacusMessageSender] = await ethers.getSigners();
     updater = await Updater.fromSigner(signer, remoteDomain);
     fakeUpdater = await Updater.fromSigner(fakeSigner, remoteDomain);
+    const updaterManagerFactory = new UpdaterManager__factory(signer);
+    updaterManager = await updaterManagerFactory.deploy();
+    await updaterManager.setUpdater(remoteDomain, updater.address);
   });
 
   beforeEach(async () => {
@@ -61,155 +60,53 @@ describe('Replica', async () => {
     replica = await replicaFactory.deploy(localDomain, processGas, reserveGas);
     await replica.initialize(
       remoteDomain,
-      updater.address,
-      ethers.constants.HashZero,
-      optimisticSeconds,
+      updaterManager.address,
+      0
     );
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
       replica.initialize(
-        remoteDomain,
-        updater.address,
-        ethers.constants.HashZero,
-        optimisticSeconds,
+      remoteDomain,
+      updaterManager.address,
+      0
       ),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
-  it('Owner can transfer ownership', async () => {
-    const oldOwner = await replica.owner();
-    const newOwner = fakeUpdater.address;
-    expect(oldOwner).to.not.be.equal(newOwner);
-    await replica.transferOwnership(newOwner);
-    expect(await replica.owner()).to.be.equal(newOwner);
+  it('Accepts signed checkpoint from updater', async () => {
+    const root = ethers.utils.formatBytes32String('first new root');
+    const index = 1
+    const {signature } = await updater.signCheckpoint(root, index);
+    await replica.checkpoint(root, index, signature);
+    expect(await replica.checkpoints(root)).to.equal(index);
+    expect(await replica.checkpointedIndex()).to.equal(index);
   });
 
-  it('Nonowner cannot transfer ownership', async () => {
-    const newOwner = fakeUpdater.address;
+  it('Rejects signed checkpoint from non-updater', async () => {
+    const root = ethers.utils.formatBytes32String('first new root');
+    const index = 1
+    const {signature } = await fakeUpdater.signCheckpoint(root, index);
     await expect(
-      replica.connect(fakeSigner).transferOwnership(newOwner),
-    ).to.be.revertedWith('!owner');
-  });
-
-  it('Owner can rotate updater', async () => {
-    const newUpdater = fakeUpdater.address;
-    await replica.setUpdater(newUpdater);
-    expect(await replica.updater()).to.equal(newUpdater);
-  });
-
-  it('Nonowner cannot rotate updater', async () => {
-    const newUpdater = fakeUpdater.address;
-    await expect(
-      replica.connect(fakeSigner).setUpdater(newUpdater),
-    ).to.be.revertedWith('!owner');
-  });
-
-  it('Halts on fail', async () => {
-    await replica.setFailed();
-    expect(await replica.state()).to.equal(AbacusState.FAILED);
-
-    const newRoot = ethers.utils.formatBytes32String('new root');
-    await expect(submitValidUpdate(newRoot)).to.be.revertedWith('failed state');
-  });
-
-  it('Calculated domain hash matches Rust-produced domain hash', async () => {
-    // Compare Rust output in json file to solidity output (json file matches
-    // hash for remote domain of 1000)
-    for (let testCase of homeDomainHashTestCases) {
-      // deploy replica
-      const replicaFactory = new TestReplica__factory(signer);
-      const tempReplica = await replicaFactory.deploy(
-        testCase.homeDomain,
-        processGas,
-        reserveGas,
-      );
-      await tempReplica.initialize(
-        testCase.homeDomain,
-        updater.address,
-        ethers.constants.HashZero,
-        optimisticSeconds,
-      );
-
-      const { expectedDomainHash } = testCase;
-      const homeDomainHash = await tempReplica.homeDomainHash();
-      expect(homeDomainHash).to.equal(expectedDomainHash);
-    }
-  });
-
-  it('Enqueues pending updates', async () => {
-    const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await submitValidUpdate(firstNewRoot);
-    expect(await replica.committedRoot()).to.equal(firstNewRoot);
-
-    const secondNewRoot = ethers.utils.formatBytes32String('second next root');
-    await submitValidUpdate(secondNewRoot);
-    expect(await replica.committedRoot()).to.equal(secondNewRoot);
-  });
-
-  it('Rejects update with invalid signature', async () => {
-    const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await submitValidUpdate(firstNewRoot);
-
-    const secondNewRoot = ethers.utils.formatBytes32String('second new root');
-    const { signature: fakeSignature } = await fakeUpdater.signUpdate(
-      firstNewRoot,
-      secondNewRoot,
-    );
-
-    await expect(
-      replica.update(firstNewRoot, secondNewRoot, fakeSignature),
+      replica.checkpoint(root, index, signature)
     ).to.be.revertedWith('!updater sig');
   });
 
-  it('Rejects initial update not building off initial root', async () => {
-    const fakeInitialRoot = ethers.utils.formatBytes32String('fake root');
-    const newRoot = ethers.utils.formatBytes32String('new root');
-    const { signature } = await updater.signUpdate(fakeInitialRoot, newRoot);
+  it('Rejects old signed checkpoint from updater', async () => {
+    let root = ethers.utils.formatBytes32String('first new root');
+    let index = 10
+    let {signature } = await updater.signCheckpoint(root, index);
+    await replica.checkpoint(root, index, signature);
+    expect(await replica.checkpoints(root)).to.equal(index);
+    expect(await replica.checkpointedIndex()).to.equal(index);
 
+    root = ethers.utils.formatBytes32String('second new root');
+    index = 9;
+    ({signature } = await updater.signCheckpoint(root, index));
     await expect(
-      replica.update(fakeInitialRoot, newRoot, signature),
+      replica.checkpoint(root, index, signature)
     ).to.be.revertedWith('not current update');
-  });
-
-  it('Rejects updates not building off latest enqueued root', async () => {
-    const firstNewRoot = ethers.utils.formatBytes32String('first new root');
-    await submitValidUpdate(firstNewRoot);
-
-    const fakeLatestRoot = ethers.utils.formatBytes32String('fake root');
-    const secondNewRoot = ethers.utils.formatBytes32String('second new root');
-    const { signature } = await updater.signUpdate(
-      fakeLatestRoot,
-      secondNewRoot,
-    );
-
-    await expect(
-      replica.update(fakeLatestRoot, secondNewRoot, signature),
-    ).to.be.revertedWith('not current update');
-  });
-
-  it('Accepts a double update proof', async () => {
-    const firstRoot = await replica.committedRoot();
-    const secondRoot = ethers.utils.formatBytes32String('second root');
-    const thirdRoot = ethers.utils.formatBytes32String('third root');
-
-    const { signature } = await updater.signUpdate(firstRoot, secondRoot);
-    const { signature: signature2 } = await updater.signUpdate(
-      firstRoot,
-      thirdRoot,
-    );
-
-    await expect(
-      replica.doubleUpdate(
-        firstRoot,
-        [secondRoot, thirdRoot],
-        signature,
-        signature2,
-      ),
-    ).to.emit(replica, 'DoubleUpdate');
-
-    expect(await replica.state()).to.equal(AbacusState.FAILED);
   });
 
   it('Proves a valid message', async () => {
@@ -217,7 +114,7 @@ describe('Replica', async () => {
     const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
-    await replica.setCommittedRoot(testCase.expectedRoot);
+    await replica.setCheckpoint(testCase.expectedRoot, 1);
 
     // Ensure proper static call return value
     expect(await replica.callStatic.prove(leaf, path as BytesArray, index)).to
@@ -231,7 +128,7 @@ describe('Replica', async () => {
     const testCase = merkleTestCases[0];
     let { leaf, index, path } = testCase.proofs[0];
 
-    await replica.setCommittedRoot(testCase.expectedRoot);
+    await replica.setCheckpoint(testCase.expectedRoot, 1);
 
     // Prove message, which changes status to MessageStatus.Pending
     await replica.prove(leaf, path as BytesArray, index);
@@ -253,7 +150,7 @@ describe('Replica', async () => {
     path[0] = path[1];
     path[1] = firstHash;
 
-    await replica.setCommittedRoot(testCase.expectedRoot);
+    await replica.setCheckpoint(testCase.expectedRoot, 1);
 
     expect(await replica.callStatic.prove(leaf, path as BytesArray, index)).to
       .be.false;
@@ -449,7 +346,7 @@ describe('Replica', async () => {
       path as BytesArray,
       index,
     );
-    await replica.setCommittedRoot(proofRoot);
+    await replica.setCheckpoint(proofRoot, 1);
 
     await replica.proveAndProcess(abacusMessage, path as BytesArray, index);
 
@@ -478,13 +375,13 @@ describe('Replica', async () => {
 
     // Ensure root given in proof and actual root don't match so that
     // replica.prove(...) will fail
-    const actualRoot = await replica.committedRoot();
     const proofRoot = await replica.testBranchRoot(
       leaf,
       path as BytesArray,
       index,
     );
-    expect(proofRoot).to.not.equal(actualRoot);
+    const rootIndex = await replica.checkpoints(proofRoot);
+    expect(rootIndex).to.equal(0);
 
     await expect(
       replica.proveAndProcess(abacusMessage, path as BytesArray, index),
