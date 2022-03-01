@@ -72,7 +72,7 @@ describe('EthHelper', async () => {
     });
 
     await expect(sendTx).to.emit(
-      abacusDeployment.home(localDomain),
+      abacusDeployment.outbox(localDomain),
       'Dispatch',
     );
   });
@@ -85,7 +85,7 @@ describe('EthHelper', async () => {
       });
 
     await expect(sendTx).to.emit(
-      abacusDeployment.home(localDomain),
+      abacusDeployment.outbox(localDomain),
       'Dispatch',
     );
   });
@@ -98,7 +98,7 @@ describe('EthHelper', async () => {
       });
 
     await expect(sendTx).to.emit(
-      abacusDeployment.home(localDomain),
+      abacusDeployment.outbox(localDomain),
       'Dispatch',
     );
   });

@@ -6,7 +6,7 @@ export class MetricCollector {
   private numDispatchedGauge: Gauge<string>;
   private numProcessedGauge: Gauge<string>;
   private numUnprocessedGauge: Gauge<string>;
-  private homeStateGauge: Gauge<string>;
+  private outboxStateGauge: Gauge<string>;
   private governorRecoveryActiveAt: Gauge<string>;
 
   private readonly logger: Logger;
@@ -32,9 +32,9 @@ export class MetricCollector {
       labelNames: ['network', 'environment'],
     });
 
-    this.homeStateGauge = new Gauge({
-      name: 'optics_home_state',
-      help: 'Gauge that tracks the state of a home contract for a network',
+    this.outboxStateGauge = new Gauge({
+      name: 'optics_outbox_state',
+      help: 'Gauge that tracks the state of a outbox contract for a network',
       labelNames: ['network', 'environment'],
     });
 
@@ -59,8 +59,8 @@ export class MetricCollector {
     this.numUnprocessedGauge.set({ network, environment }, unprocessed);
   }
 
-  setHomeState(network: string, environment: string, state: number) {
-    this.homeStateGauge.set({ network, environment }, state);
+  setOutboxState(network: string, environment: string, state: number) {
+    this.outboxStateGauge.set({ network, environment }, state);
   }
 
   setGovernorRecoveryActiveAt(

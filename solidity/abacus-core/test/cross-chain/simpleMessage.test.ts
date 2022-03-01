@@ -4,7 +4,7 @@ import { expect } from 'chai';
 import * as utils from './utils';
 import { Validator, MessageStatus } from '../lib/core';
 import { Signer, BytesArray } from '../lib/types';
-import { TestRecipient__factory, TestReplica } from '../../typechain';
+import { TestRecipient__factory, TestInbox } from '../../typechain';
 import { AbacusDeployment } from '../lib/AbacusDeployment';
 import { GovernanceDeployment } from '../lib/GovernanceDeployment';
 
@@ -16,10 +16,10 @@ const remoteDomain = domains[1];
 
 /*
  * Deploy the full Abacus suite on two chains
- * dispatch messages to Home
- * checkpoint on  Home
- * Sign and relay checkpoints to Replica
- * TODO prove and process messages on Replica
+ * dispatch messages to Outbox
+ * checkpoint on  Outbox
+ * Sign and relay checkpoints to Inbox
+ * TODO prove and process messages on Inbox
  */
 describe('SimpleCrossChainMessage', async () => {
   let abacusDeployment: AbacusDeployment;
@@ -39,54 +39,60 @@ describe('SimpleCrossChainMessage', async () => {
     );
   });
 
-  it('All Homes have correct initial state', async () => {
+  it('All Outboxs have correct initial state', async () => {
     const nullRoot = '0x' + '00'.repeat(32);
 
-    const governorHome = abacusDeployment.home(localDomain);
+    const governorOutbox = abacusDeployment.outbox(localDomain);
 
-    let [root, index] = await governorHome.latestCheckpoint();
+    let [root, index] = await governorOutbox.latestCheckpoint();
     expect(root).to.equal(nullRoot);
     expect(index).to.equal(0);
 
-    const nonGovernorHome = abacusDeployment.home(remoteDomain);
+    const nonGovernorOutbox = abacusDeployment.outbox(remoteDomain);
 
-    [root, index] = await nonGovernorHome.latestCheckpoint();
+    [root, index] = await nonGovernorOutbox.latestCheckpoint();
     expect(root).to.equal(nullRoot);
     expect(index).to.equal(0);
   });
 
-  it('Origin Home accepts valid messages', async () => {
+  it('Origin Outbox accepts valid messages', async () => {
     const messages = ['message'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    await utils.dispatchMessages(abacusDeployment.home(localDomain), messages);
+    await utils.dispatchMessages(
+      abacusDeployment.outbox(localDomain),
+      messages,
+    );
   });
 
-  it('Destination Replica accepts a checkpoint', async () => {
-    const home = abacusDeployment.home(localDomain);
-    const replica = abacusDeployment.replica(remoteDomain, localDomain);
-    await utils.checkpoint(home, replica, validator);
+  it('Destination Inbox accepts a checkpoint', async () => {
+    const outbox = abacusDeployment.outbox(localDomain);
+    const inbox = abacusDeployment.inbox(remoteDomain, localDomain);
+    await utils.checkpoint(outbox, inbox, validator);
   });
 
-  it('Origin Home accepts batched messages', async () => {
+  it('Origin Outbox accepts batched messages', async () => {
     const messages = ['message1', 'message2', 'message3'].map((message) =>
       utils.formatMessage(message, remoteDomain, randomSigner.address),
     );
-    await utils.dispatchMessages(abacusDeployment.home(localDomain), messages);
+    await utils.dispatchMessages(
+      abacusDeployment.outbox(localDomain),
+      messages,
+    );
   });
 
-  it('Destination Replica Accepts a second checkpoint', async () => {
-    const home = abacusDeployment.home(localDomain);
-    const replica = abacusDeployment.replica(remoteDomain, localDomain);
-    await utils.checkpoint(home, replica, validator);
+  it('Destination Inbox Accepts a second checkpoint', async () => {
+    const outbox = abacusDeployment.outbox(localDomain);
+    const inbox = abacusDeployment.inbox(remoteDomain, localDomain);
+    await utils.checkpoint(outbox, inbox, validator);
   });
 
-  it('Proves and processes a message on Replica', async () => {
+  it('Proves and processes a message on Inbox', async () => {
     // get governance routers
     const governorRouter = governanceDeployment.router(localDomain);
     const nonGovernorRouter = governanceDeployment.router(remoteDomain);
 
-    const replica = abacusDeployment.replica(remoteDomain, localDomain);
+    const inbox = abacusDeployment.inbox(remoteDomain, localDomain);
     const testRecipientFactory = new TestRecipient__factory(randomSigner);
     const TestRecipient = await testRecipientFactory.deploy();
 
@@ -115,20 +121,18 @@ describe('SimpleCrossChainMessage', async () => {
     const messageHash = abacus.messageHash(abacusMessage);
 
     // set root
-    const proofRoot = await replica.testBranchRoot(
+    const proofRoot = await inbox.testBranchRoot(
       messageHash,
       path as BytesArray,
       index,
     );
-    await replica.setCheckpoint(proofRoot, 1);
+    await inbox.setCheckpoint(proofRoot, 1);
 
     // prove and process message
-    await replica.proveAndProcess(abacusMessage, path as BytesArray, index);
+    await inbox.proveAndProcess(abacusMessage, path as BytesArray, index);
 
     // expect call to have been processed
     expect(await TestRecipient.processed()).to.be.true;
-    expect(await replica.messages(messageHash)).to.equal(
-      MessageStatus.PROCESSED,
-    );
+    expect(await inbox.messages(messageHash)).to.equal(MessageStatus.PROCESSED);
   });
 });

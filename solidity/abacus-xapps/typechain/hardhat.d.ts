@@ -17,17 +17,17 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Common__factory>;
     getContractFactory(
-      name: "Home",
+      name: "Inbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Home__factory>;
+    ): Promise<Contracts.Inbox__factory>;
     getContractFactory(
       name: "MerkleTreeManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MerkleTreeManager__factory>;
     getContractFactory(
-      name: "Replica",
+      name: "Outbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Replica__factory>;
+    ): Promise<Contracts.Outbox__factory>;
     getContractFactory(
       name: "UpgradeBeaconProxy",
       signerOrOptions?: ethers.Signer | FactoryOptions

@@ -20,8 +20,8 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
   async checkDeploy(deploy: CoreDeploy): Promise<void> {
     this.checkContractsDefined(deploy);
     await this.checkBeaconProxies(deploy);
-    await this.checkHome(deploy);
-    await this.checkReplicas(deploy);
+    await this.checkOutbox(deploy);
+    await this.checkInboxs(deploy);
     await this.checkGovernance(deploy);
     await this.checkXAppConnectionManager(deploy);
     await this.checkValidatorManager(deploy);
@@ -30,21 +30,21 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
 
   checkContractsDefined(deploy: CoreDeploy): void {
     const contracts = deploy.contracts;
-    expect(contracts.home).to.not.be.undefined;
+    expect(contracts.outbox).to.not.be.undefined;
     expect(contracts.governanceRouter).to.not.be.undefined;
     expect(contracts.upgradeBeaconController).to.not.be.undefined;
     expect(contracts.xAppConnectionManager).to.not.be.undefined;
     expect(contracts.validatorManager).to.not.be.undefined;
-    for (const domain in contracts.replicas) {
-      expect(contracts.replicas[domain]).to.not.be.undefined;
+    for (const domain in contracts.inboxs) {
+      expect(contracts.inboxs[domain]).to.not.be.undefined;
     }
   }
 
-  async checkHome(deploy: CoreDeploy): Promise<void> {
+  async checkOutbox(deploy: CoreDeploy): Promise<void> {
     // contracts are defined
-    const home = deploy.contracts.home!.proxy;
-    // validatorManager is set on Home
-    const actualManager = await home.validatorManager();
+    const outbox = deploy.contracts.outbox!.proxy;
+    // validatorManager is set on Outbox
+    const actualManager = await outbox.validatorManager();
     const expectedManager = deploy.contracts.validatorManager!.address;
     if (actualManager !== expectedManager) {
       const violation: ValidatorManagerViolation = {
@@ -77,20 +77,20 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     }
   }
 
-  async checkReplicas(deploy: CoreDeploy): Promise<void> {
-    // Check if the Replicas on *remote* domains are set to the validator
+  async checkInboxs(deploy: CoreDeploy): Promise<void> {
+    // Check if the Inboxs on *remote* domains are set to the validator
     // configured on our domain.
     const domain = deploy.chain.domain;
     const remoteDeploys = this._deploys.filter(
       (d) => d.chain.domain !== domain,
     );
     if (remoteDeploys.length > 0) {
-      // Check that all replicas on this domain share the same implementation and
+      // Check that all inboxs on this domain share the same implementation and
       // UpgradeBeacon.
-      const replicas = Object.values(deploy.contracts.replicas);
-      const implementations = replicas.map((r) => r.implementation.address);
+      const inboxs = Object.values(deploy.contracts.inboxs);
+      const implementations = inboxs.map((r) => r.implementation.address);
       const identical = (a: any, b: any) => (a === b ? a : false);
-      const upgradeBeacons = replicas.map((r) => r.beacon.address);
+      const upgradeBeacons = inboxs.map((r) => r.beacon.address);
       expect(implementations.reduce(identical)).to.not.be.false;
       expect(upgradeBeacons.reduce(identical)).to.not.be.false;
     }
@@ -101,7 +101,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
 
     // governanceRouter for each remote domain is registered
     const registeredRouters = await Promise.all(
-      Object.keys(deploy.contracts.replicas).map((_) =>
+      Object.keys(deploy.contracts.inboxs).map((_) =>
         deploy.contracts.governanceRouter?.proxy.routers(_),
       ),
     );
@@ -112,7 +112,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     const governorDomain =
       await deploy.contracts.governanceRouter?.proxy.governorDomain();
     const gov = await deploy.contracts.governanceRouter?.proxy.governor();
-    const localDomain = await deploy.contracts.home?.proxy.localDomain();
+    const localDomain = await deploy.contracts.outbox?.proxy.localDomain();
     if (governorDomain == localDomain) {
       expect(gov).to.not.equal(emptyAddr);
     } else {
@@ -123,9 +123,9 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       deploy.contracts.validatorManager?.owner()!,
       deploy.contracts.xAppConnectionManager?.owner()!,
       deploy.contracts.upgradeBeaconController?.owner()!,
-      deploy.contracts.home?.proxy.owner()!,
+      deploy.contracts.outbox?.proxy.owner()!,
     ];
-    Object.values(deploy.contracts.replicas).map((_) =>
+    Object.values(deploy.contracts.inboxs).map((_) =>
       owners.push(_.proxy.owner()),
     );
 
@@ -136,17 +136,17 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
 
   async checkXAppConnectionManager(deploy: CoreDeploy): Promise<void> {
     expect(deploy.contracts.xAppConnectionManager).to.not.be.undefined;
-    for (const domain in deploy.contracts.replicas) {
-      // replica is enrolled in xAppConnectionManager
-      const enrolledReplica =
-        await deploy.contracts.xAppConnectionManager?.domainToReplica(domain);
-      expect(enrolledReplica).to.not.equal(emptyAddr);
+    for (const domain in deploy.contracts.inboxs) {
+      // inbox is enrolled in xAppConnectionManager
+      const enrolledInbox =
+        await deploy.contracts.xAppConnectionManager?.domainToInbox(domain);
+      expect(enrolledInbox).to.not.equal(emptyAddr);
     }
-    // Home is set on xAppConnectionManager
-    const xAppManagerHome =
-      await deploy.contracts.xAppConnectionManager?.home();
-    const homeAddress = deploy.contracts.home?.proxy.address;
-    expect(xAppManagerHome).to.equal(homeAddress);
+    // Outbox is set on xAppConnectionManager
+    const xAppManagerOutbox =
+      await deploy.contracts.xAppConnectionManager?.outbox();
+    const outboxAddress = deploy.contracts.outbox?.proxy.address;
+    expect(xAppManagerOutbox).to.equal(outboxAddress);
   }
 
   getVerificationInputs(deploy: CoreDeploy): VerificationInput[] {
@@ -166,10 +166,10 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       inputs.push([`${name} UpgradeBeacon`, contract.beacon]);
       inputs.push([`${name} Proxy`, contract.proxy]);
     };
-    addInputsForUpgradableContract(contracts.home!, 'Home');
+    addInputsForUpgradableContract(contracts.outbox!, 'Outbox');
     addInputsForUpgradableContract(contracts.governanceRouter!, 'Governance');
-    for (const domain in contracts.replicas) {
-      addInputsForUpgradableContract(contracts.replicas[domain], 'Replica');
+    for (const domain in contracts.inboxs) {
+      addInputsForUpgradableContract(contracts.inboxs[domain], 'Inbox');
     }
     return inputs;
   }
@@ -177,8 +177,12 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
   async checkBeaconProxies(deploy: CoreDeploy): Promise<void> {
     const domain = deploy.chain.domain;
     const contracts = deploy.contracts;
-    // Home upgrade setup contracts are defined
-    await this.checkBeaconProxyImplementation(domain, 'Home', contracts.home!);
+    // Outbox upgrade setup contracts are defined
+    await this.checkBeaconProxyImplementation(
+      domain,
+      'Outbox',
+      contracts.outbox!,
+    );
 
     // GovernanceRouter upgrade setup contracts are defined
     await this.checkBeaconProxyImplementation(
@@ -188,8 +192,8 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     );
 
     await Promise.all(
-      Object.values(contracts.replicas).map((_) =>
-        this.checkBeaconProxyImplementation(domain, 'Replica', _),
+      Object.values(contracts.inboxs).map((_) =>
+        this.checkBeaconProxyImplementation(domain, 'Inbox', _),
       ),
     );
   }

@@ -11,9 +11,9 @@ export type CoreContractAddresses = {
   xAppConnectionManager: Address;
   validatorManager: Address;
   governanceRouter: ProxiedAddress;
-  home: ProxiedAddress;
+  outbox: ProxiedAddress;
   // TODO: Put chain name in here
-  replicas?: Record<number, ProxiedAddress>;
+  inboxs?: Record<number, ProxiedAddress>;
 };
 
 export type BridgeContractAddresses = {

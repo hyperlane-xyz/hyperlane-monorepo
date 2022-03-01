@@ -9,12 +9,12 @@ import { AbacusDeployment } from '../lib/AbacusDeployment';
 import { GovernanceDeployment } from '../lib/GovernanceDeployment';
 import {
   MysteryMathV2__factory,
-  TestReplica,
-  TestReplica__factory,
+  TestInbox,
+  TestInbox__factory,
   TestRecipient__factory,
   TestGovernanceRouter,
-  Replica,
-  Home,
+  Inbox,
+  Outbox,
 } from '../../typechain';
 
 const helpers = require('../../../../vectors/proof.json');
@@ -40,9 +40,9 @@ describe('GovernanceRouter', async () => {
     secondGovernor: Address,
     governorRouter: TestGovernanceRouter,
     nonGovernorRouter: TestGovernanceRouter,
-    governorHome: Home,
-    governorReplicaOnNonGovernorChain: TestReplica,
-    nonGovernorReplicaOnGovernorChain: TestReplica,
+    governorOutbox: Outbox,
+    governorInboxOnNonGovernorChain: TestInbox,
+    nonGovernorInboxOnGovernorChain: TestInbox,
     validator: Validator;
 
   async function expectGovernor(
@@ -74,16 +74,16 @@ describe('GovernanceRouter', async () => {
     governorRouter = governanceDeployment.router(governorDomain);
     nonGovernorRouter = governanceDeployment.router(nonGovernorDomain);
 
-    governorReplicaOnNonGovernorChain = abacusDeployment.replica(
+    governorInboxOnNonGovernorChain = abacusDeployment.inbox(
       nonGovernorDomain,
       governorDomain,
     );
-    nonGovernorReplicaOnGovernorChain = abacusDeployment.replica(
+    nonGovernorInboxOnGovernorChain = abacusDeployment.inbox(
       governorDomain,
       nonGovernorDomain,
     );
 
-    governorHome = abacusDeployment.home(governorDomain);
+    governorOutbox = abacusDeployment.outbox(governorDomain);
   });
 
   // NB: must be first test for message proof
@@ -120,17 +120,17 @@ describe('GovernanceRouter', async () => {
     await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
   });
 
-  it('Rejects message from unenrolled replica', async () => {
-    const replicaFactory = new TestReplica__factory(signer);
-    const unenrolledReplica = await replicaFactory.deploy(
+  it('Rejects message from unenrolled inbox', async () => {
+    const inboxFactory = new TestInbox__factory(signer);
+    const unenrolledInbox = await inboxFactory.deploy(
       nonGovernorDomain,
       processGas,
       reserveGas,
     );
     // The ValdiatorManager is unused in this test, but needs to be a contract.
-    await unenrolledReplica.initialize(
+    await unenrolledInbox.initialize(
       thirdDomain,
-      unenrolledReplica.address,
+      unenrolledInbox.address,
       nullRoot,
       0,
     );
@@ -142,14 +142,14 @@ describe('GovernanceRouter', async () => {
     );
 
     const abacusMessage = await formatAbacusMessage(
-      unenrolledReplica,
+      unenrolledInbox,
       governorRouter,
       nonGovernorRouter,
       transferGovernorMessage,
     );
 
-    // Expect replica processing to fail when nonGovernorRouter reverts in handle
-    let success = await unenrolledReplica.callStatic.testProcess(abacusMessage);
+    // Expect inbox processing to fail when nonGovernorRouter reverts in handle
+    let success = await unenrolledInbox.callStatic.testProcess(abacusMessage);
     expect(success).to.be.false;
   });
 
@@ -161,20 +161,19 @@ describe('GovernanceRouter', async () => {
     );
 
     const abacusMessage = await formatAbacusMessage(
-      governorReplicaOnNonGovernorChain,
+      governorInboxOnNonGovernorChain,
       nonGovernorRouter,
       governorRouter,
       transferGovernorMessage,
     );
 
     // Set message status to MessageStatus.Proven
-    await nonGovernorReplicaOnGovernorChain.setMessageProven(abacusMessage);
+    await nonGovernorInboxOnGovernorChain.setMessageProven(abacusMessage);
 
-    // Expect replica processing to fail when nonGovernorRouter reverts in handle
-    let success =
-      await nonGovernorReplicaOnGovernorChain.callStatic.testProcess(
-        abacusMessage,
-      );
+    // Expect inbox processing to fail when nonGovernorRouter reverts in handle
+    let success = await nonGovernorInboxOnGovernorChain.callStatic.testProcess(
+      abacusMessage,
+    );
     expect(success).to.be.false;
   });
 
@@ -193,19 +192,19 @@ describe('GovernanceRouter', async () => {
     );
 
     const abacusMessage = await formatAbacusMessage(
-      governorReplicaOnNonGovernorChain,
+      governorInboxOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
       transferGovernorMessage,
     );
 
     // Expect successful tx on static call
-    let success = await governorReplicaOnNonGovernorChain.callStatic.process(
+    let success = await governorInboxOnNonGovernorChain.callStatic.process(
       abacusMessage,
     );
     expect(success).to.be.true;
 
-    await governorReplicaOnNonGovernorChain.process(abacusMessage);
+    await governorInboxOnNonGovernorChain.process(abacusMessage);
     await expectGovernor(
       nonGovernorRouter,
       thirdDomain,
@@ -224,21 +223,21 @@ describe('GovernanceRouter', async () => {
     );
 
     const abacusMessage = await formatAbacusMessage(
-      governorReplicaOnNonGovernorChain,
+      governorInboxOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
       setRouterMessage,
     );
 
     // Expect successful tx
-    let success = await governorReplicaOnNonGovernorChain.callStatic.process(
+    let success = await governorInboxOnNonGovernorChain.callStatic.process(
       abacusMessage,
     );
     expect(success).to.be.true;
 
     // Expect new router to be registered for domain and for new domain to be
     // in domains array
-    await governorReplicaOnNonGovernorChain.process(abacusMessage);
+    await governorInboxOnNonGovernorChain.process(abacusMessage);
     expect(await nonGovernorRouter.routers(thirdDomain)).to.equal(
       abacus.ethersAddressToBytes32(router.address),
     );
@@ -258,17 +257,16 @@ describe('GovernanceRouter', async () => {
     const callMessage = abacus.governance.formatCalls([call, call]);
 
     const abacusMessage = await formatAbacusMessage(
-      governorReplicaOnNonGovernorChain,
+      governorInboxOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
       callMessage,
     );
 
     // Expect successful tx
-    let success =
-      await governorReplicaOnNonGovernorChain.callStatic.testProcess(
-        abacusMessage,
-      );
+    let success = await governorInboxOnNonGovernorChain.callStatic.testProcess(
+      abacusMessage,
+    );
 
     expect(success).to.be.true;
   });
@@ -307,14 +305,14 @@ describe('GovernanceRouter', async () => {
     );
 
     const abacusMessage = await formatAbacusMessage(
-      governorReplicaOnNonGovernorChain,
+      governorInboxOnNonGovernorChain,
       governorRouter,
       nonGovernorRouter,
       transferGovernorMessage,
     );
 
-    // Process transfer governor message on Replica
-    await governorReplicaOnNonGovernorChain.process(abacusMessage);
+    // Process transfer governor message on Inbox
+    await governorInboxOnNonGovernorChain.process(abacusMessage);
 
     // Governor HAS been transferred on original governor domain
     await expectGovernor(
@@ -366,7 +364,7 @@ describe('GovernanceRouter', async () => {
     const validatorManager = abacusDeployment.validatorManager(governorDomain);
     await validatorManager.transferOwnership(governorRouter.address);
 
-    // check current Validator address on Home
+    // check current Validator address on Outbox
     let currentValidatorAddr = await validatorManager.validators(
       governorDomain,
     );

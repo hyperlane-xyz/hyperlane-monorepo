@@ -33,17 +33,17 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.GovernanceRouter__factory>;
     getContractFactory(
-      name: "Home",
+      name: "Inbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Home__factory>;
+    ): Promise<Contracts.Inbox__factory>;
     getContractFactory(
       name: "MerkleTreeManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MerkleTreeManager__factory>;
     getContractFactory(
-      name: "Replica",
+      name: "Outbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Replica__factory>;
+    ): Promise<Contracts.Outbox__factory>;
     getContractFactory(
       name: "BadRecipient1",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -93,9 +93,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestGovernanceRouter__factory>;
     getContractFactory(
-      name: "TestHome",
+      name: "TestInbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.TestHome__factory>;
+    ): Promise<Contracts.TestInbox__factory>;
     getContractFactory(
       name: "TestMerkle",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -105,13 +105,13 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestMessage__factory>;
     getContractFactory(
+      name: "TestOutbox",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.TestOutbox__factory>;
+    getContractFactory(
       name: "TestRecipient",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestRecipient__factory>;
-    getContractFactory(
-      name: "TestReplica",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.TestReplica__factory>;
     getContractFactory(
       name: "UpgradeBeacon",
       signerOrOptions?: ethers.Signer | FactoryOptions

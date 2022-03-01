@@ -3,7 +3,7 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {IValidatorManager} from "../interfaces/IValidatorManager.sol";
-import {Home} from "./Home.sol";
+import {Outbox} from "./Outbox.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/cryptography/ECDSA.sol";
@@ -35,7 +35,7 @@ contract ValidatorManager is IValidatorManager, Ownable {
      * @param signature Signature on `root` and `index`
      */
     event ImproperCheckpoint(
-        address indexed home,
+        address indexed outbox,
         uint32 indexed domain,
         address indexed validator,
         bytes32 root,
@@ -65,30 +65,30 @@ contract ValidatorManager is IValidatorManager, Ownable {
 
     /**
      * @notice Check if an Checkpoint is an Improper Checkpoint;
-     * if so, set the provided Home contract to FAILED state.
+     * if so, set the provided Outbox contract to FAILED state.
      *
      * An Improper Checkpoint is an checkpoint that was not previously checkpointed.
-     * @param _home Address of the Home contract to set to FAILED.
+     * @param _outbox Address of the Outbox contract to set to FAILED.
      * @param _root Merkle root of the improper checkpoint
      * @param _index Index root of the improper checkpoint
      * @param _signature Validator signature on `_root` and `_index`
      * @return TRUE if checkpoint was an Improper Checkpoint (implying Validator was slashed)
      */
     function improperCheckpoint(
-        address _home,
+        address _outbox,
         bytes32 _root,
         uint256 _index,
         bytes memory _signature
     ) external returns (bool) {
-        uint32 _domain = Home(_home).localDomain();
+        uint32 _domain = Outbox(_outbox).localDomain();
         require(
             isValidatorSignature(_domain, _root, _index, _signature),
             "!validator sig"
         );
-        require(Home(_home).checkpoints(_root) != _index, "!improper");
-        Home(_home).fail();
+        require(Outbox(_outbox).checkpoints(_root) != _index, "!improper");
+        Outbox(_outbox).fail();
         emit ImproperCheckpoint(
-            _home,
+            _outbox,
             _domain,
             validators[_domain],
             _root,
@@ -102,7 +102,7 @@ contract ValidatorManager is IValidatorManager, Ownable {
 
     /**
      * @notice Checks that signature was signed by Validator
-     * @param _domain Domain of Home contract
+     * @param _domain Domain of Outbox contract
      * @param _root Merkle root
      * @param _index Corresponding leaf index
      * @param _signature Signature on `_root` and `_index`

@@ -5,13 +5,13 @@ import { AbacusState, Validator } from './lib/core';
 import { Signer } from './lib/types';
 
 import {
-  Home__factory,
-  Home,
+  Outbox__factory,
+  Outbox,
   ValidatorManager__factory,
   ValidatorManager,
 } from '../typechain';
 
-const homeDomainHashCases = require('../../../vectors/homeDomainHash.json');
+const outboxDomainHashCases = require('../../../vectors/outboxDomainHash.json');
 const localDomain = 1000;
 
 describe('ValidatorManager', async () => {
@@ -64,19 +64,21 @@ describe('ValidatorManager', async () => {
   it('Calculated domain hash matches Rust-produced domain hash', async () => {
     // Compare Rust output in json file to solidity output (json file matches
     // hash for local domain of 1000)
-    for (let testCase of homeDomainHashCases) {
+    for (let testCase of outboxDomainHashCases) {
       const { expectedDomainHash } = testCase;
-      const domainHash = await validatorManager.domainHash(testCase.homeDomain);
+      const domainHash = await validatorManager.domainHash(
+        testCase.outboxDomain,
+      );
       expect(domainHash).to.equal(expectedDomainHash);
     }
   });
 
   describe('improper checkpoints', async () => {
-    let home: Home;
+    let outbox: Outbox;
     beforeEach(async () => {
-      const homeFactory = new Home__factory(signer);
-      home = await homeFactory.deploy(localDomain);
-      await home.initialize(validatorManager.address);
+      const outboxFactory = new Outbox__factory(signer);
+      outbox = await outboxFactory.deploy(localDomain);
+      await outbox.initialize(validatorManager.address);
     });
 
     it('Accepts improper checkpoint from validator', async () => {
@@ -87,7 +89,7 @@ describe('ValidatorManager', async () => {
       // Send message with signer address as msg.sender
       await expect(
         validatorManager.improperCheckpoint(
-          home.address,
+          outbox.address,
           root,
           index,
           signature,
@@ -95,14 +97,14 @@ describe('ValidatorManager', async () => {
       )
         .to.emit(validatorManager, 'ImproperCheckpoint')
         .withArgs(
-          home.address,
+          outbox.address,
           localDomain,
           validator.address,
           root,
           index,
           signature,
         );
-      expect(await home.state()).to.equal(AbacusState.FAILED);
+      expect(await outbox.state()).to.equal(AbacusState.FAILED);
     });
 
     it('Rejects improper checkpoint from non-validator', async () => {
@@ -113,7 +115,7 @@ describe('ValidatorManager', async () => {
       // Send message with signer address as msg.sender
       await expect(
         validatorManager.improperCheckpoint(
-          home.address,
+          outbox.address,
           root,
           index,
           signature,
@@ -123,13 +125,13 @@ describe('ValidatorManager', async () => {
 
     it('Rejects proper checkpoint from validator', async () => {
       const message = `0x${Buffer.alloc(10).toString('hex')}`;
-      await home.dispatch(
+      await outbox.dispatch(
         localDomain,
         abacus.ethersAddressToBytes32(signer.address),
         message,
       );
-      await home.checkpoint();
-      const [root, index] = await home.latestCheckpoint();
+      await outbox.checkpoint();
+      const [root, index] = await outbox.latestCheckpoint();
 
       const { signature } = await validator.signCheckpoint(
         root,
@@ -138,7 +140,7 @@ describe('ValidatorManager', async () => {
       // Send message with signer address as msg.sender
       await expect(
         validatorManager.improperCheckpoint(
-          home.address,
+          outbox.address,
           root,
           index,
           signature,

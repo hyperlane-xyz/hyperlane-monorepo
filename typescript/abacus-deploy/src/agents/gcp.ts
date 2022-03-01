@@ -262,7 +262,7 @@ async function persistAddresses(
   await rm(fileName);
 }
 
-// This function returns all the GCP keys for a given home chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
+// This function returns all the GCP keys for a given outbox chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
 export async function fetchAgentGCPKeys(
   environment: string,
   chainName: string,

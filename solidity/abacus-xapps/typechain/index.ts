@@ -2,9 +2,9 @@
 /* tslint:disable */
 /* eslint-disable */
 export type { Common } from "./Common";
-export type { Home } from "./Home";
+export type { Inbox } from "./Inbox";
 export type { MerkleTreeManager } from "./MerkleTreeManager";
-export type { Replica } from "./Replica";
+export type { Outbox } from "./Outbox";
 export type { UpgradeBeaconProxy } from "./UpgradeBeaconProxy";
 export type { Version0 } from "./Version0";
 export type { XAppConnectionManager } from "./XAppConnectionManager";
@@ -30,9 +30,9 @@ export type { IBridgeToken } from "./IBridgeToken";
 export type { IWeth } from "./IWeth";
 
 export { Common__factory } from "./factories/Common__factory";
-export { Home__factory } from "./factories/Home__factory";
+export { Inbox__factory } from "./factories/Inbox__factory";
 export { MerkleTreeManager__factory } from "./factories/MerkleTreeManager__factory";
-export { Replica__factory } from "./factories/Replica__factory";
+export { Outbox__factory } from "./factories/Outbox__factory";
 export { UpgradeBeaconProxy__factory } from "./factories/UpgradeBeaconProxy__factory";
 export { Version0__factory } from "./factories/Version0__factory";
 export { XAppConnectionManager__factory } from "./factories/XAppConnectionManager__factory";

@@ -21,96 +21,96 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface XAppConnectionManagerInterface extends ethers.utils.Interface {
   functions: {
-    "domainToReplica(uint32)": FunctionFragment;
-    "enrollReplica(address,uint32)": FunctionFragment;
-    "home()": FunctionFragment;
-    "isReplica(address)": FunctionFragment;
+    "domainToInbox(uint32)": FunctionFragment;
+    "enrollInbox(address,uint32)": FunctionFragment;
+    "inboxToDomain(address)": FunctionFragment;
+    "isInbox(address)": FunctionFragment;
     "localDomain()": FunctionFragment;
+    "outbox()": FunctionFragment;
     "owner()": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
-    "replicaToDomain(address)": FunctionFragment;
-    "setHome(address)": FunctionFragment;
+    "setOutbox(address)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
-    "unenrollReplica(address)": FunctionFragment;
+    "unenrollInbox(address)": FunctionFragment;
   };
 
   encodeFunctionData(
-    functionFragment: "domainToReplica",
+    functionFragment: "domainToInbox",
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "enrollReplica",
+    functionFragment: "enrollInbox",
     values: [string, BigNumberish]
   ): string;
-  encodeFunctionData(functionFragment: "home", values?: undefined): string;
-  encodeFunctionData(functionFragment: "isReplica", values: [string]): string;
+  encodeFunctionData(
+    functionFragment: "inboxToDomain",
+    values: [string]
+  ): string;
+  encodeFunctionData(functionFragment: "isInbox", values: [string]): string;
   encodeFunctionData(
     functionFragment: "localDomain",
     values?: undefined
   ): string;
+  encodeFunctionData(functionFragment: "outbox", values?: undefined): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
     functionFragment: "renounceOwnership",
     values?: undefined
   ): string;
-  encodeFunctionData(
-    functionFragment: "replicaToDomain",
-    values: [string]
-  ): string;
-  encodeFunctionData(functionFragment: "setHome", values: [string]): string;
+  encodeFunctionData(functionFragment: "setOutbox", values: [string]): string;
   encodeFunctionData(
     functionFragment: "transferOwnership",
     values: [string]
   ): string;
   encodeFunctionData(
-    functionFragment: "unenrollReplica",
+    functionFragment: "unenrollInbox",
     values: [string]
   ): string;
 
   decodeFunctionResult(
-    functionFragment: "domainToReplica",
+    functionFragment: "domainToInbox",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "enrollReplica",
+    functionFragment: "enrollInbox",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "home", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "isReplica", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "inboxToDomain",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "isInbox", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
   ): Result;
+  decodeFunctionResult(functionFragment: "outbox", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(
-    functionFragment: "replicaToDomain",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(functionFragment: "setHome", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "setOutbox", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "transferOwnership",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "unenrollReplica",
+    functionFragment: "unenrollInbox",
     data: BytesLike
   ): Result;
 
   events: {
-    "NewHome(address)": EventFragment;
+    "InboxEnrolled(uint32,address)": EventFragment;
+    "InboxUnenrolled(uint32,address)": EventFragment;
+    "NewOutbox(address)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
-    "ReplicaEnrolled(uint32,address)": EventFragment;
-    "ReplicaUnenrolled(uint32,address)": EventFragment;
   };
 
-  getEvent(nameOrSignatureOrTopic: "NewHome"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "InboxEnrolled"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "InboxUnenrolled"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewOutbox"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "ReplicaEnrolled"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "ReplicaUnenrolled"): EventFragment;
 }
 
 export class XAppConnectionManager extends BaseContract {
@@ -157,22 +157,24 @@ export class XAppConnectionManager extends BaseContract {
   interface: XAppConnectionManagerInterface;
 
   functions: {
-    domainToReplica(
+    domainToInbox(
       arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<[string]>;
 
-    enrollReplica(
-      _replica: string,
+    enrollInbox(
+      _inbox: string,
       _domain: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    home(overrides?: CallOverrides): Promise<[string]>;
+    inboxToDomain(arg0: string, overrides?: CallOverrides): Promise<[number]>;
 
-    isReplica(_replica: string, overrides?: CallOverrides): Promise<[boolean]>;
+    isInbox(_inbox: string, overrides?: CallOverrides): Promise<[boolean]>;
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
+
+    outbox(overrides?: CallOverrides): Promise<[string]>;
 
     owner(overrides?: CallOverrides): Promise<[string]>;
 
@@ -180,10 +182,8 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    replicaToDomain(arg0: string, overrides?: CallOverrides): Promise<[number]>;
-
-    setHome(
-      _home: string,
+    setOutbox(
+      _outbox: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -192,28 +192,27 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    unenrollReplica(
-      _replica: string,
+    unenrollInbox(
+      _inbox: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
   };
 
-  domainToReplica(
-    arg0: BigNumberish,
-    overrides?: CallOverrides
-  ): Promise<string>;
+  domainToInbox(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
 
-  enrollReplica(
-    _replica: string,
+  enrollInbox(
+    _inbox: string,
     _domain: BigNumberish,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  home(overrides?: CallOverrides): Promise<string>;
+  inboxToDomain(arg0: string, overrides?: CallOverrides): Promise<number>;
 
-  isReplica(_replica: string, overrides?: CallOverrides): Promise<boolean>;
+  isInbox(_inbox: string, overrides?: CallOverrides): Promise<boolean>;
 
   localDomain(overrides?: CallOverrides): Promise<number>;
+
+  outbox(overrides?: CallOverrides): Promise<string>;
 
   owner(overrides?: CallOverrides): Promise<string>;
 
@@ -221,10 +220,8 @@ export class XAppConnectionManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  replicaToDomain(arg0: string, overrides?: CallOverrides): Promise<number>;
-
-  setHome(
-    _home: string,
+  setOutbox(
+    _outbox: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -233,47 +230,59 @@ export class XAppConnectionManager extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  unenrollReplica(
-    _replica: string,
+  unenrollInbox(
+    _inbox: string,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
   callStatic: {
-    domainToReplica(
+    domainToInbox(
       arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<string>;
 
-    enrollReplica(
-      _replica: string,
+    enrollInbox(
+      _inbox: string,
       _domain: BigNumberish,
       overrides?: CallOverrides
     ): Promise<void>;
 
-    home(overrides?: CallOverrides): Promise<string>;
+    inboxToDomain(arg0: string, overrides?: CallOverrides): Promise<number>;
 
-    isReplica(_replica: string, overrides?: CallOverrides): Promise<boolean>;
+    isInbox(_inbox: string, overrides?: CallOverrides): Promise<boolean>;
 
     localDomain(overrides?: CallOverrides): Promise<number>;
+
+    outbox(overrides?: CallOverrides): Promise<string>;
 
     owner(overrides?: CallOverrides): Promise<string>;
 
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
 
-    replicaToDomain(arg0: string, overrides?: CallOverrides): Promise<number>;
-
-    setHome(_home: string, overrides?: CallOverrides): Promise<void>;
+    setOutbox(_outbox: string, overrides?: CallOverrides): Promise<void>;
 
     transferOwnership(
       newOwner: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
-    unenrollReplica(_replica: string, overrides?: CallOverrides): Promise<void>;
+    unenrollInbox(_inbox: string, overrides?: CallOverrides): Promise<void>;
   };
 
   filters: {
-    NewHome(home?: string | null): TypedEventFilter<[string], { home: string }>;
+    InboxEnrolled(
+      domain?: BigNumberish | null,
+      inbox?: null
+    ): TypedEventFilter<[number, string], { domain: number; inbox: string }>;
+
+    InboxUnenrolled(
+      domain?: BigNumberish | null,
+      inbox?: null
+    ): TypedEventFilter<[number, string], { domain: number; inbox: string }>;
+
+    NewOutbox(
+      outbox?: string | null
+    ): TypedEventFilter<[string], { outbox: string }>;
 
     OwnershipTransferred(
       previousOwner?: string | null,
@@ -282,35 +291,27 @@ export class XAppConnectionManager extends BaseContract {
       [string, string],
       { previousOwner: string; newOwner: string }
     >;
-
-    ReplicaEnrolled(
-      domain?: BigNumberish | null,
-      replica?: null
-    ): TypedEventFilter<[number, string], { domain: number; replica: string }>;
-
-    ReplicaUnenrolled(
-      domain?: BigNumberish | null,
-      replica?: null
-    ): TypedEventFilter<[number, string], { domain: number; replica: string }>;
   };
 
   estimateGas: {
-    domainToReplica(
+    domainToInbox(
       arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<BigNumber>;
 
-    enrollReplica(
-      _replica: string,
+    enrollInbox(
+      _inbox: string,
       _domain: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    home(overrides?: CallOverrides): Promise<BigNumber>;
+    inboxToDomain(arg0: string, overrides?: CallOverrides): Promise<BigNumber>;
 
-    isReplica(_replica: string, overrides?: CallOverrides): Promise<BigNumber>;
+    isInbox(_inbox: string, overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
+
+    outbox(overrides?: CallOverrides): Promise<BigNumber>;
 
     owner(overrides?: CallOverrides): Promise<BigNumber>;
 
@@ -318,13 +319,8 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    replicaToDomain(
-      arg0: string,
-      overrides?: CallOverrides
-    ): Promise<BigNumber>;
-
-    setHome(
-      _home: string,
+    setOutbox(
+      _outbox: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -333,32 +329,37 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    unenrollReplica(
-      _replica: string,
+    unenrollInbox(
+      _inbox: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
   };
 
   populateTransaction: {
-    domainToReplica(
+    domainToInbox(
       arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    enrollReplica(
-      _replica: string,
+    enrollInbox(
+      _inbox: string,
       _domain: BigNumberish,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    home(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    inboxToDomain(
+      arg0: string,
+      overrides?: CallOverrides
+    ): Promise<PopulatedTransaction>;
 
-    isReplica(
-      _replica: string,
+    isInbox(
+      _inbox: string,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+
+    outbox(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
@@ -366,13 +367,8 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    replicaToDomain(
-      arg0: string,
-      overrides?: CallOverrides
-    ): Promise<PopulatedTransaction>;
-
-    setHome(
-      _home: string,
+    setOutbox(
+      _outbox: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -381,8 +377,8 @@ export class XAppConnectionManager extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
-    unenrollReplica(
-      _replica: string,
+    unenrollInbox(
+      _inbox: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
   };
