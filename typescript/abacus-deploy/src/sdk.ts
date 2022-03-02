@@ -3,7 +3,7 @@ import { CoreDeploy } from './core/CoreDeploy';
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
 
-export function updateProviderDomain(
+export function updateSdkDomain(
   environment: string,
   coreDeploys: CoreDeploy[],
   bridgeDeploys: BridgeDeploy[],
@@ -25,12 +25,12 @@ export const ${coreDeploy.chain.name}: AbacusDomain = {
   xAppConnectionManager: '${
     coreDeploy.contracts.xAppConnectionManager!.address
   }',
-  inboxs: [
-${Object.keys(coreDeploy.contracts.inboxs)
+  inboxes: [
+${Object.keys(coreDeploy.contracts.inboxes)
   .map(Number)
   .map(
     (inboxDomain) =>
-      `    { domain: ${inboxDomain}, address: '${coreDeploy.contracts.inboxs[inboxDomain].proxy.address}' },`,
+      `    { domain: ${inboxDomain}, address: '${coreDeploy.contracts.inboxes[inboxDomain].proxy.address}' },`,
   )
   .join('\n')}
   ],

@@ -1,15 +1,16 @@
 import { assert } from 'console';
+import { ethers } from 'ethers';
 import fs from 'fs';
 
 import * as proxyUtils from '../utils/proxy';
 import { CoreDeploy } from './CoreDeploy';
-import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
+import { core, xapps } from '@abacus-network/ts-interface';
 import { CoreInvariantChecker } from './checks';
 import { log, warn, toBytes32 } from '../utils/utils';
 
 const nullRoot: string = '0x' + '00'.repeat(32);
 export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
-  let factory = new contracts.UpgradeBeaconController__factory(deploy.signer);
+  let factory = new core.UpgradeBeaconController__factory(deploy.signer);
   deploy.contracts.upgradeBeaconController = await factory.deploy(
     deploy.overrides,
   );
@@ -33,7 +34,7 @@ export async function deployUpgradeBeaconController(deploy: CoreDeploy) {
  * @param deploy - The deploy instance
  */
 export async function deployValidatorManager(deploy: CoreDeploy) {
-  let factory = new contracts.ValidatorManager__factory(deploy.signer);
+  let factory = new core.ValidatorManager__factory(deploy.signer);
   deploy.contracts.validatorManager = await factory.deploy(deploy.overrides);
   await deploy.contracts.validatorManager.deployTransaction.wait(
     deploy.chain.confirmations,
@@ -55,7 +56,7 @@ export async function deployValidatorManager(deploy: CoreDeploy) {
  */
 export async function deployXAppConnectionManager(deploy: CoreDeploy) {
   const signer = deploy.signer;
-  const factory = new contracts.XAppConnectionManager__factory(signer);
+  const factory = new core.XAppConnectionManager__factory(signer);
 
   deploy.contracts.xAppConnectionManager = await factory.deploy(
     deploy.overrides,
@@ -82,15 +83,15 @@ export async function deployOutbox(deploy: CoreDeploy) {
   const isTestDeploy: boolean = deploy.test;
   if (isTestDeploy) warn('deploying test Outbox');
   const outboxFactory = isTestDeploy
-    ? contracts.TestOutbox__factory
-    : contracts.Outbox__factory;
+    ? core.TestOutbox__factory
+    : core.Outbox__factory;
 
   let { validatorManager } = deploy.contracts;
   let initData = outboxFactory
     .createInterface()
     .encodeFunctionData('initialize', [validatorManager!.address]);
 
-  deploy.contracts.outbox = await proxyUtils.deployProxy<contracts.Outbox>(
+  deploy.contracts.outbox = await proxyUtils.deployProxy<core.Outbox>(
     'Outbox',
     deploy,
     new outboxFactory(deploy.signer),
@@ -106,11 +107,7 @@ export async function deployOutbox(deploy: CoreDeploy) {
  * @param deploy - The deploy instance
  */
 export async function deployGovernanceRouter(deploy: CoreDeploy) {
-  const isTestDeploy: boolean = deploy.test;
-  if (isTestDeploy) warn('deploying test GovernanceRouter');
-  const governanceRouter = isTestDeploy
-    ? contracts.TestGovernanceRouter__factory
-    : contracts.GovernanceRouter__factory;
+  const governanceRouter = xapps.GovernanceRouter__factory;
 
   let { xAppConnectionManager } = deploy.contracts;
   const recoveryTimelock = deploy.config.recoveryTimelock;
@@ -119,16 +116,14 @@ export async function deployGovernanceRouter(deploy: CoreDeploy) {
     .createInterface()
     .encodeFunctionData('initialize', [
       xAppConnectionManager!.address,
-      deploy.recoveryManager,
     ]);
 
   deploy.contracts.governanceRouter =
-    await proxyUtils.deployProxy<contracts.GovernanceRouter>(
+    await proxyUtils.deployProxy<xapps.GovernanceRouter>(
       'Governance',
       deploy,
       new governanceRouter(deploy.signer),
       initData,
-      deploy.chain.domain,
       recoveryTimelock,
     );
 }
@@ -148,8 +143,8 @@ export async function deployUnenrolledInbox(
   if (isTestDeploy) warn('deploying test Inbox');
 
   const inbox = isTestDeploy
-    ? contracts.TestInbox__factory
-    : contracts.Inbox__factory;
+    ? core.TestInbox__factory
+    : core.Inbox__factory;
 
   let initData = inbox
     .createInterface()
@@ -160,15 +155,15 @@ export async function deployUnenrolledInbox(
       0,
     ]);
 
-  // if we have no inboxs, deploy the whole setup.
+  // if we have no inboxes, deploy the whole setup.
   // otherwise just deploy a fresh proxy
   let proxy;
-  if (Object.keys(local.contracts.inboxs).length === 0) {
+  if (Object.keys(local.contracts.inboxes).length === 0) {
     log(
       isTestDeploy,
       `${local.chain.name}: deploying initial Inbox for ${remote.chain.name}`,
     );
-    proxy = await proxyUtils.deployProxy<contracts.Inbox>(
+    proxy = await proxyUtils.deployProxy<core.Inbox>(
       'Inbox',
       local,
       new inbox(local.signer),
@@ -182,15 +177,15 @@ export async function deployUnenrolledInbox(
       isTestDeploy,
       `${local.chain.name}: deploying additional Inbox for ${remote.chain.name}`,
     );
-    const prev = Object.entries(local.contracts.inboxs)[0][1];
-    proxy = await proxyUtils.duplicate<contracts.Inbox>(
+    const prev = Object.entries(local.contracts.inboxes)[0][1];
+    proxy = await proxyUtils.duplicate<core.Inbox>(
       'Inbox',
       local,
       prev,
       initData,
     );
   }
-  local.contracts.inboxs[remote.chain.domain] = proxy;
+  local.contracts.inboxes[remote.chain.domain] = proxy;
   log(
     isTestDeploy,
     `${local.chain.name}: inbox deployed for ${remote.chain.name}`,
@@ -295,7 +290,7 @@ export async function relinquish(deploy: CoreDeploy) {
     `${deploy.chain.name}: Dispatched relinquish upgradeBeaconController`,
   );
 
-  Object.entries(deploy.contracts.inboxs).forEach(async ([domain, inbox]) => {
+  Object.entries(deploy.contracts.inboxes).forEach(async ([domain, inbox]) => {
     await inbox.proxy.transferOwnership(govRouter, deploy.overrides);
     log(
       isTestDeploy,
@@ -325,7 +320,7 @@ export async function enrollInbox(local: CoreDeploy, remote: CoreDeploy) {
   log(isTestDeploy, `${local.chain.name}: starting inbox enrollment`);
 
   let tx = await local.contracts.xAppConnectionManager!.enrollInbox(
-    local.contracts.inboxs[remote.chain.domain].proxy.address,
+    local.contracts.inboxes[remote.chain.domain].proxy.address,
     remote.chain.domain,
     local.overrides,
   );
@@ -349,7 +344,7 @@ export async function enrollGovernanceRouter(
     isTestDeploy,
     `${local.chain.name}: starting enroll ${remote.chain.name} governance router`,
   );
-  let tx = await local.contracts.governanceRouter!.proxy.setRouter(
+  let tx = await local.contracts.governanceRouter!.proxy.enrollRemoteRouter(
     remote.chain.domain,
     toBytes32(remote.contracts.governanceRouter!.proxy.address),
     local.overrides,
@@ -395,44 +390,39 @@ export async function enrollRemote(local: CoreDeploy, remote: CoreDeploy) {
 }
 
 /**
- * Transfers governorship to the governing chain's GovernanceRouter.
+ * Sets the governor to the null address.
  *
- * @param gov - The governor chain deploy instance
- * @param non - The non-governor chain deploy instance
+ * @param local - The deploy instance on which to renounce governorship
  */
-export async function transferGovernorship(gov: CoreDeploy, non: CoreDeploy) {
-  log(gov.test, `${non.chain.name}: transferring governorship`);
-  let governorAddress = await gov.contracts.governanceRouter!.proxy.governor();
-  let tx = await non.contracts.governanceRouter!.proxy.transferGovernor(
-    gov.chain.domain,
-    governorAddress,
-    non.overrides,
+export async function renounceGovernorship(deploy: CoreDeploy) {
+  log(deploy.test, `${deploy.chain.name}: renouncing governorship`);
+  let tx = await deploy.contracts.governanceRouter!.proxy.setGovernor(
+    ethers.constants.AddressZero,
+    deploy.overrides,
   );
-  await tx.wait(gov.chain.confirmations);
-  log(gov.test, `${non.chain.name}: governorship transferred`);
+  await tx.wait(deploy.chain.confirmations);
+  log(deploy.test, `${deploy.chain.name}: governorship transferred`);
 }
 
 /**
- * Appints the intended ultimate governor in that domain's Governance Router.
+ * Sets the intended ultimate governor on that domain's Governance Router.
  * If the governor address is not configured, it will remain the signer
  * address.
  * @param gov - The governor chain deploy instance
  */
-export async function appointGovernor(gov: CoreDeploy) {
-  const domain = gov.chain.domain;
+export async function setGovernor(gov: CoreDeploy) {
   const governor = await gov.governorOrSigner();
   if (governor) {
     log(
       gov.test,
-      `${gov.chain.name}: transferring root governorship to ${domain}:${governor}`,
+      `${gov.chain.name}: setting governor to:${governor}`,
     );
-    const tx = await gov.contracts.governanceRouter!.proxy.transferGovernor(
-      domain,
+    const tx = await gov.contracts.governanceRouter!.proxy.setGovernor(
       governor,
       gov.overrides,
     );
     await tx.wait(gov.chain.confirmations);
-    log(gov.test, `${gov.chain.name}: root governorship transferred`);
+    log(gov.test, `${gov.chain.name}: governor set`);
   }
 }
 
@@ -500,15 +490,15 @@ export async function deployNChains(deploys: CoreDeploy[]) {
     }
   }
 
-  // appoint the configured governance account as governor
+  // set the configured governance account as governor
   if (govChain.governor) {
-    log(isTestDeploy, `appoint governor: ${govChain.governor}`);
-    await appointGovernor(govChain);
+    log(isTestDeploy, `set governor: ${govChain.governor}`);
+    await setGovernor(govChain);
   }
 
   await Promise.all(
     nonGovChains.map(async (non) => {
-      await transferGovernorship(govChain, non);
+      await renounceGovernorship(non);
     }),
   );
 

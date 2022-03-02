@@ -227,7 +227,7 @@ export class AbacusContext extends MultiProvider {
   /**
    * Returns the governors of this abacus deployment.
    *
-   * @returns The identifier of the governing domain
+   * @returns The governors of the deployment
    */
   async governors(): Promise<Governor[]>{
     let governors = await Promise.all(Array.from(this.cores.values()).map((core) => core.governor()))
@@ -237,15 +237,25 @@ export class AbacusContext extends MultiProvider {
   }
 
   /**
-   * Discovers the governor domain of this abacus deployment and returns the
-   * associated Core.
+   * Returns the single governor of this deployment, throws an error if not found.
    *
-   * @returns The identifier of the governing domain
+   * @returns The governor of the deployment
    */
   async governor(): Promise<Governor> {
     const governors = await this.governors();
     if (governors.length !== 1) throw new Error('multiple governors')
     return governors[0];
+  }
+
+  /**
+   * Discovers the governor domain of this abacus deployment and returns the
+   * associated Core.
+   *
+   * @returns The identifier of the governing domain
+   */
+  async governorCore(): Promise<CoreContracts> {
+    const governor = await this.governor();
+    return this.mustGetCore(governor.domain);
   }
 
   /**

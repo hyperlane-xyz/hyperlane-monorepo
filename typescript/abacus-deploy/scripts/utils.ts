@@ -121,8 +121,8 @@ export async function registerGovernorSigner(
   context: AbacusContext,
   chains: ChainConfig[],
 ): Promise<void> {
-  const govDomain = await context.governorDomain();
-  const govChains = chains.filter((c) => c.domain === govDomain);
+  const governor = await context.governor();
+  const govChains = chains.filter((c) => c.domain === governor.domain);
   if (govChains.length !== 1) throw new Error('could not find governor chain');
   const govChain = govChains[0];
   context.registerSigner(
