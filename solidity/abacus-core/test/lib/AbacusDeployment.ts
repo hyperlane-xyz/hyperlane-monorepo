@@ -30,7 +30,6 @@ export interface AbacusInstance {
 
 const processGas = 850000;
 const reserveGas = 15000;
-const nullRoot = '0x' + '00'.repeat(32);
 
 export class AbacusDeployment {
   constructor(
@@ -84,7 +83,7 @@ export class AbacusDeployment {
       await inbox.initialize(
         remoteDomain,
         validatorManager.address,
-        nullRoot,
+        ethers.constants.HashZero,
         0,
       );
       await connectionManager.enrollInbox(inbox.address, remoteDomain);

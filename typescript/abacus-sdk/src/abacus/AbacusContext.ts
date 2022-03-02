@@ -2,7 +2,7 @@ import { BigNumberish, ethers } from 'ethers';
 import { MultiProvider } from '..';
 import { xapps, core } from '@abacus-network/ts-interface';
 import { BridgeContracts } from './contracts/BridgeContracts';
-import { CoreContracts } from './contracts/CoreContracts';
+import { Governor, CoreContracts } from './contracts/CoreContracts';
 import { ResolvedTokenInfo, TokenIdentifier } from './tokens';
 import { canonizeId, evmId } from '../utils';
 import {
@@ -33,7 +33,6 @@ type Address = string;
 export class AbacusContext extends MultiProvider {
   private cores: Map<number, CoreContracts>;
   private bridges: Map<number, BridgeContracts>;
-  private _governorDomain?: number;
 
   constructor(
     domains: AbacusDomain[],
@@ -226,21 +225,15 @@ export class AbacusContext extends MultiProvider {
   }
 
   /**
-   * Discovers the governor domain of this abacus deployment and caches it.
+   * Returns the governors of this abacus deployment.
    *
    * @returns The identifier of the governing domain
    */
-  async governorDomain(): Promise<number> {
-    if (this._governorDomain) {
-      return this._governorDomain;
-    }
-
-    const core: CoreContracts = this.cores.values().next().value;
-    if (!core) throw new Error('empty core map');
-
-    const governorDomain = await core.governanceRouter.governorDomain();
-    this._governorDomain = governorDomain !== 0 ? governorDomain : core.domain;
-    return this._governorDomain;
+  async governors(): Promise<Governor[]>{
+    let governors = await Promise.all(Array.from(this.cores.values()).map((core) => core.governor()))
+    governors = governors.filter((governor) => governor.identifier !== ethers.constants.AddressZero)
+    if (governors.length === 0) throw new Error('no governors');
+    return governors;
   }
 
   /**
@@ -249,8 +242,10 @@ export class AbacusContext extends MultiProvider {
    *
    * @returns The identifier of the governing domain
    */
-  async governorCore(): Promise<CoreContracts> {
-    return this.mustGetCore(await this.governorDomain());
+  async governor(): Promise<Governor> {
+    const governors = await this.governors();
+    if (governors.length !== 1) throw new Error('multiple governors')
+    return governors[0];
   }
 
   /**

@@ -9,7 +9,6 @@ const destinationNonceTestCases = require('../../../vectors/destinationNonce.jso
 
 const localDomain = 1000;
 const destDomain = 2000;
-const nullAddress: string = '0x' + '00'.repeat(32);
 
 describe('Outbox', async () => {
   let outbox: TestOutbox, signer: Signer, recipient: Signer;
@@ -113,7 +112,7 @@ describe('Outbox', async () => {
     );
     await outbox.checkpoint();
     const [root, index] = await outbox.latestCheckpoint();
-    expect(root).to.not.equal(nullAddress);
+    expect(root).to.not.equal(ethers.constants.HashZero);
     expect(index).to.equal(1);
   });
 

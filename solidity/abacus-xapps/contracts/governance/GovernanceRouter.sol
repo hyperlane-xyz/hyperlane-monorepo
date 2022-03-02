@@ -256,6 +256,8 @@ contract GovernanceRouter is Version0, Router {
     /**
      * @notice Returns the address of the recovery manager.
      */
+     // TODO(asa): Only the local governor can change the recovery manager,
+     // is that okay?
     function recoveryManager() public view returns (address) {
         return OwnableUpgradeable.owner();
     }

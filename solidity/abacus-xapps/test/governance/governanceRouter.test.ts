@@ -12,7 +12,6 @@ import {
   GovernanceRouter__factory,
 } from '../../typechain';
 
-const nullAddress = '0x' + '00'.repeat(20);
 const recoveryTimelock = 60 * 60 * 24 * 7;
 const localDomain = 1000;
 const remoteDomain = 2000;
@@ -47,14 +46,14 @@ describe('GovernanceRouter', async () => {
   });
 
   it('Cannot be initialized twice', async () => {
-    await expect(router.initialize(nullAddress)).to.be.revertedWith(
+    await expect(router.initialize(ethers.constants.AddressZero)).to.be.revertedWith(
       'Initializable: contract is already initialized',
     );
   });
 
   it('accepts message from enrolled inbox and router', async () => {
-    expect(await router.governor()).to.not.equal(nullAddress);
-    const message = helpers.governance.formatSetGovernor(nullAddress);
+    expect(await router.governor()).to.not.equal(ethers.constants.AddressZero);
+    const message = helpers.governance.formatSetGovernor(ethers.constants.AddressZero);
     // Create a fake abacus message coming from the remote governance router.
     const fakeMessage = helpers.abacus.formatMessage(
       remoteDomain,
@@ -69,11 +68,11 @@ describe('GovernanceRouter', async () => {
     await inbox.setMessageProven(fakeMessage);
     // Expect inbox processing to fail when reverting in handle
     await inbox.testProcess(fakeMessage);
-    expect(await router.governor()).to.equal(nullAddress);
+    expect(await router.governor()).to.equal(ethers.constants.AddressZero);
   });
 
   it('rejects message from unenrolled inbox', async () => {
-    const message = helpers.governance.formatSetGovernor(nullAddress);
+    const message = helpers.governance.formatSetGovernor(ethers.constants.AddressZero);
     await expect(
       router.handle(
         remoteDomain,
@@ -84,11 +83,11 @@ describe('GovernanceRouter', async () => {
   });
 
   it('rejects message from unenrolled router', async () => {
-    const message = helpers.governance.formatSetGovernor(nullAddress);
+    const message = helpers.governance.formatSetGovernor(ethers.constants.AddressZero);
     // Create a fake abacus message coming from the remote governance router.
     const fakeMessage = helpers.abacus.formatMessage(
       remoteDomain,
-      nullAddress,
+      ethers.constants.AddressZero,
       0, // nonce is ignored
       localDomain,
       router.address,
@@ -123,16 +122,16 @@ describe('GovernanceRouter', async () => {
 
     it('governor can set local governor', async () => {
       expect(await router.governor()).to.equal(governor.address);
-      await router.setGovernor(nullAddress);
-      expect(await router.governor()).to.equal(nullAddress);
+      await router.setGovernor(ethers.constants.AddressZero);
+      expect(await router.governor()).to.equal(ethers.constants.AddressZero);
     });
 
     it('governor can set local xAppConnectionManager', async () => {
       expect(await router.xAppConnectionManager()).to.equal(
         abacus.connectionManager(localDomain).address,
       );
-      await router.setXAppConnectionManager(nullAddress);
-      expect(await router.xAppConnectionManager()).to.equal(nullAddress);
+      await router.setXAppConnectionManager(ethers.constants.AddressZero);
+      expect(await router.xAppConnectionManager()).to.equal(ethers.constants.AddressZero);
     });
 
     it('governor can make remote calls', async () => {
@@ -152,7 +151,7 @@ describe('GovernanceRouter', async () => {
     });
 
     it('governor can set remote xAppConnectionManager', async () => {
-      const newConnectionManager = nullAddress;
+      const newConnectionManager = ethers.constants.AddressZero;
       expect(await remote.xAppConnectionManager()).to.not.equal(
         newConnectionManager,
       );
@@ -186,7 +185,7 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager cannot set local governor', async () => {
       await expect(
-        router.connect(recoveryManager).setGovernor(nullAddress),
+        router.connect(recoveryManager).setGovernor(ethers.constants.AddressZero),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
@@ -270,16 +269,16 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager can set local governor', async () => {
       expect(await router.governor()).to.equal(governor.address);
-      await router.setGovernor(nullAddress);
-      expect(await router.governor()).to.equal(nullAddress);
+      await router.setGovernor(ethers.constants.AddressZero);
+      expect(await router.governor()).to.equal(ethers.constants.AddressZero);
     });
 
     it('recovery manager can set local xAppConnectionManager', async () => {
       expect(await router.xAppConnectionManager()).to.equal(
         abacus.connectionManager(localDomain).address,
       );
-      await router.setXAppConnectionManager(nullAddress);
-      expect(await router.xAppConnectionManager()).to.equal(nullAddress);
+      await router.setXAppConnectionManager(ethers.constants.AddressZero);
+      expect(await router.xAppConnectionManager()).to.equal(ethers.constants.AddressZero);
     });
 
     it('recovery manager cannot make remote calls', async () => {
@@ -323,7 +322,7 @@ describe('GovernanceRouter', async () => {
 
     it('governor cannot set local governor', async () => {
       await expect(
-        router.connect(governor).setGovernor(nullAddress),
+        router.connect(governor).setGovernor(ethers.constants.AddressZero),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 

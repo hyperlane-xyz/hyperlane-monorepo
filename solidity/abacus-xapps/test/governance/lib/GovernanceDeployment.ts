@@ -17,7 +17,6 @@ export interface GovernanceInstance {
 }
 
 const recoveryTimelock = 60 * 60 * 24 * 7;
-const nullAddress = '0x' + '00'.repeat(20);
 
 export class GovernanceDeployment {
   constructor(
@@ -54,7 +53,7 @@ export class GovernanceDeployment {
 
     // Set the governor on one router, clear it on all other routers.
     for (let i = 0; i < abacus.domains.length; i++) {
-      const addr = i === 0 ? governor.address : nullAddress;
+      const addr = i === 0 ? governor.address : ethers.constants.AddressZero;
       await instances[abacus.domains[i]].router.setGovernor(addr);
     }
 

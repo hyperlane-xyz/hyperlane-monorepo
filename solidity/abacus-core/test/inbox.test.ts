@@ -26,7 +26,6 @@ const localDomain = 2000;
 const remoteDomain = 1000;
 const processGas = 850000;
 const reserveGas = 15000;
-const nullRoot = '0x' + '00'.repeat(32);
 
 describe('Inbox', async () => {
   const badRecipientFactories = [
@@ -58,12 +57,12 @@ describe('Inbox', async () => {
   beforeEach(async () => {
     const inboxFactory = new TestInbox__factory(signer);
     inbox = await inboxFactory.deploy(localDomain, processGas, reserveGas);
-    await inbox.initialize(remoteDomain, validatorManager.address, nullRoot, 0);
+    await inbox.initialize(remoteDomain, validatorManager.address, ethers.constants.HashZero, 0);
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      inbox.initialize(remoteDomain, validatorManager.address, nullRoot, 0),
+      inbox.initialize(remoteDomain, validatorManager.address, ethers.constants.HashZero, 0),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 

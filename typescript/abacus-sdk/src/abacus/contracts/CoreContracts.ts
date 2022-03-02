@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { core } from '@abacus-network/ts-interface';
+import { core, xapps } from '@abacus-network/ts-interface';
 import { Contracts } from '../../contracts';
 import { InboxInfo } from '../domains/domain';
 import { CallBatch } from '../govern';
@@ -15,7 +15,6 @@ interface Core {
 }
 
 export type Governor = {
-  local: boolean;
   domain: number;
   identifier: string;
 };
@@ -69,11 +68,11 @@ export class CoreContracts extends Contracts {
     return core.Outbox__factory.connect(this._outbox, this.providerOrSigner);
   }
 
-  get governanceRouter(): core.GovernanceRouter {
+  get governanceRouter(): xapps.GovernanceRouter {
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
-    return core.GovernanceRouter__factory.connect(
+    return xapps.GovernanceRouter__factory.connect(
       this._governanceRouter,
       this.providerOrSigner,
     );
@@ -93,12 +92,8 @@ export class CoreContracts extends Contracts {
     if (this._governor) {
       return this._governor;
     }
-    const [domain, identifier] = await Promise.all([
-      this.governanceRouter.governorDomain(),
-      this.governanceRouter.governor(),
-    ]);
-    const local = identifier !== ethers.constants.AddressZero;
-    this._governor = { local, domain, identifier };
+    const identifier = await this.governanceRouter.governor();
+    this._governor = { domain: this.domain, identifier };
     return this._governor;
   }
 
