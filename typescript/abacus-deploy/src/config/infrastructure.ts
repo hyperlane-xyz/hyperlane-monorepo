@@ -33,6 +33,7 @@ interface ExternalSecretsConfig {
   namespace: string;
   gcpServiceAccountName: string;
   helmChart: HelmChartConfig;
+  accessibleGCPSecretPrefixes: string[];
 }
 
 export interface InfrastructureConfig {
