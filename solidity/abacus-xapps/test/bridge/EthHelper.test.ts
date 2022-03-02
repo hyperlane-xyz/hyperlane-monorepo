@@ -7,7 +7,7 @@ import { BridgeDeployment } from './lib/BridgeDeployment';
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
 import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
 
-const { BridgeMessageTypes, serializeMessage} = helpers.bridge;
+const { BridgeMessageTypes, serializeMessage } = helpers.bridge;
 const localDomain = 1000;
 const remoteDomain = 2000;
 const domains = [localDomain, remoteDomain];

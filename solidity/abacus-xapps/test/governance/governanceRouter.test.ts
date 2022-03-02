@@ -19,7 +19,7 @@ const remoteDomain = 2000;
 const domains = [localDomain, remoteDomain];
 const ONLY_OWNER_REVERT_MESSAGE = 'Ownable: caller is not the owner';
 
-describe.only('GovernanceRouter', async () => {
+describe('GovernanceRouter', async () => {
   let governor: Signer,
     recoveryManager: Signer,
     router: GovernanceRouter,
@@ -65,7 +65,7 @@ describe.only('GovernanceRouter', async () => {
       message,
     );
 
-    const inbox = abacus.inbox(localDomain, remoteDomain)
+    const inbox = abacus.inbox(localDomain, remoteDomain);
     await inbox.setMessageProven(fakeMessage);
     // Expect inbox processing to fail when reverting in handle
     await inbox.testProcess(fakeMessage);
@@ -75,11 +75,15 @@ describe.only('GovernanceRouter', async () => {
   it('rejects message from unenrolled inbox', async () => {
     const message = helpers.governance.formatSetGovernor(nullAddress);
     await expect(
-      router.handle(remoteDomain, helpers.abacus.ethersAddressToBytes32(remote.address), message),
+      router.handle(
+        remoteDomain,
+        helpers.abacus.ethersAddressToBytes32(remote.address),
+        message,
+      ),
     ).to.be.revertedWith('!inbox');
   });
 
-  it('rejects messag from unenrolled router', async () => {
+  it('rejects message from unenrolled router', async () => {
     const message = helpers.governance.formatSetGovernor(nullAddress);
     // Create a fake abacus message coming from the remote governance router.
     const fakeMessage = helpers.abacus.formatMessage(
@@ -91,7 +95,7 @@ describe.only('GovernanceRouter', async () => {
       message,
     );
 
-    const inbox = abacus.inbox(localDomain, remoteDomain)
+    const inbox = abacus.inbox(localDomain, remoteDomain);
     await inbox.setMessageProven(fakeMessage);
     // Expect inbox processing to fail when reverting in handle
     let success = await inbox.callStatic.testProcess(fakeMessage);
