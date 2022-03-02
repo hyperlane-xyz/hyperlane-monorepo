@@ -39,7 +39,7 @@ describe('BridgeRouter', async () => {
     [deployer] = await ethers.getSigners();
     deployerAddress = await deployer.getAddress();
     deployerId = toBytes32(await deployer.getAddress()).toLowerCase();
-    abacusDeployment = await abacus.deployment.fromDomains(domains, deployer);
+    abacusDeployment = await AbacusDeployment.fromDomains(domains, deployer);
     // Enroll ourselves as a inbox so we can send messages directly to the
     // local router.
     await abacusDeployment

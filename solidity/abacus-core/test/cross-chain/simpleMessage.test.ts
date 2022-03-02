@@ -29,7 +29,7 @@ describe('SimpleCrossChainMessage', async () => {
   before(async () => {
     [randomSigner] = await ethers.getSigners();
     validator = await Validator.fromSigner(randomSigner, localDomain);
-    abacusDeployment = await abacus.deployment.fromDomains(
+    abacusDeployment = await AbacusDeployment.fromDomains(
       domains,
       randomSigner,
     );
