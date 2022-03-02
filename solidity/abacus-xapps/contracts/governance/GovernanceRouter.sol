@@ -175,7 +175,6 @@ contract GovernanceRouter is Version0, Router {
      * @dev callable by the recovery manager iff in recovery
      */
     function exitRecovery() external onlyInRecovery onlyRecoveryManager {
-        require(recoveryActiveAt != 0, "recovery not initiated");
         delete recoveryActiveAt;
         emit ExitRecovery(recoveryManager());
     }
