@@ -26,6 +26,7 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     "VERSION()": FunctionFragment;
     "canonicalToRepresentation(bytes32)": FunctionFragment;
     "enrollCustom(uint32,bytes32,address)": FunctionFragment;
+    "enrollRemoteRouter(uint32,bytes32)": FunctionFragment;
     "getCanonicalAddress(address)": FunctionFragment;
     "getLocalAddress(uint32,bytes32)": FunctionFragment;
     "handle(uint32,bytes32,bytes)": FunctionFragment;
@@ -39,7 +40,6 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     "requestDetails(uint32,bytes32)": FunctionFragment;
     "routers(uint32)": FunctionFragment;
     "send(address,uint256,uint32,bytes32)": FunctionFragment;
-    "setRemoteRouter(uint32,bytes32)": FunctionFragment;
     "setXAppConnectionManager(address)": FunctionFragment;
     "tokenBeacon()": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
@@ -62,6 +62,10 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
   encodeFunctionData(
     functionFragment: "enrollCustom",
     values: [BigNumberish, BytesLike, string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "enrollRemoteRouter",
+    values: [BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "getCanonicalAddress",
@@ -107,10 +111,6 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     values: [string, BigNumberish, BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "setRemoteRouter",
-    values: [BigNumberish, BytesLike]
-  ): string;
-  encodeFunctionData(
     functionFragment: "setXAppConnectionManager",
     values: [string]
   ): string;
@@ -145,6 +145,10 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
     data: BytesLike
   ): Result;
   decodeFunctionResult(
+    functionFragment: "enrollRemoteRouter",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
     functionFragment: "getCanonicalAddress",
     data: BytesLike
   ): Result;
@@ -176,10 +180,6 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
   decodeFunctionResult(functionFragment: "routers", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "send", data: BytesLike): Result;
   decodeFunctionResult(
-    functionFragment: "setRemoteRouter",
-    data: BytesLike
-  ): Result;
-  decodeFunctionResult(
     functionFragment: "setXAppConnectionManager",
     data: BytesLike
   ): Result;
@@ -197,16 +197,16 @@ interface BridgeRouterInterface extends ethers.utils.Interface {
   ): Result;
 
   events: {
+    "EnrollRemoteRouter(uint32,bytes32)": EventFragment;
     "OwnershipTransferred(address,address)": EventFragment;
     "Send(address,address,uint32,bytes32,uint256)": EventFragment;
-    "SetRemoteRouter(uint32,bytes32)": EventFragment;
     "SetXAppConnectionManager(address)": EventFragment;
     "TokenDeployed(uint32,bytes32,address)": EventFragment;
   };
 
+  getEvent(nameOrSignatureOrTopic: "EnrollRemoteRouter"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Send"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "SetRemoteRouter"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "SetXAppConnectionManager"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "TokenDeployed"): EventFragment;
 }
@@ -270,6 +270,12 @@ export class BridgeRouter extends BaseContract {
       _domain: BigNumberish,
       _id: BytesLike,
       _custom: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    enrollRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -345,12 +351,6 @@ export class BridgeRouter extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    setRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     setXAppConnectionManager(
       _xAppConnectionManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -381,6 +381,12 @@ export class BridgeRouter extends BaseContract {
     _domain: BigNumberish,
     _id: BytesLike,
     _custom: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  enrollRemoteRouter(
+    _domain: BigNumberish,
+    _router: BytesLike,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -456,12 +462,6 @@ export class BridgeRouter extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  setRemoteRouter(
-    _domain: BigNumberish,
-    _router: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   setXAppConnectionManager(
     _xAppConnectionManager: string,
     overrides?: Overrides & { from?: string | Promise<string> }
@@ -492,6 +492,12 @@ export class BridgeRouter extends BaseContract {
       _domain: BigNumberish,
       _id: BytesLike,
       _custom: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    enrollRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -559,12 +565,6 @@ export class BridgeRouter extends BaseContract {
       overrides?: CallOverrides
     ): Promise<void>;
 
-    setRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
     setXAppConnectionManager(
       _xAppConnectionManager: string,
       overrides?: CallOverrides
@@ -581,6 +581,11 @@ export class BridgeRouter extends BaseContract {
   };
 
   filters: {
+    EnrollRemoteRouter(
+      domain?: BigNumberish | null,
+      router?: BytesLike | null
+    ): TypedEventFilter<[number, string], { domain: number; router: string }>;
+
     OwnershipTransferred(
       previousOwner?: string | null,
       newOwner?: string | null
@@ -605,11 +610,6 @@ export class BridgeRouter extends BaseContract {
         amount: BigNumber;
       }
     >;
-
-    SetRemoteRouter(
-      domain?: BigNumberish | null,
-      router?: BytesLike | null
-    ): TypedEventFilter<[number, string], { domain: number; router: string }>;
 
     SetXAppConnectionManager(
       xAppConnectionManager?: string | null
@@ -641,6 +641,12 @@ export class BridgeRouter extends BaseContract {
       _domain: BigNumberish,
       _id: BytesLike,
       _custom: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    enrollRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -716,12 +722,6 @@ export class BridgeRouter extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    setRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     setXAppConnectionManager(
       _xAppConnectionManager: string,
       overrides?: Overrides & { from?: string | Promise<string> }
@@ -757,6 +757,12 @@ export class BridgeRouter extends BaseContract {
       _domain: BigNumberish,
       _id: BytesLike,
       _custom: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    enrollRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 
@@ -832,12 +838,6 @@ export class BridgeRouter extends BaseContract {
       _amount: BigNumberish,
       _destination: BigNumberish,
       _recipient: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    setRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 

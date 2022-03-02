@@ -1,15 +1,11 @@
 import { expect } from 'chai';
-import { ethers, abacus } from 'hardhat';
-import * as types from 'ethers';
+import { abacus } from 'hardhat';
+import { ethers } from 'ethers';
 
-import { Validator } from '../lib/core';
-import { CallData, Address } from '../lib/types';
-import {
-  Inbox,
-  TestInbox,
-  Outbox,
-  TestGovernanceRouter,
-} from '../../typechain';
+import { Validator } from '@abacus-network/abacus-sol/test/lib/Core';
+import { CallData, Address } from '@abacus-network/abacus-sol/test/lib/types';
+import { Inbox, TestInbox, Outbox } from '@abacus-network/abacus-sol/typechain';
+import { GovernanceRouter } from '../../../typechain';
 
 type MessageDetails = {
   message: string;
@@ -96,8 +92,8 @@ export function formatMessage(
 
 export async function formatAbacusMessage(
   inbox: TestInbox,
-  governorRouter: TestGovernanceRouter,
-  destinationRouter: TestGovernanceRouter,
+  governorRouter: GovernanceRouter,
+  destinationRouter: GovernanceRouter,
   message: string,
 ): Promise<string> {
   const nonce = 0;
@@ -122,7 +118,7 @@ export async function formatAbacusMessage(
 }
 
 export async function formatCall(
-  destinationContract: types.Contract,
+  destinationContract: ethers.Contract,
   functionStr: string,
   functionArgs: any[],
 ): Promise<CallData> {
@@ -141,8 +137,8 @@ export async function formatCall(
 
 // Send a transaction from the specified signer
 export async function sendFromSigner(
-  signer: types.Signer,
-  contract: types.Contract,
+  signer: ethers.Signer,
+  contract: ethers.Contract,
   functionName: string,
   args: any[],
 ) {
@@ -155,10 +151,18 @@ export async function sendFromSigner(
 }
 
 function encodeData(
-  contract: types.Contract,
+  contract: ethers.Contract,
   functionName: string,
   args: any[],
 ): string {
   const func = contract.interface.getFunction(functionName);
   return contract.interface.encodeFunctionData(func, args);
 }
+
+export const increaseTimestampBy = async (
+  provider: ethers.providers.JsonRpcProvider,
+  increaseTime: number,
+) => {
+  await provider.send('evm_increaseTime', [increaseTime]);
+  await provider.send('evm_mine', []);
+};

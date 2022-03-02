@@ -12,6 +12,25 @@ const _abi = [
     inputs: [
       {
         indexed: true,
+        internalType: "uint32",
+        name: "domain",
+        type: "uint32",
+      },
+      {
+        indexed: true,
+        internalType: "bytes32",
+        name: "router",
+        type: "bytes32",
+      },
+    ],
+    name: "EnrollRemoteRouter",
+    type: "event",
+  },
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
         internalType: "address",
         name: "previousOwner",
         type: "address",
@@ -31,25 +50,6 @@ const _abi = [
     inputs: [
       {
         indexed: true,
-        internalType: "uint32",
-        name: "domain",
-        type: "uint32",
-      },
-      {
-        indexed: true,
-        internalType: "bytes32",
-        name: "router",
-        type: "bytes32",
-      },
-    ],
-    name: "SetRemoteRouter",
-    type: "event",
-  },
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
         internalType: "address",
         name: "xAppConnectionManager",
         type: "address",
@@ -57,6 +57,24 @@ const _abi = [
     ],
     name: "SetXAppConnectionManager",
     type: "event",
+  },
+  {
+    inputs: [
+      {
+        internalType: "uint32",
+        name: "_domain",
+        type: "uint32",
+      },
+      {
+        internalType: "bytes32",
+        name: "_router",
+        type: "bytes32",
+      },
+    ],
+    name: "enrollRemoteRouter",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
   },
   {
     inputs: [
@@ -118,24 +136,6 @@ const _abi = [
       },
     ],
     stateMutability: "view",
-    type: "function",
-  },
-  {
-    inputs: [
-      {
-        internalType: "uint32",
-        name: "_domain",
-        type: "uint32",
-      },
-      {
-        internalType: "bytes32",
-        name: "_router",
-        type: "bytes32",
-      },
-    ],
-    name: "setRemoteRouter",
-    outputs: [],
-    stateMutability: "nonpayable",
     type: "function",
   },
   {

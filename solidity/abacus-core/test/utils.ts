@@ -12,14 +12,6 @@ import {
   UpgradeBeaconProxy__factory,
 } from '../typechain';
 
-export const increaseTimestampBy = async (
-  provider: ethers.providers.JsonRpcProvider,
-  increaseTime: number,
-) => {
-  await provider.send('evm_increaseTime', [increaseTime]);
-  await provider.send('evm_mine', []);
-};
-
 export type MysteryMathUpgrade = {
   proxy: MysteryMathV1 | MysteryMathV2;
   beacon: UpgradeBeacon;

@@ -2,15 +2,16 @@ import { expect } from 'chai';
 import { ethers, bridge, abacus } from 'hardhat';
 import { BigNumber, BytesLike } from 'ethers';
 
-import * as types from './lib/types';
-import { BridgeDeployment } from './lib/BridgeDeployment';
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
 import { Signer } from '@abacus-network/abacus-sol/test/lib/types';
 import {
   stringToBytes32,
   toBytes32,
 } from '@abacus-network/abacus-sol/test/lib/utils';
-import { BridgeToken, BridgeToken__factory, IERC20 } from '../typechain';
+
+import * as types from '../lib/types';
+import { BridgeDeployment } from './lib/BridgeDeployment';
+import { BridgeToken, BridgeToken__factory, IERC20 } from '../../typechain';
 
 const { BridgeMessageTypes } = bridge;
 const localDomain = 1000;
@@ -128,7 +129,7 @@ describe('BridgeRouter', async () => {
       });
 
       it('errors when missing a remote router', async () => {
-        expect(
+        await expect(
           bridgeDeployment
             .router(localDomain)
             .send(repr.address, TOKEN_VALUE * 10, 121234, deployerId),
@@ -136,7 +137,7 @@ describe('BridgeRouter', async () => {
       });
 
       it('errors on send when recipient is the 0 address', async () => {
-        expect(
+        await expect(
           bridgeDeployment
             .router(localDomain)
             .send(

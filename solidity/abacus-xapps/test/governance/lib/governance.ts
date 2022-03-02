@@ -1,3 +1,8 @@
+import ethers from 'ethers';
+import * as types from '@abacus-network/abacus-sol/test/lib/types';
+import { getHexStringByteLength } from '@abacus-network/abacus-sol/test/lib/utils';
+import { HardhatGovernanceHelpers } from '../../lib/types';
+
 export enum GovernanceMessage {
   CALL = 1,
   TRANSFERGOVERNOR = 2,
@@ -48,10 +53,8 @@ function formatCalls(callsData: types.CallData[]): string {
   );
 }
 
-export const abacus: types.HardhatGovernanceHelpers = {
-  governance: {
-    formatTransferGovernor,
-    formatSetRouter,
-    formatCalls,
-  },
+export const governance: HardhatGovernanceHelpers = {
+  formatTransferGovernor,
+  formatSetRouter,
+  formatCalls,
 };

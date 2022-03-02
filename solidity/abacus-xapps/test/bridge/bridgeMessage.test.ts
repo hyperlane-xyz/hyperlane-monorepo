@@ -3,15 +3,15 @@ import { BytesLike } from 'ethers';
 import { expect } from 'chai';
 
 import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
-import { formatTokenId } from './lib/bridge';
+import { formatTokenId } from '../lib/bridge';
 import {
   TokenIdentifier,
   TransferAction,
   DetailsAction,
   Message,
   RequestDetailsAction,
-} from './lib/types';
-import { TestBridgeMessage__factory, TestBridgeMessage } from '../typechain';
+} from '../lib/types';
+import { TestBridgeMessage__factory, TestBridgeMessage } from '../../typechain';
 
 const { BridgeMessageTypes } = bridge;
 

@@ -12,14 +12,14 @@ library GovernanceMessage {
     uint256 private constant CALL_PREFIX_LEN = 64;
     uint256 private constant MSG_PREFIX_NUM_ITEMS = 2;
     uint256 private constant MSG_PREFIX_LEN = 2;
-    uint256 private constant SET_ROUTER_LEN = 37;
+    uint256 private constant ENROLL_REMOTE_ROUTER_LEN = 37;
     uint256 private constant SET_ADDRESS_LEN = 33;
 
     enum Types {
         Invalid, // 0
         Call, // 1
         SetGovernor, // 2
-        SetRemoteRouter, // 3
+        EnrollRemoteRouter, // 3
         Data, // 4
         SetXAppConnectionManager // 5
     }
@@ -80,14 +80,16 @@ library GovernanceMessage {
         );
     }
 
-    function formatSetRemoteRouter(uint32 _domain, bytes32 _router)
+    function formatEnrollRemoteRouter(uint32 _domain, bytes32 _router)
         internal
         view
         returns (bytes memory _msg)
     {
         _msg = TypedMemView.clone(
-            mustBeSetRemoteRouter(
-                abi.encodePacked(Types.SetRemoteRouter, _domain, _router).ref(0)
+            mustBeEnrollRemoteRouter(
+                abi
+                    .encodePacked(Types.EnrollRemoteRouter, _domain, _router)
+                    .ref(0)
             )
         );
     }
@@ -171,19 +173,19 @@ library GovernanceMessage {
         return uint256(_view.index(32, 32));
     }
 
-    // Types.SetRemoteRouter
+    // Types.EnrollRemoteRouter
     function domain(bytes29 _view) internal pure returns (uint32) {
         return uint32(_view.indexUint(1, 4));
     }
 
-    // Types.SetRemoteRouter
+    // Types.EnrollRemoteRouter
     function router(bytes29 _view) internal pure returns (bytes32) {
         return _view.index(5, 32);
     }
 
     // Types.SetGovernor
     function governor(bytes29 _view) internal pure returns (bytes32) {
-        return _view.index(1, 33);
+        return _view.index(1, 32);
     }
 
     // Types.SetXAppConnectionManager
@@ -192,7 +194,7 @@ library GovernanceMessage {
         pure
         returns (bytes32)
     {
-        return _view.index(1, 33);
+        return _view.index(1, 32);
     }
 
     /*
@@ -261,47 +263,47 @@ library GovernanceMessage {
     }
 
     /*
-        Message Type: SET ROUTER
-        struct SetRemoteRouter {
+        Message Type: ENROLL REMOTE ROUTER
+        struct EnrollRemoteRouter {
             identifier, // message ID -- 1 byte
             domain,     // domain of new router -- 4 bytes
             addr        // address of new router -- 32 bytes
         }
     */
 
-    function isValidSetRemoteRouter(bytes29 _view)
+    function isValidEnrollRemoteRouter(bytes29 _view)
         internal
         pure
         returns (bool)
     {
         return
-            identifier(_view) == uint8(Types.SetRemoteRouter) &&
-            _view.len() == SET_ROUTER_LEN;
+            identifier(_view) == uint8(Types.EnrollRemoteRouter) &&
+            _view.len() == ENROLL_REMOTE_ROUTER_LEN;
     }
 
-    function isSetRemoteRouter(bytes29 _view) internal pure returns (bool) {
+    function isEnrollRemoteRouter(bytes29 _view) internal pure returns (bool) {
         return
-            isValidSetRemoteRouter(_view) &&
-            messageType(_view) == Types.SetRemoteRouter;
+            isValidEnrollRemoteRouter(_view) &&
+            messageType(_view) == Types.EnrollRemoteRouter;
     }
 
-    function tryAsSetRemoteRouter(bytes29 _view)
+    function tryAsEnrollRemoteRouter(bytes29 _view)
         internal
         pure
         returns (bytes29)
     {
-        if (isValidSetRemoteRouter(_view)) {
-            return _view.castTo(uint40(Types.SetRemoteRouter));
+        if (isValidEnrollRemoteRouter(_view)) {
+            return _view.castTo(uint40(Types.EnrollRemoteRouter));
         }
         return TypedMemView.nullView();
     }
 
-    function mustBeSetRemoteRouter(bytes29 _view)
+    function mustBeEnrollRemoteRouter(bytes29 _view)
         internal
         pure
         returns (bytes29)
     {
-        return tryAsSetRemoteRouter(_view).assertValid();
+        return tryAsEnrollRemoteRouter(_view).assertValid();
     }
 
     /*

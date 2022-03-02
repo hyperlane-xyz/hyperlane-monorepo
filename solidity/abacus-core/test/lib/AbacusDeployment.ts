@@ -146,7 +146,10 @@ export class AbacusDeployment {
 
   async processMessagesFromDomain(local: types.Domain) {
     const outbox = this.outbox(local);
-    const [checkpointedRoot] = await outbox.latestCheckpoint();
+    const [checkpointedRoot, checkpointedIndex] =
+      await outbox.latestCheckpoint();
+    const latestIndex = await outbox.tree();
+    if (latestIndex.eq(checkpointedIndex)) return;
 
     // Find the block number of the last checkpoint submitted on Outbox.
     const checkpointFilter = outbox.filters.Checkpoint(checkpointedRoot);

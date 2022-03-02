@@ -19,7 +19,7 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
      * @param domain The domain of the new router
      * @param router The address of the new router
      */
-    event SetRemoteRouter(uint32 indexed domain, bytes32 indexed router);
+    event EnrollRemoteRouter(uint32 indexed domain, bytes32 indexed router);
 
     // ============ Modifiers ============
 
@@ -40,12 +40,12 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
      * @param _domain The domain of the remote xApp Router
      * @param _router The address of the remote xApp Router
      */
-    function setRemoteRouter(uint32 _domain, bytes32 _router)
+    function enrollRemoteRouter(uint32 _domain, bytes32 _router)
         external
         virtual
         onlyOwner
     {
-        _setRemoteRouter(_domain, _router);
+        _enrollRemoteRouter(_domain, _router);
     }
 
     // ============ Virtual functions ============
@@ -63,9 +63,9 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
      * @param _domain The domain
      * @param _router The new router
      */
-    function _setRemoteRouter(uint32 _domain, bytes32 _router) internal {
+    function _enrollRemoteRouter(uint32 _domain, bytes32 _router) internal {
         routers[_domain] = _router;
-        emit SetRemoteRouter(_domain, _router);
+        emit EnrollRemoteRouter(_domain, _router);
     }
 
     /**

@@ -15,7 +15,7 @@ import {
   BridgeRouter__factory,
   ETHHelper,
   ETHHelper__factory,
-} from '../../typechain';
+} from '../../../typechain';
 import {
   UpgradeBeacon__factory,
   UpgradeBeacon,

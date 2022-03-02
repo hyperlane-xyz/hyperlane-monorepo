@@ -1,390 +1,175 @@
-import { ethers, abacus } from 'hardhat';
+import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
-import { formatCall, formatAbacusMessage } from './utils';
-import { increaseTimestampBy, UpgradeTestHelpers } from '../utils';
-import { Validator } from '../lib/core';
-import { Address, Signer } from '../lib/types';
-import { AbacusDeployment } from '../lib/AbacusDeployment';
-import { GovernanceDeployment } from '../lib/GovernanceDeployment';
+import { formatCall, increaseTimestampBy } from './lib/utils';
+import { Address, Signer } from '@abacus-network/abacus-sol/test/lib/types';
+import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
+import { GovernanceDeployment } from './lib/GovernanceDeployment';
 import {
-  MysteryMathV2__factory,
-  TestInbox,
-  TestInbox__factory,
-  TestRecipient__factory,
-  TestGovernanceRouter,
-  Inbox,
-  Outbox,
+  TestSet,
+  TestSet__factory,
+  GovernanceRouter,
+  GovernanceRouter__factory,
 } from '../../typechain';
 
-const helpers = require('../../../../vectors/proof.json');
+const nullAddress = '0x' + '00'.repeat(20);
+const recoveryTimelock = 60 * 60 * 24 * 7;
+const localDomain = 1000;
+const remoteDomain = 2000;
+const domains = [localDomain, remoteDomain];
+const ONLY_OWNER_REVERT_MESSAGE = 'Ownable: caller is not the owner';
 
-const governorDomain = 1000;
-const nonGovernorDomain = 2000;
-const thirdDomain = 3000;
-const domains = [governorDomain, nonGovernorDomain, thirdDomain];
-const processGas = 850000;
-const reserveGas = 15000;
-const nullRoot = '0x' + '00'.repeat(32);
-
-/*
- * Deploy the full Abacus suite on two chains
- */
-describe('GovernanceRouter', async () => {
-  let abacusDeployment: AbacusDeployment;
-  let governanceDeployment: GovernanceDeployment;
-  let signer: Signer,
-    secondSigner: Signer,
-    thirdRouter: Signer,
-    firstGovernor: Address,
-    secondGovernor: Address,
-    governorRouter: TestGovernanceRouter,
-    nonGovernorRouter: TestGovernanceRouter,
-    governorOutbox: Outbox,
-    governorInboxOnNonGovernorChain: TestInbox,
-    nonGovernorInboxOnGovernorChain: TestInbox,
-    validator: Validator;
-
-  async function expectGovernor(
-    governanceRouter: TestGovernanceRouter,
-    expectedGovernorDomain: number,
-    expectedGovernor: Address,
-  ) {
-    expect(await governanceRouter.governorDomain()).to.equal(
-      expectedGovernorDomain,
-    );
-    expect(await governanceRouter.governor()).to.equal(expectedGovernor);
-  }
+describe.only('GovernanceRouter', async () => {
+  let governor: Signer,
+    recoveryManager: Signer,
+    router: GovernanceRouter,
+    remote: GovernanceRouter,
+    testSet: TestSet,
+    abacus: AbacusDeployment,
+    governance: GovernanceDeployment;
 
   before(async () => {
-    [thirdRouter, signer, secondSigner] = await ethers.getSigners();
-    validator = await Validator.fromSigner(signer, governorDomain);
+    [governor, recoveryManager] = await ethers.getSigners();
+
+    const testSetFactory = new TestSet__factory(governor);
+    testSet = await testSetFactory.deploy();
+    abacus = await AbacusDeployment.fromDomains(domains, governor);
   });
 
   beforeEach(async () => {
-    abacusDeployment = await abacus.deployment.fromDomains(domains, signer);
-    governanceDeployment = await GovernanceDeployment.fromAbacusDeployment(
-      abacusDeployment,
-      signer,
+    governance = await GovernanceDeployment.fromAbacusDeployment(
+      abacus,
+      governor,
+      recoveryManager,
     );
-
-    firstGovernor = await signer.getAddress();
-    secondGovernor = await secondSigner.getAddress();
-
-    governorRouter = governanceDeployment.router(governorDomain);
-    nonGovernorRouter = governanceDeployment.router(nonGovernorDomain);
-
-    governorInboxOnNonGovernorChain = abacusDeployment.inbox(
-      nonGovernorDomain,
-      governorDomain,
-    );
-    nonGovernorInboxOnGovernorChain = abacusDeployment.inbox(
-      governorDomain,
-      nonGovernorDomain,
-    );
-
-    governorOutbox = abacusDeployment.outbox(governorDomain);
+    router = governance.router(localDomain);
+    remote = governance.router(remoteDomain);
   });
 
-  // NB: must be first test for message proof
-  it('Sends cross-chain message to upgrade contract', async () => {
-    const upgradeUtils = new UpgradeTestHelpers();
-
-    // get upgradeBeaconController
-    const ubc = abacusDeployment.ubc(nonGovernorDomain);
-    // Transfer ownership of the UBC to governance.
-    await ubc.transferOwnership(nonGovernorRouter.address);
-    const mysteryMath = await upgradeUtils.deployMysteryMathUpgradeSetup(
-      signer,
-      ubc,
-    );
-
-    // expect results before upgrade
-    await upgradeUtils.expectMysteryMathV1(mysteryMath.proxy);
-
-    // Deploy Implementation 2
-    const factory2 = new MysteryMathV2__factory(signer);
-    const implementation2 = await factory2.deploy();
-
-    // Format abacus call message
-    const call = await formatCall(ubc, 'upgrade', [
-      mysteryMath.beacon.address,
-      implementation2.address,
-    ]);
-
-    // dispatch call on local governorRouter
-    let tx = await governorRouter.callRemote(nonGovernorDomain, [call]);
-
-    await abacusDeployment.processMessagesFromDomain(governorDomain);
-    // test implementation was upgraded
-    await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
-  });
-
-  it('Rejects message from unenrolled inbox', async () => {
-    const inboxFactory = new TestInbox__factory(signer);
-    const unenrolledInbox = await inboxFactory.deploy(
-      nonGovernorDomain,
-      processGas,
-      reserveGas,
-    );
-    // The ValdiatorManager is unused in this test, but needs to be a contract.
-    await unenrolledInbox.initialize(
-      thirdDomain,
-      unenrolledInbox.address,
-      nullRoot,
-      0,
-    );
-
-    // Create TransferGovernor message
-    const transferGovernorMessage = abacus.governance.formatTransferGovernor(
-      thirdDomain,
-      abacus.ethersAddressToBytes32(secondGovernor),
-    );
-
-    const abacusMessage = await formatAbacusMessage(
-      unenrolledInbox,
-      governorRouter,
-      nonGovernorRouter,
-      transferGovernorMessage,
-    );
-
-    // Expect inbox processing to fail when nonGovernorRouter reverts in handle
-    let success = await unenrolledInbox.callStatic.testProcess(abacusMessage);
-    expect(success).to.be.false;
-  });
-
-  it('Rejects message not from governor router', async () => {
-    // Create TransferGovernor message
-    const transferGovernorMessage = abacus.governance.formatTransferGovernor(
-      nonGovernorDomain,
-      abacus.ethersAddressToBytes32(nonGovernorRouter.address),
-    );
-
-    const abacusMessage = await formatAbacusMessage(
-      governorInboxOnNonGovernorChain,
-      nonGovernorRouter,
-      governorRouter,
-      transferGovernorMessage,
-    );
-
-    // Set message status to MessageStatus.Proven
-    await nonGovernorInboxOnGovernorChain.setMessageProven(abacusMessage);
-
-    // Expect inbox processing to fail when nonGovernorRouter reverts in handle
-    let success = await nonGovernorInboxOnGovernorChain.callStatic.testProcess(
-      abacusMessage,
-    );
-    expect(success).to.be.false;
-  });
-
-  it('Accepts a valid transfer governor message', async () => {
-    // Enroll router for new domain (in real setting this would
-    // be executed with an Abacus message sent to the nonGovernorRouter)
-    await nonGovernorRouter.testSetRouter(
-      thirdDomain,
-      abacus.ethersAddressToBytes32(thirdRouter.address),
-    );
-
-    // Create TransferGovernor message
-    const transferGovernorMessage = abacus.governance.formatTransferGovernor(
-      thirdDomain,
-      abacus.ethersAddressToBytes32(thirdRouter.address),
-    );
-
-    const abacusMessage = await formatAbacusMessage(
-      governorInboxOnNonGovernorChain,
-      governorRouter,
-      nonGovernorRouter,
-      transferGovernorMessage,
-    );
-
-    // Expect successful tx on static call
-    let success = await governorInboxOnNonGovernorChain.callStatic.process(
-      abacusMessage,
-    );
-    expect(success).to.be.true;
-
-    await governorInboxOnNonGovernorChain.process(abacusMessage);
-    await expectGovernor(
-      nonGovernorRouter,
-      thirdDomain,
-      ethers.constants.AddressZero,
+  it('Cannot be initialized twice', async () => {
+    await expect(router.initialize(nullAddress)).to.be.revertedWith(
+      'Initializable: contract is already initialized',
     );
   });
 
-  it('Accepts valid set router message', async () => {
-    // Create address for router to enroll and domain for router
-    const [router] = await ethers.getSigners();
+  describe('when not in recovery mode', async () => {
+    it('governor is the owner', async () => {
+      expect(await router.owner()).to.equal(governor.address);
+    });
 
-    // Create SetRouter message
-    const setRouterMessage = abacus.governance.formatSetRouter(
-      thirdDomain,
-      abacus.ethersAddressToBytes32(router.address),
-    );
+    // TODO: Should it be able to set the remote recovery manager as well?
+    it('governor can set local recovery manager', async () => {
+      expect(await router.recoveryManager()).to.equal(recoveryManager.address);
+      await router.transferOwnership(router.address);
+      expect(await router.recoveryManager()).to.equal(router.address);
+    });
 
-    const abacusMessage = await formatAbacusMessage(
-      governorInboxOnNonGovernorChain,
-      governorRouter,
-      nonGovernorRouter,
-      setRouterMessage,
-    );
+    it('governor can make local calls', async () => {
+      const value = 12;
+      const call = await formatCall(testSet, 'set', [value]);
+      await router.call([call]);
+      expect(await testSet.get()).to.equal(value);
+    });
 
-    // Expect successful tx
-    let success = await governorInboxOnNonGovernorChain.callStatic.process(
-      abacusMessage,
-    );
-    expect(success).to.be.true;
+    it('governor can set local governor', async () => {
+      expect(await router.governor()).to.equal(governor.address);
+      await router.setGovernor(nullAddress);
+      expect(await router.governor()).to.equal(nullAddress);
+    });
 
-    // Expect new router to be registered for domain and for new domain to be
-    // in domains array
-    await governorInboxOnNonGovernorChain.process(abacusMessage);
-    expect(await nonGovernorRouter.routers(thirdDomain)).to.equal(
-      abacus.ethersAddressToBytes32(router.address),
-    );
-    expect(await nonGovernorRouter.containsDomain(thirdDomain)).to.be.true;
-  });
+    it('governor can set local xAppConnectionManager', async () => {
+      expect(await router.xAppConnectionManager()).to.equal(
+        abacus.connectionManager(localDomain).address,
+      );
+      await router.setXAppConnectionManager(nullAddress);
+      expect(await router.xAppConnectionManager()).to.equal(nullAddress);
+    });
 
-  it('Accepts valid call messages', async () => {
-    // const TestRecipient = await abacus.deployImplementation('TestRecipient');
-    const testRecipientFactory = new TestRecipient__factory(signer);
-    const testRecipient = await testRecipientFactory.deploy();
+    it('governor can make remote calls', async () => {
+      const value = 13;
+      const call = await formatCall(testSet, 'set', [value]);
+      await router.callRemote(domains[1], [call]);
+      await abacus.processMessages();
+      expect(await testSet.get()).to.equal(value);
+    });
 
-    // Format abacus call message
-    const arg = 'String!';
-    const call = await formatCall(testRecipient, 'receiveString', [arg]);
+    it('governor can set remote governor', async () => {
+      const newGovernor = governor.address;
+      expect(await remote.governor()).to.not.equal(newGovernor);
+      await router.setGovernorRemote(remoteDomain, newGovernor);
+      await abacus.processMessages();
+      expect(await remote.governor()).to.equal(newGovernor);
+    });
 
-    // Create Call message to test recipient that calls receiveString
-    const callMessage = abacus.governance.formatCalls([call, call]);
+    it('governor can set remote xAppConnectionManager', async () => {
+      const newConnectionManager = nullAddress;
+      expect(await remote.xAppConnectionManager()).to.not.equal(
+        newConnectionManager,
+      );
+      await router.setXAppConnectionManagerRemote(
+        remoteDomain,
+        newConnectionManager,
+      );
+      await abacus.processMessages();
+      expect(await remote.xAppConnectionManager()).to.equal(
+        newConnectionManager,
+      );
+    });
 
-    const abacusMessage = await formatAbacusMessage(
-      governorInboxOnNonGovernorChain,
-      governorRouter,
-      nonGovernorRouter,
-      callMessage,
-    );
+    it('governor cannot initiate recovery', async () => {
+      await expect(router.initiateRecoveryTimelock()).to.be.revertedWith(
+        '!recoveryManager',
+      );
+    });
 
-    // Expect successful tx
-    let success = await governorInboxOnNonGovernorChain.callStatic.testProcess(
-      abacusMessage,
-    );
+    it('recovery manager cannot make local calls', async () => {
+      const value = 12;
+      const call = await formatCall(testSet, 'set', [value]);
+      await expect(
+        router.connect(recoveryManager).call([call])
+      ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
+    });
 
-    expect(success).to.be.true;
-  });
+    it('recovery manager cannot set local governor', async () => {
+      await expect(
+        router.connect(recoveryManager).setGovernor(nullAddress)
+      ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
+    });
 
-  it('Transfers governorship', async () => {
-    // Transfer governor on current governor chain
+    it('recovery manager cannot set local recovery manager', async () => {
+      await expect(
+        router.connect(recoveryManager).transferOwnership(router.address)
+      ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
+    });
 
-    // Governor HAS NOT been transferred on original governor domain
-    await expectGovernor(governorRouter, governorDomain, firstGovernor);
-    // Governor HAS NOT been transferred on original non-governor domain
-    await expectGovernor(
-      nonGovernorRouter,
-      governorDomain,
-      ethers.constants.AddressZero,
-    );
+    it('recovery manager cannot set local xAppConnectionManager', async () => {
+      await expect(
+        router.connect(recoveryManager).setXAppConnectionManager(router.address)
+      ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
+    });
 
-    // transfer governorship to nonGovernorRouter
-    await governorRouter.transferGovernor(nonGovernorDomain, secondGovernor);
+    it('recovery manager cannot make remote calls', async () => {
+      const value = 13;
+      const call = await formatCall(testSet, 'set', [value]);
+      await expect(
+        router.connect(recoveryManager).callRemote(domains[1], [call])
+      ).to.be.revertedWith('!governor');
+    });
 
-    // Governor HAS been transferred on original governor domain
-    await expectGovernor(
-      governorRouter,
-      nonGovernorDomain,
-      ethers.constants.AddressZero,
-    );
-    // Governor HAS NOT been transferred on original non-governor domain
-    await expectGovernor(
-      nonGovernorRouter,
-      governorDomain,
-      ethers.constants.AddressZero,
-    );
+    it('recovery manager cannot set remote governor', async () => {
+      await expect(
+        router.connect(recoveryManager).setGovernorRemote(remoteDomain, router.address)
+      ).to.be.revertedWith('!governor');
+    });
 
-    const transferGovernorMessage = abacus.governance.formatTransferGovernor(
-      nonGovernorDomain,
-      abacus.ethersAddressToBytes32(secondGovernor),
-    );
+    it('recovery manager cannot set remote xAppConnectionManager', async () => {
+      await expect(
+        router.connect(recoveryManager).setXAppConnectionManagerRemote(remoteDomain, router.address)
+      ).to.be.revertedWith('!governor');
+    });
 
-    const abacusMessage = await formatAbacusMessage(
-      governorInboxOnNonGovernorChain,
-      governorRouter,
-      nonGovernorRouter,
-      transferGovernorMessage,
-    );
-
-    // Process transfer governor message on Inbox
-    await governorInboxOnNonGovernorChain.process(abacusMessage);
-
-    // Governor HAS been transferred on original governor domain
-    await expectGovernor(
-      governorRouter,
-      nonGovernorDomain,
-      ethers.constants.AddressZero,
-    );
-    // Governor HAS been transferred on original non-governor domain
-    await expectGovernor(nonGovernorRouter, nonGovernorDomain, secondGovernor);
-  });
-
-  it('Upgrades using GovernanceRouter call', async () => {
-    const upgradeUtils = new UpgradeTestHelpers();
-
-    // get upgradeBeaconController
-    const ubc = abacusDeployment.ubc(governorDomain);
-    // Transfer ownership of the UBC to governance.
-    await ubc.transferOwnership(governorRouter.address);
-    const mysteryMath = await upgradeUtils.deployMysteryMathUpgradeSetup(
-      signer,
-      ubc,
-    );
-
-    // expect results before upgrade
-    await upgradeUtils.expectMysteryMathV1(mysteryMath.proxy);
-
-    // Deploy Implementation 2
-    const v2Factory = new MysteryMathV2__factory(signer);
-    const implementation = await v2Factory.deploy();
-
-    // Format abacus call message
-    const call = await formatCall(ubc, 'upgrade', [
-      mysteryMath.beacon.address,
-      implementation.address,
-    ]);
-
-    // dispatch call on local governorRouter
-    await expect(governorRouter.callLocal([call])).to.emit(
-      ubc,
-      'BeaconUpgraded',
-    );
-
-    // test implementation was upgraded
-    await upgradeUtils.expectMysteryMathV2(mysteryMath.proxy);
-  });
-
-  it('Calls ValidatorManager to set the validator for a domain', async () => {
-    const [newValidator] = await ethers.getSigners();
-    const validatorManager = abacusDeployment.validatorManager(governorDomain);
-    await validatorManager.transferOwnership(governorRouter.address);
-
-    // check current Validator address on Outbox
-    let currentValidatorAddr = await validatorManager.validators(
-      governorDomain,
-    );
-    expect(currentValidatorAddr).to.equal(
-      await abacusDeployment.validator(governorDomain).signer.getAddress(),
-    );
-
-    // format abacus call message
-    const call = await formatCall(validatorManager, 'setValidator', [
-      governorDomain,
-      newValidator.address,
-    ]);
-
-    await expect(governorRouter.callLocal([call])).to.emit(
-      validatorManager,
-      'NewValidator',
-    );
-
-    // check for new validator
-    currentValidatorAddr = await validatorManager.validators(governorDomain);
-    expect(currentValidatorAddr).to.equal(newValidator.address);
+    it('recovery manager can initiate recovery', async () => {
+      await expect(router.connect(recoveryManager).initiateRecoveryTimelock()).to.emit(router, 'InitiateRecovery');
+    });
   });
 });

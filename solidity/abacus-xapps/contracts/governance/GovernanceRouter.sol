@@ -124,8 +124,8 @@ contract GovernanceRouter is Version0, Router {
             _handleCall(_msg.tryAsCall());
         } else if (_msg.isValidSetGovernor()) {
             _handleSetGovernor(_msg.tryAsSetGovernor());
-        } else if (_msg.isValidSetRemoteRouter()) {
-            _handleSetRemoteRouter(_msg.tryAsSetRemoteRouter());
+        } else if (_msg.isValidEnrollRemoteRouter()) {
+            _handleEnrollRemoteRouter(_msg.tryAsEnrollRemoteRouter());
         } else if (_msg.isValidSetXAppConnectionManager()) {
             _handleSetXAppConnectionManager(
                 _msg.tryAsSetXAppConnectionManager()
@@ -201,12 +201,12 @@ contract GovernanceRouter is Version0, Router {
      * @param _domain The domain of the enrollee
      * @param _router The address of the enrollee
      */
-    function setRemoteRouterRemote(
+    function enrollRemoteRouterRemote(
         uint32 _destination,
         uint32 _domain,
         bytes32 _router
     ) external onlyGovernor onlyNotInRecovery {
-        bytes memory _msg = GovernanceMessage.formatSetRemoteRouter(
+        bytes memory _msg = GovernanceMessage.formatEnrollRemoteRouter(
             _domain,
             _router
         );
@@ -272,6 +272,11 @@ contract GovernanceRouter is Version0, Router {
         return _recoveryInitiated && _recoveryActive;
     }
 
+    // TODO: Remove
+    function localDomain() public view returns (uint32) {
+        return _localDomain();
+    }
+
     // ============ Internal Functions ============
 
     /**
@@ -304,13 +309,13 @@ contract GovernanceRouter is Version0, Router {
      * @notice Handle message setting the router address for a given domain
      * @param _msg The message
      */
-    function _handleSetRemoteRouter(bytes29 _msg)
+    function _handleEnrollRemoteRouter(bytes29 _msg)
         internal
-        typeAssert(_msg, GovernanceMessage.Types.SetRemoteRouter)
+        typeAssert(_msg, GovernanceMessage.Types.EnrollRemoteRouter)
     {
         uint32 _domain = _msg.domain();
         bytes32 _router = _msg.router();
-        _setRemoteRouter(_domain, _router);
+        _enrollRemoteRouter(_domain, _router);
     }
 
     /**
