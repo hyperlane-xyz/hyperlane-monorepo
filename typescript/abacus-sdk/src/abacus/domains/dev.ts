@@ -5,7 +5,7 @@ export const alfajores: AbacusDomain = {
   id: 1000,
   bridgeRouter: '0x684C74fBA4dF7F7A542709C5f9688AB806C7B828',
   outbox: '0xeA057840858645bb68134a913A252a44a0C58652',
-  inboxs: [
+  inboxes: [
     { domain: 5, address: '0x3354D5956612C38D0dD831dcdf83CF30BC674231' },
     { domain: 3000, address: '0x6AdB8ba7C826d70506D26eDdc74236fB88Fa647F' },
     { domain: 43113, address: '0x570EDeF0c271E3f1ba6B5C66D040195750a79762' },
@@ -21,7 +21,7 @@ export const kovan: AbacusDomain = {
   bridgeRouter: '0x53d09A4B49443F7f7C66321C306601dC9d483D4F',
   ethHelper: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
   outbox: '0xc53F82FAF17B4c521A85C514791593847Bdf1655',
-  inboxs: [
+  inboxes: [
     { domain: 5, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
     { domain: 1000, address: '0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964' },
     { domain: 43113, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
@@ -37,7 +37,7 @@ export const gorli: AbacusDomain = {
   bridgeRouter: '0x53d09A4B49443F7f7C66321C306601dC9d483D4F',
   ethHelper: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
   outbox: '0xc53F82FAF17B4c521A85C514791593847Bdf1655',
-  inboxs: [
+  inboxes: [
     { domain: 1000, address: '0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964' },
     { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
     { domain: 43113, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
@@ -53,7 +53,7 @@ export const fuji: AbacusDomain = {
   bridgeRouter: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
   ethHelper: '0x7B99a9cf26c9813b16E3DDb3D6E593c3624c9EBA',
   outbox: '0xc53F82FAF17B4c521A85C514791593847Bdf1655',
-  inboxs: [
+  inboxes: [
     { domain: 5, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
     { domain: 1000, address: '0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964' },
     { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
@@ -74,7 +74,7 @@ export const mumbai: AbacusDomain = {
   bridgeRouter: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
   ethHelper: '0x7B99a9cf26c9813b16E3DDb3D6E593c3624c9EBA',
   outbox: '0xc53F82FAF17B4c521A85C514791593847Bdf1655',
-  inboxs: [
+  inboxes: [
     { domain: 5, address: '0xf3855B99b7cEfa56C66f0C2d0550b545df11d54A' },
     { domain: 1000, address: '0xEdDA4762fe6388C69d37b8Ee15B1deC10cA3B964' },
     { domain: 3000, address: '0xc501ad2163Ebd9921B4a6E46B344Ef7bA76A2cBa' },
