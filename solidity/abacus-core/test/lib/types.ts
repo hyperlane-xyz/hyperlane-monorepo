@@ -4,7 +4,6 @@ import { BytesLike, ethers } from 'ethers';
 /********* HRE *********/
 
 export interface HardhatAbacusHelpers {
-  deployment: any;
   formatMessage: Function;
   messageHash: Function;
   ethersAddressToBytes32: Function;

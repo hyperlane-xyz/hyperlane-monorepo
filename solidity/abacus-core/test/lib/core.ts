@@ -3,7 +3,6 @@ import * as ethers from 'ethers';
 
 import * as types from './types';
 import { getHexStringByteLength } from './utils';
-import { AbacusDeployment } from './AbacusDeployment';
 
 export class Validator {
   localDomain: types.Domain;
@@ -111,7 +110,6 @@ function domainHash(domain: Number): string {
 }
 
 export const abacus: types.HardhatAbacusHelpers = {
-  deployment: AbacusDeployment,
   formatMessage,
   messageHash,
   ethersAddressToBytes32,
