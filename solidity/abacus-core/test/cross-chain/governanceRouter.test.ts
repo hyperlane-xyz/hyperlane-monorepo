@@ -62,7 +62,7 @@ describe('GovernanceRouter', async () => {
   });
 
   beforeEach(async () => {
-    abacusDeployment = await abacus.deployment.fromDomains(domains, signer);
+    abacusDeployment = await AbacusDeployment.fromDomains(domains, signer);
     governanceDeployment = await GovernanceDeployment.fromAbacusDeployment(
       abacusDeployment,
       signer,

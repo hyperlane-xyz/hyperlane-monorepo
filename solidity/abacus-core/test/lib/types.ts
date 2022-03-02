@@ -4,7 +4,6 @@ import { BytesLike, ethers } from 'ethers';
 /********* HRE *********/
 
 export interface HardhatAbacusHelpers {
-  deployment: any;
   formatMessage: Function;
   governance: {
     formatTransferGovernor: Function;
