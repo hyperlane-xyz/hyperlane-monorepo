@@ -1,4 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { HardhatAbacusHelpers } from '@abacus-network/abacus-sol/test/lib/types';
 import { BytesLike, ethers } from 'ethers';
 import { BridgeMessageTypes } from './bridge';
 
@@ -16,14 +17,18 @@ export interface HardhatBridgeHelpers {
 }
 
 export interface HardhatGovernanceHelpers {
-  formatTransferGovernor: Function;
-  formatSetRouter: Function;
+  formatSetGovernor: Function;
+  formatEnrollRemoteRouter: Function;
+  formatSetXAppConnectionManager: Function;
   formatCalls: Function;
 }
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
-    bridge: HardhatBridgeHelpers;
-    governance: HardhatGovernanceHelpers;
+    helpers: {
+      bridge: HardhatBridgeHelpers;
+      governance: HardhatGovernanceHelpers;
+      abacus: HardhatAbacusHelpers;
+    };
   }
 }
 

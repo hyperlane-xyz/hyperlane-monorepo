@@ -8,7 +8,9 @@ import { governance } from '../governance/lib/governance';
 
 // HardhatRuntimeEnvironment
 extendEnvironment((hre) => {
-  hre.abacus = abacus;
-  hre.bridge = bridge;
-  hre.governance = governance;
+  hre.helpers = {
+    abacus,
+    bridge,
+    governance,
+  };
 });

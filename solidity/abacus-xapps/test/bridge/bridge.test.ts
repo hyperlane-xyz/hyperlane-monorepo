@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers, bridge, abacus } from 'hardhat';
+import { ethers, helpers } from 'hardhat';
 import { BigNumber, BytesLike } from 'ethers';
 
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
@@ -13,7 +13,7 @@ import * as types from '../lib/types';
 import { BridgeDeployment } from './lib/BridgeDeployment';
 import { BridgeToken, BridgeToken__factory, IERC20 } from '../../typechain';
 
-const { BridgeMessageTypes } = bridge;
+const { BridgeMessageTypes, serializeMessage } = helpers.bridge;
 const localDomain = 1000;
 const remoteDomain = 2000;
 const domains = [localDomain, remoteDomain];
@@ -87,7 +87,7 @@ describe('BridgeRouter', async () => {
             amount: TOKEN_VALUE,
           },
         };
-        transferMessage = bridge.serializeMessage(transferMessageObj);
+        transferMessage = serializeMessage(transferMessageObj);
 
         // Send a message to the local BridgeRouter triggering a BridgeToken
         // deployment.
@@ -211,7 +211,7 @@ describe('BridgeRouter', async () => {
             amount: TOKEN_VALUE,
           },
         };
-        transferMessage = bridge.serializeMessage(transferMessageObj);
+        transferMessage = serializeMessage(transferMessageObj);
 
         expect(await localToken.balanceOf(deployerAddress)).to.equal(
           BigNumber.from(TOKEN_VALUE),
@@ -326,7 +326,7 @@ describe('BridgeRouter', async () => {
           amount: TOKEN_VALUE,
         },
       };
-      const transferMessage = bridge.serializeMessage(transferMessageObj);
+      const transferMessage = serializeMessage(transferMessageObj);
 
       expect(
         bridgeDeployment.router(localDomain).preFill(transferMessage),
@@ -354,7 +354,7 @@ describe('BridgeRouter', async () => {
             amount: TOKEN_VALUE,
           },
         };
-        transferMessage = bridge.serializeMessage(transferMessageObj);
+        transferMessage = serializeMessage(transferMessageObj);
 
         // setup message
         const setupMessageObj: types.Message = {
@@ -365,7 +365,7 @@ describe('BridgeRouter', async () => {
             amount: TOKEN_VALUE,
           },
         };
-        setupMessage = bridge.serializeMessage(setupMessageObj);
+        setupMessage = serializeMessage(setupMessageObj);
 
         // perform setup
         const setupTx = await bridgeDeployment
@@ -463,7 +463,7 @@ describe('BridgeRouter', async () => {
             amount: TOKEN_VALUE,
           },
         };
-        transferMessage = bridge.serializeMessage(transferMessageObj);
+        transferMessage = serializeMessage(transferMessageObj);
       });
 
       it('transfers tokens on prefill', async () => {
@@ -523,7 +523,7 @@ describe('BridgeRouter', async () => {
           type: BridgeMessageTypes.REQUEST_DETAILS,
         },
       };
-      requestMessage = bridge.serializeMessage(requestMessageObj);
+      requestMessage = serializeMessage(requestMessageObj);
 
       const outgoingDetailsObj: types.Message = {
         tokenId: {
@@ -537,7 +537,7 @@ describe('BridgeRouter', async () => {
           decimals: TEST_DECIMALS,
         },
       };
-      outgoingDetails = bridge.serializeMessage(outgoingDetailsObj);
+      outgoingDetails = serializeMessage(outgoingDetailsObj);
 
       // generate transfer action
       const transferMessageObj: types.Message = {
@@ -548,7 +548,7 @@ describe('BridgeRouter', async () => {
           amount: TOKEN_VALUE,
         },
       };
-      transferMessage = bridge.serializeMessage(transferMessageObj);
+      transferMessage = serializeMessage(transferMessageObj);
 
       const incomingDetailsObj: types.Message = {
         tokenId: testTokenId,
@@ -559,7 +559,7 @@ describe('BridgeRouter', async () => {
           decimals: TEST_DECIMALS,
         },
       };
-      incomingDetails = bridge.serializeMessage(incomingDetailsObj);
+      incomingDetails = serializeMessage(incomingDetailsObj);
 
       // first send in a transfer to create the repr
       await bridgeDeployment
@@ -584,7 +584,7 @@ describe('BridgeRouter', async () => {
           type: BridgeMessageTypes.REQUEST_DETAILS,
         },
       };
-      const requestDetails = bridge.serializeMessage(requestDetailsObj);
+      const requestDetails = serializeMessage(requestDetailsObj);
 
       await expect(requestTx).to.emit(
         abacusDeployment.outbox(localDomain),
@@ -613,7 +613,7 @@ describe('BridgeRouter', async () => {
           type: BridgeMessageTypes.REQUEST_DETAILS,
         },
       };
-      const badRequest = bridge.serializeMessage(badRequestObj);
+      const badRequest = serializeMessage(badRequestObj);
 
       let badRequestTx = bridgeDeployment
         .router(localDomain)
@@ -632,7 +632,7 @@ describe('BridgeRouter', async () => {
           type: BridgeMessageTypes.REQUEST_DETAILS,
         },
       };
-      const badRequest = bridge.serializeMessage(badRequestObj);
+      const badRequest = serializeMessage(badRequestObj);
 
       let badRequestTx = bridgeDeployment
         .router(localDomain)
@@ -673,7 +673,7 @@ describe('BridgeRouter', async () => {
           amount: VALUE,
         },
       };
-      transferMessage = bridge.serializeMessage(transferMessageObj);
+      transferMessage = serializeMessage(transferMessageObj);
 
       // first send in a transfer to create the repr
       await bridgeDeployment
@@ -788,7 +788,7 @@ describe('BridgeRouter', async () => {
                 amount: TOKEN_VALUE,
               },
             };
-            const smallTransferMessage = bridge.serializeMessage(smallTransfer);
+            const smallTransferMessage = serializeMessage(smallTransfer);
 
             const defaultSendTx = await bridgeDeployment
               .router(localDomain)

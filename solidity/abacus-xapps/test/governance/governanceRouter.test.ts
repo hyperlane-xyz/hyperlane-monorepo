@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers, helpers } from 'hardhat';
 import { expect } from 'chai';
 
 import { formatCall, increaseTimestampBy } from './lib/utils';
@@ -50,6 +50,52 @@ describe.only('GovernanceRouter', async () => {
     await expect(router.initialize(nullAddress)).to.be.revertedWith(
       'Initializable: contract is already initialized',
     );
+  });
+
+  it('accepts message from enrolled inbox and router', async () => {
+    expect(await router.governor()).to.not.equal(nullAddress);
+    const message = helpers.governance.formatSetGovernor(nullAddress);
+    // Create a fake abacus message coming from the remote governance router.
+    const fakeMessage = helpers.abacus.formatMessage(
+      remoteDomain,
+      remote.address,
+      0, // nonce is ignored
+      localDomain,
+      router.address,
+      message,
+    );
+
+    const inbox = abacus.inbox(localDomain, remoteDomain)
+    await inbox.setMessageProven(fakeMessage);
+    // Expect inbox processing to fail when reverting in handle
+    await inbox.testProcess(fakeMessage);
+    expect(await router.governor()).to.equal(nullAddress);
+  });
+
+  it('rejects message from unenrolled inbox', async () => {
+    const message = helpers.governance.formatSetGovernor(nullAddress);
+    await expect(
+      router.handle(remoteDomain, helpers.abacus.ethersAddressToBytes32(remote.address), message),
+    ).to.be.revertedWith('!inbox');
+  });
+
+  it('rejects messag from unenrolled router', async () => {
+    const message = helpers.governance.formatSetGovernor(nullAddress);
+    // Create a fake abacus message coming from the remote governance router.
+    const fakeMessage = helpers.abacus.formatMessage(
+      remoteDomain,
+      nullAddress,
+      0, // nonce is ignored
+      localDomain,
+      router.address,
+      message,
+    );
+
+    const inbox = abacus.inbox(localDomain, remoteDomain)
+    await inbox.setMessageProven(fakeMessage);
+    // Expect inbox processing to fail when reverting in handle
+    let success = await inbox.callStatic.testProcess(fakeMessage);
+    expect(success).to.be.false;
   });
 
   describe('when not in recovery mode', async () => {
@@ -123,9 +169,7 @@ describe.only('GovernanceRouter', async () => {
     });
 
     it('governor cannot exit recovery', async () => {
-      await expect(router.exitRecovery()).to.be.revertedWith(
-        '!recovery',
-      );
+      await expect(router.exitRecovery()).to.be.revertedWith('!recovery');
     });
 
     it('recovery manager cannot make local calls', async () => {
@@ -187,18 +231,18 @@ describe.only('GovernanceRouter', async () => {
     });
 
     it('recovery manager cannot exit recovery', async () => {
-      await expect(router.connect(recoveryManager).exitRecovery()).to.be.revertedWith(
-        '!recovery',
-      );
+      await expect(
+        router.connect(recoveryManager).exitRecovery(),
+      ).to.be.revertedWith('!recovery');
     });
   });
 
   describe('when in recovery mode', async () => {
     beforeEach(async () => {
-      router = router.connect(recoveryManager)
+      router = router.connect(recoveryManager);
       await router.initiateRecoveryTimelock();
       expect(await router.inRecovery()).to.be.false;
-      await increaseTimestampBy(ethers.provider, recoveryTimelock)
+      await increaseTimestampBy(ethers.provider, recoveryTimelock);
       expect(await router.inRecovery()).to.be.true;
     });
 
@@ -237,29 +281,27 @@ describe.only('GovernanceRouter', async () => {
     it('recovery manager cannot make remote calls', async () => {
       const value = 13;
       const call = await formatCall(testSet, 'set', [value]);
-      await expect(
-        router.callRemote(domains[1], [call]),
-      ).to.be.revertedWith('!governor');
-    })
+      await expect(router.callRemote(domains[1], [call])).to.be.revertedWith(
+        '!governor',
+      );
+    });
 
     it('recovery manager cannot set remote governor', async () => {
       await expect(
-        router
-          .setGovernorRemote(remoteDomain, router.address),
+        router.setGovernorRemote(remoteDomain, router.address),
       ).to.be.revertedWith('!governor');
     });
 
     it('recovery manager cannot set remote xAppConnectionManager', async () => {
       await expect(
-        router
-          .setXAppConnectionManagerRemote(remoteDomain, router.address),
+        router.setXAppConnectionManagerRemote(remoteDomain, router.address),
       ).to.be.revertedWith('!governor');
     });
 
     it('recovery manager cannot initiate recovery', async () => {
-      await expect(
-        router.initiateRecoveryTimelock(),
-      ).to.be.revertedWith('recovery')
+      await expect(router.initiateRecoveryTimelock()).to.be.revertedWith(
+        'recovery',
+      );
     });
 
     it('recovery manager can exit recovery ', async () => {
@@ -270,9 +312,9 @@ describe.only('GovernanceRouter', async () => {
     it('governor cannot make local calls', async () => {
       const value = 12;
       const call = await formatCall(testSet, 'set', [value]);
-      await expect(
-        router.connect(governor).call([call]),
-      ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
+      await expect(router.connect(governor).call([call])).to.be.revertedWith(
+        ONLY_OWNER_REVERT_MESSAGE,
+      );
     });
 
     it('governor cannot set local governor', async () => {
@@ -289,9 +331,7 @@ describe.only('GovernanceRouter', async () => {
 
     it('governor cannot set local xAppConnectionManager', async () => {
       await expect(
-        router
-          .connect(governor)
-          .setXAppConnectionManager(router.address),
+        router.connect(governor).setXAppConnectionManager(router.address),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
@@ -322,13 +362,13 @@ describe.only('GovernanceRouter', async () => {
     it('governor cannot initiate recovery', async () => {
       await expect(
         router.connect(governor).initiateRecoveryTimelock(),
-      ).to.be.revertedWith('recovery')
+      ).to.be.revertedWith('recovery');
     });
 
     it('governor cannot exit recovery', async () => {
-      await expect(
-        router.connect(governor).exitRecovery(),
-      ).to.be.revertedWith('!recoveryManager')
+      await expect(router.connect(governor).exitRecovery()).to.be.revertedWith(
+        '!recoveryManager',
+      );
     });
   });
 });

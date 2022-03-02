@@ -84,7 +84,7 @@ function messageHash(message: types.HexString): string {
   return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 
-function ethersAddressToBytes32(address: types.Address): string {
+export function ethersAddressToBytes32(address: types.Address): string {
   return ethers.utils
     .hexZeroPad(ethers.utils.hexStripZeros(address), 32)
     .toLowerCase();

@@ -1,4 +1,4 @@
-import { ethers, bridge, abacus } from 'hardhat';
+import { ethers, helpers } from 'hardhat';
 import { Signer } from 'ethers';
 import { expect } from 'chai';
 
@@ -7,7 +7,7 @@ import { BridgeDeployment } from './lib/BridgeDeployment';
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
 import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
 
-const { BridgeMessageTypes } = bridge;
+const { BridgeMessageTypes, serializeMessage} = helpers.bridge;
 const localDomain = 1000;
 const remoteDomain = 2000;
 const domains = [localDomain, remoteDomain];
@@ -53,7 +53,7 @@ describe('EthHelper', async () => {
         amount: value,
       },
     };
-    transferToSelfMessage = bridge.serializeMessage(transferToSelfMessageObj);
+    transferToSelfMessage = serializeMessage(transferToSelfMessageObj);
 
     const transferMessageObj: types.Message = {
       tokenId,
@@ -63,7 +63,7 @@ describe('EthHelper', async () => {
         amount: value,
       },
     };
-    transferMessage = bridge.serializeMessage(transferMessageObj);
+    transferMessage = serializeMessage(transferMessageObj);
   });
 
   it('send function', async () => {

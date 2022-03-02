@@ -185,12 +185,6 @@ contract Inbox is Version0, Common {
         uint256 _maxCopy = 256;
         uint256 _gas = PROCESS_GAS;
         // allocate memory for returndata
-        IMessageRecipient(_recipient).handle(
-            _m.origin(),
-            _m.sender(),
-            _m.body().clone()
-        );
-        /*
         bytes memory _returnData = new bytes(_maxCopy);
         bytes memory _calldata = abi.encodeWithSignature(
             "handle(uint32,bytes32,bytes)",
@@ -224,7 +218,6 @@ contract Inbox is Version0, Common {
         }
         // emit process results
         emit Process(_messageHash, _success, _returnData);
-       */
         // reset re-entrancy guard
         entered = 1;
     }

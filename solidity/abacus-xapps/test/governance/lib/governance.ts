@@ -1,28 +1,49 @@
-import ethers from 'ethers';
+import { ethers } from 'ethers';
 import * as types from '@abacus-network/abacus-sol/test/lib/types';
 import { getHexStringByteLength } from '@abacus-network/abacus-sol/test/lib/utils';
 import { HardhatGovernanceHelpers } from '../../lib/types';
 
 export enum GovernanceMessage {
   CALL = 1,
-  TRANSFERGOVERNOR = 2,
-  SETROUTER = 3,
+  SETGOVERNOR = 2,
+  ENROLLREMOTEROUTER = 3,
+  SETXAPPCONNECTIONMANAGER = 5,
 }
 
-function formatTransferGovernor(
-  newDomain: types.Domain,
-  newAddress: types.Address,
-): string {
+function ethersAddressToBytes32(address: types.Address): string {
+  return ethers.utils
+    .hexZeroPad(ethers.utils.hexStripZeros(address), 32)
+    .toLowerCase();
+}
+
+function formatSetGovernor(address: types.Address): string {
   return ethers.utils.solidityPack(
-    ['bytes1', 'uint32', 'bytes32'],
-    [GovernanceMessage.TRANSFERGOVERNOR, newDomain, newAddress],
+    ['bytes1', 'bytes32'],
+    [GovernanceMessage.SETGOVERNOR, ethersAddressToBytes32(address)],
   );
 }
 
-function formatSetRouter(domain: types.Domain, address: types.Address): string {
+function formatSetXAppConnectionManager(address: types.Address): string {
+  return ethers.utils.solidityPack(
+    ['bytes1', 'bytes32'],
+    [
+      GovernanceMessage.SETXAPPCONNECTIONMANAGER,
+      ethersAddressToBytes32(address),
+    ],
+  );
+}
+
+function formatEnrollRemoteRouter(
+  domain: types.Domain,
+  address: types.Address,
+): string {
   return ethers.utils.solidityPack(
     ['bytes1', 'uint32', 'bytes32'],
-    [GovernanceMessage.SETROUTER, domain, address],
+    [
+      GovernanceMessage.ENROLLREMOTEROUTER,
+      domain,
+      ethersAddressToBytes32(address),
+    ],
   );
 }
 
@@ -54,7 +75,8 @@ function formatCalls(callsData: types.CallData[]): string {
 }
 
 export const governance: HardhatGovernanceHelpers = {
-  formatTransferGovernor,
-  formatSetRouter,
+  formatSetGovernor,
+  formatSetXAppConnectionManager,
+  formatEnrollRemoteRouter,
   formatCalls,
 };

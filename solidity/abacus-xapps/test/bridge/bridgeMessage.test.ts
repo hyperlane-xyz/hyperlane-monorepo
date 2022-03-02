@@ -1,4 +1,4 @@
-import { ethers, abacus, bridge } from 'hardhat';
+import { ethers, helpers } from 'hardhat';
 import { BytesLike } from 'ethers';
 import { expect } from 'chai';
 
@@ -13,7 +13,13 @@ import {
 } from '../lib/types';
 import { TestBridgeMessage__factory, TestBridgeMessage } from '../../typechain';
 
-const { BridgeMessageTypes } = bridge;
+const {
+  BridgeMessageTypes,
+  serializeMessage,
+  serializeDetailsAction,
+  serializeTransferAction,
+  serializeRequestDetailsAction,
+} = helpers.bridge;
 
 const stringToBytes32 = (s: string): string => {
   const str = Buffer.from(s.slice(0, 32), 'utf-8');
@@ -59,12 +65,12 @@ describe('BridgeMessage', async () => {
       recipient: deployerId,
       amount: TOKEN_VALUE,
     };
-    transferBytes = bridge.serializeTransferAction(transferAction);
+    transferBytes = serializeTransferAction(transferAction);
     const transferMessage: Message = {
       tokenId: testTokenId,
       action: transferAction,
     };
-    transferMessageBytes = bridge.serializeMessage(transferMessage);
+    transferMessageBytes = serializeMessage(transferMessage);
 
     // details action/message
     detailsAction = {
@@ -73,26 +79,25 @@ describe('BridgeMessage', async () => {
       symbol: stringToBytes32('TEST'),
       decimals: 8,
     };
-    detailsBytes = bridge.serializeDetailsAction(detailsAction);
+    detailsBytes = serializeDetailsAction(detailsAction);
     const detailsMessage: Message = {
       tokenId: testTokenId,
       action: detailsAction,
     };
-    detailsMessageBytes = bridge.serializeMessage(detailsMessage);
+    detailsMessageBytes = serializeMessage(detailsMessage);
 
     // requestDetails action/message
     const requestDetailsAction: RequestDetailsAction = {
       type: BridgeMessageTypes.REQUEST_DETAILS,
     };
-    requestDetailsBytes =
-      bridge.serializeRequestDetailsAction(requestDetailsAction);
+    requestDetailsBytes = serializeRequestDetailsAction(requestDetailsAction);
     const requestDetailsMessage: Message = {
       tokenId: testTokenId,
       action: {
         type: BridgeMessageTypes.REQUEST_DETAILS,
       },
     };
-    requestDetailsMessageBytes = bridge.serializeMessage(requestDetailsMessage);
+    requestDetailsMessageBytes = serializeMessage(requestDetailsMessage);
 
     const [signer] = await ethers.getSigners();
 
