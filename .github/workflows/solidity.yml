@@ -48,7 +48,11 @@ jobs:
         uses: ./.github/workflows/npm
         with:
           runneros: ${{ runner.os }}
-      - name: test
+      - name: core
         run: |
+          npm --prefix ./solidity/abacus-core run build
           npm --prefix ./solidity/abacus-core run test
+      - name: xapps
+        run: |
+          npm --prefix ./solidity/abacus-xapps run build
           npm --prefix ./solidity/abacus-xapps run test

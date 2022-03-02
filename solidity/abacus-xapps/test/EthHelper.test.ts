@@ -35,7 +35,7 @@ describe('EthHelper', async () => {
     deployerId = toBytes32(deployerAddress).toLowerCase();
     recipientAddress = await recipient.getAddress();
     recipientId = toBytes32(recipientAddress).toLowerCase();
-    abacusDeployment = await abacus.deployment.fromDomains(domains, deployer);
+    abacusDeployment = await AbacusDeployment.fromDomains(domains, deployer);
     bridgeDeployment = await BridgeDeployment.fromAbacusDeployment(
       abacusDeployment,
       deployer,
