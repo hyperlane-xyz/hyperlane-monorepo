@@ -8,8 +8,8 @@ import { fetchAgentGCPKeys } from './agents/gcp';
 import { AgentAwsKey } from './agents/aws';
 
 export enum KEY_ROLE_ENUM {
-  UpdaterAttestation = 'updater-attestation',
-  UpdaterSigner = 'updater-signer',
+  UpdaterAttestation = 'validator-attestation',
+  UpdaterSigner = 'validator-signer',
   ProcessorSigner = 'processor-signer',
   RelayerSigner = 'relayer-signer',
   WatcherAttestation = 'watcher-attestation',
@@ -18,8 +18,8 @@ export enum KEY_ROLE_ENUM {
   Bank = 'bank',
 }
 export const KEY_ROLES = [
-  'updater-attestation',
-  'updater-signer',
+  'validator-attestation',
+  'validator-signer',
   'processor-signer',
   'relayer-signer',
   'watcher-attestation',
@@ -49,21 +49,21 @@ async function helmValuesForChain(
       repository: agentConfig.docker.repo,
       tag: agentConfig.docker.tag,
     },
-    optics: {
+    abacus: {
       runEnv: agentConfig.runEnv,
       baseConfig: `${chainName}_config.json`,
-      homeChain: {
+      outboxChain: {
         name: chainName,
       },
       aws: !!agentConfig.aws,
-      replicaChains: chains
+      inboxChains: chains
         .filter((_) => _.name !== chainName)
         .map((remoteChain) => {
           return {
             name: remoteChain.name,
           };
         }),
-      updater: {
+      validator: {
         enabled: true,
         transactionSigners: chains.map((chain) => ({
           name: chain.name,
@@ -72,10 +72,12 @@ async function helmValuesForChain(
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.UpdaterAttestation),
         },
-        ...include(!!chain.updaterInterval, {
-          pollingInterval: chain.updaterInterval,
+        ...include(!!chain.validatorInterval, {
+          pollingInterval: chain.validatorInterval,
         }),
-        ...include(!!chain.updaterPause, { updatePause: chain.updaterPause }),
+        ...include(!!chain.validatorPause, {
+          updatePause: chain.validatorPause,
+        }),
       },
       relayer: {
         enabled: true,
@@ -99,30 +101,30 @@ async function helmValuesForChain(
 }
 
 export async function getAgentEnvVars(
-  homeChainName: ChainName,
+  outboxChainName: ChainName,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
   chains: ChainConfig[],
 ) {
   const valueDict = await helmValuesForChain(
-    homeChainName,
+    outboxChainName,
     agentConfig,
     chains,
   );
   const envVars: string[] = [];
 
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chains);
-  envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
-  valueDict.optics.replicaChains.forEach((replicaChain: any) => {
+  envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`);
+  valueDict.abacus.inboxChains.forEach((inboxChain: any) => {
     envVars.push(
-      `OPT_BASE_REPLICAS_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
-        rpcEndpoints[replicaChain.name]
+      `OPT_BASE_REPLICAS_${inboxChain.name.toUpperCase()}_CONNECTION_URL=${
+        rpcEndpoints[inboxChain.name]
       }`,
     );
   });
 
   // Base vars from config map
-  envVars.push(`BASE_CONFIG=${valueDict.optics.baseConfig}`);
+  envVars.push(`BASE_CONFIG=${valueDict.abacus.baseConfig}`);
   envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
   envVars.push(`OPT_BASE_METRICS=9090`);
   envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
@@ -130,7 +132,7 @@ export async function getAgentEnvVars(
   try {
     const gcpKeys = await fetchAgentGCPKeys(
       agentConfig.environment,
-      homeChainName,
+      outboxChainName,
     );
     // Signer keys
     chains.forEach((network) => {
@@ -142,10 +144,10 @@ export async function getAgentEnvVars(
     });
 
     // Updater attestation key
-    if (role.startsWith('updater')) {
+    if (role.startsWith('validator')) {
       envVars.push(
         `OPT_BASE_UPDATER_KEY=${strip0x(
-          gcpKeys[homeChainName + '-' + KEY_ROLE_ENUM.UpdaterAttestation]
+          gcpKeys[outboxChainName + '-' + KEY_ROLE_ENUM.UpdaterAttestation]
             .privateKey,
         )}`,
       );
@@ -174,8 +176,8 @@ export async function getAgentEnvVars(
     });
 
     // Updater attestation key
-    if (role.startsWith('updater')) {
-      const key = new AgentAwsKey(agentConfig, role, homeChainName);
+    if (role.startsWith('validator')) {
+      const key = new AgentAwsKey(agentConfig, role, outboxChainName);
       envVars.push(`OPT_BASE_UPDATER_TYPE=aws`);
       envVars.push(
         `OPT_BASE_UPDATER_ID=${key.credentialsAsHelmValue.aws.keyId}`,
@@ -248,11 +250,11 @@ async function getSecretForEachChain(
 export async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  homeChainConfig: ChainConfig,
+  outboxChainConfig: ChainConfig,
   chains: ChainConfig[],
 ) {
   const valueDict = await helmValuesForChain(
-    homeChainConfig.name,
+    outboxChainConfig.name,
     agentConfig,
     chains,
   );
@@ -265,8 +267,8 @@ export async function runAgentHelmCommand(
 
   return execCmd(
     `helm ${action} ${
-      homeChainConfig.name
-    } ../../rust/helm/optics-agent/ --namespace ${
+      outboxChainConfig.name
+    } ../../rust/helm/abacus-agent/ --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},
@@ -302,12 +304,12 @@ export async function runKeymasterHelmCommand(
         ];
       }),
     ),
-    homes: Object.fromEntries(
+    outboxes: Object.fromEntries(
       chains.map((chain) => {
         return [
           chain.name,
           {
-            replicas: chains.map((c) => c.name),
+            inboxs: chains.map((c) => c.name),
             addresses: Object.fromEntries(
               KEY_ROLES.filter((_) => _.endsWith('signer')).map((role) => [
                 role,

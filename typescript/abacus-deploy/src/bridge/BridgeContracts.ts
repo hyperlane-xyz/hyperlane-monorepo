@@ -1,4 +1,4 @@
-import * as xAppContracts from '@abacus-network/ts-interface/dist/optics-xapps';
+import * as xAppContracts from '@abacus-network/ts-interface/dist/abacus-xapps';
 import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
 import { BridgeContractAddresses } from '../../src/config/addresses';
 import { BeaconProxy } from '../utils/proxy';
@@ -28,7 +28,7 @@ export class BridgeContracts extends Contracts {
   ): BridgeContracts {
     const b = new BridgeContracts();
 
-    // TODO: needs type magic for turning governance, home and replicas to BeaconProxy contracts
+    // TODO: needs type magic for turning governance, outbox and inboxs to BeaconProxy contracts
     const routerImplementation = xAppContracts.BridgeRouter__factory.connect(
       addresses.bridgeRouter.implementation,
       provider,

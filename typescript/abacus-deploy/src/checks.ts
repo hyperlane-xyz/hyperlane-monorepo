@@ -6,9 +6,8 @@ import { ProxyNames, BeaconProxy } from './utils/proxy';
 export enum ViolationType {
   UpgradeBeacon = 'UpgradeBeacon',
   VerificationInput = 'VerificationInput',
-  UpdaterManager = 'UpdaterManager',
-  HomeUpdater = 'HomeUpdater',
-  ReplicaUpdater = 'ReplicaUpdater',
+  ValidatorManager = 'ValidatorManager',
+  Validator = 'Validator',
 }
 
 export interface UpgradeBeaconViolation {
@@ -27,24 +26,17 @@ interface VerificationInputViolation {
   address: string;
 }
 
-export interface UpdaterManagerViolation {
+export interface ValidatorManagerViolation {
   domain: number;
-  type: ViolationType.UpdaterManager;
+  type: ViolationType.ValidatorManager;
   expected: string;
   actual: string;
 }
 
-export interface HomeUpdaterViolation {
-  domain: number;
-  type: ViolationType.HomeUpdater;
-  expected: string;
-  actual: string;
-}
-
-export interface ReplicaUpdaterViolation {
-  domain: number;
-  remoteDomain: number;
-  type: ViolationType.ReplicaUpdater;
+export interface ValidatorViolation {
+  local: number;
+  remote: number;
+  type: ViolationType.Validator;
   expected: string;
   actual: string;
 }
@@ -52,9 +44,8 @@ export interface ReplicaUpdaterViolation {
 export type Violation =
   | UpgradeBeaconViolation
   | VerificationInputViolation
-  | HomeUpdaterViolation
-  | ReplicaUpdaterViolation
-  | UpdaterManagerViolation;
+  | ValidatorViolation
+  | ValidatorManagerViolation;
 
 export type VerificationInput = [string, Contract];
 

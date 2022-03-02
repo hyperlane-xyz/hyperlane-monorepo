@@ -3,14 +3,12 @@ pragma solidity >=0.6.11;
 
 import "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
-import {
-    TypeCasts
-} from "./TypeCasts.sol";
+import {TypeCasts} from "./TypeCasts.sol";
 
 /**
  * @title Message Library
  * @author Celo Labs Inc.
- * @notice Library for formatted messages used by Home and Replica.
+ * @notice Library for formatted messages used by Outbox and Replica.
  **/
 library Message {
     using TypedMemView for bytes;
@@ -119,6 +117,14 @@ library Message {
     }
 
     function leaf(bytes29 _message) internal view returns (bytes32) {
-        return messageHash(origin(_message), sender(_message), nonce(_message), destination(_message), recipient(_message), TypedMemView.clone(body(_message)));
+        return
+            messageHash(
+                origin(_message),
+                sender(_message),
+                nonce(_message),
+                destination(_message),
+                recipient(_message),
+                TypedMemView.clone(body(_message))
+            );
     }
 }

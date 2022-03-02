@@ -11,12 +11,12 @@ export class ImplementationDeployer {
     this._deploys = deploys;
   }
 
-  deployHomeImplementations(): Promise<void> {
-    return this._deployImplementations(this._deployHomeImplementation);
+  deployOutboxImplementations(): Promise<void> {
+    return this._deployImplementations(this._deployOutboxImplementation);
   }
 
-  deployReplicaImplementations(): Promise<void> {
-    return this._deployImplementations(this._deployReplicaImplementation);
+  deployInboxImplementations(): Promise<void> {
+    return this._deployImplementations(this._deployInboxImplementation);
   }
 
   writeDeploys(dir: string): void {
@@ -25,63 +25,63 @@ export class ImplementationDeployer {
   }
 
   /**
-   * Deploys a Home implementation on the chain of the given deploy and updates
+   * Deploys a Outbox implementation on the chain of the given deploy and updates
    * the deploy instance with the new contract.
    *
    * @param deploy - The deploy instance
    */
-  private async _deployHomeImplementation(deploy: CoreDeploy) {
+  private async _deployOutboxImplementation(deploy: CoreDeploy) {
     const isTestDeploy: boolean = deploy.test;
-    if (isTestDeploy) warn('deploying test Home');
-    const homeFactory = isTestDeploy
-      ? contracts.TestHome__factory
-      : contracts.Home__factory;
+    if (isTestDeploy) warn('deploying test Outbox');
+    const outboxFactory = isTestDeploy
+      ? contracts.TestOutbox__factory
+      : contracts.Outbox__factory;
     const implementation =
-      await proxyUtils.deployImplementation<contracts.Home>(
-        'Home',
+      await proxyUtils.deployImplementation<contracts.Outbox>(
+        'Outbox',
         deploy,
-        new homeFactory(deploy.signer),
+        new outboxFactory(deploy.signer),
         deploy.chain.domain,
       );
 
-    deploy.contracts.home =
-      proxyUtils.overrideBeaconProxyImplementation<contracts.Home>(
+    deploy.contracts.outbox =
+      proxyUtils.overrideBeaconProxyImplementation<contracts.Outbox>(
         implementation,
         deploy,
-        new homeFactory(deploy.signer),
-        deploy.contracts.home!,
+        new outboxFactory(deploy.signer),
+        deploy.contracts.outbox!,
       );
   }
 
   /**
-   * Deploys a Replica implementation on the chain of the given deploy and updates
+   * Deploys a Inbox implementation on the chain of the given deploy and updates
    * the deploy instance with the new contracts.
    *
    * @param deploy - The deploy instance
    */
-  private async _deployReplicaImplementation(deploy: CoreDeploy) {
+  private async _deployInboxImplementation(deploy: CoreDeploy) {
     const isTestDeploy: boolean = deploy.test;
-    if (isTestDeploy) warn('deploying test Replica');
-    const replicaFactory = isTestDeploy
-      ? contracts.TestReplica__factory
-      : contracts.Replica__factory;
+    if (isTestDeploy) warn('deploying test Inbox');
+    const inboxFactory = isTestDeploy
+      ? contracts.TestInbox__factory
+      : contracts.Inbox__factory;
     const implementation =
-      await proxyUtils.deployImplementation<contracts.Replica>(
-        'Replica',
+      await proxyUtils.deployImplementation<contracts.Inbox>(
+        'Inbox',
         deploy,
-        new replicaFactory(deploy.signer),
+        new inboxFactory(deploy.signer),
         deploy.chain.domain,
         deploy.config.processGas,
         deploy.config.reserveGas,
       );
 
-    for (const domain in deploy.contracts.replicas) {
-      deploy.contracts.replicas[domain] =
-        proxyUtils.overrideBeaconProxyImplementation<contracts.Replica>(
+    for (const domain in deploy.contracts.inboxs) {
+      deploy.contracts.inboxs[domain] =
+        proxyUtils.overrideBeaconProxyImplementation<contracts.Inbox>(
           implementation,
           deploy,
-          new replicaFactory(deploy.signer),
-          deploy.contracts.replicas[domain],
+          new inboxFactory(deploy.signer),
+          deploy.contracts.inboxs[domain],
         );
     }
   }

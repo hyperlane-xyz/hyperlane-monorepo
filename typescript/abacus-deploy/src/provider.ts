@@ -8,11 +8,11 @@ export function updateProviderDomain(
   coreDeploys: CoreDeploy[],
   bridgeDeploys: BridgeDeploy[],
 ) {
-  let ret = "import { OpticsDomain } from './domain';\n";
+  let ret = "import { AbacusDomain } from './domain';\n";
   coreDeploys.forEach((coreDeploy: CoreDeploy, i: number) => {
     const bridgeDeploy = bridgeDeploys[i];
     ret += `
-export const ${coreDeploy.chain.name}: OpticsDomain = {
+export const ${coreDeploy.chain.name}: AbacusDomain = {
   name: '${coreDeploy.chain.name}',
   id: ${coreDeploy.chain.domain},
   bridgeRouter: '${bridgeDeploy.contracts.bridgeRouter!.proxy.address}',${
@@ -20,17 +20,17 @@ export const ${coreDeploy.chain.name}: OpticsDomain = {
         ? `\n  ethHelper: '${bridgeDeploy.contracts.ethHelper?.address}',`
         : ''
     }
-  home: '${coreDeploy.contracts.home!.proxy.address}',
+  outbox: '${coreDeploy.contracts.outbox!.proxy.address}',
   governanceRouter: '${coreDeploy.contracts.governanceRouter!.proxy.address}',
   xAppConnectionManager: '${
     coreDeploy.contracts.xAppConnectionManager!.address
   }',
-  replicas: [
-${Object.keys(coreDeploy.contracts.replicas)
+  inboxs: [
+${Object.keys(coreDeploy.contracts.inboxs)
   .map(Number)
   .map(
-    (replicaDomain) =>
-      `    { domain: ${replicaDomain}, address: '${coreDeploy.contracts.replicas[replicaDomain].proxy.address}' },`,
+    (inboxDomain) =>
+      `    { domain: ${inboxDomain}, address: '${coreDeploy.contracts.inboxs[inboxDomain].proxy.address}' },`,
   )
   .join('\n')}
   ],
@@ -41,10 +41,7 @@ ${Object.keys(coreDeploy.contracts.replicas)
     .map((_) => _.chain.name)
     .join(', ')}];`;
   writeFileSync(
-    resolve(
-      __dirname,
-      `../../optics-provider/src/optics/domains/${environment}.ts`,
-    ),
+    resolve(__dirname, `../../abacus-sdk/src/abacus/domains/${environment}.ts`),
     ret,
   );
 }

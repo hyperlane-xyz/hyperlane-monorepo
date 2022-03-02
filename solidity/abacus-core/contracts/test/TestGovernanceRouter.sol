@@ -6,10 +6,6 @@ import "../governance/GovernanceRouter.sol";
 import {TypeCasts} from "../XAppConnectionManager.sol";
 
 contract TestGovernanceRouter is GovernanceRouter {
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-    using GovernanceMessage for bytes29;
-
     constructor(uint32 _localDomain, uint256 _recoveryTimelock)
         GovernanceRouter(_localDomain, 50)
     {} // solhint-disable-line no-empty-blocks
@@ -23,10 +19,6 @@ contract TestGovernanceRouter is GovernanceRouter {
         );
 
         _sendToAllRemoteRouters(_setRouterMessage);
-    }
-
-    function setRouterAddress(uint32 _domain, address _router) external {
-        _setRouter(_domain, TypeCasts.addressToBytes32(_router));
     }
 
     function containsDomain(uint32 _domain) external view returns (bool) {

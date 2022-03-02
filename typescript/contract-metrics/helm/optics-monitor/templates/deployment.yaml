@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "monitor.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  inboxs: 1
   selector:
     matchLabels:
       {{- include "monitor.selectorLabels" . | nindent 6 }}

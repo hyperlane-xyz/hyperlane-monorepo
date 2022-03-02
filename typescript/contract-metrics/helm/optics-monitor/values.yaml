@@ -1,4 +1,4 @@
-replicaCount: 1
+inboxCount: 1
 
 image:
   repository: gcr.io/clabs-optics/optics-monitor

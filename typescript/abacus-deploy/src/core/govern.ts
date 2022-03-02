@@ -1,14 +1,13 @@
 import { expect } from 'chai';
-import { OpticsContext } from '@abacus-network/sdk';
+import { AbacusContext } from '@abacus-network/sdk';
 import { CoreDeploy } from './CoreDeploy';
 import {
-  HomeUpdaterViolation,
-  ReplicaUpdaterViolation,
+  ValidatorViolation,
   UpgradeBeaconViolation,
   Violation,
   ViolationType,
 } from '../checks';
-import { Call, CallBatch } from '@abacus-network/sdk/dist/optics/govern';
+import { Call, CallBatch } from '@abacus-network/sdk/dist/abacus/govern';
 
 interface DomainedCall {
   domain: number;
@@ -17,12 +16,12 @@ interface DomainedCall {
 
 export class GovernanceCallBatchBuilder {
   private _deploys: CoreDeploy[];
-  private _context: OpticsContext;
+  private _context: AbacusContext;
   private _violations: Violation[];
 
   constructor(
     deploys: CoreDeploy[],
-    context: OpticsContext,
+    context: AbacusContext,
     violations: Violation[],
   ) {
     this._deploys = deploys;
@@ -44,10 +43,8 @@ export class GovernanceCallBatchBuilder {
     switch (v.type) {
       case ViolationType.UpgradeBeacon:
         return this.handleUpgradeBeaconViolation(v);
-      case ViolationType.HomeUpdater:
-        return this.handleHomeUpdaterViolation(v);
-      case ViolationType.ReplicaUpdater:
-        return this.handleReplicaUpdaterViolation(v);
+      case ViolationType.Validator:
+        return this.handleValidatorViolation(v);
       default:
         throw new Error(`No handler for violation type ${v.type}`);
         break;
@@ -69,28 +66,15 @@ export class GovernanceCallBatchBuilder {
     return { domain, call: tx as Call };
   }
 
-  async handleHomeUpdaterViolation(
-    violation: HomeUpdaterViolation,
+  async handleValidatorViolation(
+    violation: ValidatorViolation,
   ): Promise<DomainedCall> {
-    const domain = violation.domain;
+    const domain = violation.local;
     const deploy = this.getDeploy(domain);
-    const manager = deploy.contracts.updaterManager;
+    const manager = deploy.contracts.validatorManager;
     expect(manager).to.not.be.undefined;
-    const tx = await manager!.populateTransaction.setUpdater(
-      violation.expected,
-    );
-    if (tx.to === undefined) throw new Error('undefined tx.to');
-    return { domain, call: tx as Call };
-  }
-
-  async handleReplicaUpdaterViolation(
-    violation: ReplicaUpdaterViolation,
-  ): Promise<DomainedCall> {
-    const domain = violation.domain;
-    const deploy = this.getDeploy(domain);
-    const replica = deploy.contracts.replicas[violation.remoteDomain];
-    expect(replica).to.not.be.undefined;
-    const tx = await replica!.proxy.populateTransaction.setUpdater(
+    const tx = await manager!.populateTransaction.setValidator(
+      violation.remote,
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');

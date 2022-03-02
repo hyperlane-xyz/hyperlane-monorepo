@@ -1,4 +1,4 @@
-import { OpticsContext, dev, testnet, mainnet } from '@abacus-network/sdk';
+import { AbacusContext, dev, testnet, mainnet } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
 import { DeployEnvironment } from '../src/deploy';
 import { KEY_ROLE_ENUM } from '../src/agents';
@@ -90,7 +90,7 @@ export async function getBridgeDeploys(
   return makeBridgeDeploys(environment, chains);
 }
 
-export function getContext(environment: DeployEnvironment): OpticsContext {
+export function getContext(environment: DeployEnvironment): AbacusContext {
   switch (environment) {
     case DeployEnvironment.dev:
       return dev;
@@ -106,7 +106,7 @@ export function getContext(environment: DeployEnvironment): OpticsContext {
 }
 
 export function registerRpcProviders(
-  context: OpticsContext,
+  context: AbacusContext,
   chains: ChainConfig[],
 ): void {
   chains.map((c) =>
@@ -118,7 +118,7 @@ export function registerRpcProviders(
 }
 
 export async function registerGovernorSigner(
-  context: OpticsContext,
+  context: AbacusContext,
   chains: ChainConfig[],
 ): Promise<void> {
   const govDomain = await context.governorDomain();

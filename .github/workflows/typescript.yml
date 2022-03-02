@@ -31,15 +31,7 @@ jobs:
           runneros: ${{ runner.os }}
 
       - name: build
-        run: |
-          cd ./typescript/contract-metrics
-          npm run build
-          cd ../abacus-deploy
-          npm run build
-          cd ../abacus-sdk
-          npm run build
-          cd ../typechain
-          npm run build
+        run: npm run build
   typescript-lint:
     runs-on: ubuntu-latest
     needs: [typescript-install]
@@ -52,12 +44,7 @@ jobs:
 
       - name: prettier
         run: |
-          cd ./typescript/abacus-deploy
           npm run prettier
-          cd ../abacus-sdk
-          npm run prettier
-          cd ../abacus-tests
-          npm run prettier-ci
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"
