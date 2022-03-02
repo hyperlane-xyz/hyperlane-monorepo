@@ -64,7 +64,7 @@ contract PingPongRouter is Router {
         uint32 _origin,
         bytes32 _sender,
         bytes memory _message
-    ) external override onlyReplica onlyRemoteRouter(_origin, _sender) {
+    ) external override onlyInbox onlyRemoteRouter(_origin, _sender) {
         bytes29 _msg = _message.ref(0);
         if (_msg.isPing()) {
             _handlePing(_origin, _msg);
@@ -152,7 +152,11 @@ contract PingPongRouter is Router {
             ? PingPongMessage.formatPing(_match, _count)
             : PingPongMessage.formatPong(_match, _count);
         // send the message to the xApp Router
-        (_home()).dispatch(_destinationDomain, _remoteRouterAddress, _message);
+        (_outbox()).dispatch(
+            _destinationDomain,
+            _remoteRouterAddress,
+            _message
+        );
         // emit a Sent event
         emit Sent(_destinationDomain, _match, _count, _isPing);
     }

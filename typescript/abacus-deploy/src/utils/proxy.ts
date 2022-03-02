@@ -6,8 +6,8 @@ import { CoreDeploy } from '../core/CoreDeploy';
 import { ProxiedAddress } from '../config/addresses';
 
 export type ProxyNames =
-  | 'Home'
-  | 'Replica'
+  | 'Outbox'
+  | 'Inbox'
   | 'Governance'
   | 'BridgeToken'
   | 'BridgeRouter';

@@ -3,9 +3,8 @@ import * as ethers from 'ethers';
 
 import * as types from './types';
 import { getHexStringByteLength } from './utils';
-import { AbacusDeployment } from './AbacusDeployment';
 
-export class Updater {
+export class Validator {
   localDomain: types.Domain;
   signer: ethers.Signer;
   address: types.Address;
@@ -17,7 +16,7 @@ export class Updater {
     disableWarn: boolean,
   ) {
     if (!disableWarn) {
-      throw new Error('Please use `Updater.fromSigner()` to instantiate.');
+      throw new Error('Please use `Validator.fromSigner()` to instantiate.');
     }
     this.localDomain = localDomain ? localDomain : 0;
     this.signer = signer;
@@ -25,25 +24,28 @@ export class Updater {
   }
 
   static async fromSigner(signer: ethers.Signer, localDomain: types.Domain) {
-    return new Updater(signer, await signer.getAddress(), localDomain, true);
+    return new Validator(signer, await signer.getAddress(), localDomain, true);
   }
 
   domainHash() {
     return domainHash(this.localDomain);
   }
 
-  message(oldRoot: types.HexString, newRoot: types.HexString) {
-    return ethers.utils.concat([this.domainHash(), oldRoot, newRoot]);
+  message(root: types.HexString, index: number) {
+    return ethers.utils.solidityPack(
+      ['bytes32', 'bytes32', 'uint256'],
+      [this.domainHash(), root, index],
+    );
   }
 
-  async signUpdate(oldRoot: types.HexString, newRoot: types.HexString) {
-    let message = this.message(oldRoot, newRoot);
+  async signCheckpoint(root: types.HexString, index: number) {
+    let message = this.message(root, index);
     let msgHash = ethers.utils.arrayify(ethers.utils.keccak256(message));
     let signature = await this.signer.signMessage(msgHash);
     return {
       origin: this.localDomain,
-      oldRoot,
-      newRoot,
+      root,
+      index,
       signature,
     };
   }
@@ -130,32 +132,6 @@ function domainHash(domain: Number): string {
   );
 }
 
-async function signedFailureNotification(
-  signer: ethers.Signer,
-  domain: types.Domain,
-  updaterAddress: types.Address,
-): Promise<types.SignedFailureNotification> {
-  const domainCommitment = domainHash(domain);
-  const updaterBytes32 = ethersAddressToBytes32(updaterAddress);
-
-  const failureNotification = ethers.utils.solidityPack(
-    ['bytes32', 'uint32', 'bytes32'],
-    [domainCommitment, domain, updaterBytes32],
-  );
-  const signature = await signer.signMessage(
-    ethers.utils.arrayify(ethers.utils.keccak256(failureNotification)),
-  );
-
-  return {
-    failureNotification: {
-      domainCommitment,
-      domain,
-      updaterBytes32,
-    },
-    signature,
-  };
-}
-
 function formatCalls(callsData: types.CallData[]): string {
   let callBody = '0x';
   const numCalls = callsData.length;
@@ -184,7 +160,6 @@ function formatCalls(callsData: types.CallData[]): string {
 }
 
 export const abacus: types.HardhatAbacusHelpers = {
-  deployment: AbacusDeployment,
   formatMessage,
   governance: {
     formatTransferGovernor,
@@ -195,5 +170,4 @@ export const abacus: types.HardhatAbacusHelpers = {
   ethersAddressToBytes32,
   destinationAndNonce,
   domainHash,
-  signedFailureNotification,
 };

@@ -4,7 +4,6 @@ import { BytesLike, ethers } from 'ethers';
 /********* HRE *********/
 
 export interface HardhatAbacusHelpers {
-  deployment: any;
   formatMessage: Function;
   governance: {
     formatTransferGovernor: Function;
@@ -15,7 +14,6 @@ export interface HardhatAbacusHelpers {
   ethersAddressToBytes32: Function;
   destinationAndNonce: Function;
   domainHash: Function;
-  signedFailureNotification: Function;
 }
 
 declare module 'hardhat/types/runtime' {
@@ -66,24 +64,13 @@ export type BytesArray = [
 ];
 
 /********* OPTICS CORE *********/
-export type Update = {
-  oldRoot: string;
-  newRoot: string;
+export type Checkpoint = {
+  root: string;
+  index: number;
   signature: string;
 };
 
 export type CallData = {
   to: Address;
   data: string;
-};
-
-export type FailureNotification = {
-  domainCommitment: string;
-  domain: number;
-  updaterBytes32: string;
-};
-
-export type SignedFailureNotification = {
-  failureNotification: FailureNotification;
-  signature: string;
 };

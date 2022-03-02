@@ -42,7 +42,7 @@ contract RouterTemplate is Router {
     /**
      * @notice Receive messages sent via Abacus from other remote xApp Routers;
      * parse the contents of the message and enact the message's effects on the local chain
-     * @dev Called by an Abacus Replica contract while processing a message sent via Abacus
+     * @dev Called by an Abacus Inbox contract while processing a message sent via Abacus
      * @param _origin The domain the message is coming from
      * @param _sender The address the message is coming from
      * @param _message The message in the form of raw bytes
@@ -51,7 +51,7 @@ contract RouterTemplate is Router {
         uint32 _origin,
         bytes32 _sender,
         bytes memory _message
-    ) external override onlyReplica onlyRemoteRouter(_origin, _sender) {
+    ) external override onlyInbox onlyRemoteRouter(_origin, _sender) {
         bytes29 _msg = _message.ref(0);
         // route message to appropriate _handle function
         // based on what type of message is encoded
@@ -96,7 +96,7 @@ contract RouterTemplate is Router {
         // encode a message to send to the remote xApp Router
         bytes memory _outboundMessage = Message.formatTypeA(_number);
         // send the message to the xApp Router
-        _home().dispatch(
+        _outbox().dispatch(
             _destinationDomain,
             _remoteRouterAddress,
             _outboundMessage

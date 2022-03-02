@@ -26,9 +26,8 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     return {
       ...this.contracts.toObject(),
       recoveryManager: this.recoveryManager,
-      updater: this.updater,
+      validator: this.validator,
       governor: this.governor,
-      watchers: this.watchers,
     };
   }
 
@@ -40,16 +39,12 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     return this.contracts.upgradeBeaconController?.address;
   }
 
-  get updater(): Address {
-    return this.coreConfigAddresses.updater;
+  get validator(): Address {
+    return this.coreConfigAddresses.validator;
   }
 
   get recoveryManager(): Address {
     return this.coreConfigAddresses.recoveryManager;
-  }
-
-  get watchers(): Address[] {
-    return this.coreConfigAddresses.watchers;
   }
 
   get governor(): Address | undefined {
@@ -90,8 +85,8 @@ export class CoreDeploy extends Deploy<CoreContracts> {
   }
 
   static buildRustConfig(local: CoreDeploy, remotes: CoreDeploy[]): RustConfig {
-    const home = {
-      address: local.contracts.home!.proxy.address,
+    const outbox = {
+      address: local.contracts.outbox!.proxy.address,
       domain: local.chain.domain.toString(),
       name: local.chain.name,
       rpcStyle: 'ethereum',
@@ -104,10 +99,10 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     const rustConfig: RustConfig = {
       environment: local.config.environment,
       signers: {
-        [home.name]: { key: '', type: 'hexKey' },
+        [outbox.name]: { key: '', type: 'hexKey' },
       },
-      replicas: {},
-      home,
+      inboxs: {},
+      outbox,
       tracing: {
         level: 'debug',
         fmt: 'json',
@@ -116,8 +111,8 @@ export class CoreDeploy extends Deploy<CoreContracts> {
     };
 
     for (var remote of remotes) {
-      const replica = {
-        address: remote.contracts.replicas[local.chain.domain].proxy.address,
+      const inbox = {
+        address: remote.contracts.inboxs[local.chain.domain].proxy.address,
         domain: remote.chain.domain.toString(),
         name: remote.chain.name,
         rpcStyle: 'ethereum',
@@ -127,8 +122,8 @@ export class CoreDeploy extends Deploy<CoreContracts> {
         },
       };
 
-      rustConfig.signers[replica.name] = { key: '', type: 'hexKey' };
-      rustConfig.replicas[replica.name] = replica;
+      rustConfig.signers[inbox.name] = { key: '', type: 'hexKey' };
+      rustConfig.inboxs[inbox.name] = inbox;
     }
 
     return rustConfig;

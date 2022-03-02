@@ -13,26 +13,26 @@ export async function monitorCore(
     originNetwork,
   });
 
-  originLogger.info(`Getting home state and Dispatch logs`);
-  const home = context.mustGetCore(originNetwork).home;
-  const dispatchFilter = home.filters.Dispatch();
+  originLogger.info(`Getting outbox state and Dispatch logs`);
+  const outbox = context.mustGetCore(originNetwork).outbox;
+  const dispatchFilter = outbox.filters.Dispatch();
   const dispatchLogs = await getEvents(
     context,
     originNetwork,
-    home,
+    outbox,
     dispatchFilter,
   );
 
-  const homeState = await home.state();
-  config.metrics.setHomeState(originNetwork, config.environment, homeState);
+  const outboxState = await outbox.state();
+  config.metrics.setOutboxState(originNetwork, config.environment, outboxState);
 
-  // Get metrics for each replica
+  // Get metrics for each inbox
   const processedLogs = [];
   for (const remoteNetwork of remoteNetworks) {
     const remoteLogger = originLogger.child({
       remoteNetwork,
     });
-    const processLogs = await monitorCoreReplica(
+    const processLogs = await monitorCoreInbox(
       context,
       originNetwork,
       remoteNetwork,
@@ -65,27 +65,20 @@ export async function monitorCore(
   writeUnprocessedMessages(unprocessedDetails, originNetwork);
 }
 
-async function monitorCoreReplica(
+async function monitorCoreInbox(
   context: AbacusContext,
   originNetwork: string,
   remoteNetwork: string,
   logger: Logger,
 ) {
-  logger.info(`Getting replica state and Process logs`);
+  logger.info(`Getting inbox state and Process logs`);
 
-  const replica = context.mustGetReplicaFor(originNetwork, remoteNetwork);
-  const replicaState = await replica.state();
-  config.metrics.setReplicaState(
-    originNetwork,
-    remoteNetwork,
-    config.environment,
-    replicaState,
-  );
-  const processFilter = replica.filters.Process();
+  const inbox = context.mustGetInboxFor(originNetwork, remoteNetwork);
+  const processFilter = inbox.filters.Process();
   const processLogs = await getEvents(
     context,
     remoteNetwork,
-    replica,
+    inbox,
     processFilter,
   );
   return processLogs;

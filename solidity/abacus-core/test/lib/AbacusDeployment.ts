@@ -3,34 +3,34 @@ import { assert } from 'chai';
 import * as ethers from 'ethers';
 
 import * as types from './types';
-import { Updater } from './core';
+import { Validator } from './core';
 
 import {
-  TestHome,
-  TestHome__factory,
-  UpdaterManager,
-  UpdaterManager__factory,
+  TestOutbox,
+  TestOutbox__factory,
+  ValidatorManager,
+  ValidatorManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
   XAppConnectionManager,
   XAppConnectionManager__factory,
-  TestReplica,
-  TestReplica__factory,
+  TestInbox,
+  TestInbox__factory,
 } from '../../typechain';
 
 export interface AbacusInstance {
   domain: types.Domain;
-  updater: Updater;
-  updaterManager: UpdaterManager;
-  home: TestHome;
+  validator: Validator;
+  validatorManager: ValidatorManager;
+  outbox: TestOutbox;
   connectionManager: XAppConnectionManager;
   ubc: UpgradeBeaconController;
-  replicas: Record<number, TestReplica>;
+  inboxs: Record<number, TestInbox>;
 }
 
 const processGas = 850000;
 const reserveGas = 15000;
-const optimisticSeconds = 0;
+const nullRoot = '0x' + '00'.repeat(32);
 
 export class AbacusDeployment {
   constructor(
@@ -57,86 +57,85 @@ export class AbacusDeployment {
     remotes: types.Domain[],
     signer: ethers.Signer,
   ): Promise<AbacusInstance> {
-    const updaterManagerFactory = new UpdaterManager__factory(signer);
-    const updaterManager = await updaterManagerFactory.deploy(
-      await signer.getAddress(),
+    const validatorManagerFactory = new ValidatorManager__factory(signer);
+    const validatorManager = await validatorManagerFactory.deploy();
+    await validatorManager.setValidator(local, await signer.getAddress());
+    await Promise.all(
+      remotes.map(async (remoteDomain) =>
+        validatorManager.setValidator(remoteDomain, await signer.getAddress()),
+      ),
     );
 
     const ubcFactory = new UpgradeBeaconController__factory(signer);
     const ubc = await ubcFactory.deploy();
 
-    const homeFactory = new TestHome__factory(signer);
-    const home = await homeFactory.deploy(local);
-    await home.initialize(updaterManager.address);
-    await updaterManager.setHome(home.address);
+    const outboxFactory = new TestOutbox__factory(signer);
+    const outbox = await outboxFactory.deploy(local);
+    await outbox.initialize(validatorManager.address);
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     const connectionManager = await connectionManagerFactory.deploy();
-    await connectionManager.setHome(home.address);
+    await connectionManager.setOutbox(outbox.address);
 
-    const replicaFactory = new TestReplica__factory(signer);
-    const replicas: Record<number, TestReplica> = {};
+    const inboxFactory = new TestInbox__factory(signer);
+    const inboxs: Record<number, TestInbox> = {};
     const deploys = remotes.map(async (remoteDomain) => {
-      const replica = await replicaFactory.deploy(
-        local,
-        processGas,
-        reserveGas,
-      );
-      await replica.initialize(
+      const inbox = await inboxFactory.deploy(local, processGas, reserveGas);
+      await inbox.initialize(
         remoteDomain,
-        await signer.getAddress(),
-        ethers.constants.HashZero,
-        optimisticSeconds,
+        validatorManager.address,
+        nullRoot,
+        0,
       );
-      await connectionManager.ownerEnrollReplica(replica.address, remoteDomain);
-      replicas[remoteDomain] = replica;
+      await connectionManager.enrollInbox(inbox.address, remoteDomain);
+      inboxs[remoteDomain] = inbox;
     });
     await Promise.all(deploys);
     return {
       domain: local,
-      updater: await Updater.fromSigner(signer, local),
-      home,
+      validator: await Validator.fromSigner(signer, local),
+      outbox,
       connectionManager,
-      updaterManager,
-      replicas,
+      validatorManager,
+      inboxs,
       ubc,
     };
   }
 
   async transferOwnership(domain: types.Domain, address: types.Address) {
-    await this.home(domain).transferOwnership(address);
+    await this.outbox(domain).transferOwnership(address);
     await this.ubc(domain).transferOwnership(address);
     await this.connectionManager(domain).transferOwnership(address);
-    await this.updaterManager(domain).transferOwnership(address);
+    await this.validatorManager(domain).transferOwnership(address);
     for (const remote of this.domains) {
       if (remote !== domain) {
-        await this.replica(domain, remote).transferOwnership(address);
+        await this.inbox(domain, remote).transferOwnership(address);
       }
     }
   }
 
-  home(domain: types.Domain): TestHome {
-    return this.instances[domain].home;
+  outbox(domain: types.Domain): TestOutbox {
+    return this.instances[domain].outbox;
   }
 
   ubc(domain: types.Domain): UpgradeBeaconController {
     return this.instances[domain].ubc;
   }
 
-  updater(domain: types.Domain): Updater {
-    return this.instances[domain].updater;
+  validator(domain: types.Domain): Validator {
+    return this.instances[domain].validator;
   }
 
-  replica(local: types.Domain, remote: types.Domain): TestReplica {
-    return this.instances[local].replicas[remote];
+  inbox(local: types.Domain, remote: types.Domain): TestInbox {
+    return this.instances[local].inboxs[remote];
   }
 
   connectionManager(domain: types.Domain): XAppConnectionManager {
     return this.instances[domain].connectionManager;
   }
 
-  updaterManager(domain: types.Domain): UpdaterManager {
-    return this.instances[domain].updaterManager;
+  validatorManager(domain: types.Domain): ValidatorManager {
+    return this.instances[domain].validatorManager;
   }
 
   async processMessages() {
@@ -146,38 +145,49 @@ export class AbacusDeployment {
   }
 
   async processMessagesFromDomain(local: types.Domain) {
-    const home = this.home(local);
-    const [committedRoot, latestRoot] = await home.suggestUpdate();
+    const outbox = this.outbox(local);
+    const [checkpointedRoot] = await outbox.latestCheckpoint();
 
-    // Find the block number of the last update submitted on Home.
-    const updateFilter = home.filters.Update(null, null, committedRoot);
-    const updates = await home.queryFilter(updateFilter);
-    assert(updates.length === 0 || updates.length === 1);
-    const fromBlock = updates.length === 0 ? 0 : updates[0].blockNumber;
+    // Find the block number of the last checkpoint submitted on Outbox.
+    const checkpointFilter = outbox.filters.Checkpoint(checkpointedRoot);
+    const checkpoints = await outbox.queryFilter(checkpointFilter);
+    assert(checkpoints.length === 0 || checkpoints.length === 1);
+    const fromBlock = checkpoints.length === 0 ? 0 : checkpoints[0].blockNumber;
 
-    // Update the Home and Replicas to the latest roots.
+    await outbox.checkpoint();
+    const [root, index] = await outbox.latestCheckpoint();
+    // If there have been no checkpoints since the last checkpoint, return.
+    if (
+      index.eq(0) ||
+      (checkpoints.length == 1 && index.eq(checkpoints[0].args.index))
+    ) {
+      return;
+    }
+    // Update the Outbox and Inboxs to the latest roots.
     // This is technically not necessary given that we are not proving against
-    // a root in the TestReplica.
-    const updater = this.updater(local);
-    const { signature } = await updater.signUpdate(committedRoot, latestRoot);
-    await home.update(committedRoot, latestRoot, signature);
+    // a root in the TestInbox.
+    const validator = this.validator(local);
+    const { signature } = await validator.signCheckpoint(
+      root,
+      index.toNumber(),
+    );
 
     for (const remote of this.domains) {
       if (remote !== local) {
-        const replica = this.replica(remote, local);
-        await replica.update(committedRoot, latestRoot, signature);
+        const inbox = this.inbox(remote, local);
+        await inbox.checkpoint(root, index, signature);
       }
     }
 
-    // Find all messages dispatched on the home since the previous update.
-    const dispatchFilter = home.filters.Dispatch();
-    const dispatches = await home.queryFilter(dispatchFilter, fromBlock);
+    // Find all messages dispatched on the outbox since the previous checkpoint.
+    const dispatchFilter = outbox.filters.Dispatch();
+    const dispatches = await outbox.queryFilter(dispatchFilter, fromBlock);
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
       if (destination !== local) {
-        const replica = this.replica(destination, local);
-        await replica.setMessageProven(dispatch.args.message);
-        await replica.testProcess(dispatch.args.message);
+        const inbox = this.inbox(destination, local);
+        await inbox.setMessageProven(dispatch.args.message);
+        await inbox.testProcess(dispatch.args.message);
       }
     }
   }

@@ -8,7 +8,7 @@ import {TypeCasts} from "./TypeCasts.sol";
 /**
  * @title Message Library
  * @author Celo Labs Inc.
- * @notice Library for formatted messages used by Home and Replica.
+ * @notice Library for formatted messages used by Outbox and Replica.
  **/
 library Message {
     using TypedMemView for bytes;
