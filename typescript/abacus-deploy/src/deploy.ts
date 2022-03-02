@@ -13,13 +13,13 @@ export enum DeployEnvironment {
 }
 
 type XAppConnectionName = 'XAppConnectionManager';
-type UpdaterManagerName = 'UpdaterManager';
+type ValidatorManagerName = 'ValidatorManager';
 type UBCName = 'UpgradeBeaconController';
-type HomeName = 'Home UpgradeBeacon' | 'Home Proxy' | 'Home Implementation';
-type ReplicaName =
-  | 'Replica UpgradeBeacon'
-  | 'Replica Proxy'
-  | 'Replica Implementation';
+type OutboxName =
+  | 'Outbox UpgradeBeacon'
+  | 'Outbox Proxy'
+  | 'Outbox Implementation';
+type InboxName = 'Inbox UpgradeBeacon' | 'Inbox Proxy' | 'Inbox Implementation';
 type GovernanceName =
   | 'Governance UpgradeBeacon'
   | 'Governance Proxy'
@@ -36,10 +36,10 @@ type BridgeRouterName =
 
 export type ContractVerificationName =
   | XAppConnectionName
-  | UpdaterManagerName
+  | ValidatorManagerName
   | UBCName
-  | HomeName
-  | ReplicaName
+  | OutboxName
+  | InboxName
   | GovernanceName
   | EthHelperName
   | BridgeTokenName

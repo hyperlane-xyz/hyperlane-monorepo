@@ -33,21 +33,17 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.GovernanceRouter__factory>;
     getContractFactory(
-      name: "Home",
+      name: "Inbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Home__factory>;
+    ): Promise<Contracts.Inbox__factory>;
     getContractFactory(
       name: "MerkleTreeManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MerkleTreeManager__factory>;
     getContractFactory(
-      name: "QueueManager",
+      name: "Outbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.QueueManager__factory>;
-    getContractFactory(
-      name: "Replica",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Replica__factory>;
+    ): Promise<Contracts.Outbox__factory>;
     getContractFactory(
       name: "BadRecipient1",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -97,9 +93,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestGovernanceRouter__factory>;
     getContractFactory(
-      name: "TestHome",
+      name: "TestInbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.TestHome__factory>;
+    ): Promise<Contracts.TestInbox__factory>;
     getContractFactory(
       name: "TestMerkle",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -109,25 +105,13 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestMessage__factory>;
     getContractFactory(
-      name: "TestQueue",
+      name: "TestOutbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.TestQueue__factory>;
+    ): Promise<Contracts.TestOutbox__factory>;
     getContractFactory(
       name: "TestRecipient",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.TestRecipient__factory>;
-    getContractFactory(
-      name: "TestReplica",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.TestReplica__factory>;
-    getContractFactory(
-      name: "TestXAppConnectionManager",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.TestXAppConnectionManager__factory>;
-    getContractFactory(
-      name: "UpdaterManager",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.UpdaterManager__factory>;
     getContractFactory(
       name: "UpgradeBeacon",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -141,6 +125,10 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.UpgradeBeaconProxy__factory>;
     getContractFactory(
+      name: "ValidatorManager",
+      signerOrOptions?: ethers.Signer | FactoryOptions
+    ): Promise<Contracts.ValidatorManager__factory>;
+    getContractFactory(
       name: "Version0",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Version0__factory>;
@@ -153,9 +141,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IMessageRecipient__factory>;
     getContractFactory(
-      name: "IUpdaterManager",
+      name: "IValidatorManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IUpdaterManager__factory>;
+    ): Promise<Contracts.IValidatorManager__factory>;
 
     // default types
     getContractFactory(

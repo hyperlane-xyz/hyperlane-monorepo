@@ -11,31 +11,19 @@ const _abi = [
     anonymous: false,
     inputs: [
       {
-        indexed: false,
+        indexed: true,
         internalType: "bytes32",
-        name: "oldRoot",
+        name: "root",
         type: "bytes32",
       },
       {
-        indexed: false,
-        internalType: "bytes32[2]",
-        name: "newRoot",
-        type: "bytes32[2]",
-      },
-      {
-        indexed: false,
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
-      },
-      {
-        indexed: false,
-        internalType: "bytes",
-        name: "signature2",
-        type: "bytes",
+        indexed: true,
+        internalType: "uint256",
+        name: "index",
+        type: "uint256",
       },
     ],
-    name: "DoubleUpdate",
+    name: "Checkpoint",
     type: "event",
   },
   {
@@ -44,11 +32,11 @@ const _abi = [
       {
         indexed: false,
         internalType: "address",
-        name: "updater",
+        name: "validatorManager",
         type: "address",
       },
     ],
-    name: "NewUpdater",
+    name: "NewValidatorManager",
     type: "event",
   },
   {
@@ -56,35 +44,23 @@ const _abi = [
     inputs: [
       {
         indexed: true,
-        internalType: "uint32",
-        name: "homeDomain",
-        type: "uint32",
+        internalType: "address",
+        name: "previousOwner",
+        type: "address",
       },
       {
         indexed: true,
-        internalType: "bytes32",
-        name: "oldRoot",
-        type: "bytes32",
-      },
-      {
-        indexed: true,
-        internalType: "bytes32",
-        name: "newRoot",
-        type: "bytes32",
-      },
-      {
-        indexed: false,
-        internalType: "bytes",
-        name: "signature",
-        type: "bytes",
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
       },
     ],
-    name: "Update",
+    name: "OwnershipTransferred",
     type: "event",
   },
   {
     inputs: [],
-    name: "committedRoot",
+    name: "checkpointedRoot",
     outputs: [
       {
         internalType: "bytes32",
@@ -99,38 +75,34 @@ const _abi = [
     inputs: [
       {
         internalType: "bytes32",
-        name: "_oldRoot",
+        name: "",
         type: "bytes32",
       },
+    ],
+    name: "checkpoints",
+    outputs: [
       {
-        internalType: "bytes32[2]",
-        name: "_newRoot",
-        type: "bytes32[2]",
-      },
-      {
-        internalType: "bytes",
-        name: "_signature",
-        type: "bytes",
-      },
-      {
-        internalType: "bytes",
-        name: "_signature2",
-        type: "bytes",
+        internalType: "uint256",
+        name: "",
+        type: "uint256",
       },
     ],
-    name: "doubleUpdate",
-    outputs: [],
-    stateMutability: "nonpayable",
+    stateMutability: "view",
     type: "function",
   },
   {
     inputs: [],
-    name: "homeDomainHash",
+    name: "latestCheckpoint",
     outputs: [
       {
         internalType: "bytes32",
-        name: "",
+        name: "root",
         type: "bytes32",
+      },
+      {
+        internalType: "uint256",
+        name: "index",
+        type: "uint256",
       },
     ],
     stateMutability: "view",
@@ -151,12 +123,12 @@ const _abi = [
   },
   {
     inputs: [],
-    name: "state",
+    name: "owner",
     outputs: [
       {
-        internalType: "enum Common.States",
+        internalType: "address",
         name: "",
-        type: "uint8",
+        type: "address",
       },
     ],
     stateMutability: "view",
@@ -164,10 +136,43 @@ const _abi = [
   },
   {
     inputs: [],
-    name: "updater",
-    outputs: [
+    name: "renounceOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
       {
         internalType: "address",
+        name: "_validatorManager",
+        type: "address",
+      },
+    ],
+    name: "setValidatorManager",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [
+      {
+        internalType: "address",
+        name: "newOwner",
+        type: "address",
+      },
+    ],
+    name: "transferOwnership",
+    outputs: [],
+    stateMutability: "nonpayable",
+    type: "function",
+  },
+  {
+    inputs: [],
+    name: "validatorManager",
+    outputs: [
+      {
+        internalType: "contract IValidatorManager",
         name: "",
         type: "address",
       },

@@ -40,11 +40,11 @@ describe('BridgeRouter', async () => {
     deployerAddress = await deployer.getAddress();
     deployerId = toBytes32(await deployer.getAddress()).toLowerCase();
     abacusDeployment = await abacus.deployment.fromDomains(domains, deployer);
-    // Enroll ourselves as a replica so we can send messages directly to the
+    // Enroll ourselves as a inbox so we can send messages directly to the
     // local router.
     await abacusDeployment
       .connectionManager(localDomain)
-      .ownerEnrollReplica(deployerAddress, remoteDomain);
+      .enrollInbox(deployerAddress, remoteDomain);
   });
 
   beforeEach(async () => {
@@ -108,7 +108,7 @@ describe('BridgeRouter', async () => {
           'TokenDeployed',
         );
         await expect(handleTx).to.emit(
-          abacusDeployment.home(localDomain),
+          abacusDeployment.outbox(localDomain),
           'Dispatch',
         );
         expect(await repr.balanceOf(deployer.address)).to.equal(
@@ -171,7 +171,7 @@ describe('BridgeRouter', async () => {
           .send(repr.address, TOKEN_VALUE, remoteDomain, deployerId);
 
         await expect(sendTx).to.emit(
-          abacusDeployment.home(localDomain),
+          abacusDeployment.outbox(localDomain),
           'Dispatch',
         );
 
@@ -269,7 +269,7 @@ describe('BridgeRouter', async () => {
           .send(localToken.address, TOKEN_VALUE, remoteDomain, deployerId);
 
         await expect(sendTx).to.emit(
-          abacusDeployment.home(localDomain),
+          abacusDeployment.outbox(localDomain),
           'Dispatch',
         );
 
@@ -586,7 +586,7 @@ describe('BridgeRouter', async () => {
       const requestDetails = bridge.serializeMessage(requestDetailsObj);
 
       await expect(requestTx).to.emit(
-        abacusDeployment.home(localDomain),
+        abacusDeployment.outbox(localDomain),
         'Dispatch',
       );
     });
@@ -597,7 +597,7 @@ describe('BridgeRouter', async () => {
         .handle(remoteDomain, deployerId, requestMessage);
 
       await expect(handleTx).to.emit(
-        abacusDeployment.home(localDomain),
+        abacusDeployment.outbox(localDomain),
         'Dispatch',
       );
     });
@@ -793,7 +793,7 @@ describe('BridgeRouter', async () => {
               .router(localDomain)
               .send(defaultRepr.address, TOKEN_VALUE, remoteDomain, deployerId);
             await expect(defaultSendTx).to.emit(
-              abacusDeployment.home(localDomain),
+              abacusDeployment.outbox(localDomain),
               'Dispatch',
             );
 
@@ -801,7 +801,7 @@ describe('BridgeRouter', async () => {
               .router(localDomain)
               .send(customRepr.address, TOKEN_VALUE, remoteDomain, deployerId);
             await expect(customSendTx).to.emit(
-              abacusDeployment.home(localDomain),
+              abacusDeployment.outbox(localDomain),
               'Dispatch',
             );
           });

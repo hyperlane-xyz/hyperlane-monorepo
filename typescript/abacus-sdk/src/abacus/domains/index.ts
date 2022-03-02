@@ -1,4 +1,4 @@
-export type { AbacusDomain, ReplicaInfo } from './domain';
+export type { AbacusDomain, InboxInfo } from './domain';
 export { mainnetDomains } from './mainnet';
 export { mainnetLegacyDomains } from './mainnetLegacy';
 export { devDomains } from './dev';

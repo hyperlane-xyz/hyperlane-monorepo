@@ -4,7 +4,7 @@ import { TransactionReceipt } from '@ethersproject/abstract-provider';
 
 import { TypedEvent } from '@abacus-network/ts-interface/dist/abacus-core/commons';
 
-// copied from the Home.d.ts
+// copied from the Outbox.d.ts
 export type DispatchTypes = [string, BigNumber, BigNumber, string, string];
 export type DispatchArgs = {
   messageHash: string;
@@ -15,17 +15,12 @@ export type DispatchArgs = {
 };
 export type DispatchEvent = TypedEvent<DispatchTypes & DispatchArgs>;
 
-// copied from the Home.d.ts
-export type UpdateTypes = [number, string, string, string];
-export type UpdateArgs = {
-  homeDomain: number;
-  oldRoot: string;
-  newRoot: string;
-  signature: string;
-};
-export type UpdateEvent = TypedEvent<UpdateTypes & UpdateArgs>;
+// copied from the Outbox.d.ts
+export type CheckpointTypes = [string, BigNumber];
+export type CheckpointArgs = { root: string; index: BigNumber };
+export type CheckpointEvent = TypedEvent<CheckpointTypes & CheckpointArgs>;
 
-// copied from the Replica.d.ts
+// copied from the Inbox.d.ts
 export type ProcessTypes = [string, boolean, string];
 export type ProcessArgs = {
   messageHash: string;
@@ -34,7 +29,10 @@ export type ProcessArgs = {
 };
 export type ProcessEvent = TypedEvent<ProcessTypes & ProcessArgs>;
 
-export type AbacusLifecyleEvent = ProcessEvent | UpdateEvent | DispatchEvent;
+export type AbacusLifecyleEvent =
+  | ProcessEvent
+  | CheckpointEvent
+  | DispatchEvent;
 
 export class Annotated<U extends Result, T extends TypedEvent<U>> {
   readonly domain: number;
@@ -98,10 +96,10 @@ export class Annotated<U extends Result, T extends TypedEvent<U>> {
 }
 
 export type AnnotatedDispatch = Annotated<DispatchTypes, DispatchEvent>;
-export type AnnotatedUpdate = Annotated<UpdateTypes, UpdateEvent>;
+export type AnnotatedCheckpoint = Annotated<CheckpointTypes, CheckpointEvent>;
 export type AnnotatedProcess = Annotated<ProcessTypes, ProcessEvent>;
 
 export type AnnotatedLifecycleEvent =
   | AnnotatedDispatch
-  | AnnotatedUpdate
+  | AnnotatedCheckpoint
   | AnnotatedProcess;

@@ -39,7 +39,6 @@ interface TestGovernanceRouterInterface extends ethers.utils.Interface {
     "recoveryTimelock()": FunctionFragment;
     "routers(uint32)": FunctionFragment;
     "setRouter(uint32,bytes32)": FunctionFragment;
-    "setRouterAddress(uint32,address)": FunctionFragment;
     "setRouterLocal(uint32,bytes32)": FunctionFragment;
     "setXAppConnectionManager(address)": FunctionFragment;
     "testSetRouter(uint32,bytes32)": FunctionFragment;
@@ -115,10 +114,6 @@ interface TestGovernanceRouterInterface extends ethers.utils.Interface {
     values: [BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "setRouterAddress",
-    values: [BigNumberish, string]
-  ): string;
-  encodeFunctionData(
     functionFragment: "setRouterLocal",
     values: [BigNumberish, BytesLike]
   ): string;
@@ -185,10 +180,6 @@ interface TestGovernanceRouterInterface extends ethers.utils.Interface {
   ): Result;
   decodeFunctionResult(functionFragment: "routers", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "setRouter", data: BytesLike): Result;
-  decodeFunctionResult(
-    functionFragment: "setRouterAddress",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(
     functionFragment: "setRouterLocal",
     data: BytesLike
@@ -336,12 +327,6 @@ export class TestGovernanceRouter extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
-    setRouterAddress(
-      _domain: BigNumberish,
-      _router: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     setRouterLocal(
       _domain: BigNumberish,
       _router: BytesLike,
@@ -436,12 +421,6 @@ export class TestGovernanceRouter extends BaseContract {
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
-  setRouterAddress(
-    _domain: BigNumberish,
-    _router: string,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   setRouterLocal(
     _domain: BigNumberish,
     _router: BytesLike,
@@ -529,12 +508,6 @@ export class TestGovernanceRouter extends BaseContract {
     setRouter(
       _domain: BigNumberish,
       _router: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
-    setRouterAddress(
-      _domain: BigNumberish,
-      _router: string,
       overrides?: CallOverrides
     ): Promise<void>;
 
@@ -679,12 +652,6 @@ export class TestGovernanceRouter extends BaseContract {
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
-    setRouterAddress(
-      _domain: BigNumberish,
-      _router: string,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     setRouterLocal(
       _domain: BigNumberish,
       _router: BytesLike,
@@ -783,12 +750,6 @@ export class TestGovernanceRouter extends BaseContract {
     setRouter(
       _domain: BigNumberish,
       _router: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
-    setRouterAddress(
-      _domain: BigNumberish,
-      _router: string,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 

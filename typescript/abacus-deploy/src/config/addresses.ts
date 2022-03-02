@@ -9,11 +9,11 @@ export type ProxiedAddress = {
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;
   xAppConnectionManager: Address;
-  updaterManager: Address;
+  validatorManager: Address;
   governanceRouter: ProxiedAddress;
-  home: ProxiedAddress;
+  outbox: ProxiedAddress;
   // TODO: Put chain name in here
-  replicas?: Record<number, ProxiedAddress>;
+  inboxs?: Record<number, ProxiedAddress>;
 };
 
 export type BridgeContractAddresses = {
@@ -23,8 +23,7 @@ export type BridgeContractAddresses = {
 };
 
 export type CoreConfigAddresses = {
-  updater: Address;
-  watchers: Address[];
+  validator: Address;
   recoveryManager: Address;
   governor?: Address;
 };

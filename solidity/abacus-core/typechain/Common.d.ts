@@ -21,61 +21,94 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface CommonInterface extends ethers.utils.Interface {
   functions: {
-    "committedRoot()": FunctionFragment;
-    "doubleUpdate(bytes32,bytes32[2],bytes,bytes)": FunctionFragment;
-    "homeDomainHash()": FunctionFragment;
+    "checkpointedRoot()": FunctionFragment;
+    "checkpoints(bytes32)": FunctionFragment;
+    "latestCheckpoint()": FunctionFragment;
     "localDomain()": FunctionFragment;
-    "state()": FunctionFragment;
-    "updater()": FunctionFragment;
+    "owner()": FunctionFragment;
+    "renounceOwnership()": FunctionFragment;
+    "setValidatorManager(address)": FunctionFragment;
+    "transferOwnership(address)": FunctionFragment;
+    "validatorManager()": FunctionFragment;
   };
 
   encodeFunctionData(
-    functionFragment: "committedRoot",
+    functionFragment: "checkpointedRoot",
     values?: undefined
   ): string;
   encodeFunctionData(
-    functionFragment: "doubleUpdate",
-    values: [BytesLike, [BytesLike, BytesLike], BytesLike, BytesLike]
+    functionFragment: "checkpoints",
+    values: [BytesLike]
   ): string;
   encodeFunctionData(
-    functionFragment: "homeDomainHash",
+    functionFragment: "latestCheckpoint",
     values?: undefined
   ): string;
   encodeFunctionData(
     functionFragment: "localDomain",
     values?: undefined
   ): string;
-  encodeFunctionData(functionFragment: "state", values?: undefined): string;
-  encodeFunctionData(functionFragment: "updater", values?: undefined): string;
+  encodeFunctionData(functionFragment: "owner", values?: undefined): string;
+  encodeFunctionData(
+    functionFragment: "renounceOwnership",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "setValidatorManager",
+    values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "transferOwnership",
+    values: [string]
+  ): string;
+  encodeFunctionData(
+    functionFragment: "validatorManager",
+    values?: undefined
+  ): string;
 
   decodeFunctionResult(
-    functionFragment: "committedRoot",
+    functionFragment: "checkpointedRoot",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "doubleUpdate",
+    functionFragment: "checkpoints",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
-    functionFragment: "homeDomainHash",
+    functionFragment: "latestCheckpoint",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
     functionFragment: "localDomain",
     data: BytesLike
   ): Result;
-  decodeFunctionResult(functionFragment: "state", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "updater", data: BytesLike): Result;
+  decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "renounceOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "setValidatorManager",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "transferOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(
+    functionFragment: "validatorManager",
+    data: BytesLike
+  ): Result;
 
   events: {
-    "DoubleUpdate(bytes32,bytes32[2],bytes,bytes)": EventFragment;
-    "NewUpdater(address)": EventFragment;
-    "Update(uint32,bytes32,bytes32,bytes)": EventFragment;
+    "Checkpoint(bytes32,uint256)": EventFragment;
+    "NewValidatorManager(address)": EventFragment;
+    "OwnershipTransferred(address,address)": EventFragment;
   };
 
-  getEvent(nameOrSignatureOrTopic: "DoubleUpdate"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "NewUpdater"): EventFragment;
-  getEvent(nameOrSignatureOrTopic: "Update"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "Checkpoint"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "NewValidatorManager"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
 }
 
 export class Common extends BaseContract {
@@ -122,134 +155,172 @@ export class Common extends BaseContract {
   interface: CommonInterface;
 
   functions: {
-    committedRoot(overrides?: CallOverrides): Promise<[string]>;
+    checkpointedRoot(overrides?: CallOverrides): Promise<[string]>;
 
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
+    checkpoints(
+      arg0: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<[BigNumber]>;
 
-    homeDomainHash(overrides?: CallOverrides): Promise<[string]>;
+    latestCheckpoint(
+      overrides?: CallOverrides
+    ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
 
     localDomain(overrides?: CallOverrides): Promise<[number]>;
 
-    state(overrides?: CallOverrides): Promise<[number]>;
+    owner(overrides?: CallOverrides): Promise<[string]>;
 
-    updater(overrides?: CallOverrides): Promise<[string]>;
+    renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    setValidatorManager(
+      _validatorManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    validatorManager(overrides?: CallOverrides): Promise<[string]>;
   };
 
-  committedRoot(overrides?: CallOverrides): Promise<string>;
+  checkpointedRoot(overrides?: CallOverrides): Promise<string>;
 
-  doubleUpdate(
-    _oldRoot: BytesLike,
-    _newRoot: [BytesLike, BytesLike],
-    _signature: BytesLike,
-    _signature2: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
+  checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
-  homeDomainHash(overrides?: CallOverrides): Promise<string>;
+  latestCheckpoint(
+    overrides?: CallOverrides
+  ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
 
   localDomain(overrides?: CallOverrides): Promise<number>;
 
-  state(overrides?: CallOverrides): Promise<number>;
+  owner(overrides?: CallOverrides): Promise<string>;
 
-  updater(overrides?: CallOverrides): Promise<string>;
+  renounceOwnership(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  setValidatorManager(
+    _validatorManager: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  transferOwnership(
+    newOwner: string,
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  validatorManager(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
-    committedRoot(overrides?: CallOverrides): Promise<string>;
+    checkpointedRoot(overrides?: CallOverrides): Promise<string>;
 
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
+    checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
+
+    latestCheckpoint(
       overrides?: CallOverrides
-    ): Promise<void>;
-
-    homeDomainHash(overrides?: CallOverrides): Promise<string>;
+    ): Promise<[string, BigNumber] & { root: string; index: BigNumber }>;
 
     localDomain(overrides?: CallOverrides): Promise<number>;
 
-    state(overrides?: CallOverrides): Promise<number>;
+    owner(overrides?: CallOverrides): Promise<string>;
 
-    updater(overrides?: CallOverrides): Promise<string>;
+    renounceOwnership(overrides?: CallOverrides): Promise<void>;
+
+    setValidatorManager(
+      _validatorManager: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: CallOverrides
+    ): Promise<void>;
+
+    validatorManager(overrides?: CallOverrides): Promise<string>;
   };
 
   filters: {
-    DoubleUpdate(
-      oldRoot?: null,
-      newRoot?: null,
-      signature?: null,
-      signature2?: null
+    Checkpoint(
+      root?: BytesLike | null,
+      index?: BigNumberish | null
     ): TypedEventFilter<
-      [string, [string, string], string, string],
-      {
-        oldRoot: string;
-        newRoot: [string, string];
-        signature: string;
-        signature2: string;
-      }
+      [string, BigNumber],
+      { root: string; index: BigNumber }
     >;
 
-    NewUpdater(updater?: null): TypedEventFilter<[string], { updater: string }>;
+    NewValidatorManager(
+      validatorManager?: null
+    ): TypedEventFilter<[string], { validatorManager: string }>;
 
-    Update(
-      homeDomain?: BigNumberish | null,
-      oldRoot?: BytesLike | null,
-      newRoot?: BytesLike | null,
-      signature?: null
+    OwnershipTransferred(
+      previousOwner?: string | null,
+      newOwner?: string | null
     ): TypedEventFilter<
-      [number, string, string, string],
-      {
-        homeDomain: number;
-        oldRoot: string;
-        newRoot: string;
-        signature: string;
-      }
+      [string, string],
+      { previousOwner: string; newOwner: string }
     >;
   };
 
   estimateGas: {
-    committedRoot(overrides?: CallOverrides): Promise<BigNumber>;
+    checkpointedRoot(overrides?: CallOverrides): Promise<BigNumber>;
 
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
+    checkpoints(arg0: BytesLike, overrides?: CallOverrides): Promise<BigNumber>;
 
-    homeDomainHash(overrides?: CallOverrides): Promise<BigNumber>;
+    latestCheckpoint(overrides?: CallOverrides): Promise<BigNumber>;
 
     localDomain(overrides?: CallOverrides): Promise<BigNumber>;
 
-    state(overrides?: CallOverrides): Promise<BigNumber>;
+    owner(overrides?: CallOverrides): Promise<BigNumber>;
 
-    updater(overrides?: CallOverrides): Promise<BigNumber>;
+    renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    setValidatorManager(
+      _validatorManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    validatorManager(overrides?: CallOverrides): Promise<BigNumber>;
   };
 
   populateTransaction: {
-    committedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    checkpointedRoot(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    doubleUpdate(
-      _oldRoot: BytesLike,
-      _newRoot: [BytesLike, BytesLike],
-      _signature: BytesLike,
-      _signature2: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
+    checkpoints(
+      arg0: BytesLike,
+      overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    homeDomainHash(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    latestCheckpoint(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
     localDomain(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    state(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    updater(overrides?: CallOverrides): Promise<PopulatedTransaction>;
+    renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    setValidatorManager(
+      _validatorManager: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    transferOwnership(
+      newOwner: string,
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    validatorManager(overrides?: CallOverrides): Promise<PopulatedTransaction>;
   };
 }

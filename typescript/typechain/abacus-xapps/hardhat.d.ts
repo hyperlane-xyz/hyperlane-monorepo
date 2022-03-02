@@ -17,21 +17,17 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.Common__factory>;
     getContractFactory(
-      name: "Home",
+      name: "Inbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Home__factory>;
+    ): Promise<Contracts.Inbox__factory>;
     getContractFactory(
       name: "MerkleTreeManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.MerkleTreeManager__factory>;
     getContractFactory(
-      name: "QueueManager",
+      name: "Outbox",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.QueueManager__factory>;
-    getContractFactory(
-      name: "Replica",
-      signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.Replica__factory>;
+    ): Promise<Contracts.Outbox__factory>;
     getContractFactory(
       name: "UpgradeBeaconProxy",
       signerOrOptions?: ethers.Signer | FactoryOptions
@@ -49,9 +45,9 @@ declare module "hardhat/types/runtime" {
       signerOrOptions?: ethers.Signer | FactoryOptions
     ): Promise<Contracts.IMessageRecipient__factory>;
     getContractFactory(
-      name: "IUpdaterManager",
+      name: "IValidatorManager",
       signerOrOptions?: ethers.Signer | FactoryOptions
-    ): Promise<Contracts.IUpdaterManager__factory>;
+    ): Promise<Contracts.IValidatorManager__factory>;
     getContractFactory(
       name: "OwnableUpgradeable",
       signerOrOptions?: ethers.Signer | FactoryOptions
