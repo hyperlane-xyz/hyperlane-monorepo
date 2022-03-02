@@ -21,32 +21,32 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface RouterInterface extends ethers.utils.Interface {
   functions: {
-    "enrollRemoteRouter(uint32,bytes32)": FunctionFragment;
     "handle(uint32,bytes32,bytes)": FunctionFragment;
     "owner()": FunctionFragment;
-    "remotes(uint32)": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
+    "routers(uint32)": FunctionFragment;
+    "setRemoteRouter(uint32,bytes32)": FunctionFragment;
     "setXAppConnectionManager(address)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "xAppConnectionManager()": FunctionFragment;
   };
 
   encodeFunctionData(
-    functionFragment: "enrollRemoteRouter",
-    values: [BigNumberish, BytesLike]
-  ): string;
-  encodeFunctionData(
     functionFragment: "handle",
     values: [BigNumberish, BytesLike, BytesLike]
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "remotes",
+    functionFragment: "renounceOwnership",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "routers",
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "renounceOwnership",
-    values?: undefined
+    functionFragment: "setRemoteRouter",
+    values: [BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "setXAppConnectionManager",
@@ -61,15 +61,15 @@ interface RouterInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
 
-  decodeFunctionResult(
-    functionFragment: "enrollRemoteRouter",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "handle", data: BytesLike): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "remotes", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "routers", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "setRemoteRouter",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -87,9 +87,13 @@ interface RouterInterface extends ethers.utils.Interface {
 
   events: {
     "OwnershipTransferred(address,address)": EventFragment;
+    "SetRemoteRouter(uint32,bytes32)": EventFragment;
+    "SetXAppConnectionManager(address)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "SetRemoteRouter"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "SetXAppConnectionManager"): EventFragment;
 }
 
 export class Router extends BaseContract {
@@ -136,12 +140,6 @@ export class Router extends BaseContract {
   interface: RouterInterface;
 
   functions: {
-    enrollRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     handle(
       _origin: BigNumberish,
       _sender: BytesLike,
@@ -151,9 +149,15 @@ export class Router extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<[string]>;
 
-    remotes(arg0: BigNumberish, overrides?: CallOverrides): Promise<[string]>;
-
     renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    routers(arg0: BigNumberish, overrides?: CallOverrides): Promise<[string]>;
+
+    setRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -170,12 +174,6 @@ export class Router extends BaseContract {
     xAppConnectionManager(overrides?: CallOverrides): Promise<[string]>;
   };
 
-  enrollRemoteRouter(
-    _domain: BigNumberish,
-    _router: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   handle(
     _origin: BigNumberish,
     _sender: BytesLike,
@@ -185,9 +183,15 @@ export class Router extends BaseContract {
 
   owner(overrides?: CallOverrides): Promise<string>;
 
-  remotes(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
-
   renounceOwnership(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  routers(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
+
+  setRemoteRouter(
+    _domain: BigNumberish,
+    _router: BytesLike,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -204,12 +208,6 @@ export class Router extends BaseContract {
   xAppConnectionManager(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
-    enrollRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
     handle(
       _origin: BigNumberish,
       _sender: BytesLike,
@@ -219,9 +217,15 @@ export class Router extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<string>;
 
-    remotes(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
-
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
+
+    routers(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
+
+    setRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<void>;
 
     setXAppConnectionManager(
       _xAppConnectionManager: string,
@@ -244,15 +248,18 @@ export class Router extends BaseContract {
       [string, string],
       { previousOwner: string; newOwner: string }
     >;
+
+    SetRemoteRouter(
+      domain?: BigNumberish | null,
+      router?: BytesLike | null
+    ): TypedEventFilter<[number, string], { domain: number; router: string }>;
+
+    SetXAppConnectionManager(
+      xAppConnectionManager?: string | null
+    ): TypedEventFilter<[string], { xAppConnectionManager: string }>;
   };
 
   estimateGas: {
-    enrollRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     handle(
       _origin: BigNumberish,
       _sender: BytesLike,
@@ -262,9 +269,15 @@ export class Router extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<BigNumber>;
 
-    remotes(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
-
     renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    routers(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
+
+    setRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -282,12 +295,6 @@ export class Router extends BaseContract {
   };
 
   populateTransaction: {
-    enrollRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
     handle(
       _origin: BigNumberish,
       _sender: BytesLike,
@@ -297,12 +304,18 @@ export class Router extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    remotes(
+    renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    routers(
       arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    renounceOwnership(
+    setRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 

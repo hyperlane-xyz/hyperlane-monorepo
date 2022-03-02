@@ -30,6 +30,19 @@ const _abi = [
     type: "event",
   },
   {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: "address",
+        name: "xAppConnectionManager",
+        type: "address",
+      },
+    ],
+    name: "SetXAppConnectionManager",
+    type: "event",
+  },
+  {
     inputs: [],
     name: "owner",
     outputs: [

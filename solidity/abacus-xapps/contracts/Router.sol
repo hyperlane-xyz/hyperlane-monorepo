@@ -9,8 +9,17 @@ import {IMessageRecipient} from "@abacus-network/abacus-sol/interfaces/IMessageR
 abstract contract Router is XAppConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
 
-    mapping(uint32 => bytes32) public remotes;
+    mapping(uint32 => bytes32) public routers;
     uint256[49] private __GAP; // gap for upgrade safety
+
+    // ============ Events ============
+
+    /**
+     * @notice Emitted when a router is set.
+     * @param domain The domain of the new router
+     * @param router The address of the new router
+     */
+    event SetRemoteRouter(uint32 indexed domain, bytes32 indexed router);
 
     // ============ Modifiers ============
 
@@ -20,7 +29,7 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
      * @param _router The address the message is coming from
      */
     modifier onlyRemoteRouter(uint32 _origin, bytes32 _router) {
-        require(_isRemoteRouter(_origin, _router), "!remote router");
+        require(_isRemoteRouter(_origin, _router), "!router");
         _;
     }
 
@@ -31,11 +40,12 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
      * @param _domain The domain of the remote xApp Router
      * @param _router The address of the remote xApp Router
      */
-    function enrollRemoteRouter(uint32 _domain, bytes32 _router)
+    function setRemoteRouter(uint32 _domain, bytes32 _router)
         external
+        virtual
         onlyOwner
     {
-        remotes[_domain] = _router;
+        _setRemoteRouter(_domain, _router);
     }
 
     // ============ Virtual functions ============
@@ -47,6 +57,17 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
     ) external virtual override;
 
     // ============ Internal functions ============
+
+    /**
+     * @notice Set the router for a given domain
+     * @param _domain The domain
+     * @param _router The new router
+     */
+    function _setRemoteRouter(uint32 _domain, bytes32 _router) internal {
+        routers[_domain] = _router;
+        emit SetRemoteRouter(_domain, _router);
+    }
+
     /**
      * @notice Return true if the given domain / router is the address of a remote xApp Router
      * @param _domain The domain of the potential remote xApp Router
@@ -57,20 +78,29 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
         view
         returns (bool)
     {
-        return remotes[_domain] == _router;
+        return routers[_domain] == _router;
     }
 
     /**
      * @notice Assert that the given domain has a xApp Router registered and return its address
      * @param _domain The domain of the chain for which to get the xApp Router
-     * @return _remote The address of the remote xApp Router on _domain
+     * @return _router The address of the remote xApp Router on _domain
      */
-    function _mustHaveRemote(uint32 _domain)
+    function _mustHaveRemoteRouter(uint32 _domain)
         internal
         view
-        returns (bytes32 _remote)
+        returns (bytes32 _router)
     {
-        _remote = remotes[_domain];
-        require(_remote != bytes32(0), "!remote");
+        _router = routers[_domain];
+        require(_router != bytes32(0), "!router");
+    }
+
+    function _dispatchToRemoteRouter(uint32 _destination, bytes memory _msg)
+        internal
+    {
+        // ensure that destination chain has enrolled router
+        bytes32 _router = _mustHaveRemoteRouter(_destination);
+        // dispatch call message using Abacus
+        _outbox().dispatch(_destination, _router, _msg);
     }
 }

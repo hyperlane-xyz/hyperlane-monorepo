@@ -21,21 +21,17 @@ import { TypedEventFilter, TypedEvent, TypedListener } from "./commons";
 
 interface PingPongRouterInterface extends ethers.utils.Interface {
   functions: {
-    "enrollRemoteRouter(uint32,bytes32)": FunctionFragment;
     "handle(uint32,bytes32,bytes)": FunctionFragment;
     "initiatePingPongMatch(uint32)": FunctionFragment;
     "owner()": FunctionFragment;
-    "remotes(uint32)": FunctionFragment;
     "renounceOwnership()": FunctionFragment;
+    "routers(uint32)": FunctionFragment;
+    "setRemoteRouter(uint32,bytes32)": FunctionFragment;
     "setXAppConnectionManager(address)": FunctionFragment;
     "transferOwnership(address)": FunctionFragment;
     "xAppConnectionManager()": FunctionFragment;
   };
 
-  encodeFunctionData(
-    functionFragment: "enrollRemoteRouter",
-    values: [BigNumberish, BytesLike]
-  ): string;
   encodeFunctionData(
     functionFragment: "handle",
     values: [BigNumberish, BytesLike, BytesLike]
@@ -46,12 +42,16 @@ interface PingPongRouterInterface extends ethers.utils.Interface {
   ): string;
   encodeFunctionData(functionFragment: "owner", values?: undefined): string;
   encodeFunctionData(
-    functionFragment: "remotes",
+    functionFragment: "renounceOwnership",
+    values?: undefined
+  ): string;
+  encodeFunctionData(
+    functionFragment: "routers",
     values: [BigNumberish]
   ): string;
   encodeFunctionData(
-    functionFragment: "renounceOwnership",
-    values?: undefined
+    functionFragment: "setRemoteRouter",
+    values: [BigNumberish, BytesLike]
   ): string;
   encodeFunctionData(
     functionFragment: "setXAppConnectionManager",
@@ -66,19 +66,19 @@ interface PingPongRouterInterface extends ethers.utils.Interface {
     values?: undefined
   ): string;
 
-  decodeFunctionResult(
-    functionFragment: "enrollRemoteRouter",
-    data: BytesLike
-  ): Result;
   decodeFunctionResult(functionFragment: "handle", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "initiatePingPongMatch",
     data: BytesLike
   ): Result;
   decodeFunctionResult(functionFragment: "owner", data: BytesLike): Result;
-  decodeFunctionResult(functionFragment: "remotes", data: BytesLike): Result;
   decodeFunctionResult(
     functionFragment: "renounceOwnership",
+    data: BytesLike
+  ): Result;
+  decodeFunctionResult(functionFragment: "routers", data: BytesLike): Result;
+  decodeFunctionResult(
+    functionFragment: "setRemoteRouter",
     data: BytesLike
   ): Result;
   decodeFunctionResult(
@@ -98,11 +98,15 @@ interface PingPongRouterInterface extends ethers.utils.Interface {
     "OwnershipTransferred(address,address)": EventFragment;
     "Received(uint32,uint32,uint256,bool)": EventFragment;
     "Sent(uint32,uint32,uint256,bool)": EventFragment;
+    "SetRemoteRouter(uint32,bytes32)": EventFragment;
+    "SetXAppConnectionManager(address)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Received"): EventFragment;
   getEvent(nameOrSignatureOrTopic: "Sent"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "SetRemoteRouter"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "SetXAppConnectionManager"): EventFragment;
 }
 
 export class PingPongRouter extends BaseContract {
@@ -149,12 +153,6 @@ export class PingPongRouter extends BaseContract {
   interface: PingPongRouterInterface;
 
   functions: {
-    enrollRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<ContractTransaction>;
-
     handle(
       _origin: BigNumberish,
       _sender: BytesLike,
@@ -169,9 +167,15 @@ export class PingPongRouter extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<[string]>;
 
-    remotes(arg0: BigNumberish, overrides?: CallOverrides): Promise<[string]>;
-
     renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<ContractTransaction>;
+
+    routers(arg0: BigNumberish, overrides?: CallOverrides): Promise<[string]>;
+
+    setRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<ContractTransaction>;
 
@@ -188,12 +192,6 @@ export class PingPongRouter extends BaseContract {
     xAppConnectionManager(overrides?: CallOverrides): Promise<[string]>;
   };
 
-  enrollRemoteRouter(
-    _domain: BigNumberish,
-    _router: BytesLike,
-    overrides?: Overrides & { from?: string | Promise<string> }
-  ): Promise<ContractTransaction>;
-
   handle(
     _origin: BigNumberish,
     _sender: BytesLike,
@@ -208,9 +206,15 @@ export class PingPongRouter extends BaseContract {
 
   owner(overrides?: CallOverrides): Promise<string>;
 
-  remotes(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
-
   renounceOwnership(
+    overrides?: Overrides & { from?: string | Promise<string> }
+  ): Promise<ContractTransaction>;
+
+  routers(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
+
+  setRemoteRouter(
+    _domain: BigNumberish,
+    _router: BytesLike,
     overrides?: Overrides & { from?: string | Promise<string> }
   ): Promise<ContractTransaction>;
 
@@ -227,12 +231,6 @@ export class PingPongRouter extends BaseContract {
   xAppConnectionManager(overrides?: CallOverrides): Promise<string>;
 
   callStatic: {
-    enrollRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: CallOverrides
-    ): Promise<void>;
-
     handle(
       _origin: BigNumberish,
       _sender: BytesLike,
@@ -247,9 +245,15 @@ export class PingPongRouter extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<string>;
 
-    remotes(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
-
     renounceOwnership(overrides?: CallOverrides): Promise<void>;
+
+    routers(arg0: BigNumberish, overrides?: CallOverrides): Promise<string>;
+
+    setRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
+      overrides?: CallOverrides
+    ): Promise<void>;
 
     setXAppConnectionManager(
       _xAppConnectionManager: string,
@@ -292,15 +296,18 @@ export class PingPongRouter extends BaseContract {
       [number, number, BigNumber, boolean],
       { domain: number; matchId: number; count: BigNumber; isPing: boolean }
     >;
+
+    SetRemoteRouter(
+      domain?: BigNumberish | null,
+      router?: BytesLike | null
+    ): TypedEventFilter<[number, string], { domain: number; router: string }>;
+
+    SetXAppConnectionManager(
+      xAppConnectionManager?: string | null
+    ): TypedEventFilter<[string], { xAppConnectionManager: string }>;
   };
 
   estimateGas: {
-    enrollRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<BigNumber>;
-
     handle(
       _origin: BigNumberish,
       _sender: BytesLike,
@@ -315,9 +322,15 @@ export class PingPongRouter extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<BigNumber>;
 
-    remotes(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
-
     renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<BigNumber>;
+
+    routers(arg0: BigNumberish, overrides?: CallOverrides): Promise<BigNumber>;
+
+    setRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<BigNumber>;
 
@@ -335,12 +348,6 @@ export class PingPongRouter extends BaseContract {
   };
 
   populateTransaction: {
-    enrollRemoteRouter(
-      _domain: BigNumberish,
-      _router: BytesLike,
-      overrides?: Overrides & { from?: string | Promise<string> }
-    ): Promise<PopulatedTransaction>;
-
     handle(
       _origin: BigNumberish,
       _sender: BytesLike,
@@ -355,12 +362,18 @@ export class PingPongRouter extends BaseContract {
 
     owner(overrides?: CallOverrides): Promise<PopulatedTransaction>;
 
-    remotes(
+    renounceOwnership(
+      overrides?: Overrides & { from?: string | Promise<string> }
+    ): Promise<PopulatedTransaction>;
+
+    routers(
       arg0: BigNumberish,
       overrides?: CallOverrides
     ): Promise<PopulatedTransaction>;
 
-    renounceOwnership(
+    setRemoteRouter(
+      _domain: BigNumberish,
+      _router: BytesLike,
       overrides?: Overrides & { from?: string | Promise<string> }
     ): Promise<PopulatedTransaction>;
 

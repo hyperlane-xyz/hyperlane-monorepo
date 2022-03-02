@@ -92,7 +92,9 @@ contract RouterTemplate is Router {
         external
     {
         // get the xApp Router at the destinationDomain
-        bytes32 _remoteRouterAddress = _mustHaveRemote(_destinationDomain);
+        bytes32 _remoteRouterAddress = _mustHaveRemoteRouter(
+            _destinationDomain
+        );
         // encode a message to send to the remote xApp Router
         bytes memory _outboundMessage = Message.formatTypeA(_number);
         // send the message to the xApp Router

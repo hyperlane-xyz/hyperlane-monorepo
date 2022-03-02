@@ -3,17 +3,17 @@ pragma solidity >=0.6.11;
 pragma experimental ABIEncoderV2;
 
 // ============ Internal Imports ============
-import {Outbox} from "../Outbox.sol";
-import {Version0} from "../Version0.sol";
-import {XAppConnectionManager, TypeCasts} from "../XAppConnectionManager.sol";
-import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
+import {Router} from "../Router.sol";
 import {GovernanceMessage} from "./GovernanceMessage.sol";
 // ============ External Imports ============
+import {Version0} from "@abacus-network/abacus-sol/contracts/Version0.sol";
+import {TypeCasts} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
+contract GovernanceRouter is Version0, Router {
     // ============ Libraries ============
 
     using SafeMath for uint256;
@@ -23,7 +23,6 @@ contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
 
     // ============ Immutables ============
 
-    uint32 public immutable localDomain;
     // number of seconds before recovery can be activated
     uint256 public immutable recoveryTimelock;
 
@@ -31,152 +30,76 @@ contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
 
     // timestamp when recovery timelock expires; 0 if timelock has not been initiated
     uint256 public recoveryActiveAt;
-    // the address of the recovery manager multisig
-    address public recoveryManager;
-    // the local entity empowered to call governance functions, set to 0x0 on non-Governor chains
+    // the local entity empowered to call governance functions
+    // typically set to 0x0 on all chains but one
     address public governor;
-    // domain of Governor chain -- for accepting incoming messages from Governor
-    uint32 public governorDomain;
-    // xAppConnectionManager contract which stores Inbox addresses
-    XAppConnectionManager public xAppConnectionManager;
-    // domain -> remote GovernanceRouter contract address
-    mapping(uint32 => bytes32) public routers;
-    // array of all domains with registered GovernanceRouter
-    uint32[] public domains;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[43] private __GAP;
+    uint256[48] private __GAP;
 
     // ============ Events ============
 
     /**
-     * @notice Emitted a remote GovernanceRouter address is added, removed, or changed
-     * @param domain the domain of the remote Router
-     * @param previousRouter the previously registered router; 0 if router is being added
-     * @param newRouter the new registered router; 0 if router is being removed
+     * @notice Emitted when the Governor role is set
+     * @param governor the address of the new Governor
      */
-    event SetRouter(
-        uint32 indexed domain,
-        bytes32 previousRouter,
-        bytes32 newRouter
-    );
+    event SetGovernor(address indexed governor);
 
     /**
-     * @notice Emitted when the Governor role is transferred
-     * @param previousGovernorDomain the domain of the previous Governor
-     * @param newGovernorDomain the domain of the new Governor
-     * @param previousGovernor the address of the previous Governor; 0 if the governor was remote
-     * @param newGovernor the address of the new Governor; 0 if the governor is remote
-     */
-    event TransferGovernor(
-        uint32 previousGovernorDomain,
-        uint32 newGovernorDomain,
-        address indexed previousGovernor,
-        address indexed newGovernor
-    );
-
-    /**
-     * @notice Emitted when the RecoveryManager role is transferred
-     * @param previousRecoveryManager the address of the previous RecoveryManager
-     * @param newRecoveryManager the address of the new RecoveryManager
-     */
-    event TransferRecoveryManager(
-        address indexed previousRecoveryManager,
-        address indexed newRecoveryManager
-    );
-
-    /**
-     * @notice Emitted when recovery state is initiated by the RecoveryManager
-     * @param recoveryManager the address of the current RecoveryManager who initiated the transition
+     * @notice Emitted when recovery state is initiated by the Owner
+     * @param owner the address of the current owner who initiated the transition
      * @param recoveryActiveAt the block at which recovery state will be active
      */
-    event InitiateRecovery(
-        address indexed recoveryManager,
-        uint256 recoveryActiveAt
-    );
+    event InitiateRecovery(address indexed owner, uint256 recoveryActiveAt);
 
     /**
-     * @notice Emitted when recovery state is exited by the RecoveryManager
-     * @param recoveryManager the address of the current RecoveryManager who initiated the transition
+     * @notice Emitted when recovery state is exited by the Owner
+     * @param owner the address of the current Owner who initiated the transition
      */
-    event ExitRecovery(address recoveryManager);
+    event ExitRecovery(address owner);
+
+    // ============ Modifiers ============
 
     modifier typeAssert(bytes29 _view, GovernanceMessage.Types _type) {
         _view.assertType(uint40(_type));
         _;
     }
 
-    // ============ Modifiers ============
-
-    modifier onlyInbox() {
-        require(xAppConnectionManager.isInbox(msg.sender), "!inbox");
-        _;
-    }
-
-    modifier onlyGovernorRouter(uint32 _domain, bytes32 _address) {
-        require(_isGovernorRouter(_domain, _address), "!governorRouter");
-        _;
-    }
-
-    modifier onlyGovernor() {
-        require(msg.sender == governor, "! called by governor");
-        _;
-    }
-
-    modifier onlyRecoveryManager() {
-        require(msg.sender == recoveryManager, "! called by recovery manager");
-        _;
-    }
-
     modifier onlyInRecovery() {
-        require(inRecovery(), "! in recovery");
+        require(inRecovery(), "!recovery");
         _;
     }
 
     modifier onlyNotInRecovery() {
-        require(!inRecovery(), "in recovery");
+        require(!inRecovery(), "recovery");
         _;
     }
 
-    modifier onlyGovernorOrRecoveryManager() {
-        if (!inRecovery()) {
-            require(msg.sender == governor, "! called by governor");
-        } else {
-            require(
-                msg.sender == recoveryManager,
-                "! called by recovery manager"
-            );
-        }
+    modifier onlyGovernor() {
+        require(msg.sender == governor, "!governor");
+        _;
+    }
+
+    modifier onlyRecoveryManager() {
+        require(msg.sender == recoveryManager(), "!recoveryManager");
         _;
     }
 
     // ============ Constructor ============
 
-    constructor(uint32 _localDomain, uint256 _recoveryTimelock) {
-        localDomain = _localDomain;
+    constructor(uint256 _recoveryTimelock) {
         recoveryTimelock = _recoveryTimelock;
     }
 
+    // transferGovernor = callable by any router, transfers the governor address
+
     // ============ Initializer ============
 
-    function initialize(
-        address _xAppConnectionManager,
-        address _recoveryManager
-    ) public initializer {
-        // initialize governor
-        address _governorAddr = msg.sender;
-        bool _isLocalGovernor = true;
-        _transferGovernor(localDomain, _governorAddr, _isLocalGovernor);
-        // initialize recovery manager
-        recoveryManager = _recoveryManager;
-        // initialize XAppConnectionManager
-        setXAppConnectionManager(_xAppConnectionManager);
-        require(
-            xAppConnectionManager.localDomain() == localDomain,
-            "XAppConnectionManager bad domain"
-        );
+    function initialize(address _xAppConnectionManager) public initializer {
+        __XAppConnectionClient_initialize(_xAppConnectionManager);
+        governor = msg.sender;
     }
 
     // ============ External Functions ============
@@ -195,31 +118,69 @@ contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
         uint32 _origin,
         bytes32 _sender,
         bytes memory _message
-    ) external override onlyInbox onlyGovernorRouter(_origin, _sender) {
+    ) external override onlyInbox onlyRemoteRouter(_origin, _sender) {
         bytes29 _msg = _message.ref(0);
         if (_msg.isValidCall()) {
             _handleCall(_msg.tryAsCall());
-        } else if (_msg.isValidTransferGovernor()) {
-            _handleTransferGovernor(_msg.tryAsTransferGovernor());
-        } else if (_msg.isValidSetRouter()) {
-            _handleSetRouter(_msg.tryAsSetRouter());
+        } else if (_msg.isValidSetGovernor()) {
+            _handleSetGovernor(_msg.tryAsSetGovernor());
+        } else if (_msg.isValidSetRemoteRouter()) {
+            _handleSetRemoteRouter(_msg.tryAsSetRemoteRouter());
+        } else if (_msg.isValidSetXAppConnectionManager()) {
+            _handleSetXAppConnectionManager(
+                _msg.tryAsSetXAppConnectionManager()
+            );
         } else {
             require(false, "!valid message type");
         }
     }
 
+    // ============ External Local Functions ============
+
     /**
-     * @notice Dispatch calls locally
+     * @notice Make local calls.
      * @param _calls The calls
      */
-    function callLocal(GovernanceMessage.Call[] calldata _calls)
-        external
-        onlyGovernorOrRecoveryManager
-    {
+    function call(GovernanceMessage.Call[] calldata _calls) external onlyOwner {
         for (uint256 i = 0; i < _calls.length; i++) {
-            _dispatchCall(_calls[i]);
+            _makeCall(_calls[i]);
         }
     }
+
+    /**
+     * @notice Sets the governor of the router.
+     * @param _governor The address of the new governor
+     */
+    function setGovernor(address _governor) external onlyOwner {
+        _setGovernor(_governor);
+    }
+
+    /**
+     * @notice Initiate the recovery timelock
+     * @dev callable by the recovery manager iff not in recovery
+     */
+    function initiateRecoveryTimelock()
+        external
+        onlyNotInRecovery
+        onlyRecoveryManager
+    {
+        require(recoveryActiveAt == 0, "recovery already initiated");
+        // set the time that recovery will be active
+        recoveryActiveAt = block.timestamp.add(recoveryTimelock);
+        emit InitiateRecovery(recoveryManager(), recoveryActiveAt);
+    }
+
+    /**
+     * @notice Exit recovery mode
+     * @dev callable by the recovery manager iff in recovery
+     */
+    function exitRecovery() external onlyInRecovery onlyRecoveryManager {
+        require(recoveryActiveAt != 0, "recovery not initiated");
+        delete recoveryActiveAt;
+        emit ExitRecovery(recoveryManager());
+    }
+
+    // ============ External Remote Functions ============
 
     /**
      * @notice Dispatch calls on a remote chain via the remote GovernanceRouter
@@ -230,138 +191,75 @@ contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
         uint32 _destination,
         GovernanceMessage.Call[] calldata _calls
     ) external onlyGovernor onlyNotInRecovery {
-        // ensure that destination chain has enrolled router
-        bytes32 _router = _mustHaveRouter(_destination);
-        // format call message
         bytes memory _msg = GovernanceMessage.formatCalls(_calls);
-        // dispatch call message using Abacus
-        Outbox(xAppConnectionManager.outbox()).dispatch(
-            _destination,
-            _router,
-            _msg
-        );
+        _dispatchToRemoteRouter(_destination, _msg);
     }
 
     /**
-     * @notice Transfer governorship
-     * @param _newDomain The domain of the new governor
-     * @param _newGovernor The address of the new governor
+     * @notice Enroll a remote router on a remote router.
+     * @param _destination The domain of the enroller
+     * @param _domain The domain of the enrollee
+     * @param _router The address of the enrollee
      */
-    function transferGovernor(uint32 _newDomain, address _newGovernor)
-        external
-        onlyGovernor
-        onlyNotInRecovery
-    {
-        bool _isLocalGovernor = _isLocalDomain(_newDomain);
-        // transfer the governor locally
-        _transferGovernor(_newDomain, _newGovernor, _isLocalGovernor);
-        // if the governor domain is local, we only need to change the governor address locally
-        // no need to message remote routers; they should already have the same domain set and governor = bytes32(0)
-        if (_isLocalGovernor) {
-            return;
-        }
-        // format transfer governor message
-        bytes memory _transferGovernorMessage = GovernanceMessage
-            .formatTransferGovernor(
-                _newDomain,
-                TypeCasts.addressToBytes32(_newGovernor)
-            );
-        // send transfer governor message to all remote routers
-        // note: this assumes that the Router is on the global GovernorDomain;
-        // this causes a process error when relinquishing governorship
-        // on a newly deployed domain which is not the GovernorDomain
-        _sendToAllRemoteRouters(_transferGovernorMessage);
-    }
-
-    /**
-     * @notice Transfer recovery manager role
-     * @dev callable by the recoveryManager at any time to transfer the role
-     * @param _newRecoveryManager The address of the new recovery manager
-     */
-    function transferRecoveryManager(address _newRecoveryManager)
-        external
-        onlyRecoveryManager
-    {
-        emit TransferRecoveryManager(recoveryManager, _newRecoveryManager);
-        recoveryManager = _newRecoveryManager;
-    }
-
-    /**
-     * @notice Set the router address for a given domain and
-     * dispatch the change to all remote routers
-     * @param _domain The domain
-     * @param _router The address of the new router
-     */
-    function setRouter(uint32 _domain, bytes32 _router)
-        external
-        onlyGovernor
-        onlyNotInRecovery
-    {
-        // set the router locally
-        _setRouter(_domain, _router);
-        // format message to set the router on all remote routers
-        bytes memory _setRouterMessage = GovernanceMessage.formatSetRouter(
+    function setRemoteRouterRemote(
+        uint32 _destination,
+        uint32 _domain,
+        bytes32 _router
+    ) external onlyGovernor onlyNotInRecovery {
+        bytes memory _msg = GovernanceMessage.formatSetRemoteRouter(
             _domain,
             _router
         );
-
-        _sendToAllRemoteRouters(_setRouterMessage);
+        _dispatchToRemoteRouter(_destination, _msg);
     }
 
     /**
-     * @notice Set the router address *locally only*
-     * for the deployer to setup the router mapping locally
-     * before transferring governorship to the "true" governor
-     * @dev External helper for contract setup
-     * @param _domain The domain
-     * @param _router The new router
+     * @notice Sets the xAppConnectionManager of a remote router.
+     * @param _destination The domain of router on which to set the xAppConnectionManager
+     * @param _xAppConnectionManager The address of the xAppConnectionManager contract
      */
-    function setRouterLocal(uint32 _domain, bytes32 _router)
+    function setXAppConnectionManagerRemote(
+        uint32 _destination,
+        address _xAppConnectionManager
+    ) external onlyGovernor onlyNotInRecovery {
+        bytes memory _msg = GovernanceMessage.formatSetXAppConnectionManager(
+            TypeCasts.addressToBytes32(_xAppConnectionManager)
+        );
+        _dispatchToRemoteRouter(_destination, _msg);
+    }
+
+    /**
+     * @notice Sets the governor of a remote router.
+     * @param _destination The domain of router on which to set the governor
+     * @param _governor The address of the new governor
+     */
+    function setGovernorRemote(uint32 _destination, address _governor)
         external
-        onlyGovernorOrRecoveryManager
-    {
-        // set the router locally
-        _setRouter(_domain, _router);
-    }
-
-    /**
-     * @notice Set the address of the XAppConnectionManager
-     * @dev Domain/address validation helper
-     * @param _xAppConnectionManager The address of the new xAppConnectionManager
-     */
-    function setXAppConnectionManager(address _xAppConnectionManager)
-        public
-        onlyGovernorOrRecoveryManager
-    {
-        xAppConnectionManager = XAppConnectionManager(_xAppConnectionManager);
-    }
-
-    /**
-     * @notice Initiate the recovery timelock
-     * @dev callable by the recovery manager
-     */
-    function initiateRecoveryTimelock()
-        external
+        onlyGovernor
         onlyNotInRecovery
-        onlyRecoveryManager
     {
-        require(recoveryActiveAt == 0, "recovery already initiated");
-        // set the time that recovery will be active
-        recoveryActiveAt = block.timestamp.add(recoveryTimelock);
-        emit InitiateRecovery(recoveryManager, recoveryActiveAt);
-    }
-
-    /**
-     * @notice Exit recovery mode
-     * @dev callable by the recovery manager to end recovery mode
-     */
-    function exitRecovery() external onlyRecoveryManager {
-        require(recoveryActiveAt != 0, "recovery not initiated");
-        delete recoveryActiveAt;
-        emit ExitRecovery(recoveryManager);
+        bytes memory _msg = GovernanceMessage.formatSetGovernor(
+            TypeCasts.addressToBytes32(_governor)
+        );
+        _dispatchToRemoteRouter(_destination, _msg);
     }
 
     // ============ Public Functions ============
+
+    /**
+     * @notice Returns the address of the current owner.
+     * @dev When not in recovery mode, the governor owns the contract.
+     */
+    function owner() public view virtual override returns (address) {
+        return inRecovery() ? recoveryManager() : governor;
+    }
+
+    /**
+     * @notice Returns the address of the recovery manager.
+     */
+    function recoveryManager() public view returns (address) {
+        return OwnableUpgradeable.owner();
+    }
 
     /**
      * @notice Check if the contract is in recovery mode currently
@@ -386,7 +284,7 @@ contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
     {
         GovernanceMessage.Call[] memory _calls = _msg.getCalls();
         for (uint256 i = 0; i < _calls.length; i++) {
-            _dispatchCall(_calls[i]);
+            _makeCall(_calls[i]);
         }
     }
 
@@ -394,164 +292,64 @@ contract GovernanceRouter is Version0, Initializable, IMessageRecipient {
      * @notice Handle message transferring governorship to a new Governor
      * @param _msg The message
      */
-    function _handleTransferGovernor(bytes29 _msg)
+    function _handleSetGovernor(bytes29 _msg)
         internal
-        typeAssert(_msg, GovernanceMessage.Types.TransferGovernor)
+        typeAssert(_msg, GovernanceMessage.Types.SetGovernor)
     {
-        uint32 _newDomain = _msg.domain();
-        address _newGovernor = TypeCasts.bytes32ToAddress(_msg.governor());
-        bool _isLocalGovernor = _isLocalDomain(_newDomain);
-        _transferGovernor(_newDomain, _newGovernor, _isLocalGovernor);
+        address _governor = TypeCasts.bytes32ToAddress(_msg.governor());
+        _setGovernor(_governor);
     }
 
     /**
      * @notice Handle message setting the router address for a given domain
      * @param _msg The message
      */
-    function _handleSetRouter(bytes29 _msg)
+    function _handleSetRemoteRouter(bytes29 _msg)
         internal
-        typeAssert(_msg, GovernanceMessage.Types.SetRouter)
+        typeAssert(_msg, GovernanceMessage.Types.SetRemoteRouter)
     {
         uint32 _domain = _msg.domain();
         bytes32 _router = _msg.router();
-        _setRouter(_domain, _router);
+        _setRemoteRouter(_domain, _router);
     }
 
     /**
-     * @notice Dispatch message to all remote routers
+     * @notice Handle message setting the xAppConnectionManager address
      * @param _msg The message
      */
-    function _sendToAllRemoteRouters(bytes memory _msg) internal {
-        Outbox _outbox = Outbox(xAppConnectionManager.outbox());
-
-        for (uint256 i = 0; i < domains.length; i++) {
-            if (domains[i] != uint32(0)) {
-                _outbox.dispatch(domains[i], routers[domains[i]], _msg);
-            }
-        }
+    function _handleSetXAppConnectionManager(bytes29 _msg)
+        internal
+        typeAssert(_msg, GovernanceMessage.Types.SetXAppConnectionManager)
+    {
+        address _xAppConnectionManager = TypeCasts.bytes32ToAddress(
+            _msg.xAppConnectionManager()
+        );
+        _setXAppConnectionManager(_xAppConnectionManager);
     }
 
     /**
-     * @notice Dispatch call locally
+     * @notice Call local contract.
      * @param _call The call
      * @return _ret
      */
-    function _dispatchCall(GovernanceMessage.Call memory _call)
+    function _makeCall(GovernanceMessage.Call memory _call)
         internal
         returns (bytes memory _ret)
     {
-        address _toContract = TypeCasts.bytes32ToAddress(_call.to);
+        address _to = TypeCasts.bytes32ToAddress(_call.to);
         // attempt to dispatch using low-level call
         bool _success;
-        (_success, _ret) = _toContract.call(_call.data);
+        (_success, _ret) = _to.call(_call.data);
         // revert if the call failed
         require(_success, "call failed");
     }
 
     /**
-     * @notice Transfer governorship within this contract's state
-     * @param _newDomain The domain of the new governor
-     * @param _newGovernor The address of the new governor
-     * @param _isLocalGovernor True if the newDomain is the localDomain
+     * @notice Set the governor.
+     * @param _governor The address of the new governor
      */
-    function _transferGovernor(
-        uint32 _newDomain,
-        address _newGovernor,
-        bool _isLocalGovernor
-    ) internal {
-        // require that the governor domain has a valid router
-        if (!_isLocalGovernor) {
-            _mustHaveRouter(_newDomain);
-        }
-        // Governor is 0x0 unless the governor is local
-        address _newGov = _isLocalGovernor ? _newGovernor : address(0);
-        // emit event before updating state variables
-        emit TransferGovernor(governorDomain, _newDomain, governor, _newGov);
-        // update state
-        governorDomain = _newDomain;
-        governor = _newGov;
-    }
-
-    /**
-     * @notice Set the router for a given domain
-     * @param _domain The domain
-     * @param _newRouter The new router
-     */
-    function _setRouter(uint32 _domain, bytes32 _newRouter) internal {
-        bytes32 _previousRouter = routers[_domain];
-        // emit event at beginning in case return after remove
-        emit SetRouter(_domain, _previousRouter, _newRouter);
-        // if the router is being removed, remove the domain
-        if (_newRouter == bytes32(0)) {
-            _removeDomain(_domain);
-            return;
-        }
-        // if the router is being added, add the domain
-        if (_previousRouter == bytes32(0)) {
-            _addDomain(_domain);
-        }
-        // update state with new router
-        routers[_domain] = _newRouter;
-    }
-
-    /**
-     * @notice Add a domain that has a router
-     * @param _domain The domain
-     */
-    function _addDomain(uint32 _domain) internal {
-        domains.push(_domain);
-    }
-
-    /**
-     * @notice Remove a domain and its associated router
-     * @param _domain The domain
-     */
-    function _removeDomain(uint32 _domain) internal {
-        delete routers[_domain];
-        // find the index of the domain to remove & delete it from domains[]
-        for (uint256 i = 0; i < domains.length; i++) {
-            if (domains[i] == _domain) {
-                delete domains[i];
-                return;
-            }
-        }
-    }
-
-    /**
-     * @notice Determine if a given domain and address is the Governor Router
-     * @param _domain The domain
-     * @param _address The address of the domain's router
-     * @return _ret True if the given domain/address is the
-     * Governor Router.
-     */
-    function _isGovernorRouter(uint32 _domain, bytes32 _address)
-        internal
-        view
-        returns (bool)
-    {
-        return _domain == governorDomain && _address == routers[_domain];
-    }
-
-    /**
-     * @notice Determine if a given domain is the local domain
-     * @param _domain The domain
-     * @return _ret - True if the given domain is the local domain
-     */
-    function _isLocalDomain(uint32 _domain) internal view returns (bool) {
-        return _domain == localDomain;
-    }
-
-    /**
-     * @notice Require that a domain has a router and returns the router
-     * @param _domain The domain
-     * @return _router - The domain's router
-     */
-    function _mustHaveRouter(uint32 _domain)
-        internal
-        view
-        returns (bytes32 _router)
-    {
-        _router = routers[_domain];
-        require(_router != bytes32(0), "!router");
+    function _setGovernor(address _governor) internal {
+        governor = _governor;
+        emit SetGovernor(_governor);
     }
 }

@@ -131,7 +131,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         require(_amount > 0, "!amnt");
         require(_recipient != bytes32(0), "!recip");
         // get remote BridgeRouter address; revert if not found
-        bytes32 _remote = _mustHaveRemote(_destination);
+        bytes32 _remote = _mustHaveRemoteRouter(_destination);
         // remove tokens from circulation on this chain
         IERC20 _bridgeToken = IERC20(_token);
         if (_isLocalOrigin(_bridgeToken)) {
@@ -386,7 +386,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
     function _requestDetails(bytes29 _tokenId) internal {
         uint32 _destination = _tokenId.domain();
         // get remote BridgeRouter address; revert if not found
-        bytes32 _remote = remotes[_destination];
+        bytes32 _remote = routers[_destination];
         if (_remote == bytes32(0)) {
             return;
         }

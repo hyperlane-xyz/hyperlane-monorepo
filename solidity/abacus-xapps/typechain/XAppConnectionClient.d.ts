@@ -66,9 +66,11 @@ interface XAppConnectionClientInterface extends ethers.utils.Interface {
 
   events: {
     "OwnershipTransferred(address,address)": EventFragment;
+    "SetXAppConnectionManager(address)": EventFragment;
   };
 
   getEvent(nameOrSignatureOrTopic: "OwnershipTransferred"): EventFragment;
+  getEvent(nameOrSignatureOrTopic: "SetXAppConnectionManager"): EventFragment;
 }
 
 export class XAppConnectionClient extends BaseContract {
@@ -178,6 +180,10 @@ export class XAppConnectionClient extends BaseContract {
       [string, string],
       { previousOwner: string; newOwner: string }
     >;
+
+    SetXAppConnectionManager(
+      xAppConnectionManager?: string | null
+    ): TypedEventFilter<[string], { xAppConnectionManager: string }>;
   };
 
   estimateGas: {
