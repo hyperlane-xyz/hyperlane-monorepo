@@ -52,11 +52,11 @@ async function helmValuesForChain(
     optics: {
       runEnv: agentConfig.runEnv,
       baseConfig: `${chainName}_config.json`,
-      outboxChain: {
+      homeChain: {
         name: chainName,
       },
       aws: !!agentConfig.aws,
-      inboxChains: chains
+      replicaChains: chains
         .filter((_) => _.name !== chainName)
         .map((remoteChain) => {
           return {
@@ -101,24 +101,24 @@ async function helmValuesForChain(
 }
 
 export async function getAgentEnvVars(
-  outboxChainName: ChainName,
+  homeChainName: ChainName,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
   chains: ChainConfig[],
 ) {
   const valueDict = await helmValuesForChain(
-    outboxChainName,
+    homeChainName,
     agentConfig,
     chains,
   );
   const envVars: string[] = [];
 
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chains);
-  envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`);
-  valueDict.optics.inboxChains.forEach((inboxChain: any) => {
+  envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
+  valueDict.optics.replicaChains.forEach((replicaChain: any) => {
     envVars.push(
-      `OPT_BASE_REPLICAS_${inboxChain.name.toUpperCase()}_CONNECTION_URL=${
-        rpcEndpoints[inboxChain.name]
+      `OPT_BASE_REPLICAS_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
+        rpcEndpoints[replicaChain.name]
       }`,
     );
   });
@@ -132,7 +132,7 @@ export async function getAgentEnvVars(
   try {
     const gcpKeys = await fetchAgentGCPKeys(
       agentConfig.environment,
-      outboxChainName,
+      homeChainName,
     );
     // Signer keys
     chains.forEach((network) => {
@@ -147,7 +147,7 @@ export async function getAgentEnvVars(
     if (role.startsWith('validator')) {
       envVars.push(
         `OPT_BASE_UPDATER_KEY=${strip0x(
-          gcpKeys[outboxChainName + '-' + KEY_ROLE_ENUM.UpdaterAttestation]
+          gcpKeys[homeChainName + '-' + KEY_ROLE_ENUM.UpdaterAttestation]
             .privateKey,
         )}`,
       );
@@ -177,7 +177,7 @@ export async function getAgentEnvVars(
 
     // Updater attestation key
     if (role.startsWith('validator')) {
-      const key = new AgentAwsKey(agentConfig, role, outboxChainName);
+      const key = new AgentAwsKey(agentConfig, role, homeChainName);
       envVars.push(`OPT_BASE_UPDATER_TYPE=aws`);
       envVars.push(
         `OPT_BASE_UPDATER_ID=${key.credentialsAsHelmValue.aws.keyId}`,
@@ -250,11 +250,11 @@ async function getSecretForEachChain(
 export async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  outboxChainConfig: ChainConfig,
+  homeChainConfig: ChainConfig,
   chains: ChainConfig[],
 ) {
   const valueDict = await helmValuesForChain(
-    outboxChainConfig.name,
+    homeChainConfig.name,
     agentConfig,
     chains,
   );
@@ -267,7 +267,7 @@ export async function runAgentHelmCommand(
 
   return execCmd(
     `helm ${action} ${
-      outboxChainConfig.name
+      homeChainConfig.name
     } ../../rust/helm/abacus-agent/ --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
@@ -304,12 +304,12 @@ export async function runKeymasterHelmCommand(
         ];
       }),
     ),
-    outboxes: Object.fromEntries(
+    homes: Object.fromEntries(
       chains.map((chain) => {
         return [
           chain.name,
           {
-            inboxs: chains.map((c) => c.name),
+            replicas: chains.map((c) => c.name),
             addresses: Object.fromEntries(
               KEY_ROLES.filter((_) => _.endsWith('signer')).map((role) => [
                 role,
