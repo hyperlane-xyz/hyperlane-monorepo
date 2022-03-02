@@ -48,11 +48,13 @@ export async function deployProxy<T extends ethers.Contract>(
   // we cast here because Factories don't have associated types
   // this is unsafe if the specified typevar doesn't match the factory output
   // :(
+  console.log('deploying implementation')
   const implementation = await _deployImplementation(
     deploy,
     factory,
     deployArgs,
   );
+  console.log('deployed')
   const beacon = await _deployBeacon(deploy, implementation);
   const proxy = await _deployProxy(deploy, beacon, initData);
 

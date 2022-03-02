@@ -99,6 +99,7 @@ export async function deployBridgeRouter(deploy: BridgeDeploy) {
       ],
     );
 
+  console.log('deploying bridge router')
   deploy.contracts.bridgeRouter =
     await proxyUtils.deployProxy<xAppContracts.BridgeRouter>(
       'BridgeRouter',
@@ -106,6 +107,7 @@ export async function deployBridgeRouter(deploy: BridgeDeploy) {
       new xAppContracts.BridgeRouter__factory(deploy.chain.signer),
       initData,
     );
+  console.log('deployed bridge router')
 
   assert(
     (await deploy.contracts.bridgeRouter!.proxy.xAppConnectionManager()) ===

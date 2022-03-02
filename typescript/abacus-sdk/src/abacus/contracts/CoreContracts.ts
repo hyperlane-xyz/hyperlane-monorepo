@@ -9,7 +9,7 @@ type Address = string;
 interface Core {
   id: number;
   outbox: Address;
-  inboxs: InboxInfo[];
+  inboxes: InboxInfo[];
   governanceRouter: Address;
   xAppConnectionManager: Address;
 }
@@ -22,7 +22,7 @@ export type Governor = {
 export class CoreContracts extends Contracts {
   readonly domain: number;
   readonly _outbox: Address;
-  readonly _inboxs: Map<number, InboxInfo>;
+  readonly _inboxes: Map<number, InboxInfo>;
   readonly _governanceRouter: Address;
   readonly _xAppConnectionManager: Address;
   private providerOrSigner?: ethers.providers.Provider | ethers.Signer;
@@ -31,21 +31,21 @@ export class CoreContracts extends Contracts {
   constructor(
     domain: number,
     outbox: Address,
-    inboxs: InboxInfo[],
+    inboxes: InboxInfo[],
     governanceRouter: Address,
     xAppConnectionManager: Address,
     providerOrSigner?: ethers.providers.Provider | ethers.Signer,
   ) {
-    super(domain, outbox, inboxs, providerOrSigner);
+    super(domain, outbox, inboxes, providerOrSigner);
     this.providerOrSigner = providerOrSigner;
     this.domain = domain;
     this._outbox = outbox;
     this._governanceRouter = governanceRouter;
     this._xAppConnectionManager = xAppConnectionManager;
 
-    this._inboxs = new Map();
-    inboxs.forEach((inbox) => {
-      this._inboxs.set(inbox.domain, {
+    this._inboxes = new Map();
+    inboxes.forEach((inbox) => {
+      this._inboxes.set(inbox.domain, {
         address: inbox.address,
         domain: inbox.domain,
       });
@@ -56,7 +56,7 @@ export class CoreContracts extends Contracts {
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
-    const inbox = this._inboxs.get(domain);
+    const inbox = this._inboxes.get(domain);
     if (!inbox) return;
     return core.Inbox__factory.connect(inbox.address, this.providerOrSigner);
   }
@@ -106,23 +106,23 @@ export class CoreContracts extends Contracts {
   }
 
   toObject(): Core {
-    const inboxs: InboxInfo[] = Array.from(this._inboxs.values());
+    const inboxes: InboxInfo[] = Array.from(this._inboxes.values());
     return {
       id: this.domain,
       outbox: this._outbox,
-      inboxs: inboxs,
+      inboxes: inboxes,
       governanceRouter: this._governanceRouter,
       xAppConnectionManager: this._xAppConnectionManager,
     };
   }
 
   static fromObject(data: Core, signer?: ethers.Signer): CoreContracts {
-    const { id, outbox, inboxs, governanceRouter, xAppConnectionManager } =
+    const { id, outbox, inboxes, governanceRouter, xAppConnectionManager } =
       data;
     if (
       !id ||
       !outbox ||
-      !inboxs ||
+      !inboxes ||
       !governanceRouter ||
       !xAppConnectionManager
     ) {
@@ -131,7 +131,7 @@ export class CoreContracts extends Contracts {
     return new CoreContracts(
       id,
       outbox,
-      inboxs,
+      inboxes,
       governanceRouter,
       xAppConnectionManager,
       signer,
