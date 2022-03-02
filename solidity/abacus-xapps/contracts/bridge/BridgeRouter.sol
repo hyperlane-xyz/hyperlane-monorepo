@@ -93,7 +93,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         } else if (_action.isDetails()) {
             _handleDetails(_tokenId, _action);
         } else if (_action.isRequestDetails()) {
-            _handleRequestDetails(_origin, _sender, _tokenId);
+            _handleRequestDetails(_origin, _tokenId);
         } else {
             require(false, "!valid action");
         }
@@ -130,8 +130,6 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
     ) external {
         require(_amount > 0, "!amnt");
         require(_recipient != bytes32(0), "!recip");
-        // get remote BridgeRouter address; revert if not found
-        bytes32 _remote = _mustHaveRemoteRouter(_destination);
         // remove tokens from circulation on this chain
         IERC20 _bridgeToken = IERC20(_token);
         if (_isLocalOrigin(_bridgeToken)) {
@@ -146,11 +144,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         // format Transfer Tokens action
         bytes29 _action = BridgeMessage.formatTransfer(_recipient, _amount);
         // send message to remote chain via Abacus
-        Outbox(xAppConnectionManager.outbox()).dispatch(
-            _destination,
-            _remote,
-            BridgeMessage.formatMessage(_formatTokenId(_token), _action)
-        );
+        _dispatchToRemoteRouter(_destination, BridgeMessage.formatMessage(_formatTokenId(_token), _action));
         // emit Send event to record token sender
         emit Send(
             address(_bridgeToken),
@@ -336,12 +330,10 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
      * @dev The origin and remote are pre-checked by the handle function
      *      `onlyRemoteRouter` modifier and can be used without additional check
      * @param _messageOrigin The domain from which the message arrived
-     * @param _messageRemoteRouter The remote router that sent the message
      * @param _tokenId The token ID
      */
     function _handleRequestDetails(
         uint32 _messageOrigin,
-        bytes32 _messageRemoteRouter,
         bytes29 _tokenId
     ) internal {
         // get token & ensure is of local origin
@@ -355,11 +347,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
             _bridgeToken.decimals()
         );
         // send message to remote chain via Abacus
-        Outbox(xAppConnectionManager.outbox()).dispatch(
-            _messageOrigin,
-            _messageRemoteRouter,
-            BridgeMessage.formatMessage(_tokenId, _updateDetailsAction)
-        );
+        _dispatchToRemoteRouter(_messageOrigin, BridgeMessage.formatMessage(_tokenId, _updateDetailsAction));
     }
 
     // ============ Internal: Transfer ============
@@ -393,11 +381,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         // format Request Details message
         bytes29 _action = BridgeMessage.formatRequestDetails();
         // send message to remote chain via Abacus
-        Outbox(xAppConnectionManager.outbox()).dispatch(
-            _destination,
-            _remote,
-            BridgeMessage.formatMessage(_tokenId, _action)
-        );
+        _dispatchToRemoteRouter(_destination, BridgeMessage.formatMessage(_tokenId, _action));
     }
 
     // ============ Internal: Fast Liquidity ============

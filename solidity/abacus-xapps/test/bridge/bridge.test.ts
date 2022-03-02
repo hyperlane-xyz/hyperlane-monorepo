@@ -130,8 +130,8 @@ describe('BridgeRouter', async () => {
         await expect(
           bridgeDeployment
             .router(localDomain)
-            .send(repr.address, TOKEN_VALUE * 10, 121234, deployerId),
-        ).to.be.revertedWith('!remote');
+            .send(repr.address, TOKEN_VALUE, 121234, deployerId),
+        ).to.be.revertedWith('!router');
       });
 
       it('errors on send when recipient is the 0 address', async () => {
@@ -160,7 +160,7 @@ describe('BridgeRouter', async () => {
           .router(localDomain)
           .send(repr.address, 1, 3000, deployerId);
 
-        await expect(unknownRemote).to.be.revertedWith('!remote');
+        await expect(unknownRemote).to.be.revertedWith('!router');
       });
 
       it('burns tokens on outbound message', async () => {
@@ -636,7 +636,7 @@ describe('BridgeRouter', async () => {
         .router(localDomain)
         .handle(3812, deployerId, badRequest);
 
-      await expect(badRequestTx).to.be.revertedWith('!remote router');
+      await expect(badRequestTx).to.be.revertedWith('!router');
     });
 
     it('sets details during details message handling', async () => {
