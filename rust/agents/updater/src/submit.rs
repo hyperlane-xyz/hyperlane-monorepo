@@ -40,6 +40,7 @@ impl UpdateSubmitter {
             // start from the chain state
             let mut committed_root = self.home.committed_root().await?;
 
+            info!(committed_root = ?committed_root, "Updater submitter start");
             loop {
                 sleep(Duration::from_secs(self.interval_seconds)).await;
 
