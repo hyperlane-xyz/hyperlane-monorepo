@@ -75,6 +75,9 @@ pub enum ChainCommunicationError {
     /// Any other error
     #[error("{0}")]
     CustomError(#[from] Box<dyn StdError + Send + Sync>),
+    /// A transaction submission timed out
+    #[error("Transaction submission timed out")]
+    TransactionTimeout(),
 }
 
 impl<M> From<ContractError<M>> for ChainCommunicationError

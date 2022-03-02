@@ -23,19 +23,47 @@ macro_rules! report_tx {
             to = ?to,
             data = %data,
             tx_hash = ?tx_hash,
-            "Dispatched tx with tx_hash {:?}",
-            tx_hash
+            "Dispatched tx"
         );
 
-        let result = dispatched
-            .await?
-            .ok_or_else(|| abacus_core::ChainCommunicationError::DroppedError(tx_hash))?;
 
-        tracing::info!(
-            "confirmed transaction with tx_hash {:?}",
-            result.transaction_hash
-        );
-        result
+        let wrapped_tx_submission = tokio::time::timeout(std::time::Duration::from_secs(300), dispatched);
+
+        match wrapped_tx_submission.await {
+            Ok(tx_submission) => {
+                match tx_submission {
+                    Ok(Some(receipt)) => {
+                        tracing::info!(
+                            tx_hash = ?tx_hash,
+                            "confirmed transaction"
+                        );
+
+                        receipt
+                    }
+                    // ethers-rs will return None if it can no longer poll for the tx in the mempool
+                    Ok(None) => {
+                        return Err(abacus_core::ChainCommunicationError::DroppedError(tx_hash))
+                    }
+                    // Pass through this error
+                    Err(x) => {
+                        tracing::error!(
+                            tx_hash = ?tx_hash,
+                            error = ?x,
+                            "encountered error when waiting for receipt",
+                        );
+                        return Err(x.into())
+                    }
+                }
+            }
+            Err(x) => {
+                tracing::error!(
+                    tx_hash = ?tx_hash,
+                    error = ?x,
+                    "waiting for receipt timed out",
+                );
+                return Err(abacus_core::ChainCommunicationError::TransactionTimeout())
+            }
+        }
     }};
 }
 
