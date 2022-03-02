@@ -1,10 +1,5 @@
-import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
-import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
-import {
-  Signer,
-  Domain,
-  Address,
-} from '@abacus-network/abacus-sol/test/lib/types';
+import { ethers } from 'ethers';
+import { utils, types, AbacusDeployment } from '@abacus-network/abacus-sol/test';
 
 import {
   GovernanceRouter__factory,
@@ -12,7 +7,7 @@ import {
 } from '../../../typechain';
 
 export interface GovernanceInstance {
-  domain: Domain;
+  domain: types.Domain;
   router: GovernanceRouter;
 }
 
@@ -20,14 +15,14 @@ const recoveryTimelock = 60 * 60 * 24 * 7;
 
 export class GovernanceDeployment {
   constructor(
-    public readonly domains: Domain[],
+    public readonly domains: types.Domain[],
     public readonly instances: Record<number, GovernanceInstance>,
   ) {}
 
   static async fromAbacusDeployment(
     abacus: AbacusDeployment,
-    governor: Signer,
-    recoveryManager: Signer,
+    governor: types.Signer,
+    recoveryManager: types.Signer,
   ) {
     // Deploy routers.
     const instances: Record<number, GovernanceInstance> = {};
@@ -46,7 +41,7 @@ export class GovernanceDeployment {
       for (const remote of abacus.domains) {
         await instances[local].router.enrollRemoteRouter(
           remote,
-          toBytes32(instances[remote].router.address),
+          utils.toBytes32(instances[remote].router.address),
         );
       }
     }
@@ -61,10 +56,10 @@ export class GovernanceDeployment {
   }
 
   static async deployInstance(
-    domain: Domain,
-    governor: Signer,
-    recoveryManager: Signer,
-    connectionManagerAddress: Address,
+    domain: types.Domain,
+    governor: types.Signer,
+    recoveryManager: types.Signer,
+    connectionManagerAddress: types.Address,
   ): Promise<GovernanceInstance> {
     const routerFactory = new GovernanceRouter__factory(governor);
     const router = await routerFactory.deploy(recoveryTimelock);
@@ -76,7 +71,7 @@ export class GovernanceDeployment {
     };
   }
 
-  router(domain: Domain): GovernanceRouter {
+  router(domain: types.Domain): GovernanceRouter {
     return this.instances[domain].router;
   }
 }

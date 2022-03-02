@@ -8,24 +8,24 @@ export enum GovernanceMessage {
   SETXAPPCONNECTIONMANAGER = 5,
 }
 
-function formatSetGovernor(address: types.Address): string {
+export function formatSetGovernor(address: types.Address): string {
   return ethers.utils.solidityPack(
     ['bytes1', 'bytes32'],
-    [GovernanceMessage.SETGOVERNOR, utils.ethersAddressToBytes32(address)],
+    [GovernanceMessage.SETGOVERNOR, utils.addressToBytes32(address)],
   );
 }
 
-function formatSetXAppConnectionManager(address: types.Address): string {
+export function formatSetXAppConnectionManager(address: types.Address): string {
   return ethers.utils.solidityPack(
     ['bytes1', 'bytes32'],
     [
       GovernanceMessage.SETXAPPCONNECTIONMANAGER,
-      utils.ethersAddressToBytes32(address),
+      utils.addressToBytes32(address),
     ],
   );
 }
 
-function formatEnrollRemoteRouter(
+export function formatEnrollRemoteRouter(
   domain: types.Domain,
   address: types.Address,
 ): string {
@@ -34,12 +34,12 @@ function formatEnrollRemoteRouter(
     [
       GovernanceMessage.ENROLLREMOTEROUTER,
       domain,
-      utils.ethersAddressToBytes32(address),
+      utils.addressToBytes32(address),
     ],
   );
 }
 
-function formatCalls(callsData: types.CallData[]): string {
+export function formatCalls(callsData: types.CallData[]): string {
   let callBody = '0x';
   const numCalls = callsData.length;
 
@@ -79,7 +79,7 @@ export async function formatCall(
   );
 
   return {
-    to: helpers.abacus.ethersAddressToBytes32(destinationContract.address),
+    to: utils.addressToBytes32(destinationContract.address),
     data: callDataEncoded,
   };
 }
