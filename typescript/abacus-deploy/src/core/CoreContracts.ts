@@ -1,4 +1,7 @@
-import { core as coreContracts, xapps as xappContracts } from '@abacus-network/ts-interface';
+import {
+  core as coreContracts,
+  xapps as xappContracts,
+} from '@abacus-network/ts-interface';
 import { BeaconProxy } from '../utils/proxy';
 import { Contracts } from '../contracts';
 import {
@@ -64,10 +67,11 @@ export class CoreContracts extends Contracts {
         addresses.governanceRouter.implementation,
         provider,
       );
-    const governanceRouterProxy = xappContracts.GovernanceRouter__factory.connect(
-      addresses.governanceRouter.proxy,
-      provider,
-    );
+    const governanceRouterProxy =
+      xappContracts.GovernanceRouter__factory.connect(
+        addresses.governanceRouter.proxy,
+        provider,
+      );
     const governanceRouterUpgradeBeacon =
       coreContracts.UpgradeBeacon__factory.connect(
         addresses.governanceRouter.beacon,

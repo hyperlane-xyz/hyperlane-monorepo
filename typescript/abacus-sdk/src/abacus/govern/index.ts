@@ -48,9 +48,7 @@ export class CallBatch {
     this.built = await Promise.all(
       domains.map((domain: number, i: number) => {
         if (domain === this.core.domain) {
-          return this.core.governanceRouter.populateTransaction.call(
-            calls[i],
-          );
+          return this.core.governanceRouter.populateTransaction.call(calls[i]);
         } else {
           return this.core.governanceRouter.populateTransaction.callRemote(
             domain,

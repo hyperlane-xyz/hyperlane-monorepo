@@ -229,9 +229,13 @@ export class AbacusContext extends MultiProvider {
    *
    * @returns The governors of the deployment
    */
-  async governors(): Promise<Governor[]>{
-    let governors = await Promise.all(Array.from(this.cores.values()).map((core) => core.governor()))
-    governors = governors.filter((governor) => governor.identifier !== ethers.constants.AddressZero)
+  async governors(): Promise<Governor[]> {
+    let governors = await Promise.all(
+      Array.from(this.cores.values()).map((core) => core.governor()),
+    );
+    governors = governors.filter(
+      (governor) => governor.identifier !== ethers.constants.AddressZero,
+    );
     if (governors.length === 0) throw new Error('no governors');
     return governors;
   }
@@ -243,7 +247,7 @@ export class AbacusContext extends MultiProvider {
    */
   async governor(): Promise<Governor> {
     const governors = await this.governors();
-    if (governors.length !== 1) throw new Error('multiple governors')
+    if (governors.length !== 1) throw new Error('multiple governors');
     return governors[0];
   }
 

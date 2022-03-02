@@ -1,6 +1,6 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { formatMessage, messageHash as msgHash} from './lib/core';
+import { formatMessage, messageHash as msgHash } from './lib/core';
 import { addressToBytes32 } from './lib/utils';
 import { TestMessage, TestMessage__factory } from '../typechain';
 

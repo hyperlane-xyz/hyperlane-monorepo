@@ -114,9 +114,7 @@ export async function deployGovernanceRouter(deploy: CoreDeploy) {
 
   let initData = governanceRouter
     .createInterface()
-    .encodeFunctionData('initialize', [
-      xAppConnectionManager!.address,
-    ]);
+    .encodeFunctionData('initialize', [xAppConnectionManager!.address]);
 
   deploy.contracts.governanceRouter =
     await proxyUtils.deployProxy<xapps.GovernanceRouter>(
@@ -142,9 +140,7 @@ export async function deployUnenrolledInbox(
   const isTestDeploy: boolean = remote.test;
   if (isTestDeploy) warn('deploying test Inbox');
 
-  const inbox = isTestDeploy
-    ? core.TestInbox__factory
-    : core.Inbox__factory;
+  const inbox = isTestDeploy ? core.TestInbox__factory : core.Inbox__factory;
 
   let initData = inbox
     .createInterface()
@@ -413,10 +409,7 @@ export async function renounceGovernorship(deploy: CoreDeploy) {
 export async function setGovernor(gov: CoreDeploy) {
   const governor = await gov.governorOrSigner();
   if (governor) {
-    log(
-      gov.test,
-      `${gov.chain.name}: setting governor to:${governor}`,
-    );
+    log(gov.test, `${gov.chain.name}: setting governor to:${governor}`);
     const tx = await gov.contracts.governanceRouter!.proxy.setGovernor(
       governor,
       gov.overrides,

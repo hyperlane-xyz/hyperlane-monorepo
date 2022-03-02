@@ -1,7 +1,13 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { Signer } from './lib/types';
-import { AbacusState, Validator, formatMessage, messageHash, destinationAndNonce } from './lib/core';
+import {
+  AbacusState,
+  Validator,
+  formatMessage,
+  messageHash,
+  destinationAndNonce,
+} from './lib/core';
 import { addressToBytes32 } from './lib/utils';
 
 import { TestOutbox, TestOutbox__factory } from '../typechain';
@@ -40,11 +46,7 @@ describe('Outbox', async () => {
 
     const message = ethers.utils.formatBytes32String('message');
     await expect(
-      outbox.dispatch(
-        destDomain,
-        addressToBytes32(recipient.address),
-        message,
-      ),
+      outbox.dispatch(destDomain, addressToBytes32(recipient.address), message),
     ).to.be.revertedWith('failed state');
   });
 
@@ -57,11 +59,7 @@ describe('Outbox', async () => {
   it('Does not dispatch too large messages', async () => {
     const message = `0x${Buffer.alloc(3000).toString('hex')}`;
     await expect(
-      outbox.dispatch(
-        destDomain,
-        addressToBytes32(recipient.address),
-        message,
-      ),
+      outbox.dispatch(destDomain, addressToBytes32(recipient.address), message),
     ).to.be.revertedWith('msg too long');
   });
 
@@ -88,20 +86,10 @@ describe('Outbox', async () => {
     await expect(
       outbox
         .connect(signer)
-        .dispatch(
-          destDomain,
-          addressToBytes32(recipient.address),
-          message,
-        ),
+        .dispatch(destDomain, addressToBytes32(recipient.address), message),
     )
       .to.emit(outbox, 'Dispatch')
-      .withArgs(
-        hash,
-        leafIndex,
-        destAndNonce,
-        checkpointedRoot,
-        abacusMessage,
-      );
+      .withArgs(hash, leafIndex, destAndNonce, checkpointedRoot, abacusMessage);
   });
 
   it('Checkpoints the latest root', async () => {

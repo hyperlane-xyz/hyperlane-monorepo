@@ -104,7 +104,9 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
         deploy.contracts.governanceRouter?.proxy.routers(_),
       ),
     );
-    registeredRouters.map((_) => expect(_).to.not.equal(ethers.constants.AddressZero));
+    registeredRouters.map((_) =>
+      expect(_).to.not.equal(ethers.constants.AddressZero),
+    );
 
     // governor is set on governor chain, empty on others
     const localDomain = await deploy.contracts.outbox?.proxy.localDomain();

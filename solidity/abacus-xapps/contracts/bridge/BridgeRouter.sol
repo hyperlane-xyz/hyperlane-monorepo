@@ -144,7 +144,10 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         // format Transfer Tokens action
         bytes29 _action = BridgeMessage.formatTransfer(_recipient, _amount);
         // send message to remote chain via Abacus
-        _dispatchToRemoteRouter(_destination, BridgeMessage.formatMessage(_formatTokenId(_token), _action));
+        _dispatchToRemoteRouter(
+            _destination,
+            BridgeMessage.formatMessage(_formatTokenId(_token), _action)
+        );
         // emit Send event to record token sender
         emit Send(
             address(_bridgeToken),
@@ -332,10 +335,9 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
      * @param _messageOrigin The domain from which the message arrived
      * @param _tokenId The token ID
      */
-    function _handleRequestDetails(
-        uint32 _messageOrigin,
-        bytes29 _tokenId
-    ) internal {
+    function _handleRequestDetails(uint32 _messageOrigin, bytes29 _tokenId)
+        internal
+    {
         // get token & ensure is of local origin
         address _token = _tokenId.evmId();
         require(_isLocalOrigin(_token), "!local origin");
@@ -347,7 +349,10 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
             _bridgeToken.decimals()
         );
         // send message to remote chain via Abacus
-        _dispatchToRemoteRouter(_messageOrigin, BridgeMessage.formatMessage(_tokenId, _updateDetailsAction));
+        _dispatchToRemoteRouter(
+            _messageOrigin,
+            BridgeMessage.formatMessage(_tokenId, _updateDetailsAction)
+        );
     }
 
     // ============ Internal: Transfer ============
@@ -381,7 +386,10 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         // format Request Details message
         bytes29 _action = BridgeMessage.formatRequestDetails();
         // send message to remote chain via Abacus
-        _dispatchToRemoteRouter(_destination, BridgeMessage.formatMessage(_tokenId, _action));
+        _dispatchToRemoteRouter(
+            _destination,
+            BridgeMessage.formatMessage(_tokenId, _action)
+        );
     }
 
     // ============ Internal: Fast Liquidity ============

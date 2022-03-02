@@ -1,7 +1,13 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
-import { formatMessage, messageHash, Validator, AbacusState, MessageStatus } from './lib/core';
+import {
+  formatMessage,
+  messageHash,
+  Validator,
+  AbacusState,
+  MessageStatus,
+} from './lib/core';
 import { Signer, BytesArray } from './lib/types';
 import {
   BadRecipient1__factory,

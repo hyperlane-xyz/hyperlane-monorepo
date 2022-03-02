@@ -1,5 +1,9 @@
 import { ethers } from 'ethers';
-import { utils, types, AbacusDeployment } from '@abacus-network/abacus-sol/test';
+import {
+  utils,
+  types,
+  AbacusDeployment,
+} from '@abacus-network/abacus-sol/test';
 
 import {
   GovernanceRouter__factory,

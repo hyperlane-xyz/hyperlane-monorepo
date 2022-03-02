@@ -2,10 +2,16 @@ import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
 import {
-  types, utils, core,
+  types,
+  utils,
+  core,
   AbacusDeployment,
 } from '@abacus-network/abacus-sol/test';
-import { formatSetGovernor, formatCall, increaseTimestampBy } from './lib/utils';
+import {
+  formatSetGovernor,
+  formatCall,
+  increaseTimestampBy,
+} from './lib/utils';
 import { GovernanceDeployment } from './lib/GovernanceDeployment';
 import {
   TestSet,
@@ -55,9 +61,7 @@ describe('GovernanceRouter', async () => {
 
   it('accepts message from enrolled inbox and router', async () => {
     expect(await router.governor()).to.not.equal(ethers.constants.AddressZero);
-    const message = formatSetGovernor(
-      ethers.constants.AddressZero,
-    );
+    const message = formatSetGovernor(ethers.constants.AddressZero);
     // Create a fake abacus message coming from the remote governance router.
     const fakeMessage = core.formatMessage(
       remoteDomain,
@@ -76,9 +80,7 @@ describe('GovernanceRouter', async () => {
   });
 
   it('rejects message from unenrolled inbox', async () => {
-    const message = formatSetGovernor(
-      ethers.constants.AddressZero,
-    );
+    const message = formatSetGovernor(ethers.constants.AddressZero);
     await expect(
       router.handle(
         remoteDomain,
@@ -89,9 +91,7 @@ describe('GovernanceRouter', async () => {
   });
 
   it('rejects message from unenrolled router', async () => {
-    const message = formatSetGovernor(
-      ethers.constants.AddressZero,
-    );
+    const message = formatSetGovernor(ethers.constants.AddressZero);
     // Create a fake abacus message coming from the remote governance router.
     const fakeMessage = core.formatMessage(
       remoteDomain,
