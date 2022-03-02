@@ -3,7 +3,6 @@ import "@typechain/hardhat";
 import "@nomiclabs/hardhat-etherscan";
 import "@nomiclabs/hardhat-waffle";
 import "hardhat-gas-reporter";
-import './test/lib/index';
 
 import { task } from "hardhat/config";
 import { verifyLatestCoreDeploy } from "../../typescript/abacus-deploy/src/verification/verifyLatestDeploy";

@@ -1,3 +1,6 @@
+import { ethers } from 'ethers';
+import { Address } from './types';
+
 /*
  * Gets the byte length of a hex string
  *
@@ -22,7 +25,7 @@ export function getHexStringByteLength(hexStr: string) {
  * @param address - the address
  * @return The address as bytes32
  */
-export function toBytes32(address: string): string {
+export function toBytes32(address: Address): string {
   return '0x' + '00'.repeat(12) + address.slice(2);
 }
 
@@ -33,3 +36,9 @@ export const stringToBytes32 = (s: string): string => {
 
   return '0x' + result.toString('hex');
 };
+
+export function addressToBytes32(address: Address): string {
+  return ethers.utils
+    .hexZeroPad(ethers.utils.hexStripZeros(address), 32)
+    .toLowerCase();
+}

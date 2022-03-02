@@ -1,25 +1,24 @@
-import { ethers, helpers } from 'hardhat';
+import { ethers } from 'hardhat';
 import { BytesLike } from 'ethers';
 import { expect } from 'chai';
 
-import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
-import { formatTokenId } from '../lib/bridge';
+import { utils } from '@abacus-network/abacus-sol/test';
 import {
+  BridgeMessageTypes,
   TokenIdentifier,
   TransferAction,
   DetailsAction,
   Message,
   RequestDetailsAction,
-} from '../lib/types';
-import { TestBridgeMessage__factory, TestBridgeMessage } from '../../typechain';
-
-const {
-  BridgeMessageTypes,
+} from './lib/types';
+import {
+  formatTokenId,
   serializeMessage,
   serializeDetailsAction,
   serializeTransferAction,
   serializeRequestDetailsAction,
-} = helpers.bridge;
+} from './lib/utils';
+import { TestBridgeMessage__factory, TestBridgeMessage } from '../../typechain';
 
 const stringToBytes32 = (s: string): string => {
   const str = Buffer.from(s.slice(0, 32), 'utf-8');
@@ -46,7 +45,7 @@ describe('BridgeMessage', async () => {
   before(async () => {
     const [deployer] = await ethers.getSigners();
     deployerAddress = await deployer.getAddress();
-    const deployerId = toBytes32(deployerAddress).toLowerCase();
+    const deployerId = utils.toBytes32(deployerAddress).toLowerCase();
     const TOKEN_VALUE = 0xffff;
 
     // tokenId

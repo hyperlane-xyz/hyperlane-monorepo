@@ -1,8 +1,8 @@
 import { assert } from 'chai';
 import * as ethers from 'ethers';
 
+import { addressToBytes32 } from './utils';
 import * as types from './types';
-import { getHexStringByteLength } from './utils';
 
 export class Validator {
   localDomain: types.Domain;
@@ -51,7 +51,7 @@ export class Validator {
   }
 }
 
-const formatMessage = (
+export const formatMessage = (
   localDomain: types.Domain,
   senderAddr: types.Address,
   sequence: number,
@@ -59,8 +59,8 @@ const formatMessage = (
   recipientAddr: types.Address,
   body: types.HexString,
 ): string => {
-  senderAddr = ethersAddressToBytes32(senderAddr);
-  recipientAddr = ethersAddressToBytes32(recipientAddr);
+  senderAddr = addressToBytes32(senderAddr);
+  recipientAddr = addressToBytes32(recipientAddr);
 
   return ethers.utils.solidityPack(
     ['uint32', 'bytes32', 'uint32', 'uint32', 'bytes32', 'bytes'],
@@ -80,17 +80,11 @@ export enum MessageStatus {
   PROCESSED,
 }
 
-function messageHash(message: types.HexString): string {
+export function messageHash(message: types.HexString): string {
   return ethers.utils.solidityKeccak256(['bytes'], [message]);
 }
 
-export function ethersAddressToBytes32(address: types.Address): string {
-  return ethers.utils
-    .hexZeroPad(ethers.utils.hexStripZeros(address), 32)
-    .toLowerCase();
-}
-
-function destinationAndNonce(
+export function destinationAndNonce(
   destination: types.Domain,
   sequence: number,
 ): ethers.BigNumber {
@@ -102,17 +96,9 @@ function destinationAndNonce(
     .add(ethers.BigNumber.from(sequence));
 }
 
-function domainHash(domain: Number): string {
+export function domainHash(domain: Number): string {
   return ethers.utils.solidityKeccak256(
     ['uint32', 'string'],
     [domain, 'OPTICS'],
   );
 }
-
-export const abacus: types.HardhatAbacusHelpers = {
-  formatMessage,
-  messageHash,
-  ethersAddressToBytes32,
-  destinationAndNonce,
-  domainHash,
-};

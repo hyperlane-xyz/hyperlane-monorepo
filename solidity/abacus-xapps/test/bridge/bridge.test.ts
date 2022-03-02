@@ -1,19 +1,17 @@
 import { expect } from 'chai';
-import { ethers, helpers } from 'hardhat';
+import { ethers } from 'hardhat';
 import { BigNumber, BytesLike } from 'ethers';
 
-import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
-import { Signer } from '@abacus-network/abacus-sol/test/lib/types';
 import {
-  stringToBytes32,
-  toBytes32,
-} from '@abacus-network/abacus-sol/test/lib/utils';
-
-import * as types from '../lib/types';
+  utils,
+  types as core,
+  AbacusDeployment,
+} from '@abacus-network/abacus-sol/test';
+import * as types from './lib/types';
+import { serializeMessage } from './lib/utils';
 import { BridgeDeployment } from './lib/BridgeDeployment';
 import { BridgeToken, BridgeToken__factory, IERC20 } from '../../typechain';
 
-const { BridgeMessageTypes, serializeMessage } = helpers.bridge;
 const localDomain = 1000;
 const remoteDomain = 2000;
 const domains = [localDomain, remoteDomain];
@@ -26,7 +24,7 @@ const testTokenId = {
 describe('BridgeRouter', async () => {
   let abacusDeployment: AbacusDeployment;
   let bridgeDeployment: BridgeDeployment;
-  let deployer: Signer;
+  let deployer: core.Signer;
   let deployerAddress: string;
   let deployerId: BytesLike;
 
@@ -39,7 +37,7 @@ describe('BridgeRouter', async () => {
     // populate deployer signer
     [deployer] = await ethers.getSigners();
     deployerAddress = await deployer.getAddress();
-    deployerId = toBytes32(await deployer.getAddress()).toLowerCase();
+    deployerId = utils.toBytes32(await deployer.getAddress()).toLowerCase();
     abacusDeployment = await AbacusDeployment.fromDomains(domains, deployer);
     // Enroll ourselves as a inbox so we can send messages directly to the
     // local router.
@@ -82,7 +80,7 @@ describe('BridgeRouter', async () => {
         const transferMessageObj: types.Message = {
           tokenId: testTokenId,
           action: {
-            type: BridgeMessageTypes.TRANSFER,
+            type: types.BridgeMessageTypes.TRANSFER,
             recipient: deployerId,
             amount: TOKEN_VALUE,
           },
@@ -191,7 +189,7 @@ describe('BridgeRouter', async () => {
     });
 
     describe('locally-originating asset roundtrip', async () => {
-      let transferMessage: string;
+      let transferMessage: BytesLike;
       let localToken: BridgeToken;
 
       beforeEach(async () => {
@@ -203,10 +201,10 @@ describe('BridgeRouter', async () => {
         const transferMessageObj: types.Message = {
           tokenId: {
             domain: localDomain,
-            id: toBytes32(localToken.address),
+            id: utils.toBytes32(localToken.address),
           },
           action: {
-            type: BridgeMessageTypes.TRANSFER,
+            type: types.BridgeMessageTypes.TRANSFER,
             recipient: deployerId,
             amount: TOKEN_VALUE,
           },
@@ -321,7 +319,7 @@ describe('BridgeRouter', async () => {
       const transferMessageObj: types.Message = {
         tokenId: testTokenId,
         action: {
-          type: BridgeMessageTypes.TRANSFER,
+          type: types.BridgeMessageTypes.TRANSFER,
           recipient: deployerId,
           amount: TOKEN_VALUE,
         },
@@ -334,22 +332,22 @@ describe('BridgeRouter', async () => {
     });
 
     describe('remotely-originating asset', async () => {
-      let setupMessage: string;
+      let setupMessage: BytesLike;
       let repr: IERC20;
       let recipient: string;
       let recipientId: string;
-      let transferMessage: string;
+      let transferMessage: BytesLike;
 
       beforeEach(async () => {
         // generate actions
         recipient = `0x${'00'.repeat(19)}ff`;
-        recipientId = toBytes32(recipient);
+        recipientId = utils.toBytes32(recipient);
 
         // transfer message
         const transferMessageObj: types.Message = {
           tokenId: testTokenId,
           action: {
-            type: BridgeMessageTypes.TRANSFER,
+            type: types.BridgeMessageTypes.TRANSFER,
             recipient: recipientId,
             amount: TOKEN_VALUE,
           },
@@ -360,7 +358,7 @@ describe('BridgeRouter', async () => {
         const setupMessageObj: types.Message = {
           tokenId: testTokenId,
           action: {
-            type: BridgeMessageTypes.TRANSFER,
+            type: types.BridgeMessageTypes.TRANSFER,
             recipient: deployerId,
             amount: TOKEN_VALUE,
           },
@@ -424,7 +422,7 @@ describe('BridgeRouter', async () => {
       let localToken: BridgeToken;
       let recipient: string;
       let recipientId: string;
-      let transferMessage: string;
+      let transferMessage: BytesLike;
 
       beforeEach(async () => {
         localToken = await new BridgeToken__factory(deployer).deploy();
@@ -450,15 +448,15 @@ describe('BridgeRouter', async () => {
 
         // generate transfer action
         recipient = `0x${'00'.repeat(19)}ff`;
-        recipientId = toBytes32(recipient);
+        recipientId = utils.toBytes32(recipient);
 
         const transferMessageObj: types.Message = {
           tokenId: {
             domain: localDomain,
-            id: toBytes32(localToken.address),
+            id: utils.toBytes32(localToken.address),
           },
           action: {
-            type: BridgeMessageTypes.TRANSFER,
+            type: types.BridgeMessageTypes.TRANSFER,
             recipient: recipientId,
             amount: TOKEN_VALUE,
           },
@@ -499,10 +497,10 @@ describe('BridgeRouter', async () => {
 
   describe('details message', async () => {
     let localToken: BridgeToken;
-    let requestMessage: string;
-    let outgoingDetails: string;
-    let incomingDetails: string;
-    let transferMessage: string;
+    let requestMessage: BytesLike;
+    let outgoingDetails: BytesLike;
+    let incomingDetails: BytesLike;
+    let transferMessage: BytesLike;
     let repr: BridgeToken;
 
     const TEST_NAME = 'TEST TOKEN';
@@ -517,10 +515,10 @@ describe('BridgeRouter', async () => {
       const requestMessageObj: types.Message = {
         tokenId: {
           domain: localDomain,
-          id: toBytes32(localToken.address),
+          id: utils.toBytes32(localToken.address),
         },
         action: {
-          type: BridgeMessageTypes.REQUEST_DETAILS,
+          type: types.BridgeMessageTypes.REQUEST_DETAILS,
         },
       };
       requestMessage = serializeMessage(requestMessageObj);
@@ -528,12 +526,12 @@ describe('BridgeRouter', async () => {
       const outgoingDetailsObj: types.Message = {
         tokenId: {
           domain: localDomain,
-          id: toBytes32(localToken.address),
+          id: utils.toBytes32(localToken.address),
         },
         action: {
-          type: BridgeMessageTypes.DETAILS,
-          name: stringToBytes32(TEST_NAME),
-          symbol: stringToBytes32(TEST_SYMBOL),
+          type: types.BridgeMessageTypes.DETAILS,
+          name: utils.stringToBytes32(TEST_NAME),
+          symbol: utils.stringToBytes32(TEST_SYMBOL),
           decimals: TEST_DECIMALS,
         },
       };
@@ -543,7 +541,7 @@ describe('BridgeRouter', async () => {
       const transferMessageObj: types.Message = {
         tokenId: testTokenId,
         action: {
-          type: BridgeMessageTypes.TRANSFER,
+          type: types.BridgeMessageTypes.TRANSFER,
           recipient: deployerId,
           amount: TOKEN_VALUE,
         },
@@ -553,9 +551,9 @@ describe('BridgeRouter', async () => {
       const incomingDetailsObj: types.Message = {
         tokenId: testTokenId,
         action: {
-          type: BridgeMessageTypes.DETAILS,
-          name: stringToBytes32(TEST_NAME),
-          symbol: stringToBytes32(TEST_SYMBOL),
+          type: types.BridgeMessageTypes.DETAILS,
+          name: utils.stringToBytes32(TEST_NAME),
+          symbol: utils.stringToBytes32(TEST_SYMBOL),
           decimals: TEST_DECIMALS,
         },
       };
@@ -581,7 +579,7 @@ describe('BridgeRouter', async () => {
       const requestDetailsObj: types.Message = {
         tokenId: testTokenId,
         action: {
-          type: BridgeMessageTypes.REQUEST_DETAILS,
+          type: types.BridgeMessageTypes.REQUEST_DETAILS,
         },
       };
       const requestDetails = serializeMessage(requestDetailsObj);
@@ -607,10 +605,10 @@ describe('BridgeRouter', async () => {
       const badRequestObj: types.Message = {
         tokenId: {
           domain: localDomain,
-          id: toBytes32(repr.address),
+          id: utils.toBytes32(repr.address),
         },
         action: {
-          type: BridgeMessageTypes.REQUEST_DETAILS,
+          type: types.BridgeMessageTypes.REQUEST_DETAILS,
         },
       };
       const badRequest = serializeMessage(badRequestObj);
@@ -626,10 +624,10 @@ describe('BridgeRouter', async () => {
       const badRequestObj: types.Message = {
         tokenId: {
           domain: localDomain,
-          id: toBytes32(localToken.address),
+          id: utils.toBytes32(localToken.address),
         },
         action: {
-          type: BridgeMessageTypes.REQUEST_DETAILS,
+          type: types.BridgeMessageTypes.REQUEST_DETAILS,
         },
       };
       const badRequest = serializeMessage(badRequestObj);
@@ -658,7 +656,7 @@ describe('BridgeRouter', async () => {
   });
 
   describe('custom token representations', async () => {
-    let transferMessage: string;
+    let transferMessage: BytesLike;
     let defaultRepr: BridgeToken;
     let customRepr: BridgeToken;
     const VALUE = `0xffffffffffffffff`;
@@ -668,7 +666,7 @@ describe('BridgeRouter', async () => {
       const transferMessageObj: types.Message = {
         tokenId: testTokenId,
         action: {
-          type: BridgeMessageTypes.TRANSFER,
+          type: types.BridgeMessageTypes.TRANSFER,
           recipient: deployerId,
           amount: VALUE,
         },
@@ -783,7 +781,7 @@ describe('BridgeRouter', async () => {
             const smallTransfer: types.Message = {
               tokenId: testTokenId,
               action: {
-                type: BridgeMessageTypes.TRANSFER,
+                type: types.BridgeMessageTypes.TRANSFER,
                 recipient: deployerId,
                 amount: TOKEN_VALUE,
               },

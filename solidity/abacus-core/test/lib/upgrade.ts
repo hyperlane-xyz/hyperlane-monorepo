@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import ethers from 'ethers';
 
-import { Signer } from './lib/types';
+import { Signer } from './types';
 import {
   MysteryMathV1,
   MysteryMathV2,
@@ -10,7 +10,7 @@ import {
   UpgradeBeacon,
   UpgradeBeacon__factory,
   UpgradeBeaconProxy__factory,
-} from '../typechain';
+} from '../../typechain';
 
 export type MysteryMathUpgrade = {
   proxy: MysteryMathV1 | MysteryMathV2;

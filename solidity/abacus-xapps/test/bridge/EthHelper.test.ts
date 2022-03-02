@@ -1,13 +1,12 @@
-import { ethers, helpers } from 'hardhat';
-import { Signer } from 'ethers';
+import { ethers } from 'hardhat';
+import { BytesLike, Signer } from 'ethers';
 import { expect } from 'chai';
 
-import * as types from '../lib/types';
+import * as types from './lib/types';
+import { serializeMessage } from './lib/utils';
 import { BridgeDeployment } from './lib/BridgeDeployment';
-import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
-import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
+import { AbacusDeployment, utils } from '@abacus-network/abacus-sol/test';
 
-const { BridgeMessageTypes, serializeMessage } = helpers.bridge;
 const localDomain = 1000;
 const remoteDomain = 2000;
 const domains = [localDomain, remoteDomain];
@@ -24,17 +23,17 @@ describe('EthHelper', async () => {
   let recipientAddress: string;
   let recipientId: string;
 
-  let transferToSelfMessage: string;
-  let transferMessage: string;
+  let transferToSelfMessage: BytesLike;
+  let transferMessage: BytesLike;
 
   const value = 1;
 
   before(async () => {
     [deployer, recipient] = await ethers.getSigners();
     deployerAddress = await deployer.getAddress();
-    deployerId = toBytes32(deployerAddress).toLowerCase();
+    deployerId = utils.toBytes32(deployerAddress).toLowerCase();
     recipientAddress = await recipient.getAddress();
-    recipientId = toBytes32(recipientAddress).toLowerCase();
+    recipientId = utils.toBytes32(recipientAddress).toLowerCase();
     abacusDeployment = await AbacusDeployment.fromDomains(domains, deployer);
     bridgeDeployment = await BridgeDeployment.fromAbacusDeployment(
       abacusDeployment,
@@ -43,12 +42,12 @@ describe('EthHelper', async () => {
 
     const tokenId: types.TokenIdentifier = {
       domain: localDomain,
-      id: toBytes32(bridgeDeployment.weth(localDomain).address),
+      id: utils.toBytes32(bridgeDeployment.weth(localDomain).address),
     };
     const transferToSelfMessageObj: types.Message = {
       tokenId,
       action: {
-        type: BridgeMessageTypes.TRANSFER,
+        type: types.BridgeMessageTypes.TRANSFER,
         recipient: deployerId,
         amount: value,
       },
@@ -58,7 +57,7 @@ describe('EthHelper', async () => {
     const transferMessageObj: types.Message = {
       tokenId,
       action: {
-        type: BridgeMessageTypes.TRANSFER,
+        type: types.BridgeMessageTypes.TRANSFER,
         recipient: recipientId,
         amount: value,
       },
