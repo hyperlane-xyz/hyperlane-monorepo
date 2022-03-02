@@ -31,5 +31,6 @@ export const infrastructure: InfrastructureConfig = {
       version: '0.4.4',
     },
     gcpServiceAccountName: 'k8s-external-secrets-mainnet',
+    accessibleGCPSecretPrefixes: ['mainnet-'],
   },
 };

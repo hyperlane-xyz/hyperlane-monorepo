@@ -54,13 +54,18 @@ async function getGcpExternalSecretsConfig(
     infraConfig.externalSecrets.gcpServiceAccountName,
   );
   const currentProjectNumber = await getCurrentProjectNumber();
+  const startsWithExpressions =
+    infraConfig.externalSecrets.accessibleGCPSecretPrefixes.map(
+      (prefix: string) =>
+        `resource.name.startsWith("projects/${currentProjectNumber}/secrets/${prefix}")`,
+    );
   await grantServiceAccountRoleIfNotExists(
     serviceAccountEmail,
     SECRET_ACCESSOR_ROLE,
     // A condition that only allows the service account to access secrets prefixed with `${environment}-`
     {
       title: `Only ${environment} secrets`,
-      expression: `resource.name.startsWith("projects/${currentProjectNumber}/secrets/${environment}-")`,
+      expression: startsWithExpressions.join(' || '),
     },
   );
 
