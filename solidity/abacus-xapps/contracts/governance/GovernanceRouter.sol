@@ -161,29 +161,6 @@ contract GovernanceRouter is Version0, Router {
     }
 
     /**
-     * @notice Transfers the recovery manager to a new address.
-     * @dev Callable by the governor when not in recovery mode or the
-     * recoveryManager at any time.
-     * @param _recoveryManager The address of the new recovery manager
-     */
-    function transferOwnership(address _recoveryManager)
-        public
-        virtual
-        override
-    {
-        // If we are not in recovery, temporarily enter recovery so that the
-        // recoveryManager can call transferOwnership.
-        if (msg.sender == recoveryManager() && !inRecovery()) {
-            uint256 _recoveryActiveAt = recoveryActiveAt;
-            recoveryActiveAt = 1;
-            OwnableUpgradeable.transferOwnership(_recoveryManager);
-            recoveryActiveAt = _recoveryActiveAt;
-        } else {
-            OwnableUpgradeable.transferOwnership(_recoveryManager);
-        }
-    }
-
-    /**
      * @notice Initiate the recovery timelock
      * @dev callable by the recovery manager iff not in recovery
      */
@@ -272,6 +249,29 @@ contract GovernanceRouter is Version0, Router {
     }
 
     // ============ Public Functions ============
+
+    /**
+     * @notice Transfers the recovery manager to a new address.
+     * @dev Callable by the governor when not in recovery mode or the
+     * recoveryManager at any time.
+     * @param _recoveryManager The address of the new recovery manager
+     */
+    function transferOwnership(address _recoveryManager)
+        public
+        virtual
+        override
+    {
+        // If we are not in recovery, temporarily enter recovery so that the
+        // recoveryManager can call transferOwnership.
+        if (msg.sender == recoveryManager() && !inRecovery()) {
+            uint256 _recoveryActiveAt = recoveryActiveAt;
+            recoveryActiveAt = 1;
+            OwnableUpgradeable.transferOwnership(_recoveryManager);
+            recoveryActiveAt = _recoveryActiveAt;
+        } else {
+            OwnableUpgradeable.transferOwnership(_recoveryManager);
+        }
+    }
 
     /**
      * @notice Returns the address of the current owner.
