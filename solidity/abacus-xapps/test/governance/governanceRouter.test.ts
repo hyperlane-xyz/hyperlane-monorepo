@@ -147,10 +147,11 @@ describe('GovernanceRouter', async () => {
 
     it('governor can enroll local remote router', async () => {
       expect(await router.routers(testDomain)).to.equal(
-        ethers.constants.AddressZero,
+        ethers.constants.HashZero,
       );
-      await router.enrollRemoteRouter(testDomain, router.address);
-      expect(await router.routers(testDomain)).to.equal(router.address);
+      const newRouter = utils.addressToBytes32(router.address);
+      await router.enrollRemoteRouter(testDomain, newRouter);
+      expect(await router.routers(testDomain)).to.equal(newRouter);
     });
 
     it('governor can make remote calls', async () => {
@@ -186,15 +187,16 @@ describe('GovernanceRouter', async () => {
 
     it('governor can enroll remote remote router', async () => {
       expect(await remote.routers(testDomain)).to.equal(
-        ethers.constants.AddressZero,
+        ethers.constants.HashZero,
       );
+      const newRouter = utils.addressToBytes32(router.address);
       await router.enrollRemoteRouterRemote(
         remoteDomain,
         testDomain,
-        router.address,
+        newRouter,
       );
       await abacus.processMessages();
-      expect(await remote.routers(testDomain)).to.equal(router.address);
+      expect(await remote.routers(testDomain)).to.equal(newRouter);
     });
 
     it('governor cannot initiate recovery', async () => {
@@ -242,7 +244,10 @@ describe('GovernanceRouter', async () => {
       await expect(
         router
           .connect(recoveryManager)
-          .enrollRemoteRouter(testDomain, router.address),
+          .enrollRemoteRouter(
+            testDomain,
+            utils.addressToBytes32(router.address),
+          ),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
@@ -274,7 +279,11 @@ describe('GovernanceRouter', async () => {
       await expect(
         router
           .connect(recoveryManager)
-          .enrollRemoteRouterRemote(remoteDomain, testDomain, router.address),
+          .enrollRemoteRouterRemote(
+            testDomain,
+            testDomain,
+            utils.addressToBytes32(router.address),
+          ),
       ).to.be.revertedWith('!governor');
     });
 
@@ -337,10 +346,11 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager can enroll local remote router', async () => {
       expect(await router.routers(testDomain)).to.equal(
-        ethers.constants.AddressZero,
+        ethers.constants.HashZero,
       );
-      await router.enrollRemoteRouter(testDomain, router.address);
-      expect(await router.routers(testDomain)).to.equal(router.address);
+      const newRouter = utils.addressToBytes32(router.address);
+      await router.enrollRemoteRouter(testDomain, newRouter);
+      expect(await router.routers(testDomain)).to.equal(newRouter);
     });
 
     it('recovery manager cannot make remote calls', async () => {
@@ -368,7 +378,7 @@ describe('GovernanceRouter', async () => {
         router.enrollRemoteRouterRemote(
           remoteDomain,
           testDomain,
-          router.address,
+          utils.addressToBytes32(router.address),
         ),
       ).to.be.revertedWith('!governor');
     });
@@ -412,7 +422,12 @@ describe('GovernanceRouter', async () => {
 
     it('governor cannot enroll local remote router', async () => {
       await expect(
-        router.connect(governor).enrollRemoteRouter(testDomain, router.address),
+        router
+          .connect(governor)
+          .enrollRemoteRouter(
+            testDomain,
+            utils.addressToBytes32(router.address),
+          ),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
@@ -444,7 +459,11 @@ describe('GovernanceRouter', async () => {
       await expect(
         router
           .connect(governor)
-          .enrollRemoteRouterRemote(remoteDomain, testDomain, router.address),
+          .enrollRemoteRouterRemote(
+            remoteDomain,
+            testDomain,
+            utils.addressToBytes32(router.address),
+          ),
       ).to.be.revertedWith('recovery');
     });
 
