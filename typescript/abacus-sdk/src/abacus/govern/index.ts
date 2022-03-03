@@ -22,7 +22,7 @@ export class CallBatch {
 
   static async fromCore(core: CoreContracts): Promise<CallBatch> {
     const governor = await core.governor();
-    if (!governor.local)
+    if (governor.identifier === ethers.constants.AddressZero)
       throw new Error(
         'Cannot create call batch on a chain without governance rights. Use the governing chain.',
       );
@@ -48,9 +48,7 @@ export class CallBatch {
     this.built = await Promise.all(
       domains.map((domain: number, i: number) => {
         if (domain === this.core.domain) {
-          return this.core.governanceRouter.populateTransaction.callLocal(
-            calls[i],
-          );
+          return this.core.governanceRouter.populateTransaction.call(calls[i]);
         } else {
           return this.core.governanceRouter.populateTransaction.callRemote(
             domain,
@@ -93,7 +91,6 @@ export class CallBatch {
     const signer = this.core.governanceRouter.signer;
     const governor = await this.core.governor();
     const signerAddress = await signer.getAddress();
-    if (!governor.local) throw new Error('Governor is not local');
     if (signerAddress !== governor.identifier)
       throw new Error('Signer is not Governor');
     return signer;

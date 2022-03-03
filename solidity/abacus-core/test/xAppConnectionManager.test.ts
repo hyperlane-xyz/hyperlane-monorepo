@@ -1,4 +1,4 @@
-import { ethers, abacus } from 'hardhat';
+import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
 import {
@@ -18,7 +18,6 @@ const localDomain = 1000;
 const remoteDomain = 2000;
 const processGas = 850000;
 const reserveGas = 15000;
-const nullRoot = '0x' + '00'.repeat(32);
 
 describe('XAppConnectionManager', async () => {
   let connectionManager: XAppConnectionManager,
@@ -43,7 +42,12 @@ describe('XAppConnectionManager', async () => {
     );
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.
-    await enrolledInbox.initialize(remoteDomain, outbox.address, nullRoot, 0);
+    await enrolledInbox.initialize(
+      remoteDomain,
+      outbox.address,
+      ethers.constants.HashZero,
+      0,
+    );
 
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     connectionManager = await connectionManagerFactory.deploy();

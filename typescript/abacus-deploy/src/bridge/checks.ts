@@ -39,7 +39,7 @@ export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
     );
     await Promise.all(
       remoteDomains.map(async (remoteDomain) => {
-        const registeredRouter = await bridgeRouter.remotes(remoteDomain);
+        const registeredRouter = await bridgeRouter.routers(remoteDomain);
         expect(registeredRouter).to.not.equal(emptyAddr);
       }),
     );

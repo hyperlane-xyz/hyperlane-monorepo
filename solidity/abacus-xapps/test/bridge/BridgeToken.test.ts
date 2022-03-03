@@ -4,7 +4,7 @@ import { Wallet } from 'ethers';
 
 import { Signer } from '@abacus-network/abacus-sol/test/lib/types';
 import { permitDigest } from './lib/permit';
-import { BridgeToken__factory, BridgeToken } from '../typechain';
+import { BridgeToken__factory, BridgeToken } from '../../typechain';
 
 const VALUE = 100;
 

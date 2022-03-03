@@ -1,6 +1,6 @@
 import { ethers } from 'hardhat';
 
-import { UpgradeTestHelpers, MysteryMathUpgrade } from './utils';
+import { UpgradeTestHelpers, MysteryMathUpgrade } from './lib/upgrade';
 import { Signer } from './lib/types';
 import {
   UpgradeBeaconController__factory,
