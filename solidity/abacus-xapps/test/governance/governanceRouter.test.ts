@@ -267,7 +267,7 @@ describe('GovernanceRouter', async () => {
     });
 
     it('recovery manager can set local recovery manager', async () => {
-      const recoveryActiveAt = await router.recoveryActiveAt()
+      const recoveryActiveAt = await router.recoveryActiveAt();
       expect(await router.recoveryManager()).to.equal(recoveryManager.address);
       await router.transferOwnership(router.address);
       expect(await router.recoveryManager()).to.equal(router.address);
