@@ -95,12 +95,18 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
         require(_router != bytes32(0), "!router");
     }
 
+    /**
+     * @notice Dispatches a message to an enrolled router via the local routers
+     * Outbox
+     * @dev Reverts if there is no enrolled router for _destination
+     * @param _destination The domain of the chain to which to send the message
+     * @param _msg The message to dispatch
+     */
     function _dispatchToRemoteRouter(uint32 _destination, bytes memory _msg)
         internal
     {
         // ensure that destination chain has enrolled router
         bytes32 _router = _mustHaveRemoteRouter(_destination);
-        // dispatch call message using Abacus
         _outbox().dispatch(_destination, _router, _msg);
     }
 }

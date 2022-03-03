@@ -227,7 +227,7 @@ library GovernanceMessage {
         return TypedMemView.nullView();
     }
 
-    function mustBeCalls(bytes29 _view) internal pure returns (bytes29) {
+    function mustBeCall(bytes29 _view) internal pure returns (bytes29) {
         return tryAsCall(_view).assertValid();
     }
 

@@ -13,6 +13,13 @@ import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+/**
+ * @dev GovernanceRouter has two modes of operation, normal and recovery.
+ * During normal mode, `owner()` returns the `governor`, giving it permission
+ * to call `onlyOwner` functions.
+ * During recovery mode, `owner()` returns the `_owner`, giving it permission
+ * to call `onlyOwner` functions.
+ */
 contract GovernanceRouter is Version0, Router {
     // ============ Libraries ============
 
@@ -30,8 +37,8 @@ contract GovernanceRouter is Version0, Router {
 
     // timestamp when recovery timelock expires; 0 if timelock has not been initiated
     uint256 public recoveryActiveAt;
-    // the local entity empowered to call governance functions
-    // typically set to 0x0 on all chains but one
+    // the local entity empowered to call governance functions during normal
+    // operation, typically set to 0x0 on all chains but one
     address public governor;
 
     // ============ Upgrade Gap ============
@@ -93,8 +100,6 @@ contract GovernanceRouter is Version0, Router {
         recoveryTimelock = _recoveryTimelock;
     }
 
-    // transferGovernor = callable by any router, transfers the governor address
-
     // ============ Initializer ============
 
     function initialize(address _xAppConnectionManager) public initializer {
@@ -153,6 +158,14 @@ contract GovernanceRouter is Version0, Router {
      */
     function setGovernor(address _governor) external onlyOwner {
         _setGovernor(_governor);
+    }
+
+    /**
+     * @notice Transfers the recovery manager to a new address.
+     * @param _recoveryManager The address of the new recovery manager
+     */
+    function transferRecoveryManager(address _recoveryManager) external onlyRecoveryManager {
+      _transferOwnership(_recoveryManager);
     }
 
     /**
@@ -255,9 +268,10 @@ contract GovernanceRouter is Version0, Router {
 
     /**
      * @notice Returns the address of the recovery manager.
+     * @dev Exposing via this funciton is necessary because we overload
+     * `owner()` in order to make `onlyOwner()` work as intended, and because
+     * `OwnableUpgradeable` does not expose the private `_owner`.
      */
-    // TODO(asa): Only the local governor can change the recovery manager,
-    // is that okay?
     function recoveryManager() public view returns (address) {
         return OwnableUpgradeable.owner();
     }
@@ -271,11 +285,6 @@ contract GovernanceRouter is Version0, Router {
         bool _recoveryInitiated = _recoveryActiveAt != 0;
         bool _recoveryActive = _recoveryActiveAt <= block.timestamp;
         return _recoveryInitiated && _recoveryActive;
-    }
-
-    // TODO: Remove
-    function localDomain() public view returns (uint32) {
-        return _localDomain();
     }
 
     // ============ Internal Functions ============

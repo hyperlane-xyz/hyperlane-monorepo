@@ -373,12 +373,11 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
     // ============ Internal: Request Details ============
 
     /**
-     * @notice Handles an incoming Details message.
+     * @notice Request updated token metadata from another chain
      * @param _tokenId The token ID
      */
     function _requestDetails(bytes29 _tokenId) internal {
         uint32 _destination = _tokenId.domain();
-        // get remote BridgeRouter address; revert if not found
         bytes32 _remote = routers[_destination];
         if (_remote == bytes32(0)) {
             return;
