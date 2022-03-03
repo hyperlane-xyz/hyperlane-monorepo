@@ -23,6 +23,7 @@ import {
 const recoveryTimelock = 60 * 60 * 24 * 7;
 const localDomain = 1000;
 const remoteDomain = 2000;
+const testDomain = 3000;
 const domains = [localDomain, remoteDomain];
 const ONLY_OWNER_REVERT_MESSAGE = 'Ownable: caller is not the owner';
 
@@ -144,6 +145,14 @@ describe('GovernanceRouter', async () => {
       );
     });
 
+    it('governor can enroll local remote router', async () => {
+      expect(await router.routers(testDomain)).to.equal(
+        ethers.constants.AddressZero,
+      );
+      await router.enrollRemoteRouter(testDomain, router.address);
+      expect(await router.routers(testDomain)).to.equal(router.address());
+    });
+
     it('governor can make remote calls', async () => {
       const value = 13;
       const call = await formatCall(testSet, 'set', [value]);
@@ -173,6 +182,15 @@ describe('GovernanceRouter', async () => {
       expect(await remote.xAppConnectionManager()).to.equal(
         newConnectionManager,
       );
+    });
+
+    it('governor can enroll remote remote router', async () => {
+      expect(await remote.routers(testDomain)).to.equal(
+        ethers.constants.AddressZero,
+      );
+      await router.enrollRemoteRouterRemote(testDomain, router.address);
+      await abacus.processMessages();
+      expect(await remote.routers(testDomain)).to.equal(router.address);
     });
 
     it('governor cannot initiate recovery', async () => {
@@ -216,6 +234,14 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
+    it('recovery manager cannot enroll local remote router', async () => {
+      await expect(
+        router
+          .connect(recoveryManager)
+          .enrollRemoteRouter(testDomain, router.address),
+      ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
+    });
+
     it('recovery manager cannot make remote calls', async () => {
       const value = 13;
       const call = await formatCall(testSet, 'set', [value]);
@@ -237,6 +263,14 @@ describe('GovernanceRouter', async () => {
         router
           .connect(recoveryManager)
           .setXAppConnectionManagerRemote(remoteDomain, router.address),
+      ).to.be.revertedWith('!governor');
+    });
+
+    it('recovery manager cannot enroll remote remote router', async () => {
+      await expect(
+        router
+          .connect(recoveryManager)
+          .enrollRemoteRouterRemote(testDomain, router.address),
       ).to.be.revertedWith('!governor');
     });
 
@@ -297,6 +331,14 @@ describe('GovernanceRouter', async () => {
       );
     });
 
+    it('recovery manager can enroll local remote router', async () => {
+      expect(await router.routers(testDomain)).to.equal(
+        ethers.constants.AddressZero,
+      );
+      await router.enrollRemoteRouter(testDomain, router.address);
+      expect(await router.routers(testDomain)).to.equal(router.address);
+    });
+
     it('recovery manager cannot make remote calls', async () => {
       const value = 13;
       const call = await formatCall(testSet, 'set', [value]);
@@ -314,6 +356,12 @@ describe('GovernanceRouter', async () => {
     it('recovery manager cannot set remote xAppConnectionManager', async () => {
       await expect(
         router.setXAppConnectionManagerRemote(remoteDomain, router.address),
+      ).to.be.revertedWith('!governor');
+    });
+
+    it('recovery manager cannot enroll remote remote router', async () => {
+      await expect(
+        router.enrollRemoteRouterRemote(testDomain, router.address),
       ).to.be.revertedWith('!governor');
     });
 
@@ -354,6 +402,12 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
+    it('governor cannot enroll local remote router', async () => {
+      await expect(
+        router.connect(governor).enrollRemoteRouter(testDomain, router.address),
+      ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
+    });
+
     it('governor cannot make remote calls', async () => {
       const value = 13;
       const call = await formatCall(testSet, 'set', [value]);
@@ -375,6 +429,14 @@ describe('GovernanceRouter', async () => {
         router
           .connect(governor)
           .setXAppConnectionManagerRemote(remoteDomain, router.address),
+      ).to.be.revertedWith('recovery');
+    });
+
+    it('governor cannot enroll remote remote router', async () => {
+      await expect(
+        router
+          .connect(governor)
+          .enrollRemoteRouterRemote(testDomain, router.address),
       ).to.be.revertedWith('recovery');
     });
 
