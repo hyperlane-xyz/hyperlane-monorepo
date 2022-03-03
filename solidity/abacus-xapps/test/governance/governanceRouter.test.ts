@@ -150,7 +150,7 @@ describe('GovernanceRouter', async () => {
         ethers.constants.AddressZero,
       );
       await router.enrollRemoteRouter(testDomain, router.address);
-      expect(await router.routers(testDomain)).to.equal(router.address());
+      expect(await router.routers(testDomain)).to.equal(router.address);
     });
 
     it('governor can make remote calls', async () => {
@@ -188,7 +188,11 @@ describe('GovernanceRouter', async () => {
       expect(await remote.routers(testDomain)).to.equal(
         ethers.constants.AddressZero,
       );
-      await router.enrollRemoteRouterRemote(testDomain, router.address);
+      await router.enrollRemoteRouterRemote(
+        remoteDomain,
+        testDomain,
+        router.address,
+      );
       await abacus.processMessages();
       expect(await remote.routers(testDomain)).to.equal(router.address);
     });
@@ -270,7 +274,7 @@ describe('GovernanceRouter', async () => {
       await expect(
         router
           .connect(recoveryManager)
-          .enrollRemoteRouterRemote(testDomain, router.address),
+          .enrollRemoteRouterRemote(remoteDomain, testDomain, router.address),
       ).to.be.revertedWith('!governor');
     });
 
@@ -361,7 +365,11 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager cannot enroll remote remote router', async () => {
       await expect(
-        router.enrollRemoteRouterRemote(testDomain, router.address),
+        router.enrollRemoteRouterRemote(
+          remoteDomain,
+          testDomain,
+          router.address,
+        ),
       ).to.be.revertedWith('!governor');
     });
 
@@ -436,7 +444,7 @@ describe('GovernanceRouter', async () => {
       await expect(
         router
           .connect(governor)
-          .enrollRemoteRouterRemote(testDomain, router.address),
+          .enrollRemoteRouterRemote(remoteDomain, testDomain, router.address),
       ).to.be.revertedWith('recovery');
     });
 
