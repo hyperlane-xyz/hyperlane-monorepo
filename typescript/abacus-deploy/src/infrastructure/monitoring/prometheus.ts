@@ -78,7 +78,7 @@ async function getPrometheusConfig(
             {
               action: 'keep',
               regex:
-                '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*|abacus.*)',
+                '(container.*|optics.*|Optics.*|prometheus.*|ethereum.*|abacus.*|kube_pod_status_phase|kube_pod_container_status_restarts_total)',
               source_labels: ['__name__'],
             },
           ],
