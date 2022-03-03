@@ -114,11 +114,11 @@ describe('GovernanceRouter', async () => {
       expect(await router.owner()).to.equal(governor.address);
     });
 
-    // TODO: Should it be able to set the remote recovery manager as well?
     it('governor can set local recovery manager', async () => {
       expect(await router.recoveryManager()).to.equal(recoveryManager.address);
       await router.transferOwnership(router.address);
       expect(await router.recoveryManager()).to.equal(router.address);
+      expect(await router.recoveryActiveAt()).to.equal(0);
     });
 
     it('governor can make local calls', async () => {
@@ -185,6 +185,13 @@ describe('GovernanceRouter', async () => {
       await expect(router.exitRecovery()).to.be.revertedWith('!recovery');
     });
 
+    it('recoveryManager can set local recovery manager', async () => {
+      expect(await router.recoveryManager()).to.equal(recoveryManager.address);
+      await router.connect(recoveryManager).transferOwnership(router.address);
+      expect(await router.recoveryManager()).to.equal(router.address);
+      expect(await router.recoveryActiveAt()).to.equal(0);
+    });
+
     it('recovery manager cannot make local calls', async () => {
       const value = 12;
       const call = await formatCall(testSet, 'set', [value]);
@@ -198,12 +205,6 @@ describe('GovernanceRouter', async () => {
         router
           .connect(recoveryManager)
           .setGovernor(ethers.constants.AddressZero),
-      ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
-    });
-
-    it('recovery manager cannot set local recovery manager', async () => {
-      await expect(
-        router.connect(recoveryManager).transferOwnership(router.address),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
@@ -265,11 +266,12 @@ describe('GovernanceRouter', async () => {
       expect(await router.owner()).to.equal(recoveryManager.address);
     });
 
-    // TODO: Should it be able to set the remote recovery manager as well?
     it('recovery manager can set local recovery manager', async () => {
+      const recoveryActiveAt = await router.recoveryActiveAt()
       expect(await router.recoveryManager()).to.equal(recoveryManager.address);
       await router.transferOwnership(router.address);
       expect(await router.recoveryManager()).to.equal(router.address);
+      expect(await router.recoveryActiveAt()).to.equal(recoveryActiveAt);
     });
 
     it('recovery manager can make local calls', async () => {
