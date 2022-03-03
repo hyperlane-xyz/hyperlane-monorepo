@@ -307,10 +307,10 @@ where
 
                 // If messages found, check that list is valid
                 let last_leaf_index: OptLatestLeafIndex = db.retrieve_latest_leaf_index()?.into();
-                match &last_leaf_index.valid_continuation(&sorted_messages) {
+                match &last_leaf_index.valid_continuation(sorted_messages.as_slice()) {
                     ListValidity::Valid => {
                         // Store messages
-                        let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
+                        let max_leaf_index_of_batch = db.store_messages(sorted_messages.as_slice())?;
 
                         // Report amount of messages stored into db
                         stored_messages.add(sorted_messages.len().try_into()?);

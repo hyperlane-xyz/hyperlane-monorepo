@@ -8,9 +8,10 @@ use crate::{
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::{core::types::H256, utils::keccak256};
+use serde::{Deserialize, Serialize};
 
 /// A Stamped message that has been committed at some leaf index
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct RawCommittedMessage {
     /// The index at which the message is committed
     pub leaf_index: u32,
@@ -100,6 +101,23 @@ impl TryFrom<RawCommittedMessage> for CommittedMessage {
             message: AbacusMessage::read_from(&mut &raw.message[..])?,
         })
     }
+}
+
+/// Metadata for a committed message
+#[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CommittedMessageMeta {
+    /// Timestamp of the block the committed message is in
+    pub timestamp: u64,
+}
+
+/// A committed message with its corresponding metadata
+// #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CommittedMessageWithMeta {
+    /// Committed message
+    pub committed_message: RawCommittedMessage,
+    /// Metadata
+    pub metadata: CommittedMessageMeta,
 }
 
 /// Interface for the Home chain contract. Allows abstraction over different
