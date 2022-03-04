@@ -366,7 +366,8 @@ mod test {
     use ethers::signers::LocalWallet;
 
     use abacus_core::{
-        AbacusMessage, CommittedMessageMeta, Encode, RawCommittedMessage, RawCommittedMessageWithMeta, SignedUpdateWithMeta, Update, UpdateMeta,
+        AbacusMessage, CommittedMessageMeta, Encode, RawCommittedMessage,
+        RawCommittedMessageWithMeta, SignedUpdateWithMeta, Update, UpdateMeta,
     };
     use abacus_test::test_utils;
 
