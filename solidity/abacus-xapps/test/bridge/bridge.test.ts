@@ -43,7 +43,7 @@ describe('BridgeRouter', async () => {
     // local router.
     await abacusDeployment
       .connectionManager(localDomain)
-      .enrollInbox(deployerAddress, remoteDomain);
+      .enrollInbox(remoteDomain, deployerAddress);
   });
 
   beforeEach(async () => {

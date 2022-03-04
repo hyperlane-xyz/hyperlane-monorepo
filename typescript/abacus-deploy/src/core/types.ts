@@ -1,4 +1,4 @@
-import { ethers, BigNumberish } from 'ethers';
+import { BigNumberish } from 'ethers';
 import { Address, ProxiedAddress } from '../types';
 
 export type CoreContractAddresses = {

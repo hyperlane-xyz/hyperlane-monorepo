@@ -1,11 +1,11 @@
-import { ethers } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
+// TODO(asa): Shouldn't need to import from abacus-sol/test
 import {
   types,
   utils,
   core,
-  AbacusDeployment,
 } from '@abacus-network/abacus-sol/test';
 import {
   formatSetGovernor,
@@ -33,7 +33,7 @@ describe('GovernanceRouter', async () => {
     router: GovernanceRouter,
     remote: GovernanceRouter,
     testSet: TestSet,
-    abacus: AbacusDeployment,
+    abc: any,
     governance: GovernanceDeployment;
 
   before(async () => {
@@ -41,12 +41,12 @@ describe('GovernanceRouter', async () => {
 
     const testSetFactory = new TestSet__factory(governor);
     testSet = await testSetFactory.deploy();
-    abacus = await AbacusDeployment.fromDomains(domains, governor);
+    abc = await abacus.deploy(domains, governor);
   });
 
   beforeEach(async () => {
     governance = await GovernanceDeployment.fromAbacusDeployment(
-      abacus,
+      abc,
       governor,
       recoveryManager,
     );
@@ -73,7 +73,7 @@ describe('GovernanceRouter', async () => {
       message,
     );
 
-    const inbox = abacus.inbox(localDomain, remoteDomain);
+    const inbox = abc.inbox(localDomain, remoteDomain);
     await inbox.setMessageProven(fakeMessage);
     // Expect inbox processing to fail when reverting in handle
     await inbox.testProcess(fakeMessage);
@@ -103,7 +103,7 @@ describe('GovernanceRouter', async () => {
       message,
     );
 
-    const inbox = abacus.inbox(localDomain, remoteDomain);
+    const inbox = abc.inbox(localDomain, remoteDomain);
     await inbox.setMessageProven(fakeMessage);
     // Expect inbox processing to fail when reverting in handle
     let success = await inbox.callStatic.testProcess(fakeMessage);
@@ -137,7 +137,7 @@ describe('GovernanceRouter', async () => {
 
     it('governor can set local xAppConnectionManager', async () => {
       expect(await router.xAppConnectionManager()).to.equal(
-        abacus.connectionManager(localDomain).address,
+        abc.connectionManager(localDomain).address,
       );
       await router.setXAppConnectionManager(ethers.constants.AddressZero);
       expect(await router.xAppConnectionManager()).to.equal(
@@ -158,7 +158,7 @@ describe('GovernanceRouter', async () => {
       const value = 13;
       const call = await formatCall(testSet, 'set', [value]);
       await router.callRemote(domains[1], [call]);
-      await abacus.processMessages();
+      await abc.processMessages();
       expect(await testSet.get()).to.equal(value);
     });
 
@@ -166,7 +166,7 @@ describe('GovernanceRouter', async () => {
       const newGovernor = governor.address;
       expect(await remote.governor()).to.not.equal(newGovernor);
       await router.setGovernorRemote(remoteDomain, newGovernor);
-      await abacus.processMessages();
+      await abc.processMessages();
       expect(await remote.governor()).to.equal(newGovernor);
     });
 
@@ -179,7 +179,7 @@ describe('GovernanceRouter', async () => {
         remoteDomain,
         newConnectionManager,
       );
-      await abacus.processMessages();
+      await abc.processMessages();
       expect(await remote.xAppConnectionManager()).to.equal(
         newConnectionManager,
       );
@@ -195,7 +195,7 @@ describe('GovernanceRouter', async () => {
         testDomain,
         newRouter,
       );
-      await abacus.processMessages();
+      await abc.processMessages();
       expect(await remote.routers(testDomain)).to.equal(newRouter);
     });
 
@@ -336,7 +336,7 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager can set local xAppConnectionManager', async () => {
       expect(await router.xAppConnectionManager()).to.equal(
-        abacus.connectionManager(localDomain).address,
+        abc.connectionManager(localDomain).address,
       );
       await router.setXAppConnectionManager(ethers.constants.AddressZero);
       expect(await router.xAppConnectionManager()).to.equal(

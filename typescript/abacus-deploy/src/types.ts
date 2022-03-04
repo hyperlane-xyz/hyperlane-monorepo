@@ -1,4 +1,4 @@
-import { ethers, BigNumberish } from 'ethers';
+import { ethers } from 'ethers';
 
 export type ChainConfig = {
   name: string;
