@@ -1,9 +1,8 @@
-import { BytesLike, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { core } from '@abacus-network/ts-interface';
-import { Deploy } from '../deploy';
-import { CoreDeploy } from '../core/CoreDeploy';
-import { ProxiedAddress } from '../config/addresses';
+import { Address, ChainConfig, ProxiedAddress } from './types';
+import { ContractDeployer } from './deployer';
 
 export class BeaconProxy<T extends ethers.Contract> {
   constructor(
@@ -18,11 +17,13 @@ export class BeaconProxy<T extends ethers.Contract> {
    *
    * @param T - The contract
    */
-  static async deploy<T extends ethers.Contract>(chain: ChainConfig, factory: ethers.ContractFactory, deployArgs: any[], initArgs: any[]): Promise<BeaconProxy<T>> {
+  static async deploy<T extends ethers.Contract>(chain: ChainConfig, factory: ethers.ContractFactory, ubcAddress: Address, deployArgs: any[], initArgs: any[]): Promise<BeaconProxy<T>> {
     const deployer = new ContractDeployer(chain, false);
-    const implementation = await deployer.deploy(factory, ...deployArgs)
-    const beacon = await deployer.deploy(core.UpgradeBeacon__factory, ubcAddress)
-    const proxy = await deployer.deploy(core.UpgradeBeaconProxy__factory, beacon.address, ...initArgs)
+    const implementation: T = await deployer.deploy(factory, ...deployArgs)
+    const beacon: core.UpgradeBeacon = await deployer.deploy(new core.UpgradeBeacon__factory(chain.signer), implementation.address, ubcAddress)
+
+    const initData = implementation.interface.encodeFunctionData('initialize', initArgs);
+    const proxy: core.UpgradeBeaconProxy = await deployer.deploy(new core.UpgradeBeaconProxy__factory(chain.signer), beacon.address, initData)
     // proxy wait(x) implies implementation and beacon wait(>=x)
     // due to nonce ordering
     await proxy.deployTransaction.wait(chain.confirmations);
@@ -39,17 +40,18 @@ export class BeaconProxy<T extends ethers.Contract> {
    * @param T - The contract
    */
   async duplicate(chain: ChainConfig, initArgs: any[]): Promise<BeaconProxy<T>> {
-    const deployer = new ContractDeployer(chain, true);
-    const proxy = await deployer.deploy(core.UpgradeBeaconProxy__factory, this.beacon.address, ...initArgs)
+    const deployer = new ContractDeployer(chain);
+    const initData = this.implementation.interface.encodeFunctionData('initialize', initArgs);
+    const proxy = await deployer.deploy(new core.UpgradeBeaconProxy__factory(chain.signer), this.beacon.address, initData)
 
     return new BeaconProxy(
       this.implementation,
-      prev.proxy.attach(proxy.address) as T,
+      this.proxy.attach(proxy.address) as T,
       this.beacon,
     );
   }
 
-  get address(): types.Address {
+  get address(): Address {
     return this.proxy.address;
   }
 

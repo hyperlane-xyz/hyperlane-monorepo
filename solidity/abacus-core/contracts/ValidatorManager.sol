@@ -60,7 +60,7 @@ contract ValidatorManager is IValidatorManager, Ownable {
         onlyOwner
     {
         validators[_domain] = _validator;
-        emit NewValidator(_domain, _validator);
+        emit ValidatorEnrolled(_domain, _validator);
     }
 
     /**

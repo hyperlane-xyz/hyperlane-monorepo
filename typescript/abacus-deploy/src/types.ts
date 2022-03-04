@@ -1,16 +1,16 @@
-import { BigNumberish } from 'ethers';
-import { ChainName } from './chain';
-import { DeployEnvironment } from '../deploy';
+import { ethers, BigNumberish } from 'ethers';
 
 export type ChainConfig {
   name: string;
   domain: number;
   signer: ethers.Signer,
-  overrides?: ethers.Overrides,
+  overrides: ethers.Overrides;
+  supports1559?: boolean;
   confirmations?: number;
 };
 
-type Address = string;
+export type Address = string;
+export type Domain = number;
 
 export type ProxiedAddress = {
   proxy: Address;
@@ -18,17 +18,3 @@ export type ProxiedAddress = {
   beacon: Address;
 };
 
-export type CoreContractAddresses = {
-  upgradeBeaconController: Address;
-  xAppConnectionManager: Address;
-  validatorManager: Address;
-  governanceRouter: ProxiedAddress;
-  outbox: ProxiedAddress;
-  inboxes: Record<number, ProxiedAddress>;
-};
-
-export type CoreConfig = {
-  processGas: BigNumberish;
-  reserveGas: BigNumberish;
-  validators: Record<number, Address>;
-}

@@ -1,16 +1,12 @@
+import fs from 'fs';
 import { core } from '@abacus-network/ts-interface';
-import { BeaconProxy } from '../utils/proxy';
+import { BeaconProxy } from '../proxy';
 import { Contracts } from '../contracts';
-import { CoreContractAddresses, ProxiedAddress} from '../types'
+import { ProxiedAddress} from '../types'
+import { CoreContractAddresses } from './types'
 import { ethers } from 'ethers';
 
 export class CoreContracts extends Contracts<CoreContractAddresses> {
-  upgradeBeaconController: core.UpgradeBeaconController;
-  xAppConnectionManager: core.XAppConnectionManager;
-  validatorManager: core.ValidatorManager;
-  outbox: BeaconProxy<core.Outbox>;
-  inboxes: Record<number, BeaconProxy<core.Inbox>>;
-
   constructor(
     public readonly upgradeBeaconController: core.UpgradeBeaconController,
     public readonly xAppConnectionManager: core.XAppConnectionManager,
@@ -33,10 +29,16 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
       upgradeBeaconController: this.upgradeBeaconController.address,
       xAppConnectionManager: this.xAppConnectionManager.address,
       validatorManager: this.validatorManager.address,
-      governanceRouter: this.governanceRouter.toObject(),
       outbox: this.outbox.toObject(),
       inboxes,
     };
+  }
+
+  // TODO(asa): Can this be added to Contracts instead?
+  static fromJson(filepath: string, provider: ethers.providers.JsonRpcProvider): CoreContracts {
+    const contents = fs.readFileSync(filepath, 'utf8');
+    const addresses: CoreContractAddresses = JSON.parse(contents);
+    return CoreContracts.fromObject(addresses, provider);
   }
 
   static fromObject(

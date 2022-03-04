@@ -1,47 +1,44 @@
 import { core } from '@abacus-network/ts-interface';
-import { CoreConfig, ChainConfig } from '../types';
+import { Domain, ChainConfig } from '../types';
+import { CoreConfig } from './types';
 import { CoreContracts } from './CoreContracts';
+import { ContractDeployer } from '../deployer';
+import { BeaconProxy } from '../proxy';
 import { Instance } from '../instance';
+import { ethers } from 'ethers';
 
-export class CoreInstance extends Instance<CoreContracts> {
-  config: CoreConfig;
+export class CoreInstance extends Instance<CoreContracts>{
 
-  constructor(
-    public readonly chain: ChainConfig,
-    public readonly contracts: T,
-    public readonly config: CoreConfig,
-  ) {
-    super(chain, contracts);
-  }
-
-  static async deploy(chain: ChainConfig, domains: types.Domain[], config: CoreConfig): Promise<CoreInstance> {
+  static async deploy(domains: Domain[], chain: ChainConfig, config: CoreConfig): Promise<CoreInstance> {
     const deployer = new ContractDeployer(chain)
 
-    const upgradeBeaconController = await deployer.deploy(core.UpgradeBeaconController__factory)
+    const upgradeBeaconController: core.UpgradeBeaconController = await deployer.deploy(new core.UpgradeBeaconController__factory(chain.signer))
 
-    const validatorManager = await deployer.deploy(core.ValidatorManager__factory)
-    await validatorManager.setValidator(chain.domain, config.validators[chain.domain], chain.overrides);
+    const validatorManager: core.ValidatorManager = await deployer.deploy(new core.ValidatorManager__factory(chain.signer))
+    await validatorManager.enrollValidator(chain.domain, config.validators[chain.domain], chain.overrides);
 
-    const outbox = await BeaconProxy.deploy(chain, core.Outbox__factory, [chain.domain], [validatorManager.address]) 
+    const outbox: BeaconProxy<core.Outbox> = await BeaconProxy.deploy(chain, new core.Outbox__factory(chain.signer), upgradeBeaconController.address, [chain.domain], [validatorManager.address]) 
 
-    const xAppConnectionManager = await deployer.deploy(core.XAppConnectionManager__factory)
+    const xAppConnectionManager: core.XAppConnectionManager = await deployer.deploy(new core.XAppConnectionManager__factory(chain.signer))
     await xAppConnectionManager.setOutbox(outbox.address, chain.overrides);
 
-    const inboxes: Record<types.Domain, BeaconProxy<core.Inbox>> = {}
+    const inboxes: Record<Domain, BeaconProxy<core.Inbox>> = {}
     const remotes = domains.filter((d) => d !== chain.domain)
-    const initArgs = [remote, validatorManager.address, nullRoot, 0];
     for (let i = 0; i < remotes.length; i++) {
       const remote = remotes[i];
+      const initArgs = [remote, validatorManager.address, ethers.constants.HashZero, 0];
       if (i === 0) {
-        inboxes[remote] = await BeaconProxy.deploy(chain, core.Inbox__factory, [chain.domain, config.processGas, config.reserveGas], initArgs)
+        inboxes[remote] = await BeaconProxy.deploy(chain, new core.Inbox__factory(chain.signer), upgradeBeaconController.address, [chain.domain, config.processGas, config.reserveGas], initArgs)
       } else {
         const inbox = inboxes[remotes[0]];
-        inboxes[remote] = inbox.duplicate(initArgs)
+        inboxes[remote] = await inbox.duplicate(chain, initArgs)
       }
 
       await xAppConnectionManager.enrollInbox(remote, inboxes[remote].address, chain.overrides)
       await validatorManager.enrollValidator(remote, config.validators[remote], chain.overrides)
     }
+    const contracts = new CoreContracts(upgradeBeaconController, xAppConnectionManager, validatorManager, outbox, inboxes)
+    return new CoreInstance(chain, contracts)
   }
 
   get upgradeBeaconController(): core.UpgradeBeaconController {
@@ -52,12 +49,12 @@ export class CoreInstance extends Instance<CoreContracts> {
     return this.contracts.validatorManager;
   }
 
-  get outbox(): core.Outbox {
+  get outbox(): BeaconProxy<core.Outbox> {
     return this.contracts.outbox;
   }
 
-  get inbox(domain: types.Domain): core.Inbox {
-    return this.contracts.inboxes(domain);
+  inbox(domain: Domain): BeaconProxy<core.Inbox> {
+    return this.contracts.inboxes[domain];
   }
 
   get xAppConnectionManager(): core.XAppConnectionManager {

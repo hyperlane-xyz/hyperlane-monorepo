@@ -1,41 +1,36 @@
-import { ethers } from 'ethers';
 import { ChainConfig } from './types';
-import { Contracts } from './contracts';
+import { ethers } from 'ethers';
 
-export abstract class Instance<T extends Contracts> {
+// TODO(asa): Can T extend Contracts?
+export abstract class Instance <T> {
   constructor(
     public readonly chain: ChainConfig,
     public readonly contracts: T,
   ) {
   }
 
-  abstract static async deploy(chain: ChainConfig, domains: types.Domain[], config: any): Promise<Instance<T>>;
-
-  get signer(): ethers.Signer {
-    return this.chain.signer;
-  }
-
-  get provider(): ethers.providers.JsonRpcProvider {
-    return this.chain.provider;
-  }
-
-  async ready(): Promise<ethers.providers.Network> {
-    return await this.provider.ready;
-  }
-}
-
-export class ContractDeployer {
-  constructor(
-    public readonly chain: ChainConfig,
-    public readonly wait = true;
-  ) {}
-
-  async deploy(factory: typeof ethers.ContractFactory, ...args: any[]): Promise<ethers.Contract> {
-    const _factory = new factory(this.chain.signer)
-    const contract = await _factory.deploy(...args, this.chain.overrides);
-    if (this.wait) {
-      await contract.deployTransaction.wait(this.chain.confirmations);
+  // this is currently a kludge to account for ethers issues
+  get overrides(): ethers.Overrides {
+    let overrides: ethers.Overrides = {};
+    if (this.chain.overrides === undefined) {
+      return overrides;
     }
-    return contract
+
+    if (this.chain.supports1559) {
+      overrides = {
+        maxFeePerGas: this.chain.overrides.maxFeePerGas,
+        maxPriorityFeePerGas: this.chain.overrides.maxPriorityFeePerGas,
+        gasLimit: this.chain.overrides.gasLimit,
+      };
+    } else {
+      overrides = {
+        type: 0,
+        gasPrice: this.chain.overrides.gasPrice,
+        gasLimit: this.chain.overrides.gasLimit,
+      };
+    }
+
+    return overrides;
   }
 
+}
