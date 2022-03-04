@@ -1,8 +1,7 @@
 import { ethers } from 'ethers';
-import { utils } from '@abacus-network/abacus-sol/test';
-import { types } from '@abacus-network/abacus-deploy';
+import { types, utils } from '@abacus-network/utils';
+import { types as deployTypes } from '@abacus-network/abacus-deploy';
 import { RouterDeploy } from '@abacus-network/abacus-deploy/src/router/RouterDeploy';
-import { types as testTypes } from '@abacus-network/abacus-sol/test';
 
 import {
   GovernanceRouter__factory,
@@ -10,20 +9,19 @@ import {
 } from '../../../typechain';
 
 export type GovernanceConfig = {
-  signer: testTypes.Signer;
+  signer: ethers.Signer
   timelock: number;
-  connectionManager: Record<number, types.Address>;
-  governors: Record<number, types.Address>;
-  recoveryManagers: Record<number, types.Address>;
+  connectionManager: Record<types.Domain, types.Address>;
+  governors: Record<types.Domain, types.Address>;
+  recoveryManagers: Record<types.Domain, types.Address>;
 };
 
-// TODO(asa): Try to implement this using what I can import from abacus-network/hardhat
 export class GovernanceDeploy extends RouterDeploy<
   GovernanceRouter,
   GovernanceConfig
 > {
   async deployInstance(
-    chain: types.ChainConfig,
+    chain: deployTypes.ChainConfig,
     config: GovernanceConfig,
   ): Promise<GovernanceRouter> {
     const routerFactory = new GovernanceRouter__factory(config.signer);

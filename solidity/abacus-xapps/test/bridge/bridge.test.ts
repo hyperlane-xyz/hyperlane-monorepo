@@ -1,8 +1,9 @@
 import { expect } from 'chai';
 import { ethers, abacus } from 'hardhat';
 import { BigNumber, BytesLike } from 'ethers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
-import { utils, types as core } from '@abacus-network/abacus-sol/test';
+import { utils } from '@abacus-network/utils';
 import * as types from './lib/types';
 import { serializeMessage } from './lib/utils';
 import { BridgeConfig, BridgeDeploy } from './lib/BridgeDeploy';
@@ -19,8 +20,7 @@ const testTokenId = {
 
 describe('BridgeRouter', async () => {
   let bridge: BridgeDeploy;
-  let deployer: core.Signer;
-  let deployerAddress: string;
+  let deployer: SignerWithAddress;
   let deployerId: BytesLike;
 
   const PROTOCOL_PROCESS_GAS = 800_000;
@@ -31,14 +31,13 @@ describe('BridgeRouter', async () => {
   before(async () => {
     // populate deployer signer
     [deployer] = await ethers.getSigners();
-    deployerAddress = await deployer.getAddress();
-    deployerId = utils.toBytes32(await deployer.getAddress()).toLowerCase();
+    deployerId = utils.addressToBytes32(deployer.address)
     await abacus.init(domains, deployer);
     // Enroll ourselves as a inbox so we can send messages directly to the
     // local router.
     await abacus
       .xAppConnectionManager(localDomain)
-      .enrollInbox(remoteDomain, deployerAddress);
+      .enrollInbox(remoteDomain, deployer.address);
   });
 
   beforeEach(async () => {
@@ -186,13 +185,13 @@ describe('BridgeRouter', async () => {
       beforeEach(async () => {
         localToken = await new BridgeToken__factory(deployer).deploy();
         await localToken.initialize();
-        await localToken.mint(deployerAddress, TOKEN_VALUE);
+        await localToken.mint(deployer.address, TOKEN_VALUE);
 
         // generate protocol messages
         const transferMessageObj: types.Message = {
           tokenId: {
             domain: localDomain,
-            id: utils.toBytes32(localToken.address),
+            id: utils.addressToBytes32(localToken.address),
           },
           action: {
             type: types.BridgeMessageTypes.TRANSFER,
@@ -202,7 +201,7 @@ describe('BridgeRouter', async () => {
         };
         transferMessage = serializeMessage(transferMessageObj);
 
-        expect(await localToken.balanceOf(deployerAddress)).to.equal(
+        expect(await localToken.balanceOf(deployer.address)).to.equal(
           BigNumber.from(TOKEN_VALUE),
         );
         expect(
@@ -284,7 +283,7 @@ describe('BridgeRouter', async () => {
           await localToken.balanceOf(bridge.router(localDomain).address),
         ).to.equal(BigNumber.from(0));
 
-        expect(await localToken.balanceOf(deployerAddress)).to.equal(
+        expect(await localToken.balanceOf(deployer.address)).to.equal(
           BigNumber.from(TOKEN_VALUE),
         );
       });
@@ -319,7 +318,7 @@ describe('BridgeRouter', async () => {
       beforeEach(async () => {
         // generate actions
         recipient = `0x${'00'.repeat(19)}ff`;
-        recipientId = utils.toBytes32(recipient);
+        recipientId = utils.addressToBytes32(recipient);
 
         // transfer message
         const transferMessageObj: types.Message = {
@@ -357,7 +356,7 @@ describe('BridgeRouter', async () => {
 
         repr = await bridge.bridgeToken(localDomain, remoteDomain, testToken);
 
-        expect(await repr.balanceOf(deployerAddress)).to.equal(
+        expect(await repr.balanceOf(deployer.address)).to.equal(
           BigNumber.from(TOKEN_VALUE),
         );
         await repr.approve(
@@ -373,7 +372,7 @@ describe('BridgeRouter', async () => {
         await expect(prefillTx)
           .to.emit(repr, 'Transfer')
           .withArgs(
-            deployerAddress,
+            deployer.address,
             recipient,
             BigNumber.from(TOKEN_VALUE).mul(9995).div(10000),
           );
@@ -388,7 +387,7 @@ describe('BridgeRouter', async () => {
           });
         await expect(deliver)
           .to.emit(repr, 'Transfer')
-          .withArgs(ethers.constants.AddressZero, deployerAddress, TOKEN_VALUE);
+          .withArgs(ethers.constants.AddressZero, deployer.address, TOKEN_VALUE);
       });
     });
 
@@ -401,14 +400,14 @@ describe('BridgeRouter', async () => {
       beforeEach(async () => {
         localToken = await new BridgeToken__factory(deployer).deploy();
         await localToken.initialize();
-        await localToken.mint(deployerAddress, TOKEN_VALUE);
+        await localToken.mint(deployer.address, TOKEN_VALUE);
         await localToken.mint(bridge.router(localDomain).address, TOKEN_VALUE);
         await localToken.approve(
           bridge.router(localDomain).address,
           ethers.constants.MaxUint256,
         );
 
-        expect(await localToken.balanceOf(deployerAddress)).to.equal(
+        expect(await localToken.balanceOf(deployer.address)).to.equal(
           BigNumber.from(TOKEN_VALUE),
         );
         expect(
@@ -417,12 +416,12 @@ describe('BridgeRouter', async () => {
 
         // generate transfer action
         recipient = `0x${'00'.repeat(19)}ff`;
-        recipientId = utils.toBytes32(recipient);
+        recipientId = utils.addressToBytes32(recipient);
 
         const transferMessageObj: types.Message = {
           tokenId: {
             domain: localDomain,
-            id: utils.toBytes32(localToken.address),
+            id: utils.addressToBytes32(localToken.address),
           },
           action: {
             type: types.BridgeMessageTypes.TRANSFER,
@@ -440,7 +439,7 @@ describe('BridgeRouter', async () => {
         await expect(prefillTx)
           .to.emit(localToken, 'Transfer')
           .withArgs(
-            deployerAddress,
+            deployer.address,
             recipient,
             BigNumber.from(TOKEN_VALUE).mul(9995).div(10000),
           );
@@ -457,7 +456,7 @@ describe('BridgeRouter', async () => {
           .to.emit(localToken, 'Transfer')
           .withArgs(
             bridge.router(localDomain).address,
-            deployerAddress,
+            deployer.address,
             TOKEN_VALUE,
           );
       });
@@ -484,7 +483,7 @@ describe('BridgeRouter', async () => {
       const requestMessageObj: types.Message = {
         tokenId: {
           domain: localDomain,
-          id: utils.toBytes32(localToken.address),
+          id: utils.addressToBytes32(localToken.address),
         },
         action: {
           type: types.BridgeMessageTypes.REQUEST_DETAILS,
@@ -495,7 +494,7 @@ describe('BridgeRouter', async () => {
       const outgoingDetailsObj: types.Message = {
         tokenId: {
           domain: localDomain,
-          id: utils.toBytes32(localToken.address),
+          id: utils.addressToBytes32(localToken.address),
         },
         action: {
           type: types.BridgeMessageTypes.DETAILS,
@@ -564,7 +563,7 @@ describe('BridgeRouter', async () => {
       const badRequestObj: types.Message = {
         tokenId: {
           domain: localDomain,
-          id: utils.toBytes32(repr.address),
+          id: utils.addressToBytes32(repr.address),
         },
         action: {
           type: types.BridgeMessageTypes.REQUEST_DETAILS,
@@ -583,7 +582,7 @@ describe('BridgeRouter', async () => {
       const badRequestObj: types.Message = {
         tokenId: {
           domain: localDomain,
-          id: utils.toBytes32(localToken.address),
+          id: utils.addressToBytes32(localToken.address),
         },
         action: {
           type: types.BridgeMessageTypes.REQUEST_DETAILS,
@@ -642,14 +641,14 @@ describe('BridgeRouter', async () => {
         remoteDomain,
         testToken,
       );
-      expect(await defaultRepr.balanceOf(deployerAddress)).to.equal(
+      expect(await defaultRepr.balanceOf(deployer.address)).to.equal(
         BigNumber.from(VALUE),
       );
 
       // setup custom
       customRepr = await new BridgeToken__factory(deployer).deploy();
       await customRepr.initialize();
-      expect(await customRepr.balanceOf(deployerAddress)).to.equal(
+      expect(await customRepr.balanceOf(deployer.address)).to.equal(
         BigNumber.from(0),
       );
     });
@@ -706,7 +705,7 @@ describe('BridgeRouter', async () => {
       describe('when bridging a custom token', () => {
         let defaultBalance: BigNumber;
         beforeEach(async () => {
-          defaultBalance = await defaultRepr.balanceOf(deployerAddress);
+          defaultBalance = await defaultRepr.balanceOf(deployer.address);
           // first send in a transfer to create the repr
           await bridge
             .router(localDomain)
@@ -715,11 +714,11 @@ describe('BridgeRouter', async () => {
 
         it('mints incoming tokens in the custom repr', async () => {
           // did not mint default
-          expect(await defaultRepr.balanceOf(deployerAddress)).to.equal(
+          expect(await defaultRepr.balanceOf(deployer.address)).to.equal(
             defaultBalance,
           );
           // did mint custom
-          expect(await customRepr.balanceOf(deployerAddress)).to.equal(
+          expect(await customRepr.balanceOf(deployer.address)).to.equal(
             BigNumber.from(VALUE),
           );
         });
@@ -754,8 +753,8 @@ describe('BridgeRouter', async () => {
           });
 
           it('allows users to migrate', async () => {
-            const defaultBalance = await defaultRepr.balanceOf(deployerAddress);
-            const customBalance = await customRepr.balanceOf(deployerAddress);
+            const defaultBalance = await defaultRepr.balanceOf(deployer.address);
+            const customBalance = await customRepr.balanceOf(deployer.address);
 
             let migrateTx = bridge
               .router(localDomain)
@@ -763,10 +762,10 @@ describe('BridgeRouter', async () => {
 
             await expect(migrateTx).to.not.be.reverted;
 
-            expect(await defaultRepr.balanceOf(deployerAddress)).to.equal(
+            expect(await defaultRepr.balanceOf(deployer.address)).to.equal(
               ethers.constants.Zero,
             );
-            expect(await customRepr.balanceOf(deployerAddress)).to.equal(
+            expect(await customRepr.balanceOf(deployer.address)).to.equal(
               defaultBalance.add(customBalance),
             );
           });

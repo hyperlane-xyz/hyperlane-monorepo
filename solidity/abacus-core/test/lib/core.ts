@@ -20,10 +20,7 @@ export class Validator {
     this.address = address;
   }
 
-  static async fromSigner(
-    signer: ethers.Signer,
-    localDomain: types.Domain,
-  ) {
+  static async fromSigner(signer: ethers.Signer, localDomain: types.Domain) {
     return new Validator(signer, await signer.getAddress(), localDomain, true);
   }
 

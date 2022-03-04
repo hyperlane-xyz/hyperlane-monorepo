@@ -1,7 +1,8 @@
 import { ethers } from 'ethers';
-import { types } from '@abacus-network/abacus-deploy';
+import { types } from '@abacus-network/utils';
+import { types as deployTypes } from '@abacus-network/abacus-deploy';
 import { RouterDeploy } from '@abacus-network/abacus-deploy/src/router/RouterDeploy';
-import { types as testTypes } from '@abacus-network/abacus-sol/test';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import {
   MockWeth__factory,
@@ -19,8 +20,8 @@ import {
 } from '@abacus-network/abacus-sol/typechain';
 
 export type BridgeConfig = {
-  signer: testTypes.Signer;
-  connectionManager: Record<number, types.Address>;
+  signer: SignerWithAddress;
+  connectionManager: Record<types.Domain, types.Address>;
 };
 
 export interface BridgeInstance {
@@ -33,7 +34,7 @@ export interface BridgeInstance {
 
 export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
   async deployInstance(
-    chain: types.ChainConfig,
+    chain: deployTypes.ChainConfig,
     config: BridgeConfig,
   ): Promise<BridgeInstance> {
     const wethFactory = new MockWeth__factory(chain.signer);

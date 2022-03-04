@@ -1,11 +1,12 @@
 import { ethers, abacus } from 'hardhat';
 import { BytesLike } from 'ethers';
 import { expect } from 'chai';
+import { utils } from '@abacus-network/utils'
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import * as types from './lib/types';
 import { serializeMessage } from './lib/utils';
 import { BridgeConfig, BridgeDeploy } from './lib/BridgeDeploy';
-import { types as testTypes, utils } from '@abacus-network/abacus-sol/test';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
@@ -14,12 +15,10 @@ const domains = [localDomain, remoteDomain];
 describe('EthHelper', async () => {
   let bridge: BridgeDeploy;
 
-  let deployer: testTypes.Signer;
-  let deployerAddress: string;
+  let deployer: SignerWithAddress;
   let deployerId: string;
 
-  let recipient: testTypes.Signer;
-  let recipientAddress: string;
+  let recipient: SignerWithAddress;
   let recipientId: string;
 
   let transferToSelfMessage: BytesLike;
@@ -29,10 +28,8 @@ describe('EthHelper', async () => {
 
   before(async () => {
     [deployer, recipient] = await ethers.getSigners();
-    deployerAddress = await deployer.getAddress();
-    deployerId = utils.toBytes32(deployerAddress).toLowerCase();
-    recipientAddress = await recipient.getAddress();
-    recipientId = utils.toBytes32(recipientAddress).toLowerCase();
+    deployerId = utils.addressToBytes32(deployer.address);
+    recipientId = utils.addressToBytes32(recipient.address);
     await abacus.init(domains, deployer);
     const config: BridgeConfig = {
       signer: deployer,
@@ -47,7 +44,7 @@ describe('EthHelper', async () => {
 
     const tokenId: types.TokenIdentifier = {
       domain: localDomain,
-      id: utils.toBytes32(bridge.weth(localDomain).address),
+      id: utils.addressToBytes32(bridge.weth(localDomain).address),
     };
     const transferToSelfMessageObj: types.Message = {
       tokenId,
@@ -71,7 +68,6 @@ describe('EthHelper', async () => {
   });
 
   it('send function', async () => {
-    console.log(await bridge.helper(localDomain).bridge(), bridge.router(localDomain).address, await bridge.router(remoteDomain).routers(localDomain));
     let sendTx = bridge.helper(localDomain).send(remoteDomain, {
       value,
     });
@@ -90,7 +86,7 @@ describe('EthHelper', async () => {
   it('sendToEVMLike function', async () => {
     let sendTx = bridge
       .helper(localDomain)
-      .sendToEVMLike(remoteDomain, recipientAddress, {
+      .sendToEVMLike(remoteDomain, recipient.address, {
         value,
       });
 
