@@ -1,22 +1,14 @@
 import { ethers} from 'ethers';
+import { core as contracts } from '@abacus-network/ts-interface'
 import { core, types } from '@abacus-network/abacus-deploy'
-import "hardhat/types/runtime";
+import { core as test } from '@abacus-network/abacus-sol/test'
 
-declare module 'hardhat/types/runtime' {
-  interface HardhatRuntimeEnvironment {
-    abacus: HardhatAbacusHelpers;
-  }
-}
-
-export interface HardhatAbacusHelpers {
-  deploy: (domains: types.Domain[], signer: ethers.Signer) => Promise<TestAbacusDeploy>;
-}
-
+// Hack to get TestInbox is to overload the inbox function
 export class TestAbacusDeploy extends core.CoreDeploy {
   static async deploy(
     chains: Record<number, types.ChainConfig>,
     config: core.types.CoreConfig,
-  ): Promise<core.TestAbacusDeploy> {
+  ): Promise<TestAbacusDeploy> {
     const domains = Object.keys(chains).map((d) => parseInt(d));
     const instances: Record<number, core.CoreInstance> = {};
     for (const domain of domains) {
@@ -24,10 +16,15 @@ export class TestAbacusDeploy extends core.CoreDeploy {
         domains,
         chains[domain],
         config,
+        true
       );
     }
-    const deploy = new TestAbacusDeploy(instances);
+    const deploy = new TestAbacusDeploy(instances, chains);
     return deploy;
+  }
+
+  inbox(local: types.Domain, remote: types.Domain): contracts.TestInbox {
+    return this.instances[local].inbox(remote).proxy as contracts.TestInbox;
   }
 
   async processMessages() {
@@ -49,8 +46,8 @@ export class TestAbacusDeploy extends core.CoreDeploy {
     if (!(checkpoints.length === 0 || checkpoints.length === 1)) throw new Error('found multiple checkpoints');
     const fromBlock = checkpoints.length === 0 ? 0 : checkpoints[0].blockNumber;
 
-    /*
     await outbox.checkpoint();
+    const [root, index] = await outbox.latestCheckpoint();
     // If there have been no checkpoints since the last checkpoint, return.
     if (
       index.eq(0) ||
@@ -61,8 +58,7 @@ export class TestAbacusDeploy extends core.CoreDeploy {
     // Update the Outbox and Inboxs to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
-    const [root, index] = await outbox.latestCheckpoint();
-    const validator = this.validator(local);
+    const validator = await test.Validator.fromSigner(this.signer(local), local)
     const { signature } = await validator.signCheckpoint(
       root,
       index.toNumber(),
@@ -74,7 +70,6 @@ export class TestAbacusDeploy extends core.CoreDeploy {
         await inbox.checkpoint(root, index, signature);
       }
     }
-    */
 
     // Find all messages dispatched on the outbox since the previous checkpoint.
     const dispatchFilter = outbox.filters.Dispatch();
@@ -90,7 +85,7 @@ export class TestAbacusDeploy extends core.CoreDeploy {
   }
 }
 
-async function deploy(domains: types.Domain[], signer: ethers.Signer) {
+export async function deploy(domains: types.Domain[], signer: ethers.Signer) {
   const chains: Record<number, types.ChainConfig> = {};
   const validators: Record<number, types.Address> = {};
   const overrides = {};
@@ -105,9 +100,3 @@ async function deploy(domains: types.Domain[], signer: ethers.Signer) {
   };
   return TestAbacusDeploy.deploy(chains, config);
 }
-
-
-export const abc: HardhatAbacusHelpers = {
-  deploy,
-};
-

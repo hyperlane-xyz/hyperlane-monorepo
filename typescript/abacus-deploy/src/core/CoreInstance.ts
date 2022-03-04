@@ -12,6 +12,7 @@ export class CoreInstance extends Instance<CoreContracts> {
     domains: Domain[],
     chain: ChainConfig,
     config: CoreConfig,
+    test: boolean = false,
   ): Promise<CoreInstance> {
     const deployer = new ContractDeployer(chain);
 
@@ -45,6 +46,7 @@ export class CoreInstance extends Instance<CoreContracts> {
 
     const inboxes: Record<Domain, BeaconProxy<core.Inbox>> = {};
     const remotes = domains.filter((d) => d !== chain.domain);
+    const inboxFactory = test ? core.TestInbox__factory : core.Inbox__factory
     for (let i = 0; i < remotes.length; i++) {
       const remote = remotes[i];
       const initArgs = [
@@ -56,7 +58,7 @@ export class CoreInstance extends Instance<CoreContracts> {
       if (i === 0) {
         inboxes[remote] = await BeaconProxy.deploy(
           chain,
-          new core.TestInbox__factory(chain.signer),
+          new inboxFactory(chain.signer),
           upgradeBeaconController.address,
           [chain.domain, config.processGas, config.reserveGas],
           initArgs,

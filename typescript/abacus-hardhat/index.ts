@@ -1,11 +1,18 @@
 import '@nomiclabs/hardhat-waffle';
 import { ethers} from 'ethers';
 import { extendEnvironment } from 'hardhat/config';
-import { abc } from './src/abacus';
+import { types } from '@abacus-network/abacus-deploy'
+import { deploy, TestAbacusDeploy } from './src/abacus'
 
-import { abacus, types } from '@abacus-network/abacus-deploy'
 import "hardhat/types/runtime";
 
+export interface HardhatAbacusHelpers {
+  deploy: (domains: types.Domain[], signer: ethers.Signer) => Promise<TestAbacusDeploy>;
+}
+
+const abacus: HardhatAbacusHelpers = {
+  deploy,
+};
 
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
@@ -13,11 +20,7 @@ declare module 'hardhat/types/runtime' {
   }
 }
 
-export interface HardhatAbacusHelpers {
-  deploy: (domains: types.Domain[], signer: ethers.Signer) => Promise<abacus.CoreDeploy>;
-}
-
 // HardhatRuntimeEnvironment
 extendEnvironment((hre) => {
-  hre.abacus = abc;
+  hre.abacus = abacus;
 });

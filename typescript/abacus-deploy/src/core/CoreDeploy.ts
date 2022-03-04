@@ -19,7 +19,7 @@ export class CoreDeploy extends Deploy<CoreInstance> {
         config,
       );
     }
-    const deploy = new CoreDeploy(instances);
+    const deploy = new CoreDeploy(instances, chains);
     return deploy;
   }
 

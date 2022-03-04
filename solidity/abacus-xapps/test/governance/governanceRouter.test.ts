@@ -2,11 +2,7 @@ import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 
 // TODO(asa): Shouldn't need to import from abacus-sol/test
-import {
-  types,
-  utils,
-  core,
-} from '@abacus-network/abacus-sol/test';
+import { types, utils, core } from '@abacus-network/abacus-sol/test';
 import {
   formatSetGovernor,
   formatCall,
