@@ -1,10 +1,10 @@
 use crate::db::{DbError, TypedDB, DB};
+use crate::traits::{CommittedMessageMeta, RawCommittedMessage, RawCommittedMessageWithMeta};
 use crate::UpdateMeta;
 use crate::{
-    accumulator::merkle::Proof, utils, AbacusMessage, CommittedMessage, Decode,
-    SignedUpdate, SignedUpdateWithMeta,
+    accumulator::merkle::Proof, utils, AbacusMessage, CommittedMessage, Decode, SignedUpdate,
+    SignedUpdateWithMeta,
 };
-use crate::traits::{CommittedMessageMeta, RawCommittedMessage, RawCommittedMessageWithMeta};
 use color_eyre::Result;
 use ethers::core::types::H256;
 use tokio::time::sleep;
@@ -164,7 +164,11 @@ impl AbacusDB {
     /// Store the latest known leaf_index for a destination
     ///
     /// Key --> value: `destination` --> `leaf_index`
-    pub fn update_latest_leaf_index_for_destination(&self, destination: u32, leaf_index: u32) -> Result<(), DbError> {
+    pub fn update_latest_leaf_index_for_destination(
+        &self,
+        destination: u32,
+        leaf_index: u32,
+    ) -> Result<(), DbError> {
         if let Ok(Some(idx)) = self.retrieve_latest_leaf_index_for_destination(destination) {
             if leaf_index <= idx {
                 return Ok(());
@@ -174,7 +178,10 @@ impl AbacusDB {
     }
 
     /// Retrieve the highest known leaf_index for a destination
-    pub fn retrieve_latest_leaf_index_for_destination(&self, destination: u32) -> Result<Option<u32>, DbError> {
+    pub fn retrieve_latest_leaf_index_for_destination(
+        &self,
+        destination: u32,
+    ) -> Result<Option<u32>, DbError> {
         self.retrieve_keyed_decodable(LATEST_LEAF_INDEX_FOR_DESTINATION, &destination)
     }
 
