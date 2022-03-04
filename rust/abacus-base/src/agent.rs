@@ -73,6 +73,7 @@ pub trait AbacusAgent: Send + Sync + std::fmt::Debug + AsRef<AgentCore> {
     }
 
     /// Run the agent with the given home and replica
+    /// If an agent does not need to use ContractSyncMetrics, just call run directly instead of run_all
     fn run(&self, replica: &str) -> Instrumented<JoinHandle<Result<()>>>;
 
     /// Run the Agent, and tag errors with the domain ID of the replica
