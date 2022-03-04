@@ -101,7 +101,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
       signers: {
         [outbox.name]: { key: '', type: 'hexKey' },
       },
-      inboxs: {},
+      inboxes: {},
       outbox,
       tracing: {
         level: 'debug',
@@ -112,7 +112,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
 
     for (var remote of remotes) {
       const inbox = {
-        address: remote.contracts.inboxs[local.chain.domain].proxy.address,
+        address: remote.contracts.inboxes[local.chain.domain].proxy.address,
         domain: remote.chain.domain.toString(),
         name: remote.chain.name,
         rpcStyle: 'ethereum',
@@ -123,7 +123,7 @@ export class CoreDeploy extends Deploy<CoreContracts> {
       };
 
       rustConfig.signers[inbox.name] = { key: '', type: 'hexKey' };
-      rustConfig.inboxs[inbox.name] = inbox;
+      rustConfig.inboxes[inbox.name] = inbox;
     }
 
     return rustConfig;

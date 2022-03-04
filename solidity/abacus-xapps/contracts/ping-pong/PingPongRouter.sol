@@ -146,7 +146,9 @@ contract PingPongRouter is Router {
         uint256 _count
     ) internal {
         // get the xApp Router at the destinationDomain
-        bytes32 _remoteRouterAddress = _mustHaveRemote(_destinationDomain);
+        bytes32 _remoteRouterAddress = _mustHaveRemoteRouter(
+            _destinationDomain
+        );
         // format the ping message
         bytes memory _message = _isPing
             ? PingPongMessage.formatPing(_match, _count)

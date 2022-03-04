@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import * as ethers from 'ethers';
 
 import { BeaconProxy } from '../utils/proxy';
 import { CoreDeploy } from './CoreDeploy';
@@ -9,8 +10,6 @@ import {
   ValidatorManagerViolation,
   InvariantChecker,
 } from '../checks';
-
-const emptyAddr = '0x' + '00'.repeat(20);
 
 export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
   constructor(deploys: CoreDeploy[]) {
@@ -35,8 +34,8 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     expect(contracts.upgradeBeaconController).to.not.be.undefined;
     expect(contracts.xAppConnectionManager).to.not.be.undefined;
     expect(contracts.validatorManager).to.not.be.undefined;
-    for (const domain in contracts.inboxs) {
-      expect(contracts.inboxs[domain]).to.not.be.undefined;
+    for (const domain in contracts.inboxes) {
+      expect(contracts.inboxes[domain]).to.not.be.undefined;
     }
   }
 
@@ -85,12 +84,12 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       (d) => d.chain.domain !== domain,
     );
     if (remoteDeploys.length > 0) {
-      // Check that all inboxs on this domain share the same implementation and
+      // Check that all inboxes on this domain share the same implementation and
       // UpgradeBeacon.
-      const inboxs = Object.values(deploy.contracts.inboxs);
-      const implementations = inboxs.map((r) => r.implementation.address);
+      const inboxes = Object.values(deploy.contracts.inboxes);
+      const implementations = inboxes.map((r) => r.implementation.address);
       const identical = (a: any, b: any) => (a === b ? a : false);
-      const upgradeBeacons = inboxs.map((r) => r.beacon.address);
+      const upgradeBeacons = inboxes.map((r) => r.beacon.address);
       expect(implementations.reduce(identical)).to.not.be.false;
       expect(upgradeBeacons.reduce(identical)).to.not.be.false;
     }
@@ -101,22 +100,21 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
 
     // governanceRouter for each remote domain is registered
     const registeredRouters = await Promise.all(
-      Object.keys(deploy.contracts.inboxs).map((_) =>
+      Object.keys(deploy.contracts.inboxes).map((_) =>
         deploy.contracts.governanceRouter?.proxy.routers(_),
       ),
     );
-    registeredRouters.map((_) => expect(_).to.not.equal(emptyAddr));
+    registeredRouters.map((_) =>
+      expect(_).to.not.equal(ethers.constants.AddressZero),
+    );
 
     // governor is set on governor chain, empty on others
-    // TODO: assert all governance routers have the same governor domain
-    const governorDomain =
-      await deploy.contracts.governanceRouter?.proxy.governorDomain();
-    const gov = await deploy.contracts.governanceRouter?.proxy.governor();
     const localDomain = await deploy.contracts.outbox?.proxy.localDomain();
-    if (governorDomain == localDomain) {
-      expect(gov).to.not.equal(emptyAddr);
+    const governor = await deploy.contracts.governanceRouter?.proxy.governor();
+    if (localDomain === this._deploys[0].chain.domain) {
+      expect(governor).to.not.equal(ethers.constants.AddressZero);
     } else {
-      expect(gov).to.equal(emptyAddr);
+      expect(governor).to.equal(ethers.constants.AddressZero);
     }
 
     const owners = [
@@ -125,7 +123,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
       deploy.contracts.upgradeBeaconController?.owner()!,
       deploy.contracts.outbox?.proxy.owner()!,
     ];
-    Object.values(deploy.contracts.inboxs).map((_) =>
+    Object.values(deploy.contracts.inboxes).map((_) =>
       owners.push(_.proxy.owner()),
     );
 
@@ -136,11 +134,11 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
 
   async checkXAppConnectionManager(deploy: CoreDeploy): Promise<void> {
     expect(deploy.contracts.xAppConnectionManager).to.not.be.undefined;
-    for (const domain in deploy.contracts.inboxs) {
+    for (const domain in deploy.contracts.inboxes) {
       // inbox is enrolled in xAppConnectionManager
       const enrolledInbox =
         await deploy.contracts.xAppConnectionManager?.domainToInbox(domain);
-      expect(enrolledInbox).to.not.equal(emptyAddr);
+      expect(enrolledInbox).to.not.equal(ethers.constants.AddressZero);
     }
     // Outbox is set on xAppConnectionManager
     const xAppManagerOutbox =
@@ -168,8 +166,8 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     };
     addInputsForUpgradableContract(contracts.outbox!, 'Outbox');
     addInputsForUpgradableContract(contracts.governanceRouter!, 'Governance');
-    for (const domain in contracts.inboxs) {
-      addInputsForUpgradableContract(contracts.inboxs[domain], 'Inbox');
+    for (const domain in contracts.inboxes) {
+      addInputsForUpgradableContract(contracts.inboxes[domain], 'Inbox');
     }
     return inputs;
   }
@@ -192,7 +190,7 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
     );
 
     await Promise.all(
-      Object.values(contracts.inboxs).map((_) =>
+      Object.values(contracts.inboxes).map((_) =>
         this.checkBeaconProxyImplementation(domain, 'Inbox', _),
       ),
     );

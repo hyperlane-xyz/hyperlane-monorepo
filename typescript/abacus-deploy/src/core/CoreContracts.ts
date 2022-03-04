@@ -1,4 +1,7 @@
-import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
+import {
+  core as coreContracts,
+  xapps as xappContracts,
+} from '@abacus-network/ts-interface';
 import { BeaconProxy } from '../utils/proxy';
 import { Contracts } from '../contracts';
 import {
@@ -8,24 +11,24 @@ import {
 import * as ethers from 'ethers';
 
 export class CoreContracts extends Contracts {
-  upgradeBeaconController?: contracts.UpgradeBeaconController;
-  xAppConnectionManager?: contracts.XAppConnectionManager;
-  validatorManager?: contracts.ValidatorManager;
-  governanceRouter?: BeaconProxy<contracts.GovernanceRouter>;
-  outbox?: BeaconProxy<contracts.Outbox>;
-  inboxs: Record<number, BeaconProxy<contracts.Inbox>>;
+  upgradeBeaconController?: coreContracts.UpgradeBeaconController;
+  xAppConnectionManager?: coreContracts.XAppConnectionManager;
+  validatorManager?: coreContracts.ValidatorManager;
+  governanceRouter?: BeaconProxy<xappContracts.GovernanceRouter>;
+  outbox?: BeaconProxy<coreContracts.Outbox>;
+  inboxes: Record<number, BeaconProxy<coreContracts.Inbox>>;
 
   constructor() {
     super();
-    this.inboxs = {};
+    this.inboxes = {};
   }
 
   toObject(): CoreContractAddresses {
-    const inboxs: Record<number, ProxiedAddress> = {};
-    Object.keys(this.inboxs!)
+    const inboxes: Record<number, ProxiedAddress> = {};
+    Object.keys(this.inboxes!)
       .map((d) => parseInt(d))
       .map((domain: number) => {
-        inboxs[domain] = this.inboxs[domain].toObject();
+        inboxes[domain] = this.inboxes[domain].toObject();
       });
 
     return {
@@ -34,7 +37,7 @@ export class CoreContracts extends Contracts {
       validatorManager: this.validatorManager!.address,
       governanceRouter: this.governanceRouter!.toObject(),
       outbox: this.outbox!.toObject(),
-      inboxs,
+      inboxes,
     };
   }
 
@@ -44,75 +47,76 @@ export class CoreContracts extends Contracts {
   ): CoreContracts {
     const core = new CoreContracts();
     core.upgradeBeaconController =
-      contracts.UpgradeBeaconController__factory.connect(
+      coreContracts.UpgradeBeaconController__factory.connect(
         addresses.upgradeBeaconController,
         provider,
       );
     core.xAppConnectionManager =
-      contracts.XAppConnectionManager__factory.connect(
+      coreContracts.XAppConnectionManager__factory.connect(
         addresses.xAppConnectionManager,
         provider,
       );
-    core.validatorManager = contracts.ValidatorManager__factory.connect(
+    core.validatorManager = coreContracts.ValidatorManager__factory.connect(
       addresses.validatorManager,
       provider,
     );
 
-    // TODO: needs type magic for turning governance, outbox and inboxs to BeaconProxy contracts
+    // TODO: needs type magic for turning governance, outbox and inboxes to BeaconProxy contracts
     const governanceRouterImplementation =
-      contracts.GovernanceRouter__factory.connect(
+      xappContracts.GovernanceRouter__factory.connect(
         addresses.governanceRouter.implementation,
         provider,
       );
-    const governanceRouterProxy = contracts.GovernanceRouter__factory.connect(
-      addresses.governanceRouter.proxy,
-      provider,
-    );
+    const governanceRouterProxy =
+      xappContracts.GovernanceRouter__factory.connect(
+        addresses.governanceRouter.proxy,
+        provider,
+      );
     const governanceRouterUpgradeBeacon =
-      contracts.UpgradeBeacon__factory.connect(
+      coreContracts.UpgradeBeacon__factory.connect(
         addresses.governanceRouter.beacon,
         provider,
       );
-    core.governanceRouter = new BeaconProxy<contracts.GovernanceRouter>(
+    core.governanceRouter = new BeaconProxy<xappContracts.GovernanceRouter>(
       governanceRouterImplementation,
       governanceRouterProxy,
       governanceRouterUpgradeBeacon,
     );
 
-    const outboxImplementation = contracts.Outbox__factory.connect(
+    const outboxImplementation = coreContracts.Outbox__factory.connect(
       addresses.outbox.implementation,
       provider,
     );
-    const outboxProxy = contracts.Outbox__factory.connect(
+    const outboxProxy = coreContracts.Outbox__factory.connect(
       addresses.outbox.proxy,
       provider,
     );
-    const outboxUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
+    const outboxUpgradeBeacon = coreContracts.UpgradeBeacon__factory.connect(
       addresses.outbox.beacon,
       provider,
     );
-    core.outbox = new BeaconProxy<contracts.Outbox>(
+    core.outbox = new BeaconProxy<coreContracts.Outbox>(
       outboxImplementation,
       outboxProxy,
       outboxUpgradeBeacon,
     );
 
-    Object.keys(addresses.inboxs!)
+    Object.keys(addresses.inboxes!)
       .map((d) => parseInt(d))
       .map((domain: number) => {
-        const inboxImplementation = contracts.Inbox__factory.connect(
-          addresses.inboxs![domain].implementation,
+        const inboxImplementation = coreContracts.Inbox__factory.connect(
+          addresses.inboxes![domain].implementation,
           provider,
         );
-        const inboxProxy = contracts.Inbox__factory.connect(
-          addresses.inboxs![domain].proxy,
+        const inboxProxy = coreContracts.Inbox__factory.connect(
+          addresses.inboxes![domain].proxy,
           provider,
         );
-        const inboxUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
-          addresses.inboxs![domain].beacon,
+        const inboxUpgradeBeacon = coreContracts.UpgradeBeacon__factory.connect(
+          addresses.inboxes![domain].beacon,
           provider,
         );
-        core.inboxs[domain] = new BeaconProxy<contracts.Inbox>(
+        core.inboxes[domain] = new BeaconProxy<coreContracts.Inbox>(
           inboxImplementation,
           inboxProxy,
           inboxUpgradeBeacon,

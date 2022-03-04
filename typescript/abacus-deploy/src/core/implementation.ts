@@ -75,13 +75,13 @@ export class ImplementationDeployer {
         deploy.config.reserveGas,
       );
 
-    for (const domain in deploy.contracts.inboxs) {
-      deploy.contracts.inboxs[domain] =
+    for (const domain in deploy.contracts.inboxes) {
+      deploy.contracts.inboxes[domain] =
         proxyUtils.overrideBeaconProxyImplementation<contracts.Inbox>(
           implementation,
           deploy,
           new inboxFactory(deploy.signer),
-          deploy.contracts.inboxs[domain],
+          deploy.contracts.inboxes[domain],
         );
     }
   }

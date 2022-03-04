@@ -1,7 +1,13 @@
-import { ethers, abacus } from 'hardhat';
+import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
-import { Validator, AbacusState, MessageStatus } from './lib/core';
+import {
+  formatMessage,
+  messageHash,
+  Validator,
+  AbacusState,
+  MessageStatus,
+} from './lib/core';
 import { Signer, BytesArray } from './lib/types';
 import {
   BadRecipient1__factory,
@@ -26,7 +32,6 @@ const localDomain = 2000;
 const remoteDomain = 1000;
 const processGas = 850000;
 const reserveGas = 15000;
-const nullRoot = '0x' + '00'.repeat(32);
 
 describe('Inbox', async () => {
   const badRecipientFactories = [
@@ -58,12 +63,22 @@ describe('Inbox', async () => {
   beforeEach(async () => {
     const inboxFactory = new TestInbox__factory(signer);
     inbox = await inboxFactory.deploy(localDomain, processGas, reserveGas);
-    await inbox.initialize(remoteDomain, validatorManager.address, nullRoot, 0);
+    await inbox.initialize(
+      remoteDomain,
+      validatorManager.address,
+      ethers.constants.HashZero,
+      0,
+    );
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      inbox.initialize(remoteDomain, validatorManager.address, nullRoot, 0),
+      inbox.initialize(
+        remoteDomain,
+        validatorManager.address,
+        ethers.constants.HashZero,
+        0,
+      ),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
@@ -162,7 +177,7 @@ describe('Inbox', async () => {
     const testRecipient = await testRecipientFactory.deploy();
 
     const nonce = 0;
-    const abacusMessage = abacus.formatMessage(
+    const abacusMessage = formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -181,7 +196,7 @@ describe('Inbox', async () => {
     const processTx = inbox.process(abacusMessage);
     await expect(processTx)
       .to.emit(inbox, 'Process')
-      .withArgs(abacus.messageHash(abacusMessage), true, '0x');
+      .withArgs(messageHash(abacusMessage), true, '0x');
   });
 
   it('Fails to process an unproved message', async () => {
@@ -189,7 +204,7 @@ describe('Inbox', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const abacusMessage = abacus.formatMessage(
+    const abacusMessage = formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -210,7 +225,7 @@ describe('Inbox', async () => {
       const badRecipient = await factory.deploy();
 
       const nonce = 0;
-      const abacusMessage = abacus.formatMessage(
+      const abacusMessage = formatMessage(
         remoteDomain,
         sender.address,
         nonce,
@@ -230,7 +245,7 @@ describe('Inbox', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const abacusMessage = abacus.formatMessage(
+    const abacusMessage = formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -249,7 +264,7 @@ describe('Inbox', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const abacusMessage = abacus.formatMessage(
+    const abacusMessage = formatMessage(
       remoteDomain,
       abacusMessageSender.address,
       nonce,
@@ -268,7 +283,7 @@ describe('Inbox', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const abacusMessage = abacus.formatMessage(
+    const abacusMessage = formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -293,7 +308,7 @@ describe('Inbox', async () => {
     const testRecipient = await factory.deploy();
 
     const nonce = 0;
-    const abacusMessage = abacus.formatMessage(
+    const abacusMessage = formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -319,7 +334,7 @@ describe('Inbox', async () => {
 
     // Note that hash of this message specifically matches leaf of 1st
     // proveAndProcess test case
-    const abacusMessage = abacus.formatMessage(
+    const abacusMessage = formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -330,7 +345,7 @@ describe('Inbox', async () => {
 
     // Assert above message and test case have matching leaves
     const { path, index } = proveAndProcessTestCases[0];
-    const messageHash = abacus.messageHash(abacusMessage);
+    const hash = messageHash(abacusMessage);
 
     // Set inbox's current root to match newly computed root that includes
     // the new leaf (normally root will have already been computed and path
@@ -338,7 +353,7 @@ describe('Inbox', async () => {
     // impossible to find the inputs that create a pre-determined root, we
     // simply recalculate root with the leaf using branchRoot)
     const proofRoot = await inbox.testBranchRoot(
-      messageHash,
+      hash,
       path as BytesArray,
       index,
     );
@@ -346,7 +361,7 @@ describe('Inbox', async () => {
 
     await inbox.proveAndProcess(abacusMessage, path as BytesArray, index);
 
-    expect(await inbox.messages(messageHash)).to.equal(MessageStatus.PROCESSED);
+    expect(await inbox.messages(hash)).to.equal(MessageStatus.PROCESSED);
   });
 
   it('Has proveAndProcess fail if prove fails', async () => {
@@ -358,7 +373,7 @@ describe('Inbox', async () => {
     let { leaf, index, path } = testCase.proofs[0];
 
     // Create arbitrary message (contents not important)
-    const abacusMessage = abacus.formatMessage(
+    const abacusMessage = formatMessage(
       remoteDomain,
       sender.address,
       nonce,

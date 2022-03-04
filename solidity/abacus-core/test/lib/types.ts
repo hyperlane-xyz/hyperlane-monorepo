@@ -1,26 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { BytesLike, ethers } from 'ethers';
-
-/********* HRE *********/
-
-export interface HardhatAbacusHelpers {
-  formatMessage: Function;
-  governance: {
-    formatTransferGovernor: Function;
-    formatSetRouter: Function;
-    formatCalls: Function;
-  };
-  messageHash: Function;
-  ethersAddressToBytes32: Function;
-  destinationAndNonce: Function;
-  domainHash: Function;
-}
-
-declare module 'hardhat/types/runtime' {
-  interface HardhatRuntimeEnvironment {
-    abacus: HardhatAbacusHelpers;
-  }
-}
+import { BytesLike } from 'ethers';
 
 /********* BASIC TYPES *********/
 export type Domain = number;

@@ -1,7 +1,8 @@
-import { ethers, abacus } from 'hardhat';
+import { ethers } from 'hardhat';
 import { expect } from 'chai';
 
 import { AbacusState, Validator } from './lib/core';
+import { addressToBytes32 } from './lib/utils';
 import { Signer } from './lib/types';
 
 import {
@@ -127,7 +128,7 @@ describe('ValidatorManager', async () => {
       const message = `0x${Buffer.alloc(10).toString('hex')}`;
       await outbox.dispatch(
         localDomain,
-        abacus.ethersAddressToBytes32(signer.address),
+        addressToBytes32(signer.address),
         message,
       );
       await outbox.checkpoint();
