@@ -1,6 +1,9 @@
+mod common;
 mod encode;
 mod home;
+mod inbox;
 mod indexer;
+mod outbox;
 mod replica;
 mod xapp;
 
@@ -15,20 +18,14 @@ use std::error::Error as StdError;
 
 use crate::{db::DbError, AbacusError, SignedUpdate};
 
+pub use common::*;
 pub use encode::*;
 pub use home::*;
+pub use inbox::*;
 pub use indexer::*;
+pub use outbox::*;
 pub use replica::*;
 pub use xapp::*;
-
-/// Contract states
-#[derive(Debug)]
-pub enum State {
-    /// Contract is active
-    Waiting,
-    /// Contract has failed
-    Failed,
-}
 
 /// Returned by `check_double_update` if double update exists
 #[derive(Debug, Clone, PartialEq)]
@@ -142,4 +139,21 @@ pub trait CommonEvents: Common + Send + Sync + std::fmt::Debug {
         let committed_root = self.committed_root().await?;
         self.signed_update_by_new_root(committed_root).await
     }
+}
+
+/// Interface for attributes shared by Home and Replica
+#[async_trait]
+pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
+    /// Return an identifier (not necessarily unique) for the chain this
+    /// contract is running on.
+    fn name(&self) -> &str;
+
+    /// Get the status of a transaction.
+    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError>;
+
+    /// Fetch the current updater value
+    async fn validator_manager(&self) -> Result<H256, ChainCommunicationError>;
+
+    /// Fetch the current root.
+    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError>;
 }

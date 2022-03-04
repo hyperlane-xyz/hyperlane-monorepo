@@ -2,27 +2,30 @@
 #![allow(missing_docs)]
 
 use abacus_core::{accumulator::merkle::Proof, MessageStatus, *};
-use abacus_core::{CommonIndexer, ContractLocator};
+use abacus_core::{
+    AbacusCommon, AbacusCommonIndexer, AbacusMessage, ChainCommunicationError, Checkpoint,
+    CheckpointMeta, CheckpointWithMeta, ContractLocator, Inbox, TxOutcome,
+};
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::contract::abigen;
-use ethers::core::types::{Signature, H256, U256};
+use ethers::core::types::{H256, U256};
 use tracing::instrument;
 
-use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
+use std::{error::Error as StdError, sync::Arc};
 
 use crate::report_tx;
 
 abigen!(
-    EthereumReplicaInternal,
-    "./chains/abacus-ethereum/abis/Replica.abi.json",
+    EthereumInboxInternal,
+    "./chains/abacus-ethereum/abis/Inbox.abi.json",
      methods {
         initialize(address) as initialize_common;
         initialize(uint32, address, bytes32, uint256, uint32) as initialize;
      },
 );
 
-impl<M> std::fmt::Display for EthereumReplicaInternal<M>
+impl<M> std::fmt::Display for EthereumInboxInternal<M>
 where
     M: ethers::providers::Middleware,
 {
@@ -33,17 +36,17 @@ where
 
 #[derive(Debug)]
 /// Struct that retrieves indexes event data for Ethereum replica
-pub struct EthereumReplicaIndexer<M>
+pub struct EthereumInboxIndexer<M>
 where
     M: ethers::providers::Middleware,
 {
-    contract: Arc<EthereumReplicaInternal<M>>,
+    contract: Arc<EthereumInboxInternal<M>>,
     provider: Arc<M>,
     from_height: u32,
     chunk_size: u32,
 }
 
-impl<M> EthereumReplicaIndexer<M>
+impl<M> EthereumInboxIndexer<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
@@ -59,7 +62,7 @@ where
         chunk_size: u32,
     ) -> Self {
         Self {
-            contract: Arc::new(EthereumReplicaInternal::new(address, provider.clone())),
+            contract: Arc::new(EthereumInboxInternal::new(address, provider.clone())),
             provider,
             from_height,
             chunk_size,
@@ -68,7 +71,7 @@ where
 }
 
 #[async_trait]
-impl<M> CommonIndexer for EthereumReplicaIndexer<M>
+impl<M> AbacusCommonIndexer for EthereumInboxIndexer<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
@@ -78,10 +81,14 @@ where
     }
 
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_updates(&self, from: u32, to: u32) -> Result<Vec<SignedUpdateWithMeta>> {
+    async fn fetch_sorted_checkpoints(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<CheckpointWithMeta>> {
         let mut events = self
             .contract
-            .update_filter()
+            .checkpoint_filter()
             .from_block(from)
             .to_block(to)
             .query_with_meta()
@@ -96,21 +103,20 @@ where
             ordering
         });
 
+        let outbox_domain = self.contract.local_domain().call().await?;
+
         Ok(events
             .iter()
             .map(|event| {
-                let signature = Signature::try_from(event.0.signature.as_slice())
-                    .expect("chain accepted invalid signature");
-
-                let update = Update {
-                    home_domain: event.0.home_domain,
-                    previous_root: event.0.old_root.into(),
-                    new_root: event.0.new_root.into(),
+                let checkpoint = Checkpoint {
+                    outbox_domain: outbox_domain,
+                    root: event.0.root.into(),
+                    index: event.0.index.as_u32(),
                 };
 
-                SignedUpdateWithMeta {
-                    signed_update: SignedUpdate { update, signature },
-                    metadata: UpdateMeta {
+                CheckpointWithMeta {
+                    checkpoint: checkpoint,
+                    metadata: CheckpointMeta {
                         block_number: event.1.block_number.as_u64(),
                     },
                 }
@@ -121,17 +127,17 @@ where
 
 /// A struct that provides access to an Ethereum replica contract
 #[derive(Debug)]
-pub struct EthereumReplica<M>
+pub struct EthereumInbox<M>
 where
     M: ethers::providers::Middleware,
 {
-    contract: Arc<EthereumReplicaInternal<M>>,
+    contract: Arc<EthereumInboxInternal<M>>,
     domain: u32,
     name: String,
     provider: Arc<M>,
 }
 
-impl<M> EthereumReplica<M>
+impl<M> EthereumInbox<M>
 where
     M: ethers::providers::Middleware,
 {
@@ -146,7 +152,7 @@ where
         }: &ContractLocator,
     ) -> Self {
         Self {
-            contract: Arc::new(EthereumReplicaInternal::new(address, provider.clone())),
+            contract: Arc::new(EthereumInboxInternal::new(address, provider.clone())),
             domain: *domain,
             name: name.to_owned(),
             provider,
@@ -155,7 +161,7 @@ where
 }
 
 #[async_trait]
-impl<M> Common for EthereumReplica<M>
+impl<M> AbacusCommon for EthereumInbox<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
@@ -176,58 +182,18 @@ where
     }
 
     #[tracing::instrument(err)]
-    async fn updater(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.updater().call().await?.into())
+    async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.validator_manager().call().await?.into())
     }
 
     #[tracing::instrument(err)]
-    async fn state(&self) -> Result<State, ChainCommunicationError> {
-        let state = self.contract.state().call().await?;
-        match state {
-            0 => Ok(State::Waiting),
-            1 => Ok(State::Failed),
-            _ => unreachable!(),
-        }
-    }
-
-    #[tracing::instrument(err)]
-    async fn committed_root(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.committed_root().call().await?.into())
-    }
-
-    #[tracing::instrument(err)]
-    async fn update(&self, update: &SignedUpdate) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.update(
-            update.update.previous_root.to_fixed_bytes(),
-            update.update.new_root.to_fixed_bytes(),
-            update.signature.to_vec(),
-        );
-
-        let result = report_tx!(tx);
-        Ok(result.into())
-    }
-
-    #[tracing::instrument(err)]
-    async fn double_update(
-        &self,
-        double: &DoubleUpdate,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.double_update(
-            double.0.update.previous_root.to_fixed_bytes(),
-            [
-                double.0.update.new_root.to_fixed_bytes(),
-                double.1.update.new_root.to_fixed_bytes(),
-            ],
-            double.0.signature.to_vec(),
-            double.1.signature.to_vec(),
-        );
-
-        Ok(report_tx!(tx).into())
+    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.checkpointed_root().call().await?.into())
     }
 }
 
 #[async_trait]
-impl<M> Replica for EthereumReplica<M>
+impl<M> Inbox for EthereumInbox<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
@@ -292,9 +258,5 @@ where
             2 => Ok(MessageStatus::Processed),
             _ => panic!("Bad status from solidity"),
         }
-    }
-
-    async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError> {
-        Ok(self.contract.acceptable_root(root.into()).call().await?)
     }
 }

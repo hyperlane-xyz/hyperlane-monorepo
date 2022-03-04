@@ -14,6 +14,14 @@ use std::sync::Arc;
 #[macro_use]
 mod macros;
 
+/// Outbox abi
+#[cfg(not(doctest))]
+mod outbox;
+
+/// Inbox abi
+#[cfg(not(doctest))]
+mod inbox;
+
 /// Home abi
 #[cfg(not(doctest))]
 mod home;

@@ -1,17 +1,16 @@
-use crate::traits::common::MessageStatus;
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::core::types::H256;
 
 use crate::{
     accumulator::merkle::Proof,
-    traits::{ChainCommunicationError, Common, TxOutcome},
-    AbacusMessage,
+    traits::{AbacusCommon, ChainCommunicationError, TxOutcome},
+    AbacusMessage, MessageStatus,
 };
 
 /// Interface for on-chain replicas
 #[async_trait]
-pub trait Replica: Common + Send + Sync + std::fmt::Debug {
+pub trait Inbox: AbacusCommon + Send + Sync + std::fmt::Debug {
     /// Return the replica domain ID
     fn local_domain(&self) -> u32;
 
@@ -37,7 +36,4 @@ pub trait Replica: Common + Send + Sync + std::fmt::Debug {
 
     /// Fetch the status of a message
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError>;
-
-    /// Fetch the confirmation time for a specific root
-    async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError>;
 }

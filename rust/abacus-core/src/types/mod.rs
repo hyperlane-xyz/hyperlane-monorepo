@@ -1,3 +1,4 @@
+mod checkpoint;
 mod failure;
 mod messages;
 mod update;
@@ -6,6 +7,7 @@ mod update;
 /// 20-byte ids (e.g ethereum addresses)
 pub mod identifiers;
 
+pub use checkpoint::*;
 pub use failure::*;
 pub use messages::*;
 pub use update::*;
