@@ -3,13 +3,13 @@
 
 use abacus_core::*;
 use abacus_core::{
-    ChainCommunicationError, CommittedMessageMeta, RawCommittedMessageWithMeta, Common, DoubleUpdate, Home, Message, RawCommittedMessage,
-    SignedUpdate, State, TxOutcome, Update,
+    ChainCommunicationError, CommittedMessageMeta, Common, DoubleUpdate, Home, Message,
+    RawCommittedMessage, RawCommittedMessageWithMeta, SignedUpdate, State, TxOutcome, Update,
 };
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::contract::abigen;
-use ethers::core::types::{Signature, H256, U64, U256};
+use ethers::core::types::{Signature, H256, U256, U64};
 use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
@@ -123,7 +123,11 @@ where
     M: ethers::providers::Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessageWithMeta>> {
+    async fn fetch_sorted_messages(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<RawCommittedMessageWithMeta>> {
         let mut events = self
             .contract
             .dispatch_filter()
@@ -134,7 +138,8 @@ where
 
         events.sort_by(|a, b| a.0.leaf_index.cmp(&b.0.leaf_index));
 
-        let mut committed_messages = Vec::<RawCommittedMessageWithMeta>::with_capacity(events.len());
+        let mut committed_messages =
+            Vec::<RawCommittedMessageWithMeta>::with_capacity(events.len());
 
         // Because `events` is sorted by leaf_index, we make use of the block numbers
         // being monotonically increasing when getting the timestamp of the messages
@@ -160,7 +165,7 @@ where
                 },
                 metadata: CommittedMessageMeta {
                     timestamp: last_block_timestamp.as_u64(),
-                }
+                },
             });
         }
         Ok(committed_messages)
