@@ -1,7 +1,7 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::UpdateMeta;
 use crate::{
-    accumulator::merkle::Proof, traits::RawCommittedMessage, utils, AbacusMessage,
+    accumulator::merkle::Proof, traits::CommittedMessageWithMeta, traits::RawCommittedMessage, utils, AbacusMessage,
     CommittedMessage, Decode, SignedUpdate, SignedUpdateWithMeta,
 };
 use color_eyre::Result;
@@ -19,6 +19,7 @@ static LEAF: &str = "leaf_";
 static PREV_ROOT: &str = "update_prev_root_";
 static PROOF: &str = "proof_";
 static MESSAGE: &str = "message_";
+static MESSAGE_META: &str = "message_metadata_";
 static UPDATE: &str = "update_";
 static UPDATE_META: &str = "update_metadata_";
 static LATEST_ROOT: &str = "update_latest_root_";
@@ -58,12 +59,12 @@ impl AbacusDB {
     }
 
     /// Store list of messages
-    pub fn store_messages(&self, messages: &[RawCommittedMessage]) -> Result<u32> {
+    pub fn store_messages_and_metas(&self, messages: &[CommittedMessageWithMeta]) -> Result<u32> {
         let mut latest_leaf_index: u32 = 0;
         for message in messages {
-            self.store_latest_message(message)?;
+            self.store_latest_message_and_meta(message)?;
 
-            let committed_message: CommittedMessage = message.clone().try_into()?;
+            let committed_message: CommittedMessage = message.committed_message.clone().try_into()?;
             info!(
                 leaf_index = &committed_message.leaf_index,
                 origin = &committed_message.message.origin,
@@ -78,25 +79,25 @@ impl AbacusDB {
     }
 
     /// Store a raw committed message building off of the latest leaf index
-    pub fn store_latest_message(&self, message: &RawCommittedMessage) -> Result<()> {
+    pub fn store_latest_message_and_meta(&self, message_with_meta: &CommittedMessageWithMeta) -> Result<()> {
         // If there is no latest root, or if this update is on the latest root
         // update latest root
         match self.retrieve_latest_leaf_index()? {
             Some(idx) => {
-                if idx == message.leaf_index - 1 {
-                    self.update_latest_leaf_index(message.leaf_index)?;
+                if idx == message_with_meta.committed_message.leaf_index - 1 {
+                    self.update_latest_leaf_index(message_with_meta.committed_message.leaf_index)?;
                 } else {
                     debug!(
                             "Attempted to store message not building off latest leaf index. Latest leaf index: {}. Attempted leaf index: {}.",
                             idx,
-                            message.leaf_index,
+                            message_with_meta.committed_message.leaf_index,
                         )
                 }
             }
-            None => self.update_latest_leaf_index(message.leaf_index)?,
+            None => self.update_latest_leaf_index(message_with_meta.committed_message.leaf_index)?,
         }
 
-        self.store_raw_committed_message(message)
+        self.store_committed_message_with_meta(message_with_meta)
     }
 
     /// Store a raw committed message
@@ -105,23 +106,24 @@ impl AbacusDB {
     /// - `destination_and_nonce` --> `leaf`
     /// - `leaf_index` --> `leaf`
     /// - `leaf` --> `message`
-    pub fn store_raw_committed_message(&self, message: &RawCommittedMessage) -> Result<()> {
-        let parsed = AbacusMessage::read_from(&mut message.message.clone().as_slice())?;
+    pub fn store_committed_message_with_meta(&self, message_with_meta: &CommittedMessageWithMeta) -> Result<()> {
+        let parsed = AbacusMessage::read_from(&mut message_with_meta.committed_message.message.clone().as_slice())?;
 
         let destination_and_nonce = parsed.destination_and_nonce();
 
-        let leaf = message.leaf();
+        let leaf = message_with_meta.committed_message.leaf();
 
         debug!(
             leaf = ?leaf,
             destination_and_nonce,
             destination = parsed.destination,
             nonce = parsed.nonce,
-            leaf_index = message.leaf_index,
+            leaf_index = message_with_meta.committed_message.leaf_index,
             "storing raw committed message in db"
         );
-        self.store_leaf(message.leaf_index, destination_and_nonce, leaf)?;
-        self.store_keyed_encodable(MESSAGE, &leaf, message)?;
+        self.store_leaf(message_with_meta.committed_message.leaf_index, destination_and_nonce, leaf)?;
+        self.store_keyed_encodable(MESSAGE, &leaf, &message_with_meta.committed_message)?;
+        self.store_keyed_encodable(MESSAGE_META, &leaf, &message_with_meta.metadata)?;
         Ok(())
     }
 
