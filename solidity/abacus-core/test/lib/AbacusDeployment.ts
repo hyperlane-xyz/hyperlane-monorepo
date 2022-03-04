@@ -60,7 +60,10 @@ export class AbacusDeployment {
     await validatorManager.enrollValidator(local, await signer.getAddress());
     await Promise.all(
       remotes.map(async (remoteDomain) =>
-        validatorManager.enrollValidator(remoteDomain, await signer.getAddress()),
+        validatorManager.enrollValidator(
+          remoteDomain,
+          await signer.getAddress(),
+        ),
       ),
     );
 

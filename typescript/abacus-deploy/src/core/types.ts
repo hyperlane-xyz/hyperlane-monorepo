@@ -1,5 +1,5 @@
 import { BigNumberish } from 'ethers';
-import { Address, ProxiedAddress } from '../types';
+import { Address, Domain, ProxiedAddress } from '../types';
 
 export type CoreContractAddresses = {
   upgradeBeaconController: Address;
@@ -13,4 +13,6 @@ export type CoreConfig = {
   processGas: BigNumberish;
   reserveGas: BigNumberish;
   validators: Record<number, Address>;
+  domains: Domain[];
+  test?: boolean;
 };

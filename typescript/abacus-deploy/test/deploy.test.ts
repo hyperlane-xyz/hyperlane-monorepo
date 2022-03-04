@@ -30,6 +30,8 @@ describe('CoreDeploy', async () => {
         processGas: 850_000,
         reserveGas: 15_000,
         validators,
+        domains,
+        test: true,
       };
       const core = new CoreDeploy();
       await core.deploy(chains, config);

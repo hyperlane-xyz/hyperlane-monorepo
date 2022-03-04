@@ -4,7 +4,6 @@ import { core, types } from '@abacus-network/abacus-deploy'
 import { core as test } from '@abacus-network/abacus-sol/test'
 
 export class TestCoreDeploy extends core.CoreDeploy {
-  // TODO(asa): Would prefer this to be "deploy"
   async init(domains: types.Domain[], signer: ethers.Signer) {
     const chains: Record<number, types.ChainConfig> = {};
     const validators: Record<number, types.Address> = {};
@@ -17,8 +16,10 @@ export class TestCoreDeploy extends core.CoreDeploy {
       processGas: 850_000,
       reserveGas: 15_000,
       validators,
+      domains,
+      test: true,
     };
-    await this.deploy(chains, config, true)
+    await this.deploy(chains, config)
   }
 
   inbox(local: types.Domain, remote: types.Domain): contracts.TestInbox {

@@ -4,23 +4,18 @@ import { Deploy } from '../deploy';
 import { CoreConfig } from './types';
 import { CoreInstance } from './CoreInstance';
 
-export class CoreDeploy extends Deploy<CoreInstance> {
-  async deploy(
-    chains: Record<number, ChainConfig>,
-    config: CoreConfig,
-    test = false,
-  ) {
-    const domains = Object.keys(chains).map((d) => parseInt(d));
-    for (const domain of domains) {
-      this.instances[domain] = await CoreInstance.deploy(
-        domains,
-        chains[domain],
-        config,
-        test,
-      );
-      this.chains[domain] = chains[domain];
-    }
+export class CoreDeploy extends Deploy<CoreInstance, CoreConfig> {
+  deployInstance(
+      chain: ChainConfig,
+      config: CoreConfig,
+  ): Promise<CoreInstance> {
+    return CoreInstance.deploy(
+      chain,
+      config,
+    );
   }
+
+  async postDeploy(_: CoreConfig) {}
 
   upgradeBeaconController(domain: Domain): core.UpgradeBeaconController {
     return this.instances[domain].upgradeBeaconController

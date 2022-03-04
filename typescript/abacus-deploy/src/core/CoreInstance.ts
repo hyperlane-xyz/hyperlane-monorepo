@@ -9,10 +9,8 @@ import { ethers } from 'ethers';
 
 export class CoreInstance extends Instance<CoreContracts> {
   static async deploy(
-    domains: Domain[],
     chain: ChainConfig,
     config: CoreConfig,
-    test: boolean = false,
   ): Promise<CoreInstance> {
     const deployer = new ContractDeployer(chain);
 
@@ -45,8 +43,8 @@ export class CoreInstance extends Instance<CoreContracts> {
     await xAppConnectionManager.setOutbox(outbox.address, chain.overrides);
 
     const inboxes: Record<Domain, BeaconProxy<core.Inbox>> = {};
-    const remotes = domains.filter((d) => d !== chain.domain);
-    const inboxFactory = test ? core.TestInbox__factory : core.Inbox__factory
+    const remotes = config.domains.filter((d) => d !== chain.domain);
+    const inboxFactory = config.test ? core.TestInbox__factory : core.Inbox__factory
     for (let i = 0; i < remotes.length; i++) {
       const remote = remotes[i];
       const initArgs = [

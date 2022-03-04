@@ -8,7 +8,7 @@ import {
   formatCall,
   increaseTimestampBy,
 } from './lib/utils';
-import { GovernanceDeployment } from './lib/GovernanceDeployment';
+import { GovernanceConfig, GovernanceDeploy } from './lib/GovernanceDeploy';
 import {
   TestSet,
   TestSet__factory,
@@ -23,13 +23,13 @@ const testDomain = 3000;
 const domains = [localDomain, remoteDomain];
 const ONLY_OWNER_REVERT_MESSAGE = 'Ownable: caller is not the owner';
 
-describe.only('GovernanceRouter', async () => {
+describe('GovernanceRouter', async () => {
   let governor: types.Signer,
     recoveryManager: types.Signer,
     router: GovernanceRouter,
     remote: GovernanceRouter,
     testSet: TestSet,
-    governance: GovernanceDeployment;
+    governance: GovernanceDeploy;
 
   before(async () => {
     [governor, recoveryManager] = await ethers.getSigners();
@@ -40,12 +40,26 @@ describe.only('GovernanceRouter', async () => {
   });
 
   beforeEach(async () => {
-    governance = await GovernanceDeployment.fromAbacusDeployment(
-      abacus,
-      governor,
-      recoveryManager,
-    );
+    governance = new GovernanceDeploy();
+    const config: GovernanceConfig = {
+      signer: governor,
+      timelock: recoveryTimelock,
+      connectionManager: {},
+      governors: {},
+      recoveryManagers: {},
+    };
+    abacus.domains.map((domain) => {
+      config.connectionManager[domain] =
+        abacus.xAppConnectionManager(domain).address;
+      config.governors[domain] = domain === localDomain ? governor.address : ethers.constants.AddressZero;
+      config.recoveryManagers[domain] = recoveryManager.address;
+    });
+    console.log(config.governors)
+
+    await governance.deploy(abacus.chains, config);
+    console.log("gov deploy done")
     router = governance.router(localDomain);
+    console.log(await router.signer.getAddress(), governor.address)
     remote = governance.router(remoteDomain);
   });
 
