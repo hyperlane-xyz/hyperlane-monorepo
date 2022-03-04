@@ -12,7 +12,7 @@ mock! {
 
         pub fn _fetch_sorted_updates(&self, from: u32, to: u32) -> Result<Vec<SignedUpdateWithMeta>> {}
 
-        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<CommittedMessageWithMeta>> {}
+        pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessageWithMeta>> {}
     }
 }
 
@@ -35,7 +35,7 @@ impl CommonIndexer for MockIndexer {
 
 #[async_trait]
 impl HomeIndexer for MockIndexer {
-    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<CommittedMessageWithMeta>> {
+    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessageWithMeta>> {
         self._fetch_sorted_messages(from, to)
     }
 }

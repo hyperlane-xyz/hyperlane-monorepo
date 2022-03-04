@@ -1,4 +1,4 @@
-use abacus_core::{CommonIndexer, CommittedMessageWithMeta, HomeIndexer, SignedUpdateWithMeta};
+use abacus_core::{CommonIndexer, RawCommittedMessageWithMeta, HomeIndexer, SignedUpdateWithMeta};
 use abacus_test::mocks::MockIndexer;
 use async_trait::async_trait;
 use color_eyre::Result;
@@ -77,7 +77,7 @@ impl CommonIndexer for HomeIndexers {
 
 #[async_trait]
 impl HomeIndexer for HomeIndexers {
-    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<CommittedMessageWithMeta>> {
+    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessageWithMeta>> {
         match self {
             HomeIndexers::Ethereum(indexer) => indexer.fetch_sorted_messages(from, to).await,
             HomeIndexers::Mock(indexer) => indexer.fetch_sorted_messages(from, to).await,

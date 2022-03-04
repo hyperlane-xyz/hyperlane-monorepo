@@ -3,7 +3,7 @@
 
 use abacus_core::*;
 use abacus_core::{
-    ChainCommunicationError, CommittedMessageMeta, CommittedMessageWithMeta, Common, DoubleUpdate, Home, Message, RawCommittedMessage,
+    ChainCommunicationError, CommittedMessageMeta, RawCommittedMessageWithMeta, Common, DoubleUpdate, Home, Message, RawCommittedMessage,
     SignedUpdate, State, TxOutcome, Update,
 };
 use async_trait::async_trait;
@@ -123,7 +123,7 @@ where
     M: ethers::providers::Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<CommittedMessageWithMeta>> {
+    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessageWithMeta>> {
         let mut events = self
             .contract
             .dispatch_filter()
@@ -134,10 +134,12 @@ where
 
         events.sort_by(|a, b| a.0.leaf_index.cmp(&b.0.leaf_index));
 
-        let mut committed_messages = Vec::<CommittedMessageWithMeta>::with_capacity(events.len());
+        let mut committed_messages = Vec::<RawCommittedMessageWithMeta>::with_capacity(events.len());
 
-        // Because events is sorted by leaf_index, we make use of the block numbers
-        // being monotonically increasing when getting the timestamp of the messages.
+        // Because `events` is sorted by leaf_index, we make use of the block numbers
+        // being monotonically increasing when getting the timestamp of the messages
+        // to only get block timestamps once even if there are multiple events in the
+        // same block.
         let mut last_block_number = U64::zero();
         let mut last_block_timestamp = U256::zero();
         for (event, meta) in events {
@@ -150,8 +152,8 @@ where
                     .expect("!get_block");
                 last_block_timestamp = block.timestamp;
             }
-            committed_messages.push(CommittedMessageWithMeta {
-                committed_message: RawCommittedMessage {
+            committed_messages.push(RawCommittedMessageWithMeta {
+                raw_committed_message: RawCommittedMessage {
                     leaf_index: event.leaf_index.as_u32(),
                     committed_root: event.committed_root.into(),
                     message: event.message,

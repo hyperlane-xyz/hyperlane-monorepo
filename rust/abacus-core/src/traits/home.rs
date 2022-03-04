@@ -137,11 +137,10 @@ impl Decode for CommittedMessageMeta {
 }
 
 /// A committed message with its corresponding metadata
-// #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[derive(Debug, Default, Clone, Eq, PartialEq, Serialize, Deserialize)]
-pub struct CommittedMessageWithMeta {
+pub struct RawCommittedMessageWithMeta {
     /// Committed message
-    pub committed_message: RawCommittedMessage,
+    pub raw_committed_message: RawCommittedMessage,
     /// Metadata
     pub metadata: CommittedMessageMeta,
 }
