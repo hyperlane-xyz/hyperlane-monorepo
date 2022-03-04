@@ -5,22 +5,21 @@ import { CoreConfig } from './types';
 import { CoreInstance } from './CoreInstance';
 
 export class CoreDeploy extends Deploy<CoreInstance> {
-  // TODO(asa): Can this be moved to Deploy?
-  static async deploy(
+  async deploy(
     chains: Record<number, ChainConfig>,
     config: CoreConfig,
-  ): Promise<CoreDeploy> {
+    test = false,
+  ) {
     const domains = Object.keys(chains).map((d) => parseInt(d));
-    const instances: Record<number, CoreInstance> = {};
     for (const domain of domains) {
-      instances[domain] = await CoreInstance.deploy(
+      this.instances[domain] = await CoreInstance.deploy(
         domains,
         chains[domain],
         config,
+        test,
       );
+      this.chains[domain] = chains[domain];
     }
-    const deploy = new CoreDeploy(instances, chains);
-    return deploy;
   }
 
   upgradeBeaconController(domain: Domain): core.UpgradeBeaconController {

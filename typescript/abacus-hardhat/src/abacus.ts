@@ -3,27 +3,26 @@ import { core as contracts } from '@abacus-network/ts-interface'
 import { core, types } from '@abacus-network/abacus-deploy'
 import { core as test } from '@abacus-network/abacus-sol/test'
 
-class TestCoreDeploy extends core.CoreDeploy {
-  static async deploy(
-    chains: Record<number, types.ChainConfig>,
-    config: core.types.CoreConfig,
-  ): Promise<TestCoreDeploy> {
-    const domains = Object.keys(chains).map((d) => parseInt(d));
-    const instances: Record<number, core.CoreInstance> = {};
+export class TestCoreDeploy extends core.CoreDeploy {
+  // TODO(asa): Would prefer this to be "deploy"
+  async init(domains: types.Domain[], signer: ethers.Signer) {
+    const chains: Record<number, types.ChainConfig> = {};
+    const validators: Record<number, types.Address> = {};
+    const overrides = {};
     for (const domain of domains) {
-      instances[domain] = await core.CoreInstance.deploy(
-        domains,
-        chains[domain],
-        config,
-        true
-      );
+      chains[domain] = { name: domain.toString(), domain, signer, overrides };
+      validators[domain] = await signer.getAddress();
     }
-    const deploy = new TestCoreDeploy(instances, chains);
-    return deploy;
+    const config: core.types.CoreConfig = {
+      processGas: 850_000,
+      reserveGas: 15_000,
+      validators,
+    };
+    await this.deploy(chains, config, true)
   }
 
   inbox(local: types.Domain, remote: types.Domain): contracts.TestInbox {
-    return this.instances[local].inbox(remote).proxy as contracts.TestInbox;
+    return super.inbox(local, remote) as contracts.TestInbox
   }
 
   async processMessages() {
@@ -76,36 +75,10 @@ class TestCoreDeploy extends core.CoreDeploy {
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
       if (destination !== local) {
-        const inbox = this.inbox(destination, local);
+        const inbox = this.inbox(destination, local) as contracts.TestInbox;
         await inbox.setMessageProven(dispatch.args.message);
         await inbox.testProcess(dispatch.args.message);
       }
     }
-  }
-}
-
-export class TestAbacusDeploy {
-  _deploy: TestCoreDeploy
-
-  constructor() {
-    const chains: Record<number, types.ChainConfig> = {};
-    const instances: Record<number, core.CoreInstance> = {};
-    this._deploy = new TestCoreDeploy(instances, chains);
-  }
-
-  async deploy(domains: types.Domain[], signer: ethers.Signer) {
-    const chains: Record<number, types.ChainConfig> = {};
-    const validators: Record<number, types.Address> = {};
-    const overrides = {};
-    for (const domain of domains) {
-      chains[domain] = { name: domain.toString(), domain, signer, overrides };
-      validators[domain] = await signer.getAddress();
-    }
-    const config: core.types.CoreConfig = {
-      processGas: 850_000,
-      reserveGas: 15_000,
-      validators,
-    };
-    this._deploy = await TestCoreDeploy.deploy(chains, config);
   }
 }

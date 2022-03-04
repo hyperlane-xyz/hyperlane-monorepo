@@ -31,7 +31,8 @@ describe('CoreDeploy', async () => {
         reserveGas: 15_000,
         validators,
       };
-      await CoreDeploy.deploy(chains, config);
+      const core = new CoreDeploy();
+      await core.deploy(chains, config);
     });
   });
 });
