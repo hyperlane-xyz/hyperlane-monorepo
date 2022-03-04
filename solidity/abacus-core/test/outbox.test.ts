@@ -2,7 +2,7 @@ import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { types, utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import {Validator} from './lib/core';
+import { Validator } from './lib/core';
 
 import { TestOutbox, TestOutbox__factory } from '../typechain';
 
@@ -12,7 +12,9 @@ const localDomain = 1000;
 const destDomain = 2000;
 
 describe('Outbox', async () => {
-  let outbox: TestOutbox, signer: SignerWithAddress, recipient: SignerWithAddress;
+  let outbox: TestOutbox,
+    signer: SignerWithAddress,
+    recipient: SignerWithAddress;
 
   before(async () => {
     [signer, recipient] = await ethers.getSigners();
@@ -40,7 +42,11 @@ describe('Outbox', async () => {
 
     const message = ethers.utils.formatBytes32String('message');
     await expect(
-      outbox.dispatch(destDomain, utils.addressToBytes32(recipient.address), message),
+      outbox.dispatch(
+        destDomain,
+        utils.addressToBytes32(recipient.address),
+        message,
+      ),
     ).to.be.revertedWith('failed state');
   });
 
@@ -53,7 +59,11 @@ describe('Outbox', async () => {
   it('Does not dispatch too large messages', async () => {
     const message = `0x${Buffer.alloc(3000).toString('hex')}`;
     await expect(
-      outbox.dispatch(destDomain, utils.addressToBytes32(recipient.address), message),
+      outbox.dispatch(
+        destDomain,
+        utils.addressToBytes32(recipient.address),
+        message,
+      ),
     ).to.be.revertedWith('msg too long');
   });
 
@@ -80,7 +90,11 @@ describe('Outbox', async () => {
     await expect(
       outbox
         .connect(signer)
-        .dispatch(destDomain, utils.addressToBytes32(recipient.address), message),
+        .dispatch(
+          destDomain,
+          utils.addressToBytes32(recipient.address),
+          message,
+        ),
     )
       .to.emit(outbox, 'Dispatch')
       .withArgs(hash, leafIndex, destAndNonce, checkpointedRoot, abacusMessage);

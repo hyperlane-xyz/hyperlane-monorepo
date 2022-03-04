@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+import { types } from '@abacus-network/utils';
 
 export type ChainConfig = {
   name: string;
@@ -10,7 +11,7 @@ export type ChainConfig = {
 };
 
 export type ProxiedAddress = {
-  proxy: Address;
-  implementation: Address;
-  beacon: Address;
+  proxy: types.Address;
+  implementation: types.Address;
+  beacon: types.Address;
 };

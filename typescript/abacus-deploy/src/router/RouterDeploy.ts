@@ -1,10 +1,9 @@
-import { ethers } from 'ethers';
-import { Address, Domain } from '../types';
+import { utils, types } from '@abacus-network/utils';
 import { Deploy } from '../deploy';
 
 interface Router {
-  address: Address;
-  enrollRemoteRouter(domain: Domain, router: Address): Promise<any>;
+  address: types.Address;
+  enrollRemoteRouter(domain: types.Domain, router: types.Address): Promise<any>;
 }
 
 export abstract class RouterDeploy<T, V> extends Deploy<T, V> {
@@ -15,11 +14,11 @@ export abstract class RouterDeploy<T, V> extends Deploy<T, V> {
         if (local === remote) continue;
         await this.router(local).enrollRemoteRouter(
           remote,
-          addressToBytes32(this.router(remote).address),
+          utils.addressToBytes32(this.router(remote).address),
         );
       }
     }
   }
 
-  abstract router(domain: Domain): Router;
+  abstract router(domain: types.Domain): Router;
 }

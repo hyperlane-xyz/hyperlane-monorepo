@@ -1,7 +1,8 @@
 import { ethers } from 'ethers';
-
 import { core } from '@abacus-network/ts-interface';
-import { Address, ChainConfig, ProxiedAddress } from './types';
+import { types } from '@abacus-network/utils';
+
+import { ChainConfig, ProxiedAddress } from './types';
 import { ContractDeployer } from './deployer';
 
 export class BeaconProxy<T extends ethers.Contract> {
@@ -19,7 +20,7 @@ export class BeaconProxy<T extends ethers.Contract> {
   static async deploy<T extends ethers.Contract>(
     chain: ChainConfig,
     factory: ethers.ContractFactory,
-    ubcAddress: Address,
+    ubcAddress: types.Address,
     deployArgs: any[],
     initArgs: any[],
   ): Promise<BeaconProxy<T>> {
@@ -95,7 +96,7 @@ export class BeaconProxy<T extends ethers.Contract> {
     );
   }
 
-  get address(): Address {
+  get address(): types.Address {
     return this.proxy.address;
   }
 

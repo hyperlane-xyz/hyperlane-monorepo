@@ -1,5 +1,7 @@
 import fs from 'fs';
 import { core } from '@abacus-network/ts-interface';
+import { types } from '@abacus-network/utils';
+
 import { BeaconProxy } from '../proxy';
 import { Contracts } from '../contracts';
 import { ProxiedAddress } from '../types';
@@ -12,16 +14,16 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
     public readonly xAppConnectionManager: core.XAppConnectionManager,
     public readonly validatorManager: core.ValidatorManager,
     public readonly outbox: BeaconProxy<core.Outbox>,
-    public readonly inboxes: Record<number, BeaconProxy<core.Inbox>>,
+    public readonly inboxes: Record<types.Domain, BeaconProxy<core.Inbox>>,
   ) {
     super();
   }
 
   toObject(): CoreContractAddresses {
-    const inboxes: Record<number, ProxiedAddress> = {};
+    const inboxes: Record<types.Domain, ProxiedAddress> = {};
     Object.keys(this.inboxes!)
       .map((d) => parseInt(d))
-      .map((domain: number) => {
+      .map((domain: types.Domain) => {
         inboxes[domain] = this.inboxes[domain].toObject();
       });
 
@@ -80,10 +82,10 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
       outboxUpgradeBeacon,
     );
 
-    const inboxes: Record<number, BeaconProxy<core.Inbox>> = {};
+    const inboxes: Record<types.Domain, BeaconProxy<core.Inbox>> = {};
     Object.keys(addresses.inboxes)
       .map((d) => parseInt(d))
-      .map((domain: number) => {
+      .map((domain: types.Domain) => {
         const inboxImplementation = core.Inbox__factory.connect(
           addresses.inboxes[domain].implementation,
           provider,

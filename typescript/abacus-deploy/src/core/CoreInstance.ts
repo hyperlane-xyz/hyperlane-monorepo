@@ -1,5 +1,6 @@
 import { core } from '@abacus-network/ts-interface';
-import { Domain, ChainConfig } from '../types';
+import { types } from '@abacus-network/utils';
+import { ChainConfig } from '../types';
 import { CoreConfig } from './types';
 import { CoreContracts } from './CoreContracts';
 import { ContractDeployer } from '../deployer';
@@ -42,7 +43,7 @@ export class CoreInstance extends Instance<CoreContracts> {
       );
     await xAppConnectionManager.setOutbox(outbox.address, chain.overrides);
 
-    const inboxes: Record<Domain, BeaconProxy<core.Inbox>> = {};
+    const inboxes: Record<types.Domain, BeaconProxy<core.Inbox>> = {};
     const remotes = config.domains.filter((d) => d !== chain.domain);
     const inboxFactory = config.test
       ? core.TestInbox__factory
@@ -101,7 +102,7 @@ export class CoreInstance extends Instance<CoreContracts> {
     return this.contracts.outbox;
   }
 
-  inbox(domain: Domain): BeaconProxy<core.Inbox> {
+  inbox(domain: types.Domain): BeaconProxy<core.Inbox> {
     return this.contracts.inboxes[domain];
   }
 

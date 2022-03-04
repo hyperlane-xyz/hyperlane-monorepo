@@ -120,8 +120,8 @@ describe('Inbox', async () => {
     await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
     // Ensure proper static call return value
-    expect(await inbox.callStatic.prove(leaf, path as types.BytesArray, index)).to.be
-      .true;
+    expect(await inbox.callStatic.prove(leaf, path as types.BytesArray, index))
+      .to.be.true;
 
     await inbox.prove(leaf, path as types.BytesArray, index);
     expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.PENDING);
@@ -157,8 +157,9 @@ describe('Inbox', async () => {
 
     await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
-    expect(await inbox.callStatic.prove(leaf, newPath as types.BytesArray, index)).to
-      .be.false;
+    expect(
+      await inbox.callStatic.prove(leaf, newPath as types.BytesArray, index),
+    ).to.be.false;
 
     await inbox.prove(leaf, newPath as types.BytesArray, index);
     expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.NONE);
