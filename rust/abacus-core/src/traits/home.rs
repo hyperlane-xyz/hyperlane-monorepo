@@ -8,10 +8,9 @@ use crate::{
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::{core::types::H256, utils::keccak256};
-use serde::{Deserialize, Serialize};
 
 /// A Stamped message that has been committed at some leaf index
-#[derive(Debug, Default, Clone, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct RawCommittedMessage {
     /// The index at which the message is committed
     pub leaf_index: u32,
@@ -104,7 +103,7 @@ impl TryFrom<RawCommittedMessage> for CommittedMessage {
 }
 
 /// Metadata for a committed message
-#[derive(Copy, Clone, Default, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct CommittedMessageMeta {
     /// Timestamp of the block the committed message is in
     pub timestamp: u64,
@@ -136,10 +135,10 @@ impl Decode for CommittedMessageMeta {
     }
 }
 
-/// A committed message with its corresponding metadata
-#[derive(Debug, Default, Clone, Eq, PartialEq, Serialize, Deserialize)]
+/// A raw committed message with its corresponding metadata
+#[derive(Debug, Default, Clone, PartialEq)]
 pub struct RawCommittedMessageWithMeta {
-    /// Committed message
+    /// Raw committed message
     pub raw_committed_message: RawCommittedMessage,
     /// Metadata
     pub metadata: CommittedMessageMeta,

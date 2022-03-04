@@ -1,10 +1,10 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::UpdateMeta;
 use crate::{
-    accumulator::merkle::Proof, traits::CommittedMessageMeta, traits::RawCommittedMessage,
-    traits::RawCommittedMessageWithMeta, utils, AbacusMessage, CommittedMessage, Decode,
+    accumulator::merkle::Proof, utils, AbacusMessage, CommittedMessage, Decode,
     SignedUpdate, SignedUpdateWithMeta,
 };
+use crate::traits::{CommittedMessageMeta, RawCommittedMessage, RawCommittedMessageWithMeta};
 use color_eyre::Result;
 use ethers::core::types::H256;
 use tokio::time::sleep;

@@ -141,10 +141,11 @@ where
         let mut committed_messages =
             Vec::<RawCommittedMessageWithMeta>::with_capacity(events.len());
 
+        // The timestamp of an event's block in isn't included in the metadata from ethers-rs,
+        // so we must get each block.
         // Because `events` is sorted by leaf_index, we make use of the block numbers
-        // being monotonically increasing when getting the timestamp of the messages
-        // to only get block timestamps once even if there are multiple events in the
-        // same block.
+        // being monotonically increasing to only get block timestamps once even if
+        // there are multiple events in the same block.
         let mut last_block_number = U64::zero();
         let mut last_block_timestamp = U256::zero();
         for (event, meta) in events {
