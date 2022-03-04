@@ -1,5 +1,4 @@
 node_modules/
-tmp.ts
 dist/
 .env
-cache/
+*.swp

@@ -1,4 +1,0 @@
-# nameOverride: ""
-gcp:
-  project: ''
-  serviceAccountCredentialsBase64: ''

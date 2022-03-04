@@ -21,11 +21,11 @@ contract ValidatorManager is IValidatorManager, Ownable {
     // ============ Events ============
 
     /**
-     * @notice Emitted when a validator is set
-     * @param domain The domain for which the validator is being set
+     * @notice Emitted when a validator is enrolled
+     * @param domain The domain for which the validator is being enrolled
      * @param validator The address of the validator
      */
-    event NewValidator(uint32 indexed domain, address indexed validator);
+    event ValidatorEnrolled(uint32 indexed domain, address indexed validator);
 
     /**
      * @notice Emitted when proof of an improper checkpoint is submitted,
@@ -50,12 +50,12 @@ contract ValidatorManager is IValidatorManager, Ownable {
     // ============ External Functions ============
 
     /**
-     * @notice Set the address of a new validator
+     * @notice Enroll a validator for the given domain
      * @dev only callable by trusted owner
      * @param _domain The domain for which the validator is being set
      * @param _validator The address of the validator
      */
-    function setValidator(uint32 _domain, address _validator)
+    function enrollValidator(uint32 _domain, address _validator)
         external
         onlyOwner
     {
