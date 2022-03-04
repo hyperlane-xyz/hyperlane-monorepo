@@ -2,7 +2,6 @@ import { ethers } from 'ethers';
 import {
   utils,
   types,
-  AbacusDeployment,
 } from '@abacus-network/abacus-sol/test';
 
 import {
@@ -24,7 +23,7 @@ export class GovernanceDeployment {
   ) {}
 
   static async fromAbacusDeployment(
-    abacus: AbacusDeployment,
+    abacus: any,
     governor: types.Signer,
     recoveryManager: types.Signer,
   ) {
@@ -35,7 +34,7 @@ export class GovernanceDeployment {
         domain,
         governor,
         recoveryManager,
-        abacus.connectionManager(domain).address,
+        abacus.xAppConnectionManager(domain).address,
       );
       instances[domain] = instance;
     }

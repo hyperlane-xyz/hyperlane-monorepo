@@ -27,7 +27,7 @@ const testDomain = 3000;
 const domains = [localDomain, remoteDomain];
 const ONLY_OWNER_REVERT_MESSAGE = 'Ownable: caller is not the owner';
 
-describe('GovernanceRouter', async () => {
+describe.only('GovernanceRouter', async () => {
   let governor: types.Signer,
     recoveryManager: types.Signer,
     router: GovernanceRouter,
@@ -137,7 +137,7 @@ describe('GovernanceRouter', async () => {
 
     it('governor can set local xAppConnectionManager', async () => {
       expect(await router.xAppConnectionManager()).to.equal(
-        abc.connectionManager(localDomain).address,
+        abc.xAppConnectionManager(localDomain).address,
       );
       await router.setXAppConnectionManager(ethers.constants.AddressZero);
       expect(await router.xAppConnectionManager()).to.equal(
@@ -336,7 +336,7 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager can set local xAppConnectionManager', async () => {
       expect(await router.xAppConnectionManager()).to.equal(
-        abc.connectionManager(localDomain).address,
+        abc.xAppConnectionManager(localDomain).address,
       );
       await router.setXAppConnectionManager(ethers.constants.AddressZero);
       expect(await router.xAppConnectionManager()).to.equal(

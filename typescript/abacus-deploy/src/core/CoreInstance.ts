@@ -56,7 +56,7 @@ export class CoreInstance extends Instance<CoreContracts> {
       if (i === 0) {
         inboxes[remote] = await BeaconProxy.deploy(
           chain,
-          new core.Inbox__factory(chain.signer),
+          new core.TestInbox__factory(chain.signer),
           upgradeBeaconController.address,
           [chain.domain, config.processGas, config.reserveGas],
           initArgs,
