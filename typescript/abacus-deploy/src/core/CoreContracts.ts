@@ -64,45 +64,21 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
       provider,
     );
 
-    const outboxImplementation = core.Outbox__factory.connect(
-      addresses.outbox.implementation,
+    const outbox: BeaconProxy<core.Outbox> = BeaconProxy.fromObject(
+      addresses.outbox,
+      core.Outbox__factory.abi,
       provider,
-    );
-    const outboxProxy = core.Outbox__factory.connect(
-      addresses.outbox.proxy,
-      provider,
-    );
-    const outboxUpgradeBeacon = core.UpgradeBeacon__factory.connect(
-      addresses.outbox.beacon,
-      provider,
-    );
-    const outbox = new BeaconProxy<core.Outbox>(
-      outboxImplementation,
-      outboxProxy,
-      outboxUpgradeBeacon,
-    );
+    )
 
     const inboxes: Record<types.Domain, BeaconProxy<core.Inbox>> = {};
     Object.keys(addresses.inboxes)
       .map((d) => parseInt(d))
       .map((domain: types.Domain) => {
-        const inboxImplementation = core.Inbox__factory.connect(
-          addresses.inboxes[domain].implementation,
+        inboxes[domain] = BeaconProxy.fromObject(
+          addresses.inboxes[domain],
+          core.Inbox__factory.abi,
           provider,
-        );
-        const inboxProxy = core.Inbox__factory.connect(
-          addresses.inboxes[domain].proxy,
-          provider,
-        );
-        const inboxUpgradeBeacon = core.UpgradeBeacon__factory.connect(
-          addresses.inboxes[domain].beacon,
-          provider,
-        );
-        inboxes[domain] = new BeaconProxy<core.Inbox>(
-          inboxImplementation,
-          inboxProxy,
-          inboxUpgradeBeacon,
-        );
+        )
       });
 
     return new CoreContracts(
