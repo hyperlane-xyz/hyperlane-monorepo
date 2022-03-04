@@ -101,7 +101,7 @@ impl AbacusDB {
             }
         }
 
-        self.store_committed_message_with_meta(message_with_meta)
+        self.store_raw_committed_message_with_meta(message_with_meta)
     }
 
     /// Store a raw committed message with metadata
@@ -111,7 +111,7 @@ impl AbacusDB {
     /// - `leaf_index` --> `leaf`
     /// - `leaf` --> `message`
     /// - `leaf` --> `message_metadata`
-    pub fn store_committed_message_with_meta(
+    pub fn store_raw_committed_message_with_meta(
         &self,
         message_with_meta: &RawCommittedMessageWithMeta,
     ) -> Result<()> {
