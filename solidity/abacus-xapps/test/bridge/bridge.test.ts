@@ -31,7 +31,7 @@ describe('BridgeRouter', async () => {
   before(async () => {
     // populate deployer signer
     [deployer] = await ethers.getSigners();
-    deployerId = utils.addressToBytes32(deployer.address)
+    deployerId = utils.addressToBytes32(deployer.address);
     await abacus.init(domains, deployer);
     // Enroll ourselves as a inbox so we can send messages directly to the
     // local router.
@@ -387,7 +387,11 @@ describe('BridgeRouter', async () => {
           });
         await expect(deliver)
           .to.emit(repr, 'Transfer')
-          .withArgs(ethers.constants.AddressZero, deployer.address, TOKEN_VALUE);
+          .withArgs(
+            ethers.constants.AddressZero,
+            deployer.address,
+            TOKEN_VALUE,
+          );
       });
     });
 
@@ -753,7 +757,9 @@ describe('BridgeRouter', async () => {
           });
 
           it('allows users to migrate', async () => {
-            const defaultBalance = await defaultRepr.balanceOf(deployer.address);
+            const defaultBalance = await defaultRepr.balanceOf(
+              deployer.address,
+            );
             const customBalance = await customRepr.balanceOf(deployer.address);
 
             let migrateTx = bridge

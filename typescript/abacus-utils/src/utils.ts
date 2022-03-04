@@ -1,6 +1,6 @@
-import { assert } from 'chai';
-import { ethers } from 'ethers';
-import { Domain, Address, HexString} from './types';
+import { assert } from "chai";
+import { ethers } from "ethers";
+import { Domain, Address, HexString } from "./types";
 
 /*
  * Gets the byte length of a hex string
@@ -12,7 +12,7 @@ export function getHexStringByteLength(hexStr: string) {
   let len = hexStr.length;
 
   // check for prefix, remove if necessary
-  if (hexStr.slice(0, 2) == '0x') {
+  if (hexStr.slice(0, 2) == "0x") {
     len -= 2;
   }
 
@@ -21,11 +21,11 @@ export function getHexStringByteLength(hexStr: string) {
 }
 
 export const stringToBytes32 = (s: string): string => {
-  const str = Buffer.from(s.slice(0, 32), 'utf-8');
+  const str = Buffer.from(s.slice(0, 32), "utf-8");
   const result = Buffer.alloc(32);
   str.copy(result);
 
-  return '0x' + result.toString('hex');
+  return "0x" + result.toString("hex");
 };
 
 export function addressToBytes32(address: Address): string {
@@ -40,24 +40,24 @@ export const formatMessage = (
   sequence: number,
   destinationDomain: Domain,
   recipientAddr: Address,
-  body: HexString,
+  body: HexString
 ): string => {
   senderAddr = addressToBytes32(senderAddr);
   recipientAddr = addressToBytes32(recipientAddr);
 
   return ethers.utils.solidityPack(
-    ['uint32', 'bytes32', 'uint32', 'uint32', 'bytes32', 'bytes'],
-    [localDomain, senderAddr, sequence, destinationDomain, recipientAddr, body],
+    ["uint32", "bytes32", "uint32", "uint32", "bytes32", "bytes"],
+    [localDomain, senderAddr, sequence, destinationDomain, recipientAddr, body]
   );
 };
 
 export function messageHash(message: HexString): string {
-  return ethers.utils.solidityKeccak256(['bytes'], [message]);
+  return ethers.utils.solidityKeccak256(["bytes"], [message]);
 }
 
 export function destinationAndNonce(
   destination: Domain,
-  sequence: number,
+  sequence: number
 ): ethers.BigNumber {
   assert(destination < Math.pow(2, 32) - 1);
   assert(sequence < Math.pow(2, 32) - 1);
@@ -69,7 +69,7 @@ export function destinationAndNonce(
 
 export function domainHash(domain: Number): string {
   return ethers.utils.solidityKeccak256(
-    ['uint32', 'string'],
-    [domain, 'OPTICS'],
+    ["uint32", "string"],
+    [domain, "OPTICS"]
   );
 }

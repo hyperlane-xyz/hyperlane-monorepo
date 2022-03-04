@@ -9,7 +9,7 @@ import {
 } from '../../../typechain';
 
 export type GovernanceConfig = {
-  signer: ethers.Signer
+  signer: ethers.Signer;
   timelock: number;
   connectionManager: Record<types.Domain, types.Address>;
   governors: Record<types.Domain, types.Address>;

@@ -65,10 +65,7 @@ export class TestCoreDeploy extends core.CoreDeploy {
     // Update the Outbox and Inboxs to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
-    const validator = await Validator.fromSigner(
-      this.signer(local),
-      local
-    );
+    const validator = await Validator.fromSigner(this.signer(local), local);
     const { signature } = await validator.signCheckpoint(
       root,
       index.toNumber()

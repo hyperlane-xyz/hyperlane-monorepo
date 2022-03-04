@@ -11,7 +11,11 @@ export abstract class Deploy<T, V> {
     this.chains = {};
   }
 
-  async deploy(chains: Record<types.Domain, ChainConfig>, config: V, test = false) {
+  async deploy(
+    chains: Record<types.Domain, ChainConfig>,
+    config: V,
+    test = false,
+  ) {
     if (this.domains.length > 0) throw new Error('cannot deploy twice');
     const domains = Object.keys(chains).map((d) => parseInt(d));
     for (const domain of domains) {

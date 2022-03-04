@@ -1,7 +1,7 @@
 import { ethers, abacus } from 'hardhat';
 import { BytesLike } from 'ethers';
 import { expect } from 'chai';
-import { utils } from '@abacus-network/utils'
+import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import * as types from './lib/types';
