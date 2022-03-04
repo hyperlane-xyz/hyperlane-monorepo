@@ -1,0 +1,19 @@
+{
+  "prepublish": "npm run build",
+  "name": "@abacus-network/utils",
+  "version": "0.0.5",
+  "description": "Abacus utilities",
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "prettier": "prettier --write ./src ./test"
+  },
+  "author": "Celo Labs Inc.",
+  "license": "MIT OR Apache-2.0",
+  "dependencies": {
+    "chai": "^4.3.0",
+    "ethers": "^5.4.7"
+  }
+}

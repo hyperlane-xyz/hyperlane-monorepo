@@ -45,6 +45,7 @@
   "author": "James Prestwich",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
+    "@abacus-network/utils": "^0.0.5",
     "@openzeppelin/contracts": "^3.4.2",
     "@openzeppelin/contracts-upgradeable": "~3.4.2",
     "@summa-tx/memview-sol": "^2.0.0",

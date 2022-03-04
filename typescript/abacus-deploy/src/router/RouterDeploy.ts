@@ -2,13 +2,6 @@ import { ethers } from 'ethers';
 import { Address, Domain } from '../types';
 import { Deploy } from '../deploy';
 
-// TODO: Dedup
-function addressToBytes32(address: Address): string {
-  return ethers.utils
-    .hexZeroPad(ethers.utils.hexStripZeros(address), 32)
-    .toLowerCase();
-}
-
 interface Router {
   address: Address;
   enrollRemoteRouter(domain: Domain, router: Address): Promise<any>;
