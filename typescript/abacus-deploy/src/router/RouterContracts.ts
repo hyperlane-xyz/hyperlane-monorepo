@@ -6,15 +6,13 @@ import { RouterContractAddresses } from './types';
 import { ethers } from 'ethers';
 
 export class RouterContracts extends Contracts<RouterContractAddresses> {
-  constructor(
-    public readonly router: BeaconProxy<core.Router>,
-  ) {
+  constructor(public readonly router: BeaconProxy<core.Router>) {
     super();
   }
 
   toObject(): RouterContractAddresses {
     return {
-      router: this.router.toObject()
+      router: this.router.toObject(),
     };
   }
 
@@ -32,6 +30,12 @@ export class RouterContracts extends Contracts<RouterContractAddresses> {
     addresses: RouterContractAddresses,
     provider: ethers.providers.JsonRpcProvider,
   ): RouterContracts {
-    return new RouterContracts(BeaconProxy.fromObject(addresses.router, core.Router__factory.abi, provider));
+    return new RouterContracts(
+      BeaconProxy.fromObject(
+        addresses.router,
+        core.Router__factory.abi,
+        provider,
+      ),
+    );
   }
 }

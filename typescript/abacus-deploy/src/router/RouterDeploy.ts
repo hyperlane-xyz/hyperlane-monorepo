@@ -1,4 +1,4 @@
-import {ethers } from 'ethers';
+import { ethers } from 'ethers';
 import { Address, Domain } from '../types';
 import { Deploy } from '../deploy';
 
@@ -19,6 +19,7 @@ export abstract class RouterDeploy<T, V> extends Deploy<T, V> {
     // Make all routers aware of eachother.
     for (const local of this.domains) {
       for (const remote of this.domains) {
+        if (local === remote) continue;
         await this.router(local).enrollRemoteRouter(
           remote,
           addressToBytes32(this.router(remote).address),

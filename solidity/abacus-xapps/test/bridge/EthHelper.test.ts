@@ -1,25 +1,24 @@
-import { ethers } from 'hardhat';
-import { BytesLike, Signer } from 'ethers';
+import { ethers, abacus } from 'hardhat';
+import { BytesLike } from 'ethers';
 import { expect } from 'chai';
 
 import * as types from './lib/types';
 import { serializeMessage } from './lib/utils';
-import { BridgeDeployment } from './lib/BridgeDeployment';
-import { AbacusDeployment, utils } from '@abacus-network/abacus-sol/test';
+import { BridgeConfig, BridgeDeploy } from './lib/BridgeDeploy';
+import { types as testTypes, utils } from '@abacus-network/abacus-sol/test';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
 const domains = [localDomain, remoteDomain];
 
 describe('EthHelper', async () => {
-  let abacusDeployment: AbacusDeployment;
-  let bridgeDeployment: BridgeDeployment;
+  let bridge: BridgeDeploy;
 
-  let deployer: Signer;
+  let deployer: testTypes.Signer;
   let deployerAddress: string;
   let deployerId: string;
 
-  let recipient: Signer;
+  let recipient: testTypes.Signer;
   let recipientAddress: string;
   let recipientId: string;
 
@@ -34,15 +33,21 @@ describe('EthHelper', async () => {
     deployerId = utils.toBytes32(deployerAddress).toLowerCase();
     recipientAddress = await recipient.getAddress();
     recipientId = utils.toBytes32(recipientAddress).toLowerCase();
-    abacusDeployment = await AbacusDeployment.fromDomains(domains, deployer);
-    bridgeDeployment = await BridgeDeployment.fromAbacusDeployment(
-      abacusDeployment,
-      deployer,
-    );
+    await abacus.init(domains, deployer);
+    const config: BridgeConfig = {
+      signer: deployer,
+      connectionManager: {},
+    };
+    abacus.domains.map((domain) => {
+      config.connectionManager[domain] =
+        abacus.xAppConnectionManager(domain).address;
+    });
+    bridge = new BridgeDeploy();
+    await bridge.deploy(abacus.chains, config);
 
     const tokenId: types.TokenIdentifier = {
       domain: localDomain,
-      id: utils.toBytes32(bridgeDeployment.weth(localDomain).address),
+      id: utils.toBytes32(bridge.weth(localDomain).address),
     };
     const transferToSelfMessageObj: types.Message = {
       tokenId,
@@ -66,39 +71,29 @@ describe('EthHelper', async () => {
   });
 
   it('send function', async () => {
-    let sendTx = bridgeDeployment.helper(localDomain).send(remoteDomain, {
+    console.log(await bridge.helper(localDomain).bridge(), bridge.router(localDomain).address, await bridge.router(remoteDomain).routers(localDomain));
+    let sendTx = bridge.helper(localDomain).send(remoteDomain, {
       value,
     });
 
-    await expect(sendTx).to.emit(
-      abacusDeployment.outbox(localDomain),
-      'Dispatch',
-    );
+    await expect(sendTx).to.emit(abacus.outbox(localDomain), 'Dispatch');
   });
 
   it('sendTo function', async () => {
-    let sendTx = bridgeDeployment
-      .helper(localDomain)
-      .sendTo(remoteDomain, recipientId, {
-        value,
-      });
+    let sendTx = bridge.helper(localDomain).sendTo(remoteDomain, recipientId, {
+      value,
+    });
 
-    await expect(sendTx).to.emit(
-      abacusDeployment.outbox(localDomain),
-      'Dispatch',
-    );
+    await expect(sendTx).to.emit(abacus.outbox(localDomain), 'Dispatch');
   });
 
   it('sendToEVMLike function', async () => {
-    let sendTx = bridgeDeployment
+    let sendTx = bridge
       .helper(localDomain)
       .sendToEVMLike(remoteDomain, recipientAddress, {
         value,
       });
 
-    await expect(sendTx).to.emit(
-      abacusDeployment.outbox(localDomain),
-      'Dispatch',
-    );
+    await expect(sendTx).to.emit(abacus.outbox(localDomain), 'Dispatch');
   });
 });

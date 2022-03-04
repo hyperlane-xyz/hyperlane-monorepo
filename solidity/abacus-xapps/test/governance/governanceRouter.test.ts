@@ -51,15 +51,15 @@ describe('GovernanceRouter', async () => {
     abacus.domains.map((domain) => {
       config.connectionManager[domain] =
         abacus.xAppConnectionManager(domain).address;
-      config.governors[domain] = domain === localDomain ? governor.address : ethers.constants.AddressZero;
+      config.governors[domain] =
+        domain === localDomain
+          ? governor.address
+          : ethers.constants.AddressZero;
       config.recoveryManagers[domain] = recoveryManager.address;
     });
-    console.log(config.governors)
 
     await governance.deploy(abacus.chains, config);
-    console.log("gov deploy done")
     router = governance.router(localDomain);
-    console.log(await router.signer.getAddress(), governor.address)
     remote = governance.router(remoteDomain);
   });
 

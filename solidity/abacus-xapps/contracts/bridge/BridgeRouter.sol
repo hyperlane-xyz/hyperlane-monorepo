@@ -6,8 +6,8 @@ import {TokenRegistry} from "./TokenRegistry.sol";
 import {BridgeMessage} from "./BridgeMessage.sol";
 import {IBridgeToken} from "../../interfaces/bridge/IBridgeToken.sol";
 // ============ External Imports ============
-import {Router} from "@abacus-network/abacus-sol/contracts/xapps/Router.sol";
-import {XAppConnectionClient} from "@abacus-network/abacus-sol/contracts/xapps/XAppConnectionClient.sol";
+import {Router} from "@abacus-network/abacus-sol/contracts/router/Router.sol";
+import {XAppConnectionClient} from "@abacus-network/abacus-sol/contracts/router/XAppConnectionClient.sol";
 import {Outbox} from "@abacus-network/abacus-sol/contracts/Outbox.sol";
 import {Version0} from "@abacus-network/abacus-sol/contracts/Version0.sol";
 import {TypeCasts} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";

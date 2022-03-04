@@ -6,19 +6,16 @@ import { CoreInstance } from './CoreInstance';
 
 export class CoreDeploy extends Deploy<CoreInstance, CoreConfig> {
   deployInstance(
-      chain: ChainConfig,
-      config: CoreConfig,
+    chain: ChainConfig,
+    config: CoreConfig,
   ): Promise<CoreInstance> {
-    return CoreInstance.deploy(
-      chain,
-      config,
-    );
+    return CoreInstance.deploy(chain, config);
   }
 
   async postDeploy(_: CoreConfig) {}
 
   upgradeBeaconController(domain: Domain): core.UpgradeBeaconController {
-    return this.instances[domain].upgradeBeaconController
+    return this.instances[domain].upgradeBeaconController;
   }
 
   validatorManager(domain: Domain): core.ValidatorManager {

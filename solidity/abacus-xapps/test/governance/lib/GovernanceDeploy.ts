@@ -1,8 +1,8 @@
 import { ethers } from 'ethers';
 import { utils } from '@abacus-network/abacus-sol/test';
 import { types } from '@abacus-network/abacus-deploy';
-import { RouterDeploy } from '@abacus-network/abacus-deploy/src/xapps/RouterDeploy';
-import { types as testTypes} from '@abacus-network/abacus-sol/test';
+import { RouterDeploy } from '@abacus-network/abacus-deploy/src/router/RouterDeploy';
+import { types as testTypes } from '@abacus-network/abacus-sol/test';
 
 import {
   GovernanceRouter__factory,

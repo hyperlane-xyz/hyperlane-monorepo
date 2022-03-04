@@ -1,10 +1,16 @@
-import { ethers} from 'ethers';
-import { core as contracts } from '@abacus-network/ts-interface'
-import { core, types } from '@abacus-network/abacus-deploy'
-import { core as test } from '@abacus-network/abacus-sol/test'
+import { ethers } from "ethers";
+import { core as contracts } from "@abacus-network/ts-interface";
+import { core, types } from "@abacus-network/abacus-deploy";
+import { core as test } from "@abacus-network/abacus-sol/test";
 
 export class TestCoreDeploy extends core.CoreDeploy {
   async init(domains: types.Domain[], signer: ethers.Signer) {
+    // Clear the deploy so that we can deploy again in a new test.
+    for (const domain of this.domains) {
+      delete this.chains[domain];
+      delete this.instances[domain];
+    }
+
     const chains: Record<number, types.ChainConfig> = {};
     const validators: Record<number, types.Address> = {};
     const overrides = {};
@@ -19,16 +25,16 @@ export class TestCoreDeploy extends core.CoreDeploy {
       domains,
       test: true,
     };
-    await this.deploy(chains, config)
+    await this.deploy(chains, config);
   }
 
   inbox(local: types.Domain, remote: types.Domain): contracts.TestInbox {
-    return super.inbox(local, remote) as contracts.TestInbox
+    return super.inbox(local, remote) as contracts.TestInbox;
   }
 
   async processMessages() {
     await Promise.all(
-      this.domains.map((d) => this.processMessagesFromDomain(d)),
+      this.domains.map((d) => this.processMessagesFromDomain(d))
     );
   }
 
@@ -42,7 +48,8 @@ export class TestCoreDeploy extends core.CoreDeploy {
     // Find the block number of the last checkpoint submitted on Outbox.
     const checkpointFilter = outbox.filters.Checkpoint(checkpointedRoot);
     const checkpoints = await outbox.queryFilter(checkpointFilter);
-    if (!(checkpoints.length === 0 || checkpoints.length === 1)) throw new Error('found multiple checkpoints');
+    if (!(checkpoints.length === 0 || checkpoints.length === 1))
+      throw new Error("found multiple checkpoints");
     const fromBlock = checkpoints.length === 0 ? 0 : checkpoints[0].blockNumber;
 
     await outbox.checkpoint();
@@ -57,10 +64,13 @@ export class TestCoreDeploy extends core.CoreDeploy {
     // Update the Outbox and Inboxs to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
-    const validator = await test.Validator.fromSigner(this.signer(local), local)
+    const validator = await test.Validator.fromSigner(
+      this.signer(local),
+      local
+    );
     const { signature } = await validator.signCheckpoint(
       root,
-      index.toNumber(),
+      index.toNumber()
     );
 
     for (const remote of this.domains) {

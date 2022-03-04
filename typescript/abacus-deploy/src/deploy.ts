@@ -1,4 +1,4 @@
-import { ChainConfig, Domain } from './types'
+import { ChainConfig, Domain } from './types';
 
 // TODO(asa): Can T extend Instance?
 export abstract class Deploy<T, V> {
@@ -10,12 +10,8 @@ export abstract class Deploy<T, V> {
     this.chains = {};
   }
 
-  async deploy(
-    chains: Record<number, ChainConfig>,
-    config: V,
-    test = false,
-  ) {
-    if (this.domains.length > 0) throw new Error('cannot deploy twice')
+  async deploy(chains: Record<number, ChainConfig>, config: V, test = false) {
+    if (this.domains.length > 0) throw new Error('cannot deploy twice');
     const domains = Object.keys(chains).map((d) => parseInt(d));
     for (const domain of domains) {
       this.instances[domain] = await this.deployInstance(
@@ -29,16 +25,13 @@ export abstract class Deploy<T, V> {
 
   abstract postDeploy(config: V): Promise<void>;
 
-  abstract deployInstance(
-      chain: ChainConfig,
-      config: V,
-  ): Promise<T>;
+  abstract deployInstance(chain: ChainConfig, config: V): Promise<T>;
 
   signer(domain: Domain) {
     return this.chains[domain].signer;
   }
 
   get domains(): Domain[] {
-    return Object.keys(this.instances).map((d) => parseInt(d))
+    return Object.keys(this.instances).map((d) => parseInt(d));
   }
 }

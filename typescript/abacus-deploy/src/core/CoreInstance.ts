@@ -44,7 +44,9 @@ export class CoreInstance extends Instance<CoreContracts> {
 
     const inboxes: Record<Domain, BeaconProxy<core.Inbox>> = {};
     const remotes = config.domains.filter((d) => d !== chain.domain);
-    const inboxFactory = config.test ? core.TestInbox__factory : core.Inbox__factory
+    const inboxFactory = config.test
+      ? core.TestInbox__factory
+      : core.Inbox__factory;
     for (let i = 0; i < remotes.length; i++) {
       const remote = remotes[i];
       const initArgs = [
