@@ -1,21 +1,29 @@
 import { AbacusContext } from '@abacus-network/sdk';
+import { xapps } from '@abacus-network/ts-interface';
 import config from '../config';
 
-export async function monitorGovernor(context: AbacusContext) {
-  await monitorGovernanceRouter(context, await context.governorDomain());
+export async function monitorGovernance(
+  context: AbacusContext,
+  networks: string[],
+) {
+  const routers = networks.map(
+    (network) => context.mustGetCore(network).governanceRouter,
+  );
+  await Promise.all(
+    networks.map((network, i) => monitorRecoveryActiveAt(network, routers[i])),
+  );
 }
 
-async function monitorGovernanceRouter(context: AbacusContext, domain: number) {
-  const network = context.mustGetDomain(domain).name;
+async function monitorRecoveryActiveAt(
+  network: string,
+  router: xapps.GovernanceRouter,
+) {
   const logger = config.baseLogger.child({
     network,
   });
   logger.info('Getting GovernanceRouter recoveryActiveAt');
 
-  const governanceRouter = context.mustGetCore(domain).governanceRouter;
-  const recoveryActiveAt = (
-    await governanceRouter.recoveryActiveAt()
-  ).toNumber();
+  const recoveryActiveAt = (await router.recoveryActiveAt()).toNumber();
 
   config.metrics.setGovernorRecoveryActiveAt(
     network,

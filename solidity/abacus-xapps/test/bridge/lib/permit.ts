@@ -1,5 +1,5 @@
 import { BigNumber, BigNumberish, ethers } from 'ethers';
-import { BridgeToken } from '../../typechain';
+import { BridgeToken } from '../../../typechain';
 
 const PERMIT_TYPEHASH = ethers.utils.keccak256(
   ethers.utils.toUtf8Bytes(

@@ -48,7 +48,7 @@ export type RustContractBlock = {
 export type RustConfig = {
   environment: string;
   signers: Record<string, RustSigner>;
-  inboxs: Record<string, RustContractBlock>;
+  inboxes: Record<string, RustContractBlock>;
   outbox: RustContractBlock;
   tracing: {
     level: string;

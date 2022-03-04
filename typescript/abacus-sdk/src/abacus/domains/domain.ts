@@ -5,7 +5,7 @@ export interface AbacusDomain extends Domain {
   bridgeRouter: Address;
   ethHelper?: Address;
   outbox: Address;
-  inboxs: InboxInfo[];
+  inboxes: InboxInfo[];
   governanceRouter: Address;
   xAppConnectionManager: Address;
 }

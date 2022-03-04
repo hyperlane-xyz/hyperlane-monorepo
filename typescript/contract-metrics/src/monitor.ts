@@ -1,6 +1,6 @@
 import config from './config';
 import { monitorCore } from './monitor/core';
-import { monitorGovernor } from './monitor/governance';
+import { monitorGovernance } from './monitor/governance';
 import { context } from './registerContext';
 
 const cliArgs = process.argv.slice(2);
@@ -29,7 +29,7 @@ async function main(forever: boolean) {
 }
 
 async function monitorAll() {
-  await monitorGovernor(context);
+  await monitorGovernance(context, config.networks);
   for (let network of config.networks) {
     const origin = network;
     const remotes = config.networks.filter((m) => m != origin);

@@ -8,7 +8,7 @@ export const ethereum: AbacusDomain = {
   outbox: '0xf25C5932bb6EFc7afA4895D9916F2abD7151BF97',
   governanceRouter: '0x42303634F37956687fB7ff2c6146AC842481A052',
   xAppConnectionManager: '0xcEc158A719d11005Bd9339865965bed938BEafA3',
-  inboxs: [
+  inboxes: [
     {
       domain: 1667591279,
       address: '0x07b5B57b08202294E657D51Eb453A189290f6385',
@@ -33,7 +33,7 @@ export const polygon: AbacusDomain = {
   outbox: '0x97bbda9A1D45D86631b243521380Bc070D6A4cBD',
   governanceRouter: '0xcEc158A719d11005Bd9339865965bed938BEafA3',
   xAppConnectionManager: '0x3BAD272559949B455f14ee394798E4D744342661',
-  inboxs: [
+  inboxes: [
     { domain: 6648936, address: '0xf25C5932bb6EFc7afA4895D9916F2abD7151BF97' },
     {
       domain: 1667591279,
@@ -49,7 +49,7 @@ export const celo: AbacusDomain = {
   outbox: '0x97bbda9A1D45D86631b243521380Bc070D6A4cBD',
   governanceRouter: '0xcEc158A719d11005Bd9339865965bed938BEafA3',
   xAppConnectionManager: '0x3BAD272559949B455f14ee394798E4D744342661',
-  inboxs: [
+  inboxes: [
     { domain: 6648936, address: '0xf25C5932bb6EFc7afA4895D9916F2abD7151BF97' },
     {
       domain: 1886350457,

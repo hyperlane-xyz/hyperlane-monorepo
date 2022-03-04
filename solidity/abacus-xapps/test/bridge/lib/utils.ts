@@ -2,16 +2,6 @@ import { assert } from 'chai';
 import { ethers } from 'ethers';
 
 import * as types from './types';
-import { TokenIdentifier } from './types';
-
-export enum BridgeMessageTypes {
-  INVALID = 0,
-  TOKEN_ID,
-  MESSAGE,
-  TRANSFER,
-  DETAILS,
-  REQUEST_DETAILS,
-}
 
 const typeToByte = (type: number): string => `0x0${type}`;
 
@@ -30,7 +20,7 @@ export function formatTransfer(
 ): ethers.BytesLike {
   return ethers.utils.solidityPack(
     ['bytes1', 'bytes32', 'uint256'],
-    [BridgeMessageTypes.TRANSFER, to, amnt],
+    [types.BridgeMessageTypes.TRANSFER, to, amnt],
   );
 }
 
@@ -42,7 +32,7 @@ export function formatDetails(
 ): ethers.BytesLike {
   return ethers.utils.solidityPack(
     ['bytes1', 'bytes32', 'bytes32', 'uint8'],
-    [BridgeMessageTypes.DETAILS, name, symbol, decimals],
+    [types.BridgeMessageTypes.DETAILS, name, symbol, decimals],
   );
 }
 
@@ -50,7 +40,7 @@ export function formatDetails(
 export function formatRequestDetails(): ethers.BytesLike {
   return ethers.utils.solidityPack(
     ['bytes1'],
-    [BridgeMessageTypes.REQUEST_DETAILS],
+    [types.BridgeMessageTypes.REQUEST_DETAILS],
   );
 }
 
@@ -71,7 +61,7 @@ export function serializeTransferAction(
 ): ethers.BytesLike {
   const { type, recipient, amount } = transferAction;
 
-  assert(type === BridgeMessageTypes.TRANSFER);
+  assert(type === types.BridgeMessageTypes.TRANSFER);
   return formatTransfer(recipient, amount);
 }
 
@@ -80,29 +70,31 @@ export function serializeDetailsAction(
 ): ethers.BytesLike {
   const { type, name, symbol, decimals } = detailsAction;
 
-  assert(type === BridgeMessageTypes.DETAILS);
+  assert(type === types.BridgeMessageTypes.DETAILS);
   return formatDetails(name, symbol, decimals);
 }
 
 export function serializeRequestDetailsAction(
   requestDetailsAction: types.RequestDetailsAction,
 ): ethers.BytesLike {
-  assert(requestDetailsAction.type === BridgeMessageTypes.REQUEST_DETAILS);
+  assert(
+    requestDetailsAction.type === types.BridgeMessageTypes.REQUEST_DETAILS,
+  );
   return formatRequestDetails();
 }
 
 export function serializeAction(action: types.Action): ethers.BytesLike {
   let actionBytes: ethers.BytesLike = [];
   switch (action.type) {
-    case BridgeMessageTypes.TRANSFER: {
-      actionBytes = serializeTransferAction(action);
+    case types.BridgeMessageTypes.TRANSFER: {
+      actionBytes = serializeTransferAction(action as types.TransferAction);
       break;
     }
-    case BridgeMessageTypes.DETAILS: {
-      actionBytes = serializeDetailsAction(action);
+    case types.BridgeMessageTypes.DETAILS: {
+      actionBytes = serializeDetailsAction(action as types.DetailsAction);
       break;
     }
-    case BridgeMessageTypes.REQUEST_DETAILS: {
+    case types.BridgeMessageTypes.REQUEST_DETAILS: {
       actionBytes = serializeRequestDetailsAction(action);
       break;
     }
@@ -114,7 +106,9 @@ export function serializeAction(action: types.Action): ethers.BytesLike {
   return actionBytes;
 }
 
-export function serializeTokenId(tokenId: TokenIdentifier): ethers.BytesLike {
+export function serializeTokenId(
+  tokenId: types.TokenIdentifier,
+): ethers.BytesLike {
   if (typeof tokenId.domain !== 'number' || typeof tokenId.id !== 'string') {
     throw new Error('!types');
   }
@@ -126,15 +120,3 @@ export function serializeMessage(message: types.Message): ethers.BytesLike {
   const action = serializeAction(message.action);
   return formatMessage(tokenId, action);
 }
-
-export const bridge: types.HardhatBridgeHelpers = {
-  BridgeMessageTypes,
-  typeToByte,
-  MESSAGE_LEN,
-  serializeTransferAction,
-  serializeDetailsAction,
-  serializeRequestDetailsAction,
-  serializeAction,
-  serializeTokenId,
-  serializeMessage,
-};

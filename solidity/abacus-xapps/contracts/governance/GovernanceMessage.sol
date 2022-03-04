@@ -12,14 +12,16 @@ library GovernanceMessage {
     uint256 private constant CALL_PREFIX_LEN = 64;
     uint256 private constant MSG_PREFIX_NUM_ITEMS = 2;
     uint256 private constant MSG_PREFIX_LEN = 2;
-    uint256 private constant GOV_ACTION_LEN = 37;
+    uint256 private constant ENROLL_REMOTE_ROUTER_LEN = 37;
+    uint256 private constant SET_ADDRESS_LEN = 33;
 
     enum Types {
         Invalid, // 0
         Call, // 1
-        TransferGovernor, // 2
-        SetRouter, // 3
-        Data // 4
+        SetGovernor, // 2
+        EnrollRemoteRouter, // 3
+        Data, // 4
+        SetXAppConnectionManager // 5
     }
 
     struct Call {
@@ -66,28 +68,45 @@ library GovernanceMessage {
         _msg = TypedMemView.join(_encodedCalls);
     }
 
-    function formatTransferGovernor(uint32 _domain, bytes32 _governor)
+    function formatSetGovernor(bytes32 _governor)
         internal
         view
         returns (bytes memory _msg)
     {
         _msg = TypedMemView.clone(
-            mustBeTransferGovernor(
+            mustBeSetGovernor(
+                abi.encodePacked(Types.SetGovernor, _governor).ref(0)
+            )
+        );
+    }
+
+    function formatEnrollRemoteRouter(uint32 _domain, bytes32 _router)
+        internal
+        view
+        returns (bytes memory _msg)
+    {
+        _msg = TypedMemView.clone(
+            mustBeEnrollRemoteRouter(
                 abi
-                    .encodePacked(Types.TransferGovernor, _domain, _governor)
+                    .encodePacked(Types.EnrollRemoteRouter, _domain, _router)
                     .ref(0)
             )
         );
     }
 
-    function formatSetRouter(uint32 _domain, bytes32 _router)
+    function formatSetXAppConnectionManager(bytes32 _xAppConnectionManager)
         internal
         view
         returns (bytes memory _msg)
     {
         _msg = TypedMemView.clone(
-            mustBeSetRouter(
-                abi.encodePacked(Types.SetRouter, _domain, _router).ref(0)
+            mustBeSetXAppConnectionManager(
+                abi
+                    .encodePacked(
+                        Types.SetXAppConnectionManager,
+                        _xAppConnectionManager
+                    )
+                    .ref(0)
             )
         );
     }
@@ -154,19 +173,28 @@ library GovernanceMessage {
         return uint256(_view.index(32, 32));
     }
 
-    // Types.TransferGovernor & Types.EnrollRemote
+    // Types.EnrollRemoteRouter
     function domain(bytes29 _view) internal pure returns (uint32) {
         return uint32(_view.indexUint(1, 4));
     }
 
-    // Types.EnrollRemote
+    // Types.EnrollRemoteRouter
     function router(bytes29 _view) internal pure returns (bytes32) {
         return _view.index(5, 32);
     }
 
-    // Types.TransferGovernor
+    // Types.SetGovernor
     function governor(bytes29 _view) internal pure returns (bytes32) {
-        return _view.index(5, 32);
+        return _view.index(1, 32);
+    }
+
+    // Types.SetXAppConnectionManager
+    function xAppConnectionManager(bytes29 _view)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return _view.index(1, 32);
     }
 
     /*
@@ -199,81 +227,129 @@ library GovernanceMessage {
         return TypedMemView.nullView();
     }
 
-    function mustBeCalls(bytes29 _view) internal pure returns (bytes29) {
+    function mustBeCall(bytes29 _view) internal pure returns (bytes29) {
         return tryAsCall(_view).assertValid();
     }
 
     /*
-        Message Type: TRANSFER GOVERNOR
-        struct TransferGovernor {
+        Message Type: SET GOVERNOR
+        struct SetGovernor {
             identifier, // message ID -- 1 byte
-            domain,     // domain of new governor -- 4 bytes
             addr        // address of new governor -- 32 bytes
         }
     */
 
-    function isValidTransferGovernor(bytes29 _view)
-        internal
-        pure
-        returns (bool)
-    {
+    function isValidSetGovernor(bytes29 _view) internal pure returns (bool) {
         return
-            identifier(_view) == uint8(Types.TransferGovernor) &&
-            _view.len() == GOV_ACTION_LEN;
+            identifier(_view) == uint8(Types.SetGovernor) &&
+            _view.len() == SET_ADDRESS_LEN;
     }
 
-    function isTransferGovernor(bytes29 _view) internal pure returns (bool) {
+    function isSetGovernor(bytes29 _view) internal pure returns (bool) {
         return
-            isValidTransferGovernor(_view) &&
-            messageType(_view) == Types.TransferGovernor;
+            isValidSetGovernor(_view) &&
+            messageType(_view) == Types.SetGovernor;
     }
 
-    function tryAsTransferGovernor(bytes29 _view)
-        internal
-        pure
-        returns (bytes29)
-    {
-        if (isValidTransferGovernor(_view)) {
-            return _view.castTo(uint40(Types.TransferGovernor));
+    function tryAsSetGovernor(bytes29 _view) internal pure returns (bytes29) {
+        if (isValidSetGovernor(_view)) {
+            return _view.castTo(uint40(Types.SetGovernor));
         }
         return TypedMemView.nullView();
     }
 
-    function mustBeTransferGovernor(bytes29 _view)
-        internal
-        pure
-        returns (bytes29)
-    {
-        return tryAsTransferGovernor(_view).assertValid();
+    function mustBeSetGovernor(bytes29 _view) internal pure returns (bytes29) {
+        return tryAsSetGovernor(_view).assertValid();
     }
 
     /*
-        Message Type: ENROLL ROUTER
-        struct SetRouter {
+        Message Type: ENROLL REMOTE ROUTER
+        struct EnrollRemoteRouter {
             identifier, // message ID -- 1 byte
             domain,     // domain of new router -- 4 bytes
             addr        // address of new router -- 32 bytes
         }
     */
 
-    function isValidSetRouter(bytes29 _view) internal pure returns (bool) {
+    function isValidEnrollRemoteRouter(bytes29 _view)
+        internal
+        pure
+        returns (bool)
+    {
         return
-            identifier(_view) == uint8(Types.SetRouter) &&
-            _view.len() == GOV_ACTION_LEN;
+            identifier(_view) == uint8(Types.EnrollRemoteRouter) &&
+            _view.len() == ENROLL_REMOTE_ROUTER_LEN;
     }
 
-    function isSetRouter(bytes29 _view) internal pure returns (bool) {
-        return isValidSetRouter(_view) && messageType(_view) == Types.SetRouter;
+    function isEnrollRemoteRouter(bytes29 _view) internal pure returns (bool) {
+        return
+            isValidEnrollRemoteRouter(_view) &&
+            messageType(_view) == Types.EnrollRemoteRouter;
     }
 
-    function tryAsSetRouter(bytes29 _view) internal pure returns (bytes29) {
-        if (isValidSetRouter(_view)) {
-            return _view.castTo(uint40(Types.SetRouter));
+    function tryAsEnrollRemoteRouter(bytes29 _view)
+        internal
+        pure
+        returns (bytes29)
+    {
+        if (isValidEnrollRemoteRouter(_view)) {
+            return _view.castTo(uint40(Types.EnrollRemoteRouter));
         }
         return TypedMemView.nullView();
     }
 
-    function mustBeSetRouter(bytes29 _view) internal pure returns (bytes29) {
-        return tryAsSetRouter(_view).assertValid();
+    function mustBeEnrollRemoteRouter(bytes29 _view)
+        internal
+        pure
+        returns (bytes29)
+    {
+        return tryAsEnrollRemoteRouter(_view).assertValid();
+    }
+
+    /*
+        Message Type: SET XAPPCONNECTIONMANAGER
+        struct SetXAppConnectionManager {
+            identifier, // message ID -- 1 byte
+            addr        // address of new xAppConnectionManager -- 32 bytes
+        }
+    */
+
+    function isValidSetXAppConnectionManager(bytes29 _view)
+        internal
+        pure
+        returns (bool)
+    {
+        return
+            identifier(_view) == uint8(Types.SetXAppConnectionManager) &&
+            _view.len() == SET_ADDRESS_LEN;
+    }
+
+    function isSetXAppConnectionManager(bytes29 _view)
+        internal
+        pure
+        returns (bool)
+    {
+        return
+            isValidSetXAppConnectionManager(_view) &&
+            messageType(_view) == Types.SetXAppConnectionManager;
+    }
+
+    function tryAsSetXAppConnectionManager(bytes29 _view)
+        internal
+        pure
+        returns (bytes29)
+    {
+        if (isValidSetXAppConnectionManager(_view)) {
+            return _view.castTo(uint40(Types.SetXAppConnectionManager));
+        }
+        return TypedMemView.nullView();
+    }
+
+    function mustBeSetXAppConnectionManager(bytes29 _view)
+        internal
+        pure
+        returns (bytes29)
+    {
+        return tryAsSetXAppConnectionManager(_view).assertValid();
     }
 }

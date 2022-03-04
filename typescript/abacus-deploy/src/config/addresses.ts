@@ -13,7 +13,7 @@ export type CoreContractAddresses = {
   governanceRouter: ProxiedAddress;
   outbox: ProxiedAddress;
   // TODO: Put chain name in here
-  inboxs?: Record<number, ProxiedAddress>;
+  inboxes?: Record<number, ProxiedAddress>;
 };
 
 export type BridgeContractAddresses = {
