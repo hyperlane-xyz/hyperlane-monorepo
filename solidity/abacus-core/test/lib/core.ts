@@ -1,14 +1,13 @@
 import { ethers } from 'ethers';
 import { utils, types } from '@abacus-network/utils';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 export class Validator {
   localDomain: types.Domain;
-  signer: SignerWithAddress;
+  signer: ethers.Signer;
   address: types.Address;
 
   constructor(
-    signer: SignerWithAddress,
+    signer: ethers.Signer,
     address: types.Address,
     localDomain: types.Domain,
     disableWarn: boolean,
@@ -21,8 +20,11 @@ export class Validator {
     this.address = address;
   }
 
-  static fromSigner(signer: SignerWithAddress, localDomain: types.Domain) {
-    return new Validator(signer, signer.address, localDomain, true);
+  static async fromSigner(
+    signer: ethers.Signer,
+    localDomain: types.Domain,
+  ) {
+    return new Validator(signer, await signer.getAddress(), localDomain, true);
   }
 
   domainHash() {

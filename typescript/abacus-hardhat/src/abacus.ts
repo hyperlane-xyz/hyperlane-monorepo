@@ -1,7 +1,8 @@
 import { ethers } from "ethers";
 import { core as contracts } from "@abacus-network/ts-interface";
-import { core, types } from "@abacus-network/abacus-deploy";
-import { core as test } from "@abacus-network/abacus-sol/test";
+import { types } from "@abacus-network/utils";
+import { types as deployTypes, core } from "@abacus-network/abacus-deploy";
+import { Validator } from "@abacus-network/abacus-sol/test/lib/core";
 
 export class TestCoreDeploy extends core.CoreDeploy {
   async init(domains: types.Domain[], signer: ethers.Signer) {
@@ -11,7 +12,7 @@ export class TestCoreDeploy extends core.CoreDeploy {
       delete this.instances[domain];
     }
 
-    const chains: Record<number, types.ChainConfig> = {};
+    const chains: Record<number, deployTypes.ChainConfig> = {};
     const validators: Record<number, types.Address> = {};
     const overrides = {};
     for (const domain of domains) {
@@ -64,7 +65,7 @@ export class TestCoreDeploy extends core.CoreDeploy {
     // Update the Outbox and Inboxs to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
-    const validator = await test.Validator.fromSigner(
+    const validator = await Validator.fromSigner(
       this.signer(local),
       local
     );
