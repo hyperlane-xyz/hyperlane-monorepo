@@ -9,21 +9,37 @@ export class BeaconProxy<T extends ethers.Contract> {
     public readonly implementation: T,
     public readonly proxy: T,
     public readonly beacon: core.UpgradeBeacon,
-  ) {
-  }
+  ) {}
 
   /**
    * Deploys the UpgradeBeacon, Implementation and Proxy for a given contract
    *
    * @param T - The contract
    */
-  static async deploy<T extends ethers.Contract>(chain: ChainConfig, factory: ethers.ContractFactory, ubcAddress: Address, deployArgs: any[], initArgs: any[]): Promise<BeaconProxy<T>> {
+  static async deploy<T extends ethers.Contract>(
+    chain: ChainConfig,
+    factory: ethers.ContractFactory,
+    ubcAddress: Address,
+    deployArgs: any[],
+    initArgs: any[],
+  ): Promise<BeaconProxy<T>> {
     const deployer = new ContractDeployer(chain, false);
-    const implementation: T = await deployer.deploy(factory, ...deployArgs)
-    const beacon: core.UpgradeBeacon = await deployer.deploy(new core.UpgradeBeacon__factory(chain.signer), implementation.address, ubcAddress)
+    const implementation: T = await deployer.deploy(factory, ...deployArgs);
+    const beacon: core.UpgradeBeacon = await deployer.deploy(
+      new core.UpgradeBeacon__factory(chain.signer),
+      implementation.address,
+      ubcAddress,
+    );
 
-    const initData = implementation.interface.encodeFunctionData('initialize', initArgs);
-    const proxy: core.UpgradeBeaconProxy = await deployer.deploy(new core.UpgradeBeaconProxy__factory(chain.signer), beacon.address, initData)
+    const initData = implementation.interface.encodeFunctionData(
+      'initialize',
+      initArgs,
+    );
+    const proxy: core.UpgradeBeaconProxy = await deployer.deploy(
+      new core.UpgradeBeaconProxy__factory(chain.signer),
+      beacon.address,
+      initData,
+    );
     // proxy wait(x) implies implementation and beacon wait(>=x)
     // due to nonce ordering
     await proxy.deployTransaction.wait(chain.confirmations);
@@ -39,10 +55,20 @@ export class BeaconProxy<T extends ethers.Contract> {
    *
    * @param T - The contract
    */
-  async duplicate(chain: ChainConfig, initArgs: any[]): Promise<BeaconProxy<T>> {
+  async duplicate(
+    chain: ChainConfig,
+    initArgs: any[],
+  ): Promise<BeaconProxy<T>> {
     const deployer = new ContractDeployer(chain);
-    const initData = this.implementation.interface.encodeFunctionData('initialize', initArgs);
-    const proxy = await deployer.deploy(new core.UpgradeBeaconProxy__factory(chain.signer), this.beacon.address, initData)
+    const initData = this.implementation.interface.encodeFunctionData(
+      'initialize',
+      initArgs,
+    );
+    const proxy = await deployer.deploy(
+      new core.UpgradeBeaconProxy__factory(chain.signer),
+      this.beacon.address,
+      initData,
+    );
 
     return new BeaconProxy(
       this.implementation,

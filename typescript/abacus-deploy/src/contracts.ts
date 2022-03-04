@@ -1,6 +1,6 @@
 import fs from 'fs';
 
-export abstract class Contracts<T>{
+export abstract class Contracts<T> {
   constructor() {}
 
   abstract toObject(): T;

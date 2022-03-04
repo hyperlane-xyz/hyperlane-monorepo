@@ -2,8 +2,8 @@ import fs from 'fs';
 import { core } from '@abacus-network/ts-interface';
 import { BeaconProxy } from '../proxy';
 import { Contracts } from '../contracts';
-import { ProxiedAddress} from '../types'
-import { CoreContractAddresses } from './types'
+import { ProxiedAddress } from '../types';
+import { CoreContractAddresses } from './types';
 import { ethers } from 'ethers';
 
 export class CoreContracts extends Contracts<CoreContractAddresses> {
@@ -35,7 +35,10 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
   }
 
   // TODO(asa): Can this be added to Contracts instead?
-  static fromJson(filepath: string, provider: ethers.providers.JsonRpcProvider): CoreContracts {
+  static fromJson(
+    filepath: string,
+    provider: ethers.providers.JsonRpcProvider,
+  ): CoreContracts {
     const contents = fs.readFileSync(filepath, 'utf8');
     const addresses: CoreContractAddresses = JSON.parse(contents);
     return CoreContracts.fromObject(addresses, provider);
@@ -50,11 +53,10 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
         addresses.upgradeBeaconController,
         provider,
       );
-    const xAppConnectionManager =
-      core.XAppConnectionManager__factory.connect(
-        addresses.xAppConnectionManager,
-        provider,
-      );
+    const xAppConnectionManager = core.XAppConnectionManager__factory.connect(
+      addresses.xAppConnectionManager,
+      provider,
+    );
     const validatorManager = core.ValidatorManager__factory.connect(
       addresses.validatorManager,
       provider,
@@ -102,10 +104,11 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
       });
 
     return new CoreContracts(
-    upgradeBeaconController,
-    xAppConnectionManager,
-    validatorManager,
-    outbox,
-    inboxes)
+      upgradeBeaconController,
+      xAppConnectionManager,
+      validatorManager,
+      outbox,
+      inboxes,
+    );
   }
 }

@@ -7,11 +7,14 @@ export class ContractDeployer {
     public readonly wait = true,
   ) {}
 
-  async deploy<T extends ethers.Contract>(factory: ethers.ContractFactory, ...args: any[]): Promise<T> {
-    const contract = await factory.deploy(...args, this.chain.overrides) as T;
+  async deploy<T extends ethers.Contract>(
+    factory: ethers.ContractFactory,
+    ...args: any[]
+  ): Promise<T> {
+    const contract = (await factory.deploy(...args, this.chain.overrides)) as T;
     if (this.wait) {
       await contract.deployTransaction.wait(this.chain.confirmations);
     }
-    return contract
+    return contract;
   }
 }

@@ -1,9 +1,9 @@
 import { ethers, BigNumberish } from 'ethers';
 
-export type ChainConfig {
+export type ChainConfig = {
   name: string;
   domain: number;
-  signer: ethers.Signer,
+  signer: ethers.Signer;
   overrides: ethers.Overrides;
   supports1559?: boolean;
   confirmations?: number;
@@ -17,4 +17,3 @@ export type ProxiedAddress = {
   implementation: Address;
   beacon: Address;
 };
-

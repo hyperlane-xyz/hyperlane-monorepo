@@ -10,7 +10,7 @@ import { CoreDeploy } from '../src/core/CoreDeploy';
  * Deploy the full Abacus suite on three chains
  */
 describe('CoreDeploy', async () => {
-  let signer: SignerWithAddress
+  let signer: SignerWithAddress;
 
   before(async () => {
     [signer] = await ethers.getSigners();
@@ -21,17 +21,17 @@ describe('CoreDeploy', async () => {
       const domains = [1000, 2000, 3000];
       const chains: Record<number, ChainConfig> = {};
       const validators: Record<number, Address> = {};
-      const overrides = {}
+      const overrides = {};
       for (const domain of domains) {
-        chains[domain] = { name: domain.toString(), domain, signer, overrides }
-        validators[domain] = await signer.getAddress()
+        chains[domain] = { name: domain.toString(), domain, signer, overrides };
+        validators[domain] = await signer.getAddress();
       }
       const config: CoreConfig = {
         processGas: 850_000,
         reserveGas: 15_000,
-        validators
-      }
-      await CoreDeploy.deploy(chains, config)
+        validators,
+      };
+      await CoreDeploy.deploy(chains, config);
     });
   });
 });

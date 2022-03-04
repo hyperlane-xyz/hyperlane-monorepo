@@ -2,12 +2,11 @@ import { ChainConfig } from './types';
 import { ethers } from 'ethers';
 
 // TODO(asa): Can T extend Contracts?
-export abstract class Instance <T> {
+export abstract class Instance<T> {
   constructor(
     public readonly chain: ChainConfig,
     public readonly contracts: T,
-  ) {
-  }
+  ) {}
 
   // this is currently a kludge to account for ethers issues
   get overrides(): ethers.Overrides {
@@ -32,5 +31,4 @@ export abstract class Instance <T> {
 
     return overrides;
   }
-
 }

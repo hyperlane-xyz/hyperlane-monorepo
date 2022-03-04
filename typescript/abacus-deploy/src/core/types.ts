@@ -13,4 +13,4 @@ export type CoreConfig = {
   processGas: BigNumberish;
   reserveGas: BigNumberish;
   validators: Record<number, Address>;
-}
+};
