@@ -3,12 +3,11 @@ import { core as contracts } from '@abacus-network/ts-interface'
 import { core, types } from '@abacus-network/abacus-deploy'
 import { core as test } from '@abacus-network/abacus-sol/test'
 
-// Hack to get TestInbox is to overload the inbox function
-export class TestAbacusDeploy extends core.CoreDeploy {
+class TestCoreDeploy extends core.CoreDeploy {
   static async deploy(
     chains: Record<number, types.ChainConfig>,
     config: core.types.CoreConfig,
-  ): Promise<TestAbacusDeploy> {
+  ): Promise<TestCoreDeploy> {
     const domains = Object.keys(chains).map((d) => parseInt(d));
     const instances: Record<number, core.CoreInstance> = {};
     for (const domain of domains) {
@@ -19,7 +18,7 @@ export class TestAbacusDeploy extends core.CoreDeploy {
         true
       );
     }
-    const deploy = new TestAbacusDeploy(instances, chains);
+    const deploy = new TestCoreDeploy(instances, chains);
     return deploy;
   }
 
@@ -85,18 +84,28 @@ export class TestAbacusDeploy extends core.CoreDeploy {
   }
 }
 
-export async function deploy(domains: types.Domain[], signer: ethers.Signer) {
-  const chains: Record<number, types.ChainConfig> = {};
-  const validators: Record<number, types.Address> = {};
-  const overrides = {};
-  for (const domain of domains) {
-    chains[domain] = { name: domain.toString(), domain, signer, overrides };
-    validators[domain] = await signer.getAddress();
+export class TestAbacusDeploy {
+  _deploy: TestCoreDeploy
+
+  constructor() {
+    const chains: Record<number, types.ChainConfig> = {};
+    const instances: Record<number, core.CoreInstance> = {};
+    this._deploy = new TestCoreDeploy(instances, chains);
   }
-  const config: core.types.CoreConfig = {
-    processGas: 850_000,
-    reserveGas: 15_000,
-    validators,
-  };
-  return TestAbacusDeploy.deploy(chains, config);
+
+  async deploy(domains: types.Domain[], signer: ethers.Signer) {
+    const chains: Record<number, types.ChainConfig> = {};
+    const validators: Record<number, types.Address> = {};
+    const overrides = {};
+    for (const domain of domains) {
+      chains[domain] = { name: domain.toString(), domain, signer, overrides };
+      validators[domain] = await signer.getAddress();
+    }
+    const config: core.types.CoreConfig = {
+      processGas: 850_000,
+      reserveGas: 15_000,
+      validators,
+    };
+    this._deploy = await TestCoreDeploy.deploy(chains, config);
+  }
 }
