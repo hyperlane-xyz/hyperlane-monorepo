@@ -101,13 +101,13 @@ where
             .iter()
             .map(|event| {
                 let checkpoint = Checkpoint {
-                    outbox_domain: outbox_domain,
+                    outbox_domain,
                     root: event.0.root.into(),
                     index: event.0.index.as_u32(),
                 };
 
                 CheckpointWithMeta {
-                    checkpoint: checkpoint,
+                    checkpoint,
                     metadata: CheckpointMeta {
                         block_number: event.1.block_number.as_u64(),
                     },
