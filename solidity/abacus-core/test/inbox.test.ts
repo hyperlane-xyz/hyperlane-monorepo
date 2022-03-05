@@ -133,7 +133,7 @@ describe('Inbox', async () => {
 
     await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
-    // Prove message, which changes status to types.MessageStatus.Pending
+    // Prove message, which changes status to MessageStatus.Pending
     await inbox.prove(leaf, path as types.BytesArray, index);
     expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.PENDING);
 

@@ -14,7 +14,7 @@ export class BridgeInvariantChecker extends RouterInvariantChecker<
   async checkDomain(domain: types.Domain): Promise<void> {
     await this.checkBeaconProxies(domain);
     await this.checkEnrolledRouters(domain);
-    // await this.checkOwnership(domain);
+    await this.checkOwnership(domain);
     this.checkEthHelper(domain);
     // this.checkVerificationInputs(deploy);
   }

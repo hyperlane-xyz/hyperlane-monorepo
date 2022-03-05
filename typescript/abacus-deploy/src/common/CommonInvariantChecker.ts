@@ -63,14 +63,17 @@ export abstract class CommonInvariantChecker<
 > {
   readonly deploy: T;
   readonly config: V;
+  readonly owners: Record<types.Domain, types.Address>;
   readonly violations: Violation[];
 
   abstract checkDomain(domain: types.Domain): Promise<void>;
+  abstract checkOwnership(domain: types.Domain): Promise<void>;
   // abstract getVerificationInputs(domain: types.Domain): VerificationInput[];
 
-  constructor(deploy: T, config: V) {
+  constructor(deploy: T, config: V, owners: Record<types.Domain, types.Address>) {
     this.deploy = deploy;
     this.config = config;
+    this.owners = owners;
     this.violations = [];
   }
 

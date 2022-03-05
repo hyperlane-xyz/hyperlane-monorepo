@@ -3,7 +3,7 @@ import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { ChainConfig } from '@abacus-network/abacus-deploy'
 import { types } from '@abacus-network/utils'
-import { testChains, testCore, testGovernance, testBridge } from './inputs';
+import { testChains, testCore as coreConfig, testGovernance, testBridge } from './inputs';
 
 import { CoreDeploy, CoreInvariantChecker } from '../src/core';
 import { GovernanceDeploy, GovernanceInvariantChecker, GovernanceConfig } from '../src/governance';
@@ -14,17 +14,8 @@ import { RouterConfig } from '../src/router';
  * Deploy the full Abacus suite on three chains
  */
 // TODO(asa)
-//   ownership transfer
 //   verification input
-//   rename packages
-//     now:
-//       abacus-core-deploy: abacus-network/deploy
-//       abacus-deploy: abacus-network/infra
-//
-//     later:
-//       deploy: abacus-network/deploy
-//       infra: abacus-network/infra
-describe('deploys', async () => {
+describe('three domains', async () => {
   let signer: SignerWithAddress;
   let core = new CoreDeploy();
   let governance = new GovernanceDeploy();
@@ -33,93 +24,102 @@ describe('deploys', async () => {
     core: {}
   }
   const chains: Record<types.Domain, ChainConfig> = {};
+  let governanceConfig: GovernanceConfig;
+  let bridgeConfig: BridgeConfig;
+  let governanceRouters: Record<types.Domain, types.Address> = {};
+  let governors: Record<types.Domain, types.Address> = {};
 
   before(async () => {
     [signer] = await ethers.getSigners();
     testChains.map((chain) => {
       chains[chain.domain] = { ...chain, signer };
+      const governor = testGovernance.addresses[chain.name].governor;
+      governors[chain.domain] = governor ? governor : ethers.constants.AddressZero;
     });
   });
 
-  describe('with three domains', async () => {
-    describe('core', async () => {
-      it('deploys', async () => {
-        await core.deploy(chains, testCore);
-        await core.writeContracts('./test/outputs/core')
-        for (const domain of core.domains) {
-          routerConfig.core[chains[domain].name] = {
-            upgradeBeaconController: core.upgradeBeaconController(domain).address,
-            xAppConnectionManager: core.xAppConnectionManager(domain).address,
-          }
+  describe('deploy', async () => {
+    it('core', async () => {
+      await core.deploy(chains, coreConfig);
+      await core.writeContracts('./test/outputs/core')
+      for (const domain of core.domains) {
+        routerConfig.core[chains[domain].name] = {
+          upgradeBeaconController: core.upgradeBeaconController(domain).address,
+          xAppConnectionManager: core.xAppConnectionManager(domain).address,
         }
-      });
-
-      it('checks', async () => {
-        const checker = new CoreInvariantChecker(core, testCore)
-        await checker.check()
-      });
-
-      it('writes', async () => {
-        core.writeContracts('./test/outputs/core')
-      });
-
-      it('reads', async () => {
-        core = CoreDeploy.readContracts(chains, './test/outputs/core')
-        const checker = new CoreInvariantChecker(core, testCore)
-        await checker.check()
-      });
+      }
     });
 
-    describe('governance', async () => {
-      let governanceConfig: GovernanceConfig;
-      before(async () => {
-        governanceConfig = {...testGovernance, ...routerConfig }
-      });
-
-      it('deploys', async () => {
-        await governance.deploy(chains, governanceConfig);
-      });
-
-      it('checks', async () => {
-        const checker = new GovernanceInvariantChecker(governance, governanceConfig)
-        await checker.check()
-      });
-
-      it('writes', async () => {
-        governance.writeContracts('./test/outputs/governance')
-      });
-
-      it('reads', async () => {
-        governance = GovernanceDeploy.readContracts(chains, './test/outputs/governance')
-        const checker = new GovernanceInvariantChecker(governance, governanceConfig)
-        await checker.check()
-      });
+    it('governance', async () => {
+      governanceConfig = {...testGovernance, ...routerConfig }
+      await governance.deploy(chains, governanceConfig);
+      governanceRouters = governance.routerAddresses();
     });
 
-    describe('bridge', async () => {
-      let bridgeConfig: BridgeConfig;
-      before(async () => {
-        bridgeConfig = {...testBridge, ...routerConfig }
-      });
+    it('bridge', async () => {
+      bridgeConfig = {...testBridge, ...routerConfig }
+      await bridge.deploy(chains, bridgeConfig);
+    });
+  });
 
-      it('deploys bridge', async () => {
-        await bridge.deploy(chains, bridgeConfig);
-      });
+  describe('transfer ownership', async () => {
+    it('core', async () => {
+      await core.transferOwnership(governanceRouters)
+    });
 
-      it('checks', async () => {
-        const checker = new BridgeInvariantChecker(bridge, bridgeConfig)
-        await checker.check()
-      });
+    it('bridge', async () => {
+      await bridge.transferOwnership(governanceRouters)
+    });
+  });
 
-      it('writes', async () => {
-        await bridge.writeContracts('./test/outputs/bridge')
-      });
+  describe('checks', async () => {
+    it('core', async () => {
+      const checker = new CoreInvariantChecker(core, coreConfig, governanceRouters)
+      await checker.check()
+    });
 
-      it('reads', async () => {
-        bridge = BridgeDeploy.readContracts(chains, './test/outputs/bridge')
-        const checker = new BridgeInvariantChecker(bridge, bridgeConfig)
-        await checker.check()
-      });
+    it('governance', async () => {
+      const checker = new GovernanceInvariantChecker(governance, governanceConfig, governors)
+      await checker.check()
+    });
+
+    it('bridge', async () => {
+      const checker = new BridgeInvariantChecker(bridge, bridgeConfig, governanceRouters)
+      await checker.check()
+    });
+  });
+
+  describe('writes', async () => {
+    it('core', async () => {
+      core.writeContracts('./test/outputs/core')
+    });
+
+    it('governance', async () => {
+      governance.writeContracts('./test/outputs/governance')
+    });
+
+    it('bridge', async () => {
+      await bridge.writeContracts('./test/outputs/bridge')
+    });
+  });
+
+  describe('reads', async () => {
+    it('core', async () => {
+      core = CoreDeploy.readContracts(chains, './test/outputs/core')
+      const checker = new CoreInvariantChecker(core, coreConfig, governanceRouters)
+      await checker.check()
+    });
+
+    it('governance', async () => {
+      governance = GovernanceDeploy.readContracts(chains, './test/outputs/governance')
+      const checker = new GovernanceInvariantChecker(governance, governanceConfig, governors)
+      await checker.check()
+    });
+
+    it('bridge', async () => {
+      bridge = BridgeDeploy.readContracts(chains, './test/outputs/bridge')
+      const checker = new BridgeInvariantChecker(bridge, bridgeConfig, governanceRouters)
+      await checker.check()
     });
   });
 });

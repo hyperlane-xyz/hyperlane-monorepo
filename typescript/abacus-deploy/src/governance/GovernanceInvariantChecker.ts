@@ -18,7 +18,7 @@ export class GovernanceInvariantChecker extends RouterInvariantChecker<
     await this.checkRecoveryManager(domain);
     await this.checkXAppConnectionManager(domain);
     await this.checkEnrolledRouters(domain);
-    // await this.checkOwnership(domain);
+    await this.checkOwnership(domain);
     // this.checkVerificationInputs(domain);
   }
 

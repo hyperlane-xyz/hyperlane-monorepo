@@ -17,6 +17,7 @@ export class CoreInvariantChecker extends CommonInvariantChecker<
 > {
   async checkDomain(domain: types.Domain): Promise<void> {
     this.checkContractsDefined(domain);
+    await this.checkOwnership(domain);
     await this.checkBeaconProxies(domain);
     await this.checkOutbox(domain);
     await this.checkInboxes(domain);
@@ -33,6 +34,21 @@ export class CoreInvariantChecker extends CommonInvariantChecker<
     for (const remote of this.deploy.remotes(domain)) {
       expect(this.deploy.inbox(domain, remote)).to.not.be.undefined;
     }
+  }
+
+  async checkOwnership(domain: types.Domain): Promise<void> {
+    const owners = [
+      this.deploy.validatorManager(domain).owner(),
+      this.deploy.xAppConnectionManager(domain).owner(),
+      this.deploy.upgradeBeaconController(domain).owner(),
+      this.deploy.outbox(domain).owner(),
+    ];
+    this.deploy.remotes(domain).map((remote) => {
+      owners.push(this.deploy.inbox(domain, remote).owner());
+    })
+    const actual = await Promise.all(owners)
+    const expected = this.owners[domain];
+    actual.map((_) => expect(_).to.equal(expected));
   }
 
   async checkOutbox(domain: types.Domain): Promise<void> {

@@ -4,6 +4,7 @@ import {
   getChainConfigs,
   getContext,
   getEnvironment,
+  getGovernanceDeploy,
   registerRpcProviders,
   registerGovernorSigner,
 } from './utils';
@@ -19,8 +20,9 @@ async function main() {
   await registerGovernorSigner(context, chains);
 
   const deploy = await getCoreDeploy(environment);
+  const governance = await getGovernanceDeploy(environment);
   const config = await getCoreConfig(environment);
-  const checker = new CoreInvariantChecker(deploy, config);
+  const checker = new CoreInvariantChecker(deploy, config, governance.routerAddresses());
   await checker.check();
   checker.expectViolations([ViolationType.Validator], [chains.length]);
 

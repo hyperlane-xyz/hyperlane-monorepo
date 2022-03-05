@@ -21,6 +21,12 @@ export abstract class RouterInvariantChecker<
     );
   }
 
+  async checkOwnership(domain: types.Domain): Promise<void> {
+    const actual = await this.deploy.router(domain).owner();
+    const expected = this.owners[domain];
+    expect(actual).to.equal(expected);
+  }
+
   async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
     const actual = await this.deploy.router(domain).xAppConnectionManager();
     const expected =
