@@ -23,7 +23,7 @@
     "build": "tsc",
     "test": "hardhat test",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src ./config ./scripts"
+    "prettier": "prettier --write ./src ./config ./scripts ./test"
   },
   "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",

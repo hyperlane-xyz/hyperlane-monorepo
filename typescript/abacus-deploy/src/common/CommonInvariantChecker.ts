@@ -70,7 +70,11 @@ export abstract class CommonInvariantChecker<
   abstract checkOwnership(domain: types.Domain): Promise<void>;
   // abstract getVerificationInputs(domain: types.Domain): VerificationInput[];
 
-  constructor(deploy: T, config: V, owners: Record<types.Domain, types.Address>) {
+  constructor(
+    deploy: T,
+    config: V,
+    owners: Record<types.Domain, types.Address>,
+  ) {
     this.deploy = deploy;
     this.config = config;
     this.owners = owners;

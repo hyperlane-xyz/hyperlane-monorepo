@@ -45,8 +45,8 @@ export class CoreInvariantChecker extends CommonInvariantChecker<
     ];
     this.deploy.remotes(domain).map((remote) => {
       owners.push(this.deploy.inbox(domain, remote).owner());
-    })
-    const actual = await Promise.all(owners)
+    });
+    const actual = await Promise.all(owners);
     const expected = this.owners[domain];
     actual.map((_) => expect(_).to.equal(expected));
   }

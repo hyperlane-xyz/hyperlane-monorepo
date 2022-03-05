@@ -6,8 +6,8 @@ export interface Router {
   // Technically its a bytes32...
   routers(domain: types.Domain): Promise<types.Address>;
   xAppConnectionManager(): Promise<types.Address>;
-  transferOwnership(owner: types.Address): Promise<any>
-  owner(): Promise<types.Address>
+  transferOwnership(owner: types.Address): Promise<any>;
+  owner(): Promise<types.Address>;
 }
 
 export type RouterAddresses = {
