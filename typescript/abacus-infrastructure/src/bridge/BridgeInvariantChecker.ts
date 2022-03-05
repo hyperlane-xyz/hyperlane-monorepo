@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { types } from '@abacus-network/utils';
+import { types, utils } from '@abacus-network/utils';
 // import { BeaconProxy } from '@abacus-network/abacus-deploy';
 import { BridgeConfig } from './types';
 import { BridgeDeploy } from './BridgeDeploy';
@@ -40,7 +40,7 @@ export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
     await Promise.all(
       this.deploy.remotes(domain).map(async (remote) => {
         const remoteRouter = await this.deploy.router(remote);
-        expect(await router.routers(remote)).to.equal(remoteRouter.address);
+        expect(await router.routers(remote)).to.equal(utils.addressToBytes32(remoteRouter.address));
       }),
     );
 
@@ -52,7 +52,7 @@ export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
   }
 
   checkEthHelper(domain: types.Domain): void {
-    if (this.config.addresses[domain].weth) {
+    if (this.config.addresses[domain]) {
       expect(this.deploy.helper(domain)).to.not.be.undefined;
     } else {
       expect(this.deploy.helper(domain)).to.be.undefined;

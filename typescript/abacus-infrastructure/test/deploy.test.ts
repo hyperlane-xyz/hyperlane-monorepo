@@ -5,9 +5,9 @@ import { ChainConfig } from '@abacus-network/abacus-deploy'
 import { types } from '@abacus-network/utils'
 import { testChains, testCore, testGovernance, testBridge } from './inputs';
 
-import { CoreDeploy } from '../src/core';
-import { GovernanceDeploy } from '../src/governance';
-import { BridgeDeploy } from '../src/bridge';
+import { CoreDeploy, CoreInvariantChecker } from '../src/core';
+import { GovernanceDeploy, GovernanceConfig } from '../src/governance';
+import { BridgeDeploy, BridgeInvariantChecker, BridgeConfig } from '../src/bridge';
 import {XAppCoreAddresses} from '../src/config/core';
 
 /*
@@ -17,7 +17,7 @@ import {XAppCoreAddresses} from '../src/config/core';
 //   verification input
 //   checks
 //   restoring from file
-describe('CoreDeploy', async () => {
+describe('deploys', async () => {
   let signer: SignerWithAddress;
   const core = new CoreDeploy();
   const governance = new GovernanceDeploy();
@@ -32,28 +32,83 @@ describe('CoreDeploy', async () => {
     });
   });
 
-  describe('three domain deploy', async () => {
-    it('deploys core', async () => {
-      await core.deploy(chains, testCore);
-      await core.writeContracts('./test/outputs/core')
-      for (const domain of core.domains) {
-        xAppConfig[chains[domain].name] = {
-          upgradeBeaconController: core.upgradeBeaconController(domain).address,
-          xAppConnectionManager: core.xAppConnectionManager(domain).address,
+  describe('with three domains', async () => {
+    describe('core', async () => {
+      it('deploys', async () => {
+        await core.deploy(chains, testCore);
+        await core.writeContracts('./test/outputs/core')
+        for (const domain of core.domains) {
+          xAppConfig[chains[domain].name] = {
+            upgradeBeaconController: core.upgradeBeaconController(domain).address,
+            xAppConnectionManager: core.xAppConnectionManager(domain).address,
+          }
         }
-      }
+      });
+
+      it('checks', async () => {
+        const checker = new CoreInvariantChecker(core, testCore)
+        await checker.check()
+      });
+
+      it('saves', async () => {
+        core.writeContracts('./test/outputs/core')
+      });
+
+      it('loads', async () => {
+      });
+
+      it('checks', async () => {
+      });
     });
 
-    it('deploys governance', async () => {
-      const governanceConfig = {...testGovernance, core: xAppConfig }
-      await governance.deploy(chains, governanceConfig);
-      await governance.writeContracts('./test/outputs/governance')
+    describe('governance', async () => {
+      let governanceConfig: GovernanceConfig;
+      before(async () => {
+        governanceConfig = {...testGovernance, core: xAppConfig }
+      });
+
+      it('deploys', async () => {
+        await governance.deploy(chains, governanceConfig);
+      });
+
+      it('checks', async () => {
+      });
+
+      it('saves', async () => {
+        governance.writeContracts('./test/outputs/governance')
+      });
+
+      it('loads', async () => {
+      });
+
+      it('checks', async () => {
+      });
     });
 
-    it('deploys bridge', async () => {
-      const bridgeConfig = {...testBridge, core: xAppConfig }
-      await bridge.deploy(chains, bridgeConfig);
-      await bridge.writeContracts('./test/outputs/bridge')
+    describe('governance', async () => {
+      let bridgeConfig: BridgeConfig;
+      before(async () => {
+        bridgeConfig = {...testBridge, core: xAppConfig }
+      });
+
+      it('deploys bridge', async () => {
+        await bridge.deploy(chains, bridgeConfig);
+      });
+
+      it('checks', async () => {
+        const checker = new BridgeInvariantChecker(bridge, bridgeConfig)
+        await checker.check()
+      });
+
+      it('saves', async () => {
+        await bridge.writeContracts('./test/outputs/bridge')
+      });
+
+      it('loads', async () => {
+      });
+
+      it('checks', async () => {
+      });
     });
   });
 });

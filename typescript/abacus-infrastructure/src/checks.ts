@@ -68,7 +68,7 @@ export abstract class InvariantChecker<T extends Deploy<any, any>> {
     this.violations = [];
   }
 
-  async checkDeploy(): Promise<void> {
+  async check(): Promise<void> {
     await Promise.all(
       this.deploy.domains.map((domain: types.Domain) =>
         this.checkDomain(domain),
