@@ -1,11 +1,10 @@
 import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { Deploy, Instance } from '@abacus-network/abacus-deploy';
+import { Deploy } from '@abacus-network/abacus-deploy';
+import { CommonInstance } from './CommonInstance';
 
-// NB: CommonDeploy does not require CommonInstance to accomodate CoreDeploy
-// inheriting from CoreInstance.
-export abstract class CommonDeploy<T extends Instance<any>, V> extends Deploy<
+export abstract class CommonDeploy<T extends CommonInstance<any>, V> extends Deploy<
   T,
   V
 > {
@@ -27,7 +26,9 @@ export abstract class CommonDeploy<T extends Instance<any>, V> extends Deploy<
     );
   }
 
-  abstract transferOwnership(
-    owners: Record<types.Domain, types.Address>,
-  ): Promise<void>;
+  async transferOwnership(owners: Record<types.Domain, types.Address>) {
+    await Promise.all(
+      this.domains.map((d) => this.instances[d].transferOwnership(owners[d])),
+    );
+  }
 }

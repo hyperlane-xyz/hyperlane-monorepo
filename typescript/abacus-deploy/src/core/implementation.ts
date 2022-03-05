@@ -2,11 +2,11 @@ import { core } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
 import {
   CoreConfig,
-  CoreInstance,
   CoreContracts,
 } from '@abacus-network/abacus-deploy';
 import { ethers } from 'ethers';
 import { CoreDeploy } from './CoreDeploy';
+import { CoreInstance } from './CoreInstance';
 
 export class ImplementationDeployer {
   private deploy: CoreDeploy;

@@ -21,12 +21,6 @@ export abstract class RouterDeploy<
     }
   }
 
-  async transferOwnership(owners: Record<types.Domain, types.Address>) {
-    await Promise.all(
-      this.domains.map((d) => this.instances[d].transferOwnership(owners[d])),
-    );
-  }
-
   routerAddresses(): Record<types.Domain, types.Address> {
     const addresses: Record<types.Domain, types.Address> = {};
     for (const domain of this.domains) {

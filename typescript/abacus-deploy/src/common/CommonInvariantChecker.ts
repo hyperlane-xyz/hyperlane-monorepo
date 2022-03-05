@@ -1,8 +1,9 @@
 import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { BeaconProxy, Instance } from '@abacus-network/abacus-deploy';
+import { BeaconProxy} from '@abacus-network/abacus-deploy';
 import { CommonDeploy } from './CommonDeploy';
+import { CommonInstance } from './CommonInstance';
 
 type ProxyNames =
   | 'Outbox'
@@ -58,7 +59,7 @@ export type Violation =
 export type VerificationInput = [string, Contract];
 
 export abstract class CommonInvariantChecker<
-  T extends CommonDeploy<Instance<any>, any>,
+  T extends CommonDeploy<CommonInstance<any>, any>,
   V,
 > {
   readonly deploy: T;

@@ -101,12 +101,12 @@ export class CoreInstance extends Instance<CoreContracts> {
     return this.contracts.validatorManager;
   }
 
-  get outbox(): BeaconProxy<core.Outbox> {
-    return this.contracts.outbox;
+  get outbox(): core.Outbox {
+    return this.contracts.outbox.proxy;
   }
 
-  inbox(domain: types.Domain): BeaconProxy<core.Inbox> {
-    return this.contracts.inboxes[domain];
+  inbox(domain: types.Domain): core.Inbox {
+    return this.contracts.inboxes[domain].proxy;
   }
 
   get xAppConnectionManager(): core.XAppConnectionManager {

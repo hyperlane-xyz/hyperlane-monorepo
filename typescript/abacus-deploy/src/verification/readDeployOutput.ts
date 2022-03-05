@@ -1,13 +1,5 @@
 import fs from 'fs';
-import { ContractVerificationName } from './types';
-
-type ContractInput = {
-  name: ContractVerificationName;
-  address: string;
-  constructorArguments: any[];
-  isProxy?: boolean;
-};
-type VerificationInput = ContractInput[];
+import { VerificationInput } from './types';
 
 /*
  * @notice Get the list of networks included in the contract deploy at path

@@ -1,3 +1,4 @@
+// import { ethers } from 'ethers'
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
 import { ChainConfig, BeaconProxy } from '@abacus-network/abacus-deploy';
@@ -26,6 +27,17 @@ export class GovernanceInstance extends RouterInstance<GovernanceContracts> {
     await router.proxy.transferOwnership(
       config.addresses[chain.name].recoveryManager,
     );
+    /*
+    const data = router.implementation.deployTransaction.data
+    const abi = router.implementation.interface.deploy.inputs
+    const bytecode = xapps.GovernanceRouter__factory.bytecode;
+    const encodedArguments = `0x${data.replace(bytecode, "")}`;
+    const decoder = ethers.utils.defaultAbiCoder;
+    const decoded = decoder.decode(abi, encodedArguments);
+    console.log(decoded)
+    */
+
+
     const contracts = new GovernanceContracts(router);
     return new GovernanceInstance(chain, contracts);
   }

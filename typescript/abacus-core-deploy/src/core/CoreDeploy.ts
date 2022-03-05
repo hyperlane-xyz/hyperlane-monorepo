@@ -23,11 +23,11 @@ export class CoreDeploy extends Deploy<CoreInstance, CoreConfig> {
   }
 
   outbox(domain: types.Domain): core.Outbox {
-    return this.instances[domain].outbox.proxy;
+    return this.instances[domain].outbox;
   }
 
   inbox(local: types.Domain, remote: types.Domain): core.Inbox {
-    return this.instances[local].inbox(remote).proxy;
+    return this.instances[local].inbox(remote);
   }
 
   xAppConnectionManager(domain: types.Domain): core.XAppConnectionManager {

@@ -37,3 +37,5 @@ export type ContractVerificationInput = {
   constructorArguments: any[];
   isProxy?: boolean;
 };
+
+export type VerificationInput = ContractVerificationInput[];
