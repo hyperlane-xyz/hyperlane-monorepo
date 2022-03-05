@@ -8,17 +8,13 @@ import {
   ViolationType,
   ValidatorViolation,
   ValidatorManagerViolation,
-  InvariantChecker,
-} from '../checks';
+  CommonInvariantChecker,
+} from '../common';
 
-export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
-  readonly config: CoreConfig;
-
-  constructor(deploy: CoreDeploy, config: CoreConfig) {
-    super(deploy);
-    this.config = config;
-  }
-
+export class CoreInvariantChecker extends CommonInvariantChecker<
+  CoreDeploy,
+  CoreConfig
+> {
   async checkDomain(domain: types.Domain): Promise<void> {
     this.checkContractsDefined(domain);
     await this.checkBeaconProxies(domain);

@@ -4,7 +4,7 @@ import {
   getEnvironment,
 } from './utils';
 import { AgentAwsKey } from '../src/agents/aws';
-import { DeployEnvironment } from '../src/deploy';
+import { DeployEnvironment } from '../src/config/environment';
 
 async function rotateKey() {
   const args = await getKeyRoleAndChainArgs();

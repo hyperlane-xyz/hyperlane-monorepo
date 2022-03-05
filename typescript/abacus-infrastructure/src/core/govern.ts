@@ -6,7 +6,7 @@ import {
   UpgradeBeaconViolation,
   Violation,
   ViolationType,
-} from '../checks';
+} from '../common';
 import { Call, CallBatch } from '@abacus-network/sdk/dist/abacus/govern';
 
 interface DomainedCall {

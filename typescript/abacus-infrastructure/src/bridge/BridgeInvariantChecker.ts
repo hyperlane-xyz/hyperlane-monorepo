@@ -1,20 +1,16 @@
 import { expect } from 'chai';
 
-import { types, utils } from '@abacus-network/utils';
+import { types } from '@abacus-network/utils';
 // import { BeaconProxy } from '@abacus-network/abacus-deploy';
 import { BridgeConfig } from './types';
 import { BridgeDeploy } from './BridgeDeploy';
 // import { VerificationInput, InvariantChecker } from '../checks';
-import { InvariantChecker } from '../checks';
+import { RouterInvariantChecker } from '../router';
 
-export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
-  readonly config: BridgeConfig;
-
-  constructor(deploy: BridgeDeploy, config: BridgeConfig) {
-    super(deploy);
-    this.config = config;
-  }
-
+export class BridgeInvariantChecker extends RouterInvariantChecker<
+  BridgeDeploy,
+  BridgeConfig
+> {
   async checkDomain(domain: types.Domain): Promise<void> {
     await this.checkBeaconProxies(domain);
     await this.checkEnrolledRouters(domain);
@@ -33,19 +29,6 @@ export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
       domain,
       'BridgeRouter',
       this.deploy.instances[domain].contracts.router,
-    );
-  }
-
-  // TODO(asa): Dedupe with generic
-  async checkEnrolledRouters(domain: types.Domain): Promise<void> {
-    const router = this.deploy.router(domain);
-    await Promise.all(
-      this.deploy.remotes(domain).map(async (remote) => {
-        const remoteRouter = await this.deploy.router(remote);
-        expect(await router.routers(remote)).to.equal(
-          utils.addressToBytes32(remoteRouter.address),
-        );
-      }),
     );
   }
 

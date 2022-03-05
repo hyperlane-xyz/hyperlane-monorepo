@@ -1,6 +1,6 @@
 import { types } from '@abacus-network/utils';
 import { ProxiedAddress } from '@abacus-network/abacus-deploy';
-import { XAppCoreAddresses } from '../config/core';
+import { RouterConfig } from '../router';
 
 export type BridgeContractAddresses = {
   router: ProxiedAddress;
@@ -12,10 +12,9 @@ export type BridgeAddresses = {
   weth: types.Address;
 };
 
-export type BridgeConfig = {
+export type BridgeConfig = RouterConfig & {
   // TODO(asa): Can we restrict to chianname?
   addresses: Record<string, BridgeAddresses>;
-  core: Record<string, XAppCoreAddresses>;
 };
 
 export type BridgeConfigWithoutCore = Omit<BridgeConfig, 'core'>;

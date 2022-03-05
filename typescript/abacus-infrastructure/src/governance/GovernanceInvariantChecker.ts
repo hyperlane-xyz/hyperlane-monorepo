@@ -1,21 +1,17 @@
 import { ethers } from 'ethers';
 import { expect } from 'chai';
 
-import { types, utils } from '@abacus-network/utils';
+import { types } from '@abacus-network/utils';
 // import { BeaconProxy } from '@abacus-network/abacus-deploy';
 import { GovernanceConfig } from './types';
 import { GovernanceDeploy } from './GovernanceDeploy';
 // import { VerificationInput, InvariantChecker } from '../checks';
-import { InvariantChecker } from '../checks';
+import { RouterInvariantChecker } from '../router';
 
-export class GovernanceInvariantChecker extends InvariantChecker<GovernanceDeploy> {
-  readonly config: GovernanceConfig;
-
-  constructor(deploy: GovernanceDeploy, config: GovernanceConfig) {
-    super(deploy);
-    this.config = config;
-  }
-
+export class GovernanceInvariantChecker extends RouterInvariantChecker<
+  GovernanceDeploy,
+  GovernanceConfig
+> {
   async checkDomain(domain: types.Domain): Promise<void> {
     await this.checkBeaconProxies(domain);
     await this.checkGovernor(domain);
@@ -33,27 +29,6 @@ export class GovernanceInvariantChecker extends InvariantChecker<GovernanceDeplo
       'GovernanceRouter',
       this.deploy.instances[domain].contracts.router,
     );
-  }
-
-  // TODO(asa): Dedupe
-  async checkEnrolledRouters(domain: types.Domain): Promise<void> {
-    const router = this.deploy.router(domain);
-    await Promise.all(
-      this.deploy.remotes(domain).map(async (remote) => {
-        const remoteRouter = await this.deploy.router(remote);
-        expect(await router.routers(remote)).to.equal(
-          utils.addressToBytes32(remoteRouter.address),
-        );
-      }),
-    );
-  }
-
-  // TODO(asa): Dedupe
-  async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
-    const actual = await this.deploy.router(domain).xAppConnectionManager();
-    const expected =
-      this.config.core[this.deploy.name(domain)].xAppConnectionManager;
-    expect(actual).to.equal(expected);
   }
 
   async checkGovernor(domain: types.Domain): Promise<void> {

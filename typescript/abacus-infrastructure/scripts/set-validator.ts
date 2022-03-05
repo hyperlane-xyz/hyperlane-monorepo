@@ -7,7 +7,7 @@ import {
   registerRpcProviders,
   registerGovernorSigner,
 } from './utils';
-import { ViolationType } from '../src/checks';
+import { ViolationType } from '../src/common';
 import { CoreInvariantChecker } from '../src/core';
 import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
 

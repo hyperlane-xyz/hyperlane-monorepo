@@ -2,13 +2,13 @@ import { AbacusContext, dev, testnet, mainnet } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ChainConfig } from '@abacus-network/abacus-deploy';
 import { ethers } from 'ethers';
-import { DeployEnvironment } from '../src/deploy';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import { AgentConfig } from '../src/config/agent';
 import { ChainName } from '../src/config/chain';
-import { ContractMetricsConfig } from '../src/config/contract-metrics';
-import { XAppCoreConfig, XAppCoreAddresses } from '../src/config/core';
+import { DeployEnvironment } from '../src/config/environment';
 import { InfrastructureConfig } from '../src/config/infrastructure';
+import { ContractMetricsConfig } from '../src/config/contract-metrics';
+import { RouterConfig, RouterAddresses } from '../src/router';
 import { CoreDeploy, CoreContracts, CoreConfig } from '../src/core';
 import {
   GovernanceDeploy,
@@ -60,12 +60,12 @@ export async function getCoreConfig(
   return (await importModule(moduleName)).core;
 }
 
-export async function getXAppCoreConfig(
+export async function getRouterConfig(
   environment: DeployEnvironment,
-): Promise<XAppCoreConfig> {
+): Promise<RouterConfig> {
   const chains = await getChainConfigs(environment);
   const contracts = await getCoreContracts(environment, chains);
-  const addresses: Record<string, XAppCoreAddresses> = {};
+  const addresses: Record<string, RouterAddresses> = {};
   for (const chain of chains) {
     addresses[chain.name] = {
       upgradeBeaconController:
@@ -74,7 +74,7 @@ export async function getXAppCoreConfig(
         contracts[chain.domain].xAppConnectionManager.address,
     };
   }
-  return addresses;
+  return { core: addresses };
 }
 
 export async function getBridgeConfig(
@@ -82,7 +82,7 @@ export async function getBridgeConfig(
 ): Promise<BridgeConfig> {
   const moduleName = `../config/environments/${environment}/bridge`;
   const partial = (await importModule(moduleName)).bridge;
-  return { ...partial, core: await getXAppCoreConfig(environment) };
+  return { ...partial, core: await getRouterConfig(environment) };
 }
 
 export async function getGovernanceConfig(
@@ -90,7 +90,7 @@ export async function getGovernanceConfig(
 ): Promise<GovernanceConfig> {
   const moduleName = `../config/environments/${environment}/governance`;
   const partial = (await importModule(moduleName)).governance;
-  return { ...partial, core: await getXAppCoreConfig(environment) };
+  return { ...partial, core: await getRouterConfig(environment) };
 }
 
 export async function getInfrastructureConfig(

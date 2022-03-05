@@ -1,11 +1,11 @@
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
 import { ChainConfig, BeaconProxy } from '@abacus-network/abacus-deploy';
-import { InfraInstance } from '../instance';
+import { RouterInstance } from '../router';
 import { GovernanceContracts } from './GovernanceContracts';
 import { GovernanceConfig } from './types';
 
-export class GovernanceInstance extends InfraInstance<GovernanceContracts> {
+export class GovernanceInstance extends RouterInstance<GovernanceContracts> {
   async transferOwnership(owner: types.Address) {}
 
   static async deploy(

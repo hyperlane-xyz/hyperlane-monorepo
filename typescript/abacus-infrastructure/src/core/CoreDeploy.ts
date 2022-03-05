@@ -8,9 +8,9 @@ import {
   CoreContracts,
   CoreConfig,
 } from '@abacus-network/abacus-deploy';
-import { InfraDeploy } from '../deploy';
+import { CommonDeploy } from '../common';
 
-export class CoreDeploy extends InfraDeploy<CoreInstance, CoreConfig> {
+export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
   async transferOwnership(owners: Record<types.Domain, types.Address>) {
     for (const domain of this.domains) {
       const owner = owners[domain];

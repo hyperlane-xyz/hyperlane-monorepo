@@ -6,12 +6,9 @@ import { types } from '@abacus-network/utils';
 import { BridgeConfig } from './types';
 import { BridgeInstance } from './BridgeInstance';
 import { BridgeContracts } from './BridgeContracts';
-import { InfraRouterDeploy } from '../deploy';
+import { RouterDeploy } from '../router';
 
-export class BridgeDeploy extends InfraRouterDeploy<
-  BridgeInstance,
-  BridgeConfig
-> {
+export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
   async deployInstance(
     domain: types.Domain,
     config: BridgeConfig,

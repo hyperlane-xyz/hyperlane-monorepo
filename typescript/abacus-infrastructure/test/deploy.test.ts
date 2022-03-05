@@ -8,7 +8,7 @@ import { testChains, testCore, testGovernance, testBridge } from './inputs';
 import { CoreDeploy, CoreInvariantChecker } from '../src/core';
 import { GovernanceDeploy, GovernanceInvariantChecker, GovernanceConfig } from '../src/governance';
 import { BridgeDeploy, BridgeInvariantChecker, BridgeConfig } from '../src/bridge';
-import {XAppCoreAddresses} from '../src/config/core';
+import { RouterConfig } from '../src/router';
 
 /*
  * Deploy the full Abacus suite on three chains
@@ -23,7 +23,9 @@ describe('deploys', async () => {
   let core = new CoreDeploy();
   let governance = new GovernanceDeploy();
   let bridge = new BridgeDeploy();
-  const xAppConfig: Record<string, XAppCoreAddresses> = {};
+  const routerConfig: RouterConfig = {
+    core: {}
+  }
   const chains: Record<types.Domain, ChainConfig> = {};
 
   before(async () => {
@@ -39,7 +41,7 @@ describe('deploys', async () => {
         await core.deploy(chains, testCore);
         await core.writeContracts('./test/outputs/core')
         for (const domain of core.domains) {
-          xAppConfig[chains[domain].name] = {
+          routerConfig.core[chains[domain].name] = {
             upgradeBeaconController: core.upgradeBeaconController(domain).address,
             xAppConnectionManager: core.xAppConnectionManager(domain).address,
           }
@@ -65,7 +67,7 @@ describe('deploys', async () => {
     describe('governance', async () => {
       let governanceConfig: GovernanceConfig;
       before(async () => {
-        governanceConfig = {...testGovernance, core: xAppConfig }
+        governanceConfig = {...testGovernance, ...routerConfig }
       });
 
       it('deploys', async () => {
@@ -91,7 +93,7 @@ describe('deploys', async () => {
     describe('bridge', async () => {
       let bridgeConfig: BridgeConfig;
       before(async () => {
-        bridgeConfig = {...testBridge, core: xAppConfig }
+        bridgeConfig = {...testBridge, ...routerConfig }
       });
 
       it('deploys bridge', async () => {

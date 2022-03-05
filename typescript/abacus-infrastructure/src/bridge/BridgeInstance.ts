@@ -4,12 +4,12 @@ import {
   ContractDeployer,
   ChainConfig,
   BeaconProxy,
-  Instance,
 } from '@abacus-network/abacus-deploy';
 import { BridgeContracts } from './BridgeContracts';
 import { BridgeConfig } from './types';
+import { RouterInstance } from '../router';
 
-export class BridgeInstance extends Instance<BridgeContracts> {
+export class BridgeInstance extends RouterInstance<BridgeContracts> {
   async transferOwnership(owner: types.Address) {
     const tx = await this.router.transferOwnership(owner, this.chain.overrides);
     await tx.wait(this.chain.confirmations);

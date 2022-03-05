@@ -1,6 +1,6 @@
 import { types } from '@abacus-network/utils';
 import { ProxiedAddress } from '@abacus-network/abacus-deploy';
-import { XAppCoreAddresses } from '../config/core';
+import { RouterConfig } from '../router';
 
 export type GovernanceContractAddresses = {
   router: ProxiedAddress;
@@ -11,11 +11,10 @@ export type GovernanceAddresses = {
   governor?: types.Address;
 };
 
-export type GovernanceConfig = {
+export type GovernanceConfig = RouterConfig & {
   recoveryTimelock: number;
   // TODO(asa): Can we restrict to chianname?
   addresses: Record<string, GovernanceAddresses>;
-  core: Record<string, XAppCoreAddresses>;
 };
 
 export type GovernanceConfigWithoutCore = Omit<GovernanceConfig, 'core'>;
