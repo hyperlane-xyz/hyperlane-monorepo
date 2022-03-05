@@ -1,4 +1,5 @@
 import path from 'path';
+import fs from 'fs';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import { Deploy } from '@abacus-network/abacus-deploy';
@@ -30,5 +31,15 @@ export abstract class CommonDeploy<T extends CommonInstance<any>, V> extends Dep
     await Promise.all(
       this.domains.map((d) => this.instances[d].transferOwnership(owners[d])),
     );
+  }
+
+  writeVerificationInput(directory: string) {
+    for (const domain of this.domains) {
+      const verificationInput = this.instances[domain].verificationInput
+      fs.mkdirSync(directory, { recursive: true });
+      const filepath = path.join(directory, `${this.chains[domain].name}_verification.json`);
+      const contents = JSON.stringify(verificationInput, null, 2)
+      fs.writeFileSync(filepath, contents)
+    }
   }
 }

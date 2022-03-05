@@ -56,7 +56,6 @@ describe('three domains', async () => {
   describe('deploy', async () => {
     it('core', async () => {
       await core.deploy(chains, coreConfig);
-      await core.writeContracts('./test/outputs/core');
       for (const domain of core.domains) {
         routerConfig.core[chains[domain].name] = {
           upgradeBeaconController: core.upgradeBeaconController(domain).address,
@@ -118,21 +117,24 @@ describe('three domains', async () => {
 
   describe('writes', async () => {
     it('core', async () => {
-      core.writeContracts('./test/outputs/core');
+      core.writeContracts('./test/outputs/contracts/core');
+      // core.writeVerificationInput('./test/outputs/verification/core');
     });
 
     it('governance', async () => {
-      governance.writeContracts('./test/outputs/governance');
+      governance.writeContracts('./test/outputs/contracts/governance');
+      governance.writeVerificationInput('./test/outputs/verification/governance');
     });
 
     it('bridge', async () => {
-      await bridge.writeContracts('./test/outputs/bridge');
+      bridge.writeContracts('./test/outputs/contracts/bridge');
+      // bridge.writeVerificationInput('./test/outputs/verification/bridge');
     });
   });
 
   describe('reads', async () => {
     it('core', async () => {
-      core = CoreDeploy.readContracts(chains, './test/outputs/core');
+      core = CoreDeploy.readContracts(chains, './test/outputs/contracts/core');
       const checker = new CoreInvariantChecker(
         core,
         coreConfig,
@@ -144,7 +146,7 @@ describe('three domains', async () => {
     it('governance', async () => {
       governance = GovernanceDeploy.readContracts(
         chains,
-        './test/outputs/governance',
+        './test/outputs/contracts/governance',
       );
       const checker = new GovernanceInvariantChecker(
         governance,
@@ -155,7 +157,7 @@ describe('three domains', async () => {
     });
 
     it('bridge', async () => {
-      bridge = BridgeDeploy.readContracts(chains, './test/outputs/bridge');
+      bridge = BridgeDeploy.readContracts(chains, './test/outputs/contracts/bridge');
       const checker = new BridgeInvariantChecker(
         bridge,
         bridgeConfig,

@@ -102,11 +102,11 @@ export class CoreInstance extends Instance<CoreContracts> {
   }
 
   get outbox(): core.Outbox {
-    return this.contracts.outbox.proxy;
+    return this.contracts.outbox.contract;
   }
 
   inbox(domain: types.Domain): core.Inbox {
-    return this.contracts.inboxes[domain].proxy;
+    return this.contracts.inboxes[domain].contract;
   }
 
   get xAppConnectionManager(): core.XAppConnectionManager {

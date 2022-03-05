@@ -115,6 +115,7 @@ export abstract class CommonInvariantChecker<
   ) {
     expect(beaconProxy.beacon).to.not.be.undefined;
     expect(beaconProxy.proxy).to.not.be.undefined;
+    expect(beaconProxy.contract).to.not.be.undefined;
     expect(beaconProxy.implementation).to.not.be.undefined;
 
     // Assert that the implementation is actually set

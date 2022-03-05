@@ -8,6 +8,7 @@ import {
 import { BridgeContracts } from './BridgeContracts';
 import { BridgeConfig } from './types';
 import { RouterInstance } from '../router';
+import { VerificationInput } from '../verification';
 
 export class BridgeInstance extends RouterInstance<BridgeContracts> {
   async transferOwnership(owner: types.Address) {
@@ -53,14 +54,18 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
   }
 
   get token(): xapps.BridgeToken {
-    return this.contracts.token.proxy;
+    return this.contracts.token.contract;
   }
 
   get router(): xapps.BridgeRouter {
-    return this.contracts.router.proxy;
+    return this.contracts.router.contract;
   }
 
   get helper(): xapps.ETHHelper | undefined {
     return this.contracts.helper;
+  }
+
+  get verificationInput(): VerificationInput {
+    return []
   }
 }

@@ -39,7 +39,7 @@ export class CoreInstance extends DCoreInstance {
       await tx.wait(this.chain.confirmations);
     }
 
-  getVerificationInput(): VerificationInput {
+  get verificationInput(): VerificationInput {
     return []
   }
 }

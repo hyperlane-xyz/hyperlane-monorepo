@@ -8,8 +8,9 @@ import { ContractDeployer } from './deployer';
 export class BeaconProxy<T extends ethers.Contract> {
   constructor(
     public readonly implementation: T,
-    public readonly proxy: T,
+    public readonly proxy: core.UpgradeBeaconProxy,
     public readonly beacon: core.UpgradeBeacon,
+    public readonly contract: T,
   ) {}
 
   /**
@@ -46,8 +47,9 @@ export class BeaconProxy<T extends ethers.Contract> {
     await proxy.deployTransaction.wait(chain.confirmations);
     return new BeaconProxy(
       implementation as T,
-      factory.attach(proxy.address) as T,
+      proxy,
       beacon,
+      factory.attach(proxy.address) as T,
     );
   }
 
@@ -61,12 +63,13 @@ export class BeaconProxy<T extends ethers.Contract> {
       abi,
       provider,
     ) as T;
-    const proxy = new ethers.Contract(addresses.proxy, abi, provider) as T;
+    const proxy = core.UpgradeBeaconProxy__factory.connect(addresses.proxy, provider)
     const beacon = core.UpgradeBeacon__factory.connect(
       addresses.beacon,
       provider,
     );
-    return new BeaconProxy<T>(implementation, proxy, beacon);
+    const contract = new ethers.Contract(addresses.proxy, abi, provider) as T;
+    return new BeaconProxy<T>(implementation, proxy, beacon, contract);
   }
 
   /**
@@ -83,7 +86,7 @@ export class BeaconProxy<T extends ethers.Contract> {
       'initialize',
       initArgs,
     );
-    const proxy = await deployer.deploy(
+    const proxy: core.UpgradeBeaconProxy = await deployer.deploy(
       new core.UpgradeBeaconProxy__factory(chain.signer),
       this.beacon.address,
       initData,
@@ -91,13 +94,14 @@ export class BeaconProxy<T extends ethers.Contract> {
 
     return new BeaconProxy(
       this.implementation,
-      this.proxy.attach(proxy.address) as T,
+      proxy,
       this.beacon,
+      this.contract.attach(proxy.address) as T,
     );
   }
 
   get address(): types.Address {
-    return this.proxy.address;
+    return this.contract.address;
   }
 
   toObject(): ProxiedAddress {
