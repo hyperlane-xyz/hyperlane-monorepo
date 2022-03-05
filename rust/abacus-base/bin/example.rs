@@ -1,11 +1,11 @@
 use color_eyre::Result;
 
-use abacus_base::{AbacusAgent, Settings};
+use abacus_base::{OpticsAgent, Settings};
 
 /// An example main function for any agent that implemented Default
 async fn _example_main<OA>(settings: Settings) -> Result<()>
 where
-    OA: AbacusAgent<Settings = Settings> + Sized + 'static,
+    OA: OpticsAgent<Settings = Settings> + Sized + 'static,
 {
     // Instantiate an agent
     let oa = OA::from_settings(settings).await?;
