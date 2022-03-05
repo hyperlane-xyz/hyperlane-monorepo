@@ -9,11 +9,13 @@ import {
 async function main() {
   const environment = await getEnvironment();
   const contractMetricsConfig = await getContractMetricsConfig(environment);
-  const chainConfigs = await getChainConfigs(environment);
+  const chains = await getChainConfigs(environment);
+  const domains = Object.keys(chains).map((d) => parseInt(d))
+  const chainArray = domains.map((d) => chains[d]);
   return runContractMetricsHelmCommand(
     HelmCommand.Install,
     contractMetricsConfig,
-    chainConfigs,
+    chainArray,
     environment,
   );
 }

@@ -1,8 +1,8 @@
 import { types } from '@abacus-network/utils';
 import { ChainConfig } from './types';
+import { Instance } from './instance';
 
-// TODO(asa): Can T extend Instance?
-export abstract class Deploy<T, V> {
+export abstract class Deploy<T extends Instance<any>, V> {
   public readonly instances: Record<types.Domain, T>;
   public readonly chains: Record<types.Domain, ChainConfig>;
 

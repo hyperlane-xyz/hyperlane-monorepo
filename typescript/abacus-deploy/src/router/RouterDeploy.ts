@@ -1,12 +1,13 @@
 import { utils, types } from '@abacus-network/utils';
 import { Deploy } from '../deploy';
+import { Instance } from '../instance';
 
 interface Router {
   address: types.Address;
   enrollRemoteRouter(domain: types.Domain, router: types.Address): Promise<any>;
 }
 
-export abstract class RouterDeploy<T, V> extends Deploy<T, V> {
+export abstract class RouterDeploy<T extends Instance<any>, V> extends Deploy<T, V> {
   async postDeploy(_: V) {
     // Make all routers aware of eachother.
     for (const local of this.domains) {

@@ -18,7 +18,9 @@ async function main() {
   const environment = await getEnvironment();
   const agentConfig = await getAgentConfig(environment);
   const chains = await getChainConfigs(environment);
-  const envVars = await getAgentEnvVars(argv.c, argv.r, agentConfig, chains);
+  const domains = Object.keys(chains).map((d) => parseInt(d))
+  const chainArray = domains.map((d) => chains[d]);
+  const envVars = await getAgentEnvVars(argv.c, argv.r, agentConfig, chainArray);
 
   await writeFile(argv.f, envVars.join('\n'));
 }

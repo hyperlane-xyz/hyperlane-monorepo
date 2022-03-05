@@ -38,7 +38,21 @@ export async function getChainConfigs(
   environment: DeployEnvironment,
 ): Promise<ChainConfig[]> {
   const moduleName = `../config/environments/${environment}/chains`;
-  return (await importModule(moduleName)).getChains();
+  return (
+    await importModule(moduleName)
+  ).getChains();
+}
+
+export async function getChainConfigsRecord(
+  environment: DeployEnvironment,
+): Promise<Record<types.Domain, ChainConfig>> {
+  const moduleName = `../config/environments/${environment}/chains`;
+  const array = (await importModule(moduleName)).getChains();
+  const chains: Record<types.Domain, ChainConfig> = {}
+  for (const chain of array) {
+    chains[chain.domain] = chain;
+  }
+  return chains
 }
 
 export async function getCoreConfig(
@@ -170,29 +184,28 @@ export function getGovernanceContracts(
   return contracts;
 }
 
-// TODO(asa): Dedup with generics
 export async function getCoreDeploy(
   environment: DeployEnvironment,
 ): Promise<CoreDeploy> {
-  const chains = await getChainConfigs(environment);
-  const contracts = await getCoreContracts(environment, chains);
-  return CoreDeploy.fromObjects(chains, contracts);
+  const chains = await getChainConfigsRecord(environment);
+  const dir = await getCoreContractsDirectory(environment);
+  return CoreDeploy.readContracts(chains, dir);
 }
 
 export async function getBridgeDeploy(
   environment: DeployEnvironment,
 ): Promise<BridgeDeploy> {
-  const chains = await getChainConfigs(environment);
-  const contracts = await getBridgeContracts(environment, chains);
-  return BridgeDeploy.fromObjects(chains, contracts);
+  const chains = await getChainConfigsRecord(environment);
+  const dir = await getBridgeContractsDirectory(environment);
+  return BridgeDeploy.readContracts(chains, dir);
 }
 
 export async function getGovernanceDeploy(
   environment: DeployEnvironment,
 ): Promise<GovernanceDeploy> {
-  const chains = await getChainConfigs(environment);
-  const contracts = await getGovernanceContracts(environment, chains);
-  return GovernanceDeploy.fromObjects(chains, contracts);
+  const chains = await getChainConfigsRecord(environment);
+  const dir = await getGovernanceContractsDirectory(environment);
+  return GovernanceDeploy.readContracts(chains, dir);
 }
 
 export function getContext(environment: DeployEnvironment): AbacusContext {

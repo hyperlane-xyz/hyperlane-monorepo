@@ -1,13 +1,14 @@
 import path from 'path';
 import { ethers } from 'ethers';
-import { RouterDeploy, ChainConfig } from '@abacus-network/abacus-deploy';
+import { ChainConfig } from '@abacus-network/abacus-deploy';
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
 import { BridgeConfig } from './types';
 import { BridgeInstance } from './BridgeInstance';
 import { BridgeContracts } from './BridgeContracts';
+import { InfraRouterDeploy } from '../deploy';
 
-export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
+export class BridgeDeploy extends InfraRouterDeploy<BridgeInstance, BridgeConfig> {
   async deployInstance(
     domain: types.Domain,
     config: BridgeConfig,
@@ -17,33 +18,6 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
 
   async postDeploy(config: BridgeConfig) {
     await super.postDeploy(config);
-    /*
-    // after all peer BridgeRouters have been co-enrolled,
-    // transfer ownership of BridgeRouters to Governance
-    await Promise.all(
-      deploys.map(async (deploy) => {
-        await transferOwnershipToGovernance(deploy);
-      }),
-    );
-    */
-  }
-
-  async ready(): Promise<void> {
-    await Promise.all(
-      this.domains.map(
-        (d) =>
-          (this.chains[d].signer.provider! as ethers.providers.JsonRpcProvider)
-            .ready,
-      ),
-    );
-  }
-
-  writeContracts(directory: string) {
-    for (const domain of this.domains) {
-      this.instances[domain].contracts.writeJson(
-        path.join(directory, `${this.chains[domain].name}_contracts.json`),
-      );
-    }
   }
 
   static readContracts(chains: Record<types.Domain, ChainConfig>, directory: string): BridgeDeploy {

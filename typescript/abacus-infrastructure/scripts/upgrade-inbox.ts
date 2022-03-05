@@ -22,7 +22,7 @@ async function main() {
   const deploy = await getCoreDeploy(environment);
   const config = await getCoreConfig(environment);
   const checker = new CoreInvariantChecker(deploy, config);
-  await checker.checkDeploy();
+  await checker.check();
   checker.expectViolations([ViolationType.UpgradeBeacon], [chains.length]);
   const builder = new GovernanceCallBatchBuilder(
     deploy,

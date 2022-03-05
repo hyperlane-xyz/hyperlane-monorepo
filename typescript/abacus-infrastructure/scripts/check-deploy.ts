@@ -6,7 +6,7 @@ async function check() {
   const coreDeploy = await getCoreDeploy(environment);
   const coreConfig = await getCoreConfig(environment);
   const checker = new CoreInvariantChecker(coreDeploy, coreConfig);
-  await checker.checkDeploy();
+  await checker.check();
   checker.expectEmpty();
 }
 

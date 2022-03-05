@@ -1,33 +1,43 @@
 import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
+import { core } from '@abacus-network/ts-interface';
 import {
-  CoreDeploy as DCoreDeploy,
-  CoreContracts,
   ChainConfig,
   CoreInstance,
+  CoreContracts,
+  CoreConfig,
 } from '@abacus-network/abacus-deploy';
+import { InfraDeploy } from '../deploy';
 
-export class CoreDeploy extends DCoreDeploy {
-  // TODO(asa): Dedup with inheritance
-  writeContracts(directory: string) {
-    for (const domain of this.domains) {
-      this.instances[domain].contracts.writeJson(
-        path.join(directory, `${this.chains[domain].name}_contracts.json`),
-      );
-    }
+export class CoreDeploy extends InfraDeploy<CoreInstance, CoreConfig> {
+  deployInstance(
+    domain: types.Domain,
+    config: CoreConfig,
+  ): Promise<CoreInstance> {
+    return CoreInstance.deploy(domain, this.chains, config);
   }
 
+  async postDeploy(_: CoreConfig) {}
 
-  // TODO(asa): Dedupe
-  async ready(): Promise<void> {
-    await Promise.all(
-      this.domains.map(
-        (d) =>
-          (this.chains[d].signer.provider! as ethers.providers.JsonRpcProvider)
-            .ready,
-      ),
-    );
+  upgradeBeaconController(domain: types.Domain): core.UpgradeBeaconController {
+    return this.instances[domain].upgradeBeaconController;
+  }
+
+  validatorManager(domain: types.Domain): core.ValidatorManager {
+    return this.instances[domain].validatorManager;
+  }
+
+  outbox(domain: types.Domain): core.Outbox {
+    return this.instances[domain].outbox.proxy;
+  }
+
+  inbox(local: types.Domain, remote: types.Domain): core.Inbox {
+    return this.instances[local].inbox(remote).proxy;
+  }
+
+  xAppConnectionManager(domain: types.Domain): core.XAppConnectionManager {
+    return this.instances[domain].xAppConnectionManager;
   }
 
   // TODO(asa): Dedupe

@@ -1,6 +1,6 @@
 import {
-  getCoreConfig,
   getCoreDeploy,
+  getCoreConfig,
   getChainConfigs,
   getContext,
   getEnvironment,
@@ -21,7 +21,7 @@ async function main() {
   const deploy = await getCoreDeploy(environment);
   const config = await getCoreConfig(environment);
   const checker = new CoreInvariantChecker(deploy, config);
-  await checker.checkDeploy();
+  await checker.check();
   checker.expectViolations([ViolationType.Validator], [chains.length]);
 
   const builder = new GovernanceCallBatchBuilder(
