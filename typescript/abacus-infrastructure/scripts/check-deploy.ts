@@ -1,5 +1,5 @@
 import { getEnvironment, getCoreDeploy, getCoreConfig } from './utils';
-import { CoreInvariantChecker } from '../src/core/checks';
+import { CoreInvariantChecker } from '../src/core';
 
 async function check() {
   const environment = await getEnvironment();

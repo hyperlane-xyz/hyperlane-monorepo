@@ -1,6 +1,6 @@
 import { types } from '@abacus-network/utils';
 import { ProxiedAddress } from '@abacus-network/abacus-deploy';
-import { XAppCoreAddresses } from './core';
+import { XAppCoreAddresses } from '../config/core';
 
 export type GovernanceContractAddresses = {
   router: ProxiedAddress;
@@ -17,3 +17,5 @@ export type GovernanceConfig = {
   addresses: Record<string, GovernanceAddresses>;
   core: Record<string, XAppCoreAddresses>;
 };
+
+export type GovernanceConfigWithoutCore = Omit<GovernanceConfig, 'core'>;

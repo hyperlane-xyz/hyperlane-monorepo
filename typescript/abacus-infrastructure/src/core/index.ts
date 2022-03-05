@@ -1,3 +1,12 @@
+export { CoreDeploy } from './CoreDeploy';
+export {
+  CoreInstance,
+  CoreContracts,
+  CoreContractAddresses,
+  CoreConfig,
+} from '@abacus-network/abacus-deploy';
+export { CoreInvariantChecker } from './CoreInvariantChecker';
+
 /*
 import { assert } from 'console';
 import { ethers } from 'ethers';

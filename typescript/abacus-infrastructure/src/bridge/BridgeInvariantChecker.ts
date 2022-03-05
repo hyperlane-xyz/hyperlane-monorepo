@@ -2,7 +2,7 @@ import { expect } from 'chai';
 
 import { types } from '@abacus-network/utils';
 // import { BeaconProxy } from '@abacus-network/abacus-deploy';
-import { BridgeConfig } from '../config/bridge';
+import { BridgeConfig } from './types';
 import { BridgeDeploy } from './BridgeDeploy';
 // import { VerificationInput, InvariantChecker } from '../checks';
 import { InvariantChecker } from '../checks';

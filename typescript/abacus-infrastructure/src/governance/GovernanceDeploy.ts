@@ -5,7 +5,7 @@ import { ChainConfig, RouterDeploy } from '@abacus-network/abacus-deploy';
 import { xapps } from '@abacus-network/ts-interface';
 import { GovernanceInstance } from './GovernanceInstance';
 import { GovernanceContracts } from './GovernanceContracts';
-import { GovernanceConfig } from '../config/governance';
+import { GovernanceConfig } from './types';
 
 export class GovernanceDeploy extends RouterDeploy<
   GovernanceInstance,

@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { RouterDeploy, ChainConfig } from '@abacus-network/abacus-deploy';
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
-import { BridgeConfig } from '../config/bridge';
+import { BridgeConfig } from './types';
 import { BridgeInstance } from './BridgeInstance';
 import { BridgeContracts } from './BridgeContracts';
 

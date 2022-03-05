@@ -6,8 +6,8 @@ import {
   BeaconProxy,
   Instance,
 } from '@abacus-network/abacus-deploy';
-import { BridgeConfig } from '../config/bridge';
 import { BridgeContracts } from './BridgeContracts';
+import { BridgeConfig } from './types';
 
 export class BridgeInstance extends Instance<BridgeContracts> {
   static async deploy(

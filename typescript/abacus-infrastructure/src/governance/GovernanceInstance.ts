@@ -5,8 +5,8 @@ import {
   BeaconProxy,
   Instance,
 } from '@abacus-network/abacus-deploy';
-import { GovernanceConfig } from '../config/governance';
 import { GovernanceContracts } from './GovernanceContracts';
+import { GovernanceConfig } from './types';
 
 export class GovernanceInstance extends Instance<GovernanceContracts> {
   static async deploy(

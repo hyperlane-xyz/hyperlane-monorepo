@@ -2,7 +2,7 @@ import fs from 'fs';
 import { xapps } from '@abacus-network/ts-interface';
 import { ethers } from 'ethers';
 import { Contracts, BeaconProxy } from '@abacus-network/abacus-deploy';
-import { BridgeContractAddresses } from '../config/bridge';
+import { BridgeContractAddresses } from './types';
 
 export class BridgeContracts extends Contracts<BridgeContractAddresses> {
   constructor(

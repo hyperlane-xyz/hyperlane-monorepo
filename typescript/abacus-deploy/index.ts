@@ -1,4 +1,4 @@
-export { CoreDeploy, CoreInstance, CoreContracts, CoreConfig } from './src/core';
+export { CoreDeploy, CoreInstance, CoreContracts, CoreContractAddresses, CoreConfig } from './src/core';
 export { Deploy } from './src/deploy';
 export { Instance } from './src/instance';
 export { Contracts } from './src/contracts';

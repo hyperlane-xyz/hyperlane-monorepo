@@ -1,25 +1,21 @@
 import { AbacusContext, dev, testnet, mainnet } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import {
-  ChainConfig,
-  CoreContracts,
-  CoreConfig,
-} from '@abacus-network/abacus-deploy';
+import { ChainConfig } from '@abacus-network/abacus-deploy';
 import { ethers } from 'ethers';
 import { DeployEnvironment } from '../src/deploy';
 import { KEY_ROLE_ENUM } from '../src/agents';
-import { ChainName } from '../src/config/chain';
-import { InfrastructureConfig } from '../src/config/infrastructure';
-import { ContractMetricsConfig } from '../src/config/contract-metrics';
-import { GovernanceConfig } from '../src/config/governance';
-import { BridgeConfig } from '../src/config/bridge';
 import { AgentConfig } from '../src/config/agent';
+import { ChainName } from '../src/config/chain';
+import { ContractMetricsConfig } from '../src/config/contract-metrics';
 import { XAppCoreConfig, XAppCoreAddresses } from '../src/config/core';
-import { CoreDeploy } from '../src/core/CoreDeploy';
-import { BridgeDeploy } from '../src/bridge/BridgeDeploy';
-import { GovernanceDeploy } from '../src/governance/GovernanceDeploy';
-import { BridgeContracts } from '../src/bridge/BridgeContracts';
-import { GovernanceContracts } from '../src/governance/GovernanceContracts';
+import { InfrastructureConfig } from '../src/config/infrastructure';
+import { CoreDeploy, CoreContracts, CoreConfig } from '../src/core';
+import {
+  GovernanceDeploy,
+  GovernanceContracts,
+  GovernanceConfig,
+} from '../src/governance';
+import { BridgeDeploy, BridgeContracts, BridgeConfig } from '../src/bridge';
 import path from 'path';
 import yargs from 'yargs';
 

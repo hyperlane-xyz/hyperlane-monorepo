@@ -1,6 +1,6 @@
-import { GovernanceConfig } from '../../../src/config/governance';
+import { GovernanceConfigWithoutCore } from '../../../src/governance';
 
-export const governance: Omit<GovernanceConfig, 'core'> = {
+export const governance: GovernanceConfigWithoutCore = {
   recoveryTimelock: 180,
   addresses: {
     alfajores: {

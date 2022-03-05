@@ -1,6 +1,6 @@
 import { types } from '@abacus-network/utils';
 import { ProxiedAddress } from '@abacus-network/abacus-deploy';
-import { XAppCoreAddresses } from './core';
+import { XAppCoreAddresses } from '../config/core';
 
 export type BridgeContractAddresses = {
   router: ProxiedAddress;
@@ -17,3 +17,5 @@ export type BridgeConfig = {
   addresses: Record<string, BridgeAddresses>;
   core: Record<string, XAppCoreAddresses>;
 };
+
+export type BridgeConfigWithoutCore = Omit<BridgeConfig, 'core'>;

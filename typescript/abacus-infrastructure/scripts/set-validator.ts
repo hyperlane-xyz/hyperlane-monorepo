@@ -8,7 +8,7 @@ import {
   registerGovernorSigner,
 } from './utils';
 import { ViolationType } from '../src/checks';
-import { CoreInvariantChecker } from '../src/core/checks';
+import { CoreInvariantChecker } from '../src/core';
 import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
 
 async function main() {

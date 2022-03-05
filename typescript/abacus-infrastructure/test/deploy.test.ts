@@ -1,14 +1,13 @@
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { types } from '@abacus-network/utils';
+import { ChainConfig } from '@abacus-network/abacus-deploy'
+import { types } from '@abacus-network/utils'
+import { testChains, testCore, testGovernance, testBridge } from './inputs';
 
-import { ChainConfig, CoreConfig } from '@abacus-network/abacus-deploy'
-import { CoreDeploy } from '../src/core/CoreDeploy';
-import { GovernanceDeploy } from '../src/governance/GovernanceDeploy';
-import { BridgeDeploy } from '../src/bridge/BridgeDeploy';
-import { GovernanceConfig, GovernanceAddresses } from '../src/config/governance';
-import { BridgeConfig, BridgeAddresses } from '../src/config/bridge';
+import { CoreDeploy } from '../src/core';
+import { GovernanceDeploy } from '../src/governance';
+import { BridgeDeploy } from '../src/bridge';
 import {XAppCoreAddresses} from '../src/config/core';
 
 /*
@@ -20,36 +19,24 @@ import {XAppCoreAddresses} from '../src/config/core';
 //   restoring from file
 describe('CoreDeploy', async () => {
   let signer: SignerWithAddress;
-  const domains = [1000, 2000, 3000];
-  const chains: Record<types.Domain, ChainConfig> = {}
   const core = new CoreDeploy();
   const governance = new GovernanceDeploy();
   const bridge = new BridgeDeploy();
   const xAppConfig: Record<string, XAppCoreAddresses> = {};
+  const chains: Record<types.Domain, ChainConfig> = {};
 
   before(async () => {
     [signer] = await ethers.getSigners();
-    const overrides = {};
-    for (const domain of domains) {
-      chains[domain] = { name: `${domain.toString()}_str`, domain, signer, overrides };
-    }
+    testChains.map((chain) => {
+      chains[chain.domain] = { ...chain, signer };
+    });
   });
 
   describe('three domain deploy', async () => {
     it('deploys core', async () => {
-      const validators: Record<string, types.Address> = {};
-      for (const domain of domains) {
-        validators[chains[domain].name] = await signer.getAddress();
-      }
-      const config: CoreConfig = {
-        processGas: 850_000,
-        reserveGas: 15_000,
-        validators,
-        test: true,
-      };
-      await core.deploy(chains, config);
+      await core.deploy(chains, testCore);
       await core.writeContracts('./test/outputs/core')
-      for (const domain of domains) {
+      for (const domain of core.domains) {
         xAppConfig[chains[domain].name] = {
           upgradeBeaconController: core.upgradeBeaconController(domain).address,
           xAppConnectionManager: core.xAppConnectionManager(domain).address,
@@ -58,39 +45,14 @@ describe('CoreDeploy', async () => {
     });
 
     it('deploys governance', async () => {
-      const addresses: Record<string, GovernanceAddresses> = {};
-      for (const domain of domains) {
-        addresses[chains[domain].name] = {
-          recoveryManager: await signer.getAddress(),
-        }
-      }
-      // Only one governor.
-      addresses[chains[1000].name].governor = await signer.getAddress()
-
-      const config: GovernanceConfig = {
-        recoveryTimelock: 180,
-        addresses,
-        core: xAppConfig
-      };
-      await governance.deploy(chains, config);
+      const governanceConfig = {...testGovernance, core: xAppConfig }
+      await governance.deploy(chains, governanceConfig);
       await governance.writeContracts('./test/outputs/governance')
     });
 
     it('deploys bridge', async () => {
-      const addresses: Record<string, BridgeAddresses> = {};
-      // TODO(asa): weth needs to have "approve()"
-      /*
-      // Only one weth.
-      addresses[chains[2000].name] = {
-        weth: await signer.getAddress()
-      }
-      */
-
-      const config: BridgeConfig = {
-        addresses,
-        core: xAppConfig
-      };
-      await bridge.deploy(chains, config);
+      const bridgeConfig = {...testBridge, core: xAppConfig }
+      await bridge.deploy(chains, bridgeConfig);
       await bridge.writeContracts('./test/outputs/bridge')
     });
   });
