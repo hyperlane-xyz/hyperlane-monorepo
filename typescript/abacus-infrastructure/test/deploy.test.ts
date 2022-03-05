@@ -16,8 +16,14 @@ import { RouterConfig } from '../src/router';
 // TODO(asa)
 //   ownership transfer
 //   verification input
-//   checks
-//   restoring from file
+//   rename packages
+//     now:
+//       abacus-core-deploy: abacus-network/deploy
+//       abacus-deploy: abacus-network/infra
+//
+//     later:
+//       deploy: abacus-network/deploy
+//       infra: abacus-network/infra
 describe('deploys', async () => {
   let signer: SignerWithAddress;
   let core = new CoreDeploy();
