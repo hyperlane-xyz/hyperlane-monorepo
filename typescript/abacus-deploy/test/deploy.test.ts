@@ -21,17 +21,16 @@ describe('CoreDeploy', async () => {
     it('deploys', async () => {
       const domains = [1000, 2000, 3000];
       const chains: Record<types.Domain, ChainConfig> = {};
-      const validators: Record<types.Domain, types.Address> = {};
+      const validators: Record<string, types.Address> = {};
       const overrides = {};
       for (const domain of domains) {
         chains[domain] = { name: domain.toString(), domain, signer, overrides };
-        validators[domain] = await signer.getAddress();
+        validators[chains[domain].name] = await signer.getAddress();
       }
       const config: CoreConfig = {
         processGas: 850_000,
         reserveGas: 15_000,
         validators,
-        domains,
         test: true,
       };
       const core = new CoreDeploy();

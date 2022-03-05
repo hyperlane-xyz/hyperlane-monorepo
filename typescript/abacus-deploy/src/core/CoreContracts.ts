@@ -37,7 +37,7 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
   }
 
   // TODO(asa): Can this be added to Contracts instead?
-  static fromJson(
+  static readJson(
     filepath: string,
     provider: ethers.providers.JsonRpcProvider,
   ): CoreContracts {
@@ -68,7 +68,7 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
       addresses.outbox,
       core.Outbox__factory.abi,
       provider,
-    )
+    );
 
     const inboxes: Record<types.Domain, BeaconProxy<core.Inbox>> = {};
     Object.keys(addresses.inboxes)
@@ -78,7 +78,7 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
           addresses.inboxes[domain],
           core.Inbox__factory.abi,
           provider,
-        )
+        );
       });
 
     return new CoreContracts(

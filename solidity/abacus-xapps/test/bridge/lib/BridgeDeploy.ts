@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { types as deployTypes } from '@abacus-network/abacus-deploy';
 import { RouterDeploy } from '@abacus-network/abacus-deploy/src/router/RouterDeploy';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
@@ -34,9 +33,10 @@ export interface BridgeInstance {
 
 export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
   async deployInstance(
-    chain: deployTypes.ChainConfig,
+    domain: types.Domain,
     config: BridgeConfig,
   ): Promise<BridgeInstance> {
+    const chain = this.chains[domain];
     const wethFactory = new MockWeth__factory(chain.signer);
     const weth = await wethFactory.deploy();
     await weth.initialize();
@@ -53,10 +53,7 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
 
     const routerFactory = new BridgeRouter__factory(chain.signer);
     const router = await routerFactory.deploy();
-    await router.initialize(
-      beacon.address,
-      config.connectionManager[chain.domain],
-    );
+    await router.initialize(beacon.address, config.connectionManager[domain]);
 
     const helperFactory = new ETHHelper__factory(chain.signer);
     const helper = await helperFactory.deploy(weth.address, router.address);

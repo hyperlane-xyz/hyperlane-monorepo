@@ -1,6 +1,8 @@
-export * as core from './src/core';
-
-export * as deploy from './src/deploy';
-export * as instance from './src/instance';
-export * as contracts from './src/contracts';
-export * as types from './src/types';
+export { CoreDeploy, CoreInstance, CoreContracts, CoreConfig } from './src/core';
+export { Deploy } from './src/deploy';
+export { Instance } from './src/instance';
+export { Contracts } from './src/contracts';
+export { RouterDeploy } from './src/router/RouterDeploy';
+export { ContractDeployer } from './src/deployer';
+export { ChainConfig, ProxiedAddress } from './src/types'
+export { BeaconProxy } from './src/proxy';

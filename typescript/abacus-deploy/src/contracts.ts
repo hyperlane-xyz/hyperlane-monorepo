@@ -13,7 +13,7 @@ export abstract class Contracts<T> {
     return JSON.stringify(this.toObject(), null, 2);
   }
 
-  saveJson(filepath: string) {
+  writeJson(filepath: string) {
     fs.writeFileSync(filepath, this.toJsonPretty());
   }
 }

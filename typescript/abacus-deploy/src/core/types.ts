@@ -13,7 +13,6 @@ export type CoreContractAddresses = {
 export type CoreConfig = {
   processGas: BigNumberish;
   reserveGas: BigNumberish;
-  validators: Record<types.Domain, types.Address>;
-  domains: types.Domain[];
+  validators: Record<string, types.Address>;
   test?: boolean;
 };

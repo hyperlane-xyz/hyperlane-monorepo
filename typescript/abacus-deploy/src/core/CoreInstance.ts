@@ -10,9 +10,11 @@ import { ethers } from 'ethers';
 
 export class CoreInstance extends Instance<CoreContracts> {
   static async deploy(
-    chain: ChainConfig,
+    domain: types.Domain,
+    chains: Record<types.Domain, ChainConfig>,
     config: CoreConfig,
   ): Promise<CoreInstance> {
+    const chain = chains[domain];
     const deployer = new ContractDeployer(chain);
 
     const upgradeBeaconController: core.UpgradeBeaconController =
@@ -24,8 +26,8 @@ export class CoreInstance extends Instance<CoreContracts> {
       new core.ValidatorManager__factory(chain.signer),
     );
     await validatorManager.enrollValidator(
-      chain.domain,
-      config.validators[chain.domain],
+      domain,
+      config.validators[chain.name],
       chain.overrides,
     );
 
@@ -33,7 +35,7 @@ export class CoreInstance extends Instance<CoreContracts> {
       chain,
       new core.Outbox__factory(chain.signer),
       upgradeBeaconController.address,
-      [chain.domain],
+      [domain],
       [validatorManager.address],
     );
 
@@ -44,7 +46,8 @@ export class CoreInstance extends Instance<CoreContracts> {
     await xAppConnectionManager.setOutbox(outbox.address, chain.overrides);
 
     const inboxes: Record<types.Domain, BeaconProxy<core.Inbox>> = {};
-    const remotes = config.domains.filter((d) => d !== chain.domain);
+    const domains = Object.keys(chains).map((d) => parseInt(d));
+    const remotes = domains.filter((d) => d !== domain);
     const inboxFactory = config.test
       ? core.TestInbox__factory
       : core.Inbox__factory;
@@ -61,7 +64,7 @@ export class CoreInstance extends Instance<CoreContracts> {
           chain,
           new inboxFactory(chain.signer),
           upgradeBeaconController.address,
-          [chain.domain, config.processGas, config.reserveGas],
+          [domain, config.processGas, config.reserveGas],
           initArgs,
         );
       } else {
@@ -76,7 +79,7 @@ export class CoreInstance extends Instance<CoreContracts> {
       );
       await validatorManager.enrollValidator(
         remote,
-        config.validators[remote],
+        config.validators[chains[remote].name],
         chain.overrides,
       );
     }

@@ -1,0 +1,14 @@
+{
+  "compilerOptions": {
+    "outDir": "./dist/",
+    "rootDir": "./"
+  },
+  "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
+  "extends": "../tsconfig.package.json",
+  "include": [
+    "./config/**/*.ts",
+    "./scripts/**/*.ts",
+    "./src/**/*.ts",
+    "./test/**/*.ts"
+  ]
+}

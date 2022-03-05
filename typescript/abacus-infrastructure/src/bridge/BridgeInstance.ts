@@ -1,0 +1,61 @@
+import { xapps } from '@abacus-network/ts-interface';
+import { types } from '@abacus-network/utils';
+import {
+  ContractDeployer,
+  ChainConfig,
+  BeaconProxy,
+  Instance,
+} from '@abacus-network/abacus-deploy';
+import { BridgeConfig } from '../config/bridge';
+import { BridgeContracts } from './BridgeContracts';
+
+export class BridgeInstance extends Instance<BridgeContracts> {
+  static async deploy(
+    domain: types.Domain,
+    chains: Record<types.Domain, ChainConfig>,
+    config: BridgeConfig,
+  ): Promise<BridgeInstance> {
+    const chain = chains[domain];
+
+    const token: BeaconProxy<xapps.BridgeToken> = await BeaconProxy.deploy(
+      chain,
+      new xapps.BridgeToken__factory(chain.signer),
+      config.core[chain.name].upgradeBeaconController,
+      [],
+      [],
+    );
+
+    const router: BeaconProxy<xapps.BridgeRouter> = await BeaconProxy.deploy(
+      chain,
+      new xapps.BridgeRouter__factory(chain.signer),
+      config.core[chain.name].upgradeBeaconController,
+      [],
+      [token.beacon.address, config.core[chain.name].xAppConnectionManager],
+    );
+
+    if (config.addresses[chain.name].weth) {
+      const deployer = new ContractDeployer(chain);
+      const helper: xapps.ETHHelper = await deployer.deploy(
+        new xapps.ETHHelper__factory(chain.signer),
+        config.addresses[chain.name].weth,
+        router.address,
+      );
+      const contracts = new BridgeContracts(router, token, helper);
+      return new BridgeInstance(chain, contracts);
+    }
+    const contracts = new BridgeContracts(router, token);
+    return new BridgeInstance(chain, contracts);
+  }
+
+  get token(): xapps.BridgeToken {
+    return this.contracts.token.proxy;
+  }
+
+  get router(): xapps.BridgeRouter {
+    return this.contracts.router.proxy;
+  }
+
+  get helper(): xapps.ETHHelper | undefined {
+    return this.contracts.helper;
+  }
+}

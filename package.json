@@ -12,7 +12,8 @@
     "solidity/abacus-xapps",
     "typescript/typechain",
     "typescript/abacus-sdk",
-    "typescript/contract-metrics"
+    "typescript/contract-metrics",
+    "typescript/abacus-infrastructure"
   ]
 }
 

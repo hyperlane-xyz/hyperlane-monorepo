@@ -1,6 +1,5 @@
 import { ethers } from 'ethers';
 import { types, utils } from '@abacus-network/utils';
-import { types as deployTypes } from '@abacus-network/abacus-deploy';
 import { RouterDeploy } from '@abacus-network/abacus-deploy/src/router/RouterDeploy';
 
 import {
@@ -21,13 +20,13 @@ export class GovernanceDeploy extends RouterDeploy<
   GovernanceConfig
 > {
   async deployInstance(
-    chain: deployTypes.ChainConfig,
+    domain: types.Domain,
     config: GovernanceConfig,
   ): Promise<GovernanceRouter> {
     const routerFactory = new GovernanceRouter__factory(config.signer);
     const router = await routerFactory.deploy(config.timelock);
-    await router.initialize(config.connectionManager[chain.domain]);
-    await router.transferOwnership(config.recoveryManagers[chain.domain]);
+    await router.initialize(config.connectionManager[domain]);
+    await router.transferOwnership(config.recoveryManagers[domain]);
     return router;
   }
 

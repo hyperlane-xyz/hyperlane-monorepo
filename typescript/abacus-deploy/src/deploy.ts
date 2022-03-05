@@ -19,18 +19,17 @@ export abstract class Deploy<T, V> {
     if (this.domains.length > 0) throw new Error('cannot deploy twice');
     const domains = Object.keys(chains).map((d) => parseInt(d));
     for (const domain of domains) {
-      this.instances[domain] = await this.deployInstance(
-        chains[domain],
-        config,
-      );
       this.chains[domain] = chains[domain];
+    }
+    for (const domain of domains) {
+      this.instances[domain] = await this.deployInstance(domain, config);
     }
     await this.postDeploy(config);
   }
 
   abstract postDeploy(config: V): Promise<void>;
 
-  abstract deployInstance(chain: ChainConfig, config: V): Promise<T>;
+  abstract deployInstance(domain: types.Domain, config: V): Promise<T>;
 
   signer(domain: types.Domain) {
     return this.chains[domain].signer;
@@ -38,5 +37,9 @@ export abstract class Deploy<T, V> {
 
   get domains(): types.Domain[] {
     return Object.keys(this.instances).map((d) => parseInt(d));
+  }
+
+  remotes(domain: types.Domain): types.Domain[] {
+    return this.domains.filter((d) => d !== domain);
   }
 }

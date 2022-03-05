@@ -1,10 +1,14 @@
 import { ethers } from "ethers";
 import { core as contracts } from "@abacus-network/ts-interface";
 import { types } from "@abacus-network/utils";
-import { types as deployTypes, core } from "@abacus-network/abacus-deploy";
+import {
+  ChainConfig,
+  CoreDeploy,
+  CoreConfig,
+} from "@abacus-network/abacus-deploy";
 import { Validator } from "@abacus-network/abacus-sol/test/lib/core";
 
-export class TestCoreDeploy extends core.CoreDeploy {
+export class TestCoreDeploy extends CoreDeploy {
   async init(domains: types.Domain[], signer: ethers.Signer) {
     // Clear the deploy so that we can deploy again in a new test.
     for (const domain of this.domains) {
@@ -12,18 +16,17 @@ export class TestCoreDeploy extends core.CoreDeploy {
       delete this.instances[domain];
     }
 
-    const chains: Record<number, deployTypes.ChainConfig> = {};
+    const chains: Record<number, ChainConfig> = {};
     const validators: Record<number, types.Address> = {};
     const overrides = {};
     for (const domain of domains) {
       chains[domain] = { name: domain.toString(), domain, signer, overrides };
       validators[domain] = await signer.getAddress();
     }
-    const config: core.types.CoreConfig = {
+    const config: CoreConfig = {
       processGas: 850_000,
       reserveGas: 15_000,
       validators,
-      domains,
       test: true,
     };
     await this.deploy(chains, config);
