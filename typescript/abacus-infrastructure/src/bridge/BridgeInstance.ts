@@ -10,6 +10,11 @@ import { BridgeContracts } from './BridgeContracts';
 import { BridgeConfig } from './types';
 
 export class BridgeInstance extends Instance<BridgeContracts> {
+  async transferOwnership(owner: types.Address) {
+    const tx = await this.router.transferOwnership(owner, this.chain.overrides);
+    await tx.wait(this.chain.confirmations);
+  }
+
   static async deploy(
     domain: types.Domain,
     chains: Record<types.Domain, ChainConfig>,

@@ -41,20 +41,23 @@ export class GovernanceInvariantChecker extends InvariantChecker<GovernanceDeplo
     await Promise.all(
       this.deploy.remotes(domain).map(async (remote) => {
         const remoteRouter = await this.deploy.router(remote);
-        expect(await router.routers(remote)).to.equal(utils.addressToBytes32(remoteRouter.address));
+        expect(await router.routers(remote)).to.equal(
+          utils.addressToBytes32(remoteRouter.address),
+        );
       }),
     );
   }
 
   // TODO(asa): Dedupe
   async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
-    const actual = await this.deploy.router(domain).xAppConnectionManager()
-    const expected = this.config.core[this.deploy.name(domain)].xAppConnectionManager;
+    const actual = await this.deploy.router(domain).xAppConnectionManager();
+    const expected =
+      this.config.core[this.deploy.name(domain)].xAppConnectionManager;
     expect(actual).to.equal(expected);
   }
 
   async checkGovernor(domain: types.Domain): Promise<void> {
-    const actual = await this.deploy.router(domain).governor()
+    const actual = await this.deploy.router(domain).governor();
     const expected = this.config.addresses[this.deploy.name(domain)].governor;
     if (expected) {
       expect(actual).to.equal(expected);
@@ -64,8 +67,9 @@ export class GovernanceInvariantChecker extends InvariantChecker<GovernanceDeplo
   }
 
   async checkRecoveryManager(domain: types.Domain): Promise<void> {
-    const actual = await this.deploy.router(domain).recoveryManager()
-    const expected = this.config.addresses[this.deploy.name(domain)].recoveryManager;
+    const actual = await this.deploy.router(domain).recoveryManager();
+    const expected =
+      this.config.addresses[this.deploy.name(domain)].recoveryManager;
     expect(actual).to.equal(expected);
   }
 }

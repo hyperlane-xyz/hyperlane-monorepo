@@ -38,9 +38,7 @@ export async function getChainConfigs(
   environment: DeployEnvironment,
 ): Promise<ChainConfig[]> {
   const moduleName = `../config/environments/${environment}/chains`;
-  return (
-    await importModule(moduleName)
-  ).getChains();
+  return (await importModule(moduleName)).getChains();
 }
 
 export async function getChainConfigsRecord(
@@ -48,11 +46,11 @@ export async function getChainConfigsRecord(
 ): Promise<Record<types.Domain, ChainConfig>> {
   const moduleName = `../config/environments/${environment}/chains`;
   const array = (await importModule(moduleName)).getChains();
-  const chains: Record<types.Domain, ChainConfig> = {}
+  const chains: Record<types.Domain, ChainConfig> = {};
   for (const chain of array) {
     chains[chain.domain] = chain;
   }
-  return chains
+  return chains;
 }
 
 export async function getCoreConfig(

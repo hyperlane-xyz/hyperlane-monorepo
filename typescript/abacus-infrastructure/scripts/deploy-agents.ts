@@ -6,7 +6,7 @@ async function deploy() {
   const environment = await getEnvironment();
   const chains = await getChainConfigs(environment);
   const agentConfig = await getAgentConfig(environment);
-  const domains = Object.keys(chains).map((d) => parseInt(d))
+  const domains = Object.keys(chains).map((d) => parseInt(d));
   const chainArray = domains.map((d) => chains[d]);
   await Promise.all(
     chainArray.map((chain) => {

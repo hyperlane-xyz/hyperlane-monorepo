@@ -2,6 +2,7 @@ import path from 'path';
 import { ethers } from 'ethers';
 import { utils, types } from '@abacus-network/utils';
 import { Deploy, Instance } from '@abacus-network/abacus-deploy';
+import { InfraInstance } from './instance';
 
 export enum DeployEnvironment {
   dev = 'dev',
@@ -12,7 +13,10 @@ export enum DeployEnvironment {
   test = 'test',
 }
 
-export abstract class InfraDeploy<T extends Instance<any>, V> extends Deploy<T, V> {
+export abstract class InfraDeploy<T extends Instance<any>, V> extends Deploy<
+  T,
+  V
+> {
   writeContracts(directory: string) {
     for (const domain of this.domains) {
       this.instances[domain].contracts.writeJson(
@@ -30,6 +34,10 @@ export abstract class InfraDeploy<T extends Instance<any>, V> extends Deploy<T, 
       ),
     );
   }
+
+  abstract transferOwnership(
+    owners: Record<types.Domain, types.Address>,
+  ): Promise<void>;
 }
 
 interface Router {
@@ -37,7 +45,10 @@ interface Router {
   enrollRemoteRouter(domain: types.Domain, router: types.Address): Promise<any>;
 }
 
-export abstract class InfraRouterDeploy<T extends Instance<any>, V> extends InfraDeploy<T, V> {
+export abstract class InfraRouterDeploy<
+  T extends InfraInstance<any>,
+  V,
+> extends InfraDeploy<T, V> {
   // TODO(asa): Dedupe with abacus-deploy
   async postDeploy(_: V) {
     // Make all routers aware of eachother.
@@ -50,6 +61,12 @@ export abstract class InfraRouterDeploy<T extends Instance<any>, V> extends Infr
         );
       }
     }
+  }
+
+  async transferOwnership(owners: Record<types.Domain, types.Address>) {
+    await Promise.all(
+      this.domains.map((d) => this.instances[d].transferOwnership(owners[d])),
+    );
   }
 
   abstract router(domain: types.Domain): Router;

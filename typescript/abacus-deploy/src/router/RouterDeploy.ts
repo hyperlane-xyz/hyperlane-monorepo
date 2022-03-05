@@ -7,7 +7,10 @@ interface Router {
   enrollRemoteRouter(domain: types.Domain, router: types.Address): Promise<any>;
 }
 
-export abstract class RouterDeploy<T extends Instance<any>, V> extends Deploy<T, V> {
+export abstract class RouterDeploy<T extends Instance<any>, V> extends Deploy<
+  T,
+  V
+> {
   async postDeploy(_: V) {
     // Make all routers aware of eachother.
     for (const local of this.domains) {

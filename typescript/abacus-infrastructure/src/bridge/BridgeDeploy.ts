@@ -8,7 +8,10 @@ import { BridgeInstance } from './BridgeInstance';
 import { BridgeContracts } from './BridgeContracts';
 import { InfraRouterDeploy } from '../deploy';
 
-export class BridgeDeploy extends InfraRouterDeploy<BridgeInstance, BridgeConfig> {
+export class BridgeDeploy extends InfraRouterDeploy<
+  BridgeInstance,
+  BridgeConfig
+> {
   async deployInstance(
     domain: types.Domain,
     config: BridgeConfig,
@@ -20,7 +23,10 @@ export class BridgeDeploy extends InfraRouterDeploy<BridgeInstance, BridgeConfig
     await super.postDeploy(config);
   }
 
-  static readContracts(chains: Record<types.Domain, ChainConfig>, directory: string): BridgeDeploy {
+  static readContracts(
+    chains: Record<types.Domain, ChainConfig>,
+    directory: string,
+  ): BridgeDeploy {
     const deploy = new BridgeDeploy();
     const domains = Object.keys(chains).map((d) => parseInt(d));
     for (const domain of domains) {
@@ -30,10 +36,7 @@ export class BridgeDeploy extends InfraRouterDeploy<BridgeInstance, BridgeConfig
         chain.signer.provider! as ethers.providers.JsonRpcProvider,
       );
       deploy.chains[domain] = chain;
-      deploy.instances[domain] = new BridgeInstance(
-        chain,
-        contracts
-      );
+      deploy.instances[domain] = new BridgeInstance(chain, contracts);
     }
     return deploy;
   }

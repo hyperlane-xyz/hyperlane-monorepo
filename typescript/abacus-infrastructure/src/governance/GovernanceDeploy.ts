@@ -31,7 +31,10 @@ export class GovernanceDeploy extends InfraRouterDeploy<
     }
   }
 
-  static readContracts(chains: Record<types.Domain, ChainConfig>, directory: string): GovernanceDeploy {
+  static readContracts(
+    chains: Record<types.Domain, ChainConfig>,
+    directory: string,
+  ): GovernanceDeploy {
     const deploy = new GovernanceDeploy();
     const domains = Object.keys(chains).map((d) => parseInt(d));
     for (const domain of domains) {
@@ -41,10 +44,7 @@ export class GovernanceDeploy extends InfraRouterDeploy<
         chain.signer.provider! as ethers.providers.JsonRpcProvider,
       );
       deploy.chains[domain] = chain;
-      deploy.instances[domain] = new GovernanceInstance(
-        chain,
-        contracts
-      );
+      deploy.instances[domain] = new GovernanceInstance(chain, contracts);
     }
     return deploy;
   }
