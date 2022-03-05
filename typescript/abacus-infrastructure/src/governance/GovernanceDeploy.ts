@@ -30,14 +30,6 @@ export class GovernanceDeploy extends RouterDeploy<
     }
   }
 
-  writeContracts(directory: string) {
-    for (const domain of this.domains) {
-      this.instances[domain].contracts.writeJson(
-        path.join(directory, `${this.chains[domain].name}_contracts.json`),
-      );
-    }
-  }
-
   async ready(): Promise<void> {
     await Promise.all(
       this.domains.map(
@@ -48,17 +40,28 @@ export class GovernanceDeploy extends RouterDeploy<
     );
   }
 
-  static fromObjects(
-    chains: ChainConfig[],
-    contracts: Record<types.Domain, GovernanceContracts>,
-  ): GovernanceDeploy {
-    const deploy = new GovernanceDeploy();
-    for (const chain of chains) {
-      deploy.instances[chain.domain] = new GovernanceInstance(
-        chain,
-        contracts[chain.domain],
+  writeContracts(directory: string) {
+    for (const domain of this.domains) {
+      this.instances[domain].contracts.writeJson(
+        path.join(directory, `${this.chains[domain].name}_contracts.json`),
       );
-      deploy.chains[chain.domain] = chain;
+    }
+  }
+
+  static readContracts(chains: Record<types.Domain, ChainConfig>, directory: string): GovernanceDeploy {
+    const deploy = new GovernanceDeploy();
+    const domains = Object.keys(chains).map((d) => parseInt(d));
+    for (const domain of domains) {
+      const chain = chains[domain];
+      const contracts = GovernanceContracts.readJson(
+        path.join(directory, `${chain.name}_contracts.json`),
+        chain.signer.provider! as ethers.providers.JsonRpcProvider,
+      );
+      deploy.chains[domain] = chain;
+      deploy.instances[domain] = new GovernanceInstance(
+        chain,
+        contracts
+      );
     }
     return deploy;
   }

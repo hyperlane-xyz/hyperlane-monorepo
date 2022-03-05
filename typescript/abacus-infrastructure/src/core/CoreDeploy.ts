@@ -18,6 +18,8 @@ export class CoreDeploy extends DCoreDeploy {
     }
   }
 
+
+  // TODO(asa): Dedupe
   async ready(): Promise<void> {
     await Promise.all(
       this.domains.map(
@@ -28,17 +30,21 @@ export class CoreDeploy extends DCoreDeploy {
     );
   }
 
-  static fromObjects(
-    chains: ChainConfig[],
-    contracts: Record<types.Domain, CoreContracts>,
-  ): CoreDeploy {
+  // TODO(asa): Dedupe
+  static readContracts(chains: Record<types.Domain, ChainConfig>, directory: string): CoreDeploy {
     const deploy = new CoreDeploy();
-    for (const chain of chains) {
-      deploy.instances[chain.domain] = new CoreInstance(
-        chain,
-        contracts[chain.domain],
+    const domains = Object.keys(chains).map((d) => parseInt(d));
+    for (const domain of domains) {
+      const chain = chains[domain];
+      const contracts = CoreContracts.readJson(
+        path.join(directory, `${chain.name}_contracts.json`),
+        chain.signer.provider! as ethers.providers.JsonRpcProvider,
       );
-      deploy.chains[chain.domain] = chain;
+      deploy.chains[domain] = chain;
+      deploy.instances[domain] = new CoreInstance(
+        chain,
+        contracts
+      );
     }
     return deploy;
   }

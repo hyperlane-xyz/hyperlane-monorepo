@@ -28,14 +28,6 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
     */
   }
 
-  writeContracts(directory: string) {
-    for (const domain of this.domains) {
-      this.instances[domain].contracts.writeJson(
-        path.join(directory, `${this.chains[domain].name}_contracts.json`),
-      );
-    }
-  }
-
   async ready(): Promise<void> {
     await Promise.all(
       this.domains.map(
@@ -46,17 +38,28 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
     );
   }
 
-  static fromObjects(
-    chains: ChainConfig[],
-    contracts: Record<types.Domain, BridgeContracts>,
-  ): BridgeDeploy {
-    const deploy = new BridgeDeploy();
-    for (const chain of chains) {
-      deploy.instances[chain.domain] = new BridgeInstance(
-        chain,
-        contracts[chain.domain],
+  writeContracts(directory: string) {
+    for (const domain of this.domains) {
+      this.instances[domain].contracts.writeJson(
+        path.join(directory, `${this.chains[domain].name}_contracts.json`),
       );
-      deploy.chains[chain.domain] = chain;
+    }
+  }
+
+  static readContracts(chains: Record<types.Domain, ChainConfig>, directory: string): BridgeDeploy {
+    const deploy = new BridgeDeploy();
+    const domains = Object.keys(chains).map((d) => parseInt(d));
+    for (const domain of domains) {
+      const chain = chains[domain];
+      const contracts = BridgeContracts.readJson(
+        path.join(directory, `${chain.name}_contracts.json`),
+        chain.signer.provider! as ethers.providers.JsonRpcProvider,
+      );
+      deploy.chains[domain] = chain;
+      deploy.instances[domain] = new BridgeInstance(
+        chain,
+        contracts
+      );
     }
     return deploy;
   }
