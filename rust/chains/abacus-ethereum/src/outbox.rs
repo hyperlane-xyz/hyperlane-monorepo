@@ -27,7 +27,7 @@ where
 }
 
 #[derive(Debug)]
-/// Struct that retrieves event data for an Ethereum home
+/// Struct that retrieves event data for an Ethereum outbox
 pub struct EthereumOutboxIndexer<M>
 where
     M: ethers::providers::Middleware,
@@ -161,7 +161,7 @@ impl<M> EthereumOutbox<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
-    /// Create a reference to a Home at a specific Ethereum address on some
+    /// Create a reference to a outbox at a specific Ethereum address on some
     /// chain
     pub fn new(
         provider: Arc<M>,
@@ -185,6 +185,10 @@ impl<M> AbacusCommon for EthereumOutbox<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
+    fn local_domain(&self) -> u32 {
+        self.domain
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -217,10 +221,6 @@ impl<M> Outbox for EthereumOutbox<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
-    fn local_domain(&self) -> u32 {
-        self.domain
-    }
-
     #[tracing::instrument(err, skip(self))]
     async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
         Ok(self.contract.nonces(destination).call().await?)

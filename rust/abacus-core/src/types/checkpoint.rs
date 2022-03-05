@@ -24,7 +24,7 @@ impl std::fmt::Display for Checkpoint {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Update(domain {} moved from {} to {})",
+            "Checkpoint(domain {} moved from {} to {})",
             self.outbox_domain, self.root, self.index
         )
     }
@@ -83,7 +83,7 @@ impl Checkpoint {
         hash_message(self.signing_hash())
     }
 
-    /// Sign an update using the specified signer
+    /// Sign an checkpoint using the specified signer
     pub async fn sign_with<S: Signer>(self, signer: &S) -> Result<SignedCheckpoint, S::Error> {
         let signature = signer
             .sign_message_without_eip_155(self.signing_hash())
@@ -95,7 +95,7 @@ impl Checkpoint {
     }
 }
 
-/// Metadata stored about an update
+/// Metadata stored about an checkpoint
 #[derive(Copy, Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointMeta {
     /// Block number
@@ -131,16 +131,16 @@ impl Decode for CheckpointMeta {
 /// A Checkpoint with Meta
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CheckpointWithMeta {
-    /// The update
+    /// The checkpoint
     pub checkpoint: Checkpoint,
     /// The metadata
     pub metadata: CheckpointMeta,
 }
 
-/// A Signed Abacus Update
+/// A Signed Abacus checkpoint
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct SignedCheckpoint {
-    /// The update
+    /// The checkpoint
     pub checkpoint: Checkpoint,
     /// The signature
     pub signature: Signature,

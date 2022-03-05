@@ -71,7 +71,7 @@ impl Decode for AbacusRawCommittedMessage {
 pub struct CommittedMessage {
     /// The index at which the message is committed
     pub leaf_index: u32,
-    /// The home's current root when the message was committed.
+    /// The outbox's current root when the message was committed.
     pub committed_root: H256,
     /// The fully detailed message that was committed
     pub message: AbacusMessage,
@@ -106,14 +106,6 @@ impl TryFrom<AbacusRawCommittedMessage> for CommittedMessage {
 /// chains
 #[async_trait]
 pub trait Outbox: AbacusCommon + Send + Sync + std::fmt::Debug {
-    /// Return the domain ID
-    fn local_domain(&self) -> u32;
-
-    /// Return the domain hash
-    fn domain_hash(&self) -> H256 {
-        home_domain_hash(self.local_domain())
-    }
-
     /// Fetch the current state.
     async fn state(&self) -> Result<State, ChainCommunicationError>;
 

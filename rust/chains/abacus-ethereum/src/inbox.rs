@@ -35,7 +35,7 @@ where
 }
 
 #[derive(Debug)]
-/// Struct that retrieves indexes event data for Ethereum replica
+/// Struct that retrieves indexes event data for Ethereum inbox
 pub struct EthereumInboxIndexer<M>
 where
     M: ethers::providers::Middleware,
@@ -125,7 +125,7 @@ where
     }
 }
 
-/// A struct that provides access to an Ethereum replica contract
+/// A struct that provides access to an Ethereum inbox contract
 #[derive(Debug)]
 pub struct EthereumInbox<M>
 where
@@ -141,7 +141,7 @@ impl<M> EthereumInbox<M>
 where
     M: ethers::providers::Middleware,
 {
-    /// Create a reference to a Replica at a specific Ethereum address on some
+    /// Create a reference to a inbox at a specific Ethereum address on some
     /// chain
     pub fn new(
         provider: Arc<M>,
@@ -165,6 +165,10 @@ impl<M> AbacusCommon for EthereumInbox<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
+    fn local_domain(&self) -> u32 {
+        self.domain
+    }
+
     fn name(&self) -> &str {
         &self.name
     }
@@ -197,10 +201,6 @@ impl<M> Inbox for EthereumInbox<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
-    fn local_domain(&self) -> u32 {
-        self.domain
-    }
-
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
         Ok(self.contract.remote_domain().call().await?)
     }

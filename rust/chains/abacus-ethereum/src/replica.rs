@@ -1,7 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use abacus_core::{accumulator::merkle::Proof, MessageStatus, *};
+use abacus_core::{accumulator::merkle::Proof, *};
 use abacus_core::{CommonIndexer, ContractLocator};
 use async_trait::async_trait;
 use color_eyre::Result;

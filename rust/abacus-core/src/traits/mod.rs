@@ -16,7 +16,7 @@ use ethers::{
 };
 use std::error::Error as StdError;
 
-use crate::{db::DbError, AbacusError, SignedUpdate};
+use crate::{db::DbError, utils::home_domain_hash, AbacusError, SignedUpdate};
 
 pub use common::*;
 pub use encode::*;
@@ -141,9 +141,17 @@ pub trait CommonEvents: Common + Send + Sync + std::fmt::Debug {
     }
 }
 
-/// Interface for attributes shared by Home and Replica
+/// Interface for attributes shared by Outbox and Inbox
 #[async_trait]
 pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
+    /// Return the domain ID
+    fn local_domain(&self) -> u32;
+
+    /// Return the domain hash
+    fn local_domain_hash(&self) -> H256 {
+        home_domain_hash(self.local_domain())
+    }
+
     /// Return an identifier (not necessarily unique) for the chain this
     /// contract is running on.
     fn name(&self) -> &str;
