@@ -1,5 +1,6 @@
 node_modules/
+tmp.ts
 dist/
-cache/
 .env
-*.swp
+cache/
+test/outputs

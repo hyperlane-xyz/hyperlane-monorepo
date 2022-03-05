@@ -1,16 +1,13 @@
-import { utils, types } from '@abacus-network/utils';
-import { Deploy } from '../deploy';
-import { Instance } from '../instance';
+import { types, utils } from '@abacus-network/utils';
+import { CommonDeploy } from '../common';
+import { RouterInstance } from './RouterInstance';
+import { Router } from './types';
 
-interface Router {
-  address: types.Address;
-  enrollRemoteRouter(domain: types.Domain, router: types.Address): Promise<any>;
-}
-
-export abstract class RouterDeploy<T extends Instance<any>, V> extends Deploy<
-  T,
-  V
-> {
+export abstract class RouterDeploy<
+  T extends RouterInstance<any>,
+  V,
+> extends CommonDeploy<T, V> {
+  // TODO(asa): Dedupe with abacus-deploy
   async postDeploy(_: V) {
     // Make all routers aware of eachother.
     for (const local of this.domains) {
@@ -22,6 +19,12 @@ export abstract class RouterDeploy<T extends Instance<any>, V> extends Deploy<
         );
       }
     }
+  }
+
+  async transferOwnership(owners: Record<types.Domain, types.Address>) {
+    await Promise.all(
+      this.domains.map((d) => this.instances[d].transferOwnership(owners[d])),
+    );
   }
 
   abstract router(domain: types.Domain): Router;

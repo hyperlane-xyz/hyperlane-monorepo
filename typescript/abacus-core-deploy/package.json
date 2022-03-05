@@ -14,7 +14,7 @@
     "typescript": "^4.3.2"
   },
   "prepublish": "npm run build",
-  "name": "@abacus-network/infrastructure",
+  "name": "@abacus-network/abacus-deploy",
   "version": "0.0.5",
   "description": "Abacus deploy tools",
   "main": "dist/src/index.js",
@@ -23,22 +23,14 @@
     "build": "tsc",
     "test": "hardhat test",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src ./config ./scripts"
+    "prettier": "prettier --write ./src ./test"
   },
   "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "@abacus-network/sdk": "^0.0.1",
     "@abacus-network/ts-interface": "^0.0.1",
-    "@aws-sdk/client-kms": "3.48.0",
-    "@ethersproject/experimental": "^5.3.0",
     "@types/mocha": "^9.1.0",
     "@types/node": "^16.9.1",
-    "@types/yargs": "^17.0.8",
-    "asn1.js": "5.4.1",
-    "axios": "^0.21.3",
-    "chai": "^4.3.4",
-    "dotenv": "^10.0.0",
-    "yargs": "^17.3.1"
+    "chai": "^4.3.4"
   }
 }
