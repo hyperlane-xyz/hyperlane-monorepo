@@ -19,7 +19,7 @@ export const ${coreDeploy.chains[domain].name}: AbacusDomain = {
   id: ${domain},
   bridgeRouter: '${bridgeDeploy.router(domain).address}',${
       !!bridgeDeploy.helper(domain)
-        ? `\n  ethHelper: '${bridgeDeploy.helper(domain).address}',`
+        ? `\n  ethHelper: '${bridgeDeploy.helper(domain)!.address}',`
         : ''
     }
   outbox: '${coreDeploy.outbox(domain).address}',

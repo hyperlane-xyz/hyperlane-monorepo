@@ -16,6 +16,7 @@ export abstract class Deploy<T, V> {
     config: V,
     test = false,
   ) {
+    await this.ready();
     if (this.domains.length > 0) throw new Error('cannot deploy twice');
     const domains = Object.keys(chains).map((d) => parseInt(d));
     for (const domain of domains) {
@@ -28,8 +29,12 @@ export abstract class Deploy<T, V> {
   }
 
   abstract postDeploy(config: V): Promise<void>;
-
   abstract deployInstance(domain: types.Domain, config: V): Promise<T>;
+
+  // To be overridden by subclasses.
+  async ready(): Promise<void> {
+    return;
+  }
 
   signer(domain: types.Domain) {
     return this.chains[domain].signer;

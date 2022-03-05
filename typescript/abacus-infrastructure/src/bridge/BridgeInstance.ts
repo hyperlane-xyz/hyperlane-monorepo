@@ -33,7 +33,7 @@ export class BridgeInstance extends Instance<BridgeContracts> {
       [token.beacon.address, config.core[chain.name].xAppConnectionManager],
     );
 
-    if (config.addresses[chain.name].weth) {
+    if (config.addresses[chain.name]) {
       const deployer = new ContractDeployer(chain);
       const helper: xapps.ETHHelper = await deployer.deploy(
         new xapps.ETHHelper__factory(chain.signer),

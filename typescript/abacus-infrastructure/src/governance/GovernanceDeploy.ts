@@ -1,5 +1,6 @@
-import { types } from '@abacus-network/utils';
+import path from 'path';
 import { ethers } from 'ethers';
+import { types } from '@abacus-network/utils';
 import { ChainConfig, RouterDeploy } from '@abacus-network/abacus-deploy';
 import { xapps } from '@abacus-network/ts-interface';
 import { GovernanceInstance } from './GovernanceInstance';
@@ -27,6 +28,24 @@ export class GovernanceDeploy extends RouterDeploy<
         await this.router(domain).setGovernor(ethers.constants.AddressZero);
       }
     }
+  }
+
+  writeContracts(directory: string) {
+    for (const domain of this.domains) {
+      this.instances[domain].contracts.writeJson(
+        path.join(directory, `${this.chains[domain].name}_contracts.json`),
+      );
+    }
+  }
+
+  async ready(): Promise<void> {
+    await Promise.all(
+      this.domains.map(
+        (d) =>
+          (this.chains[d].signer.provider! as ethers.providers.JsonRpcProvider)
+            .ready,
+      ),
+    );
   }
 
   static fromObjects(

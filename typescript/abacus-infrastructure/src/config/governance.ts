@@ -6,7 +6,7 @@ export type GovernanceContractAddresses = {
   router: ProxiedAddress;
 };
 
-type GovernanceAddresses = {
+export type GovernanceAddresses = {
   recoveryManager: types.Address;
   governor?: types.Address;
 };

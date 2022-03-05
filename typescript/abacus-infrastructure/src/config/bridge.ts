@@ -8,12 +8,11 @@ export type BridgeContractAddresses = {
   helper?: types.Address;
 };
 
-type BridgeAddresses = {
-  weth?: types.Address;
+export type BridgeAddresses = {
+  weth: types.Address;
 };
 
 export type BridgeConfig = {
-  recoveryTimelock: number;
   // TODO(asa): Can we restrict to chianname?
   addresses: Record<string, BridgeAddresses>;
   core: Record<string, XAppCoreAddresses>;

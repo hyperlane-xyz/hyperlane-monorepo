@@ -1,3 +1,5 @@
+import path from 'path';
+import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import {
   CoreDeploy as DCoreDeploy,
@@ -7,12 +9,23 @@ import {
 } from '@abacus-network/abacus-deploy';
 
 export class CoreDeploy extends DCoreDeploy {
+  // TODO(asa): Dedup with inheritance
   writeContracts(directory: string) {
     for (const domain of this.domains) {
       this.instances[domain].contracts.writeJson(
-        `${this.chains[domain].name}_contracts.json`,
+        path.join(directory, `${this.chains[domain].name}_contracts.json`),
       );
     }
+  }
+
+  async ready(): Promise<void> {
+    await Promise.all(
+      this.domains.map(
+        (d) =>
+          (this.chains[d].signer.provider! as ethers.providers.JsonRpcProvider)
+            .ready,
+      ),
+    );
   }
 
   static fromObjects(

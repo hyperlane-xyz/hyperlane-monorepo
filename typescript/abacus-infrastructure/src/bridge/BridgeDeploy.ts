@@ -1,3 +1,5 @@
+import path from 'path';
+import { ethers } from 'ethers';
 import { RouterDeploy, ChainConfig } from '@abacus-network/abacus-deploy';
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
@@ -29,9 +31,19 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
   writeContracts(directory: string) {
     for (const domain of this.domains) {
       this.instances[domain].contracts.writeJson(
-        `${this.chains[domain].name}_contracts.json`,
+        path.join(directory, `${this.chains[domain].name}_contracts.json`),
       );
     }
+  }
+
+  async ready(): Promise<void> {
+    await Promise.all(
+      this.domains.map(
+        (d) =>
+          (this.chains[d].signer.provider! as ethers.providers.JsonRpcProvider)
+            .ready,
+      ),
+    );
   }
 
   static fromObjects(

@@ -83,54 +83,6 @@ export async function relinquish(deploy: CoreDeploy) {
   log(isTestDeploy, `${deploy.chain.name}: Control relinquished`);
 }
 
-export async function enrollGovernanceRouter(
-  local: CoreDeploy,
-  remote: CoreDeploy,
-) {
-  const isTestDeploy = local.test;
-  log(
-    isTestDeploy,
-    `${local.chain.name}: starting enroll ${remote.chain.name} governance router`,
-  );
-  let tx = await local.contracts.governanceRouter!.proxy.enrollRemoteRouter(
-    remote.chain.domain,
-    toBytes32(remote.contracts.governanceRouter!.proxy.address),
-    local.overrides,
-  );
-  await tx.wait(local.chain.confirmations);
-  log(
-    isTestDeploy,
-    `${local.chain.name}: enrolled ${remote.chain.name} governance router`,
-  );
-}
-export async function renounceGovernorship(deploy: CoreDeploy) {
-  log(deploy.test, `${deploy.chain.name}: renouncing governorship`);
-  let tx = await deploy.contracts.governanceRouter!.proxy.setGovernor(
-    ethers.constants.AddressZero,
-    deploy.overrides,
-  );
-  await tx.wait(deploy.chain.confirmations);
-  log(deploy.test, `${deploy.chain.name}: governorship transferred`);
-}
-
-export async function setGovernor(gov: CoreDeploy) {
-  const governor = await gov.governorOrSigner();
-  if (governor) {
-    log(gov.test, `${gov.chain.name}: setting governor to:${governor}`);
-    const tx = await gov.contracts.governanceRouter!.proxy.setGovernor(
-      governor,
-      gov.overrides,
-    );
-    await tx.wait(gov.chain.confirmations);
-    log(gov.test, `${gov.chain.name}: governor set`);
-  }
-}
-
-  // checks deploys are correct
-  const checker = new CoreInvariantChecker(deploys);
-  await checker.checkDeploys();
-  checker.expectEmpty();
-
 export function writePartials(dir: string) {
   // make folder if it doesn't exist already
   fs.mkdirSync(dir, { recursive: true });

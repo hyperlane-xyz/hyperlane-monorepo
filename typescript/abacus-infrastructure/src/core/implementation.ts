@@ -1,6 +1,10 @@
 import { core } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
-import { BeaconProxy, CoreConfig } from '@abacus-network/abacus-deploy';
+import {
+  CoreConfig,
+  CoreInstance,
+  CoreContracts,
+} from '@abacus-network/abacus-deploy';
 import { ethers } from 'ethers';
 import { CoreDeploy } from './CoreDeploy';
 
@@ -34,13 +38,14 @@ export class ImplementationDeployer {
       domain,
       this.deploy.chains[domain].overrides,
     );
-    this.deploy.instances[domain].contracts.outbox =
-      ImplementationDeployer.overrideBeaconProxyImplementation<core.Outbox>(
-        implementation,
-        signer.provider as ethers.providers.JsonRpcProvider,
-        factory,
-        this.deploy.instances[domain].contracts.outbox,
-      );
+    const addresses = this.deploy.instances[domain].contracts.toObject();
+    addresses.outbox.implementation = implementation.address;
+    const contracts = CoreContracts.fromObject(
+      addresses,
+      signer.provider as ethers.providers.JsonRpcProvider,
+    );
+    const instance = new CoreInstance(this.deploy.chains[domain], contracts);
+    this.deploy.instances[domain] = instance;
   }
 
   /**
@@ -58,32 +63,16 @@ export class ImplementationDeployer {
       this.config.reserveGas,
       this.deploy.chains[domain].overrides,
     );
+    const addresses = this.deploy.instances[domain].contracts.toObject();
     for (const remote of this.deploy.remotes(domain)) {
-      this.deploy.instances[domain].contracts.inboxes[remote] =
-        ImplementationDeployer.overrideBeaconProxyImplementation<core.Inbox>(
-          implementation,
-          signer.provider as ethers.providers.JsonRpcProvider,
-          factory,
-          this.deploy.instances[domain].contracts.inboxes[remote],
-        );
+      addresses.inboxes[remote].implementation = implementation.address;
     }
-  }
-
-  static overrideBeaconProxyImplementation<T extends ethers.Contract>(
-    implementation: T,
-    provider: ethers.providers.JsonRpcProvider,
-    factory: ethers.ContractFactory,
-    beaconProxy: BeaconProxy<T>,
-  ): BeaconProxy<T> {
-    const beacon = core.UpgradeBeacon__factory.connect(
-      beaconProxy.beacon.address,
-      provider,
+    const contracts = CoreContracts.fromObject(
+      addresses,
+      signer.provider as ethers.providers.JsonRpcProvider,
     );
-    return new BeaconProxy(
-      implementation as T,
-      factory.attach(beaconProxy.proxy.address) as T,
-      beacon,
-    );
+    const instance = new CoreInstance(this.deploy.chains[domain], contracts);
+    this.deploy.instances[domain] = instance;
   }
 
   /**

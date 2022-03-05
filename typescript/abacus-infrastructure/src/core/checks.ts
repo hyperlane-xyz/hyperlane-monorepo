@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { types } from '@abacus-network/utils';
-import { BeaconProxy, CoreConfig } from '@abacus-network/abacus-deploy';
+// import { BeaconProxy, CoreConfig } from '@abacus-network/abacus-deploy';
+import { CoreConfig } from '@abacus-network/abacus-deploy';
 
 import { CoreDeploy } from './CoreDeploy';
 import {

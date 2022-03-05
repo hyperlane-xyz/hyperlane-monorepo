@@ -1,4 +1,5 @@
 import fs from 'fs';
+import path from 'path';
 
 export abstract class Contracts<T> {
   constructor() {}
@@ -14,6 +15,8 @@ export abstract class Contracts<T> {
   }
 
   writeJson(filepath: string) {
+    const dir = path.dirname(filepath);
+    fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(filepath, this.toJsonPretty());
   }
 }

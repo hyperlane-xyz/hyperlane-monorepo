@@ -1,10 +1,11 @@
 import { expect } from 'chai';
 
 import { types } from '@abacus-network/utils';
-import { BeaconProxy } from '@abacus-network/abacus-deploy';
+// import { BeaconProxy } from '@abacus-network/abacus-deploy';
 import { BridgeConfig } from '../config/bridge';
 import { BridgeDeploy } from './BridgeDeploy';
-import { VerificationInput, InvariantChecker } from '../checks';
+// import { VerificationInput, InvariantChecker } from '../checks';
+import { InvariantChecker } from '../checks';
 
 export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
   readonly config: BridgeConfig;

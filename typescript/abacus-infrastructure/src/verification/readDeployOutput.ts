@@ -1,5 +1,5 @@
 import fs from 'fs';
-import { ContractVerificationName } from '../deploy';
+import { ContractVerificationName } from './types';
 
 type ContractInput = {
   name: ContractVerificationName;
