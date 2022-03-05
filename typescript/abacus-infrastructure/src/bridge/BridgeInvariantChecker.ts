@@ -17,7 +17,8 @@ export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
 
   async checkDomain(domain: types.Domain): Promise<void> {
     await this.checkBeaconProxies(domain);
-    await this.checkBridgeRouter(domain);
+    await this.checkEnrolledRouters(domain);
+    // await this.checkOwnership(domain);
     this.checkEthHelper(domain);
     // this.checkVerificationInputs(deploy);
   }
@@ -35,7 +36,8 @@ export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
     );
   }
 
-  async checkBridgeRouter(domain: types.Domain): Promise<void> {
+  // TODO(asa): Dedupe with generic
+  async checkEnrolledRouters(domain: types.Domain): Promise<void> {
     const router = this.deploy.router(domain);
     await Promise.all(
       this.deploy.remotes(domain).map(async (remote) => {
@@ -43,12 +45,6 @@ export class BridgeInvariantChecker extends InvariantChecker<BridgeDeploy> {
         expect(await router.routers(remote)).to.equal(utils.addressToBytes32(remoteRouter.address));
       }),
     );
-
-    /*
-    expect(await bridgeRouter.owner()).to.equal(
-      deploy.coreContractAddresses.governanceRouter.proxy,
-    );
-    */
   }
 
   checkEthHelper(domain: types.Domain): void {

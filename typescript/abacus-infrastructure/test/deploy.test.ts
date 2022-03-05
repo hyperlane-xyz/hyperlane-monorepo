@@ -6,7 +6,7 @@ import { types } from '@abacus-network/utils'
 import { testChains, testCore, testGovernance, testBridge } from './inputs';
 
 import { CoreDeploy, CoreInvariantChecker } from '../src/core';
-import { GovernanceDeploy, GovernanceConfig } from '../src/governance';
+import { GovernanceDeploy, GovernanceInvariantChecker, GovernanceConfig } from '../src/governance';
 import { BridgeDeploy, BridgeInvariantChecker, BridgeConfig } from '../src/bridge';
 import {XAppCoreAddresses} from '../src/config/core';
 
@@ -14,6 +14,7 @@ import {XAppCoreAddresses} from '../src/config/core';
  * Deploy the full Abacus suite on three chains
  */
 // TODO(asa)
+//   ownership transfer
 //   verification input
 //   checks
 //   restoring from file
@@ -72,6 +73,8 @@ describe('deploys', async () => {
       });
 
       it('checks', async () => {
+        const checker = new GovernanceInvariantChecker(governance, governanceConfig)
+        await checker.check()
       });
 
       it('saves', async () => {

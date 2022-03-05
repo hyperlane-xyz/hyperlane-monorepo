@@ -6,7 +6,7 @@ import { BeaconProxy, Deploy } from '@abacus-network/abacus-deploy';
 type ProxyNames =
   | 'Outbox'
   | 'Inbox'
-  | 'Governance'
+  | 'GovernanceRouter'
   | 'BridgeToken'
   | 'BridgeRouter';
 

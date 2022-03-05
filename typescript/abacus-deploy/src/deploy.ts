@@ -40,6 +40,10 @@ export abstract class Deploy<T, V> {
     return this.chains[domain].signer;
   }
 
+  name(domain: types.Domain) {
+    return this.chains[domain].name;
+  }
+
   get domains(): types.Domain[] {
     return Object.keys(this.instances).map((d) => parseInt(d));
   }
