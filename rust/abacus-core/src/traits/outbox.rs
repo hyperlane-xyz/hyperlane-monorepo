@@ -2,7 +2,6 @@ use std::convert::TryFrom;
 
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
-    utils::home_domain_hash,
     AbacusCommon, AbacusError, AbacusMessage, Decode, Encode, Message, State,
 };
 use async_trait::async_trait;
