@@ -30,17 +30,9 @@ describe('EthHelper', async () => {
     [deployer, recipient] = await ethers.getSigners();
     deployerId = utils.addressToBytes32(deployer.address);
     recipientId = utils.addressToBytes32(recipient.address);
-    await abacus.init(domains, deployer);
-    const config: BridgeConfig = {
-      signer: deployer,
-      connectionManager: {},
-    };
-    abacus.domains.map((domain) => {
-      config.connectionManager[domain] =
-        abacus.xAppConnectionManager(domain).address;
-    });
-    bridge = new BridgeDeploy();
-    await bridge.deploy(abacus.chains, config);
+    await abacus.deploy(domains, deployer);
+    bridge = new BridgeDeploy(deployer);
+    await bridge.deploy(abacus);
 
     const tokenId: types.TokenIdentifier = {
       domain: localDomain,

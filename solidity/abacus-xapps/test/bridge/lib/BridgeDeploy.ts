@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { RouterDeploy } from '@abacus-network/abacus-deploy/src/router/RouterDeploy';
+import { TestAbacusDeploy, TestRouterDeploy } from '@abacus-network/hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import {
@@ -18,10 +18,7 @@ import {
   UpgradeBeacon,
 } from '@abacus-network/abacus-sol/typechain';
 
-export type BridgeConfig = {
-  signer: SignerWithAddress;
-  connectionManager: Record<types.Domain, types.Address>;
-};
+export type BridgeConfig = SignerWithAddress;
 
 export interface BridgeInstance {
   router: BridgeRouter;
@@ -31,31 +28,30 @@ export interface BridgeInstance {
   weth: MockWeth;
 }
 
-export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
+export class BridgeDeploy extends TestRouterDeploy<BridgeInstance, BridgeConfig> {
   async deployInstance(
     domain: types.Domain,
-    config: BridgeConfig,
+    abacus: TestAbacusDeploy,
   ): Promise<BridgeInstance> {
-    const chain = this.chains[domain];
-    const wethFactory = new MockWeth__factory(chain.signer);
+    const wethFactory = new MockWeth__factory(this.signer);
     const weth = await wethFactory.deploy();
     await weth.initialize();
 
-    const tokenFactory = new BridgeToken__factory(chain.signer);
+    const tokenFactory = new BridgeToken__factory(this.signer);
     const token = await tokenFactory.deploy();
     await token.initialize();
 
-    const beaconFactory = new UpgradeBeacon__factory(chain.signer);
+    const beaconFactory = new UpgradeBeacon__factory(this.signer);
     const beacon = await beaconFactory.deploy(
       token.address,
-      await chain.signer.getAddress(),
+      this.signer.address,
     );
 
-    const routerFactory = new BridgeRouter__factory(chain.signer);
+    const routerFactory = new BridgeRouter__factory(this.signer);
     const router = await routerFactory.deploy();
-    await router.initialize(beacon.address, config.connectionManager[domain]);
+    await router.initialize(beacon.address, abacus.xAppConnectionManager(domain).address);
 
-    const helperFactory = new ETHHelper__factory(chain.signer);
+    const helperFactory = new ETHHelper__factory(this.signer);
     const helper = await helperFactory.deploy(weth.address, router.address);
     return {
       beacon,
@@ -64,6 +60,10 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
       token,
       weth,
     };
+  }
+
+  get signer(): SignerWithAddress {
+    return this.config;
   }
 
   router(domain: types.Domain): BridgeRouter {
@@ -88,6 +88,6 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
       remote,
       address,
     );
-    return BridgeToken__factory.connect(reprAddr, this.chains[local].signer);
+    return BridgeToken__factory.connect(reprAddr, this.signer)
   }
 }

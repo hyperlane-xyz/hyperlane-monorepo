@@ -36,29 +36,21 @@ describe('GovernanceRouter', async () => {
 
     const testSetFactory = new TestSet__factory(governor);
     testSet = await testSetFactory.deploy();
-    await abacus.init(domains, governor);
+    await abacus.deploy(domains, governor);
   });
 
   beforeEach(async () => {
-    governance = new GovernanceDeploy();
     const config: GovernanceConfig = {
       signer: governor,
       timelock: recoveryTimelock,
-      connectionManager: {},
-      governors: {},
-      recoveryManagers: {},
+      recoveryManager: recoveryManager.address,
+      governor: {
+        domain: localDomain,
+        address: governor.address,
+      }
     };
-    abacus.domains.map((domain) => {
-      config.connectionManager[domain] =
-        abacus.xAppConnectionManager(domain).address;
-      config.governors[domain] =
-        domain === localDomain
-          ? governor.address
-          : ethers.constants.AddressZero;
-      config.recoveryManagers[domain] = recoveryManager.address;
-    });
-
-    await governance.deploy(abacus.chains, config);
+    governance = new GovernanceDeploy(config);
+    await governance.deploy(abacus);
     router = governance.router(localDomain);
     remote = governance.router(remoteDomain);
   });

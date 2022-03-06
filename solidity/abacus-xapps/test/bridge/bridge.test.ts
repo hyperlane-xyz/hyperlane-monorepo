@@ -32,7 +32,7 @@ describe('BridgeRouter', async () => {
     // populate deployer signer
     [deployer] = await ethers.getSigners();
     deployerId = utils.addressToBytes32(deployer.address);
-    await abacus.init(domains, deployer);
+    await abacus.deploy(domains, deployer);
     // Enroll ourselves as a inbox so we can send messages directly to the
     // local router.
     await abacus
@@ -41,16 +41,8 @@ describe('BridgeRouter', async () => {
   });
 
   beforeEach(async () => {
-    const config: BridgeConfig = {
-      signer: deployer,
-      connectionManager: {},
-    };
-    abacus.domains.map((domain) => {
-      config.connectionManager[domain] =
-        abacus.xAppConnectionManager(domain).address;
-    });
-    bridge = new BridgeDeploy();
-    await bridge.deploy(abacus.chains, config);
+    bridge = new BridgeDeploy(deployer);
+    await bridge.deploy(abacus);
     // Enroll ourselves as a router so we can send messages directly to the
     // local router.
     await bridge

@@ -13,9 +13,10 @@ import {
   TestInbox__factory,
 } from "@abacus-network/abacus-sol/typechain";
 import { Validator } from "@abacus-network/abacus-sol/test/lib/core";
+import { TestDeploy } from './TestDeploy';
 
 export type TestAbacusConfig = {
-  signer: ethers.Signer;
+  signer: Record<types.Domain, ethers.Signer>;
 }
 
 export type TestAbacusInstance = {
@@ -29,23 +30,16 @@ export type TestAbacusInstance = {
 const PROCESS_GAS = 850_000;
 const RESERVE_GAS = 15_000;
 
-export class TestAbacusDeploy {
-  public readonly configs: Record<types.Domain, TestAbacusConfig>;
-  public readonly instances: Record<types.Domain, TestAbacusInstance>;
-
-  constructor() {
-    this.configs = {};
-    this.instances = {};
-  }
+export class TestAbacusDeploy extends TestDeploy<TestAbacusInstance, TestAbacusConfig>{
 
   async deploy(domains: types.Domain[], signer: ethers.Signer) {
     // Clear previous deploy to support multiple tests.
     for (const domain of this.domains) {
-      delete this.configs[domain];
+      delete this.config.signer[domain];
       delete this.instances[domain];
     }
     for (const domain of domains) {
-      this.configs[domain] = { signer };
+      this.config.signer[domain] = signer;
     }
     for (const domain of domains) {
       this.instances[domain] = await this.deployInstance(domain);
@@ -55,7 +49,7 @@ export class TestAbacusDeploy {
   async deployInstance(
     domain: types.Domain,
   ): Promise<TestAbacusInstance> {
-    const signer = this.configs[domain].signer;
+    const signer = this.config.signer[domain];
     const signerAddress = await signer.getAddress();
     const validatorManagerFactory = new ValidatorManager__factory(signer);
     const validatorManager = await validatorManagerFactory.deploy();
@@ -79,7 +73,9 @@ export class TestAbacusDeploy {
 
     const inboxFactory = new TestInbox__factory(signer);
     const inboxes: Record<types.Domain, TestInbox> = {};
-    const deploys = this.remotes(domain).map(async (remote) => {
+    // this.remotes reads this.instances which has not yet been set.
+    const remotes = Object.keys(this.config.signer).map((d) => parseInt(d))
+    const deploys = remotes.map(async (remote) => {
       const inbox = await inboxFactory.deploy(domain, PROCESS_GAS, RESERVE_GAS);
       await inbox.initialize(
         remote,
@@ -108,14 +104,6 @@ export class TestAbacusDeploy {
     for (const remote of this.remotes(domain)) {
       await this.inbox(domain, remote).transferOwnership(address);
     }
-  }
-
-  get domains(): types.Domain[] {
-    return Object.keys(this.configs).map((d) => parseInt(d))
-  }
-
-  remotes(domain: types.Domain): types.Domain[] {
-    return this.domains.filter((d) => d !== domain)
   }
 
   outbox(domain: types.Domain): Outbox {
@@ -170,7 +158,7 @@ export class TestAbacusDeploy {
     // Update the Outbox and Inboxs to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
-    const validator = await Validator.fromSigner(this.configs[domain].signer, domain);
+    const validator = await Validator.fromSigner(this.config.signer[domain], domain);
     const { signature } = await validator.signCheckpoint(
       root,
       index.toNumber()
