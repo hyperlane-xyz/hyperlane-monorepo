@@ -10,12 +10,12 @@ import {
 export type Governor = {
   domain: types.Domain;
   address: types.Address;
-}
+};
 
 export type GovernanceConfig = {
   signer: ethers.Signer;
   timelock: number;
-  governor: Governor; 
+  governor: Governor;
   recoveryManager: types.Address;
 };
 

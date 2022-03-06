@@ -28,7 +28,10 @@ export interface BridgeInstance {
   weth: MockWeth;
 }
 
-export class BridgeDeploy extends TestRouterDeploy<BridgeInstance, BridgeConfig> {
+export class BridgeDeploy extends TestRouterDeploy<
+  BridgeInstance,
+  BridgeConfig
+> {
   async deployInstance(
     domain: types.Domain,
     abacus: TestAbacusDeploy,
@@ -49,7 +52,10 @@ export class BridgeDeploy extends TestRouterDeploy<BridgeInstance, BridgeConfig>
 
     const routerFactory = new BridgeRouter__factory(this.signer);
     const router = await routerFactory.deploy();
-    await router.initialize(beacon.address, abacus.xAppConnectionManager(domain).address);
+    await router.initialize(
+      beacon.address,
+      abacus.xAppConnectionManager(domain).address,
+    );
 
     const helperFactory = new ETHHelper__factory(this.signer);
     const helper = await helperFactory.deploy(weth.address, router.address);
@@ -88,6 +94,6 @@ export class BridgeDeploy extends TestRouterDeploy<BridgeInstance, BridgeConfig>
       remote,
       address,
     );
-    return BridgeToken__factory.connect(reprAddr, this.signer)
+    return BridgeToken__factory.connect(reprAddr, this.signer);
   }
 }

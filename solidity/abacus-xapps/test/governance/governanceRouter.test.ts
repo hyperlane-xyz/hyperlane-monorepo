@@ -47,7 +47,7 @@ describe('GovernanceRouter', async () => {
       governor: {
         domain: localDomain,
         address: governor.address,
-      }
+      },
     };
     governance = new GovernanceDeploy(config);
     await governance.deploy(abacus);

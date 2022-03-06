@@ -13,11 +13,11 @@ import {
   TestInbox__factory,
 } from "@abacus-network/abacus-sol/typechain";
 import { Validator } from "@abacus-network/abacus-sol/test/lib/core";
-import { TestDeploy } from './TestDeploy';
+import { TestDeploy } from "./TestDeploy";
 
 export type TestAbacusConfig = {
   signer: Record<types.Domain, ethers.Signer>;
-}
+};
 
 export type TestAbacusInstance = {
   validatorManager: ValidatorManager;
@@ -25,13 +25,15 @@ export type TestAbacusInstance = {
   xAppConnectionManager: XAppConnectionManager;
   upgradeBeaconController: UpgradeBeaconController;
   inboxes: Record<types.Domain, TestInbox>;
-}
+};
 
 const PROCESS_GAS = 850_000;
 const RESERVE_GAS = 15_000;
 
-export class TestAbacusDeploy extends TestDeploy<TestAbacusInstance, TestAbacusConfig>{
-
+export class TestAbacusDeploy extends TestDeploy<
+  TestAbacusInstance,
+  TestAbacusConfig
+> {
   async deploy(domains: types.Domain[], signer: ethers.Signer) {
     // Clear previous deploy to support multiple tests.
     for (const domain of this.domains) {
@@ -46,9 +48,7 @@ export class TestAbacusDeploy extends TestDeploy<TestAbacusInstance, TestAbacusC
     }
   }
 
-  async deployInstance(
-    domain: types.Domain,
-  ): Promise<TestAbacusInstance> {
+  async deployInstance(domain: types.Domain): Promise<TestAbacusInstance> {
     const signer = this.config.signer[domain];
     const signerAddress = await signer.getAddress();
     const validatorManagerFactory = new ValidatorManager__factory(signer);
@@ -57,31 +57,36 @@ export class TestAbacusDeploy extends TestDeploy<TestAbacusInstance, TestAbacusC
     await Promise.all(
       this.remotes(domain).map(async (remote) =>
         validatorManager.enrollValidator(remote, signerAddress)
-      ),
+      )
     );
 
-    const upgradeBeaconControllerFactory = new UpgradeBeaconController__factory(signer);
-    const upgradeBeaconController = await upgradeBeaconControllerFactory.deploy();
+    const upgradeBeaconControllerFactory = new UpgradeBeaconController__factory(
+      signer
+    );
+    const upgradeBeaconController =
+      await upgradeBeaconControllerFactory.deploy();
 
     const outboxFactory = new Outbox__factory(signer);
     const outbox = await outboxFactory.deploy(domain);
     await outbox.initialize(validatorManager.address);
 
-    const xAppConnectionManagerFactory = new XAppConnectionManager__factory(signer);
+    const xAppConnectionManagerFactory = new XAppConnectionManager__factory(
+      signer
+    );
     const xAppConnectionManager = await xAppConnectionManagerFactory.deploy();
     await xAppConnectionManager.setOutbox(outbox.address);
 
     const inboxFactory = new TestInbox__factory(signer);
     const inboxes: Record<types.Domain, TestInbox> = {};
     // this.remotes reads this.instances which has not yet been set.
-    const remotes = Object.keys(this.config.signer).map((d) => parseInt(d))
+    const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
     const deploys = remotes.map(async (remote) => {
       const inbox = await inboxFactory.deploy(domain, PROCESS_GAS, RESERVE_GAS);
       await inbox.initialize(
         remote,
         validatorManager.address,
         ethers.constants.HashZero,
-        0,
+        0
       );
       await xAppConnectionManager.enrollInbox(remote, inbox.address);
       inboxes[remote] = inbox;
@@ -158,7 +163,10 @@ export class TestAbacusDeploy extends TestDeploy<TestAbacusInstance, TestAbacusC
     // Update the Outbox and Inboxs to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
-    const validator = await Validator.fromSigner(this.config.signer[domain], domain);
+    const validator = await Validator.fromSigner(
+      this.config.signer[domain],
+      domain
+    );
     const { signature } = await validator.signCheckpoint(
       root,
       index.toNumber()

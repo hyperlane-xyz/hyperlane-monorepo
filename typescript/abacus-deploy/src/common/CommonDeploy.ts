@@ -21,10 +21,7 @@ export abstract class CommonDeploy<
   abstract deployInstance(domain: types.Domain, config: V): Promise<T>;
   // abstract postDeploy(config: V): Promise<void>;
 
-  async deploy(
-    chains: Record<types.Domain, ChainConfig>,
-    config: V,
-  ) {
+  async deploy(chains: Record<types.Domain, ChainConfig>, config: V) {
     await this.ready();
     if (this.domains.length > 0) throw new Error('cannot deploy twice');
     const domains = Object.keys(chains).map((d) => parseInt(d));

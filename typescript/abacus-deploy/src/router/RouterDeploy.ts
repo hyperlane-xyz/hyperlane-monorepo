@@ -8,11 +8,7 @@ export abstract class RouterDeploy<
   T extends RouterInstance<any>,
   V,
 > extends CommonDeploy<T, V> {
-
-  async deploy(
-    chains: Record<types.Domain, ChainConfig>,
-    config: V,
-  ) {
+  async deploy(chains: Record<types.Domain, ChainConfig>, config: V) {
     await super.deploy(chains, config);
     await this.postDeploy(config);
   }
