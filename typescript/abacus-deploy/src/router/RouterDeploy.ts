@@ -1,5 +1,6 @@
 import { types, utils } from '@abacus-network/utils';
 import { CommonDeploy } from '../common';
+import { ChainConfig } from '../config';
 import { RouterInstance } from './RouterInstance';
 import { Router } from './types';
 
@@ -7,6 +8,15 @@ export abstract class RouterDeploy<
   T extends RouterInstance<any>,
   V,
 > extends CommonDeploy<T, V> {
+
+  async deploy(
+    chains: Record<types.Domain, ChainConfig>,
+    config: V,
+  ) {
+    await super.deploy(chains, config);
+    await this.postDeploy(config);
+  }
+
   async postDeploy(_: V) {
     // Make all routers aware of eachother.
     for (const local of this.domains) {

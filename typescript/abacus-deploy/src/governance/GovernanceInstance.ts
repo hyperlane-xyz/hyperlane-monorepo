@@ -1,4 +1,3 @@
-// import { ethers } from 'ethers'
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
 import { ChainConfig } from '../config';

@@ -24,7 +24,6 @@ export abstract class CommonDeploy<
   async deploy(
     chains: Record<types.Domain, ChainConfig>,
     config: V,
-    test = false,
   ) {
     await this.ready();
     if (this.domains.length > 0) throw new Error('cannot deploy twice');
@@ -35,7 +34,6 @@ export abstract class CommonDeploy<
     for (const domain of domains) {
       this.instances[domain] = await this.deployInstance(domain, config);
     }
-    // await this.postDeploy(config);
   }
 
   writeContracts(directory: string) {
