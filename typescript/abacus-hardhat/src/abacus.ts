@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { core as contracts } from "@abacus-network/ts-interface";
+import { TestInbox } from "@abacus-network/abacus-sol/typechain";
 import { types } from "@abacus-network/utils";
 import {
   ChainConfig,
@@ -32,8 +32,8 @@ export class TestCoreDeploy extends CoreDeploy {
     await this.deploy(chains, config);
   }
 
-  inbox(local: types.Domain, remote: types.Domain): contracts.TestInbox {
-    return super.inbox(local, remote) as contracts.TestInbox;
+  inbox(local: types.Domain, remote: types.Domain): TestInbox {
+    return super.inbox(local, remote) as TestInbox;
   }
 
   async processMessages() {
@@ -87,7 +87,7 @@ export class TestCoreDeploy extends CoreDeploy {
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
       if (destination !== local) {
-        const inbox = this.inbox(destination, local) as contracts.TestInbox;
+        const inbox = this.inbox(destination, local) as TestInbox;
         await inbox.setMessageProven(dispatch.args.message);
         await inbox.testProcess(dispatch.args.message);
       }
