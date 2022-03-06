@@ -32,10 +32,10 @@ export type ChainConfig = {
   confirmations?: number;
 };
 
-export type ChainWithoutSigner = Omit<ChainConfig, 'signer'>;
+export type ChainConfigWithoutSigner = Omit<ChainConfig, 'signer'>;
 
 export async function fetchSigner(
-  partial: ChainWithoutSigner,
+  partial: ChainConfigWithoutSigner,
   environment: string,
   deployerKeySecretName: string,
 ): Promise<ChainConfig> {
@@ -48,7 +48,7 @@ export async function fetchSigner(
 }
 
 export function getChainsForEnvironment(
-  partials: ChainWithoutSigner[],
+  partials: ChainConfigWithoutSigner[],
   environment: string,
   deployerKeySecretName: string,
 ) {

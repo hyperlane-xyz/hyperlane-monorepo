@@ -1,13 +1,13 @@
 import { BigNumber } from 'ethers';
-import { ChainWithoutSigner, ChainName } from '../../src/config/chain';
+import { ChainConfigWithoutSigner, ChainName } from '../../src/config/chain';
 
-export const celo: ChainWithoutSigner = {
+export const celo: ChainConfigWithoutSigner = {
   name: ChainName.CELO,
   domain: 0x63656c6f, // b'celo' interpreted as an int
   overrides: {},
 };
 
-export const ethereum: ChainWithoutSigner = {
+export const ethereum: ChainConfigWithoutSigner = {
   name: ChainName.ETHEREUM,
   domain: 0x657468, // b'eth' interpreted as an int
   overrides: {
@@ -19,7 +19,7 @@ export const ethereum: ChainWithoutSigner = {
   },
 };
 
-export const avalanche: ChainWithoutSigner = {
+export const avalanche: ChainConfigWithoutSigner = {
   name: ChainName.AVALANCHE,
   domain: 0x61766178, // b'avax' interpreted as an int
   overrides: {
@@ -31,7 +31,7 @@ export const avalanche: ChainWithoutSigner = {
   },
 };
 
-export const polygon: ChainWithoutSigner = {
+export const polygon: ChainConfigWithoutSigner = {
   name: ChainName.POLYGON,
   domain: 0x706f6c79, // b'poly' interpreted as an int
   overrides: {

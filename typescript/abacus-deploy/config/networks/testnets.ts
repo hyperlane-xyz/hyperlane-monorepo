@@ -1,21 +1,21 @@
 import { BigNumber } from 'ethers';
-import { ChainWithoutSigner, ChainName } from '../../src/config/chain';
+import { ChainConfigWithoutSigner, ChainName } from '../../src/config/chain';
 
-export const alfajores: ChainWithoutSigner = {
+export const alfajores: ChainConfigWithoutSigner = {
   name: ChainName.ALFAJORES,
   domain: 1000,
   confirmations: 1,
   overrides: {},
 };
 
-export const fuji: ChainWithoutSigner = {
+export const fuji: ChainConfigWithoutSigner = {
   name: ChainName.FUJI,
   domain: 43113,
   confirmations: 3,
   overrides: {},
 };
 
-export const gorli: ChainWithoutSigner = {
+export const gorli: ChainConfigWithoutSigner = {
   name: ChainName.GORLI,
   domain: 5,
   confirmations: 3,
@@ -24,7 +24,7 @@ export const gorli: ChainWithoutSigner = {
   },
 };
 
-export const kovan: ChainWithoutSigner = {
+export const kovan: ChainConfigWithoutSigner = {
   name: ChainName.KOVAN,
   domain: 3000,
   overrides: {
@@ -32,14 +32,14 @@ export const kovan: ChainWithoutSigner = {
   },
 };
 
-export const mumbai: ChainWithoutSigner = {
+export const mumbai: ChainConfigWithoutSigner = {
   name: ChainName.MUMBAI,
   domain: 80001,
   confirmations: 3,
   overrides: {},
 };
 
-export const rinkarby: ChainWithoutSigner = {
+export const rinkarby: ChainConfigWithoutSigner = {
   name: ChainName.RINKARBY,
   domain: 4000,
   overrides: {
@@ -48,14 +48,14 @@ export const rinkarby: ChainWithoutSigner = {
   },
 };
 
-export const rinkeby: ChainWithoutSigner = {
+export const rinkeby: ChainConfigWithoutSigner = {
   name: ChainName.RINKEBY,
   domain: 2000,
   confirmations: 3,
   overrides: {},
 };
 
-export const ropsten: ChainWithoutSigner = {
+export const ropsten: ChainConfigWithoutSigner = {
   name: ChainName.ROPSTEN,
   domain: 3,
   confirmations: 3,

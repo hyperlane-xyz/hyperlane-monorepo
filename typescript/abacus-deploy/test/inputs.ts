@@ -1,27 +1,27 @@
-import { ChainWithoutSigner, ChainName } from '../src/config/chain';
+import { ethers } from 'ethers';
+import { types } from '@abacus-network/utils';
+import { ChainConfigWithoutSigner, ChainName, ChainConfig } from '../src/config';
 import { CoreConfig } from '../src/core';
 import { GovernanceConfigWithoutCore } from '../src/governance';
 import { BridgeConfigWithoutCore } from '../src/bridge';
 
-const testCelo: ChainWithoutSigner = {
+const testCelo: ChainConfigWithoutSigner = {
   name: ChainName.CELO,
   domain: 1000,
   overrides: {},
 };
 
-const testEthereum: ChainWithoutSigner = {
+const testEthereum: ChainConfigWithoutSigner = {
   name: ChainName.ETHEREUM,
   domain: 2000,
   overrides: {},
 };
 
-const testPolygon: ChainWithoutSigner = {
+const testPolygon: ChainConfigWithoutSigner = {
   name: ChainName.POLYGON,
   domain: 3000,
   overrides: {},
 };
-
-export const testChains = [testCelo, testEthereum, testPolygon];
 
 export const testCore: CoreConfig = {
   processGas: 850_000,
@@ -59,3 +59,12 @@ export const testBridge: BridgeConfigWithoutCore = {
     */
   },
 };
+
+export function getTestChains(signer: ethers.Signer): Record<types.Domain, ChainConfig> {
+  const testChains: Record<types.Domain, ChainConfig> = {};
+  const chains = [testCelo, testEthereum, testPolygon];
+  chains.map((chain) => {
+    testChains[chain.domain] = { ...chain, signer };
+  });
+  return testChains
+}
