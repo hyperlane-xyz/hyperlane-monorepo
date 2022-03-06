@@ -23,7 +23,9 @@
     "build": "tsc",
     "test": "hardhat test",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src ./config ./scripts ./test"
+    "node": "hardhat node",
+    "local": "hardhat abacus --environment local",
+    "prettier": "prettier --write *.ts ./src ./config ./scripts ./test"
   },
   "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",

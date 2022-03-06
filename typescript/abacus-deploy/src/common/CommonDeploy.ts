@@ -24,7 +24,7 @@ export abstract class CommonDeploy<
   async deploy(chains: Record<types.Domain, ChainConfig>, config: V) {
     await this.ready();
     if (this.domains.length > 0) throw new Error('cannot deploy twice');
-    const domains = Object.keys(chains).map((d) => parseInt(d));
+    const domains = Object.keys(chains).map((domain) => parseInt(domain));
     for (const domain of domains) {
       this.chains[domain] = chains[domain];
     }
