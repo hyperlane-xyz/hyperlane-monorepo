@@ -93,6 +93,10 @@ export class CoreInstance extends Instance<CoreContracts> {
     return new CoreInstance(chain, contracts);
   }
 
+  get remotes(): types.Domain[] {
+    return Object.keys(this.contracts.inboxes).map((d) => parseInt(d));
+  }
+
   get upgradeBeaconController(): core.UpgradeBeaconController {
     return this.contracts.upgradeBeaconController;
   }

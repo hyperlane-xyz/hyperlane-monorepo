@@ -1,9 +1,6 @@
 import { core } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
-import {
-  CoreConfig,
-  CoreContracts,
-} from '@abacus-network/abacus-deploy';
+import { CoreConfig, CoreContracts } from '@abacus-network/abacus-deploy';
 import { ethers } from 'ethers';
 import { CoreDeploy } from './CoreDeploy';
 import { CoreInstance } from './CoreInstance';

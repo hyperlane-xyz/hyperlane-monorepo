@@ -63,7 +63,10 @@ export class BeaconProxy<T extends ethers.Contract> {
       abi,
       provider,
     ) as T;
-    const proxy = core.UpgradeBeaconProxy__factory.connect(addresses.proxy, provider)
+    const proxy = core.UpgradeBeaconProxy__factory.connect(
+      addresses.proxy,
+      provider,
+    );
     const beacon = core.UpgradeBeacon__factory.connect(
       addresses.beacon,
       provider,

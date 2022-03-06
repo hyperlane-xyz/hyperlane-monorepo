@@ -8,7 +8,11 @@ import {
 import { BridgeContracts } from './BridgeContracts';
 import { BridgeConfig } from './types';
 import { RouterInstance } from '../router';
-import { VerificationInput } from '../verification';
+import {
+  getContractVerificationInput,
+  getBeaconProxyVerificationInput,
+  VerificationInput,
+} from '../verification';
 
 export class BridgeInstance extends RouterInstance<BridgeContracts> {
   async transferOwnership(owner: types.Address) {
@@ -66,6 +70,30 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
   }
 
   get verificationInput(): VerificationInput {
-    return []
+    let input: VerificationInput = [];
+    input = input.concat(
+      getBeaconProxyVerificationInput(
+        'BridgeToken',
+        this.contracts.token,
+        xapps.BridgeToken__factory.bytecode,
+      ),
+    );
+    input = input.concat(
+      getBeaconProxyVerificationInput(
+        'BridgeRouter',
+        this.contracts.router,
+        xapps.BridgeRouter__factory.bytecode,
+      ),
+    );
+    if (this.helper) {
+      input.push(
+        getContractVerificationInput(
+          'ETH Helper',
+          this.helper,
+          xapps.ETHHelper__factory.bytecode,
+        ),
+      );
+    }
+    return input;
   }
 }

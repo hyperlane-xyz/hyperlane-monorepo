@@ -26,8 +26,6 @@ import { RouterConfig } from '../src/router';
 /*
  * Deploy the full Abacus suite on three chains
  */
-// TODO(asa)
-//   verification input
 describe('three domains', async () => {
   let signer: SignerWithAddress;
   let core = new CoreDeploy();
@@ -118,17 +116,19 @@ describe('three domains', async () => {
   describe('writes', async () => {
     it('core', async () => {
       core.writeContracts('./test/outputs/contracts/core');
-      // core.writeVerificationInput('./test/outputs/verification/core');
+      core.writeVerificationInput('./test/outputs/verification/core');
     });
 
     it('governance', async () => {
       governance.writeContracts('./test/outputs/contracts/governance');
-      governance.writeVerificationInput('./test/outputs/verification/governance');
+      governance.writeVerificationInput(
+        './test/outputs/verification/governance',
+      );
     });
 
     it('bridge', async () => {
       bridge.writeContracts('./test/outputs/contracts/bridge');
-      // bridge.writeVerificationInput('./test/outputs/verification/bridge');
+      bridge.writeVerificationInput('./test/outputs/verification/bridge');
     });
   });
 
@@ -157,7 +157,10 @@ describe('three domains', async () => {
     });
 
     it('bridge', async () => {
-      bridge = BridgeDeploy.readContracts(chains, './test/outputs/contracts/bridge');
+      bridge = BridgeDeploy.readContracts(
+        chains,
+        './test/outputs/contracts/bridge',
+      );
       const checker = new BridgeInvariantChecker(
         bridge,
         bridgeConfig,

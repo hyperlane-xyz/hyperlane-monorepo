@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { BeaconProxy} from '@abacus-network/abacus-deploy';
+import { BeaconProxy } from '@abacus-network/abacus-deploy';
 import { CommonDeploy } from './CommonDeploy';
 import { CommonInstance } from './CommonInstance';
 

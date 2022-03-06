@@ -5,10 +5,10 @@ import { types } from '@abacus-network/utils';
 import { Deploy } from '@abacus-network/abacus-deploy';
 import { CommonInstance } from './CommonInstance';
 
-export abstract class CommonDeploy<T extends CommonInstance<any>, V> extends Deploy<
-  T,
-  V
-> {
+export abstract class CommonDeploy<
+  T extends CommonInstance<any>,
+  V,
+> extends Deploy<T, V> {
   writeContracts(directory: string) {
     for (const domain of this.domains) {
       this.instances[domain].contracts.writeJson(
@@ -35,11 +35,14 @@ export abstract class CommonDeploy<T extends CommonInstance<any>, V> extends Dep
 
   writeVerificationInput(directory: string) {
     for (const domain of this.domains) {
-      const verificationInput = this.instances[domain].verificationInput
+      const verificationInput = this.instances[domain].verificationInput;
       fs.mkdirSync(directory, { recursive: true });
-      const filepath = path.join(directory, `${this.chains[domain].name}_verification.json`);
-      const contents = JSON.stringify(verificationInput, null, 2)
-      fs.writeFileSync(filepath, contents)
+      const filepath = path.join(
+        directory,
+        `${this.chains[domain].name}_verification.json`,
+      );
+      const contents = JSON.stringify(verificationInput, null, 2);
+      fs.writeFileSync(filepath, contents);
     }
   }
 }
