@@ -1,10 +1,7 @@
 export { CoreDeploy } from './CoreDeploy';
-export {
-  CoreInstance,
-  CoreContracts,
-  CoreContractAddresses,
-  CoreConfig,
-} from '@abacus-network/abacus-deploy';
+export { CoreInstance } from './CoreInstance';
+export { CoreContracts } from './CoreContracts';
+export { CoreContractAddresses, CoreConfig } from './types';
 export { CoreInvariantChecker } from './CoreInvariantChecker';
 
 /*

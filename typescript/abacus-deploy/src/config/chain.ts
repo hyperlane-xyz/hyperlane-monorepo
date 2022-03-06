@@ -1,6 +1,5 @@
-import * as ethers from 'ethers';
+import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-import { ChainConfig } from '@abacus-network/abacus-deploy';
 import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
 
 export enum ChainName {
@@ -23,6 +22,15 @@ export enum ChainName {
   // Local
   LOCAL = 'local',
 }
+
+export type ChainConfig = {
+  name: ChainName;
+  domain: number;
+  signer: ethers.Signer;
+  overrides: ethers.Overrides;
+  supports1559?: boolean;
+  confirmations?: number;
+};
 
 export type ChainWithoutSigner = Omit<ChainConfig, 'signer'>;
 

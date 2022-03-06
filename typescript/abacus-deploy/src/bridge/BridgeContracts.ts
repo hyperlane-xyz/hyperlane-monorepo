@@ -1,10 +1,10 @@
 import fs from 'fs';
 import { xapps } from '@abacus-network/ts-interface';
 import { ethers } from 'ethers';
-import { Contracts, BeaconProxy } from '@abacus-network/abacus-deploy';
+import { CommonContracts, BeaconProxy } from '../common';
 import { BridgeContractAddresses } from './types';
 
-export class BridgeContracts extends Contracts<BridgeContractAddresses> {
+export class BridgeContracts extends CommonContracts<BridgeContractAddresses> {
   constructor(
     public readonly router: BeaconProxy<xapps.BridgeRouter>,
     public readonly token: BeaconProxy<xapps.BridgeToken>,

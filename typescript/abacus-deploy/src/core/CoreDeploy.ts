@@ -2,12 +2,10 @@ import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import { core } from '@abacus-network/ts-interface';
-import {
-  ChainConfig,
-  CoreContracts,
-  CoreConfig,
-} from '@abacus-network/abacus-deploy';
 import { CoreInstance } from './CoreInstance';
+import { CoreContracts } from './CoreContracts';
+import { CoreConfig } from './types';
+import { ChainConfig } from '../config';
 import { CommonDeploy } from '../common';
 
 export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
@@ -17,8 +15,6 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
   ): Promise<CoreInstance> {
     return CoreInstance.deploy(domain, this.chains, config);
   }
-
-  async postDeploy(_: CoreConfig) {}
 
   upgradeBeaconController(domain: types.Domain): core.UpgradeBeaconController {
     return this.instances[domain].upgradeBeaconController;

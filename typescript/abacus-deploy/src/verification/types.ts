@@ -5,7 +5,7 @@ type EthHelperName = 'ETH Helper';
 export type BeaconProxyPrefix =
   | 'Outbox'
   | 'Inbox'
-  | 'Governance'
+  | 'GovernanceRouter'
   | 'BridgeToken'
   | 'BridgeRouter';
 type BeaconProxySuffix = 'Implementation' | 'UpgradeBeacon' | 'Proxy';

@@ -1,15 +1,8 @@
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { ChainConfig } from '@abacus-network/abacus-deploy';
 import { types } from '@abacus-network/utils';
-import {
-  testChains,
-  testCore as coreConfig,
-  testGovernance,
-  testBridge,
-} from './inputs';
-
+import { ChainConfig } from '../src/config';
 import { CoreDeploy, CoreInvariantChecker } from '../src/core';
 import {
   GovernanceDeploy,
@@ -22,6 +15,12 @@ import {
   BridgeConfig,
 } from '../src/bridge';
 import { RouterConfig } from '../src/router';
+import {
+  testChains,
+  testCore as coreConfig,
+  testGovernance,
+  testBridge,
+} from './inputs';
 
 /*
  * Deploy the full Abacus suite on three chains

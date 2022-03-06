@@ -1,8 +1,6 @@
 import { ethers } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
-import { ChainConfig } from '@abacus-network/abacus-deploy';
-import { ChainName } from './config/chain';
-import { AgentConfig } from './config/agent';
+import { AgentConfig, ChainConfig, ChainName } from './config';
 import { fetchGCPSecret } from './utils/gcloud';
 import { HelmCommand, helmifyValues } from './utils/helm';
 import { ensure0x, execCmd, include, strip0x } from './utils/utils';

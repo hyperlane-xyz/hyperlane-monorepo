@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 
-export abstract class Contracts<T> {
+export abstract class CommonContracts<T> {
   constructor() {}
 
   abstract toObject(): T;

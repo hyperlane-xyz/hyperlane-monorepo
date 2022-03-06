@@ -1,16 +1,10 @@
 import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { BeaconProxy } from '@abacus-network/abacus-deploy';
+import { BeaconProxy } from './BeaconProxy';
 import { CommonDeploy } from './CommonDeploy';
 import { CommonInstance } from './CommonInstance';
-
-type ProxyNames =
-  | 'Outbox'
-  | 'Inbox'
-  | 'GovernanceRouter'
-  | 'BridgeToken'
-  | 'BridgeRouter';
+import { BeaconProxyPrefix } from '../verification';
 
 export enum ViolationType {
   UpgradeBeacon = 'UpgradeBeacon',
@@ -21,7 +15,7 @@ export enum ViolationType {
 
 export interface UpgradeBeaconViolation {
   domain: number;
-  name: ProxyNames;
+  name: BeaconProxyPrefix;
   type: ViolationType.UpgradeBeacon;
   beaconProxy: BeaconProxy<ethers.Contract>;
   expected: string;
@@ -110,7 +104,7 @@ export abstract class CommonInvariantChecker<
 
   async checkBeaconProxyImplementation(
     domain: types.Domain,
-    name: ProxyNames,
+    name: BeaconProxyPrefix,
     beaconProxy: BeaconProxy<Contract>,
   ) {
     expect(beaconProxy.beacon).to.not.be.undefined;

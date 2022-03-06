@@ -1,23 +1,25 @@
+import { ethers } from 'ethers';
+import path from 'path';
+import yargs from 'yargs';
 import { AbacusContext, dev, testnet, mainnet } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import { ChainConfig } from '@abacus-network/abacus-deploy';
-import { ethers } from 'ethers';
 import { KEY_ROLE_ENUM } from '../src/agents';
-import { AgentConfig } from '../src/config/agent';
-import { ChainName } from '../src/config/chain';
-import { DeployEnvironment } from '../src/config/environment';
-import { InfrastructureConfig } from '../src/config/infrastructure';
-import { ContractMetricsConfig } from '../src/config/contract-metrics';
-import { RouterConfig, RouterAddresses } from '../src/router';
+import {
+  AgentConfig,
+  ChainName,
+  ChainConfig,
+  DeployEnvironment,
+  InfrastructureConfig,
+  ContractMetricsConfig,
+} from '../src/config';
 import { CoreDeploy, CoreContracts, CoreConfig } from '../src/core';
+import { BridgeDeploy, BridgeContracts, BridgeConfig } from '../src/bridge';
 import {
   GovernanceDeploy,
   GovernanceContracts,
   GovernanceConfig,
 } from '../src/governance';
-import { BridgeDeploy, BridgeContracts, BridgeConfig } from '../src/bridge';
-import path from 'path';
-import yargs from 'yargs';
+import { RouterConfig, RouterAddresses } from '../src/router';
 
 export function getArgs() {
   return yargs(process.argv.slice(2))

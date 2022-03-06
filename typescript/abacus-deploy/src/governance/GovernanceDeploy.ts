@@ -1,12 +1,12 @@
 import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { ChainConfig } from '@abacus-network/abacus-deploy';
 import { xapps } from '@abacus-network/ts-interface';
+import { ChainConfig } from '../config';
+import { RouterDeploy } from '../router';
 import { GovernanceInstance } from './GovernanceInstance';
 import { GovernanceContracts } from './GovernanceContracts';
 import { GovernanceConfig } from './types';
-import { RouterDeploy } from '../router';
 
 export class GovernanceDeploy extends RouterDeploy<
   GovernanceInstance,

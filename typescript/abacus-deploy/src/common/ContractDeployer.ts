@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { ChainConfig } from './types';
+import { ChainConfig } from '../config';
 
 export class ContractDeployer {
   constructor(

@@ -1,4 +1,4 @@
-import { CoreConfig } from '@abacus-network/abacus-deploy';
+import { CoreConfig } from '../../../src/core';
 
 export const core: CoreConfig = {
   processGas: 850_000,

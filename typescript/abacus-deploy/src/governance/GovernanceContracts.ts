@@ -1,10 +1,10 @@
 import fs from 'fs';
 import { xapps } from '@abacus-network/ts-interface';
 import { ethers } from 'ethers';
-import { Contracts, BeaconProxy } from '@abacus-network/abacus-deploy';
+import { CommonContracts, BeaconProxy } from '../common';
 import { GovernanceContractAddresses } from './types';
 
-export class GovernanceContracts extends Contracts<GovernanceContractAddresses> {
+export class GovernanceContracts extends CommonContracts<GovernanceContractAddresses> {
   constructor(public readonly router: BeaconProxy<xapps.GovernanceRouter>) {
     super();
   }

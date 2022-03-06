@@ -1,10 +1,7 @@
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
-import {
-  ContractDeployer,
-  ChainConfig,
-  BeaconProxy,
-} from '@abacus-network/abacus-deploy';
+import { ChainConfig } from '../config';
+import { ContractDeployer, BeaconProxy } from '../common';
 import { BridgeContracts } from './BridgeContracts';
 import { BridgeConfig } from './types';
 import { RouterInstance } from '../router';

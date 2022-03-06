@@ -1,14 +1,15 @@
 // import { ethers } from 'ethers'
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
-import { ChainConfig, BeaconProxy } from '@abacus-network/abacus-deploy';
+import { ChainConfig } from '../config';
+import { BeaconProxy } from '../common';
 import { RouterInstance } from '../router';
-import { GovernanceContracts } from './GovernanceContracts';
-import { GovernanceConfig } from './types';
 import {
   getBeaconProxyVerificationInput,
   VerificationInput,
 } from '../verification';
+import { GovernanceContracts } from './GovernanceContracts';
+import { GovernanceConfig } from './types';
 
 export class GovernanceInstance extends RouterInstance<GovernanceContracts> {
   async transferOwnership(owner: types.Address) {}
@@ -42,7 +43,7 @@ export class GovernanceInstance extends RouterInstance<GovernanceContracts> {
 
   get verificationInput(): VerificationInput {
     return getBeaconProxyVerificationInput(
-      'Governance',
+      'GovernanceRouter',
       this.contracts.router,
       xapps.GovernanceRouter__factory.bytecode,
     );

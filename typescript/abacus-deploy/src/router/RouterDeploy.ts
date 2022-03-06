@@ -7,7 +7,6 @@ export abstract class RouterDeploy<
   T extends RouterInstance<any>,
   V,
 > extends CommonDeploy<T, V> {
-  // TODO(asa): Dedupe with abacus-deploy
   async postDeploy(_: V) {
     // Make all routers aware of eachother.
     for (const local of this.domains) {

@@ -1,8 +1,12 @@
 import { ethers } from 'ethers';
-import { BeaconProxy } from '@abacus-network/abacus-deploy';
 import { core } from '@abacus-network/ts-interface';
+import { BeaconProxy } from '../common';
 
-export { ContractVerificationInput, VerificationInput } from './types';
+export {
+  BeaconProxyPrefix,
+  ContractVerificationInput,
+  VerificationInput,
+} from './types';
 import {
   ContractVerificationName,
   ContractVerificationInput,

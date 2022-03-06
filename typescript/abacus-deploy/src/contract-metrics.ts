@@ -1,5 +1,4 @@
-import { ChainConfig } from '@abacus-network/abacus-deploy';
-import { ContractMetricsConfig } from './config/contract-metrics';
+import { ChainConfig, ContractMetricsConfig } from './config';
 import { HelmCommand, helmifyValues } from './utils/helm';
 import { execCmd } from './utils/utils';
 

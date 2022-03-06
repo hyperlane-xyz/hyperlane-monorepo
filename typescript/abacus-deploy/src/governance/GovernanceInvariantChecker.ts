@@ -2,10 +2,8 @@ import { ethers } from 'ethers';
 import { expect } from 'chai';
 
 import { types } from '@abacus-network/utils';
-// import { BeaconProxy } from '@abacus-network/abacus-deploy';
 import { GovernanceConfig } from './types';
 import { GovernanceDeploy } from './GovernanceDeploy';
-// import { VerificationInput, InvariantChecker } from '../checks';
 import { RouterInvariantChecker } from '../router';
 
 export class GovernanceInvariantChecker extends RouterInvariantChecker<

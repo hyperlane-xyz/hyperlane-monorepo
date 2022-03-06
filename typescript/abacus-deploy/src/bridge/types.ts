@@ -1,5 +1,5 @@
 import { types } from '@abacus-network/utils';
-import { ProxiedAddress } from '@abacus-network/abacus-deploy';
+import { ProxiedAddress } from '../common';
 import { RouterConfig } from '../router';
 
 export type BridgeContractAddresses = {

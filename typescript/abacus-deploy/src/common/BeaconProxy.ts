@@ -2,8 +2,14 @@ import { ethers } from 'ethers';
 import { core } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
 
-import { ChainConfig, ProxiedAddress } from './types';
-import { ContractDeployer } from './deployer';
+import { ChainConfig } from '../config';
+import { ContractDeployer } from './ContractDeployer';
+
+export type ProxiedAddress = {
+  proxy: types.Address;
+  implementation: types.Address;
+  beacon: types.Address;
+};
 
 export class BeaconProxy<T extends ethers.Contract> {
   constructor(
