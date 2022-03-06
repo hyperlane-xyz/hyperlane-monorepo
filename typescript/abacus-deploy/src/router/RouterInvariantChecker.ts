@@ -29,8 +29,9 @@ export abstract class RouterInvariantChecker<
 
   async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
     const actual = await this.deploy.router(domain).xAppConnectionManager();
-    const expected =
-      this.config.core[this.deploy.name(domain)].xAppConnectionManager;
+    const core = this.config.core[this.deploy.name(domain)];
+    if (core === undefined) throw new Error('could not find core');
+    const expected = core.xAppConnectionManager;
     expect(actual).to.equal(expected);
   }
 }

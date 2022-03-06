@@ -37,11 +37,10 @@ async function main() {
   );
   const batch = await builder.build();
 
-  for (const outbox of deploy.domains) {
-    for (const remote of deploy.domains) {
-      if (outbox === remote) continue;
+  for (const local of deploy.domains) {
+    for (const remote of deploy.remotes(local)) {
       const core = context.mustGetCore(remote);
-      const inbox = core.getInbox(outbox);
+      const inbox = core.getInbox(local);
       const transferOwnership =
         await inbox!.populateTransaction.transferOwnership(
           core._governanceRouter,

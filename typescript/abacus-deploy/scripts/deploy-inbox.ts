@@ -1,6 +1,6 @@
 import {
   getCoreDeploy,
-  getCoreContractsDirectory,
+  getCoreDirectory,
   getCoreConfig,
   getEnvironment,
 } from './utils';
@@ -12,6 +12,6 @@ async function main() {
   const coreConfig = await getCoreConfig(environment);
   const deployer = new ImplementationDeployer(coreDeploy, coreConfig);
   await deployer.deployInboxImplementations();
-  coreDeploy.writeContracts(getCoreContractsDirectory(environment));
+  coreDeploy.writeOutput(getCoreDirectory(environment));
 }
 main().then(console.log).catch(console.error);

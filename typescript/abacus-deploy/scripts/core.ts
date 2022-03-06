@@ -13,8 +13,7 @@ async function main() {
   const deploy = new CoreDeploy();
   await deploy.deploy(chains, config);
   const outputDir = getCoreDirectory(environment);
-  deploy.writeContracts(outputDir);
-  deploy.writeVerificationInput(outputDir);
+  deploy.writeOutput(outputDir);
   deploy.writeRustConfigs(environment, outputDir);
 }
 

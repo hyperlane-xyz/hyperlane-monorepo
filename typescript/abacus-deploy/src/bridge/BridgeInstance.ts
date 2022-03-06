@@ -23,11 +23,13 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
     config: BridgeConfig,
   ): Promise<BridgeInstance> {
     const chain = chains[domain];
+    const core = config.core[chain.name];
+    if (core === undefined) throw new Error('could not find core');
 
     const token: BeaconProxy<xapps.BridgeToken> = await BeaconProxy.deploy(
       chain,
       new xapps.BridgeToken__factory(chain.signer),
-      config.core[chain.name].upgradeBeaconController,
+      core.upgradeBeaconController,
       [],
       [],
     );
@@ -35,9 +37,9 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
     const router: BeaconProxy<xapps.BridgeRouter> = await BeaconProxy.deploy(
       chain,
       new xapps.BridgeRouter__factory(chain.signer),
-      config.core[chain.name].upgradeBeaconController,
+      core.upgradeBeaconController,
       [],
-      [token.beacon.address, config.core[chain.name].xAppConnectionManager],
+      [token.beacon.address, core.xAppConnectionManager],
     );
 
     const weth = config.weth[chain.name];

@@ -26,7 +26,7 @@ export abstract class CommonDeploy<
     if (this.domains.length > 0) throw new Error('cannot deploy twice');
     const domains = Object.keys(chains).map((domain) => parseInt(domain));
     for (const domain of domains) {
-      this.chains[domain] = chains[domain];
+      this.chains[domain] = CommonDeploy.fixOverrides(chains[domain]);
     }
     for (const domain of domains) {
       this.instances[domain] = await this.deployInstance(domain, config);
@@ -47,6 +47,11 @@ export abstract class CommonDeploy<
     await Promise.all(
       this.domains.map((d) => this.instances[d].transferOwnership(owners[d])),
     );
+  }
+
+  writeOutput(directory: string) {
+    this.writeContracts(directory);
+    this.writeVerificationInput(directory);
   }
 
   writeContracts(directory: string) {
@@ -90,11 +95,34 @@ export abstract class CommonDeploy<
     return this.chains[domain].name;
   }
 
+  overrides(domain: types.Domain) {
+    return this.chains[domain].overrides;
+  }
+
   get domains(): types.Domain[] {
     return Object.keys(this.instances).map((d) => parseInt(d));
   }
 
   remotes(domain: types.Domain): types.Domain[] {
     return this.domains.filter((d) => d !== domain);
+  }
+
+  // this is currently a kludge to account for ethers issues
+  static fixOverrides(chain: ChainConfig): ChainConfig {
+    let overrides: ethers.Overrides = {};
+    if (chain.supports1559) {
+      overrides = {
+        maxFeePerGas: chain.overrides.maxFeePerGas,
+        maxPriorityFeePerGas: chain.overrides.maxPriorityFeePerGas,
+        gasLimit: chain.overrides.gasLimit,
+      };
+    } else {
+      overrides = {
+        type: 0,
+        gasPrice: chain.overrides.gasPrice,
+        gasLimit: chain.overrides.gasLimit,
+      };
+    }
+    return { ...chain, overrides };
   }
 }

@@ -54,7 +54,6 @@ export abstract class CommonInvariantChecker<
 
   abstract checkDomain(domain: types.Domain): Promise<void>;
   abstract checkOwnership(domain: types.Domain): Promise<void>;
-  // abstract getVerificationInputs(domain: types.Domain): VerificationInput[];
 
   constructor(
     deploy: T,

@@ -18,10 +18,6 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
     return BridgeInstance.deploy(domain, this.chains, config);
   }
 
-  async postDeploy(config: BridgeConfig) {
-    await super.postDeploy(config);
-  }
-
   static readContracts(
     chains: Record<types.Domain, ChainConfig>,
     directory: string,

@@ -1,9 +1,10 @@
 import { types } from '@abacus-network/utils';
+import { ChainName } from '../config';
 
 export interface Router {
   address: types.Address;
   enrollRemoteRouter(domain: types.Domain, router: types.Address): Promise<any>;
-  // Technically its a bytes32...
+  // Technically a bytes32...
   routers(domain: types.Domain): Promise<types.Address>;
   xAppConnectionManager(): Promise<types.Address>;
   transferOwnership(owner: types.Address): Promise<any>;
@@ -16,5 +17,5 @@ export type RouterAddresses = {
 };
 
 export type RouterConfig = {
-  core: Record<string, RouterAddresses>;
+  core: Partial<Record<ChainName, RouterAddresses>>;
 };

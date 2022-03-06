@@ -15,7 +15,6 @@ export class GovernanceContracts extends CommonContracts<GovernanceContractAddre
     };
   }
 
-  // TODO(asa): Can this be added to Contracts instead?
   static readJson(
     filepath: string,
     provider: ethers.providers.JsonRpcProvider,

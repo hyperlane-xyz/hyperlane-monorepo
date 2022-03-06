@@ -14,9 +14,7 @@ async function main() {
   const config = await getGovernanceConfig(environment);
   const deploy = new GovernanceDeploy();
   await deploy.deploy(chains, config);
-  const outputDir = getGovernanceDirectory(environment);
-  deploy.writeContracts(outputDir);
-  deploy.writeVerificationInput(outputDir);
+  deploy.writeOutput(getGovernanceDirectory(environment));
 
   const core = await getCoreDeploy(environment);
   await core.transferOwnership(deploy.routerAddresses());

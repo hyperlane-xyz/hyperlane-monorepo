@@ -1,8 +1,8 @@
 import {
   getEnvironment,
-  getBridgeConfigRecord,
+  getBridgeConfig,
   getBridgeDirectory,
-  getChainConfigs,
+  getChainConfigsRecord,
 } from './utils';
 import { BridgeDeploy } from '../src/bridge';
 
@@ -12,9 +12,7 @@ async function main() {
   const config = await getBridgeConfig(environment);
   const deploy = new BridgeDeploy();
   await deploy.deploy(chains, config);
-  const outputDir = getBridgeDirectory(environment);
-  deploy.writeContracts(outputDir);
-  deploy.writeVerificationInput(outputDir);
+  deploy.writeOutput(getBridgeDirectory(environment));
 }
 
 main().then(console.log).catch(console.error);

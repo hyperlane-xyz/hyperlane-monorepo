@@ -229,7 +229,7 @@ describe('Inbox', async () => {
         '0x',
       );
 
-      // Set message status to types.MessageStatus.Pending
+      // Set message status to MessageStatus.Pending
       await inbox.setMessageProven(abacusMessage);
       await inbox.process(abacusMessage);
     });
@@ -287,7 +287,7 @@ describe('Inbox', async () => {
       body,
     );
 
-    // Set message status to types.MessageStatus.Pending
+    // Set message status to MessageStatus.Pending
     await inbox.setMessageProven(abacusMessage);
 
     // Required gas is >= 510,000 (we provide 500,000)
@@ -312,7 +312,7 @@ describe('Inbox', async () => {
       '0x',
     );
 
-    // Set message status to types.MessageStatus.Pending
+    // Set message status to MessageStatus.Pending
     await inbox.setMessageProven(abacusMessage);
 
     // Ensure bad handler function causes process to return false

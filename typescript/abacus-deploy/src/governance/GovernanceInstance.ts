@@ -19,14 +19,16 @@ export class GovernanceInstance extends RouterInstance<GovernanceContracts> {
     config: GovernanceConfig,
   ): Promise<GovernanceInstance> {
     const chain = chains[domain];
-    // no initialize function called
+    const core = config.core[chain.name];
+    if (core === undefined) throw new Error('could not find core');
+
     const router: BeaconProxy<xapps.GovernanceRouter> =
       await BeaconProxy.deploy(
         chain,
         new xapps.GovernanceRouter__factory(chain.signer),
-        config.core[chain.name].upgradeBeaconController,
+        core.upgradeBeaconController,
         [config.recoveryTimelock],
-        [config.core[chain.name].xAppConnectionManager],
+        [core.xAppConnectionManager],
       );
 
     const addresses = config.addresses[chain.name];

@@ -164,7 +164,6 @@ export function getGovernanceVerificationDirectory(
   return path.join(getGovernanceDirectory(environment), 'verification');
 }
 
-// TODO(asa): Dedup with generics
 export function getCoreContracts(
   environment: DeployEnvironment,
   chains: ChainConfig[],
@@ -188,7 +187,7 @@ export function getBridgeContracts(
   const contracts: Record<types.Domain, BridgeContracts> = {};
   for (const chain of chains) {
     contracts[chain.domain] = BridgeContracts.readJson(
-      path.join(directory, `${chain.name}_contracts.json`),
+      path.join(directory, `${chain.name}.json`),
       chain.signer.provider! as ethers.providers.JsonRpcProvider,
     );
   }
@@ -203,7 +202,7 @@ export function getGovernanceContracts(
   const contracts: Record<types.Domain, GovernanceContracts> = {};
   for (const chain of chains) {
     contracts[chain.domain] = GovernanceContracts.readJson(
-      path.join(directory, `${chain.name}_contracts.json`),
+      path.join(directory, `${chain.name}.json`),
       chain.signer.provider! as ethers.providers.JsonRpcProvider,
     );
   }

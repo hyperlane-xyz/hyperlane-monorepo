@@ -160,7 +160,7 @@ export class TestAbacusDeploy extends TestDeploy<
     ) {
       return;
     }
-    // Update the Outbox and Inboxs to the latest roots.
+    // Update the Outbox and Inboxes to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
     const validator = await Validator.fromSigner(
