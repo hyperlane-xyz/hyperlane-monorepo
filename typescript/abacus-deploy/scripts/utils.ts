@@ -152,11 +152,15 @@ export function getGovernanceDirectory(environment: DeployEnvironment) {
   return path.join('./config/environments', environment, 'governance');
 }
 
-export function getGovernanceContractsDirectory(environment: DeployEnvironment) {
+export function getGovernanceContractsDirectory(
+  environment: DeployEnvironment,
+) {
   return path.join(getGovernanceDirectory(environment), 'contracts');
 }
 
-export function getGovernanceVerificationDirectory(environment: DeployEnvironment) {
+export function getGovernanceVerificationDirectory(
+  environment: DeployEnvironment,
+) {
   return path.join(getGovernanceDirectory(environment), 'verification');
 }
 

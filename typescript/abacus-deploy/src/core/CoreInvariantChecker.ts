@@ -21,7 +21,6 @@ export class CoreInvariantChecker extends CommonInvariantChecker<
     await this.checkInboxes(domain);
     await this.checkXAppConnectionManager(domain);
     await this.checkValidatorManager(domain);
-    // this.checkVerificationInputs(domain);
   }
 
   checkContractsDefined(domain: types.Domain): void {
@@ -121,33 +120,6 @@ export class CoreInvariantChecker extends CommonInvariantChecker<
     const outbox = await this.deploy.xAppConnectionManager(domain).outbox();
     expect(outbox).to.equal(this.deploy.outbox(domain).address);
   }
-
-  /*
-  getVerificationInputs(domain: types.Domain): VerificationInput[] {
-    const inputs: VerificationInput[] = [];
-    const contracts = deploy.contracts;
-    inputs.push([
-      'UpgradeBeaconController',
-      contracts.upgradeBeaconController,
-    ]);
-    inputs.push(['XAppConnectionManager', contracts.xAppConnectionManager]);
-    inputs.push(['ValidatorManager', contracts.validatorManager]);
-    const addInputsForUpgradableContract = (
-      contract: BeaconProxy<any>,
-      name: string,
-    ) => {
-      inputs.push([`${name} Implementation`, contract.implementation]);
-      inputs.push([`${name} UpgradeBeacon`, contract.beacon]);
-      inputs.push([`${name} Proxy`, contract.proxy]);
-    };
-    addInputsForUpgradableContract(contracts.outbox, 'Outbox');
-    addInputsForUpgradableContract(contracts.governanceRouter, 'Governance');
-    for (const domain in contracts.inboxes) {
-      addInputsForUpgradableContract(contracts.inboxes[domain], 'Inbox');
-    }
-    return inputs;
-  }
-  */
 
   async checkBeaconProxies(domain: types.Domain): Promise<void> {
     // Outbox upgrade setup contracts are defined

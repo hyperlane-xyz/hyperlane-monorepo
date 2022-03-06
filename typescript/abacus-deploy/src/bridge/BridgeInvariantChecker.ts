@@ -15,7 +15,6 @@ export class BridgeInvariantChecker extends RouterInvariantChecker<
     await this.checkEnrolledRouters(domain);
     await this.checkOwnership(domain);
     this.checkEthHelper(domain);
-    // this.checkVerificationInputs(deploy);
   }
 
   async checkBeaconProxies(domain: types.Domain): Promise<void> {
@@ -38,33 +37,4 @@ export class BridgeInvariantChecker extends RouterInvariantChecker<
       expect(this.deploy.helper(domain)).to.be.undefined;
     }
   }
-
-  /*
-  getVerificationInputs(deploy: BridgeDeploy): VerificationInput[] {
-    const inputs: VerificationInput[] = [];
-    const addInputsForUpgradableContract = (
-      contract: BeaconProxy<any>,
-      name: string,
-    ) => {
-      inputs.push([`${name} Implementation`, contract.implementation]);
-      inputs.push([`${name} UpgradeBeacon`, contract.beacon]);
-      inputs.push([`${name} Proxy`, contract.proxy]);
-    };
-    expect(deploy.contracts.bridgeToken).to.not.be.undefined;
-    expect(deploy.contracts.bridgeRouter).to.not.be.undefined;
-    addInputsForUpgradableContract(
-      deploy.contracts.bridgeToken!,
-      'BridgeToken',
-    );
-    addInputsForUpgradableContract(
-      deploy.contracts.bridgeRouter!,
-      'BridgeRouter',
-    );
-    if (deploy.chain.weth) {
-      expect(deploy.contracts.ethHelper).to.not.be.undefined;
-      inputs.push(['ETH Helper', deploy.contracts.ethHelper!]);
-    }
-    return inputs;
-  }
-  */
 }

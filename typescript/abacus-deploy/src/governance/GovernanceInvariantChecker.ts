@@ -17,11 +17,9 @@ export class GovernanceInvariantChecker extends RouterInvariantChecker<
     await this.checkXAppConnectionManager(domain);
     await this.checkEnrolledRouters(domain);
     await this.checkOwnership(domain);
-    // this.checkVerificationInputs(domain);
   }
 
   async checkBeaconProxies(domain: types.Domain): Promise<void> {
-    // TODO(asa): This should check UBC as well
     await this.checkBeaconProxyImplementation(
       domain,
       'GovernanceRouter',

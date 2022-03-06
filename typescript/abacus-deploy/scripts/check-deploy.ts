@@ -1,4 +1,4 @@
-import {ethers} from 'ethers';
+import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 
 import {
@@ -18,17 +18,19 @@ async function check() {
   const environment = await getEnvironment();
   const governance = await getGovernanceDeploy(environment);
   const governanceConfig = await getGovernanceConfig(environment);
-  const governors: Record<types.Domain, types.Address> = {}
+  const governors: Record<types.Domain, types.Address> = {};
   governance.domains.map((domain) => {
     const addresses = governanceConfig.addresses[governance.name(domain)];
     if (addresses === undefined) throw new Error('could not find addresses');
-    governors[domain] = addresses.governor ? addresses.governor : ethers.constants.AddressZero;
-  })
+    governors[domain] = addresses.governor
+      ? addresses.governor
+      : ethers.constants.AddressZero;
+  });
   const governanceChecker = new GovernanceInvariantChecker(
     governance,
     governanceConfig,
     governors,
-  )
+  );
   await governanceChecker.check();
   governanceChecker.expectEmpty();
 

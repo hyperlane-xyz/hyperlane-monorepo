@@ -8,7 +8,6 @@ import { BeaconProxyPrefix } from '../verification';
 
 export enum ViolationType {
   UpgradeBeacon = 'UpgradeBeacon',
-  VerificationInput = 'VerificationInput',
   ValidatorManager = 'ValidatorManager',
   Validator = 'Validator',
 }
@@ -20,13 +19,6 @@ export interface UpgradeBeaconViolation {
   beaconProxy: BeaconProxy<ethers.Contract>;
   expected: string;
   actual: string;
-}
-
-interface VerificationInputViolation {
-  domain: number;
-  type: ViolationType.VerificationInput;
-  name: string;
-  address: string;
 }
 
 export interface ValidatorManagerViolation {
@@ -46,7 +38,6 @@ export interface ValidatorViolation {
 
 export type Violation =
   | UpgradeBeaconViolation
-  | VerificationInputViolation
   | ValidatorViolation
   | ValidatorManagerViolation;
 
@@ -107,6 +98,7 @@ export abstract class CommonInvariantChecker<
     name: BeaconProxyPrefix,
     beaconProxy: BeaconProxy<Contract>,
   ) {
+    // TODO: This should check the correct upgrade beacon controller
     expect(beaconProxy.beacon).to.not.be.undefined;
     expect(beaconProxy.proxy).to.not.be.undefined;
     expect(beaconProxy.contract).to.not.be.undefined;
@@ -133,30 +125,6 @@ export abstract class CommonInvariantChecker<
       this.addViolation(violation);
     }
   }
-
-  /*
-  checkVerificationInput(domain: types.Domain, name: string, address: string) {
-    const match = deploy.verificationInput.find(
-      (contract) => contract.name == name && contract.address === address,
-    );
-    if (match === undefined) {
-      const violation: VerificationInputViolation = {
-        domain: deploy.chain.domain,
-        type: ViolationType.VerificationInput,
-        name,
-        address,
-      };
-      this.addViolation(violation);
-    }
-  }
-
-  checkVerificationInputs(domain: types.Domain) {
-    const inputs = this.getVerificationInputs(domain);
-    inputs.map((input) =>
-      this.checkVerificationInput(deploy, input[0], input[1].address),
-    );
-  }
-  */
 
   expectViolations(types: ViolationType[], expectedMatches: number[]) {
     // Every type should have exactly the number of expected matches.
