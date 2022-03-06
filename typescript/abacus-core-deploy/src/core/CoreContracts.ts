@@ -1,5 +1,16 @@
 import fs from 'fs';
-import { core } from '@abacus-network/ts-interface';
+import {
+  UpgradeBeaconController,
+  XAppConnectionManager,
+  ValidatorManager,
+  Outbox,
+  Inbox,
+  UpgradeBeaconController__factory,
+  XAppConnectionManager__factory,
+  ValidatorManager__factory,
+  Outbox__factory,
+  Inbox__factory,
+} from '@abacus-network/abacus-sol/typechain';
 import { types } from '@abacus-network/utils';
 
 import { BeaconProxy } from '../proxy';
@@ -10,11 +21,11 @@ import { ethers } from 'ethers';
 
 export class CoreContracts extends Contracts<CoreContractAddresses> {
   constructor(
-    public readonly upgradeBeaconController: core.UpgradeBeaconController,
-    public readonly xAppConnectionManager: core.XAppConnectionManager,
-    public readonly validatorManager: core.ValidatorManager,
-    public readonly outbox: BeaconProxy<core.Outbox>,
-    public readonly inboxes: Record<types.Domain, BeaconProxy<core.Inbox>>,
+    public readonly upgradeBeaconController: UpgradeBeaconController,
+    public readonly xAppConnectionManager: XAppConnectionManager,
+    public readonly validatorManager: ValidatorManager,
+    public readonly outbox: BeaconProxy<Outbox>,
+    public readonly inboxes: Record<types.Domain, BeaconProxy<Inbox>>,
   ) {
     super();
   }
@@ -50,33 +61,32 @@ export class CoreContracts extends Contracts<CoreContractAddresses> {
     addresses: CoreContractAddresses,
     provider: ethers.providers.JsonRpcProvider,
   ): CoreContracts {
-    const upgradeBeaconController =
-      core.UpgradeBeaconController__factory.connect(
-        addresses.upgradeBeaconController,
-        provider,
-      );
-    const xAppConnectionManager = core.XAppConnectionManager__factory.connect(
+    const upgradeBeaconController = UpgradeBeaconController__factory.connect(
+      addresses.upgradeBeaconController,
+      provider,
+    );
+    const xAppConnectionManager = XAppConnectionManager__factory.connect(
       addresses.xAppConnectionManager,
       provider,
     );
-    const validatorManager = core.ValidatorManager__factory.connect(
+    const validatorManager = ValidatorManager__factory.connect(
       addresses.validatorManager,
       provider,
     );
 
-    const outbox: BeaconProxy<core.Outbox> = BeaconProxy.fromObject(
+    const outbox: BeaconProxy<Outbox> = BeaconProxy.fromObject(
       addresses.outbox,
-      core.Outbox__factory.abi,
+      Outbox__factory.abi,
       provider,
     );
 
-    const inboxes: Record<types.Domain, BeaconProxy<core.Inbox>> = {};
+    const inboxes: Record<types.Domain, BeaconProxy<Inbox>> = {};
     Object.keys(addresses.inboxes)
       .map((d) => parseInt(d))
       .map((domain: types.Domain) => {
         inboxes[domain] = BeaconProxy.fromObject(
           addresses.inboxes[domain],
-          core.Inbox__factory.abi,
+          Inbox__factory.abi,
           provider,
         );
       });

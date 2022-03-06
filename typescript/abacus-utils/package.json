@@ -8,7 +8,7 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src ./test"
+    "prettier": "prettier --write ./src"
   },
   "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",

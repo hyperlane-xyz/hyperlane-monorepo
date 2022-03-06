@@ -1,4 +1,16 @@
-import { core } from '@abacus-network/ts-interface';
+import {
+  UpgradeBeaconController,
+  XAppConnectionManager,
+  ValidatorManager,
+  Outbox,
+  Inbox,
+  UpgradeBeaconController__factory,
+  XAppConnectionManager__factory,
+  ValidatorManager__factory,
+  Outbox__factory,
+  TestInbox__factory,
+  Inbox__factory,
+} from '@abacus-network/abacus-sol/typechain';
 import { types } from '@abacus-network/utils';
 import { ChainConfig } from '../types';
 import { CoreConfig } from './types';
@@ -17,13 +29,11 @@ export class CoreInstance extends Instance<CoreContracts> {
     const chain = chains[domain];
     const deployer = new ContractDeployer(chain);
 
-    const upgradeBeaconController: core.UpgradeBeaconController =
-      await deployer.deploy(
-        new core.UpgradeBeaconController__factory(chain.signer),
-      );
+    const upgradeBeaconController: UpgradeBeaconController =
+      await deployer.deploy(new UpgradeBeaconController__factory(chain.signer));
 
-    const validatorManager: core.ValidatorManager = await deployer.deploy(
-      new core.ValidatorManager__factory(chain.signer),
+    const validatorManager: ValidatorManager = await deployer.deploy(
+      new ValidatorManager__factory(chain.signer),
     );
     await validatorManager.enrollValidator(
       domain,
@@ -31,26 +41,23 @@ export class CoreInstance extends Instance<CoreContracts> {
       chain.overrides,
     );
 
-    const outbox: BeaconProxy<core.Outbox> = await BeaconProxy.deploy(
+    const outbox: BeaconProxy<Outbox> = await BeaconProxy.deploy(
       chain,
-      new core.Outbox__factory(chain.signer),
+      new Outbox__factory(chain.signer),
       upgradeBeaconController.address,
       [domain],
       [validatorManager.address],
     );
 
-    const xAppConnectionManager: core.XAppConnectionManager =
-      await deployer.deploy(
-        new core.XAppConnectionManager__factory(chain.signer),
-      );
+    const xAppConnectionManager: XAppConnectionManager = await deployer.deploy(
+      new XAppConnectionManager__factory(chain.signer),
+    );
     await xAppConnectionManager.setOutbox(outbox.address, chain.overrides);
 
-    const inboxes: Record<types.Domain, BeaconProxy<core.Inbox>> = {};
+    const inboxes: Record<types.Domain, BeaconProxy<Inbox>> = {};
     const domains = Object.keys(chains).map((d) => parseInt(d));
     const remotes = domains.filter((d) => d !== domain);
-    const inboxFactory = config.test
-      ? core.TestInbox__factory
-      : core.Inbox__factory;
+    const inboxFactory = config.test ? TestInbox__factory : Inbox__factory;
     for (let i = 0; i < remotes.length; i++) {
       const remote = remotes[i];
       const initArgs = [
@@ -97,23 +104,23 @@ export class CoreInstance extends Instance<CoreContracts> {
     return Object.keys(this.contracts.inboxes).map((d) => parseInt(d));
   }
 
-  get upgradeBeaconController(): core.UpgradeBeaconController {
+  get upgradeBeaconController(): UpgradeBeaconController {
     return this.contracts.upgradeBeaconController;
   }
 
-  get validatorManager(): core.ValidatorManager {
+  get validatorManager(): ValidatorManager {
     return this.contracts.validatorManager;
   }
 
-  get outbox(): core.Outbox {
+  get outbox(): Outbox {
     return this.contracts.outbox.contract;
   }
 
-  inbox(domain: types.Domain): core.Inbox {
+  inbox(domain: types.Domain): Inbox {
     return this.contracts.inboxes[domain].contract;
   }
 
-  get xAppConnectionManager(): core.XAppConnectionManager {
+  get xAppConnectionManager(): XAppConnectionManager {
     return this.contracts.xAppConnectionManager;
   }
 }
