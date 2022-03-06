@@ -8,11 +8,7 @@ import {
   BridgeInvariantChecker,
   BridgeConfig,
 } from '../src/bridge';
-import {
-  getTestChains,
-  testCore as coreConfig,
-  testBridge,
-} from './inputs';
+import { getTestChains, testCore as coreConfig, testBridge } from './inputs';
 
 /*
  * Deploy the full Abacus suite on three chains
@@ -34,8 +30,8 @@ describe('bridge', async () => {
       bridgeConfig.core[chains[domain].name] = {
         upgradeBeaconController: core.upgradeBeaconController(domain).address,
         xAppConnectionManager: core.xAppConnectionManager(domain).address,
-      }
-    })
+      };
+    });
   });
 
   it('deploys', async () => {
@@ -47,11 +43,7 @@ describe('bridge', async () => {
   });
 
   it('checks', async () => {
-    const checker = new BridgeInvariantChecker(
-      bridge,
-      bridgeConfig,
-      owners,
-    );
+    const checker = new BridgeInvariantChecker(bridge, bridgeConfig, owners);
     await checker.check();
   });
 
@@ -65,11 +57,7 @@ describe('bridge', async () => {
       chains,
       './test/outputs/contracts/bridge',
     );
-    const checker = new BridgeInvariantChecker(
-      bridge,
-      bridgeConfig,
-      owners,
-    );
+    const checker = new BridgeInvariantChecker(bridge, bridgeConfig, owners);
     await checker.check();
   });
 });

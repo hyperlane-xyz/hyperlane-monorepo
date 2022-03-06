@@ -4,7 +4,6 @@ export { BridgeContracts } from './BridgeContracts';
 export { BridgeInvariantChecker } from './BridgeInvariantChecker';
 export {
   BridgeContractAddresses,
-  BridgeAddresses,
   BridgeConfig,
   BridgeConfigWithoutCore,
 } from './types';

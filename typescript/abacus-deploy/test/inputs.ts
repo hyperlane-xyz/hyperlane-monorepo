@@ -1,6 +1,10 @@
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { ChainConfigWithoutSigner, ChainName, ChainConfig } from '../src/config';
+import {
+  ChainConfigWithoutSigner,
+  ChainName,
+  ChainConfig,
+} from '../src/config';
 import { CoreConfig } from '../src/core';
 import { GovernanceConfigWithoutCore } from '../src/governance';
 import { BridgeConfigWithoutCore } from '../src/bridge';
@@ -50,21 +54,19 @@ export const testGovernance: GovernanceConfigWithoutCore = {
 };
 
 export const testBridge: BridgeConfigWithoutCore = {
-  addresses: {
+  weth: {
     // Deployment calls weth.approve()
-    /*
-    celo: {
-      weth: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
-    },
-    */
+    // celo: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
   },
 };
 
-export function getTestChains(signer: ethers.Signer): Record<types.Domain, ChainConfig> {
+export function getTestChains(
+  signer: ethers.Signer,
+): Record<types.Domain, ChainConfig> {
   const testChains: Record<types.Domain, ChainConfig> = {};
   const chains = [testCelo, testEthereum, testPolygon];
   chains.map((chain) => {
     testChains[chain.domain] = { ...chain, signer };
   });
-  return testChains
+  return testChains;
 }

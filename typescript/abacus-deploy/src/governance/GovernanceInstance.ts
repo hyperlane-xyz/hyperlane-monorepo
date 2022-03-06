@@ -28,9 +28,10 @@ export class GovernanceInstance extends RouterInstance<GovernanceContracts> {
         [config.recoveryTimelock],
         [config.core[chain.name].xAppConnectionManager],
       );
-    await router.contract.transferOwnership(
-      config.addresses[chain.name].recoveryManager,
-    );
+
+    const addresses = config.addresses[chain.name];
+    if (addresses === undefined) throw new Error('could not find addresses');
+    await router.contract.transferOwnership(addresses.recoveryManager);
 
     const contracts = new GovernanceContracts(router);
     return new GovernanceInstance(chain, contracts);

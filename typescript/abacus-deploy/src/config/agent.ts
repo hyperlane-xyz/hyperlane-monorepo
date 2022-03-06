@@ -1,3 +1,7 @@
+import { types } from '@abacus-network/utils';
+import { ChainName } from './chain';
+import { DeployEnvironment } from './environment';
+
 interface IndexingConfig {
   from: number;
   chunk: number;
@@ -25,7 +29,7 @@ export interface DockerConfig {
 }
 
 export interface AgentConfig {
-  environment: string;
+  environment: DeployEnvironment;
   namespace: string;
   runEnv: string;
   docker: DockerConfig;
@@ -46,17 +50,17 @@ export type RustConnection = {
 };
 
 export type RustContractBlock = {
-  address: string;
-  domain: string;
-  name: string;
+  address: types.Address;
+  domain: types.Domain;
+  name: ChainName;
   rpcStyle: string; // TODO
   connection: RustConnection;
 };
 
 export type RustConfig = {
-  environment: string;
-  signers: Record<string, RustSigner>;
-  inboxes: Record<string, RustContractBlock>;
+  environment: DeployEnvironment;
+  signers: Partial<Record<ChainName, RustSigner>>;
+  inboxes: Partial<Record<ChainName, RustContractBlock>>;
   outbox: RustContractBlock;
   tracing: {
     level: string;

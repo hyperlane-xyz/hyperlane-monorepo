@@ -3,10 +3,7 @@ import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
 import { ChainConfig } from '../src/config';
 import { CoreDeploy, CoreInvariantChecker } from '../src/core';
-import {
-  getTestChains,
-  testCore as coreConfig,
-} from './inputs';
+import { getTestChains, testCore as coreConfig } from './inputs';
 
 describe('core', async () => {
   let core = new CoreDeploy();
@@ -18,7 +15,7 @@ describe('core', async () => {
     chains = getTestChains(signer);
     Object.keys(chains).map((d) => {
       owners[parseInt(d)] = owner.address;
-    })
+    });
   });
 
   it('deploys', async () => {
@@ -30,11 +27,7 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const checker = new CoreInvariantChecker(
-      core,
-      coreConfig,
-      owners,
-    );
+    const checker = new CoreInvariantChecker(core, coreConfig, owners);
     await checker.check();
   });
 
@@ -45,11 +38,7 @@ describe('core', async () => {
 
   it('reads', async () => {
     core = CoreDeploy.readContracts(chains, './test/outputs/contracts/core');
-    const checker = new CoreInvariantChecker(
-      core,
-      coreConfig,
-      owners,
-    );
+    const checker = new CoreInvariantChecker(core, coreConfig, owners);
     await checker.check();
   });
 });

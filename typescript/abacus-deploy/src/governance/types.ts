@@ -1,4 +1,5 @@
 import { types } from '@abacus-network/utils';
+import { ChainName } from '../config';
 import { ProxiedAddress } from '../common';
 import { RouterConfig } from '../router';
 
@@ -13,8 +14,7 @@ export type GovernanceAddresses = {
 
 export type GovernanceConfig = RouterConfig & {
   recoveryTimelock: number;
-  // TODO(asa): Can we restrict to chianname?
-  addresses: Record<string, GovernanceAddresses>;
+  addresses: Partial<Record<ChainName, GovernanceAddresses>>;
 };
 
 export type GovernanceConfigWithoutCore = Omit<GovernanceConfig, 'core'>;

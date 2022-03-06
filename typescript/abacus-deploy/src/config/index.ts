@@ -1,4 +1,4 @@
-export { AgentConfig } from './agent';
+export { AgentConfig, RustConfig } from './agent';
 export { ChainConfigWithoutSigner, ChainConfig, ChainName } from './chain';
 export { ContractMetricsConfig } from './contract-metrics';
 export { DeployEnvironment } from './environment';

@@ -1,4 +1,5 @@
 import { types } from '@abacus-network/utils';
+import { ChainName } from '../config';
 import { ProxiedAddress } from '../common';
 import { RouterConfig } from '../router';
 
@@ -8,13 +9,8 @@ export type BridgeContractAddresses = {
   helper?: types.Address;
 };
 
-export type BridgeAddresses = {
-  weth: types.Address;
-};
-
 export type BridgeConfig = RouterConfig & {
-  // TODO(asa): Can we restrict to chianname?
-  addresses: Record<string, BridgeAddresses>;
+  weth: Partial<Record<ChainName, types.Address>>;
 };
 
 export type BridgeConfigWithoutCore = Omit<BridgeConfig, 'core'>;

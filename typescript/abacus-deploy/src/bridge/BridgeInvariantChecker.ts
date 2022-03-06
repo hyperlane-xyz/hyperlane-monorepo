@@ -32,7 +32,7 @@ export class BridgeInvariantChecker extends RouterInvariantChecker<
   }
 
   checkEthHelper(domain: types.Domain): void {
-    if (this.config.addresses[domain]) {
+    if (this.config.weth[this.deploy.name(domain)]) {
       expect(this.deploy.helper(domain)).to.not.be.undefined;
     } else {
       expect(this.deploy.helper(domain)).to.be.undefined;

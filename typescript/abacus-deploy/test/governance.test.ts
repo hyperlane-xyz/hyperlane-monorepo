@@ -28,13 +28,15 @@ describe('governance', async () => {
     governanceConfig = { ...testGovernance, core: {} };
     core.domains.map((domain) => {
       const name = chains[domain].name;
-      const owner = testGovernance.addresses[name].governor;
+      const addresses = testGovernance.addresses[name];
+      if (addresses === undefined) throw new Error('could not find addresses');
+      const owner = addresses.governor;
       owners[domain] = owner ? owner : ethers.constants.AddressZero;
       governanceConfig.core[name] = {
         upgradeBeaconController: core.upgradeBeaconController(domain).address,
         xAppConnectionManager: core.xAppConnectionManager(domain).address,
-      }
-    })
+      };
+    });
   });
 
   it('deploys', async () => {
@@ -52,9 +54,7 @@ describe('governance', async () => {
 
   it('writes', async () => {
     governance.writeContracts('./test/outputs/contracts/governance');
-    governance.writeVerificationInput(
-      './test/outputs/verification/governance',
-    );
+    governance.writeVerificationInput('./test/outputs/verification/governance');
   });
 
   it('reads', async () => {

@@ -40,11 +40,12 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
       [token.beacon.address, config.core[chain.name].xAppConnectionManager],
     );
 
-    if (config.addresses[chain.name]) {
+    const weth = config.weth[chain.name];
+    if (weth) {
       const deployer = new ContractDeployer(chain);
       const helper: xapps.ETHHelper = await deployer.deploy(
         new xapps.ETHHelper__factory(chain.signer),
-        config.addresses[chain.name].weth,
+        weth,
         router.address,
       );
       const contracts = new BridgeContracts(router, token, helper);

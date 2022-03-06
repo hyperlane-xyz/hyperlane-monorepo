@@ -5,4 +5,6 @@ export enum DeployEnvironment {
   testnetLegacy = 'testnet-legacy',
   mainnetLegacy = 'mainnet-legacy',
   test = 'test',
+  production = 'production',
+  stagingCommunity = 'staging-community',
 }

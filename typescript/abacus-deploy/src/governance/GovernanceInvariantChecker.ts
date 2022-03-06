@@ -31,9 +31,10 @@ export class GovernanceInvariantChecker extends RouterInvariantChecker<
 
   async checkGovernor(domain: types.Domain): Promise<void> {
     const actual = await this.deploy.router(domain).governor();
-    const expected = this.config.addresses[this.deploy.name(domain)].governor;
-    if (expected) {
-      expect(actual).to.equal(expected);
+    const addresses = this.config.addresses[this.deploy.name(domain)];
+    if (addresses === undefined) throw new Error('could not find addresses');
+    if (addresses.governor) {
+      expect(actual).to.equal(addresses.governor);
     } else {
       expect(actual).to.equal(ethers.constants.AddressZero);
     }
@@ -41,8 +42,8 @@ export class GovernanceInvariantChecker extends RouterInvariantChecker<
 
   async checkRecoveryManager(domain: types.Domain): Promise<void> {
     const actual = await this.deploy.router(domain).recoveryManager();
-    const expected =
-      this.config.addresses[this.deploy.name(domain)].recoveryManager;
-    expect(actual).to.equal(expected);
+    const addresses = this.config.addresses[this.deploy.name(domain)];
+    if (addresses === undefined) throw new Error('could not find addresses');
+    expect(actual).to.equal(addresses.recoveryManager);
   }
 }

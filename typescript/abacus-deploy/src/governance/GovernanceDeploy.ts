@@ -22,9 +22,10 @@ export class GovernanceDeploy extends RouterDeploy<
   async postDeploy(config: GovernanceConfig) {
     await super.postDeploy(config);
     for (const domain of this.domains) {
-      const governor = config.addresses[this.chains[domain].name].governor;
-      if (governor !== undefined) {
-        await this.router(domain).setGovernor(governor);
+      const addresses = config.addresses[this.name(domain)];
+      if (addresses === undefined) throw new Error('could not find addresses');
+      if (addresses.governor !== undefined) {
+        await this.router(domain).setGovernor(addresses.governor);
       } else {
         await this.router(domain).setGovernor(ethers.constants.AddressZero);
       }
