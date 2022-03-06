@@ -9,6 +9,8 @@ import { CoreConfig } from '../src/core';
 import { GovernanceConfigWithoutCore } from '../src/governance';
 import { BridgeConfigWithoutCore } from '../src/bridge';
 
+export const outputDir = './test/outputs';
+
 const testCelo: ChainConfigWithoutSigner = {
   name: ChainName.CELO,
   domain: 1000,

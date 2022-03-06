@@ -9,6 +9,8 @@ import { RouterDeploy } from '../router';
 import { ChainConfig } from '../config';
 
 export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
+  deployName = 'bridge';
+
   async deployInstance(
     domain: types.Domain,
     config: BridgeConfig,
@@ -29,7 +31,7 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
     for (const domain of domains) {
       const chain = chains[domain];
       const contracts = BridgeContracts.readJson(
-        path.join(directory, `${chain.name}_contracts.json`),
+        path.join(directory, 'bridge', 'contracts', `${chain.name}.json`),
         chain.signer.provider! as ethers.providers.JsonRpcProvider,
       );
       deploy.chains[domain] = chain;

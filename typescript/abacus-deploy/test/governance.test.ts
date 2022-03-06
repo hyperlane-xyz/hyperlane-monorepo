@@ -10,6 +10,7 @@ import {
 } from '../src/governance';
 import {
   getTestChains,
+  outputDir,
   testCore as coreConfig,
   testGovernance,
 } from './inputs';
@@ -53,15 +54,12 @@ describe('governance', async () => {
   });
 
   it('writes', async () => {
-    governance.writeContracts('./test/outputs/contracts/governance');
-    governance.writeVerificationInput('./test/outputs/verification/governance');
+    governance.writeContracts(outputDir);
+    governance.writeVerificationInput(outputDir);
   });
 
   it('reads', async () => {
-    governance = GovernanceDeploy.readContracts(
-      chains,
-      './test/outputs/contracts/governance',
-    );
+    governance = GovernanceDeploy.readContracts(chains, outputDir);
     const checker = new GovernanceInvariantChecker(
       governance,
       governanceConfig,

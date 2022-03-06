@@ -1,14 +1,6 @@
 import { ethers } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
-import { types } from '@abacus-network/utils';
-import { CoreDeploy } from '../core';
-import {
-  AgentConfig,
-  ChainConfig,
-  ChainName,
-  DeployEnvironment,
-  RustConfig,
-} from '../config';
+import { AgentConfig, ChainConfig, ChainName } from '../config';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, include, strip0x } from '../utils/utils';
@@ -35,66 +27,6 @@ export const KEY_ROLES = [
   'deployer',
   'bank',
 ];
-
-export function toRustConfigs(
-  environment: DeployEnvironment,
-  core: CoreDeploy,
-): RustConfig[] {
-  let configs: RustConfig[] = [];
-  for (const domain of core.domains) {
-    configs.push(buildRustConfig(environment, core, domain));
-  }
-  return configs;
-}
-
-export function buildRustConfig(
-  environment: DeployEnvironment,
-  core: CoreDeploy,
-  domain: types.Domain,
-): RustConfig {
-  const outbox = {
-    address: core.outbox(domain).address,
-    domain,
-    name: core.name(domain),
-    rpcStyle: 'ethereum',
-    connection: {
-      type: 'http',
-      url: '',
-    },
-  };
-
-  const rustConfig: RustConfig = {
-    environment,
-    signers: {
-      [core.name(domain)]: { key: '', type: 'hexKey' },
-    },
-    inboxes: {},
-    outbox,
-    tracing: {
-      level: 'debug',
-      fmt: 'json',
-    },
-    db: 'db_path',
-  };
-
-  for (const remote of core.remotes(domain)) {
-    const inbox = {
-      address: core.inbox(remote, domain).address,
-      domain: remote,
-      name: core.name(remote),
-      rpcStyle: 'ethereum',
-      connection: {
-        type: 'http',
-        url: '',
-      },
-    };
-
-    rustConfig.signers[core.name(remote)] = { key: '', type: 'hexKey' };
-    rustConfig.inboxes[core.name(remote)] = inbox;
-  }
-
-  return rustConfig;
-}
 
 async function helmValuesForChain(
   chainName: ChainName,

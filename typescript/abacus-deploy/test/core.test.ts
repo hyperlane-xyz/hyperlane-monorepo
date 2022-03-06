@@ -1,9 +1,9 @@
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
-import { ChainConfig } from '../src/config';
+import { DeployEnvironment, ChainConfig } from '../src/config';
 import { CoreDeploy, CoreInvariantChecker } from '../src/core';
-import { getTestChains, testCore as coreConfig } from './inputs';
+import { getTestChains, outputDir, testCore as coreConfig } from './inputs';
 
 describe('core', async () => {
   let core = new CoreDeploy();
@@ -32,12 +32,13 @@ describe('core', async () => {
   });
 
   it('writes', async () => {
-    core.writeContracts('./test/outputs/contracts/core');
-    core.writeVerificationInput('./test/outputs/verification/core');
+    core.writeContracts(outputDir);
+    core.writeVerificationInput(outputDir);
+    core.writeRustConfigs(DeployEnvironment.dev, outputDir);
   });
 
   it('reads', async () => {
-    core = CoreDeploy.readContracts(chains, './test/outputs/contracts/core');
+    core = CoreDeploy.readContracts(chains, outputDir);
     const checker = new CoreInvariantChecker(core, coreConfig, owners);
     await checker.check();
   });

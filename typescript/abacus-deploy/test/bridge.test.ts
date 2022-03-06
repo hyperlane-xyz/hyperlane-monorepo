@@ -8,7 +8,12 @@ import {
   BridgeInvariantChecker,
   BridgeConfig,
 } from '../src/bridge';
-import { getTestChains, testCore as coreConfig, testBridge } from './inputs';
+import {
+  getTestChains,
+  testCore as coreConfig,
+  testBridge,
+  outputDir,
+} from './inputs';
 
 /*
  * Deploy the full Abacus suite on three chains
@@ -48,15 +53,12 @@ describe('bridge', async () => {
   });
 
   it('writes', async () => {
-    bridge.writeContracts('./test/outputs/contracts/bridge');
-    bridge.writeVerificationInput('./test/outputs/verification/bridge');
+    bridge.writeContracts(outputDir);
+    bridge.writeVerificationInput(outputDir);
   });
 
   it('reads', async () => {
-    bridge = BridgeDeploy.readContracts(
-      chains,
-      './test/outputs/contracts/bridge',
-    );
+    bridge = BridgeDeploy.readContracts(chains, outputDir);
     const checker = new BridgeInvariantChecker(bridge, bridgeConfig, owners);
     await checker.check();
   });

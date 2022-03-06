@@ -19,7 +19,7 @@ export abstract class CommonDeploy<
   }
 
   abstract deployInstance(domain: types.Domain, config: V): Promise<T>;
-  // abstract postDeploy(config: V): Promise<void>;
+  abstract deployName: string;
 
   async deploy(chains: Record<types.Domain, ChainConfig>, config: V) {
     await this.ready();
@@ -30,14 +30,6 @@ export abstract class CommonDeploy<
     }
     for (const domain of domains) {
       this.instances[domain] = await this.deployInstance(domain, config);
-    }
-  }
-
-  writeContracts(directory: string) {
-    for (const domain of this.domains) {
-      this.instances[domain].contracts.writeJson(
-        path.join(directory, `${this.chains[domain].name}_contracts.json`),
-      );
     }
   }
 
@@ -57,16 +49,36 @@ export abstract class CommonDeploy<
     );
   }
 
+  writeContracts(directory: string) {
+    for (const domain of this.domains) {
+      this.instances[domain].contracts.writeJson(
+        path.join(
+          directory,
+          this.deployName,
+          'contracts',
+          `${this.name(domain)}.json`,
+        ),
+      );
+    }
+  }
+
+  writeJson(filepath: string, obj: Object) {
+    const dir = path.dirname(filepath);
+    fs.mkdirSync(dir, { recursive: true });
+    const contents = JSON.stringify(obj, null, 2);
+    fs.writeFileSync(filepath, contents);
+  }
+
   writeVerificationInput(directory: string) {
     for (const domain of this.domains) {
       const verificationInput = this.instances[domain].verificationInput;
-      fs.mkdirSync(directory, { recursive: true });
       const filepath = path.join(
         directory,
-        `${this.chains[domain].name}_verification.json`,
+        this.deployName,
+        'verification',
+        `${this.name(domain)}.json`,
       );
-      const contents = JSON.stringify(verificationInput, null, 2);
-      fs.writeFileSync(filepath, contents);
+      this.writeJson(filepath, verificationInput);
     }
   }
 
