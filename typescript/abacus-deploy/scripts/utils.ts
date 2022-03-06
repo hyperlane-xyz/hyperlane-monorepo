@@ -120,22 +120,44 @@ export async function getEnvironment(): Promise<DeployEnvironment> {
   return (await getArgs().argv).e;
 }
 
-export function getContractsDirectory(environment: DeployEnvironment) {
-  return path.join('./config/environments', environment, 'contracts');
+export function getCoreDirectory(environment: DeployEnvironment) {
+  return path.join('./config/environments', environment, 'core');
 }
 
 export function getCoreContractsDirectory(environment: DeployEnvironment) {
-  return path.join(getContractsDirectory(environment), 'core');
+  return path.join(getCoreDirectory(environment), 'contracts');
+}
+
+export function getCoreVerificationDirectory(environment: DeployEnvironment) {
+  return path.join(getCoreDirectory(environment), 'verification');
+}
+
+export function getCoreRustDirectory(environment: DeployEnvironment) {
+  return path.join(getCoreDirectory(environment), 'rust');
+}
+
+export function getBridgeDirectory(environment: DeployEnvironment) {
+  return path.join('./config/environments', environment, 'bridge');
 }
 
 export function getBridgeContractsDirectory(environment: DeployEnvironment) {
-  return path.join(getContractsDirectory(environment), 'bridge');
+  return path.join(getBridgeDirectory(environment), 'contracts');
 }
 
-export function getGovernanceContractsDirectory(
-  environment: DeployEnvironment,
-) {
-  return path.join(getContractsDirectory(environment), 'governance');
+export function getBridgeVerificationDirectory(environment: DeployEnvironment) {
+  return path.join(getBridgeDirectory(environment), 'verification');
+}
+
+export function getGovernanceDirectory(environment: DeployEnvironment) {
+  return path.join('./config/environments', environment, 'governance');
+}
+
+export function getGovernanceContractsDirectory(environment: DeployEnvironment) {
+  return path.join(getGovernanceDirectory(environment), 'contracts');
+}
+
+export function getGovernanceVerificationDirectory(environment: DeployEnvironment) {
+  return path.join(getGovernanceDirectory(environment), 'verification');
 }
 
 // TODO(asa): Dedup with generics
@@ -147,7 +169,7 @@ export function getCoreContracts(
   const contracts: Record<types.Domain, CoreContracts> = {};
   for (const chain of chains) {
     contracts[chain.domain] = CoreContracts.readJson(
-      path.join(directory, `${chain.name}_contracts.json`),
+      path.join(directory, `${chain.name}.json`),
       chain.signer.provider! as ethers.providers.JsonRpcProvider,
     );
   }

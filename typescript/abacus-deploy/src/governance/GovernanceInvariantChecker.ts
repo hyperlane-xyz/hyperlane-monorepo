@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { expect } from 'chai';
-
 import { types } from '@abacus-network/utils';
+
 import { GovernanceConfig } from './types';
 import { GovernanceDeploy } from './GovernanceDeploy';
 import { RouterInvariantChecker } from '../router';
