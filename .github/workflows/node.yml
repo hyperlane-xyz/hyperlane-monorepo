@@ -18,7 +18,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: ~/.npm
-          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          key: ${{ runner.os }}-node-test-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
             ${{ runner.os }}-node-
 
@@ -30,11 +30,6 @@ jobs:
     needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
-      - name: npm install
-        uses: ./.github/workflows/npm
-        with:
-          runneros: ${{ runner.os }}
-
       - name: prettier
         run: |
           npm run prettier
@@ -49,11 +44,6 @@ jobs:
     needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
-      - name: npm install
-        uses: ./.github/workflows/npm
-        with:
-          runneros: ${{ runner.os }}
-
       - name: lint
         run: |
           npm --prefix ./solidity/abacus-core run lint
@@ -64,11 +54,6 @@ jobs:
     needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
-      - name: npm install
-        uses: ./.github/workflows/npm
-        with:
-          runneros: ${{ runner.os }}
-
       - name: build
         run: npm run build
       - name: test
@@ -83,10 +68,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - name: npm install
-        uses: ./.github/workflows/npm
-        with:
-          runneros: ${{ runner.os }}
       - name: core
         run: |
           npm --prefix ./solidity/abacus-core run build
