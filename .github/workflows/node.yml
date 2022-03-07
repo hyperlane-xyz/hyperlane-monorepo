@@ -25,6 +25,7 @@ jobs:
       - name: check lockfile
         run: |
           git checkout main -- package-lock.json
+          git restore --staged package-lock.json
           npm i
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
