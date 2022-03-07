@@ -1,4 +1,5 @@
 {
+  "name": "@abacus-network/contract-metrics",
   "scripts": {
     "monitor": "ts-node src/monitor.ts",
     "monitor-once": "ts-node src/monitor.ts once | ./node_modules/.bin/bunyan",
