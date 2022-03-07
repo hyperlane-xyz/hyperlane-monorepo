@@ -99,6 +99,14 @@ impl Outbox for CachingOutbox {
     async fn state(&self) -> Result<State, ChainCommunicationError> {
         self.outbox.state().await
     }
+
+    async fn root(&self) -> Result<H256, ChainCommunicationError> {
+        self.outbox.root().await
+    }
+
+    async fn checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+        self.outbox.checkpoint().await
+    }
 }
 
 #[async_trait]
@@ -260,6 +268,22 @@ impl Outbox for OutboxVariants {
             OutboxVariants::Ethereum(outbox) => outbox.state().await,
             OutboxVariants::Mock(mock_outbox) => mock_outbox.state().await,
             OutboxVariants::Other(outbox) => outbox.state().await,
+        }
+    }
+
+    async fn root(&self) -> Result<H256, ChainCommunicationError> {
+        match self {
+            OutboxVariants::Ethereum(outbox) => outbox.root().await,
+            OutboxVariants::Mock(mock_outbox) => mock_outbox.root().await,
+            OutboxVariants::Other(outbox) => outbox.root().await,
+        }
+    }
+
+    async fn checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+        match self {
+            OutboxVariants::Ethereum(outbox) => outbox.checkpoint().await,
+            OutboxVariants::Mock(mock_outbox) => mock_outbox.checkpoint().await,
+            OutboxVariants::Other(outbox) => outbox.checkpoint().await,
         }
     }
 }

@@ -18,8 +18,14 @@ pub trait Outbox: AbacusCommon + Send + Sync + std::fmt::Debug {
     /// Fetch the nonce
     async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError>;
 
+    /// Gets the current root of the merkle tree
+    async fn root(&self) -> Result<H256, ChainCommunicationError>;
+
     /// Dispatch a message.
     async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError>;
+
+    /// Submit a checkpoint transaction
+    async fn checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError>;
 }
 
 /// Interface for retrieving event data emitted specifically by the outbox

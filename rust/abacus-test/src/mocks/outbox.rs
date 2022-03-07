@@ -35,6 +35,10 @@ mock! {
 
         pub fn _dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {}
 
+        pub fn _root(&self) -> Result<H256, ChainCommunicationError> {}
+
+        pub fn _checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {}
+
         // Common
         pub fn _name(&self) -> &str {}
 
@@ -66,6 +70,14 @@ impl Outbox for MockOutboxContract {
 
     async fn state(&self) -> Result<State, ChainCommunicationError> {
         self._state()
+    }
+
+    async fn root(&self) -> Result<H256, ChainCommunicationError> {
+        self._root()
+    }
+
+    async fn checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+        self._checkpoint()
     }
 }
 

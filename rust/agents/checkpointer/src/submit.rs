@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::CachingOutbox;
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage};
+use abacus_core::{db::AbacusDB, AbacusCommon, Outbox};
 use std::time::Duration;
 
 use color_eyre::Result;
@@ -32,26 +32,23 @@ impl CheckpointSubmitter {
                 sleep(Duration::from_secs(self.interval_seconds)).await;
 
                 // Check the current checkpoint
-                let root = self.outbox.checkpointed_root().await?;
+                let current_checkpointed_root = self.outbox.checkpointed_root().await?;
+                // Get the current root of the tree.
+                // By comparing this with the checkpoint, we can see if there are any
+                // new messages without any indexing. Note that it's possible for
+                // messages to be re-orged away that are included in this new root,
+                // but this has no major effect beside submitting an unnecessary checkpoint
+                // transaction.
+                let current_root = self.outbox.root().await?;
 
-                info!(root=?root, "Checked root");
+                info!(
+                    current_checkpointed_root=?current_checkpointed_root,
+                    current_root=?current_root,
+                    "Got checkpointed root and calculated current root"
+                );
 
-                // Get the latest message
-                if let Some(leaf) = self.db.retrieve_latest_leaf_index()? {
-                    if let Some(message) = self.db.message_by_leaf_index(leaf)? {
-                        let parsed_message = CommittedMessage::try_from(message)?;
-                        info!(parsed_message=?parsed_message, "Latest leaf");
-
-                        if let Some(update) = self
-                            .db
-                            .update_by_previous_root(parsed_message.committed_root)?
-                        {
-                            // Check if we want to submit a checkpoint tx
-                            if parsed_message.committed_root == update.update.previous_root {
-                                info!("Submit checkpoint");
-                            }
-                        }
-                    }
+                if current_checkpointed_root != current_root {
+                    self.outbox.checkpoint().await?;
                 }
             }
         })

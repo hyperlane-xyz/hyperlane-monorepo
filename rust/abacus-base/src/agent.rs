@@ -47,7 +47,7 @@ pub struct AbacusAgentCore {
     pub settings: crate::settings::Settings,
 }
 
-/// A trait for an abaus agent
+/// A trait for an abacus agent
 #[async_trait]
 pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
     /// The agent's name

@@ -246,4 +246,17 @@ where
             _ => unreachable!(),
         }
     }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn root(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.root().call().await?.into())
+    }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+        let tx = self.contract.checkpoint();
+
+        Ok(report_tx!(tx).into())
+    }
+
 }
