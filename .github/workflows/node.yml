@@ -23,7 +23,6 @@ jobs:
       # Check out the lockfile from main, reinstall, and then
       # verify the lockfile matches what was committed.
       - name: check lockfile
-        shell: bash
         run: |
           git checkout main -- package-lock.json
           npm i
