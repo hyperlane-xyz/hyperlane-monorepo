@@ -58,10 +58,13 @@ export class AbacusDeployment {
   ): Promise<AbacusInstance> {
     const validatorManagerFactory = new ValidatorManager__factory(signer);
     const validatorManager = await validatorManagerFactory.deploy();
-    await validatorManager.setValidator(local, await signer.getAddress());
+    await validatorManager.enrollValidator(local, await signer.getAddress());
     await Promise.all(
       remotes.map(async (remoteDomain) =>
-        validatorManager.setValidator(remoteDomain, await signer.getAddress()),
+        validatorManager.enrollValidator(
+          remoteDomain,
+          await signer.getAddress(),
+        ),
       ),
     );
 
@@ -86,7 +89,7 @@ export class AbacusDeployment {
         ethers.constants.HashZero,
         0,
       );
-      await connectionManager.enrollInbox(inbox.address, remoteDomain);
+      await connectionManager.enrollInbox(remoteDomain, inbox.address);
       inboxs[remoteDomain] = inbox;
     });
     await Promise.all(deploys);

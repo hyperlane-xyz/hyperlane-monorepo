@@ -51,7 +51,7 @@ describe('Inbox', async () => {
     fakeValidator = await Validator.fromSigner(fakeSigner, remoteDomain);
     const validatorManagerFactory = new ValidatorManager__factory(signer);
     validatorManager = await validatorManagerFactory.deploy();
-    await validatorManager.setValidator(remoteDomain, validator.address);
+    await validatorManager.enrollValidator(remoteDomain, validator.address);
   });
 
   beforeEach(async () => {

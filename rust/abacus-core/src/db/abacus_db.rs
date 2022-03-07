@@ -23,6 +23,7 @@ static UPDATE: &str = "update_";
 static UPDATE_META: &str = "update_metadata_";
 static LATEST_ROOT: &str = "update_latest_root_";
 static LATEST_LEAF_INDEX: &str = "latest_known_leaf_index_";
+static LATEST_LEAF_INDEX_FOR_DESTINATION: &str = "latest_known_leaf_index_for_destination_";
 static UPDATER_PRODUCED_UPDATE: &str = "updater_produced_update_";
 
 /// DB handle for storing data tied to a specific home.
@@ -81,19 +82,14 @@ impl AbacusDB {
     pub fn store_latest_message(&self, message: &RawCommittedMessage) -> Result<()> {
         // If there is no latest root, or if this update is on the latest root
         // update latest root
-        match self.retrieve_latest_leaf_index()? {
-            Some(idx) => {
-                if idx == message.leaf_index - 1 {
-                    self.update_latest_leaf_index(message.leaf_index)?;
-                } else {
-                    debug!(
-                            "Attempted to store message not building off latest leaf index. Latest leaf index: {}. Attempted leaf index: {}.",
-                            idx,
-                            message.leaf_index,
-                        )
-                }
+        if let Some(idx) = self.retrieve_latest_leaf_index()? {
+            if idx != message.leaf_index - 1 {
+                debug!(
+                    "Attempted to store message not building off latest leaf index. Latest leaf index: {}. Attempted leaf index: {}.",
+                    idx,
+                    message.leaf_index,
+                )
             }
-            None => self.update_latest_leaf_index(message.leaf_index)?,
         }
 
         self.store_raw_committed_message(message)
@@ -108,19 +104,17 @@ impl AbacusDB {
     pub fn store_raw_committed_message(&self, message: &RawCommittedMessage) -> Result<()> {
         let parsed = AbacusMessage::read_from(&mut message.message.clone().as_slice())?;
 
-        let destination_and_nonce = parsed.destination_and_nonce();
-
         let leaf = message.leaf();
 
         debug!(
             leaf = ?leaf,
-            destination_and_nonce,
+            destination_and_nonce = parsed.destination_and_nonce(),
             destination = parsed.destination,
             nonce = parsed.nonce,
             leaf_index = message.leaf_index,
             "storing raw committed message in db"
         );
-        self.store_leaf(message.leaf_index, destination_and_nonce, leaf)?;
+        self.store_leaf(message.leaf_index, parsed.destination, parsed.nonce, leaf)?;
         self.store_keyed_encodable(MESSAGE, &leaf, message)?;
         Ok(())
     }
@@ -142,11 +136,36 @@ impl AbacusDB {
         self.retrieve_decodable("", LATEST_LEAF_INDEX)
     }
 
+    /// Store the latest known leaf_index for a destination
+    ///
+    /// Key --> value: `destination` --> `leaf_index`
+    pub fn update_latest_leaf_index_for_destination(
+        &self,
+        destination: u32,
+        leaf_index: u32,
+    ) -> Result<(), DbError> {
+        if let Ok(Some(idx)) = self.retrieve_latest_leaf_index_for_destination(destination) {
+            if leaf_index <= idx {
+                return Ok(());
+            }
+        }
+        self.store_keyed_encodable(LATEST_LEAF_INDEX_FOR_DESTINATION, &destination, &leaf_index)
+    }
+
+    /// Retrieve the highest known leaf_index for a destination
+    pub fn retrieve_latest_leaf_index_for_destination(
+        &self,
+        destination: u32,
+    ) -> Result<Option<u32>, DbError> {
+        self.retrieve_keyed_decodable(LATEST_LEAF_INDEX_FOR_DESTINATION, &destination)
+    }
+
     /// Store the leaf keyed by leaf_index
     fn store_leaf(
         &self,
         leaf_index: u32,
-        destination_and_nonce: u64,
+        destination: u32,
+        nonce: u32,
         leaf: H256,
     ) -> Result<(), DbError> {
         debug!(
@@ -154,9 +173,11 @@ impl AbacusDB {
             leaf = ?leaf,
             "storing leaf hash keyed by index and dest+nonce"
         );
+        let destination_and_nonce = utils::destination_and_nonce(destination, nonce);
         self.store_keyed_encodable(LEAF, &destination_and_nonce, &leaf)?;
         self.store_keyed_encodable(LEAF, &leaf_index, &leaf)?;
-        self.update_latest_leaf_index(leaf_index)
+        self.update_latest_leaf_index(leaf_index)?;
+        self.update_latest_leaf_index_for_destination(destination, leaf_index)
     }
 
     /// Retrieve a raw committed message by its leaf hash

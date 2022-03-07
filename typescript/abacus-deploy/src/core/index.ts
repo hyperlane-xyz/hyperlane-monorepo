@@ -229,9 +229,9 @@ export async function deployAbacus(deploy: CoreDeploy) {
 
   log(
     isTestDeploy,
-    `${deploy.chain.name}: awaiting validatorManager.setValidator(...);`,
+    `${deploy.chain.name}: awaiting validatorManager.enrollValidator(...);`,
   );
-  await deploy.contracts.validatorManager!.setValidator(
+  await deploy.contracts.validatorManager!.enrollValidator(
     deploy.chain.domain,
     deploy.validator,
     deploy.overrides,
@@ -316,8 +316,8 @@ export async function enrollInbox(local: CoreDeploy, remote: CoreDeploy) {
   log(isTestDeploy, `${local.chain.name}: starting inbox enrollment`);
 
   let tx = await local.contracts.xAppConnectionManager!.enrollInbox(
-    local.contracts.inboxes[remote.chain.domain].proxy.address,
     remote.chain.domain,
+    local.contracts.inboxes[remote.chain.domain].proxy.address,
     local.overrides,
   );
   await tx.wait(local.chain.confirmations);
@@ -362,7 +362,7 @@ export async function enrollValidator(local: CoreDeploy, remote: CoreDeploy) {
   const isTestDeploy = local.test;
   log(isTestDeploy, `${local.chain.name}: starting validator enrollment`);
 
-  let tx = await local.contracts.validatorManager!.setValidator(
+  let tx = await local.contracts.validatorManager!.enrollValidator(
     remote.chain.domain,
     remote.validator,
     local.overrides,
