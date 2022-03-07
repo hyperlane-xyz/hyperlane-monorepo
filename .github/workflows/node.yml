@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
 
 jobs:
-  install:
+  npm-install:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
@@ -25,13 +25,19 @@ jobs:
       # verify the lockfile matches what was committed.
       - name: check lockfile
         run: |
+          echo 'fetch'
+          git fetch --no-tags --depth=1 origin main
           echo 'checkout'
-          git checkout origin/main -- package-lock.json
-          echo 'checkedout'
+          git checkout main -- package-lock.json
+          echo 'status'
           git status -s
+          echo 'restore'
           git restore --staged package-lock.json
+          echo 'status'
           git status -s
+          echo 'install'
           npm i > /dev/null
+          echo 'status'
           git status -s
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
@@ -42,7 +48,7 @@ jobs:
 
   lint-ts:
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
       - name: npm install
@@ -61,7 +67,7 @@ jobs:
 
   test-ts:
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
       - name: npm install
@@ -76,7 +82,7 @@ jobs:
 
   lint-sol:
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
       - name: npm install
@@ -94,7 +100,7 @@ jobs:
       ETHERSCAN_API_KEY: ""
 
     runs-on: ubuntu-latest
-    needs: [install]
+    needs: [npm-install]
 
     steps:
       - uses: actions/checkout@v2
