@@ -1,5 +1,6 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import {
   TestOutbox__factory,
@@ -9,7 +10,6 @@ import {
   TestInbox,
 } from '../typechain';
 import { Validator } from './lib/core';
-import { Signer } from './lib/types';
 
 const signedFailureTestCases = require('../../../vectors/signedFailure.json');
 
@@ -22,7 +22,7 @@ const reserveGas = 15000;
 describe('XAppConnectionManager', async () => {
   let connectionManager: XAppConnectionManager,
     enrolledInbox: TestInbox,
-    signer: Signer,
+    signer: SignerWithAddress,
     validator: Validator;
 
   before(async () => {
@@ -52,7 +52,7 @@ describe('XAppConnectionManager', async () => {
     const connectionManagerFactory = new XAppConnectionManager__factory(signer);
     connectionManager = await connectionManagerFactory.deploy();
     await connectionManager.setOutbox(outbox.address);
-    await connectionManager.enrollInbox(enrolledInbox.address, remoteDomain);
+    await connectionManager.enrollInbox(remoteDomain, enrolledInbox.address);
   });
 
   it('Returns the local domain', async () => {
@@ -94,7 +94,7 @@ describe('XAppConnectionManager', async () => {
     expect(await connectionManager.isInbox(newInbox.address)).to.be.false;
 
     await expect(
-      connectionManager.enrollInbox(newInbox.address, newRemoteDomain),
+      connectionManager.enrollInbox(newRemoteDomain, newInbox.address),
     ).to.emit(connectionManager, 'InboxEnrolled');
 
     expect(await connectionManager.domainToInbox(newRemoteDomain)).to.equal(

@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { types } from '@abacus-network/utils';
 
-import { BytesArray } from './lib/types';
 import { TestMerkle, TestMerkle__factory } from '../typechain';
 
 const merkleTestCases = require('../../../vectors/merkle.json');
@@ -41,7 +41,7 @@ describe('Merkle', async () => {
 
           const proofRoot = await merkle.branchRoot(
             leaf,
-            path as BytesArray,
+            path as types.BytesArray,
             index,
           );
           expect(proofRoot).to.equal(expectedRoot);
