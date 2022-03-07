@@ -7,6 +7,7 @@
   "workspaces": [
     "typescript/utils",
     "solidity/abacus-core",
+    "typescript/hardhat",
     "solidity/abacus-xapps",
     "typescript/typechain",
     "typescript/abacus-sdk",
