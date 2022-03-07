@@ -41,7 +41,7 @@ pub struct AbacusAgentCore {
     pub db: DB,
     /// Prometheus metrics
     pub metrics: Arc<CoreMetrics>,
-    /// The height at which to start indexing the Home
+    /// The height at which to start indexing the Outbox
     pub indexer: IndexSettings,
     /// Settings this agent was created with
     pub settings: crate::settings::Settings,

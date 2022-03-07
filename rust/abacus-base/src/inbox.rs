@@ -37,8 +37,8 @@ impl CachingInbox {
         Self { inbox, db, indexer }
     }
 
-    /// Return handle on home object
-    pub fn replica(&self) -> Inboxes {
+    /// Return handle on inbox object
+    pub fn inbox(&self) -> Inboxes {
         self.inbox.clone()
     }
 
