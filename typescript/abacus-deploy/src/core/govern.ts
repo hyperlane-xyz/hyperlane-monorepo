@@ -73,7 +73,7 @@ export class GovernanceCallBatchBuilder {
     const deploy = this.getDeploy(domain);
     const manager = deploy.contracts.validatorManager;
     expect(manager).to.not.be.undefined;
-    const tx = await manager!.populateTransaction.setValidator(
+    const tx = await manager!.populateTransaction.enrollValidator(
       violation.remote,
       violation.expected,
     );
