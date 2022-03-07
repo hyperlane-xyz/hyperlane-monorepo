@@ -18,7 +18,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: .//node_modules
-          key: ${{ inputs.runneros }}-npm-cache-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-npm-cache-${{ hashFiles('./package-lock.json') }}
 
       - name: npm-install
         # Check out the lockfile from main, reinstall, and then
@@ -27,7 +27,7 @@ jobs:
             git fetch --no-tags --depth=1 origin main
             git checkout origin/main -- package-lock.json
             git restore --staged package-lock.json
-            npm install &> /dev/null
+            npm install
             CHANGES=$(git status -s)
             if [[ ! -z $CHANGES ]]; then
               echo "Changes found: $CHANGES"
@@ -46,7 +46,7 @@ jobs:
         uses: actions/cache@v2
         with:
           path: .//node_modules
-          key: ${{ inputs.runneros }}-npm-cache-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-npm-cache-${{ hashFiles('./package-lock.json') }}
 
       - name: build-cache
         uses: actions/cache@v2
@@ -65,7 +65,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: .//node_modules
-          key: ${{ inputs.runneros }}-npm-cache-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-npm-cache-${{ hashFiles('./package-lock.json') }}
 
       - name: prettier
         run: |
@@ -84,7 +84,7 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: .//node_modules
-          key: ${{ inputs.runneros }}-npm-cache-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-npm-cache-${{ hashFiles('./package-lock.json') }}
 
       - name: lint
         run: |
