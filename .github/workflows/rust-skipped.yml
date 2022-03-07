@@ -10,18 +10,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  rust-build:
+  build:
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No build required" '
 
-  rust-test:
+  test:
     runs-on: ubuntu-latest
 
     steps:
       - run: 'echo "No test required" '
 
-  rust-lint:
+  lint:
     runs-on: ubuntu-latest
 
     steps:
