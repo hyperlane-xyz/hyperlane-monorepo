@@ -1,9 +1,7 @@
 import { ethers } from 'ethers';
-import {
-  utils,
-  types,
-  AbacusDeployment,
-} from '@abacus-network/abacus-sol/test';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { utils, types } from '@abacus-network/utils';
+import { AbacusDeployment } from '@abacus-network/abacus-sol/test';
 
 import {
   GovernanceRouter__factory,
@@ -25,8 +23,8 @@ export class GovernanceDeployment {
 
   static async fromAbacusDeployment(
     abacus: AbacusDeployment,
-    governor: types.Signer,
-    recoveryManager: types.Signer,
+    governor: SignerWithAddress,
+    recoveryManager: SignerWithAddress,
   ) {
     // Deploy routers.
     const instances: Record<number, GovernanceInstance> = {};
@@ -45,7 +43,7 @@ export class GovernanceDeployment {
       for (const remote of abacus.domains) {
         await instances[local].router.enrollRemoteRouter(
           remote,
-          utils.toBytes32(instances[remote].router.address),
+          utils.addressToBytes32(instances[remote].router.address),
         );
       }
     }
@@ -61,8 +59,8 @@ export class GovernanceDeployment {
 
   static async deployInstance(
     domain: types.Domain,
-    governor: types.Signer,
-    recoveryManager: types.Signer,
+    governor: SignerWithAddress,
+    recoveryManager: SignerWithAddress,
     connectionManagerAddress: types.Address,
   ): Promise<GovernanceInstance> {
     const routerFactory = new GovernanceRouter__factory(governor);

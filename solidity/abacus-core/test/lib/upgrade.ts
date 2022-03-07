@@ -1,7 +1,7 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import ethers from 'ethers';
 
-import { Signer } from './types';
 import {
   MysteryMathV1,
   MysteryMathV2,
@@ -24,7 +24,7 @@ export class UpgradeTestHelpers {
   stateVar: number = 17;
 
   async deployMysteryMathUpgradeSetup(
-    signer: Signer,
+    signer: SignerWithAddress,
     ubc: UpgradeBeaconController,
   ): Promise<MysteryMathUpgrade> {
     // deploy implementation
