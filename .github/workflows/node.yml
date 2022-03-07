@@ -25,8 +25,11 @@ jobs:
       - name: check lockfile
         run: |
           git checkout main -- package-lock.json
+          git status -s
           git restore --staged package-lock.json
+          git status -s
           npm i
+          git status -s
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"
