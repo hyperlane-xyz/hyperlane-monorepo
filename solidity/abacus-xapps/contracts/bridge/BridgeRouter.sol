@@ -3,11 +3,11 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {TokenRegistry} from "./TokenRegistry.sol";
-import {Router} from "../Router.sol";
-import {XAppConnectionClient} from "../XAppConnectionClient.sol";
-import {IBridgeToken} from "../../interfaces/bridge/IBridgeToken.sol";
 import {BridgeMessage} from "./BridgeMessage.sol";
+import {IBridgeToken} from "../../interfaces/bridge/IBridgeToken.sol";
 // ============ External Imports ============
+import {Router} from "@abacus-network/abacus-sol/contracts/router/Router.sol";
+import {XAppConnectionClient} from "@abacus-network/abacus-sol/contracts/router/XAppConnectionClient.sol";
 import {Outbox} from "@abacus-network/abacus-sol/contracts/Outbox.sol";
 import {Version0} from "@abacus-network/abacus-sol/contracts/Version0.sol";
 import {TypeCasts} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
