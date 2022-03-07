@@ -1,97 +1,50 @@
-import { ChainConfig } from '../../src/config/chain';
-import {
-  CoreDeployAddresses,
-  CoreContractAddresses,
-  BridgeContractAddresses,
-} from '../../src/config/addresses';
-import { BridgeContracts } from './BridgeContracts';
-import {
-  getPathToLatestConfig,
-  parseFileFromDeploy,
-} from '../verification/readDeployOutput';
-import { Deploy, DeployEnvironment } from '../deploy';
-import fs from 'fs';
 import path from 'path';
+import { ethers } from 'ethers';
+import { xapps } from '@abacus-network/ts-interface';
+import { types } from '@abacus-network/utils';
+import { BridgeConfig } from './types';
+import { BridgeInstance } from './BridgeInstance';
+import { BridgeContracts } from './BridgeContracts';
+import { RouterDeploy } from '../router';
+import { ChainConfig } from '../config';
 
-export class BridgeDeploy extends Deploy<BridgeContracts> {
-  readonly coreContractAddresses: CoreContractAddresses;
+export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
+  deployName = 'bridge';
 
-  constructor(
-    chain: ChainConfig,
-    environment: DeployEnvironment,
-    test: boolean = false,
-    coreContractAddresses?: CoreContractAddresses,
-  ) {
-    super(chain, new BridgeContracts(), environment, test);
-    this.coreContractAddresses =
-      coreContractAddresses ||
-      parseFileFromDeploy(
-        path.join(this.configPath, 'contracts'),
-        chain.name,
-        'contracts',
-      );
+  async deployInstance(
+    domain: types.Domain,
+    config: BridgeConfig,
+  ): Promise<BridgeInstance> {
+    return BridgeInstance.deploy(domain, this.chains, config);
   }
 
-  get ubcAddress(): string | undefined {
-    return this.coreContractAddresses.upgradeBeaconController;
-  }
-
-  writeOutput() {
-    const directory = path.join(
-      this.configPath,
-      'contracts/bridge',
-      `${Date.now()}`,
-    );
-    fs.mkdirSync(directory, { recursive: true });
-    const name = this.chain.name;
-
-    const contracts = this.contracts.toJsonPretty();
-    fs.writeFileSync(path.join(directory, `${name}_contracts.json`), contracts);
-
-    fs.writeFileSync(
-      path.join(directory, `${name}_verification.json`),
-      JSON.stringify(this.verificationInput, null, 2),
-    );
-  }
-
-  static fromDirectory(
+  static readContracts(
+    chains: Record<types.Domain, ChainConfig>,
     directory: string,
-    chain: ChainConfig,
-    environment: DeployEnvironment,
-    test: boolean = false,
   ): BridgeDeploy {
-    const coreAddresses: CoreDeployAddresses = JSON.parse(
-      fs.readFileSync(
-        path.join(directory, `${chain.name}_contracts.json`),
-      ) as any as string,
-    );
-    const bridgeConfigPath = getPathToLatestConfig(
-      path.join(directory, 'bridge'),
-    );
-    const bridgeAddresses: BridgeContractAddresses = JSON.parse(
-      fs.readFileSync(
-        path.join(bridgeConfigPath, `${chain.name}_contracts.json`),
-      ) as any as string,
-    );
-    const deploy = new BridgeDeploy(chain, environment, test, coreAddresses);
-    deploy.contracts = BridgeContracts.fromAddresses(
-      bridgeAddresses,
-      chain.provider,
-    );
+    const deploy = new BridgeDeploy();
+    const domains = Object.keys(chains).map((d) => parseInt(d));
+    for (const domain of domains) {
+      const chain = chains[domain];
+      const contracts = BridgeContracts.readJson(
+        path.join(directory, 'bridge', 'contracts', `${chain.name}.json`),
+        chain.signer.provider! as ethers.providers.JsonRpcProvider,
+      );
+      deploy.chains[domain] = chain;
+      deploy.instances[domain] = new BridgeInstance(chain, contracts);
+    }
     return deploy;
   }
-}
 
-export function makeBridgeDeploys(
-  environment: DeployEnvironment,
-  chains: ChainConfig[],
-): BridgeDeploy[] {
-  const directory = path.join(
-    './config/environments',
-    environment,
-    'contracts/bridge',
-  );
-  return chains.map((c) =>
-    BridgeDeploy.fromDirectory(directory, c, environment),
-  );
+  token(domain: types.Domain): xapps.BridgeToken {
+    return this.instances[domain].token;
+  }
+
+  router(domain: types.Domain): xapps.BridgeRouter {
+    return this.instances[domain].router;
+  }
+
+  helper(domain: types.Domain): xapps.ETHHelper | undefined {
+    return this.instances[domain].helper;
+  }
 }
