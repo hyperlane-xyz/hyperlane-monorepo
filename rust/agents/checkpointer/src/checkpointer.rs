@@ -5,7 +5,7 @@ use tracing::instrument::Instrumented;
 
 use crate::{settings::CheckpointerSettings as Settings, submit::CheckpointSubmitter};
 use abacus_base::{AbacusAgentCore, Agent};
-use abacus_core::AbacusCommon;
+use abacus_core::{db::AbacusDB, AbacusCommon};
 
 /// An checkpointer agent
 #[derive(Debug)]
