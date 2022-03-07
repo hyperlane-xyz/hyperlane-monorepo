@@ -42,7 +42,6 @@ mod test {
     use super::*;
     use abacus_core::{
         accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage,
-        RawCommittedMessage,
     };
     use ethers::types::H256;
 
@@ -68,7 +67,7 @@ mod test {
             };
             assert_eq!(m.to_leaf(), message.leaf());
 
-            db.store_raw_committed_message_with_meta(&message).unwrap();
+            db.store_raw_committed_message(&message).unwrap();
 
             let by_nonce = db
                 .message_by_nonce(m.destination, m.nonce)
