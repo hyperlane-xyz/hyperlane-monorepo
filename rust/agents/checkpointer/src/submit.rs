@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use abacus_base::CachingHome;
-use abacus_core::{db::AbacusDB, CommittedMessage, Common};
+use abacus_base::CachingOutbox;
+use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage};
 use std::time::Duration;
 
 use color_eyre::Result;
@@ -9,15 +9,15 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 pub(crate) struct CheckpointSubmitter {
-    home: Arc<CachingHome>,
+    outbox: Arc<CachingOutbox>,
     db: AbacusDB,
     interval_seconds: u64,
 }
 
 impl CheckpointSubmitter {
-    pub(crate) fn new(home: Arc<CachingHome>, db: AbacusDB, interval_seconds: u64) -> Self {
+    pub(crate) fn new(outbox: Arc<CachingOutbox>, db: AbacusDB, interval_seconds: u64) -> Self {
         Self {
-            home,
+            outbox,
             db,
             interval_seconds,
         }
@@ -32,7 +32,7 @@ impl CheckpointSubmitter {
                 sleep(Duration::from_secs(self.interval_seconds)).await;
 
                 // Check the current checkpoint
-                let root = self.home.committed_root().await?;
+                let root = self.outbox.checkpointed_root().await?;
 
                 info!(root=?root, "Checked root");
 

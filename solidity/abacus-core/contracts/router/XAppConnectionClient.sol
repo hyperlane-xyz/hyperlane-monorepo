@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+// ============ Internal Imports ============
+import {Outbox} from "../Outbox.sol";
+import {XAppConnectionManager} from "../XAppConnectionManager.sol";
 // ============ External Imports ============
-import {Outbox} from "@abacus-network/abacus-sol/contracts/Outbox.sol";
-import {XAppConnectionManager} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 abstract contract XAppConnectionClient is OwnableUpgradeable {

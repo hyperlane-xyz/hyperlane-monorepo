@@ -89,7 +89,7 @@ pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
     /// Run tasks
     #[allow(clippy::unit_arg, unused_must_use)]
     fn run_all(
-        self,
+        &self,
         tasks: Vec<Instrumented<JoinHandle<Result<(), Report>>>>,
     ) -> Instrumented<JoinHandle<Result<()>>>
     where
