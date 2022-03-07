@@ -26,14 +26,6 @@ pub use macros::*;
 mod home;
 pub use home::*;
 
-/// outbox type
-mod outbox;
-pub use outbox::*;
-
-/// inbox type
-mod inbox;
-pub use inbox::*;
-
 /// Replica type
 mod replica;
 pub use replica::*;

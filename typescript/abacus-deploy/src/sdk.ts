@@ -1,44 +1,46 @@
+import { types } from '@abacus-network/utils';
 import { BridgeDeploy } from './bridge/BridgeDeploy';
 import { CoreDeploy } from './core/CoreDeploy';
+import { GovernanceDeploy } from './governance/GovernanceDeploy';
 import { writeFileSync } from 'fs';
 import { resolve } from 'path';
 
 export function updateSdkDomain(
   environment: string,
-  coreDeploys: CoreDeploy[],
-  bridgeDeploys: BridgeDeploy[],
+  coreDeploy: CoreDeploy,
+  governanceDeploy: GovernanceDeploy,
+  bridgeDeploy: BridgeDeploy,
 ) {
   let ret = "import { AbacusDomain } from './domain';\n";
-  coreDeploys.forEach((coreDeploy: CoreDeploy, i: number) => {
-    const bridgeDeploy = bridgeDeploys[i];
+  coreDeploy.domains.forEach((domain: types.Domain, i: number) => {
     ret += `
-export const ${coreDeploy.chain.name}: AbacusDomain = {
-  name: '${coreDeploy.chain.name}',
-  id: ${coreDeploy.chain.domain},
-  bridgeRouter: '${bridgeDeploy.contracts.bridgeRouter!.proxy.address}',${
-      !!bridgeDeploy.contracts.ethHelper
-        ? `\n  ethHelper: '${bridgeDeploy.contracts.ethHelper?.address}',`
+export const ${coreDeploy.chains[domain].name}: AbacusDomain = {
+  name: '${coreDeploy.chains[domain].name}',
+  id: ${domain},
+  bridgeRouter: '${bridgeDeploy.router(domain).address}',${
+      !!bridgeDeploy.helper(domain)
+        ? `\n  ethHelper: '${bridgeDeploy.helper(domain)!.address}',`
         : ''
     }
-  outbox: '${coreDeploy.contracts.outbox!.proxy.address}',
-  governanceRouter: '${coreDeploy.contracts.governanceRouter!.proxy.address}',
-  xAppConnectionManager: '${
-    coreDeploy.contracts.xAppConnectionManager!.address
-  }',
+  outbox: '${coreDeploy.outbox(domain).address}',
+  governanceRouter: '${governanceDeploy.router(domain).address}',
+  xAppConnectionManager: '${coreDeploy.xAppConnectionManager(domain).address}',
   inboxes: [
-${Object.keys(coreDeploy.contracts.inboxes)
-  .map(Number)
+${coreDeploy
+  .remotes(domain)
   .map(
-    (inboxDomain) =>
-      `    { domain: ${inboxDomain}, address: '${coreDeploy.contracts.inboxes[inboxDomain].proxy.address}' },`,
+    (remote) =>
+      `    { domain: ${remote}, address: '${
+        coreDeploy.inbox(domain, remote).address
+      }' },`,
   )
   .join('\n')}
   ],
 };\n`;
   });
 
-  ret += `\nexport const ${environment}Domains = [${coreDeploys
-    .map((_) => _.chain.name)
+  ret += `\nexport const ${environment}Domains = [${coreDeploy.domains
+    .map((_) => coreDeploy.chains[_].name)
     .join(', ')}];`;
   writeFileSync(
     resolve(__dirname, `../../abacus-sdk/src/abacus/domains/${environment}.ts`),

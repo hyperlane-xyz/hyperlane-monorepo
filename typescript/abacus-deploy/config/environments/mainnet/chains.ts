@@ -1,13 +1,15 @@
-import { chainConfigsGetterForEnvironment } from '../../../src/config/chain';
-import { getChain as celo } from '../../../config/networks/mainnets/celo';
-import { getChain as ethereum } from '../../../config/networks/mainnets/ethereum';
-import { getChain as polygon } from '../../../config/networks/mainnets/polygon';
-import { getChain as avalanche } from '../../../config/networks/mainnets/avalanche';
+import { getChainsForEnvironment } from '../../../src/config/chain';
+import {
+  celo,
+  ethereum,
+  polygon,
+  avalanche,
+} from '../../../config/networks/mainnets';
 
 const environment = 'mainnet';
 const deployerKeySecretName = 'v2-deployer-key';
 
-export const getChains = chainConfigsGetterForEnvironment(
+export const getChains = getChainsForEnvironment(
   [celo, ethereum, avalanche, polygon],
   environment,
   deployerKeySecretName,

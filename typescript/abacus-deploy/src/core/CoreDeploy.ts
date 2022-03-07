@@ -1,120 +1,75 @@
-import {
-  CoreConfigAddresses,
-  CoreDeployAddresses,
-} from '../../src/config/addresses';
-import { ChainConfig } from '../../src/config/chain';
-import { CoreConfig } from '../../src/config/core';
-import { RustConfig } from '../../src/config/agent';
-import { CoreContracts } from './CoreContracts';
-import { Deploy, DeployEnvironment } from '../deploy';
-import { readFileSync } from 'fs';
-import { getVerificationInputFromDeploy } from '../verification/readDeployOutput';
-import fs from 'fs';
 import path from 'path';
+import { ethers } from 'ethers';
+import { types } from '@abacus-network/utils';
+import { core } from '@abacus-network/ts-interface';
+import { CoreInstance } from './CoreInstance';
+import { CoreContracts } from './CoreContracts';
+import { CoreConfig } from './types';
+import { ChainConfig, DeployEnvironment, RustConfig } from '../config';
+import { CommonDeploy } from '../common';
 
-type Address = string;
+export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
+  deployName = 'core';
 
-export class CoreDeploy extends Deploy<CoreContracts> {
-  config: CoreConfig;
-
-  constructor(chain: ChainConfig, config: CoreConfig, test: boolean = false) {
-    super(chain, new CoreContracts(), config.environment, test);
-    this.config = config;
+  deployInstance(
+    domain: types.Domain,
+    config: CoreConfig,
+  ): Promise<CoreInstance> {
+    return CoreInstance.deploy(domain, this.chains, config);
   }
 
-  get coreDeployAddresses(): CoreDeployAddresses {
-    return {
-      ...this.contracts.toObject(),
-      recoveryManager: this.recoveryManager,
-      validator: this.validator,
-      governor: this.governor,
-    };
+  upgradeBeaconController(domain: types.Domain): core.UpgradeBeaconController {
+    return this.instances[domain].upgradeBeaconController;
   }
 
-  get coreConfigAddresses(): CoreConfigAddresses {
-    return this.config.addresses[this.chain.name]!;
+  validatorManager(domain: types.Domain): core.ValidatorManager {
+    return this.instances[domain].validatorManager;
   }
 
-  get ubcAddress(): Address | undefined {
-    return this.contracts.upgradeBeaconController?.address;
+  outbox(domain: types.Domain): core.Outbox {
+    return this.instances[domain].outbox;
   }
 
-  get validator(): Address {
-    return this.coreConfigAddresses.validator;
+  inbox(local: types.Domain, remote: types.Domain): core.Inbox {
+    return this.instances[local].inbox(remote);
   }
 
-  get recoveryManager(): Address {
-    return this.coreConfigAddresses.recoveryManager;
+  xAppConnectionManager(domain: types.Domain): core.XAppConnectionManager {
+    return this.instances[domain].xAppConnectionManager;
   }
 
-  get governor(): Address | undefined {
-    return this.coreConfigAddresses.governor;
-  }
-
-  async governorOrSigner(): Promise<Address> {
-    return this.governor ?? (await this.signer.getAddress());
-  }
-
-  writeDeployOutput() {
-    const dir = path.join(this.configPath, 'contracts');
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(
-      path.join(dir, `${this.chain.name}_contracts.json`),
-      JSON.stringify(this.coreDeployAddresses, null, 2),
-    );
-    fs.writeFileSync(
-      path.join(dir, `${this.chain.name}_verification.json`),
-      JSON.stringify(this.verificationInput, null, 2),
-    );
-  }
-
-  static toRustConfigs(deploys: CoreDeploy[]): RustConfig[] {
-    let configs: RustConfig[] = [];
-    for (let i = 0; i < deploys.length; i++) {
-      const local = deploys[i];
-
-      // copy array so original is not altered
-      const remotes = deploys
-        .slice()
-        .filter((remote) => remote.chain.domain !== local.chain.domain);
-
-      // build and add new config
-      configs.push(CoreDeploy.buildRustConfig(local, remotes));
+  // TODO(asa): Dedupe
+  static readContracts(
+    chains: Record<types.Domain, ChainConfig>,
+    directory: string,
+  ): CoreDeploy {
+    const deploy = new CoreDeploy();
+    const domains = Object.keys(chains).map((d) => parseInt(d));
+    for (const domain of domains) {
+      const chain = chains[domain];
+      const contracts = CoreContracts.readJson(
+        path.join(directory, 'core', 'contracts', `${chain.name}.json`),
+        chain.signer.provider! as ethers.providers.JsonRpcProvider,
+      );
+      deploy.chains[domain] = chain;
+      deploy.instances[domain] = new CoreInstance(chain, contracts);
     }
-    return configs;
+    return deploy;
   }
 
-  static buildRustConfig(local: CoreDeploy, remotes: CoreDeploy[]): RustConfig {
-    const outbox = {
-      address: local.contracts.outbox!.proxy.address,
-      domain: local.chain.domain.toString(),
-      name: local.chain.name,
-      rpcStyle: 'ethereum',
-      connection: {
-        type: 'http',
-        url: '',
-      },
-    };
+  writeRustConfigs(environment: DeployEnvironment, directory: string) {
+    for (const domain of this.domains) {
+      const filepath = path.join(
+        directory,
+        this.deployName,
+        'rust',
+        `${this.name(domain)}.json`,
+      );
 
-    const rustConfig: RustConfig = {
-      environment: local.config.environment,
-      signers: {
-        [outbox.name]: { key: '', type: 'hexKey' },
-      },
-      inboxes: {},
-      outbox,
-      tracing: {
-        level: 'debug',
-        fmt: 'json',
-      },
-      db: 'db_path',
-    };
-
-    for (var remote of remotes) {
-      const inbox = {
-        address: remote.contracts.inboxes[local.chain.domain].proxy.address,
-        domain: remote.chain.domain.toString(),
-        name: remote.chain.name,
+      const outbox = {
+        address: this.outbox(domain).address,
+        domain,
+        name: this.name(domain),
         rpcStyle: 'ethereum',
         connection: {
           type: 'http',
@@ -122,43 +77,36 @@ export class CoreDeploy extends Deploy<CoreContracts> {
         },
       };
 
-      rustConfig.signers[inbox.name] = { key: '', type: 'hexKey' };
-      rustConfig.inboxes[inbox.name] = inbox;
+      const rustConfig: RustConfig = {
+        environment,
+        signers: {
+          [this.name(domain)]: { key: '', type: 'hexKey' },
+        },
+        inboxes: {},
+        outbox,
+        tracing: {
+          level: 'debug',
+          fmt: 'json',
+        },
+        db: 'db_path',
+      };
+
+      for (const remote of this.remotes(domain)) {
+        const inbox = {
+          address: this.inbox(remote, domain).address,
+          domain: remote,
+          name: this.name(remote),
+          rpcStyle: 'ethereum',
+          connection: {
+            type: 'http',
+            url: '',
+          },
+        };
+
+        rustConfig.signers[this.name(remote)] = { key: '', type: 'hexKey' };
+        rustConfig.inboxes[this.name(remote)] = inbox;
+      }
+      this.writeJson(filepath, rustConfig);
     }
-
-    return rustConfig;
   }
-
-  static fromDirectory(
-    directory: string,
-    chain: ChainConfig,
-    config: CoreConfig,
-    test: boolean = false,
-  ): CoreDeploy {
-    let deploy = new CoreDeploy(chain, config, test);
-    const addresses: CoreDeployAddresses = JSON.parse(
-      readFileSync(
-        path.join(directory, `${chain.name}_contracts.json`),
-      ) as any as string,
-    );
-    deploy.contracts = CoreContracts.fromAddresses(addresses, chain.provider);
-    deploy.verificationInput = getVerificationInputFromDeploy(
-      directory,
-      chain.name,
-    );
-    return deploy;
-  }
-}
-
-export function makeCoreDeploys(
-  environment: DeployEnvironment,
-  chains: ChainConfig[],
-  core: CoreConfig,
-): CoreDeploy[] {
-  const directory = path.join(
-    './config/environments',
-    environment,
-    'contracts',
-  );
-  return chains.map((c) => CoreDeploy.fromDirectory(directory, c, core));
 }

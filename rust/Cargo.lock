@@ -596,33 +596,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
-name = "checkpointer"
-version = "0.1.0"
-dependencies = [
- "abacus-base",
- "abacus-core",
- "abacus-ethereum",
- "abacus-test",
- "async-trait",
- "color-eyre",
- "config 0.10.1",
- "ethers",
- "futures-util",
- "log",
- "paste",
- "prometheus",
- "rocksdb",
- "serde 1.0.130",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-test",
- "tracing",
- "tracing-futures",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "chrono"
 version = "0.4.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
