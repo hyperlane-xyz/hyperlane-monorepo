@@ -24,15 +24,7 @@ runs:
         path: .//node_modules
         key: ${{ inputs.runneros }}-core-cache-${{ hashFiles('./package-lock.json') }}
 
-    # Check out the lockfile from main, install, and then
-    # verify the lockfile matches what was committed.
+    # Install separately depending on cache hit
     - name: Install Parent
       shell: bash
-      run: |
-        git checkout main -- package-lock.json
-        npm i
-        CHANGES=$(git status -s)
-        if [[ ! -z $CHANGES ]]; then
-          echo "Changes found: $CHANGES"
-          exit 1
-        fi
+      if: steps.parent-cache.outputs.cache-hit != 'true'
