@@ -77,11 +77,7 @@ impl CommonIndexer for HomeIndexers {
 
 #[async_trait]
 impl HomeIndexer for HomeIndexers {
-    async fn fetch_sorted_messages(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<Vec<RawCommittedMessage>> {
+    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {
         match self {
             HomeIndexers::Ethereum(indexer) => indexer.fetch_sorted_messages(from, to).await,
             HomeIndexers::Mock(indexer) => indexer.fetch_sorted_messages(from, to).await,

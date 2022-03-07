@@ -3,8 +3,8 @@
 
 use abacus_core::*;
 use abacus_core::{
-    ChainCommunicationError, Common, DoubleUpdate, Home, Message,
-    RawCommittedMessage, SignedUpdate, State, TxOutcome, Update,
+    ChainCommunicationError, Common, DoubleUpdate, Home, Message, RawCommittedMessage,
+    SignedUpdate, State, TxOutcome, Update,
 };
 use async_trait::async_trait;
 use color_eyre::Result;
@@ -123,11 +123,7 @@ where
     M: ethers::providers::Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_messages(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<Vec<RawCommittedMessage>> {
+    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {
         let mut events = self
             .contract
             .dispatch_filter()

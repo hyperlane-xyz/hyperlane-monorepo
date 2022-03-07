@@ -41,8 +41,8 @@ where
 mod test {
     use super::*;
     use abacus_core::{
-        accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, Encode,
-        RawCommittedMessage, RawCommittedMessage,
+        accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage,
+        RawCommittedMessage,
     };
     use ethers::types::H256;
 

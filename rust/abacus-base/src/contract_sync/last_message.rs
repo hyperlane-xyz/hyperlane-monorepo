@@ -28,10 +28,7 @@ impl AsRef<Option<u32>> for OptLatestLeafIndex {
 
 impl OptLatestLeafIndex {
     /// Check if the list of sorted messages is a valid continuation of the OptLatestLeafIndex. If self is Some, check the validity of the list in continuation of self. If self is None, check the validity of just the list.
-    pub fn valid_continuation(
-        &self,
-        sorted_messages: &[RawCommittedMessage],
-    ) -> ListValidity {
+    pub fn valid_continuation(&self, sorted_messages: &[RawCommittedMessage]) -> ListValidity {
         if sorted_messages.is_empty() {
             return ListValidity::Empty;
         }
@@ -49,9 +46,7 @@ impl OptLatestLeafIndex {
 
         // Ensure no gaps in new batch of leaves
         for pair in sorted_messages.windows(2) {
-            if pair[0].leaf_index
-                != pair[1].leaf_index - 1
-            {
+            if pair[0].leaf_index != pair[1].leaf_index - 1 {
                 return ListValidity::Invalid;
             }
         }

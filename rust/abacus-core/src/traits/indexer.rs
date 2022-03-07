@@ -28,9 +28,6 @@ pub trait CommonIndexer: Send + Sync + std::fmt::Debug {
 #[async_trait]
 pub trait HomeIndexer: CommonIndexer + Send + Sync + std::fmt::Debug {
     /// Fetch list of messages between blocks `from` and `to`.
-    async fn fetch_sorted_messages(
-        &self,
-        _from: u32,
-        _to: u32,
-    ) -> Result<Vec<RawCommittedMessage>>;
+    async fn fetch_sorted_messages(&self, _from: u32, _to: u32)
+        -> Result<Vec<RawCommittedMessage>>;
 }

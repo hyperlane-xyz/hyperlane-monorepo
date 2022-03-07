@@ -1,8 +1,8 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::UpdateMeta;
 use crate::{
-    accumulator::merkle::Proof, traits::RawCommittedMessage, utils, AbacusMessage, CommittedMessage, Decode, SignedUpdate,
-    SignedUpdateWithMeta,
+    accumulator::merkle::Proof, traits::RawCommittedMessage, utils, AbacusMessage,
+    CommittedMessage, Decode, SignedUpdate, SignedUpdateWithMeta,
 };
 use color_eyre::Result;
 use ethers::core::types::H256;
@@ -59,16 +59,12 @@ impl AbacusDB {
     }
 
     /// Store list of messages
-    pub fn store_messages(
-        &self,
-        messages: &[RawCommittedMessage],
-    ) -> Result<u32> {
+    pub fn store_messages(&self, messages: &[RawCommittedMessage]) -> Result<u32> {
         let mut latest_leaf_index: u32 = 0;
         for message in messages {
             self.store_latest_message(message)?;
 
-            let committed_message: CommittedMessage =
-                message.clone().try_into()?;
+            let committed_message: CommittedMessage = message.clone().try_into()?;
             info!(
                 leaf_index = &committed_message.leaf_index,
                 origin = &committed_message.message.origin,
@@ -83,10 +79,7 @@ impl AbacusDB {
     }
 
     /// Store a raw committed message building off of the latest leaf index
-    pub fn store_latest_message(
-        &self,
-        message: &RawCommittedMessage,
-    ) -> Result<()> {
+    pub fn store_latest_message(&self, message: &RawCommittedMessage) -> Result<()> {
         // If there is no latest root, or if this update is on the latest root
         // update latest root
         if let Some(idx) = self.retrieve_latest_leaf_index()? {
@@ -108,10 +101,7 @@ impl AbacusDB {
     /// - `destination_and_nonce` --> `leaf`
     /// - `leaf_index` --> `leaf`
     /// - `leaf` --> `message`
-    pub fn store_raw_committed_message(
-        &self,
-        message: &RawCommittedMessage,
-    ) -> Result<()> {
+    pub fn store_raw_committed_message(&self, message: &RawCommittedMessage) -> Result<()> {
         let parsed = AbacusMessage::read_from(&mut message.message.clone().as_slice())?;
 
         let leaf = message.leaf();
@@ -124,12 +114,7 @@ impl AbacusDB {
             leaf_index = message.leaf_index,
             "storing raw committed message in db"
         );
-        self.store_leaf(
-            message.leaf_index,
-            parsed.destination,
-            parsed.nonce,
-            leaf,
-        )?;
+        self.store_leaf(message.leaf_index, parsed.destination, parsed.nonce, leaf)?;
         self.store_keyed_encodable(MESSAGE, &leaf, message)?;
         Ok(())
     }
