@@ -7,8 +7,8 @@
     "value": "ts-node src/value.ts | ./node_modules/.bin/bunyan",
     "trace": "ts-node src/trace.ts",
     "gas": "ts-node src/gas.ts",
-    "build": "rm tsconfig.tsbuildinfo; tsc",
-    "check": "rm tsconfig.tsbuildinfo; tsc --noEmit",
+    "build": "rm tsconfig.tsbuildinfo & tsc",
+    "check": "rm tsconfig.tsbuildinfo & tsc --noEmit",
     "prettier": "prettier --write ."
   },
   "dependencies": {

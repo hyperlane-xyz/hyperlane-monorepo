@@ -5,8 +5,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "rm -rf ./dist/; rm tsconfig.tsbuildinfo; tsc",
-    "check": "rm tsconfig.tsbuildinfo; tsc --noEmit",
+    "build": "rm -rf ./dist/ && rm tsconfig.tsbuildinfo & tsc",
+    "check": "rm tsconfig.tsbuildinfo & tsc --noEmit",
     "prettier": "prettier --write ./src",
     "lint": "npm run prettier && eslint ./src",
     "lint:fix": "npm run prettier && eslint --fix ./src",
