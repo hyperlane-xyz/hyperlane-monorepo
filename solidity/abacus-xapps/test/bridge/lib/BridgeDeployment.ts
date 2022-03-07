@@ -3,8 +3,7 @@ import { assert } from 'chai';
 import * as ethers from 'ethers';
 
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test/lib/AbacusDeployment';
-import { toBytes32 } from '@abacus-network/abacus-sol/test/lib/utils';
-import * as types from '@abacus-network/abacus-sol/test/lib/types';
+import { utils, types } from '@abacus-network/utils';
 
 import {
   MockWeth__factory,
@@ -56,7 +55,7 @@ export class BridgeDeployment {
         if (local !== remote) {
           await instances[local].router.enrollRemoteRouter(
             remote,
-            toBytes32(instances[remote].router.address),
+            utils.addressToBytes32(instances[remote].router.address),
           );
         }
       }

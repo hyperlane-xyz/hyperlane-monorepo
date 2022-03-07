@@ -1,7 +1,7 @@
 import { ethers } from 'hardhat';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import { UpgradeTestHelpers, MysteryMathUpgrade } from './lib/upgrade';
-import { Signer } from './lib/types';
 import {
   UpgradeBeaconController__factory,
   UpgradeBeaconController,
@@ -10,7 +10,7 @@ import {
 
 describe('Upgrade', async () => {
   const utils = new UpgradeTestHelpers();
-  let signer: Signer,
+  let signer: SignerWithAddress,
     mysteryMath: MysteryMathUpgrade,
     ubc: UpgradeBeaconController;
 

@@ -1,15 +1,15 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
-import { Signer } from '@abacus-network/abacus-sol/test/lib/types';
 import { permitDigest } from './lib/permit';
 import { BridgeToken__factory, BridgeToken } from '../../typechain';
 
 const VALUE = 100;
 
 describe('BridgeToken', async () => {
-  let deployer: Signer, permitee: Signer;
+  let deployer: SignerWithAddress, permitee: SignerWithAddress;
   let token: BridgeToken;
   let user: Wallet;
   before(async () => {

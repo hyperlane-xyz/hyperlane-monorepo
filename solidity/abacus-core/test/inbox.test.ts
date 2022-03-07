@@ -1,14 +1,8 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-
-import {
-  formatMessage,
-  messageHash,
-  Validator,
-  AbacusState,
-  MessageStatus,
-} from './lib/core';
-import { Signer, BytesArray } from './lib/types';
+import { types, utils } from '@abacus-network/utils';
+import { Validator } from './lib/core';
 import {
   BadRecipient1__factory,
   BadRecipient2__factory,
@@ -45,9 +39,9 @@ describe('Inbox', async () => {
 
   let inbox: TestInbox,
     validatorManager: ValidatorManager,
-    signer: Signer,
-    fakeSigner: Signer,
-    abacusMessageSender: Signer,
+    signer: SignerWithAddress,
+    fakeSigner: SignerWithAddress,
+    abacusMessageSender: SignerWithAddress,
     validator: Validator,
     fakeValidator: Validator;
 
@@ -126,11 +120,11 @@ describe('Inbox', async () => {
     await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
     // Ensure proper static call return value
-    expect(await inbox.callStatic.prove(leaf, path as BytesArray, index)).to.be
-      .true;
+    expect(await inbox.callStatic.prove(leaf, path as types.BytesArray, index))
+      .to.be.true;
 
-    await inbox.prove(leaf, path as BytesArray, index);
-    expect(await inbox.messages(leaf)).to.equal(MessageStatus.PENDING);
+    await inbox.prove(leaf, path as types.BytesArray, index);
+    expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.PENDING);
   });
 
   it('Rejects an already-proven message', async () => {
@@ -140,12 +134,12 @@ describe('Inbox', async () => {
     await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
     // Prove message, which changes status to MessageStatus.Pending
-    await inbox.prove(leaf, path as BytesArray, index);
-    expect(await inbox.messages(leaf)).to.equal(MessageStatus.PENDING);
+    await inbox.prove(leaf, path as types.BytesArray, index);
+    expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.PENDING);
 
     // Try to prove message again
     await expect(
-      inbox.prove(leaf, path as BytesArray, index),
+      inbox.prove(leaf, path as types.BytesArray, index),
     ).to.be.revertedWith('!MessageStatus.None');
   });
 
@@ -163,11 +157,12 @@ describe('Inbox', async () => {
 
     await inbox.setCheckpoint(testCase.expectedRoot, 1);
 
-    expect(await inbox.callStatic.prove(leaf, newPath as BytesArray, index)).to
-      .be.false;
+    expect(
+      await inbox.callStatic.prove(leaf, newPath as types.BytesArray, index),
+    ).to.be.false;
 
-    await inbox.prove(leaf, newPath as BytesArray, index);
-    expect(await inbox.messages(leaf)).to.equal(MessageStatus.NONE);
+    await inbox.prove(leaf, newPath as types.BytesArray, index);
+    expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.NONE);
   });
 
   it('Processes a proved message', async () => {
@@ -177,7 +172,7 @@ describe('Inbox', async () => {
     const testRecipient = await testRecipientFactory.deploy();
 
     const nonce = 0;
-    const abacusMessage = formatMessage(
+    const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -186,7 +181,7 @@ describe('Inbox', async () => {
       '0x',
     );
 
-    // Set message status to MessageStatus.Pending
+    // Set message status to types.MessageStatus.Pending
     await inbox.setMessageProven(abacusMessage);
 
     // Ensure proper static call return value
@@ -196,7 +191,7 @@ describe('Inbox', async () => {
     const processTx = inbox.process(abacusMessage);
     await expect(processTx)
       .to.emit(inbox, 'Process')
-      .withArgs(messageHash(abacusMessage), true, '0x');
+      .withArgs(utils.messageHash(abacusMessage), true, '0x');
   });
 
   it('Fails to process an unproved message', async () => {
@@ -204,7 +199,7 @@ describe('Inbox', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const abacusMessage = formatMessage(
+    const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -225,7 +220,7 @@ describe('Inbox', async () => {
       const badRecipient = await factory.deploy();
 
       const nonce = 0;
-      const abacusMessage = formatMessage(
+      const abacusMessage = utils.formatMessage(
         remoteDomain,
         sender.address,
         nonce,
@@ -245,7 +240,7 @@ describe('Inbox', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const abacusMessage = formatMessage(
+    const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -264,7 +259,7 @@ describe('Inbox', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const abacusMessage = formatMessage(
+    const abacusMessage = utils.formatMessage(
       remoteDomain,
       abacusMessageSender.address,
       nonce,
@@ -273,7 +268,7 @@ describe('Inbox', async () => {
       body,
     );
 
-    // Set message status to MessageStatus.Pending
+    // Set message status to types.MessageStatus.Pending
     await inbox.setMessageProven(abacusMessage);
     await expect(inbox.process(abacusMessage)).to.not.be.reverted;
   });
@@ -283,7 +278,7 @@ describe('Inbox', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
-    const abacusMessage = formatMessage(
+    const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -308,7 +303,7 @@ describe('Inbox', async () => {
     const testRecipient = await factory.deploy();
 
     const nonce = 0;
-    const abacusMessage = formatMessage(
+    const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -334,7 +329,7 @@ describe('Inbox', async () => {
 
     // Note that hash of this message specifically matches leaf of 1st
     // proveAndProcess test case
-    const abacusMessage = formatMessage(
+    const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -345,7 +340,7 @@ describe('Inbox', async () => {
 
     // Assert above message and test case have matching leaves
     const { path, index } = proveAndProcessTestCases[0];
-    const hash = messageHash(abacusMessage);
+    const hash = utils.messageHash(abacusMessage);
 
     // Set inbox's current root to match newly computed root that includes
     // the new leaf (normally root will have already been computed and path
@@ -354,14 +349,14 @@ describe('Inbox', async () => {
     // simply recalculate root with the leaf using branchRoot)
     const proofRoot = await inbox.testBranchRoot(
       hash,
-      path as BytesArray,
+      path as types.BytesArray,
       index,
     );
     await inbox.setCheckpoint(proofRoot, 1);
 
-    await inbox.proveAndProcess(abacusMessage, path as BytesArray, index);
+    await inbox.proveAndProcess(abacusMessage, path as types.BytesArray, index);
 
-    expect(await inbox.messages(hash)).to.equal(MessageStatus.PROCESSED);
+    expect(await inbox.messages(hash)).to.equal(types.MessageStatus.PROCESSED);
   });
 
   it('Has proveAndProcess fail if prove fails', async () => {
@@ -373,7 +368,7 @@ describe('Inbox', async () => {
     let { leaf, index, path } = testCase.proofs[0];
 
     // Create arbitrary message (contents not important)
-    const abacusMessage = formatMessage(
+    const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -386,14 +381,14 @@ describe('Inbox', async () => {
     // inbox.prove(...) will fail
     const proofRoot = await inbox.testBranchRoot(
       leaf,
-      path as BytesArray,
+      path as types.BytesArray,
       index,
     );
     const rootIndex = await inbox.checkpoints(proofRoot);
     expect(rootIndex).to.equal(0);
 
     await expect(
-      inbox.proveAndProcess(abacusMessage, path as BytesArray, index),
+      inbox.proveAndProcess(abacusMessage, path as types.BytesArray, index),
     ).to.be.revertedWith('!prove');
   });
 });
