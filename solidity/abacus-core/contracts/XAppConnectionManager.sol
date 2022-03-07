@@ -65,10 +65,10 @@ contract XAppConnectionManager is Ownable {
 
     /**
      * @notice Allow Owner to enroll Inbox contract
-     * @param _inbox the address of the Inbox
      * @param _domain the remote domain of the Outbox contract for the Inbox
+     * @param _inbox the address of the Inbox
      */
-    function enrollInbox(address _inbox, uint32 _domain) external onlyOwner {
+    function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
         // un-enroll any existing inbox
         _unenrollInbox(_inbox);
         // add inbox and domain to two-way mapping

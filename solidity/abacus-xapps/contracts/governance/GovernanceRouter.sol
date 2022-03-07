@@ -3,10 +3,10 @@ pragma solidity >=0.6.11;
 pragma experimental ABIEncoderV2;
 
 // ============ Internal Imports ============
-import {Router} from "../Router.sol";
 import {GovernanceMessage} from "./GovernanceMessage.sol";
 // ============ External Imports ============
 import {Version0} from "@abacus-network/abacus-sol/contracts/Version0.sol";
+import {Router} from "@abacus-network/abacus-sol/contracts/router/Router.sol";
 import {TypeCasts} from "@abacus-network/abacus-sol/contracts/XAppConnectionManager.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
