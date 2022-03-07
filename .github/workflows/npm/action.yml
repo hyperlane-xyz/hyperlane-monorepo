@@ -9,6 +9,7 @@ runs:
   steps:
     - uses: actions/checkout@v2
       with:
+        ref: main
 
     - name: Print inputs
       shell: bash
