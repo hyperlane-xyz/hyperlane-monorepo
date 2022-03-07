@@ -28,3 +28,4 @@ runs:
     - name: Install Parent
       shell: bash
       if: steps.parent-cache.outputs.cache-hit != 'true'
+      run: npm i
