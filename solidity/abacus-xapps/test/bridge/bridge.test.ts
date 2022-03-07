@@ -38,8 +38,8 @@ describe('BridgeRouter', async () => {
     // Enroll ourselves as a inbox so we can send messages directly to the
     // local router.
     await abacus
-      .connectionManager(localDomain)
-      .enrollInbox(deployer.address, remoteDomain);
+      .xAppConnectionManager(localDomain)
+      .enrollInbox(remoteDomain, deployer.address);
   });
 
   beforeEach(async () => {
