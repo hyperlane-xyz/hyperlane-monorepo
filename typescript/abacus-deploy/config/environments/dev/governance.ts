@@ -9,7 +9,7 @@ export const governance: GovernanceConfigWithoutCore = {
     fuji: {
       recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
     },
-    gorli: {
+    goerli: {
       recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
     },
     kovan: {

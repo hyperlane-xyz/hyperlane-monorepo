@@ -15,8 +15,8 @@ export const fuji: ChainConfigWithoutSigner = {
   overrides: {},
 };
 
-export const gorli: ChainConfigWithoutSigner = {
-  name: ChainName.GORLI,
+export const goerli: ChainConfigWithoutSigner = {
+  name: ChainName.GOERLI,
   domain: 5,
   confirmations: 3,
   overrides: {

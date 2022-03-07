@@ -11,3 +11,4 @@ export {
 } from './CommonInvariantChecker';
 export { ContractDeployer } from './ContractDeployer';
 export { BeaconProxy, ProxiedAddress } from './BeaconProxy';
+export { DeployType } from './types';

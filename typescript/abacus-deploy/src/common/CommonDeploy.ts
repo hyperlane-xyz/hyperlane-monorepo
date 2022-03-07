@@ -5,6 +5,7 @@ import { types } from '@abacus-network/utils';
 import { ChainConfig } from '../config';
 import { CommonInstance } from './CommonInstance';
 import { CommonContracts } from './CommonContracts';
+import { DeployType } from './types';
 
 export abstract class CommonDeploy<
   T extends CommonInstance<CommonContracts<any>>,
@@ -19,7 +20,7 @@ export abstract class CommonDeploy<
   }
 
   abstract deployInstance(domain: types.Domain, config: V): Promise<T>;
-  abstract deployName: string;
+  abstract deployType: DeployType;
 
   async deploy(chains: Record<types.Domain, ChainConfig>, config: V) {
     await this.ready();
@@ -59,7 +60,7 @@ export abstract class CommonDeploy<
       this.instances[domain].contracts.writeJson(
         path.join(
           directory,
-          this.deployName,
+          this.deployType,
           'contracts',
           `${this.name(domain)}.json`,
         ),
@@ -79,7 +80,7 @@ export abstract class CommonDeploy<
       const verificationInput = this.instances[domain].verificationInput;
       const filepath = path.join(
         directory,
-        this.deployName,
+        this.deployType,
         'verification',
         `${this.name(domain)}.json`,
       );

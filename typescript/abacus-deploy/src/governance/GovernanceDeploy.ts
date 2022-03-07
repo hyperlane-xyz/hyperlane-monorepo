@@ -2,6 +2,7 @@ import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import { xapps } from '@abacus-network/ts-interface';
+import { DeployType } from '../common';
 import { ChainConfig } from '../config';
 import { RouterDeploy } from '../router';
 import { GovernanceInstance } from './GovernanceInstance';
@@ -12,7 +13,7 @@ export class GovernanceDeploy extends RouterDeploy<
   GovernanceInstance,
   GovernanceConfig
 > {
-  deployName = 'governance';
+  deployType = DeployType.GOVERNANCE;
 
   async deployInstance(
     domain: types.Domain,

@@ -6,10 +6,10 @@ import { CoreInstance } from './CoreInstance';
 import { CoreContracts } from './CoreContracts';
 import { CoreConfig } from './types';
 import { ChainConfig, DeployEnvironment, RustConfig } from '../config';
-import { CommonDeploy } from '../common';
+import { CommonDeploy, DeployType } from '../common';
 
 export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
-  deployName = 'core';
+  deployType = DeployType.CORE;
 
   deployInstance(
     domain: types.Domain,
@@ -61,7 +61,7 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
     for (const domain of this.domains) {
       const filepath = path.join(
         directory,
-        this.deployName,
+        this.deployType,
         'rust',
         `${this.name(domain)}.json`,
       );

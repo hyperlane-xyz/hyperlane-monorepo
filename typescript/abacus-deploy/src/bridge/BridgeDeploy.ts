@@ -2,14 +2,16 @@ import path from 'path';
 import { ethers } from 'ethers';
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
-import { BridgeConfig } from './types';
-import { BridgeInstance } from './BridgeInstance';
-import { BridgeContracts } from './BridgeContracts';
+
+import { DeployType } from '../common';
 import { RouterDeploy } from '../router';
 import { ChainConfig } from '../config';
+import { BridgeContracts } from './BridgeContracts';
+import { BridgeInstance } from './BridgeInstance';
+import { BridgeConfig } from './types';
 
 export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
-  deployName = 'bridge';
+  deployType = DeployType.BRIDGE;
 
   async deployInstance(
     domain: types.Domain,
