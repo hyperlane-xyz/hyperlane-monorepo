@@ -1,7 +1,7 @@
 [package]
 name = "checkpointer"
 version = "0.1.0"
-authors = ["Luke Tchang <ltchang@stanford.edu>"]
+authors = ["Abacus Team"]
 edition = "2021"
 
 [dependencies]
