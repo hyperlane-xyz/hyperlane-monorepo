@@ -47,6 +47,7 @@
   "dependencies": {
     "@abacus-network/abacus-sol": "file:../abacus-core",
     "@abacus-network/hardhat": "^0.0.5",
+    "@abacus-network/utils": "^0.0.5",
     "@openzeppelin/contracts": "~3.4.2",
     "@openzeppelin/contracts-upgradeable": "~3.4.2",
     "@summa-tx/memview-sol": "^2.0.0"
