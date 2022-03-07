@@ -28,7 +28,7 @@ jobs:
           echo 'fetch'
           git fetch --no-tags --depth=1 origin main
           echo 'checkout'
-          git checkout main -- package-lock.json
+          git checkout origin/main -- package-lock.json
           echo 'status'
           git status -s
           echo 'restore'
