@@ -1,30 +1,26 @@
-use crate::traits::common::MessageStatus;
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::core::types::H256;
 
 use crate::{
     accumulator::merkle::Proof,
-    traits::{ChainCommunicationError, Common, TxOutcome},
-    AbacusMessage,
+    traits::{AbacusCommon, ChainCommunicationError, TxOutcome},
+    AbacusMessage, MessageStatus,
 };
 
-/// Interface for on-chain replicas
+/// Interface for on-chain inboxes
 #[async_trait]
-pub trait Replica: Common + Send + Sync + std::fmt::Debug {
-    /// Return the replica domain ID
-    fn local_domain(&self) -> u32;
-
-    /// Return the domain of the replica's linked home
+pub trait Inbox: AbacusCommon + Send + Sync + std::fmt::Debug {
+    /// Return the domain of the inbox's linked outbox
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError>;
 
-    /// Dispatch a transaction to prove inclusion of some leaf in the replica.
+    /// Dispatch a transaction to prove inclusion of some leaf in the inbox.
     async fn prove(&self, proof: &Proof) -> Result<TxOutcome, ChainCommunicationError>;
 
     /// Trigger processing of a message
     async fn process(&self, message: &AbacusMessage) -> Result<TxOutcome, ChainCommunicationError>;
 
-    /// Prove a leaf in the replica and then process its message
+    /// Prove a leaf in the inbox and then process its message
     async fn prove_and_process(
         &self,
         message: &AbacusMessage,
@@ -37,7 +33,4 @@ pub trait Replica: Common + Send + Sync + std::fmt::Debug {
 
     /// Fetch the status of a message
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError>;
-
-    /// Fetch the confirmation time for a specific root
-    async fn acceptable_root(&self, root: H256) -> Result<bool, ChainCommunicationError>;
 }

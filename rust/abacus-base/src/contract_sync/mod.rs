@@ -3,7 +3,7 @@
 
 use crate::settings::IndexSettings;
 use abacus_core::db::AbacusDB;
-use abacus_core::{CommonIndexer, HomeIndexer, ListValidity};
+use abacus_core::{AbacusCommonIndexer, CommonIndexer, HomeIndexer, ListValidity, OutboxIndexer};
 
 use tokio::time::sleep;
 use tracing::{info, info_span, warn};
@@ -205,6 +205,25 @@ where
 
 impl<I> ContractSync<I>
 where
+    I: AbacusCommonIndexer + 'static,
+{
+    /// TODO: Not implemented
+    pub fn sync_checkpoints(
+        &self,
+    ) -> Instrumented<tokio::task::JoinHandle<color_eyre::Result<()>>> {
+        let span = info_span!("MessageContractSync");
+
+        tokio::spawn(async move {
+            loop {
+                sleep(Duration::from_secs(1)).await;
+            }
+        })
+        .instrument(span)
+    }
+}
+
+impl<I> ContractSync<I>
+where
     I: HomeIndexer + 'static,
 {
     /// Spawn task that continuously looks for new on-chain messages and stores
@@ -349,6 +368,25 @@ where
                     }
                     ListValidity::Empty => unreachable!("Tried to validate empty list of messages"),
                 };
+            }
+        })
+        .instrument(span)
+    }
+}
+
+impl<I> ContractSync<I>
+where
+    I: OutboxIndexer + 'static,
+{
+    /// TODO: Not implemented
+    pub fn sync_outbox_messages(
+        &self,
+    ) -> Instrumented<tokio::task::JoinHandle<color_eyre::Result<()>>> {
+        let span = info_span!("MessageContractSync");
+
+        tokio::spawn(async move {
+            loop {
+                sleep(Duration::from_secs(1)).await;
             }
         })
         .instrument(span)
