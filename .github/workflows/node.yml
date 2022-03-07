@@ -16,20 +16,40 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: actions/cache@v2
+        id: npm-install
         with:
           path: ~/.npm
           key: ${{ runner.os }}-node-test-${{ hashFiles('**/package-lock.json') }}
           restore-keys: |
-            ${{ runner.os }}-node-
+            ${{ runner.os }}-node-test
 
       - name: install
         run: npm ci
+
+  npm-build:
+    runs-on: ubuntu-latest
+    needs: [npm-install]
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        id: npm-build
+        with:
+          path: ./*
+          key: ${{ github.sha }}
+      - name: build
+        run: npm run build
 
   lint-ts:
     runs-on: ubuntu-latest
     needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        id: npm-install
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-test-${{ hashFiles('**/package-lock.json') }}
+
       - name: prettier
         run: |
           npm run prettier
@@ -44,6 +64,11 @@ jobs:
     needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        id: npm-install
+        with:
+          path: ~/.npm
+          key: ${{ runner.os }}-node-test-${{ hashFiles('**/package-lock.json') }}
       - name: lint
         run: |
           npm --prefix ./solidity/abacus-core run lint
@@ -51,11 +76,14 @@ jobs:
 
   test-ts:
     runs-on: ubuntu-latest
-    needs: [npm-install]
+    needs: [npm-build]
     steps:
       - uses: actions/checkout@v2
-      - name: build
-        run: npm run build
+      - uses: actions/cache@v2
+        id: npm-build
+        with:
+          path: ./*
+          key: ${{ github.sha }}
       - name: test
         run: npm --prefix ./typescript/abacus-deploy run test
 
@@ -64,15 +92,16 @@ jobs:
       ETHERSCAN_API_KEY: ""
 
     runs-on: ubuntu-latest
-    needs: [npm-install]
+    needs: [npm-build]
 
     steps:
       - uses: actions/checkout@v2
+      - uses: actions/cache@v2
+        id: npm-build
+        with:
+          path: ./*
+          key: ${{ github.sha }}
       - name: core
-        run: |
-          npm --prefix ./solidity/abacus-core run build
-          npm --prefix ./solidity/abacus-core run test
+        run: npm --prefix ./solidity/abacus-core run test
       - name: xapps
-        run: |
-          npm --prefix ./solidity/abacus-xapps run build
-          npm --prefix ./solidity/abacus-xapps run test
+        run: npm --prefix ./solidity/abacus-xapps run test
