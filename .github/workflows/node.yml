@@ -15,44 +15,25 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/cache@v2
         with:
-          node-version: '14'
-          cache: 'npm'
-      - run: npm install > /dev/null
+          path: .//node_modules
+          key: ${{ inputs.runneros }}-npm-cache-${{ hashFiles('./package-lock.json') }}
 
-      # Check out the lockfile from main, reinstall, and then
-      # verify the lockfile matches what was committed.
-      - run: |
-          echo 'fetch'
-          git fetch --no-tags --depth=1 origin main
-          echo 'checkout'
-          git checkout origin/main -- package-lock.json
-          echo 'status'
-          git status -s
-          CHANGES=$(git status -s)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            git diff
-          fi
-          echo 'restore'
-          git restore --staged package-lock.json
-          echo 'status'
-          CHANGES=$(git status -s)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            git diff
-          fi
-          echo 'install'
-          npm install > /dev/null
-          echo 'status'
-          git status -s
-          CHANGES=$(git status -s)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            git diff
-            exit 1
-          fi
+      - name: npm-install
+        # Check out the lockfile from main, reinstall, and then
+        # verify the lockfile matches what was committed.
+        run: |
+            git fetch --no-tags --depth=1 origin main
+            git checkout origin/main -- package-lock.json
+            git restore --staged package-lock.json
+            npm install > /dev/null
+            CHANGES=$(git status -s)
+            if [[ ! -z $CHANGES ]]; then
+              echo "Changes found: $CHANGES"
+              git diff
+              exit 1
+            fi
 
 
   npm-build:
@@ -60,16 +41,19 @@ jobs:
     needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-          cache: 'npm'
 
-      - uses: actions/cache@v2
-        id: npm-build
+      - name: npm-cache
+        uses: actions/cache@v2
+        with:
+          path: .//node_modules
+          key: ${{ inputs.runneros }}-npm-cache-${{ hashFiles('./package-lock.json') }}
+
+      - name: build-cache
+        uses: actions/cache@v2
         with:
           path: ./*
           key: ${{ github.sha }}
+
       - name: build
         run: npm run build --workspaces
 
@@ -78,10 +62,10 @@ jobs:
     needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/cache@v2
         with:
-          node-version: '14'
-          cache: 'npm'
+          path: .//node_modules
+          key: ${{ inputs.runneros }}-npm-cache-${{ hashFiles('./package-lock.json') }}
 
       - name: prettier
         run: |
@@ -97,10 +81,11 @@ jobs:
     needs: [npm-install]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
+      - uses: actions/cache@v2
         with:
-          node-version: '14'
-          cache: 'npm'
+          path: .//node_modules
+          key: ${{ inputs.runneros }}-npm-cache-${{ hashFiles('./package-lock.json') }}
+
       - name: lint
         run: |
           npm --prefix ./solidity/abacus-core run lint
@@ -111,15 +96,11 @@ jobs:
     needs: [npm-build]
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-          cache: 'npm'
       - uses: actions/cache@v2
-        id: npm-build
         with:
           path: ./*
           key: ${{ github.sha }}
+
       - name: test
         run: npm --prefix ./typescript/abacus-deploy run test
 
@@ -132,15 +113,11 @@ jobs:
 
     steps:
       - uses: actions/checkout@v2
-      - uses: actions/setup-node@v2
-        with:
-          node-version: '14'
-          cache: 'npm'
       - uses: actions/cache@v2
-        id: npm-build
         with:
           path: ./*
           key: ${{ github.sha }}
+
       - name: core
         run: npm --prefix ./solidity/abacus-core run test
       - name: xapps
