@@ -1,4 +1,4 @@
-import { ethers, waffle } from 'hardhat';
+import { ethers, waffle, config } from 'hardhat';
 import { AbacusDeployment, types, utils } from '../test';
 
 function sleep(ms: number) {
@@ -46,6 +46,21 @@ const domainSummary = async (
 async function main() {
   const [signer] = await ethers.getSigners();
   const abacus = await AbacusDeployment.fromDomains(domains, signer);
+  abacus.domains.map((d) => {
+    const instance = abacus.instances[d];
+    console.log({
+      outbox: {
+        address: instance.outbox.address,
+        domain: instance.domain,
+        name: `Domain ${d}`,
+      },
+      inboxes: Object.keys(instance.inboxs).map((remote) => ({
+        address: instance.inboxs[parseInt(remote)].address,
+        domain: remote,
+      })),
+    });
+  });
+
   console.log('Abacus deployed');
   let provider = waffle.provider;
   while (true) {
