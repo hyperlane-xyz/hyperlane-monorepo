@@ -15,36 +15,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-
-      - name: npm install
-        uses: ./.github/workflows/npm
+      - uses: actions/cache@v2
         with:
-          runneros: ${{ runner.os }}
+          path: ~/.npm
+          key: ${{ runner.os }}-node-${{ hashFiles('**/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
 
-      # Check out the lockfile from main, reinstall, and then
-      # verify the lockfile matches what was committed.
-      - name: check lockfile
-        run: |
-          echo 'fetch'
-          git fetch --no-tags --depth=1 origin main
-          echo 'checkout'
-          git checkout origin/main -- package-lock.json
-          echo 'status'
-          git status -s
-          echo 'restore'
-          git restore --staged package-lock.json
-          echo 'status'
-          git status -s
-          echo 'install'
-          npm i > /dev/null
-          echo 'status'
-          git status -s
-          CHANGES=$(git status -s)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            git diff
-            exit 1
-          fi
+      - name: install
+        run: npm ci
 
   lint-ts:
     runs-on: ubuntu-latest
