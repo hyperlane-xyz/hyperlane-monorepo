@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
+        with:
+          ref: main
       - name: npm install
         uses: ./.github/workflows/npm
         with:
@@ -24,11 +26,12 @@ jobs:
       # verify the lockfile matches what was committed.
       - name: check lockfile
         run: |
+          git branch
           git checkout main -- package-lock.json
           git status -s
           git restore --staged package-lock.json
           git status -s
-          npm i
+          npm i > /dev/null
           git status -s
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
