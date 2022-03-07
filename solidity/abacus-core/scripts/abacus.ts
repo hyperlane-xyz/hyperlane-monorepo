@@ -1,5 +1,6 @@
-import { ethers, waffle, config } from 'hardhat';
-import { AbacusDeployment, types, utils } from '../test';
+import { utils, types } from '@abacus-network/utils';
+import { ethers, waffle } from 'hardhat';
+import { AbacusDeployment } from '../test';
 
 function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
