@@ -19,7 +19,7 @@ jobs:
         with:
           node-version: '14'
           cache: 'npm'
-      - run: npm ci
+      - run: npm install
 
   npm-build:
     runs-on: ubuntu-latest
