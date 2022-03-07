@@ -5,7 +5,6 @@ use tracing::instrument::Instrumented;
 
 use crate::{settings::CheckpointerSettings as Settings, submit::CheckpointSubmitter};
 use abacus_base::{AbacusAgentCore, Agent};
-use abacus_core::{db::AbacusDB, AbacusCommon};
 
 /// An checkpointer agent
 #[derive(Debug)]
@@ -52,9 +51,8 @@ impl Agent for Checkpointer {
 impl Checkpointer {
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox();
-        let db = AbacusDB::new(self.outbox().name(), self.db());
 
-        let submit = CheckpointSubmitter::new(outbox, db, self.interval_seconds);
+        let submit = CheckpointSubmitter::new(outbox, self.interval_seconds);
 
         self.run_all(vec![submit.spawn()])
     }

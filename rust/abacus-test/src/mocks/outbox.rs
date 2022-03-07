@@ -37,7 +37,7 @@ mock! {
 
         pub fn _root(&self) -> Result<H256, ChainCommunicationError> {}
 
-        pub fn _checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {}
+        pub fn _create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {}
 
         // Common
         pub fn _name(&self) -> &str {}
@@ -76,8 +76,8 @@ impl Outbox for MockOutboxContract {
         self._root()
     }
 
-    async fn checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
-        self._checkpoint()
+    async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+        self._create_checkpoint()
     }
 }
 

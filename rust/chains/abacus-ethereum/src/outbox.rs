@@ -253,7 +253,7 @@ where
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+    async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
         let tx = self.contract.checkpoint();
 
         Ok(report_tx!(tx).into())

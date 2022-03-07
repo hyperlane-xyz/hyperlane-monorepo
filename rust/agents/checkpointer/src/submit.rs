@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::CachingOutbox;
-use abacus_core::{db::AbacusDB, AbacusCommon, Outbox};
+use abacus_core::{AbacusCommon, Outbox};
 use std::time::Duration;
 
 use color_eyre::Result;
@@ -10,15 +10,13 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 pub(crate) struct CheckpointSubmitter {
     outbox: Arc<CachingOutbox>,
-    db: AbacusDB,
     interval_seconds: u64,
 }
 
 impl CheckpointSubmitter {
-    pub(crate) fn new(outbox: Arc<CachingOutbox>, db: AbacusDB, interval_seconds: u64) -> Self {
+    pub(crate) fn new(outbox: Arc<CachingOutbox>, interval_seconds: u64) -> Self {
         Self {
             outbox,
-            db,
             interval_seconds,
         }
     }
@@ -48,7 +46,7 @@ impl CheckpointSubmitter {
                 );
 
                 if current_checkpointed_root != current_root {
-                    self.outbox.checkpoint().await?;
+                    self.outbox.create_checkpoint().await?;
                 }
             }
         })
