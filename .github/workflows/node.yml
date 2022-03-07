@@ -27,7 +27,7 @@ jobs:
             git fetch --no-tags --depth=1 origin main
             git checkout origin/main -- package-lock.json
             git restore --staged package-lock.json
-            npm install > /dev/null
+            npm install &> /dev/null
             CHANGES=$(git status -s)
             if [[ ! -z $CHANGES ]]; then
               echo "Changes found: $CHANGES"
