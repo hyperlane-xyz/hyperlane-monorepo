@@ -310,7 +310,7 @@ where
                 match &last_leaf_index.valid_continuation(&sorted_messages) {
                     ListValidity::Valid => {
                         // Store messages
-                        let max_leaf_index_of_batch = db.store_messages_and_metas(&sorted_messages)?;
+                        let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
 
                         // Report amount of messages stored into db
                         stored_messages.add(sorted_messages.len().try_into()?);
@@ -366,8 +366,8 @@ mod test {
     use ethers::signers::LocalWallet;
 
     use abacus_core::{
-        AbacusMessage, CommittedMessageMeta, Encode, RawCommittedMessage,
-        RawCommittedMessageWithMeta, SignedUpdateWithMeta, Update, UpdateMeta,
+        AbacusMessage, Encode, RawCommittedMessage,
+        SignedUpdateWithMeta, Update, UpdateMeta,
     };
     use abacus_test::test_utils;
 
@@ -741,52 +741,37 @@ mod test {
             .write_to(&mut message_vec)
             .expect("!write_to");
 
-            let first_message = RawCommittedMessageWithMeta {
-                raw_committed_message: RawCommittedMessage {
-                    leaf_index: 0,
-                    committed_root: first_root,
-                    message: message_vec.clone(),
-                },
-                metadata: CommittedMessageMeta { timestamp: 100 },
+            let first_message = RawCommittedMessage {
+                leaf_index: 0,
+                committed_root: first_root,
+                message: message_vec.clone(),
             };
 
-            let second_message = RawCommittedMessageWithMeta {
-                raw_committed_message: RawCommittedMessage {
-                    leaf_index: 1,
-                    committed_root: second_root,
-                    message: message_vec.clone(),
-                },
-                metadata: CommittedMessageMeta { timestamp: 100 },
+            let second_message = RawCommittedMessage {
+                leaf_index: 1,
+                committed_root: second_root,
+                message: message_vec.clone(),
             };
             let second_message_clone = second_message.clone();
 
-            let third_message = RawCommittedMessageWithMeta {
-                raw_committed_message: RawCommittedMessage {
-                    leaf_index: 2,
-                    committed_root: second_root,
-                    message: message_vec.clone(),
-                },
-                metadata: CommittedMessageMeta { timestamp: 100 },
+            let third_message = RawCommittedMessage {
+                leaf_index: 2,
+                committed_root: second_root,
+                message: message_vec.clone(),
             };
 
-            let fourth_message = RawCommittedMessageWithMeta {
-                raw_committed_message: RawCommittedMessage {
-                    leaf_index: 3,
-                    committed_root: third_root,
-                    message: message_vec.clone(),
-                },
-                metadata: CommittedMessageMeta { timestamp: 100 },
+            let fourth_message = RawCommittedMessage {
+                leaf_index: 3,
+                committed_root: third_root,
+                message: message_vec.clone(),
             };
             let fourth_message_clone_1 = fourth_message.clone();
             let fourth_message_clone_2 = fourth_message.clone();
 
-            let fifth_message = RawCommittedMessageWithMeta {
-                raw_committed_message: RawCommittedMessage {
-                    leaf_index: 4,
-                    committed_root: fourth_root,
-                    message: message_vec.clone(),
-                },
-                metadata: CommittedMessageMeta { timestamp: 100 },
+            let fifth_message = RawCommittedMessage {
+                leaf_index: 4,
+                committed_root: fourth_root,
+                message: message_vec.clone(),
             };
             let fifth_message_clone_1 = fifth_message.clone();
             let fifth_message_clone_2 = fifth_message.clone();

@@ -3,13 +3,13 @@
 
 use abacus_core::*;
 use abacus_core::{
-    ChainCommunicationError, CommittedMessageMeta, Common, DoubleUpdate, Home, Message,
-    RawCommittedMessage, RawCommittedMessageWithMeta, SignedUpdate, State, TxOutcome, Update,
+    ChainCommunicationError, Common, DoubleUpdate, Home, Message,
+    RawCommittedMessage, SignedUpdate, State, TxOutcome, Update,
 };
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::contract::abigen;
-use ethers::core::types::{Signature, H256, U256, U64};
+use ethers::core::types::{Signature, H256};
 use std::{convert::TryFrom, error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
@@ -127,49 +127,25 @@ where
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<RawCommittedMessageWithMeta>> {
+    ) -> Result<Vec<RawCommittedMessage>> {
         let mut events = self
             .contract
             .dispatch_filter()
             .from_block(from)
             .to_block(to)
-            .query_with_meta()
+            .query()
             .await?;
 
-        events.sort_by(|a, b| a.0.leaf_index.cmp(&b.0.leaf_index));
+        events.sort_by(|a, b| a.leaf_index.cmp(&b.leaf_index));
 
-        let mut committed_messages =
-            Vec::<RawCommittedMessageWithMeta>::with_capacity(events.len());
-
-        // The timestamp of an event's block in isn't included in the metadata from ethers-rs,
-        // so we must get each block.
-        // Because `events` is sorted by leaf_index, we make use of the block numbers
-        // being monotonically increasing to only get block timestamps once even if
-        // there are multiple events in the same block.
-        let mut last_block_number = U64::zero();
-        let mut last_block_timestamp = U256::zero();
-        for (event, meta) in events {
-            if last_block_number != meta.block_number {
-                last_block_number = meta.block_number;
-                let block = self
-                    .provider
-                    .get_block(last_block_number)
-                    .await?
-                    .expect("!get_block");
-                last_block_timestamp = block.timestamp;
-            }
-            committed_messages.push(RawCommittedMessageWithMeta {
-                raw_committed_message: RawCommittedMessage {
-                    leaf_index: event.leaf_index.as_u32(),
-                    committed_root: event.committed_root.into(),
-                    message: event.message,
-                },
-                metadata: CommittedMessageMeta {
-                    timestamp: last_block_timestamp.as_u64(),
-                },
-            });
-        }
-        Ok(committed_messages)
+        Ok(events
+            .into_iter()
+            .map(|f| RawCommittedMessage {
+                leaf_index: f.leaf_index.as_u32(),
+                committed_root: f.committed_root.into(),
+                message: f.message,
+            })
+            .collect())
     }
 }
 

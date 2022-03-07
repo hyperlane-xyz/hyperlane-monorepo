@@ -1,4 +1,4 @@
-use abacus_core::{CommonIndexer, HomeIndexer, RawCommittedMessageWithMeta, SignedUpdateWithMeta};
+use abacus_core::{CommonIndexer, HomeIndexer, RawCommittedMessage, SignedUpdateWithMeta};
 use abacus_test::mocks::MockIndexer;
 use async_trait::async_trait;
 use color_eyre::Result;
@@ -81,7 +81,7 @@ impl HomeIndexer for HomeIndexers {
         &self,
         from: u32,
         to: u32,
-    ) -> Result<Vec<RawCommittedMessageWithMeta>> {
+    ) -> Result<Vec<RawCommittedMessage>> {
         match self {
             HomeIndexers::Ethereum(indexer) => indexer.fetch_sorted_messages(from, to).await,
             HomeIndexers::Mock(indexer) => indexer.fetch_sorted_messages(from, to).await,

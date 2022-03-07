@@ -102,48 +102,6 @@ impl TryFrom<RawCommittedMessage> for CommittedMessage {
     }
 }
 
-/// Metadata for a committed message
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct CommittedMessageMeta {
-    /// Timestamp of the block the committed message is in
-    pub timestamp: u64,
-}
-
-impl Encode for CommittedMessageMeta {
-    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
-    where
-        W: std::io::Write,
-    {
-        let mut written = 0;
-        written += self.timestamp.write_to(writer)?;
-        Ok(written)
-    }
-}
-
-impl Decode for CommittedMessageMeta {
-    fn read_from<R>(reader: &mut R) -> Result<Self, AbacusError>
-    where
-        R: std::io::Read,
-        Self: Sized,
-    {
-        let mut timestamp = [0u8; 8];
-        reader.read_exact(&mut timestamp)?;
-
-        Ok(Self {
-            timestamp: u64::from_be_bytes(timestamp),
-        })
-    }
-}
-
-/// A raw committed message with its corresponding metadata
-#[derive(Debug, Default, Clone, PartialEq)]
-pub struct RawCommittedMessageWithMeta {
-    /// Raw committed message
-    pub raw_committed_message: RawCommittedMessage,
-    /// Metadata
-    pub metadata: CommittedMessageMeta,
-}
-
 /// Interface for the Home chain contract. Allows abstraction over different
 /// chains
 #[async_trait]

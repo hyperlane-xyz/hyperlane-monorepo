@@ -10,7 +10,7 @@
 use async_trait::async_trait;
 use color_eyre::Result;
 
-use crate::{RawCommittedMessageWithMeta, SignedUpdateWithMeta};
+use crate::{RawCommittedMessage, SignedUpdateWithMeta};
 
 /// Interface for Common contract indexer. Interface that allows for other
 /// entities to retrieve chain-specific data from a home or replica.
@@ -32,5 +32,5 @@ pub trait HomeIndexer: CommonIndexer + Send + Sync + std::fmt::Debug {
         &self,
         _from: u32,
         _to: u32,
-    ) -> Result<Vec<RawCommittedMessageWithMeta>>;
+    ) -> Result<Vec<RawCommittedMessage>>;
 }
