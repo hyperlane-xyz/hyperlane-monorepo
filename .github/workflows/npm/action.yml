@@ -27,3 +27,13 @@ runs:
       shell: bash
       if: steps.parent-cache.outputs.cache-hit != 'true'
       run: npm i
+
+    # Fail if package-lock.json needs updating 
+    - name: Check lockfile
+      run: |
+        npm i
+        CHANGES=$(git status -s)
+        if [[ ! -z $CHANGES ]]; then
+          echo "Changes found: $CHANGES"
+          exit 1
+        fi
