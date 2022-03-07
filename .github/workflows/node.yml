@@ -17,6 +17,7 @@ jobs:
       - uses: actions/checkout@v2
         with:
           ref: main
+
       - name: npm install
         uses: ./.github/workflows/npm
         with:
@@ -26,8 +27,9 @@ jobs:
       # verify the lockfile matches what was committed.
       - name: check lockfile
         run: |
-          git branch
+          echo 'checkout'
           git checkout main -- package-lock.json
+          echo 'checkedout'
           git status -s
           git restore --staged package-lock.json
           git status -s
