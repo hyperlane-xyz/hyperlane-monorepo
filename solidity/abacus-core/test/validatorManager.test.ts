@@ -1,9 +1,9 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { types, utils } from '@abacus-network/utils';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
-import { AbacusState, Validator } from './lib/core';
-import { addressToBytes32 } from './lib/utils';
-import { Signer } from './lib/types';
+import { Validator } from './lib/core';
 
 import {
   Outbox__factory,
@@ -16,8 +16,8 @@ const outboxDomainHashCases = require('../../../vectors/outboxDomainHash.json');
 const localDomain = 1000;
 
 describe('ValidatorManager', async () => {
-  let signer: Signer,
-    fakeSigner: Signer,
+  let signer: SignerWithAddress,
+    fakeSigner: SignerWithAddress,
     validatorManager: ValidatorManager,
     validator: Validator,
     fakeValidator: Validator;
@@ -105,7 +105,7 @@ describe('ValidatorManager', async () => {
           index,
           signature,
         );
-      expect(await outbox.state()).to.equal(AbacusState.FAILED);
+      expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
     });
 
     it('Rejects improper checkpoint from non-validator', async () => {
@@ -128,7 +128,7 @@ describe('ValidatorManager', async () => {
       const message = `0x${Buffer.alloc(10).toString('hex')}`;
       await outbox.dispatch(
         localDomain,
-        addressToBytes32(signer.address),
+        utils.addressToBytes32(signer.address),
         message,
       );
       await outbox.checkpoint();

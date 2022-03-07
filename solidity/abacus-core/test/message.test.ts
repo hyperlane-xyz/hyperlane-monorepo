@@ -1,7 +1,6 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { formatMessage, messageHash as msgHash } from './lib/core';
-import { addressToBytes32 } from './lib/utils';
+import { utils } from '@abacus-network/utils';
 import { TestMessage, TestMessage__factory } from '../typechain';
 
 const testCases = require('../../../vectors/message.json');
@@ -24,7 +23,7 @@ describe('Message', async () => {
     const nonce = 1;
     const body = ethers.utils.formatBytes32String('message');
 
-    const message = formatMessage(
+    const message = utils.formatMessage(
       remoteDomain,
       sender.address,
       nonce,
@@ -35,12 +34,12 @@ describe('Message', async () => {
 
     expect(await messageLib.origin(message)).to.equal(remoteDomain);
     expect(await messageLib.sender(message)).to.equal(
-      addressToBytes32(sender.address),
+      utils.addressToBytes32(sender.address),
     );
     expect(await messageLib.nonce(message)).to.equal(nonce);
     expect(await messageLib.destination(message)).to.equal(localDomain);
     expect(await messageLib.recipient(message)).to.equal(
-      addressToBytes32(recipient.address),
+      utils.addressToBytes32(recipient.address),
     );
     expect(await messageLib.recipientAddress(message)).to.equal(
       recipient.address,
@@ -56,7 +55,7 @@ describe('Message', async () => {
     const recipient = '0x2222222222222222222222222222222222222222';
     const body = '0x1234';
 
-    const abacusMessage = formatMessage(
+    const abacusMessage = utils.formatMessage(
       origin,
       sender,
       nonce,
@@ -86,6 +85,6 @@ describe('Message', async () => {
       ethers.utils.hexlify(testBody),
     );
     expect(await messageLib.leaf(abacusMessage)).to.equal(messageHash);
-    expect(msgHash(abacusMessage)).to.equal(messageHash);
+    expect(utils.messageHash(abacusMessage)).to.equal(messageHash);
   });
 });
