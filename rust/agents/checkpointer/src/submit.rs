@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::CachingOutbox;
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Common};
+use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage};
 use std::time::Duration;
 
 use color_eyre::Result;

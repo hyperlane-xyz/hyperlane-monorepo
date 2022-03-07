@@ -1,12 +1,11 @@
 use async_trait::async_trait;
 use color_eyre::Result;
-use futures_util::future::select_all;
 use tokio::task::JoinHandle;
-use tracing::{instrument::Instrumented, Instrument};
+use tracing::instrument::Instrumented;
 
 use crate::{settings::CheckpointerSettings as Settings, submit::CheckpointSubmitter};
-use abacus_base::{AbacusAgent, AbacusAgentCore, Agent};
-use abacus_core::{db::AbacusDB, AbacusCommon, Common};
+use abacus_base::{AbacusAgentCore, Agent};
+use abacus_core::AbacusCommon;
 
 /// An checkpointer agent
 #[derive(Debug)]
