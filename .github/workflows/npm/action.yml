@@ -19,8 +19,10 @@ runs:
       id: parent-cache
       uses: actions/cache@v2
       with:
-        path: .//node_modules
-        key: ${{ inputs.runneros }}-core-cache-${{ hashFiles('./package-lock.json') }}
+        path: ~/.npm
+        key: ${{ inputs.runneros }}-node-${{ hashFiles('**/package-lock.json') }}
+        restore-keys: |
+          ${{ runner.os }}-node-
 
     # Install separately depending on cache hit
     - name: Install Parent
