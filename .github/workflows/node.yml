@@ -30,16 +30,30 @@ jobs:
           git checkout origin/main -- package-lock.json
           echo 'status'
           git status -s
+          CHANGES=$(git status -s)
+          if [[ ! -z $CHANGES ]]; then
+            echo "Changes found: $CHANGES"
+            git diff
+          fi
           echo 'restore'
           git restore --staged package-lock.json
           echo 'status'
-          git status -s
+          CHANGES=$(git status -s)
+          if [[ ! -z $CHANGES ]]; then
+            echo "Changes found: $CHANGES"
+            git diff
+          fi
           echo 'install'
           npm install > /dev/null
           echo 'status'
           git status -s
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
+            echo "Changes found: $CHANGES"
+            git diff
+            exit 1
+          fi
+
 
   npm-build:
     runs-on: ubuntu-latest
