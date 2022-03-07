@@ -1,5 +1,6 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import {
   TestOutbox__factory,
@@ -9,7 +10,6 @@ import {
   TestInbox,
 } from '../typechain';
 import { Validator } from './lib/core';
-import { Signer } from './lib/types';
 
 const signedFailureTestCases = require('../../../vectors/signedFailure.json');
 
@@ -22,7 +22,7 @@ const reserveGas = 15000;
 describe('XAppConnectionManager', async () => {
   let connectionManager: XAppConnectionManager,
     enrolledInbox: TestInbox,
-    signer: Signer,
+    signer: SignerWithAddress,
     validator: Validator;
 
   before(async () => {

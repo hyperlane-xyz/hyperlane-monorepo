@@ -1,8 +1,8 @@
 import { ethers } from 'hardhat';
 import { BytesLike } from 'ethers';
 import { expect } from 'chai';
+import { utils } from '@abacus-network/utils';
 
-import { utils } from '@abacus-network/abacus-sol/test';
 import {
   BridgeMessageTypes,
   TokenIdentifier,
@@ -45,7 +45,7 @@ describe('BridgeMessage', async () => {
   before(async () => {
     const [deployer] = await ethers.getSigners();
     deployerAddress = await deployer.getAddress();
-    const deployerId = utils.toBytes32(deployerAddress).toLowerCase();
+    const deployerId = utils.addressToBytes32(deployerAddress);
     const TOKEN_VALUE = 0xffff;
 
     // tokenId

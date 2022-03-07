@@ -5,6 +5,7 @@
     "prettier": "npm run prettier --workspaces"
   },
   "workspaces": [
+    "typescript/utils",
     "solidity/abacus-core",
     "solidity/abacus-xapps",
     "typescript/typechain",

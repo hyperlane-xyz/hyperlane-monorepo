@@ -1,7 +1,6 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-
-import { Address, Signer } from './lib/types';
 
 import { TestCommon__factory, TestCommon } from '../typechain';
 
@@ -9,7 +8,7 @@ const localDomain = 1000;
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
 describe('Common', async () => {
-  let owner: Signer, nonowner: Signer, common: TestCommon;
+  let owner: SignerWithAddress, nonowner: SignerWithAddress, common: TestCommon;
 
   before(async () => {
     [owner, nonowner] = await ethers.getSigners();
