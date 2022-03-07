@@ -1,19 +1,18 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { assert } from 'chai';
-import * as ethers from 'ethers';
-
-import { AbacusDeployment } from './AbacusDeployment';
-import { toBytes32 } from './utils';
-import * as types from './types';
+import { ethers } from 'ethers';
+import {
+  utils,
+  types,
+  AbacusDeployment,
+} from '@abacus-network/abacus-sol/test';
 
 import {
-  TestGovernanceRouter__factory,
-  TestGovernanceRouter,
-} from '../../typechain';
+  GovernanceRouter__factory,
+  GovernanceRouter,
+} from '../../../typechain';
 
 export interface GovernanceInstance {
   domain: types.Domain;
-  router: TestGovernanceRouter;
+  router: GovernanceRouter;
 }
 
 const recoveryTimelock = 60 * 60 * 24 * 7;
@@ -26,14 +25,16 @@ export class GovernanceDeployment {
 
   static async fromAbacusDeployment(
     abacus: AbacusDeployment,
-    signer: ethers.Signer,
+    governor: types.Signer,
+    recoveryManager: types.Signer,
   ) {
     // Deploy routers.
     const instances: Record<number, GovernanceInstance> = {};
     for (const domain of abacus.domains) {
       const instance = await GovernanceDeployment.deployInstance(
         domain,
-        signer,
+        governor,
+        recoveryManager,
         abacus.connectionManager(domain).address,
       );
       instances[domain] = instance;
@@ -42,21 +43,17 @@ export class GovernanceDeployment {
     // Make all routers aware of eachother.
     for (const local of abacus.domains) {
       for (const remote of abacus.domains) {
-        await instances[local].router.setRouterLocal(
+        await instances[local].router.enrollRemoteRouter(
           remote,
-          toBytes32(instances[remote].router.address),
+          utils.toBytes32(instances[remote].router.address),
         );
       }
     }
 
-    // Set the governor on all routers.
+    // Set the governor on one router, clear it on all other routers.
     for (let i = 0; i < abacus.domains.length; i++) {
-      if (i > 0) {
-        await instances[abacus.domains[i]].router.transferGovernor(
-          abacus.domains[0],
-          instances[abacus.domains[0]].router.address,
-        );
-      }
+      const addr = i === 0 ? governor.address : ethers.constants.AddressZero;
+      await instances[abacus.domains[i]].router.setGovernor(addr);
     }
 
     return new GovernanceDeployment(abacus.domains, instances);
@@ -64,22 +61,21 @@ export class GovernanceDeployment {
 
   static async deployInstance(
     domain: types.Domain,
-    signer: ethers.Signer,
+    governor: types.Signer,
+    recoveryManager: types.Signer,
     connectionManagerAddress: types.Address,
   ): Promise<GovernanceInstance> {
-    const routerFactory = new TestGovernanceRouter__factory(signer);
-    const router = await routerFactory.deploy(domain, recoveryTimelock);
-    await router.initialize(
-      connectionManagerAddress,
-      await signer.getAddress(),
-    );
+    const routerFactory = new GovernanceRouter__factory(governor);
+    const router = await routerFactory.deploy(recoveryTimelock);
+    await router.initialize(connectionManagerAddress);
+    await router.transferOwnership(recoveryManager.address);
     return {
       domain,
       router,
     };
   }
 
-  router(domain: types.Domain): TestGovernanceRouter {
+  router(domain: types.Domain): GovernanceRouter {
     return this.instances[domain].router;
   }
 }

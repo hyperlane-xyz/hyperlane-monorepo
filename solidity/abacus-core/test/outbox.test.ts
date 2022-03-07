@@ -1,7 +1,14 @@
-import { ethers, abacus } from 'hardhat';
+import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { AbacusState, Validator } from './lib/core';
 import { Signer } from './lib/types';
+import {
+  AbacusState,
+  Validator,
+  formatMessage,
+  messageHash,
+  destinationAndNonce,
+} from './lib/core';
+import { addressToBytes32 } from './lib/utils';
 
 import { TestOutbox, TestOutbox__factory } from '../typechain';
 
@@ -9,7 +16,6 @@ const destinationNonceTestCases = require('../../../vectors/destinationNonce.jso
 
 const localDomain = 1000;
 const destDomain = 2000;
-const nullAddress: string = '0x' + '00'.repeat(32);
 
 describe('Outbox', async () => {
   let outbox: TestOutbox, signer: Signer, recipient: Signer;
@@ -40,11 +46,7 @@ describe('Outbox', async () => {
 
     const message = ethers.utils.formatBytes32String('message');
     await expect(
-      outbox.dispatch(
-        destDomain,
-        abacus.ethersAddressToBytes32(recipient.address),
-        message,
-      ),
+      outbox.dispatch(destDomain, addressToBytes32(recipient.address), message),
     ).to.be.revertedWith('failed state');
   });
 
@@ -57,11 +59,7 @@ describe('Outbox', async () => {
   it('Does not dispatch too large messages', async () => {
     const message = `0x${Buffer.alloc(3000).toString('hex')}`;
     await expect(
-      outbox.dispatch(
-        destDomain,
-        abacus.ethersAddressToBytes32(recipient.address),
-        message,
-      ),
+      outbox.dispatch(destDomain, addressToBytes32(recipient.address), message),
     ).to.be.revertedWith('msg too long');
   });
 
@@ -70,9 +68,9 @@ describe('Outbox', async () => {
     const nonce = await outbox.nonces(localDomain);
 
     // Format data that will be emitted from Dispatch event
-    const destinationAndNonce = abacus.destinationAndNonce(destDomain, nonce);
+    const destAndNonce = destinationAndNonce(destDomain, nonce);
 
-    const abacusMessage = abacus.formatMessage(
+    const abacusMessage = formatMessage(
       localDomain,
       signer.address,
       nonce,
@@ -80,7 +78,7 @@ describe('Outbox', async () => {
       recipient.address,
       message,
     );
-    const messageHash = abacus.messageHash(abacusMessage);
+    const hash = messageHash(abacusMessage);
     const leafIndex = await outbox.tree();
     const [checkpointedRoot] = await outbox.latestCheckpoint();
 
@@ -88,32 +86,22 @@ describe('Outbox', async () => {
     await expect(
       outbox
         .connect(signer)
-        .dispatch(
-          destDomain,
-          abacus.ethersAddressToBytes32(recipient.address),
-          message,
-        ),
+        .dispatch(destDomain, addressToBytes32(recipient.address), message),
     )
       .to.emit(outbox, 'Dispatch')
-      .withArgs(
-        messageHash,
-        leafIndex,
-        destinationAndNonce,
-        checkpointedRoot,
-        abacusMessage,
-      );
+      .withArgs(hash, leafIndex, destAndNonce, checkpointedRoot, abacusMessage);
   });
 
   it('Checkpoints the latest root', async () => {
     const message = ethers.utils.formatBytes32String('message');
     await outbox.dispatch(
       destDomain,
-      abacus.ethersAddressToBytes32(recipient.address),
+      addressToBytes32(recipient.address),
       message,
     );
     await outbox.checkpoint();
     const [root, index] = await outbox.latestCheckpoint();
-    expect(root).to.not.equal(nullAddress);
+    expect(root).to.not.equal(ethers.constants.HashZero);
     expect(index).to.equal(1);
   });
 

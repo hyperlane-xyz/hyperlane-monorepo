@@ -12,6 +12,14 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
     XAppConnectionManager public xAppConnectionManager;
     uint256[49] private __GAP; // gap for upgrade safety
 
+    // ============ Events ============
+
+    /**
+     * @notice Emitted when a new xAppConnectionManager is set.
+     * @param xAppConnectionManager The address of the xAppConnectionManager contract
+     */
+    event SetXAppConnectionManager(address indexed xAppConnectionManager);
+
     // ============ Modifiers ============
 
     /**
@@ -40,12 +48,24 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
      */
     function setXAppConnectionManager(address _xAppConnectionManager)
         external
+        virtual
         onlyOwner
     {
-        xAppConnectionManager = XAppConnectionManager(_xAppConnectionManager);
+        _setXAppConnectionManager(_xAppConnectionManager);
     }
 
     // ============ Internal functions ============
+
+    /**
+     * @notice Modify the contract the xApp uses to validate Inbox contracts
+     * @param _xAppConnectionManager The address of the xAppConnectionManager contract
+     */
+    function _setXAppConnectionManager(address _xAppConnectionManager)
+        internal
+    {
+        xAppConnectionManager = XAppConnectionManager(_xAppConnectionManager);
+        emit SetXAppConnectionManager(_xAppConnectionManager);
+    }
 
     /**
      * @notice Get the local Outbox contract from the xAppConnectionManager
