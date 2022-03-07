@@ -59,7 +59,7 @@ impl Default for Connection {
 }
 
 #[cfg(not(doctest))]
-pub use crate::{home::*, replica::*, xapp::*};
+pub use crate::{home::*, inbox::*, outbox::*, replica::*, xapp::*};
 
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
@@ -89,6 +89,23 @@ boxed_trait!(
     EthereumConnectionManager,
     ConnectionManager,
 );
+
+boxed_trait!(
+    make_outbox_indexer,
+    EthereumOutboxIndexer,
+    OutboxIndexer,
+    from_height: u32,
+    chunk_size: u32
+);
+boxed_trait!(
+    make_inbox_indexer,
+    EthereumInboxIndexer,
+    AbacusCommonIndexer,
+    from_height: u32,
+    chunk_size: u32
+);
+boxed_trait!(make_outbox, EthereumOutbox, Outbox,);
+boxed_trait!(make_inbox, EthereumInbox, Inbox,);
 
 #[async_trait::async_trait]
 impl abacus_core::Chain for Chain {
