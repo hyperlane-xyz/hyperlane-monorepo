@@ -1,3 +1,4 @@
+use crate::traits::common::MessageStatus;
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::core::types::H256;
@@ -7,17 +8,6 @@ use crate::{
     traits::{ChainCommunicationError, Common, TxOutcome},
     AbacusMessage,
 };
-
-/// The status of a message in the replica
-#[repr(u8)]
-pub enum MessageStatus {
-    /// Message is unknown
-    None = 0,
-    /// Message has been proven but not processed
-    Proven = 1,
-    /// Message has been processed
-    Processed = 2,
-}
 
 /// Interface for on-chain replicas
 #[async_trait]

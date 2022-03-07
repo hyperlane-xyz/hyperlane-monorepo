@@ -1,18 +1,15 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { utils } from '@abacus-network/utils';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
-import {
-  types,
-  utils,
-  core,
-  AbacusDeployment,
-} from '@abacus-network/abacus-sol/test';
+import { core, AbacusDeployment } from '@abacus-network/abacus-sol/test';
+import { GovernanceDeployment } from './lib/GovernanceDeployment';
 import {
   formatSetGovernor,
   formatCall,
   increaseTimestampBy,
 } from './lib/utils';
-import { GovernanceDeployment } from './lib/GovernanceDeployment';
 import {
   TestSet,
   TestSet__factory,
@@ -28,8 +25,8 @@ const domains = [localDomain, remoteDomain];
 const ONLY_OWNER_REVERT_MESSAGE = 'Ownable: caller is not the owner';
 
 describe('GovernanceRouter', async () => {
-  let governor: types.Signer,
-    recoveryManager: types.Signer,
+  let governor: SignerWithAddress,
+    recoveryManager: SignerWithAddress,
     router: GovernanceRouter,
     remote: GovernanceRouter,
     testSet: TestSet,
@@ -64,7 +61,7 @@ describe('GovernanceRouter', async () => {
     expect(await router.governor()).to.not.equal(ethers.constants.AddressZero);
     const message = formatSetGovernor(ethers.constants.AddressZero);
     // Create a fake abacus message coming from the remote governance router.
-    const fakeMessage = core.formatMessage(
+    const fakeMessage = utils.formatMessage(
       remoteDomain,
       remote.address,
       0, // nonce is ignored
@@ -94,7 +91,7 @@ describe('GovernanceRouter', async () => {
   it('rejects message from unenrolled router', async () => {
     const message = formatSetGovernor(ethers.constants.AddressZero);
     // Create a fake abacus message coming from the remote governance router.
-    const fakeMessage = core.formatMessage(
+    const fakeMessage = utils.formatMessage(
       remoteDomain,
       ethers.constants.AddressZero,
       0, // nonce is ignored
