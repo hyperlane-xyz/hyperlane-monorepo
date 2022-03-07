@@ -1,4 +1,4 @@
-name: Rust
+name: rust
 
 on:
   pull_request:
@@ -10,18 +10,18 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  rust-build:
+  build-rs:
     runs-on: ubuntu-latest
     steps:
       - run: 'echo "No build required" '
 
-  rust-test:
+  test-rs:
     runs-on: ubuntu-latest
 
     steps:
       - run: 'echo "No test required" '
 
-  rust-lint:
+  lint-rs:
     runs-on: ubuntu-latest
 
     steps:
