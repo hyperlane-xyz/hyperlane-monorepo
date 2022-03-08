@@ -2,12 +2,10 @@
   "name": "@abacus-network/abacus-xapps-sol",
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.1",
-    "@nomiclabs/hardhat-etherscan": "^2.1.2",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typechain/ethers-v5": "~7.0.0",
     "@typechain/hardhat": "^2.0.1",
     "chai": "^4.3.0",
-    "dotenv": "^10.0.0",
     "eslint": "^7.20.0",
     "ethereum-waffle": "^3.2.2",
     "ethers": "^5.4.4",
@@ -30,24 +28,17 @@
   },
   "scripts": {
     "prettier": "prettier --write ./contracts ./test",
-    "compile": "hardhat compile && hardhat typechain && npm run prettier && npm run copy-typechain",
+    "build": "hardhat compile && hardhat typechain && npm run prettier && npm run copy-typechain",
     "copy-typechain": "mkdir -p ../../typescript/typechain/abacus-xapps/ && cp -r typechain/* ../../typescript/typechain/abacus-xapps/",
-    "build": "npm run compile",
-    "coverage": "npm run compile && hardhat coverage",
-    "test": "hardhat test",
-    "lint": "solhint contracts/*.sol",
-    "lint:fix": "solhint --fix contracts/*.sol",
-    "deploy": "npm run compile && cd ../../typescript/abacus-deploy && npm run deploy-bridge",
-    "verify:kovan": "hardhat clean && hardhat --network kovan verify-latest-deploy",
-    "verify:mainnet": "hardhat clean && hardhat --network mainnet verify-latest-deploy",
-    "verify:rinkeby": "hardhat clean && hardhat --network rinkeby verify-latest-deploy",
-    "verify:arbitrum_rinkeby": "hardhat clean && hardhat --network arbitrum_rinkeby verify-latest-deploy",
-    "deploy-verify": "npm run deploy && npm run verify"
+    "coverage": "hardhat coverage",
+    "test": "hardhat test"
   },
   "author": "James Prestwich",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@abacus-network/abacus-sol": "file:../abacus-core",
+    "@abacus-network/hardhat": "^0.0.5",
+    "@abacus-network/utils": "^0.0.5",
     "@openzeppelin/contracts": "~3.4.2",
     "@openzeppelin/contracts-upgradeable": "~3.4.2",
     "@summa-tx/memview-sol": "^2.0.0"
