@@ -27,20 +27,10 @@
   },
   "scripts": {
     "prettier": "prettier --write ./contracts ./libs ./test",
-    "force-compile": "hardhat compile --force && hardhat typechain",
-    "compile": "hardhat compile && hardhat typechain && npm run prettier && npm run copy-typechain",
+    "build": "hardhat compile && hardhat typechain && npm run prettier && npm run copy-typechain",
     "copy-typechain": "mkdir -p ../../typescript/typechain/abacus-core/ && cp -r typechain/* ../../typescript/typechain/abacus-core/",
-    "build": "npm run compile",
     "test": "hardhat test",
-    "coverage": "npm run compile && hardhat coverage",
-    "lint": "solhint 'contracts/*.sol' && solhint 'contracts/**/*.sol'",
-    "lint:fix": "solhint --fix 'contracts/*.sol' && solhint --fix 'contracts/**/*.sol'",
-    "deploy": "npm run compile && cd ../../typescript/abacus-deploy && npm run deploy-core",
-    "verify:kovan": "hardhat clean && hardhat --network kovan verify-latest-deploy",
-    "verify:mainnet": "hardhat clean && hardhat --network mainnet verify-latest-deploy",
-    "verify:rinkeby": "hardhat clean && hardhat --network rinkeby verify-latest-deploy",
-    "verify:polygon": "hardhat clean && hardhat --network polygon verify-latest-deploy",
-    "deploy-verify": "npm run deploy && npm run verify"
+    "coverage": "hardhat coverage"
   },
   "author": "James Prestwich",
   "license": "MIT OR Apache-2.0",
