@@ -1,4 +1,4 @@
-import { ethers } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { BytesLike } from 'ethers';
 import { expect } from 'chai';
 import { utils } from '@abacus-network/utils';
@@ -6,16 +6,14 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import * as types from './lib/types';
 import { serializeMessage } from './lib/utils';
-import { BridgeDeployment } from './lib/BridgeDeployment';
-import { AbacusDeployment } from '@abacus-network/abacus-sol/test';
+import { BridgeConfig, BridgeDeploy } from './lib/BridgeDeploy';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
 const domains = [localDomain, remoteDomain];
 
 describe('EthHelper', async () => {
-  let abacus: AbacusDeployment;
-  let bridge: BridgeDeployment;
+  let bridge: BridgeDeploy;
 
   let deployer: SignerWithAddress;
   let deployerId: string;
@@ -32,8 +30,9 @@ describe('EthHelper', async () => {
     [deployer, recipient] = await ethers.getSigners();
     deployerId = utils.addressToBytes32(deployer.address);
     recipientId = utils.addressToBytes32(recipient.address);
-    abacus = await AbacusDeployment.fromDomains(domains, deployer);
-    bridge = await BridgeDeployment.fromAbacusDeployment(abacus, deployer);
+    await abacus.deploy(domains, deployer);
+    bridge = new BridgeDeploy(deployer);
+    await bridge.deploy(abacus);
 
     const tokenId: types.TokenIdentifier = {
       domain: localDomain,

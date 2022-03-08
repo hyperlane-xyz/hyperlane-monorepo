@@ -1,13 +1,12 @@
 import { expect } from 'chai';
-import { ethers } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { BigNumber, BytesLike } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
-import { AbacusDeployment } from '@abacus-network/abacus-sol/test';
-import * as types from './lib/types';
 import { utils } from '@abacus-network/utils';
+import * as types from './lib/types';
 import { serializeMessage } from './lib/utils';
-import { BridgeDeployment } from './lib/BridgeDeployment';
+import { BridgeConfig, BridgeDeploy } from './lib/BridgeDeploy';
 import { BridgeToken, BridgeToken__factory, IERC20 } from '../../typechain';
 
 const localDomain = 1000;
@@ -20,8 +19,7 @@ const testTokenId = {
 };
 
 describe('BridgeRouter', async () => {
-  let abacus: AbacusDeployment;
-  let bridge: BridgeDeployment;
+  let bridge: BridgeDeploy;
   let deployer: SignerWithAddress;
   let deployerId: BytesLike;
 
@@ -34,16 +32,17 @@ describe('BridgeRouter', async () => {
     // populate deployer signer
     [deployer] = await ethers.getSigners();
     deployerId = utils.addressToBytes32(deployer.address);
-    abacus = await AbacusDeployment.fromDomains(domains, deployer);
+    await abacus.deploy(domains, deployer);
     // Enroll ourselves as a inbox so we can send messages directly to the
     // local router.
     await abacus
-      .connectionManager(localDomain)
+      .xAppConnectionManager(localDomain)
       .enrollInbox(remoteDomain, deployer.address);
   });
 
   beforeEach(async () => {
-    bridge = await BridgeDeployment.fromAbacusDeployment(abacus, deployer);
+    bridge = new BridgeDeploy(deployer);
+    await bridge.deploy(abacus);
     // Enroll ourselves as a router so we can send messages directly to the
     // local router.
     await bridge
