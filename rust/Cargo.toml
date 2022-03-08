@@ -9,6 +9,7 @@ members = [
     "chains/abacus-ethereum",
     "agents/kathy",
     "agents/checkpointer",
+    "agents/validator",
     "agents/updater",
     "agents/relayer",
     "agents/watcher",
