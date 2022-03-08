@@ -1,15 +1,14 @@
-import { ethers } from 'hardhat';
+import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
 import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
-import { core, AbacusDeployment } from '@abacus-network/abacus-sol/test';
-import { GovernanceDeployment } from './lib/GovernanceDeployment';
 import {
   formatSetGovernor,
   formatCall,
   increaseTimestampBy,
 } from './lib/utils';
+import { GovernanceConfig, GovernanceDeploy } from './lib/GovernanceDeploy';
 import {
   TestSet,
   TestSet__factory,
@@ -30,23 +29,28 @@ describe('GovernanceRouter', async () => {
     router: GovernanceRouter,
     remote: GovernanceRouter,
     testSet: TestSet,
-    abacus: AbacusDeployment,
-    governance: GovernanceDeployment;
+    governance: GovernanceDeploy;
 
   before(async () => {
     [governor, recoveryManager] = await ethers.getSigners();
 
     const testSetFactory = new TestSet__factory(governor);
     testSet = await testSetFactory.deploy();
-    abacus = await AbacusDeployment.fromDomains(domains, governor);
+    await abacus.deploy(domains, governor);
   });
 
   beforeEach(async () => {
-    governance = await GovernanceDeployment.fromAbacusDeployment(
-      abacus,
-      governor,
-      recoveryManager,
-    );
+    const config: GovernanceConfig = {
+      signer: governor,
+      timelock: recoveryTimelock,
+      recoveryManager: recoveryManager.address,
+      governor: {
+        domain: localDomain,
+        address: governor.address,
+      },
+    };
+    governance = new GovernanceDeploy(config);
+    await governance.deploy(abacus);
     router = governance.router(localDomain);
     remote = governance.router(remoteDomain);
   });
@@ -134,7 +138,7 @@ describe('GovernanceRouter', async () => {
 
     it('governor can set local xAppConnectionManager', async () => {
       expect(await router.xAppConnectionManager()).to.equal(
-        abacus.connectionManager(localDomain).address,
+        abacus.xAppConnectionManager(localDomain).address,
       );
       await router.setXAppConnectionManager(ethers.constants.AddressZero);
       expect(await router.xAppConnectionManager()).to.equal(
@@ -333,7 +337,7 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager can set local xAppConnectionManager', async () => {
       expect(await router.xAppConnectionManager()).to.equal(
-        abacus.connectionManager(localDomain).address,
+        abacus.xAppConnectionManager(localDomain).address,
       );
       await router.setXAppConnectionManager(ethers.constants.AddressZero);
       expect(await router.xAppConnectionManager()).to.equal(
