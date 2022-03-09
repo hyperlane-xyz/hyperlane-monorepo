@@ -38,7 +38,6 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
     return this.instances[domain].xAppConnectionManager;
   }
 
-  // TODO(asa): Dedupe
   static readContracts(
     chains: Record<types.Domain, ChainConfig>,
     directory: string,
@@ -82,8 +81,9 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
         signers: {
           [this.name(domain)]: { key: '', type: 'hexKey' },
         },
-        inboxes: {},
-        outbox,
+        // Agents have not yet been moved to use the Outbox/Inbox names.
+        replicas: {},
+        home: outbox,
         tracing: {
           level: 'debug',
           fmt: 'json',
@@ -104,7 +104,7 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
         };
 
         rustConfig.signers[this.name(remote)] = { key: '', type: 'hexKey' };
-        rustConfig.inboxes[this.name(remote)] = inbox;
+        rustConfig.replicas[this.name(remote)] = inbox;
       }
       this.writeJson(filepath, rustConfig);
     }

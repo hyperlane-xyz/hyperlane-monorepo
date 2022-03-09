@@ -21,7 +21,6 @@ export class BridgeContracts extends CommonContracts<BridgeContractAddresses> {
     };
   }
 
-  // TODO(asa): Can this be added to Contracts instead?
   static readJson(
     filepath: string,
     provider: ethers.providers.JsonRpcProvider,
