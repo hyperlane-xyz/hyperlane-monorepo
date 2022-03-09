@@ -183,7 +183,7 @@ export function getCoreContracts(
   const f = (chain: ChainConfig): CoreContracts => {
     return CoreContracts.readJson(
       path.join(directory, `${chain.name}.json`),
-      chain.signer.provider! as ethers.providers.JsonRpcProvider,
+      chain.signer,
     );
   };
   return recordFromArray(chains, f);

@@ -5,6 +5,10 @@ import path from 'path';
 import * as asn1 from 'asn1.js';
 import { ethers } from 'ethers';
 
+export function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 /**
  * Map an async function over a list xs with a given concurrency level
  *
