@@ -1,9 +1,9 @@
-import { AgentConfig } from '../../../src/config/agent';
+import { AgentConfig, DeployEnvironment } from '../../../src/config';
 
 // NB: environment and namespace are 'staging-community' for legacy
 // reasons, it's annoying to change GCP to match a new naming convention.
 export const agentConfig: AgentConfig = {
-  environment: 'staging-community',
+  environment: DeployEnvironment.stagingCommunity,
   namespace: 'optics-staging-community',
   runEnv: 'testnet',
   aws: {

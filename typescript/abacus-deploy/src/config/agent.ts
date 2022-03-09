@@ -1,3 +1,7 @@
+import { types } from '@abacus-network/utils';
+import { ChainName } from './chain';
+import { DeployEnvironment } from './environment';
+
 interface IndexingConfig {
   from: number;
   chunk: number;
@@ -12,19 +16,27 @@ interface ProcessorConfig {
   s3Bucket: string;
 }
 
+interface ValidatorConfig {
+  // How often an validator should check for new updates
+  interval?: number;
+  // How long an validator should wait for relevant state changes afterwords
+  pause?: number;
+}
+
 export interface DockerConfig {
   repo: string;
   tag: string;
 }
 
 export interface AgentConfig {
-  environment: string;
+  environment: DeployEnvironment;
   namespace: string;
   runEnv: string;
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
   processor?: ProcessorConfig;
+  validator?: ValidatorConfig;
 }
 
 export type RustSigner = {
@@ -38,18 +50,19 @@ export type RustConnection = {
 };
 
 export type RustContractBlock = {
-  address: string;
-  domain: string;
-  name: string;
+  address: types.Address;
+  domain: types.Domain;
+  name: ChainName;
   rpcStyle: string; // TODO
   connection: RustConnection;
 };
 
 export type RustConfig = {
-  environment: string;
-  signers: Record<string, RustSigner>;
-  inboxes: Record<string, RustContractBlock>;
-  outbox: RustContractBlock;
+  environment: DeployEnvironment;
+  signers: Partial<Record<ChainName, RustSigner>>;
+  // Agents have not yet been moved to use the Outbox/Inbox names.
+  replicas: Partial<Record<ChainName, RustContractBlock>>;
+  home: RustContractBlock;
   tracing: {
     level: string;
     fmt: 'json';

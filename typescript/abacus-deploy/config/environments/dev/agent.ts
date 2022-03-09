@@ -1,7 +1,7 @@
-import { AgentConfig } from '../../../src/config/agent';
+import { AgentConfig, DeployEnvironment } from '../../../src/config';
 
 export const agentConfig: AgentConfig = {
-  environment: 'dev',
+  environment: DeployEnvironment.dev,
   namespace: 'optics-dev',
   runEnv: 'dev',
   docker: {

@@ -1,77 +1,58 @@
-import * as xAppContracts from '@abacus-network/ts-interface/dist/abacus-xapps';
-import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
-import { BridgeContractAddresses } from '../../src/config/addresses';
-import { BeaconProxy } from '../utils/proxy';
-import { Contracts } from '../contracts';
-import * as ethers from 'ethers';
+import fs from 'fs';
+import { xapps } from '@abacus-network/ts-interface';
+import { ethers } from 'ethers';
+import { CommonContracts, BeaconProxy } from '../common';
+import { BridgeContractAddresses } from './types';
 
-export class BridgeContracts extends Contracts {
-  bridgeRouter?: BeaconProxy<xAppContracts.BridgeRouter>;
-  bridgeToken?: BeaconProxy<xAppContracts.BridgeToken>;
-  ethHelper?: xAppContracts.ETHHelper;
-
-  constructor() {
+export class BridgeContracts extends CommonContracts<BridgeContractAddresses> {
+  constructor(
+    public readonly router: BeaconProxy<xapps.BridgeRouter>,
+    public readonly token: BeaconProxy<xapps.BridgeToken>,
+    public readonly helper?: xapps.ETHHelper,
+  ) {
     super();
   }
 
-  toObject(): Object {
+  toObject(): BridgeContractAddresses {
     return {
-      bridgeRouter: this.bridgeRouter?.toObject(),
-      bridgeToken: this.bridgeToken?.toObject(),
-      ethHelper: this.ethHelper?.address,
+      router: this.router.toObject(),
+      token: this.token.toObject(),
+      helper: this.helper?.address,
     };
   }
 
-  static fromAddresses(
+  static readJson(
+    filepath: string,
+    provider: ethers.providers.JsonRpcProvider,
+  ): BridgeContracts {
+    const contents = fs.readFileSync(filepath, 'utf8');
+    const addresses: BridgeContractAddresses = JSON.parse(contents);
+    return BridgeContracts.fromObject(addresses, provider);
+  }
+
+  static fromObject(
     addresses: BridgeContractAddresses,
     provider: ethers.providers.JsonRpcProvider,
   ): BridgeContracts {
-    const b = new BridgeContracts();
-
-    // TODO: needs type magic for turning governance, outbox and inboxs to BeaconProxy contracts
-    const routerImplementation = xAppContracts.BridgeRouter__factory.connect(
-      addresses.bridgeRouter.implementation,
+    const router: BeaconProxy<xapps.BridgeRouter> = BeaconProxy.fromObject(
+      addresses.router,
+      xapps.BridgeRouter__factory.abi,
       provider,
-    );
-    const routerProxy = xAppContracts.BridgeRouter__factory.connect(
-      addresses.bridgeRouter.proxy,
-      provider,
-    );
-    const routerUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
-      addresses.bridgeRouter.beacon,
-      provider,
-    );
-    b.bridgeRouter = new BeaconProxy<xAppContracts.BridgeRouter>(
-      routerImplementation,
-      routerProxy,
-      routerUpgradeBeacon,
     );
 
-    const tokenImplementation = xAppContracts.BridgeToken__factory.connect(
-      addresses.bridgeToken.implementation,
+    const token: BeaconProxy<xapps.BridgeToken> = BeaconProxy.fromObject(
+      addresses.token,
+      xapps.BridgeToken__factory.abi,
       provider,
-    );
-    const tokenProxy = xAppContracts.BridgeToken__factory.connect(
-      addresses.bridgeToken.proxy,
-      provider,
-    );
-    const tokenUpgradeBeacon = contracts.UpgradeBeacon__factory.connect(
-      addresses.bridgeToken.beacon,
-      provider,
-    );
-    b.bridgeToken = new BeaconProxy<xAppContracts.BridgeToken>(
-      tokenImplementation,
-      tokenProxy,
-      tokenUpgradeBeacon,
     );
 
-    if (addresses.ethHelper) {
-      b.ethHelper = xAppContracts.ETHHelper__factory.connect(
-        addresses.ethHelper,
+    if (addresses.helper) {
+      const helper = xapps.ETHHelper__factory.connect(
+        addresses.helper,
         provider,
       );
+      return new BridgeContracts(router, token, helper);
     }
-
-    return b;
+    return new BridgeContracts(router, token);
   }
 }

@@ -6,7 +6,7 @@ import {
   UpgradeBeaconViolation,
   Violation,
   ViolationType,
-} from '../checks';
+} from '../common';
 import { Call, CallBatch } from '@abacus-network/sdk/dist/abacus/govern';
 
 interface DomainedCall {
@@ -15,16 +15,16 @@ interface DomainedCall {
 }
 
 export class GovernanceCallBatchBuilder {
-  private _deploys: CoreDeploy[];
+  private _deploy: CoreDeploy;
   private _context: AbacusContext;
   private _violations: Violation[];
 
   constructor(
-    deploys: CoreDeploy[],
+    deploy: CoreDeploy,
     context: AbacusContext,
     violations: Violation[],
   ) {
-    this._deploys = deploys;
+    this._deploy = deploy;
     this._context = context;
     this._violations = violations;
   }
@@ -55,8 +55,7 @@ export class GovernanceCallBatchBuilder {
     violation: UpgradeBeaconViolation,
   ): Promise<DomainedCall> {
     const domain = violation.domain;
-    const deploy = this.getDeploy(domain);
-    const ubc = deploy.contracts.upgradeBeaconController;
+    const ubc = this._deploy.upgradeBeaconController(domain);
     if (ubc === undefined) throw new Error('Undefined ubc');
     const tx = await ubc.populateTransaction.upgrade(
       violation.beaconProxy.beacon.address,
@@ -70,21 +69,14 @@ export class GovernanceCallBatchBuilder {
     violation: ValidatorViolation,
   ): Promise<DomainedCall> {
     const domain = violation.local;
-    const deploy = this.getDeploy(domain);
-    const manager = deploy.contracts.validatorManager;
+    const manager = this._deploy.validatorManager(domain);
     expect(manager).to.not.be.undefined;
-    const tx = await manager!.populateTransaction.enrollValidator(
+    const tx = await manager.populateTransaction.enrollValidator(
       violation.remote,
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
     return { domain, call: tx as Call };
-  }
-
-  getDeploy(domain: number): CoreDeploy {
-    const deploys = this._deploys.filter((d) => d.chain.domain == domain);
-    expect(deploys).to.have.lengthOf(1);
-    return deploys[0];
   }
 }
 
