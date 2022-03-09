@@ -46,13 +46,9 @@ export async function getChainConfigs(
 export async function getChainConfigsRecord(
   environment: DeployEnvironment,
 ): Promise<Record<types.Domain, ChainConfig>> {
-  const moduleName = `../config/environments/${environment}/chains`;
-  const array = (await importModule(moduleName)).getChains();
-  const chains: Record<types.Domain, ChainConfig> = {};
-  for (const chain of array) {
-    chains[chain.domain] = chain;
-  }
-  return chains;
+  const array = await getChainConfigs(environment);
+  const f = (chain: ChainConfig) => chain;
+  return recordFromArray(array, f);
 }
 
 export async function getCoreConfig(
@@ -168,19 +164,29 @@ export function getGovernanceVerificationDirectory(
   return path.join(getGovernanceDirectory(environment), 'verification');
 }
 
+function recordFromArray<T>(
+  chains: ChainConfig[],
+  f: (chain: ChainConfig) => T,
+): Record<types.Domain, T> {
+  const ret: Record<types.Domain, T> = {};
+  for (const chain of chains) {
+    ret[chain.domain] = f(chain);
+  }
+  return ret;
+}
+
 export function getCoreContracts(
   environment: DeployEnvironment,
   chains: ChainConfig[],
 ) {
   const directory = getCoreContractsDirectory(environment);
-  const contracts: Record<types.Domain, CoreContracts> = {};
-  for (const chain of chains) {
-    contracts[chain.domain] = CoreContracts.readJson(
+  const f = (chain: ChainConfig): CoreContracts => {
+    return CoreContracts.readJson(
       path.join(directory, `${chain.name}.json`),
-      chain.signer,
+      chain.signer.provider! as ethers.providers.JsonRpcProvider,
     );
-  }
-  return contracts;
+  };
+  return recordFromArray(chains, f);
 }
 
 export function getBridgeContracts(

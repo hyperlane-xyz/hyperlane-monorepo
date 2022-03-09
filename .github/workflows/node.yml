@@ -54,7 +54,7 @@ jobs:
       - name: build
         run: npm run build
 
-  lint-ts:
+  lint-prettier:
     runs-on: ubuntu-latest
     needs: [npm-install]
     steps:
@@ -72,21 +72,6 @@ jobs:
             echo "Changes found: $CHANGES"
             exit 1
           fi
-
-  lint-sol:
-    runs-on: ubuntu-latest
-    needs: [npm-install]
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions/cache@v2
-        with:
-          path: .//node_modules
-          key: ${{ runner.os }}-npm-cache-${{ hashFiles('./package-lock.json') }}
-
-      - name: lint
-        run: |
-          npm --prefix ./solidity/abacus-core run lint
-          npm --prefix ./solidity/abacus-xapps run lint
 
   test-ts:
     runs-on: ubuntu-latest

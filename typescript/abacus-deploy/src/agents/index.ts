@@ -71,11 +71,11 @@ async function helmValuesForChain(
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.UpdaterAttestation),
         },
-        ...include(!!agentConfig.validator?.interval, {
-          pollingInterval: agentConfig.validator?.interval || '',
+        ...include(!!agentConfig.validator!.interval, {
+          pollingInterval: agentConfig.validator!.interval || '',
         }),
-        ...include(!!agentConfig.validator?.pause, {
-          updatePause: agentConfig.validator?.pause || '',
+        ...include(!!agentConfig.validator!.pause, {
+          updatePause: agentConfig.validator!.pause || '',
         }),
       },
       relayer: {

@@ -21,7 +21,6 @@ export class BridgeContracts extends CommonContracts<BridgeContractAddresses> {
     };
   }
 
-  // TODO(asa): Can this be added to Contracts instead?
   static readJson(filepath: string, signer: ethers.Signer): BridgeContracts {
     const contents = fs.readFileSync(filepath, 'utf8');
     const addresses: BridgeContractAddresses = JSON.parse(contents);

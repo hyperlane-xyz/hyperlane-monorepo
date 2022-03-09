@@ -15,9 +15,6 @@ import {
   outputDir,
 } from './inputs';
 
-/*
- * Deploy the full Abacus suite on three chains
- */
 describe('bridge', async () => {
   const core = new CoreDeploy();
   let chains: Record<types.Domain, ChainConfig>;

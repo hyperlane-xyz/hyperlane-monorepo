@@ -74,8 +74,8 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
         signers: {
           [this.name(domain)]: { key: '', type: 'hexKey' },
         },
-        inboxes: {},
-        outbox,
+        replicas: {},
+        home: outbox,
         tracing: {
           level: 'debug',
           fmt: 'json',
@@ -96,7 +96,7 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
         };
 
         rustConfig.signers[this.name(remote)] = { key: '', type: 'hexKey' };
-        rustConfig.inboxes[this.name(remote)] = inbox;
+        rustConfig.replicas[this.name(remote)] = inbox;
       }
       this.writeJson(filepath, rustConfig);
     }
