@@ -3,7 +3,6 @@ import { expect } from 'chai';
 import { types } from '@abacus-network/utils';
 import { BridgeConfig } from './types';
 import { BridgeDeploy } from './BridgeDeploy';
-// import { VerificationInput, InvariantChecker } from '../checks';
 import { RouterInvariantChecker } from '../router';
 
 export class BridgeInvariantChecker extends RouterInvariantChecker<

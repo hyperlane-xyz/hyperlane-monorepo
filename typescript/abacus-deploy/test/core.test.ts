@@ -32,8 +32,7 @@ describe('core', async () => {
   });
 
   it('writes', async () => {
-    core.writeContracts(outputDir);
-    core.writeVerificationInput(outputDir);
+    core.writeOutput(outputDir);
     core.writeRustConfigs(DeployEnvironment.dev, outputDir);
   });
 

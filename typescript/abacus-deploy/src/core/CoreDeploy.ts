@@ -1,5 +1,4 @@
 import path from 'path';
-import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import { core } from '@abacus-network/ts-interface';
 import { CoreInstance } from './CoreInstance';
@@ -38,30 +37,23 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
     return this.instances[domain].xAppConnectionManager;
   }
 
-  // TODO(asa): Dedupe
   static readContracts(
     chains: Record<types.Domain, ChainConfig>,
     directory: string,
   ): CoreDeploy {
-    const deploy = new CoreDeploy();
-    const domains = Object.keys(chains).map((d) => parseInt(d));
-    for (const domain of domains) {
-      const chain = chains[domain];
-      const contracts = CoreContracts.readJson(
-        path.join(directory, 'core', 'contracts', `${chain.name}.json`),
-        chain.signer.provider! as ethers.providers.JsonRpcProvider,
-      );
-      deploy.chains[domain] = chain;
-      deploy.instances[domain] = new CoreInstance(chain, contracts);
-    }
-    return deploy;
+    return CommonDeploy.readContractsHelper(
+      CoreDeploy,
+      CoreInstance,
+      CoreContracts.readJson,
+      chains,
+      directory,
+    );
   }
 
   writeRustConfigs(environment: DeployEnvironment, directory: string) {
     for (const domain of this.domains) {
       const filepath = path.join(
-        directory,
-        this.deployType,
+        this.configDirectory(directory),
         'rust',
         `${this.name(domain)}.json`,
       );
@@ -82,8 +74,8 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
         signers: {
           [this.name(domain)]: { key: '', type: 'hexKey' },
         },
-        inboxes: {},
-        outbox,
+        replicas: {},
+        home: outbox,
         tracing: {
           level: 'debug',
           fmt: 'json',
@@ -104,7 +96,7 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
         };
 
         rustConfig.signers[this.name(remote)] = { key: '', type: 'hexKey' };
-        rustConfig.inboxes[this.name(remote)] = inbox;
+        rustConfig.replicas[this.name(remote)] = inbox;
       }
       this.writeJson(filepath, rustConfig);
     }

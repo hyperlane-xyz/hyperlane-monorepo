@@ -1,5 +1,6 @@
 {
   "name": "@abacus-network/contract-metrics",
+  "version": "0.0.0",
   "scripts": {
     "monitor": "ts-node src/monitor.ts",
     "monitor-once": "ts-node src/monitor.ts once | ./node_modules/.bin/bunyan",
@@ -8,12 +9,11 @@
     "gas": "ts-node src/gas.ts",
     "build": "rm tsconfig.tsbuildinfo & tsc",
     "check": "rm tsconfig.tsbuildinfo & tsc --noEmit",
-    "prettier": "prettier --write .",
-    "relink": "cd ../optics-provider && npm run build && cd ../contract-metrics && npm link optics-multi-provider-community"
+    "prettier": "prettier --write ."
   },
   "dependencies": {
     "@abacus-network/sdk": "^0.0.1",
-    "@abacus-network/ts-interface": "^1.1.2",
+    "@abacus-network/ts-interface": "file:../typechain",
     "@types/bunyan": "^1.8.7",
     "@types/express": "^4.17.13",
     "@types/google-spreadsheet": "^3.1.5",

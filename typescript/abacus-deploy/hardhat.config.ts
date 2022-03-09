@@ -3,17 +3,15 @@ import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
 import { types, utils } from '@abacus-network/utils';
 
+import { sleep } from './src/utils/utils';
 import {
   getCoreConfig,
-  getCoreDirectory,
+  getCoreDeploy,
+  getEnvironmentDirectory,
   getChainConfigsRecord,
 } from './scripts/utils';
 import { CoreDeploy } from './src/core';
 import { ContractVerifier } from './src/verification';
-
-function sleep(ms: number) {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
 
 const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
   const outbox = deploy.outbox(domain);
@@ -31,25 +29,24 @@ const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
     },
   };
 
-  const inboxes: any[] = [];
-  for (const remote of deploy.remotes(domain)) {
+  const inboxSummary = async (remote: types.Domain) => {
     const inbox = deploy.inbox(remote, domain);
     const [inboxCheckpointRoot, inboxCheckpointIndex] =
       await inbox.latestCheckpoint();
     const processFilter = inbox.filters.Process();
     const processes = await inbox.queryFilter(processFilter);
-    inboxes.push({
+    return {
       domain: remote,
       processed: processes.length,
       root: inboxCheckpointRoot,
       index: inboxCheckpointIndex.toNumber(),
-    });
-  }
-  summary.inboxes = inboxes;
+    };
+  };
+  summary.inboxes = deploy.remotes(domain).map(inboxSummary);
   return summary;
 };
 
-task('abacus', 'Starts a JSON-RPC server on top of Hardhat Network')
+task('abacus', 'Deploys abacus on top of an already running Harthat Network')
   .addParam(
     'environment',
     'The name of the environment from which to read configs',
@@ -63,10 +60,17 @@ task('abacus', 'Starts a JSON-RPC server on top of Hardhat Network')
     await deploy.deploy(chains, config);
 
     // Write configs
-    const outputDir = getCoreDirectory(environment);
-    deploy.writeContracts(outputDir);
-    deploy.writeVerificationInput(outputDir);
-    deploy.writeRustConfigs(environment, outputDir);
+    deploy.writeOutput(getEnvironmentDirectory(environment));
+  });
+
+task('kathy', 'Dispatches random abacus messages')
+  .addParam(
+    'environment',
+    'The name of the environment from which to read configs',
+  )
+  .setAction(async (args: any) => {
+    const environment = args.environment;
+    const deploy = await getCoreDeploy(environment);
     const randomElement = (list: types.Domain[]) =>
       list[Math.floor(Math.random() * list.length)];
 

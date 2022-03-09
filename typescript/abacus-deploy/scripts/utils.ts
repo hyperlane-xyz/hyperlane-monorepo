@@ -46,13 +46,9 @@ export async function getChainConfigs(
 export async function getChainConfigsRecord(
   environment: DeployEnvironment,
 ): Promise<Record<types.Domain, ChainConfig>> {
-  const moduleName = `../config/environments/${environment}/chains`;
-  const array = (await importModule(moduleName)).getChains();
-  const chains: Record<types.Domain, ChainConfig> = {};
-  for (const chain of array) {
-    chains[chain.domain] = chain;
-  }
-  return chains;
+  const array = await getChainConfigs(environment);
+  const f = (chain: ChainConfig) => chain;
+  return recordFromArray(array, f);
 }
 
 export async function getCoreConfig(
@@ -120,8 +116,12 @@ export async function getEnvironment(): Promise<DeployEnvironment> {
   return (await getArgs().argv).e;
 }
 
+export function getEnvironmentDirectory(environment: DeployEnvironment) {
+  return path.join('./config/environments/', environment);
+}
+
 export function getCoreDirectory(environment: DeployEnvironment) {
-  return path.join('./config/environments', environment, 'core');
+  return path.join(getEnvironmentDirectory(environment), 'core');
 }
 
 export function getCoreContractsDirectory(environment: DeployEnvironment) {
@@ -137,7 +137,7 @@ export function getCoreRustDirectory(environment: DeployEnvironment) {
 }
 
 export function getBridgeDirectory(environment: DeployEnvironment) {
-  return path.join('./config/environments', environment, 'bridge');
+  return path.join(getEnvironmentDirectory(environment), 'bridge');
 }
 
 export function getBridgeContractsDirectory(environment: DeployEnvironment) {
@@ -149,7 +149,7 @@ export function getBridgeVerificationDirectory(environment: DeployEnvironment) {
 }
 
 export function getGovernanceDirectory(environment: DeployEnvironment) {
-  return path.join('./config/environments', environment, 'governance');
+  return path.join(getEnvironmentDirectory(environment), 'governance');
 }
 
 export function getGovernanceContractsDirectory(
@@ -164,19 +164,29 @@ export function getGovernanceVerificationDirectory(
   return path.join(getGovernanceDirectory(environment), 'verification');
 }
 
+function recordFromArray<T>(
+  chains: ChainConfig[],
+  f: (chain: ChainConfig) => T,
+): Record<types.Domain, T> {
+  const ret: Record<types.Domain, T> = {};
+  for (const chain of chains) {
+    ret[chain.domain] = f(chain);
+  }
+  return ret;
+}
+
 export function getCoreContracts(
   environment: DeployEnvironment,
   chains: ChainConfig[],
 ) {
   const directory = getCoreContractsDirectory(environment);
-  const contracts: Record<types.Domain, CoreContracts> = {};
-  for (const chain of chains) {
-    contracts[chain.domain] = CoreContracts.readJson(
+  const f = (chain: ChainConfig): CoreContracts => {
+    return CoreContracts.readJson(
       path.join(directory, `${chain.name}.json`),
-      chain.signer.provider! as ethers.providers.JsonRpcProvider,
+      chain.signer,
     );
-  }
-  return contracts;
+  };
+  return recordFromArray(chains, f);
 }
 
 export function getBridgeContracts(
@@ -188,7 +198,7 @@ export function getBridgeContracts(
   for (const chain of chains) {
     contracts[chain.domain] = BridgeContracts.readJson(
       path.join(directory, `${chain.name}.json`),
-      chain.signer.provider! as ethers.providers.JsonRpcProvider,
+      chain.signer,
     );
   }
   return contracts;
@@ -203,7 +213,7 @@ export function getGovernanceContracts(
   for (const chain of chains) {
     contracts[chain.domain] = GovernanceContracts.readJson(
       path.join(directory, `${chain.name}.json`),
-      chain.signer.provider! as ethers.providers.JsonRpcProvider,
+      chain.signer,
     );
   }
   return contracts;
@@ -213,24 +223,27 @@ export async function getCoreDeploy(
   environment: DeployEnvironment,
 ): Promise<CoreDeploy> {
   const chains = await getChainConfigsRecord(environment);
-  const dir = await getCoreContractsDirectory(environment);
-  return CoreDeploy.readContracts(chains, dir);
+  return CoreDeploy.readContracts(chains, getEnvironmentDirectory(environment));
 }
 
 export async function getBridgeDeploy(
   environment: DeployEnvironment,
 ): Promise<BridgeDeploy> {
   const chains = await getChainConfigsRecord(environment);
-  const dir = await getBridgeContractsDirectory(environment);
-  return BridgeDeploy.readContracts(chains, dir);
+  return BridgeDeploy.readContracts(
+    chains,
+    getEnvironmentDirectory(environment),
+  );
 }
 
 export async function getGovernanceDeploy(
   environment: DeployEnvironment,
 ): Promise<GovernanceDeploy> {
   const chains = await getChainConfigsRecord(environment);
-  const dir = await getGovernanceContractsDirectory(environment);
-  return GovernanceDeploy.readContracts(chains, dir);
+  return GovernanceDeploy.readContracts(
+    chains,
+    getEnvironmentDirectory(environment),
+  );
 }
 
 export function getContext(environment: DeployEnvironment): AbacusContext {
