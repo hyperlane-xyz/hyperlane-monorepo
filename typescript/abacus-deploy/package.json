@@ -14,7 +14,7 @@
     "typescript": "^4.3.2"
   },
   "prepublish": "npm run build",
-  "name": "@abacus-network/abacus-deploy",
+  "name": "@abacus-network/deploy",
   "version": "0.0.5",
   "description": "Abacus deploy tools",
   "main": "dist/src/index.js",
@@ -23,7 +23,10 @@
     "build": "tsc",
     "test": "hardhat test",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src ./config ./scripts"
+    "node": "hardhat node",
+    "abacus": "hardhat abacus --environment local",
+    "kathy": "hardhat kathy --environment local",
+    "prettier": "prettier --write *.ts ./src ./config ./scripts ./test"
   },
   "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",

@@ -1,7 +1,7 @@
-import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import { xapps } from '@abacus-network/ts-interface';
+import { CommonDeploy } from '../common';
 import { ChainConfig } from '../config';
 import { RouterDeploy } from '../router';
 import { GovernanceInstance } from './GovernanceInstance';
@@ -38,18 +38,13 @@ export class GovernanceDeploy extends RouterDeploy<
     chains: Record<types.Domain, ChainConfig>,
     directory: string,
   ): GovernanceDeploy {
-    const deploy = new GovernanceDeploy();
-    const domains = Object.keys(chains).map((d) => parseInt(d));
-    for (const domain of domains) {
-      const chain = chains[domain];
-      const contracts = GovernanceContracts.readJson(
-        path.join(directory, 'governance', 'contracts', `${chain.name}.json`),
-        chain.signer.provider! as ethers.providers.JsonRpcProvider,
-      );
-      deploy.chains[domain] = chain;
-      deploy.instances[domain] = new GovernanceInstance(chain, contracts);
-    }
-    return deploy;
+    return CommonDeploy.readContractsHelper(
+      GovernanceDeploy,
+      GovernanceInstance,
+      GovernanceContracts.readJson,
+      chains,
+      directory,
+    );
   }
 
   router(domain: types.Domain): xapps.GovernanceRouter {

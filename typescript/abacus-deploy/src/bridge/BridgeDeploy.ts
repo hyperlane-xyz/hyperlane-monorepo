@@ -1,12 +1,11 @@
-import path from 'path';
-import { ethers } from 'ethers';
 import { xapps } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
 import { BridgeConfig } from './types';
 import { BridgeInstance } from './BridgeInstance';
 import { BridgeContracts } from './BridgeContracts';
-import { RouterDeploy } from '../router';
+import { CommonDeploy } from '../common';
 import { ChainConfig } from '../config';
+import { RouterDeploy } from '../router';
 
 export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
   deployName = 'bridge';
@@ -22,18 +21,13 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
     chains: Record<types.Domain, ChainConfig>,
     directory: string,
   ): BridgeDeploy {
-    const deploy = new BridgeDeploy();
-    const domains = Object.keys(chains).map((d) => parseInt(d));
-    for (const domain of domains) {
-      const chain = chains[domain];
-      const contracts = BridgeContracts.readJson(
-        path.join(directory, 'bridge', 'contracts', `${chain.name}.json`),
-        chain.signer.provider! as ethers.providers.JsonRpcProvider,
-      );
-      deploy.chains[domain] = chain;
-      deploy.instances[domain] = new BridgeInstance(chain, contracts);
-    }
-    return deploy;
+    return CommonDeploy.readContractsHelper(
+      BridgeDeploy,
+      BridgeInstance,
+      BridgeContracts.readJson,
+      chains,
+      directory,
+    );
   }
 
   token(domain: types.Domain): xapps.BridgeToken {

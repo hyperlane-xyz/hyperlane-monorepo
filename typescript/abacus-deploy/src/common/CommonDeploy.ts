@@ -2,7 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { ChainConfig } from '../config';
+import { ChainName, ChainConfig } from '../config';
 import { CommonInstance } from './CommonInstance';
 import { CommonContracts } from './CommonContracts';
 
@@ -20,6 +20,22 @@ export abstract class CommonDeploy<
 
   abstract deployInstance(domain: types.Domain, config: V): Promise<T>;
   abstract deployName: string;
+
+  configDirectory(directory: string) {
+    return path.join(directory, this.deployName);
+  }
+
+  contractsDirectory(directory: string) {
+    return path.join(this.configDirectory(directory), 'contracts');
+  }
+
+  contractsFilepath(directory: string, chain: ChainName) {
+    return path.join(this.contractsDirectory(directory), `${chain}.json`);
+  }
+
+  verificationDirectory(directory: string) {
+    return path.join(this.configDirectory(directory), 'verification');
+  }
 
   async deploy(chains: Record<types.Domain, ChainConfig>, config: V) {
     await this.ready();
@@ -49,6 +65,31 @@ export abstract class CommonDeploy<
     );
   }
 
+  static readContractsHelper<
+    L extends CommonDeploy<M, any>,
+    M extends CommonInstance<O>,
+    O extends CommonContracts<any>,
+  >(
+    deployConstructor: { new (): L },
+    instanceConstructor: { new (chain: ChainConfig, contracts: O): M },
+    contractsReader: (directory: string, signer: ethers.Signer) => O,
+    chains: Record<types.Domain, ChainConfig>,
+    directory: string,
+  ): L {
+    const deploy = new deployConstructor();
+    const domains = Object.keys(chains).map((d) => parseInt(d));
+    for (const domain of domains) {
+      const chain = chains[domain];
+      const contracts = contractsReader(
+        deploy.contractsFilepath(directory, chain.name),
+        chain.signer,
+      );
+      deploy.chains[domain] = chain;
+      deploy.instances[domain] = new instanceConstructor(chain, contracts);
+    }
+    return deploy;
+  }
+
   writeOutput(directory: string) {
     this.writeContracts(directory);
     this.writeVerificationInput(directory);
@@ -58,9 +99,7 @@ export abstract class CommonDeploy<
     for (const domain of this.domains) {
       this.instances[domain].contracts.writeJson(
         path.join(
-          directory,
-          this.deployName,
-          'contracts',
+          this.contractsDirectory(directory),
           `${this.name(domain)}.json`,
         ),
       );
@@ -78,9 +117,7 @@ export abstract class CommonDeploy<
     for (const domain of this.domains) {
       const verificationInput = this.instances[domain].verificationInput;
       const filepath = path.join(
-        directory,
-        this.deployName,
-        'verification',
+        this.verificationDirectory(directory),
         `${this.name(domain)}.json`,
       );
       this.writeJson(filepath, verificationInput);
