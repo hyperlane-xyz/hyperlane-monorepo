@@ -1,4 +1,4 @@
-use crate::{utils::home_domain_hash, AbacusError, Decode, Encode, SignerExt};
+use crate::{utils::home_domain_hash, AbacusError, AbacusU256, Decode, Encode, SignerExt};
 use ethers::{
     prelude::{Address, Signature},
     types::H256,
@@ -16,8 +16,7 @@ pub struct Checkpoint {
     /// The checkpointed root
     pub root: H256,
     /// The index of the checkpoint
-    /// TODO: change to larger than 32 bits
-    pub index: u32,
+    pub index: AbacusU256,
 }
 
 impl std::fmt::Display for Checkpoint {
@@ -37,8 +36,8 @@ impl Encode for Checkpoint {
     {
         writer.write_all(&self.outbox_domain.to_be_bytes())?;
         writer.write_all(self.root.as_ref())?;
-        writer.write_all(&self.index.to_be_bytes())?;
-        Ok(4 + 32 + 4)
+        writer.write_all(&self.index.to_bytes())?;
+        Ok(4 + 32 + 32)
     }
 }
 
@@ -54,13 +53,13 @@ impl Decode for Checkpoint {
         let mut root = H256::zero();
         reader.read_exact(root.as_mut())?;
 
-        let mut index = [0u8; 4];
+        let mut index = [0u8; 32];
         reader.read_exact(&mut index)?;
 
         Ok(Self {
             outbox_domain: u32::from_be_bytes(outbox_domain),
             root,
-            index: u32::from_be_bytes(index),
+            index: AbacusU256::from(&index),
         })
     }
 }
@@ -73,7 +72,7 @@ impl Checkpoint {
             Keccak256::new()
                 .chain(home_domain_hash(self.outbox_domain))
                 .chain(self.root)
-                .chain(self.index.to_be_bytes())
+                .chain(self.index.to_bytes())
                 .finalize()
                 .as_slice(),
         )

@@ -103,7 +103,7 @@ where
                 let checkpoint = Checkpoint {
                     outbox_domain,
                     root: event.0.root.into(),
-                    index: event.0.index.as_u32(),
+                    index: event.0.index.into(),
                 };
 
                 CheckpointWithMeta {
@@ -213,6 +213,16 @@ where
     #[tracing::instrument(err, skip(self))]
     async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.checkpointed_root().call().await?.into())
+    }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
+        let (root, index) = self.contract.latest_checkpoint().call().await?;
+        Ok(Checkpoint {
+            outbox_domain: self.domain,
+            root: root.into(),
+            index: index.into(),
+        })
     }
 }
 
