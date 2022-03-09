@@ -81,7 +81,6 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
         signers: {
           [this.name(domain)]: { key: '', type: 'hexKey' },
         },
-        // Agents have not yet been moved to use the Outbox/Inbox names.
         replicas: {},
         home: outbox,
         tracing: {
