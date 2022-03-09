@@ -34,37 +34,34 @@ export class CoreContracts extends CommonContracts<CoreContractAddresses> {
     };
   }
 
-  static readJson(
-    filepath: string,
-    provider: ethers.providers.JsonRpcProvider,
-  ): CoreContracts {
+  static readJson(filepath: string, signer: ethers.Signer): CoreContracts {
     const contents = fs.readFileSync(filepath, 'utf8');
     const addresses: CoreContractAddresses = JSON.parse(contents);
-    return CoreContracts.fromObject(addresses, provider);
+    return CoreContracts.fromObject(addresses, signer);
   }
 
   static fromObject(
     addresses: CoreContractAddresses,
-    provider: ethers.providers.JsonRpcProvider,
+    signer: ethers.Signer,
   ): CoreContracts {
     const upgradeBeaconController =
       core.UpgradeBeaconController__factory.connect(
         addresses.upgradeBeaconController,
-        provider,
+        signer,
       );
     const xAppConnectionManager = core.XAppConnectionManager__factory.connect(
       addresses.xAppConnectionManager,
-      provider,
+      signer,
     );
     const validatorManager = core.ValidatorManager__factory.connect(
       addresses.validatorManager,
-      provider,
+      signer,
     );
 
     const outbox: BeaconProxy<core.Outbox> = BeaconProxy.fromObject(
       addresses.outbox,
       core.Outbox__factory.abi,
-      provider,
+      signer,
     );
 
     const inboxes: Record<types.Domain, BeaconProxy<core.Inbox>> = {};
@@ -74,7 +71,7 @@ export class CoreContracts extends CommonContracts<CoreContractAddresses> {
         inboxes[domain] = BeaconProxy.fromObject(
           addresses.inboxes[domain],
           core.Inbox__factory.abi,
-          provider,
+          signer,
         );
       });
 

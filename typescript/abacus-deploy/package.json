@@ -24,7 +24,8 @@
     "test": "hardhat test",
     "check": "tsc --noEmit",
     "node": "hardhat node",
-    "local": "hardhat abacus --environment local",
+    "abacus": "hardhat abacus --environment local",
+    "kathy": "hardhat kathy --environment local",
     "prettier": "prettier --write *.ts ./src ./config ./scripts ./test"
   },
   "author": "Celo Labs Inc.",

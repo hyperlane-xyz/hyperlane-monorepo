@@ -17,21 +17,21 @@ export class GovernanceContracts extends CommonContracts<GovernanceContractAddre
 
   static readJson(
     filepath: string,
-    provider: ethers.providers.JsonRpcProvider,
+    signer: ethers.Signer,
   ): GovernanceContracts {
     const contents = fs.readFileSync(filepath, 'utf8');
     const addresses: GovernanceContractAddresses = JSON.parse(contents);
-    return GovernanceContracts.fromObject(addresses, provider);
+    return GovernanceContracts.fromObject(addresses, signer);
   }
 
   static fromObject(
     addresses: GovernanceContractAddresses,
-    provider: ethers.providers.JsonRpcProvider,
+    signer: ethers.Signer,
   ): GovernanceContracts {
     const router: BeaconProxy<xapps.GovernanceRouter> = BeaconProxy.fromObject(
       addresses.router,
       xapps.GovernanceRouter__factory.abi,
-      provider,
+      signer,
     );
     return new GovernanceContracts(router);
   }

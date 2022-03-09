@@ -3,7 +3,8 @@ import { task } from 'hardhat/config';
 import { types, utils } from '@abacus-network/utils';
 import {
   getCoreConfig,
-  getCoreDirectory,
+  getCoreDeploy,
+  getEnvironmentDirectory,
   getChainConfigsRecord,
 } from './scripts/utils';
 import { CoreDeploy } from './src/core';
@@ -46,7 +47,7 @@ const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
   return summary;
 };
 
-task('abacus', 'Starts a JSON-RPC server on top of Hardhat Network')
+task('abacus', 'Deploys abacus on top of an already running Harthat Network')
   .addParam(
     'environment',
     'The name of the environment from which to read configs',
@@ -60,10 +61,17 @@ task('abacus', 'Starts a JSON-RPC server on top of Hardhat Network')
     await deploy.deploy(chains, config);
 
     // Write configs
-    const outputDir = getCoreDirectory(environment);
-    deploy.writeContracts(outputDir);
-    deploy.writeVerificationInput(outputDir);
-    deploy.writeRustConfigs(environment, outputDir);
+    deploy.writeOutput(getEnvironmentDirectory(environment));
+  });
+
+task('kathy', 'Dispatches random abacus messages')
+  .addParam(
+    'environment',
+    'The name of the environment from which to read configs',
+  )
+  .setAction(async (args: any) => {
+    const environment = args.environment;
+    const deploy = await getCoreDeploy(environment);
     const randomElement = (list: types.Domain[]) =>
       list[Math.floor(Math.random() * list.length)];
 

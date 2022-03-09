@@ -54,8 +54,7 @@ describe('governance', async () => {
   });
 
   it('writes', async () => {
-    governance.writeContracts(outputDir);
-    governance.writeVerificationInput(outputDir);
+    governance.writeOutput(outputDir);
   });
 
   it('reads', async () => {

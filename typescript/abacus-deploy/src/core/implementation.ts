@@ -1,6 +1,5 @@
 import { core } from '@abacus-network/ts-interface';
 import { types } from '@abacus-network/utils';
-import { ethers } from 'ethers';
 import { CoreDeploy } from './CoreDeploy';
 import { CoreInstance } from './CoreInstance';
 import { CoreContracts } from './CoreContracts';
@@ -38,10 +37,7 @@ export class ImplementationDeployer {
     );
     const addresses = this.deploy.instances[domain].contracts.toObject();
     addresses.outbox.implementation = implementation.address;
-    const contracts = CoreContracts.fromObject(
-      addresses,
-      signer.provider as ethers.providers.JsonRpcProvider,
-    );
+    const contracts = CoreContracts.fromObject(addresses, signer);
     const instance = new CoreInstance(this.deploy.chains[domain], contracts);
     this.deploy.instances[domain] = instance;
   }
@@ -65,10 +61,7 @@ export class ImplementationDeployer {
     for (const remote of this.deploy.remotes(domain)) {
       addresses.inboxes[remote].implementation = implementation.address;
     }
-    const contracts = CoreContracts.fromObject(
-      addresses,
-      signer.provider as ethers.providers.JsonRpcProvider,
-    );
+    const contracts = CoreContracts.fromObject(addresses, signer);
     const instance = new CoreInstance(this.deploy.chains[domain], contracts);
     this.deploy.instances[domain] = instance;
   }

@@ -22,36 +22,30 @@ export class BridgeContracts extends CommonContracts<BridgeContractAddresses> {
   }
 
   // TODO(asa): Can this be added to Contracts instead?
-  static readJson(
-    filepath: string,
-    provider: ethers.providers.JsonRpcProvider,
-  ): BridgeContracts {
+  static readJson(filepath: string, signer: ethers.Signer): BridgeContracts {
     const contents = fs.readFileSync(filepath, 'utf8');
     const addresses: BridgeContractAddresses = JSON.parse(contents);
-    return BridgeContracts.fromObject(addresses, provider);
+    return BridgeContracts.fromObject(addresses, signer);
   }
 
   static fromObject(
     addresses: BridgeContractAddresses,
-    provider: ethers.providers.JsonRpcProvider,
+    signer: ethers.Signer,
   ): BridgeContracts {
     const router: BeaconProxy<xapps.BridgeRouter> = BeaconProxy.fromObject(
       addresses.router,
       xapps.BridgeRouter__factory.abi,
-      provider,
+      signer,
     );
 
     const token: BeaconProxy<xapps.BridgeToken> = BeaconProxy.fromObject(
       addresses.token,
       xapps.BridgeToken__factory.abi,
-      provider,
+      signer,
     );
 
     if (addresses.helper) {
-      const helper = xapps.ETHHelper__factory.connect(
-        addresses.helper,
-        provider,
-      );
+      const helper = xapps.ETHHelper__factory.connect(addresses.helper, signer);
       return new BridgeContracts(router, token, helper);
     }
     return new BridgeContracts(router, token);

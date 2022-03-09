@@ -53,8 +53,7 @@ describe('bridge', async () => {
   });
 
   it('writes', async () => {
-    bridge.writeContracts(outputDir);
-    bridge.writeVerificationInput(outputDir);
+    bridge.writeOutput(outputDir);
   });
 
   it('reads', async () => {
