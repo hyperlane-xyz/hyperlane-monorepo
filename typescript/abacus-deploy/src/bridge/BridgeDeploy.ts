@@ -3,12 +3,12 @@ import { types } from '@abacus-network/utils';
 import { BridgeConfig } from './types';
 import { BridgeInstance } from './BridgeInstance';
 import { BridgeContracts } from './BridgeContracts';
-import { CommonDeploy } from '../common';
+import { CommonDeploy, DeployType } from '../common';
 import { ChainConfig } from '../config';
 import { RouterDeploy } from '../router';
 
 export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
-  deployName = 'bridge';
+  deployType = DeployType.BRIDGE;
 
   async deployInstance(
     domain: types.Domain,

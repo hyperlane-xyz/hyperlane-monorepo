@@ -2,9 +2,10 @@ import path from 'path';
 import fs from 'fs';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { ChainName, ChainConfig } from '../config';
+import { ChainConfig, ChainName } from '../config';
 import { CommonInstance } from './CommonInstance';
 import { CommonContracts } from './CommonContracts';
+import { DeployType } from './types';
 
 export abstract class CommonDeploy<
   T extends CommonInstance<CommonContracts<any>>,
@@ -19,10 +20,10 @@ export abstract class CommonDeploy<
   }
 
   abstract deployInstance(domain: types.Domain, config: V): Promise<T>;
-  abstract deployName: string;
+  abstract deployType: DeployType;
 
   configDirectory(directory: string) {
-    return path.join(directory, this.deployName);
+    return path.join(directory, this.deployType);
   }
 
   contractsDirectory(directory: string) {

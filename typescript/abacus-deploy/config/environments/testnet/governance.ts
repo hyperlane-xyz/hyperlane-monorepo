@@ -6,7 +6,7 @@ export const governance: GovernanceConfigWithoutCore = {
     alfajores: {
       recoveryManager: '0x075fE802D26a983423caE0a16b8250F155AbeB03',
     },
-    gorli: {
+    goerli: {
       recoveryManager: '0xDd89dCA09Ef81154dAf919b4d7C33f9d8DCf6c7C',
     },
     kovan: {

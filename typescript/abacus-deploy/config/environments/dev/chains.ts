@@ -1,7 +1,7 @@
 import { getChainsForEnvironment } from '../../../src/config/chain';
 import {
   alfajores,
-  gorli,
+  goerli,
   kovan,
   mumbai,
   fuji,
@@ -11,7 +11,7 @@ const environment = 'dev';
 const deployerKeySecretName = 'optics-key-dev-deployer';
 
 export const getChains = getChainsForEnvironment(
-  [alfajores, kovan, gorli, fuji, mumbai],
+  [alfajores, kovan, goerli, fuji, mumbai],
   environment,
   deployerKeySecretName,
 );

@@ -1,7 +1,7 @@
 import { getChainsForEnvironment } from '../../../src/config/chain';
 import {
   alfajores,
-  gorli,
+  goerli,
   kovan,
   ropsten,
 } from '../../../config/networks/testnets';
@@ -10,7 +10,7 @@ const environment = 'testnet';
 const deployerKeySecretName = 'staging-community-deployer-key';
 
 export const getChains = getChainsForEnvironment(
-  [alfajores, ropsten, kovan, gorli],
+  [alfajores, ropsten, kovan, goerli],
   environment,
   deployerKeySecretName,
 );

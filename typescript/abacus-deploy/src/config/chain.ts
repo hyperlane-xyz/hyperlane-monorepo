@@ -13,7 +13,7 @@ export enum ChainName {
   ALFAJORES = 'alfajores',
   MUMBAI = 'mumbai',
   KOVAN = 'kovan',
-  GORLI = 'gorli',
+  GOERLI = 'goerli',
   FUJI = 'fuji',
   RINKARBY = 'rinkarby',
   RINKEBY = 'rinkeby',
