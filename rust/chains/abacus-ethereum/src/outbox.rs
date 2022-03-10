@@ -103,7 +103,7 @@ where
                 let checkpoint = Checkpoint {
                     outbox_domain,
                     root: event.0.root.into(),
-                    index: event.0.index.into(),
+                    index: event.0.index.as_u32(),
                 };
 
                 CheckpointWithMeta {
@@ -221,7 +221,7 @@ where
         Ok(Checkpoint {
             outbox_domain: self.domain,
             root: root.into(),
-            index: index.into(),
+            index: index.as_u32(),
         })
     }
 }

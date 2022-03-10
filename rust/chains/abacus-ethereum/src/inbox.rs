@@ -111,7 +111,7 @@ where
                 let checkpoint = Checkpoint {
                     outbox_domain,
                     root: event.0.root.into(),
-                    index: event.0.index.into(),
+                    index: event.0.index.as_u32(),
                 };
 
                 CheckpointWithMeta {
@@ -202,7 +202,7 @@ where
             // This is inefficient, but latest_checkpoint should never be called
             outbox_domain: self.remote_domain().await?,
             root: root.into(),
-            index: index.into(),
+            index: index.as_u32(),
         })
     }
 }
