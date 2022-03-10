@@ -100,8 +100,8 @@ impl Outbox for CachingOutbox {
         self.outbox.state().await
     }
 
-    async fn root(&self) -> Result<H256, ChainCommunicationError> {
-        self.outbox.root().await
+    async fn count(&self) -> Result<u32, ChainCommunicationError> {
+        self.outbox.count().await
     }
 
     async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
@@ -171,6 +171,10 @@ impl AbacusCommon for CachingOutbox {
 
     async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
         self.outbox.checkpointed_root().await
+    }
+
+    async fn latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {
+        self.outbox.latest_checkpoint().await
     }
 }
 
@@ -271,11 +275,11 @@ impl Outbox for OutboxVariants {
         }
     }
 
-    async fn root(&self) -> Result<H256, ChainCommunicationError> {
+    async fn count(&self) -> Result<u32, ChainCommunicationError> {
         match self {
-            OutboxVariants::Ethereum(outbox) => outbox.root().await,
-            OutboxVariants::Mock(mock_outbox) => mock_outbox.root().await,
-            OutboxVariants::Other(outbox) => outbox.root().await,
+            OutboxVariants::Ethereum(outbox) => outbox.count().await,
+            OutboxVariants::Mock(mock_outbox) => mock_outbox.count().await,
+            OutboxVariants::Other(outbox) => outbox.count().await,
         }
     }
 
@@ -327,6 +331,14 @@ impl AbacusCommon for OutboxVariants {
             OutboxVariants::Ethereum(outbox) => outbox.checkpointed_root().await,
             OutboxVariants::Mock(mock_outbox) => mock_outbox.checkpointed_root().await,
             OutboxVariants::Other(outbox) => outbox.checkpointed_root().await,
+        }
+    }
+
+    async fn latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {
+        match self {
+            OutboxVariants::Ethereum(outbox) => outbox.latest_checkpoint().await,
+            OutboxVariants::Mock(mock_outbox) => mock_outbox.latest_checkpoint().await,
+            OutboxVariants::Other(outbox) => outbox.latest_checkpoint().await,
         }
     }
 }

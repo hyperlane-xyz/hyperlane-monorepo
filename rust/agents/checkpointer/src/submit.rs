@@ -29,23 +29,19 @@ impl CheckpointSubmitter {
             loop {
                 sleep(Duration::from_secs(self.interval_seconds)).await;
 
-                // Check the current checkpoint
-                let current_checkpointed_root = self.outbox.checkpointed_root().await?;
-                // Get the current root of the tree.
-                // By comparing this with the checkpoint, we can see if there are any
-                // new messages without any indexing. Note that it's possible for
-                // messages to be re-orged away that are included in this new root,
-                // but this has no major effect beside submitting an unnecessary checkpoint
-                // transaction.
-                let current_root = self.outbox.root().await?;
+                // Check the latest checkpointed index
+                let (_, latest_checkpoint_index) = self.outbox.latest_checkpoint().await?;
+                // Get the current count of the tree
+                let count = self.outbox.count().await?;
 
                 info!(
-                    current_checkpointed_root=?current_checkpointed_root,
-                    current_root=?current_root,
-                    "Got checkpointed root and calculated current root"
+                    latest_checkpoint_index=?latest_checkpoint_index,
+                    count=?count,
+                    "Got latest checkpoint and count"
                 );
-
-                if current_checkpointed_root != current_root {
+                // If there are any new messages, the count will be greater than
+                // the latest checkpoint index and a new checkpoint should be made
+                if count > latest_checkpoint_index {
                     self.outbox.create_checkpoint().await?;
                 }
             }

@@ -35,7 +35,7 @@ mock! {
 
         pub fn _dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {}
 
-        pub fn _root(&self) -> Result<H256, ChainCommunicationError> {}
+        pub fn _count(&self) -> Result<u32, ChainCommunicationError> {}
 
         pub fn _create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {}
 
@@ -49,6 +49,8 @@ mock! {
         pub fn _state(&self) -> Result<State, ChainCommunicationError> {}
 
         pub fn _checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {}
+
+        pub fn _latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {}
     }
 }
 
@@ -72,8 +74,8 @@ impl Outbox for MockOutboxContract {
         self._state()
     }
 
-    async fn root(&self) -> Result<H256, ChainCommunicationError> {
-        self._root()
+    async fn count(&self) -> Result<u32, ChainCommunicationError> {
+        self._count()
     }
 
     async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
@@ -101,5 +103,9 @@ impl AbacusCommon for MockOutboxContract {
 
     async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
         self._checkpointed_root()
+    }
+
+    async fn latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {
+        self._latest_checkpoint()
     }
 }

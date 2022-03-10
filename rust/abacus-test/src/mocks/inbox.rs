@@ -33,6 +33,8 @@ mock! {
 
         pub fn _checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {}
 
+        pub fn _latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {}
+
         pub fn _message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {}
     }
 }
@@ -90,5 +92,9 @@ impl AbacusCommon for MockInboxContract {
 
     async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
         self._checkpointed_root()
+    }
+
+    async fn latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {
+        self._latest_checkpoint()
     }
 }

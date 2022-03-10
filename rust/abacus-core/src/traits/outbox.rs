@@ -18,8 +18,8 @@ pub trait Outbox: AbacusCommon + Send + Sync + std::fmt::Debug {
     /// Fetch the nonce
     async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError>;
 
-    /// Gets the current root of the merkle tree
-    async fn root(&self) -> Result<H256, ChainCommunicationError>;
+    /// Gets the current leaf count of the merkle tree
+    async fn count(&self) -> Result<u32, ChainCommunicationError>;
 
     /// Dispatch a message.
     async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError>;
