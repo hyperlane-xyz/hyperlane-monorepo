@@ -132,7 +132,7 @@ where
         let tx = self.contract.unenroll_replica(
             signed_failure.notification.home_domain,
             signed_failure.notification.updater.into(),
-            signed_failure.signature.to_vec(),
+            signed_failure.signature.to_vec().into(),
         );
 
         Ok(report_tx!(tx).into())

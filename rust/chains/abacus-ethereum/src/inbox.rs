@@ -233,7 +233,7 @@ where
 
     #[tracing::instrument(err)]
     async fn process(&self, message: &AbacusMessage) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.process(message.to_vec());
+        let tx = self.contract.process(message.to_vec().into());
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
         Ok(report_tx!(gassed).into())
@@ -252,9 +252,9 @@ where
             .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
 
         //
-        let tx = self
-            .contract
-            .prove_and_process(message.to_vec(), sol_proof, proof.index.into());
+        let tx =
+            self.contract
+                .prove_and_process(message.to_vec().into(), sol_proof, proof.index.into());
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
         Ok(report_tx!(gassed).into())
@@ -279,7 +279,7 @@ where
         let tx = self.contract.checkpoint(
             signed_checkpoint.checkpoint.root.to_fixed_bytes(),
             signed_checkpoint.checkpoint.index.into(),
-            signed_checkpoint.signature.to_vec(),
+            signed_checkpoint.signature.to_vec().into(),
         );
 
         Ok(report_tx!(tx).into())

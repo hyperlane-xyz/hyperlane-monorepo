@@ -53,11 +53,11 @@ pub use identifiers::AbacusIdentifier;
 
 use async_trait::async_trait;
 use ethers::{
-    core::types::{Address as EthAddress, Signature, SignatureError, H256},
-    prelude::{
+    core::types::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712},
-        AwsSigner,
+        Address as EthAddress, Signature, SignatureError, H256,
     },
+    prelude::AwsSigner,
     signers::{AwsSignerError, LocalWallet, Signer},
 };
 
