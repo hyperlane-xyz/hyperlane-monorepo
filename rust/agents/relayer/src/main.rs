@@ -7,12 +7,13 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+mod checkpoint_relayer;
 mod relayer;
 mod settings;
 
 use color_eyre::Result;
 
-use abacus_base::AbacusAgent;
+use abacus_base::Agent;
 
 use crate::{relayer::Relayer, settings::RelayerSettings as Settings};
 
@@ -30,7 +31,7 @@ async fn _main() -> Result<()> {
 
     let _ = agent.metrics().run_http_server();
 
-    agent.run_all().await??;
+    agent.run().await??;
     Ok(())
 }
 
