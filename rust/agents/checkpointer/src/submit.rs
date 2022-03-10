@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::CachingOutbox;
-use abacus_core::{AbacusCommon, Outbox};
+use abacus_core::{AbacusCommon, Checkpoint, Outbox};
 use std::time::Duration;
 
 use color_eyre::Result;
@@ -30,7 +30,7 @@ impl CheckpointSubmitter {
                 sleep(Duration::from_secs(self.interval_seconds)).await;
 
                 // Check the latest checkpointed index
-                let (_, latest_checkpoint_index) = self.outbox.latest_checkpoint().await?;
+                let Checkpoint { index: latest_checkpoint_index, .. } = self.outbox.latest_checkpoint().await?;
                 // Get the current count of the tree
                 let count = self.outbox.count().await?;
 

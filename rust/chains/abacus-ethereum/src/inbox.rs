@@ -195,11 +195,15 @@ where
         Ok(self.contract.checkpointed_root().call().await?.into())
     }
 
-    #[tracing::instrument(err)]
-    async fn latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {
-        // Ok(self.contract.latest_checkpoint().call().await?.into())
-        let call_result = self.contract.latest_checkpoint().call().await?;
-        Ok((call_result.0.into(), call_result.1.as_u32()))
+    #[tracing::instrument(err, skip(self))]
+    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
+        let (root, index) = self.contract.latest_checkpoint().call().await?;
+        Ok(Checkpoint {
+            // This is inefficient, but latest_checkpoint should never be called
+            outbox_domain: self.remote_domain().await?,
+            root: root.into(),
+            index: index.as_u32(),
+        })
     }
 }
 

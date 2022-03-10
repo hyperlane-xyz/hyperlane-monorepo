@@ -1,8 +1,7 @@
 use abacus_core::{
-    accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, ChainCommunicationError,
-    MessageStatus, TxOutcome,
+    accumulator::merkle::Proof, db::AbacusDB, AbacusCommon, AbacusMessage, ChainCommunicationError,
+    Checkpoint, Inbox, MessageStatus, TxOutcome,
 };
-use abacus_core::{AbacusCommon, Inbox};
 use abacus_test::mocks::inbox::MockInboxContract;
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
@@ -115,7 +114,7 @@ impl AbacusCommon for CachingInbox {
         self.inbox.checkpointed_root().await
     }
 
-    async fn latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {
+    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
         self.inbox.latest_checkpoint().await
     }
 }
@@ -278,7 +277,7 @@ impl AbacusCommon for InboxVariants {
         }
     }
 
-    async fn latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {
+    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
         match self {
             InboxVariants::Ethereum(inbox) => inbox.latest_checkpoint().await,
             InboxVariants::Mock(mock_inbox) => mock_inbox.latest_checkpoint().await,

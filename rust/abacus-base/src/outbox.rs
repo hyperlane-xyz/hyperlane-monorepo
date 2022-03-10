@@ -1,6 +1,6 @@
 use abacus_core::db::AbacusDB;
 use abacus_core::{
-    AbacusCommon, ChainCommunicationError, Message, Outbox, OutboxEvents, RawCommittedMessage,
+    AbacusCommon, ChainCommunicationError, Checkpoint, Message, Outbox, OutboxEvents, RawCommittedMessage,
     State, TxOutcome,
 };
 
@@ -173,7 +173,7 @@ impl AbacusCommon for CachingOutbox {
         self.outbox.checkpointed_root().await
     }
 
-    async fn latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {
+    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
         self.outbox.latest_checkpoint().await
     }
 }
@@ -334,7 +334,7 @@ impl AbacusCommon for OutboxVariants {
         }
     }
 
-    async fn latest_checkpoint(&self) -> Result<(H256, u32), ChainCommunicationError> {
+    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
         match self {
             OutboxVariants::Ethereum(outbox) => outbox.latest_checkpoint().await,
             OutboxVariants::Mock(mock_outbox) => mock_outbox.latest_checkpoint().await,
