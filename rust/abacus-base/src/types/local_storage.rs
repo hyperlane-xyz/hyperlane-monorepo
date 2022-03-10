@@ -16,15 +16,28 @@ impl LocalStorage {
         path.push_str(&format!("/{}.json", index));
         path
     }
+
+    fn index_key(&self) -> String {
+        let mut path = self.path.clone();
+        path.push_str("/index.json");
+        path
+    }
+
+    async fn write_index(&self, index: u32) -> Result<()> {
+        tokio::fs::write(self.index_key(), index.to_string()).await?;
+        Ok(())
+    }
 }
+
 #[async_trait]
 impl CheckpointSyncer for LocalStorage {
     async fn latest_index(&self) -> Result<Option<u32>> {
-        let mut path = self.path.clone();
-        path.push_str("/index.json");
-        match tokio::fs::read(path).await {
+        match tokio::fs::read(self.index_key()).await.and_then(|data| {
+            String::from_utf8(data)
+                .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))
+        }) {
             Ok(data) => {
-                let index = serde_json::from_slice(&data)?;
+                let index = data.parse()?;
                 Ok(Some(index))
             }
             _ => Ok(None),
@@ -46,6 +59,16 @@ impl CheckpointSyncer for LocalStorage {
             &serialized_checkpoint,
         )
         .await?;
+
+        match self.latest_index().await? {
+            Some(current_latest_index) => {
+                if current_latest_index < signed_checkpoint.checkpoint.index {
+                    self.write_index(signed_checkpoint.checkpoint.index).await?
+                }
+            }
+            None => self.write_index(signed_checkpoint.checkpoint.index).await?,
+        }
+
         Ok(())
     }
 }
