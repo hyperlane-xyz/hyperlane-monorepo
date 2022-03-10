@@ -29,6 +29,8 @@
     "prettier": "prettier --write ./contracts ./libs ./test",
     "build": "hardhat compile && hardhat typechain && npm run prettier && npm run copy-typechain",
     "copy-typechain": "mkdir -p ../../typescript/typechain/abacus-core/ && cp -r typechain/* ../../typescript/typechain/abacus-core/",
+    "deploy-test": "hardhat run scripts/abacus.ts",
+    "node": "hardhat node",
     "test": "hardhat test",
     "coverage": "hardhat coverage"
   },
