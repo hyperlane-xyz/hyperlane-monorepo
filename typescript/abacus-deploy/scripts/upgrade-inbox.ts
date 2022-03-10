@@ -1,13 +1,15 @@
 import {
-  getCoreDeploys,
+  getCoreDeploy,
+  getCoreConfig,
   getChainConfigs,
   getContext,
   getEnvironment,
+  getGovernanceDeploy,
   registerRpcProviders,
   registerGovernorSigner,
 } from './utils';
-import { ViolationType } from '../src/checks';
-import { CoreInvariantChecker } from '../src/core/checks';
+import { ViolationType } from '../src/common';
+import { CoreInvariantChecker } from '../src/core';
 import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
 import { Call } from '@abacus-network/sdk/dist/abacus/govern';
 
@@ -18,23 +20,27 @@ async function main() {
   registerRpcProviders(context, chains);
   await registerGovernorSigner(context, chains);
 
-  const deploys = await getCoreDeploys(environment);
-  const checker = new CoreInvariantChecker(deploys);
-  await checker.checkDeploys();
+  const deploy = await getCoreDeploy(environment);
+  const governance = await getGovernanceDeploy(environment);
+  const config = await getCoreConfig(environment);
+  const checker = new CoreInvariantChecker(
+    deploy,
+    config,
+    governance.routerAddresses(),
+  );
+  await checker.check();
   checker.expectViolations([ViolationType.UpgradeBeacon], [chains.length]);
   const builder = new GovernanceCallBatchBuilder(
-    deploys,
+    deploy,
     context,
     checker.violations,
   );
   const batch = await builder.build();
 
-  const domains = deploys.map((d) => d.chain.domain);
-  for (const outbox of domains) {
-    for (const remote of domains) {
-      if (outbox === remote) continue;
+  for (const local of deploy.domains) {
+    for (const remote of deploy.remotes(local)) {
       const core = context.mustGetCore(remote);
-      const inbox = core.getInbox(outbox);
+      const inbox = core.getInbox(local);
       const transferOwnership =
         await inbox!.populateTransaction.transferOwnership(
           core._governanceRouter,
@@ -46,7 +52,11 @@ async function main() {
   const txs = await batch.build();
   // For each domain, expect one call to upgrade the contract and then three
   // calls to transfer inbox ownership.
-  expectCalls(batch, domains, new Array(chains.length).fill(chains.length));
+  expectCalls(
+    batch,
+    deploy.domains,
+    new Array(chains.length).fill(chains.length),
+  );
   // Change to `batch.execute` in order to run.
   const receipts = await batch.estimateGas();
   console.log(txs);

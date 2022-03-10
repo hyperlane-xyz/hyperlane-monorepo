@@ -1,14 +1,17 @@
-import * as proxyUtils from '../utils/proxy';
+import { core } from '@abacus-network/ts-interface';
+import { types } from '@abacus-network/utils';
 import { CoreDeploy } from './CoreDeploy';
-import { writeRustConfigs } from './index';
-import * as contracts from '@abacus-network/ts-interface/dist/abacus-core';
-import { log, warn } from '../utils/utils';
+import { CoreInstance } from './CoreInstance';
+import { CoreContracts } from './CoreContracts';
+import { CoreConfig } from './types';
 
 export class ImplementationDeployer {
-  private _deploys: CoreDeploy[];
+  private deploy: CoreDeploy;
+  private config: CoreConfig;
 
-  constructor(deploys: CoreDeploy[]) {
-    this._deploys = deploys;
+  constructor(deploy: CoreDeploy, config: CoreConfig) {
+    this.deploy = deploy;
+    this.config = config;
   }
 
   deployOutboxImplementations(): Promise<void> {
@@ -19,38 +22,24 @@ export class ImplementationDeployer {
     return this._deployImplementations(this._deployInboxImplementation);
   }
 
-  writeDeploys(dir: string): void {
-    this._deploys.map((d) => d.writeDeployOutput());
-    writeRustConfigs(this._deploys, dir);
-  }
-
   /**
    * Deploys a Outbox implementation on the chain of the given deploy and updates
    * the deploy instance with the new contract.
    *
    * @param deploy - The deploy instance
    */
-  private async _deployOutboxImplementation(deploy: CoreDeploy) {
-    const isTestDeploy: boolean = deploy.test;
-    if (isTestDeploy) warn('deploying test Outbox');
-    const outboxFactory = isTestDeploy
-      ? contracts.TestOutbox__factory
-      : contracts.Outbox__factory;
-    const implementation =
-      await proxyUtils.deployImplementation<contracts.Outbox>(
-        'Outbox',
-        deploy,
-        new outboxFactory(deploy.signer),
-        deploy.chain.domain,
-      );
-
-    deploy.contracts.outbox =
-      proxyUtils.overrideBeaconProxyImplementation<contracts.Outbox>(
-        implementation,
-        deploy,
-        new outboxFactory(deploy.signer),
-        deploy.contracts.outbox!,
-      );
+  private async _deployOutboxImplementation(domain: types.Domain) {
+    const signer = this.deploy.signer(domain);
+    const factory = new core.Outbox__factory(signer);
+    const implementation = await factory.deploy(
+      domain,
+      this.deploy.chains[domain].overrides,
+    );
+    const addresses = this.deploy.instances[domain].contracts.toObject();
+    addresses.outbox.implementation = implementation.address;
+    const contracts = CoreContracts.fromObject(addresses, signer);
+    const instance = new CoreInstance(this.deploy.chains[domain], contracts);
+    this.deploy.instances[domain] = instance;
   }
 
   /**
@@ -59,31 +48,22 @@ export class ImplementationDeployer {
    *
    * @param deploy - The deploy instance
    */
-  private async _deployInboxImplementation(deploy: CoreDeploy) {
-    const isTestDeploy: boolean = deploy.test;
-    if (isTestDeploy) warn('deploying test Inbox');
-    const inboxFactory = isTestDeploy
-      ? contracts.TestInbox__factory
-      : contracts.Inbox__factory;
-    const implementation =
-      await proxyUtils.deployImplementation<contracts.Inbox>(
-        'Inbox',
-        deploy,
-        new inboxFactory(deploy.signer),
-        deploy.chain.domain,
-        deploy.config.processGas,
-        deploy.config.reserveGas,
-      );
-
-    for (const domain in deploy.contracts.inboxes) {
-      deploy.contracts.inboxes[domain] =
-        proxyUtils.overrideBeaconProxyImplementation<contracts.Inbox>(
-          implementation,
-          deploy,
-          new inboxFactory(deploy.signer),
-          deploy.contracts.inboxes[domain],
-        );
+  private async _deployInboxImplementation(domain: types.Domain) {
+    const signer = this.deploy.signer(domain);
+    const factory = new core.Inbox__factory(signer);
+    const implementation = await factory.deploy(
+      domain,
+      this.config.processGas,
+      this.config.reserveGas,
+      this.deploy.chains[domain].overrides,
+    );
+    const addresses = this.deploy.instances[domain].contracts.toObject();
+    for (const remote of this.deploy.remotes(domain)) {
+      addresses.inboxes[remote].implementation = implementation.address;
     }
+    const contracts = CoreContracts.fromObject(addresses, signer);
+    const instance = new CoreInstance(this.deploy.chains[domain], contracts);
+    this.deploy.instances[domain] = instance;
   }
 
   /**
@@ -96,31 +76,12 @@ export class ImplementationDeployer {
    * @param deployImplementation - A function that deploys a new implementation
    */
   private async _deployImplementations(
-    deployImplementation: (d: CoreDeploy) => void,
+    deployImplementation: (d: types.Domain) => void,
   ) {
-    if (this._deploys.length == 0) {
-      throw new Error('Must pass at least one deploy config');
-    }
-
-    // there exists any chain marked test
-    const isTestDeploy: boolean =
-      this._deploys.filter((c) => c.test).length > 0;
-
-    log(isTestDeploy, `Beginning ${this._deploys.length} Chain deploy process`);
-    log(isTestDeploy, `Deploy env is ${this._deploys[0].config.environment}`);
-    log(isTestDeploy, `${this._deploys[0].chain.name} is governing`);
-
-    log(isTestDeploy, 'awaiting provider ready');
-    await Promise.all([
-      this._deploys.map(async (deploy) => {
-        await deploy.ready();
-      }),
-    ]);
-    log(isTestDeploy, 'done readying');
-
+    await this.deploy.ready();
     // Do it sequentially
-    for (const deploy of this._deploys) {
-      await deployImplementation(deploy);
+    for (const domain of this.deploy.domains) {
+      await deployImplementation(domain);
     }
   }
 }

@@ -1,14 +1,16 @@
-import { chainConfigsGetterForEnvironment } from '../../../src/config/chain';
-import { getChain as alfajores } from '../../../config/networks/testnets/alfajores';
-import { getChain as gorli } from '../../../config/networks/testnets/gorli';
-import { getChain as kovan } from '../../../config/networks/testnets/kovan';
-import { getChain as ropsten } from '../../../config/networks/testnets/ropsten';
+import { getChainsForEnvironment } from '../../../src/config/chain';
+import {
+  alfajores,
+  goerli,
+  kovan,
+  ropsten,
+} from '../../../config/networks/testnets';
 
 const environment = 'testnet';
 const deployerKeySecretName = 'staging-community-deployer-key';
 
-export const getChains = chainConfigsGetterForEnvironment(
-  [alfajores, ropsten, kovan, gorli],
+export const getChains = getChainsForEnvironment(
+  [alfajores, ropsten, kovan, goerli],
   environment,
   deployerKeySecretName,
 );
