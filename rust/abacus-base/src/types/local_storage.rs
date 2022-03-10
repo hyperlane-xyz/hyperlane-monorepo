@@ -12,7 +12,7 @@ pub struct LocalStorage {
 
 impl LocalStorage {
     fn key(&self, index: u32) -> String {
-        let mut path = String::from(self.path.clone());
+        let mut path = self.path.clone();
         path.push_str(&format!("/{}.json", index));
         path
     }
@@ -20,7 +20,7 @@ impl LocalStorage {
 #[async_trait]
 impl CheckpointSyncer for LocalStorage {
     async fn latest_index(&self) -> Result<Option<u32>> {
-        let mut path = String::from(self.path.clone());
+        let mut path = self.path.clone();
         path.push_str("/index.json");
         match tokio::fs::read(path).await {
             Ok(data) => {
