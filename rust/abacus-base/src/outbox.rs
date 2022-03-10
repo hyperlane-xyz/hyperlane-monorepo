@@ -167,7 +167,7 @@ impl AbacusCommon for CachingOutbox {
 
     async fn latest_checkpoint(
         &self,
-        maybe_lag: Option<u8>,
+        maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         self.outbox.latest_checkpoint(maybe_lag).await
     }
@@ -315,7 +315,7 @@ impl AbacusCommon for OutboxVariants {
 
     async fn latest_checkpoint(
         &self,
-        maybe_lag: Option<u8>,
+        maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         match self {
             OutboxVariants::Ethereum(outbox) => outbox.latest_checkpoint(maybe_lag).await,

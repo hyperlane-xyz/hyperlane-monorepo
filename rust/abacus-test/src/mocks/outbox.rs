@@ -46,7 +46,7 @@ mock! {
 
         pub fn _checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {}
 
-        pub fn _latest_checkpoint(&self, maybe_lag: Option<u8>) -> Result<Checkpoint, ChainCommunicationError> {}
+        pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
     }
 }
 
@@ -95,7 +95,7 @@ impl AbacusCommon for MockOutboxContract {
 
     async fn latest_checkpoint(
         &self,
-        maybe_lag: Option<u8>,
+        maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         self._latest_checkpoint(maybe_lag)
     }

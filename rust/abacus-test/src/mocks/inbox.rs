@@ -40,7 +40,7 @@ mock! {
 
         pub fn _message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {}
 
-        pub fn _latest_checkpoint(&self, maybe_lag: Option<u8>) -> Result<Checkpoint, ChainCommunicationError> {}
+        pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
     }
 }
 
@@ -108,7 +108,7 @@ impl AbacusCommon for MockInboxContract {
 
     async fn latest_checkpoint(
         &self,
-        maybe_lag: Option<u8>,
+        maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         self._latest_checkpoint(maybe_lag)
     }

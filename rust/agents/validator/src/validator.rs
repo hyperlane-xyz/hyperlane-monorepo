@@ -13,7 +13,7 @@ use abacus_core::Signers;
 #[derive(Debug)]
 pub struct Validator {
     signer: Arc<Signers>,
-    reorg_period: u8,
+    reorg_period: u64,
     interval: u64,
     pub(crate) core: AbacusAgentCore,
 }
@@ -26,7 +26,7 @@ impl AsRef<AbacusAgentCore> for Validator {
 
 impl Validator {
     /// Instantiate a new validator
-    pub fn new(signer: Signers, reorg_period: u8, interval: u64, core: AbacusAgentCore) -> Self {
+    pub fn new(signer: Signers, reorg_period: u64, interval: u64, core: AbacusAgentCore) -> Self {
         Self {
             signer: Arc::new(signer),
             reorg_period,

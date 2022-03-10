@@ -9,7 +9,7 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 pub(crate) struct ValidatorSubmitter {
     interval: u64,
-    reorg_period: u8,
+    reorg_period: u64,
     signer: Arc<Signers>,
     outbox: Arc<CachingOutbox>,
 }
@@ -17,7 +17,7 @@ pub(crate) struct ValidatorSubmitter {
 impl ValidatorSubmitter {
     pub(crate) fn new(
         interval: u64,
-        reorg_period: u8,
+        reorg_period: u64,
         outbox: Arc<CachingOutbox>,
         signer: Arc<Signers>,
     ) -> Self {

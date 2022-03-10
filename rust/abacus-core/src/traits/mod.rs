@@ -168,6 +168,6 @@ pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
     /// Return the latest checkpointed root and its index.
     async fn latest_checkpoint(
         &self,
-        lag: Option<u8>,
+        lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError>;
 }

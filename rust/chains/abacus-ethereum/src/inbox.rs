@@ -198,7 +198,7 @@ where
     #[tracing::instrument(err, skip(self))]
     async fn latest_checkpoint(
         &self,
-        maybe_lag: Option<u8>,
+        maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         // This should probably moved into its own trait
         let base_call = self.contract.latest_checkpoint();
@@ -208,8 +208,9 @@ where
                     .provider
                     .get_block_number()
                     .await
-                    .map_err(|x| ChainCommunicationError::CustomError(Box::new(x)))?;
-                base_call.block(tip - lag)
+                    .map_err(|x| ChainCommunicationError::CustomError(Box::new(x)))?
+                    .as_u64();
+                base_call.block(if lag > tip { 0 } else { tip - lag })
             }
             None => base_call,
         };
