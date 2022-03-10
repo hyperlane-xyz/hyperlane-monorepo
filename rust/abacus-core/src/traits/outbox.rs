@@ -26,7 +26,8 @@ pub trait Outbox: AbacusCommon + Send + Sync + std::fmt::Debug {
 
     /// Creates a new checkpoint.
     /// This isn't called `checkpoint` to avoid a conflict with the MockOutboxContract,
-    /// which has a conflicting `checkpoint` function automatically created by a mockall macro.
+    /// which has a conflicting `checkpoint` function automatically created by the mockall
+    /// library's automocking attribute macro.
     async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError>;
 }
 
