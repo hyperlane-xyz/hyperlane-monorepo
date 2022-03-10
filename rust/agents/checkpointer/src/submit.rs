@@ -30,7 +30,10 @@ impl CheckpointSubmitter {
                 sleep(Duration::from_secs(self.interval_seconds)).await;
 
                 // Check the latest checkpointed index
-                let Checkpoint { index: latest_checkpoint_index, .. } = self.outbox.latest_checkpoint().await?;
+                let Checkpoint {
+                    index: latest_checkpoint_index,
+                    ..
+                } = self.outbox.latest_checkpoint().await?;
                 // Get the current count of the tree
                 let count = self.outbox.count().await?;
 

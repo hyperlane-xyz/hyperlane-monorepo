@@ -16,7 +16,7 @@ use ethers::{
 };
 use std::error::Error as StdError;
 
-use crate::{db::DbError, utils::home_domain_hash, types::Checkpoint, AbacusError, SignedUpdate};
+use crate::{db::DbError, types::Checkpoint, utils::home_domain_hash, AbacusError, SignedUpdate};
 
 pub use common::*;
 pub use encode::*;

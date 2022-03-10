@@ -1,7 +1,7 @@
 use abacus_core::db::AbacusDB;
 use abacus_core::{
-    AbacusCommon, ChainCommunicationError, Checkpoint, Message, Outbox, OutboxEvents, RawCommittedMessage,
-    State, TxOutcome,
+    AbacusCommon, ChainCommunicationError, Checkpoint, Message, Outbox, OutboxEvents,
+    RawCommittedMessage, State, TxOutcome,
 };
 
 use abacus_ethereum::EthereumOutbox;
