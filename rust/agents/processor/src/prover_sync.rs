@@ -155,10 +155,7 @@ impl ProverSync {
 
         for i in range {
             let leaf = self.db.wait_for_leaf(i as u32).await?;
-            if leaf.is_none() {
-                break;
-            }
-            leaves.push(leaf.unwrap());
+            leaves.push(leaf);
         }
 
         Ok(leaves)
@@ -262,22 +259,18 @@ impl ProverSync {
             // As we fill the incremental merkle, its tree_size will always be
             // equal to the index of the next leaf we want (e.g. if tree_size
             // is 3, we want the 4th leaf, which is at index 3)
-            if let Some(leaf) = self.db.wait_for_leaf(tree_size as u32).await? {
-                info!(
-                    index = tree_size,
-                    leaf = ?leaf,
-                    "Leaf at index {} is {}",
-                    tree_size,
-                    leaf
-                );
-                incremental.ingest(leaf);
-                leaves.push(leaf);
-                current_root = incremental.root();
-            } else {
-                // break on no leaf (warn: path never taken)
-                current_root = incremental.root();
-                break;
-            }
+            let leaf = self.db.wait_for_leaf(tree_size as u32).await?;
+            info!(
+                index = tree_size,
+                leaf = ?leaf,
+                "Leaf at index {} is {}",
+                tree_size,
+                leaf
+            );
+            incremental.ingest(leaf);
+            leaves.push(leaf);
+            current_root = incremental.root();
+
             tree_size = incremental.count();
         }
 

@@ -1,20 +1,57 @@
 use std::{sync::Arc, time::Duration};
 
 use abacus_base::{CachingInbox, CheckpointSyncer, LocalStorage};
-use abacus_core::{AbacusCommon, Inbox};
+use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox};
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use tracing::{debug, info_span, instrument::Instrumented, Instrument};
 
 pub(crate) struct CheckpointRelayer {
     interval: u64,
+    db: AbacusDB,
     inbox: Arc<CachingInbox>,
 }
 
 impl CheckpointRelayer {
-    pub(crate) fn new(interval: u64, inbox: Arc<CachingInbox>) -> Self {
-        Self { interval, inbox }
+    pub(crate) fn new(interval: u64, db: AbacusDB, inbox: Arc<CachingInbox>) -> Self {
+        Self {
+            interval,
+            db,
+            inbox,
+        }
     }
+
+    async fn get_messages_between(
+        &self,
+        unprocessed_leaf_index: u32,
+        latest_signed_checkpoint_index: u32,
+    ) -> Result<Option<Vec<CommittedMessage>>> {
+        let mut messages: Vec<CommittedMessage> = vec![];
+        let mut current_unprocessed_leaf_index = unprocessed_leaf_index;
+        while current_unprocessed_leaf_index <= latest_signed_checkpoint_index {
+            // Relies on the indexer finding this message eventually
+            self.db
+                .wait_for_leaf(current_unprocessed_leaf_index)
+                .await?;
+            let maybe_message = self
+                .db
+                .message_by_leaf_index(current_unprocessed_leaf_index)?
+                .map(CommittedMessage::try_from)
+                .transpose()?;
+            match maybe_message {
+                Some(message) => {
+                    if message.message.destination == self.inbox.local_domain() {
+                        messages.push(message);
+                    }
+                }
+                None => return Ok(None),
+            }
+            current_unprocessed_leaf_index += 1
+        }
+
+        Ok(Some(messages))
+    }
+
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("CheckpointRelayer");
         let interval = self.interval;
@@ -23,35 +60,55 @@ impl CheckpointRelayer {
         };
         tokio::spawn(async move {
             let latest_inbox_checkpoint = self.inbox.latest_checkpoint(None).await?;
-            let mut latest_checkpointed_leaf_index = latest_inbox_checkpoint.index;
-            let mut current_leaf_index = latest_checkpointed_leaf_index;
+            let mut latest_checkpointed_index = latest_inbox_checkpoint.index;
+            // Checkpoints are 1-indexed, while leaves are 0-indexed
+            let mut unprocessed_leaf_index = latest_checkpointed_index;
             loop {
-                 sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(5)).await;
 
                 if let Some(latest_signed_checkpoint_index) = local_storage.latest_index().await? {
-                    if latest_signed_checkpoint_index <= latest_checkpointed_leaf_index {
-                      info!(onchain=latest_checkpointed_leaf_index, signed=latest_signed_checkpoint_index, "Signed checkpoint matches known checkpoint on-chain, continue");
+                    if latest_signed_checkpoint_index <= latest_checkpointed_index {
+                        debug!(
+                            onchain = latest_checkpointed_index,
+                            signed = latest_signed_checkpoint_index,
+                            "Signed checkpoint matches known checkpoint on-chain, continue"
+                        );
                         continue;
                     }
-                    // TODO: Check if there are messages between this signed index and the current leaf index
-                    let contains_messages = current_leaf_index > 0;
-                    // if no messages destined
-                    if !contains_messages {
-                        info!("New checkpoint does not include messages for inbox");
-                        current_leaf_index = latest_signed_checkpoint_index;
-                        continue;
-                    } else {
-                      info!("Signed checkpoint allows for processing of new messages, submit checkpoint");
-                        // submit checkpoint
-                        if let Some(latest_signed_checkpoint) = local_storage
-                            .fetch_checkpoint(latest_signed_checkpoint_index)
-                            .await?
-                        {
-                            self.inbox.submit_checkpoint(&latest_signed_checkpoint).await?;
-                            latest_checkpointed_leaf_index =
-                                latest_signed_checkpoint.checkpoint.index;
-                            // Sleep after submission
-                            sleep(Duration::from_secs(interval)).await;
+
+                    match self
+                        .get_messages_between(
+                            unprocessed_leaf_index,
+                            latest_signed_checkpoint_index,
+                        )
+                        .await?
+                    {
+                        None => debug!("Couldn't fetch the relevant messages, retry this range"),
+                        Some(messages) if messages.len() == 0 => {
+                            unprocessed_leaf_index = latest_signed_checkpoint_index;
+                            debug!("New checkpoint does not include messages for inbox")
+                        }
+                        Some(messages) => {
+                            unprocessed_leaf_index = latest_signed_checkpoint_index;
+                            debug!(
+                                len = messages.len(),
+                                "Signed checkpoint allows for processing of new messages"
+                            );
+                            // submit checkpoint
+                            // If the checkpoint storage is inconsistent, then this arm won't match
+                            // and it will cause us to have skipped this message batch
+                            if let Some(latest_signed_checkpoint) = local_storage
+                                .fetch_checkpoint(latest_signed_checkpoint_index)
+                                .await?
+                            {
+                                self.inbox
+                                    .submit_checkpoint(&latest_signed_checkpoint)
+                                    .await?;
+                                latest_checkpointed_index =
+                                    latest_signed_checkpoint.checkpoint.index;
+                                // Sleep latency period after submission
+                                sleep(Duration::from_secs(interval)).await;
+                            }
                         }
                     }
                 }
