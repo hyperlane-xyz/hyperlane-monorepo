@@ -21,9 +21,8 @@ impl CheckpointRelayer {
         let local_storage = LocalStorage {
             path: "/tmp/validatorsignatures".to_string(),
         };
-        let inbox = self.inbox.clone();
         tokio::spawn(async move {
-            let latest_inbox_checkpoint = inbox.latest_checkpoint(None).await?;
+            let latest_inbox_checkpoint = self.inbox.latest_checkpoint(None).await?;
             let mut latest_checkpointed_leaf_index = latest_inbox_checkpoint.index;
             let mut current_leaf_index = latest_checkpointed_leaf_index;
             loop {
@@ -48,7 +47,7 @@ impl CheckpointRelayer {
                             .fetch_checkpoint(latest_signed_checkpoint_index)
                             .await?
                         {
-                            inbox.submit_checkpoint(&latest_signed_checkpoint).await?;
+                            self.inbox.submit_checkpoint(&latest_signed_checkpoint).await?;
                             latest_checkpointed_leaf_index =
                                 latest_signed_checkpoint.checkpoint.index;
                             // Sleep after submission
