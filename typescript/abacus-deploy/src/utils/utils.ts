@@ -5,14 +5,8 @@ import path from 'path';
 import * as asn1 from 'asn1.js';
 import { ethers } from 'ethers';
 
-/*
- * Converts address to Bytes32
- *
- * @param address - the address
- * @return The address as bytes32
- */
-export function toBytes32(address: string): string {
-  return '0x' + '00'.repeat(12) + address.slice(2);
+export function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**
@@ -42,6 +36,7 @@ export async function concurrentMap<A, B>(
 export function include(condition: boolean, data: any) {
   return condition ? data : {};
 }
+
 const EcdsaPubKey = asn1.define('EcdsaPubKey', function (this: any) {
   // parsing this according to https://tools.ietf.org/html/rfc5480#section-2
   this.seq().obj(

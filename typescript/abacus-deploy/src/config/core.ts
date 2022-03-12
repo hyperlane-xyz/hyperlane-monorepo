@@ -1,7 +1,7 @@
 import { BigNumberish } from 'ethers';
 import { CoreConfigAddresses } from './addresses';
 import { ChainName } from './chain';
-import { DeployEnvironment } from '../deploy';
+import { DeployEnvironment } from '../config';
 
 export interface CoreConfig {
   environment: DeployEnvironment;

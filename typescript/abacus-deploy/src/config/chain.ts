@@ -1,7 +1,6 @@
-import * as ethers from 'ethers';
+import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-
-type Address = string;
+import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
 
 export enum ChainName {
   // Mainnets
@@ -14,7 +13,7 @@ export enum ChainName {
   ALFAJORES = 'alfajores',
   MUMBAI = 'mumbai',
   KOVAN = 'kovan',
-  GORLI = 'gorli',
+  GOERLI = 'goerli',
   FUJI = 'fuji',
   RINKARBY = 'rinkarby',
   RINKEBY = 'rinkeby',
@@ -24,85 +23,39 @@ export enum ChainName {
   LOCAL = 'local',
 }
 
-export type DomainedChain = {
+export type ChainConfig = {
   name: ChainName;
   domain: number;
-};
-
-export type ChainConfigJson = DomainedChain & {
-  rpc: string;
-  deployerKey?: string;
-  gasLimit?: ethers.BigNumberish;
-  gasPrice?: ethers.BigNumberish;
-  confirmations?: number;
-  maxFeePerGas?: ethers.BigNumberish;
-  maxPriorityFeePerGas?: ethers.BigNumberish;
-  weth?: Address;
-  // How often an validator should check for new updates
-  validatorInterval?: number;
-  // How long an validator should wait for relevant state changes afterwords
-  validatorPause?: number;
-};
-
-export class ChainConfig {
-  name: ChainName;
-  domain: number;
-  confirmations: number;
-  provider: ethers.providers.JsonRpcProvider;
   signer: ethers.Signer;
-  gasPrice: ethers.BigNumber;
-  gasLimit: ethers.BigNumber;
-  json: ChainConfigJson;
-  maxFeePerGas?: ethers.BigNumber;
-  maxPriorityFeePerGas?: ethers.BigNumber;
-  weth?: Address;
-  // How often an validator should check for new updates
-  validatorInterval?: number;
-  // How long an validator should wait for relevant state changes afterwords
-  validatorPause?: number;
+  overrides: ethers.Overrides;
+  supports1559?: boolean;
+  confirmations?: number;
+};
 
-  constructor(json: ChainConfigJson) {
-    this.name = json.name;
-    this.domain = json.domain;
-    this.confirmations = json.confirmations ?? 5;
-    this.json = json;
+export type ChainConfigWithoutSigner = Omit<ChainConfig, 'signer'>;
 
-    this.provider = new ethers.providers.JsonRpcProvider(json.rpc);
-    const wallet = new ethers.Wallet(json.deployerKey!, this.provider);
-    this.signer = new NonceManager(wallet);
-    this.gasPrice = ethers.BigNumber.from(json.gasPrice ?? '20000000000');
-    this.gasLimit = ethers.BigNumber.from(json.gasLimit ?? 6_000_000);
-    this.maxFeePerGas = json.maxFeePerGas
-      ? ethers.BigNumber.from(json.maxFeePerGas)
-      : undefined;
-    this.maxPriorityFeePerGas = json.maxPriorityFeePerGas
-      ? ethers.BigNumber.from(json.maxPriorityFeePerGas)
-      : undefined;
-    this.weth = json.weth;
-    this.validatorInterval = json.validatorInterval;
-    this.validatorPause = json.validatorPause;
-  }
-
-  replaceSigner(privateKey: string) {
-    const wallet = new ethers.Wallet(privateKey, this.provider);
-    this.signer = new NonceManager(wallet);
-  }
-}
-
-export type ChainConfigGetter = (
+export async function fetchSigner(
+  partial: ChainConfigWithoutSigner,
   environment: string,
   deployerKeySecretName: string,
-) => Promise<ChainConfig>;
+): Promise<ChainConfig> {
+  const rpc = await getSecretRpcEndpoint(environment, partial.name);
+  const key = await getSecretDeployerKey(deployerKeySecretName);
+  const provider = new ethers.providers.JsonRpcProvider(rpc);
+  const wallet = new ethers.Wallet(key, provider);
+  const signer = new NonceManager(wallet);
+  return { ...partial, signer };
+}
 
-export function chainConfigsGetterForEnvironment(
-  chainConfigGetters: ChainConfigGetter[],
+export function getChainsForEnvironment(
+  partials: ChainConfigWithoutSigner[],
   environment: string,
   deployerKeySecretName: string,
 ) {
   return () =>
     Promise.all(
-      chainConfigGetters.map((chainConfigGetter: ChainConfigGetter) =>
-        chainConfigGetter(environment, deployerKeySecretName),
+      partials.map((partial) =>
+        fetchSigner(partial, environment, deployerKeySecretName),
       ),
     );
 }

@@ -1,7 +1,7 @@
-import { AgentConfig } from '../../../src/config/agent';
+import { AgentConfig, DeployEnvironment } from '../../../src/config';
 
 export const agentConfig: AgentConfig = {
-  environment: 'production',
+  environment: DeployEnvironment.production,
   namespace: 'optics-production-community',
   runEnv: 'mainnet',
   aws: {

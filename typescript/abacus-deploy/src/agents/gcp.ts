@@ -1,7 +1,7 @@
 import { Wallet } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
-import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
-import { ChainConfig } from '../../src/config/chain';
+
+import { KEY_ROLES } from '../agents';
 import { execCmd, include, strip0x } from '../utils/utils';
 import { AgentKey } from './agent';
 import { fetchGCPSecret } from '../utils/gcloud';
@@ -280,16 +280,4 @@ export async function fetchAgentGCPKeys(
 async function fetchGCPKeyAddresses(environment: string) {
   const addresses = await fetchGCPSecret(`optics-key-${environment}-addresses`);
   return addresses as KeyAsAddress[];
-}
-
-// Modifies a Chain configuration with the deployer key pulled from GCP
-export async function addDeployerGCPKey(
-  environment: string,
-  chain: ChainConfig,
-) {
-  const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chain.name);
-  await key.fetch();
-  const deployerSecret = key.privateKey;
-  chain.replaceSigner(strip0x(deployerSecret));
-  return chain;
 }

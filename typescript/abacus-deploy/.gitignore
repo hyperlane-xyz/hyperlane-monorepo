@@ -3,3 +3,5 @@ tmp.ts
 dist/
 .env
 cache/
+test/outputs
+config/environments/local/core/
