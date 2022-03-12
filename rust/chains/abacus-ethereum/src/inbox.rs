@@ -103,7 +103,7 @@ where
             ordering
         });
 
-        let outbox_domain = self.contract.local_domain().call().await?;
+        let outbox_domain = self.contract.remote_domain().call().await?;
 
         Ok(events
             .iter()
@@ -194,6 +194,34 @@ where
     async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.checkpointed_root().call().await?.into())
     }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
+        // This should probably moved into its own trait
+        let base_call = self.contract.latest_checkpoint();
+        let call_with_lag = match maybe_lag {
+            Some(lag) => {
+                let tip = self
+                    .provider
+                    .get_block_number()
+                    .await
+                    .map_err(|x| ChainCommunicationError::CustomError(Box::new(x)))?
+                    .as_u64();
+                base_call.block(if lag > tip { 0 } else { tip - lag })
+            }
+            None => base_call,
+        };
+        let (root, index) = call_with_lag.call().await?;
+        Ok(Checkpoint {
+            // This is inefficient, but latest_checkpoint should never be called
+            outbox_domain: self.remote_domain().await?,
+            root: root.into(),
+            index: index.as_u32(),
+        })
+    }
 }
 
 #[async_trait]
@@ -222,7 +250,7 @@ where
 
     #[tracing::instrument(err)]
     async fn process(&self, message: &AbacusMessage) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.process(message.to_vec());
+        let tx = self.contract.process(message.to_vec().into());
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
         Ok(report_tx!(gassed).into())
@@ -241,9 +269,9 @@ where
             .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
 
         //
-        let tx = self
-            .contract
-            .prove_and_process(message.to_vec(), sol_proof, proof.index.into());
+        let tx =
+            self.contract
+                .prove_and_process(message.to_vec().into(), sol_proof, proof.index.into());
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
         Ok(report_tx!(gassed).into())
@@ -258,5 +286,19 @@ where
             2 => Ok(MessageStatus::Processed),
             _ => panic!("Bad status from solidity"),
         }
+    }
+
+    #[tracing::instrument(err, skip(self), fields(hex_signature = %format!("0x{}", hex::encode(signed_checkpoint.signature.to_vec()))))]
+    async fn submit_checkpoint(
+        &self,
+        signed_checkpoint: &SignedCheckpoint,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
+        let tx = self.contract.checkpoint(
+            signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+            signed_checkpoint.checkpoint.index.into(),
+            signed_checkpoint.signature.to_vec().into(),
+        );
+
+        Ok(report_tx!(tx).into())
     }
 }

@@ -24,6 +24,11 @@ mock! {
             proof: &Proof,
         ) -> Result<TxOutcome, ChainCommunicationError> {}
 
+        pub fn _checkpoint(
+            &self,
+            signed_checkpoint: &SignedCheckpoint,
+        ) -> Result<TxOutcome, ChainCommunicationError> {}
+
         // Common
         pub fn _name(&self) -> &str {}
 
@@ -34,6 +39,8 @@ mock! {
         pub fn _checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {}
 
         pub fn _message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {}
+
+        pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
     }
 }
 
@@ -68,6 +75,13 @@ impl Inbox for MockInboxContract {
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         self._message_status(leaf)
     }
+
+    async fn submit_checkpoint(
+        &self,
+        signed_checkpoint: &SignedCheckpoint,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
+        self._checkpoint(signed_checkpoint)
+    }
 }
 
 #[async_trait]
@@ -90,5 +104,12 @@ impl AbacusCommon for MockInboxContract {
 
     async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
         self._checkpointed_root()
+    }
+
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
+        self._latest_checkpoint(maybe_lag)
     }
 }
