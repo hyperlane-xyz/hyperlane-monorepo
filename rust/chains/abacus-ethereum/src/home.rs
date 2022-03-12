@@ -97,7 +97,7 @@ where
         Ok(events
             .iter()
             .map(|event| {
-                let signature = Signature::try_from(event.0.signature.as_slice())
+                let signature = Signature::try_from(event.0.signature.as_ref())
                     .expect("chain accepted invalid signature");
 
                 let update = Update {
@@ -139,7 +139,7 @@ where
             .map(|f| RawCommittedMessage {
                 leaf_index: f.leaf_index.as_u32(),
                 committed_root: f.committed_root.into(),
-                message: f.message,
+                message: f.message.to_vec(),
             })
             .collect())
     }
@@ -226,7 +226,7 @@ where
         let tx = self.contract.update(
             update.update.previous_root.to_fixed_bytes(),
             update.update.new_root.to_fixed_bytes(),
-            update.signature.to_vec(),
+            update.signature.to_vec().into(),
         );
 
         Ok(report_tx!(tx).into())
@@ -243,8 +243,8 @@ where
                 double.0.update.new_root.to_fixed_bytes(),
                 double.1.update.new_root.to_fixed_bytes(),
             ],
-            double.0.signature.to_vec(),
-            double.1.signature.to_vec(),
+            double.0.signature.to_vec().into(),
+            double.1.signature.to_vec().into(),
         );
         let response = report_tx!(tx);
 
@@ -271,7 +271,7 @@ where
         let tx = self.contract.dispatch(
             message.destination,
             message.recipient.to_fixed_bytes(),
-            message.body.clone(),
+            message.body.clone().into(),
         );
 
         Ok(report_tx!(tx).into())
@@ -289,7 +289,7 @@ where
         let tx = self.contract.improper_update(
             update.update.previous_root.to_fixed_bytes(),
             update.update.new_root.to_fixed_bytes(),
-            update.signature.to_vec(),
+            update.signature.to_vec().into(),
         );
 
         Ok(report_tx!(tx).into())

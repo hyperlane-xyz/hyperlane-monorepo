@@ -3,7 +3,7 @@ use std::convert::TryFrom;
 use color_eyre::Result;
 
 use ethers::{
-    prelude::{transaction::eip2718::TypedTransaction, Address, TransactionRequest, U256},
+    core::types::{transaction::eip2718::TypedTransaction, Address, TransactionRequest, U256},
     providers::{Http, Middleware, Provider},
     signers::{AwsSigner, Signer},
 };
@@ -160,10 +160,11 @@ async fn _send_tx(signer: &AwsSigner<'_>, opts: &Opts) -> Result<()> {
     // TODO: remove this these ethers is fixed
     typed_tx.set_gas(21000);
     typed_tx.set_gas_price(20_000_000_000u64); // 20 gwei
+    typed_tx.set_chain_id(signer.chain_id());
 
     let sig = signer.sign_transaction(&typed_tx).await?;
 
-    let rlp = typed_tx.rlp_signed(signer.chain_id(), &sig);
+    let rlp = typed_tx.rlp_signed(&sig);
     println!(
         "Tx request details:\n{}",
         serde_json::to_string_pretty(&typed_tx)?

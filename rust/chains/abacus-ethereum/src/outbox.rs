@@ -139,7 +139,7 @@ where
             .map(|f| RawCommittedMessage {
                 leaf_index: f.leaf_index.as_u32(),
                 committed_root: f.checkpointed_root.into(),
-                message: f.message,
+                message: f.message.to_vec(),
             })
             .collect())
     }
@@ -258,7 +258,7 @@ where
         let tx = self.contract.dispatch(
             message.destination,
             message.recipient.to_fixed_bytes(),
-            message.body.clone(),
+            message.body.clone().into(),
         );
 
         Ok(report_tx!(tx).into())
