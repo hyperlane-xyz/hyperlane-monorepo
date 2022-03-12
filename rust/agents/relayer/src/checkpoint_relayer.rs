@@ -84,7 +84,7 @@ impl CheckpointRelayer {
                         .await?
                     {
                         None => debug!("Couldn't fetch the relevant messages, retry this range"),
-                        Some(messages) if messages.len() == 0 => {
+                        Some(messages) if messages.is_empty() => {
                             unprocessed_leaf_index = latest_signed_checkpoint_index;
                             debug!("New checkpoint does not include messages for inbox")
                         }
