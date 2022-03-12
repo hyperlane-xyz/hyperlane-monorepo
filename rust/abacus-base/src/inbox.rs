@@ -122,8 +122,11 @@ impl AbacusCommon for CachingInbox {
         self.inbox.checkpointed_root().await
     }
 
-    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
-        self.inbox.latest_checkpoint().await
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
+        self.inbox.latest_checkpoint(maybe_lag).await
     }
 }
 
@@ -298,11 +301,14 @@ impl AbacusCommon for InboxVariants {
         }
     }
 
-    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
         match self {
-            InboxVariants::Ethereum(inbox) => inbox.latest_checkpoint().await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.latest_checkpoint().await,
-            InboxVariants::Other(inbox) => inbox.latest_checkpoint().await,
+            InboxVariants::Ethereum(inbox) => inbox.latest_checkpoint(maybe_lag).await,
+            InboxVariants::Mock(mock_inbox) => mock_inbox.latest_checkpoint(maybe_lag).await,
+            InboxVariants::Other(inbox) => inbox.latest_checkpoint(maybe_lag).await,
         }
     }
 }
