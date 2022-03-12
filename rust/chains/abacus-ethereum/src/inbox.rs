@@ -103,7 +103,7 @@ where
             ordering
         });
 
-        let outbox_domain = self.contract.local_domain().call().await?;
+        let outbox_domain = self.contract.remote_domain().call().await?;
 
         Ok(events
             .iter()
@@ -194,6 +194,17 @@ where
     async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.checkpointed_root().call().await?.into())
     }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
+        let (root, index) = self.contract.latest_checkpoint().call().await?;
+        Ok(Checkpoint {
+            // This is inefficient, but latest_checkpoint should never be called
+            outbox_domain: self.remote_domain().await?,
+            root: root.into(),
+            index: index.as_u32(),
+        })
+    }
 }
 
 #[async_trait]
@@ -258,5 +269,19 @@ where
             2 => Ok(MessageStatus::Processed),
             _ => panic!("Bad status from solidity"),
         }
+    }
+
+    #[tracing::instrument(err, skip(self), fields(hex_signature = %format!("0x{}", hex::encode(signed_checkpoint.signature.to_vec()))))]
+    async fn submit_checkpoint(
+        &self,
+        signed_checkpoint: &SignedCheckpoint,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
+        let tx = self.contract.checkpoint(
+            signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+            signed_checkpoint.checkpoint.index.into(),
+            signed_checkpoint.signature.to_vec(),
+        );
+
+        Ok(report_tx!(tx).into())
     }
 }

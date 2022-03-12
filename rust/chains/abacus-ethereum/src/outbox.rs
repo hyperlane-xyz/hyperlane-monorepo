@@ -214,6 +214,16 @@ where
     async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.checkpointed_root().call().await?.into())
     }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
+        let (root, index) = self.contract.latest_checkpoint().call().await?;
+        Ok(Checkpoint {
+            outbox_domain: self.domain,
+            root: root.into(),
+            index: index.as_u32(),
+        })
+    }
 }
 
 #[async_trait]
