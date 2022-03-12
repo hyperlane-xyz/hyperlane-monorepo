@@ -31,20 +31,20 @@ impl ValidatorSubmitter {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("ValidatorSubmitter");
-        let reorg_period = self.reorg_period;
+        let reorg_period = Some(self.reorg_period);
         tokio::spawn(async move {
-            let starting_checkpoint = self.outbox.latest_checkpoint(Some(reorg_period)).await?;
+            let starting_checkpoint = self.outbox.latest_checkpoint(reorg_period).await?;
             let mut current_index = starting_checkpoint.index;
             loop {
                 sleep(Duration::from_secs(self.interval)).await;
 
                 // Check the current checkpoint
-                let checkpoint = self.outbox.latest_checkpoint(Some(reorg_period)).await?;
+                let checkpoint = self.outbox.latest_checkpoint(reorg_period).await?;
 
                 if current_index < checkpoint.index {
                     let signed_checkpoint = checkpoint.sign_with(self.signer.as_ref()).await?;
 
-                    info!(signature = ?signed_checkpoint, signer=?self.signer, "New checkpoint, sign!!");
+                    info!(signature = ?signed_checkpoint, signer=?self.signer, "Sign latest checkpoint");
                     current_index = checkpoint.index;
 
                     let storage = LocalStorage { path: "/tmp/validatorsignatures".to_string() };
