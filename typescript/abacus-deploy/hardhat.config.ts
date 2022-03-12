@@ -42,7 +42,7 @@ const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
       index: inboxCheckpointIndex.toNumber(),
     };
   };
-  summary.inboxes = deploy.remotes(domain).map(inboxSummary);
+  summary.inboxes = await Promise.all(deploy.remotes(domain).map(inboxSummary));
   return summary;
 };
 
