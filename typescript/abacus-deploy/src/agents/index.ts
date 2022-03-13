@@ -134,6 +134,9 @@ export async function getAgentEnvVars(
   envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
   envVars.push(`OPT_BASE_METRICS=9090`);
   envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
+  envVars.push(
+    `OPT_BASE_DB=/tmp/${agentConfig.environment}-${role}-${homeChainName}-db`,
+  );
 
   try {
     const gcpKeys = await fetchAgentGCPKeys(
