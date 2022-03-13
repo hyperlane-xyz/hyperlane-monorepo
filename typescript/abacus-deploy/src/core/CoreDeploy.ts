@@ -55,12 +55,12 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
       const filepath = path.join(
         this.configDirectory(directory),
         'rust',
-        `${this.name(domain)}.json`,
+        `${this.name(domain)}_config.json`,
       );
 
       const outbox = {
         address: this.outbox(domain).address,
-        domain,
+        domain: domain.toString(),
         name: this.name(domain),
         rpcStyle: 'ethereum',
         connection: {
@@ -86,7 +86,7 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
       for (const remote of this.remotes(domain)) {
         const inbox = {
           address: this.inbox(remote, domain).address,
-          domain: remote,
+          domain: remote.toString(),
           name: this.name(remote),
           rpcStyle: 'ethereum',
           connection: {

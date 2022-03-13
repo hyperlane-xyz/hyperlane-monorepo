@@ -6,6 +6,7 @@ export const alfajores: ChainConfigWithoutSigner = {
   domain: 1000,
   confirmations: 1,
   overrides: {},
+  reorg_period: 0,
 };
 
 export const fuji: ChainConfigWithoutSigner = {
@@ -13,6 +14,7 @@ export const fuji: ChainConfigWithoutSigner = {
   domain: 43113,
   confirmations: 3,
   overrides: {},
+  reorg_period: 0,
 };
 
 export const goerli: ChainConfigWithoutSigner = {
@@ -22,6 +24,7 @@ export const goerli: ChainConfigWithoutSigner = {
   overrides: {
     gasPrice: BigNumber.from(10_000_000_000),
   },
+  reorg_period: 3,
 };
 
 export const kovan: ChainConfigWithoutSigner = {
@@ -30,6 +33,7 @@ export const kovan: ChainConfigWithoutSigner = {
   overrides: {
     gasPrice: BigNumber.from(10_000_000_000),
   },
+  reorg_period: 2,
 };
 
 export const mumbai: ChainConfigWithoutSigner = {
@@ -37,6 +41,7 @@ export const mumbai: ChainConfigWithoutSigner = {
   domain: 80001,
   confirmations: 3,
   overrides: {},
+  reorg_period: 2,
 };
 
 export const rinkarby: ChainConfigWithoutSigner = {
@@ -46,6 +51,7 @@ export const rinkarby: ChainConfigWithoutSigner = {
     gasPrice: 0,
     gasLimit: 600_000_000,
   },
+  reorg_period: 2,
 };
 
 export const rinkeby: ChainConfigWithoutSigner = {
@@ -53,6 +59,7 @@ export const rinkeby: ChainConfigWithoutSigner = {
   domain: 2000,
   confirmations: 3,
   overrides: {},
+  reorg_period: 2,
 };
 
 export const ropsten: ChainConfigWithoutSigner = {
@@ -62,4 +69,5 @@ export const ropsten: ChainConfigWithoutSigner = {
   overrides: {
     gasPrice: BigNumber.from(10_000_000_000),
   },
+  reorg_period: 2,
 };

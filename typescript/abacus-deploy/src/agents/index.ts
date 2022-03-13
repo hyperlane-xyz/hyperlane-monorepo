@@ -10,17 +10,18 @@ import { AgentAwsKey } from './aws';
 export enum KEY_ROLE_ENUM {
   UpdaterAttestation = 'validator-attestation',
   UpdaterSigner = 'validator-signer',
-  ProcessorSigner = 'processor-signer',
+  CheckpointerSigner = 'checkpointer-signer',
   RelayerSigner = 'relayer-signer',
   WatcherAttestation = 'watcher-attestation',
   WatcherSigner = 'watcher-signer',
   Deployer = 'deployer',
   Bank = 'bank',
 }
+
 export const KEY_ROLES = [
   'validator-attestation',
   'validator-signer',
-  'processor-signer',
+  'checkpointer-signer',
   'relayer-signer',
   'watcher-attestation',
   'watcher-signer',
@@ -42,6 +43,8 @@ async function helmValuesForChain(
     }
     return undefined;
   };
+
+  const chain = chains.find((_) => _.name === chainName)!;
 
   return {
     image: {
@@ -71,11 +74,12 @@ async function helmValuesForChain(
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.UpdaterAttestation),
         },
-        ...include(!!agentConfig.validator!.interval, {
-          pollingInterval: agentConfig.validator!.interval || '',
+        reorg_period: chain.reorg_period,
+        ...include(!!agentConfig.validator?.interval, {
+          pollingInterval: agentConfig.validator?.interval || '',
         }),
-        ...include(!!agentConfig.validator!.pause, {
-          updatePause: agentConfig.validator!.pause || '',
+        ...include(!!agentConfig.validator?.pause, {
+          updatePause: agentConfig.validator?.pause || '',
         }),
       },
       relayer: {
@@ -84,12 +88,15 @@ async function helmValuesForChain(
           name: chain.name,
           ...credentials(KEY_ROLE_ENUM.RelayerSigner),
         })),
+        ...include(!!agentConfig.validator?.interval, {
+          pollingInterval: agentConfig.validator?.interval || '',
+        }),
       },
       processor: {
         enabled: true,
         transactionSigners: chains.map((chain) => ({
           name: chain.name,
-          ...credentials(KEY_ROLE_ENUM.ProcessorSigner),
+          ...credentials(KEY_ROLE_ENUM.CheckpointerSigner),
         })),
         indexonly: agentConfig.processor?.indexOnly || [],
         s3BucketName: agentConfig.processor?.s3Bucket || '',
@@ -111,7 +118,7 @@ export async function getAgentEnvVars(
     chains,
   );
   const envVars: string[] = [];
-
+  const chain = chains.find((_) => _.name === homeChainName)!;
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chains);
   envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
   valueDict.optics.replicaChains.forEach((replicaChain: any) => {
@@ -145,13 +152,36 @@ export async function getAgentEnvVars(
     // Updater attestation key
     if (role.startsWith('validator')) {
       envVars.push(
-        `OPT_BASE_UPDATER_KEY=${strip0x(
+        `OPT_BASE_VALIDATOR_KEY=${strip0x(
           gcpKeys[homeChainName + '-' + KEY_ROLE_ENUM.UpdaterAttestation]
             .privateKey,
         )}`,
+        `OPT_BASE_VALIDATOR_TYPE=hexKey`,
+      );
+      // Throw an error if the chain config did not specify the reorg period
+      if (valueDict.optics.validator.reorg_period === undefined) {
+        throw new Error(
+          `Panic: Chain config for ${homeChainName} did not specify a reorg period`,
+        );
+      }
+
+      envVars.push(
+        `OPT_VALIDATOR_REORGPERIOD=${chain.reorg_period}`,
+        `OPT_VALIDATOR_INTERVAL=${valueDict.optics.validator.pollingInterval}`,
+      );
+    }
+
+    if (role.startsWith('relayer')) {
+      envVars.push(
+        `OPT_RELAYER_INTERVAL=${valueDict.optics.relayer.pollingInterval}`,
       );
     }
   } catch (error) {
+    // This happens if you don't have a result type
+    if ((error as any).toString().includes('Panic')) {
+      throw error;
+    }
+
     // Keys are in AWS
     const awsKeys = await getSecretAwsCredentials(agentConfig);
 
@@ -174,15 +204,15 @@ export async function getAgentEnvVars(
       );
     });
 
-    // Updater attestation key
+    // Validator attestation key
     if (role.startsWith('validator')) {
       const key = new AgentAwsKey(agentConfig, role, homeChainName);
-      envVars.push(`OPT_BASE_UPDATER_TYPE=aws`);
+      envVars.push(`OPT_BASE_VALIDATOR_TYPE=aws`);
       envVars.push(
-        `OPT_BASE_UPDATER_ID=${key.credentialsAsHelmValue.aws.keyId}`,
+        `OPT_BASE_VALIDATOR_ID=${key.credentialsAsHelmValue.aws.keyId}`,
       );
       envVars.push(
-        `OPT_BASE_UPDATER_REGION=${key.credentialsAsHelmValue.aws.region}`,
+        `OPT_BASE_VALIDATOR_REGION=${key.credentialsAsHelmValue.aws.region}`,
       );
     }
   }

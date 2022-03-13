@@ -16,6 +16,11 @@ interface ProcessorConfig {
   s3Bucket: string;
 }
 
+interface RelayerConfig {
+  // How of a relayer should
+  interval?: number;
+}
+
 interface ValidatorConfig {
   // How often an validator should check for new updates
   interval?: number;
@@ -37,6 +42,7 @@ export interface AgentConfig {
   aws?: AwsConfig;
   processor?: ProcessorConfig;
   validator?: ValidatorConfig;
+  relayer?: RelayerConfig;
 }
 
 export type RustSigner = {
@@ -51,7 +57,7 @@ export type RustConnection = {
 
 export type RustContractBlock = {
   address: types.Address;
-  domain: types.Domain;
+  domain: String;
   name: ChainName;
   rpcStyle: string; // TODO
   connection: RustConnection;
