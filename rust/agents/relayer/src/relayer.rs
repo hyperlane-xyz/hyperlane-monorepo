@@ -6,10 +6,7 @@ use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_base::{AbacusAgentCore, Agent, CachingInbox, ContractSyncMetrics};
 
-use crate::{
-    checkpoint_relayer::CheckpointRelayer, settings::RelayerSettings as Settings,
-    tip_prover::TipProver,
-};
+use crate::{checkpoint_relayer::CheckpointRelayer, settings::RelayerSettings as Settings};
 
 /// A relayer agent
 #[derive(Debug)]
