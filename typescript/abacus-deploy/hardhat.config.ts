@@ -61,6 +61,7 @@ task('abacus', 'Deploys abacus on top of an already running Harthat Network')
 
     // Write configs
     deploy.writeOutput(getEnvironmentDirectory(environment));
+    deploy.writeRustConfigs(environment, getEnvironmentDirectory(environment));
   });
 
 task('kathy', 'Dispatches random abacus messages')

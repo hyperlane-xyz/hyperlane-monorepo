@@ -11,7 +11,7 @@ export const alfajores: ChainConfigWithoutSigner = {
 export const fuji: ChainConfigWithoutSigner = {
   name: ChainName.FUJI,
   domain: 43113,
-  confirmations: 3,
+  confirmations: 1,
   overrides: {},
 };
 
@@ -30,6 +30,7 @@ export const kovan: ChainConfigWithoutSigner = {
   overrides: {
     gasPrice: BigNumber.from(10_000_000_000),
   },
+  confirmations: 3,
 };
 
 export const mumbai: ChainConfigWithoutSigner = {
@@ -46,6 +47,7 @@ export const rinkarby: ChainConfigWithoutSigner = {
     gasPrice: 0,
     gasLimit: 600_000_000,
   },
+  confirmations: 2,
 };
 
 export const rinkeby: ChainConfigWithoutSigner = {

@@ -29,7 +29,9 @@ export type ChainConfig = {
   signer: ethers.Signer;
   overrides: ethers.Overrides;
   supports1559?: boolean;
+  // The number of confirmations considered reorg safe
   confirmations?: number;
+  poll_interval?: number;
 };
 
 export type ChainConfigWithoutSigner = Omit<ChainConfig, 'signer'>;

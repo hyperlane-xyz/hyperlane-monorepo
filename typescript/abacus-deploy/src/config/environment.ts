@@ -7,4 +7,5 @@ export enum DeployEnvironment {
   test = 'test',
   production = 'production',
   stagingCommunity = 'staging-community',
+  local = 'local',
 }
