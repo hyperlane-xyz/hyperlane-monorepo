@@ -11,7 +11,6 @@ import config from './config';
 mainnet.registerRpcProvider('celo', config.celoRpc);
 mainnet.registerRpcProvider('ethereum', config.ethereumRpc);
 mainnet.registerRpcProvider('polygon', config.polygonRpc);
-mainnet.registerRpcProvider('avalanche', config.avalancheRpc);
 
 mainnetLegacy.registerRpcProvider('celo', config.celoRpc);
 mainnetLegacy.registerRpcProvider('ethereum', config.ethereumRpc);
