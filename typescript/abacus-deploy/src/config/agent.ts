@@ -17,7 +17,7 @@ interface ProcessorConfig {
 }
 
 interface RelayerConfig {
-  // How of a relayer should
+  // How often a relayer should check for new signed checkpoints
   interval?: number;
 }
 
@@ -57,7 +57,7 @@ export type RustConnection = {
 
 export type RustContractBlock = {
   address: types.Address;
-  domain: String;
+  domain: string;
   name: ChainName;
   rpcStyle: string; // TODO
   connection: RustConnection;

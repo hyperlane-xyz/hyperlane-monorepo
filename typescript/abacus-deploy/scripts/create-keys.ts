@@ -1,9 +1,9 @@
 import { createAgentGCPKeys } from '../src/agents/gcp';
-import { getEnvironment, getChainConfigsRecord } from './utils';
+import { getEnvironment, getChainConfigs } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const chains = await getChainConfigsRecord(environment);
+  const chains = await getChainConfigs(environment);
 
   return createAgentGCPKeys(
     environment,

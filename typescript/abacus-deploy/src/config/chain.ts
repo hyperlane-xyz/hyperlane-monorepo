@@ -29,9 +29,8 @@ export type ChainConfig = {
   signer: ethers.Signer;
   overrides: ethers.Overrides;
   supports1559?: boolean;
+  // The number of confirmations considered reorg safe
   confirmations?: number;
-  // What's a safe reorg period for this chain
-  reorg_period?: number;
   poll_interval?: number;
 };
 

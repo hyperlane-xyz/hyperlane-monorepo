@@ -74,7 +74,7 @@ async function helmValuesForChain(
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.UpdaterAttestation),
         },
-        reorg_period: chain.reorg_period,
+        reorg_period: chain.confirmations,
         ...include(!!agentConfig.validator?.interval, {
           pollingInterval: agentConfig.validator?.interval || '',
         }),
@@ -162,14 +162,14 @@ export async function getAgentEnvVars(
         `OPT_BASE_VALIDATOR_TYPE=hexKey`,
       );
       // Throw an error if the chain config did not specify the reorg period
-      if (valueDict.optics.validator.reorg_period === undefined) {
+      if (valueDict.optics.validator.confirmations === undefined) {
         throw new Error(
           `Panic: Chain config for ${homeChainName} did not specify a reorg period`,
         );
       }
 
       envVars.push(
-        `OPT_VALIDATOR_REORGPERIOD=${chain.reorg_period}`,
+        `OPT_VALIDATOR_REORGPERIOD=${chain.confirmations! - 1}`,
         `OPT_VALIDATOR_INTERVAL=${valueDict.optics.validator.pollingInterval}`,
       );
     }
