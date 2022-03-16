@@ -18,7 +18,6 @@ import {
   TestRecipient__factory,
 } from '../types';
 
-const outboxDomainHashTestCases = require('../../../vectors/outboxDomainHash.json');
 const merkleTestCases = require('../../../vectors/merkle.json');
 const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json');
 

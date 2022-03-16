@@ -13,10 +13,7 @@ import {
   ETHHelper,
   ETHHelper__factory,
 } from '../../../types';
-import {
-  UpgradeBeacon__factory,
-  UpgradeBeacon,
-} from '@abacus-network/abacus-sol/types';
+import { UpgradeBeacon__factory, UpgradeBeacon } from '@abacus-network/core';
 
 export type BridgeConfig = SignerWithAddress;
 
