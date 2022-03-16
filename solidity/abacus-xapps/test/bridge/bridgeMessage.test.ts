@@ -18,7 +18,7 @@ import {
   serializeTransferAction,
   serializeRequestDetailsAction,
 } from './lib/utils';
-import { TestBridgeMessage__factory, TestBridgeMessage } from '../../typechain';
+import { TestBridgeMessage__factory, TestBridgeMessage } from '../../types';
 
 const stringToBytes32 = (s: string): string => {
   const str = Buffer.from(s.slice(0, 32), 'utf-8');

@@ -14,7 +14,7 @@ import {
   TestSet__factory,
   GovernanceRouter,
   GovernanceRouter__factory,
-} from '../../typechain';
+} from '../../types';
 
 const recoveryTimelock = 60 * 60 * 24 * 7;
 const localDomain = 1000;

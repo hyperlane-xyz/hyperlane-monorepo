@@ -7,7 +7,7 @@ import { utils } from '@abacus-network/utils';
 import * as types from './lib/types';
 import { serializeMessage } from './lib/utils';
 import { BridgeConfig, BridgeDeploy } from './lib/BridgeDeploy';
-import { BridgeToken, BridgeToken__factory, IERC20 } from '../../typechain';
+import { BridgeToken, BridgeToken__factory, IERC20 } from '../../types';
 
 const localDomain = 1000;
 const remoteDomain = 2000;

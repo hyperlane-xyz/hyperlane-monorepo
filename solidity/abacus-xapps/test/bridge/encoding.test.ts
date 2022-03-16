@@ -1,5 +1,5 @@
 import { ethers } from 'hardhat';
-import { TestEncoding__factory } from '../../typechain';
+import { TestEncoding__factory } from '../../types';
 
 describe('Encoding', async () => {
   it('encodes', async () => {

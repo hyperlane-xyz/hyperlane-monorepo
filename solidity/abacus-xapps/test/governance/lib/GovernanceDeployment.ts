@@ -6,7 +6,7 @@ import { AbacusDeployment } from '@abacus-network/abacus-sol/test';
 import {
   GovernanceRouter__factory,
   GovernanceRouter,
-} from '../../../typechain';
+} from '../../../types';
 
 export interface GovernanceInstance {
   domain: types.Domain;

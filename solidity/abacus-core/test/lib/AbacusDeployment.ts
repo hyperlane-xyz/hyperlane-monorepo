@@ -16,7 +16,7 @@ import {
   XAppConnectionManager__factory,
   TestInbox,
   TestInbox__factory,
-} from '../../typechain';
+} from '../../types';
 
 export interface AbacusInstance {
   domain: types.Domain;

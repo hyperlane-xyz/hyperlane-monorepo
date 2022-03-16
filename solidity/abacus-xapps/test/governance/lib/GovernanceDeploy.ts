@@ -5,7 +5,7 @@ import { TestAbacusDeploy, TestRouterDeploy } from '@abacus-network/hardhat';
 import {
   GovernanceRouter__factory,
   GovernanceRouter,
-} from '../../../typechain';
+} from '../../../types';
 
 export type Governor = {
   domain: types.Domain;

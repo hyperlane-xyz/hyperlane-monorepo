@@ -10,7 +10,7 @@ import {
   UpgradeBeacon,
   UpgradeBeacon__factory,
   UpgradeBeaconProxy__factory,
-} from '../../typechain';
+} from '../../types';
 
 export type MysteryMathUpgrade = {
   proxy: MysteryMathV1 | MysteryMathV2;

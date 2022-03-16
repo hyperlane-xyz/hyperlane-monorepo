@@ -6,7 +6,7 @@ import {
   UpgradeBeaconController__factory,
   UpgradeBeaconController,
   MysteryMathV2__factory,
-} from '../typechain';
+} from '../types';
 
 describe('Upgrade', async () => {
   const utils = new UpgradeTestHelpers();

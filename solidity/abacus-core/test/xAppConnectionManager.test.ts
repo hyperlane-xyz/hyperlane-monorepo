@@ -8,7 +8,7 @@ import {
   XAppConnectionManager,
   XAppConnectionManager__factory,
   TestInbox,
-} from '../typechain';
+} from '../types';
 import { Validator } from './lib/core';
 
 const signedFailureTestCases = require('../../../vectors/signedFailure.json');

@@ -3,8 +3,6 @@
   "name": "@abacus-network/hardhat",
   "version": "0.0.5",
   "description": "Abacus hardhat tools",
-  "main": "dist/src/index.js",
-  "types": "dist/src/index.d.ts",
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
