@@ -7,11 +7,11 @@
   },
   "workspaces": [
     "typescript/utils",
-    "solidity/core",
+    "solidity/abacus-core",
     "typescript/hardhat",
-    "solidity/apps",
-    "typescript/sdk",
+    "solidity/abacus-xapps",
+    "typescript/abacus-sdk",
     "typescript/contract-metrics",
-    "typescript/deploy"
+    "typescript/abacus-deploy"
   ]
 }
