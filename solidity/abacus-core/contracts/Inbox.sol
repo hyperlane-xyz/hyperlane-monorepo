@@ -68,7 +68,7 @@ contract Inbox is Version0, Common {
 
     // solhint-disable-next-line no-empty-blocks
     constructor(
-        uint32 _localDomain,
+        uint32 _localDomain
     ) Common(_localDomain) {
     }
 
