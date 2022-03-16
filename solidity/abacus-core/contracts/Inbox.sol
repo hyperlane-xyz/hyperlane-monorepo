@@ -131,12 +131,10 @@ contract Inbox is Version0, Common {
      * message payload to end recipient.
      * @dev Recipient must implement a `handle` method (refer to IMessageRecipient.sol)
      * Reverts if formatted message's destination domain is not the Inbox's domain,
-     * if message has not been proven,
-     * or if not enough gas is provided for the dispatch transaction.
+     * if message has not been proven, or if the dispatch transaction fails.
      * @param _message Formatted message
-     * @return _success TRUE iff dispatch transaction succeeded
      */
-    function process(bytes memory _message) public returns (bool _success) {
+    function process(bytes memory _message) public {
         bytes29 _m = _message.ref(0);
         // ensure message was meant for this domain
         require(_m.destination() == localDomain, "!destination");
