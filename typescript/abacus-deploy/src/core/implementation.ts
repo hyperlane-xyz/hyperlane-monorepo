@@ -3,15 +3,12 @@ import { types } from '@abacus-network/utils';
 import { CoreDeploy } from './CoreDeploy';
 import { CoreInstance } from './CoreInstance';
 import { CoreContracts } from './CoreContracts';
-import { CoreConfig } from './types';
 
 export class ImplementationDeployer {
   private deploy: CoreDeploy;
-  private config: CoreConfig;
 
-  constructor(deploy: CoreDeploy, config: CoreConfig) {
+  constructor(deploy: CoreDeploy) {
     this.deploy = deploy;
-    this.config = config;
   }
 
   deployOutboxImplementations(): Promise<void> {

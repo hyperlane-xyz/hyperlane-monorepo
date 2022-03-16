@@ -1,4 +1,3 @@
-import { BigNumberish } from 'ethers';
 import { CoreConfigAddresses } from './addresses';
 import { ChainName } from './chain';
 import { DeployEnvironment } from '../config';

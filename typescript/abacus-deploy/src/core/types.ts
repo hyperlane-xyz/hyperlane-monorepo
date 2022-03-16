@@ -1,4 +1,3 @@
-import { BigNumberish } from 'ethers';
 import { types } from '@abacus-network/utils';
 import { ProxiedAddress } from '../common';
 
