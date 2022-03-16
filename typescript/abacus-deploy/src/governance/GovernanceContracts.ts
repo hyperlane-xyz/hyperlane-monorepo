@@ -1,5 +1,8 @@
 import fs from 'fs';
-import { GovernanceRouter, GovernanceRouter__factory } from '@abacus-network/apps';
+import {
+  GovernanceRouter,
+  GovernanceRouter__factory,
+} from '@abacus-network/apps';
 import { ethers } from 'ethers';
 import { CommonContracts, BeaconProxy } from '../common';
 import { GovernanceContractAddresses } from './types';

@@ -1,6 +1,12 @@
 import path from 'path';
 import { types } from '@abacus-network/utils';
-import { UpgradeBeaconController, XAppConnectionManager, ValidatorManager, Outbox, Inbox } from '@abacus-network/core';
+import {
+  UpgradeBeaconController,
+  XAppConnectionManager,
+  ValidatorManager,
+  Outbox,
+  Inbox,
+} from '@abacus-network/core';
 import { CoreInstance } from './CoreInstance';
 import { CoreContracts } from './CoreContracts';
 import { CoreConfig } from './types';

@@ -214,10 +214,7 @@ export class AbacusContext extends MultiProvider {
    * @returns An interface for the Inbox
    * @throws If no inbox is found.
    */
-  mustGetInboxFor(
-    outbox: string | number,
-    remote: string | number,
-  ): Inbox {
+  mustGetInboxFor(outbox: string | number, remote: string | number): Inbox {
     const inbox = this.getInboxFor(outbox, remote);
     if (!inbox) {
       throw new Error(`Missing inbox for outbox ${outbox} & remote ${remote}`);

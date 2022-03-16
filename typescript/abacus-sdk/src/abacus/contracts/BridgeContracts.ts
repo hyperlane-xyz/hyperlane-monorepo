@@ -1,5 +1,10 @@
 import { ethers } from 'ethers';
-import { BridgeRouter, BridgeRouter__factory, ETHHelper, ETHHelper__factory } from '@abacus-network/apps';
+import {
+  BridgeRouter,
+  BridgeRouter__factory,
+  ETHHelper,
+  ETHHelper__factory,
+} from '@abacus-network/apps';
 import { Contracts } from '../../contracts';
 
 type Address = string;
@@ -27,9 +32,7 @@ export class BridgeContracts extends Contracts {
   ) {
     super(domain, bridgeRouter, ethHelper, signer);
     this.domain = domain;
-    this.bridgeRouter = new BridgeRouter__factory(signer).attach(
-      bridgeRouter,
-    );
+    this.bridgeRouter = new BridgeRouter__factory(signer).attach(bridgeRouter);
     if (ethHelper) {
       this.ethHelper = new ETHHelper__factory(signer).attach(ethHelper);
     }

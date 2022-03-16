@@ -1,6 +1,16 @@
 import { ethers } from 'ethers';
-import { Inbox, Outbox, Inbox__factory, Outbox__factory, XAppConnectionManager, XAppConnectionManager__factory} from '@abacus-network/core';
-import { GovernanceRouter, GovernanceRouter__factory } from '@abacus-network/apps';
+import {
+  Inbox,
+  Outbox,
+  Inbox__factory,
+  Outbox__factory,
+  XAppConnectionManager,
+  XAppConnectionManager__factory,
+} from '@abacus-network/core';
+import {
+  GovernanceRouter,
+  GovernanceRouter__factory,
+} from '@abacus-network/apps';
 import { Contracts } from '../../contracts';
 import { InboxInfo } from '../domains/domain';
 import { CallBatch } from '../govern';

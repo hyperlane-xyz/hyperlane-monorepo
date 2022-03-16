@@ -1,4 +1,11 @@
-import { ETHHelper, ETHHelper__factory, BridgeRouter, BridgeRouter__factory, BridgeToken, BridgeToken__factory} from '@abacus-network/apps';
+import {
+  ETHHelper,
+  ETHHelper__factory,
+  BridgeRouter,
+  BridgeRouter__factory,
+  BridgeToken,
+  BridgeToken__factory,
+} from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 import { ChainConfig } from '../config';
 import { ContractDeployer, BeaconProxy } from '../common';

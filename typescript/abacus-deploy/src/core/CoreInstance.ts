@@ -1,6 +1,18 @@
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { UpgradeBeaconController, UpgradeBeaconController__factory, XAppConnectionManager, XAppConnectionManager__factory, ValidatorManager, ValidatorManager__factory, Outbox, Outbox__factory, Inbox, Inbox__factory, UpgradeBeaconProxy__factory } from '@abacus-network/core';
+import {
+  UpgradeBeaconController,
+  UpgradeBeaconController__factory,
+  XAppConnectionManager,
+  XAppConnectionManager__factory,
+  ValidatorManager,
+  ValidatorManager__factory,
+  Outbox,
+  Outbox__factory,
+  Inbox,
+  Inbox__factory,
+  UpgradeBeaconProxy__factory,
+} from '@abacus-network/core';
 import { ChainConfig } from '../config';
 import { BeaconProxy, ContractDeployer, CommonInstance } from '../common';
 import {
@@ -21,9 +33,7 @@ export class CoreInstance extends CommonInstance<CoreContracts> {
     const deployer = new ContractDeployer(chain);
 
     const upgradeBeaconController: UpgradeBeaconController =
-      await deployer.deploy(
-        new UpgradeBeaconController__factory(chain.signer),
-      );
+      await deployer.deploy(new UpgradeBeaconController__factory(chain.signer));
 
     const validatorManager: ValidatorManager = await deployer.deploy(
       new ValidatorManager__factory(chain.signer),
@@ -42,10 +52,9 @@ export class CoreInstance extends CommonInstance<CoreContracts> {
       [validatorManager.address],
     );
 
-    const xAppConnectionManager: XAppConnectionManager =
-      await deployer.deploy(
-        new XAppConnectionManager__factory(chain.signer),
-      );
+    const xAppConnectionManager: XAppConnectionManager = await deployer.deploy(
+      new XAppConnectionManager__factory(chain.signer),
+    );
     await xAppConnectionManager.setOutbox(outbox.address, chain.overrides);
 
     const inboxes: Record<types.Domain, BeaconProxy<Inbox>> = {};

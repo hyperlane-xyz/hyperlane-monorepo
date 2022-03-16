@@ -1,4 +1,7 @@
-import { GovernanceRouter, GovernanceRouter__factory } from '@abacus-network/apps';
+import {
+  GovernanceRouter,
+  GovernanceRouter__factory,
+} from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 import { ChainConfig } from '../config';
 import { BeaconProxy } from '../common';
@@ -22,14 +25,13 @@ export class GovernanceInstance extends RouterInstance<GovernanceContracts> {
     const core = config.core[chain.name];
     if (core === undefined) throw new Error('could not find core');
 
-    const router: BeaconProxy<GovernanceRouter> =
-      await BeaconProxy.deploy(
-        chain,
-        new GovernanceRouter__factory(chain.signer),
-        core.upgradeBeaconController,
-        [config.recoveryTimelock],
-        [core.xAppConnectionManager],
-      );
+    const router: BeaconProxy<GovernanceRouter> = await BeaconProxy.deploy(
+      chain,
+      new GovernanceRouter__factory(chain.signer),
+      core.upgradeBeaconController,
+      [config.recoveryTimelock],
+      [core.xAppConnectionManager],
+    );
 
     const addresses = config.addresses[chain.name];
     if (addresses === undefined) throw new Error('could not find addresses');

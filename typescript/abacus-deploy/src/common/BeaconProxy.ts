@@ -1,5 +1,10 @@
 import { ethers } from 'ethers';
-import { UpgradeBeacon, UpgradeBeacon__factory, UpgradeBeaconProxy, UpgradeBeaconProxy__factory } from '@abacus-network/core';
+import {
+  UpgradeBeacon,
+  UpgradeBeacon__factory,
+  UpgradeBeaconProxy,
+  UpgradeBeaconProxy__factory,
+} from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 
 import { ChainConfig } from '../config';
@@ -69,14 +74,8 @@ export class BeaconProxy<T extends ethers.Contract> {
       abi,
       signer,
     ) as T;
-    const proxy = UpgradeBeaconProxy__factory.connect(
-      addresses.proxy,
-      signer,
-    );
-    const beacon = UpgradeBeacon__factory.connect(
-      addresses.beacon,
-      signer,
-    );
+    const proxy = UpgradeBeaconProxy__factory.connect(addresses.proxy, signer);
+    const beacon = UpgradeBeacon__factory.connect(addresses.beacon, signer);
     const contract = new ethers.Contract(addresses.proxy, abi, signer) as T;
     return new BeaconProxy<T>(implementation, proxy, beacon, contract);
   }

@@ -1,5 +1,12 @@
 import fs from 'fs';
-import { ETHHelper, ETHHelper__factory, BridgeRouter, BridgeRouter__factory, BridgeToken, BridgeToken__factory} from '@abacus-network/apps';
+import {
+  ETHHelper,
+  ETHHelper__factory,
+  BridgeRouter,
+  BridgeRouter__factory,
+  BridgeToken,
+  BridgeToken__factory,
+} from '@abacus-network/apps';
 import { ethers } from 'ethers';
 import { CommonContracts, BeaconProxy } from '../common';
 import { BridgeContractAddresses } from './types';

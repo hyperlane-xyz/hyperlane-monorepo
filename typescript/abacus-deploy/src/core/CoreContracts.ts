@@ -1,6 +1,17 @@
 import fs from 'fs';
 import { ethers } from 'ethers';
-import { UpgradeBeaconController, UpgradeBeaconController__factory, XAppConnectionManager, XAppConnectionManager__factory, ValidatorManager, ValidatorManager__factory, Outbox, Outbox__factory, Inbox, Inbox__factory } from '@abacus-network/core';
+import {
+  UpgradeBeaconController,
+  UpgradeBeaconController__factory,
+  XAppConnectionManager,
+  XAppConnectionManager__factory,
+  ValidatorManager,
+  ValidatorManager__factory,
+  Outbox,
+  Outbox__factory,
+  Inbox,
+  Inbox__factory,
+} from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 
 import { BeaconProxy, CommonContracts, ProxiedAddress } from '../common';
@@ -44,11 +55,10 @@ export class CoreContracts extends CommonContracts<CoreContractAddresses> {
     addresses: CoreContractAddresses,
     signer: ethers.Signer,
   ): CoreContracts {
-    const upgradeBeaconController =
-      UpgradeBeaconController__factory.connect(
-        addresses.upgradeBeaconController,
-        signer,
-      );
+    const upgradeBeaconController = UpgradeBeaconController__factory.connect(
+      addresses.upgradeBeaconController,
+      signer,
+    );
     const xAppConnectionManager = XAppConnectionManager__factory.connect(
       addresses.xAppConnectionManager,
       signer,
