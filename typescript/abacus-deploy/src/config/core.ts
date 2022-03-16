@@ -6,7 +6,5 @@ import { DeployEnvironment } from '../config';
 export interface CoreConfig {
   environment: DeployEnvironment;
   recoveryTimelock: number;
-  processGas: BigNumberish;
-  reserveGas: BigNumberish;
   addresses: Partial<Record<ChainName, CoreConfigAddresses>>;
 }

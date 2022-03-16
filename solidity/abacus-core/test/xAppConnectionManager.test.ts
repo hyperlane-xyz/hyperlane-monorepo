@@ -16,8 +16,6 @@ const signedFailureTestCases = require('../../../vectors/signedFailure.json');
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 const localDomain = 1000;
 const remoteDomain = 2000;
-const processGas = 850000;
-const reserveGas = 15000;
 
 describe('XAppConnectionManager', async () => {
   let connectionManager: XAppConnectionManager,
@@ -36,9 +34,7 @@ describe('XAppConnectionManager', async () => {
 
     const inboxFactory = new TestInbox__factory(signer);
     enrolledInbox = await inboxFactory.deploy(
-      localDomain,
-      processGas,
-      reserveGas,
+      localDomain
     );
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.

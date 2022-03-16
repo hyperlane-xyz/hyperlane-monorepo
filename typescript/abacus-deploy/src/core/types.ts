@@ -11,7 +11,5 @@ export type CoreContractAddresses = {
 };
 
 export type CoreConfig = {
-  processGas: BigNumberish;
-  reserveGas: BigNumberish;
   validators: Record<string, types.Address>;
 };

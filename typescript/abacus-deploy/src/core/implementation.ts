@@ -53,8 +53,6 @@ export class ImplementationDeployer {
     const factory = new core.Inbox__factory(signer);
     const implementation = await factory.deploy(
       domain,
-      this.config.processGas,
-      this.config.reserveGas,
       this.deploy.chains[domain].overrides,
     );
     const addresses = this.deploy.instances[domain].contracts.toObject();

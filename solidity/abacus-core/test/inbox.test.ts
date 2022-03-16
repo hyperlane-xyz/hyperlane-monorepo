@@ -24,8 +24,6 @@ const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json'
 
 const localDomain = 2000;
 const remoteDomain = 1000;
-const processGas = 850000;
-const reserveGas = 15000;
 
 describe('Inbox', async () => {
   const badRecipientFactories = [
@@ -56,7 +54,7 @@ describe('Inbox', async () => {
 
   beforeEach(async () => {
     const inboxFactory = new TestInbox__factory(signer);
-    inbox = await inboxFactory.deploy(localDomain, processGas, reserveGas);
+    inbox = await inboxFactory.deploy(localDomain);
     await inbox.initialize(
       remoteDomain,
       validatorManager.address,
