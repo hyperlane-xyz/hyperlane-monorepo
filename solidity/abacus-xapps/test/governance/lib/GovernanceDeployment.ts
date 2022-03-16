@@ -3,10 +3,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { utils, types } from '@abacus-network/utils';
 import { AbacusDeployment } from '@abacus-network/abacus-sol/test';
 
-import {
-  GovernanceRouter__factory,
-  GovernanceRouter,
-} from '../../../types';
+import { GovernanceRouter__factory, GovernanceRouter } from '../../../types';
 
 export interface GovernanceInstance {
   domain: types.Domain;
