@@ -33,9 +33,7 @@ describe('XAppConnectionManager', async () => {
     const outbox = await outboxFactory.deploy(localDomain);
 
     const inboxFactory = new TestInbox__factory(signer);
-    enrolledInbox = await inboxFactory.deploy(
-      localDomain
-    );
+    enrolledInbox = await inboxFactory.deploy(localDomain);
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.
     await enrolledInbox.initialize(

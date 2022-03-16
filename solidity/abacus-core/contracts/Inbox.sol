@@ -55,22 +55,13 @@ contract Inbox is Version0, Common {
     /**
      * @notice Emitted when message is processed
      * @param messageHash Hash of message that failed to process
-     * @param success TRUE if the call was executed successfully, FALSE if the call reverted
-     * @param returnData the return data from the external call
      */
-    event Process(
-        bytes32 indexed messageHash,
-        bool indexed success,
-        bytes indexed returnData
-    );
+    event Process(bytes32 indexed messageHash);
 
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
-    constructor(
-        uint32 _localDomain
-    ) Common(_localDomain) {
-    }
+    constructor(uint32 _localDomain) Common(_localDomain) {}
 
     // ============ Initializer ============
 

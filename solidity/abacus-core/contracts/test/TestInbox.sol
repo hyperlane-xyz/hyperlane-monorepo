@@ -8,11 +8,7 @@ contract TestInbox is Inbox {
     using TypedMemView for bytes29;
     using Message for bytes29;
 
-    constructor(
-        uint32 _localDomain,
-        uint256,
-        uint256
-    ) Inbox(_localDomain, 850_000, 15_000) {} // solhint-disable-line no-empty-blocks
+    constructor(uint32 _localDomain) Inbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     function setMessageProven(bytes memory _message) external {
         bytes29 _m = _message.ref(0);
