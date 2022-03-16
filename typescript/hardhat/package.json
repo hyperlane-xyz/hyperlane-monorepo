@@ -10,10 +10,9 @@
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./src"
   },
-  "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "@abacus-network/abacus-sol": "^0.0.0",
+    "@abacus-network/core": "file:../../solidity/core",
     "@abacus-network/utils": "^0.0.5",
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
