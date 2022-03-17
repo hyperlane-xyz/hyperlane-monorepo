@@ -23,19 +23,17 @@ impl CheckpointRelayer {
 
     async fn get_messages_between(
         &self,
-        unprocessed_leaf_index: u32,
-        latest_signed_checkpoint_index: u32,
+        from_leaf_index: u32,
+        to_leaf_index: u32,
     ) -> Result<Option<Vec<CommittedMessage>>> {
         let mut messages: Vec<CommittedMessage> = vec![];
-        let mut current_unprocessed_leaf_index = unprocessed_leaf_index;
-        while current_unprocessed_leaf_index <= latest_signed_checkpoint_index {
+        let mut current_leaf_index = from_leaf_index;
+        while current_leaf_index <= to_leaf_index {
             // Relies on the indexer finding this message eventually
-            self.db
-                .wait_for_leaf(current_unprocessed_leaf_index)
-                .await?;
+            self.db.wait_for_leaf(current_leaf_index).await?;
             let maybe_message = self
                 .db
-                .message_by_leaf_index(current_unprocessed_leaf_index)?
+                .message_by_leaf_index(current_leaf_index)?
                 .map(CommittedMessage::try_from)
                 .transpose()?;
             match maybe_message {
@@ -44,9 +42,10 @@ impl CheckpointRelayer {
                         messages.push(message);
                     }
                 }
+                // This should never happen, but if it does, retry the range
                 None => return Ok(None),
             }
-            current_unprocessed_leaf_index += 1
+            current_leaf_index += 1
         }
 
         Ok(Some(messages))
@@ -62,7 +61,7 @@ impl CheckpointRelayer {
             let latest_inbox_checkpoint = self.inbox.latest_checkpoint(None).await?;
             let mut latest_checkpointed_index = latest_inbox_checkpoint.index;
             // Checkpoints are 1-indexed, while leaves are 0-indexed
-            let mut unprocessed_leaf_index = latest_checkpointed_index;
+            let mut next_inbox_leaf_index = latest_checkpointed_index;
             loop {
                 sleep(Duration::from_secs(5)).await;
 
@@ -77,19 +76,16 @@ impl CheckpointRelayer {
                     }
 
                     match self
-                        .get_messages_between(
-                            unprocessed_leaf_index,
-                            latest_signed_checkpoint_index,
-                        )
+                        .get_messages_between(next_inbox_leaf_index, latest_signed_checkpoint_index)
                         .await?
                     {
                         None => debug!("Couldn't fetch the relevant messages, retry this range"),
                         Some(messages) if messages.is_empty() => {
-                            unprocessed_leaf_index = latest_signed_checkpoint_index;
+                            next_inbox_leaf_index = latest_signed_checkpoint_index;
                             debug!("New checkpoint does not include messages for inbox")
                         }
                         Some(messages) => {
-                            unprocessed_leaf_index = latest_signed_checkpoint_index;
+                            next_inbox_leaf_index = latest_signed_checkpoint_index;
                             debug!(
                                 len = messages.len(),
                                 "Signed checkpoint allows for processing of new messages"
