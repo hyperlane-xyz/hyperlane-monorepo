@@ -1,5 +1,5 @@
 {
-  "name": "@abacus-network/abacus-sol",
+  "name": "@abacus-network/core",
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
@@ -19,20 +19,19 @@
     "ts-node": "^10.1.0",
     "typechain": "^5.0.0"
   },
-  "version": "0.0.0",
-  "description": "Abacus Interchain Communications",
-  "main": " ",
+  "version": "0.0.1",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "directories": {
     "test": "test"
   },
   "scripts": {
     "prettier": "prettier --write ./contracts ./libs ./test",
-    "build": "hardhat compile && hardhat typechain && npm run prettier && npm run copy-typechain",
-    "copy-typechain": "mkdir -p ../../typescript/typechain/abacus-core/ && cp -r typechain/* ../../typescript/typechain/abacus-core/",
+    "build": "hardhat compile && hardhat typechain && npm run prettier && tsc && npm run copy-types",
+    "copy-types": "cp types/*.d.ts dist/",
     "test": "hardhat test",
     "coverage": "hardhat coverage"
   },
-  "author": "James Prestwich",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@abacus-network/utils": "^0.0.5",

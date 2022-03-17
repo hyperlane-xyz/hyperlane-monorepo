@@ -1,4 +1,11 @@
-import { xapps } from '@abacus-network/ts-interface';
+import {
+  ETHHelper,
+  ETHHelper__factory,
+  BridgeRouter,
+  BridgeRouter__factory,
+  BridgeToken,
+  BridgeToken__factory,
+} from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 import { ChainConfig } from '../config';
 import { ContractDeployer, BeaconProxy } from '../common';
@@ -26,17 +33,17 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
     const core = config.core[chain.name];
     if (core === undefined) throw new Error('could not find core');
 
-    const token: BeaconProxy<xapps.BridgeToken> = await BeaconProxy.deploy(
+    const token: BeaconProxy<BridgeToken> = await BeaconProxy.deploy(
       chain,
-      new xapps.BridgeToken__factory(chain.signer),
+      new BridgeToken__factory(chain.signer),
       core.upgradeBeaconController,
       [],
       [],
     );
 
-    const router: BeaconProxy<xapps.BridgeRouter> = await BeaconProxy.deploy(
+    const router: BeaconProxy<BridgeRouter> = await BeaconProxy.deploy(
       chain,
-      new xapps.BridgeRouter__factory(chain.signer),
+      new BridgeRouter__factory(chain.signer),
       core.upgradeBeaconController,
       [],
       [token.beacon.address, core.xAppConnectionManager],
@@ -45,8 +52,8 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
     const weth = config.weth[chain.name];
     if (weth) {
       const deployer = new ContractDeployer(chain);
-      const helper: xapps.ETHHelper = await deployer.deploy(
-        new xapps.ETHHelper__factory(chain.signer),
+      const helper: ETHHelper = await deployer.deploy(
+        new ETHHelper__factory(chain.signer),
         weth,
         router.address,
       );
@@ -57,15 +64,15 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
     return new BridgeInstance(chain, contracts);
   }
 
-  get token(): xapps.BridgeToken {
+  get token(): BridgeToken {
     return this.contracts.token.contract;
   }
 
-  get router(): xapps.BridgeRouter {
+  get router(): BridgeRouter {
     return this.contracts.router.contract;
   }
 
-  get helper(): xapps.ETHHelper | undefined {
+  get helper(): ETHHelper | undefined {
     return this.contracts.helper;
   }
 
@@ -75,14 +82,14 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
       getBeaconProxyVerificationInput(
         'BridgeToken',
         this.contracts.token,
-        xapps.BridgeToken__factory.bytecode,
+        BridgeToken__factory.bytecode,
       ),
     );
     input = input.concat(
       getBeaconProxyVerificationInput(
         'BridgeRouter',
         this.contracts.router,
-        xapps.BridgeRouter__factory.bytecode,
+        BridgeRouter__factory.bytecode,
       ),
     );
     if (this.helper) {
@@ -90,7 +97,7 @@ export class BridgeInstance extends RouterInstance<BridgeContracts> {
         getContractVerificationInput(
           'ETH Helper',
           this.helper,
-          xapps.ETHHelper__factory.bytecode,
+          ETHHelper__factory.bytecode,
         ),
       );
     }

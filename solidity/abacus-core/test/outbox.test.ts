@@ -2,9 +2,8 @@ import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { types, utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { Validator } from './lib/core';
 
-import { TestOutbox, TestOutbox__factory } from '../typechain';
+import { TestOutbox, TestOutbox__factory } from '../types';
 
 const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');
 

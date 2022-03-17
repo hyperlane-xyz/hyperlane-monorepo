@@ -1,6 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import ethers from 'ethers';
 
 import {
   MysteryMathV1,
@@ -10,7 +9,7 @@ import {
   UpgradeBeacon,
   UpgradeBeacon__factory,
   UpgradeBeaconProxy__factory,
-} from '../../typechain';
+} from '../../types';
 
 export type MysteryMathUpgrade = {
   proxy: MysteryMathV1 | MysteryMathV2;

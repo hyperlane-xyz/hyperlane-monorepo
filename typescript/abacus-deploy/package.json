@@ -28,11 +28,11 @@
     "kathy": "hardhat kathy --environment local",
     "prettier": "prettier --write *.ts ./src ./config ./scripts ./test"
   },
-  "author": "Celo Labs Inc.",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
+    "@abacus-network/apps": "file:../../solidity/apps",
+    "@abacus-network/core": "file:../../solidity/core",
     "@abacus-network/sdk": "^0.0.1",
-    "@abacus-network/ts-interface": "^0.0.1",
     "@aws-sdk/client-kms": "3.48.0",
     "@ethersproject/experimental": "^5.3.0",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",

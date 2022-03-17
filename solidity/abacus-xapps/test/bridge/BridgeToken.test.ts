@@ -4,7 +4,7 @@ import { Wallet } from 'ethers';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import { permitDigest } from './lib/permit';
-import { BridgeToken__factory, BridgeToken } from '../../typechain';
+import { BridgeToken__factory, BridgeToken } from '../../types';
 
 const VALUE = 100;
 

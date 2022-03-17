@@ -1,4 +1,4 @@
-import { core } from '@abacus-network/ts-interface';
+import { Inbox__factory, Outbox__factory } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 import { CoreDeploy } from './CoreDeploy';
 import { CoreInstance } from './CoreInstance';
@@ -27,7 +27,7 @@ export class ImplementationDeployer {
    */
   private async _deployOutboxImplementation(domain: types.Domain) {
     const signer = this.deploy.signer(domain);
-    const factory = new core.Outbox__factory(signer);
+    const factory = new Outbox__factory(signer);
     const implementation = await factory.deploy(
       domain,
       this.deploy.chains[domain].overrides,
@@ -47,7 +47,7 @@ export class ImplementationDeployer {
    */
   private async _deployInboxImplementation(domain: types.Domain) {
     const signer = this.deploy.signer(domain);
-    const factory = new core.Inbox__factory(signer);
+    const factory = new Inbox__factory(signer);
     const implementation = await factory.deploy(
       domain,
       this.deploy.chains[domain].overrides,

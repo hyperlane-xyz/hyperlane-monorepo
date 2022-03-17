@@ -1,5 +1,5 @@
 {
-  "name": "@abacus-network/abacus-xapps-sol",
+  "name": "@abacus-network/apps",
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
@@ -21,22 +21,21 @@
     "typescript": "^4.3.5"
   },
   "version": "0.0.0",
-  "description": "A bridge using abacus",
-  "main": " ",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
   "directories": {
     "test": "test"
   },
   "scripts": {
     "prettier": "prettier --write ./contracts ./test",
-    "build": "hardhat compile && hardhat typechain && npm run prettier && npm run copy-typechain",
-    "copy-typechain": "mkdir -p ../../typescript/typechain/abacus-xapps/ && cp -r typechain/* ../../typescript/typechain/abacus-xapps/",
+    "build": "hardhat compile && hardhat typechain && npm run prettier && tsc && npm run copy-types",
+    "copy-types": "cp types/*.d.ts dist/",
     "coverage": "hardhat coverage",
     "test": "hardhat test"
   },
-  "author": "James Prestwich",
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "@abacus-network/abacus-sol": "file:../abacus-core",
+    "@abacus-network/core": "file:../core",
     "@abacus-network/hardhat": "^0.0.5",
     "@abacus-network/utils": "^0.0.5",
     "@openzeppelin/contracts": "~3.4.2",

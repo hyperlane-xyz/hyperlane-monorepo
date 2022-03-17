@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { xapps } from '@abacus-network/ts-interface';
+import { GovernanceRouter } from '@abacus-network/apps';
 import { CommonDeploy, DeployType } from '../common';
 import { ChainConfig } from '../config';
 import { RouterDeploy } from '../router';
@@ -47,7 +47,7 @@ export class GovernanceDeploy extends RouterDeploy<
     );
   }
 
-  router(domain: types.Domain): xapps.GovernanceRouter {
+  router(domain: types.Domain): GovernanceRouter {
     return this.instances[domain].router;
   }
 }

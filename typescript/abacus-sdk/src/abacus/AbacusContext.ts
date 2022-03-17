@@ -1,6 +1,7 @@
 import { BigNumberish, ethers } from 'ethers';
 import { MultiProvider } from '..';
-import { xapps, core } from '@abacus-network/ts-interface';
+import { Inbox } from '@abacus-network/core';
+import { BridgeToken, BridgeToken__factory } from '@abacus-network/apps';
 import { BridgeContracts } from './contracts/BridgeContracts';
 import { Governor, CoreContracts } from './contracts/CoreContracts';
 import { ResolvedTokenInfo, TokenIdentifier } from './tokens';
@@ -198,7 +199,7 @@ export class AbacusContext extends MultiProvider {
   getInboxFor(
     outbox: string | number,
     remote: string | number,
-  ): core.Inbox | undefined {
+  ): Inbox | undefined {
     return this.getCore(remote)?.getInbox(this.resolveDomain(outbox));
   }
 
@@ -213,10 +214,7 @@ export class AbacusContext extends MultiProvider {
    * @returns An interface for the Inbox
    * @throws If no inbox is found.
    */
-  mustGetInboxFor(
-    outbox: string | number,
-    remote: string | number,
-  ): core.Inbox {
+  mustGetInboxFor(outbox: string | number, remote: string | number): Inbox {
     const inbox = this.getInboxFor(outbox, remote);
     if (!inbox) {
       throw new Error(`Missing inbox for outbox ${outbox} & remote ${remote}`);
@@ -277,7 +275,7 @@ export class AbacusContext extends MultiProvider {
   async resolveRepresentation(
     nameOrDomain: string | number,
     token: TokenIdentifier,
-  ): Promise<xapps.BridgeToken | undefined> {
+  ): Promise<BridgeToken | undefined> {
     const domain = this.resolveDomain(nameOrDomain);
     const bridge = this.getBridge(domain);
 
@@ -292,7 +290,7 @@ export class AbacusContext extends MultiProvider {
       return;
     }
 
-    let contract = new xapps.BridgeToken__factory().attach(evmId(address));
+    let contract = new BridgeToken__factory().attach(evmId(address));
 
     const connection = this.getConnection(domain);
     if (connection) {
@@ -315,7 +313,7 @@ export class AbacusContext extends MultiProvider {
   async resolveRepresentations(
     token: TokenIdentifier,
   ): Promise<ResolvedTokenInfo> {
-    const tokens: Map<number, xapps.BridgeToken> = new Map();
+    const tokens: Map<number, BridgeToken> = new Map();
 
     await Promise.all(
       this.domainNumbers.map(async (domain) => {
@@ -389,7 +387,7 @@ export class AbacusContext extends MultiProvider {
   async resolveCanonicalToken(
     nameOrDomain: string | number,
     representation: Address,
-  ): Promise<xapps.BridgeToken> {
+  ): Promise<BridgeToken> {
     const canonicalId = await this.resolveCanonicalIdentifier(
       nameOrDomain,
       representation,

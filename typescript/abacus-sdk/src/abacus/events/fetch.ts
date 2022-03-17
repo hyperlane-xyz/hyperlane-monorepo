@@ -5,7 +5,7 @@ import { Result } from '@ethersproject/abi';
 import {
   TypedEvent,
   TypedEventFilter,
-} from '@abacus-network/ts-interface/dist/abacus-core/commons';
+} from '@abacus-network/core/dist/commons';
 
 // specifies an interface shared by the TS generated contracts
 export interface TSContract<T extends Result, U> {

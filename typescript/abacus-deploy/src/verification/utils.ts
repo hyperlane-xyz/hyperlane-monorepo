@@ -1,5 +1,8 @@
 import { ethers } from 'ethers';
-import { core } from '@abacus-network/ts-interface';
+import {
+  UpgradeBeacon__factory,
+  UpgradeBeaconProxy__factory,
+} from '@abacus-network/core';
 import { BeaconProxy } from '../common';
 
 import {
@@ -60,7 +63,7 @@ export function getBeaconProxyVerificationInput(
     address: contract.beacon.address,
     constructorArguments: getConstructorArguments(
       contract.beacon,
-      core.UpgradeBeacon__factory.bytecode,
+      UpgradeBeacon__factory.bytecode,
     ),
   };
   const proxy: ContractVerificationInput = {
@@ -68,7 +71,7 @@ export function getBeaconProxyVerificationInput(
     address: contract.proxy.address,
     constructorArguments: getConstructorArguments(
       contract.proxy,
-      core.UpgradeBeaconProxy__factory.bytecode,
+      UpgradeBeaconProxy__factory.bytecode,
     ),
     isProxy: true,
   };

@@ -1,12 +1,9 @@
 import { ethers, abacus } from 'hardhat';
-import { BytesLike } from 'ethers';
 import { expect } from 'chai';
 import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
-import * as types from './lib/types';
-import { serializeMessage } from './lib/utils';
-import { BridgeConfig, BridgeDeploy } from './lib/BridgeDeploy';
+import { BridgeDeploy } from './lib/BridgeDeploy';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
@@ -16,47 +13,18 @@ describe('EthHelper', async () => {
   let bridge: BridgeDeploy;
 
   let deployer: SignerWithAddress;
-  let deployerId: string;
 
   let recipient: SignerWithAddress;
   let recipientId: string;
-
-  let transferToSelfMessage: BytesLike;
-  let transferMessage: BytesLike;
 
   const value = 1;
 
   before(async () => {
     [deployer, recipient] = await ethers.getSigners();
-    deployerId = utils.addressToBytes32(deployer.address);
     recipientId = utils.addressToBytes32(recipient.address);
     await abacus.deploy(domains, deployer);
     bridge = new BridgeDeploy(deployer);
     await bridge.deploy(abacus);
-
-    const tokenId: types.TokenIdentifier = {
-      domain: localDomain,
-      id: utils.addressToBytes32(bridge.weth(localDomain).address),
-    };
-    const transferToSelfMessageObj: types.Message = {
-      tokenId,
-      action: {
-        type: types.BridgeMessageTypes.TRANSFER,
-        recipient: deployerId,
-        amount: value,
-      },
-    };
-    transferToSelfMessage = serializeMessage(transferToSelfMessageObj);
-
-    const transferMessageObj: types.Message = {
-      tokenId,
-      action: {
-        type: types.BridgeMessageTypes.TRANSFER,
-        recipient: recipientId,
-        amount: value,
-      },
-    };
-    transferMessage = serializeMessage(transferMessageObj);
   });
 
   it('send function', async () => {

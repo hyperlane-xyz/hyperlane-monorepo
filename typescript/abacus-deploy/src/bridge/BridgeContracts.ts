@@ -1,14 +1,21 @@
 import fs from 'fs';
-import { xapps } from '@abacus-network/ts-interface';
+import {
+  ETHHelper,
+  ETHHelper__factory,
+  BridgeRouter,
+  BridgeRouter__factory,
+  BridgeToken,
+  BridgeToken__factory,
+} from '@abacus-network/apps';
 import { ethers } from 'ethers';
 import { CommonContracts, BeaconProxy } from '../common';
 import { BridgeContractAddresses } from './types';
 
 export class BridgeContracts extends CommonContracts<BridgeContractAddresses> {
   constructor(
-    public readonly router: BeaconProxy<xapps.BridgeRouter>,
-    public readonly token: BeaconProxy<xapps.BridgeToken>,
-    public readonly helper?: xapps.ETHHelper,
+    public readonly router: BeaconProxy<BridgeRouter>,
+    public readonly token: BeaconProxy<BridgeToken>,
+    public readonly helper?: ETHHelper,
   ) {
     super();
   }
@@ -31,20 +38,20 @@ export class BridgeContracts extends CommonContracts<BridgeContractAddresses> {
     addresses: BridgeContractAddresses,
     signer: ethers.Signer,
   ): BridgeContracts {
-    const router: BeaconProxy<xapps.BridgeRouter> = BeaconProxy.fromObject(
+    const router: BeaconProxy<BridgeRouter> = BeaconProxy.fromObject(
       addresses.router,
-      xapps.BridgeRouter__factory.abi,
+      BridgeRouter__factory.abi,
       signer,
     );
 
-    const token: BeaconProxy<xapps.BridgeToken> = BeaconProxy.fromObject(
+    const token: BeaconProxy<BridgeToken> = BeaconProxy.fromObject(
       addresses.token,
-      xapps.BridgeToken__factory.abi,
+      BridgeToken__factory.abi,
       signer,
     );
 
     if (addresses.helper) {
-      const helper = xapps.ETHHelper__factory.connect(addresses.helper, signer);
+      const helper = ETHHelper__factory.connect(addresses.helper, signer);
       return new BridgeContracts(router, token, helper);
     }
     return new BridgeContracts(router, token);
