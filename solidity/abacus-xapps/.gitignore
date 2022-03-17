@@ -1,7 +1,8 @@
 node_modules/
 cache/
 artifacts/
-typechain/
+types/
+dist/
 coverage/
 coverage.json
 .env

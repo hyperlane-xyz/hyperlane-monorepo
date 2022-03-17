@@ -6,8 +6,8 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { utils } from '@abacus-network/utils';
 import * as types from './lib/types';
 import { serializeMessage } from './lib/utils';
-import { BridgeConfig, BridgeDeploy } from './lib/BridgeDeploy';
-import { BridgeToken, BridgeToken__factory, IERC20 } from '../../typechain';
+import { BridgeDeploy } from './lib/BridgeDeploy';
+import { BridgeToken, BridgeToken__factory, IERC20 } from '../../types';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
@@ -256,7 +256,7 @@ describe('BridgeRouter', async () => {
           ethers.constants.MaxUint256,
         );
 
-        const sendTx = await bridge
+        await bridge
           .router(localDomain)
           .send(localToken.address, TOKEN_VALUE, remoteDomain, deployerId);
 
@@ -462,7 +462,6 @@ describe('BridgeRouter', async () => {
   describe('details message', async () => {
     let localToken: BridgeToken;
     let requestMessage: BytesLike;
-    let outgoingDetails: BytesLike;
     let incomingDetails: BytesLike;
     let transferMessage: BytesLike;
     let repr: BridgeToken;
@@ -486,20 +485,6 @@ describe('BridgeRouter', async () => {
         },
       };
       requestMessage = serializeMessage(requestMessageObj);
-
-      const outgoingDetailsObj: types.Message = {
-        tokenId: {
-          domain: localDomain,
-          id: utils.addressToBytes32(localToken.address),
-        },
-        action: {
-          type: types.BridgeMessageTypes.DETAILS,
-          name: utils.stringToBytes32(TEST_NAME),
-          symbol: utils.stringToBytes32(TEST_SYMBOL),
-          decimals: TEST_DECIMALS,
-        },
-      };
-      outgoingDetails = serializeMessage(outgoingDetailsObj);
 
       // generate transfer action
       const transferMessageObj: types.Message = {
@@ -535,14 +520,6 @@ describe('BridgeRouter', async () => {
       const requestTx = await bridge
         .router(localDomain)
         .requestDetails(remoteDomain, testToken);
-
-      const requestDetailsObj: types.Message = {
-        tokenId: testTokenId,
-        action: {
-          type: types.BridgeMessageTypes.REQUEST_DETAILS,
-        },
-      };
-      const requestDetails = serializeMessage(requestDetailsObj);
 
       await expect(requestTx).to.emit(abacus.outbox(localDomain), 'Dispatch');
     });
@@ -721,16 +698,6 @@ describe('BridgeRouter', async () => {
 
         describe('when transferring a custom token', () => {
           it('allows outbound transfers of both assets', async () => {
-            const smallTransfer: types.Message = {
-              tokenId: testTokenId,
-              action: {
-                type: types.BridgeMessageTypes.TRANSFER,
-                recipient: deployerId,
-                amount: TOKEN_VALUE,
-              },
-            };
-            const smallTransferMessage = serializeMessage(smallTransfer);
-
             const defaultSendTx = await bridge
               .router(localDomain)
               .send(defaultRepr.address, TOKEN_VALUE, remoteDomain, deployerId);

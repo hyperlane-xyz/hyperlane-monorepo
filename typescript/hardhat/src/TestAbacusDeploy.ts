@@ -11,8 +11,8 @@ import {
   XAppConnectionManager__factory,
   TestInbox,
   TestInbox__factory,
-} from "@abacus-network/abacus-sol/typechain";
-import { Validator } from "@abacus-network/abacus-sol/test/lib/core";
+} from "@abacus-network/core";
+import { Validator } from "@abacus-network/core/test/lib/core";
 import { TestDeploy } from "./TestDeploy";
 
 export type TestAbacusConfig = {

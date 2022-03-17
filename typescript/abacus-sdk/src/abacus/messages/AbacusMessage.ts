@@ -1,7 +1,7 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
-import { core } from '@abacus-network/ts-interface';
+import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
 import { AbacusContext } from '..';
 import { delay } from '../../utils';
 import {
@@ -77,8 +77,8 @@ export function parseMessage(message: string): ParsedMessage {
 export class AbacusMessage {
   readonly dispatch: AnnotatedDispatch;
   readonly message: ParsedMessage;
-  readonly outbox: core.Outbox;
-  readonly inbox: core.Inbox;
+  readonly outbox: Outbox;
+  readonly inbox: Inbox;
 
   readonly context: AbacusContext;
   protected cache: EventCache;
@@ -116,7 +116,7 @@ export class AbacusMessage {
     receipt: TransactionReceipt,
   ): AbacusMessage[] {
     const messages: AbacusMessage[] = [];
-    const outbox = new core.Outbox__factory().interface;
+    const outbox = new Outbox__factory().interface;
 
     for (const log of receipt.logs) {
       try {

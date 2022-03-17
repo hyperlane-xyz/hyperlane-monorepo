@@ -1,5 +1,10 @@
 import { ethers } from 'ethers';
-import { xapps } from '@abacus-network/ts-interface';
+import {
+  BridgeRouter,
+  BridgeRouter__factory,
+  ETHHelper,
+  ETHHelper__factory,
+} from '@abacus-network/apps';
 import { Contracts } from '../../contracts';
 
 type Address = string;
@@ -16,8 +21,8 @@ interface BridgeInfo {
 
 export class BridgeContracts extends Contracts {
   domain: number;
-  bridgeRouter: xapps.BridgeRouter;
-  ethHelper?: xapps.ETHHelper;
+  bridgeRouter: BridgeRouter;
+  ethHelper?: ETHHelper;
 
   constructor(
     domain: number,
@@ -27,11 +32,9 @@ export class BridgeContracts extends Contracts {
   ) {
     super(domain, bridgeRouter, ethHelper, signer);
     this.domain = domain;
-    this.bridgeRouter = new xapps.BridgeRouter__factory(signer).attach(
-      bridgeRouter,
-    );
+    this.bridgeRouter = new BridgeRouter__factory(signer).attach(bridgeRouter);
     if (ethHelper) {
-      this.ethHelper = new xapps.ETHHelper__factory(signer).attach(ethHelper);
+      this.ethHelper = new ETHHelper__factory(signer).attach(ethHelper);
     }
   }
 

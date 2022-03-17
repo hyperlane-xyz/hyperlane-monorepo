@@ -2,7 +2,7 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { Result } from '@ethersproject/abi';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 
-import { TypedEvent } from '@abacus-network/ts-interface/dist/abacus-core/commons';
+import { TypedEvent } from '@abacus-network/core/dist/commons';
 
 // copied from the Outbox.d.ts
 export type DispatchTypes = [string, BigNumber, BigNumber, string, string];

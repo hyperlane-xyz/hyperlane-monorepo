@@ -1,4 +1,3 @@
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { assert } from 'chai';
 import * as ethers from 'ethers';
 import { types } from '@abacus-network/utils';
@@ -16,7 +15,7 @@ import {
   XAppConnectionManager__factory,
   TestInbox,
   TestInbox__factory,
-} from '../../typechain';
+} from '../../types';
 
 export interface AbacusInstance {
   domain: types.Domain;

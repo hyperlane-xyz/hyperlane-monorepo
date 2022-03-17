@@ -10,7 +10,7 @@ import {
   Outbox,
   ValidatorManager__factory,
   ValidatorManager,
-} from '../typechain';
+} from '../types';
 
 const outboxDomainHashCases = require('../../../vectors/outboxDomainHash.json');
 const localDomain = 1000;

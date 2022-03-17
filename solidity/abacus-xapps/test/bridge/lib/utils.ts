@@ -3,16 +3,6 @@ import { ethers } from 'ethers';
 
 import * as types from './types';
 
-const typeToByte = (type: number): string => `0x0${type}`;
-
-const MESSAGE_LEN = {
-  identifier: 1,
-  tokenId: 36,
-  transfer: 65,
-  details: 66,
-  requestDetails: 1,
-};
-
 // Formats Transfer Message
 export function formatTransfer(
   to: ethers.BytesLike,

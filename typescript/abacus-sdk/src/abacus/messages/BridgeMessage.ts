@@ -2,7 +2,7 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { ethers } from 'ethers';
-import { xapps } from '@abacus-network/ts-interface';
+import { ERC20 } from '@abacus-network/apps';
 import { BridgeContracts, AbacusContext } from '..';
 import { ResolvedTokenInfo, TokenIdentifier } from '../tokens';
 import { AbacusMessage } from './AbacusMessage';
@@ -301,7 +301,7 @@ class BridgeMessage extends AbacusMessage {
    *
    * @returns The resolved token interface.
    */
-  async assetAtOrigin(): Promise<xapps.ERC20 | undefined> {
+  async assetAtOrigin(): Promise<ERC20 | undefined> {
     return (await this.asset()).tokens.get(this.origin);
   }
 
@@ -314,7 +314,7 @@ class BridgeMessage extends AbacusMessage {
    *
    * @returns The resolved token interface.
    */
-  async assetAtDestination(): Promise<xapps.ERC20 | undefined> {
+  async assetAtDestination(): Promise<ERC20 | undefined> {
     return (await this.asset()).tokens.get(this.destination);
   }
 }

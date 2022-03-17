@@ -1,6 +1,12 @@
 import path from 'path';
 import { types } from '@abacus-network/utils';
-import { core } from '@abacus-network/ts-interface';
+import {
+  UpgradeBeaconController,
+  XAppConnectionManager,
+  ValidatorManager,
+  Outbox,
+  Inbox,
+} from '@abacus-network/core';
 import { CoreInstance } from './CoreInstance';
 import { CoreContracts } from './CoreContracts';
 import { CoreConfig } from './types';
@@ -17,23 +23,23 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
     return CoreInstance.deploy(domain, this.chains, config);
   }
 
-  upgradeBeaconController(domain: types.Domain): core.UpgradeBeaconController {
+  upgradeBeaconController(domain: types.Domain): UpgradeBeaconController {
     return this.instances[domain].upgradeBeaconController;
   }
 
-  validatorManager(domain: types.Domain): core.ValidatorManager {
+  validatorManager(domain: types.Domain): ValidatorManager {
     return this.instances[domain].validatorManager;
   }
 
-  outbox(domain: types.Domain): core.Outbox {
+  outbox(domain: types.Domain): Outbox {
     return this.instances[domain].outbox;
   }
 
-  inbox(local: types.Domain, remote: types.Domain): core.Inbox {
+  inbox(local: types.Domain, remote: types.Domain): Inbox {
     return this.instances[local].inbox(remote);
   }
 
-  xAppConnectionManager(domain: types.Domain): core.XAppConnectionManager {
+  xAppConnectionManager(domain: types.Domain): XAppConnectionManager {
     return this.instances[domain].xAppConnectionManager;
   }
 

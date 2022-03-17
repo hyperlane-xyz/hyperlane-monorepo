@@ -1,11 +1,14 @@
 import fs from 'fs';
-import { xapps } from '@abacus-network/ts-interface';
+import {
+  GovernanceRouter,
+  GovernanceRouter__factory,
+} from '@abacus-network/apps';
 import { ethers } from 'ethers';
 import { CommonContracts, BeaconProxy } from '../common';
 import { GovernanceContractAddresses } from './types';
 
 export class GovernanceContracts extends CommonContracts<GovernanceContractAddresses> {
-  constructor(public readonly router: BeaconProxy<xapps.GovernanceRouter>) {
+  constructor(public readonly router: BeaconProxy<GovernanceRouter>) {
     super();
   }
 
@@ -28,9 +31,9 @@ export class GovernanceContracts extends CommonContracts<GovernanceContractAddre
     addresses: GovernanceContractAddresses,
     signer: ethers.Signer,
   ): GovernanceContracts {
-    const router: BeaconProxy<xapps.GovernanceRouter> = BeaconProxy.fromObject(
+    const router: BeaconProxy<GovernanceRouter> = BeaconProxy.fromObject(
       addresses.router,
-      xapps.GovernanceRouter__factory.abi,
+      GovernanceRouter__factory.abi,
       signer,
     );
     return new GovernanceContracts(router);

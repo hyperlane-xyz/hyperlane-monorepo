@@ -1,5 +1,5 @@
 import { BytesLike } from 'ethers';
-import { xapps } from '@abacus-network/ts-interface';
+import { BridgeToken } from '@abacus-network/apps';
 import wellKnown from './wellKnown';
 import testnetWellKnown from './testnetWellKnown';
 
@@ -14,7 +14,7 @@ export type ResolvedTokenInfo = {
   // The canonical identifier
   id: BytesLike;
   // The contract on each chain
-  tokens: Map<number, xapps.BridgeToken>;
+  tokens: Map<number, BridgeToken>;
 };
 
 export const tokens = wellKnown;

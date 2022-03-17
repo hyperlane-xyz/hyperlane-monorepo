@@ -1,10 +1,10 @@
 {
   "compilerOptions": {
-    "composite": true,
     "declaration": true,
     "declarationMap": true,
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
+    "incremental": false,
     "lib": ["es2015", "es5", "dom"],
     "module": "commonjs",
     "moduleResolution": "node",

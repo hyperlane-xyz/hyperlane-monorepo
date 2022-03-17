@@ -1,4 +1,4 @@
-import { xapps } from '@abacus-network/ts-interface';
+import { BridgeToken, BridgeRouter, ETHHelper } from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 import { BridgeConfig } from './types';
 import { BridgeInstance } from './BridgeInstance';
@@ -30,15 +30,15 @@ export class BridgeDeploy extends RouterDeploy<BridgeInstance, BridgeConfig> {
     );
   }
 
-  token(domain: types.Domain): xapps.BridgeToken {
+  token(domain: types.Domain): BridgeToken {
     return this.instances[domain].token;
   }
 
-  router(domain: types.Domain): xapps.BridgeRouter {
+  router(domain: types.Domain): BridgeRouter {
     return this.instances[domain].router;
   }
 
-  helper(domain: types.Domain): xapps.ETHHelper | undefined {
+  helper(domain: types.Domain): ETHHelper | undefined {
     return this.instances[domain].helper;
   }
 }

@@ -1,5 +1,16 @@
 import { ethers } from 'ethers';
-import { core, xapps } from '@abacus-network/ts-interface';
+import {
+  Inbox,
+  Outbox,
+  Inbox__factory,
+  Outbox__factory,
+  XAppConnectionManager,
+  XAppConnectionManager__factory,
+} from '@abacus-network/core';
+import {
+  GovernanceRouter,
+  GovernanceRouter__factory,
+} from '@abacus-network/apps';
 import { Contracts } from '../../contracts';
 import { InboxInfo } from '../domains/domain';
 import { CallBatch } from '../govern';
@@ -52,37 +63,37 @@ export class CoreContracts extends Contracts {
     });
   }
 
-  getInbox(domain: number): core.Inbox | undefined {
+  getInbox(domain: number): Inbox | undefined {
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
     const inbox = this._inboxes.get(domain);
     if (!inbox) return;
-    return core.Inbox__factory.connect(inbox.address, this.providerOrSigner);
+    return Inbox__factory.connect(inbox.address, this.providerOrSigner);
   }
 
-  get outbox(): core.Outbox {
+  get outbox(): Outbox {
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
-    return core.Outbox__factory.connect(this._outbox, this.providerOrSigner);
+    return Outbox__factory.connect(this._outbox, this.providerOrSigner);
   }
 
-  get governanceRouter(): xapps.GovernanceRouter {
+  get governanceRouter(): GovernanceRouter {
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
-    return xapps.GovernanceRouter__factory.connect(
+    return GovernanceRouter__factory.connect(
       this._governanceRouter,
       this.providerOrSigner,
     );
   }
 
-  get xAppConnectionManager(): core.XAppConnectionManager {
+  get xAppConnectionManager(): XAppConnectionManager {
     if (!this.providerOrSigner) {
       throw new Error('No provider or signer. Call `connect` first.');
     }
-    return core.XAppConnectionManager__factory.connect(
+    return XAppConnectionManager__factory.connect(
       this._xAppConnectionManager,
       this.providerOrSigner,
     );

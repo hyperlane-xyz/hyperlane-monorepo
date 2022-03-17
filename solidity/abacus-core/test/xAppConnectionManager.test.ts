@@ -8,10 +8,7 @@ import {
   XAppConnectionManager,
   XAppConnectionManager__factory,
   TestInbox,
-} from '../typechain';
-import { Validator } from './lib/core';
-
-const signedFailureTestCases = require('../../../vectors/signedFailure.json');
+} from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 const localDomain = 1000;
@@ -22,12 +19,10 @@ const reserveGas = 15000;
 describe('XAppConnectionManager', async () => {
   let connectionManager: XAppConnectionManager,
     enrolledInbox: TestInbox,
-    signer: SignerWithAddress,
-    validator: Validator;
+    signer: SignerWithAddress;
 
   before(async () => {
     [signer] = await ethers.getSigners();
-    validator = await Validator.fromSigner(signer, localDomain);
   });
 
   beforeEach(async () => {

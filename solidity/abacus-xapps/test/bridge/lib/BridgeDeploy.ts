@@ -12,11 +12,8 @@ import {
   BridgeRouter__factory,
   ETHHelper,
   ETHHelper__factory,
-} from '../../../typechain';
-import {
-  UpgradeBeacon__factory,
-  UpgradeBeacon,
-} from '@abacus-network/abacus-sol/typechain';
+} from '../../../types';
+import { UpgradeBeacon__factory, UpgradeBeacon } from '@abacus-network/core';
 
 export type BridgeConfig = SignerWithAddress;
 

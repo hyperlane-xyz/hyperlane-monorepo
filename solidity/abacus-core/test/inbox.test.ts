@@ -16,9 +16,8 @@ import {
   ValidatorManager,
   ValidatorManager__factory,
   TestRecipient__factory,
-} from '../typechain';
+} from '../types';
 
-const outboxDomainHashTestCases = require('../../../vectors/outboxDomainHash.json');
 const merkleTestCases = require('../../../vectors/merkle.json');
 const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json');
 

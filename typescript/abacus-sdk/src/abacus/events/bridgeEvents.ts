@@ -1,4 +1,4 @@
-import { TypedEvent } from '@abacus-network/ts-interface/dist/abacus-core/commons';
+import { TypedEvent } from '@abacus-network/core/dist/commons';
 import { BigNumber } from 'ethers';
 import { Annotated } from '.';
 

@@ -1,5 +1,10 @@
 import { ethers } from 'ethers';
-import { core } from '@abacus-network/ts-interface';
+import {
+  UpgradeBeacon,
+  UpgradeBeacon__factory,
+  UpgradeBeaconProxy,
+  UpgradeBeaconProxy__factory,
+} from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 
 import { ChainConfig } from '../config';
@@ -14,8 +19,8 @@ export type ProxiedAddress = {
 export class BeaconProxy<T extends ethers.Contract> {
   constructor(
     public readonly implementation: T,
-    public readonly proxy: core.UpgradeBeaconProxy,
-    public readonly beacon: core.UpgradeBeacon,
+    public readonly proxy: UpgradeBeaconProxy,
+    public readonly beacon: UpgradeBeacon,
     public readonly contract: T,
   ) {}
 
@@ -33,8 +38,8 @@ export class BeaconProxy<T extends ethers.Contract> {
   ): Promise<BeaconProxy<T>> {
     const deployer = new ContractDeployer(chain, false);
     const implementation: T = await deployer.deploy(factory, ...deployArgs);
-    const beacon: core.UpgradeBeacon = await deployer.deploy(
-      new core.UpgradeBeacon__factory(chain.signer),
+    const beacon: UpgradeBeacon = await deployer.deploy(
+      new UpgradeBeacon__factory(chain.signer),
       implementation.address,
       ubcAddress,
     );
@@ -43,8 +48,8 @@ export class BeaconProxy<T extends ethers.Contract> {
       'initialize',
       initArgs,
     );
-    const proxy: core.UpgradeBeaconProxy = await deployer.deploy(
-      new core.UpgradeBeaconProxy__factory(chain.signer),
+    const proxy: UpgradeBeaconProxy = await deployer.deploy(
+      new UpgradeBeaconProxy__factory(chain.signer),
       beacon.address,
       initData,
     );
@@ -69,14 +74,8 @@ export class BeaconProxy<T extends ethers.Contract> {
       abi,
       signer,
     ) as T;
-    const proxy = core.UpgradeBeaconProxy__factory.connect(
-      addresses.proxy,
-      signer,
-    );
-    const beacon = core.UpgradeBeacon__factory.connect(
-      addresses.beacon,
-      signer,
-    );
+    const proxy = UpgradeBeaconProxy__factory.connect(addresses.proxy, signer);
+    const beacon = UpgradeBeacon__factory.connect(addresses.beacon, signer);
     const contract = new ethers.Contract(addresses.proxy, abi, signer) as T;
     return new BeaconProxy<T>(implementation, proxy, beacon, contract);
   }
@@ -95,8 +94,8 @@ export class BeaconProxy<T extends ethers.Contract> {
       'initialize',
       initArgs,
     );
-    const proxy: core.UpgradeBeaconProxy = await deployer.deploy(
-      new core.UpgradeBeaconProxy__factory(chain.signer),
+    const proxy: UpgradeBeaconProxy = await deployer.deploy(
+      new UpgradeBeaconProxy__factory(chain.signer),
       this.beacon.address,
       initData,
     );
