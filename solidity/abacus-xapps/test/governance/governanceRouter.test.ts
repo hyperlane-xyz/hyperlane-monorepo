@@ -107,8 +107,7 @@ describe('GovernanceRouter', async () => {
     const inbox = abacus.inbox(localDomain, remoteDomain);
     await inbox.setMessageProven(fakeMessage);
     // Expect inbox processing to fail when reverting in handle
-    let success = await inbox.callStatic.testProcess(fakeMessage);
-    expect(success).to.be.false;
+    await expect(inbox.testProcess(fakeMessage)).to.be.revertedWith('!router');
   });
 
   describe('when not in recovery mode', async () => {

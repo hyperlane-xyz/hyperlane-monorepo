@@ -78,11 +78,7 @@ describe('XAppConnectionManager', async () => {
   it('Owner can enroll a inbox', async () => {
     const newRemoteDomain = 3000;
     const inboxFactory = new TestInbox__factory(signer);
-    const newInbox = await inboxFactory.deploy(
-      localDomain,
-      processGas,
-      reserveGas,
-    );
+    const newInbox = await inboxFactory.deploy(localDomain);
 
     // Assert new inbox not considered inbox before enrolled
     expect(await connectionManager.isInbox(newInbox.address)).to.be.false;

@@ -5,9 +5,7 @@ import { types, utils } from '@abacus-network/utils';
 import { Validator } from './lib/core';
 import {
   BadRecipient1__factory,
-  BadRecipient2__factory,
   BadRecipient3__factory,
-  BadRecipient4__factory,
   BadRecipient5__factory,
   BadRecipient6__factory,
   BadRecipientHandle__factory,
@@ -28,9 +26,7 @@ const remoteDomain = 1000;
 describe('Inbox', async () => {
   const badRecipientFactories = [
     BadRecipient1__factory,
-    BadRecipient2__factory,
     BadRecipient3__factory,
-    BadRecipient4__factory,
     BadRecipient5__factory,
     BadRecipient6__factory,
   ];
@@ -182,14 +178,10 @@ describe('Inbox', async () => {
     // Set message status to types.MessageStatus.Pending
     await inbox.setMessageProven(abacusMessage);
 
-    // Ensure proper static call return value
-    const success = await inbox.callStatic.process(abacusMessage);
-    expect(success).to.be.true;
-
     const processTx = inbox.process(abacusMessage);
     await expect(processTx)
       .to.emit(inbox, 'Process')
-      .withArgs(utils.messageHash(abacusMessage), true, '0x');
+      .withArgs(utils.messageHash(abacusMessage));
   });
 
   it('Fails to process an unproved message', async () => {
@@ -210,7 +202,7 @@ describe('Inbox', async () => {
   });
 
   for (let i = 0; i < badRecipientFactories.length; i++) {
-    it(`Processes a message from a badly implemented recipient (${
+    it(`Fails to process a message for a badly implemented recipient (${
       i + 1
     })`, async () => {
       const sender = abacusMessageSender;
@@ -229,7 +221,7 @@ describe('Inbox', async () => {
 
       // Set message status to MessageStatus.Pending
       await inbox.setMessageProven(abacusMessage);
-      await inbox.process(abacusMessage);
+      await expect(inbox.process(abacusMessage)).to.be.reverted;
     });
   }
 
@@ -253,7 +245,7 @@ describe('Inbox', async () => {
     );
   });
 
-  it('Processes message sent to a non-existent contract address', async () => {
+  it('Fails to process message sent to a non-existent contract address', async () => {
     const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
@@ -268,33 +260,10 @@ describe('Inbox', async () => {
 
     // Set message status to types.MessageStatus.Pending
     await inbox.setMessageProven(abacusMessage);
-    await expect(inbox.process(abacusMessage)).to.not.be.reverted;
+    await expect(inbox.process(abacusMessage)).to.be.reverted;
   });
 
-  it('Fails to process an undergased transaction', async () => {
-    const [sender, recipient] = await ethers.getSigners();
-    const nonce = 0;
-    const body = ethers.utils.formatBytes32String('message');
-
-    const abacusMessage = utils.formatMessage(
-      remoteDomain,
-      sender.address,
-      nonce,
-      localDomain,
-      recipient.address,
-      body,
-    );
-
-    // Set message status to MessageStatus.Pending
-    await inbox.setMessageProven(abacusMessage);
-
-    // Required gas is >= 510,000 (we provide 500,000)
-    await expect(
-      inbox.process(abacusMessage, { gasLimit: 500000 }),
-    ).to.be.revertedWith('!gas');
-  });
-
-  it('Returns false when processing message for bad handler function', async () => {
+  it('Fails to process a message for bad handler function', async () => {
     const sender = abacusMessageSender;
     const [recipient] = await ethers.getSigners();
     const factory = new BadRecipientHandle__factory(recipient);
@@ -313,9 +282,8 @@ describe('Inbox', async () => {
     // Set message status to MessageStatus.Pending
     await inbox.setMessageProven(abacusMessage);
 
-    // Ensure bad handler function causes process to return false
-    let success = await inbox.callStatic.process(abacusMessage);
-    expect(success).to.be.false;
+    // Ensure bad handler function causes process to fail
+    await expect(inbox.process(abacusMessage)).to.be.reverted;
   });
 
   it('Proves and processes a message', async () => {
