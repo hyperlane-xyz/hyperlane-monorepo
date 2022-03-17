@@ -77,7 +77,7 @@ impl Relayer {
     }
     fn run_inbox(&self, inbox: Arc<CachingInbox>) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
-        let submit = CheckpointRelayer::new(self.interval, db.clone(), inbox);
+        let submit = CheckpointRelayer::new(self.interval, db, inbox);
         self.run_all(vec![submit.spawn()])
     }
 

@@ -81,13 +81,10 @@ impl CheckpointRelayer {
 
             // TODO: sign in parallel
             for message in &batch.messages {
-                match self.db.proof_by_leaf_index(message.leaf_index)? {
-                    Some(proof) => {
-                        self.inbox
-                            .prove_and_process(&message.message, &proof)
-                            .await?;
-                    }
-                    None => (),
+                if let Some(proof) = self.db.proof_by_leaf_index(message.leaf_index)? {
+                    self.inbox
+                        .prove_and_process(&message.message, &proof)
+                        .await?;
                 }
             }
 
