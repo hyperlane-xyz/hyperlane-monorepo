@@ -1,8 +1,6 @@
 import { CoreConfig } from '../../../src/core';
 
 export const core: CoreConfig = {
-  processGas: 850_000,
-  reserveGas: 15_000,
   validators: {
     alfajores: '0x201dd86063Dc251cA5a576d1b7365C38e5fB4CD5',
     kovan: '0x201dd86063Dc251cA5a576d1b7365C38e5fB4CD5',

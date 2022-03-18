@@ -8,11 +8,7 @@ contract TestInbox is Inbox {
     using TypedMemView for bytes29;
     using Message for bytes29;
 
-    constructor(
-        uint32 _localDomain,
-        uint256,
-        uint256
-    ) Inbox(_localDomain, 850_000, 15_000) {} // solhint-disable-line no-empty-blocks
+    constructor(uint32 _localDomain) Inbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     function setMessageProven(bytes memory _message) external {
         bytes29 _m = _message.ref(0);
@@ -31,11 +27,8 @@ contract TestInbox is Inbox {
         return MerkleLib.branchRoot(leaf, proof, index);
     }
 
-    function testProcess(bytes memory _message)
-        external
-        returns (bool _success)
-    {
-        (_success) = process(_message);
+    function testProcess(bytes memory _message) external {
+        process(_message);
     }
 
     function getRevertMsg(bytes memory _res)

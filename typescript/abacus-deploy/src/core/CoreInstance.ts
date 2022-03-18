@@ -73,7 +73,7 @@ export class CoreInstance extends CommonInstance<CoreContracts> {
           chain,
           new Inbox__factory(chain.signer),
           upgradeBeaconController.address,
-          [domain, config.processGas, config.reserveGas],
+          [domain],
           initArgs,
         );
       } else {

@@ -30,8 +30,6 @@ const testPolygon: ChainConfigWithoutSigner = {
 };
 
 export const testCore: CoreConfig = {
-  processGas: 850_000,
-  reserveGas: 15_000,
   validators: {
     celo: '0x91631845fab02614e53e5F5A68dFBB0E2f1a9B6d',
     polygon: '0x91631845fab02614e53e5F5A68dFBB0E2f1a9B6d',

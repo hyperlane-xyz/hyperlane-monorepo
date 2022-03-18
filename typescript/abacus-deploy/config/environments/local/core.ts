@@ -1,8 +1,6 @@
 import { CoreConfig } from '../../../src/core';
 
 export const core: CoreConfig = {
-  processGas: 850_000,
-  reserveGas: 15_000,
   validators: {
     // Hardhat accounts 1-4
     alfajores: '0x70997970c51812dc3a010c7d01b50e0d17dc79c8',

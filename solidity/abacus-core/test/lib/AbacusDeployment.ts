@@ -27,9 +27,6 @@ export interface AbacusInstance {
   inboxs: Record<number, TestInbox>;
 }
 
-const processGas = 850000;
-const reserveGas = 15000;
-
 export class AbacusDeployment {
   constructor(
     public readonly domains: types.Domain[],
@@ -81,7 +78,7 @@ export class AbacusDeployment {
     const inboxFactory = new TestInbox__factory(signer);
     const inboxs: Record<number, TestInbox> = {};
     const deploys = remotes.map(async (remoteDomain) => {
-      const inbox = await inboxFactory.deploy(local, processGas, reserveGas);
+      const inbox = await inboxFactory.deploy(local);
       await inbox.initialize(
         remoteDomain,
         validatorManager.address,

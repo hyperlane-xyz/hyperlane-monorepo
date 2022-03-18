@@ -13,8 +13,6 @@ import {
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 const localDomain = 1000;
 const remoteDomain = 2000;
-const processGas = 850000;
-const reserveGas = 15000;
 
 describe('XAppConnectionManager', async () => {
   let connectionManager: XAppConnectionManager,
@@ -30,11 +28,7 @@ describe('XAppConnectionManager', async () => {
     const outbox = await outboxFactory.deploy(localDomain);
 
     const inboxFactory = new TestInbox__factory(signer);
-    enrolledInbox = await inboxFactory.deploy(
-      localDomain,
-      processGas,
-      reserveGas,
-    );
+    enrolledInbox = await inboxFactory.deploy(localDomain);
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.
     await enrolledInbox.initialize(
@@ -79,11 +73,7 @@ describe('XAppConnectionManager', async () => {
   it('Owner can enroll a inbox', async () => {
     const newRemoteDomain = 3000;
     const inboxFactory = new TestInbox__factory(signer);
-    const newInbox = await inboxFactory.deploy(
-      localDomain,
-      processGas,
-      reserveGas,
-    );
+    const newInbox = await inboxFactory.deploy(localDomain);
 
     // Assert new inbox not considered inbox before enrolled
     expect(await connectionManager.isInbox(newInbox.address)).to.be.false;

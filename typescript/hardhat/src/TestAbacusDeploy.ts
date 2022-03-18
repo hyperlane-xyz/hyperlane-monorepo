@@ -27,9 +27,6 @@ export type TestAbacusInstance = {
   inboxes: Record<types.Domain, TestInbox>;
 };
 
-const PROCESS_GAS = 850_000;
-const RESERVE_GAS = 15_000;
-
 export class TestAbacusDeploy extends TestDeploy<
   TestAbacusInstance,
   TestAbacusConfig
@@ -81,7 +78,7 @@ export class TestAbacusDeploy extends TestDeploy<
     // this.remotes reads this.instances which has not yet been set.
     const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
     const deploys = remotes.map(async (remote) => {
-      const inbox = await inboxFactory.deploy(domain, PROCESS_GAS, RESERVE_GAS);
+      const inbox = await inboxFactory.deploy(domain);
       await inbox.initialize(
         remote,
         validatorManager.address,
