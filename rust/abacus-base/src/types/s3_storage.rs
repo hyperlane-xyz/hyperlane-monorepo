@@ -59,7 +59,7 @@ impl S3Storage {
 
     async fn read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
         let req = GetObjectRequest {
-            key: key,
+            key,
             bucket: self.bucket.clone(),
             ..Default::default()
         };
