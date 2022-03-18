@@ -4,6 +4,8 @@ use async_trait::async_trait;
 use color_eyre::Result;
 
 use crate::traits::CheckpointSyncer;
+
+#[derive(Debug, Clone, serde::Deserialize)]
 /// Type for reading/write to LocalStorage
 pub struct LocalStorage {
     /// base path
@@ -11,6 +13,12 @@ pub struct LocalStorage {
 }
 
 impl LocalStorage {
+    /// Constructor
+    pub fn new(path: &str) -> Self {
+        LocalStorage {
+            path: path.to_owned(),
+        }
+    }
     fn checkpoint_file_path(&self, index: u32) -> String {
         let mut path = self.path.clone();
         path.push_str(&format!("/{}.json", index));
