@@ -84,7 +84,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: test
-        run: npm --prefix ./typescript/abacus-deploy run test
+        run: npm --prefix ./typescript/deploy run test
 
   test-sol:
     env:
@@ -101,6 +101,6 @@ jobs:
           key: ${{ github.sha }}
 
       - name: core
-        run: npm --prefix ./solidity/abacus-core run test
+        run: npm --prefix ./solidity/core run test
       - name: xapps
-        run: npm --prefix ./solidity/abacus-xapps run test
+        run: npm --prefix ./solidity/apps run test
