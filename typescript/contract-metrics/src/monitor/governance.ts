@@ -1,5 +1,5 @@
 import { AbacusContext } from '@abacus-network/sdk';
-import { xapps } from '@abacus-network/ts-interface';
+import { GovernanceRouter } from '@abacus-network/apps';
 import config from '../config';
 
 export async function monitorGovernance(
@@ -16,7 +16,7 @@ export async function monitorGovernance(
 
 async function monitorRecoveryActiveAt(
   network: string,
-  router: xapps.GovernanceRouter,
+  router: GovernanceRouter,
 ) {
   const logger = config.baseLogger.child({
     network,
