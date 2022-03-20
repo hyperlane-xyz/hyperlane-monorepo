@@ -378,7 +378,7 @@ impl<I> ContractSync<I>
 where
     I: OutboxIndexer + 'static,
 {
-    /// TODO: Not implemented
+    /// Sync outbox messages
     pub fn sync_outbox_messages(
         &self,
     ) -> Instrumented<tokio::task::JoinHandle<color_eyre::Result<()>>> {
