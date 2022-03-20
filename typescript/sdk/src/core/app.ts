@@ -9,8 +9,10 @@ import {
   Inbox__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
-import { AbacusAppContracts } from './contracts';
-import { ChainName, ProxiedAddress } from './types';
+
+import { AbacusApp } from '../app';
+import { AbacusAppContracts } from '../contracts';
+import { ChainName, ProxiedAddress } from '../types';
 
 export type CoreContractAddresses = {
   upgradeBeaconController: types.Address;
@@ -42,5 +44,15 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
       this._addresses.xAppConnectionManager,
       this.connection,
     );
+  }
+}
+
+export class AbacusCore extends AbacusApp<CoreContractAddresses, CoreContracts> {
+  constructor(addresses: Partial<Record<ChainName, CoreContractAddresses>>) {
+    super();
+    for (const chain of Object.keys(addresses) as ChainName[]) {
+      const domain = this.resolveDomain(chain);
+      this.contracts.set(domain, new CoreContracts(addresses[chain]!))
+    }
   }
 }

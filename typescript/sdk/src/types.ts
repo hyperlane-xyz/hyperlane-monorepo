@@ -33,3 +33,5 @@ export type ProxiedAddress = {
   implementation: types.Address;
   beacon: types.Address;
 };
+
+export type NameOrDomain = ChainName | number;

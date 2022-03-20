@@ -3,10 +3,11 @@ import { arrayify, hexlify } from '@ethersproject/bytes';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { ethers } from 'ethers';
 import { ERC20 } from '@abacus-network/apps';
-import { BridgeContracts, AbacusContext } from '..';
-import { ResolvedTokenInfo, TokenIdentifier } from '../tokens';
-import { AbacusMessage } from './AbacusMessage';
-import { AnnotatedDispatch } from '../events/abacusEvents';
+
+import { AbacusCore, AbacusMessage, AnnotatedDispatch } from '../core';
+import { NameOrDomain } from '../types';
+import { BridgeContracts, AbacusBridge } from './app';
+import { ResolvedTokenInfo, TokenIdentifier } from './tokens';
 
 const ACTION_LEN = {
   identifier: 1,
@@ -110,6 +111,7 @@ function parseBody(
  * functionality.
  */
 class BridgeMessage extends AbacusMessage {
+  readonly bridge: AbacusBridge;
   readonly token: TokenIdentifier;
   readonly fromBridge: BridgeContracts;
   readonly toBridge: BridgeContracts;
@@ -118,7 +120,8 @@ class BridgeMessage extends AbacusMessage {
    * @hideconstructor
    */
   constructor(
-    context: AbacusContext,
+    core: AbacusCore,
+    bridge: AbacusBridge,
     event: AnnotatedDispatch,
     token: TokenIdentifier,
     callerKnowsWhatTheyAreDoing: boolean,
@@ -126,10 +129,11 @@ class BridgeMessage extends AbacusMessage {
     if (!callerKnowsWhatTheyAreDoing) {
       throw new Error('Use `fromReceipt` to instantiate');
     }
-    super(context, event);
+    super(core, event);
+    this.bridge = bridge;
 
-    const fromBridge = context.mustGetBridge(this.message.from);
-    const toBridge = context.mustGetBridge(this.message.destination);
+    const fromBridge = bridge.mustGetContracts(this.message.from);
+    const toBridge = bridge.mustGetContracts(this.message.destination);
 
     this.fromBridge = fromBridge;
     this.toBridge = toBridge;
@@ -140,13 +144,14 @@ class BridgeMessage extends AbacusMessage {
    * Attempt to instantiate a BridgeMessage from an existing
    * {@link AbacusMessage}
    *
-   * @param context The {@link AbacusContext} to use.
+   * @param core The {@link AbacusCore} to use.
    * @param abacusMessage The existing AbacusMessage
    * @returns A Bridge message
    * @throws if the message cannot be parsed as a bridge message
    */
   static fromAbacusMessage(
-    context: AbacusContext,
+    core: AbacusCore,
+    bridge: AbacusBridge,
     abacusMessage: AbacusMessage,
   ): AnyBridgeMessage {
     const parsedMessageBody = parseBody(abacusMessage.message.body);
@@ -154,19 +159,22 @@ class BridgeMessage extends AbacusMessage {
     switch (parsedMessageBody.action.type) {
       case 'transfer':
         return new TransferMessage(
-          context,
+          core,
+          bridge,
           abacusMessage.dispatch,
           parsedMessageBody as ParsedTransferMessage,
         );
       case 'details':
         return new DetailsMessage(
-          context,
+          core,
+          bridge,
           abacusMessage.dispatch,
           parsedMessageBody as ParsedDetailsMessage,
         );
       case 'requestDetails':
         return new RequestDetailsMessage(
-          context,
+          core,
+          bridge,
           abacusMessage.dispatch,
           parsedMessageBody as ParsedRequestDetailsMesasage,
         );
@@ -176,19 +184,20 @@ class BridgeMessage extends AbacusMessage {
   /**
    * Attempt to instantiate some BridgeMessages from a transaction receipt
    *
-   * @param context The {@link AbacusContext} to use.
+   * @param core The {@link AbacusCore} to use.
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt The receipt
    * @returns an array of {@link BridgeMessage} objects
    * @throws if any message cannot be parsed as a bridge message
    */
-  static fromReceipt(
-    context: AbacusContext,
-    nameOrDomain: string | number,
+  static fromCoreAndReceipt(
+    core: AbacusCore,
+    bridge: AbacusBridge,
+    nameOrDomain: NameOrDomain,
     receipt: TransactionReceipt,
   ): AnyBridgeMessage[] {
     const abacusMessages: AbacusMessage[] = AbacusMessage.fromReceipt(
-      context,
+      core,
       nameOrDomain,
       receipt,
     );
@@ -196,7 +205,8 @@ class BridgeMessage extends AbacusMessage {
     for (const abacusMessage of abacusMessages) {
       try {
         const bridgeMessage = BridgeMessage.fromAbacusMessage(
-          context,
+          core,
+          bridge,
           abacusMessage,
         );
         bridgeMessages.push(bridgeMessage);
@@ -210,20 +220,22 @@ class BridgeMessage extends AbacusMessage {
   /**
    * Attempt to instantiate EXACTLY one BridgeMessage from a transaction receipt
    *
-   * @param context The {@link AbacusContext} to use.
+   * @param core The {@link AbacusCore} to use.
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt The receipt
    * @returns an array of {@link BridgeMessage} objects
    * @throws if any message cannot be parsed as a bridge message, or if there
    *         is not EXACTLY 1 BridgeMessage in the receipt
    */
-  static singleFromReceipt(
-    context: AbacusContext,
-    nameOrDomain: string | number,
+  static singleFromCoreAndReceipt(
+    core: AbacusCore,
+    bridge: AbacusBridge,
+    nameOrDomain: NameOrDomain,
     receipt: TransactionReceipt,
   ): AnyBridgeMessage {
-    const messages: AnyBridgeMessage[] = BridgeMessage.fromReceipt(
-      context,
+    const messages: AnyBridgeMessage[] = BridgeMessage.fromCoreAndReceipt(
+      core,
+      bridge,
       nameOrDomain,
       receipt,
     );
@@ -237,47 +249,49 @@ class BridgeMessage extends AbacusMessage {
    * Attempt to instantiate some BridgeMessages from a transaction hash by
    * retrieving and parsing the receipt.
    *
-   * @param context The {@link AbacusContext} to use.
+   * @param core The {@link AbacusCore} to use.
    * @param nameOrDomain the domain on which the receipt was logged
    * @param transactionHash The transaction hash
    * @returns an array of {@link BridgeMessage} objects
    * @throws if any message cannot be parsed as a bridge message
    */
-  static async fromTransactionHash(
-    context: AbacusContext,
-    nameOrDomain: string | number,
+  static async fromCoreAndTransactionHash(
+    core: AbacusCore,
+    bridge: AbacusBridge,
+    nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AnyBridgeMessage[]> {
-    const provider = context.mustGetProvider(nameOrDomain);
+    const provider = core.mustGetProvider(nameOrDomain);
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return BridgeMessage.fromReceipt(context, nameOrDomain, receipt);
+    return BridgeMessage.fromCoreAndReceipt(core, bridge, nameOrDomain, receipt);
   }
 
   /**
    * Attempt to instantiate EXACTLY one BridgeMessages from a transaction hash
    * by retrieving and parsing the receipt.
    *
-   * @param context The {@link AbacusContext} to use.
+   * @param core The {@link AbacusCore} to use.
    * @param nameOrDomain the domain on which the receipt was logged
    * @param transactionHash The transaction hash
    * @returns an array of {@link BridgeMessage} objects
    * @throws if any message cannot be parsed as a bridge message, or if there is
    *         not EXACTLY one such message
    */
-  static async singleFromTransactionHash(
-    context: AbacusContext,
-    nameOrDomain: string | number,
+  static async singleFromCoreAndTransactionHash(
+    core: AbacusCore,
+    bridge: AbacusBridge,
+    nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AnyBridgeMessage> {
-    const provider = context.mustGetProvider(nameOrDomain);
+    const provider = core.mustGetProvider(nameOrDomain);
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return BridgeMessage.singleFromReceipt(context, nameOrDomain, receipt);
+    return BridgeMessage.singleFromCoreAndReceipt(core, bridge, nameOrDomain, receipt);
   }
 
   /**
@@ -289,7 +303,7 @@ class BridgeMessage extends AbacusMessage {
    * @returns The resolved token information.
    */
   async asset(): Promise<ResolvedTokenInfo> {
-    return await this.context.resolveRepresentations(this.token);
+    return await this.bridge.resolveRepresentations(this.token);
   }
 
   /**
@@ -327,11 +341,12 @@ export class TransferMessage extends BridgeMessage {
   action: Transfer;
 
   constructor(
-    context: AbacusContext,
+    core: AbacusCore,
+    bridge: AbacusBridge,
     event: AnnotatedDispatch,
     parsed: ParsedTransferMessage,
   ) {
-    super(context, event, parsed.token, true);
+    super(core, bridge, event, parsed.token, true);
     this.action = parsed.action;
   }
 
@@ -341,8 +356,8 @@ export class TransferMessage extends BridgeMessage {
    * @returns true if the transfer has been prefilled. Else false.
    */
   async currentlyPrefilled(): Promise<boolean> {
-    const bridge = this.context.mustGetBridge(this.destination);
-    const lpAddress = await bridge.bridgeRouter.liquidityProvider(
+    const bridge = this.bridge.mustGetContracts(this.destination);
+    const lpAddress = await bridge.router.liquidityProvider(
       this.prefillId,
     );
     if (lpAddress !== ethers.constants.AddressZero) {
@@ -381,11 +396,12 @@ export class DetailsMessage extends BridgeMessage {
   action: Details;
 
   constructor(
-    context: AbacusContext,
+    core: AbacusCore,
+    bridge: AbacusBridge,
     event: AnnotatedDispatch,
     parsed: ParsedDetailsMessage,
   ) {
-    super(context, event, parsed.token, true);
+    super(core, bridge, event, parsed.token, true);
     this.action = parsed.action;
   }
 
@@ -419,11 +435,12 @@ export class RequestDetailsMessage extends BridgeMessage {
   action: RequestDetails;
 
   constructor(
-    context: AbacusContext,
+    core: AbacusCore,
+    bridge: AbacusBridge,
     event: AnnotatedDispatch,
     parsed: ParsedRequestDetailsMesasage,
   ) {
-    super(context, event, parsed.token, true);
+    super(core, bridge, event, parsed.token, true);
     this.action = parsed.action;
   }
 }

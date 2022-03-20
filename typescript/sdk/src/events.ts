@@ -1,69 +1,131 @@
-import { Annotated } from '.';
-import { AbacusContext } from '..';
-import { Domain } from '../../types';
+import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { Result } from '@ethersproject/abi';
 import {
   TypedEvent,
   TypedEventFilter,
 } from '@abacus-network/core/dist/commons';
 
+import { NameOrDomain, Domain } from './types';
+import { MultiProvider } from './provider';
+
+export class Annotated<U extends Result, T extends TypedEvent<U>> {
+  readonly domain: number;
+  readonly eventName?: string;
+  readonly event: T;
+  readonly receipt: TransactionReceipt;
+  constructor(
+    domain: number,
+    receipt: TransactionReceipt,
+    event: T,
+    callerKnowsWhatTheyAreDoing = false,
+  ) {
+    if (!callerKnowsWhatTheyAreDoing) {
+      throw new Error('Please instantiate using fromEvent or fromEvents');
+    }
+
+    this.domain = domain;
+    this.receipt = receipt;
+    this.eventName = event.eventSignature?.split('(')[0];
+    this.event = event;
+  }
+
+  static async fromEvent<U extends Result, T extends TypedEvent<U>>(
+    domain: number,
+    event: T,
+  ): Promise<Annotated<U, T>> {
+    const receipt = await event.getTransactionReceipt();
+    return new Annotated(domain, receipt, event, true);
+  }
+
+  static async fromEvents<U extends Result, T extends TypedEvent<U>>(
+    domain: number,
+    events: T[],
+  ): Promise<Annotated<U, T>[]> {
+    return Promise.all(
+      events.map(async (event) => Annotated.fromEvent(domain, event)),
+    );
+  }
+
+  get contractAddress(): string {
+    // ok to use ! assertion here as we assume that the event is in the receipt
+    const address = this.receipt.logs.find(
+      (log) => log.logIndex === this.event.logIndex,
+    )?.address;
+    if (!address)
+      throw new Error('Missing receipt. Class is in an inconsistent state');
+    return address;
+  }
+
+  get transactionHash(): string {
+    return this.receipt.transactionHash;
+  }
+
+  get blockNumber(): number {
+    return this.receipt.blockNumber;
+  }
+
+  get blockHash(): string {
+    return this.receipt.blockHash;
+  }
+}
+
 // specifies an interface shared by the TS generated contracts
 export interface TSContract<T extends Result, U> {
   queryFilter(
     event: TypedEventFilter<T, U>,
-    fromBlockOrBlockhash?: string | number | undefined,
-    toBlock?: string | number | undefined,
+    fromBlockOrBlockhash?: NameOrDomain | undefined,
+    toBlock?: NameOrDomain | undefined,
   ): Promise<Array<TypedEvent<T & U>>>;
 }
 
 export async function queryAnnotatedEvents<T extends Result, U>(
-  context: AbacusContext,
-  nameOrDomain: string | number,
+  multiprovider: MultiProvider,
+  nameOrDomain: NameOrDomain,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<Annotated<T, TypedEvent<T & U>>>> {
   const events = await getEvents(
-    context,
+    multiprovider,
     nameOrDomain,
     contract,
     filter,
     startBlock,
     endBlock,
   );
-  return Annotated.fromEvents(context.resolveDomain(nameOrDomain), events);
+  return Annotated.fromEvents(multiprovider.resolveDomain(nameOrDomain), events);
 }
 
 export async function findAnnotatedSingleEvent<T extends Result, U>(
-  context: AbacusContext,
-  nameOrDomain: string | number,
+  multiprovider: MultiProvider,
+  nameOrDomain: NameOrDomain,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
 ): Promise<Array<Annotated<T, TypedEvent<T & U>>>> {
   const events = await findEvent(
-    context,
+    multiprovider,
     nameOrDomain,
     contract,
     filter,
     startBlock,
   );
-  return Annotated.fromEvents(context.resolveDomain(nameOrDomain), events);
+  return Annotated.fromEvents(multiprovider.resolveDomain(nameOrDomain), events);
 }
 
 export async function getEvents<T extends Result, U>(
-  context: AbacusContext,
-  nameOrDomain: string | number,
+  multiprovider: MultiProvider,
+  nameOrDomain: NameOrDomain,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = context.mustGetDomain(nameOrDomain);
+  const domain = multiprovider.mustGetDomain(nameOrDomain);
   if (domain.paginate) {
     return getPaginatedEvents(
-      context,
+      multiprovider,
       domain,
       contract,
       filter,
@@ -75,16 +137,16 @@ export async function getEvents<T extends Result, U>(
 }
 
 export async function findEvent<T extends Result, U>(
-  context: AbacusContext,
-  nameOrDomain: string | number,
+  multiprovider: MultiProvider,
+  nameOrDomain: NameOrDomain,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = context.mustGetDomain(nameOrDomain);
+  const domain = multiprovider.mustGetDomain(nameOrDomain);
   if (domain.paginate) {
     return findFromPaginatedEvents(
-      context,
+      multiprovider,
       domain,
       contract,
       filter,
@@ -95,7 +157,7 @@ export async function findEvent<T extends Result, U>(
 }
 
 async function getPaginatedEvents<T extends Result, U>(
-  context: AbacusContext,
+  multiprovider: MultiProvider,
   domain: Domain,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
@@ -114,7 +176,7 @@ async function getPaginatedEvents<T extends Result, U>(
   // or current block number
   let lastBlock;
   if (!endBlock) {
-    const provider = context.mustGetProvider(domain.id);
+    const provider = multiprovider.mustGetProvider(domain.id);
     lastBlock = await provider.getBlockNumber();
   } else {
     lastBlock = endBlock;
@@ -141,7 +203,7 @@ async function getPaginatedEvents<T extends Result, U>(
 }
 
 async function findFromPaginatedEvents<T extends Result, U>(
-  context: AbacusContext,
+  multiprovider: MultiProvider,
   domain: Domain,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
@@ -160,7 +222,7 @@ async function findFromPaginatedEvents<T extends Result, U>(
   // or current block number
   let lastBlock;
   if (!endBlock) {
-    const provider = context.mustGetProvider(domain.id);
+    const provider = multiprovider.mustGetProvider(domain.id);
     lastBlock = await provider.getBlockNumber();
   } else {
     lastBlock = endBlock;
