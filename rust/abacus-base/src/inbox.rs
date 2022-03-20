@@ -2,6 +2,7 @@ use abacus_core::{
     accumulator::merkle::Proof, db::AbacusDB, AbacusCommon, AbacusMessage, ChainCommunicationError,
     Checkpoint, Inbox, MessageStatus, TxOutcome,
 };
+use abacus_core::{AbacusCommon, Checkpoint, Inbox, SignedCheckpoint};
 use abacus_test::mocks::inbox::MockInboxContract;
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
@@ -90,6 +91,13 @@ impl Inbox for CachingInbox {
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         self.inbox.message_status(leaf).await
     }
+
+    async fn submit_checkpoint(
+        &self,
+        signed_checkpoint: &SignedCheckpoint,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
+        self.inbox.submit_checkpoint(signed_checkpoint).await
+    }
 }
 
 #[async_trait]
@@ -114,8 +122,11 @@ impl AbacusCommon for CachingInbox {
         self.inbox.checkpointed_root().await
     }
 
-    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
-        self.inbox.latest_checkpoint().await
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
+        self.inbox.latest_checkpoint(maybe_lag).await
     }
 }
 
@@ -233,6 +244,19 @@ impl Inbox for InboxVariants {
             InboxVariants::Other(inbox) => inbox.prove_and_process(message, proof).await,
         }
     }
+
+    async fn submit_checkpoint(
+        &self,
+        signed_checkpoint: &SignedCheckpoint,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
+        match self {
+            InboxVariants::Ethereum(inbox) => inbox.submit_checkpoint(signed_checkpoint).await,
+            InboxVariants::Mock(mock_inbox) => {
+                mock_inbox.submit_checkpoint(signed_checkpoint).await
+            }
+            InboxVariants::Other(inbox) => inbox.submit_checkpoint(signed_checkpoint).await,
+        }
+    }
 }
 
 #[async_trait]
@@ -277,11 +301,14 @@ impl AbacusCommon for InboxVariants {
         }
     }
 
-    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
         match self {
-            InboxVariants::Ethereum(inbox) => inbox.latest_checkpoint().await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.latest_checkpoint().await,
-            InboxVariants::Other(inbox) => inbox.latest_checkpoint().await,
+            InboxVariants::Ethereum(inbox) => inbox.latest_checkpoint(maybe_lag).await,
+            InboxVariants::Mock(mock_inbox) => mock_inbox.latest_checkpoint(maybe_lag).await,
+            InboxVariants::Other(inbox) => inbox.latest_checkpoint(maybe_lag).await,
         }
     }
 }

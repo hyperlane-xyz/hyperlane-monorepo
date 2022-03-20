@@ -11,8 +11,8 @@ import {
   XAppConnectionManager__factory,
   TestInbox,
   TestInbox__factory,
-} from "@abacus-network/abacus-sol/typechain";
-import { Validator } from "@abacus-network/abacus-sol/test/lib/core";
+} from "@abacus-network/core";
+import { Validator } from "@abacus-network/core/test/lib/core";
 import { TestDeploy } from "./TestDeploy";
 
 export type TestAbacusConfig = {
@@ -26,9 +26,6 @@ export type TestAbacusInstance = {
   upgradeBeaconController: UpgradeBeaconController;
   inboxes: Record<types.Domain, TestInbox>;
 };
-
-const PROCESS_GAS = 850_000;
-const RESERVE_GAS = 15_000;
 
 export class TestAbacusDeploy extends TestDeploy<
   TestAbacusInstance,
@@ -81,7 +78,7 @@ export class TestAbacusDeploy extends TestDeploy<
     // this.remotes reads this.instances which has not yet been set.
     const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
     const deploys = remotes.map(async (remote) => {
-      const inbox = await inboxFactory.deploy(domain, PROCESS_GAS, RESERVE_GAS);
+      const inbox = await inboxFactory.deploy(domain);
       await inbox.initialize(
         remote,
         validatorManager.address,

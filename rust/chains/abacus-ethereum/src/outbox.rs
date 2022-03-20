@@ -139,7 +139,7 @@ where
             .map(|f| RawCommittedMessage {
                 leaf_index: f.leaf_index.as_u32(),
                 committed_root: f.checkpointed_root.into(),
-                message: f.message,
+                message: f.message.to_vec(),
             })
             .collect())
     }
@@ -216,8 +216,25 @@ where
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
-        let (root, index) = self.contract.latest_checkpoint().call().await?;
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
+        // This should probably moved into its own trait
+        let base_call = self.contract.latest_checkpoint();
+        let call_with_lag = match maybe_lag {
+            Some(lag) => {
+                let tip = self
+                    .provider
+                    .get_block_number()
+                    .await
+                    .map_err(|x| ChainCommunicationError::CustomError(Box::new(x)))?
+                    .as_u64();
+                base_call.block(if lag > tip { 0 } else { tip - lag })
+            }
+            None => base_call,
+        };
+        let (root, index) = call_with_lag.call().await?;
         Ok(Checkpoint {
             outbox_domain: self.domain,
             root: root.into(),
@@ -241,7 +258,7 @@ where
         let tx = self.contract.dispatch(
             message.destination,
             message.recipient.to_fixed_bytes(),
-            message.body.clone(),
+            message.body.clone().into(),
         );
 
         Ok(report_tx!(tx).into())
