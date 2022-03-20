@@ -16,11 +16,7 @@ use ethers::{
 };
 use std::error::Error as StdError;
 
-<<<<<<< HEAD
-use crate::{db::DbError, types::Checkpoint, utils::home_domain_hash, AbacusError, SignedUpdate};
-=======
 use crate::{db::DbError, utils::home_domain_hash, AbacusError, Checkpoint, SignedUpdate};
->>>>>>> 9a7de7f11771a3484d22c880e46423ec15d373e1
 
 pub use common::*;
 pub use encode::*;
@@ -169,14 +165,9 @@ pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
     /// Fetch the current root.
     async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError>;
 
-<<<<<<< HEAD
-    /// Fetch the current checkpoint root and leaf index.
-    async fn latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError>;
-=======
     /// Return the latest checkpointed root and its index.
     async fn latest_checkpoint(
         &self,
         lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError>;
->>>>>>> 9a7de7f11771a3484d22c880e46423ec15d373e1
 }
