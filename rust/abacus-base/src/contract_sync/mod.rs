@@ -378,15 +378,150 @@ impl<I> ContractSync<I>
 where
     I: OutboxIndexer + 'static,
 {
-    /// TODO: Not implemented
+    /// Sync outbox messages
     pub fn sync_outbox_messages(
         &self,
     ) -> Instrumented<tokio::task::JoinHandle<color_eyre::Result<()>>> {
         let span = info_span!("MessageContractSync");
 
+        let db = self.db.clone();
+        let indexer = self.indexer.clone();
+        let indexed_height = self.metrics.indexed_height.clone().with_label_values(&[
+            MESSAGES_LABEL,
+            &self.contract_name,
+            &self.agent_name,
+        ]);
+
+        let stored_messages = self.metrics.stored_events.clone().with_label_values(&[
+            MESSAGES_LABEL,
+            &self.contract_name,
+            &self.agent_name,
+        ]);
+
+        let missed_messages = self.metrics.missed_events.clone().with_label_values(&[
+            MESSAGES_LABEL,
+            &self.contract_name,
+            &self.agent_name,
+        ]);
+
+        let message_leaf_index = self.metrics.message_leaf_index.clone();
+
+        let config_from = self.index_settings.from();
+        let chunk_size = self.index_settings.chunk_size();
+
         tokio::spawn(async move {
+            let mut from = db
+                .retrieve_message_latest_block_end()
+                .map_or_else(|| config_from, |h| h + 1);
+
+            let mut finding_missing = false;
+            let mut realized_missing_start_block = 0;
+            let mut realized_missing_end_block = 0;
+            let mut exponential = 0;
+
+            info!(from = from, "[Messages]: resuming indexer from {}", from);
+
+            // Set the metrics with the latest known leaf index
+            if let Ok(Some(idx)) = db.retrieve_latest_leaf_index() {
+                if let Some(gauge) = message_leaf_index.as_ref() {
+                    gauge.set(idx as i64);
+                }
+            }
+
             loop {
-                sleep(Duration::from_secs(1)).await;
+                indexed_height.set(from as i64);
+
+                // If we were searching for missing message and have reached
+                // original missing start block, turn off finding_missing and
+                // TRY to resume normal indexing
+                if finding_missing && from >= realized_missing_start_block {
+                    info!("Turning off finding_missing mode");
+                    finding_missing = false;
+                }
+
+                // If we have passed the end block of the missing message, we
+                // have found the message and can reset variables
+                if from > realized_missing_end_block && realized_missing_end_block != 0 {
+                    missed_messages.inc();
+
+                    exponential = 0;
+                    realized_missing_start_block = 0;
+                    realized_missing_end_block = 0;
+                }
+
+                let tip = indexer.get_block_number().await?;
+                if tip <= from {
+                    // TODO: Make this configurable
+                    // Sleep if caught up to tip
+                    sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+
+                let candidate = from + chunk_size;
+                let to = min(tip, candidate);
+
+                info!(
+                    from = from,
+                    to = to,
+                    "[Messages]: indexing block heights {}...{}",
+                    from,
+                    to
+                );
+
+                let sorted_messages = indexer.fetch_sorted_messages(from, to).await?;
+
+                // If no messages found, update last seen block and next height
+                // and continue
+                if sorted_messages.is_empty() {
+                    db.store_message_latest_block_end(to)?;
+                    from = to + 1;
+                    continue;
+                }
+
+                // If messages found, check that list is valid
+                let last_leaf_index: OptLatestLeafIndex = db.retrieve_latest_leaf_index()?.into();
+                match &last_leaf_index.valid_continuation(&sorted_messages) {
+                    ListValidity::Valid => {
+                        // Store messages
+                        let max_leaf_index_of_batch = db.store_messages(&sorted_messages)?;
+
+                        // Report amount of messages stored into db
+                        stored_messages.add(sorted_messages.len().try_into()?);
+
+                        // Report latest leaf index to gauge
+                        if let Some(gauge) = message_leaf_index.as_ref() {
+                            gauge.set(max_leaf_index_of_batch as i64);
+                        }
+
+                        // Move forward next height
+                        db.store_message_latest_block_end(to)?;
+                        from = to + 1;
+                    }
+                    ListValidity::Invalid => {
+                        if finding_missing {
+                            from = to + 1;
+                        } else {
+                            warn!(
+                                last_leaf_index = ?last_leaf_index,
+                                start_block = from,
+                                end_block = to,
+                                "[Messages]: RPC failed to find message(s) between blocks {}...{}. Last seen leaf index: {:?}. Activating finding_missing mode.",
+                                from,
+                                to,
+                                last_leaf_index,
+                            );
+
+                            // Turn on finding_missing mode
+                            finding_missing = true;
+                            realized_missing_start_block = from;
+                            realized_missing_end_block = to;
+
+                            from = realized_missing_start_block - (chunk_size * 2u32.pow(exponential as u32));
+                            exponential += 1;
+                        }
+                    }
+                    ListValidity::Empty => unreachable!("Tried to validate empty list of messages"),
+                };
             }
         })
         .instrument(span)

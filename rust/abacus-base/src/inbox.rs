@@ -88,6 +88,15 @@ impl Inbox for CachingInbox {
         self.inbox.process(message).await
     }
 
+    /// Prove a leaf in the inbox and then process its message
+    async fn prove_and_process(
+        &self,
+        message: &AbacusMessage,
+        proof: &Proof,
+    ) -> Result<TxOutcome, ChainCommunicationError> {
+        self.inbox.prove_and_process(message, proof).await
+    }
+
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         self.inbox.message_status(leaf).await
     }

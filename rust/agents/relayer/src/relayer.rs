@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_base::{AbacusAgentCore, Agent, CachingInbox};
+use abacus_base::{AbacusAgentCore, Agent, CachingInbox, ContractSyncMetrics};
 
 use crate::{checkpoint_relayer::CheckpointRelayer, settings::RelayerSettings as Settings};
 
@@ -66,8 +66,18 @@ impl Agent for Relayer {
 }
 
 impl Relayer {
+    fn run_contract_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
+        let sync = self.outbox().sync(
+            Self::AGENT_NAME.to_string(),
+            self.as_ref().indexer.clone(),
+            sync_metrics,
+        );
+        sync
+    }
     fn run_inbox(&self, inbox: Arc<CachingInbox>) -> Instrumented<JoinHandle<Result<()>>> {
-        let submit = CheckpointRelayer::new(self.interval, inbox);
+        let db = self.outbox().db();
+        let submit = CheckpointRelayer::new(self.interval, db, inbox);
         self.run_all(vec![submit.spawn()])
     }
 
@@ -84,11 +94,12 @@ impl Relayer {
     }
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let inbox_tasks = self
+        let mut inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
             .inboxes()
             .iter()
             .map(|(inbox_name, inbox)| self.wrap_inbox_run(inbox_name, inbox.clone()))
             .collect();
+        inbox_tasks.push(self.run_contract_sync());
         self.run_all(inbox_tasks)
     }
 }
