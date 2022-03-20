@@ -6,11 +6,11 @@ use color_eyre::Result;
 use crate::S3Storage;
 use crate::{CheckpointSyncer, LocalStorage};
 
-/// Ethereum signer types
+/// Checkpoint Syncer types
 #[derive(Debug, Clone, serde::Deserialize)]
 #[serde(tag = "type", rename_all = "camelCase")]
 pub enum CheckpointSyncerConf {
-    /// A local checkpoint sycner
+    /// A local checkpoint syncer
     LocalStorage {
         /// Path
         path: String,

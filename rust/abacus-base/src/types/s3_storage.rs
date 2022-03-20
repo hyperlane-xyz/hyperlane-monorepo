@@ -74,10 +74,10 @@ impl S3Storage {
     }
 
     fn checkpoint_key(index: u32) -> String {
-        index.to_string()
+        format!("checkpoint_{}.json", index)
     }
     fn index_key() -> String {
-        "index".to_owned()
+        "checkpoint_latest_index.json".to_owned()
     }
 }
 
@@ -91,7 +91,7 @@ impl CheckpointSyncer for S3Storage {
             .map_err(Into::into)
     }
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>> {
-        self.read_from_bucket(index.to_string())
+        self.read_from_bucket(S3Storage::checkpoint_key(index))
             .await?
             .map(|data| serde_json::from_slice(&data))
             .transpose()
