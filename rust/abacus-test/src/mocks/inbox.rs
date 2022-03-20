@@ -38,8 +38,6 @@ mock! {
 
         pub fn _checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {}
 
-        pub fn _latest_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {}
-
         pub fn _message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {}
 
         pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
