@@ -1,119 +1,24 @@
 use async_trait::async_trait;
-use color_eyre::{eyre::bail, Result};
-use std::{sync::Arc, time::Duration};
-use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
-use tracing::{info, instrument::Instrumented, Instrument};
+use color_eyre::{eyre::Context, Result};
+use std::sync::Arc;
+use tokio::task::JoinHandle;
+use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_base::{AbacusAgent, AgentCore, CachingHome, CachingReplica};
-use abacus_core::{Common, CommonEvents};
+use abacus_base::{AbacusAgentCore, Agent, CachingInbox, ContractSyncMetrics};
 
-use crate::settings::RelayerSettings as Settings;
-
-const AGENT_NAME: &str = "relayer";
-
-#[derive(Debug)]
-struct UpdatePoller {
-    duration: Duration,
-    home: Arc<CachingHome>,
-    replica: Arc<CachingReplica>,
-    semaphore: Mutex<()>,
-    updates_relayed_count: Arc<prometheus::IntCounterVec>,
-}
-
-impl std::fmt::Display for UpdatePoller {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "UpdatePoller: {{ home: {:?}, replica: {:?} }}",
-            self.home, self.replica
-        )
-    }
-}
-
-impl UpdatePoller {
-    fn new(
-        home: Arc<CachingHome>,
-        replica: Arc<CachingReplica>,
-        duration: u64,
-        updates_relayed_count: Arc<prometheus::IntCounterVec>,
-    ) -> Self {
-        Self {
-            home,
-            replica,
-            duration: Duration::from_secs(duration),
-            semaphore: Mutex::new(()),
-            updates_relayed_count,
-        }
-    }
-
-    #[tracing::instrument(err, skip(self), fields(self = %self))]
-    async fn poll_and_relay_update(&self) -> Result<()> {
-        // Get replica's current root.
-        let old_root = self.replica.committed_root().await?;
-        info!(
-            "Replica {} latest root is: {}",
-            self.replica.name(),
-            old_root
-        );
-
-        // Check for first signed update building off of the replica's current root
-        let signed_update_opt = self.home.signed_update_by_old_root(old_root).await?;
-
-        // If signed update exists for replica's committed root, try to
-        // relay
-        if let Some(signed_update) = signed_update_opt {
-            info!(
-                "Update for replica {}. Root {} to {}",
-                self.replica.name(),
-                &signed_update.update.previous_root,
-                &signed_update.update.new_root,
-            );
-
-            // Attempt to acquire lock for submitting tx
-            let lock = self.semaphore.try_lock();
-            if lock.is_err() {
-                return Ok(()); // tx in flight. just do nothing
-            }
-
-            // Relay update and increment counters if tx successful
-            if self.replica.update(&signed_update).await.is_ok() {
-                self.updates_relayed_count
-                    .with_label_values(&[self.home.name(), self.replica.name(), AGENT_NAME])
-                    .inc();
-            }
-
-            // lock dropped here
-        } else {
-            info!(
-                "No update. Current root for replica {} is {}",
-                self.replica.name(),
-                old_root
-            );
-        }
-
-        Ok(())
-    }
-
-    fn spawn(self) -> JoinHandle<Result<()>> {
-        tokio::spawn(async move {
-            loop {
-                self.poll_and_relay_update().await?;
-                sleep(self.duration).await;
-            }
-        })
-    }
-}
+use crate::{checkpoint_relayer::CheckpointRelayer, settings::RelayerSettings as Settings};
 
 /// A relayer agent
 #[derive(Debug)]
 pub struct Relayer {
-    duration: u64,
-    core: AgentCore,
+    polling_interval: u64,
+    submission_latency: u64,
+    core: AbacusAgentCore,
     updates_relayed_count: Arc<prometheus::IntCounterVec>,
 }
 
-impl AsRef<AgentCore> for Relayer {
-    fn as_ref(&self) -> &AgentCore {
+impl AsRef<AbacusAgentCore> for Relayer {
+    fn as_ref(&self) -> &AbacusAgentCore {
         &self.core
     }
 }
@@ -121,7 +26,7 @@ impl AsRef<AgentCore> for Relayer {
 #[allow(clippy::unit_arg)]
 impl Relayer {
     /// Instantiate a new relayer
-    pub fn new(duration: u64, core: AgentCore) -> Self {
+    pub fn new(polling_interval: u64, submission_latency: u64, core: AbacusAgentCore) -> Self {
         let updates_relayed_count = Arc::new(
             core.metrics
                 .new_int_counter(
@@ -133,7 +38,8 @@ impl Relayer {
         );
 
         Self {
-            duration,
+            polling_interval,
+            submission_latency,
             core,
             updates_relayed_count,
         }
@@ -142,7 +48,7 @@ impl Relayer {
 
 #[async_trait]
 #[allow(clippy::unit_arg)]
-impl AbacusAgent for Relayer {
+impl Agent for Relayer {
     const AGENT_NAME: &'static str = "relayer";
 
     type Settings = Settings;
@@ -152,31 +58,53 @@ impl AbacusAgent for Relayer {
         Self: Sized,
     {
         Ok(Self::new(
-            settings.interval.parse().expect("invalid uint"),
-            settings.as_ref().try_into_core("relayer").await?,
+            settings.pollinginterval.parse().unwrap_or(5),
+            settings.submissionlatency.parse().expect("invalid uint"),
+            settings
+                .as_ref()
+                .try_into_abacus_core(Self::AGENT_NAME)
+                .await?,
         ))
     }
+}
 
-    #[tracing::instrument]
-    fn run(&self, name: &str) -> Instrumented<JoinHandle<Result<()>>> {
-        let replica_opt = self.replica_by_name(name);
-        let home = self.home();
-        let updates_relayed_count = self.updates_relayed_count.clone();
+impl Relayer {
+    fn run_contract_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
+        let sync = self.outbox().sync(
+            Self::AGENT_NAME.to_string(),
+            self.as_ref().indexer.clone(),
+            sync_metrics,
+        );
+        sync
+    }
+    fn run_inbox(&self, inbox: Arc<CachingInbox>) -> Instrumented<JoinHandle<Result<()>>> {
+        let db = self.outbox().db();
+        let submit =
+            CheckpointRelayer::new(self.polling_interval, self.submission_latency, db, inbox);
+        self.run_all(vec![submit.spawn()])
+    }
 
-        let name = name.to_owned();
-        let duration = self.duration;
+    fn wrap_inbox_run(
+        &self,
+        inbox_name: &str,
+        inbox: Arc<CachingInbox>,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
+        let m = format!("Task for inbox named {} failed", inbox_name);
+        let handle = self.run_inbox(inbox).in_current_span();
+        let fut = async move { handle.await?.wrap_err(m) };
 
-        tokio::spawn(async move {
-            if replica_opt.is_none() {
-                bail!("No replica named {}", name);
-            }
-            let replica = replica_opt.unwrap();
+        tokio::spawn(fut).in_current_span()
+    }
 
-            let update_poller =
-                UpdatePoller::new(home, replica.clone(), duration, updates_relayed_count);
-            update_poller.spawn().await?
-        })
-        .in_current_span()
+    pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let mut inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
+            .inboxes()
+            .iter()
+            .map(|(inbox_name, inbox)| self.wrap_inbox_run(inbox_name, inbox.clone()))
+            .collect();
+        inbox_tasks.push(self.run_contract_sync());
+        self.run_all(inbox_tasks)
     }
 }
 
