@@ -25,6 +25,7 @@ impl CheckpointRelayer {
         }
     }
 
+    /// Only gets the messages desinated for the Relayers inbox
     async fn get_messages_between(
         &self,
         from_leaf_index: u32,
