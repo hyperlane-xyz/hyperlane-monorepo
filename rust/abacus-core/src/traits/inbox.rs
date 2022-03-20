@@ -25,11 +25,7 @@ pub trait Inbox: AbacusCommon + Send + Sync + std::fmt::Debug {
         &self,
         message: &AbacusMessage,
         proof: &Proof,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        self.prove(proof).await?;
-
-        Ok(self.process(message).await?)
-    }
+    ) -> Result<TxOutcome, ChainCommunicationError>;
 
     /// Fetch the status of a message
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError>;
