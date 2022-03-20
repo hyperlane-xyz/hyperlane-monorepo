@@ -11,7 +11,8 @@ use crate::{checkpoint_relayer::CheckpointRelayer, settings::RelayerSettings as 
 /// A relayer agent
 #[derive(Debug)]
 pub struct Relayer {
-    interval: u64,
+    polling_interval: u64,
+    submission_latency: u64,
     core: AbacusAgentCore,
     updates_relayed_count: Arc<prometheus::IntCounterVec>,
 }
@@ -25,7 +26,7 @@ impl AsRef<AbacusAgentCore> for Relayer {
 #[allow(clippy::unit_arg)]
 impl Relayer {
     /// Instantiate a new relayer
-    pub fn new(interval: u64, core: AbacusAgentCore) -> Self {
+    pub fn new(polling_interval: u64, submission_latency: u64, core: AbacusAgentCore) -> Self {
         let updates_relayed_count = Arc::new(
             core.metrics
                 .new_int_counter(
@@ -37,7 +38,8 @@ impl Relayer {
         );
 
         Self {
-            interval,
+            polling_interval,
+            submission_latency,
             core,
             updates_relayed_count,
         }
@@ -56,7 +58,8 @@ impl Agent for Relayer {
         Self: Sized,
     {
         Ok(Self::new(
-            settings.interval.parse().expect("invalid uint"),
+            settings.pollinginterval.parse().unwrap_or(5),
+            settings.submissionlatency.parse().expect("invalid uint"),
             settings
                 .as_ref()
                 .try_into_abacus_core(Self::AGENT_NAME)
@@ -77,7 +80,8 @@ impl Relayer {
     }
     fn run_inbox(&self, inbox: Arc<CachingInbox>) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
-        let submit = CheckpointRelayer::new(self.interval, db, inbox);
+        let submit =
+            CheckpointRelayer::new(self.polling_interval, self.submission_latency, db, inbox);
         self.run_all(vec![submit.spawn()])
     }
 

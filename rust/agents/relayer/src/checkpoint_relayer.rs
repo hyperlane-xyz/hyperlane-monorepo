@@ -9,16 +9,24 @@ use tracing::{debug, info_span, instrument::Instrumented, Instrument};
 use crate::tip_prover::{MessageBatch, TipProver};
 
 pub(crate) struct CheckpointRelayer {
-    interval: u64,
+    polling_interval: u64,
+    /// The minimum latency in seconds between two relayed checkpoints on the inbox
+    submission_latency: u64,
     db: AbacusDB,
     inbox: Arc<CachingInbox>,
     prover_sync: TipProver,
 }
 
 impl CheckpointRelayer {
-    pub(crate) fn new(interval: u64, db: AbacusDB, inbox: Arc<CachingInbox>) -> Self {
+    pub(crate) fn new(
+        polling_interval: u64,
+        submission_latency: u64,
+        db: AbacusDB,
+        inbox: Arc<CachingInbox>,
+    ) -> Self {
         Self {
-            interval,
+            polling_interval,
+            submission_latency,
             prover_sync: TipProver::from_disk(db.clone()),
             db,
             inbox,
@@ -90,7 +98,7 @@ impl CheckpointRelayer {
             }
 
             // Sleep latency period after submission
-            sleep(Duration::from_secs(self.interval)).await;
+            sleep(Duration::from_secs(self.submission_latency)).await;
             Ok(latest_signed_checkpoint.checkpoint.index)
         } else {
             Ok(onchain_checkpoint_index)
@@ -108,7 +116,7 @@ impl CheckpointRelayer {
             // Checkpoints are 1-indexed, while leaves are 0-indexed
             let mut next_inbox_leaf_index = onchain_checkpoint_index;
             loop {
-                sleep(Duration::from_secs(5)).await;
+                sleep(Duration::from_secs(self.polling_interval)).await;
 
                 if let Some(signed_checkpoint_index) = local_storage.latest_index().await? {
                     if signed_checkpoint_index <= onchain_checkpoint_index {
