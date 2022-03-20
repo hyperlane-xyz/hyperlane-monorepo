@@ -1,8 +1,4 @@
-import {
-  AnnotatedLifecycleEvent,
-  MessageStatus,
-} from '@abacus-network/sdk/dist/abacus';
-import { AbacusContext, AbacusStatus } from '@abacus-network/sdk';
+import { AnnotatedLifecycleEvent, AbacusStatus, MessageStatus, MultiProvider } from '@abacus-network/sdk';
 import Logger from 'bunyan';
 import fs from 'fs';
 import config from './config';
@@ -38,11 +34,11 @@ interface QuietEvent {
 }
 
 function quietEvent(
-  context: AbacusContext,
+  multiprovider: MultiProvider,
   lifecyleEvent: AnnotatedLifecycleEvent,
 ): QuietEvent {
   const { domain, receipt } = lifecyleEvent;
-  const domainName = context.resolveDomainName(domain);
+  const domainName = multiprovider.resolveDomainName(domain);
   if (!domainName) {
     throw new Error('I have no name');
   }
@@ -56,13 +52,13 @@ function quietEvent(
 }
 
 export function printStatus(
-  context: AbacusContext,
-  opticsStatus: AbacusStatus,
+  multiprovider: MultiProvider,
+  abacusStatus: AbacusStatus,
 ) {
-  const { status, events } = opticsStatus;
+  const { status, events } = abacusStatus;
   const printable = {
     status: STATUS_TO_STRING[status],
-    events: events.map((event) => quietEvent(context, event)),
+    events: events.map((event) => quietEvent(multiprovider, event)),
   };
   console.log(JSON.stringify(printable, null, 2));
 }

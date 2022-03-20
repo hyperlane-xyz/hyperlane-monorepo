@@ -19,7 +19,7 @@ export class GovernanceContracts extends AbacusAppContracts<ProxiedAddress> {
   }
 }
 
-export class Governance extends AbacusApp<ProxiedAddress, GovernanceContracts> {
+export class AbacusGovernance extends AbacusApp<ProxiedAddress, GovernanceContracts> {
   constructor(addresses: Record<ChainName, ProxiedAddress>) {
     super();
     for (const chain of Object.keys(addresses) as ChainName[]) {

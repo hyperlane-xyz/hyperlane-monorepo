@@ -1,3 +1,4 @@
+/*
 import {
   dev,
   testnet,
@@ -47,3 +48,4 @@ switch (config.environment) {
 }
 
 export { context, mainnet, testnet, dev, mainnetLegacy };
+*/
