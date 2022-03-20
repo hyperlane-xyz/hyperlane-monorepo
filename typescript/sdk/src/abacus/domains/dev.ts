@@ -31,8 +31,8 @@ export const kovan: AbacusDomain = {
   xAppConnectionManager: '0xf9db87020527A5A5aeFd95099051Fb14058916C9',
 };
 
-export const gorli: AbacusDomain = {
-  name: 'gorli',
+export const goerli: AbacusDomain = {
+  name: 'goerli',
   id: 5,
   bridgeRouter: '0x53d09A4B49443F7f7C66321C306601dC9d483D4F',
   ethHelper: '0xFE7c9Cc7116429Ae50823a218315C7E01EC7A761',
@@ -84,4 +84,4 @@ export const mumbai: AbacusDomain = {
   xAppConnectionManager: '0xf9db87020527A5A5aeFd95099051Fb14058916C9',
 };
 
-export const devDomains = [alfajores, kovan, gorli, fuji, mumbai];
+export const devDomains = [alfajores, kovan, goerli, fuji, mumbai];

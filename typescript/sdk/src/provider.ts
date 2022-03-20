@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { Domain } from './domains';
+import { Domain } from './types';
 import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
 
 type Provider = ethers.providers.Provider;

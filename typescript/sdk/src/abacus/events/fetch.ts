@@ -1,6 +1,6 @@
 import { Annotated } from '.';
 import { AbacusContext } from '..';
-import { Domain } from '../../domains';
+import { Domain } from '../../types';
 import { Result } from '@ethersproject/abi';
 import {
   TypedEvent,

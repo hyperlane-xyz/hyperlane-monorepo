@@ -1,4 +1,4 @@
-import { Domain } from '../../domains';
+import { Domain } from '../../types';
 import { Address } from '../../utils';
 
 export interface AbacusDomain extends Domain {

@@ -44,8 +44,8 @@ export const kovan: AbacusDomain = {
   ],
 };
 
-export const gorli: AbacusDomain = {
-  name: 'gorli',
+export const goerli: AbacusDomain = {
+  name: 'goerli',
   id: 5,
   bridgeRouter: '0xe29Abbc3669064d8aF9F6BE378179a133664a92C',
   ethHelper: '0x9A0e88a3D8CF09F3dc5Ba65640299DE3D87f926C',
@@ -59,4 +59,4 @@ export const gorli: AbacusDomain = {
   ],
 };
 
-export const testnetDomains = [alfajores, ropsten, kovan, gorli];
+export const testnetDomains = [alfajores, ropsten, kovan, goerli];
