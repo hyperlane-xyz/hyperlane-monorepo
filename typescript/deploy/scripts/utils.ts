@@ -1,7 +1,11 @@
 import { ethers } from 'ethers';
 import path from 'path';
 import yargs from 'yargs';
-import { AbacusCore, AbacusGovernance, MultiProvider } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  AbacusGovernance,
+  MultiProvider,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
@@ -255,7 +259,9 @@ export function getCore(environment: DeployEnvironment): AbacusCore {
   }
 }
 
-export function getGovernance(environment: DeployEnvironment): AbacusGovernance {
+export function getGovernance(
+  environment: DeployEnvironment,
+): AbacusGovernance {
   switch (environment) {
     default: {
       throw new Error('invalid environment');

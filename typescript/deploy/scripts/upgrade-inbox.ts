@@ -45,7 +45,7 @@ async function main() {
       const inbox = abacusCore.mustGetInbox(local, remote);
       const transferOwnership =
         await inbox.populateTransaction.transferOwnership(
-          abacusGovernance.mustGetContracts(remote).router.address
+          abacusGovernance.mustGetContracts(remote).router.address,
         );
       batch.push(remote, transferOwnership as Call);
     }

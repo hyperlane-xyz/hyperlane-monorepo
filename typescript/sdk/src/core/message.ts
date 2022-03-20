@@ -90,8 +90,10 @@ export class AbacusMessage {
     this.message = parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
     this.outbox = core.mustGetContracts(this.message.from).outbox;
-    const fromDomain = core.mustGetDomain(this.message.from)
-    this.inbox = core.mustGetContracts(this.message.destination).inbox(fromDomain.name);
+    const fromDomain = core.mustGetDomain(this.message.from);
+    this.inbox = core
+      .mustGetContracts(this.message.destination)
+      .inbox(fromDomain.name);
     this.cache = {};
   }
 
@@ -124,9 +126,7 @@ export class AbacusMessage {
         if (parsed.name === 'Dispatch') {
           const dispatch = parsed as unknown as DispatchEvent;
           dispatch.getBlock = () => {
-            return core
-              .mustGetProvider(nameOrDomain)
-              .getBlock(log.blockHash);
+            return core.mustGetProvider(nameOrDomain).getBlock(log.blockHash);
           };
           dispatch.getTransaction = () => {
             return core

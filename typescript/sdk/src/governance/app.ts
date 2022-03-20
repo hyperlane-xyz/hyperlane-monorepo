@@ -15,16 +15,22 @@ export type Governor = {
 
 export class GovernanceContracts extends AbacusAppContracts<ProxiedAddress> {
   get router(): GovernanceRouter {
-    return GovernanceRouter__factory.connect(this._addresses.proxy, this.connection);
+    return GovernanceRouter__factory.connect(
+      this._addresses.proxy,
+      this.connection,
+    );
   }
 }
 
-export class AbacusGovernance extends AbacusApp<ProxiedAddress, GovernanceContracts> {
+export class AbacusGovernance extends AbacusApp<
+  ProxiedAddress,
+  GovernanceContracts
+> {
   constructor(addresses: Record<ChainName, ProxiedAddress>) {
     super();
     for (const chain of Object.keys(addresses) as ChainName[]) {
       const domain = this.resolveDomain(chain);
-      this.contracts.set(domain, new GovernanceContracts(addresses[chain]!))
+      this.contracts.set(domain, new GovernanceContracts(addresses[chain]!));
     }
   }
 
@@ -34,14 +40,19 @@ export class AbacusGovernance extends AbacusApp<ProxiedAddress, GovernanceContra
    * @returns The governors of the deployment
    */
   async governors(): Promise<Governor[]> {
-    const governorDomains = Array.from(this.contracts.keys())
+    const governorDomains = Array.from(this.contracts.keys());
     const governorAddresses = await Promise.all(
-      governorDomains.map((domain) => this.mustGetContracts(domain).router.governor())
-    )
+      governorDomains.map((domain) =>
+        this.mustGetContracts(domain).router.governor(),
+      ),
+    );
     const governors: Governor[] = [];
     for (let i = 0; i < governorAddresses.length; i++) {
       if (governorAddresses[i] !== ethers.constants.AddressZero) {
-        governors.push({ identifier: governorAddresses[i], domain: governorDomains[i] })
+        governors.push({
+          identifier: governorAddresses[i],
+          domain: governorDomains[i],
+        });
       }
     }
     if (governors.length === 0) throw new Error('no governors');

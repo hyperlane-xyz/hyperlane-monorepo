@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 
 export type Address = string;
 
-
 // TODO: asa - fold abacus-network/utils into this
 
 /**

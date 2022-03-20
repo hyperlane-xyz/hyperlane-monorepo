@@ -1,4 +1,9 @@
-import { AnnotatedLifecycleEvent, AbacusStatus, MessageStatus, MultiProvider } from '@abacus-network/sdk';
+import {
+  AnnotatedLifecycleEvent,
+  AbacusStatus,
+  MessageStatus,
+  MultiProvider,
+} from '@abacus-network/sdk';
 import Logger from 'bunyan';
 import fs from 'fs';
 import config from './config';

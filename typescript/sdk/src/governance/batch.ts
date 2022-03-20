@@ -15,7 +15,10 @@ export class CallBatch {
     this.calls = new Map();
   }
 
-  static async fromContracts(domain: number, governance: GovernanceContracts): Promise<CallBatch> {
+  static async fromContracts(
+    domain: number,
+    governance: GovernanceContracts,
+  ): Promise<CallBatch> {
     const governor = await governance.router.governor();
     if (governor === ethers.constants.AddressZero)
       throw new Error(
@@ -86,8 +89,7 @@ export class CallBatch {
     const signer = this.governance.router.signer;
     const governor = await this.governance.router.governor();
     const signerAddress = await signer.getAddress();
-    if (signerAddress !== governor)
-      throw new Error('Signer is not Governor');
+    if (signerAddress !== governor) throw new Error('Signer is not Governor');
     return signer;
   }
 }

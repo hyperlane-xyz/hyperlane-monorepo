@@ -26,17 +26,23 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
   inbox(chain: ChainName): Inbox {
     const inbox = this._addresses.inboxes[chain];
     if (!inbox) {
-      throw new Error(`No inbox for ${chain}`)
+      throw new Error(`No inbox for ${chain}`);
     }
     return Inbox__factory.connect(inbox.proxy, this.connection);
   }
 
   get outbox(): Outbox {
-    return Outbox__factory.connect(this._addresses.outbox.proxy, this.connection);
+    return Outbox__factory.connect(
+      this._addresses.outbox.proxy,
+      this.connection,
+    );
   }
 
   get validatorManager(): ValidatorManager {
-    return ValidatorManager__factory.connect(this._addresses.validatorManager, this.connection);
+    return ValidatorManager__factory.connect(
+      this._addresses.validatorManager,
+      this.connection,
+    );
   }
 
   get xAppConnectionManager(): XAppConnectionManager {
@@ -47,12 +53,15 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
   }
 }
 
-export class AbacusCore extends AbacusApp<CoreContractAddresses, CoreContracts> {
+export class AbacusCore extends AbacusApp<
+  CoreContractAddresses,
+  CoreContracts
+> {
   constructor(addresses: Partial<Record<ChainName, CoreContractAddresses>>) {
     super();
     for (const chain of Object.keys(addresses) as ChainName[]) {
       const domain = this.resolveDomain(chain);
-      this.contracts.set(domain, new CoreContracts(addresses[chain]!))
+      this.contracts.set(domain, new CoreContracts(addresses[chain]!));
     }
   }
 

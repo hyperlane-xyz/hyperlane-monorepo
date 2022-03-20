@@ -6,11 +6,16 @@ export {
   AbacusLifecyleEvent,
   MessageStatus,
 } from './core';
-export { Annotated, getEvents, TSContract, queryAnnotatedEvents } from './events';
+export {
+  Annotated,
+  getEvents,
+  TSContract,
+  queryAnnotatedEvents,
+} from './events';
 export { AbacusGovernance, Call, CallBatch } from './governance';
 export { MultiProvider } from './provider';
 export { ChainName, Connection, NameOrDomain, ProxiedAddress } from './types';
-export { 
+export {
   AbacusBridge,
   AnnotatedSend,
   AnnotatedTokenDeployed,

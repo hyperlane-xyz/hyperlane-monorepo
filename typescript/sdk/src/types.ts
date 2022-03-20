@@ -13,9 +13,20 @@ export interface Pagination {
  * The names of Abacus supported chains
  */
 export type MainnetChainNames = 'celo' | 'ethereum' | 'avalanche' | 'polygon';
-export type TestnetChainNames = 'alfajores' | 'mumbai' | 'kovan' | 'goerli' | 'fuji' | 'rinkarby' | 'rinkeby' | 'ropsten';
+export type TestnetChainNames =
+  | 'alfajores'
+  | 'mumbai'
+  | 'kovan'
+  | 'goerli'
+  | 'fuji'
+  | 'rinkarby'
+  | 'rinkeby'
+  | 'ropsten';
 export type DevelopmentChainNames = 'local';
-export type ChainName = MainnetChainNames | TestnetChainNames | DevelopmentChainNames;
+export type ChainName =
+  | MainnetChainNames
+  | TestnetChainNames
+  | DevelopmentChainNames;
 
 /**
  * A Domain (and its characteristics)

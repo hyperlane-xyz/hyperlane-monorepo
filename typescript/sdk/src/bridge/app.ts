@@ -27,28 +27,34 @@ export type BridgeContractAddresses = {
 
 export class BridgeContracts extends AbacusAppContracts<BridgeContractAddresses> {
   get router(): BridgeRouter {
-    return BridgeRouter__factory.connect(this._addresses.router.proxy, this.connection);
+    return BridgeRouter__factory.connect(
+      this._addresses.router.proxy,
+      this.connection,
+    );
   }
 
   get token(): BridgeToken {
-    return BridgeToken__factory.connect(this._addresses.token.proxy, this.connection);
+    return BridgeToken__factory.connect(
+      this._addresses.token.proxy,
+      this.connection,
+    );
   }
 
   get helper(): ETHHelper | undefined {
     if (this._addresses.helper == undefined) return undefined;
-    return ETHHelper__factory.connect(
-      this._addresses.helper,
-      this.connection,
-    );
+    return ETHHelper__factory.connect(this._addresses.helper, this.connection);
   }
 }
 
-export class AbacusBridge extends AbacusApp<BridgeContractAddresses, BridgeContracts> {
+export class AbacusBridge extends AbacusApp<
+  BridgeContractAddresses,
+  BridgeContracts
+> {
   constructor(addresses: Partial<Record<ChainName, BridgeContractAddresses>>) {
     super();
     for (const chain of Object.keys(addresses) as ChainName[]) {
       const domain = this.resolveDomain(chain);
-      this.contracts.set(domain, new BridgeContracts(addresses[chain]!))
+      this.contracts.set(domain, new BridgeContracts(addresses[chain]!));
     }
   }
 
@@ -72,9 +78,10 @@ export class AbacusBridge extends AbacusApp<BridgeContractAddresses, BridgeContr
 
     const tokenId = canonizeId(token.id);
 
-    const address = await bridge.router[
-      'getLocalAddress(uint32,bytes32)'
-    ](token.domain, tokenId);
+    const address = await bridge.router['getLocalAddress(uint32,bytes32)'](
+      token.domain,
+      tokenId,
+    );
 
     if (!address) {
       return;

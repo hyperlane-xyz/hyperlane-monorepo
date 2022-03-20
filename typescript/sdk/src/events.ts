@@ -94,7 +94,10 @@ export async function queryAnnotatedEvents<T extends Result, U>(
     startBlock,
     endBlock,
   );
-  return Annotated.fromEvents(multiprovider.resolveDomain(nameOrDomain), events);
+  return Annotated.fromEvents(
+    multiprovider.resolveDomain(nameOrDomain),
+    events,
+  );
 }
 
 export async function findAnnotatedSingleEvent<T extends Result, U>(
@@ -111,7 +114,10 @@ export async function findAnnotatedSingleEvent<T extends Result, U>(
     filter,
     startBlock,
   );
-  return Annotated.fromEvents(multiprovider.resolveDomain(nameOrDomain), events);
+  return Annotated.fromEvents(
+    multiprovider.resolveDomain(nameOrDomain),
+    events,
+  );
 }
 
 export async function getEvents<T extends Result, U>(

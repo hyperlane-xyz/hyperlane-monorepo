@@ -266,7 +266,12 @@ class BridgeMessage extends AbacusMessage {
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return BridgeMessage.fromCoreAndReceipt(core, bridge, nameOrDomain, receipt);
+    return BridgeMessage.fromCoreAndReceipt(
+      core,
+      bridge,
+      nameOrDomain,
+      receipt,
+    );
   }
 
   /**
@@ -291,7 +296,12 @@ class BridgeMessage extends AbacusMessage {
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return BridgeMessage.singleFromCoreAndReceipt(core, bridge, nameOrDomain, receipt);
+    return BridgeMessage.singleFromCoreAndReceipt(
+      core,
+      bridge,
+      nameOrDomain,
+      receipt,
+    );
   }
 
   /**
@@ -357,9 +367,7 @@ export class TransferMessage extends BridgeMessage {
    */
   async currentlyPrefilled(): Promise<boolean> {
     const bridge = this.bridge.mustGetContracts(this.destination);
-    const lpAddress = await bridge.router.liquidityProvider(
-      this.prefillId,
-    );
+    const lpAddress = await bridge.router.liquidityProvider(this.prefillId);
     if (lpAddress !== ethers.constants.AddressZero) {
       return true;
     }

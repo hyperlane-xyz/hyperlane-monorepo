@@ -1,4 +1,4 @@
-import { Domain } from './types'
+import { Domain } from './types';
 
 /**
  * Mainnets

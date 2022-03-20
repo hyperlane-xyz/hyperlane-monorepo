@@ -24,7 +24,7 @@ export type Deploy = AnnotatedTokenDeployed & { token: TokenDetails };
 async function getDomainDeployedTokens(
   core: AbacusCore,
   bridge: AbacusBridge,
-  nameOrDomain: NameOrDomain
+  nameOrDomain: NameOrDomain,
 ): Promise<Deploy[]> {
   const domain = core.resolveDomain(nameOrDomain);
   const router = bridge.mustGetContracts(nameOrDomain).router;

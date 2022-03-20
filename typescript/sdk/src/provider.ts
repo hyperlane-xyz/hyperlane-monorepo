@@ -46,7 +46,7 @@ export class MultiProvider {
   }
 
   get domainNames(): ChainName[] {
-    return Array.from(this.domains.values()).map((domain) => domain.name)
+    return Array.from(this.domains.values()).map((domain) => domain.name);
   }
 
   get missingProviders(): number[] {
