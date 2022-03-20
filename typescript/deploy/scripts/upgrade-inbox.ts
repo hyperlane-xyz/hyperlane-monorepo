@@ -2,7 +2,8 @@ import {
   getCoreDeploy,
   getCoreConfig,
   getChainConfigs,
-  getContext,
+  getCore,
+  getGovernance,
   getEnvironment,
   getGovernanceDeploy,
   registerRpcProviders,
@@ -11,14 +12,16 @@ import {
 import { ViolationType } from '../src/common';
 import { CoreInvariantChecker } from '../src/core';
 import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
-import { Call } from '@abacus-network/sdk/dist/abacus/govern';
+import { Call } from '@abacus-network/sdk';
 
 async function main() {
   const environment = await getEnvironment();
-  const context = await getContext(environment);
   const chains = await getChainConfigs(environment);
-  registerRpcProviders(context, chains);
-  await registerGovernorSigner(context, chains);
+  const abacusCore = await getCore(environment);
+  const abacusGovernance = await getGovernance(environment);
+  registerRpcProviders(abacusCore, chains);
+  registerRpcProviders(abacusGovernance, chains);
+  await registerGovernorSigner(abacusGovernance, chains);
 
   const deploy = await getCoreDeploy(environment);
   const governance = await getGovernanceDeploy(environment);
@@ -32,18 +35,17 @@ async function main() {
   checker.expectViolations([ViolationType.UpgradeBeacon], [chains.length]);
   const builder = new GovernanceCallBatchBuilder(
     deploy,
-    context,
+    abacusGovernance,
     checker.violations,
   );
   const batch = await builder.build();
 
   for (const local of deploy.domains) {
     for (const remote of deploy.remotes(local)) {
-      const core = context.mustGetCore(remote);
-      const inbox = core.getInbox(local);
+      const inbox = abacusCore.mustGetInbox(local, remote);
       const transferOwnership =
-        await inbox!.populateTransaction.transferOwnership(
-          core._governanceRouter,
+        await inbox.populateTransaction.transferOwnership(
+          abacusGovernance.mustGetContracts(remote).router.address
         );
       batch.push(remote, transferOwnership as Call);
     }

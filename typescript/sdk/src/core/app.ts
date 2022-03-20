@@ -12,7 +12,7 @@ import { types } from '@abacus-network/utils';
 
 import { AbacusApp } from '../app';
 import { AbacusAppContracts } from '../contracts';
-import { ChainName, ProxiedAddress } from '../types';
+import { ChainName, NameOrDomain, ProxiedAddress } from '../types';
 
 export type CoreContractAddresses = {
   upgradeBeaconController: types.Address;
@@ -54,5 +54,11 @@ export class AbacusCore extends AbacusApp<CoreContractAddresses, CoreContracts> 
       const domain = this.resolveDomain(chain);
       this.contracts.set(domain, new CoreContracts(addresses[chain]!))
     }
+  }
+
+  mustGetInbox(src: NameOrDomain, dest: NameOrDomain): Inbox {
+    const contracts = this.mustGetContracts(dest);
+    const srcName = this.mustGetDomain(src).name;
+    return contracts.inbox(srcName);
   }
 }
