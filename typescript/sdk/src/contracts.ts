@@ -23,7 +23,7 @@ export abstract class Contracts {
  * Abstract class for managing collections of contracts
  */
 export abstract class AbacusAppContracts<T> {
-  private _addresses: T
+  protected _addresses: T
   private _connection?: Connection
 
   constructor(addresses: T) {
@@ -38,7 +38,10 @@ export abstract class AbacusAppContracts<T> {
     this._connection = connection;
   }
 
-  get connection(): Connection | undefined {
+  get connection(): Connection {
+    if (!this._connection) {
+      throw new Error('No provider or signer. Call `connect` first.');
+    }
     return this._connection
   }
 }
