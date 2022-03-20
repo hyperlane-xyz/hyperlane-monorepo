@@ -6,12 +6,12 @@ use tracing::instrument::Instrumented;
 use crate::{settings::CheckpointerSettings as Settings, submit::CheckpointSubmitter};
 use abacus_base::{AbacusAgentCore, Agent};
 
-/// An checkpointer agent
+/// A checkpointer agent
 #[derive(Debug)]
 pub struct Checkpointer {
-    /// Polling interval
+    /// The polling interval (in seconds)
     interval: u64,
-    // Minimum seconds between submitted checkpoints
+    /// The minimum period between submitted checkpoints (in seconds)
     latency: u64,
     pub(crate) core: AbacusAgentCore,
 }

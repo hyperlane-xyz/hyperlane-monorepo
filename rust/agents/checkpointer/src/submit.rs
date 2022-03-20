@@ -9,9 +9,9 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 pub(crate) struct CheckpointSubmitter {
     outbox: Arc<CachingOutbox>,
-    /// Polling interval in seconds
+    /// The polling interval (in seconds)
     interval: Duration,
-    // Minimum seconds between submitted checkpoints
+    /// The minimum period between submitted checkpoints (in seconds)
     latency: Duration,
     /// The time at which the last checkpoint was submitted
     last_checkpoint_time: Option<SystemTime>,
@@ -31,7 +31,6 @@ impl CheckpointSubmitter {
         let span = info_span!("CheckpointSubmitter");
 
         tokio::spawn(async move {
-            // This is just some dummy code
             loop {
                 sleep(self.interval).await;
 
@@ -49,7 +48,10 @@ impl CheckpointSubmitter {
                     "Got latest checkpoint and count"
                 );
                 // If there are any new messages, the count will be greater than
-                // the latest checkpoint index and a new checkpoint should be made
+                // the latest checkpoint index.
+                // To prevent creating checkpoints too frequently, a new checkpoint
+                // should be made if `latency` has elapsed since the last created
+                // checkpoint.
                 if count > latest_checkpoint_index {
                     match self.last_checkpoint_time {
                         Some(last_checkpoint_time) => {
