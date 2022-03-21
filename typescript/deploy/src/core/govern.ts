@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { AbacusContext } from '@abacus-network/sdk';
+import { AbacusGovernance } from '@abacus-network/sdk';
 import { CoreDeploy } from './CoreDeploy';
 import {
   ValidatorViolation,
@@ -7,7 +7,7 @@ import {
   Violation,
   ViolationType,
 } from '../common';
-import { Call, CallBatch } from '@abacus-network/sdk/dist/abacus/govern';
+import { Call, CallBatch } from '@abacus-network/sdk';
 
 interface DomainedCall {
   domain: number;
@@ -16,22 +16,25 @@ interface DomainedCall {
 
 export class GovernanceCallBatchBuilder {
   private _deploy: CoreDeploy;
-  private _context: AbacusContext;
+  private _governance: AbacusGovernance;
   private _violations: Violation[];
 
   constructor(
     deploy: CoreDeploy,
-    context: AbacusContext,
+    governance: AbacusGovernance,
     violations: Violation[],
   ) {
     this._deploy = deploy;
-    this._context = context;
+    this._governance = governance;
     this._violations = violations;
   }
 
   async build(): Promise<CallBatch> {
-    const governorCore = await this._context.governorCore();
-    const batch = await governorCore.newGovernanceBatch();
+    const governor = await this._governance.governor();
+    const batch = new CallBatch(
+      governor.domain,
+      this._governance.mustGetContracts(governor.domain),
+    );
     const txs = await Promise.all(
       this._violations.map((v) => this.handleViolation(v)),
     );

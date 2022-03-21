@@ -1,7 +1,11 @@
 import { ethers } from 'ethers';
 import path from 'path';
 import yargs from 'yargs';
-import { AbacusContext, dev, testnet, mainnet } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  AbacusGovernance,
+  MultiProvider,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
@@ -246,14 +250,19 @@ export async function getGovernanceDeploy(
   );
 }
 
-export function getContext(environment: DeployEnvironment): AbacusContext {
+export function getCore(environment: DeployEnvironment): AbacusCore {
   switch (environment) {
-    case DeployEnvironment.dev:
-      return dev;
-    case DeployEnvironment.mainnet:
-      return mainnet;
-    case DeployEnvironment.testnet:
-      return testnet;
+    default: {
+      throw new Error('invalid environment');
+      break;
+    }
+  }
+}
+
+export function getGovernance(
+  environment: DeployEnvironment,
+): AbacusGovernance {
+  switch (environment) {
     default: {
       throw new Error('invalid environment');
       break;
@@ -262,11 +271,11 @@ export function getContext(environment: DeployEnvironment): AbacusContext {
 }
 
 export function registerRpcProviders(
-  context: AbacusContext,
+  multiProvider: MultiProvider,
   chains: ChainConfig[],
 ): void {
   chains.map((c) =>
-    context.registerRpcProvider(
+    multiProvider.registerRpcProvider(
       c.name,
       process.env[`${c.name.toUpperCase()}_RPC`]!,
     ),
@@ -274,14 +283,14 @@ export function registerRpcProviders(
 }
 
 export async function registerGovernorSigner(
-  context: AbacusContext,
+  governance: AbacusGovernance,
   chains: ChainConfig[],
 ): Promise<void> {
-  const governor = await context.governor();
+  const governor = await governance.governor();
   const govChains = chains.filter((c) => c.domain === governor.domain);
   if (govChains.length !== 1) throw new Error('could not find governor chain');
   const govChain = govChains[0];
-  context.registerSigner(
+  governance.registerSigner(
     govChain.name,
     new ethers.Wallet(
       process.env[`${govChain.name.toUpperCase()}_DEPLOYER_KEY`]!,

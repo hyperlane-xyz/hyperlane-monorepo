@@ -1,23 +1,22 @@
-import { AbacusContext } from '@abacus-network/sdk';
-import { getEvents } from '@abacus-network/sdk/dist/abacus/events/fetch';
+import { AbacusCore, ChainName, getEvents } from '@abacus-network/sdk';
 import Logger from 'bunyan';
 import { logMonitorMetrics, writeUnprocessedMessages } from '../print';
 import config from '../config';
 
 export async function monitorCore(
-  context: AbacusContext,
-  originNetwork: string,
-  remoteNetworks: string[],
+  core: AbacusCore,
+  originNetwork: ChainName,
+  remoteNetworks: ChainName[],
 ) {
   const originLogger = config.baseLogger.child({
     originNetwork,
   });
 
   originLogger.info(`Getting outbox state and Dispatch logs`);
-  const outbox = context.mustGetCore(originNetwork).outbox;
+  const outbox = core.mustGetContracts(originNetwork).outbox;
   const dispatchFilter = outbox.filters.Dispatch();
   const dispatchLogs = await getEvents(
-    context,
+    core,
     originNetwork,
     outbox,
     dispatchFilter,
@@ -33,7 +32,7 @@ export async function monitorCore(
       remoteNetwork,
     });
     const processLogs = await monitorCoreInbox(
-      context,
+      core,
       originNetwork,
       remoteNetwork,
       remoteLogger,
@@ -66,17 +65,17 @@ export async function monitorCore(
 }
 
 async function monitorCoreInbox(
-  context: AbacusContext,
-  originNetwork: string,
-  remoteNetwork: string,
+  core: AbacusCore,
+  originNetwork: ChainName,
+  remoteNetwork: ChainName,
   logger: Logger,
 ) {
   logger.info(`Getting inbox state and Process logs`);
 
-  const inbox = context.mustGetInboxFor(originNetwork, remoteNetwork);
+  const inbox = core.mustGetInbox(originNetwork, remoteNetwork);
   const processFilter = inbox.filters.Process();
   const processLogs = await getEvents(
-    context,
+    core,
     remoteNetwork,
     inbox,
     processFilter,

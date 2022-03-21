@@ -1,6 +1,6 @@
 import { TypedEvent } from '@abacus-network/core/dist/commons';
 import { BigNumber } from 'ethers';
-import { Annotated } from '.';
+import { Annotated } from '../events';
 
 export type SendTypes = [string, string, number, string, BigNumber];
 export type SendArgs = {

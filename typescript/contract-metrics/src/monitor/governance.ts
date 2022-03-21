@@ -1,13 +1,13 @@
-import { AbacusContext } from '@abacus-network/sdk';
+import { AbacusGovernance, ChainName } from '@abacus-network/sdk';
 import { GovernanceRouter } from '@abacus-network/apps';
 import config from '../config';
 
 export async function monitorGovernance(
-  context: AbacusContext,
-  networks: string[],
+  governance: AbacusGovernance,
+  networks: ChainName[],
 ) {
   const routers = networks.map(
-    (network) => context.mustGetCore(network).governanceRouter,
+    (network) => governance.mustGetContracts(network).router,
   );
   await Promise.all(
     networks.map((network, i) => monitorRecoveryActiveAt(network, routers[i])),
@@ -15,7 +15,7 @@ export async function monitorGovernance(
 }
 
 async function monitorRecoveryActiveAt(
-  network: string,
+  network: ChainName,
   router: GovernanceRouter,
 ) {
   const logger = config.baseLogger.child({
