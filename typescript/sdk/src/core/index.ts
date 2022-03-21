@@ -1,4 +1,5 @@
-export { CoreContractAddresses, CoreContracts, AbacusCore } from './app';
+export { AbacusCore, localCore } from './app';
+export { CoreContractAddresses, CoreContracts } from './contracts';
 export {
   AbacusLifecyleEvent,
   AnnotatedDispatch,
