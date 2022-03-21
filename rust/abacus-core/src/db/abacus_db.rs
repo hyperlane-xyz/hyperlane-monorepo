@@ -355,15 +355,12 @@ impl AbacusDB {
 
     // TODO(james): this is a quick-fix for the prover_sync and I don't like it
     /// poll db ever 100 milliseconds waitinf for a leaf.
-    pub fn wait_for_leaf(
-        &self,
-        leaf_index: u32,
-    ) -> impl Future<Output = Result<Option<H256>, DbError>> {
+    pub fn wait_for_leaf(&self, leaf_index: u32) -> impl Future<Output = Result<H256, DbError>> {
         let slf = self.clone();
         async move {
             loop {
                 if let Some(leaf) = slf.leaf_by_leaf_index(leaf_index)? {
-                    return Ok(Some(leaf));
+                    return Ok(leaf);
                 }
                 sleep(Duration::from_millis(100)).await
             }
