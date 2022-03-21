@@ -222,10 +222,10 @@ export async function getAgentEnvVars(
 
   if (role.startsWith('checkpointer')) {
     envVars.push(
-      `OPT_CHECKPOINTER_POLLINGINTERVAL=${agentConfig.checkpointer?.pollingInterval}`
+      `OPT_CHECKPOINTER_POLLINGINTERVAL=${agentConfig.checkpointer?.pollingInterval}`,
     );
     envVars.push(
-      `OPT_CHECKPOINTER_CREATIONLATENCY=${agentConfig.checkpointer?.creationLatency}`
+      `OPT_CHECKPOINTER_CREATIONLATENCY=${agentConfig.checkpointer?.creationLatency}`,
     );
   }
 
