@@ -30,8 +30,6 @@
     "build": "hardhat compile && hardhat typechain && npm run prettier && tsc && npm run copy-types",
     "copy-types": "cp types/*.d.ts dist/",
     "coverage": "hardhat coverage",
-    "deploy-test": "hardhat run scripts/abacus.ts",
-    "node": "hardhat node",
     "test": "hardhat test"
   },
   "license": "MIT OR Apache-2.0",

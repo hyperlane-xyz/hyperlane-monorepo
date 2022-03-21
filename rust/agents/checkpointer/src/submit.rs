@@ -1,11 +1,14 @@
-use std::{sync::Arc, time::{Duration, SystemTime}};
+use std::{
+    sync::Arc,
+    time::{Duration, SystemTime},
+};
 
 use abacus_base::CachingOutbox;
 use abacus_core::{AbacusCommon, Checkpoint, Outbox};
 
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 pub(crate) struct CheckpointSubmitter {
     outbox: Arc<CachingOutbox>,
@@ -56,7 +59,13 @@ impl CheckpointSubmitter {
                     match self.last_checkpoint_time {
                         Some(last_checkpoint_time) => {
                             if let Ok(elapsed) = last_checkpoint_time.elapsed() {
-                                if elapsed >= self.latency {
+                                let can_create_checkpoint = elapsed >= self.latency;
+                                debug!(
+                                    elapsed=?elapsed,
+                                    can_create_checkpoint=?can_create_checkpoint,
+                                    "Got elapsed duration from last checkpoint"
+                                );
+                                if can_create_checkpoint {
                                     self.create_checkpoint().await?
                                 }
                             }
@@ -70,6 +79,7 @@ impl CheckpointSubmitter {
     }
 
     async fn create_checkpoint(&mut self) -> Result<()> {
+        debug!("Creating checkpoint");
         self.outbox.create_checkpoint().await?;
         self.last_checkpoint_time = Some(SystemTime::now());
         Ok(())
