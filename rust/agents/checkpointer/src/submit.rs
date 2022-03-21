@@ -1,6 +1,6 @@
 use std::{
     sync::Arc,
-    time::{Duration, SystemTime},
+    time::Duration,
 };
 
 use abacus_base::CachingOutbox;
@@ -16,8 +16,6 @@ pub(crate) struct CheckpointSubmitter {
     polling_interval: Duration,
     /// The minimum period between submitted checkpoints
     creation_latency: Duration,
-    /// The time at which the last checkpoint was submitted
-    last_checkpoint_time: Option<SystemTime>,
 }
 
 impl CheckpointSubmitter {
@@ -26,11 +24,10 @@ impl CheckpointSubmitter {
             outbox,
             polling_interval: Duration::from_secs(polling_interval),
             creation_latency: Duration::from_secs(creation_latency),
-            last_checkpoint_time: None,
         }
     }
 
-    pub(crate) fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
+    pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("CheckpointSubmitter");
 
         tokio::spawn(async move {
@@ -56,32 +53,14 @@ impl CheckpointSubmitter {
                 // should be made if `creation_latency` has elapsed since the last created
                 // checkpoint.
                 if count > latest_checkpoint_index {
-                    match self.last_checkpoint_time {
-                        Some(last_checkpoint_time) => {
-                            if let Ok(elapsed) = last_checkpoint_time.elapsed() {
-                                let can_create_checkpoint = elapsed >= self.creation_latency;
-                                debug!(
-                                    elapsed=?elapsed,
-                                    can_create_checkpoint=?can_create_checkpoint,
-                                    "Got elapsed duration from last checkpoint"
-                                );
-                                if can_create_checkpoint {
-                                    self.create_checkpoint().await?
-                                }
-                            }
-                        }
-                        None => self.create_checkpoint().await?,
-                    }
+                    debug!("Creating checkpoint");
+                    self.outbox.create_checkpoint().await?;
+                    // Sleep to ensure that another checkpoint isn't made until
+                    // creation_latency has passed
+                    sleep(self.creation_latency).await;
                 }
             }
         })
         .instrument(span)
-    }
-
-    async fn create_checkpoint(&mut self) -> Result<()> {
-        debug!("Creating checkpoint");
-        self.outbox.create_checkpoint().await?;
-        self.last_checkpoint_time = Some(SystemTime::now());
-        Ok(())
     }
 }
