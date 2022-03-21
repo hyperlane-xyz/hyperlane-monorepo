@@ -12,12 +12,10 @@ export class GovernanceInvariantChecker extends RouterInvariantChecker<
   GovernanceConfig
 > {
   async checkDomain(domain: types.Domain): Promise<void> {
+    await super.checkDomain(domain);
     // await this.checkBeaconProxies(domain);
     await this.checkGovernor(domain);
     await this.checkRecoveryManager(domain);
-    await this.checkXAppConnectionManager(domain);
-    await this.checkEnrolledRouters(domain);
-    await this.checkOwnership(domain);
   }
 
   /*

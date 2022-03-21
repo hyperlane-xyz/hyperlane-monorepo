@@ -7,6 +7,12 @@ import { Router, RouterConfig } from './types';
 export abstract class RouterInvariantChecker<A extends AbacusApp<any, any>, C extends RouterConfig> extends CommonInvariantChecker<A, C> {
   abstract mustGetRouter(domain: types.Domain): Router;
 
+  async checkDomain(domain: types.Domain): Promise<void> {
+    await this.checkEnrolledRouters(domain);
+    await this.checkOwnership(domain);
+    await this.checkXAppConnectionManager(domain)
+  }
+
   async checkEnrolledRouters(domain: types.Domain): Promise<void> {
     const router = this.mustGetRouter(domain)
     await Promise.all(

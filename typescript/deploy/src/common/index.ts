@@ -1,4 +1,4 @@
-export { CommonDeploy } from './CommonDeploy';
+export { AbacusAppDeployer } from './CommonDeploy';
 export {
   CommonInvariantChecker,
   ViolationType,

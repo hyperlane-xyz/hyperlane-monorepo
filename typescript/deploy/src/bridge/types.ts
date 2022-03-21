@@ -1,5 +1,5 @@
 import { types } from '@abacus-network/utils';
-import { ChainName, ProxiedAddress } from '@abacus-network/sdk';
+import { ChainName } from '@abacus-network/sdk';
 import { RouterConfig } from '../router';
 
 export type BridgeConfig = RouterConfig & {

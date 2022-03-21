@@ -1,21 +1,21 @@
 import { expect } from 'chai';
 
 import { types } from '@abacus-network/utils';
+import { AbacusBridge } from '@abacus-network/sdk';
+import { BridgeRouter } from '@abacus-network/apps';
 import { BridgeConfig } from './types';
-import { BridgeDeploy } from './BridgeDeploy';
 import { RouterInvariantChecker } from '../router';
 
 export class BridgeInvariantChecker extends RouterInvariantChecker<
-  BridgeDeploy,
+  AbacusBridge,
   BridgeConfig
 > {
   async checkDomain(domain: types.Domain): Promise<void> {
-    await this.checkBeaconProxies(domain);
-    await this.checkEnrolledRouters(domain);
-    await this.checkOwnership(domain);
+    await super.checkDomain(domain);
     this.checkEthHelper(domain);
   }
 
+  /*
   async checkBeaconProxies(domain: types.Domain): Promise<void> {
     await this.checkBeaconProxyImplementation(
       domain,
@@ -28,12 +28,18 @@ export class BridgeInvariantChecker extends RouterInvariantChecker<
       this.deploy.instances[domain].contracts.router,
     );
   }
+  */
 
   checkEthHelper(domain: types.Domain): void {
-    if (this.config.weth[this.deploy.name(domain)]) {
-      expect(this.deploy.helper(domain)).to.not.be.undefined;
+    const helper = this.app.mustGetContracts(domain).helper
+    if (this.config.weth[this.app.mustResolveDomainName(domain)]) {
+      expect(helper).to.not.be.undefined;
     } else {
-      expect(this.deploy.helper(domain)).to.be.undefined;
+      expect(helper).to.be.undefined;
     }
+  }
+
+  mustGetRouter(domain: types.Domain): BridgeRouter {
+    return this.app.mustGetContracts(domain).router;
   }
 }
