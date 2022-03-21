@@ -1,26 +1,14 @@
 import { ethers } from 'ethers';
-import {
-  GovernanceRouter,
-  GovernanceRouter__factory,
-} from '@abacus-network/apps';
 
 import { AbacusApp } from '../app';
-import { AbacusAppContracts } from '../contracts';
 import { ChainName, ProxiedAddress } from '../types';
+
+import { GovernanceContracts } from './contracts';
 
 export type Governor = {
   domain: number;
   identifier: string;
 };
-
-export class GovernanceContracts extends AbacusAppContracts<ProxiedAddress> {
-  get router(): GovernanceRouter {
-    return GovernanceRouter__factory.connect(
-      this._addresses.proxy,
-      this.connection,
-    );
-  }
-}
 
 export class AbacusGovernance extends AbacusApp<
   ProxiedAddress,

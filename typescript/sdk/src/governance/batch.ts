@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { GovernanceContracts } from './app';
+import { GovernanceContracts } from './contracts';
 import { Call, normalizeCall, associateCalls } from './utils';
 
 export class CallBatch {
