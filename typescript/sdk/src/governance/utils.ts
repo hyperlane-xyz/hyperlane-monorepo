@@ -1,6 +1,11 @@
 import { ethers } from 'ethers';
-import { Call } from '.';
-import { canonizeId } from '../../utils';
+import { types } from '@abacus-network/utils';
+import { canonizeId } from '../utils';
+
+export interface Call {
+  to: types.Address;
+  data: ethers.utils.BytesLike;
+}
 
 // Returns the length (in bytes) of a BytesLike.
 export function byteLength(bytesLike: ethers.utils.BytesLike): number {

@@ -1,11 +1,11 @@
-import { AbacusContext, AbacusMessage } from '@abacus-network/sdk';
-import { mainnet } from './registerContext';
+import { AbacusCore, AbacusMessage, ChainName } from '@abacus-network/sdk';
+import { core } from './registerContext';
 import { printStatus } from './print';
 
 const input: TraceInput[] = [
   {
     chain: 'celo',
-    context: mainnet,
+    core,
     transactionHash:
       '0x6880039b2ed36e4283e027aeb4b46b0259582be16e459bf17999869ca4ef6d94',
   },
@@ -16,8 +16,8 @@ traceMany(input).then(() => {
 });
 
 interface TraceInput {
-  chain: string;
-  context: AbacusContext;
+  chain: ChainName;
+  core: AbacusCore;
   transactionHash: string;
   messageHash?: string;
   leafIndex?: number;
@@ -25,24 +25,24 @@ interface TraceInput {
 
 async function traceMany(inputs: TraceInput[]) {
   for (let input of inputs) {
-    const { context, chain, transactionHash } = input;
-    await traceTransfer(context, chain, transactionHash);
+    const { core, chain, transactionHash } = input;
+    await traceTransfer(core, chain, transactionHash);
   }
 }
 
 async function traceTransfer(
-  context: AbacusContext,
-  origin: string,
+  core: AbacusCore,
+  origin: ChainName,
   transactionHash: string,
 ) {
   console.log(`Trace ${transactionHash} on ${origin}`);
 
   const message = await AbacusMessage.singleFromTransactionHash(
-    context,
+    core,
     origin,
     transactionHash,
   );
   console.log(`Leaf Index: ${message.leafIndex}`);
   const status = await message.events();
-  printStatus(context, status);
+  printStatus(core, status);
 }

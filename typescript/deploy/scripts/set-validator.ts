@@ -2,7 +2,7 @@ import {
   getCoreDeploy,
   getCoreConfig,
   getChainConfigs,
-  getContext,
+  getGovernance,
   getEnvironment,
   getGovernanceDeploy,
   registerRpcProviders,
@@ -14,10 +14,10 @@ import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
 
 async function main() {
   const environment = await getEnvironment();
-  const context = await getContext(environment);
+  const abacusGovernance = await getGovernance(environment);
   const chains = await getChainConfigs(environment);
-  registerRpcProviders(context, chains);
-  await registerGovernorSigner(context, chains);
+  registerRpcProviders(abacusGovernance, chains);
+  await registerGovernorSigner(abacusGovernance, chains);
 
   const deploy = await getCoreDeploy(environment);
   const governance = await getGovernanceDeploy(environment);
@@ -32,7 +32,7 @@ async function main() {
 
   const builder = new GovernanceCallBatchBuilder(
     deploy,
-    context,
+    abacusGovernance,
     checker.violations,
   );
   const batch = await builder.build();

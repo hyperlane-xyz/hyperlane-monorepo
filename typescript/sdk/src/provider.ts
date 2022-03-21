@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
-import { Domain } from './domains';
 import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
+
+import { ChainName, NameOrDomain, Domain } from './types';
 
 type Provider = ethers.providers.Provider;
 
@@ -44,6 +45,10 @@ export class MultiProvider {
     return Array.from(this.domains.keys());
   }
 
+  get domainNames(): ChainName[] {
+    return Array.from(this.domains.values()).map((domain) => domain.name);
+  }
+
   get missingProviders(): number[] {
     const numbers = this.domainNumbers;
     return numbers.filter((number) => this.providers.has(number));
@@ -58,7 +63,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @returns The canonical domain number.
    */
-  resolveDomain(nameOrDomain: string | number): number {
+  resolveDomain(nameOrDomain: NameOrDomain): number {
     if (typeof nameOrDomain === 'string') {
       const domains = Array.from(this.domains.values()).filter(
         (domain) => domain.name.toLowerCase() === nameOrDomain.toLowerCase(),
@@ -78,7 +83,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @returns true if the {@link Domain} has been registered, else false.
    */
-  knownDomain(nameOrDomain: string | number): boolean {
+  knownDomain(nameOrDomain: NameOrDomain): boolean {
     try {
       this.resolveDomain(nameOrDomain);
       return true;
@@ -93,7 +98,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @returns A {@link Domain} (if the domain has been registered)
    */
-  getDomain(nameOrDomain: number | string): Domain | undefined {
+  getDomain(nameOrDomain: NameOrDomain): Domain | undefined {
     return this.domains.get(this.resolveDomain(nameOrDomain));
   }
 
@@ -104,7 +109,7 @@ export class MultiProvider {
    * @returns A {@link Domain}
    * @throws if the domain has not been registered
    */
-  mustGetDomain(nameOrDomain: number | string): Domain {
+  mustGetDomain(nameOrDomain: NameOrDomain): Domain {
     const domain = this.getDomain(nameOrDomain);
     if (!domain) {
       throw new Error(`Domain not found: ${nameOrDomain}`);
@@ -121,7 +126,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @returns The name (or undefined)
    */
-  resolveDomainName(nameOrDomain: string | number): string | undefined {
+  resolveDomainName(nameOrDomain: NameOrDomain): string | undefined {
     return this.getDomain(nameOrDomain)?.name;
   }
 
@@ -131,7 +136,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @param provider An ethers Provider to be used by requests to that domain.
    */
-  registerProvider(nameOrDomain: string | number, provider: Provider): void {
+  registerProvider(nameOrDomain: NameOrDomain, provider: Provider): void {
     const domain = this.mustGetDomain(nameOrDomain).id;
     try {
       const signer = this.signers.get(domain);
@@ -150,7 +155,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @param rpc The HTTP RPC Url
    */
-  registerRpcProvider(nameOrDomain: string | number, rpc: string): void {
+  registerRpcProvider(nameOrDomain: NameOrDomain, rpc: string): void {
     const domain = this.resolveDomain(nameOrDomain);
     const celoNames = ['alfajores', 'celo'];
     for (const name of celoNames) {
@@ -170,7 +175,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @returns The currently registered Provider (or none)
    */
-  getProvider(nameOrDomain: string | number): Provider | undefined {
+  getProvider(nameOrDomain: NameOrDomain): Provider | undefined {
     const domain = this.resolveDomain(nameOrDomain);
 
     return this.providers.get(domain);
@@ -183,7 +188,7 @@ export class MultiProvider {
    * @returns A Provider
    * @throws If no provider has been registered for the specified domain
    */
-  mustGetProvider(nameOrDomain: string | number): Provider {
+  mustGetProvider(nameOrDomain: NameOrDomain): Provider {
     const provider = this.getProvider(nameOrDomain);
     if (!provider) {
       throw new Error('unregistered name or domain');
@@ -197,7 +202,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @param signer An ethers Signer to be used by requests to that domain.
    */
-  registerSigner(nameOrDomain: string | number, signer: ethers.Signer): void {
+  registerSigner(nameOrDomain: NameOrDomain, signer: ethers.Signer): void {
     const domain = this.resolveDomain(nameOrDomain);
 
     const provider = this.providers.get(domain);
@@ -229,7 +234,7 @@ export class MultiProvider {
    *
    * @param nameOrDomain A domain name or number.
    */
-  unregisterSigner(nameOrDomain: string | number): void {
+  unregisterSigner(nameOrDomain: NameOrDomain): void {
     const domain = this.resolveDomain(nameOrDomain);
     if (!this.signers.has(domain)) {
       return;
@@ -259,7 +264,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @param privkey A private key string passed to `ethers.Wallet`
    */
-  registerWalletSigner(nameOrDomain: string | number, privkey: string): void {
+  registerWalletSigner(nameOrDomain: NameOrDomain, privkey: string): void {
     const domain = this.resolveDomain(nameOrDomain);
 
     const wallet = new ethers.Wallet(privkey);
@@ -272,7 +277,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @returns The registered signer (or undefined)
    */
-  getSigner(nameOrDomain: string | number): ethers.Signer | undefined {
+  getSigner(nameOrDomain: NameOrDomain): ethers.Signer | undefined {
     const domain = this.resolveDomain(nameOrDomain);
     return this.signers.get(domain);
   }
@@ -288,7 +293,7 @@ export class MultiProvider {
    *          undefined
    */
   getConnection(
-    nameOrDomain: string | number,
+    nameOrDomain: NameOrDomain,
   ): ethers.Signer | ethers.providers.Provider | undefined {
     return this.getSigner(nameOrDomain) ?? this.getProvider(nameOrDomain);
   }
@@ -299,7 +304,7 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @returns A Promise for the address of the registered signer (if any)
    */
-  async getAddress(nameOrDomain: string | number): Promise<string | undefined> {
+  async getAddress(nameOrDomain: NameOrDomain): Promise<string | undefined> {
     const signer = this.getSigner(nameOrDomain);
     return await signer?.getAddress();
   }

@@ -1,17 +1,16 @@
-import { mainnet } from './registerContext';
+import { core, bridge } from './registerContext';
 import config from './config';
 
 import {
+  AbacusBridge,
+  AbacusCore,
   AnnotatedTokenDeployed,
+  NameOrDomain,
   TokenDeployedArgs,
   TokenDeployedTypes,
-} from '@abacus-network/sdk/dist/abacus/events/bridgeEvents';
-import {
-  AbacusContext,
   queryAnnotatedEvents,
-} from '@abacus-network/sdk/dist/abacus';
-import { TSContract } from '@abacus-network/sdk/dist/abacus/events/fetch';
-// import { ethers } from 'ethers';
+  TSContract,
+} from '@abacus-network/sdk';
 import { uploadDeployedTokens } from './googleSheets';
 
 type TokenDetails = {
@@ -23,28 +22,29 @@ type TokenDetails = {
 export type Deploy = AnnotatedTokenDeployed & { token: TokenDetails };
 
 async function getDomainDeployedTokens(
-  context: AbacusContext,
-  nameOrDomain: string | number,
+  core: AbacusCore,
+  bridge: AbacusBridge,
+  nameOrDomain: NameOrDomain,
 ): Promise<Deploy[]> {
-  const domain = context.resolveDomain(nameOrDomain);
-  const router = context.mustGetBridge(domain).bridgeRouter;
+  const domain = core.resolveDomain(nameOrDomain);
+  const router = bridge.mustGetContracts(nameOrDomain).router;
   // get Send events
   const annotated = await queryAnnotatedEvents<
     TokenDeployedTypes,
     TokenDeployedArgs
   >(
-    context,
+    core,
     domain,
     router as TSContract<TokenDeployedTypes, TokenDeployedArgs>,
     router.filters.TokenDeployed(),
-    context.mustGetDomain(domain).paginate?.from,
+    core.mustGetDomain(domain).paginate?.from,
   );
 
   return await Promise.all(
     annotated.map(async (e: AnnotatedTokenDeployed) => {
       const deploy = e as any;
 
-      const erc20 = await context.resolveCanonicalToken(
+      const erc20 = await bridge.resolveCanonicalToken(
         domain,
         deploy.event.args.representation,
       );
@@ -64,22 +64,24 @@ async function getDomainDeployedTokens(
 }
 
 async function getDeployedTokens(
-  context: AbacusContext,
+  core: AbacusCore,
+  bridge: AbacusBridge,
 ): Promise<Map<number, Deploy[]>> {
   const events = new Map();
-  for (const domain of context.domainNumbers) {
-    events.set(domain, await getDomainDeployedTokens(context, domain));
+  for (const domain of core.domainNumbers) {
+    events.set(domain, await getDomainDeployedTokens(core, bridge, domain));
   }
   return events;
 }
 
 async function persistDeployedTokens(
-  context: AbacusContext,
+  core: AbacusCore,
+  bridge: AbacusBridge,
   credentials: string,
 ): Promise<void> {
-  const deployed = await getDeployedTokens(context);
+  const deployed = await getDeployedTokens(core, bridge);
   for (let domain of deployed.keys()) {
-    let domainName = context.resolveDomainName(domain);
+    let domainName = core.resolveDomainName(domain);
     const tokens = deployed.get(domain);
     uploadDeployedTokens(domainName!, tokens!, credentials);
   }
@@ -87,5 +89,5 @@ async function persistDeployedTokens(
 }
 
 (async function main() {
-  await persistDeployedTokens(mainnet, config.googleCredentialsFile);
+  await persistDeployedTokens(core, bridge, config.googleCredentialsFile);
 })();

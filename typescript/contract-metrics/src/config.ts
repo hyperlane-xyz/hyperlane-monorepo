@@ -1,24 +1,25 @@
 import * as dotenv from 'dotenv';
 import Logger from 'bunyan';
+import { ChainName } from '@abacus-network/sdk';
 import { MetricCollector } from './metrics';
 
 dotenv.config({ path: process.env.CONFIG_PATH ?? '.env' });
 
 const environment = process.env.ENVIRONMENT ?? 'dev';
 
-let networks = [];
+let networks: ChainName[] = [];
 switch (environment) {
   case 'mainnet':
     networks = ['celo', 'ethereum', 'polygon', 'avalanche'];
     break;
 
   case 'testnet':
-    networks = ['alfajores', 'gorli', 'kovan', 'ropsten'];
+    networks = ['alfajores', 'goerli', 'kovan', 'ropsten'];
     break;
 
   default:
     // dev
-    networks = ['alfajores', 'fuji', 'gorli', 'kovan', 'mumbai'];
+    networks = ['alfajores', 'fuji', 'goerli', 'kovan', 'mumbai'];
     break;
 }
 

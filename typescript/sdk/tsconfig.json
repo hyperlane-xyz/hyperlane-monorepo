@@ -4,15 +4,9 @@
     "outDir": "./dist/",
     "rootDir": "./src/"
   },
-  "exclude": ["./node_modules/", "./dist/", "./src/tmp.ts"],
+  "exclude": ["./node_modules/", "./dist/"],
   "include": [
     "./src/*.ts",
-    "src/abacus/*.ts",
-    "src/abacus/contracts/*.ts",
-    "src/abacus/domains/*.ts",
-    "src/abacus/events/*.ts",
-    "src/abacus/govern/*.ts",
-    "src/abacus/messages/*.ts",
-    "src/abacus/tokens/*.ts"
+    "./src/**/*.ts"
   ]
 }
