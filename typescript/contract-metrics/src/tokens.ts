@@ -1,4 +1,4 @@
-import { mainnet } from './registerContext';
+import { core, bridge } from './registerContext';
 import config from './config';
 
 import {

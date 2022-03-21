@@ -1,51 +1,43 @@
-/*
 import {
-  dev,
-  testnet,
-  mainnet,
-  mainnetLegacy,
-  AbacusContext,
+  AbacusCore,
+  AbacusBridge,
+  AbacusGovernance,
+  ChainName,
+  localCore,
+  localBridge,
+  localGovernance,
 } from '@abacus-network/sdk';
 import config from './config';
 
-// register mainnet
-mainnet.registerRpcProvider('celo', config.celoRpc);
-mainnet.registerRpcProvider('ethereum', config.ethereumRpc);
-mainnet.registerRpcProvider('polygon', config.polygonRpc);
-mainnet.registerRpcProvider('avalanche', config.avalancheRpc);
+// register local
+type Rpc = {
+  chain: ChainName;
+  rpc: string;
+};
+const rpcs: Rpc[] = [
+  { chain: 'celo', rpc: config.celoRpc },
+  { chain: 'ethereum', rpc: config.ethereumRpc },
+  { chain: 'polygon', rpc: config.polygonRpc },
+];
+rpcs.map((rpc) => {
+  localCore.registerRpcProvider(rpc.chain, rpc.rpc);
+  localBridge.registerRpcProvider(rpc.chain, rpc.rpc);
+  localGovernance.registerRpcProvider(rpc.chain, rpc.rpc);
+});
 
-mainnetLegacy.registerRpcProvider('celo', config.celoRpc);
-mainnetLegacy.registerRpcProvider('ethereum', config.ethereumRpc);
-mainnetLegacy.registerRpcProvider('polygon', config.polygonRpc);
-
-// register testnet
-testnet.registerRpcProvider('alfajores', config.alfajoresRpc);
-testnet.registerRpcProvider('kovan', config.kovanRpc);
-testnet.registerRpcProvider('gorli', config.gorliRpc);
-testnet.registerRpcProvider('ropsten', config.ropstenRpc);
-
-// register dev
-dev.registerRpcProvider('alfajores', config.alfajoresRpc);
-dev.registerRpcProvider('kovan', config.kovanRpc);
-dev.registerRpcProvider('gorli', config.gorliRpc);
-dev.registerRpcProvider('mumbai', config.mumbaiRpc);
-dev.registerRpcProvider('fuji', config.fujiRpc);
-
-let context: AbacusContext;
+let core: AbacusCore;
+let bridge: AbacusBridge;
+let governance: AbacusGovernance;
 switch (config.environment) {
-  case 'mainnet':
-    context = mainnet;
-    break;
-
-  case 'testnet':
-    context = testnet;
+  case 'local':
+    core = localCore;
+    bridge = localBridge;
+    governance = localGovernance;
     break;
 
   default:
-    // dev
-    context = dev;
+    throw new Error('Unrecognized environment');
     break;
 }
 
-export { context, mainnet, testnet, dev, mainnetLegacy };
-*/
+export { core, bridge, governance };
