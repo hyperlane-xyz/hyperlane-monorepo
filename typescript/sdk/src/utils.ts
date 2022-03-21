@@ -3,8 +3,6 @@ import { ethers } from 'ethers';
 
 export type Address = string;
 
-// TODO: asa - fold abacus-network/utils into this
-
 /**
  * Converts a 20-byte (or other length) ID to a 32-byte ID.
  * Ensures that a bytes-like is 32 long. left-padding with 0s if not.

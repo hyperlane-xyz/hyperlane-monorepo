@@ -72,7 +72,7 @@ async function monitorCoreInbox(
 ) {
   logger.info(`Getting inbox state and Process logs`);
 
-  const inbox = core.mustGetContracts(remoteNetwork).inbox(originNetwork);
+  const inbox = core.mustGetInbox(originNetwork, remoteNetwork);
   const processFilter = inbox.filters.Process();
   const processLogs = await getEvents(
     core,

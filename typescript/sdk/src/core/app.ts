@@ -14,7 +14,7 @@ export class AbacusCore extends AbacusApp<
   constructor(addresses: Partial<Record<ChainName, CoreContractAddresses>>) {
     super();
     for (const chain of Object.keys(addresses) as ChainName[]) {
-      this.registerDomain(domains[chain])
+      this.registerDomain(domains[chain]);
       const domain = this.resolveDomain(chain);
       this.contracts.set(domain, new CoreContracts(addresses[chain]!));
     }
