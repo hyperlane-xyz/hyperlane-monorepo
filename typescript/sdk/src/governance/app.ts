@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
 import { AbacusApp } from '../app';
+import { domains } from '../domains';
 import { ChainName, ProxiedAddress } from '../types';
 
 import { GovernanceContracts } from './contracts';
@@ -18,6 +19,7 @@ export class AbacusGovernance extends AbacusApp<
   constructor(addresses: Partial<Record<ChainName, ProxiedAddress>>) {
     super();
     for (const chain of Object.keys(addresses) as ChainName[]) {
+      this.registerDomain(domains[chain])
       const domain = this.resolveDomain(chain);
       this.contracts.set(domain, new GovernanceContracts(addresses[chain]!));
     }

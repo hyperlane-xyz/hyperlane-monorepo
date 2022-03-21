@@ -1,6 +1,7 @@
 import { Inbox } from '@abacus-network/core';
 
 import { AbacusApp } from '../app';
+import { domains } from '../domains';
 import { ChainName, NameOrDomain } from '../types';
 
 import { CoreContractAddresses, CoreContracts } from './contracts';
@@ -13,6 +14,7 @@ export class AbacusCore extends AbacusApp<
   constructor(addresses: Partial<Record<ChainName, CoreContractAddresses>>) {
     super();
     for (const chain of Object.keys(addresses) as ChainName[]) {
+      this.registerDomain(domains[chain])
       const domain = this.resolveDomain(chain);
       this.contracts.set(domain, new CoreContracts(addresses[chain]!));
     }

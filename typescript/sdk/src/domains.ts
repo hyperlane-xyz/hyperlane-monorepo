@@ -1,4 +1,4 @@
-import { Domain } from './types';
+import { ChainName, Domain } from './types';
 
 /**
  * Mainnets
@@ -80,3 +80,27 @@ export const ropsten: Domain = {
   name: 'ropsten',
   id: 3,
 };
+
+/**
+ * Local
+ */
+export const local: Domain = {
+  name: 'local',
+  id: 1,
+}
+
+export const domains: Record<ChainName, Domain> = {
+  celo,
+  ethereum,
+  avalanche,
+  polygon,
+  alfajores,
+  fuji,
+  goerli,
+  mumbai,
+  rinkeby,
+  rinkarby,
+  ropsten,
+  kovan,
+  local
+}

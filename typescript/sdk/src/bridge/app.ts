@@ -3,6 +3,7 @@ import { BigNumberish, ethers } from 'ethers';
 import { BridgeToken, BridgeToken__factory } from '@abacus-network/apps';
 
 import { AbacusApp } from '../app';
+import { domains } from '../domains';
 import { AbacusCore } from '../core';
 import { ChainName, NameOrDomain } from '../types';
 import { Address, canonizeId, evmId } from '../utils';
@@ -19,6 +20,7 @@ export class AbacusBridge extends AbacusApp<
   constructor(addresses: Partial<Record<ChainName, BridgeContractAddresses>>) {
     super();
     for (const chain of Object.keys(addresses) as ChainName[]) {
+      this.registerDomain(domains[chain])
       const domain = this.resolveDomain(chain);
       this.contracts.set(domain, new BridgeContracts(addresses[chain]!));
     }
