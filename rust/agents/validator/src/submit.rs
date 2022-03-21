@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use abacus_base::{CachingOutbox, CheckpointSyncer, LocalStorage};
+use abacus_base::{CachingOutbox, CheckpointSyncer, CheckpointSyncers};
 use abacus_core::{AbacusCommon, Signers};
 use std::time::Duration;
 
@@ -12,6 +12,7 @@ pub(crate) struct ValidatorSubmitter {
     reorg_period: u64,
     signer: Arc<Signers>,
     outbox: Arc<CachingOutbox>,
+    checkpoint_syncer: Arc<CheckpointSyncers>,
 }
 
 impl ValidatorSubmitter {
@@ -20,12 +21,14 @@ impl ValidatorSubmitter {
         reorg_period: u64,
         outbox: Arc<CachingOutbox>,
         signer: Arc<Signers>,
+        checkpoint_syncer: Arc<CheckpointSyncers>,
     ) -> Self {
         Self {
             reorg_period,
             interval,
             outbox,
             signer,
+            checkpoint_syncer,
         }
     }
 
@@ -47,8 +50,7 @@ impl ValidatorSubmitter {
                     info!(signature = ?signed_checkpoint, signer=?self.signer, "Sign latest checkpoint");
                     current_index = checkpoint.index;
 
-                    let storage = LocalStorage { path: "/tmp/validatorsignatures".to_string() };
-                    storage.write_checkpoint(signed_checkpoint).await?;
+                    self.checkpoint_syncer.write_checkpoint(signed_checkpoint.clone()).await?;
                 }
             }
         })
