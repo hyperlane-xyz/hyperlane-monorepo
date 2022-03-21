@@ -13,11 +13,12 @@ export class AbacusCore extends AbacusApp<
 > {
   constructor(addresses: Partial<Record<ChainName, CoreContractAddresses>>) {
     super();
-    for (const chain of Object.keys(addresses) as ChainName[]) {
+    const chains = Object.keys(addresses) as ChainName[];
+    chains.map((chain) => {
       this.registerDomain(domains[chain]);
       const domain = this.resolveDomain(chain);
       this.contracts.set(domain, new CoreContracts(addresses[chain]!));
-    }
+    });
   }
 
   mustGetInbox(src: NameOrDomain, dest: NameOrDomain): Inbox {

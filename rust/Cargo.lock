@@ -35,6 +35,7 @@ dependencies = [
  "rocksdb",
  "rusoto_core",
  "rusoto_kms",
+ "rusoto_s3",
  "serde 1.0.130",
  "serde_json",
  "thiserror",
