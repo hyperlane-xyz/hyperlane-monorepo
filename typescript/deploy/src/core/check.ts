@@ -6,10 +6,10 @@ import {
   ViolationType,
   ValidatorViolation,
   ValidatorManagerViolation,
-  CommonInvariantChecker,
-} from '../common';
+  AbacusAppChecker,
+} from '../check';
 
-export class CoreInvariantChecker extends CommonInvariantChecker<
+export class AbacusCoreChecker extends AbacusAppChecker<
   AbacusCore,
   CoreConfig
 > {

@@ -4,9 +4,9 @@ import { types } from '@abacus-network/utils';
 import { AbacusBridge } from '@abacus-network/sdk';
 import { BridgeRouter } from '@abacus-network/apps';
 import { BridgeConfig } from './types';
-import { RouterInvariantChecker } from '../router';
+import { AbacusRouterChecker } from '../router';
 
-export class BridgeInvariantChecker extends RouterInvariantChecker<
+export class AbacusBridgeChecker extends AbacusRouterChecker<
   AbacusBridge,
   BridgeConfig
 > {

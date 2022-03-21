@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 import { utils, types } from '@abacus-network/utils';
 import { AbacusApp } from '@abacus-network/sdk';
-import { CommonInvariantChecker } from '../common';
+import { AbacusAppChecker } from '../check';
 import { Router, RouterConfig } from './types';
 
-export abstract class RouterInvariantChecker<A extends AbacusApp<any, any>, C extends RouterConfig> extends CommonInvariantChecker<A, C> {
+export abstract class AbacusRouterChecker<A extends AbacusApp<any, any>, C extends RouterConfig> extends AbacusAppChecker<A, C> {
   abstract mustGetRouter(domain: types.Domain): Router;
 
   async checkDomain(domain: types.Domain): Promise<void> {

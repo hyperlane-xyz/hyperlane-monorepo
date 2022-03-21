@@ -1,3 +1,3 @@
-export { AbacusCoreDeployer } from './CoreDeploy';
+export { AbacusCoreDeployer } from './deploy';
+export { AbacusCoreChecker } from './check';
 export { CoreConfig } from './types';
-export { CoreInvariantChecker } from './CoreInvariantChecker';

@@ -1,5 +1,5 @@
-export { AbacusBridgeDeployer } from './BridgeDeploy';
-export { BridgeInvariantChecker } from './BridgeInvariantChecker';
+export { AbacusBridgeDeployer } from './deploy';
+export { AbacusBridgeChecker } from './check';
 export {
   BridgeConfig,
   BridgeConfigWithoutCore,

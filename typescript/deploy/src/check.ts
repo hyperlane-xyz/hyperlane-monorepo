@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import { AbacusApp } from '@abacus-network/sdk';
-import { BeaconProxy } from './BeaconProxy';
+import { BeaconProxy } from './proxy';
 
 export enum ViolationType {
   UpgradeBeacon = 'UpgradeBeacon',
@@ -41,7 +41,7 @@ export type Violation =
 
 export type VerificationInput = [string, Contract];
 
-export abstract class CommonInvariantChecker<A extends AbacusApp<any, any>, C> {
+export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   readonly app: A;
   readonly config: C;
   readonly owners: Record<types.Domain, types.Address>;

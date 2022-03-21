@@ -1,10 +1,6 @@
 import { types } from '@abacus-network/utils';
-import { ProxiedAddress, ChainName } from '@abacus-network/sdk';
+import { ChainName } from '@abacus-network/sdk';
 import { RouterConfig } from '../router';
-
-export type GovernanceContractAddresses = {
-  router: ProxiedAddress;
-};
 
 export type GovernanceAddresses = {
   recoveryManager: types.Address;

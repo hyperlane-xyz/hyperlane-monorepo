@@ -10,7 +10,7 @@ import {
   UpgradeBeaconProxy__factory,
 } from '@abacus-network/core';
 
-import { BeaconProxy } from './common';
+import { BeaconProxy } from './proxy';
 import { TransactionConfig } from './config';
 import { VerificationInput, getContractVerificationInput } from './verification';
 

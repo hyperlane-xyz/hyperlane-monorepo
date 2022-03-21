@@ -5,9 +5,9 @@ import { types } from '@abacus-network/utils';
 import { AbacusGovernance } from '@abacus-network/sdk';
 
 import { GovernanceConfig } from './types';
-import { RouterInvariantChecker } from '../router';
+import { AbacusRouterChecker } from '../router';
 
-export class GovernanceInvariantChecker extends RouterInvariantChecker<
+export class AbacusGovernanceChecker extends AbacusRouterChecker<
   AbacusGovernance,
   GovernanceConfig
 > {

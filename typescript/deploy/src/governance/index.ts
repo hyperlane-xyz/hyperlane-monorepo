@@ -1,5 +1,5 @@
-export { AbacusGovernanceDeployer } from './GovernanceDeployer';
-export { GovernanceInvariantChecker } from './GovernanceInvariantChecker';
+export { AbacusGovernanceDeployer } from './deploy';
+export { AbacusGovernanceChecker } from './check';
 export {
   GovernanceAddresses,
   GovernanceConfig,

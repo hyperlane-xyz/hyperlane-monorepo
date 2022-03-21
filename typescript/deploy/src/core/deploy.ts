@@ -14,7 +14,7 @@ import {
   Outbox__factory,
   Inbox__factory,
 } from '@abacus-network/core';
-import { BeaconProxy } from '../common';
+import { BeaconProxy } from '../proxy';
 import { DeployEnvironment, RustConfig } from '../config';
 import { AbacusAppDeployer } from '../deploy';
 import { CoreConfig } from './types';
