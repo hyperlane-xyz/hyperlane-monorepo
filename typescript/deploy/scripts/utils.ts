@@ -271,11 +271,11 @@ export function getGovernance(
 }
 
 export function registerRpcProviders(
-  multiprovider: MultiProvider,
+  multiProvider: MultiProvider,
   chains: ChainConfig[],
 ): void {
   chains.map((c) =>
-    multiprovider.registerRpcProvider(
+    multiProvider.registerRpcProvider(
       c.name,
       process.env[`${c.name.toUpperCase()}_RPC`]!,
     ),
