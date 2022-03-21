@@ -10,9 +10,9 @@ use abacus_base::{AbacusAgentCore, Agent};
 #[derive(Debug)]
 pub struct Checkpointer {
     /// The polling interval (in seconds)
-    interval: u64,
-    /// The minimum period between submitted checkpoints (in seconds)
-    latency: u64,
+    polling_interval: u64,
+    /// The minimum period between created checkpoints (in seconds)
+    creation_latency: u64,
     pub(crate) core: AbacusAgentCore,
 }
 
@@ -24,10 +24,10 @@ impl AsRef<AbacusAgentCore> for Checkpointer {
 
 impl Checkpointer {
     /// Instantiate a new checkpointer
-    pub fn new(interval: u64, latency: u64, core: AbacusAgentCore) -> Self {
+    pub fn new(polling_interval: u64, creation_latency: u64, core: AbacusAgentCore) -> Self {
         Self {
-            interval,
-            latency,
+            polling_interval,
+            creation_latency,
             core,
         }
     }
@@ -43,13 +43,13 @@ impl Agent for Checkpointer {
     where
         Self: Sized,
     {
-        let interval = settings.interval.parse().expect("invalid interval uint");
-        let latency = settings.latency.parse().expect("invalid latency uint");
+        let polling_interval = settings.polling_interval.parse().expect("invalid polling_interval uint");
+        let creation_latency = settings.creation_latency.parse().expect("invalid creation_latency uint");
         let core = settings
             .as_ref()
             .try_into_abacus_core(Self::AGENT_NAME)
             .await?;
-        Ok(Self::new(interval, latency, core))
+        Ok(Self::new(polling_interval, creation_latency, core))
     }
 }
 
@@ -57,7 +57,7 @@ impl Checkpointer {
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox();
 
-        let submit = CheckpointSubmitter::new(outbox, self.interval, self.latency);
+        let submit = CheckpointSubmitter::new(outbox, self.polling_interval, self.creation_latency);
 
         self.run_all(vec![submit.spawn()])
     }

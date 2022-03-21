@@ -4,7 +4,7 @@ use abacus_base::decl_settings;
 
 decl_settings!(Checkpointer {
     /// The polling interval (in seconds)
-    interval: String,
+    polling_interval: String,
     /// The minimum period between submitted checkpoints (in seconds)
-    latency: String,
+    creation_latency: String,
 });
