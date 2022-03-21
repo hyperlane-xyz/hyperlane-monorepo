@@ -1,53 +1,76 @@
+import path from 'path';
 import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
-import { GovernanceRouter } from '@abacus-network/apps';
-import { CommonDeploy, DeployType } from '../common';
-import { ChainConfig } from '../config';
-import { RouterDeploy } from '../router';
-import { GovernanceInstance } from './GovernanceInstance';
-import { GovernanceContracts } from './GovernanceContracts';
+import { utils, types } from '@abacus-network/utils';
+import { GovernanceRouter__factory } from '@abacus-network/apps';
+import { AbacusGovernance, ChainName, ProxiedAddress } from '@abacus-network/sdk';
+import { AbacusAppDeployer } from '../deploy';
 import { GovernanceConfig } from './types';
 
-export class GovernanceDeploy extends RouterDeploy<
-  GovernanceInstance,
-  GovernanceConfig
-> {
-  deployType = DeployType.GOVERNANCE;
+export class AbacusGovernanceDeployer extends AbacusAppDeployer<ProxiedAddress, GovernanceConfig> {
 
-  async deployInstance(
-    domain: types.Domain,
-    config: GovernanceConfig,
-  ): Promise<GovernanceInstance> {
-    return GovernanceInstance.deploy(domain, this.chains, config);
+  configDirectory(directory: string) {
+    return path.join(directory, 'governance');
   }
 
-  async postDeploy(config: GovernanceConfig) {
-    await super.postDeploy(config);
-    for (const domain of this.domains) {
-      const addresses = config.addresses[this.name(domain)];
-      if (addresses === undefined) throw new Error('could not find addresses');
+  async deployContracts(
+    domain: types.Domain,
+    config: GovernanceConfig,
+  ) {
+    const signer = this.mustGetSigner(domain);
+    const name = this.mustResolveDomainName(domain)
+    const core = config.core[name];
+    if (!core) throw new Error('could not find core');
+
+    const router = await this.deployBeaconProxy(
+      domain, 'GovernanceRouter',
+      new GovernanceRouter__factory(signer),
+      core.upgradeBeaconController,
+      [config.recoveryTimelock],
+      [core.xAppConnectionManager],
+    );
+
+    this.addresses.set(domain, router.toObject());
+  }
+
+  // TODO(asa): Consider sharing router specific code
+  async deploy(config: GovernanceConfig) {
+    super.deploy(config);
+    const app = this.app();
+    // Make all routers aware of eachother.
+    for (const local of this.domainNumbers) {
+      const router = app.mustGetContracts(local).router;
+      for (const remote of this.remoteDomainNumbers(local)) {
+        const remoteRouter = app.mustGetContracts(remote).router
+        await router.enrollRemoteRouter(
+          remote,
+          utils.addressToBytes32(remoteRouter.address),
+        );
+      }
+    }
+    // Transfer ownership of routers to governor and recovery manager.
+    for (const local of this.domainNumbers) {
+      const name = this.mustResolveDomainName(local)
+      const router = app.mustGetContracts(local).router;
+      const addresses = config.addresses[name]
+      if (!addresses) throw new Error('could not find addresses');
+      await router.transferOwnership(addresses.recoveryManager);
       if (addresses.governor !== undefined) {
-        await this.router(domain).setGovernor(addresses.governor);
+        await router.setGovernor(addresses.governor);
       } else {
-        await this.router(domain).setGovernor(ethers.constants.AddressZero);
+        await router.setGovernor(ethers.constants.AddressZero);
       }
     }
   }
 
-  static readContracts(
-    chains: Record<types.Domain, ChainConfig>,
-    directory: string,
-  ): GovernanceDeploy {
-    return CommonDeploy.readContractsHelper(
-      GovernanceDeploy,
-      GovernanceInstance,
-      GovernanceContracts.readJson,
-      chains,
-      directory,
-    );
-  }
-
-  router(domain: types.Domain): GovernanceRouter {
-    return this.instances[domain].router;
+  app(): AbacusGovernance {
+    const addressesRecord: Partial<Record<ChainName, ProxiedAddress>> = {}
+    this.addresses.forEach((addresses: ProxiedAddress, domain: number) => {
+      addressesRecord[this.mustResolveDomainName(domain)] = addresses;
+    });
+    const app = new AbacusGovernance(addressesRecord);
+    this.signers.forEach((signer: ethers.Signer, domain: number) => {
+      app.registerSigner(domain, signer)
+    });
+    return app
   }
 }

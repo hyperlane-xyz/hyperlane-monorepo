@@ -22,9 +22,9 @@ type Provider = ethers.providers.Provider;
  */
 // TODO(asa): getFromMap and mustGetFromMap
 export class MultiProvider {
-  private domains: Map<number, Domain>;
-  private providers: Map<number, Provider>;
-  private signers: Map<number, ethers.Signer>;
+  protected domains: Map<number, Domain>;
+  protected providers: Map<number, Provider>;
+  protected signers: Map<number, ethers.Signer>;
 
   constructor() {
     this.domains = new Map();

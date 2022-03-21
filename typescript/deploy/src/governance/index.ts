@@ -1,9 +1,6 @@
-export { GovernanceDeploy } from './GovernanceDeploy';
-export { GovernanceInstance } from './GovernanceInstance';
-export { GovernanceContracts } from './GovernanceContracts';
+export { AbacusGovernanceDeployer } from './GovernanceDeployer';
 export { GovernanceInvariantChecker } from './GovernanceInvariantChecker';
 export {
-  GovernanceContractAddresses,
   GovernanceAddresses,
   GovernanceConfig,
   GovernanceConfigWithoutCore,
