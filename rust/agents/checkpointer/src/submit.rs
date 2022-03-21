@@ -12,9 +12,9 @@ use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 pub(crate) struct CheckpointSubmitter {
     outbox: Arc<CachingOutbox>,
-    /// The polling interval (in seconds)
+    /// The polling interval
     interval: Duration,
-    /// The minimum period between submitted checkpoints (in seconds)
+    /// The minimum period between submitted checkpoints
     latency: Duration,
     /// The time at which the last checkpoint was submitted
     last_checkpoint_time: Option<SystemTime>,
