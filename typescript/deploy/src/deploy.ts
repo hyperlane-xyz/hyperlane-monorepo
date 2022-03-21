@@ -62,8 +62,8 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   abstract deployContracts(domain: types.Domain, config: C): Promise<T>;
 
   async deploy(config: C) {
-    /*
     await this.ready();
+    /*
     for (const domain of this.domainNumbers) {
       this.chains[domain] = CommonDeploy.fixOverrides(chains[domain]);
     }
@@ -167,23 +167,13 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     );
   }
 
-  /*
   async ready(): Promise<void> {
     await Promise.all(
-      this.domainNumbers.map((domain) => this.mustGetConnection(domain).ready)
+      this.domainNumbers.map((domain) => (this.mustGetProvider(domain) as ethers.providers.JsonRpcProvider).ready)
     );
   }
-  */
 
   abstract configDirectory(directory: string): string;
-
-  contractsDirectory(directory: string) {
-    return path.join(this.configDirectory(directory), 'contracts');
-  }
-
-  contractsFilepath(directory: string, chain: ChainName) {
-    return path.join(this.contractsDirectory(directory), `${chain}.json`);
-  }
 
   verificationDirectory(directory: string) {
     return path.join(this.configDirectory(directory), 'verification');
@@ -195,14 +185,9 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   }
 
   writeContracts(directory: string) {
-    for (const domain of this.domainNumbers) {
-      AbacusAppDeployer.writeJson(
-        path.join(
-          this.contractsDirectory(directory),
-          `${this.resolveDomainName(domain)}.json`,
-        ),
-        this.mustGetAddresses(domain))
-    }
+    AbacusAppDeployer.writeJson(
+      path.join(this.configDirectory(directory), 'contracts.json'),
+      this.addressesRecord())
   }
 
   writeVerificationInput(directory: string) {

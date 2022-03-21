@@ -61,6 +61,19 @@ export class AbacusGovernance extends AbacusApp<
     if (governors.length !== 1) throw new Error('multiple governors');
     return governors[0];
   }
+
+
+  /*
+  // TODO(asa): confirmations
+  async transferOwnership(owners: Partial<Record<ChainName, types.Address>>): Promise<void> {
+    await Promise.all(
+      this.domainNames.map((name) => {
+        const owner = owners[name]
+        if (!owner) throw new Error(`Missing owner for ${name}`)
+        return this.mustGetContracts(name).transferOwnership(owner, this.getOverrides(name));
+      }))
+  }
+  */
 }
 
 export const localGovernance = new AbacusGovernance(local);

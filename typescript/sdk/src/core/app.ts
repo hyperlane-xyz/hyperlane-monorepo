@@ -1,4 +1,5 @@
 import { Inbox } from '@abacus-network/core';
+import { types } from '@abacus-network/utils';
 
 import { AbacusApp } from '../app';
 import { domains } from '../domains';
@@ -25,6 +26,16 @@ export class AbacusCore extends AbacusApp<
     const contracts = this.mustGetContracts(dest);
     const srcName = this.mustGetDomain(src).name;
     return contracts.inbox(srcName);
+  }
+
+  // TODO(asa): confirmations
+  async transferOwnership(owners: Record<number, types.Address>): Promise<void> {
+    await Promise.all(
+      this.domainNumbers.map((domain) => {
+        const owner = owners[domain]
+        if (!owner) throw new Error(`Missing owner for ${domain}`)
+        return this.mustGetContracts(domain).transferOwnership(owner, this.getOverrides(domain));
+      }))
   }
 }
 

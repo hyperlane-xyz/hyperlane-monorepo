@@ -8,17 +8,20 @@ import {
   AbacusGovernanceChecker,
   GovernanceConfig,
 } from '../src/governance';
-import { core as coreConfig, registerMultiProvider, governance as partialGovernanceConfig } from '../config/environments/local';
+import { core as coreConfig, registerMultiProviderTest, governance as partialGovernanceConfig } from '../config/environments/local';
 
 describe('governance', async () => {
   const coreDeployer = new AbacusCoreDeployer();
-  const deployer = new AbacusGovernanceDeployer();
-  let governanceConfig: GovernanceConfig;
+  const governanceDeployer = new AbacusGovernanceDeployer();
   const owners: Record<types.Domain, types.Address> = {};
+  let governanceConfig: GovernanceConfig;
 
   before(async () => {
-    await registerMultiProvider(coreDeployer);
+    const [signer ] = await ethers.getSigners();
+    registerMultiProviderTest(governanceDeployer, signer);
+    registerMultiProviderTest(coreDeployer, signer);
     await coreDeployer.deploy(coreConfig);
+
     governanceConfig = { ...partialGovernanceConfig, core: {} };
     coreDeployer.domainNumbers.map((domain) => {
       const name = coreDeployer.mustResolveDomainName(domain)
@@ -35,16 +38,17 @@ describe('governance', async () => {
   });
 
   it('deploys', async () => {
-    await deployer.deploy(governanceConfig);
+    await governanceDeployer.deploy(governanceConfig);
   });
 
   it('writes', async () => {
-    deployer.writeOutput('./test/outputs');
+    governanceDeployer.writeOutput('./test/outputs');
   });
 
   it('checks', async () => {
-    const governance = new AbacusGovernance(deployer.addressesRecord())
-    await registerMultiProvider(governance)
+    const governance = new AbacusGovernance(governanceDeployer.addressesRecord())
+    const [signer] = await ethers.getSigners();
+    registerMultiProviderTest(governance, signer);
 
     const checker = new AbacusGovernanceChecker(
       governance,

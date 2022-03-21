@@ -1,6 +1,7 @@
 import { hexlify } from '@ethersproject/bytes';
 import { BigNumberish, ethers } from 'ethers';
 import { BridgeToken, BridgeToken__factory } from '@abacus-network/apps';
+import { types } from '@abacus-network/utils';
 
 import { AbacusApp } from '../app';
 import { domains } from '../domains';
@@ -271,6 +272,16 @@ export class AbacusBridge extends AbacusApp<
     }
 
     return message as TransferMessage;
+  }
+
+  // TODO(asa): confirmations
+  async transferOwnership(owners: Record<number, types.Address>): Promise<void> {
+    await Promise.all(
+      this.domainNumbers.map((domain) => {
+        const owner = owners[domain]
+        if (!owner) throw new Error(`Missing owner for ${domain}`)
+        return this.mustGetContracts(domain).transferOwnership(owner, this.getOverrides(domain));
+      }))
   }
 }
 

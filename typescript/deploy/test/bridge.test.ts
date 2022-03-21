@@ -8,19 +8,21 @@ import {
   AbacusBridgeChecker,
   BridgeConfig,
 } from '../src/bridge';
-import { core as coreConfig, registerMultiProvider, bridge as partialBridgeConfig } from '../config/environments/local';
+import { core as coreConfig, registerMultiProviderTest, bridge as partialBridgeConfig } from '../config/environments/local';
 
 describe('bridge', async () => {
   const coreDeployer = new AbacusCoreDeployer();
-  const deployer = new AbacusBridgeDeployer();
-  let bridgeConfig: BridgeConfig;
+  const bridgeDeployer = new AbacusBridgeDeployer();
   const owners: Record<types.Domain, types.Address> = {};
+  let bridge: AbacusBridge;
+  let bridgeConfig: BridgeConfig;
 
   before(async () => {
-    await registerMultiProvider(coreDeployer);
+    const [signer, owner] = await ethers.getSigners();
+    registerMultiProviderTest(bridgeDeployer, signer);
+    registerMultiProviderTest(coreDeployer, signer);
     await coreDeployer.deploy(coreConfig);
 
-    const [_, owner] = await ethers.getSigners();
     bridgeConfig = { ...partialBridgeConfig, core: {} };
     coreDeployer.domainNumbers.map((domain) => {
       owners[domain] = owner.address;
@@ -33,17 +35,21 @@ describe('bridge', async () => {
   });
 
   it('deploys', async () => {
-    await deployer.deploy(bridgeConfig);
+    await bridgeDeployer.deploy(bridgeConfig);
   });
 
   it('writes', async () => {
-    deployer.writeOutput('./test/outputs');
+    bridgeDeployer.writeOutput('./test/outputs');
+  });
+
+  it('transfers ownership', async () => {
+    bridge = new AbacusBridge(bridgeDeployer.addressesRecord())
+    const [signer] = await ethers.getSigners();
+    registerMultiProviderTest(bridge, signer);
+    await bridge.transferOwnership(owners);
   });
 
   it('checks', async () => {
-    const bridge = new AbacusBridge(deployer.addressesRecord())
-    await registerMultiProvider(bridge)
-
     const checker = new AbacusBridgeChecker(
       bridge,
       bridgeConfig,

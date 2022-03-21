@@ -4,19 +4,19 @@ import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
 import { DeployEnvironment } from '../src/config';
 import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
-import { core as coreConfig, registerMultiProvider } from '../config/environments/local';
+import { core as coreConfig, registerMultiProviderTest } from '../config/environments/local';
 
 describe('core', async () => {
-  let core: AbacusCore;
   const deployer = new AbacusCoreDeployer();
+  let core: AbacusCore;
 
   const owners: Record<types.Domain, types.Address> = {};
   before(async () => {
-    const [_, owner] = await ethers.getSigners();
+    const [signer, owner] = await ethers.getSigners();
+    registerMultiProviderTest(deployer, signer);
     deployer.domainNumbers.map((d) => {
       owners[d] = owner.address;
     })
-    await registerMultiProvider(deployer);
   });
 
   it('deploys', async () => {
@@ -31,10 +31,9 @@ describe('core', async () => {
 
   it('transfers ownership', async () => {
     core = new AbacusCore(deployer.addressesRecord())
-    await registerMultiProvider(core)
-    deployer.domainNumbers.forEach(async (d) => {
-      await core.mustGetContracts(d).transferOwnership(owners[d]);
-    })
+    const [signer] = await ethers.getSigners();
+    registerMultiProviderTest(core, signer);
+    await core.transferOwnership(owners);
   });
 
   it('checks', async () => {

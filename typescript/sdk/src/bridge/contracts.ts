@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import {
   ETHHelper,
   ETHHelper__factory,
@@ -35,5 +36,10 @@ export class BridgeContracts extends AbacusAppContracts<BridgeContractAddresses>
   get helper(): ETHHelper | undefined {
     if (this._addresses.helper == undefined) return undefined;
     return ETHHelper__factory.connect(this._addresses.helper, this.connection);
+  }
+
+  // TODO(asa): Overrides, confirmations
+  async transferOwnership(owner: types.Address, overrides: ethers.Overrides): Promise<void> {
+    await this.router.transferOwnership(owner, overrides);
   }
 }
