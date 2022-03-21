@@ -1,39 +1,37 @@
 import { ethers } from 'ethers';
-import { CoreContracts } from '../contracts';
 
-import * as utils from './utils';
-
-export type Address = string;
-
-export interface Call {
-  to: Address;
-  data: ethers.utils.BytesLike;
-}
+import { GovernanceContracts } from './contracts';
+import { Call, normalizeCall, associateCalls } from './utils';
 
 export class CallBatch {
   readonly calls: Map<number, Readonly<Call>[]>;
-  private core: CoreContracts;
+  private governance: GovernanceContracts;
+  private domain: number;
   private built?: ethers.PopulatedTransaction[];
 
-  constructor(core: CoreContracts) {
-    this.core = core;
+  constructor(domain: number, governance: GovernanceContracts) {
+    this.governance = governance;
+    this.domain = domain;
     this.calls = new Map();
   }
 
-  static async fromCore(core: CoreContracts): Promise<CallBatch> {
-    const governor = await core.governor();
-    if (governor.identifier === ethers.constants.AddressZero)
+  static async fromContracts(
+    domain: number,
+    governance: GovernanceContracts,
+  ): Promise<CallBatch> {
+    const governor = await governance.router.governor();
+    if (governor === ethers.constants.AddressZero)
       throw new Error(
         'Cannot create call batch on a chain without governance rights. Use the governing chain.',
       );
-    return new CallBatch(core);
+    return new CallBatch(domain, governance);
   }
 
   push(domain: number, call: Call): void {
     if (this.built)
       throw new Error('Batch has been built. Cannot push more calls');
     const calls = this.calls.get(domain);
-    const normalized = utils.normalizeCall(call);
+    const normalized = normalizeCall(call);
     if (!calls) {
       this.calls.set(domain, [normalized]);
     } else {
@@ -44,13 +42,13 @@ export class CallBatch {
   // Build governance transactions from this callbatch
   async build(): Promise<ethers.PopulatedTransaction[]> {
     if (this.built) return this.built;
-    const [domains, calls] = utils.associateCalls(this.calls);
+    const [domains, calls] = associateCalls(this.calls);
     this.built = await Promise.all(
       domains.map((domain: number, i: number) => {
-        if (domain === this.core.domain) {
-          return this.core.governanceRouter.populateTransaction.call(calls[i]);
+        if (domain === this.domain) {
+          return this.governance.router.populateTransaction.call(calls[i]);
         } else {
-          return this.core.governanceRouter.populateTransaction.callRemote(
+          return this.governance.router.populateTransaction.callRemote(
             domain,
             calls[i],
           );
@@ -74,25 +72,24 @@ export class CallBatch {
 
   async estimateGas(): Promise<ethers.BigNumber[]> {
     const transactions = await this.build();
-    const governor = await this.core.governor();
+    const governor = await this.governance.router.governor();
     const responses = [];
     for (const tx of transactions) {
       const txToEstimate = tx;
       // Estimate gas as the governor
-      txToEstimate.from = governor.identifier;
+      txToEstimate.from = governor;
       responses.push(
-        await this.core.governanceRouter.provider.estimateGas(txToEstimate),
+        await this.governance.router.provider.estimateGas(txToEstimate),
       );
     }
     return responses;
   }
 
   async governorSigner(): Promise<ethers.Signer> {
-    const signer = this.core.governanceRouter.signer;
-    const governor = await this.core.governor();
+    const signer = this.governance.router.signer;
+    const governor = await this.governance.router.governor();
     const signerAddress = await signer.getAddress();
-    if (signerAddress !== governor.identifier)
-      throw new Error('Signer is not Governor');
+    if (signerAddress !== governor) throw new Error('Signer is not Governor');
     return signer;
   }
 }

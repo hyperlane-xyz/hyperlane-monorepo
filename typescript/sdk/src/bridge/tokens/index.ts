@@ -1,10 +1,11 @@
 import { BytesLike } from 'ethers';
 import { BridgeToken } from '@abacus-network/apps';
+import { NameOrDomain } from '../../types';
 import wellKnown from './wellKnown';
 import testnetWellKnown from './testnetWellKnown';
 
 export interface TokenIdentifier {
-  domain: string | number;
+  domain: NameOrDomain;
   id: BytesLike;
 }
 

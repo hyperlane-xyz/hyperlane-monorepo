@@ -1,25 +1,27 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
-import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
-import { AbacusContext } from '..';
-import { delay } from '../../utils';
-import {
-  DispatchEvent,
-  AnnotatedDispatch,
-  AnnotatedCheckpoint,
-  AnnotatedProcess,
-  CheckpointTypes,
-  CheckpointArgs,
-  ProcessTypes,
-  ProcessArgs,
-  AnnotatedLifecycleEvent,
-  Annotated,
-  DispatchTypes,
-} from '../events';
-
-import { findAnnotatedSingleEvent } from '..';
 import { keccak256 } from 'ethers/lib/utils';
+
+import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+
+import { Annotated, findAnnotatedSingleEvent } from '../events';
+import { NameOrDomain } from '../types';
+import { delay } from '../utils';
+
+import { AbacusCore } from '.';
+import {
+  AnnotatedCheckpoint,
+  AnnotatedDispatch,
+  AnnotatedLifecycleEvent,
+  AnnotatedProcess,
+  CheckpointArgs,
+  CheckpointTypes,
+  DispatchEvent,
+  DispatchTypes,
+  ProcessArgs,
+  ProcessTypes,
+} from './events';
 
 export type ParsedMessage = {
   from: number;
@@ -80,18 +82,15 @@ export class AbacusMessage {
   readonly outbox: Outbox;
   readonly inbox: Inbox;
 
-  readonly context: AbacusContext;
+  readonly core: AbacusCore;
   protected cache: EventCache;
 
-  constructor(context: AbacusContext, dispatch: AnnotatedDispatch) {
-    this.context = context;
+  constructor(core: AbacusCore, dispatch: AnnotatedDispatch) {
+    this.core = core;
     this.message = parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
-    this.outbox = context.mustGetCore(this.message.from).outbox;
-    this.inbox = context.mustGetInboxFor(
-      this.message.from,
-      this.message.destination,
-    );
+    this.outbox = core.mustGetContracts(this.message.from).outbox;
+    this.inbox = core.mustGetInbox(this.message.from, this.message.destination);
     this.cache = {};
   }
 
@@ -105,14 +104,14 @@ export class AbacusMessage {
   /**
    * Instantiate one or more messages from a receipt.
    *
-   * @param context the {@link AbacusContext} object to use
+   * @param core the {@link AbacusCore} object to use
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt the receipt
    * @returns an array of {@link AbacusMessage} objects
    */
   static fromReceipt(
-    context: AbacusContext,
-    nameOrDomain: string | number,
+    core: AbacusCore,
+    nameOrDomain: NameOrDomain,
     receipt: TransactionReceipt,
   ): AbacusMessage[] {
     const messages: AbacusMessage[] = [];
@@ -124,29 +123,27 @@ export class AbacusMessage {
         if (parsed.name === 'Dispatch') {
           const dispatch = parsed as unknown as DispatchEvent;
           dispatch.getBlock = () => {
-            return context
-              .mustGetProvider(nameOrDomain)
-              .getBlock(log.blockHash);
+            return core.mustGetProvider(nameOrDomain).getBlock(log.blockHash);
           };
           dispatch.getTransaction = () => {
-            return context
+            return core
               .mustGetProvider(nameOrDomain)
               .getTransaction(log.transactionHash);
           };
           dispatch.getTransactionReceipt = () => {
-            return context
+            return core
               .mustGetProvider(nameOrDomain)
               .getTransactionReceipt(log.transactionHash);
           };
 
           const annotated = new Annotated<DispatchTypes, DispatchEvent>(
-            context.resolveDomain(nameOrDomain),
+            core.resolveDomain(nameOrDomain),
             receipt,
             dispatch,
             true,
           );
           annotated.event.blockNumber = annotated.receipt.blockNumber;
-          const message = new AbacusMessage(context, annotated);
+          const message = new AbacusMessage(core, annotated);
           messages.push(message);
         }
       } catch (e) {
@@ -159,19 +156,19 @@ export class AbacusMessage {
   /**
    * Instantiate EXACTLY one message from a receipt.
    *
-   * @param context the {@link AbacusContext} object to use
+   * @param core the {@link AbacusCore} object to use
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt the receipt
    * @returns an array of {@link AbacusMessage} objects
    * @throws if there is not EXACTLY 1 dispatch in the receipt
    */
   static singleFromReceipt(
-    context: AbacusContext,
-    nameOrDomain: string | number,
+    core: AbacusCore,
+    nameOrDomain: NameOrDomain,
     receipt: TransactionReceipt,
   ): AbacusMessage {
     const messages: AbacusMessage[] = AbacusMessage.fromReceipt(
-      context,
+      core,
       nameOrDomain,
       receipt,
     );
@@ -184,29 +181,29 @@ export class AbacusMessage {
   /**
    * Instantiate one or more messages from a tx hash.
    *
-   * @param context the {@link AbacusContext} object to use
+   * @param core the {@link AbacusCore} object to use
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt the receipt
    * @returns an array of {@link AbacusMessage} objects
    * @throws if there is no receipt for the TX
    */
   static async fromTransactionHash(
-    context: AbacusContext,
-    nameOrDomain: string | number,
+    core: AbacusCore,
+    nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AbacusMessage[]> {
-    const provider = context.mustGetProvider(nameOrDomain);
+    const provider = core.mustGetProvider(nameOrDomain);
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return AbacusMessage.fromReceipt(context, nameOrDomain, receipt);
+    return AbacusMessage.fromReceipt(core, nameOrDomain, receipt);
   }
 
   /**
    * Instantiate EXACTLY one message from a transaction has.
    *
-   * @param context the {@link AbacusContext} object to use
+   * @param core the {@link AbacusCore} object to use
    * @param nameOrDomain the domain on which the receipt was logged
    * @param receipt the receipt
    * @returns an array of {@link AbacusMessage} objects
@@ -214,16 +211,16 @@ export class AbacusMessage {
    *         the receipt
    */
   static async singleFromTransactionHash(
-    context: AbacusContext,
-    nameOrDomain: string | number,
+    core: AbacusCore,
+    nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AbacusMessage> {
-    const provider = context.mustGetProvider(nameOrDomain);
+    const provider = core.mustGetProvider(nameOrDomain);
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return AbacusMessage.singleFromReceipt(context, nameOrDomain, receipt);
+    return AbacusMessage.singleFromReceipt(core, nameOrDomain, receipt);
   }
 
   /**
@@ -255,7 +252,7 @@ export class AbacusMessage {
 
     const checkpointLogs: AnnotatedCheckpoint[] =
       await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
-        this.context,
+        this.core,
         this.origin,
         this.outbox,
         checkpointFilter,
@@ -299,7 +296,7 @@ export class AbacusMessage {
     );
     const checkpointLogs: AnnotatedCheckpoint[] =
       await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
-        this.context,
+        this.core,
         this.destination,
         this.inbox,
         checkpointFilter,
@@ -330,7 +327,7 @@ export class AbacusMessage {
     const processLogs = await findAnnotatedSingleEvent<
       ProcessTypes,
       ProcessArgs
-    >(this.context, this.destination, this.inbox, processFilter, startBlock);
+    >(this.core, this.destination, this.inbox, processFilter, startBlock);
     if (processLogs.length === 1) {
       // if event is returned, store it to the object
       this.cache.process = processLogs[0];
