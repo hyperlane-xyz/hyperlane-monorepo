@@ -4,7 +4,10 @@ import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
 import { DeployEnvironment } from '../src/config';
 import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
-import { core as coreConfig, registerMultiProviderTest } from '../config/environments/local';
+import {
+  core as coreConfig,
+  registerMultiProviderTest,
+} from '../config/environments/local';
 
 describe('core', async () => {
   const deployer = new AbacusCoreDeployer();
@@ -16,7 +19,7 @@ describe('core', async () => {
     registerMultiProviderTest(deployer, signer);
     deployer.domainNumbers.map((d) => {
       owners[d] = owner.address;
-    })
+    });
   });
 
   it('deploys', async () => {
@@ -24,13 +27,13 @@ describe('core', async () => {
   });
 
   it('writes', async () => {
-    const outputDir = './test/outputs'
-    deployer.writeOutput(outputDir)
+    const outputDir = './test/outputs';
+    deployer.writeOutput(outputDir);
     deployer.writeRustConfigs(DeployEnvironment.dev, outputDir);
   });
 
   it('transfers ownership', async () => {
-    core = new AbacusCore(deployer.addressesRecord())
+    core = new AbacusCore(deployer.addressesRecord());
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(core, signer);
     await core.transferOwnership(owners);

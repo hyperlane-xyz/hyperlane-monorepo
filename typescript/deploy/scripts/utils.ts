@@ -1,9 +1,6 @@
 import path from 'path';
 import yargs from 'yargs';
-import {
-  AbacusCore,
-  MultiProvider,
-} from '@abacus-network/sdk';
+import { AbacusCore, MultiProvider } from '@abacus-network/sdk';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
   AgentConfig,
@@ -13,9 +10,7 @@ import {
 } from '../src/config';
 import { CoreConfig } from '../src/core';
 import { BridgeConfig } from '../src/bridge';
-import {
-  GovernanceConfig,
-} from '../src/governance';
+import { GovernanceConfig } from '../src/governance';
 import { RouterConfig, RouterAddresses } from '../src/router';
 
 export function getArgs() {
@@ -54,18 +49,18 @@ export async function getRouterConfig(
 ): Promise<RouterConfig> {
   const addresses: Record<string, RouterAddresses> = {};
   core.domainNames.map((name) => {
-    const contracts = core.mustGetContracts(name)
+    const contracts = core.mustGetContracts(name);
     addresses[name] = {
       upgradeBeaconController: contracts.upgradeBeaconController.address,
       xAppConnectionManager: contracts.xAppConnectionManager.address,
     };
-  })
+  });
   return { core: addresses };
 }
 
 export async function getBridgeConfig(
   environment: DeployEnvironment,
-  core: AbacusCore
+  core: AbacusCore,
 ): Promise<BridgeConfig> {
   const moduleName = `../config/environments/${environment}/bridge`;
   const partial = (await importModule(moduleName)).bridge;
@@ -74,7 +69,7 @@ export async function getBridgeConfig(
 
 export async function getGovernanceConfig(
   environment: DeployEnvironment,
-  core: AbacusCore
+  core: AbacusCore,
 ): Promise<GovernanceConfig> {
   const moduleName = `../config/environments/${environment}/governance`;
   const partial = (await importModule(moduleName)).governance;
@@ -174,14 +169,16 @@ export async function registerGovernorSigner(
 
 export async function getKeyRoleAndChainArgs() {
   const args = await getArgs();
-  return args
-    .alias('r', 'role')
-    .describe('r', 'key role')
-    .choices('r', Object.values(KEY_ROLE_ENUM))
-    .require('r')
-    .alias('c', 'chain')
-    .describe('c', 'chain name')
-//    .choices('c', Object.values(ChainName))
-     .choices('c', ['todo'])
-    .require('c');
+  return (
+    args
+      .alias('r', 'role')
+      .describe('r', 'key role')
+      .choices('r', Object.values(KEY_ROLE_ENUM))
+      .require('r')
+      .alias('c', 'chain')
+      .describe('c', 'chain name')
+      //    .choices('c', Object.values(ChainName))
+      .choices('c', ['todo'])
+      .require('c')
+  );
 }

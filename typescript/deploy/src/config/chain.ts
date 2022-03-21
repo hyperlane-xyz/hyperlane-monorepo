@@ -8,7 +8,7 @@ export type TransactionConfig = {
   supports1559?: boolean;
   // The number of confirmations considered reorg safe
   confirmations?: number;
-}
+};
 
 export async function fetchSigner(
   environment: string,

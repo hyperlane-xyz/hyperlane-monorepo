@@ -8,7 +8,11 @@ import {
   AbacusGovernanceChecker,
   GovernanceConfig,
 } from '../src/governance';
-import { core as coreConfig, registerMultiProviderTest, governance as partialGovernanceConfig } from '../config/environments/local';
+import {
+  core as coreConfig,
+  registerMultiProviderTest,
+  governance as partialGovernanceConfig,
+} from '../config/environments/local';
 
 describe('governance', async () => {
   const coreDeployer = new AbacusCoreDeployer();
@@ -17,19 +21,19 @@ describe('governance', async () => {
   let governanceConfig: GovernanceConfig;
 
   before(async () => {
-    const [signer ] = await ethers.getSigners();
+    const [signer] = await ethers.getSigners();
     registerMultiProviderTest(governanceDeployer, signer);
     registerMultiProviderTest(coreDeployer, signer);
     await coreDeployer.deploy(coreConfig);
 
     governanceConfig = { ...partialGovernanceConfig, core: {} };
     coreDeployer.domainNumbers.map((domain) => {
-      const name = coreDeployer.mustResolveDomainName(domain)
+      const name = coreDeployer.mustResolveDomainName(domain);
       const addresses = partialGovernanceConfig.addresses[name];
       if (!addresses) throw new Error('could not find addresses');
       const owner = addresses.governor;
       owners[domain] = owner ? owner : ethers.constants.AddressZero;
-      const coreAddresses = coreDeployer.mustGetAddresses(domain)
+      const coreAddresses = coreDeployer.mustGetAddresses(domain);
       governanceConfig.core[name] = {
         upgradeBeaconController: coreAddresses.upgradeBeaconController,
         xAppConnectionManager: coreAddresses.xAppConnectionManager,
@@ -46,7 +50,9 @@ describe('governance', async () => {
   });
 
   it('checks', async () => {
-    const governance = new AbacusGovernance(governanceDeployer.addressesRecord())
+    const governance = new AbacusGovernance(
+      governanceDeployer.addressesRecord(),
+    );
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(governance, signer);
 

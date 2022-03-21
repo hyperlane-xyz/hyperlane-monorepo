@@ -13,12 +13,17 @@ export const registerMultiProvider = (multiProvider: MultiProvider) => {
 
   const wallet = new ethers.Wallet(key, provider);
   const signer = new NonceManager(wallet);
-  registerMultiProviderTest(multiProvider, signer)
+  registerMultiProviderTest(multiProvider, signer);
 };
 
-export const registerMultiProviderTest = (multiProvider: MultiProvider, signer: ethers.Signer) => {
-  const domainNames: ChainName[] = ['alfajores', 'kovan', 'mumbai', 'fuji']
-  domainNames.forEach((name) => multiProvider.registerDomain(domains[name]))
-  domainNames.forEach((name) => multiProvider.registerOverrides(name, configs[name]!.overrides))
-  domainNames.forEach((name) => multiProvider.registerSigner(name, signer))
+export const registerMultiProviderTest = (
+  multiProvider: MultiProvider,
+  signer: ethers.Signer,
+) => {
+  const domainNames: ChainName[] = ['alfajores', 'kovan', 'mumbai', 'fuji'];
+  domainNames.forEach((name) => multiProvider.registerDomain(domains[name]));
+  domainNames.forEach((name) =>
+    multiProvider.registerOverrides(name, configs[name]!.overrides),
+  );
+  domainNames.forEach((name) => multiProvider.registerSigner(name, signer));
 };

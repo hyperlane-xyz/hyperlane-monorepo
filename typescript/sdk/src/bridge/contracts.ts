@@ -39,7 +39,10 @@ export class BridgeContracts extends AbacusAppContracts<BridgeContractAddresses>
   }
 
   // TODO(asa): Overrides, confirmations
-  async transferOwnership(owner: types.Address, overrides: ethers.Overrides): Promise<void> {
+  async transferOwnership(
+    owner: types.Address,
+    overrides: ethers.Overrides,
+  ): Promise<void> {
     await this.router.transferOwnership(owner, overrides);
   }
 }

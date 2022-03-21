@@ -2,8 +2,10 @@ import { types, utils } from '@abacus-network/utils';
 import { AbacusAppDeployer } from '../deploy';
 import { Router } from './types';
 
-export abstract class AbacusRouterDeployer<T, C> extends AbacusAppDeployer<T, C> {
-
+export abstract class AbacusRouterDeployer<T, C> extends AbacusAppDeployer<
+  T,
+  C
+> {
   async deploy(config: C) {
     await super.deploy(config);
 
@@ -11,7 +13,7 @@ export abstract class AbacusRouterDeployer<T, C> extends AbacusAppDeployer<T, C>
     for (const local of this.domainNumbers) {
       const router = this.mustGetRouter(local);
       for (const remote of this.remoteDomainNumbers(local)) {
-        const remoteRouter = this.mustGetRouter(remote)
+        const remoteRouter = this.mustGetRouter(remote);
         await router.enrollRemoteRouter(
           remote,
           utils.addressToBytes32(remoteRouter.address),

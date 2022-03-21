@@ -43,7 +43,7 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
   get validatorManager(): ValidatorManager {
     return ValidatorManager__factory.connect(
       this._addresses.validatorManager,
-      this.connection
+      this.connection,
     );
   }
 
@@ -62,7 +62,10 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
   }
 
   // TODO(asa): Overrides, confirmations
-  async transferOwnership(owner: types.Address, overrides: ethers.Overrides): Promise<void> {
+  async transferOwnership(
+    owner: types.Address,
+    overrides: ethers.Overrides,
+  ): Promise<void> {
     await this.validatorManager.transferOwnership(owner, overrides);
     await this.xAppConnectionManager.transferOwnership(owner, overrides);
     await this.upgradeBeaconController.transferOwnership(owner, overrides);

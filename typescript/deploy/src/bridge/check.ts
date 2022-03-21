@@ -31,7 +31,7 @@ export class AbacusBridgeChecker extends AbacusRouterChecker<
   */
 
   checkEthHelper(domain: types.Domain): void {
-    const helper = this.app.mustGetContracts(domain).helper
+    const helper = this.app.mustGetContracts(domain).helper;
     if (this.config.weth[this.app.mustResolveDomainName(domain)]) {
       expect(helper).to.not.be.undefined;
     } else {

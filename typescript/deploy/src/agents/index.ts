@@ -117,7 +117,7 @@ export async function getAgentEnvVars(
     agentConfig,
     chainNames,
     // TODO(asa): Set confirmations
-    0
+    0,
   );
   const envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
@@ -292,7 +292,7 @@ export async function runAgentHelmCommand(
     agentConfig,
     chainNames,
     // TODO(asa): Set confirmations
-    0
+    0,
   );
   const values = helmifyValues(valueDict);
 
@@ -302,9 +302,7 @@ export async function runAgentHelmCommand(
       : '';
 
   return execCmd(
-    `helm ${action} ${
-      homeChainName
-    } ../../rust/helm/abacus-agent/ --namespace ${
+    `helm ${action} ${homeChainName} ../../rust/helm/abacus-agent/ --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},
@@ -331,7 +329,7 @@ export async function runKeymasterHelmCommand(
           name,
           {
             endpoint: '',
-              // TODO(asa): fetch rpc url programatically by chain name
+            // TODO(asa): fetch rpc url programatically by chain name
             bank: {
               signer: ensure0x(bankKey.privateKey),
               address: bankKey.address,

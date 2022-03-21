@@ -1,5 +1,5 @@
 import { BigNumber } from 'ethers';
-import { ChainName } from '@abacus-network/sdk'
+import { ChainName } from '@abacus-network/sdk';
 import { TransactionConfig } from '../../src/config/chain';
 
 export const alfajores: TransactionConfig = {
@@ -52,5 +52,12 @@ export const ropsten: TransactionConfig = {
 };
 
 export const configs: Partial<Record<ChainName, TransactionConfig>> = {
-  alfajores, fuji, goerli, kovan, mumbai, rinkarby, rinkeby, ropsten
-}
+  alfajores,
+  fuji,
+  goerli,
+  kovan,
+  mumbai,
+  rinkarby,
+  rinkeby,
+  ropsten,
+};

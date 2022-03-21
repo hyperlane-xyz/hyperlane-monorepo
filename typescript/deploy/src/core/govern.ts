@@ -1,5 +1,10 @@
 import { expect } from 'chai';
-import { Call, CallBatch, AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+import {
+  Call,
+  CallBatch,
+  AbacusCore,
+  AbacusGovernance,
+} from '@abacus-network/sdk';
 import {
   ValidatorViolation,
   UpgradeBeaconViolation,

@@ -57,11 +57,11 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   }
 
   async checkValidatorManager(domain: types.Domain): Promise<void> {
-    const manager = this.app.mustGetContracts(domain).validatorManager
+    const manager = this.app.mustGetContracts(domain).validatorManager;
 
     for (const d of this.app.domainNumbers) {
-      const name = this.app.mustResolveDomainName(d)
-      const expected = this.config.validators[name]
+      const name = this.app.mustResolveDomainName(d);
+      const expected = this.config.validators[name];
       expect(expected).to.not.be.undefined;
       const actual = await manager.validators(d);
       expect(actual).to.not.be.undefined;
@@ -105,10 +105,12 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     const contracts = this.app.mustGetContracts(domain);
     for (const remote of this.app.remoteDomainNumbers(domain)) {
       // inbox is enrolled in xAppConnectionManager
-      const enrolledInbox = await contracts
-        .xAppConnectionManager
-        .domainToInbox(remote);
-      expect(enrolledInbox).to.equal(this.app.mustGetInbox(remote, domain).address);
+      const enrolledInbox = await contracts.xAppConnectionManager.domainToInbox(
+        remote,
+      );
+      expect(enrolledInbox).to.equal(
+        this.app.mustGetInbox(remote, domain).address,
+      );
     }
     // Outbox is set on xAppConnectionManager
     const outbox = await contracts.xAppConnectionManager.outbox();

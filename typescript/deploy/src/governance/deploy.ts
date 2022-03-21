@@ -1,13 +1,18 @@
 import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { GovernanceRouter, GovernanceRouter__factory } from '@abacus-network/apps';
+import {
+  GovernanceRouter,
+  GovernanceRouter__factory,
+} from '@abacus-network/apps';
 import { ProxiedAddress } from '@abacus-network/sdk';
 import { AbacusRouterDeployer } from '../router';
 import { GovernanceConfig } from './types';
 
-export class AbacusGovernanceDeployer extends AbacusRouterDeployer<ProxiedAddress, GovernanceConfig> {
-
+export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
+  ProxiedAddress,
+  GovernanceConfig
+> {
   configDirectory(directory: string) {
     return path.join(directory, 'governance');
   }
@@ -17,12 +22,13 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<ProxiedAddres
     config: GovernanceConfig,
   ): Promise<ProxiedAddress> {
     const signer = this.mustGetSigner(domain);
-    const name = this.mustResolveDomainName(domain)
+    const name = this.mustResolveDomainName(domain);
     const core = config.core[name];
     if (!core) throw new Error('could not find core');
 
     const router = await this.deployBeaconProxy(
-      domain, 'GovernanceRouter',
+      domain,
+      'GovernanceRouter',
       new GovernanceRouter__factory(signer),
       core.upgradeBeaconController,
       [config.recoveryTimelock],
@@ -38,8 +44,8 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<ProxiedAddres
     // Transfer ownership of routers to governor and recovery manager.
     for (const local of this.domainNumbers) {
       const router = this.mustGetRouter(local);
-      const name = this.mustResolveDomainName(local)
-      const addresses = config.addresses[name]
+      const name = this.mustResolveDomainName(local);
+      const addresses = config.addresses[name];
       if (!addresses) throw new Error('could not find addresses');
       await router.transferOwnership(addresses.recoveryManager);
       if (addresses.governor !== undefined) {

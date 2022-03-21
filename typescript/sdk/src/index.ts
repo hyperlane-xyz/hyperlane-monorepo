@@ -37,5 +37,5 @@ export {
   TokenDeployedEvent,
 } from './bridge';
 export { AbacusAppContracts } from './contracts';
-export { AbacusApp } from './app'
-export { domains } from './domains'
+export { AbacusApp } from './app';
+export { domains } from './domains';

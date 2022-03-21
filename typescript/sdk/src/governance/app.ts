@@ -62,7 +62,6 @@ export class AbacusGovernance extends AbacusApp<
     return governors[0];
   }
 
-
   /*
   // TODO(asa): confirmations
   async transferOwnership(owners: Partial<Record<ChainName, types.Address>>): Promise<void> {

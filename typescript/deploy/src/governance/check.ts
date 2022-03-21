@@ -30,7 +30,8 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
 
   async checkGovernor(domain: types.Domain): Promise<void> {
     const actual = await this.mustGetRouter(domain).governor();
-    const addresses = this.config.addresses[this.app.mustResolveDomainName(domain)]
+    const addresses =
+      this.config.addresses[this.app.mustResolveDomainName(domain)];
     if (!addresses) throw new Error('could not find addresses');
     if (addresses.governor) {
       expect(actual).to.equal(addresses.governor);
@@ -41,7 +42,8 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
 
   async checkRecoveryManager(domain: types.Domain): Promise<void> {
     const actual = await this.mustGetRouter(domain).recoveryManager();
-    const addresses = this.config.addresses[this.app.mustResolveDomainName(domain)]
+    const addresses =
+      this.config.addresses[this.app.mustResolveDomainName(domain)];
     if (!addresses) throw new Error('could not find addresses');
     expect(actual).to.equal(addresses.recoveryManager);
   }

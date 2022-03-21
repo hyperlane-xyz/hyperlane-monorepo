@@ -33,12 +33,19 @@ export class MultiProvider {
     this.overrides = new Map();
   }
 
-  getFromMap<T>(nameOrDomain: NameOrDomain, map: Map<number, T>): T | undefined {
+  getFromMap<T>(
+    nameOrDomain: NameOrDomain,
+    map: Map<number, T>,
+  ): T | undefined {
     return map.get(this.resolveDomain(nameOrDomain));
   }
 
-  mustGetFromMap<T>(nameOrDomain: NameOrDomain, map: Map<number, T>, tname: string): T {
-    const item = this.getFromMap<T>(nameOrDomain, map)
+  mustGetFromMap<T>(
+    nameOrDomain: NameOrDomain,
+    map: Map<number, T>,
+    tname: string,
+  ): T {
+    const item = this.getFromMap<T>(nameOrDomain, map);
     if (!item) {
       throw new Error(`${tname} not found: ${nameOrDomain}`);
     }
@@ -117,7 +124,7 @@ export class MultiProvider {
    * @returns A {@link Domain} (if the domain has been registered)
    */
   getDomain(nameOrDomain: NameOrDomain): Domain | undefined {
-    return this.getFromMap(nameOrDomain, this.domains)
+    return this.getFromMap(nameOrDomain, this.domains);
   }
 
   /**
@@ -128,7 +135,7 @@ export class MultiProvider {
    * @throws if the domain has not been registered
    */
   mustGetDomain(nameOrDomain: NameOrDomain): Domain {
-    return this.mustGetFromMap(nameOrDomain, this.domains, 'Domain')
+    return this.mustGetFromMap(nameOrDomain, this.domains, 'Domain');
   }
 
   /**
@@ -144,7 +151,7 @@ export class MultiProvider {
   }
 
   mustResolveDomainName(nameOrDomain: NameOrDomain): ChainName {
-    return this.mustGetDomain(nameOrDomain).name
+    return this.mustGetDomain(nameOrDomain).name;
   }
 
   /**
@@ -193,7 +200,7 @@ export class MultiProvider {
    * @returns The currently registered Provider (or none)
    */
   getProvider(nameOrDomain: NameOrDomain): Provider | undefined {
-    return this.getFromMap(nameOrDomain, this.providers)
+    return this.getFromMap(nameOrDomain, this.providers);
   }
 
   /**
@@ -204,7 +211,7 @@ export class MultiProvider {
    * @throws If no provider has been registered for the specified domain
    */
   mustGetProvider(nameOrDomain: NameOrDomain): Provider {
-    return this.mustGetFromMap(nameOrDomain, this.providers, 'Provider')
+    return this.mustGetFromMap(nameOrDomain, this.providers, 'Provider');
   }
 
   /**
@@ -289,13 +296,11 @@ export class MultiProvider {
    * @returns The registered signer (or undefined)
    */
   getSigner(nameOrDomain: NameOrDomain): ethers.Signer | undefined {
-    return this.getFromMap(nameOrDomain, this.signers)
+    return this.getFromMap(nameOrDomain, this.signers);
   }
 
-  mustGetSigner(
-    nameOrDomain: NameOrDomain,
-  ): ethers.Signer {
-    return this.mustGetFromMap(nameOrDomain, this.signers, 'Signer')
+  mustGetSigner(nameOrDomain: NameOrDomain): ethers.Signer {
+    return this.mustGetFromMap(nameOrDomain, this.signers, 'Signer');
   }
 
   /**
@@ -322,7 +327,7 @@ export class MultiProvider {
       throw new Error(`Connection not found: ${nameOrDomain}`);
     }
 
-    return connection
+    return connection;
   }
 
   /**
@@ -337,10 +342,10 @@ export class MultiProvider {
   }
 
   registerOverrides(nameOrDomain: NameOrDomain, overrides: ethers.Overrides) {
-    this.overrides.set(this.resolveDomain(nameOrDomain), overrides)
+    this.overrides.set(this.resolveDomain(nameOrDomain), overrides);
   }
 
   getOverrides(nameOrDomain: NameOrDomain): ethers.Overrides {
-    return this.getFromMap(nameOrDomain, this.overrides) || {}
+    return this.getFromMap(nameOrDomain, this.overrides) || {};
   }
 }

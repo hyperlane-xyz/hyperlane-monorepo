@@ -21,7 +21,6 @@ export class BeaconProxy<T extends ethers.Contract> {
     public readonly contract: T,
   ) {}
 
-
   static fromObject<T extends ethers.Contract>(
     addresses: ProxiedAddress,
     abi: any,

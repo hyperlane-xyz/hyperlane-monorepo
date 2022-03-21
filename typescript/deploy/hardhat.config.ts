@@ -9,7 +9,10 @@ import { getEnvironmentDirectory } from './scripts/utils';
 import { AbacusCoreDeployer } from './src/core';
 import { DeployEnvironment } from './src/config';
 import { ContractVerifier } from './src/verification';
-import { registerMultiProvider, core as coreConfig } from './config/environments/local';
+import {
+  registerMultiProvider,
+  core as coreConfig,
+} from './config/environments/local';
 
 /*
 const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
@@ -47,17 +50,19 @@ const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
 };
 */
 
-task('abacus', 'Deploys abacus on top of an already running Harthat Network')
-  .setAction(async (args: any) => {
-    const deployer = new AbacusCoreDeployer();
-    registerMultiProvider(deployer);
-    await deployer.deploy(coreConfig);
+task(
+  'abacus',
+  'Deploys abacus on top of an already running Harthat Network',
+).setAction(async (args: any) => {
+  const deployer = new AbacusCoreDeployer();
+  registerMultiProvider(deployer);
+  await deployer.deploy(coreConfig);
 
-    // Write configs
-    const env = DeployEnvironment.local;
-    deployer.writeOutput(getEnvironmentDirectory(env))
-    deployer.writeRustConfigs(env, getEnvironmentDirectory(env))
-  });
+  // Write configs
+  const env = DeployEnvironment.local;
+  deployer.writeOutput(getEnvironmentDirectory(env));
+  deployer.writeRustConfigs(env, getEnvironmentDirectory(env));
+});
 
 /*
 task('kathy', 'Dispatches random abacus messages')

@@ -50,11 +50,7 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   abstract checkDomain(domain: types.Domain): Promise<void>;
   abstract checkOwnership(domain: types.Domain): Promise<void>;
 
-  constructor(
-    app: A,
-    config: C,
-    owners: Record<types.Domain, types.Address>,
-  ) {
+  constructor(app: A, config: C, owners: Record<types.Domain, types.Address>) {
     this.app = app;
     this.config = config;
     this.owners = owners;

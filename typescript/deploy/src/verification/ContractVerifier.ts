@@ -8,7 +8,14 @@ import { DeployEnvironment } from '../config';
 
 import { ContractVerificationInput, VerificationInput } from './types';
 
-const etherscanChains = ['ethereum', 'kovan', 'goerli', 'ropsten', 'rinkeby', 'polygon']
+const etherscanChains = [
+  'ethereum',
+  'kovan',
+  'goerli',
+  'ropsten',
+  'rinkeby',
+  'polygon',
+];
 
 export class ContractVerifier {
   constructor(

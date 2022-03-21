@@ -11,7 +11,10 @@ import {
 } from '@abacus-network/core';
 
 import { BeaconProxy } from './proxy';
-import { VerificationInput, getContractVerificationInput } from './verification';
+import {
+  VerificationInput,
+  getContractVerificationInput,
+} from './verification';
 
 export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   protected confirmations: Map<number, number>;
@@ -26,37 +29,38 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   }
 
   getConfirmations(nameOrDomain: NameOrDomain): number {
-    return this.getFromMap(nameOrDomain, this.confirmations) || 0
+    return this.getFromMap(nameOrDomain, this.confirmations) || 0;
   }
 
   getAddresses(nameOrDomain: NameOrDomain): T | undefined {
-    return this.getFromMap(nameOrDomain, this.addresses)
+    return this.getFromMap(nameOrDomain, this.addresses);
   }
 
   mustGetAddresses(nameOrDomain: NameOrDomain): T {
-    return this.mustGetFromMap(nameOrDomain, this.addresses, 'Addresses')
+    return this.mustGetFromMap(nameOrDomain, this.addresses, 'Addresses');
   }
 
   getVerification(nameOrDomain: NameOrDomain): VerificationInput | undefined {
-    return this.getFromMap(nameOrDomain, this.verification)
+    return this.getFromMap(nameOrDomain, this.verification);
   }
 
   mustGetVerification(nameOrDomain: NameOrDomain): VerificationInput {
-    return this.mustGetFromMap(nameOrDomain, this.verification, 'Verification')
+    return this.mustGetFromMap(nameOrDomain, this.verification, 'Verification');
   }
 
   addressesRecord(): Partial<Record<ChainName, T>> {
-    const addresses: Partial<Record<ChainName, T>> = {}
+    const addresses: Partial<Record<ChainName, T>> = {};
     this.domainNumbers.map((domain) => {
-      addresses[this.mustResolveDomainName(domain)] = this.mustGetAddresses(domain);
-    })
+      addresses[this.mustResolveDomainName(domain)] =
+        this.mustGetAddresses(domain);
+    });
     return addresses;
   }
 
   addVerificationInput(nameOrDomain: NameOrDomain, input: VerificationInput) {
     const domain = this.resolveDomain(nameOrDomain);
     const verification = this.verification.get(domain) || [];
-    this.verification.set(domain, verification.concat(input))
+    this.verification.set(domain, verification.concat(input));
   }
 
   abstract deployContracts(domain: types.Domain, config: C): Promise<T>;
@@ -84,12 +88,10 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     const overrides = this.getOverrides(nameOrDomain);
     // TODO(asa): Confirmations
     const contract = (await factory.deploy(...args, overrides)) as L;
-    await contract.deployTransaction.wait(this.getConfirmations(nameOrDomain))
-    this.addVerificationInput(nameOrDomain, [getContractVerificationInput(
-      contractName,
-      contract,
-      factory.bytecode
-    )]);
+    await contract.deployTransaction.wait(this.getConfirmations(nameOrDomain));
+    this.addVerificationInput(nameOrDomain, [
+      getContractVerificationInput(contractName, contract, factory.bytecode),
+    ]);
     return contract;
   }
 
@@ -108,9 +110,15 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     initArgs: any[],
   ): Promise<BeaconProxy<L>> {
     const signer = this.mustGetSigner(nameOrDomain);
-    const implementation: L = await this.deployContract(nameOrDomain, `${contractName} Implementation`, factory, ...deployArgs);
+    const implementation: L = await this.deployContract(
+      nameOrDomain,
+      `${contractName} Implementation`,
+      factory,
+      ...deployArgs,
+    );
     const beacon: UpgradeBeacon = await this.deployContract(
-      nameOrDomain, `${contractName} UpgradeBeacon`,
+      nameOrDomain,
+      `${contractName} UpgradeBeacon`,
       new UpgradeBeacon__factory(signer),
       implementation.address,
       ubcAddress,
@@ -121,7 +129,8 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
       initArgs,
     );
     const proxy: UpgradeBeaconProxy = await this.deployContract(
-      nameOrDomain, `${contractName} Proxy`,
+      nameOrDomain,
+      `${contractName} Proxy`,
       new UpgradeBeaconProxy__factory(signer),
       beacon.address,
       initData,
@@ -153,7 +162,8 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
       initArgs,
     );
     const proxy: UpgradeBeaconProxy = await this.deployContract(
-      nameOrDomain, `${contractName} Proxy`,
+      nameOrDomain,
+      `${contractName} Proxy`,
       new UpgradeBeaconProxy__factory(this.mustGetSigner(nameOrDomain)),
       beaconProxy.beacon.address,
       initData,
@@ -169,7 +179,11 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
 
   async ready(): Promise<void> {
     await Promise.all(
-      this.domainNumbers.map((domain) => (this.mustGetProvider(domain) as ethers.providers.JsonRpcProvider).ready)
+      this.domainNumbers.map(
+        (domain) =>
+          (this.mustGetProvider(domain) as ethers.providers.JsonRpcProvider)
+            .ready,
+      ),
     );
   }
 
@@ -187,17 +201,19 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   writeContracts(directory: string) {
     AbacusAppDeployer.writeJson(
       path.join(this.configDirectory(directory), 'contracts.json'),
-      this.addressesRecord())
+      this.addressesRecord(),
+    );
   }
 
   writeVerificationInput(directory: string) {
     for (const domain of this.domainNumbers) {
       AbacusAppDeployer.writeJson(
-      path.join(
-        this.verificationDirectory(directory),
-        `${this.resolveDomainName(domain)}.json`,
-      ),
-      this.mustGetVerification(domain))
+        path.join(
+          this.verificationDirectory(directory),
+          `${this.resolveDomainName(domain)}.json`,
+        ),
+        this.mustGetVerification(domain),
+      );
     }
   }
 

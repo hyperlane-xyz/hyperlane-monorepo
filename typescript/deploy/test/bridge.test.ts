@@ -8,7 +8,11 @@ import {
   AbacusBridgeChecker,
   BridgeConfig,
 } from '../src/bridge';
-import { core as coreConfig, registerMultiProviderTest, bridge as partialBridgeConfig } from '../config/environments/local';
+import {
+  core as coreConfig,
+  registerMultiProviderTest,
+  bridge as partialBridgeConfig,
+} from '../config/environments/local';
 
 describe('bridge', async () => {
   const coreDeployer = new AbacusCoreDeployer();
@@ -26,7 +30,7 @@ describe('bridge', async () => {
     bridgeConfig = { ...partialBridgeConfig, core: {} };
     coreDeployer.domainNumbers.map((domain) => {
       owners[domain] = owner.address;
-      const coreAddresses = coreDeployer.mustGetAddresses(domain)
+      const coreAddresses = coreDeployer.mustGetAddresses(domain);
       bridgeConfig.core[coreDeployer.mustResolveDomainName(domain)] = {
         upgradeBeaconController: coreAddresses.upgradeBeaconController,
         xAppConnectionManager: coreAddresses.xAppConnectionManager,
@@ -43,18 +47,14 @@ describe('bridge', async () => {
   });
 
   it('transfers ownership', async () => {
-    bridge = new AbacusBridge(bridgeDeployer.addressesRecord())
+    bridge = new AbacusBridge(bridgeDeployer.addressesRecord());
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(bridge, signer);
     await bridge.transferOwnership(owners);
   });
 
   it('checks', async () => {
-    const checker = new AbacusBridgeChecker(
-      bridge,
-      bridgeConfig,
-      owners,
-    );
+    const checker = new AbacusBridgeChecker(bridge, bridgeConfig, owners);
     await checker.check();
   });
 });

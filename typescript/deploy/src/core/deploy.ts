@@ -1,7 +1,11 @@
 import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { ChainName, CoreContractAddresses, ProxiedAddress } from '@abacus-network/sdk';
+import {
+  ChainName,
+  CoreContractAddresses,
+  ProxiedAddress,
+} from '@abacus-network/sdk';
 import {
   UpgradeBeaconController,
   XAppConnectionManager,
@@ -19,7 +23,10 @@ import { DeployEnvironment, RustConfig } from '../config';
 import { AbacusAppDeployer } from '../deploy';
 import { CoreConfig } from './types';
 
-export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses, CoreConfig> {
+export class AbacusCoreDeployer extends AbacusAppDeployer<
+  CoreContractAddresses,
+  CoreConfig
+> {
   configDirectory(directory: string) {
     return path.join(directory, 'core');
   }
@@ -31,14 +38,21 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
     const overrides = this.getOverrides(domain);
     const signer = this.mustGetSigner(domain);
     const upgradeBeaconController: UpgradeBeaconController =
-      await this.deployContract(domain, 'UpgradeBeaconController', new UpgradeBeaconController__factory(signer));
+      await this.deployContract(
+        domain,
+        'UpgradeBeaconController',
+        new UpgradeBeaconController__factory(signer),
+      );
 
-    const validatorManager: ValidatorManager =
-      await this.deployContract(domain, 'ValidatorManager', new ValidatorManager__factory(signer));
+    const validatorManager: ValidatorManager = await this.deployContract(
+      domain,
+      'ValidatorManager',
+      new ValidatorManager__factory(signer),
+    );
 
     for (const name of this.domainNames) {
       const validator = config.validators[name];
-      if (!validator) throw new Error(`No validator for ${name}`)
+      if (!validator) throw new Error(`No validator for ${name}`);
       await validatorManager.enrollValidator(
         this.resolveDomain(name),
         validator,
@@ -47,21 +61,24 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
     }
 
     const outbox: BeaconProxy<Outbox> = await this.deployBeaconProxy(
-      domain, 'Outbox',
+      domain,
+      'Outbox',
       new Outbox__factory(signer),
       upgradeBeaconController.address,
       [domain],
       [validatorManager.address],
     );
 
-    const xAppConnectionManager: XAppConnectionManager = await this.deployContract(
-      domain, 'XAppConnectionManager',
-      new XAppConnectionManager__factory(signer),
-    );
+    const xAppConnectionManager: XAppConnectionManager =
+      await this.deployContract(
+        domain,
+        'XAppConnectionManager',
+        new XAppConnectionManager__factory(signer),
+      );
     await xAppConnectionManager.setOutbox(outbox.address, overrides);
 
-    const inboxes: Record<types.Domain, BeaconProxy<Inbox>> = {}
-    const inboxAddresses: Partial<Record<ChainName, ProxiedAddress>> = {}
+    const inboxes: Record<types.Domain, BeaconProxy<Inbox>> = {};
+    const inboxAddresses: Partial<Record<ChainName, ProxiedAddress>> = {};
     const remotes = this.remoteDomainNumbers(domain);
     for (let i = 0; i < remotes.length; i++) {
       const remote = remotes[i];
@@ -73,16 +90,23 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
       ];
       if (i === 0) {
         inboxes[remote] = await this.deployBeaconProxy(
-          domain, 'Inbox',
+          domain,
+          'Inbox',
           new Inbox__factory(signer),
           upgradeBeaconController.address,
           [domain],
           initArgs,
         );
       } else {
-        inboxes[remote] = await this.duplicateBeaconProxy(domain, 'Inbox', inboxes[remotes[0]], initArgs)
+        inboxes[remote] = await this.duplicateBeaconProxy(
+          domain,
+          'Inbox',
+          inboxes[remotes[0]],
+          initArgs,
+        );
       }
-      inboxAddresses[this.mustResolveDomainName(remote)] = inboxes[remote].toObject();
+      inboxAddresses[this.mustResolveDomainName(remote)] =
+        inboxes[remote].toObject();
 
       await xAppConnectionManager.enrollInbox(
         remote,
@@ -103,7 +127,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
 
   writeRustConfigs(environment: DeployEnvironment, directory: string) {
     for (const domain of this.domainNumbers) {
-      const name = this.mustResolveDomainName(domain)
+      const name = this.mustResolveDomainName(domain);
       const filepath = path.join(
         this.configDirectory(directory),
         'rust',
@@ -139,7 +163,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
       for (const remote of this.remoteDomainNumbers(domain)) {
         const remoteName = this.mustResolveDomainName(remote);
         const inboxAddress = addresses.inboxes[remoteName];
-        if (!inboxAddress) throw new Error(`No inbox for ${remoteName}`)
+        if (!inboxAddress) throw new Error(`No inbox for ${remoteName}`);
         const inbox = {
           address: inboxAddress.proxy,
           domain: remote.toString(),
