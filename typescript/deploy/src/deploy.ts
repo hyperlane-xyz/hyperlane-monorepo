@@ -45,6 +45,14 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     return this.mustGetFromMap(nameOrDomain, this.verification, 'Verification')
   }
 
+  addressesRecord(): Partial<Record<ChainName, T>> {
+    const addresses: Partial<Record<ChainName, T>> = {}
+    this.domainNumbers.map((domain) => {
+      addresses[this.mustResolveDomainName(domain)] = this.mustGetAddresses(domain);
+    })
+    return addresses;
+  }
+
   addVerificationInput(nameOrDomain: NameOrDomain, input: VerificationInput) {
     const domain = this.resolveDomain(nameOrDomain);
     const verification = this.verification.get(domain) || [];

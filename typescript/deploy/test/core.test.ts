@@ -1,44 +1,45 @@
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
-import { DeployEnvironment, ChainConfig } from '../src/config';
-import { CoreDeploy, CoreInvariantChecker } from '../src/core';
-import { getTestChains, outputDir, testCore as coreConfig } from './inputs';
+import { AbacusCore } from '@abacus-network/sdk';
+import { DeployEnvironment } from '../src/config';
+import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
+import { outputDir } from './inputs';
+import { registerMultiProvider } from '../config/environments/local/register';
+import { core as coreConfig } from '../config/environments/local/core';
 
 describe('core', async () => {
-  let core = new CoreDeploy();
-  let chains: Record<types.Domain, ChainConfig>;
-  const owners: Record<types.Domain, types.Address> = {};
+  let core: AbacusCore;
+  const deployer = new AbacusCoreDeployer();
 
+  const owners: Record<types.Domain, types.Address> = {};
   before(async () => {
-    const [signer, owner] = await ethers.getSigners();
-    chains = getTestChains(signer);
-    Object.keys(chains).map((d) => {
-      owners[parseInt(d)] = owner.address;
-    });
+    const [_, owner] = await ethers.getSigners();
+    deployer.domainNumbers.map((d) => {
+      owners[d] = owner.address;
+    })
+    await registerMultiProvider(deployer);
   });
 
   it('deploys', async () => {
-    await core.deploy(chains, coreConfig);
-  });
-
-  it('transfers ownership', async () => {
-    await core.transferOwnership(owners);
-  });
-
-  it('checks', async () => {
-    const checker = new CoreInvariantChecker(core, coreConfig, owners);
-    await checker.check();
+    await deployer.deploy(coreConfig);
   });
 
   it('writes', async () => {
-    core.writeOutput(outputDir);
-    core.writeRustConfigs(DeployEnvironment.dev, outputDir);
+    deployer.writeOutput(outputDir);
+    deployer.writeRustConfigs(DeployEnvironment.dev, outputDir);
   });
 
-  it('reads', async () => {
-    core = CoreDeploy.readContracts(chains, outputDir);
-    const checker = new CoreInvariantChecker(core, coreConfig, owners);
+  it('transfers ownership', async () => {
+    core = new AbacusCore(deployer.addressesRecord())
+    await registerMultiProvider(core)
+    deployer.domainNumbers.forEach(async (d) => {
+      await core.mustGetContracts(d).transferOwnership(owners[d]);
+    })
+  });
+
+  it('checks', async () => {
+    const checker = new AbacusCoreChecker(core, coreConfig, owners);
     await checker.check();
   });
 });
