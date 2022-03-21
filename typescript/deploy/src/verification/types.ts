@@ -19,7 +19,7 @@ export type ContractVerificationName =
   | BeaconProxyName;
 
 export type ContractVerificationInput = {
-  name: ContractVerificationName;
+  name: string;
   address: string;
   constructorArguments: any[];
   isProxy?: boolean;

@@ -20,6 +20,7 @@ type Provider = ethers.providers.Provider;
  * mainnet.registerSigner('polygon', polygonProvider);
  * mainnet.registerSigner('ethereum', ethereumProvider);
  */
+// TODO(asa): getFromMap and mustGetFromMap
 export class MultiProvider {
   private domains: Map<number, Domain>;
   private providers: Map<number, Provider>;
@@ -126,8 +127,12 @@ export class MultiProvider {
    * @param nameOrDomain A domain name or number.
    * @returns The name (or undefined)
    */
-  resolveDomainName(nameOrDomain: NameOrDomain): string | undefined {
+  resolveDomainName(nameOrDomain: NameOrDomain): ChainName | undefined {
     return this.getDomain(nameOrDomain)?.name;
+  }
+
+  mustResolveDomainName(nameOrDomain: NameOrDomain): ChainName {
+    return this.mustGetDomain(nameOrDomain).name
   }
 
   /**
@@ -282,6 +287,16 @@ export class MultiProvider {
     return this.signers.get(domain);
   }
 
+  mustGetSigner(
+    nameOrDomain: NameOrDomain,
+  ): ethers.Signer {
+    const signer = this.getSigner(nameOrDomain);
+    if (!signer) {
+      throw new Error(`Signer not found: ${nameOrDomain}`);
+    }
+    return signer
+  }
+
   /**
    * Returns the most priveleged connection registered to a domain. E.g.
    * this function will attempt to return a Signer, then attempt to return the
@@ -296,6 +311,17 @@ export class MultiProvider {
     nameOrDomain: NameOrDomain,
   ): ethers.Signer | ethers.providers.Provider | undefined {
     return this.getSigner(nameOrDomain) ?? this.getProvider(nameOrDomain);
+  }
+
+  mustGetConnection(
+    nameOrDomain: NameOrDomain,
+  ): ethers.Signer | ethers.providers.Provider {
+    const connection = this.getConnection(nameOrDomain);
+    if (!connection) {
+      throw new Error(`Connection not found: ${nameOrDomain}`);
+    }
+
+    return connection
   }
 
   /**

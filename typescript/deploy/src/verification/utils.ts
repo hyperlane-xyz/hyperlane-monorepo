@@ -32,7 +32,7 @@ function getConstructorArguments(
 }
 
 export function getContractVerificationInput(
-  name: ContractVerificationName,
+  name: string,
   contract: ethers.Contract,
   bytecode: string,
   isProxy?: boolean,

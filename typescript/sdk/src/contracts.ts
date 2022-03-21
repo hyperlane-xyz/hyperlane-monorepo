@@ -11,10 +11,6 @@ export abstract class AbacusAppContracts<T> {
     this._addresses = addresses;
   }
 
-  toJson(): string {
-    return JSON.stringify(this._addresses, null, 2);
-  }
-
   connect(connection: Connection) {
     this._connection = connection;
   }

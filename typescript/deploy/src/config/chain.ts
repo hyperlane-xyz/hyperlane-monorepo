@@ -1,27 +1,7 @@
 import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
+import { ChainName } from '@abacus-network/sdk';
 import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
-
-export enum ChainName {
-  // Mainnets
-  CELO = 'celo',
-  ETHEREUM = 'ethereum',
-  AVALANCHE = 'avalanche',
-  POLYGON = 'polygon',
-
-  // Testnets
-  ALFAJORES = 'alfajores',
-  MUMBAI = 'mumbai',
-  KOVAN = 'kovan',
-  GOERLI = 'goerli',
-  FUJI = 'fuji',
-  RINKARBY = 'rinkarby',
-  RINKEBY = 'rinkeby',
-  ROPSTEN = 'ropsten',
-
-  // Local
-  LOCAL = 'local',
-}
 
 export type ChainConfig = {
   name: ChainName;
@@ -33,6 +13,13 @@ export type ChainConfig = {
   confirmations?: number;
   poll_interval?: number;
 };
+
+export type TransactionConfig = {
+  overrides: ethers.Overrides;
+  supports1559?: boolean;
+  // The number of confirmations considered reorg safe
+  confirmations?: number;
+}
 
 export type ChainConfigWithoutSigner = Omit<ChainConfig, 'signer'>;
 
