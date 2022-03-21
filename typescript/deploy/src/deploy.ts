@@ -65,10 +65,6 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     return verification;
   }
 
-  remoteDomainNumbers(domain: types.Domain): number[] {
-    return this.domainNumbers.filter((d) => d !== domain);
-  }
-
   addVerificationInput(nameOrDomain: NameOrDomain, input: VerificationInput) {
     const domain = this.resolveDomain(nameOrDomain);
     const verification = this.verification.get(domain) || [];

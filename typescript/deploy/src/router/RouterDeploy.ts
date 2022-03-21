@@ -1,31 +1,26 @@
 import { types, utils } from '@abacus-network/utils';
-import { CommonDeploy } from '../common';
-import { ChainConfig } from '../config';
-import { RouterInstance } from './RouterInstance';
+import { AbacusAppDeployer } from '../deploy';
 import { Router } from './types';
 
-export abstract class RouterDeploy<
-  T extends RouterInstance<any>,
-  V,
-> extends CommonDeploy<T, V> {
-  async deploy(chains: Record<types.Domain, ChainConfig>, config: V) {
-    await super.deploy(chains, config);
-    await this.postDeploy(config);
-  }
+export abstract class AbacusRouterDeployer<T, C> extends AbacusAppDeployer<T, C> {
 
-  async postDeploy(_: V) {
+  async deploy(config: C) {
+    await super.deploy(config);
+
     // Make all routers aware of eachother.
-    for (const local of this.domains) {
-      for (const remote of this.domains) {
-        if (local === remote) continue;
-        await this.router(local).enrollRemoteRouter(
+    for (const local of this.domainNumbers) {
+      const router = this.mustGetRouter(local);
+      for (const remote of this.remoteDomainNumbers(local)) {
+        const remoteRouter = this.mustGetRouter(remote)
+        await router.enrollRemoteRouter(
           remote,
-          utils.addressToBytes32(this.router(remote).address),
+          utils.addressToBytes32(remoteRouter.address),
         );
       }
     }
   }
 
+  /*
   routerAddresses(): Record<types.Domain, types.Address> {
     const addresses: Record<types.Domain, types.Address> = {};
     for (const domain of this.domains) {
@@ -33,6 +28,7 @@ export abstract class RouterDeploy<
     }
     return addresses;
   }
+  */
 
-  abstract router(domain: types.Domain): Router;
+  abstract mustGetRouter(domain: types.Domain): Router;
 }

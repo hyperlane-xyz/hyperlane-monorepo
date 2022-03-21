@@ -1,10 +1,8 @@
 import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
+import { AbacusApp } from '@abacus-network/sdk';
 import { BeaconProxy } from './BeaconProxy';
-import { CommonDeploy } from './CommonDeploy';
-import { CommonInstance } from './CommonInstance';
-import { BeaconProxyPrefix } from '../verification';
 
 export enum ViolationType {
   UpgradeBeacon = 'UpgradeBeacon',
@@ -14,7 +12,7 @@ export enum ViolationType {
 
 export interface UpgradeBeaconViolation {
   domain: number;
-  name: BeaconProxyPrefix;
+  name: string;
   type: ViolationType.UpgradeBeacon;
   beaconProxy: BeaconProxy<ethers.Contract>;
   expected: string;
@@ -43,12 +41,9 @@ export type Violation =
 
 export type VerificationInput = [string, Contract];
 
-export abstract class CommonInvariantChecker<
-  T extends CommonDeploy<CommonInstance<any>, any>,
-  V,
-> {
-  readonly deploy: T;
-  readonly config: V;
+export abstract class CommonInvariantChecker<A extends AbacusApp<any, any>, C> {
+  readonly app: A;
+  readonly config: C;
   readonly owners: Record<types.Domain, types.Address>;
   readonly violations: Violation[];
 
@@ -56,11 +51,11 @@ export abstract class CommonInvariantChecker<
   abstract checkOwnership(domain: types.Domain): Promise<void>;
 
   constructor(
-    deploy: T,
-    config: V,
+    app: A,
+    config: C,
     owners: Record<types.Domain, types.Address>,
   ) {
-    this.deploy = deploy;
+    this.app = app;
     this.config = config;
     this.owners = owners;
     this.violations = [];
@@ -68,7 +63,7 @@ export abstract class CommonInvariantChecker<
 
   async check(): Promise<void> {
     await Promise.all(
-      this.deploy.domains.map((domain: types.Domain) =>
+      this.app.domainNumbers.map((domain: types.Domain) =>
         this.checkDomain(domain),
       ),
     );
@@ -94,7 +89,7 @@ export abstract class CommonInvariantChecker<
 
   async checkBeaconProxyImplementation(
     domain: types.Domain,
-    name: BeaconProxyPrefix,
+    name: string,
     beaconProxy: BeaconProxy<Contract>,
   ) {
     // TODO: This should check the correct upgrade beacon controller

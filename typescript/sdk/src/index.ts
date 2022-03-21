@@ -4,6 +4,7 @@ export {
   AbacusMessage,
   AnnotatedLifecycleEvent,
   AbacusLifecyleEvent,
+  CoreContracts,
   CoreContractAddresses,
   localCore,
   MessageStatus,
@@ -36,3 +37,4 @@ export {
   TokenDeployedEvent,
 } from './bridge';
 export { AbacusAppContracts } from './contracts';
+export { AbacusApp } from './app'

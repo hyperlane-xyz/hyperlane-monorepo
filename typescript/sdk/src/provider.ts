@@ -46,6 +46,10 @@ export class MultiProvider {
     return Array.from(this.domains.keys());
   }
 
+  remoteDomainNumbers(domain: number): number[] {
+    return this.domainNumbers.filter((d) => d !== domain);
+  }
+
   get domainNames(): ChainName[] {
     return Array.from(this.domains.values()).map((domain) => domain.name);
   }

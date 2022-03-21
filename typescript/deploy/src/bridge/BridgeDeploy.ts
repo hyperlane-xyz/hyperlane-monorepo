@@ -1,12 +1,11 @@
 import path from 'path';
-import { ethers } from 'ethers';
-import { utils, types } from '@abacus-network/utils';
-import { BridgeToken__factory, BridgeRouter__factory, ETHHelper__factory} from '@abacus-network/apps';
-import { AbacusBridge, BridgeContractAddresses, ChainName } from '@abacus-network/sdk';
-import { AbacusAppDeployer } from '../deploy';
+import { types } from '@abacus-network/utils';
+import { BridgeRouter, BridgeToken__factory, BridgeRouter__factory, ETHHelper__factory} from '@abacus-network/apps';
+import { BridgeContractAddresses } from '@abacus-network/sdk';
+import { AbacusRouterDeployer } from '../router';
 import { BridgeConfig } from './types';
 
-export class AbacusBridgeDeployer extends AbacusAppDeployer<BridgeContractAddresses, BridgeConfig> {
+export class AbacusBridgeDeployer extends AbacusRouterDeployer<BridgeContractAddresses, BridgeConfig> {
   configDirectory(directory: string) {
     return path.join(directory, 'bridge');
   }
@@ -54,32 +53,10 @@ export class AbacusBridgeDeployer extends AbacusAppDeployer<BridgeContractAddres
     return addresses
   }
 
-  // TODO(asa): Consider sharing router specific code
-  async deploy(config: BridgeConfig) {
-    super.deploy(config);
-    const app = this.app();
-    // Make all routers aware of eachother.
-    for (const local of this.domainNumbers) {
-      const router = app.mustGetContracts(local).router;
-      for (const remote of this.remoteDomainNumbers(local)) {
-        const remoteRouter = app.mustGetContracts(remote).router
-        await router.enrollRemoteRouter(
-          remote,
-          utils.addressToBytes32(remoteRouter.address),
-        );
-      }
-    }
-  }
-
-  app(): AbacusBridge {
-    const addressesRecord: Partial<Record<ChainName, BridgeContractAddresses>> = {}
-    this.addresses.forEach((addresses: BridgeContractAddresses, domain: number) => {
-      addressesRecord[this.mustResolveDomainName(domain)] = addresses;
-    });
-    const app = new AbacusBridge(addressesRecord);
-    this.signers.forEach((signer: ethers.Signer, domain: number) => {
-      app.registerSigner(domain, signer)
-    });
-    return app
+  mustGetRouter(domain: number): BridgeRouter {
+    return BridgeRouter__factory.connect(
+      this.mustGetAddresses(domain).router.proxy,
+      this.mustGetSigner(domain),
+    );
   }
 }

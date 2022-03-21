@@ -1,17 +1,18 @@
 import { ethers } from 'ethers';
 import { expect } from 'chai';
+import { GovernanceRouter } from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
+import { AbacusGovernance } from '@abacus-network/sdk';
 
 import { GovernanceConfig } from './types';
-import { GovernanceDeploy } from './GovernanceDeploy';
 import { RouterInvariantChecker } from '../router';
 
 export class GovernanceInvariantChecker extends RouterInvariantChecker<
-  GovernanceDeploy,
+  AbacusGovernance,
   GovernanceConfig
 > {
   async checkDomain(domain: types.Domain): Promise<void> {
-    await this.checkBeaconProxies(domain);
+    // await this.checkBeaconProxies(domain);
     await this.checkGovernor(domain);
     await this.checkRecoveryManager(domain);
     await this.checkXAppConnectionManager(domain);
@@ -19,6 +20,7 @@ export class GovernanceInvariantChecker extends RouterInvariantChecker<
     await this.checkOwnership(domain);
   }
 
+  /*
   async checkBeaconProxies(domain: types.Domain): Promise<void> {
     await this.checkBeaconProxyImplementation(
       domain,
@@ -26,11 +28,12 @@ export class GovernanceInvariantChecker extends RouterInvariantChecker<
       this.deploy.instances[domain].contracts.router,
     );
   }
+  */
 
   async checkGovernor(domain: types.Domain): Promise<void> {
-    const actual = await this.deploy.router(domain).governor();
-    const addresses = this.config.addresses[this.deploy.name(domain)];
-    if (addresses === undefined) throw new Error('could not find addresses');
+    const actual = await this.mustGetRouter(domain).governor();
+    const addresses = this.config.addresses[this.app.mustResolveDomainName(domain)]
+    if (!addresses) throw new Error('could not find addresses');
     if (addresses.governor) {
       expect(actual).to.equal(addresses.governor);
     } else {
@@ -39,9 +42,13 @@ export class GovernanceInvariantChecker extends RouterInvariantChecker<
   }
 
   async checkRecoveryManager(domain: types.Domain): Promise<void> {
-    const actual = await this.deploy.router(domain).recoveryManager();
-    const addresses = this.config.addresses[this.deploy.name(domain)];
-    if (addresses === undefined) throw new Error('could not find addresses');
+    const actual = await this.mustGetRouter(domain).recoveryManager();
+    const addresses = this.config.addresses[this.app.mustResolveDomainName(domain)]
+    if (!addresses) throw new Error('could not find addresses');
     expect(actual).to.equal(addresses.recoveryManager);
+  }
+
+  mustGetRouter(domain: types.Domain): GovernanceRouter {
+    return this.app.mustGetContracts(domain).router;
   }
 }
