@@ -1,12 +1,9 @@
-import { ethers } from 'ethers';
 import path from 'path';
 import yargs from 'yargs';
 import {
   AbacusCore,
-  AbacusGovernance,
   MultiProvider,
 } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
   AgentConfig,
@@ -14,11 +11,9 @@ import {
   InfrastructureConfig,
   ContractMetricsConfig,
 } from '../src/config';
-import { CoreDeploy, CoreContracts, CoreConfig } from '../src/core';
-import { BridgeDeploy, BridgeContracts, BridgeConfig } from '../src/bridge';
+import { CoreConfig } from '../src/core';
+import { BridgeConfig } from '../src/bridge';
 import {
-  GovernanceDeploy,
-  GovernanceContracts,
   GovernanceConfig,
 } from '../src/governance';
 import { RouterConfig, RouterAddresses } from '../src/router';
@@ -42,48 +37,48 @@ export async function registerMultiProvider(
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ): Promise<void> {
-  const moduleName = `../config/environments/${environment}/register`;
+  const moduleName = `../config/environments/${environment}`;
   return (await importModule(moduleName)).registerMultiProvider(multiProvider);
 }
 
 export async function getCoreConfig(
   environment: DeployEnvironment,
 ): Promise<CoreConfig> {
-  const moduleName = `../config/environments/${environment}/core`;
+  const moduleName = `../config/environments/${environment}`;
   return (await importModule(moduleName)).core;
 }
 
 export async function getRouterConfig(
   environment: DeployEnvironment,
+  core: AbacusCore,
 ): Promise<RouterConfig> {
-  const chains = await getChainConfigs(environment);
-  const contracts = await getCoreContracts(environment, chains);
   const addresses: Record<string, RouterAddresses> = {};
-  for (const chain of chains) {
-    addresses[chain.name] = {
-      upgradeBeaconController:
-        contracts[chain.domain].upgradeBeaconController.address,
-      xAppConnectionManager:
-        contracts[chain.domain].xAppConnectionManager.address,
+  core.domainNames.map((name) => {
+    const contracts = core.mustGetContracts(name)
+    addresses[name] = {
+      upgradeBeaconController: contracts.upgradeBeaconController.address,
+      xAppConnectionManager: contracts.xAppConnectionManager.address,
     };
-  }
+  })
   return { core: addresses };
 }
 
 export async function getBridgeConfig(
   environment: DeployEnvironment,
+  core: AbacusCore
 ): Promise<BridgeConfig> {
   const moduleName = `../config/environments/${environment}/bridge`;
   const partial = (await importModule(moduleName)).bridge;
-  return { ...partial, core: await getRouterConfig(environment) };
+  return { ...partial, core: await getRouterConfig(environment, core) };
 }
 
 export async function getGovernanceConfig(
   environment: DeployEnvironment,
+  core: AbacusCore
 ): Promise<GovernanceConfig> {
   const moduleName = `../config/environments/${environment}/governance`;
   const partial = (await importModule(moduleName)).governance;
-  return { ...partial, core: await getRouterConfig(environment) };
+  return { ...partial, core: await getRouterConfig(environment, core) };
 }
 
 export async function getInfrastructureConfig(
@@ -159,120 +154,7 @@ export function getGovernanceVerificationDirectory(
   return path.join(getGovernanceDirectory(environment), 'verification');
 }
 
-function recordFromArray<T>(
-  chains: ChainConfig[],
-  f: (chain: ChainConfig) => T,
-): Record<types.Domain, T> {
-  const ret: Record<types.Domain, T> = {};
-  for (const chain of chains) {
-    ret[chain.domain] = f(chain);
-  }
-  return ret;
-}
-
-export function getCoreContracts(
-  environment: DeployEnvironment,
-  chains: ChainConfig[],
-) {
-  const directory = getCoreContractsDirectory(environment);
-  const f = (chain: ChainConfig): CoreContracts => {
-    return CoreContracts.readJson(
-      path.join(directory, `${chain.name}.json`),
-      chain.signer,
-    );
-  };
-  return recordFromArray(chains, f);
-}
-
-export function getBridgeContracts(
-  environment: DeployEnvironment,
-  chains: ChainConfig[],
-) {
-  const directory = getBridgeContractsDirectory(environment);
-  const contracts: Record<types.Domain, BridgeContracts> = {};
-  for (const chain of chains) {
-    contracts[chain.domain] = BridgeContracts.readJson(
-      path.join(directory, `${chain.name}.json`),
-      chain.signer,
-    );
-  }
-  return contracts;
-}
-
-export function getGovernanceContracts(
-  environment: DeployEnvironment,
-  chains: ChainConfig[],
-) {
-  const directory = getGovernanceContractsDirectory(environment);
-  const contracts: Record<types.Domain, GovernanceContracts> = {};
-  for (const chain of chains) {
-    contracts[chain.domain] = GovernanceContracts.readJson(
-      path.join(directory, `${chain.name}.json`),
-      chain.signer,
-    );
-  }
-  return contracts;
-}
-
-export async function getCoreDeploy(
-  environment: DeployEnvironment,
-): Promise<CoreDeploy> {
-  const chains = await getChainConfigsRecord(environment);
-  return CoreDeploy.readContracts(chains, getEnvironmentDirectory(environment));
-}
-
-export async function getBridgeDeploy(
-  environment: DeployEnvironment,
-): Promise<BridgeDeploy> {
-  const chains = await getChainConfigsRecord(environment);
-  return BridgeDeploy.readContracts(
-    chains,
-    getEnvironmentDirectory(environment),
-  );
-}
-
-export async function getGovernanceDeploy(
-  environment: DeployEnvironment,
-): Promise<GovernanceDeploy> {
-  const chains = await getChainConfigsRecord(environment);
-  return GovernanceDeploy.readContracts(
-    chains,
-    getEnvironmentDirectory(environment),
-  );
-}
-
-export function getCore(environment: DeployEnvironment): AbacusCore {
-  switch (environment) {
-    default: {
-      throw new Error('invalid environment');
-      break;
-    }
-  }
-}
-
-export function getGovernance(
-  environment: DeployEnvironment,
-): AbacusGovernance {
-  switch (environment) {
-    default: {
-      throw new Error('invalid environment');
-      break;
-    }
-  }
-}
-
-export function registerRpcProviders(
-  multiProvider: MultiProvider,
-  chains: ChainConfig[],
-): void {
-  chains.map((c) =>
-    multiProvider.registerRpcProvider(
-      c.name,
-      process.env[`${c.name.toUpperCase()}_RPC`]!,
-    ),
-  );
-}
-
+/*
 export async function registerGovernorSigner(
   governance: AbacusGovernance,
   chains: ChainConfig[],
@@ -288,6 +170,7 @@ export async function registerGovernorSigner(
     ),
   );
 }
+*/
 
 export async function getKeyRoleAndChainArgs() {
   const args = await getArgs();
@@ -298,6 +181,7 @@ export async function getKeyRoleAndChainArgs() {
     .require('r')
     .alias('c', 'chain')
     .describe('c', 'chain name')
-    .choices('c', Object.values(ChainName))
+//    .choices('c', Object.values(ChainName))
+     .choices('c', ['todo'])
     .require('c');
 }

@@ -1,20 +1,20 @@
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
-import { types, utils } from '@abacus-network/utils';
+// import { types } from '@abacus-network/utils';
+// import { AbacusCore } from '@abacus-network/sdk';
 
-import { sleep } from './src/utils/utils';
-import {
-  getCoreConfig,
-  getCoreDeploy,
-  getEnvironmentDirectory,
-  getChainConfigsRecord,
-} from './scripts/utils';
-import { CoreDeploy } from './src/core';
+// import { sleep } from './src/utils/utils';
+import { getEnvironmentDirectory } from './scripts/utils';
+import { AbacusCoreDeployer } from './src/core';
+import { DeployEnvironment } from './src/config';
 import { ContractVerifier } from './src/verification';
+import { registerMultiProvider, core as coreConfig } from './config/environments/local';
 
-const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
-  const outbox = deploy.outbox(domain);
+/*
+const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
+  const contracts = core.mustGetContracts(domain);
+  const outbox = contracts.outbox;
   const [outboxCheckpointRoot, outboxCheckpointIndex] =
     await outbox.latestCheckpoint();
   const count = (await outbox.tree()).toNumber();
@@ -30,7 +30,7 @@ const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
   };
 
   const inboxSummary = async (remote: types.Domain) => {
-    const inbox = deploy.inbox(remote, domain);
+    const inbox = core.mustGetInbox(domain, remote);
     const [inboxCheckpointRoot, inboxCheckpointIndex] =
       await inbox.latestCheckpoint();
     const processFilter = inbox.filters.Process();
@@ -42,28 +42,24 @@ const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
       index: inboxCheckpointIndex.toNumber(),
     };
   };
-  summary.inboxes = await Promise.all(deploy.remotes(domain).map(inboxSummary));
+  summary.inboxes = await Promise.all(core.remoteDomainNumbers(domain).map(inboxSummary));
   return summary;
 };
+*/
 
 task('abacus', 'Deploys abacus on top of an already running Harthat Network')
-  .addParam(
-    'environment',
-    'The name of the environment from which to read configs',
-  )
   .setAction(async (args: any) => {
-    const environment = args.environment;
-    // Deploy core
-    const chains = await getChainConfigsRecord(environment);
-    const config = await getCoreConfig(environment);
-    const deploy = new CoreDeploy();
-    await deploy.deploy(chains, config);
+    const deployer = new AbacusCoreDeployer();
+    registerMultiProvider(deployer);
+    await deployer.deploy(coreConfig);
 
     // Write configs
-    deploy.writeOutput(getEnvironmentDirectory(environment));
-    deploy.writeRustConfigs(environment, getEnvironmentDirectory(environment));
+    const env = DeployEnvironment.local;
+    deployer.writeOutput(getEnvironmentDirectory(env))
+    deployer.writeRustConfigs(env, getEnvironmentDirectory(env))
   });
 
+/*
 task('kathy', 'Dispatches random abacus messages')
   .addParam(
     'environment',
@@ -90,6 +86,7 @@ task('kathy', 'Dispatches random abacus messages')
       await sleep(5000);
     }
   });
+*/
 
 const etherscanKey = process.env.ETHERSCAN_API_KEY;
 task('verify-deploy', 'Verifies abacus deploy sourcecode')

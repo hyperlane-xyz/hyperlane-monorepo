@@ -4,9 +4,7 @@ import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
 import { DeployEnvironment } from '../src/config';
 import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
-import { outputDir } from './inputs';
-import { registerMultiProvider } from '../config/environments/local/register';
-import { core as coreConfig } from '../config/environments/local/core';
+import { core as coreConfig, registerMultiProvider } from '../config/environments/local';
 
 describe('core', async () => {
   let core: AbacusCore;
@@ -26,7 +24,8 @@ describe('core', async () => {
   });
 
   it('writes', async () => {
-    deployer.writeOutput(outputDir);
+    const outputDir = './test/outputs'
+    deployer.writeOutput(outputDir)
     deployer.writeRustConfigs(DeployEnvironment.dev, outputDir);
   });
 

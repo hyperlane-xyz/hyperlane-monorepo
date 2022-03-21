@@ -336,6 +336,10 @@ export class MultiProvider {
     return await signer?.getAddress();
   }
 
+  registerOverrides(nameOrDomain: NameOrDomain, overrides: ethers.Overrides) {
+    this.overrides.set(this.resolveDomain(nameOrDomain), overrides)
+  }
+
   getOverrides(nameOrDomain: NameOrDomain): ethers.Overrides {
     return this.getFromMap(nameOrDomain, this.overrides) || {}
   }
