@@ -33,7 +33,7 @@ describe('core', async () => {
 
   it('writes', async () => {
     core.writeOutput(outputDir);
-    core.writeRustConfigs(DeployEnvironment.dev, outputDir);
+    core.writeRustConfigs(DeployEnvironment.test, outputDir);
   });
 
   it('reads', async () => {
