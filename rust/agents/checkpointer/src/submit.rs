@@ -1,25 +1,30 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use abacus_base::CachingOutbox;
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage};
-use std::time::Duration;
+use abacus_core::{AbacusCommon, Checkpoint, Outbox};
 
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 pub(crate) struct CheckpointSubmitter {
     outbox: Arc<CachingOutbox>,
-    db: AbacusDB,
-    interval_seconds: u64,
+    /// The polling interval
+    polling_interval: Duration,
+    /// The minimum period between submitted checkpoints
+    creation_latency: Duration,
 }
 
 impl CheckpointSubmitter {
-    pub(crate) fn new(outbox: Arc<CachingOutbox>, db: AbacusDB, interval_seconds: u64) -> Self {
+    pub(crate) fn new(
+        outbox: Arc<CachingOutbox>,
+        polling_interval: u64,
+        creation_latency: u64,
+    ) -> Self {
         Self {
             outbox,
-            db,
-            interval_seconds,
+            polling_interval: Duration::from_secs(polling_interval),
+            creation_latency: Duration::from_secs(creation_latency),
         }
     }
 
@@ -27,31 +32,30 @@ impl CheckpointSubmitter {
         let span = info_span!("CheckpointSubmitter");
 
         tokio::spawn(async move {
-            // This is just some dummy code
             loop {
-                sleep(Duration::from_secs(self.interval_seconds)).await;
+                sleep(self.polling_interval).await;
 
-                // Check the current checkpoint
-                let root = self.outbox.checkpointed_root().await?;
+                // Check the latest checkpointed index
+                let Checkpoint {
+                    index: latest_checkpoint_index,
+                    ..
+                } = self.outbox.latest_checkpoint(None).await?;
+                // Get the current count of the tree
+                let count = self.outbox.count().await?;
 
-                info!(root=?root, "Checked root");
-
-                // Get the latest message
-                if let Some(leaf) = self.db.retrieve_latest_leaf_index()? {
-                    if let Some(message) = self.db.message_by_leaf_index(leaf)? {
-                        let parsed_message = CommittedMessage::try_from(message)?;
-                        info!(parsed_message=?parsed_message, "Latest leaf");
-
-                        if let Some(update) = self
-                            .db
-                            .update_by_previous_root(parsed_message.committed_root)?
-                        {
-                            // Check if we want to submit a checkpoint tx
-                            if parsed_message.committed_root == update.update.previous_root {
-                                info!("Submit checkpoint");
-                            }
-                        }
-                    }
+                info!(
+                    latest_checkpoint_index=?latest_checkpoint_index,
+                    count=?count,
+                    "Got latest checkpoint and count"
+                );
+                // If there are any new messages, the count will be greater than
+                // the latest checkpoint index.
+                if count > latest_checkpoint_index {
+                    debug!("Creating checkpoint");
+                    self.outbox.create_checkpoint().await?;
+                    // Sleep to ensure that another checkpoint isn't made until
+                    // creation_latency has passed
+                    sleep(self.creation_latency).await;
                 }
             }
         })

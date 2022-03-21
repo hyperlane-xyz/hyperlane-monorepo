@@ -28,6 +28,13 @@ interface ValidatorConfig {
   pause?: number;
 }
 
+interface CheckpointerConfig {
+  // Polling interval (in seconds)
+  pollingInterval: number;
+  // Minimum time between created checkpoints (in seconds)
+  creationLatency: number;
+}
+
 export interface DockerConfig {
   repo: string;
   tag: string;
@@ -43,6 +50,7 @@ export interface AgentConfig {
   processor?: ProcessorConfig;
   validator?: ValidatorConfig;
   relayer?: RelayerConfig;
+  checkpointer?: CheckpointerConfig;
 }
 
 export type RustSigner = {

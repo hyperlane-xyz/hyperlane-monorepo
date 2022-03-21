@@ -5,12 +5,14 @@ use tracing::instrument::Instrumented;
 
 use crate::{settings::CheckpointerSettings as Settings, submit::CheckpointSubmitter};
 use abacus_base::{AbacusAgentCore, Agent};
-use abacus_core::{db::AbacusDB, AbacusCommon};
 
-/// An checkpointer agent
+/// A checkpointer agent
 #[derive(Debug)]
 pub struct Checkpointer {
-    interval_seconds: u64,
+    /// The polling interval (in seconds)
+    polling_interval: u64,
+    /// The minimum period between created checkpoints (in seconds)
+    creation_latency: u64,
     pub(crate) core: AbacusAgentCore,
 }
 
@@ -22,9 +24,10 @@ impl AsRef<AbacusAgentCore> for Checkpointer {
 
 impl Checkpointer {
     /// Instantiate a new checkpointer
-    pub fn new(interval_seconds: u64, core: AbacusAgentCore) -> Self {
+    pub fn new(polling_interval: u64, creation_latency: u64, core: AbacusAgentCore) -> Self {
         Self {
-            interval_seconds,
+            polling_interval,
+            creation_latency,
             core,
         }
     }
@@ -40,21 +43,27 @@ impl Agent for Checkpointer {
     where
         Self: Sized,
     {
-        let interval_seconds = settings.interval.parse().expect("invalid uint");
+        let polling_interval = settings
+            .pollinginterval
+            .parse()
+            .expect("invalid pollinginterval uint");
+        let creation_latency = settings
+            .creationlatency
+            .parse()
+            .expect("invalid creationlatency uint");
         let core = settings
             .as_ref()
             .try_into_abacus_core(Self::AGENT_NAME)
             .await?;
-        Ok(Self::new(interval_seconds, core))
+        Ok(Self::new(polling_interval, creation_latency, core))
     }
 }
 
 impl Checkpointer {
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox();
-        let db = AbacusDB::new(self.outbox().name(), self.db());
 
-        let submit = CheckpointSubmitter::new(outbox, db, self.interval_seconds);
+        let submit = CheckpointSubmitter::new(outbox, self.polling_interval, self.creation_latency);
 
         self.run_all(vec![submit.spawn()])
     }
