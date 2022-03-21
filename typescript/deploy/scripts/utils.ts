@@ -10,8 +10,6 @@ import { types } from '@abacus-network/utils';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
   AgentConfig,
-  ChainName,
-  ChainConfig,
   DeployEnvironment,
   InfrastructureConfig,
   ContractMetricsConfig,
@@ -40,19 +38,12 @@ async function importModule(moduleName: string): Promise<any> {
   return importedModule;
 }
 
-export async function getChainConfigs(
+export async function registerDeployer(
+  deployer: AbacusAppDeployer,
   environment: DeployEnvironment,
-): Promise<ChainConfig[]> {
-  const moduleName = `../config/environments/${environment}/chains`;
-  return (await importModule(moduleName)).getChains();
-}
-
-export async function getChainConfigsRecord(
-  environment: DeployEnvironment,
-): Promise<Record<types.Domain, ChainConfig>> {
-  const array = await getChainConfigs(environment);
-  const f = (chain: ChainConfig) => chain;
-  return recordFromArray(array, f);
+): Promise<void> {
+  const moduleName = `../config/environments/${environment}/register`;
+  return (await importModule(moduleName)).registerDeployer(deployer);
 }
 
 export async function getCoreConfig(

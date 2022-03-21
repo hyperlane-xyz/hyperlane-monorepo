@@ -1,15 +1,12 @@
 import { BigNumber } from 'ethers';
-import { ChainConfigWithoutSigner, ChainName } from '../../src/config/chain';
+import { ChainName } from '@abacus-network/sdk'
+import { TransactionConfig } from '../../src/config/chain';
 
-export const celo: ChainConfigWithoutSigner = {
-  name: ChainName.CELO,
-  domain: 0x63656c6f, // b'celo' interpreted as an int
+export const celo: TransactionConfig = {
   overrides: {},
 };
 
-export const ethereum: ChainConfigWithoutSigner = {
-  name: ChainName.ETHEREUM,
-  domain: 0x657468, // b'eth' interpreted as an int
+export const ethereum: TransactionConfig = {
   overrides: {
     // This isn't actually used because Ethereum supports EIP 1559 - but just in case
     gasPrice: '400000000000', // 400 gwei
@@ -19,9 +16,7 @@ export const ethereum: ChainConfigWithoutSigner = {
   },
 };
 
-export const avalanche: ChainConfigWithoutSigner = {
-  name: ChainName.AVALANCHE,
-  domain: 0x61766178, // b'avax' interpreted as an int
+export const avalanche: TransactionConfig = {
   overrides: {
     // This isn't actually used because Avalanche supports EIP 1559 - but just in case
     gasPrice: BigNumber.from(50_000_000_000), // 50 nAVAX (50 gwei)
@@ -31,10 +26,12 @@ export const avalanche: ChainConfigWithoutSigner = {
   },
 };
 
-export const polygon: ChainConfigWithoutSigner = {
-  name: ChainName.POLYGON,
-  domain: 0x706f6c79, // b'poly' interpreted as an int
+export const polygon: TransactionConfig = {
   overrides: {
     gasPrice: '5000000000', // 50 gwei
   },
 };
+
+export const configs: Partial<Record<ChainName, TransactionConfig>> = {
+  celo, ethereum, avalanche, polygon
+}

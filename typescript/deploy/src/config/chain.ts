@@ -3,17 +3,6 @@ import { NonceManager } from '@ethersproject/experimental';
 import { ChainName } from '@abacus-network/sdk';
 import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
 
-export type ChainConfig = {
-  name: ChainName;
-  domain: number;
-  signer: ethers.Signer;
-  overrides: ethers.Overrides;
-  supports1559?: boolean;
-  // The number of confirmations considered reorg safe
-  confirmations?: number;
-  poll_interval?: number;
-};
-
 export type TransactionConfig = {
   overrides: ethers.Overrides;
   supports1559?: boolean;
@@ -21,21 +10,19 @@ export type TransactionConfig = {
   confirmations?: number;
 }
 
-export type ChainConfigWithoutSigner = Omit<ChainConfig, 'signer'>;
-
 export async function fetchSigner(
-  partial: ChainConfigWithoutSigner,
   environment: string,
+  name: ChainName,
   deployerKeySecretName: string,
-): Promise<ChainConfig> {
-  const rpc = await getSecretRpcEndpoint(environment, partial.name);
+): Promise<ethers.Signer> {
+  const rpc = await getSecretRpcEndpoint(environment, name);
   const key = await getSecretDeployerKey(deployerKeySecretName);
   const provider = new ethers.providers.JsonRpcProvider(rpc);
   const wallet = new ethers.Wallet(key, provider);
-  const signer = new NonceManager(wallet);
-  return { ...partial, signer };
+  return new NonceManager(wallet);
 }
 
+/*
 export function getChainsForEnvironment(
   partials: ChainConfigWithoutSigner[],
   environment: string,
@@ -48,3 +35,4 @@ export function getChainsForEnvironment(
       ),
     );
 }
+*/

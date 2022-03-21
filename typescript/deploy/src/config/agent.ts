@@ -1,5 +1,5 @@
 import { types } from '@abacus-network/utils';
-import { ChainName } from './chain';
+import { ChainName } from '@abacus-network/sdk';
 import { DeployEnvironment } from './environment';
 
 interface IndexingConfig {

@@ -2,19 +2,21 @@ import {
   getEnvironment,
   getCoreConfig,
   getCoreDirectory,
-  getChainConfigsRecord,
+  registerDeployer,
 } from './utils';
-import { CoreDeploy } from '../src/core';
+import { AbacusCoreDeployer } from '../src/core';
 
 async function main() {
   const environment = await getEnvironment();
-  const chains = await getChainConfigsRecord(environment);
+  const deployer = new AbacusCoreDeployer();
+  await registerDeployer(deployer, environment);
+
   const config = await getCoreConfig(environment);
-  const deploy = new CoreDeploy();
-  await deploy.deploy(chains, config);
+  await deployer.deploy(config);
+
   const outputDir = getCoreDirectory(environment);
-  deploy.writeOutput(outputDir);
-  deploy.writeRustConfigs(environment, outputDir);
+  deployer.writeOutput(outputDir);
+  deployer.writeRustConfigs(environment, outputDir);
 }
 
 main().then(console.log).catch(console.error);

@@ -38,3 +38,4 @@ export {
 } from './bridge';
 export { AbacusAppContracts } from './contracts';
 export { AbacusApp } from './app'
+export { domains } from './domains'

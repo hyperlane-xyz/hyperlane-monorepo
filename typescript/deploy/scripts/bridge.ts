@@ -2,17 +2,17 @@ import {
   getEnvironment,
   getBridgeConfig,
   getBridgeDirectory,
-  getChainConfigsRecord,
+  registerDeployer,
 } from './utils';
-import { BridgeDeploy } from '../src/bridge';
+import { AbacusBridgeDeployer } from '../src/bridge';
 
 async function main() {
   const environment = await getEnvironment();
-  const chains = await getChainConfigsRecord(environment);
   const config = await getBridgeConfig(environment);
-  const deploy = new BridgeDeploy();
-  await deploy.deploy(chains, config);
-  deploy.writeOutput(getBridgeDirectory(environment));
+  const deployer = new AbacusBridgeDeployer();
+  await registerDeployer(deployer, environment);
+  await deployer.deploy(config);
+  deployer.writeOutput(getBridgeDirectory(environment));
 }
 
 main().then(console.log).catch(console.error);
