@@ -38,12 +38,12 @@ async function importModule(moduleName: string): Promise<any> {
   return importedModule;
 }
 
-export async function registerDeployer(
-  deployer: AbacusAppDeployer,
+export async function registerMultiProvider(
+  multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ): Promise<void> {
   const moduleName = `../config/environments/${environment}/register`;
-  return (await importModule(moduleName)).registerDeployer(deployer);
+  return (await importModule(moduleName)).registerMultiProvider(multiProvider);
 }
 
 export async function getCoreConfig(

@@ -2,14 +2,14 @@ import {
   getEnvironment,
   getCoreConfig,
   getCoreDirectory,
-  registerDeployer,
+  registerMultiProvider,
 } from './utils';
 import { AbacusCoreDeployer } from '../src/core';
 
 async function main() {
   const environment = await getEnvironment();
   const deployer = new AbacusCoreDeployer();
-  await registerDeployer(deployer, environment);
+  await registerMultiProvider(deployer, environment);
 
   const config = await getCoreConfig(environment);
   await deployer.deploy(config);

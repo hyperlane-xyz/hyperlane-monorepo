@@ -1,11 +1,10 @@
 import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-import { ChainName, domains } from '@abacus-network/sdk';
-import { AbacusAppDeployer } from '../../../src/deploy';
+import { ChainName, domains, MultiProvider } from '@abacus-network/sdk';
 
-export const registerDeployer = (deployer: AbacusAppDeployer<any, any>) => {
+export const registerMultiProvider = (multiProvider: MultiProvider) => {
   const domainNames: ChainName[] = ['alfajores', 'kovan', 'mumbai', 'fuji']
-  domainNames.forEach((name) => deployer.registerDomain(domains[name]))
+  domainNames.forEach((name) => multiProvider.registerDomain(domains[name]))
   // Hardhat account 0
   const key =
     '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
@@ -14,5 +13,5 @@ export const registerDeployer = (deployer: AbacusAppDeployer<any, any>) => {
   );
   const wallet = new ethers.Wallet(key, provider);
   const signer = new NonceManager(wallet);
-  domainNames.forEach((name) => deployer.registerSigner(name, signer))
+  domainNames.forEach((name) => multiProvider.registerSigner(name, signer))
 };

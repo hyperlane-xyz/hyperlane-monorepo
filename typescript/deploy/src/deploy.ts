@@ -15,13 +15,11 @@ import { TransactionConfig } from './config';
 import { VerificationInput, getContractVerificationInput } from './verification';
 
 export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
-  protected configs: Map<number, TransactionConfig>;
   protected addresses: Map<number, T>;
   protected verification: Map<number, VerificationInput>;
 
   constructor() {
     super();
-    this.configs = new Map();
     this.addresses = new Map();
     this.verification = new Map();
   }

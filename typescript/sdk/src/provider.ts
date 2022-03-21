@@ -20,16 +20,29 @@ type Provider = ethers.providers.Provider;
  * mainnet.registerSigner('polygon', polygonProvider);
  * mainnet.registerSigner('ethereum', ethereumProvider);
  */
-// TODO(asa): getFromMap and mustGetFromMap
 export class MultiProvider {
   protected domains: Map<number, Domain>;
   protected providers: Map<number, Provider>;
   protected signers: Map<number, ethers.Signer>;
+  protected overrides: Map<number, ethers.Overrides>;
 
   constructor() {
     this.domains = new Map();
     this.providers = new Map();
     this.signers = new Map();
+    this.overrides = new Map();
+  }
+
+  getFromMap<T>(nameOrDomain: NameOrDomain, map: Map<number, T>): T | undefined {
+    return map.get(this.resolveDomain(nameOrDomain));
+  }
+
+  mustGetFromMap<T>(nameOrDomain: NameOrDomain, map: Map<number, T>, tname: string): T {
+    const item = this.getFromMap<T>(nameOrDomain, map)
+    if (!item) {
+      throw new Error(`${tname} not found: ${nameOrDomain}`);
+    }
+    return item;
   }
 
   /**
@@ -104,7 +117,7 @@ export class MultiProvider {
    * @returns A {@link Domain} (if the domain has been registered)
    */
   getDomain(nameOrDomain: NameOrDomain): Domain | undefined {
-    return this.domains.get(this.resolveDomain(nameOrDomain));
+    return this.getFromMap(nameOrDomain, this.domains)
   }
 
   /**
@@ -115,12 +128,7 @@ export class MultiProvider {
    * @throws if the domain has not been registered
    */
   mustGetDomain(nameOrDomain: NameOrDomain): Domain {
-    const domain = this.getDomain(nameOrDomain);
-    if (!domain) {
-      throw new Error(`Domain not found: ${nameOrDomain}`);
-    }
-
-    return domain;
+    return this.mustGetFromMap(nameOrDomain, this.domains, 'Domain')
   }
 
   /**
@@ -185,9 +193,7 @@ export class MultiProvider {
    * @returns The currently registered Provider (or none)
    */
   getProvider(nameOrDomain: NameOrDomain): Provider | undefined {
-    const domain = this.resolveDomain(nameOrDomain);
-
-    return this.providers.get(domain);
+    return this.getFromMap(nameOrDomain, this.providers)
   }
 
   /**
@@ -198,11 +204,7 @@ export class MultiProvider {
    * @throws If no provider has been registered for the specified domain
    */
   mustGetProvider(nameOrDomain: NameOrDomain): Provider {
-    const provider = this.getProvider(nameOrDomain);
-    if (!provider) {
-      throw new Error('unregistered name or domain');
-    }
-    return provider;
+    return this.mustGetFromMap(nameOrDomain, this.providers, 'Provider')
   }
 
   /**
@@ -287,18 +289,13 @@ export class MultiProvider {
    * @returns The registered signer (or undefined)
    */
   getSigner(nameOrDomain: NameOrDomain): ethers.Signer | undefined {
-    const domain = this.resolveDomain(nameOrDomain);
-    return this.signers.get(domain);
+    return this.getFromMap(nameOrDomain, this.signers)
   }
 
   mustGetSigner(
     nameOrDomain: NameOrDomain,
   ): ethers.Signer {
-    const signer = this.getSigner(nameOrDomain);
-    if (!signer) {
-      throw new Error(`Signer not found: ${nameOrDomain}`);
-    }
-    return signer
+    return this.mustGetFromMap(nameOrDomain, this.signers, 'Signer')
   }
 
   /**
@@ -337,5 +334,9 @@ export class MultiProvider {
   async getAddress(nameOrDomain: NameOrDomain): Promise<string | undefined> {
     const signer = this.getSigner(nameOrDomain);
     return await signer?.getAddress();
+  }
+
+  getOverrides(nameOrDomain: NameOrDomain): ethers.Overrides {
+    return this.getFromMap(nameOrDomain, this.overrides) || {}
   }
 }

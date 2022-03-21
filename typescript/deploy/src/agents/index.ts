@@ -1,6 +1,7 @@
-import { ethers } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
-import { AgentConfig, ChainConfig, ChainName } from '../config';
+import { ChainName } from '@abacus-network/sdk';
+
+import { AgentConfig } from '../config';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, include, strip0x } from '../utils/utils';
@@ -32,7 +33,8 @@ export const KEY_ROLES = [
 async function helmValuesForChain(
   chainName: ChainName,
   agentConfig: AgentConfig,
-  chains: ChainConfig[],
+  chainNames: ChainName[],
+  confirmations: number,
 ) {
   // Credentials are only needed if AWS keys are needed -- otherwise, the
   // key is pulled from GCP Secret Manager by the helm chart
@@ -43,8 +45,6 @@ async function helmValuesForChain(
     }
     return undefined;
   };
-
-  const chain = chains.find((_) => _.name === chainName)!;
 
   return {
     image: {
@@ -58,8 +58,8 @@ async function helmValuesForChain(
         name: chainName,
       },
       aws: !!agentConfig.aws,
-      replicaChains: chains
-        .filter((_) => _.name !== chainName)
+      replicaChains: chainNames
+        .filter((name) => name !== chainName)
         .map((remoteChain) => {
           return {
             name: remoteChain.name,
@@ -67,14 +67,14 @@ async function helmValuesForChain(
         }),
       validator: {
         enabled: true,
-        transactionSigners: chains.map((chain) => ({
-          name: chain.name,
+        transactionSigners: chainNames.map((name) => ({
+          name,
           ...credentials(KEY_ROLE_ENUM.UpdaterSigner),
         })),
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.UpdaterAttestation),
         },
-        reorg_period: chain.confirmations,
+        reorg_period: confirmations,
         ...include(!!agentConfig.validator?.interval, {
           pollingInterval: agentConfig.validator?.interval || '',
         }),
@@ -84,8 +84,8 @@ async function helmValuesForChain(
       },
       relayer: {
         enabled: true,
-        transactionSigners: chains.map((chain) => ({
-          name: chain.name,
+        transactionSigners: chainNames.map((name) => ({
+          name,
           ...credentials(KEY_ROLE_ENUM.RelayerSigner),
         })),
         ...include(!!agentConfig.validator?.interval, {
@@ -94,8 +94,8 @@ async function helmValuesForChain(
       },
       processor: {
         enabled: true,
-        transactionSigners: chains.map((chain) => ({
-          name: chain.name,
+        transactionSigners: chainNames.map((name) => ({
+          name,
           ...credentials(KEY_ROLE_ENUM.CheckpointerSigner),
         })),
         indexonly: agentConfig.processor?.indexOnly || [],
@@ -110,16 +110,17 @@ export async function getAgentEnvVars(
   homeChainName: ChainName,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
-  chains: ChainConfig[],
+  chainNames: ChainName[],
 ) {
   const valueDict = await helmValuesForChain(
     homeChainName,
     agentConfig,
-    chains,
+    chainNames,
+    // TODO(asa): Set confirmations
+    0
   );
   const envVars: string[] = [];
-  const chain = chains.find((_) => _.name === homeChainName)!;
-  const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chains);
+  const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
   envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
   valueDict.optics.replicaChains.forEach((replicaChain: any) => {
     envVars.push(
@@ -144,9 +145,9 @@ export async function getAgentEnvVars(
       homeChainName,
     );
     // Signer keys
-    chains.forEach((network) => {
+    chainNames.forEach((name) => {
       envVars.push(
-        `OPT_BASE_SIGNERS_${network.name.toUpperCase()}_KEY=${strip0x(
+        `OPT_BASE_SIGNERS_${name.toUpperCase()}_KEY=${strip0x(
           gcpKeys[role].privateKey,
         )}`,
       );
@@ -161,15 +162,16 @@ export async function getAgentEnvVars(
         )}`,
         `OPT_BASE_VALIDATOR_TYPE=hexKey`,
       );
-      // Throw an error if the chain config did not specify the reorg period
+      // Throw an error if the validator config did not specify the reorg period
       if (valueDict.optics.validator.confirmations === undefined) {
         throw new Error(
           `Panic: Chain config for ${homeChainName} did not specify a reorg period`,
         );
       }
 
+      // TODO(asa): Set confirmations
       envVars.push(
-        `OPT_VALIDATOR_REORGPERIOD=${chain.confirmations! - 1}`,
+        `OPT_VALIDATOR_REORGPERIOD=${0}`,
         `OPT_VALIDATOR_INTERVAL=${valueDict.optics.validator.pollingInterval}`,
       );
     }
@@ -192,16 +194,16 @@ export async function getAgentEnvVars(
     envVars.push(`AWS_SECRET_ACCESS_KEY=${awsKeys.secretAccessKey}`);
 
     // Signers
-    Object.keys(chains).forEach((network) => {
-      const key = new AgentAwsKey(agentConfig, role, network);
-      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`);
+    chainNames.forEach((name) => {
+      const key = new AgentAwsKey(agentConfig, role, name);
+      envVars.push(`OPT_BASE_SIGNERS_${name.toUpperCase()}_TYPE=aws`);
       envVars.push(
-        `OPT_BASE_SIGNERS_${network.toUpperCase()}_ID=${
+        `OPT_BASE_SIGNERS_${name.toUpperCase()}_ID=${
           key.credentialsAsHelmValue.aws.keyId
         }`,
       );
       envVars.push(
-        `OPT_BASE_SIGNERS_${network.toUpperCase()}_REGION=${
+        `OPT_BASE_SIGNERS_${name.toUpperCase()}_REGION=${
           key.credentialsAsHelmValue.aws.region
         }`,
       );
@@ -250,30 +252,30 @@ export async function getSecretDeployerKey(deployerKeySecretName: string) {
 
 async function getSecretRpcEndpoints(
   agentConfig: AgentConfig,
-  chains: ChainConfig[],
+  chainNames: ChainName[],
 ) {
   const environment = agentConfig.runEnv;
   return getSecretForEachChain(
-    chains,
-    (chain: ChainConfig) => `${environment}-rpc-endpoint-${chain.name}`,
+    chainNames,
+    (name: ChainName) => `${environment}-rpc-endpoint-${name}`,
     false,
   );
 }
 
 async function getSecretForEachChain(
-  chains: ChainConfig[],
-  secretNameGetter: (chain: ChainConfig) => string,
+  chainNames: ChainName[],
+  secretNameGetter: (name: ChainName) => string,
   parseJson: boolean,
 ) {
   const secrets = await Promise.all(
-    chains.map((chain: ChainConfig) =>
-      fetchGCPSecret(secretNameGetter(chain), parseJson),
+    chainNames.map((name: ChainName) =>
+      fetchGCPSecret(secretNameGetter(name), parseJson),
     ),
   );
   return secrets.reduce(
     (prev: any, secret: string, index: number) => ({
       ...prev,
-      [chains[index].name]: secret,
+      [chainNames[index]]: secret,
     }),
     {},
   );
@@ -282,13 +284,15 @@ async function getSecretForEachChain(
 export async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  homeChainConfig: ChainConfig,
-  chains: ChainConfig[],
+  homeChainName: ChainName,
+  chainNames: ChainName[],
 ) {
   const valueDict = await helmValuesForChain(
-    homeChainConfig.name as ChainName,
+    homeChainName,
     agentConfig,
-    chains,
+    chainNames,
+    // TODO(asa): Set confirmations
+    0
   );
   const values = helmifyValues(valueDict);
 
@@ -299,7 +303,7 @@ export async function runAgentHelmCommand(
 
   return execCmd(
     `helm ${action} ${
-      homeChainConfig.name
+      homeChainName
     } ../../rust/helm/abacus-agent/ --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
@@ -312,23 +316,22 @@ export async function runAgentHelmCommand(
 export async function runKeymasterHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  chains: ChainConfig[],
+  chainNames: ChainName[],
 ) {
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
   const gcpKeys = await fetchAgentGCPKeys(
     agentConfig.environment,
-    chains[0].name,
+    chainNames[0],
   );
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
     networks: Object.fromEntries(
-      chains.map((chain) => {
+      chainNames.map((name) => {
         return [
-          chain.name,
+          name,
           {
-            endpoint: (
-              chain.signer.provider as ethers.providers.JsonRpcProvider
-            ).connection.url,
+            endpoint: '',
+              // TODO(asa): fetch rpc url programatically by chain name
             bank: {
               signer: ensure0x(bankKey.privateKey),
               address: bankKey.address,
@@ -339,11 +342,11 @@ export async function runKeymasterHelmCommand(
       }),
     ),
     homes: Object.fromEntries(
-      chains.map((chain) => {
+      chainNames.map((name) => {
         return [
-          chain.name,
+          name,
           {
-            replicas: chains.map((c) => c.name),
+            replicas: chainNames
             addresses: Object.fromEntries(
               KEY_ROLES.filter((_) => _.endsWith('signer')).map((role) => [
                 role,

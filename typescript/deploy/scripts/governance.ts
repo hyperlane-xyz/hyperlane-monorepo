@@ -9,8 +9,7 @@ async function main() {
   const environment = await getEnvironment();
   const config = await getGovernanceConfig(environment);
   const deployer = new AbacusGovernanceDeployer();
-  // TODO(asa): Register multiprovider...
-  await registerDeployer(deployer, environment);
+  await registerMultiProvider(deployer, environment);
   await deployer.deploy(config);
   deployer.writeOutput(getGovernanceDirectory(environment));
 
