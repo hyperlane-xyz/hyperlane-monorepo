@@ -45,7 +45,7 @@ async function helmValuesForChain(
       repository: agentConfig.docker.repo,
       tag: agentConfig.docker.tag,
     },
-    optics: {
+    abacus: {
       runEnv: agentConfig.runEnv,
       baseConfig: `${chainName}_config.json`,
       homeChain: {
@@ -108,10 +108,9 @@ export async function getAgentEnvVars(
     chains,
   );
   const envVars: string[] = [];
-  const chain = chains.find((_) => _.name === homeChainName)!;
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chains);
   envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
-  valueDict.optics.replicaChains.forEach((replicaChain: any) => {
+  valueDict.abacus.replicaChains.forEach((replicaChain: any) => {
     envVars.push(
       `OPT_BASE_REPLICAS_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
         rpcEndpoints[replicaChain.name]
@@ -120,7 +119,7 @@ export async function getAgentEnvVars(
   });
 
   // Base vars from config map
-  envVars.push(`BASE_CONFIG=${valueDict.optics.baseConfig}`);
+  envVars.push(`BASE_CONFIG=${valueDict.abacus.baseConfig}`);
   envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
   envVars.push(`OPT_BASE_METRICS=9090`);
   envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
@@ -153,21 +152,23 @@ export async function getAgentEnvVars(
         `OPT_BASE_VALIDATOR_TYPE=hexKey`,
       );
       // Throw an error if the chain config did not specify the reorg period
-      if (valueDict.optics.validator.confirmations === undefined) {
+      if (valueDict.abacus.validator.reorg_period === undefined) {
         throw new Error(
           `Panic: Chain config for ${homeChainName} did not specify a reorg period`,
         );
       }
 
       envVars.push(
-        `OPT_VALIDATOR_REORGPERIOD=${chain.confirmations! - 1}`,
-        `OPT_VALIDATOR_INTERVAL=${valueDict.optics.validator.pollingInterval}`,
+        `OPT_VALIDATOR_REORGPERIOD=${
+          valueDict.abacus.validator.reorg_period! - 1
+        }`,
+        `OPT_VALIDATOR_INTERVAL=${valueDict.abacus.validator.pollingInterval}`,
       );
     }
 
     if (role === KEY_ROLE_ENUM.Relayer) {
       envVars.push(
-        `OPT_RELAYER_INTERVAL=${valueDict.optics.relayer.pollingInterval}`,
+        `OPT_RELAYER_INTERVAL=${valueDict.abacus.relayer.pollingInterval}`,
       );
     }
   } catch (error) {
