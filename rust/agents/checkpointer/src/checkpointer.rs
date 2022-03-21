@@ -44,13 +44,13 @@ impl Agent for Checkpointer {
         Self: Sized,
     {
         let polling_interval = settings
-            .polling_interval
+            .pollinginterval
             .parse()
-            .expect("invalid polling_interval uint");
+            .expect("invalid pollinginterval uint");
         let creation_latency = settings
-            .creation_latency
+            .creationlatency
             .parse()
-            .expect("invalid creation_latency uint");
+            .expect("invalid creationlatency uint");
         let core = settings
             .as_ref()
             .try_into_abacus_core(Self::AGENT_NAME)
