@@ -50,9 +50,6 @@ impl CheckpointSubmitter {
                 );
                 // If there are any new messages, the count will be greater than
                 // the latest checkpoint index.
-                // To prevent creating checkpoints too frequently, a new checkpoint
-                // should be made if `creation_latency` has elapsed since the last created
-                // checkpoint.
                 if count > latest_checkpoint_index {
                     debug!("Creating checkpoint");
                     self.outbox.create_checkpoint().await?;
