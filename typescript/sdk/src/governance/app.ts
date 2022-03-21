@@ -4,6 +4,7 @@ import { AbacusApp } from '../app';
 import { ChainName, ProxiedAddress } from '../types';
 
 import { GovernanceContracts } from './contracts';
+import { local } from './environments';
 
 export type Governor = {
   domain: number;
@@ -14,7 +15,7 @@ export class AbacusGovernance extends AbacusApp<
   ProxiedAddress,
   GovernanceContracts
 > {
-  constructor(addresses: Record<ChainName, ProxiedAddress>) {
+  constructor(addresses: Partial<Record<ChainName, ProxiedAddress>>) {
     super();
     for (const chain of Object.keys(addresses) as ChainName[]) {
       const domain = this.resolveDomain(chain);
@@ -58,3 +59,5 @@ export class AbacusGovernance extends AbacusApp<
     return governors[0];
   }
 }
+
+export const localGovernance = new AbacusGovernance(local);

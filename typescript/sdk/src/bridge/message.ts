@@ -6,7 +6,8 @@ import { ERC20 } from '@abacus-network/apps';
 
 import { AbacusCore, AbacusMessage, AnnotatedDispatch } from '../core';
 import { NameOrDomain } from '../types';
-import { BridgeContracts, AbacusBridge } from './app';
+import { AbacusBridge } from './app';
+import { BridgeContracts } from './contracts';
 import { ResolvedTokenInfo, TokenIdentifier } from './tokens';
 
 const ACTION_LEN = {

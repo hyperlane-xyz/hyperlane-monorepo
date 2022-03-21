@@ -1,6 +1,4 @@
-import {
-  Inbox,
-} from '@abacus-network/core';
+import { Inbox } from '@abacus-network/core';
 
 import { AbacusApp } from '../app';
 import { ChainName, NameOrDomain } from '../types';

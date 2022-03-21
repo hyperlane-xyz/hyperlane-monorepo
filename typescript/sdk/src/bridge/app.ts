@@ -1,50 +1,16 @@
 import { hexlify } from '@ethersproject/bytes';
 import { BigNumberish, ethers } from 'ethers';
-import {
-  ETHHelper,
-  ETHHelper__factory,
-  BridgeRouter,
-  BridgeRouter__factory,
-  BridgeToken,
-  BridgeToken__factory,
-} from '@abacus-network/apps';
-import { types } from '@abacus-network/utils';
+import { BridgeToken, BridgeToken__factory } from '@abacus-network/apps';
 
 import { AbacusApp } from '../app';
-import { AbacusAppContracts } from '../contracts';
 import { AbacusCore } from '../core';
-import { ChainName, NameOrDomain, ProxiedAddress } from '../types';
+import { ChainName, NameOrDomain } from '../types';
 import { Address, canonizeId, evmId } from '../utils';
 
+import { BridgeContractAddresses, BridgeContracts } from './contracts';
+import { local } from './environments';
 import { TransferMessage } from './message';
 import { TokenIdentifier, ResolvedTokenInfo } from './tokens';
-
-export type BridgeContractAddresses = {
-  router: ProxiedAddress;
-  token: ProxiedAddress;
-  helper?: types.Address;
-};
-
-export class BridgeContracts extends AbacusAppContracts<BridgeContractAddresses> {
-  get router(): BridgeRouter {
-    return BridgeRouter__factory.connect(
-      this._addresses.router.proxy,
-      this.connection,
-    );
-  }
-
-  get token(): BridgeToken {
-    return BridgeToken__factory.connect(
-      this._addresses.token.proxy,
-      this.connection,
-    );
-  }
-
-  get helper(): ETHHelper | undefined {
-    if (this._addresses.helper == undefined) return undefined;
-    return ETHHelper__factory.connect(this._addresses.helper, this.connection);
-  }
-}
 
 export class AbacusBridge extends AbacusApp<
   BridgeContractAddresses,
@@ -304,3 +270,5 @@ export class AbacusBridge extends AbacusApp<
     return message as TransferMessage;
   }
 }
+
+export const localBridge = new AbacusBridge(local);
