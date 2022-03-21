@@ -27,7 +27,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
   async deployContracts(
     domain: types.Domain,
     config: CoreConfig,
-  ) {
+  ): Promise<CoreContractAddresses> {
     const txConfig = this.mustGetConfig(domain);
     const signer = this.mustGetSigner(domain);
     const upgradeBeaconController: UpgradeBeaconController =
@@ -98,7 +98,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
       outbox: outbox.toObject(),
       inboxes: inboxAddresses,
     };
-    this.addresses.set(domain, addresses);
+    return addresses;
   }
 
   writeRustConfigs(environment: DeployEnvironment, directory: string) {

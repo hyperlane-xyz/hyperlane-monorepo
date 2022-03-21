@@ -26,6 +26,7 @@ export {
   AbacusBridge,
   AnnotatedSend,
   AnnotatedTokenDeployed,
+  BridgeContractAddresses,
   localBridge,
   SendArgs,
   SendTypes,

@@ -15,7 +15,7 @@ export class AbacusGovernanceDeployer extends AbacusAppDeployer<ProxiedAddress, 
   async deployContracts(
     domain: types.Domain,
     config: GovernanceConfig,
-  ) {
+  ): Promise<ProxiedAddress> {
     const signer = this.mustGetSigner(domain);
     const name = this.mustResolveDomainName(domain)
     const core = config.core[name];
@@ -29,7 +29,7 @@ export class AbacusGovernanceDeployer extends AbacusAppDeployer<ProxiedAddress, 
       [core.xAppConnectionManager],
     );
 
-    this.addresses.set(domain, router.toObject());
+    return router.toObject();
   }
 
   // TODO(asa): Consider sharing router specific code

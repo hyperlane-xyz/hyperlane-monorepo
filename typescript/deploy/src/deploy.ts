@@ -75,7 +75,7 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     this.verification.set(domain, verification.concat(input))
   }
 
-  abstract deployContracts(domain: types.Domain, config: C): Promise<void>;
+  abstract deployContracts(domain: types.Domain, config: C): Promise<T>;
 
   async deploy(config: C) {
     /*
@@ -86,7 +86,7 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     */
     for (const domain of this.domainNumbers) {
       if (this.addresses.has(domain)) throw new Error('cannot deploy twice');
-      await this.deployContracts(domain, config);
+      this.addresses.set(domain, await this.deployContracts(domain, config));
     }
   }
 
