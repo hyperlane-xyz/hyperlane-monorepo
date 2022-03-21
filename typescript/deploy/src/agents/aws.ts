@@ -1,4 +1,4 @@
-import { getSecretAwsCredentials, KEY_ROLE_ENUM } from '../agents';
+import { getSecretAwsCredentials } from '../agents';
 import { AgentConfig } from '../../src/config/agent';
 import {
   CreateAliasCommand,
@@ -60,19 +60,7 @@ export class AgentAwsKey extends AgentKey {
   }
 
   get identifier() {
-    // When testnet was deployed, we mixed up the attestation and
-    // signer keys, so we have to switch for this environment
-    // NB: The environment on GCP for testnet is "staging-community" for legacy
-    // reasons.
-    const adjustedRole =
-      this.environment === 'staging-community' &&
-      this.role === KEY_ROLE_ENUM.UpdaterAttestation
-        ? KEY_ROLE_ENUM.UpdaterSigner
-        : this.environment === 'staging-community' &&
-          this.role === KEY_ROLE_ENUM.UpdaterSigner
-        ? KEY_ROLE_ENUM.UpdaterAttestation
-        : this.role;
-    return `alias/${this.environment}-${this.chainName}-${adjustedRole}`;
+    return `alias/${this.environment}-${this.chainName}-${this.role}`;
   }
 
   get credentialsAsHelmValue() {

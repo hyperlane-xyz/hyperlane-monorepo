@@ -1,13 +1,13 @@
 import { Wallet } from 'ethers';
 import { rm, writeFile } from 'fs/promises';
 
-import { KEY_ROLES } from '../agents';
+import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
 import { execCmd, include, strip0x } from '../utils/utils';
 import { AgentKey } from './agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 
-function isAttestationKey(role: string) {
-  return role.endsWith('attestation');
+function isValidatorKey(role: string) {
+  return role === KEY_ROLE_ENUM.Validator;
 }
 
 // This is the type for how the keys are persisted in GCP
@@ -27,7 +27,7 @@ interface KeyAsAddress {
 }
 
 function identifier(environment: string, role: string, chainName: string) {
-  return isAttestationKey(role)
+  return isValidatorKey(role)
     ? `optics-key-${environment}-${chainName}-${role}`
     : `optics-key-${environment}-${role}`;
 }
@@ -63,7 +63,7 @@ export class AgentGCPKey extends AgentKey {
   serializeAsAddress() {
     this.requireFetched();
     return {
-      role: isAttestationKey(this.role)
+      role: isValidatorKey(this.role)
         ? `${this.chainName}-${this.role}`
         : this.role,
       // @ts-ignore
@@ -71,8 +71,8 @@ export class AgentGCPKey extends AgentKey {
     };
   }
 
-  get isAttestationKey() {
-    return isAttestationKey(this.role);
+  get isValidatorKey() {
+    return isValidatorKey(this.role);
   }
 
   get identifier() {
@@ -87,7 +87,7 @@ export class AgentGCPKey extends AgentKey {
 
   // The identifier for this key within a set of keys for an enrivonment
   get memoryKeyIdentifier() {
-    return isAttestationKey(this.role)
+    return isValidatorKey(this.role)
       ? `${this.chainName}-${this.role}`
       : this.role;
   }
@@ -140,7 +140,7 @@ export class AgentGCPKey extends AgentKey {
     const fileName = `${identifier}.txt`;
 
     let labels = `environment=${this.environment},role=${this.role}`;
-    if (this.isAttestationKey) labels += `,chain=${this.chainName}`;
+    if (this.isValidatorKey) labels += `,chain=${this.chainName}`;
 
     await writeFile(
       fileName,
@@ -149,7 +149,7 @@ export class AgentGCPKey extends AgentKey {
         environment: this.environment,
         privateKey: wallet.privateKey,
         address,
-        ...include(this.isAttestationKey, { chainName: this.chainName }),
+        ...include(this.isValidatorKey, { chainName: this.chainName }),
       }),
     );
 
@@ -178,7 +178,7 @@ export async function deleteAgentGCPKeys(
 ) {
   await Promise.all(
     KEY_ROLES.map(async (role) => {
-      if (isAttestationKey(role)) {
+      if (isValidatorKey(role)) {
         await Promise.all(
           chainNames.map((chainName) => {
             const key = new AgentGCPKey(environment, role, chainName);
@@ -198,7 +198,7 @@ export async function deleteAgentGCPKeys(
 
 // The identifier for a key within a memory representation
 export function memoryKeyIdentifier(role: string, chainName: string) {
-  return isAttestationKey(role) ? `${chainName}-${role}` : role;
+  return isValidatorKey(role) ? `${chainName}-${role}` : role;
 }
 
 export async function createAgentGCPKeys(
@@ -207,7 +207,7 @@ export async function createAgentGCPKeys(
 ) {
   const keys: AgentGCPKey[] = await Promise.all(
     KEY_ROLES.flatMap((role) => {
-      if (isAttestationKey(role)) {
+      if (isValidatorKey(role)) {
         return chainNames.map(async (chainName) =>
           AgentGCPKey.create(environment, role, chainName),
         );
