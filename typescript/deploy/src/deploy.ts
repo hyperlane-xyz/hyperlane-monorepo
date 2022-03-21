@@ -11,56 +11,38 @@ import {
 } from '@abacus-network/core';
 
 import { BeaconProxy } from './proxy';
-import { TransactionConfig } from './config';
 import { VerificationInput, getContractVerificationInput } from './verification';
 
 export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
+  protected confirmations: Map<number, number>;
   protected addresses: Map<number, T>;
   protected verification: Map<number, VerificationInput>;
 
   constructor() {
     super();
+    this.confirmations = new Map();
     this.addresses = new Map();
     this.verification = new Map();
   }
 
-  getConfig(nameOrDomain: NameOrDomain): TransactionConfig | undefined {
-    return this.configs.get(this.resolveDomain(nameOrDomain));
-  }
-
-  mustGetConfig(nameOrDomain: NameOrDomain): TransactionConfig {
-    const config = this.getConfig(nameOrDomain);
-    if (!config) {
-      throw new Error(`TransactionConfig not found: ${nameOrDomain}`);
-    }
-
-    return config;
+  getConfirmations(nameOrDomain: NameOrDomain): number {
+    return this.getFromMap(nameOrDomain, this.confirmations) || 0
   }
 
   getAddresses(nameOrDomain: NameOrDomain): T | undefined {
-    return this.addresses.get(this.resolveDomain(nameOrDomain));
+    return this.getFromMap(nameOrDomain, this.addresses)
   }
 
   mustGetAddresses(nameOrDomain: NameOrDomain): T {
-    const addresses = this.getAddresses(nameOrDomain);
-    if (!addresses) {
-      throw new Error(`Addresses not found: ${nameOrDomain}`);
-    }
-
-    return addresses;
+    return this.mustGetFromMap(nameOrDomain, this.addresses, 'Addresses')
   }
 
   getVerification(nameOrDomain: NameOrDomain): VerificationInput | undefined {
-    return this.verification.get(this.resolveDomain(nameOrDomain));
+    return this.getFromMap(nameOrDomain, this.verification)
   }
 
   mustGetVerification(nameOrDomain: NameOrDomain): VerificationInput {
-    const verification = this.getVerification(nameOrDomain);
-    if (!verification) {
-      throw new Error(`Verification not found: ${nameOrDomain}`);
-    }
-
-    return verification;
+    return this.mustGetFromMap(nameOrDomain, this.verification, 'Verification')
   }
 
   addVerificationInput(nameOrDomain: NameOrDomain, input: VerificationInput) {
@@ -91,9 +73,10 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     factory: ethers.ContractFactory,
     ...args: any[]
   ): Promise<L> {
-    const config = this.mustGetConfig(nameOrDomain);
-    const contract = (await factory.deploy(...args, config.overrides)) as L;
-    await contract.deployTransaction.wait(config.confirmations);
+    const overrides = this.getOverrides(nameOrDomain);
+    // TODO(asa): Confirmations
+    const contract = (await factory.deploy(...args, overrides)) as L;
+    await contract.deployTransaction.wait(this.getConfirmations(nameOrDomain))
     this.addVerificationInput(nameOrDomain, [getContractVerificationInput(
       contractName,
       contract,
@@ -137,7 +120,7 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     );
     // proxy wait(x) implies implementation and beacon wait(>=x)
     // due to nonce ordering
-    await proxy.deployTransaction.wait(this.mustGetConfig(nameOrDomain).confirmations);
+    await proxy.deployTransaction.wait(this.getConfirmations(nameOrDomain));
     return new BeaconProxy(
       implementation as L,
       proxy,

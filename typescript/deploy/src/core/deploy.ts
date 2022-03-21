@@ -28,7 +28,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
     domain: types.Domain,
     config: CoreConfig,
   ): Promise<CoreContractAddresses> {
-    const txConfig = this.mustGetConfig(domain);
+    const overrides = this.getOverrides(domain);
     const signer = this.mustGetSigner(domain);
     const upgradeBeaconController: UpgradeBeaconController =
       await this.deployContract(domain, 'UpgradeBeaconController', new UpgradeBeaconController__factory(signer));
@@ -42,7 +42,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
       await validatorManager.enrollValidator(
         this.resolveDomain(name),
         validator,
-        txConfig.overrides
+        overrides,
       );
     }
 
@@ -58,7 +58,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
       domain, 'XAppConnectionManager',
       new XAppConnectionManager__factory(signer),
     );
-    await xAppConnectionManager.setOutbox(outbox.address, txConfig.overrides);
+    await xAppConnectionManager.setOutbox(outbox.address, overrides);
 
     const inboxes: Record<types.Domain, BeaconProxy<Inbox>> = {}
     const inboxAddresses: Partial<Record<ChainName, ProxiedAddress>> = {}
@@ -87,7 +87,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<CoreContractAddresses,
       await xAppConnectionManager.enrollInbox(
         remote,
         inboxes[remote].address,
-        txConfig.overrides,
+        overrides,
       );
     }
 

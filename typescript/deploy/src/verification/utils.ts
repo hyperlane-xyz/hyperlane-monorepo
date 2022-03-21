@@ -3,10 +3,9 @@ import {
   UpgradeBeacon__factory,
   UpgradeBeaconProxy__factory,
 } from '@abacus-network/core';
-import { BeaconProxy } from '../common';
+import { BeaconProxy } from '../proxy';
 
 import {
-  ContractVerificationName,
   ContractVerificationInput,
   VerificationInput,
   BeaconProxyPrefix,

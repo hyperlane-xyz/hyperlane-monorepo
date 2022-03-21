@@ -1,3 +1,4 @@
+/*
 import { types } from '@abacus-network/utils';
 import { BridgeDeploy } from './bridge/BridgeDeploy';
 import { CoreDeploy } from './core/CoreDeploy';
@@ -47,3 +48,4 @@ ${coreDeploy
     ret,
   );
 }
+*/

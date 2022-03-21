@@ -60,9 +60,9 @@ async function helmValuesForChain(
       aws: !!agentConfig.aws,
       replicaChains: chainNames
         .filter((name) => name !== chainName)
-        .map((remoteChain) => {
+        .map((remoteChainName) => {
           return {
-            name: remoteChain.name,
+            name: remoteChainName,
           };
         }),
       validator: {
@@ -346,7 +346,7 @@ export async function runKeymasterHelmCommand(
         return [
           name,
           {
-            replicas: chainNames
+            replicas: chainNames,
             addresses: Object.fromEntries(
               KEY_ROLES.filter((_) => _.endsWith('signer')).map((role) => [
                 role,

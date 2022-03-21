@@ -2,6 +2,7 @@ import {
   getEnvironment,
   getGovernanceConfig,
   getGovernanceDirectory,
+  registerMultiProvider,
 } from './utils';
 import { AbacusGovernanceDeployer } from '../src/governance';
 
