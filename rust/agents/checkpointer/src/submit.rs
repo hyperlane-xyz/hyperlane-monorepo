@@ -1,7 +1,4 @@
-use std::{
-    sync::Arc,
-    time::Duration,
-};
+use std::{sync::Arc, time::Duration};
 
 use abacus_base::CachingOutbox;
 use abacus_core::{AbacusCommon, Checkpoint, Outbox};
@@ -19,7 +16,11 @@ pub(crate) struct CheckpointSubmitter {
 }
 
 impl CheckpointSubmitter {
-    pub(crate) fn new(outbox: Arc<CachingOutbox>, polling_interval: u64, creation_latency: u64) -> Self {
+    pub(crate) fn new(
+        outbox: Arc<CachingOutbox>,
+        polling_interval: u64,
+        creation_latency: u64,
+    ) -> Self {
         Self {
             outbox,
             polling_interval: Duration::from_secs(polling_interval),
