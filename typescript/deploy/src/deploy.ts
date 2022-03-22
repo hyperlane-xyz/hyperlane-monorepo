@@ -100,7 +100,6 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
    *
    * @param T - The contract
    */
-  // TODO(asa): Fold this into abacusapp deployer
   async deployBeaconProxy<L extends ethers.Contract>(
     nameOrDomain: NameOrDomain,
     contractName: string,

@@ -164,24 +164,6 @@ export function getGovernanceVerificationDirectory(
   return path.join(getGovernanceDirectory(environment), 'verification');
 }
 
-/*
-export async function registerGovernorSigner(
-  governance: AbacusGovernance,
-  chains: ChainConfig[],
-): Promise<void> {
-  const governor = await governance.governor();
-  const govChains = chains.filter((c) => c.domain === governor.domain);
-  if (govChains.length !== 1) throw new Error('could not find governor chain');
-  const govChain = govChains[0];
-  governance.registerSigner(
-    govChain.name,
-    new ethers.Wallet(
-      process.env[`${govChain.name.toUpperCase()}_DEPLOYER_KEY`]!,
-    ),
-  );
-}
-*/
-
 export async function getKeyRoleAndChainArgs() {
   const args = await getArgs();
   return args

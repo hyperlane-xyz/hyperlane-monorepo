@@ -21,18 +21,3 @@ export async function fetchSigner(
   const wallet = new ethers.Wallet(key, provider);
   return new NonceManager(wallet);
 }
-
-/*
-export function getChainsForEnvironment(
-  partials: ChainConfigWithoutSigner[],
-  environment: string,
-  deployerKeySecretName: string,
-) {
-  return () =>
-    Promise.all(
-      partials.map((partial) =>
-        fetchSigner(partial, environment, deployerKeySecretName),
-      ),
-    );
-}
-*/

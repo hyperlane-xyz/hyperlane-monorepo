@@ -34,7 +34,6 @@ async function helmValuesForChain(
   chainName: ChainName,
   agentConfig: AgentConfig,
   chainNames: ChainName[],
-  confirmations: number,
 ) {
   // Credentials are only needed if AWS keys are needed -- otherwise, the
   // key is pulled from GCP Secret Manager by the helm chart
@@ -74,7 +73,7 @@ async function helmValuesForChain(
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.UpdaterAttestation),
         },
-        reorg_period: confirmations,
+        reorg_period: agentConfig.validator?.confirmations,
         ...include(!!agentConfig.validator?.interval, {
           pollingInterval: agentConfig.validator?.interval || '',
         }),
@@ -115,9 +114,7 @@ export async function getAgentEnvVars(
   const valueDict = await helmValuesForChain(
     homeChainName,
     agentConfig,
-    chainNames,
-    // TODO(asa): Set confirmations
-    0,
+    chainNames
   );
   const envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
@@ -162,16 +159,8 @@ export async function getAgentEnvVars(
         )}`,
         `OPT_BASE_VALIDATOR_TYPE=hexKey`,
       );
-      // Throw an error if the validator config did not specify the reorg period
-      if (valueDict.optics.validator.confirmations === undefined) {
-        throw new Error(
-          `Panic: Chain config for ${homeChainName} did not specify a reorg period`,
-        );
-      }
-
-      // TODO(asa): Set confirmations
       envVars.push(
-        `OPT_VALIDATOR_REORGPERIOD=${0}`,
+        `OPT_VALIDATOR_REORGPERIOD=${valueDict.optics.validator.reorg_period}`,
         `OPT_VALIDATOR_INTERVAL=${valueDict.optics.validator.pollingInterval}`,
       );
     }
@@ -291,8 +280,6 @@ export async function runAgentHelmCommand(
     homeChainName,
     agentConfig,
     chainNames,
-    // TODO(asa): Set confirmations
-    0,
   );
   const values = helmifyValues(valueDict);
 
@@ -328,8 +315,7 @@ export async function runKeymasterHelmCommand(
         return [
           name,
           {
-            endpoint: '',
-            // TODO(asa): fetch rpc url programatically by chain name
+            endpoint: await getSecretRpcEndpoint(agentConfig.environment, name),
             bank: {
               signer: ensure0x(bankKey.privateKey),
               address: bankKey.address,

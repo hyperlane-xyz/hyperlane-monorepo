@@ -26,6 +26,7 @@ interface ValidatorConfig {
   interval?: number;
   // How long an validator should wait for relevant state changes afterwords
   pause?: number;
+  confirmations: number;
 }
 
 export interface DockerConfig {

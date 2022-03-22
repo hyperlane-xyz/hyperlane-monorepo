@@ -10,6 +10,7 @@ export const agent: AgentConfig = {
   },
   validator: {
     interval: 5,
+    confirmations: 1,
   },
   relayer: {
     interval: 5,
