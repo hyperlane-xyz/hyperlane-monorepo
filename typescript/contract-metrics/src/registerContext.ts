@@ -3,9 +3,9 @@ import {
   AbacusBridge,
   AbacusGovernance,
   ChainName,
-  localCore,
-  localBridge,
-  localGovernance,
+  cores,
+  bridges,
+  governances,
 } from '@abacus-network/sdk';
 import config from './config';
 
@@ -14,30 +14,22 @@ type Rpc = {
   chain: ChainName;
   rpc: string;
 };
+
 const rpcs: Rpc[] = [
   { chain: 'celo', rpc: config.celoRpc },
   { chain: 'ethereum', rpc: config.ethereumRpc },
   { chain: 'polygon', rpc: config.polygonRpc },
 ];
+
+const environment = config.environment;
+const core: AbacusCore = cores[environment];
+const bridge: AbacusBridge = bridges[environment];
+const governance: AbacusGovernance = governances[environment];
+
 rpcs.map((rpc) => {
-  localCore.registerRpcProvider(rpc.chain, rpc.rpc);
-  localBridge.registerRpcProvider(rpc.chain, rpc.rpc);
-  localGovernance.registerRpcProvider(rpc.chain, rpc.rpc);
+  core.registerRpcProvider(rpc.chain, rpc.rpc);
+  bridge.registerRpcProvider(rpc.chain, rpc.rpc);
+  governance.registerRpcProvider(rpc.chain, rpc.rpc);
 });
-
-let core: AbacusCore;
-let bridge: AbacusBridge;
-let governance: AbacusGovernance;
-switch (config.environment) {
-  case 'local':
-    core = localCore;
-    bridge = localBridge;
-    governance = localGovernance;
-    break;
-
-  default:
-    throw new Error('Unrecognized environment');
-    break;
-}
 
 export { core, bridge, governance };

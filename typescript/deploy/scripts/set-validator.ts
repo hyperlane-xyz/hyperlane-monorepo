@@ -1,4 +1,4 @@
-import { core, governance } from '@abacus-network/sdk';
+import { cores, governances } from '@abacus-network/sdk';
 import { getCoreConfig, getEnvironment, registerMultiProvider } from './utils';
 import { ViolationType } from '../src/check';
 import { AbacusCoreChecker } from '../src/core';
@@ -6,26 +6,26 @@ import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
 
 async function main() {
   const environment = await getEnvironment();
-  const abacusCore = core[environment];
-  const abacusGovernance = governance[environment];
-  registerMultiProvider(abacusCore, environment);
-  registerMultiProvider(abacusGovernance, environment);
+  const core = cores[environment];
+  const governance = governances[environment];
+  registerMultiProvider(core, environment);
+  registerMultiProvider(governance, environment);
 
   const config = await getCoreConfig(environment);
   const checker = new AbacusCoreChecker(
-    abacusCore,
+    core,
     config,
-    abacusGovernance.routerAddresses,
+    governance.routerAddresses,
   );
   await checker.check();
   checker.expectViolations(
     [ViolationType.Validator],
-    [abacusCore.domainNumbers.length],
+    [core.domainNumbers.length],
   );
 
   const builder = new GovernanceCallBatchBuilder(
-    abacusCore,
-    abacusGovernance,
+    core,
+    governance,
     checker.violations,
   );
   const batch = await builder.build();
@@ -34,8 +34,8 @@ async function main() {
   // For each domain, expect one call to set the updater.
   expectCalls(
     batch,
-    abacusCore.domainNumbers,
-    new Array(abacusCore.domainNumbers.length).fill(1),
+    core.domainNumbers,
+    new Array(core.domainNumbers.length).fill(1),
   );
   // Change to `batch.execute` in order to run.
   const receipts = await batch.estimateGas();

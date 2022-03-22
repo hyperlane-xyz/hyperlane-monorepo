@@ -2,7 +2,7 @@ import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
 import { utils, types } from '@abacus-network/utils';
-import { core, AbacusCore } from '@abacus-network/sdk';
+import { cores, AbacusCore } from '@abacus-network/sdk';
 
 import { sleep } from './src/utils/utils';
 import {
@@ -76,23 +76,23 @@ task('kathy', 'Dispatches random abacus messages')
   )
   .setAction(async (args: any) => {
     const environment = args.environment;
-    const abacusCore = core[environment];
-    await registerMultiProvider(abacusCore, environment);
+    const core = cores[environment];
+    await registerMultiProvider(core, environment);
     const randomElement = (list: types.Domain[]) =>
       list[Math.floor(Math.random() * list.length)];
 
     // Generate artificial traffic
     while (true) {
-      const local = randomElement(abacusCore.domainNumbers);
-      const remote = randomElement(abacusCore.remoteDomainNumbers(local));
-      const outbox = abacusCore.mustGetContracts(local).outbox;
+      const local = randomElement(core.domainNumbers);
+      const remote = randomElement(core.remoteDomainNumbers(local));
+      const outbox = core.mustGetContracts(local).outbox;
       // Values for recipient and message don't matter
       await outbox.dispatch(
         remote,
         utils.addressToBytes32(outbox.address),
         '0x1234',
       );
-      console.log(await domainSummary(abacusCore, local));
+      console.log(await domainSummary(core, local));
       await sleep(5000);
     }
   });

@@ -13,6 +13,6 @@ export {
 
 import { AbacusBridge } from './app';
 import { test } from './environments';
-export const bridge: Record<any, AbacusBridge> = {
+export const bridges: Record<any, AbacusBridge> = {
   test: new AbacusBridge(test),
 };
