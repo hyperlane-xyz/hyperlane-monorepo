@@ -1,19 +1,20 @@
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
-// import { types } from '@abacus-network/utils';
-// import { AbacusCore } from '@abacus-network/sdk';
+import { utils, types } from '@abacus-network/utils';
+import { core, AbacusCore } from '@abacus-network/sdk';
 
-// import { sleep } from './src/utils/utils';
-import { getEnvironmentDirectory } from './scripts/utils';
+import { sleep } from './src/utils/utils';
+import {
+  getCoreVerificationDirectory,
+  getCoreContractsSdkFilepath,
+  getCoreRustDirectory,
+  registerMultiProvider,
+  getCoreConfig,
+} from './scripts/utils';
 import { AbacusCoreDeployer } from './src/core';
 import { ContractVerifier } from './src/verification';
-import {
-  registerMultiProvider,
-  core as coreConfig,
-} from './config/environments/test';
 
-/*
 const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
   const contracts = core.mustGetContracts(domain);
   const outbox = contracts.outbox;
@@ -21,7 +22,7 @@ const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
     await outbox.latestCheckpoint();
   const count = (await outbox.tree()).toNumber();
   const summary: any = {
-    domain,
+    domain: core.mustResolveDomainName(domain),
     outbox: {
       count,
       checkpoint: {
@@ -38,32 +39,36 @@ const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
     const processFilter = inbox.filters.Process();
     const processes = await inbox.queryFilter(processFilter);
     return {
-      domain: remote,
+      domain: core.mustResolveDomainName(remote),
       processed: processes.length,
       root: inboxCheckpointRoot,
       index: inboxCheckpointIndex.toNumber(),
     };
   };
-  summary.inboxes = await Promise.all(core.remoteDomainNumbers(domain).map(inboxSummary));
+  summary.inboxes = await Promise.all(
+    core.remoteDomainNumbers(domain).map(inboxSummary),
+  );
   return summary;
 };
-*/
 
-task(
-  'abacus',
-  'Deploys abacus on top of an already running Harthat Network',
-).setAction(async (args: any) => {
-  const deployer = new AbacusCoreDeployer();
-  registerMultiProvider(deployer);
-  await deployer.deploy(coreConfig);
+task('abacus', 'Deploys abacus on top of an already running Harthat Network')
+  .addParam(
+    'environment',
+    'The name of the environment from which to read configs',
+  )
+  .setAction(async (args: any) => {
+    const environment = args.environment;
+    const deployer = new AbacusCoreDeployer();
+    await registerMultiProvider(deployer, environment);
+    const coreConfig = await getCoreConfig(environment);
+    await deployer.deploy(coreConfig);
 
-  // Write configs
-  const env = 'test';
-  deployer.writeOutput(getEnvironmentDirectory(env));
-  deployer.writeRustConfigs(env, getEnvironmentDirectory(env));
-});
+    // Write configs
+    deployer.writeVerification(getCoreVerificationDirectory(environment));
+    deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
+    deployer.writeContracts(getCoreContractsSdkFilepath(environment));
+  });
 
-/*
 task('kathy', 'Dispatches random abacus messages')
   .addParam(
     'environment',
@@ -71,26 +76,26 @@ task('kathy', 'Dispatches random abacus messages')
   )
   .setAction(async (args: any) => {
     const environment = args.environment;
-    const deploy = await getCoreDeploy(environment);
+    const abacusCore = core[environment];
+    await registerMultiProvider(abacusCore, environment);
     const randomElement = (list: types.Domain[]) =>
       list[Math.floor(Math.random() * list.length)];
 
     // Generate artificial traffic
     while (true) {
-      const local = randomElement(deploy.domains);
-      const remote = randomElement(deploy.remotes(local));
-      const outbox = deploy.outbox(local);
+      const local = randomElement(abacusCore.domainNumbers);
+      const remote = randomElement(abacusCore.remoteDomainNumbers(local));
+      const outbox = abacusCore.mustGetContracts(local).outbox;
       // Values for recipient and message don't matter
       await outbox.dispatch(
         remote,
         utils.addressToBytes32(outbox.address),
         '0x1234',
       );
-      console.log(await domainSummary(deploy, local));
+      console.log(await domainSummary(abacusCore, local));
       await sleep(5000);
     }
   });
-*/
 
 const etherscanKey = process.env.ETHERSCAN_API_KEY;
 task('verify-deploy', 'Verifies abacus deploy sourcecode')

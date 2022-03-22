@@ -1,3 +1,4 @@
+import path from 'path';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
@@ -26,9 +27,10 @@ describe('core', async () => {
   });
 
   it('writes', async () => {
-    const outputDir = './test/outputs';
-    deployer.writeOutput(outputDir);
-    deployer.writeRustConfigs('test', outputDir);
+    const base = './test/outputs/core';
+    deployer.writeVerification(path.join(base, 'verification'));
+    deployer.writeContracts(path.join(base, 'contracts.ts'));
+    deployer.writeRustConfigs('test', path.join(base, 'rust'));
   });
 
   it('transfers ownership', async () => {

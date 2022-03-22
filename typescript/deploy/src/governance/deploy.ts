@@ -1,4 +1,3 @@
-import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import {
@@ -13,10 +12,6 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
   ProxiedAddress,
   GovernanceConfig
 > {
-  configDirectory(directory: string) {
-    return path.join(directory, 'governance');
-  }
-
   async deployContracts(
     domain: types.Domain,
     config: GovernanceConfig,

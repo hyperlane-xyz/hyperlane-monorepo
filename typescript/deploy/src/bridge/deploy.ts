@@ -1,4 +1,3 @@
-import path from 'path';
 import { types } from '@abacus-network/utils';
 import {
   BridgeRouter,
@@ -14,10 +13,6 @@ export class AbacusBridgeDeployer extends AbacusRouterDeployer<
   BridgeContractAddresses,
   BridgeConfig
 > {
-  configDirectory(directory: string) {
-    return path.join(directory, 'bridge');
-  }
-
   async deployContracts(
     domain: types.Domain,
     config: BridgeConfig,

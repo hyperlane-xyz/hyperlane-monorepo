@@ -112,6 +112,24 @@ export async function getEnvironment(): Promise<DeployEnvironment> {
   return (await getArgs().argv).e;
 }
 
+function getContractsSdkFilepath(mod: string, environment: DeployEnvironment) {
+  return path.join('../sdk/src/', mod, 'environments', `${environment}.ts`);
+}
+
+export function getCoreContractsSdkFilepath(environment: DeployEnvironment) {
+  return getContractsSdkFilepath('core', environment);
+}
+
+export function getBridgeContractsSdkFilepath(environment: DeployEnvironment) {
+  return getContractsSdkFilepath('bridge', environment);
+}
+
+export function getGovernanceContractsSdkFilepath(
+  environment: DeployEnvironment,
+) {
+  return getContractsSdkFilepath('governance', environment);
+}
+
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
   return path.join('./config/environments/', environment);
 }

@@ -187,31 +187,17 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     );
   }
 
-  abstract configDirectory(directory: string): string;
-
-  verificationDirectory(directory: string) {
-    return path.join(this.configDirectory(directory), 'verification');
-  }
-
-  writeOutput(directory: string) {
-    this.writeContracts(directory);
-    this.writeVerificationInput(directory);
-  }
-
-  writeContracts(directory: string) {
+  writeContracts(filepath: string) {
     const contents = `export const addresses = ${AbacusAppDeployer.stringify(
       this.addressesRecord,
     )}`;
-    AbacusAppDeployer.write(
-      path.join(this.configDirectory(directory), 'contracts.ts'),
-      contents,
-    );
+    AbacusAppDeployer.write(filepath, contents);
   }
 
-  writeVerificationInput(directory: string) {
+  writeVerification(directory: string) {
     for (const name of this.domainNames) {
       AbacusAppDeployer.writeJson(
-        path.join(this.verificationDirectory(directory), `${name}.json`),
+        path.join(directory, `${name}.json`),
         this.mustGetVerification(name),
       );
     }

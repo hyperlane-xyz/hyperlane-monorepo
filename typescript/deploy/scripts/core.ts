@@ -1,7 +1,9 @@
 import {
   getEnvironment,
   getCoreConfig,
-  getCoreDirectory,
+  getCoreContractsSdkFilepath,
+  getCoreRustDirectory,
+  getCoreVerificationDirectory,
   registerMultiProvider,
 } from './utils';
 import { AbacusCoreDeployer } from '../src/core';
@@ -14,9 +16,9 @@ async function main() {
   const config = await getCoreConfig(environment);
   await deployer.deploy(config);
 
-  const outputDir = getCoreDirectory(environment);
-  deployer.writeOutput(outputDir);
-  deployer.writeRustConfigs(environment, outputDir);
+  deployer.writeContracts(getCoreContractsSdkFilepath(environment));
+  deployer.writeVerification(getCoreVerificationDirectory(environment));
+  deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
 }
 
 main().then(console.log).catch(console.error);

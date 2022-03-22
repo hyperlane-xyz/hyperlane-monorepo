@@ -1,3 +1,4 @@
+import path from 'path';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
@@ -43,7 +44,9 @@ describe('bridge', async () => {
   });
 
   it('writes', async () => {
-    bridgeDeployer.writeOutput('./test/outputs');
+    const base = './test/outputs/bridge';
+    bridgeDeployer.writeVerification(path.join(base, 'verification'));
+    bridgeDeployer.writeContracts(path.join(base, 'contracts.ts'));
   });
 
   it('transfers ownership', async () => {

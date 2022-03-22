@@ -1,3 +1,4 @@
+import path from 'path';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
@@ -46,7 +47,9 @@ describe('governance', async () => {
   });
 
   it('writes', async () => {
-    governanceDeployer.writeOutput('./test/outputs');
+    const base = './test/outputs/governance';
+    governanceDeployer.writeVerification(path.join(base, 'verification'));
+    governanceDeployer.writeContracts(path.join(base, 'contracts.ts'));
   });
 
   it('checks', async () => {

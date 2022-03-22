@@ -2,7 +2,8 @@ import { core, bridge } from '@abacus-network/sdk';
 import {
   getEnvironment,
   getGovernanceConfig,
-  getGovernanceDirectory,
+  getGovernanceContractsSdkFilepath,
+  getGovernanceVerificationDirectory,
   registerMultiProvider,
 } from './utils';
 import { AbacusGovernanceDeployer } from '../src/governance';
@@ -18,7 +19,8 @@ async function main() {
   const deployer = new AbacusGovernanceDeployer();
   await registerMultiProvider(deployer, environment);
   await deployer.deploy(config);
-  deployer.writeOutput(getGovernanceDirectory(environment));
+  deployer.writeContracts(getGovernanceContractsSdkFilepath(environment));
+  deployer.writeVerification(getGovernanceVerificationDirectory(environment));
 
   await abacusCore.transferOwnership(deployer.routerAddresses);
   await abacusBridge.transferOwnership(deployer.routerAddresses);

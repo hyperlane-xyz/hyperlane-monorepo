@@ -27,10 +27,6 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
   CoreContractAddresses,
   CoreConfig
 > {
-  configDirectory(directory: string) {
-    return path.join(directory, 'core');
-  }
-
   async deployContracts(
     domain: types.Domain,
     config: CoreConfig,
@@ -128,11 +124,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
   writeRustConfigs(environment: DeployEnvironment, directory: string) {
     for (const domain of this.domainNumbers) {
       const name = this.mustResolveDomainName(domain);
-      const filepath = path.join(
-        this.configDirectory(directory),
-        'rust',
-        `${name}_config.json`,
-      );
+      const filepath = path.join(directory, `${name}_config.json`);
       const addresses = this.mustGetAddresses(domain);
 
       const outbox = {
