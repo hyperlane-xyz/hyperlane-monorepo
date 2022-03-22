@@ -142,9 +142,7 @@ export async function getAgentEnvVars(
           )}`,
         );
       });
-    }
-
-    if (role === KEY_ROLE_ENUM.Validator) {
+    } else if (role === KEY_ROLE_ENUM.Validator) {
       envVars.push(
         `OPT_BASE_VALIDATOR_KEY=${strip0x(
           gcpKeys[homeChainName + '-' + KEY_ROLE_ENUM.Validator].privateKey,
