@@ -15,4 +15,8 @@ export const agent: AgentConfig = {
   relayer: {
     interval: 5,
   },
+  checkpointer: {
+    pollingInterval: 5,
+    creationLatency: 10,
+  },
 };

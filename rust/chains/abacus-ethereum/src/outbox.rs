@@ -273,4 +273,16 @@ where
             _ => unreachable!(),
         }
     }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn count(&self) -> Result<u32, ChainCommunicationError> {
+        Ok(self.contract.count().call().await?.as_u32())
+    }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+        let tx = self.contract.checkpoint();
+
+        Ok(report_tx!(tx).into())
+    }
 }
