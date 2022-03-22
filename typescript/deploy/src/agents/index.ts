@@ -114,7 +114,7 @@ export async function getAgentEnvVars(
   const valueDict = await helmValuesForChain(
     homeChainName,
     agentConfig,
-    chainNames
+    chainNames,
   );
   const envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
