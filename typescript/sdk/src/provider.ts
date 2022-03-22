@@ -25,22 +25,32 @@ export class MultiProvider {
   protected providers: Map<number, Provider>;
   protected signers: Map<number, ethers.Signer>;
   protected overrides: Map<number, ethers.Overrides>;
+  protected confirmations: Map<number, number>;
 
   constructor() {
     this.domains = new Map();
     this.providers = new Map();
     this.signers = new Map();
     this.overrides = new Map();
+    this.confirmations = new Map();
   }
 
-  getFromMap<T>(
+  protected setMap<T>(
+    nameOrDomain: NameOrDomain,
+    value: T,
+    map: Map<number, T>,
+  ) {
+    map.set(this.resolveDomain(nameOrDomain), value);
+  }
+
+  protected getFromMap<T>(
     nameOrDomain: NameOrDomain,
     map: Map<number, T>,
   ): T | undefined {
     return map.get(this.resolveDomain(nameOrDomain));
   }
 
-  mustGetFromMap<T>(
+  protected mustGetFromMap<T>(
     nameOrDomain: NameOrDomain,
     map: Map<number, T>,
     tname: string,
@@ -342,10 +352,18 @@ export class MultiProvider {
   }
 
   registerOverrides(nameOrDomain: NameOrDomain, overrides: ethers.Overrides) {
-    this.overrides.set(this.resolveDomain(nameOrDomain), overrides);
+    this.setMap(nameOrDomain, overrides, this.overrides);
   }
 
   getOverrides(nameOrDomain: NameOrDomain): ethers.Overrides {
     return this.getFromMap(nameOrDomain, this.overrides) || {};
+  }
+
+  registerConfirmations(nameOrDomain: NameOrDomain, confirmations: number) {
+    this.setMap(nameOrDomain, confirmations, this.confirmations);
+  }
+
+  getConfirmations(nameOrDomain: NameOrDomain): number {
+    return this.getFromMap(nameOrDomain, this.confirmations) || 0;
   }
 }

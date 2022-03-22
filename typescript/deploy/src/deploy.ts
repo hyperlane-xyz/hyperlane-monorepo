@@ -2,7 +2,12 @@ import path from 'path';
 import fs from 'fs';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { ChainName, NameOrDomain, MultiProvider } from '@abacus-network/sdk';
+import {
+  ChainName,
+  NameOrDomain,
+  MultiProvider,
+  ProxiedAddress,
+} from '@abacus-network/sdk';
 import {
   UpgradeBeacon,
   UpgradeBeacon__factory,
@@ -10,26 +15,30 @@ import {
   UpgradeBeaconProxy__factory,
 } from '@abacus-network/core';
 
-import { BeaconProxy } from './proxy';
 import {
   VerificationInput,
   getContractVerificationInput,
 } from './verification';
 
+export class ProxiedContract<T extends ethers.Contract> {
+  constructor(
+    public readonly contract: T,
+    public readonly addresses: ProxiedAddress,
+  ) {}
+
+  get address() {
+    return this.contract.address;
+  }
+}
+
 export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
-  protected confirmations: Map<number, number>;
   protected addresses: Map<number, T>;
   protected verification: Map<number, VerificationInput>;
 
   constructor() {
     super();
-    this.confirmations = new Map();
     this.addresses = new Map();
     this.verification = new Map();
-  }
-
-  getConfirmations(nameOrDomain: NameOrDomain): number {
-    return this.getFromMap(nameOrDomain, this.confirmations) || 0;
   }
 
   getAddresses(nameOrDomain: NameOrDomain): T | undefined {
@@ -67,18 +76,12 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
 
   async deploy(config: C) {
     await this.ready();
-    /*
-    for (const domain of this.domainNumbers) {
-      this.chains[domain] = CommonDeploy.fixOverrides(chains[domain]);
-    }
-    */
     for (const domain of this.domainNumbers) {
       if (this.addresses.has(domain)) throw new Error('cannot deploy twice');
       this.addresses.set(domain, await this.deployContracts(domain, config));
     }
   }
 
-  // TODO(asa): How do we set isProxy to true for BeaconProxy verificaiton?
   async deployContract<L extends ethers.Contract>(
     nameOrDomain: NameOrDomain,
     contractName: string,
@@ -86,11 +89,15 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     ...args: any[]
   ): Promise<L> {
     const overrides = this.getOverrides(nameOrDomain);
-    // TODO(asa): Confirmations
     const contract = (await factory.deploy(...args, overrides)) as L;
     await contract.deployTransaction.wait(this.getConfirmations(nameOrDomain));
     this.addVerificationInput(nameOrDomain, [
-      getContractVerificationInput(contractName, contract, factory.bytecode),
+      getContractVerificationInput(
+        contractName,
+        contract,
+        factory.bytecode,
+        contractName.includes(' Proxy'),
+      ),
     ]);
     return contract;
   }
@@ -100,14 +107,14 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
    *
    * @param T - The contract
    */
-  async deployBeaconProxy<L extends ethers.Contract>(
+  async deployProxiedContract<L extends ethers.Contract>(
     nameOrDomain: NameOrDomain,
     contractName: string,
     factory: ethers.ContractFactory,
     ubcAddress: types.Address,
     deployArgs: any[],
     initArgs: any[],
-  ): Promise<BeaconProxy<L>> {
+  ): Promise<ProxiedContract<L>> {
     const signer = this.mustGetSigner(nameOrDomain);
     const implementation: L = await this.deployContract(
       nameOrDomain,
@@ -137,12 +144,11 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     // proxy wait(x) implies implementation and beacon wait(>=x)
     // due to nonce ordering
     await proxy.deployTransaction.wait(this.getConfirmations(nameOrDomain));
-    return new BeaconProxy(
-      implementation as L,
-      proxy,
-      beacon,
-      factory.attach(proxy.address) as L,
-    );
+    return new ProxiedContract(factory.attach(proxy.address) as L, {
+      proxy: proxy.address,
+      implementation: implementation.address,
+      beacon: beacon.address,
+    });
   }
 
   /**
@@ -150,13 +156,13 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
    *
    * @param T - The contract
    */
-  async duplicateBeaconProxy<L extends ethers.Contract>(
+  async duplicateProxiedContract<L extends ethers.Contract>(
     nameOrDomain: NameOrDomain,
     contractName: string,
-    beaconProxy: BeaconProxy<L>,
+    contract: ProxiedContract<L>,
     initArgs: any[],
-  ): Promise<BeaconProxy<L>> {
-    const initData = beaconProxy.implementation.interface.encodeFunctionData(
+  ): Promise<ProxiedContract<L>> {
+    const initData = contract.contract.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
@@ -164,16 +170,14 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
       nameOrDomain,
       `${contractName} Proxy`,
       new UpgradeBeaconProxy__factory(this.mustGetSigner(nameOrDomain)),
-      beaconProxy.beacon.address,
+      contract.addresses.beacon,
       initData,
     );
 
-    return new BeaconProxy(
-      beaconProxy.implementation,
-      proxy,
-      beaconProxy.beacon,
-      beaconProxy.contract.attach(proxy.address) as L,
-    );
+    return new ProxiedContract(contract.contract.attach(proxy.address) as L, {
+      ...contract.addresses,
+      proxy: proxy.address,
+    });
   }
 
   async ready(): Promise<void> {
@@ -215,25 +219,4 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   static writeJson(filepath: string, obj: Object) {
     AbacusAppDeployer.write(filepath, AbacusAppDeployer.stringify(obj));
   }
-
-  /*
-  // this is currently a kludge to account for ethers issues
-  static fixOverrides(chain: ChainConfig): ChainConfig {
-    let overrides: ethers.Overrides = {};
-    if (chain.supports1559) {
-      overrides = {
-        maxFeePerGas: chain.overrides.maxFeePerGas,
-        maxPriorityFeePerGas: chain.overrides.maxPriorityFeePerGas,
-        gasLimit: chain.overrides.gasLimit,
-      };
-    } else {
-      overrides = {
-        type: 0,
-        gasPrice: chain.overrides.gasPrice,
-        gasLimit: chain.overrides.gasLimit,
-      };
-    }
-    return { ...chain, overrides };
-  }
-  */
 }

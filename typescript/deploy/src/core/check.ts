@@ -15,8 +15,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
 > {
   async checkDomain(domain: types.Domain): Promise<void> {
     await this.checkOwnership(domain);
-    // TODO(asa): Beacon proxies are not exposed.
-    // await this.checkBeaconProxies(domain);
+    await this.checkProxiedContracts(domain);
     await this.checkOutbox(domain);
     await this.checkInboxes(domain);
     await this.checkXAppConnectionManager(domain);
@@ -79,26 +78,26 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   }
 
   async checkInboxes(domain: types.Domain): Promise<void> {
-    const remotes = this.app.remoteDomainNumbers(domain);
     // Check that all inboxes on this domain are pointed to the right validator
     // manager.
-    for (const remote of remotes) {
-      expect(
-        await this.app.mustGetInbox(remote, domain).validatorManager(),
-      ).to.equal(this.app.mustGetContracts(domain).validatorManager.address);
-    }
-    // TODO(asa): Beacon proxies are not exposed.
-    /*
+    const contracts = this.app.mustGetContracts(domain);
+    const validatorManager = contracts.validatorManager;
+    await Promise.all(
+      this.app.remoteDomainNumbers(domain).map(async (remote) => {
+        expect(
+          await this.app.mustGetInbox(remote, domain).validatorManager(),
+        ).to.equal(validatorManager.address);
+      }),
+    );
+
     // Check that all inboxes on this domain share the same implementation and
     // UpgradeBeacon.
-    const inboxes = remotes.map((r) => this.app.mustGetInbox(remote, domain))
-    const inboxes = Object.values(this.app.mustGetContracts(domain).inboxes)
+    const inboxes = Object.values(contracts.addresses.inboxes);
     const implementations = inboxes.map((r) => r.implementation);
     const identical = (a: any, b: any) => (a === b ? a : false);
     const upgradeBeacons = inboxes.map((r) => r.beacon);
     expect(implementations.reduce(identical)).to.not.be.false;
     expect(upgradeBeacons.reduce(identical)).to.not.be.false;
-    */
   }
 
   async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
@@ -117,25 +116,16 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     expect(outbox).to.equal(contracts.outbox.address);
   }
 
-  /*
-  async checkBeaconProxies(domain: types.Domain): Promise<void> {
+  async checkProxiedContracts(domain: types.Domain): Promise<void> {
+    const addresses = this.app.mustGetContracts(domain).addresses;
     // Outbox upgrade setup contracts are defined
-    await this.checkBeaconProxyImplementation(
-      domain,
-      'Outbox',
-      this.app.mustGetContracts(domain).outbox,
-    );
+    await this.checkProxiedContract(domain, 'Outbox', addresses.outbox);
 
+    const inboxes = Object.values(addresses.inboxes);
     await Promise.all(
-      this.app.remoteDomainNumbers(domain)
-        .map((remote) =>
-          this.checkBeaconProxyImplementation(
-            domain,
-            'Inbox',
-            this.app.mustGetInbox(remote, domain)
-          ),
-        ),
+      inboxes.map((inbox) => {
+        return this.checkProxiedContract(domain, 'Inbox', inbox);
+      }),
     );
   }
-  */
 }

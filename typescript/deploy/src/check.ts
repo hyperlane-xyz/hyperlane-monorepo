@@ -1,8 +1,7 @@
 import { expect } from 'chai';
 import { Contract, ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { AbacusApp } from '@abacus-network/sdk';
-import { BeaconProxy } from './proxy';
+import { AbacusApp, ProxiedAddress } from '@abacus-network/sdk';
 
 export enum ViolationType {
   UpgradeBeacon = 'UpgradeBeacon',
@@ -14,7 +13,7 @@ export interface UpgradeBeaconViolation {
   domain: number;
   name: string;
   type: ViolationType.UpgradeBeacon;
-  beaconProxy: BeaconProxy<ethers.Contract>;
+  proxiedAddress: ProxiedAddress;
   expected: string;
   actual: string;
 }
@@ -83,32 +82,28 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
     }
   }
 
-  async checkBeaconProxyImplementation(
+  async checkProxiedContract(
     domain: types.Domain,
     name: string,
-    beaconProxy: BeaconProxy<Contract>,
+    proxiedAddress: ProxiedAddress,
   ) {
     // TODO: This should check the correct upgrade beacon controller
-    expect(beaconProxy.beacon).to.not.be.undefined;
-    expect(beaconProxy.proxy).to.not.be.undefined;
-    expect(beaconProxy.contract).to.not.be.undefined;
-    expect(beaconProxy.implementation).to.not.be.undefined;
+    expect(proxiedAddress.beacon).to.not.be.undefined;
+    expect(proxiedAddress.proxy).to.not.be.undefined;
+    expect(proxiedAddress.implementation).to.not.be.undefined;
 
+    const provider = this.app.mustGetProvider(domain);
     // Assert that the implementation is actually set
-    const provider = beaconProxy.beacon.provider;
-    const storageValue = await provider.getStorageAt(
-      beaconProxy.beacon.address,
-      0,
-    );
+    const storageValue = await provider.getStorageAt(proxiedAddress.beacon, 0);
     const actual = ethers.utils.getAddress(storageValue.slice(26));
-    const expected = beaconProxy.implementation.address;
+    const expected = proxiedAddress.implementation;
 
     if (actual != expected) {
       const violation: UpgradeBeaconViolation = {
         domain,
         type: ViolationType.UpgradeBeacon,
         name,
-        beaconProxy,
+        proxiedAddress,
         actual,
         expected,
       };

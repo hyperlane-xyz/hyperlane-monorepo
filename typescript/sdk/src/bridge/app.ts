@@ -273,18 +273,18 @@ export class AbacusBridge extends AbacusApp<
     return message as TransferMessage;
   }
 
-  // TODO(asa): confirmations
   async transferOwnership(
     owners: Record<number, types.Address>,
-  ): Promise<void> {
-    await Promise.all(
-      this.domainNumbers.map((domain) => {
+  ): Promise<ethers.ContractReceipt[]> {
+    return Promise.all(
+      this.domainNumbers.map(async (domain) => {
         const owner = owners[domain];
         if (!owner) throw new Error(`Missing owner for ${domain}`);
-        return this.mustGetContracts(domain).transferOwnership(
+        const tx = await this.mustGetContracts(domain).transferOwnership(
           owner,
           this.getOverrides(domain),
         );
+        return tx.wait(this.getConfirmations(domain));
       }),
     );
   }

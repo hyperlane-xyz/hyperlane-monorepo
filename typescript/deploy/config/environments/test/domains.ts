@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-import { ChainName, domains, MultiProvider } from '@abacus-network/sdk';
+import { ChainName, MultiProvider } from '@abacus-network/sdk';
+import { registerDomains } from '../../../src/config';
 import { configs } from '../../networks/testnets';
 
 export const domainNames: ChainName[] = [
@@ -27,9 +28,10 @@ export const registerMultiProviderTest = (
   multiProvider: MultiProvider,
   signer: ethers.Signer,
 ) => {
-  domainNames.forEach((name) => multiProvider.registerDomain(domains[name]));
-  domainNames.forEach((name) =>
-    multiProvider.registerOverrides(name, configs[name]!.overrides),
-  );
-  domainNames.forEach((name) => multiProvider.registerSigner(name, signer));
+  registerDomains(domainNames, configs, multiProvider);
+  domainNames.forEach((name) => {
+    multiProvider.registerSigner(name, signer);
+    // Hardhat mines blocks lazily so anything > 0 will cause the test to stall.
+    multiProvider.registerConfirmations(name, 0);
+  });
 };

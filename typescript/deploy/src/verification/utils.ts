@@ -1,15 +1,6 @@
 import { ethers } from 'ethers';
-import {
-  UpgradeBeacon__factory,
-  UpgradeBeaconProxy__factory,
-} from '@abacus-network/core';
-import { BeaconProxy } from '../proxy';
 
-import {
-  ContractVerificationInput,
-  VerificationInput,
-  BeaconProxyPrefix,
-} from './types';
+import { ContractVerificationInput } from './types';
 
 function getConstructorArguments(
   contract: ethers.Contract,
@@ -42,37 +33,4 @@ export function getContractVerificationInput(
     constructorArguments: getConstructorArguments(contract, bytecode),
     isProxy,
   };
-}
-
-export function getBeaconProxyVerificationInput(
-  name: BeaconProxyPrefix,
-  contract: BeaconProxy<any>,
-  bytecode: string,
-): VerificationInput {
-  const implementation: ContractVerificationInput = {
-    name: `${name} Implementation`,
-    address: contract.implementation.address,
-    constructorArguments: getConstructorArguments(
-      contract.implementation,
-      bytecode,
-    ),
-  };
-  const beacon: ContractVerificationInput = {
-    name: `${name} UpgradeBeacon`,
-    address: contract.beacon.address,
-    constructorArguments: getConstructorArguments(
-      contract.beacon,
-      UpgradeBeacon__factory.bytecode,
-    ),
-  };
-  const proxy: ContractVerificationInput = {
-    name: `${name} Proxy`,
-    address: contract.proxy.address,
-    constructorArguments: getConstructorArguments(
-      contract.proxy,
-      UpgradeBeaconProxy__factory.bytecode,
-    ),
-    isProxy: true,
-  };
-  return [implementation, beacon, proxy];
 }

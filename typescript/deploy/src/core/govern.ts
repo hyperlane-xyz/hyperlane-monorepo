@@ -64,7 +64,7 @@ export class GovernanceCallBatchBuilder {
     const ubc = this._core.mustGetContracts(domain).upgradeBeaconController;
     if (ubc === undefined) throw new Error('Undefined ubc');
     const tx = await ubc.populateTransaction.upgrade(
-      violation.beaconProxy.beacon.address,
+      violation.proxiedAddress.beacon,
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');

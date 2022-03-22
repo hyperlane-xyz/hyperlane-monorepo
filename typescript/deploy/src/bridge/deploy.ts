@@ -22,7 +22,7 @@ export class AbacusBridgeDeployer extends AbacusRouterDeployer<
     const core = config.core[name];
     if (!core) throw new Error('could not find core');
 
-    const token = await this.deployBeaconProxy(
+    const token = await this.deployProxiedContract(
       domain,
       'BridgeToken',
       new BridgeToken__factory(signer),
@@ -31,18 +31,18 @@ export class AbacusBridgeDeployer extends AbacusRouterDeployer<
       [],
     );
 
-    const router = await this.deployBeaconProxy(
+    const router = await this.deployProxiedContract(
       domain,
       'BridgeRouter',
       new BridgeRouter__factory(signer),
       core.upgradeBeaconController,
       [],
-      [token.beacon.address, core.xAppConnectionManager],
+      [token.addresses.beacon, core.xAppConnectionManager],
     );
 
     const addresses: BridgeContractAddresses = {
-      router: router.toObject(),
-      token: token.toObject(),
+      router: router.addresses,
+      token: token.addresses,
     };
 
     const weth = config.weth[name];

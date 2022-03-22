@@ -12,23 +12,15 @@ export class AbacusBridgeChecker extends AbacusRouterChecker<
 > {
   async checkDomain(domain: types.Domain): Promise<void> {
     await super.checkDomain(domain);
+    await this.checkProxiedContracts(domain);
     this.checkEthHelper(domain);
   }
 
-  /*
-  async checkBeaconProxies(domain: types.Domain): Promise<void> {
-    await this.checkBeaconProxyImplementation(
-      domain,
-      'BridgeToken',
-      this.deploy.instances[domain].contracts.token,
-    );
-    await this.checkBeaconProxyImplementation(
-      domain,
-      'BridgeRouter',
-      this.deploy.instances[domain].contracts.router,
-    );
+  async checkProxiedContracts(domain: types.Domain): Promise<void> {
+    const addresses = this.app.mustGetContracts(domain).addresses;
+    await this.checkProxiedContract(domain, 'BridgeToken', addresses.token);
+    await this.checkProxiedContract(domain, 'BridgeRouter', addresses.router);
   }
-  */
 
   checkEthHelper(domain: types.Domain): void {
     const helper = this.app.mustGetContracts(domain).helper;

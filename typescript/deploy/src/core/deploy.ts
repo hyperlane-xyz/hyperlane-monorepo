@@ -10,7 +10,6 @@ import {
   UpgradeBeaconController,
   XAppConnectionManager,
   ValidatorManager,
-  Outbox,
   Inbox,
   UpgradeBeaconController__factory,
   XAppConnectionManager__factory,
@@ -18,9 +17,8 @@ import {
   Outbox__factory,
   Inbox__factory,
 } from '@abacus-network/core';
-import { BeaconProxy } from '../proxy';
 import { DeployEnvironment, RustConfig } from '../config';
-import { AbacusAppDeployer } from '../deploy';
+import { AbacusAppDeployer, ProxiedContract } from '../deploy';
 import { CoreConfig } from './types';
 
 export class AbacusCoreDeployer extends AbacusAppDeployer<
@@ -56,7 +54,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       );
     }
 
-    const outbox: BeaconProxy<Outbox> = await this.deployBeaconProxy(
+    const outbox = await this.deployProxiedContract(
       domain,
       'Outbox',
       new Outbox__factory(signer),
@@ -73,7 +71,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       );
     await xAppConnectionManager.setOutbox(outbox.address, overrides);
 
-    const inboxes: Record<types.Domain, BeaconProxy<Inbox>> = {};
+    const inboxes: Record<types.Domain, ProxiedContract<Inbox>> = {};
     const inboxAddresses: Partial<Record<ChainName, ProxiedAddress>> = {};
     const remotes = this.remoteDomainNumbers(domain);
     for (let i = 0; i < remotes.length; i++) {
@@ -85,7 +83,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         0,
       ];
       if (i === 0) {
-        inboxes[remote] = await this.deployBeaconProxy(
+        inboxes[remote] = await this.deployProxiedContract(
           domain,
           'Inbox',
           new Inbox__factory(signer),
@@ -94,7 +92,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
           initArgs,
         );
       } else {
-        inboxes[remote] = await this.duplicateBeaconProxy(
+        inboxes[remote] = await this.duplicateProxiedContract(
           domain,
           'Inbox',
           inboxes[remotes[0]],
@@ -102,7 +100,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         );
       }
       inboxAddresses[this.mustResolveDomainName(remote)] =
-        inboxes[remote].toObject();
+        inboxes[remote].addresses;
 
       await xAppConnectionManager.enrollInbox(
         remote,
@@ -115,7 +113,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       upgradeBeaconController: upgradeBeaconController.address,
       xAppConnectionManager: xAppConnectionManager.address,
       validatorManager: validatorManager.address,
-      outbox: outbox.toObject(),
+      outbox: outbox.addresses,
       inboxes: inboxAddresses,
     };
     return addresses;

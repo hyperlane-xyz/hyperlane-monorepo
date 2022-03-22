@@ -21,7 +21,7 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
     const core = config.core[name];
     if (!core) throw new Error('could not find core');
 
-    const router = await this.deployBeaconProxy(
+    const router = await this.deployProxiedContract(
       domain,
       'GovernanceRouter',
       new GovernanceRouter__factory(signer),
@@ -30,7 +30,7 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
       [core.xAppConnectionManager],
     );
 
-    return router.toObject();
+    return router.addresses;
   }
 
   async deploy(config: GovernanceConfig) {

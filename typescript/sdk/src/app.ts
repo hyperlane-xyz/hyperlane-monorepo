@@ -19,16 +19,11 @@ export abstract class AbacusApp<
   }
 
   getContracts(nameOrDomain: NameOrDomain): V | undefined {
-    const domain = this.resolveDomain(nameOrDomain);
-    return this.contracts.get(domain);
+    return this.getFromMap(nameOrDomain, this.contracts);
   }
 
   mustGetContracts(nameOrDomain: NameOrDomain): V {
-    const contracts = this.getContracts(nameOrDomain);
-    if (!contracts) {
-      throw new Error('unregistered name or domain');
-    }
-    return contracts;
+    return this.mustGetFromMap(nameOrDomain, this.contracts, 'Contracts');
   }
 
   /**
