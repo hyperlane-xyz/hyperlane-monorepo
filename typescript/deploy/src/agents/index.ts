@@ -320,7 +320,7 @@ export async function runKeymasterHelmCommand(
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
     networks: Object.fromEntries(
-      chainNames.map((name) => {
+      await Promise.all(chainNames.map(async (name) => {
         return [
           name,
           {
@@ -333,7 +333,7 @@ export async function runKeymasterHelmCommand(
           },
         ];
       }),
-    ),
+    )),
     homes: Object.fromEntries(
       chainNames.map((name) => {
         return [
