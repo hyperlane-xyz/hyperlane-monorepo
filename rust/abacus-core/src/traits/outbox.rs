@@ -18,8 +18,17 @@ pub trait Outbox: AbacusCommon + Send + Sync + std::fmt::Debug {
     /// Fetch the nonce
     async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError>;
 
+    /// Gets the current leaf count of the merkle tree
+    async fn count(&self) -> Result<u32, ChainCommunicationError>;
+
     /// Dispatch a message.
     async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError>;
+
+    /// Creates a new checkpoint.
+    /// This isn't called `checkpoint` to avoid a conflict with the MockOutboxContract,
+    /// which has a conflicting `checkpoint` function automatically created by the mockall
+    /// library's automocking attribute macro.
+    async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError>;
 }
 
 /// Interface for retrieving event data emitted specifically by the outbox

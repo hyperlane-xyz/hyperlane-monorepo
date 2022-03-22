@@ -1,8 +1,7 @@
 use abacus_core::{
-    accumulator::merkle::Proof, db::AbacusDB, AbacusMessage, ChainCommunicationError,
-    MessageStatus, TxOutcome,
+    accumulator::merkle::Proof, db::AbacusDB, AbacusCommon, AbacusMessage, ChainCommunicationError,
+    Checkpoint, Inbox, MessageStatus, SignedCheckpoint, TxOutcome,
 };
-use abacus_core::{AbacusCommon, Checkpoint, Inbox, SignedCheckpoint};
 use abacus_test::mocks::inbox::MockInboxContract;
 use async_trait::async_trait;
 use color_eyre::eyre::Result;
