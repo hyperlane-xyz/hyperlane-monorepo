@@ -12,17 +12,32 @@ export interface Pagination {
 /**
  * The names of Abacus supported chains
  */
-export type MainnetChainNames = 'celo' | 'ethereum' | 'avalanche' | 'polygon';
-export type TestnetChainNames =
-  | 'alfajores'
-  | 'mumbai'
-  | 'kovan'
-  | 'goerli'
-  | 'fuji'
-  | 'rinkarby'
-  | 'rinkeby'
-  | 'ropsten';
-export type TestChainNames = 'test1' | 'test2' | 'test3';
+const ALL_MAINNET_NAMES = ['celo', 'ethereum', 'avalanche', 'polygon'] as const;
+type MainnetNamesTuple = typeof ALL_MAINNET_NAMES;
+type MainnetChainNames = MainnetNamesTuple[number];
+
+const ALL_TESTNET_NAMES = [
+  'alfajores',
+  'mumbai',
+  'kovan',
+  'goerli',
+  'fuji',
+  'rinkarby',
+  'rinkeby',
+  'ropsten',
+] as const;
+type TestnetNamesTuple = typeof ALL_TESTNET_NAMES;
+type TestnetChainNames = TestnetNamesTuple[number];
+
+const ALL_TEST_NAMES = ['test1', 'test2', 'test3'] as const;
+type TestNamesTuple = typeof ALL_TEST_NAMES;
+type TestChainNames = TestNamesTuple[number];
+
+export const ALL_CHAIN_NAMES = [
+  ...ALL_MAINNET_NAMES,
+  ...ALL_TESTNET_NAMES,
+  ...ALL_TEST_NAMES,
+];
 export type ChainName = MainnetChainNames | TestnetChainNames | TestChainNames;
 
 /**

@@ -1,6 +1,6 @@
 import { core, governance } from '@abacus-network/sdk';
 import { getCoreConfig, getEnvironment, registerMultiProvider } from './utils';
-import { ViolationType } from '../src/common';
+import { ViolationType } from '../src/check';
 import { AbacusCoreChecker } from '../src/core';
 import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
 
@@ -15,7 +15,7 @@ async function main() {
   const checker = new AbacusCoreChecker(
     abacusCore,
     config,
-    abacusGovernance.routerAddresses(),
+    abacusGovernance.routerAddresses,
   );
   await checker.check();
   checker.expectViolations(

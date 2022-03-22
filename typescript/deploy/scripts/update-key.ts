@@ -13,8 +13,7 @@ async function rotateKey() {
   const agentConfig = await getAgentConfig(environment);
 
   switch (environment) {
-    case 'testnet':
-    case 'mainnet':
+    case 'test':
       const key = new AgentAwsKey(agentConfig, argv.r, argv.c);
       await key.fetch();
       console.log(`Current key: ${key.address}`);

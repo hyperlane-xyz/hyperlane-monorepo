@@ -61,15 +61,11 @@ export class AbacusGovernance extends AbacusApp<
     return governors[0];
   }
 
-  /*
-  // TODO(asa): confirmations
-  async transferOwnership(owners: Partial<Record<ChainName, types.Address>>): Promise<void> {
-    await Promise.all(
-      this.domainNames.map((name) => {
-        const owner = owners[name]
-        if (!owner) throw new Error(`Missing owner for ${name}`)
-        return this.mustGetContracts(name).transferOwnership(owner, this.getOverrides(name));
-      }))
+  get routerAddresses(): Record<number, string> {
+    const addresses: Record<number, string> = {};
+    for (const domain of this.domainNumbers) {
+      addresses[domain] = this.mustGetContracts(domain).router.address;
+    }
+    return addresses;
   }
-  */
 }

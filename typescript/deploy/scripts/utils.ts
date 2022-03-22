@@ -1,8 +1,14 @@
 import path from 'path';
 import yargs from 'yargs';
-import { AbacusCore, ChainName, MultiProvider } from '@abacus-network/sdk';
+import {
+  ALL_CHAIN_NAMES,
+  AbacusCore,
+  ChainName,
+  MultiProvider,
+} from '@abacus-network/sdk';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
+  ALL_ENVIRONMENTS,
   AgentConfig,
   DeployEnvironment,
   InfrastructureConfig,
@@ -17,7 +23,7 @@ export function getArgs() {
   return yargs(process.argv.slice(2))
     .alias('e', 'env')
     .describe('e', 'deploy environment')
-    .choices('e', Object.values(DeployEnvironment))
+    .choices('e', ALL_ENVIRONMENTS)
     .require('e')
     .help('h')
     .alias('h', 'help');
@@ -160,16 +166,13 @@ export async function registerGovernorSigner(
 
 export async function getKeyRoleAndChainArgs() {
   const args = await getArgs();
-  return (
-    args
-      .alias('r', 'role')
-      .describe('r', 'key role')
-      .choices('r', Object.values(KEY_ROLE_ENUM))
-      .require('r')
-      .alias('c', 'chain')
-      .describe('c', 'chain name')
-      //    .choices('c', Object.values(ChainName))
-      .choices('c', ['todo'])
-      .require('c')
-  );
+  return args
+    .alias('r', 'role')
+    .describe('r', 'key role')
+    .choices('r', Object.values(KEY_ROLE_ENUM))
+    .require('r')
+    .alias('c', 'chain')
+    .describe('c', 'chain name')
+    .choices('c', ALL_CHAIN_NAMES)
+    .require('c');
 }

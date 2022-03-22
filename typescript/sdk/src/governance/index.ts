@@ -5,6 +5,6 @@ export { Call } from './utils';
 
 import { AbacusGovernance } from './app';
 import { test } from './environments';
-export const governance = {
+export const governance: Record<any, AbacusGovernance> = {
   test: new AbacusGovernance(test),
 };

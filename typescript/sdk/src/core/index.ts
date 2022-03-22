@@ -9,6 +9,6 @@ export { AbacusMessage, AbacusStatus, MessageStatus } from './message';
 
 import { AbacusCore } from './app';
 import { test } from './environments';
-export const core = {
+export const core: Record<any, AbacusCore> = {
   test: new AbacusCore(test),
 };

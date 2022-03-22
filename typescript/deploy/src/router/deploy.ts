@@ -22,15 +22,13 @@ export abstract class AbacusRouterDeployer<T, C> extends AbacusAppDeployer<
     }
   }
 
-  /*
-  routerAddresses(): Record<types.Domain, types.Address> {
+  get routerAddresses(): Record<types.Domain, types.Address> {
     const addresses: Record<types.Domain, types.Address> = {};
-    for (const domain of this.domains) {
-      addresses[domain] = this.router(domain).address;
+    for (const domain of this.domainNumbers) {
+      addresses[domain] = this.mustGetRouter(domain).address;
     }
     return addresses;
   }
-  */
 
   abstract mustGetRouter(domain: types.Domain): Router;
 }

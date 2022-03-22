@@ -2,7 +2,6 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
-import { DeployEnvironment } from '../src/config';
 import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
 import {
   core as coreConfig,
@@ -29,7 +28,7 @@ describe('core', async () => {
   it('writes', async () => {
     const outputDir = './test/outputs';
     deployer.writeOutput(outputDir);
-    deployer.writeRustConfigs(DeployEnvironment.test, outputDir);
+    deployer.writeRustConfigs('test', outputDir);
   });
 
   it('transfers ownership', async () => {

@@ -46,7 +46,7 @@ async function check() {
   const coreChecker = new AbacusCoreChecker(
     abacusCore,
     coreConfig,
-    abacusGovernance.routerAddresses(),
+    abacusGovernance.routerAddresses,
   );
   await coreChecker.check();
   coreChecker.expectEmpty();
@@ -55,7 +55,7 @@ async function check() {
   const bridgeChecker = new AbacusBridgeChecker(
     abacusBridge,
     bridgeConfig,
-    abacusGovernance.routerAddresses(),
+    abacusGovernance.routerAddresses,
   );
   await bridgeChecker.check();
   bridgeChecker.expectEmpty();

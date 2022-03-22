@@ -17,7 +17,13 @@ export {
 } from './events';
 export { AbacusGovernance, Call, CallBatch, governance } from './governance';
 export { MultiProvider } from './provider';
-export { ChainName, Connection, NameOrDomain, ProxiedAddress } from './types';
+export {
+  ALL_CHAIN_NAMES,
+  ChainName,
+  Connection,
+  NameOrDomain,
+  ProxiedAddress,
+} from './types';
 export {
   AbacusBridge,
   AnnotatedSend,
