@@ -1,7 +1,7 @@
-import { AgentConfig, DeployEnvironment } from '../../../src/config';
+import { AgentConfig } from '../../../src/config';
 
-export const agentConfig: AgentConfig = {
-  environment: DeployEnvironment.local,
+export const agent: AgentConfig = {
+  environment: 'local',
   namespace: 'abacus-local',
   runEnv: 'local',
   docker: {

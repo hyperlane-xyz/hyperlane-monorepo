@@ -1,1 +1,1 @@
-export { local } from './local';
+export { addresses as test } from './test';

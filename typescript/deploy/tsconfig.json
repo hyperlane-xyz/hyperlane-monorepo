@@ -7,6 +7,8 @@
   "extends": "../../tsconfig.package.json",
   "include": [
     "./*.ts",
+    "./config/**/*.ts",
+    "./scripts/**/*.ts",
     "./src/**/*.ts",
     "./test/**/*.ts"
   ]

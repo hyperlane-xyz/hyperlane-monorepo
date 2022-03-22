@@ -12,7 +12,7 @@ import {
   core as coreConfig,
   registerMultiProviderTest,
   bridge as partialBridgeConfig,
-} from '../config/environments/local';
+} from '../config/environments/test';
 
 describe('bridge', async () => {
   const coreDeployer = new AbacusCoreDeployer();
@@ -47,7 +47,7 @@ describe('bridge', async () => {
   });
 
   it('transfers ownership', async () => {
-    bridge = new AbacusBridge(bridgeDeployer.addressesRecord());
+    bridge = new AbacusBridge(bridgeDeployer.addressesRecord);
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(bridge, signer);
     await bridge.transferOwnership(owners);

@@ -82,11 +82,21 @@ export const ropsten: Domain = {
 };
 
 /**
- * Local
+ * Test
  */
-export const local: Domain = {
-  name: 'local',
+export const test1: Domain = {
+  name: 'test1',
   id: 1,
+};
+
+export const test2: Domain = {
+  name: 'test2',
+  id: 2,
+};
+
+export const test3: Domain = {
+  name: 'test3',
+  id: 3,
 };
 
 export const domains: Record<ChainName, Domain> = {
@@ -102,5 +112,7 @@ export const domains: Record<ChainName, Domain> = {
   rinkarby,
   ropsten,
   kovan,
-  local,
+  test1,
+  test2,
+  test3,
 };

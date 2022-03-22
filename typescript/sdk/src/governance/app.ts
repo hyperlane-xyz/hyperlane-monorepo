@@ -5,7 +5,6 @@ import { domains } from '../domains';
 import { ChainName, ProxiedAddress } from '../types';
 
 import { GovernanceContracts } from './contracts';
-import { local } from './environments';
 
 export type Governor = {
   domain: number;
@@ -74,5 +73,3 @@ export class AbacusGovernance extends AbacusApp<
   }
   */
 }
-
-export const localGovernance = new AbacusGovernance(local);

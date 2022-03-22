@@ -3,6 +3,13 @@ import { NonceManager } from '@ethersproject/experimental';
 import { ChainName, domains, MultiProvider } from '@abacus-network/sdk';
 import { configs } from '../../networks/testnets';
 
+export const domainNames: ChainName[] = [
+  'alfajores',
+  'kovan',
+  'mumbai',
+  'fuji',
+];
+
 export const registerMultiProvider = (multiProvider: MultiProvider) => {
   // Hardhat account 0
   const key =
@@ -20,7 +27,6 @@ export const registerMultiProviderTest = (
   multiProvider: MultiProvider,
   signer: ethers.Signer,
 ) => {
-  const domainNames: ChainName[] = ['alfajores', 'kovan', 'mumbai', 'fuji'];
   domainNames.forEach((name) => multiProvider.registerDomain(domains[name]));
   domainNames.forEach((name) =>
     multiProvider.registerOverrides(name, configs[name]!.overrides),

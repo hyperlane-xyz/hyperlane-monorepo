@@ -6,7 +6,6 @@ import { domains } from '../domains';
 import { ChainName, NameOrDomain } from '../types';
 
 import { CoreContractAddresses, CoreContracts } from './contracts';
-import { local } from './environments';
 
 export class AbacusCore extends AbacusApp<
   CoreContractAddresses,
@@ -44,5 +43,3 @@ export class AbacusCore extends AbacusApp<
     );
   }
 }
-
-export const localCore = new AbacusCore(local);

@@ -1,6 +1,6 @@
 import path from 'path';
 import yargs from 'yargs';
-import { AbacusCore, MultiProvider } from '@abacus-network/sdk';
+import { AbacusCore, ChainName, MultiProvider } from '@abacus-network/sdk';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
   AgentConfig,
@@ -28,19 +28,29 @@ async function importModule(moduleName: string): Promise<any> {
   return importedModule;
 }
 
+function moduleName(environment: DeployEnvironment) {
+  return `../config/environments/${environment}`;
+}
+
 export async function registerMultiProvider(
   multiProvider: MultiProvider,
   environment: DeployEnvironment,
 ): Promise<void> {
-  const moduleName = `../config/environments/${environment}`;
-  return (await importModule(moduleName)).registerMultiProvider(multiProvider);
+  return (await importModule(moduleName(environment))).registerMultiProvider(
+    multiProvider,
+  );
+}
+
+export async function getDomainNames(
+  environment: DeployEnvironment,
+): Promise<ChainName[]> {
+  return (await importModule(moduleName(environment))).domains;
 }
 
 export async function getCoreConfig(
   environment: DeployEnvironment,
 ): Promise<CoreConfig> {
-  const moduleName = `../config/environments/${environment}`;
-  return (await importModule(moduleName)).core;
+  return (await importModule(moduleName(environment))).core;
 }
 
 export async function getRouterConfig(
@@ -62,8 +72,7 @@ export async function getBridgeConfig(
   environment: DeployEnvironment,
   core: AbacusCore,
 ): Promise<BridgeConfig> {
-  const moduleName = `../config/environments/${environment}/bridge`;
-  const partial = (await importModule(moduleName)).bridge;
+  const partial = (await importModule(moduleName(environment))).bridge;
   return { ...partial, core: await getRouterConfig(environment, core) };
 }
 
@@ -71,30 +80,26 @@ export async function getGovernanceConfig(
   environment: DeployEnvironment,
   core: AbacusCore,
 ): Promise<GovernanceConfig> {
-  const moduleName = `../config/environments/${environment}/governance`;
-  const partial = (await importModule(moduleName)).governance;
+  const partial = (await importModule(moduleName(environment))).governance;
   return { ...partial, core: await getRouterConfig(environment, core) };
 }
 
 export async function getInfrastructureConfig(
   environment: DeployEnvironment,
 ): Promise<InfrastructureConfig> {
-  const moduleName = `../config/environments/${environment}/infrastructure`;
-  return (await importModule(moduleName)).infrastructure;
+  return (await importModule(moduleName(environment))).infrastructure;
 }
 
 export async function getAgentConfig(
   environment: DeployEnvironment,
 ): Promise<AgentConfig> {
-  const moduleName = `../config/environments/${environment}/agent`;
-  return (await importModule(moduleName)).agentConfig;
+  return (await importModule(moduleName(environment))).agent;
 }
 
 export async function getContractMetricsConfig(
   environment: DeployEnvironment,
 ): Promise<ContractMetricsConfig> {
-  const moduleName = `../config/environments/${environment}/contract-metrics`;
-  return (await importModule(moduleName)).contractMetrics;
+  return (await importModule(moduleName(environment))).metrics;
 }
 
 export async function getEnvironment(): Promise<DeployEnvironment> {
@@ -109,10 +114,6 @@ export function getCoreDirectory(environment: DeployEnvironment) {
   return path.join(getEnvironmentDirectory(environment), 'core');
 }
 
-export function getCoreContractsDirectory(environment: DeployEnvironment) {
-  return path.join(getCoreDirectory(environment), 'contracts');
-}
-
 export function getCoreVerificationDirectory(environment: DeployEnvironment) {
   return path.join(getCoreDirectory(environment), 'verification');
 }
@@ -125,22 +126,12 @@ export function getBridgeDirectory(environment: DeployEnvironment) {
   return path.join(getEnvironmentDirectory(environment), 'bridge');
 }
 
-export function getBridgeContractsDirectory(environment: DeployEnvironment) {
-  return path.join(getBridgeDirectory(environment), 'contracts');
-}
-
 export function getBridgeVerificationDirectory(environment: DeployEnvironment) {
   return path.join(getBridgeDirectory(environment), 'verification');
 }
 
 export function getGovernanceDirectory(environment: DeployEnvironment) {
   return path.join(getEnvironmentDirectory(environment), 'governance');
-}
-
-export function getGovernanceContractsDirectory(
-  environment: DeployEnvironment,
-) {
-  return path.join(getGovernanceDirectory(environment), 'contracts');
 }
 
 export function getGovernanceVerificationDirectory(

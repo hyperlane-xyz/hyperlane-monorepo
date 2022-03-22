@@ -4,7 +4,6 @@ import {
   getEnvironment,
 } from './utils';
 import { AgentAwsKey } from '../src/agents/aws';
-import { DeployEnvironment } from '../src/config';
 
 async function rotateKey() {
   const args = await getKeyRoleAndChainArgs();
@@ -14,8 +13,8 @@ async function rotateKey() {
   const agentConfig = await getAgentConfig(environment);
 
   switch (environment) {
-    case DeployEnvironment.testnet:
-    case DeployEnvironment.mainnet:
+    case 'testnet':
+    case 'mainnet':
       const key = new AgentAwsKey(agentConfig, argv.r, argv.c);
       await key.fetch();
       console.log(`Current key: ${key.address}`);

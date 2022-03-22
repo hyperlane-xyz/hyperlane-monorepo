@@ -48,7 +48,7 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     return this.mustGetFromMap(nameOrDomain, this.verification, 'Verification');
   }
 
-  addressesRecord(): Partial<Record<ChainName, T>> {
+  get addressesRecord(): Partial<Record<ChainName, T>> {
     const addresses: Partial<Record<ChainName, T>> = {};
     this.domainNumbers.map((domain) => {
       addresses[this.mustResolveDomainName(domain)] =
@@ -199,29 +199,36 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   }
 
   writeContracts(directory: string) {
-    AbacusAppDeployer.writeJson(
-      path.join(this.configDirectory(directory), 'contracts.json'),
-      this.addressesRecord(),
+    const contents = `export const addresses = ${AbacusAppDeployer.stringify(
+      this.addressesRecord,
+    )}`;
+    AbacusAppDeployer.write(
+      path.join(this.configDirectory(directory), 'contracts.ts'),
+      contents,
     );
   }
 
   writeVerificationInput(directory: string) {
-    for (const domain of this.domainNumbers) {
+    for (const name of this.domainNames) {
       AbacusAppDeployer.writeJson(
-        path.join(
-          this.verificationDirectory(directory),
-          `${this.resolveDomainName(domain)}.json`,
-        ),
-        this.mustGetVerification(domain),
+        path.join(this.verificationDirectory(directory), `${name}.json`),
+        this.mustGetVerification(name),
       );
     }
   }
 
-  static writeJson(filepath: string, obj: Object) {
+  static stringify(obj: Object) {
+    return JSON.stringify(obj, null, 2);
+  }
+
+  static write(filepath: string, contents: string) {
     const dir = path.dirname(filepath);
     fs.mkdirSync(dir, { recursive: true });
-    const contents = JSON.stringify(obj, null, 2);
     fs.writeFileSync(filepath, contents);
+  }
+
+  static writeJson(filepath: string, obj: Object) {
+    AbacusAppDeployer.write(filepath, AbacusAppDeployer.stringify(obj));
   }
 
   /*

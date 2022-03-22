@@ -1,4 +1,4 @@
-export { AbacusBridge, localBridge } from './app';
+export { AbacusBridge } from './app';
 export { BridgeContractAddresses, BridgeContracts } from './contracts';
 export {
   AnnotatedSend,
@@ -10,3 +10,9 @@ export {
   TokenDeployedTypes,
   TokenDeployedEvent,
 } from './events';
+
+import { AbacusBridge } from './app';
+import { test } from './environments';
+export const bridge = {
+  test: new AbacusBridge(test),
+};

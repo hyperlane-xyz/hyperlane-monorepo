@@ -1,18 +1,18 @@
-import { getAgentConfig, getEnvironment, getChainConfigs } from './utils';
+import { getAgentConfig, getDomainNames, getEnvironment } from './utils';
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
 async function deploy() {
   const environment = await getEnvironment();
-  const chains = await getChainConfigs(environment);
   const agentConfig = await getAgentConfig(environment);
+  const domainNames = await getDomainNames(environment);
   await Promise.all(
-    chains.map((chain) => {
+    domainNames.map((name) => {
       return runAgentHelmCommand(
         HelmCommand.Upgrade,
         agentConfig,
-        chain,
-        chains,
+        name,
+        domainNames,
       );
     }),
   );

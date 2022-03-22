@@ -7,12 +7,11 @@ import { task } from 'hardhat/config';
 // import { sleep } from './src/utils/utils';
 import { getEnvironmentDirectory } from './scripts/utils';
 import { AbacusCoreDeployer } from './src/core';
-import { DeployEnvironment } from './src/config';
 import { ContractVerifier } from './src/verification';
 import {
   registerMultiProvider,
   core as coreConfig,
-} from './config/environments/local';
+} from './config/environments/test';
 
 /*
 const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
@@ -59,7 +58,7 @@ task(
   await deployer.deploy(coreConfig);
 
   // Write configs
-  const env = DeployEnvironment.local;
+  const env = 'test';
   deployer.writeOutput(getEnvironmentDirectory(env));
   deployer.writeRustConfigs(env, getEnvironmentDirectory(env));
 });

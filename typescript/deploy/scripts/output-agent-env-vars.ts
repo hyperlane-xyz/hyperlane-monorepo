@@ -4,7 +4,7 @@ import {
   getKeyRoleAndChainArgs,
   getAgentConfig,
   getEnvironment,
-  getChainConfigs,
+  getDomainNames,
 } from './utils';
 
 async function main() {
@@ -17,8 +17,13 @@ async function main() {
 
   const environment = await getEnvironment();
   const agentConfig = await getAgentConfig(environment);
-  const chains = await getChainConfigs(environment);
-  const envVars = await getAgentEnvVars(argv.c, argv.r, agentConfig, chains);
+  const domainNames = await getDomainNames(environment);
+  const envVars = await getAgentEnvVars(
+    argv.c,
+    argv.r,
+    agentConfig,
+    domainNames,
+  );
 
   await writeFile(argv.f, envVars.join('\n'));
 }

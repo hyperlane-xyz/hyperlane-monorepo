@@ -12,7 +12,7 @@ import {
   core as coreConfig,
   registerMultiProviderTest,
   governance as partialGovernanceConfig,
-} from '../config/environments/local';
+} from '../config/environments/test';
 
 describe('governance', async () => {
   const coreDeployer = new AbacusCoreDeployer();
@@ -50,9 +50,7 @@ describe('governance', async () => {
   });
 
   it('checks', async () => {
-    const governance = new AbacusGovernance(
-      governanceDeployer.addressesRecord(),
-    );
+    const governance = new AbacusGovernance(governanceDeployer.addressesRecord);
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(governance, signer);
 

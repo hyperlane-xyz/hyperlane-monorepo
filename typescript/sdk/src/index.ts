@@ -6,7 +6,7 @@ export {
   AbacusLifecyleEvent,
   CoreContracts,
   CoreContractAddresses,
-  localCore,
+  core,
   MessageStatus,
 } from './core';
 export {
@@ -15,20 +15,15 @@ export {
   TSContract,
   queryAnnotatedEvents,
 } from './events';
-export {
-  AbacusGovernance,
-  Call,
-  CallBatch,
-  localGovernance,
-} from './governance';
+export { AbacusGovernance, Call, CallBatch, governance } from './governance';
 export { MultiProvider } from './provider';
 export { ChainName, Connection, NameOrDomain, ProxiedAddress } from './types';
 export {
   AbacusBridge,
   AnnotatedSend,
   AnnotatedTokenDeployed,
+  bridge,
   BridgeContractAddresses,
-  localBridge,
   SendArgs,
   SendTypes,
   SendEvent,

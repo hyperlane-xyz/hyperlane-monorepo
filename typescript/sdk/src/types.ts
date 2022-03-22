@@ -22,11 +22,8 @@ export type TestnetChainNames =
   | 'rinkarby'
   | 'rinkeby'
   | 'ropsten';
-export type DevelopmentChainNames = 'local';
-export type ChainName =
-  | MainnetChainNames
-  | TestnetChainNames
-  | DevelopmentChainNames;
+export type TestChainNames = 'test1' | 'test2' | 'test3';
+export type ChainName = MainnetChainNames | TestnetChainNames | TestChainNames;
 
 /**
  * A Domain (and its characteristics)

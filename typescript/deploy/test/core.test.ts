@@ -7,7 +7,7 @@ import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
 import {
   core as coreConfig,
   registerMultiProviderTest,
-} from '../config/environments/local';
+} from '../config/environments/test';
 
 describe('core', async () => {
   const deployer = new AbacusCoreDeployer();
@@ -29,11 +29,11 @@ describe('core', async () => {
   it('writes', async () => {
     const outputDir = './test/outputs';
     deployer.writeOutput(outputDir);
-    deployer.writeRustConfigs(DeployEnvironment.dev, outputDir);
+    deployer.writeRustConfigs(DeployEnvironment.test, outputDir);
   });
 
   it('transfers ownership', async () => {
-    core = new AbacusCore(deployer.addressesRecord());
+    core = new AbacusCore(deployer.addressesRecord);
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(core, signer);
     await core.transferOwnership(owners);

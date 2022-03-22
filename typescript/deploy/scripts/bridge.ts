@@ -1,3 +1,4 @@
+import { core } from '@abacus-network/sdk';
 import {
   getEnvironment,
   getBridgeConfig,
@@ -8,7 +9,7 @@ import { AbacusBridgeDeployer } from '../src/bridge';
 
 async function main() {
   const environment = await getEnvironment();
-  const config = await getBridgeConfig(environment);
+  const config = await getBridgeConfig(environment, core[environment]);
   const deployer = new AbacusBridgeDeployer();
   await registerMultiProvider(deployer, environment);
   await deployer.deploy(config);
