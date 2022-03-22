@@ -1,8 +1,0 @@
-{
-  "interval": "60",
-  "pause": "600",
-  "updater": {
-    "key": "",
-    "type": "hexKey"
-  }
-}
