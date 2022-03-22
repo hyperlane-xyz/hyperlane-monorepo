@@ -320,20 +320,25 @@ export async function runKeymasterHelmCommand(
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
     networks: Object.fromEntries(
-      await Promise.all(chainNames.map(async (name) => {
-        return [
-          name,
-          {
-            endpoint: await getSecretRpcEndpoint(agentConfig.environment, name),
-            bank: {
-              signer: ensure0x(bankKey.privateKey),
-              address: bankKey.address,
+      await Promise.all(
+        chainNames.map(async (name) => {
+          return [
+            name,
+            {
+              endpoint: await getSecretRpcEndpoint(
+                agentConfig.environment,
+                name,
+              ),
+              bank: {
+                signer: ensure0x(bankKey.privateKey),
+                address: bankKey.address,
+              },
+              threshold: 200000000000000000,
             },
-            threshold: 200000000000000000,
-          },
-        ];
-      }),
-    )),
+          ];
+        }),
+      ),
+    ),
     homes: Object.fromEntries(
       chainNames.map((name) => {
         return [
