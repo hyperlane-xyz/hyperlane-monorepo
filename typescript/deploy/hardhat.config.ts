@@ -88,7 +88,6 @@ task('kathy', 'Dispatches random abacus messages')
       const local = deploy.domains[0];
       const remote = randomElement(deploy.remotes(local));
       const outbox = deploy.outbox(local);
-      let i = 0;
       // Send a batch of messages to the remote domain to test
       // the checkpointer/relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
