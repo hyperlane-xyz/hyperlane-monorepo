@@ -5,16 +5,6 @@
         "internalType": "uint32",
         "name": "_localDomain",
         "type": "uint32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_processGas",
-        "type": "uint256"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_reserveGas",
-        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -79,48 +69,10 @@
         "internalType": "bytes32",
         "name": "messageHash",
         "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "bool",
-        "name": "success",
-        "type": "bool"
-      },
-      {
-        "indexed": true,
-        "internalType": "bytes",
-        "name": "returnData",
-        "type": "bytes"
       }
     ],
     "name": "Process",
     "type": "event"
-  },
-  {
-    "inputs": [],
-    "name": "PROCESS_GAS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "RESERVE_GAS",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
   },
   {
     "inputs": [],
@@ -290,13 +242,7 @@
       }
     ],
     "name": "process",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "_success",
-        "type": "bool"
-      }
-    ],
+    "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
   },
