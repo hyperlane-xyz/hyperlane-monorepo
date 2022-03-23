@@ -10,9 +10,4 @@ export {
   TokenDeployedTypes,
   TokenDeployedEvent,
 } from './events';
-
-import { AbacusBridge } from './app';
-import { test } from './environments';
-export const bridges: Record<any, AbacusBridge> = {
-  test: new AbacusBridge(test),
-};
+export { addresses } from './environments';

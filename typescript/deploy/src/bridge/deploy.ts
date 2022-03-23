@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import {
   BridgeRouter,
@@ -5,7 +6,7 @@ import {
   BridgeRouter__factory,
   ETHHelper__factory,
 } from '@abacus-network/apps';
-import { BridgeContractAddresses } from '@abacus-network/sdk';
+import { AbacusBridge, BridgeContractAddresses } from '@abacus-network/sdk';
 import { AbacusRouterDeployer } from '../router';
 import { BridgeConfig } from './types';
 
@@ -64,5 +65,31 @@ export class AbacusBridgeDeployer extends AbacusRouterDeployer<
       this.mustGetAddresses(domain).router.proxy,
       this.mustGetSigner(domain),
     );
+  }
+
+  static async transferOwnership(
+    bridge: AbacusBridge,
+    owners: Record<types.Domain, types.Address>,
+  ) {
+    for (const domain of bridge.domainNumbers) {
+      const owner = owners[domain];
+      if (!owner) throw new Error(`Missing owner for ${domain}`);
+      await AbacusBridgeDeployer.transferOwnershipOfDomain(
+        bridge,
+        domain,
+        owner,
+      );
+    }
+  }
+
+  static async transferOwnershipOfDomain(
+    bridge: AbacusBridge,
+    domain: types.Domain,
+    owner: types.Address,
+  ): Promise<ethers.ContractReceipt> {
+    const contracts = bridge.mustGetContracts(domain);
+    const overrides = bridge.getOverrides(domain);
+    const tx = await contracts.router.transferOwnership(owner, overrides);
+    return tx.wait(bridge.getConfirmations(domain));
   }
 }

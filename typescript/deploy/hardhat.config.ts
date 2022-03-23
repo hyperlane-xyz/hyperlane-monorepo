@@ -2,7 +2,7 @@ import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
 import { utils, types } from '@abacus-network/utils';
-import { cores, AbacusCore } from '@abacus-network/sdk';
+import { coreAddresses, AbacusCore } from '@abacus-network/sdk';
 
 import { sleep } from './src/utils/utils';
 import {
@@ -76,7 +76,7 @@ task('kathy', 'Dispatches random abacus messages')
   )
   .setAction(async (args: any) => {
     const environment = args.environment;
-    const core = cores[environment];
+    const core = new AbacusCore(coreAddresses[environment]);
     await registerMultiProvider(core, environment);
     const randomElement = (list: types.Domain[]) =>
       list[Math.floor(Math.random() * list.length)];

@@ -37,7 +37,7 @@ describe('core', async () => {
     core = new AbacusCore(deployer.addressesRecord);
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(core, signer);
-    await core.transferOwnership(owners);
+    await AbacusCoreDeployer.transferOwnership(core, owners);
   });
 
   it('checks', async () => {

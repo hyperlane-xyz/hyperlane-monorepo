@@ -1,4 +1,10 @@
-import { cores, governances, Call } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  AbacusGovernance,
+  coreAddresses,
+  governanceAddresses,
+  Call,
+} from '@abacus-network/sdk';
 import { getCoreConfig, getEnvironment, registerMultiProvider } from './utils';
 import { ViolationType } from '../src/check';
 import { AbacusCoreChecker } from '../src/core';
@@ -6,8 +12,8 @@ import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
 
 async function main() {
   const environment = await getEnvironment();
-  const core = cores[environment];
-  const governance = governances[environment];
+  const core = new AbacusCore(coreAddresses[environment]);
+  const governance = new AbacusGovernance(governanceAddresses[environment]);
   registerMultiProvider(core, environment);
   registerMultiProvider(governance, environment);
 

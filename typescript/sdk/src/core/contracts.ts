@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import {
   XAppConnectionManager,
   XAppConnectionManager__factory,
@@ -59,18 +58,5 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
       this.addresses.xAppConnectionManager,
       this.connection,
     );
-  }
-
-  async transferOwnership(
-    owner: types.Address,
-    overrides: ethers.Overrides,
-  ): Promise<ethers.ContractTransaction> {
-    await this.validatorManager.transferOwnership(owner, overrides);
-    await this.xAppConnectionManager.transferOwnership(owner, overrides);
-    await this.upgradeBeaconController.transferOwnership(owner, overrides);
-    for (const chain of Object.keys(this.addresses.inboxes) as ChainName[]) {
-      await this.inbox(chain).transferOwnership(owner, overrides);
-    }
-    return this.outbox.transferOwnership(owner, overrides);
   }
 }

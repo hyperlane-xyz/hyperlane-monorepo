@@ -1,6 +1,13 @@
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import { cores, bridges, governances } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  AbacusBridge,
+  AbacusGovernance,
+  coreAddresses,
+  bridgeAddresses,
+  governanceAddresses,
+} from '@abacus-network/sdk';
 
 import {
   getBridgeConfig,
@@ -15,9 +22,9 @@ import { AbacusGovernanceChecker } from '../src/governance';
 
 async function check() {
   const environment = await getEnvironment();
-  const core = cores[environment];
-  const bridge = bridges[environment];
-  const governance = governances[environment];
+  const core = new AbacusCore(coreAddresses[environment]);
+  const bridge = new AbacusBridge(bridgeAddresses[environment]);
+  const governance = new AbacusGovernance(governanceAddresses[environment]);
   registerMultiProvider(core, environment);
   registerMultiProvider(bridge, environment);
   registerMultiProvider(governance, environment);

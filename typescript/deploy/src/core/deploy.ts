@@ -2,6 +2,7 @@ import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import {
+  AbacusCore,
   ChainName,
   CoreContractAddresses,
   ProxiedAddress,
@@ -168,5 +169,35 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       }
       AbacusAppDeployer.writeJson(filepath, rustConfig);
     }
+  }
+
+  static async transferOwnership(
+    core: AbacusCore,
+    owners: Record<types.Domain, types.Address>,
+  ) {
+    for (const domain of core.domainNumbers) {
+      const owner = owners[domain];
+      if (!owner) throw new Error(`Missing owner for ${domain}`);
+      await AbacusCoreDeployer.transferOwnershipOfDomain(core, domain, owner);
+    }
+  }
+
+  static async transferOwnershipOfDomain(
+    core: AbacusCore,
+    domain: types.Domain,
+    owner: types.Address,
+  ): Promise<ethers.ContractReceipt> {
+    const contracts = core.mustGetContracts(domain);
+    const overrides = core.getOverrides(domain);
+    await contracts.validatorManager.transferOwnership(owner, overrides);
+    await contracts.xAppConnectionManager.transferOwnership(owner, overrides);
+    await contracts.upgradeBeaconController.transferOwnership(owner, overrides);
+    for (const chain of Object.keys(
+      contracts.addresses.inboxes,
+    ) as ChainName[]) {
+      await contracts.inbox(chain).transferOwnership(owner, overrides);
+    }
+    const tx = await contracts.outbox.transferOwnership(owner, overrides);
+    return tx.wait(core.getConfirmations(domain));
   }
 }

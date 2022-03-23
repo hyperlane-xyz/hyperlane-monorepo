@@ -53,7 +53,7 @@ describe('bridge', async () => {
     bridge = new AbacusBridge(bridgeDeployer.addressesRecord);
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(bridge, signer);
-    await bridge.transferOwnership(owners);
+    await AbacusBridgeDeployer.transferOwnership(bridge, owners);
   });
 
   it('checks', async () => {

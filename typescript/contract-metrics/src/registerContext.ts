@@ -3,9 +3,9 @@ import {
   AbacusBridge,
   AbacusGovernance,
   ChainName,
-  cores,
-  bridges,
-  governances,
+  bridgeAddresses,
+  coreAddresses,
+  governanceAddresses,
 } from '@abacus-network/sdk';
 import config from './config';
 
@@ -22,9 +22,9 @@ const rpcs: Rpc[] = [
 ];
 
 const environment = config.environment;
-const core: AbacusCore = cores[environment];
-const bridge: AbacusBridge = bridges[environment];
-const governance: AbacusGovernance = governances[environment];
+const core = new AbacusCore(coreAddresses[environment]);
+const bridge = new AbacusBridge(bridgeAddresses[environment]);
+const governance = new AbacusGovernance(governanceAddresses[environment]);
 
 rpcs.map((rpc) => {
   core.registerRpcProvider(rpc.chain, rpc.rpc);
