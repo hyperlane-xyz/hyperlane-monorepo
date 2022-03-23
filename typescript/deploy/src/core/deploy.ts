@@ -138,9 +138,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
 
       const rustConfig: RustConfig = {
         environment,
-        signers: {
-          [name]: { key: '', type: 'hexKey' },
-        },
+        signers: {},
         replicas: {},
         home: outbox,
         tracing: {

@@ -1,23 +1,6 @@
 {
   "environment": "local",
-  "signers": {
-    "fuji": {
-      "key": "",
-      "type": "hexKey"
-    },
-    "alfajores": {
-      "key": "",
-      "type": "hexKey"
-    },
-    "kovan": {
-      "key": "",
-      "type": "hexKey"
-    },
-    "mumbai": {
-      "key": "",
-      "type": "hexKey"
-    }
-  },
+  "signers": {},
   "replicas": {
     "alfajores": {
       "address": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
