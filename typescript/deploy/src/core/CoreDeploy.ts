@@ -77,9 +77,7 @@ export class CoreDeploy extends CommonDeploy<CoreInstance, CoreConfig> {
 
       const rustConfig: RustConfig = {
         environment,
-        signers: {
-          [this.name(domain)]: { key: '', type: 'hexKey' },
-        },
+        signers: {},
         replicas: {},
         home: outbox,
         tracing: {

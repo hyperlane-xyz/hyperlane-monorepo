@@ -8,23 +8,17 @@ import { fetchAgentGCPKeys } from './gcp';
 import { AgentAwsKey } from './aws';
 
 export enum KEY_ROLE_ENUM {
-  UpdaterAttestation = 'validator-attestation',
-  UpdaterSigner = 'validator-signer',
-  CheckpointerSigner = 'checkpointer-signer',
-  RelayerSigner = 'relayer-signer',
-  WatcherAttestation = 'watcher-attestation',
-  WatcherSigner = 'watcher-signer',
+  Validator = 'validator',
+  Checkpointer = 'checkpointer',
+  Relayer = 'relayer',
   Deployer = 'deployer',
   Bank = 'bank',
 }
 
 export const KEY_ROLES = [
-  'validator-attestation',
-  'validator-signer',
-  'checkpointer-signer',
-  'relayer-signer',
-  'watcher-attestation',
-  'watcher-signer',
+  'validator',
+  'checkpointer',
+  'relayer',
   'deployer',
   'bank',
 ];
@@ -67,12 +61,8 @@ async function helmValuesForChain(
         }),
       validator: {
         enabled: true,
-        transactionSigners: chains.map((chain) => ({
-          name: chain.name,
-          ...credentials(KEY_ROLE_ENUM.UpdaterSigner),
-        })),
         attestationSigner: {
-          ...credentials(KEY_ROLE_ENUM.UpdaterAttestation),
+          ...credentials(KEY_ROLE_ENUM.Validator),
         },
         reorg_period: chain.confirmations,
         ...include(!!agentConfig.validator?.interval, {
@@ -86,17 +76,17 @@ async function helmValuesForChain(
         enabled: true,
         transactionSigners: chains.map((chain) => ({
           name: chain.name,
-          ...credentials(KEY_ROLE_ENUM.RelayerSigner),
+          ...credentials(KEY_ROLE_ENUM.Relayer),
         })),
         ...include(!!agentConfig.validator?.interval, {
           pollingInterval: agentConfig.validator?.interval || '',
         }),
       },
-      processor: {
+      checkpointer: {
         enabled: true,
         transactionSigners: chains.map((chain) => ({
           name: chain.name,
-          ...credentials(KEY_ROLE_ENUM.CheckpointerSigner),
+          ...credentials(KEY_ROLE_ENUM.Checkpointer),
         })),
         indexonly: agentConfig.processor?.indexOnly || [],
         s3BucketName: agentConfig.processor?.s3Bucket || '',
@@ -118,7 +108,6 @@ export async function getAgentEnvVars(
     chains,
   );
   const envVars: string[] = [];
-  const chain = chains.find((_) => _.name === homeChainName)!;
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chains);
   envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
   valueDict.optics.replicaChains.forEach((replicaChain: any) => {
@@ -143,38 +132,39 @@ export async function getAgentEnvVars(
       agentConfig.environment,
       homeChainName,
     );
-    // Signer keys
-    chains.forEach((network) => {
-      envVars.push(
-        `OPT_BASE_SIGNERS_${network.name.toUpperCase()}_KEY=${strip0x(
-          gcpKeys[role].privateKey,
-        )}`,
-      );
-    });
 
-    // Updater attestation key
-    if (role.startsWith('validator')) {
+    // Only checkpointer and relayer need to sign txs
+    if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
+      chains.forEach((network) => {
+        envVars.push(
+          `OPT_BASE_SIGNERS_${network.name.toUpperCase()}_KEY=${strip0x(
+            gcpKeys[role].privateKey,
+          )}`,
+        );
+      });
+    } else if (role === KEY_ROLE_ENUM.Validator) {
       envVars.push(
         `OPT_BASE_VALIDATOR_KEY=${strip0x(
-          gcpKeys[homeChainName + '-' + KEY_ROLE_ENUM.UpdaterAttestation]
-            .privateKey,
+          gcpKeys[homeChainName + '-' + KEY_ROLE_ENUM.Validator].privateKey,
         )}`,
         `OPT_BASE_VALIDATOR_TYPE=hexKey`,
       );
       // Throw an error if the chain config did not specify the reorg period
-      if (valueDict.optics.validator.confirmations === undefined) {
+      if (valueDict.optics.validator.reorg_period === undefined) {
         throw new Error(
           `Panic: Chain config for ${homeChainName} did not specify a reorg period`,
         );
       }
 
       envVars.push(
-        `OPT_VALIDATOR_REORGPERIOD=${chain.confirmations! - 1}`,
+        `OPT_VALIDATOR_REORGPERIOD=${
+          valueDict.optics.validator.reorg_period! - 1
+        }`,
         `OPT_VALIDATOR_INTERVAL=${valueDict.optics.validator.pollingInterval}`,
       );
     }
 
-    if (role.startsWith('relayer')) {
+    if (role === KEY_ROLE_ENUM.Relayer) {
       envVars.push(
         `OPT_RELAYER_INTERVAL=${valueDict.optics.relayer.pollingInterval}`,
       );
@@ -191,24 +181,26 @@ export async function getAgentEnvVars(
     envVars.push(`AWS_ACCESS_KEY_ID=${awsKeys.accessKeyId}`);
     envVars.push(`AWS_SECRET_ACCESS_KEY=${awsKeys.secretAccessKey}`);
 
-    // Signers
-    Object.keys(chains).forEach((network) => {
-      const key = new AgentAwsKey(agentConfig, role, network);
-      envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`);
-      envVars.push(
-        `OPT_BASE_SIGNERS_${network.toUpperCase()}_ID=${
-          key.credentialsAsHelmValue.aws.keyId
-        }`,
-      );
-      envVars.push(
-        `OPT_BASE_SIGNERS_${network.toUpperCase()}_REGION=${
-          key.credentialsAsHelmValue.aws.region
-        }`,
-      );
-    });
+    // Only checkpointer and relayer need to sign txs
+    if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
+      Object.keys(chains).forEach((network) => {
+        const key = new AgentAwsKey(agentConfig, role, network);
+        envVars.push(`OPT_BASE_SIGNERS_${network.toUpperCase()}_TYPE=aws`);
+        envVars.push(
+          `OPT_BASE_SIGNERS_${network.toUpperCase()}_ID=${
+            key.credentialsAsHelmValue.aws.keyId
+          }`,
+        );
+        envVars.push(
+          `OPT_BASE_SIGNERS_${network.toUpperCase()}_REGION=${
+            key.credentialsAsHelmValue.aws.region
+          }`,
+        );
+      });
+    }
 
     // Validator attestation key
-    if (role.startsWith('validator')) {
+    if (role === KEY_ROLE_ENUM.Validator) {
       const key = new AgentAwsKey(agentConfig, role, homeChainName);
       envVars.push(`OPT_BASE_VALIDATOR_TYPE=aws`);
       envVars.push(
