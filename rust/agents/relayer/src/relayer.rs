@@ -4,7 +4,7 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_base::{AbacusAgentCore, Agent, CachingInbox, ContractSyncMetrics};
+use abacus_base::{AbacusAgentCore, Agent, CachingInbox, CheckpointSyncers, ContractSyncMetrics};
 
 use crate::{checkpoint_relayer::CheckpointRelayer, settings::RelayerSettings as Settings};
 
@@ -13,6 +13,7 @@ use crate::{checkpoint_relayer::CheckpointRelayer, settings::RelayerSettings as 
 pub struct Relayer {
     polling_interval: u64,
     submission_latency: u64,
+    checkpoint_syncer: CheckpointSyncers,
     core: AbacusAgentCore,
     updates_relayed_count: Arc<prometheus::IntCounterVec>,
 }
@@ -26,7 +27,12 @@ impl AsRef<AbacusAgentCore> for Relayer {
 #[allow(clippy::unit_arg)]
 impl Relayer {
     /// Instantiate a new relayer
-    pub fn new(polling_interval: u64, submission_latency: u64, core: AbacusAgentCore) -> Self {
+    pub fn new(
+        polling_interval: u64,
+        submission_latency: u64,
+        checkpoint_syncer: CheckpointSyncers,
+        core: AbacusAgentCore,
+    ) -> Self {
         let updates_relayed_count = Arc::new(
             core.metrics
                 .new_int_counter(
@@ -40,6 +46,7 @@ impl Relayer {
         Self {
             polling_interval,
             submission_latency,
+            checkpoint_syncer,
             core,
             updates_relayed_count,
         }
@@ -57,9 +64,14 @@ impl Agent for Relayer {
     where
         Self: Sized,
     {
+        let checkpoint_syncer = settings
+            .checkpointsyncer
+            .try_into_checkpoint_syncer()
+            .await?;
         Ok(Self::new(
             settings.pollinginterval.parse().unwrap_or(5),
             settings.submissionlatency.parse().expect("invalid uint"),
+            checkpoint_syncer,
             settings
                 .as_ref()
                 .try_into_abacus_core(Self::AGENT_NAME)
@@ -80,8 +92,13 @@ impl Relayer {
     }
     fn run_inbox(&self, inbox: Arc<CachingInbox>) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
-        let submit =
-            CheckpointRelayer::new(self.polling_interval, self.submission_latency, db, inbox);
+        let submit = CheckpointRelayer::new(
+            self.polling_interval,
+            self.submission_latency,
+            db,
+            inbox,
+            self.checkpoint_syncer.clone(),
+        );
         self.run_all(vec![submit.spawn()])
     }
 
