@@ -2,6 +2,7 @@ import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
 import { types, utils } from '@abacus-network/utils';
+import { TestRecipient__factory } from '@abacus-network/core';
 
 import { sleep } from './src/utils/utils';
 import {
@@ -12,7 +13,6 @@ import {
 } from './scripts/utils';
 import { CoreDeploy } from './src/core';
 import { ContractVerifier } from './src/verification';
-import { TestRecipient__factory } from '@abacus-network/core';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
@@ -78,8 +78,8 @@ task('kathy', 'Dispatches random abacus messages')
       list[Math.floor(Math.random() * list.length)];
 
     // Deploy a recipient
-    const signer = await hre.ethers.getSigners();
-    const recipientF = new TestRecipient__factory(signer[1]);
+    const [signer] = await hre.ethers.getSigners();
+    const recipientF = new TestRecipient__factory(signer);
     const recipient = await recipientF.deploy();
     await recipient.deployTransaction.wait();
 
@@ -89,9 +89,9 @@ task('kathy', 'Dispatches random abacus messages')
       const remote = randomElement(deploy.remotes(local));
       const outbox = deploy.outbox(local);
       let i = 0;
-      // Send batches of messages
-      while (i < 10) {
-        // Values for recipient and message don't matter
+      // Send a batch of messages to the remote domain to test
+      // the checkpointer/relayer submitting only greedily
+      for (let i = 0; i < 10; i++) {
         await outbox.dispatch(
           remote,
           utils.addressToBytes32(recipient.address),
@@ -104,7 +104,6 @@ task('kathy', 'Dispatches random abacus messages')
         );
         console.log(await domainSummary(deploy, local));
         await sleep(5000);
-        i += 1;
       }
     }
   });
