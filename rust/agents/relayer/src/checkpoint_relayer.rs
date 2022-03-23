@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use abacus_base::{CachingInbox, CheckpointSyncer, LocalStorage};
+use abacus_base::{CachingInbox, CheckpointSyncer, CheckpointSyncers};
 use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox};
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
@@ -15,6 +15,7 @@ pub(crate) struct CheckpointRelayer {
     db: AbacusDB,
     inbox: Arc<CachingInbox>,
     prover_sync: TipProver,
+    checkpoint_syncer: CheckpointSyncers,
 }
 
 impl CheckpointRelayer {
@@ -23,6 +24,7 @@ impl CheckpointRelayer {
         submission_latency: u64,
         db: AbacusDB,
         inbox: Arc<CachingInbox>,
+        checkpoint_syncer: CheckpointSyncers,
     ) -> Self {
         Self {
             polling_interval,
@@ -30,6 +32,7 @@ impl CheckpointRelayer {
             prover_sync: TipProver::from_disk(db.clone()),
             db,
             inbox,
+            checkpoint_syncer,
         }
     }
 
@@ -67,14 +70,14 @@ impl CheckpointRelayer {
     // Returns the newest "current" checkpoint index
     async fn submit_checkpoint_and_messages(
         &mut self,
-        local_storage: &LocalStorage,
         onchain_checkpoint_index: u32,
         signed_checkpoint_index: u32,
         messages: Vec<CommittedMessage>,
     ) -> Result<u32> {
         // If the checkpoint storage is inconsistent, then this arm won't match
         // and it will cause us to have skipped this message batch
-        if let Some(latest_signed_checkpoint) = local_storage
+        if let Some(latest_signed_checkpoint) = self
+            .checkpoint_syncer
             .fetch_checkpoint(signed_checkpoint_index)
             .await?
         {
@@ -107,9 +110,6 @@ impl CheckpointRelayer {
 
     pub(crate) fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("CheckpointRelayer");
-        let local_storage = LocalStorage {
-            path: "/tmp/validatorsignatures".to_string(),
-        };
         tokio::spawn(async move {
             let latest_inbox_checkpoint = self.inbox.latest_checkpoint(None).await?;
             let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
@@ -118,7 +118,8 @@ impl CheckpointRelayer {
             loop {
                 sleep(Duration::from_secs(self.polling_interval)).await;
 
-                if let Some(signed_checkpoint_index) = local_storage.latest_index().await? {
+                if let Some(signed_checkpoint_index) = self.checkpoint_syncer.latest_index().await?
+                {
                     if signed_checkpoint_index <= onchain_checkpoint_index {
                         debug!(
                             onchain = onchain_checkpoint_index,
@@ -146,7 +147,6 @@ impl CheckpointRelayer {
 
                             onchain_checkpoint_index = self
                                 .submit_checkpoint_and_messages(
-                                    &local_storage,
                                     onchain_checkpoint_index,
                                     signed_checkpoint_index,
                                     messages,
