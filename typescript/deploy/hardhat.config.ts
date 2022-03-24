@@ -1,8 +1,10 @@
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
-import { utils, types } from '@abacus-network/utils';
+import { HardhatRuntimeEnvironment } from 'hardhat/types';
+import { BadRandomRecipient__factory } from '@abacus-network/core';
 import { coreAddresses, AbacusCore } from '@abacus-network/sdk';
+import { utils, types } from '@abacus-network/utils';
 
 import { sleep } from './src/utils/utils';
 import {
@@ -74,26 +76,40 @@ task('kathy', 'Dispatches random abacus messages')
     'environment',
     'The name of the environment from which to read configs',
   )
-  .setAction(async (args: any) => {
+  .setAction(async (args: any, hre: HardhatRuntimeEnvironment) => {
     const environment = args.environment;
     const core = new AbacusCore(coreAddresses[environment]);
     await registerMultiProvider(core, environment);
     const randomElement = (list: types.Domain[]) =>
       list[Math.floor(Math.random() * list.length)];
 
+    // Deploy a recipient
+    const [signer] = await hre.ethers.getSigners();
+    const recipientF = new BadRandomRecipient__factory(signer);
+    const recipient = await recipientF.deploy();
+    await recipient.deployTransaction.wait();
+
     // Generate artificial traffic
     while (true) {
-      const local = randomElement(core.domainNumbers);
-      const remote = randomElement(core.remoteDomainNumbers(local));
+      const local = core.domainNumbers[0];
+      const remote = randomElement(core.domainNumbers(local));
       const outbox = core.mustGetContracts(local).outbox;
-      // Values for recipient and message don't matter
-      await outbox.dispatch(
-        remote,
-        utils.addressToBytes32(outbox.address),
-        '0x1234',
-      );
-      console.log(await domainSummary(core, local));
-      await sleep(5000);
+      // Send a batch of messages to the remote domain to test
+      // the checkpointer/relayer submitting only greedily
+      for (let i = 0; i < 10; i++) {
+        await outbox.dispatch(
+          remote,
+          utils.addressToBytes32(recipient.address),
+          '0x1234',
+        );
+        console.log(
+          `send to ${recipient.address} on ${remote} at index ${
+            (await outbox.count()).toNumber() - 1
+          }`,
+        );
+        console.log(await domainSummary(core, local));
+        await sleep(5000);
+      }
     }
   });
 
