@@ -29,10 +29,10 @@ contract InterchainGasPaymaster is Ownable {
     /**
      * @notice Deposits the msg.value as a payment for the proving & processing
      * of a message on its destination chain.
-     * @param leafIndex The index of the message in the Outbox merkle tree.
+     * @param _leafIndex The index of the message in the Outbox merkle tree.
      */
-    function payGasFor(uint256 leafIndex) external payable {
-        emit GasPayment(leafIndex, msg.value);
+    function payGasFor(uint256 _leafIndex) external payable {
+        emit GasPayment(_leafIndex, msg.value);
     }
 
     /**
