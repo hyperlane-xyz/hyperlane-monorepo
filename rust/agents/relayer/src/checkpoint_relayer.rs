@@ -4,7 +4,7 @@ use abacus_base::{CachingInbox, CheckpointSyncer, CheckpointSyncers};
 use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox};
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, info_span, instrument::Instrumented, Instrument};
+use tracing::{debug, error, info, info_span, instrument::Instrumented, Instrument};
 
 use crate::tip_prover::{MessageBatch, TipProver};
 
@@ -94,9 +94,15 @@ impl CheckpointRelayer {
             // TODO: sign in parallel
             for message in &batch.messages {
                 if let Some(proof) = self.db.proof_by_leaf_index(message.leaf_index)? {
-                    self.inbox
-                        .prove_and_process(&message.message, &proof)
-                        .await?;
+                    // Ignore errors and expect the lagged message processor to retry
+                    match self.inbox.prove_and_process(&message.message, &proof).await {
+                        Ok(outcome) => {
+                            info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "TipProver processed message")
+                        }
+                        Err(error) => {
+                            error!(error=?error, leaf_index=message.leaf_index, "TipProver encountered error while processing message, ignoring")
+                        }
+                    }
                 }
             }
 

@@ -1,0 +1,18 @@
+// SPDX-License-Identifier: MIT OR Apache-2.0
+pragma solidity >=0.6.11;
+
+import {IMessageRecipient} from "../../../interfaces/IMessageRecipient.sol";
+
+contract BadRandomRecipient is IMessageRecipient {
+    event Handled(bytes32 blockHash);
+
+    function handle(
+        uint32,
+        bytes32,
+        bytes memory
+    ) external override {
+        bool isBlockHashEven = uint256(blockhash(block.number - 1)) % 2 == 0;
+        require(isBlockHashEven, "block hash is odd");
+        emit Handled(blockhash(block.number - 1));
+    }
+}
