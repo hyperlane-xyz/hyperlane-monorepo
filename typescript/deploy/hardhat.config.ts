@@ -2,7 +2,7 @@ import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
 import { types, utils } from '@abacus-network/utils';
-import { TestRecipient__factory } from '@abacus-network/core';
+import { BadRandomRecipient__factory } from '@abacus-network/core';
 
 import { sleep } from './src/utils/utils';
 import {
@@ -79,7 +79,7 @@ task('kathy', 'Dispatches random abacus messages')
 
     // Deploy a recipient
     const [signer] = await hre.ethers.getSigners();
-    const recipientF = new TestRecipient__factory(signer);
+    const recipientF = new BadRandomRecipient__factory(signer);
     const recipient = await recipientF.deploy();
     await recipient.deployTransaction.wait();
 
