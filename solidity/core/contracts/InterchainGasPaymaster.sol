@@ -12,6 +12,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * Outbox contract on the same source chain.
  */
 contract InterchainGasPaymaster is Ownable {
+    // ============ Events ============
+
     /**
      * @notice Emitted when a payment is made for a message's gas costs.
      * @param leafIndex The index of the message in the Outbox merkle tree.
