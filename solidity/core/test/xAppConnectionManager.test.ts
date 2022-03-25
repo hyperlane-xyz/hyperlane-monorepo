@@ -115,9 +115,9 @@ describe('XAppConnectionManager', async () => {
     });
 
     it('Reverts a call from non-owner', async () => {
-      await expect(
-        setter(newPaymaster.address, nonOwner),
-      ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
+      await expect(setter(newPaymaster.address, nonOwner)).to.be.revertedWith(
+        ONLY_OWNER_REVERT_MSG,
+      );
     });
   };
 
