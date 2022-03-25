@@ -2,13 +2,13 @@ use crate::prover::{Prover, ProverError};
 use abacus_core::{
     accumulator::incremental::IncrementalMerkle,
     db::{AbacusDB, DbError},
-    ChainCommunicationError, CommittedMessage, SignedCheckpoint,
+    ChainCommunicationError, Checkpoint, CommittedMessage, SignedCheckpoint,
 };
 use color_eyre::eyre::Result;
 use ethers::core::types::H256;
 use std::fmt::Display;
 
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info};
 
 /// Struct to update prover
 pub struct MessageBatch {
@@ -34,15 +34,15 @@ impl MessageBatch {
 
 /// Struct to sync prover.
 #[derive(Debug)]
-pub struct TipProver {
+pub struct MerkleTreeBuilder {
     db: AbacusDB,
     prover: Prover,
     incremental: IncrementalMerkle,
 }
 
-impl Display for TipProver {
+impl Display for MerkleTreeBuilder {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "TipProver {{ ")?;
+        write!(f, "MerkleTreeBuilder {{ ")?;
         write!(
             f,
             "incremental: {{ root: {:?}, size: {} }}, ",
@@ -60,11 +60,11 @@ impl Display for TipProver {
     }
 }
 
-/// TipProver errors
+/// MerkleTreeBuilder errors
 #[derive(Debug, thiserror::Error)]
-pub enum TipProverError {
+pub enum MerkleTreeBuilderError {
     /// Local tree up-to-date but root does not match signed checkpoint"
-    #[error("Local tree up-to-date but root does not match checkpoint. Local root: {prover_root}. checkpoint root: {checkpoint_root}. WARNING: this could indicate malicious validator and/or long reorganization process!")]
+    #[error("Local tree up-to-date but root does not match checkpoint. Local root: {prover_root}, incremental: {incremental_root}, checkpoint root: {checkpoint_root}. WARNING: this could indicate malicious validator and/or long reorganization process!")]
     MismatchedRoots {
         /// Root of prover's local merkle tree
         prover_root: H256,
@@ -79,10 +79,10 @@ pub enum TipProverError {
         /// Root of prover's local merkle tree
         leaf_index: u32,
     },
-    /// TipProver attempts Prover operation and receives ProverError
+    /// MerkleTreeBuilder attempts Prover operation and receives ProverError
     #[error(transparent)]
     ProverError(#[from] ProverError),
-    /// TipProver receives ChainCommunicationError from chain API
+    /// MerkleTreeBuilder receives ChainCommunicationError from chain API
     #[error(transparent)]
     ChainCommunicationError(#[from] ChainCommunicationError),
     /// DB Error
@@ -90,8 +90,18 @@ pub enum TipProverError {
     DbError(#[from] DbError),
 }
 
-impl TipProver {
-    fn store_proof(&self, leaf_index: u32) -> Result<(), TipProverError> {
+impl MerkleTreeBuilder {
+    pub fn new(db: AbacusDB) -> Self {
+        let prover = Prover::default();
+        let incremental = IncrementalMerkle::default();
+        Self {
+            prover,
+            incremental,
+            db,
+        }
+    }
+
+    fn store_proof(&self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
         match self.prover.prove(leaf_index as usize) {
             Ok(proof) => {
                 self.db.store_proof(leaf_index, &proof)?;
@@ -111,61 +121,10 @@ impl TipProver {
         }
     }
 
-    /// Given rocksdb handle `db` containing merkle tree leaves,
-    /// instantiates new `TipProver` and fills prover's merkle tree
-    #[instrument(level = "debug", skip(db))]
-    pub fn from_disk(db: AbacusDB) -> Self {
-        // Ingest all leaves in db into prover tree
-        let mut prover = Prover::default();
-        let mut incremental = IncrementalMerkle::default();
-
-        if let Some(root) = db.retrieve_latest_root().expect("db error") {
-            for i in 0.. {
-                match db.leaf_by_leaf_index(i) {
-                    Ok(Some(leaf)) => {
-                        debug!(leaf_index = i, "Ingesting leaf from_disk");
-                        prover.ingest(leaf).expect("!tree full");
-                        incremental.ingest(leaf);
-                        assert_eq!(prover.root(), incremental.root());
-                        if prover.root() == root {
-                            break;
-                        }
-                    }
-                    Ok(None) => break,
-                    Err(e) => {
-                        error!(error = %e, "Error in TipProver::from_disk");
-                        panic!("Error in TipProver::from_disk");
-                    }
-                }
-            }
-            info!(target_latest_root = ?root, root = ?incremental.root(), "Reloaded TipProver from disk");
-        }
-
-        let sync = Self {
-            prover,
-            incremental,
-            db,
-        };
-
-        // Ensure proofs exist for all leaves
-        for i in 0..sync.prover.count() as u32 {
-            match (
-                sync.db.leaf_by_leaf_index(i).expect("db error"),
-                sync.db.proof_by_leaf_index(i).expect("db error"),
-            ) {
-                (Some(_), None) => sync.store_proof(i).expect("db error"),
-                (None, _) => break,
-                _ => {}
-            }
-        }
-
-        sync
-    }
-
-    fn ingest_leaf_index(&mut self, leaf_index: u32) -> Result<(), TipProverError> {
+    fn ingest_leaf_index(&mut self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
         match self.db.leaf_by_leaf_index(leaf_index) {
             Ok(Some(leaf)) => {
-                debug!(leaf_index = leaf_index, "Ingesting leaf update_from_batch");
+                debug!(leaf_index = leaf_index, "Ingesting leaf");
                 self.prover.ingest(leaf).expect("!tree full");
                 self.incremental.ingest(leaf);
                 assert_eq!(self.prover.root(), self.incremental.root());
@@ -173,14 +132,47 @@ impl TipProver {
             }
             Ok(None) => {
                 error!("We should not arrive here");
-                Err(TipProverError::UnavailableLeaf { leaf_index })
+                Err(MerkleTreeBuilderError::UnavailableLeaf { leaf_index })
             }
             Err(e) => Err(e.into()),
         }
     }
 
+    pub async fn update_to_checkpoint(
+        &mut self,
+        checkpoint: &Checkpoint,
+    ) -> Result<(), MerkleTreeBuilderError> {
+        if checkpoint.index == 0 {
+            return Ok(());
+        }
+        let starting_index = self.prover.count() as u32;
+        for i in starting_index..checkpoint.index {
+            self.db.wait_for_leaf(i).await?;
+            self.ingest_leaf_index(i)?;
+        }
+
+        let prover_root = self.prover.root();
+        let incremental_root = self.incremental.root();
+        let checkpoint_root = checkpoint.root;
+        if prover_root != incremental_root || prover_root != checkpoint_root {
+            return Err(MerkleTreeBuilderError::MismatchedRoots {
+                prover_root,
+                incremental_root,
+                checkpoint_root,
+            });
+        }
+
+        for i in starting_index..checkpoint.index {
+            self.store_proof(i)?;
+        }
+        Ok(())
+    }
+
     /// Update the prover with a message batch
-    pub fn update_from_batch(&mut self, batch: &MessageBatch) -> Result<(), TipProverError> {
+    pub fn update_from_batch(
+        &mut self,
+        batch: &MessageBatch,
+    ) -> Result<(), MerkleTreeBuilderError> {
         // TODO:: If we are ahead already, something went wrong
         // if we are somehow behind the current index, prove until then
 
@@ -188,7 +180,7 @@ impl TipProver {
             self.ingest_leaf_index(i)?;
         }
 
-        info!(
+        debug!(
             count = self.prover.count(),
             "update_from_batch fast forward"
         );
@@ -203,14 +195,14 @@ impl TipProver {
         let incremental_root = self.incremental.root();
         let checkpoint_root = batch.signed_target_checkpoint.checkpoint.root;
         if prover_root != incremental_root || prover_root != checkpoint_root {
-            return Err(TipProverError::MismatchedRoots {
+            return Err(MerkleTreeBuilderError::MismatchedRoots {
                 prover_root,
                 incremental_root,
                 checkpoint_root,
             });
         }
 
-        info!(
+        debug!(
             count = self.prover.count(),
             "update_from_batch batch proving"
         );
