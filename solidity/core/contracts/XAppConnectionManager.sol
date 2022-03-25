@@ -21,10 +21,10 @@ contract XAppConnectionManager is Ownable {
 
     // Outbox contract
     Outbox public outbox;
-    // Interchain Gas Paymaster contract. The off-chain relayer associated with
+    // Interchain Gas Paymaster contract. The off-chain processor associated with
     // the paymaster contract must be willing to process messages dispatched from
-    // the current Outbox contract, otherwise the paymaster is incompatible with the Outbox
-    // and any gas payments made will not cover messages dispatched from the Outbox.
+    // the current Outbox contract, otherwise payments made to the paymaster will
+    // not result in processed messages.
     IInterchainGasPaymaster public interchainGasPaymaster;
     // local Inbox address => remote Outbox domain
     mapping(address => uint32) public inboxToDomain;
@@ -69,11 +69,9 @@ contract XAppConnectionManager is Ownable {
     /**
      * @notice Sets the address of the local Outbox contract and the address of
      * the local Interchain Gas Paymaster contract.
-     * @dev This should be used to atomically change the local Outbox and Interchain Gas Paymaster,
-     * avoiding incompatibility issues between the two.
+     * @dev This should be used to atomically change the local Outbox and Interchain Gas Paymaster.
      * @param _outbox The address of the new local Outbox contract.
-     * @param _interchainGasPaymaster The address of the new local Interchain Gas Paymaster contract
-     * that is compatible with the _outbox.
+     * @param _interchainGasPaymaster The address of the new local Interchain Gas Paymaster contract.
      */
     function setOutboxAndInterchainGasPaymaster(
         address _outbox,
@@ -130,8 +128,7 @@ contract XAppConnectionManager is Ownable {
 
     /**
      * @notice Sets the address of the local Interchain Gas Paymaster contract.
-     * @param _interchainGasPaymaster The address of the new local Interchain Gas Paymaster contract
-     * that is compatible with the local Outbox contract.
+     * @param _interchainGasPaymaster The address of the new local Interchain Gas Paymaster contract.
      */
     function setInterchainGasPaymaster(address _interchainGasPaymaster)
         public
