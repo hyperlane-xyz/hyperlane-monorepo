@@ -21,7 +21,10 @@ contract XAppConnectionManager is Ownable {
 
     // Outbox contract
     Outbox public outbox;
-    // Interchain Gas Paymaster, must be compatible with the outbox
+    // Interchain Gas Paymaster contract. The off-chain relayer associated with
+    // the paymaster contract must be willing to process messages dispatched from
+    // the current Outbox contract, otherwise the paymaster is incompatible with the Outbox
+    // and any gas payments made will not cover messages dispatched from the Outbox.
     IInterchainGasPaymaster public interchainGasPaymaster;
     // local Inbox address => remote Outbox domain
     mapping(address => uint32) public inboxToDomain;
