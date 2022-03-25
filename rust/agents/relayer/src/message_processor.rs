@@ -41,14 +41,14 @@ impl MessageProcessor {
             loop {
                 // check for message status
                 self.db.wait_for_leaf(message_leaf_index).await?;
-                match (
-                    self.db.leaf_by_leaf_index(message_leaf_index)?,
-                    self.db
-                        .message_by_leaf_index(message_leaf_index)?
-                        .map(CommittedMessage::try_from)
-                        .transpose()?,
-                ) {
-                    (Some(leaf), Some(message)) => {
+                match self
+                    .db
+                    .message_by_leaf_index(message_leaf_index)?
+                    .map(CommittedMessage::try_from)
+                    .transpose()?
+                {
+                    Some(message) => {
+                        let leaf = message.to_leaf();
                         if message.message.destination != self.inbox.local_domain() {
                             message_leaf_index += 1;
                             continue;
@@ -99,7 +99,7 @@ impl MessageProcessor {
                             }
                         }
                     }
-                    _ => {
+                    None => {
                         // Should not get here
                         bail!("Somehow MessageProcessor get the leaf despite waiting for it");
                     }
