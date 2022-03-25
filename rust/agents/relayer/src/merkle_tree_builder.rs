@@ -8,7 +8,7 @@ use color_eyre::eyre::Result;
 use ethers::core::types::H256;
 use std::fmt::Display;
 
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info};
 
 /// Struct to update prover
 pub struct MessageBatch {
@@ -145,7 +145,8 @@ impl MerkleTreeBuilder {
         if checkpoint.index == 0 {
             return Ok(());
         }
-        for i in (self.prover.count() as u32)..checkpoint.index {
+        let starting_index = self.prover.count() as u32;
+        for i in starting_index..checkpoint.index {
             self.db.wait_for_leaf(i).await?;
             self.ingest_leaf_index(i)?;
         }
@@ -161,6 +162,9 @@ impl MerkleTreeBuilder {
             });
         }
 
+        for i in starting_index..checkpoint.index {
+            self.store_proof(i)?;
+        }
         Ok(())
     }
 

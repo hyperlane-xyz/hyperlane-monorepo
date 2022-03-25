@@ -37,14 +37,15 @@ impl CheckpointRelayer {
     }
 
     /// Only gets the messages desinated for the Relayers inbox
+    /// Exclusive the to_checkpoint_index
     async fn get_messages_between(
         &self,
         from_leaf_index: u32,
-        to_leaf_index: u32,
+        to_checkpoint_index: u32,
     ) -> Result<Option<Vec<CommittedMessage>>> {
         let mut messages: Vec<CommittedMessage> = vec![];
         let mut current_leaf_index = from_leaf_index;
-        while current_leaf_index <= to_leaf_index {
+        while current_leaf_index < to_checkpoint_index {
             // Relies on the indexer finding this message eventually
             self.db.wait_for_leaf(current_leaf_index).await?;
             let maybe_message = self
