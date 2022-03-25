@@ -81,7 +81,11 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
      * @notice Gets the local Interchain Gas Paymaster contract from the xAppConnectionManager.
      * @return The local Interchain Gas Paymaster contract.
      */
-    function _interchainGasPaymaster() internal view returns (IInterchainGasPaymaster) {
+    function _interchainGasPaymaster()
+        internal
+        view
+        returns (IInterchainGasPaymaster)
+    {
         return xAppConnectionManager.interchainGasPaymaster();
     }
 
