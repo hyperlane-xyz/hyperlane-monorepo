@@ -6,7 +6,7 @@ use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument::Instrumented, Instrument};
 
-use crate::tip_prover::{MessageBatch, TipProver};
+use crate::merkle_tree_builder::{MerkleTreeBuilder, MessageBatch};
 
 pub(crate) struct CheckpointRelayer {
     polling_interval: u64,
@@ -14,7 +14,7 @@ pub(crate) struct CheckpointRelayer {
     submission_latency: u64,
     db: AbacusDB,
     inbox: Arc<CachingInbox>,
-    prover_sync: TipProver,
+    prover_sync: MerkleTreeBuilder,
     checkpoint_syncer: CheckpointSyncers,
 }
 
@@ -29,7 +29,7 @@ impl CheckpointRelayer {
         Self {
             polling_interval,
             submission_latency,
-            prover_sync: TipProver::from_disk(db.clone()),
+            prover_sync: MerkleTreeBuilder::from_disk(db.clone()),
             db,
             inbox,
             checkpoint_syncer,

@@ -6,7 +6,10 @@ use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_base::{AbacusAgentCore, Agent, CachingInbox, CheckpointSyncers, ContractSyncMetrics};
 
-use crate::{checkpoint_relayer::CheckpointRelayer, settings::RelayerSettings as Settings};
+use crate::{
+    checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,
+    settings::RelayerSettings as Settings,
+};
 
 /// A relayer agent
 #[derive(Debug)]
@@ -92,14 +95,17 @@ impl Relayer {
     }
     fn run_inbox(&self, inbox: Arc<CachingInbox>) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
-        let submit = CheckpointRelayer::new(
+        let checkpoint_relayer = CheckpointRelayer::new(
             self.polling_interval,
             self.submission_latency,
-            db,
-            inbox,
+            db.clone(),
+            inbox.clone(),
             self.checkpoint_syncer.clone(),
         );
-        self.run_all(vec![submit.spawn()])
+        let message_processor =
+            MessageProcessor::new(self.polling_interval, db, self.submission_latency, inbox);
+
+        self.run_all(vec![checkpoint_relayer.spawn(), message_processor.spawn()])
     }
 
     fn wrap_inbox_run(
