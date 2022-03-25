@@ -29,7 +29,7 @@ impl CheckpointRelayer {
         Self {
             polling_interval,
             submission_latency,
-            prover_sync: MerkleTreeBuilder::from_disk(db.clone()),
+            prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
             inbox,
             checkpoint_syncer,

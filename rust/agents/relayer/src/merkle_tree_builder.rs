@@ -100,6 +100,7 @@ impl MerkleTreeBuilder {
             db,
         }
     }
+
     fn store_proof(&self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
         match self.prover.prove(leaf_index as usize) {
             Ok(proof) => {
@@ -120,61 +121,10 @@ impl MerkleTreeBuilder {
         }
     }
 
-    /// Given rocksdb handle `db` containing merkle tree leaves,
-    /// instantiates new `MerkleTreeBuilder` and fills prover's merkle tree
-    #[instrument(level = "debug", skip(db))]
-    pub fn from_disk(db: AbacusDB) -> Self {
-        // Ingest all leaves in db into prover tree
-        let mut prover = Prover::default();
-        let mut incremental = IncrementalMerkle::default();
-
-        if let Some(root) = db.retrieve_latest_root().expect("db error") {
-            for i in 0.. {
-                match db.leaf_by_leaf_index(i) {
-                    Ok(Some(leaf)) => {
-                        debug!(leaf_index = i, "Ingesting leaf from_disk");
-                        prover.ingest(leaf).expect("!tree full");
-                        incremental.ingest(leaf);
-                        assert_eq!(prover.root(), incremental.root());
-                        if prover.root() == root {
-                            break;
-                        }
-                    }
-                    Ok(None) => break,
-                    Err(e) => {
-                        error!(error = %e, "Error in MerkleTreeBuilder::from_disk");
-                        panic!("Error in MerkleTreeBuilder::from_disk");
-                    }
-                }
-            }
-            info!(target_latest_root = ?root, root = ?incremental.root(), "Reloaded MerkleTreeBuilder from disk");
-        }
-
-        let sync = Self {
-            prover,
-            incremental,
-            db,
-        };
-
-        // Ensure proofs exist for all leaves
-        for i in 0..sync.prover.count() as u32 {
-            match (
-                sync.db.leaf_by_leaf_index(i).expect("db error"),
-                sync.db.proof_by_leaf_index(i).expect("db error"),
-            ) {
-                (Some(_), None) => sync.store_proof(i).expect("db error"),
-                (None, _) => break,
-                _ => {}
-            }
-        }
-
-        sync
-    }
-
     fn ingest_leaf_index(&mut self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
         match self.db.leaf_by_leaf_index(leaf_index) {
             Ok(Some(leaf)) => {
-                debug!(leaf_index = leaf_index, "Ingesting leaf update_from_batch");
+                debug!(leaf_index = leaf_index, "Ingesting leaf");
                 self.prover.ingest(leaf).expect("!tree full");
                 self.incremental.ingest(leaf);
                 assert_eq!(self.prover.root(), self.incremental.root());

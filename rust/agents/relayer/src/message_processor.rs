@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use abacus_base::CachingInbox;
 use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, MessageStatus};
-use color_eyre::Result;
+use color_eyre::{eyre::bail, Result};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
@@ -35,7 +35,7 @@ impl MessageProcessor {
     pub(crate) fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
 
-        let mut tip_prover_index = 0;
+        let mut prover_checkpoint_index = 0;
         let mut message_leaf_index = 0;
         tokio::spawn(async move {
             loop {
@@ -55,7 +55,7 @@ impl MessageProcessor {
                         }
                         match self.inbox.message_status(leaf).await? {
                             MessageStatus::None => {
-                                if message_leaf_index >= tip_prover_index {
+                                if message_leaf_index >= prover_checkpoint_index {
                                     // gotta find a root that includes the message
                                     let latest_checkpoint = self
                                         .inbox
@@ -66,9 +66,9 @@ impl MessageProcessor {
                                         .update_to_checkpoint(&latest_checkpoint)
                                         .await?;
 
-                                    tip_prover_index = latest_checkpoint.index;
-                                    if latest_checkpoint.index <= message_leaf_index {
-                                        // If we don't have an up to date checkpoint, sleep and try again
+                                    prover_checkpoint_index = latest_checkpoint.index;
+                                    if message_leaf_index >= prover_checkpoint_index {
+                                        // If we still don't have an up to date checkpoint, sleep and try again
                                         sleep(Duration::from_secs(self.polling_interval)).await;
                                         continue;
                                     }
@@ -87,6 +87,7 @@ impl MessageProcessor {
                                     message_leaf_index += 1;
                                 } else {
                                     // Should not get here
+                                    bail!("Somehow MessageProcessor did not get the proof");
                                 }
                             }
                             MessageStatus::Proven => {
@@ -98,7 +99,10 @@ impl MessageProcessor {
                             }
                         }
                     }
-                    _ => {}
+                    _ => {
+                        // Should not get here
+                        bail!("Somehow MessageProcessor get the leaf despite waiting for it");
+                    }
                 }
             }
         })
