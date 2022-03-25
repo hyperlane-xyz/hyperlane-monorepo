@@ -6,12 +6,12 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import {
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
+  TestOutbox,
   TestOutbox__factory,
+  TestInbox,
   TestInbox__factory,
   XAppConnectionManager,
   XAppConnectionManager__factory,
-  TestInbox,
-  TestOutbox,
 } from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
