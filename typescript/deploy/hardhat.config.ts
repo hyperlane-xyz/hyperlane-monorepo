@@ -92,7 +92,7 @@ task('kathy', 'Dispatches random abacus messages')
     // Generate artificial traffic
     while (true) {
       const local = core.domainNumbers[0];
-      const remote = randomElement(core.domainNumbers(local));
+      const remote = randomElement(core.remoteDomainNumbers(local));
       const outbox = core.mustGetContracts(local).outbox;
       // Send a batch of messages to the remote domain to test
       // the checkpointer/relayer submitting only greedily
