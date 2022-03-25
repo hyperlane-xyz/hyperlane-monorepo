@@ -139,56 +139,6 @@ describe('Outbox', async () => {
 
       expect(dispatchLeafIndex).equals(leafIndex);
     });
-
-    it('Does not dispatch too large messages', async () => {
-      const message = `0x${Buffer.alloc(3000).toString('hex')}`;
-      await expect(
-        outbox.dispatch(
-          destDomain,
-          utils.addressToBytes32(recipient.address),
-          message,
-        ),
-      ).to.be.revertedWith('msg too long');
-    });
-
-    it('Dispatches a message', async () => {
-      const message = ethers.utils.formatBytes32String('message');
-      const nonce = await outbox.nonces(localDomain);
-
-      // Format data that will be emitted from Dispatch event
-      const destAndNonce = utils.destinationAndNonce(destDomain, nonce);
-
-      const abacusMessage = utils.formatMessage(
-        localDomain,
-        signer.address,
-        nonce,
-        destDomain,
-        recipient.address,
-        message,
-      );
-      const hash = utils.messageHash(abacusMessage);
-      const leafIndex = await outbox.tree();
-      const [checkpointedRoot] = await outbox.latestCheckpoint();
-
-      // Send message with signer address as msg.sender
-      await expect(
-        outbox
-          .connect(signer)
-          .dispatch(
-            destDomain,
-            utils.addressToBytes32(recipient.address),
-            message,
-          ),
-      )
-        .to.emit(outbox, 'Dispatch')
-        .withArgs(
-          hash,
-          leafIndex,
-          destAndNonce,
-          checkpointedRoot,
-          abacusMessage,
-        );
-    });
   });
 
   it('Checkpoints the latest root', async () => {
