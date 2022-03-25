@@ -136,19 +136,19 @@ contract Outbox is Version0, MerkleTreeManager, Common {
             _messageBody
         );
         // The leaf has not been inserted yet at this point
-        uint256 leafIndex = count();
+        uint256 _leafIndex = count();
         // insert the hashed message into the Merkle tree
         bytes32 _messageHash = keccak256(_message);
         tree.insert(_messageHash);
         // Emit Dispatch event with message information
         emit Dispatch(
             _messageHash,
-            leafIndex,
+            _leafIndex,
             _destinationAndNonce(_destinationDomain, _nonce),
             checkpointedRoot,
             _message
         );
-        return leafIndex;
+        return _leafIndex;
     }
 
     /**
