@@ -10,7 +10,7 @@ const destinationNonceTestCases = require('../../../vectors/destinationNonce.jso
 const localDomain = 1000;
 const destDomain = 2000;
 
-describe.only('Outbox', async () => {
+describe('Outbox', async () => {
   let outbox: TestOutbox,
     signer: SignerWithAddress,
     recipient: SignerWithAddress;
