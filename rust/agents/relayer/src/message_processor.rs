@@ -62,8 +62,9 @@ impl MessageProcessor {
                                         .latest_checkpoint(Some(self.reorg_period))
                                         .await?;
 
-                                    // TODO: account for when messages have not been indexed
-                                    self.prover_sync.update_to_checkpoint(&latest_checkpoint)?;
+                                    self.prover_sync
+                                        .update_to_checkpoint(&latest_checkpoint)
+                                        .await?;
 
                                     tip_prover_index = latest_checkpoint.index;
                                     if latest_checkpoint.index <= message_leaf_index {

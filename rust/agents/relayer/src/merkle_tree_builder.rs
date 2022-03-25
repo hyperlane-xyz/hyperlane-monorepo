@@ -188,7 +188,7 @@ impl MerkleTreeBuilder {
         }
     }
 
-    pub fn update_to_checkpoint(
+    pub async fn update_to_checkpoint(
         &mut self,
         checkpoint: &Checkpoint,
     ) -> Result<(), MerkleTreeBuilderError> {
@@ -196,6 +196,7 @@ impl MerkleTreeBuilder {
             return Ok(());
         }
         for i in (self.prover.count() as u32)..checkpoint.index {
+            self.db.wait_for_leaf(i).await?;
             self.ingest_leaf_index(i)?;
         }
 
