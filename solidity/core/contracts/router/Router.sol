@@ -113,9 +113,9 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
      * @notice Dispatches a message to an enrolled router via the local router's
      * Outbox and pays native tokens for the processing on the destination chain using
      * the Interchain Gas Paymaster.
-     * @dev Reverts if there is no enrolled router for _destination
-     * @param _destination The domain of the chain to which to send the message
-     * @param _msg The message to dispatch
+     * @dev Reverts if there is no enrolled router for _destination.
+     * @param _destination The domain of the chain to which to send the message.
+     * @param _msg The message to dispatch.
      * @param _paymentAmount The amount of native tokens to pay the Interchain Gas
      * Paymaster to process the dispatched message.
      */
