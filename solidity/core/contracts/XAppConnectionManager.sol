@@ -4,6 +4,7 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {Outbox} from "./Outbox.sol";
 import {Inbox} from "./Inbox.sol";
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 // ============ External Imports ============
 import {ECDSA} from "@openzeppelin/contracts/cryptography/ECDSA.sol";
@@ -20,6 +21,8 @@ contract XAppConnectionManager is Ownable {
 
     // Outbox contract
     Outbox public outbox;
+    // Interchain Gas Paymaster, must be compatible with the outbox
+    IInterchainGasPaymaster public interchainGasPaymaster;
     // local Inbox address => remote Outbox domain
     mapping(address => uint32) public inboxToDomain;
     // remote Outbox domain => local Inbox address
@@ -32,6 +35,12 @@ contract XAppConnectionManager is Ownable {
      * @param outbox the address of the Outbox
      */
     event NewOutbox(address indexed outbox);
+
+    /**
+     * @notice Emitted when a new Interchain Gas Paymaster is set.
+     * @param interchainGasPaymaster The address of the Interchain Gas Paymaster.
+     */
+    event NewInterchainGasPaymaster(address indexed interchainGasPaymaster);
 
     /**
      * @notice Emitted when a new Inbox is enrolled / added
@@ -55,12 +64,20 @@ contract XAppConnectionManager is Ownable {
     // ============ External Functions ============
 
     /**
-     * @notice Set the address of the local Outbox contract
-     * @param _outbox the address of the local Outbox contract
+     * @notice Sets the address of the local Outbox contract and the address of
+     * the local Interchain Gas Paymaster contract.
+     * @dev This should be used to atomically change the local Outbox and Interchain Gas Paymaster,
+     * avoiding incompatibility issues between the two.
+     * @param _outbox The address of the new local Outbox contract.
+     * @param _interchainGasPaymaster The address of the new local Interchain Gas Paymaster contract
+     * that is compatible with the _outbox.
      */
-    function setOutbox(address _outbox) external onlyOwner {
-        outbox = Outbox(_outbox);
-        emit NewOutbox(_outbox);
+    function setOutboxAndInterchainGasPaymaster(
+        address _outbox,
+        address _interchainGasPaymaster
+    ) external onlyOwner {
+        setOutbox(_outbox);
+        setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
     /**
@@ -94,6 +111,34 @@ contract XAppConnectionManager is Ownable {
     }
 
     // ============ Public Functions ============
+
+    /**
+     * @notice Set the address of the local Outbox contract.
+     * @dev Changing the Outbox and not the Interchain Gas Paymaster may result in
+     * using an Interchain Gas Paymaster that expects messages to be dispatched via
+     * a different outbox. Use `setOutboxAndInterchainGasPaymaster` to change both
+     * atomically.
+     * @param _outbox The address of the new local Outbox contract.
+     */
+    function setOutbox(address _outbox) public onlyOwner {
+        outbox = Outbox(_outbox);
+        emit NewOutbox(_outbox);
+    }
+
+    /**
+     * @notice Sets the address of the local Interchain Gas Paymaster contract.
+     * @param _interchainGasPaymaster The address of the new local Interchain Gas Paymaster contract
+     * that is compatible with the local Outbox contract.
+     */
+    function setInterchainGasPaymaster(address _interchainGasPaymaster)
+        public
+        onlyOwner
+    {
+        interchainGasPaymaster = IInterchainGasPaymaster(
+            _interchainGasPaymaster
+        );
+        emit NewInterchainGasPaymaster(_interchainGasPaymaster);
+    }
 
     /**
      * @notice Check whether _inbox is enrolled
