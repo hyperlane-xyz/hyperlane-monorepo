@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
+// ============ Internal Imports ============
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -11,7 +13,7 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @dev This contract is only intended for paying for messages sent via a specific
  * Outbox contract on the same source chain.
  */
-contract InterchainGasPaymaster is Ownable {
+contract InterchainGasPaymaster is IInterchainGasPaymaster, Ownable {
     // ============ Events ============
 
     /**
@@ -33,7 +35,7 @@ contract InterchainGasPaymaster is Ownable {
      * of a message on its destination chain.
      * @param _leafIndex The index of the message in the Outbox merkle tree.
      */
-    function payGasFor(uint256 _leafIndex) external payable {
+    function payGasFor(uint256 _leafIndex) external payable override {
         emit GasPayment(_leafIndex, msg.value);
     }
 
