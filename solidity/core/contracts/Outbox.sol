@@ -115,12 +115,13 @@ contract Outbox is Version0, MerkleTreeManager, Common {
      * @param _destinationDomain Domain of destination chain
      * @param _recipientAddress Address of recipient on destination chain as bytes32
      * @param _messageBody Raw bytes content of message
+     * @return The leaf index of the dispatched message's hash in the Merkle tree.
      */
     function dispatch(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes memory _messageBody
-    ) external notFailed {
+    ) external notFailed returns (uint256) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // get the next nonce for the destination domain, then increment it
         uint32 _nonce = nonces[_destinationDomain];
@@ -134,18 +135,20 @@ contract Outbox is Version0, MerkleTreeManager, Common {
             _recipientAddress,
             _messageBody
         );
+        // The leaf has not been inserted yet at this point
+        uint256 leafIndex = count();
         // insert the hashed message into the Merkle tree
         bytes32 _messageHash = keccak256(_message);
         tree.insert(_messageHash);
         // Emit Dispatch event with message information
-        // note: leafIndex is count() - 1 since new leaf has already been inserted
         emit Dispatch(
             _messageHash,
-            count() - 1,
+            leafIndex,
             _destinationAndNonce(_destinationDomain, _nonce),
             checkpointedRoot,
             _message
         );
+        return leafIndex;
     }
 
     /**
