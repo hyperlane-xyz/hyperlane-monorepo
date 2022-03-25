@@ -1,6 +1,8 @@
 import {
   XAppConnectionManager,
   XAppConnectionManager__factory,
+  UpgradeBeaconController,
+  UpgradeBeaconController__factory,
   ValidatorManager,
   ValidatorManager__factory,
   Outbox,
@@ -23,7 +25,7 @@ export type CoreContractAddresses = {
 
 export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
   inbox(chain: ChainName): Inbox {
-    const inbox = this._addresses.inboxes[chain];
+    const inbox = this.addresses.inboxes[chain];
     if (!inbox) {
       throw new Error(`No inbox for ${chain}`);
     }
@@ -32,21 +34,28 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
 
   get outbox(): Outbox {
     return Outbox__factory.connect(
-      this._addresses.outbox.proxy,
+      this.addresses.outbox.proxy,
       this.connection,
     );
   }
 
   get validatorManager(): ValidatorManager {
     return ValidatorManager__factory.connect(
-      this._addresses.validatorManager,
+      this.addresses.validatorManager,
+      this.connection,
+    );
+  }
+
+  get upgradeBeaconController(): UpgradeBeaconController {
+    return UpgradeBeaconController__factory.connect(
+      this.addresses.upgradeBeaconController,
       this.connection,
     );
   }
 
   get xAppConnectionManager(): XAppConnectionManager {
     return XAppConnectionManager__factory.connect(
-      this._addresses.xAppConnectionManager,
+      this.addresses.xAppConnectionManager,
       this.connection,
     );
   }

@@ -2,25 +2,25 @@ import axios from 'axios';
 import fs from 'fs';
 import path from 'path';
 import { types } from '@abacus-network/utils';
+import { ChainName } from '@abacus-network/sdk';
 
-import { ChainName, DeployEnvironment } from '../config';
-import { DeployType } from '../common';
+import { DeployEnvironment } from '../config';
 
 import { ContractVerificationInput, VerificationInput } from './types';
 
 const etherscanChains = [
-  ChainName.ETHEREUM,
-  ChainName.KOVAN,
-  ChainName.GOERLI,
-  ChainName.ROPSTEN,
-  ChainName.RINKEBY,
-  ChainName.POLYGON,
+  'ethereum',
+  'kovan',
+  'goerli',
+  'ropsten',
+  'rinkeby',
+  'polygon',
 ];
 
 export class ContractVerifier {
   constructor(
     public readonly environment: DeployEnvironment,
-    public readonly deployType: DeployType,
+    public readonly deployType: string,
     public readonly key: string,
   ) {}
 
@@ -63,11 +63,11 @@ export class ContractVerifier {
   }
 
   static etherscanLink(network: ChainName, address: types.Address) {
-    if (network === ChainName.POLYGON) {
+    if (network === 'polygon') {
       return `https://polygonscan.com/address/${address}`;
     }
 
-    const prefix = network === ChainName.ETHEREUM ? '' : `${network}.`;
+    const prefix = network === 'ethereum' ? '' : `${network}.`;
     return `https://${prefix}etherscan.io/address/${address}`;
   }
 
@@ -75,7 +75,7 @@ export class ContractVerifier {
     let network = hre.network.name;
 
     if (network === 'mainnet') {
-      network = ChainName.ETHEREUM;
+      network = 'ethereum';
     }
 
     const envError = (network: string) =>
@@ -131,7 +131,7 @@ export class ContractVerifier {
   }
 
   async verifyProxy(network: ChainName, address: types.Address) {
-    const suffix = network === ChainName.ETHEREUM ? '' : `-${network}`;
+    const suffix = network === 'ethereum' ? '' : `-${network}`;
 
     console.log(`   Submit ${address} for proxy verification on ${network}`);
     // Submit contract for verification

@@ -1,5 +1,5 @@
 import { types } from '@abacus-network/utils';
-import { ChainName } from '../config';
+import { ChainName } from '@abacus-network/sdk';
 
 export interface Router {
   address: types.Address;

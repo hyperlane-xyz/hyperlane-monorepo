@@ -2,18 +2,18 @@ import { runContractMetricsHelmCommand } from '../src/contract-metrics';
 import { HelmCommand } from '../src/utils/helm';
 import {
   getContractMetricsConfig,
-  getChainConfigs,
+  getDomainNames,
   getEnvironment,
 } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
   const contractMetricsConfig = await getContractMetricsConfig(environment);
-  const chains = await getChainConfigs(environment);
+  const domainNames = await getDomainNames(environment);
   return runContractMetricsHelmCommand(
     HelmCommand.Install,
     contractMetricsConfig,
-    chains,
+    domainNames,
     environment,
   );
 }

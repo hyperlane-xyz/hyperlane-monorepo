@@ -1,17 +1,17 @@
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
-import { getAgentConfig, getEnvironment, getChainConfigs } from './utils';
+import { getAgentConfig, getEnvironment, getDomainNames } from './utils';
 
 async function deploy() {
   const environment = await getEnvironment();
   const agentConfig = await getAgentConfig(environment);
-  const chains = await getChainConfigs(environment);
-  for (const chain of chains) {
+  const domainNames = await getDomainNames(environment);
+  for (const name of domainNames) {
     await runAgentHelmCommand(
       HelmCommand.UpgradeDiff,
       agentConfig,
-      chain,
-      chains,
+      name,
+      domainNames,
     );
   }
 }

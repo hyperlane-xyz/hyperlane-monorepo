@@ -1,61 +1,63 @@
+import path from 'path';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
-import { ChainConfig } from '../src/config';
-import { CoreDeploy } from '../src/core';
+import { AbacusBridge } from '@abacus-network/sdk';
+import { AbacusCoreDeployer } from '../src/core';
 import {
-  BridgeDeploy,
-  BridgeInvariantChecker,
+  AbacusBridgeDeployer,
+  AbacusBridgeChecker,
   BridgeConfig,
 } from '../src/bridge';
 import {
-  getTestChains,
-  testCore as coreConfig,
-  testBridge,
-  outputDir,
-} from './inputs';
+  core as coreConfig,
+  registerMultiProviderTest,
+  bridge as partialBridgeConfig,
+} from '../config/environments/test';
 
 describe('bridge', async () => {
-  const core = new CoreDeploy();
-  let chains: Record<types.Domain, ChainConfig>;
-  let bridge = new BridgeDeploy();
-  let bridgeConfig: BridgeConfig;
+  const coreDeployer = new AbacusCoreDeployer();
+  const bridgeDeployer = new AbacusBridgeDeployer();
   const owners: Record<types.Domain, types.Address> = {};
+  let bridge: AbacusBridge;
+  let bridgeConfig: BridgeConfig;
 
   before(async () => {
     const [signer, owner] = await ethers.getSigners();
-    chains = getTestChains(signer);
-    await core.deploy(chains, coreConfig);
-    bridgeConfig = { ...testBridge, core: {} };
-    core.domains.map((domain) => {
+    registerMultiProviderTest(bridgeDeployer, signer);
+    registerMultiProviderTest(coreDeployer, signer);
+    await coreDeployer.deploy(coreConfig);
+
+    bridgeConfig = { ...partialBridgeConfig, core: {} };
+    coreDeployer.domainNumbers.map((domain) => {
       owners[domain] = owner.address;
-      bridgeConfig.core[chains[domain].name] = {
-        upgradeBeaconController: core.upgradeBeaconController(domain).address,
-        xAppConnectionManager: core.xAppConnectionManager(domain).address,
+      const coreAddresses = coreDeployer.mustGetAddresses(domain);
+      bridgeConfig.core[coreDeployer.mustResolveDomainName(domain)] = {
+        upgradeBeaconController: coreAddresses.upgradeBeaconController,
+        xAppConnectionManager: coreAddresses.xAppConnectionManager,
       };
     });
   });
 
   it('deploys', async () => {
-    await bridge.deploy(chains, bridgeConfig);
-  });
-
-  it('transfers ownership', async () => {
-    await bridge.transferOwnership(owners);
-  });
-
-  it('checks', async () => {
-    const checker = new BridgeInvariantChecker(bridge, bridgeConfig, owners);
-    await checker.check();
+    await bridgeDeployer.deploy(bridgeConfig);
   });
 
   it('writes', async () => {
-    bridge.writeOutput(outputDir);
+    const base = './test/outputs/bridge';
+    bridgeDeployer.writeVerification(path.join(base, 'verification'));
+    bridgeDeployer.writeContracts(path.join(base, 'contracts.ts'));
   });
 
-  it('reads', async () => {
-    bridge = BridgeDeploy.readContracts(chains, outputDir);
-    const checker = new BridgeInvariantChecker(bridge, bridgeConfig, owners);
+  it('transfers ownership', async () => {
+    bridge = new AbacusBridge(bridgeDeployer.addressesRecord);
+    const [signer] = await ethers.getSigners();
+    registerMultiProviderTest(bridge, signer);
+    await AbacusBridgeDeployer.transferOwnership(bridge, owners);
+  });
+
+  it('checks', async () => {
+    const checker = new AbacusBridgeChecker(bridge, bridgeConfig, owners);
     await checker.check();
   });
 });

@@ -1,63 +1,56 @@
 import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
+import { ChainName, domains, MultiProvider } from '@abacus-network/sdk';
 import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
 
-export enum ChainName {
-  // Mainnets
-  CELO = 'celo',
-  ETHEREUM = 'ethereum',
-  AVALANCHE = 'avalanche',
-  POLYGON = 'polygon',
-
-  // Testnets
-  ALFAJORES = 'alfajores',
-  MUMBAI = 'mumbai',
-  KOVAN = 'kovan',
-  GOERLI = 'goerli',
-  FUJI = 'fuji',
-  RINKARBY = 'rinkarby',
-  RINKEBY = 'rinkeby',
-  ROPSTEN = 'ropsten',
-
-  // Local
-  LOCAL = 'local',
-}
-
-export type ChainConfig = {
-  name: ChainName;
-  domain: number;
-  signer: ethers.Signer;
+export type TransactionConfig = {
   overrides: ethers.Overrides;
   supports1559?: boolean;
   // The number of confirmations considered reorg safe
   confirmations?: number;
-  poll_interval?: number;
 };
 
-export type ChainConfigWithoutSigner = Omit<ChainConfig, 'signer'>;
+// this is currently a kludge to account for ethers issues
+export function fixOverrides(config: TransactionConfig): ethers.Overrides {
+  if (config.supports1559) {
+    return {
+      maxFeePerGas: config.overrides.maxFeePerGas,
+      maxPriorityFeePerGas: config.overrides.maxPriorityFeePerGas,
+      gasLimit: config.overrides.gasLimit,
+    };
+  } else {
+    return {
+      type: 0,
+      gasPrice: config.overrides.gasPrice,
+      gasLimit: config.overrides.gasLimit,
+    };
+  }
+}
 
 export async function fetchSigner(
-  partial: ChainConfigWithoutSigner,
   environment: string,
+  name: ChainName,
   deployerKeySecretName: string,
-): Promise<ChainConfig> {
-  const rpc = await getSecretRpcEndpoint(environment, partial.name);
+): Promise<ethers.Signer> {
+  const rpc = await getSecretRpcEndpoint(environment, name);
   const key = await getSecretDeployerKey(deployerKeySecretName);
   const provider = new ethers.providers.JsonRpcProvider(rpc);
   const wallet = new ethers.Wallet(key, provider);
-  const signer = new NonceManager(wallet);
-  return { ...partial, signer };
+  return new NonceManager(wallet);
 }
 
-export function getChainsForEnvironment(
-  partials: ChainConfigWithoutSigner[],
-  environment: string,
-  deployerKeySecretName: string,
-) {
-  return () =>
-    Promise.all(
-      partials.map((partial) =>
-        fetchSigner(partial, environment, deployerKeySecretName),
-      ),
-    );
-}
+export const registerDomains = (
+  domainNames: ChainName[],
+  configs: Partial<Record<ChainName, TransactionConfig>>,
+  multiProvider: MultiProvider,
+) => {
+  domainNames.forEach((name) => {
+    multiProvider.registerDomain(domains[name]);
+    const config = configs[name];
+    if (!config) throw new Error(`Missing TransactionConfig for ${name}`);
+    multiProvider.registerOverrides(name, fixOverrides(config));
+    if (config.confirmations) {
+      multiProvider.registerConfirmations(name, config.confirmations);
+    }
+  });
+};

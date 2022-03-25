@@ -1,14 +1,6 @@
 import { types } from '@abacus-network/utils';
-import { ProxiedAddress } from '../common';
-
-export type CoreContractAddresses = {
-  upgradeBeaconController: types.Address;
-  xAppConnectionManager: types.Address;
-  validatorManager: types.Address;
-  outbox: ProxiedAddress;
-  inboxes: Record<types.Domain, ProxiedAddress>;
-};
+import { ChainName } from '@abacus-network/sdk';
 
 export type CoreConfig = {
-  validators: Record<string, types.Address>;
+  validators: Partial<Record<ChainName, types.Address>>;
 };

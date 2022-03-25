@@ -1,5 +1,5 @@
 import { types } from '@abacus-network/utils';
-import { ChainName } from './chain';
+import { ChainName } from '@abacus-network/sdk';
 import { DeployEnvironment } from './environment';
 
 interface IndexingConfig {
@@ -26,6 +26,7 @@ interface ValidatorConfig {
   interval?: number;
   // How long an validator should wait for relevant state changes afterwords
   pause?: number;
+  confirmations: number;
 }
 
 interface CheckpointerConfig {

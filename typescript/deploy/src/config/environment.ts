@@ -1,4 +1,3 @@
-export enum DeployEnvironment {
-  test = 'test',
-  local = 'local',
-}
+export const ALL_ENVIRONMENTS = ['test', 'local'] as const;
+type DeployEnvironmentTuple = typeof ALL_ENVIRONMENTS;
+export type DeployEnvironment = DeployEnvironmentTuple[number];

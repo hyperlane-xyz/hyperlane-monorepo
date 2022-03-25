@@ -1,14 +1,11 @@
 import { createAgentGCPKeys } from '../src/agents/gcp';
-import { getEnvironment, getChainConfigs } from './utils';
+import { getEnvironment, getDomainNames } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const chains = await getChainConfigs(environment);
+  const domainNames = await getDomainNames(environment);
 
-  return createAgentGCPKeys(
-    environment,
-    Object.values(chains).map((c) => c.name),
-  );
+  return createAgentGCPKeys(environment, domainNames);
 }
 
 main().then(console.log).catch(console.error);

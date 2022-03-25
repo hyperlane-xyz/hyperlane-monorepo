@@ -4,4 +4,4 @@ dist/
 .env
 cache/
 test/outputs
-config/environments/local/core/
+config/environments/test/core/

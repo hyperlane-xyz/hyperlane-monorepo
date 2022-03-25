@@ -9,7 +9,7 @@ import { ProxiedAddress } from '../types';
 export class GovernanceContracts extends AbacusAppContracts<ProxiedAddress> {
   get router(): GovernanceRouter {
     return GovernanceRouter__factory.connect(
-      this._addresses.proxy,
+      this.addresses.proxy,
       this.connection,
     );
   }
