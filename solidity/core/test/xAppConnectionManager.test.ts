@@ -18,7 +18,7 @@ const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 const localDomain = 1000;
 const remoteDomain = 2000;
 
-describe('XAppConnectionManager', async () => {
+describe.only('XAppConnectionManager', async () => {
   let connectionManager: XAppConnectionManager,
     enrolledInbox: TestInbox,
     signer: SignerWithAddress,
