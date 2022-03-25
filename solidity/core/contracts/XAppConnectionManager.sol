@@ -113,7 +113,7 @@ contract XAppConnectionManager is Ownable {
     // ============ Public Functions ============
 
     /**
-     * @notice Set the address of the local Outbox contract.
+     * @notice Sets the address of the local Outbox contract.
      * @dev Changing the Outbox and not the Interchain Gas Paymaster may result in
      * using an Interchain Gas Paymaster that expects messages to be dispatched via
      * a different outbox. Use `setOutboxAndInterchainGasPaymaster` to change both
