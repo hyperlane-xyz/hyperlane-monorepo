@@ -2,6 +2,7 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
+import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 import {Outbox} from "../Outbox.sol";
 import {XAppConnectionManager} from "../XAppConnectionManager.sol";
 // ============ External Imports ============
@@ -74,6 +75,14 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
      */
     function _outbox() internal view returns (Outbox) {
         return xAppConnectionManager.outbox();
+    }
+
+    /**
+     * @notice Gets the local Interchain Gas Paymaster contract from the xAppConnectionManager.
+     * @return The local Interchain Gas Paymaster contract.
+     */
+    function _interchainGasPaymaster() internal view returns (IInterchainGasPaymaster) {
+        return xAppConnectionManager.interchainGasPaymaster();
     }
 
     /**

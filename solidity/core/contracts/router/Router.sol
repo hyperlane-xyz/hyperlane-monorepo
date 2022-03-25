@@ -108,4 +108,21 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
         bytes32 _router = _mustHaveRemoteRouter(_destination);
         _outbox().dispatch(_destination, _router, _msg);
     }
+
+    /**
+     * @notice Dispatches a message to an enrolled router via the local routers
+     * Outbox
+     * @dev Reverts if there is no enrolled router for _destination
+     * @param _destination The domain of the chain to which to send the message
+     * @param _msg The message to dispatch
+     * @param _payment
+     */
+    function _dispatchToRemoteRouterAndPayForGas(uint32 _destination, bytes memory _msg, uint256 _paymentAmount)
+        internal
+    {
+        // ensure that destination chain has enrolled router
+        bytes32 _router = _mustHaveRemoteRouter(_destination);
+        uint256 leafIndex = _outbox().dispatch(_destination, _router, _msg);
+        _interchainGasPaymaster().payGasFor{ value: _paymentAmount }(leafIndex);
+    }
 }
