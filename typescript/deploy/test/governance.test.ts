@@ -1,65 +1,63 @@
+import path from 'path';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
-import { ChainConfig } from '../src/config';
-import { CoreDeploy } from '../src/core';
+import { AbacusGovernance } from '@abacus-network/sdk';
+import { AbacusCoreDeployer } from '../src/core';
 import {
-  GovernanceDeploy,
-  GovernanceInvariantChecker,
+  AbacusGovernanceDeployer,
+  AbacusGovernanceChecker,
   GovernanceConfig,
 } from '../src/governance';
 import {
-  getTestChains,
-  outputDir,
-  testCore as coreConfig,
-  testGovernance,
-} from './inputs';
+  core as coreConfig,
+  registerMultiProviderTest,
+  governance as partialGovernanceConfig,
+} from '../config/environments/test';
 
 describe('governance', async () => {
-  const core = new CoreDeploy();
-  let chains: Record<types.Domain, ChainConfig>;
-  let governance = new GovernanceDeploy();
-  let governanceConfig: GovernanceConfig;
+  const coreDeployer = new AbacusCoreDeployer();
+  const governanceDeployer = new AbacusGovernanceDeployer();
   const owners: Record<types.Domain, types.Address> = {};
+  let governanceConfig: GovernanceConfig;
 
   before(async () => {
     const [signer] = await ethers.getSigners();
-    chains = getTestChains(signer);
-    await core.deploy(chains, coreConfig);
-    governanceConfig = { ...testGovernance, core: {} };
-    core.domains.map((domain) => {
-      const name = chains[domain].name;
-      const addresses = testGovernance.addresses[name];
-      if (addresses === undefined) throw new Error('could not find addresses');
+    registerMultiProviderTest(governanceDeployer, signer);
+    registerMultiProviderTest(coreDeployer, signer);
+    await coreDeployer.deploy(coreConfig);
+
+    governanceConfig = { ...partialGovernanceConfig, core: {} };
+    coreDeployer.domainNumbers.map((domain) => {
+      const name = coreDeployer.mustResolveDomainName(domain);
+      const addresses = partialGovernanceConfig.addresses[name];
+      if (!addresses) throw new Error('could not find addresses');
       const owner = addresses.governor;
       owners[domain] = owner ? owner : ethers.constants.AddressZero;
+      const coreAddresses = coreDeployer.mustGetAddresses(domain);
       governanceConfig.core[name] = {
-        upgradeBeaconController: core.upgradeBeaconController(domain).address,
-        xAppConnectionManager: core.xAppConnectionManager(domain).address,
+        upgradeBeaconController: coreAddresses.upgradeBeaconController,
+        xAppConnectionManager: coreAddresses.xAppConnectionManager,
       };
     });
   });
 
   it('deploys', async () => {
-    await governance.deploy(chains, governanceConfig);
-  });
-
-  it('checks', async () => {
-    const checker = new GovernanceInvariantChecker(
-      governance,
-      governanceConfig,
-      owners,
-    );
-    await checker.check();
+    await governanceDeployer.deploy(governanceConfig);
   });
 
   it('writes', async () => {
-    governance.writeOutput(outputDir);
+    const base = './test/outputs/governance';
+    governanceDeployer.writeVerification(path.join(base, 'verification'));
+    governanceDeployer.writeContracts(path.join(base, 'contracts.ts'));
   });
 
-  it('reads', async () => {
-    governance = GovernanceDeploy.readContracts(chains, outputDir);
-    const checker = new GovernanceInvariantChecker(
+  it('checks', async () => {
+    const governance = new AbacusGovernance(governanceDeployer.addressesRecord);
+    const [signer] = await ethers.getSigners();
+    registerMultiProviderTest(governance, signer);
+
+    const checker = new AbacusGovernanceChecker(
       governance,
       governanceConfig,
       owners,

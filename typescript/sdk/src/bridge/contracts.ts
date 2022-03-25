@@ -20,20 +20,20 @@ export type BridgeContractAddresses = {
 export class BridgeContracts extends AbacusAppContracts<BridgeContractAddresses> {
   get router(): BridgeRouter {
     return BridgeRouter__factory.connect(
-      this._addresses.router.proxy,
+      this.addresses.router.proxy,
       this.connection,
     );
   }
 
   get token(): BridgeToken {
     return BridgeToken__factory.connect(
-      this._addresses.token.proxy,
+      this.addresses.token.proxy,
       this.connection,
     );
   }
 
   get helper(): ETHHelper | undefined {
-    if (this._addresses.helper == undefined) return undefined;
-    return ETHHelper__factory.connect(this._addresses.helper, this.connection);
+    if (this.addresses.helper == undefined) return undefined;
+    return ETHHelper__factory.connect(this.addresses.helper, this.connection);
   }
 }

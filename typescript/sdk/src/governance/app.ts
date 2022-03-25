@@ -5,7 +5,6 @@ import { domains } from '../domains';
 import { ChainName, ProxiedAddress } from '../types';
 
 import { GovernanceContracts } from './contracts';
-import { local } from './environments';
 
 export type Governor = {
   domain: number;
@@ -61,6 +60,12 @@ export class AbacusGovernance extends AbacusApp<
     if (governors.length !== 1) throw new Error('multiple governors');
     return governors[0];
   }
-}
 
-export const localGovernance = new AbacusGovernance(local);
+  get routerAddresses(): Record<number, string> {
+    const addresses: Record<number, string> = {};
+    for (const domain of this.domainNumbers) {
+      addresses[domain] = this.mustGetContracts(domain).router.address;
+    }
+    return addresses;
+  }
+}

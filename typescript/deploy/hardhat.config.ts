@@ -1,27 +1,30 @@
 import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
-import { types, utils } from '@abacus-network/utils';
+import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import { BadRandomRecipient__factory } from '@abacus-network/core';
+import { coreAddresses, AbacusCore } from '@abacus-network/sdk';
+import { utils, types } from '@abacus-network/utils';
 
 import { sleep } from './src/utils/utils';
 import {
+  getCoreVerificationDirectory,
+  getCoreContractsSdkFilepath,
+  getCoreRustDirectory,
+  registerMultiProvider,
   getCoreConfig,
-  getCoreDeploy,
-  getEnvironmentDirectory,
-  getChainConfigsRecord,
 } from './scripts/utils';
-import { CoreDeploy } from './src/core';
+import { AbacusCoreDeployer } from './src/core';
 import { ContractVerifier } from './src/verification';
-import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
-const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
-  const outbox = deploy.outbox(domain);
+const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
+  const contracts = core.mustGetContracts(domain);
+  const outbox = contracts.outbox;
   const [outboxCheckpointRoot, outboxCheckpointIndex] =
     await outbox.latestCheckpoint();
   const count = (await outbox.tree()).toNumber();
   const summary: any = {
-    domain,
+    domain: core.mustResolveDomainName(domain),
     outbox: {
       count,
       checkpoint: {
@@ -32,19 +35,21 @@ const domainSummary = async (deploy: CoreDeploy, domain: types.Domain) => {
   };
 
   const inboxSummary = async (remote: types.Domain) => {
-    const inbox = deploy.inbox(remote, domain);
+    const inbox = core.mustGetInbox(domain, remote);
     const [inboxCheckpointRoot, inboxCheckpointIndex] =
       await inbox.latestCheckpoint();
     const processFilter = inbox.filters.Process();
     const processes = await inbox.queryFilter(processFilter);
     return {
-      domain: remote,
+      domain: core.mustResolveDomainName(remote),
       processed: processes.length,
       root: inboxCheckpointRoot,
       index: inboxCheckpointIndex.toNumber(),
     };
   };
-  summary.inboxes = await Promise.all(deploy.remotes(domain).map(inboxSummary));
+  summary.inboxes = await Promise.all(
+    core.remoteDomainNumbers(domain).map(inboxSummary),
+  );
   return summary;
 };
 
@@ -55,15 +60,15 @@ task('abacus', 'Deploys abacus on top of an already running Harthat Network')
   )
   .setAction(async (args: any) => {
     const environment = args.environment;
-    // Deploy core
-    const chains = await getChainConfigsRecord(environment);
-    const config = await getCoreConfig(environment);
-    const deploy = new CoreDeploy();
-    await deploy.deploy(chains, config);
+    const deployer = new AbacusCoreDeployer();
+    await registerMultiProvider(deployer, environment);
+    const coreConfig = await getCoreConfig(environment);
+    await deployer.deploy(coreConfig);
 
     // Write configs
-    deploy.writeOutput(getEnvironmentDirectory(environment));
-    deploy.writeRustConfigs(environment, getEnvironmentDirectory(environment));
+    deployer.writeVerification(getCoreVerificationDirectory(environment));
+    deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
+    deployer.writeContracts(getCoreContractsSdkFilepath(environment));
   });
 
 task('kathy', 'Dispatches random abacus messages')
@@ -73,7 +78,8 @@ task('kathy', 'Dispatches random abacus messages')
   )
   .setAction(async (args: any, hre: HardhatRuntimeEnvironment) => {
     const environment = args.environment;
-    const deploy = await getCoreDeploy(environment);
+    const core = new AbacusCore(coreAddresses[environment]);
+    await registerMultiProvider(core, environment);
     const randomElement = (list: types.Domain[]) =>
       list[Math.floor(Math.random() * list.length)];
 
@@ -85,9 +91,9 @@ task('kathy', 'Dispatches random abacus messages')
 
     // Generate artificial traffic
     while (true) {
-      const local = deploy.domains[0];
-      const remote = randomElement(deploy.remotes(local));
-      const outbox = deploy.outbox(local);
+      const local = core.domainNumbers[0];
+      const remote = randomElement(core.remoteDomainNumbers(local));
+      const outbox = core.mustGetContracts(local).outbox;
       // Send a batch of messages to the remote domain to test
       // the checkpointer/relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
@@ -101,7 +107,7 @@ task('kathy', 'Dispatches random abacus messages')
             (await outbox.count()).toNumber() - 1
           }`,
         );
-        console.log(await domainSummary(deploy, local));
+        console.log(await domainSummary(core, local));
         await sleep(5000);
       }
     }

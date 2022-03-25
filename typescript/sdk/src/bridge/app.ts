@@ -9,7 +9,6 @@ import { ChainName, NameOrDomain } from '../types';
 import { Address, canonizeId, evmId } from '../utils';
 
 import { BridgeContractAddresses, BridgeContracts } from './contracts';
-import { local } from './environments';
 import { TransferMessage } from './message';
 import { TokenIdentifier, ResolvedTokenInfo } from './tokens';
 
@@ -273,5 +272,3 @@ export class AbacusBridge extends AbacusApp<
     return message as TransferMessage;
   }
 }
-
-export const localBridge = new AbacusBridge(local);

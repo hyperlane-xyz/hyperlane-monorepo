@@ -1,4 +1,4 @@
-export { AbacusBridge, localBridge } from './app';
+export { AbacusBridge } from './app';
 export { BridgeContractAddresses, BridgeContracts } from './contracts';
 export {
   AnnotatedSend,
@@ -10,3 +10,4 @@ export {
   TokenDeployedTypes,
   TokenDeployedEvent,
 } from './events';
+export { addresses } from './environments';

@@ -1,67 +1,63 @@
 import { BigNumber } from 'ethers';
-import { ChainConfigWithoutSigner, ChainName } from '../../src/config/chain';
+import { ChainName } from '@abacus-network/sdk';
+import { TransactionConfig } from '../../src/config/chain';
 
-export const alfajores: ChainConfigWithoutSigner = {
-  name: ChainName.ALFAJORES,
-  domain: 1000,
+export const alfajores: TransactionConfig = {
   confirmations: 1,
   overrides: {},
 };
 
-export const fuji: ChainConfigWithoutSigner = {
-  name: ChainName.FUJI,
-  domain: 43113,
+export const fuji: TransactionConfig = {
   confirmations: 1,
   overrides: {},
 };
 
-export const goerli: ChainConfigWithoutSigner = {
-  name: ChainName.GOERLI,
-  domain: 5,
+export const goerli: TransactionConfig = {
   confirmations: 3,
   overrides: {
     gasPrice: BigNumber.from(10_000_000_000),
   },
 };
 
-export const kovan: ChainConfigWithoutSigner = {
-  name: ChainName.KOVAN,
-  domain: 3000,
+export const kovan: TransactionConfig = {
+  confirmations: 3,
   overrides: {
     gasPrice: BigNumber.from(10_000_000_000),
   },
-  confirmations: 3,
 };
 
-export const mumbai: ChainConfigWithoutSigner = {
-  name: ChainName.MUMBAI,
-  domain: 80001,
+export const mumbai: TransactionConfig = {
   confirmations: 3,
   overrides: {},
 };
 
-export const rinkarby: ChainConfigWithoutSigner = {
-  name: ChainName.RINKARBY,
-  domain: 4000,
+export const rinkarby: TransactionConfig = {
+  confirmations: 2,
   overrides: {
     gasPrice: 0,
     gasLimit: 600_000_000,
   },
-  confirmations: 2,
 };
 
-export const rinkeby: ChainConfigWithoutSigner = {
-  name: ChainName.RINKEBY,
-  domain: 2000,
+export const rinkeby: TransactionConfig = {
   confirmations: 3,
   overrides: {},
 };
 
-export const ropsten: ChainConfigWithoutSigner = {
-  name: ChainName.ROPSTEN,
-  domain: 3,
+export const ropsten: TransactionConfig = {
   confirmations: 3,
   overrides: {
     gasPrice: BigNumber.from(10_000_000_000),
   },
+};
+
+export const configs: Partial<Record<ChainName, TransactionConfig>> = {
+  alfajores,
+  fuji,
+  goerli,
+  kovan,
+  mumbai,
+  rinkarby,
+  rinkeby,
+  ropsten,
 };

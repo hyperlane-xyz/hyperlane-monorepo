@@ -1,4 +1,3 @@
-export { RouterDeploy } from './RouterDeploy';
-export { RouterInstance } from './RouterInstance';
-export { RouterInvariantChecker } from './RouterInvariantChecker';
+export { AbacusRouterDeployer } from './deploy';
+export { AbacusRouterChecker } from './check';
 export { RouterAddresses, RouterConfig } from './types';

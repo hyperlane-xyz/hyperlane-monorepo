@@ -3,7 +3,6 @@ import {
   getAgentConfig,
   getEnvironment,
 } from './utils';
-import { DeployEnvironment } from '../src/config';
 
 async function rotateKey() {
   const args = await getKeyRoleAndChainArgs();
@@ -14,7 +13,7 @@ async function rotateKey() {
 
   switch (environment) {
     // TODO: re-implement this when the environments actually get readded
-    case DeployEnvironment.local: {
+    case 'local': {
       console.log("I don't do anything");
       console.log(argv, agentConfig);
     }
