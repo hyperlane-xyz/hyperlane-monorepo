@@ -93,16 +93,22 @@ impl CheckpointRelayer {
                 .await?;
 
             // TODO: sign in parallel
+            // TODO: While this is not signed in parallel, the relayer should be configurable to not process messages so that collisions are not happening
             for message in &batch.messages {
-                if let Some(proof) = self.db.proof_by_leaf_index(message.leaf_index)? {
-                    // Ignore errors and expect the lagged message processor to retry
-                    match self.inbox.prove_and_process(&message.message, &proof).await {
-                        Ok(outcome) => {
-                            info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "TipProver processed message")
+                match self.prover_sync.get_proof(message.leaf_index) {
+                    Ok(proof) => {
+                        // Ignore errors and expect the lagged message processor to retry
+                        match self.inbox.prove_and_process(&message.message, &proof).await {
+                            Ok(outcome) => {
+                                info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message")
+                            }
+                            Err(error) => {
+                                error!(error=?error, leaf_index=message.leaf_index, "CheckpointRelayer encountered error while processing message, ignoring")
+                            }
                         }
-                        Err(error) => {
-                            error!(error=?error, leaf_index=message.leaf_index, "TipProver encountered error while processing message, ignoring")
-                        }
+                    }
+                    Err(err) => {
+                        error!(error=?err, "Checkpoint relayer was unable fetch proof for message processing")
                     }
                 }
             }

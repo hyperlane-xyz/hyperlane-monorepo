@@ -87,27 +87,27 @@ impl MessageProcessor {
                             }
                         }
 
-                        // TODO: Don't fetch the proof from DB to avoid races with the relayer
-                        if let Some(proof) = self.db.proof_by_leaf_index(message_leaf_index)? {
-                            // TODO: This is probably unnecessary but we should consider checking that the proof is still valid. Really,
-                            match self.inbox.prove_and_process(&message.message, &proof).await {
-                                Ok(outcome) => {
-                                    info!(
-                                        leaf_index = message_leaf_index,
-                                        hash = ?outcome.txid,
-                                        "[MessageProcessor] processed"
-                                    );
-                                    Ok(MessageProcessingStatus::Processed)
-                                }
-                                Err(err) => {
-                                    error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
-                                    Ok(MessageProcessingStatus::Error)
+                        match self.prover_sync.get_proof(message_leaf_index) {
+                            Ok(proof) => {
+                                match self.inbox.prove_and_process(&message.message, &proof).await {
+                                    Ok(outcome) => {
+                                        info!(
+                                            leaf_index = message_leaf_index,
+                                            hash = ?outcome.txid,
+                                            "[MessageProcessor] processed"
+                                        );
+                                        Ok(MessageProcessingStatus::Processed)
+                                    }
+                                    Err(err) => {
+                                        error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
+                                        Ok(MessageProcessingStatus::Error)
+                                    }
                                 }
                             }
-                        } else {
-                            // Should not get here since we thought it was processable,
-                            // but we couldn't find the proof
-                            bail!("Somehow MessageProcessor did not get the proof");
+                            Err(err) => {
+                                error!(error=?err, "MessageProcessor was unable to fetch proof");
+                                bail!("MessageProcessor was unable to fetch proof");
+                            }
                         }
                     }
                     // TODO: Remove this as we don't separately prove and process

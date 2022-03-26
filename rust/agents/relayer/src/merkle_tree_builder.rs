@@ -1,6 +1,6 @@
 use crate::prover::{Prover, ProverError};
 use abacus_core::{
-    accumulator::incremental::IncrementalMerkle,
+    accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     db::{AbacusDB, DbError},
     ChainCommunicationError, Checkpoint, CommittedMessage, SignedCheckpoint,
 };
@@ -101,24 +101,8 @@ impl MerkleTreeBuilder {
         }
     }
 
-    fn store_proof(&self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
-        match self.prover.prove(leaf_index as usize) {
-            Ok(proof) => {
-                self.db.store_proof(leaf_index, &proof)?;
-                info!(
-                    leaf_index,
-                    root = ?self.prover.root(),
-                    "Storing proof for leaf {}",
-                    leaf_index
-                );
-                Ok(())
-            }
-            // ignore the storage request if it's out of range (e.g. leaves
-            // up-to-date but no update containing leaves produced yet)
-            Err(ProverError::ZeroProof { index: _, count: _ }) => Ok(()),
-            // bubble up any other errors
-            Err(e) => Err(e.into()),
-        }
+    pub fn get_proof(&self, leaf_index: u32) -> Result<Proof, MerkleTreeBuilderError> {
+        self.prover.prove(leaf_index as usize).map_err(Into::into)
     }
 
     fn ingest_leaf_index(&mut self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
@@ -166,9 +150,6 @@ impl MerkleTreeBuilder {
             });
         }
 
-        for i in starting_index..checkpoint.index {
-            self.store_proof(i)?;
-        }
         Ok(())
     }
 
@@ -210,12 +191,6 @@ impl MerkleTreeBuilder {
             count = self.prover.count(),
             "update_from_batch batch proving"
         );
-        // store proofs in DB
-
-        for message in &batch.messages {
-            self.store_proof(message.leaf_index)?;
-        }
-        // TODO: push proofs to S3
 
         Ok(())
     }
