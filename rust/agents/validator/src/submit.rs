@@ -36,8 +36,7 @@ impl ValidatorSubmitter {
         let span = info_span!("ValidatorSubmitter");
         let reorg_period = Some(self.reorg_period);
         tokio::spawn(async move {
-            let starting_checkpoint = self.outbox.latest_checkpoint(reorg_period).await?;
-            let mut current_index = starting_checkpoint.index;
+            let mut current_index = self.checkpoint_syncer.latest_index().await?.unwrap_or_default();
             loop {
                 sleep(Duration::from_secs(self.interval)).await;
 
