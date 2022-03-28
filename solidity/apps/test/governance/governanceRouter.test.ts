@@ -1,5 +1,7 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
+import { ContractTransaction } from 'ethers';
+import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
@@ -10,8 +12,6 @@ import {
 } from './lib/utils';
 import { GovernanceConfig, GovernanceDeploy } from './lib/GovernanceDeploy';
 import { TestSet, TestSet__factory, GovernanceRouter } from '../../types';
-import { ContractTransaction } from 'ethers';
-import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
 
 const recoveryTimelock = 60 * 60 * 24 * 7;
 const localDomain = 1000;
