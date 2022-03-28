@@ -76,9 +76,13 @@ export class TestAbacusDeploy extends TestDeploy<
     const xAppConnectionManager = await xAppConnectionManagerFactory.deploy();
     await xAppConnectionManager.setOutbox(outbox.address);
 
-    const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(signer);
+    const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(
+      signer
+    );
     const interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
-    await xAppConnectionManager.setInterchainGasPaymaster(interchainGasPaymaster.address);
+    await xAppConnectionManager.setInterchainGasPaymaster(
+      interchainGasPaymaster.address
+    );
 
     const inboxFactory = new TestInbox__factory(signer);
     const inboxes: Record<types.Domain, TestInbox> = {};

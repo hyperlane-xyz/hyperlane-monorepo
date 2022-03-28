@@ -57,7 +57,10 @@ describe('GovernanceRouter', async () => {
     remote = governance.router(remoteDomain);
   });
 
-  const expectInterchainGasPayment = async (sendTx: () => Promise<ContractTransaction>, gasPayment: number) => {
+  const expectInterchainGasPayment = async (
+    sendTx: () => Promise<ContractTransaction>,
+    gasPayment: number,
+  ) => {
     // We expect a single dispatch from `sendTx`, so this is the expected leaf index
     const outboxCount = await outbox.count();
     await expect(sendTx())
@@ -168,9 +171,10 @@ describe('GovernanceRouter', async () => {
       const value = 13;
       const call = await formatCall(testSet, 'set', [value]);
       await expectInterchainGasPayment(
-        () => router.callRemote(domains[1], [call], {
-          value: DEFAULT_INTERCHAIN_GAS_PAYMENT,
-        }),
+        () =>
+          router.callRemote(domains[1], [call], {
+            value: DEFAULT_INTERCHAIN_GAS_PAYMENT,
+          }),
         DEFAULT_INTERCHAIN_GAS_PAYMENT,
       );
       await abacus.processMessages();
@@ -182,7 +186,10 @@ describe('GovernanceRouter', async () => {
       const newGovernor = governor.address;
       expect(await remote.governor()).to.not.equal(newGovernor);
       await expectInterchainGasPayment(
-        () => router.setGovernorRemote(remoteDomain, newGovernor, { value: DEFAULT_INTERCHAIN_GAS_PAYMENT }),
+        () =>
+          router.setGovernorRemote(remoteDomain, newGovernor, {
+            value: DEFAULT_INTERCHAIN_GAS_PAYMENT,
+          }),
         DEFAULT_INTERCHAIN_GAS_PAYMENT,
       );
       await abacus.processMessages();
@@ -195,11 +202,12 @@ describe('GovernanceRouter', async () => {
         newConnectionManager,
       );
       await expectInterchainGasPayment(
-        () => router.setXAppConnectionManagerRemote(
-          remoteDomain,
-          newConnectionManager,
-          { value: DEFAULT_INTERCHAIN_GAS_PAYMENT },
-        ),
+        () =>
+          router.setXAppConnectionManagerRemote(
+            remoteDomain,
+            newConnectionManager,
+            { value: DEFAULT_INTERCHAIN_GAS_PAYMENT },
+          ),
         DEFAULT_INTERCHAIN_GAS_PAYMENT,
       );
       await abacus.processMessages();
@@ -214,12 +222,10 @@ describe('GovernanceRouter', async () => {
       );
       const newRouter = utils.addressToBytes32(router.address);
       await expectInterchainGasPayment(
-        () =>  router.enrollRemoteRouterRemote(
-          remoteDomain,
-          testDomain,
-          newRouter,
-          { value: DEFAULT_INTERCHAIN_GAS_PAYMENT },
-        ),
+        () =>
+          router.enrollRemoteRouterRemote(remoteDomain, testDomain, newRouter, {
+            value: DEFAULT_INTERCHAIN_GAS_PAYMENT,
+          }),
         DEFAULT_INTERCHAIN_GAS_PAYMENT,
       );
       await abacus.processMessages();
