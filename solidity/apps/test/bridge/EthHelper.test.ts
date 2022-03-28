@@ -1,12 +1,12 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
+import { ContractTransaction } from 'ethers';
 import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import { BridgeDeploy } from './lib/BridgeDeploy';
 import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
 import { ETHHelper } from '../../types';
-import { ContractTransaction } from 'ethers';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
@@ -70,30 +70,24 @@ describe.only('EthHelper', async () => {
     });
   };
 
-  describe(
-    '#send',
-    () => sendFunctionTests((value: number, gasPayment: number) =>
+  describe('#send', () =>
+    sendFunctionTests((value: number, gasPayment: number) =>
       ethHelper.send(remoteDomain, gasPayment, {
         value,
-      })
-    ),
-  );
+      }),
+    ));
 
-  describe(
-    '#sendTo',
-    () => sendFunctionTests((value: number, gasPayment: number) =>
+  describe('#sendTo', () =>
+    sendFunctionTests((value: number, gasPayment: number) =>
       ethHelper.sendTo(remoteDomain, recipientId, gasPayment, {
         value,
-      })
-    ),
-  );
+      }),
+    ));
 
-  describe(
-    '#sendToEVMLike',
-    () => sendFunctionTests((value: number, gasPayment: number) =>
+  describe('#sendToEVMLike', () =>
+    sendFunctionTests((value: number, gasPayment: number) =>
       ethHelper.sendToEVMLike(remoteDomain, recipient.address, gasPayment, {
         value,
-      })
-    ),
-  );
+      }),
+    ));
 });
