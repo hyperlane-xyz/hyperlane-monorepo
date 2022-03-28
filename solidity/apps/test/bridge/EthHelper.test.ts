@@ -38,6 +38,7 @@ describe('EthHelper', async () => {
     ethHelper = bridge.helper(localDomain);
   });
 
+  // Used to test send, sendTo, and sendToEvmLike to avoid code duplication
   const sendFunctionTests = (
     sendFn: (value: number, gasPayment: number) => Promise<ContractTransaction>,
   ) => {
