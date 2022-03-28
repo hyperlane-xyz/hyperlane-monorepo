@@ -116,7 +116,8 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
     // ======== External: Send Token =========
 
     /**
-     * @notice Send tokens to a recipient on a remote chain
+     * @notice Sends tokens to a recipient on a remote chain. Any value paid to
+     * this function is used to pay for message processing on the remote chain.
      * @param _token The token address
      * @param _amount The token amount
      * @param _destination The destination domain
@@ -127,7 +128,7 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         uint256 _amount,
         uint32 _destination,
         bytes32 _recipient
-    ) external {
+    ) external payable {
         require(_amount > 0, "!amnt");
         require(_recipient != bytes32(0), "!recip");
         // remove tokens from circulation on this chain
@@ -144,9 +145,10 @@ contract BridgeRouter is Version0, Router, TokenRegistry {
         // format Transfer Tokens action
         bytes29 _action = BridgeMessage.formatTransfer(_recipient, _amount);
         // send message to remote chain via Abacus
-        _dispatchToRemoteRouter(
+        _dispatchToRemoteRouterWithGas(
             _destination,
-            BridgeMessage.formatMessage(_formatTokenId(_token), _action)
+            BridgeMessage.formatMessage(_formatTokenId(_token), _action),
+            msg.value
         );
         // emit Send event to record token sender
         emit Send(
