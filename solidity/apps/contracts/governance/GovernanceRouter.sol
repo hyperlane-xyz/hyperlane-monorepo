@@ -188,7 +188,7 @@ contract GovernanceRouter is Version0, Router {
 
     /**
      * @notice Dispatch calls on a remote chain via the remote GovernanceRouter.
-     * Any value paid to this function is used for interchain gas payment.
+     * Any value paid to this function is used to pay for message processing on the remote chain.
      * @param _destination The domain of the remote chain
      * @param _calls The calls
      */
@@ -197,12 +197,12 @@ contract GovernanceRouter is Version0, Router {
         GovernanceMessage.Call[] calldata _calls
     ) external payable onlyGovernor onlyNotInRecovery {
         bytes memory _msg = GovernanceMessage.formatCalls(_calls);
-        _dispatchToRemoteRouterAndPayForGas(_destination, _msg, msg.value);
+        _dispatchToRemoteRouterWithGas(_destination, _msg, msg.value);
     }
 
     /**
      * @notice Enroll a remote router on a remote router. Any value paid to this
-     * function is used for interchain gas payment.
+     * function is used to pay for message processing on the remote chain.
      * @param _destination The domain of the enroller
      * @param _domain The domain of the enrollee
      * @param _router The address of the enrollee
@@ -216,12 +216,12 @@ contract GovernanceRouter is Version0, Router {
             _domain,
             _router
         );
-        _dispatchToRemoteRouterAndPayForGas(_destination, _msg, msg.value);
+        _dispatchToRemoteRouterWithGas(_destination, _msg, msg.value);
     }
 
     /**
      * @notice Sets the xAppConnectionManager of a remote router. Any value paid to this
-     * function is used for interchain gas payment.
+     * function is used to pay for message processing on the remote chain.
      * @param _destination The domain of router on which to set the xAppConnectionManager
      * @param _xAppConnectionManager The address of the xAppConnectionManager contract
      */
@@ -232,12 +232,12 @@ contract GovernanceRouter is Version0, Router {
         bytes memory _msg = GovernanceMessage.formatSetXAppConnectionManager(
             TypeCasts.addressToBytes32(_xAppConnectionManager)
         );
-        _dispatchToRemoteRouterAndPayForGas(_destination, _msg, msg.value);
+        _dispatchToRemoteRouterWithGas(_destination, _msg, msg.value);
     }
 
     /**
      * @notice Sets the governor of a remote router. Any value paid to this
-     * function is used for interchain gas payment.
+     * function is used to pay for message processing on the remote chain.
      * @param _destination The domain of router on which to set the governor
      * @param _governor The address of the new governor
      */
@@ -250,7 +250,7 @@ contract GovernanceRouter is Version0, Router {
         bytes memory _msg = GovernanceMessage.formatSetGovernor(
             TypeCasts.addressToBytes32(_governor)
         );
-        _dispatchToRemoteRouterAndPayForGas(_destination, _msg, msg.value);
+        _dispatchToRemoteRouterWithGas(_destination, _msg, msg.value);
     }
 
     // ============ Public Functions ============

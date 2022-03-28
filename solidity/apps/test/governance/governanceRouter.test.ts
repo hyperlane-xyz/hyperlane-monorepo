@@ -89,7 +89,6 @@ describe('GovernanceRouter', async () => {
 
     const inbox = abacus.inbox(localDomain, remoteDomain);
     await inbox.setMessageProven(fakeMessage);
-    // Expect inbox processing to fail when reverting in handle
     await inbox.testProcess(fakeMessage);
     expect(await router.governor()).to.equal(ethers.constants.AddressZero);
   });
