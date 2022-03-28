@@ -6,13 +6,8 @@ import {BridgeRouter} from "./BridgeRouter.sol";
 import {IWeth} from "../../interfaces/bridge/IWeth.sol";
 // ============ External Imports ============
 import {TypeCasts} from "@abacus-network/core/contracts/XAppConnectionManager.sol";
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 
 contract ETHHelper {
-    // ============ Libraries ============
-
-    using SafeMath for uint256;
-
     // ============ Immutables ============
 
     // wrapped Ether contract
@@ -45,7 +40,8 @@ contract ETHHelper {
         bytes32 _to,
         uint256 _gasPayment
     ) public payable {
-        uint256 _ethAmount = msg.value.sub(_gasPayment);
+        require(msg.value >= _gasPayment, "value too low");
+        uint256 _ethAmount = msg.value - _gasPayment;
         weth.deposit{value: _ethAmount}();
         bridge.send{value: _gasPayment}(
             address(weth),
