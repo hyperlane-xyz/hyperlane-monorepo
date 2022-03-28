@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import { ChainName, NameOrDomain, MultiProvider, ProxiedAddress } from '@abacus-network/sdk';
-import { VerificationInput } from './verification';
+import { VerificationInput } from './verify';
 export declare class ProxiedContract<T extends ethers.Contract> {
     readonly contract: T;
     readonly addresses: ProxiedAddress;

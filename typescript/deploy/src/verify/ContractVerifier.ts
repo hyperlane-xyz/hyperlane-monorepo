@@ -14,13 +14,10 @@ const etherscanChains = [
 ];
 
 export abstract class ContractVerifier {
-  constructor(
-    public readonly key: string
-  ) {}
-
+  constructor(public readonly key: string) {}
 
   abstract networks: ChainName[];
-  abstract getVerificationInput(network: ChainName[]): VerificationInput;
+  abstract getVerificationInput(network: ChainName): VerificationInput;
 
   static etherscanLink(network: ChainName, address: types.Address) {
     if (network === 'polygon') {

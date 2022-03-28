@@ -17,7 +17,7 @@ const path_1 = __importDefault(require("path"));
 const fs_1 = __importDefault(require("fs"));
 const sdk_1 = require("@abacus-network/sdk");
 const core_1 = require("@abacus-network/core");
-const verification_1 = require("./verification");
+const verify_1 = require("./verify");
 class ProxiedContract {
     constructor(contract, addresses) {
         this.contract = contract;
@@ -75,7 +75,7 @@ class AbacusAppDeployer extends sdk_1.MultiProvider {
             const contract = (yield factory.deploy(...args, overrides));
             yield contract.deployTransaction.wait(this.getConfirmations(nameOrDomain));
             this.addVerificationInput(nameOrDomain, [
-                (0, verification_1.getContractVerificationInput)(contractName, contract, factory.bytecode, contractName.includes(' Proxy')),
+                (0, verify_1.getContractVerificationInput)(contractName, contract, factory.bytecode, contractName.includes(' Proxy')),
             ]);
             return contract;
         });

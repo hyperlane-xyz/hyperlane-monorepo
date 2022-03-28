@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write *.ts ./src"
+    "prettier": "prettier --write ./src"
   },
   "license": "MIT OR Apache-2.0",
   "dependencies": {
