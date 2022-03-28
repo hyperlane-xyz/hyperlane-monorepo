@@ -1,16 +1,17 @@
-import { ChainConfig, ContractMetricsConfig } from './config';
+import { ChainName } from '@abacus-network/sdk';
+import { ContractMetricsConfig } from './config';
 import { HelmCommand, helmifyValues } from './utils/helm';
 import { execCmd } from './utils/utils';
 
 export async function runContractMetricsHelmCommand(
   action: HelmCommand,
   contractMetricsConfig: ContractMetricsConfig,
-  chainConfigs: ChainConfig[],
+  chainNames: ChainName[],
   environment: string,
 ) {
   const values = await getContractMetricsHelmChartValues(
     contractMetricsConfig,
-    chainConfigs,
+    chainNames,
     environment,
   );
 
@@ -26,7 +27,7 @@ export async function runContractMetricsHelmCommand(
 
 async function getContractMetricsHelmChartValues(
   contractMetricsConfig: ContractMetricsConfig,
-  chainConfigs: ChainConfig[],
+  chainNames: ChainName[],
   environment: string,
 ) {
   const config = {
@@ -36,7 +37,7 @@ async function getContractMetricsHelmChartValues(
     },
     monitor: {
       environment,
-      networks: chainConfigs.map((chainConfig) => chainConfig.name),
+      networks: chainNames,
     },
     fullnameOverride: 'contract-metrics',
   };

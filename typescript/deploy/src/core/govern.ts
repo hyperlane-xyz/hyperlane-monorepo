@@ -1,13 +1,16 @@
 import { expect } from 'chai';
-import { AbacusGovernance } from '@abacus-network/sdk';
-import { CoreDeploy } from './CoreDeploy';
+import {
+  Call,
+  CallBatch,
+  AbacusCore,
+  AbacusGovernance,
+} from '@abacus-network/sdk';
 import {
   ValidatorViolation,
   UpgradeBeaconViolation,
   Violation,
   ViolationType,
-} from '../common';
-import { Call, CallBatch } from '@abacus-network/sdk';
+} from '../check';
 
 interface DomainedCall {
   domain: number;
@@ -15,16 +18,16 @@ interface DomainedCall {
 }
 
 export class GovernanceCallBatchBuilder {
-  private _deploy: CoreDeploy;
+  private _core: AbacusCore;
   private _governance: AbacusGovernance;
   private _violations: Violation[];
 
   constructor(
-    deploy: CoreDeploy,
+    core: AbacusCore,
     governance: AbacusGovernance,
     violations: Violation[],
   ) {
-    this._deploy = deploy;
+    this._core = core;
     this._governance = governance;
     this._violations = violations;
   }
@@ -58,10 +61,10 @@ export class GovernanceCallBatchBuilder {
     violation: UpgradeBeaconViolation,
   ): Promise<DomainedCall> {
     const domain = violation.domain;
-    const ubc = this._deploy.upgradeBeaconController(domain);
+    const ubc = this._core.mustGetContracts(domain).upgradeBeaconController;
     if (ubc === undefined) throw new Error('Undefined ubc');
     const tx = await ubc.populateTransaction.upgrade(
-      violation.beaconProxy.beacon.address,
+      violation.proxiedAddress.beacon,
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
@@ -72,7 +75,7 @@ export class GovernanceCallBatchBuilder {
     violation: ValidatorViolation,
   ): Promise<DomainedCall> {
     const domain = violation.local;
-    const manager = this._deploy.validatorManager(domain);
+    const manager = this._core.mustGetContracts(domain).validatorManager;
     expect(manager).to.not.be.undefined;
     const tx = await manager.populateTransaction.enrollValidator(
       violation.remote,

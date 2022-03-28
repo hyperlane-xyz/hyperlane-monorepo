@@ -4,15 +4,11 @@ import { Connection } from './types';
  * Abstract class for managing collections of contracts
  */
 export abstract class AbacusAppContracts<T> {
-  protected _addresses: T;
+  public readonly addresses: T;
   private _connection?: Connection;
 
   constructor(addresses: T) {
-    this._addresses = addresses;
-  }
-
-  toJson(): string {
-    return JSON.stringify(this._addresses, null, 2);
+    this.addresses = addresses;
   }
 
   connect(connection: Connection) {

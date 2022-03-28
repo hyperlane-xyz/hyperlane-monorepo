@@ -1,32 +1,45 @@
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
+import {
+  AbacusCore,
+  AbacusBridge,
+  AbacusGovernance,
+  coreAddresses,
+  bridgeAddresses,
+  governanceAddresses,
+} from '@abacus-network/sdk';
 
 import {
-  getBridgeDeploy,
   getBridgeConfig,
-  getCoreDeploy,
   getCoreConfig,
   getEnvironment,
-  getGovernanceDeploy,
   getGovernanceConfig,
+  registerMultiProvider,
 } from './utils';
-import { CoreInvariantChecker } from '../src/core';
-import { BridgeInvariantChecker } from '../src/bridge';
-import { GovernanceInvariantChecker } from '../src/governance';
+import { AbacusCoreChecker } from '../src/core';
+import { AbacusBridgeChecker } from '../src/bridge';
+import { AbacusGovernanceChecker } from '../src/governance';
 
 async function check() {
   const environment = await getEnvironment();
-  const governance = await getGovernanceDeploy(environment);
-  const governanceConfig = await getGovernanceConfig(environment);
+  const core = new AbacusCore(coreAddresses[environment]);
+  const bridge = new AbacusBridge(bridgeAddresses[environment]);
+  const governance = new AbacusGovernance(governanceAddresses[environment]);
+  registerMultiProvider(core, environment);
+  registerMultiProvider(bridge, environment);
+  registerMultiProvider(governance, environment);
+
+  const governanceConfig = await getGovernanceConfig(environment, core);
   const governors: Record<types.Domain, types.Address> = {};
-  governance.domains.map((domain) => {
-    const addresses = governanceConfig.addresses[governance.name(domain)];
-    if (addresses === undefined) throw new Error('could not find addresses');
+  governance.domainNumbers.map((domain) => {
+    const addresses =
+      governanceConfig.addresses[governance.mustResolveDomainName(domain)];
+    if (!addresses) throw new Error('could not find addresses');
     governors[domain] = addresses.governor
       ? addresses.governor
       : ethers.constants.AddressZero;
   });
-  const governanceChecker = new GovernanceInvariantChecker(
+  const governanceChecker = new AbacusGovernanceChecker(
     governance,
     governanceConfig,
     governors,
@@ -34,24 +47,23 @@ async function check() {
   await governanceChecker.check();
   governanceChecker.expectEmpty();
 
-  const core = await getCoreDeploy(environment);
   const coreConfig = await getCoreConfig(environment);
-  const coreChecker = new CoreInvariantChecker(
+  const coreChecker = new AbacusCoreChecker(
     core,
     coreConfig,
-    governance.routerAddresses(),
+    governance.routerAddresses,
   );
   await coreChecker.check();
   coreChecker.expectEmpty();
 
-  const bridge = await getBridgeDeploy(environment);
-  const bridgeConfig = await getBridgeConfig(environment);
-  const bridgeChecker = new BridgeInvariantChecker(
+  const bridgeConfig = await getBridgeConfig(environment, core);
+  const bridgeChecker = new AbacusBridgeChecker(
     bridge,
     bridgeConfig,
-    governance.routerAddresses(),
+    governance.routerAddresses,
   );
   await bridgeChecker.check();
+  bridgeChecker.expectEmpty();
 }
 
 check().then(console.log).catch(console.error);

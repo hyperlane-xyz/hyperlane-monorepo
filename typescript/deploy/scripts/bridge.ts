@@ -1,18 +1,24 @@
+import { AbacusCore, coreAddresses } from '@abacus-network/sdk';
 import {
   getEnvironment,
   getBridgeConfig,
-  getBridgeDirectory,
-  getChainConfigsRecord,
+  getBridgeContractsSdkFilepath,
+  getBridgeVerificationDirectory,
+  registerMultiProvider,
 } from './utils';
-import { BridgeDeploy } from '../src/bridge';
+import { AbacusBridgeDeployer } from '../src/bridge';
 
 async function main() {
   const environment = await getEnvironment();
-  const chains = await getChainConfigsRecord(environment);
-  const config = await getBridgeConfig(environment);
-  const deploy = new BridgeDeploy();
-  await deploy.deploy(chains, config);
-  deploy.writeOutput(getBridgeDirectory(environment));
+  const config = await getBridgeConfig(
+    environment,
+    new AbacusCore(coreAddresses[environment]),
+  );
+  const deployer = new AbacusBridgeDeployer();
+  await registerMultiProvider(deployer, environment);
+  await deployer.deploy(config);
+  deployer.writeContracts(getBridgeContractsSdkFilepath(environment));
+  deployer.writeVerification(getBridgeVerificationDirectory(environment));
 }
 
 main().then(console.log).catch(console.error);

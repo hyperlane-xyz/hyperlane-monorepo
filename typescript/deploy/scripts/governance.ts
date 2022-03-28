@@ -1,26 +1,37 @@
 import {
-  getBridgeDeploy,
-  getChainConfigsRecord,
-  getCoreDeploy,
+  AbacusCore,
+  AbacusBridge,
+  coreAddresses,
+  bridgeAddresses,
+} from '@abacus-network/sdk';
+import {
   getEnvironment,
   getGovernanceConfig,
-  getGovernanceDirectory,
+  getGovernanceContractsSdkFilepath,
+  getGovernanceVerificationDirectory,
+  registerMultiProvider,
 } from './utils';
-import { GovernanceDeploy } from '../src/governance';
+import { AbacusCoreDeployer } from '../src/core';
+import { AbacusBridgeDeployer } from '../src/bridge';
+import { AbacusGovernanceDeployer } from '../src/governance';
 
 async function main() {
   const environment = await getEnvironment();
-  const chains = await getChainConfigsRecord(environment);
-  const config = await getGovernanceConfig(environment);
-  const deploy = new GovernanceDeploy();
-  await deploy.deploy(chains, config);
-  deploy.writeOutput(getGovernanceDirectory(environment));
+  const core = new AbacusCore(coreAddresses[environment]);
+  const bridge = new AbacusBridge(bridgeAddresses[environment]);
+  registerMultiProvider(core, environment);
+  registerMultiProvider(bridge, environment);
 
-  const core = await getCoreDeploy(environment);
-  await core.transferOwnership(deploy.routerAddresses());
+  const config = await getGovernanceConfig(environment, core);
+  const deployer = new AbacusGovernanceDeployer();
+  await registerMultiProvider(deployer, environment);
+  await deployer.deploy(config);
+  deployer.writeContracts(getGovernanceContractsSdkFilepath(environment));
+  deployer.writeVerification(getGovernanceVerificationDirectory(environment));
 
-  const bridge = await getBridgeDeploy(environment);
-  await bridge.transferOwnership(deploy.routerAddresses());
+  const owners = deployer.routerAddresses;
+  await AbacusCoreDeployer.transferOwnership(core, owners);
+  await AbacusBridgeDeployer.transferOwnership(bridge, owners);
 }
 
 main().then(console.log).catch(console.error);

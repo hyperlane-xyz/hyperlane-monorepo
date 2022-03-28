@@ -1,5 +1,3 @@
-export { CoreDeploy } from './CoreDeploy';
-export { CoreInstance } from './CoreInstance';
-export { CoreContracts } from './CoreContracts';
-export { CoreContractAddresses, CoreConfig } from './types';
-export { CoreInvariantChecker } from './CoreInvariantChecker';
+export { AbacusCoreDeployer } from './deploy';
+export { AbacusCoreChecker } from './check';
+export { CoreConfig } from './types';

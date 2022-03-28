@@ -8,10 +8,11 @@
 #![warn(unused_extern_crates)]
 
 mod checkpoint_relayer;
+mod merkle_tree_builder;
+mod message_processor;
 mod prover;
 mod relayer;
 mod settings;
-mod tip_prover;
 
 use color_eyre::Result;
 
