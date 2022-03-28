@@ -16,7 +16,6 @@ import {
   ContractMetricsConfig,
 } from '../src/config';
 import { CoreConfig } from '../src/core';
-import { BridgeConfig } from '../src/bridge';
 import { GovernanceConfig } from '../src/governance';
 
 export function getArgs() {
@@ -74,14 +73,6 @@ export async function getRouterConfig(
   return { core: addresses };
 }
 
-export async function getBridgeConfig(
-  environment: DeployEnvironment,
-  core: AbacusCore,
-): Promise<BridgeConfig> {
-  const partial = (await importModule(moduleName(environment))).bridge;
-  return { ...partial, core: await getRouterConfig(environment, core) };
-}
-
 export async function getGovernanceConfig(
   environment: DeployEnvironment,
   core: AbacusCore,
@@ -120,10 +111,6 @@ export function getCoreContractsSdkFilepath(environment: DeployEnvironment) {
   return getContractsSdkFilepath('core', environment);
 }
 
-export function getBridgeContractsSdkFilepath(environment: DeployEnvironment) {
-  return getContractsSdkFilepath('bridge', environment);
-}
-
 export function getGovernanceContractsSdkFilepath(
   environment: DeployEnvironment,
 ) {
@@ -144,14 +131,6 @@ export function getCoreVerificationDirectory(environment: DeployEnvironment) {
 
 export function getCoreRustDirectory(environment: DeployEnvironment) {
   return path.join(getCoreDirectory(environment), 'rust');
-}
-
-export function getBridgeDirectory(environment: DeployEnvironment) {
-  return path.join(getEnvironmentDirectory(environment), 'bridge');
-}
-
-export function getBridgeVerificationDirectory(environment: DeployEnvironment) {
-  return path.join(getBridgeDirectory(environment), 'verification');
 }
 
 export function getGovernanceDirectory(environment: DeployEnvironment) {

@@ -3,6 +3,7 @@ export {
   AbacusCore,
   AbacusStatus,
   AbacusMessage,
+  AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   AbacusLifecyleEvent,
   CoreContracts,
@@ -29,19 +30,7 @@ export {
   NameOrDomain,
   ProxiedAddress,
 } from './types';
-export {
-  addresses as bridgeAddresses,
-  AbacusBridge,
-  AnnotatedSend,
-  AnnotatedTokenDeployed,
-  BridgeContractAddresses,
-  SendArgs,
-  SendTypes,
-  SendEvent,
-  TokenDeployedArgs,
-  TokenDeployedTypes,
-  TokenDeployedEvent,
-} from './bridge';
 export { AbacusAppContracts } from './contracts';
 export { AbacusApp } from './app';
 export { domains } from './domains';
+export { utils } from './utils';
