@@ -15,7 +15,7 @@ const defaultValue = 1_000_000;
 const defaultGasPayment = 100_000;
 const zeroAddress = '0x0000000000000000000000000000000000000000';
 
-describe.only('EthHelper', async () => {
+describe('EthHelper', async () => {
   let bridge: BridgeDeploy;
   let outbox: Outbox;
   let interchainGasPaymaster: InterchainGasPaymaster;
