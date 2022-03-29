@@ -71,7 +71,6 @@ impl MessageProcessor {
                     return Ok(MessageProcessingStatus::NotDestinedForInbox);
                 }
 
-                // TODO: Figure out how to prevent races with the relayers message processing
                 match self.inbox.message_status(leaf).await? {
                     MessageStatus::None => {
                         if message_leaf_index >= self.prover_sync.count() {
