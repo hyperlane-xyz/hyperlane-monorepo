@@ -12,6 +12,7 @@ pub(crate) struct CheckpointRelayer {
     polling_interval: u64,
     /// The minimum latency in seconds between two relayed checkpoints on the inbox
     submission_latency: u64,
+    immediate_message_processing: bool,
     db: AbacusDB,
     inbox: Arc<CachingInbox>,
     prover_sync: MerkleTreeBuilder,
@@ -22,12 +23,14 @@ impl CheckpointRelayer {
     pub(crate) fn new(
         polling_interval: u64,
         submission_latency: u64,
+        immediate_message_processing: bool,
         db: AbacusDB,
         inbox: Arc<CachingInbox>,
         checkpoint_syncer: CheckpointSyncers,
     ) -> Self {
         Self {
             polling_interval,
+            immediate_message_processing,
             submission_latency,
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
@@ -87,28 +90,30 @@ impl CheckpointRelayer {
                 onchain_checkpoint_index,
                 latest_signed_checkpoint.clone(),
             );
+
             self.prover_sync.update_from_batch(&batch)?;
             self.inbox
                 .submit_checkpoint(&latest_signed_checkpoint)
                 .await?;
 
-            // TODO: sign in parallel
-            // TODO: While this is not signed in parallel, the relayer should be configurable to not process messages so that collisions are not happening
-            for message in &batch.messages {
-                match self.prover_sync.get_proof(message.leaf_index) {
-                    Ok(proof) => {
-                        // Ignore errors and expect the lagged message processor to retry
-                        match self.inbox.prove_and_process(&message.message, &proof).await {
-                            Ok(outcome) => {
-                                info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message")
-                            }
-                            Err(error) => {
-                                error!(error=?error, leaf_index=message.leaf_index, "CheckpointRelayer encountered error while processing message, ignoring")
+            if self.immediate_message_processing {
+                // TODO: sign in parallel
+                for message in &batch.messages {
+                    match self.prover_sync.get_proof(message.leaf_index) {
+                        Ok(proof) => {
+                            // Ignore errors and expect the lagged message processor to retry
+                            match self.inbox.prove_and_process(&message.message, &proof).await {
+                                Ok(outcome) => {
+                                    info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message")
+                                }
+                                Err(error) => {
+                                    error!(error=?error, leaf_index=message.leaf_index, "CheckpointRelayer encountered error while processing message, ignoring")
+                                }
                             }
                         }
-                    }
-                    Err(err) => {
-                        error!(error=?err, "Checkpoint relayer was unable fetch proof for message processing")
+                        Err(err) => {
+                            error!(error=?err, "Checkpoint relayer was unable to fetch proof for message processing")
+                        }
                     }
                 }
             }
