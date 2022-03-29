@@ -15,6 +15,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Relayer {
     polling_interval: u64,
+    max_retries: u32,
     submission_latency: u64,
     checkpoint_syncer: CheckpointSyncers,
     core: AbacusAgentCore,
@@ -32,6 +33,7 @@ impl Relayer {
     /// Instantiate a new relayer
     pub fn new(
         polling_interval: u64,
+        max_retries: u32,
         submission_latency: u64,
         checkpoint_syncer: CheckpointSyncers,
         core: AbacusAgentCore,
@@ -48,6 +50,7 @@ impl Relayer {
 
         Self {
             polling_interval,
+            max_retries,
             submission_latency,
             checkpoint_syncer,
             core,
@@ -73,6 +76,7 @@ impl Agent for Relayer {
             .await?;
         Ok(Self::new(
             settings.pollinginterval.parse().unwrap_or(5),
+            settings.maxretries.parse().unwrap_or(10),
             settings.submissionlatency.parse().expect("invalid uint"),
             checkpoint_syncer,
             settings
@@ -102,8 +106,13 @@ impl Relayer {
             inbox.clone(),
             self.checkpoint_syncer.clone(),
         );
-        let message_processor =
-            MessageProcessor::new(self.polling_interval, db, self.submission_latency, inbox);
+        let message_processor = MessageProcessor::new(
+            self.polling_interval,
+            self.max_retries,
+            db,
+            self.submission_latency,
+            inbox,
+        );
 
         self.run_all(vec![checkpoint_relayer.spawn(), message_processor.spawn()])
     }

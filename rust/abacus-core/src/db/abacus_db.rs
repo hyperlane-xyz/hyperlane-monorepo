@@ -25,6 +25,7 @@ static LATEST_ROOT: &str = "update_latest_root_";
 static LATEST_LEAF_INDEX: &str = "latest_known_leaf_index_";
 static LATEST_LEAF_INDEX_FOR_DESTINATION: &str = "latest_known_leaf_index_for_destination_";
 static UPDATER_PRODUCED_UPDATE: &str = "updater_produced_update_";
+static LEAF_PROCESS_STATUS: &str = "leaf_process_status_";
 
 /// DB handle for storing data tied to a specific home.
 ///
@@ -397,5 +398,20 @@ impl AbacusDB {
         previous_root: H256,
     ) -> Result<Option<SignedUpdate>, DbError> {
         self.retrieve_keyed_decodable(UPDATER_PRODUCED_UPDATE, &previous_root)
+    }
+
+    /// Mark leaf as processed
+    pub fn store_leaf_processing_status(&self, leaf_index: u32) -> Result<(), DbError> {
+        debug!(leaf_index = ?leaf_index, "mark leaf as processed");
+        self.store_keyed_encodable(LEAF_PROCESS_STATUS, &leaf_index, &(1 as u32))
+    }
+
+    /// Retrieve leaf processing status
+    pub fn retrieve_leaf_processing_status(
+        &self,
+        leaf_index: u32,
+    ) -> Result<Option<bool>, DbError> {
+        let value: Option<u32> = self.retrieve_keyed_decodable(LEAF_PROCESS_STATUS, &leaf_index)?;
+        Ok(value.map(|x| x == 1))
     }
 }
