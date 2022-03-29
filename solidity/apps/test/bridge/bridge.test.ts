@@ -17,7 +17,6 @@ const testTokenId = {
   domain: remoteDomain,
   id: testToken,
 };
-const testGasPayment = 1234;
 
 describe('BridgeRouter', async () => {
   let bridge: BridgeDeploy;
@@ -63,6 +62,28 @@ describe('BridgeRouter', async () => {
   });
 
   describe('transfer message', async () => {
+    it('allows interchain gas payment', async () => {
+      const testToken = await new BridgeToken__factory(deployer).deploy();
+      await testToken.initialize();
+      await testToken.mint(deployer.address, TOKEN_VALUE);
+      await testToken.approve(
+        bridge.router(localDomain).address,
+        ethers.constants.MaxUint256,
+      );
+
+      const testGasPayment = 1234;
+      const leafIndex = await abacus.outbox(localDomain).count();
+      const sendTx = bridge
+        .router(localDomain)
+        .send(testToken.address, TOKEN_VALUE, remoteDomain, deployerId, {
+          value: testGasPayment,
+        });
+
+      await expect(sendTx)
+        .to.emit(abacus.interchainGasPaymaster(localDomain), 'GasPayment')
+        .withArgs(leafIndex, testGasPayment);
+    });
+
     describe('remotely-originating asset roundtrip', async () => {
       let transferMessage: BytesLike;
       let repr: IERC20;
@@ -149,20 +170,13 @@ describe('BridgeRouter', async () => {
         await expect(unknownRemote).to.be.revertedWith('!router');
       });
 
-      it('burns tokens on outbound message & allows gas payment', async () => {
-        const outbox = abacus.outbox(localDomain);
-        const leafIndex = await outbox.count();
+      it('burns tokens on outbound message', async () => {
         // OUTBOUND
         const sendTx = bridge
           .router(localDomain)
-          .send(repr.address, TOKEN_VALUE, remoteDomain, deployerId, {
-            value: testGasPayment,
-          });
+          .send(repr.address, TOKEN_VALUE, remoteDomain, deployerId);
 
-        await expect(sendTx).to.emit(outbox, 'Dispatch');
-        await expect(sendTx)
-          .to.emit(abacus.interchainGasPaymaster(localDomain), 'GasPayment')
-          .withArgs(leafIndex, testGasPayment);
+        await expect(sendTx).to.emit(abacus.outbox(localDomain), 'Dispatch');
 
         expect(await repr.totalSupply()).to.equal(BigNumber.from(0));
       });
@@ -241,24 +255,17 @@ describe('BridgeRouter', async () => {
         ).to.equal(BigNumber.from(0));
       });
 
-      it('holds tokens on outbound transfer & allows gas payment', async () => {
+      it('holds tokens on outbound transfer', async () => {
         await localToken.approve(
           bridge.router(localDomain).address,
           ethers.constants.MaxUint256,
         );
 
-        const outbox = abacus.outbox(localDomain);
-        const leafIndex = await outbox.count();
         const sendTx = await bridge
           .router(localDomain)
-          .send(localToken.address, TOKEN_VALUE, remoteDomain, deployerId, {
-            value: testGasPayment,
-          });
+          .send(localToken.address, TOKEN_VALUE, remoteDomain, deployerId);
 
-        await expect(sendTx).to.emit(outbox, 'Dispatch');
-        await expect(sendTx)
-          .to.emit(abacus.interchainGasPaymaster(localDomain), 'GasPayment')
-          .withArgs(leafIndex, testGasPayment);
+        await expect(sendTx).to.emit(abacus.outbox(localDomain), 'Dispatch');
 
         expect(
           await localToken.balanceOf(bridge.router(localDomain).address),
