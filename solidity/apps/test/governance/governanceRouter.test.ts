@@ -154,11 +154,10 @@ describe.only('GovernanceRouter', async () => {
       const call = await formatCall(testSet, 'set', [value]);
       await router.callRemote(domains[1], [call]);
       await abacus.processMessages();
-
       expect(await testSet.get()).to.equal(value);
     });
 
-    it('governor can set remote governor and pay for interchain gas', async () => {
+    it('governor can set remote governor', async () => {
       const newGovernor = governor.address;
       expect(await remote.governor()).to.not.equal(newGovernor);
       await router.setGovernorRemote(remoteDomain, newGovernor);
