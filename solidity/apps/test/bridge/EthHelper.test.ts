@@ -13,7 +13,6 @@ const remoteDomain = 2000;
 const domains = [localDomain, remoteDomain];
 const defaultValue = 1_000_000;
 const defaultGasPayment = 100_000;
-const zeroAddress = '0x0000000000000000000000000000000000000000';
 
 describe('EthHelper', async () => {
   let bridge: BridgeDeploy;
@@ -46,7 +45,7 @@ describe('EthHelper', async () => {
       await expect(sendFn(defaultValue, defaultGasPayment))
         .to.emit(bridge.weth(localDomain), 'Transfer')
         .withArgs(
-          zeroAddress,
+          ethers.constants.AddressZero,
           ethHelper.address,
           defaultValue - defaultGasPayment,
         );
