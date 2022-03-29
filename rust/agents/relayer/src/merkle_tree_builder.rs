@@ -1,6 +1,6 @@
 use crate::prover::{Prover, ProverError};
 use abacus_core::{
-    accumulator::incremental::IncrementalMerkle,
+    accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     db::{AbacusDB, DbError},
     ChainCommunicationError, Checkpoint, CommittedMessage, SignedCheckpoint,
 };
@@ -79,6 +79,16 @@ pub enum MerkleTreeBuilderError {
         /// Root of prover's local merkle tree
         leaf_index: u32,
     },
+    /// Unexpected prover state
+    #[error("Unexpected prover state, prover count: {prover_count:?}, message batch on chain checkpoint index: {onchain_checkpoint_index:?} and signed {signed_checkpoint_index:?}")]
+    UnexpectedProverState {
+        /// Count of leaves in the prover
+        prover_count: u32,
+        /// Batch on-chain checkpoint index
+        onchain_checkpoint_index: u32,
+        /// Batch signed checkpoint index
+        signed_checkpoint_index: u32,
+    },
     /// MerkleTreeBuilder attempts Prover operation and receives ProverError
     #[error(transparent)]
     ProverError(#[from] ProverError),
@@ -101,24 +111,8 @@ impl MerkleTreeBuilder {
         }
     }
 
-    fn store_proof(&self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
-        match self.prover.prove(leaf_index as usize) {
-            Ok(proof) => {
-                self.db.store_proof(leaf_index, &proof)?;
-                info!(
-                    leaf_index,
-                    root = ?self.prover.root(),
-                    "Storing proof for leaf {}",
-                    leaf_index
-                );
-                Ok(())
-            }
-            // ignore the storage request if it's out of range (e.g. leaves
-            // up-to-date but no update containing leaves produced yet)
-            Err(ProverError::ZeroProof { index: _, count: _ }) => Ok(()),
-            // bubble up any other errors
-            Err(e) => Err(e.into()),
-        }
+    pub fn get_proof(&self, leaf_index: u32) -> Result<Proof, MerkleTreeBuilderError> {
+        self.prover.prove(leaf_index as usize).map_err(Into::into)
     }
 
     fn ingest_leaf_index(&mut self, leaf_index: u32) -> Result<(), MerkleTreeBuilderError> {
@@ -166,9 +160,6 @@ impl MerkleTreeBuilder {
             });
         }
 
-        for i in starting_index..checkpoint.index {
-            self.store_proof(i)?;
-        }
         Ok(())
     }
 
@@ -177,9 +168,15 @@ impl MerkleTreeBuilder {
         &mut self,
         batch: &MessageBatch,
     ) -> Result<(), MerkleTreeBuilderError> {
-        // TODO:: If we are ahead already, something went wrong
+        if self.prover.count() as u32 > batch.current_checkpoint_index {
+            error!("Prover was already ahead of MessageBatch, something went wrong");
+            return Err(MerkleTreeBuilderError::UnexpectedProverState {
+                prover_count: self.prover.count() as u32,
+                onchain_checkpoint_index: batch.current_checkpoint_index,
+                signed_checkpoint_index: batch.signed_target_checkpoint.checkpoint.index,
+            });
+        }
         // if we are somehow behind the current index, prove until then
-
         for i in (self.prover.count() as u32)..batch.current_checkpoint_index + 1 {
             self.ingest_leaf_index(i)?;
         }
@@ -210,12 +207,6 @@ impl MerkleTreeBuilder {
             count = self.prover.count(),
             "update_from_batch batch proving"
         );
-        // store proofs in DB
-
-        for message in &batch.messages {
-            self.store_proof(message.leaf_index)?;
-        }
-        // TODO: push proofs to S3
 
         Ok(())
     }
