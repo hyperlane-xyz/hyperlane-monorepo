@@ -1,7 +1,7 @@
 {
   "prepublish": "npm run build",
   "name": "@abacus-network/hardhat",
-  "version": "0.0.6",
+  "version": "0.0.5",
   "description": "Abacus hardhat tools",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
