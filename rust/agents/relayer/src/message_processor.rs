@@ -157,6 +157,9 @@ impl MessageProcessor {
                     message_leaf_index += 1;
                     continue
                 }
+                // Sleep to not fire too many view calls in a short duration
+                sleep(Duration::from_millis(20)).await;
+
                 match self.db.leaf_by_leaf_index(message_leaf_index)? {
                     Some(_) => {
                         // We have unseen messages to process
@@ -185,8 +188,13 @@ impl MessageProcessor {
                     }
                     None => {
                         // See if we have messages to retry
+                        if let Some(MessageToRetry{ time_to_retry, .. }) = self.retry_queue.peek() {
+                            if time_to_retry > &Instant::now() {
+                                continue
+                            }
+                        }
                         match self.retry_queue.pop() {
-                            Some(MessageToRetry { time_to_retry: _, leaf_index, retries }) => {
+                            Some(MessageToRetry { leaf_index, retries, .. }) => {
                                 info!(
                                     destination = self.inbox.local_domain(),
                                     leaf_index = leaf_index,
@@ -233,8 +241,7 @@ impl MessageProcessor {
                     }
                 }
 
-                // Sleep to not fire too many view calls in a short duration
-                sleep(Duration::from_millis(20)).await;
+
             }
         })
         .instrument(span)
