@@ -15,7 +15,9 @@ use crate::{
 #[derive(Debug)]
 pub struct Relayer {
     polling_interval: u64,
+    max_retries: u32,
     submission_latency: u64,
+    relayer_message_processing: bool,
     checkpoint_syncer: CheckpointSyncers,
     core: AbacusAgentCore,
     updates_relayed_count: Arc<prometheus::IntCounterVec>,
@@ -32,7 +34,9 @@ impl Relayer {
     /// Instantiate a new relayer
     pub fn new(
         polling_interval: u64,
+        max_retries: u32,
         submission_latency: u64,
+        relayer_message_processing: bool,
         checkpoint_syncer: CheckpointSyncers,
         core: AbacusAgentCore,
     ) -> Self {
@@ -48,7 +52,9 @@ impl Relayer {
 
         Self {
             polling_interval,
+            max_retries,
             submission_latency,
+            relayer_message_processing,
             checkpoint_syncer,
             core,
             updates_relayed_count,
@@ -73,7 +79,9 @@ impl Agent for Relayer {
             .await?;
         Ok(Self::new(
             settings.pollinginterval.parse().unwrap_or(5),
+            settings.maxretries.parse().unwrap_or(10),
             settings.submissionlatency.parse().expect("invalid uint"),
+            settings.relayermessageprocessing.parse().unwrap_or(false),
             checkpoint_syncer,
             settings
                 .as_ref()
@@ -98,12 +106,18 @@ impl Relayer {
         let checkpoint_relayer = CheckpointRelayer::new(
             self.polling_interval,
             self.submission_latency,
+            self.relayer_message_processing,
             db.clone(),
             inbox.clone(),
             self.checkpoint_syncer.clone(),
         );
-        let message_processor =
-            MessageProcessor::new(self.polling_interval, db, self.submission_latency, inbox);
+        let message_processor = MessageProcessor::new(
+            self.polling_interval,
+            self.max_retries,
+            db,
+            self.submission_latency,
+            inbox,
+        );
 
         self.run_all(vec![checkpoint_relayer.spawn(), message_processor.spawn()])
     }
