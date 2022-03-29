@@ -55,48 +55,90 @@ describe('Outbox', async () => {
     );
   });
 
-  it('Does not dispatch too large messages', async () => {
-    const message = `0x${Buffer.alloc(3000).toString('hex')}`;
-    await expect(
-      outbox.dispatch(
+  describe('#dispatch', () => {
+    const testMessageValues = async () => {
+      const message = ethers.utils.formatBytes32String('message');
+      const nonce = await outbox.nonces(localDomain);
+
+      // Format data that will be emitted from Dispatch event
+      const destAndNonce = utils.destinationAndNonce(destDomain, nonce);
+
+      const abacusMessage = utils.formatMessage(
+        localDomain,
+        signer.address,
+        nonce,
         destDomain,
-        utils.addressToBytes32(recipient.address),
+        recipient.address,
         message,
-      ),
-    ).to.be.revertedWith('msg too long');
-  });
+      );
+      const hash = utils.messageHash(abacusMessage);
+      const leafIndex = await outbox.tree();
+      const [checkpointedRoot] = await outbox.latestCheckpoint();
 
-  it('Dispatches a message', async () => {
-    const message = ethers.utils.formatBytes32String('message');
-    const nonce = await outbox.nonces(localDomain);
+      return {
+        message,
+        destAndNonce,
+        abacusMessage,
+        hash,
+        leafIndex,
+        checkpointedRoot,
+      };
+    };
 
-    // Format data that will be emitted from Dispatch event
-    const destAndNonce = utils.destinationAndNonce(destDomain, nonce);
-
-    const abacusMessage = utils.formatMessage(
-      localDomain,
-      signer.address,
-      nonce,
-      destDomain,
-      recipient.address,
-      message,
-    );
-    const hash = utils.messageHash(abacusMessage);
-    const leafIndex = await outbox.tree();
-    const [checkpointedRoot] = await outbox.latestCheckpoint();
-
-    // Send message with signer address as msg.sender
-    await expect(
-      outbox
-        .connect(signer)
-        .dispatch(
+    it('Does not dispatch too large messages', async () => {
+      const message = `0x${Buffer.alloc(3000).toString('hex')}`;
+      await expect(
+        outbox.dispatch(
           destDomain,
           utils.addressToBytes32(recipient.address),
           message,
         ),
-    )
-      .to.emit(outbox, 'Dispatch')
-      .withArgs(hash, leafIndex, destAndNonce, checkpointedRoot, abacusMessage);
+      ).to.be.revertedWith('msg too long');
+    });
+
+    it('Dispatches a message', async () => {
+      const {
+        message,
+        destAndNonce,
+        abacusMessage,
+        hash,
+        leafIndex,
+        checkpointedRoot,
+      } = await testMessageValues();
+
+      // Send message with signer address as msg.sender
+      await expect(
+        outbox
+          .connect(signer)
+          .dispatch(
+            destDomain,
+            utils.addressToBytes32(recipient.address),
+            message,
+          ),
+      )
+        .to.emit(outbox, 'Dispatch')
+        .withArgs(
+          hash,
+          leafIndex,
+          destAndNonce,
+          checkpointedRoot,
+          abacusMessage,
+        );
+    });
+
+    it('Returns the leaf index of the dispatched message', async () => {
+      const { message, leafIndex } = await testMessageValues();
+
+      const dispatchLeafIndex = await outbox
+        .connect(signer)
+        .callStatic.dispatch(
+          destDomain,
+          utils.addressToBytes32(recipient.address),
+          message,
+        );
+
+      expect(dispatchLeafIndex).equals(leafIndex);
+    });
   });
 
   it('Checkpoints the latest root', async () => {
