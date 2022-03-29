@@ -58,7 +58,7 @@ describe('EthHelper', async () => {
       );
     });
 
-    it("Emits the InterchainGasPaymaster's GasPayment event", async () => {
+    it("Pays for interchain gas with the provided gas payment amount", async () => {
       const leafIndex = await outbox.count();
       await expect(sendFn(defaultValue, defaultGasPayment))
         .to.emit(interchainGasPaymaster, 'GasPayment')
