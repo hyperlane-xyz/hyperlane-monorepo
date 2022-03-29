@@ -8,7 +8,7 @@ use color_eyre::eyre::Result;
 use ethers::core::types::H256;
 use std::fmt::Display;
 
-use tracing::{debug, error, info};
+use tracing::{debug, error};
 
 /// Struct to update prover
 pub struct MessageBatch {
