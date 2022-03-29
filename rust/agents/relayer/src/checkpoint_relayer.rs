@@ -112,7 +112,7 @@ impl CheckpointRelayer {
                             }
                         }
                         Err(err) => {
-                            error!(error=?err, "Checkpoint relayer was unable fetch proof for message processing")
+                            error!(error=?err, "Checkpoint relayer was unable to fetch proof for message processing")
                         }
                     }
                 }

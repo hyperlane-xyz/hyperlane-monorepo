@@ -17,7 +17,7 @@ pub struct Relayer {
     polling_interval: u64,
     max_retries: u32,
     submission_latency: u64,
-    immediate_message_processing: bool,
+    relayer_message_processing: bool,
     checkpoint_syncer: CheckpointSyncers,
     core: AbacusAgentCore,
     updates_relayed_count: Arc<prometheus::IntCounterVec>,
@@ -36,7 +36,7 @@ impl Relayer {
         polling_interval: u64,
         max_retries: u32,
         submission_latency: u64,
-        immediate_message_processing: bool,
+        relayer_message_processing: bool,
         checkpoint_syncer: CheckpointSyncers,
         core: AbacusAgentCore,
     ) -> Self {
@@ -54,7 +54,7 @@ impl Relayer {
             polling_interval,
             max_retries,
             submission_latency,
-            immediate_message_processing,
+            relayer_message_processing,
             checkpoint_syncer,
             core,
             updates_relayed_count,
@@ -81,7 +81,7 @@ impl Agent for Relayer {
             settings.pollinginterval.parse().unwrap_or(5),
             settings.maxretries.parse().unwrap_or(10),
             settings.submissionlatency.parse().expect("invalid uint"),
-            settings.immediatemessageprocessing.parse().unwrap_or(false),
+            settings.relayermessageprocessing.parse().unwrap_or(false),
             checkpoint_syncer,
             settings
                 .as_ref()
@@ -106,7 +106,7 @@ impl Relayer {
         let checkpoint_relayer = CheckpointRelayer::new(
             self.polling_interval,
             self.submission_latency,
-            self.immediate_message_processing,
+            self.relayer_message_processing,
             db.clone(),
             inbox.clone(),
             self.checkpoint_syncer.clone(),

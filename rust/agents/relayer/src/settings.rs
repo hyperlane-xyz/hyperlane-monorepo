@@ -10,7 +10,7 @@ decl_settings!(Relayer {
     /// The maxinmum number of times a processor will try to process a message
     maxretries: String,
     /// Whether the CheckpointRelayer should try to immediately process messages
-    immediatemessageprocessing: String,
+    relayermessageprocessing: String,
     /// The checkpoint syncer configuration
     checkpointsyncer: abacus_base::CheckpointSyncerConf,
 });

@@ -401,7 +401,7 @@ impl AbacusDB {
     }
 
     /// Mark leaf as processed
-    pub fn store_leaf_processing_status(&self, leaf_index: u32) -> Result<(), DbError> {
+    pub fn mark_leaf_as_processed(&self, leaf_index: u32) -> Result<(), DbError> {
         debug!(leaf_index = ?leaf_index, "mark leaf as processed");
         self.store_keyed_encodable(LEAF_PROCESS_STATUS, &leaf_index, &(1 as u32))
     }

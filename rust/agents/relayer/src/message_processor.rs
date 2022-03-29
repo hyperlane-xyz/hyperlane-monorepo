@@ -99,7 +99,7 @@ impl MessageProcessor {
                                             hash = ?outcome.txid,
                                             "[MessageProcessor] processed"
                                         );
-                                        self.db.store_leaf_processing_status(message_leaf_index)?;
+                                        self.db.mark_leaf_as_processed(message_leaf_index)?;
                                         Ok(MessageProcessingStatus::Processed)
                                     }
                                     Err(err) => {
@@ -121,7 +121,7 @@ impl MessageProcessor {
                                 hash = ?outcome.txid,
                                 "[MessageProcessor] processed a message that was already proven"
                             );
-                            self.db.store_leaf_processing_status(message_leaf_index)?;
+                            self.db.mark_leaf_as_processed(message_leaf_index)?;
                             Ok(MessageProcessingStatus::Processed)
                         }
                         Err(err) => {
@@ -135,7 +135,7 @@ impl MessageProcessor {
                             domain = self.inbox.local_domain(),
                             "Already processed"
                         );
-                        self.db.store_leaf_processing_status(message_leaf_index)?;
+                        self.db.mark_leaf_as_processed(message_leaf_index)?;
                         Ok(MessageProcessingStatus::Processed)
                     }
                 }
@@ -216,7 +216,7 @@ impl MessageProcessor {
                                         retry_queue_length = self.retry_queue.len(),
                                         "Retry of message failed processing"
                                     );
-                                    if retries > self.max_retries {
+                                    if retries >= self.max_retries {
                                         error!(
                                             destination = self.inbox.local_domain(),
                                             leaf_index = leaf_index,
