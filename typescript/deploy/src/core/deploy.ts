@@ -151,8 +151,10 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
 
       for (const remote of this.remoteDomainNumbers(domain)) {
         const remoteName = this.mustResolveDomainName(remote);
-        const inboxAddress = addresses.inboxes[remoteName];
-        if (!inboxAddress) throw new Error(`No inbox for ${remoteName}`);
+        const remoteAddresses = this.mustGetAddresses(remote);
+        const inboxAddress = remoteAddresses.inboxes[name];
+        if (!inboxAddress)
+          throw new Error(`No inbox for ${domain} on ${remote}`);
         const inbox = {
           address: inboxAddress.proxy,
           domain: remote.toString(),
@@ -164,7 +166,6 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
           },
         };
 
-        rustConfig.signers[remoteName] = { key: '', type: 'hexKey' };
         rustConfig.replicas[remoteName] = inbox;
       }
       AbacusAppDeployer.writeJson(filepath, rustConfig);

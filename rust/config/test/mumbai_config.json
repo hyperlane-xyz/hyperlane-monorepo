@@ -1,9 +1,9 @@
 {
-  "environment": "local",
+  "environment": "test",
   "signers": {},
   "replicas": {
     "alfajores": {
-      "address": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
+      "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
       "domain": "1000",
       "name": "alfajores",
       "rpcStyle": "ethereum",
@@ -13,7 +13,7 @@
       }
     },
     "kovan": {
-      "address": "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8",
+      "address": "0xa82fF9aFd8f496c3d6ac40E2a0F282E47488CFc9",
       "domain": "3000",
       "name": "kovan",
       "rpcStyle": "ethereum",
@@ -23,7 +23,7 @@
       }
     },
     "fuji": {
-      "address": "0x82e01223d51Eb87e16A03E24687EDF0F294da6f1",
+      "address": "0x51A1ceB83B83F1985a81C295d1fF28Afef186E02",
       "domain": "43113",
       "name": "fuji",
       "rpcStyle": "ethereum",
@@ -34,7 +34,7 @@
     }
   },
   "home": {
-    "address": "0xB0D4afd8879eD9F52b28595d31B441D079B2Ca07",
+    "address": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
     "domain": "80001",
     "name": "mumbai",
     "rpcStyle": "ethereum",
