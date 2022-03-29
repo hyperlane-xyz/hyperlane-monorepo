@@ -1,5 +1,6 @@
 use std::{
-    collections::{binary_heap, BinaryHeap},
+    cmp::Reverse,
+    collections::BinaryHeap,
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -24,7 +25,7 @@ pub(crate) struct MessageProcessor {
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
 struct MessageToRetry {
-    time_to_retry: Instant,
+    time_to_retry: Reverse<Instant>,
     leaf_index: u32,
     retries: u32,
 }
@@ -85,7 +86,6 @@ impl MessageProcessor {
                                 .await?;
 
                             if message_leaf_index >= self.prover_sync.count() {
-                                // If we don't have an up to date checkpoint, sleep and try again
                                 return Ok(MessageProcessingStatus::NotYetCheckpointed);
                             }
                         }
@@ -171,7 +171,8 @@ impl MessageProcessor {
                         match self.try_processing_message(message_leaf_index).await? {
                             MessageProcessingStatus::Processed => message_leaf_index += 1,
                             MessageProcessingStatus::NotYetCheckpointed => {
-                                sleep(Duration::from_secs(self.reorg_period)).await;
+                                // If we don't have an up to date checkpoint, sleep and try again
+                                sleep(Duration::from_secs(self.polling_interval)).await;
                             }
                             MessageProcessingStatus::NotDestinedForInbox => message_leaf_index += 1,
                             MessageProcessingStatus::Error => {
@@ -179,7 +180,7 @@ impl MessageProcessor {
                                 self.retry_queue
                                     .push(MessageToRetry {
                                         leaf_index: message_leaf_index,
-                                        time_to_retry: Instant::now(),
+                                        time_to_retry: Reverse(Instant::now()),
                                         retries: 0,
                                     });
                                 message_leaf_index += 1;
@@ -189,7 +190,8 @@ impl MessageProcessor {
                     None => {
                         // See if we have messages to retry
                         if let Some(MessageToRetry{ time_to_retry, .. }) = self.retry_queue.peek() {
-                            if time_to_retry > &Instant::now() {
+                            // Since we use Reverse, we want time_to_retry to be smaller
+                            if time_to_retry < &Reverse(Instant::now()) {
                                 continue
                             }
                         }
@@ -227,7 +229,7 @@ impl MessageProcessor {
                                         continue
                                     }
                                     let retries = retries + 1;
-                                    let time_to_retry = Instant::now() + Duration::from_secs(2u64.pow(retries as u32));
+                                    let time_to_retry = Reverse(Instant::now() + Duration::from_secs(2u64.pow(retries as u32)));
                                     self.retry_queue
                                         .push(MessageToRetry{ leaf_index, time_to_retry, retries});
                                 },
