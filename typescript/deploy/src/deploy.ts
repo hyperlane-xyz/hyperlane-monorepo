@@ -15,10 +15,7 @@ import {
   UpgradeBeaconProxy__factory,
 } from '@abacus-network/core';
 
-import {
-  VerificationInput,
-  getContractVerificationInput,
-} from './verification';
+import { VerificationInput, getContractVerificationInput } from './verify';
 
 export class ProxiedContract<T extends ethers.Contract> {
   constructor(

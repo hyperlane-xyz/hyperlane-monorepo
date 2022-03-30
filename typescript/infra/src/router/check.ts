@@ -1,8 +1,9 @@
 import { expect } from 'chai';
 import { utils, types } from '@abacus-network/utils';
 import { AbacusApp } from '@abacus-network/sdk';
+import { Router, RouterConfig } from '@abacus-network/deploy';
+
 import { AbacusAppChecker } from '../check';
-import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterChecker<
   A extends AbacusApp<any, any>,
