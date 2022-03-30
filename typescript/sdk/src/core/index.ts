@@ -7,3 +7,4 @@ export {
   AnnotatedLifecycleEvent,
 } from './events';
 export { AbacusMessage, AbacusStatus, MessageStatus } from './message';
+export { InterchainGasPaymentBuilder } from './interchain-gas';
