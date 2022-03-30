@@ -2,7 +2,7 @@ import { BigNumber, ethers, FixedNumber } from 'ethers';
 
 import { AbacusCore } from '..';
 import { TestTokenPriceGetter, TokenPriceGetter } from '../token-prices';
-import { UndispatchedMessage } from './undispatched-message';
+import { BaseMessage } from './base';
 
 /**
  * A note on arithmetic:
@@ -15,7 +15,7 @@ import { UndispatchedMessage } from './undispatched-message';
 
 const DEFAULT_TOKEN_DECIMALS = 18;
 
-export class InterchainGasPayingMessage extends UndispatchedMessage {
+export class InterchainGasPayingMessage extends BaseMessage {
   public tokenPriceGetter: TokenPriceGetter;
 
   public destinationGasEstimateBuffer: ethers.BigNumberish;

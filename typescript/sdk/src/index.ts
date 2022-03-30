@@ -9,7 +9,7 @@ export {
   CoreContractAddresses,
   InterchainGasPayingMessage,
   MessageStatus,
-  UndispatchedMessage,
+  BaseMessage,
 } from './core';
 export {
   Annotated,

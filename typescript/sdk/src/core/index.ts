@@ -8,4 +8,4 @@ export {
 } from './events';
 export { AbacusMessage, AbacusStatus, MessageStatus } from './message/message';
 export { InterchainGasPayingMessage } from './message/interchain-gas';
-export { UndispatchedMessage } from './message/undispatched-message';
+export { BaseMessage } from './message/base';
