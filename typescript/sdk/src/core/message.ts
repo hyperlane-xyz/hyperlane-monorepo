@@ -5,7 +5,7 @@ import { Outbox__factory } from '@abacus-network/core';
 
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { NameOrDomain } from '../types';
-import { UndispatchedAbacusMessage } from './undispatched-message';
+import { UndispatchedMessage } from './undispatched-message';
 import { delay } from '../utils';
 
 import { AbacusCore } from '.';
@@ -49,7 +49,7 @@ export type EventCache = {
 /**
  * A dispatched Abacus message.
  */
-export class AbacusMessage extends UndispatchedAbacusMessage {
+export class AbacusMessage extends UndispatchedMessage {
   readonly dispatch: AnnotatedDispatch;
 
   protected cache: EventCache;

@@ -1,7 +1,8 @@
 import { BigNumber, ethers, FixedNumber } from 'ethers';
 
 import { AbacusCore } from './app';
-import { UndispatchedAbacusMessage } from './undispatched-message';
+import { TestTokenPriceGetter, TokenPriceGetter } from './token-prices';
+import { UndispatchedMessage } from './undispatched-message';
 
 /**
  * A note on arithmetic:
@@ -15,15 +16,19 @@ import { UndispatchedAbacusMessage } from './undispatched-message';
 export class InterchainGasPayingMessage {
   private core: AbacusCore;
 
+  public tokenPriceGetter: TokenPriceGetter;
+
   public destinationGasEstimateBuffer: ethers.BigNumberish;
   public interchainGasPaymentEstimateMultiplier: ethers.FixedNumber;
   public destinationGasPriceMultiplier: ethers.FixedNumber;
 
-  readonly message: UndispatchedAbacusMessage;
+  readonly message: UndispatchedMessage;
 
-  constructor(core: AbacusCore, message: UndispatchedAbacusMessage) {
+  constructor(core: AbacusCore, message: UndispatchedMessage) {
     this.core = core;
     this.message = message;
+
+    this.tokenPriceGetter = new TestTokenPriceGetter();
 
     this.destinationGasEstimateBuffer = BigNumber.from(50_000);
     this.interchainGasPaymentEstimateMultiplier = FixedNumber.from('1.1');
@@ -116,7 +121,7 @@ export class InterchainGasPayingMessage {
   }
 
   async sourceTokenPriceUsd(): Promise<FixedNumber> {
-    return FixedNumber.from(1);
+    return this.tokenPriceGetter.getNativeTokenUsdPrice(this.message.from);
   }
 
   get destinationTokenDecimals(): number {
@@ -124,7 +129,7 @@ export class InterchainGasPayingMessage {
   }
 
   async destinationTokenPriceUsd(): Promise<FixedNumber> {
-    return FixedNumber.from(1);
+    return this.tokenPriceGetter.getNativeTokenUsdPrice(this.message.destination);
   }
 
   // How many whole source tokens correspond to an amount of whole

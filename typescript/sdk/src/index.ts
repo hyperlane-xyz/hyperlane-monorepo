@@ -7,8 +7,9 @@ export {
   AbacusLifecyleEvent,
   CoreContracts,
   CoreContractAddresses,
-  InterchainGasPaymentBuilder,
+  InterchainGasPayingMessage,
   MessageStatus,
+  UndispatchedMessage,
 } from './core';
 export {
   Annotated,

@@ -37,7 +37,7 @@ export function parseMessage(message: string): ParsedMessage {
 /**
  * An undispatched and deserialized Abacus message.
  */
-export class UndispatchedAbacusMessage {
+export class UndispatchedMessage {
   readonly message: ParsedMessage;
   readonly serializedMessage: string;
 
