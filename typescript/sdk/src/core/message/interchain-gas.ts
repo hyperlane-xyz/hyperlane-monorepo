@@ -1,7 +1,7 @@
 import { BigNumber, ethers, FixedNumber } from 'ethers';
 
-import { AbacusCore } from './app';
-import { TestTokenPriceGetter, TokenPriceGetter } from './token-prices';
+import { AbacusCore } from '..';
+import { TestTokenPriceGetter, TokenPriceGetter } from '../token-prices';
 import { UndispatchedMessage } from './undispatched-message';
 
 /**
@@ -13,20 +13,17 @@ import { UndispatchedMessage } from './undispatched-message';
  * fixed point numbers work, see https://docs.soliditylang.org/en/v0.8.13/types.html#fixed-point-numbers).
  */
 
-export class InterchainGasPayingMessage {
-  private core: AbacusCore;
+const DEFAULT_TOKEN_DECIMALS = 18;
 
+export class InterchainGasPayingMessage extends UndispatchedMessage {
   public tokenPriceGetter: TokenPriceGetter;
 
   public destinationGasEstimateBuffer: ethers.BigNumberish;
   public interchainGasPaymentEstimateMultiplier: ethers.FixedNumber;
   public destinationGasPriceMultiplier: ethers.FixedNumber;
 
-  readonly message: UndispatchedMessage;
-
-  constructor(core: AbacusCore, message: UndispatchedMessage) {
-    this.core = core;
-    this.message = message;
+  constructor(core: AbacusCore, serializedMessage: string) {
+    super(core, serializedMessage);
 
     this.tokenPriceGetter = new TestTokenPriceGetter();
 
@@ -62,10 +59,15 @@ export class InterchainGasPayingMessage {
       srcTokensPerDestToken
     );
 
-    return convertDecimalValue(
+    const sourceWei = convertDecimalValue(
       sourceWeiWithDestinationDecimals,
       this.destinationTokenDecimals,
       this.sourceTokenDecimals
+    );
+
+    return mulBigAndFixed(
+      sourceWei,
+      this.interchainGasPaymentEstimateMultiplier
     );
   }
 
@@ -83,8 +85,8 @@ export class InterchainGasPayingMessage {
    * 4. A buffer to account for inaccuracies in the above estimations.
    */
   async estimateDestinationGas() {
-    const provider = this.core.mustGetProvider(this.message.destination);
-    const inbox = this.core.mustGetInbox(this.message.from, this.message.destination);
+    const provider = this.core.mustGetProvider(this.destination);
+    const inbox = this.core.mustGetInbox(this.from, this.destination);
 
     const handlerInterface = new ethers.utils.Interface([
       'function handle(uint32,bytes32,bytes)',
@@ -93,11 +95,11 @@ export class InterchainGasPayingMessage {
     // with the `from` address set to the inbox.
     // This includes intrinsic gas, so no need to add it
     const directHandleCallGas = await provider.estimateGas({
-      to: this.message.recipient,
+      to: this.recipient,
       from: inbox.address,
       data: handlerInterface.encodeFunctionData('handle', [
-        this.message.from,
-        this.message.sender,
+        this.from,
+        this.sender,
         this.message,
       ]),
     });
@@ -117,19 +119,19 @@ export class InterchainGasPayingMessage {
   // Token prices
 
   get sourceTokenDecimals(): number {
-    return 18;
+    return this.core.getDomain(this.from)?.nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
   }
 
   async sourceTokenPriceUsd(): Promise<FixedNumber> {
-    return this.tokenPriceGetter.getNativeTokenUsdPrice(this.message.from);
+    return this.tokenPriceGetter.getNativeTokenUsdPrice(this.from);
   }
 
   get destinationTokenDecimals(): number {
-    return 18;
+    return this.core.getDomain(this.destination)?.nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
   }
 
   async destinationTokenPriceUsd(): Promise<FixedNumber> {
-    return this.tokenPriceGetter.getNativeTokenUsdPrice(this.message.destination);
+    return this.tokenPriceGetter.getNativeTokenUsdPrice(this.destination);
   }
 
   // How many whole source tokens correspond to an amount of whole
@@ -170,7 +172,7 @@ export class InterchainGasPayingMessage {
 
   // In wei
   async suggestedDestinationGasPrice(): Promise<BigNumber> {
-    const provider = this.core.mustGetProvider(this.message.destination);
+    const provider = this.core.mustGetProvider(this.destination);
     const suggestedGasPrice = await provider.getGasPrice();
 
     // suggestedGasPrice * destinationGasPriceMultiplier

@@ -6,6 +6,6 @@ export {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
 } from './events';
-export { AbacusMessage, AbacusStatus, MessageStatus } from './message';
-export { InterchainGasPayingMessage } from './interchain-gas';
-export { UndispatchedMessage } from './undispatched-message';
+export { AbacusMessage, AbacusStatus, MessageStatus } from './message/message';
+export { InterchainGasPayingMessage } from './message/interchain-gas';
+export { UndispatchedMessage } from './message/undispatched-message';

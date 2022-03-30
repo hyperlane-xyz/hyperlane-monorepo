@@ -3,12 +3,12 @@ import { TransactionReceipt } from '@ethersproject/abstract-provider';
 
 import { Outbox__factory } from '@abacus-network/core';
 
-import { Annotated, findAnnotatedSingleEvent } from '../events';
-import { NameOrDomain } from '../types';
+import { Annotated, findAnnotatedSingleEvent } from '../../events';
+import { NameOrDomain } from '../../types';
 import { UndispatchedMessage } from './undispatched-message';
-import { delay } from '../utils';
+import { delay } from '../../utils';
 
-import { AbacusCore } from '.';
+import { AbacusCore } from '..';
 import {
   AnnotatedCheckpoint,
   AnnotatedDispatch,
@@ -20,7 +20,7 @@ import {
   DispatchTypes,
   ProcessArgs,
   ProcessTypes,
-} from './events';
+} from '../events';
 
 export type AbacusStatus = {
   status: MessageStatus;
