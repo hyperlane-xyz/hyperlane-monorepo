@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 
 import { AbacusCore, InterchainGasPayingMessage } from '../../../src/core';
 
@@ -42,11 +42,34 @@ export const addresses = {
   }
 }
 
+const MOCK_NETWORK = {
+  name: 'MockNetwork',
+  chainId: 1337,
+};
 class MockProvider extends ethers.providers.BaseProvider {
+  constructor() {
+    super(MOCK_NETWORK);
+  }
+
+  // Required to be implemented or the BaseProvider throws
+  async detectNetwork() {
+    return Promise.resolve(MOCK_NETWORK);
+  }
+  
   perform(method: string, params: any): Promise<any> {
-    if (method === "getGasPrice") {
-      return Promise.resolve(12345);
+    console.log('method', method)
+
+    switch (method) {
+      case 'getGasPrice':
+        return Promise.resolve(
+          BigNumber.from(12345)
+        );
+      case 'estimateGas':
+        return Promise.resolve(
+          BigNumber.from(21000)
+        );
     }
+    
     return super.perform(method, params);
   }
 }
@@ -56,17 +79,27 @@ describe('InterchainGasPayingMessage', () => {
 
   before(() => {
     core = new AbacusCore(addresses);
-    const mockProvider = new MockProvider(31337);
+    const mockProvider = new MockProvider();
     core.registerProvider('test1', mockProvider);
     core.registerProvider('test2', mockProvider);
   });
 
-  it('can run a test', () => {
+  it('can run a test', async () => {
     expect(true).to.be.true;
 
-    // TODO craft this in a better
-    const empty = '0x00000001000000000000000000000000000000000000000000000000000000000000000000000000000000020000000000000000000000000000000000000000000000000000';
+    // TODO craft this in a better way
+    // use formatMessage
+    const empty = '0x000000010000000000000000000000000000000000000000000000000000000000000000000000000000000200000000000000000000000000000000000000000000000000000000000000000000000000000000000000';
 
-    new InterchainGasPayingMessage(core, empty);
+    const gasPayingMessage = new InterchainGasPayingMessage(core, empty);
+    // gasPayingMessage.estimateDestinationGas = () => Promise.resolve(ethers.BigNumber.from(21000));
+
+    console.log(
+      'estimateInterchainGasPayment',
+      (await gasPayingMessage.estimateInterchainGasPayment()).toString()
+    );
+
+    console.log('source decimals', gasPayingMessage.sourceTokenDecimals)
+    console.log('dest decimals', gasPayingMessage.destinationTokenDecimals)
   });
 });

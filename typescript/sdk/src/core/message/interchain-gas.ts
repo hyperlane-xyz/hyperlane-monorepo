@@ -39,8 +39,11 @@ export class InterchainGasPayingMessage extends BaseMessage {
    */
   async estimateInterchainGasPayment() {
     const destinationGas = await this.estimateDestinationGas();
+    console.log('destinationGas', destinationGas.toString())
     const destinationPrice = await this.suggestedDestinationGasPrice();
+    console.log('destinationPrice', destinationPrice.toString())
     const destinationCostWei = destinationGas.mul(destinationPrice);
+    console.log('destinationCostWei', destinationCostWei.toString())
 
     return this.convertDestinationWeiToSourceWei(destinationCostWei);
   }
@@ -51,6 +54,8 @@ export class InterchainGasPayingMessage extends BaseMessage {
     // token corresponds to.
     const srcTokensPerDestToken = await this.sourceTokensPerDestinationToken();
 
+    console.log('srcTokensPerDestToken', srcTokensPerDestToken.toString())
+
     // Using the src token / dest token price, convert the destination wei
     // to source token wei. This does not yet move from destination token decimals
     // to source token decimals.
@@ -59,11 +64,15 @@ export class InterchainGasPayingMessage extends BaseMessage {
       srcTokensPerDestToken
     );
 
+    console.log('sourceWeiWithDestinationDecimals', sourceWeiWithDestinationDecimals.toString())
+
     const sourceWei = convertDecimalValue(
       sourceWeiWithDestinationDecimals,
       this.destinationTokenDecimals,
       this.sourceTokenDecimals
     );
+
+    console.log('sourceWei a', sourceWei.toString())
 
     return mulBigAndFixed(
       sourceWei,
@@ -95,12 +104,12 @@ export class InterchainGasPayingMessage extends BaseMessage {
     // with the `from` address set to the inbox.
     // This includes intrinsic gas, so no need to add it
     const directHandleCallGas = await provider.estimateGas({
-      to: this.recipient,
+      to: this.recipientAddress,
       from: inbox.address,
       data: handlerInterface.encodeFunctionData('handle', [
         this.from,
         this.sender,
-        this.message,
+        this.serializedMessage,
       ]),
     });
 
@@ -199,9 +208,10 @@ function bigToFixed(fixed: BigNumber): FixedNumber {
   );
 }
 
-function fixedToBig(fixed: FixedNumber): BigNumber {
+function fixedToBig(fixed: FixedNumber, floor: boolean = false): BigNumber {
+  const fixedAsInteger = floor ? fixed.floor() : fixed.ceiling();
   return BigNumber.from(
-    fixed.floor().toFormat('fixed256x0').toString()
+    fixedAsInteger.toFormat('fixed256x0').toString()
   )
 }
 
@@ -222,6 +232,6 @@ function convertDecimalValue(value: BigNumber, fromDecimals: number, toDecimals:
   } else if (fromDecimals > toDecimals) {
     return value.div(10 ** (fromDecimals - toDecimals));
   } else { // if (fromDecimals < toDecimals)
-    return value.div(10 ** (toDecimals - fromDecimals));
+    return value.mul(10 ** (toDecimals - fromDecimals));
   }
 }

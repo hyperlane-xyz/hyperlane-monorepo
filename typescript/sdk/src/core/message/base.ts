@@ -2,8 +2,10 @@ import { arrayify, hexlify } from '@ethersproject/bytes';
 import { keccak256 } from 'ethers/lib/utils';
 
 import { Inbox, Outbox } from '@abacus-network/core';
+import { utils } from '@abacus-network/utils';
 
 import { AbacusCore } from '..';
+import { Address } from '../../utils';
 
 export type ParsedMessage = {
   from: number;
@@ -73,6 +75,13 @@ export class BaseMessage {
   }
 
   /**
+   * The address of the sender of this message
+   */
+   get senderAddress(): Address {
+    return utils.bytes32ToAddress(this.recipient);
+  }
+
+  /**
    * The domain nonce for this message
    */
   get nonce(): number {
@@ -87,10 +96,17 @@ export class BaseMessage {
   }
 
   /**
-   * The identifer for the recipient for this message
+   * The identifer for the recipient of this message
    */
   get recipient(): string {
     return this.message.recipient;
+  }
+
+  /**
+   * The address of the recipient of this message
+   */
+  get recipientAddress(): Address {
+    return utils.bytes32ToAddress(this.recipient);
   }
 
   /**
