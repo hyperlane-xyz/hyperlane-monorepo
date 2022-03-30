@@ -29,7 +29,7 @@ export class AbacusContractVerifier extends ContractVerifier {
       .readdirSync(this.verificationDir, { withFileTypes: true })
       .map((dirEntry: fs.Dirent) => dirEntry.name);
 
-  return fileNames.map(fileName => filename.split(".")[0] as ChainName)
+    return filenames.map((name) => name.split('.')[0] as ChainName);
   }
 
   getVerificationInput(network: ChainName): VerificationInput {
