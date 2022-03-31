@@ -419,44 +419,4 @@ export class AbacusMessage extends BaseMessage {
   get committedRoot(): string {
     return this.dispatch.event.args.committedRoot;
   }
-
-  // /**
-  //  * Estimates the amount of gas required to process a message.
-  //  * This does not assume the Inbox of the domain the message will be processed on has
-  //  * a checkpoint that the message is included in. Therefore, we estimate
-  //  * the gas by summing:
-  //  * 1. The intrinsic gas cost of a transaction on the destination chain.
-  //  * 2. Any gas costs imposed by operations in the Inbox, including proving
-  //  *    the message and logic surrounding the processing of a message.
-  //  * 3. Estimating the gas consumption of a direct call to the `handle`
-  //  *    function of the recipient address using the correct parameters and
-  //  *    setting the `from` address of the transaction to the address of the inbox.
-  //  * 4. A buffer to account for inaccuracies in the above estimations.
-  //  */
-  // async estimateGas() {
-  //   // TODO come back to this
-  //   const intrinsicGas = 21_000;
-  //   const provingAndProcessingInboxCosts = 120_000;
-
-  //   const connection = this.core.mustGetConnection(this.destination);
-
-  //   const handlerInterface = new ethers.utils.Interface(
-  //     ['function handle(uint32,bytes32,bytes)']
-  //   );
-  //   const directHandleEstimation = await connection.estimateGas({
-  //     to: this.recipient,
-  //     from: this.inbox.address,
-  //     data: handlerInterface.encodeFunctionData('handle', [
-  //       this.origin,
-  //       this.sender,
-  //       this.message,
-  //     ])
-  //   });
-
-  //   console.log('directHandleEstimation', directHandleEstimation, directHandleEstimation.toNumber());
-
-  //   return directHandleEstimation
-  //     .add(intrinsicGas)
-  //     .add(provingAndProcessingInboxCosts);
-  // }
 }

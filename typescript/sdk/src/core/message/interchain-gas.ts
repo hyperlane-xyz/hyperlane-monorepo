@@ -1,6 +1,7 @@
 import { BigNumber, ethers, FixedNumber } from 'ethers';
 
 import { AbacusCore } from '..';
+import { mulBigAndFixed } from '../../utils';
 import { TestTokenPriceGetter, TokenPriceGetter } from '../token-prices';
 import { BaseMessage } from './base';
 
@@ -13,31 +14,48 @@ import { BaseMessage } from './base';
  * fixed point numbers work, see https://docs.soliditylang.org/en/v0.8.13/types.html#fixed-point-numbers).
  */
 
+// If a domain doesn't specify how many decimals their native token has, 18 is used.
 const DEFAULT_TOKEN_DECIMALS = 18;
 
+export interface InterchainGasPaymentConfig {
+  // A multiplier applied to the estimated source token payment amount.
+  paymentEstimateMultiplier?: string;
+  // A multiplier applied to the suggested destination gas price.
+  destinationGasPriceMultiplier?: string;
+  // An amount of additional gas to add to the destination chain gas estimation.
+  destinationGasEstimateBuffer?: ethers.BigNumberish;
+  // Used to get the native token prices of the source and destination chains.
+  tokenPriceGetter?: TokenPriceGetter;
+}
+
 export class InterchainGasPayingMessage extends BaseMessage {
-  public tokenPriceGetter: TokenPriceGetter;
 
-  public destinationGasEstimateBuffer: ethers.BigNumberish;
-  public interchainGasPaymentEstimateMultiplier: ethers.FixedNumber;
-  public destinationGasPriceMultiplier: ethers.FixedNumber;
+  readonly tokenPriceGetter: TokenPriceGetter;
 
-  constructor(core: AbacusCore, serializedMessage: string) {
+  readonly paymentEstimateMultiplier: ethers.FixedNumber;
+  readonly destinationGasPriceMultiplier: ethers.FixedNumber;
+  readonly destinationGasEstimateBuffer: ethers.BigNumber;
+
+  constructor(core: AbacusCore, serializedMessage: string, config?: InterchainGasPaymentConfig) {
     super(core, serializedMessage);
 
-    this.tokenPriceGetter = new TestTokenPriceGetter();
+    this.tokenPriceGetter = config?.tokenPriceGetter ?? new TestTokenPriceGetter();
 
-    this.destinationGasEstimateBuffer = BigNumber.from(50_000);
-    this.interchainGasPaymentEstimateMultiplier = FixedNumber.from('1.1');
-    this.destinationGasPriceMultiplier = FixedNumber.from('1.1');
+    this.paymentEstimateMultiplier = FixedNumber.from(config?.paymentEstimateMultiplier ?? '1.1');
+    this.destinationGasPriceMultiplier = FixedNumber.from(config?.destinationGasPriceMultiplier ?? '1.1');
+    this.destinationGasEstimateBuffer = BigNumber.from(config?.destinationGasEstimateBuffer ?? 50_000);
   }
 
   /**
-   * Returns the estimated payment in source native tokens required
+   * Calculates the estimated payment in source chain native tokens required
    * to cover the costs of proving and processing the message on the
+   * destination chain. Considers the price of source and destination native
+   * tokens, destination gas prices, and estimated gas required on the
    * destination chain.
+   * @returns An estimated amount of source chain tokens (in wei) to cover
+   * gas costs of the message on the destination chain.
    */
-  async estimateInterchainGasPayment() {
+  async estimateInterchainGasPayment(): Promise<BigNumber> {
     const destinationGas = await this.estimateDestinationGas();
     console.log('destinationGas', destinationGas.toString())
     const destinationPrice = await this.suggestedDestinationGasPrice();
@@ -48,10 +66,18 @@ export class InterchainGasPayingMessage extends BaseMessage {
     return this.convertDestinationWeiToSourceWei(destinationCostWei);
   }
 
-  async convertDestinationWeiToSourceWei(destinationWei: BigNumber) {
+  /**
+   * Converts a given amount of destination chain native tokens (in wei)
+   * to source chain native tokens (in wei). Considers the decimals of both
+   * tokens and the exchange rate between the two determined by USD prices.
+   * @param destinationWei The amount of destination chain native tokens (in wei).
+   * @returns The amount of source chain native tokens (in wei) whose value matches
+   * destinationWei.
+   */
+  async convertDestinationWeiToSourceWei(destinationWei: BigNumber): Promise<BigNumber> {
     // A FixedNumber that doesn't care what the decimals of the source/dest
-    // tokens are -- it is just the amount of whole src tokens a single destination
-    // token corresponds to.
+    // tokens are -- it is just the amount of whole source tokens that a single
+    // whole destination token is equivalent in value to.
     const srcTokensPerDestToken = await this.sourceTokensPerDestinationToken();
 
     console.log('srcTokensPerDestToken', srcTokensPerDestToken.toString())
@@ -61,11 +87,13 @@ export class InterchainGasPayingMessage extends BaseMessage {
     // to source token decimals.
     const sourceWeiWithDestinationDecimals = mulBigAndFixed(
       destinationWei,
-      srcTokensPerDestToken
+      srcTokensPerDestToken,
+      true, // ceil
     );
 
     console.log('sourceWeiWithDestinationDecimals', sourceWeiWithDestinationDecimals.toString())
 
+    // Converts sourceWeiWithDestinationDecimals to have the correct number of decimals.
     const sourceWei = convertDecimalValue(
       sourceWeiWithDestinationDecimals,
       this.destinationTokenDecimals,
@@ -74,14 +102,16 @@ export class InterchainGasPayingMessage extends BaseMessage {
 
     console.log('sourceWei a', sourceWei.toString())
 
+    // Applies a multiplier
     return mulBigAndFixed(
       sourceWei,
-      this.interchainGasPaymentEstimateMultiplier
+      this.paymentEstimateMultiplier,
+      true, // ceil
     );
   }
 
   /**
-   * Estimates the amount of gas required to prove and process a message.
+   * Estimates the amount of gas required to prove and process the message.
    * This does not assume the Inbox of the destination domain has a
    * checkpoint that the message is included in. Therefore, we estimate
    * the gas by summing:
@@ -92,8 +122,10 @@ export class InterchainGasPayingMessage extends BaseMessage {
    *    function of the recipient address using the correct parameters and
    *    setting the `from` address of the transaction to the address of the inbox.
    * 4. A buffer to account for inaccuracies in the above estimations.
+   * @returns The estimated gas required to prove and process the message
+   * on the destination chain.
    */
-  async estimateDestinationGas() {
+  async estimateDestinationGas(): Promise<BigNumber> {
     const provider = this.core.mustGetProvider(this.destination);
     const inbox = this.core.mustGetInbox(this.from, this.destination);
 
@@ -125,7 +157,51 @@ export class InterchainGasPayingMessage extends BaseMessage {
       .add(this.destinationGasEstimateBuffer);
   }
 
-  // Token prices
+  /**
+   * @returns The exchange number of whole source tokens a single whole
+   * destination token is equivalent in value to.
+   */
+  async sourceTokensPerDestinationToken(): Promise<FixedNumber> {
+    const sourceUsd = await this.sourceTokenPriceUsd();
+    const destUsd = await this.destinationTokenPriceUsd();
+
+    return destUsd.divUnsafe(sourceUsd);
+  }
+
+  // Gas prices
+
+  /**
+   * @returns The suggested gas price in wei on the destination chain.
+   */
+  async suggestedDestinationGasPrice(): Promise<BigNumber> {
+    const provider = this.core.mustGetProvider(this.destination);
+    const suggestedGasPrice = await provider.getGasPrice();
+
+    // suggestedGasPrice * destinationGasPriceMultiplier
+    return mulBigAndFixed(
+      suggestedGasPrice,
+      this.destinationGasPriceMultiplier,
+      true, // ceil
+    );
+  }
+
+  /**
+   * @return A generous estimation of the gas consumption of all prove and process
+   * operations in Inbox.sol, excluding:
+   * 1. Intrinsic gas.
+   * 2. Any gas consumed within a `handle` function when processing a message once called.
+   */
+  get inboxProvingAndProcessingGas() {
+    // TODO: This does not consider that different domains can possibly have
+    // different gas costs. Consider this being configurable for each domain, or
+    // investigate ways to estimate this over RPC.
+    //
+    // This number was arrived at by estimating the proving and processing of a message
+    // whose recipient contract included only an empty fallback function. The estimated
+    // gas cost was ~100,000 which includes the intrinsic cost, but 150,000 is chosen as
+    // a generous buffer.
+    return 150_000;
+  }
 
   get sourceTokenDecimals(): number {
     return this.core.getDomain(this.from)?.nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
@@ -142,88 +218,6 @@ export class InterchainGasPayingMessage extends BaseMessage {
   async destinationTokenPriceUsd(): Promise<FixedNumber> {
     return this.tokenPriceGetter.getNativeTokenUsdPrice(this.destination);
   }
-
-  // How many whole source tokens correspond to an amount of whole
-  // destination tokens, calculated using their USD value.
-  // Does not consider the decimals the tokens themselves have
-  async sourceTokensPerDestinationToken(): Promise<FixedNumber> {
-    const sourceUsd = await this.sourceTokenPriceUsd();
-    const destUsd = await this.destinationTokenPriceUsd();
-
-    // source = $10
-    // dest = $1
-    //
-    // source decimals = 16
-    // dest decimals = 10
-    //
-    // 10 / 1 => 0.1e18
-    //
-    // destination cost: 1e10 (one whole destination token)
-    // 
-    // should spend 0.1 * 1e16 then because:
-    //   (dest usd) / (source usd) = 0.1
-    //   (
-    //     (destination gas cost wei) / (one whole destination token, 1e10)
-    //   ) * (one whole source token, 1e16) = (1e10 / 1e10) * 1e16
-    //
-    // toSourceTokenDecimals:
-    // if destDecimals == sourceDecimals:
-    //    return destAmount
-    // else if destDecimals > sourceDecimals:
-    //    return destAmount / (10 ** (destDecimals - sourceDecimals))
-    // else # if destDecimals < sourceDecimals
-    //    return destAmount * (10 ** (sourceDecimals - destDecimals))
-
-    return destUsd.divUnsafe(sourceUsd);
-  }
-
-  // Gas prices
-
-  // In wei
-  async suggestedDestinationGasPrice(): Promise<BigNumber> {
-    const provider = this.core.mustGetProvider(this.destination);
-    const suggestedGasPrice = await provider.getGasPrice();
-
-    // suggestedGasPrice * destinationGasPriceMultiplier
-    return mulBigAndFixed(suggestedGasPrice, this.destinationGasPriceMultiplier);
-  }
-
-  /**
-   * A generous estimation of the gas consumption of all prove and process operations
-   * in Inbox.sol, excluding:
-   * 1. Intrinsic gas.
-   * 2. Any gas consumed within a `handle` function when processing a message.
-   */
-  get inboxProvingAndProcessingGas() {
-    // TODO: This does not consider that different domains are likely to have
-    // different gas costs. Consider this being configurable for each domain, or
-    // investigate ways to estimate this over RPC.
-    return 120_000;
-  }
-}
-
-function bigToFixed(fixed: BigNumber): FixedNumber {
-  return FixedNumber.from(
-    fixed.toString()
-  );
-}
-
-function fixedToBig(fixed: FixedNumber, floor: boolean = false): BigNumber {
-  const fixedAsInteger = floor ? fixed.floor() : fixed.ceiling();
-  return BigNumber.from(
-    fixedAsInteger.toFormat('fixed256x0').toString()
-  )
-}
-
-function mulBigAndFixed(big: BigNumber, fixed: FixedNumber): BigNumber {
-  return fixedToBig(
-    fixed
-      .mulUnsafe(
-        bigToFixed(
-          big
-        )
-      )
-  );
 }
 
 function convertDecimalValue(value: BigNumber, fromDecimals: number, toDecimals: number): BigNumber {
