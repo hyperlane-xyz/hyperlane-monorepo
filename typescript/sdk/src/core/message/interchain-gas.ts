@@ -21,13 +21,25 @@ import { BaseMessage } from './base';
 const DEFAULT_TOKEN_DECIMALS = 18;
 
 export interface InterchainGasPaymentConfig {
-  // A multiplier applied to the estimated source token payment amount.
+  /**
+   * A multiplier applied to the estimated source token payment amount.
+   * @defaultValue 1.1
+   */
   paymentEstimateMultiplier?: string;
-  // A multiplier applied to the suggested destination gas price.
+  /**
+   * A multiplier applied to the suggested destination gas price.
+   * @defaultValue 1.1
+   */
   destinationGasPriceMultiplier?: string;
-  // An amount of additional gas to add to the destination chain gas estimation.
+  /**
+   * An amount of additional gas to add to the destination chain gas estimation.
+   * @defaultValue 50,000
+   */
   destinationGasEstimateBuffer?: ethers.BigNumberish;
-  // Used to get the native token prices of the source and destination chains.
+  /**
+   * Used to get the native token prices of the source and destination chains.
+   * @defaultValue An instance of DefaultTokenPriceGetter.
+   */
   tokenPriceGetter?: TokenPriceGetter;
 }
 
