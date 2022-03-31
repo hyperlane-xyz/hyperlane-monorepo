@@ -1,5 +1,6 @@
 import { ethers, abacus } from 'hardhat';
 import { expect } from 'chai';
+import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
@@ -71,7 +72,6 @@ describe('GovernanceRouter', async () => {
 
     const inbox = abacus.inbox(localDomain, remoteDomain);
     await inbox.setMessageProven(fakeMessage);
-    // Expect inbox processing to fail when reverting in handle
     await inbox.testProcess(fakeMessage);
     expect(await router.governor()).to.equal(ethers.constants.AddressZero);
   });
@@ -472,6 +472,66 @@ describe('GovernanceRouter', async () => {
       await expect(router.connect(governor).exitRecovery()).to.be.revertedWith(
         '!recoveryManager',
       );
+    });
+  });
+
+  describe('interchain gas payments for dispatched messages', async () => {
+    const testInterchainGasPayment = 123456789;
+
+    let outbox: Outbox;
+    let interchainGasPaymaster: InterchainGasPaymaster;
+
+    before(() => {
+      outbox = abacus.outbox(localDomain);
+      interchainGasPaymaster = abacus.interchainGasPaymaster(localDomain);
+    });
+
+    it('allows interchain gas payment for remote calls', async () => {
+      const leafIndex = await outbox.count();
+      const call = await formatCall(testSet, 'set', [13]);
+      await expect(
+        await router.callRemote(domains[1], [call], {
+          value: testInterchainGasPayment,
+        }),
+      )
+        .to.emit(interchainGasPaymaster, 'GasPayment')
+        .withArgs(leafIndex, testInterchainGasPayment);
+    });
+
+    it('allows interchain gas payment when setting a remote governor', async () => {
+      const leafIndex = await outbox.count();
+      await expect(
+        router.setGovernorRemote(remoteDomain, governor.address, {
+          value: testInterchainGasPayment,
+        }),
+      )
+        .to.emit(interchainGasPaymaster, 'GasPayment')
+        .withArgs(leafIndex, testInterchainGasPayment);
+    });
+
+    it('allows interchain gas payment when setting a remote xAppConnectionManager', async () => {
+      const leafIndex = await outbox.count();
+      await expect(
+        router.setXAppConnectionManagerRemote(
+          remoteDomain,
+          ethers.constants.AddressZero,
+          { value: testInterchainGasPayment },
+        ),
+      )
+        .to.emit(interchainGasPaymaster, 'GasPayment')
+        .withArgs(leafIndex, testInterchainGasPayment);
+    });
+
+    it('allows interchain gas payment when enrolling a remote router', async () => {
+      const leafIndex = await outbox.count();
+      const newRouter = utils.addressToBytes32(router.address);
+      await expect(
+        router.enrollRemoteRouterRemote(remoteDomain, testDomain, newRouter, {
+          value: testInterchainGasPayment,
+        }),
+      )
+        .to.emit(interchainGasPaymaster, 'GasPayment')
+        .withArgs(leafIndex, testInterchainGasPayment);
     });
   });
 });
