@@ -60,9 +60,7 @@ export function delay(ms: number): Promise<void> {
  * @returns A FixedNumber representation of a BigNumber.
  */
 export function bigToFixed(big: BigNumber): FixedNumber {
-  return FixedNumber.from(
-    big.toString()
-  );
+  return FixedNumber.from(big.toString());
 }
 
 /**
@@ -71,11 +69,12 @@ export function bigToFixed(big: BigNumber): FixedNumber {
  * @param ceil If true, the ceiling of fixed is used. Otherwise, the floor is used.
  * @returns A BigNumber representation of a FixedNumber.
  */
-export function fixedToBig(fixed: FixedNumber, ceil: boolean = false): BigNumber {
+export function fixedToBig(
+  fixed: FixedNumber,
+  ceil: boolean = false,
+): BigNumber {
   const fixedAsInteger = ceil ? fixed.ceiling() : fixed.floor();
-  return BigNumber.from(
-    fixedAsInteger.toFormat('fixed256x0').toString()
-  )
+  return BigNumber.from(fixedAsInteger.toFormat('fixed256x0').toString());
 }
 
 /**
@@ -85,16 +84,12 @@ export function fixedToBig(fixed: FixedNumber, ceil: boolean = false): BigNumber
  * @param ceil If true, the ceiling of the product is used. Otherwise, the floor is used.
  * @returns The BigNumber product.
  */
-export function mulBigAndFixed(big: BigNumber, fixed: FixedNumber, ceil: boolean = false): BigNumber {
+export function mulBigAndFixed(
+  big: BigNumber,
+  fixed: FixedNumber,
+  ceil: boolean = false,
+): BigNumber {
   // Converts big to a FixedNumber, multiplies it by fixed, and converts the product back
   // to a BigNumber.
-  return fixedToBig(
-    fixed
-      .mulUnsafe(
-        bigToFixed(
-          big,
-        )
-      ),
-    ceil
-  );
+  return fixedToBig(fixed.mulUnsafe(bigToFixed(big)), ceil);
 }

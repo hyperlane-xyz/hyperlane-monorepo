@@ -46,7 +46,7 @@ export type ChainName = MainnetChainNames | TestnetChainNames | TestChainNames;
 export interface Domain {
   id: number;
   name: ChainName;
-  nativeTokenDecimals?: number,
+  nativeTokenDecimals?: number;
   paginate?: Pagination;
 }
 

@@ -77,7 +77,7 @@ export class BaseMessage {
   /**
    * The address of the sender of this message
    */
-   get senderAddress(): Address {
+  get senderAddress(): Address {
     return utils.bytes32ToAddress(this.recipient);
   }
 

@@ -12,7 +12,7 @@ import { BaseMessage } from './base';
  * number implementation as a dependency, we use ethers.FixedNumber, a
  * fixed point implementation intended to model how Solidity's half-supported
  * fixed point numbers work, see https://docs.soliditylang.org/en/v0.8.13/types.html#fixed-point-numbers).
- * 
+ *
  * Generally, ceiling is used rather than floor here to err on the side of over-
  * estimating amounts.
  */
@@ -32,21 +32,31 @@ export interface InterchainGasPaymentConfig {
 }
 
 export class InterchainGasPayingMessage extends BaseMessage {
-
   tokenPriceGetter: TokenPriceGetter;
 
   paymentEstimateMultiplier: ethers.FixedNumber;
   destinationGasPriceMultiplier: ethers.FixedNumber;
   destinationGasEstimateBuffer: ethers.BigNumber;
 
-  constructor(core: AbacusCore, serializedMessage: string, config?: InterchainGasPaymentConfig) {
+  constructor(
+    core: AbacusCore,
+    serializedMessage: string,
+    config?: InterchainGasPaymentConfig,
+  ) {
     super(core, serializedMessage);
 
-    this.tokenPriceGetter = config?.tokenPriceGetter ?? new TestTokenPriceGetter();
+    this.tokenPriceGetter =
+      config?.tokenPriceGetter ?? new TestTokenPriceGetter();
 
-    this.paymentEstimateMultiplier = FixedNumber.from(config?.paymentEstimateMultiplier ?? '1.1');
-    this.destinationGasPriceMultiplier = FixedNumber.from(config?.destinationGasPriceMultiplier ?? '1.1');
-    this.destinationGasEstimateBuffer = BigNumber.from(config?.destinationGasEstimateBuffer ?? 50_000);
+    this.paymentEstimateMultiplier = FixedNumber.from(
+      config?.paymentEstimateMultiplier ?? '1.1',
+    );
+    this.destinationGasPriceMultiplier = FixedNumber.from(
+      config?.destinationGasPriceMultiplier ?? '1.1',
+    );
+    this.destinationGasEstimateBuffer = BigNumber.from(
+      config?.destinationGasEstimateBuffer ?? 50_000,
+    );
   }
 
   /**
@@ -63,7 +73,9 @@ export class InterchainGasPayingMessage extends BaseMessage {
     const destinationPrice = await this.suggestedDestinationGasPrice();
     const destinationCostWei = destinationGas.mul(destinationPrice);
 
-    const sourceCostWei = await this.convertDestinationWeiToSourceWei(destinationCostWei);
+    const sourceCostWei = await this.convertDestinationWeiToSourceWei(
+      destinationCostWei,
+    );
 
     // Applies a multiplier
     return mulBigAndFixed(
@@ -83,7 +95,9 @@ export class InterchainGasPayingMessage extends BaseMessage {
    * @returns The amount of source chain native tokens (in wei) whose value matches
    * destinationWei.
    */
-  async convertDestinationWeiToSourceWei(destinationWei: BigNumber): Promise<BigNumber> {
+  async convertDestinationWeiToSourceWei(
+    destinationWei: BigNumber,
+  ): Promise<BigNumber> {
     // A FixedNumber that doesn't care what the decimals of the source/dest
     // tokens are -- it is just the amount of whole source tokens that a single
     // whole destination token is equivalent in value to.
@@ -102,7 +116,7 @@ export class InterchainGasPayingMessage extends BaseMessage {
     return convertDecimalValue(
       sourceWeiWithDestinationDecimals,
       this.destinationTokenDecimals,
-      this.sourceTokenDecimals
+      this.sourceTokenDecimals,
     );
   }
 
@@ -192,7 +206,10 @@ export class InterchainGasPayingMessage extends BaseMessage {
   }
 
   get sourceTokenDecimals(): number {
-    return this.core.getDomain(this.from)?.nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
+    return (
+      this.core.getDomain(this.from)?.nativeTokenDecimals ??
+      DEFAULT_TOKEN_DECIMALS
+    );
   }
 
   async sourceTokenPriceUsd(): Promise<FixedNumber> {
@@ -200,7 +217,10 @@ export class InterchainGasPayingMessage extends BaseMessage {
   }
 
   get destinationTokenDecimals(): number {
-    return this.core.getDomain(this.destination)?.nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
+    return (
+      this.core.getDomain(this.destination)?.nativeTokenDecimals ??
+      DEFAULT_TOKEN_DECIMALS
+    );
   }
 
   async destinationTokenPriceUsd(): Promise<FixedNumber> {
@@ -216,12 +236,17 @@ export class InterchainGasPayingMessage extends BaseMessage {
  * @param toDecimals The number of decimals to convert `value` to.
  * @returns `value` represented with `toDecimals` decimals.
  */
-function convertDecimalValue(value: BigNumber, fromDecimals: number, toDecimals: number): BigNumber {
+function convertDecimalValue(
+  value: BigNumber,
+  fromDecimals: number,
+  toDecimals: number,
+): BigNumber {
   if (fromDecimals === toDecimals) {
     return value;
   } else if (fromDecimals > toDecimals) {
     return value.div(10 ** (fromDecimals - toDecimals));
-  } else { // if (fromDecimals < toDecimals)
+  } else {
+    // if (fromDecimals < toDecimals)
     return value.mul(10 ** (toDecimals - fromDecimals));
   }
 }
