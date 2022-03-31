@@ -1,9 +1,19 @@
 {
-  "environment": "local",
+  "environment": "test",
   "signers": {},
   "replicas": {
+    "alfajores": {
+      "address": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
+      "domain": "1000",
+      "name": "alfajores",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
     "kovan": {
-      "address": "0x67d269191c92Caf3cD7723F116c85e6E9bf55933",
+      "address": "0x851356ae760d987E095750cCeb3bC6014560891C",
       "domain": "3000",
       "name": "kovan",
       "rpcStyle": "ethereum",
@@ -12,18 +22,8 @@
         "url": ""
       }
     },
-    "fuji": {
-      "address": "0x809d550fca64d94Bd9F66E60752A544199cfAC3D",
-      "domain": "43113",
-      "name": "fuji",
-      "rpcStyle": "ethereum",
-      "connection": {
-        "type": "http",
-        "url": ""
-      }
-    },
     "mumbai": {
-      "address": "0xdbC43Ba45381e02825b14322cDdd15eC4B3164E6",
+      "address": "0x2bdCC0de6bE1f7D2ee689a0342D76F52E8EFABa3",
       "domain": "80001",
       "name": "mumbai",
       "rpcStyle": "ethereum",
@@ -34,9 +34,9 @@
     }
   },
   "home": {
-    "address": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
-    "domain": "1000",
-    "name": "alfajores",
+    "address": "0x5081a39b8A5f0E35a8D959395a630b68B74Dd30f",
+    "domain": "43113",
+    "name": "fuji",
     "rpcStyle": "ethereum",
     "connection": {
       "type": "http",
