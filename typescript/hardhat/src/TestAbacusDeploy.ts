@@ -3,6 +3,8 @@ import { types } from "@abacus-network/utils";
 import {
   Outbox,
   Outbox__factory,
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
   ValidatorManager,
   ValidatorManager__factory,
   UpgradeBeaconController,
@@ -25,6 +27,7 @@ export type TestAbacusInstance = {
   xAppConnectionManager: XAppConnectionManager;
   upgradeBeaconController: UpgradeBeaconController;
   inboxes: Record<types.Domain, TestInbox>;
+  interchainGasPaymaster: InterchainGasPaymaster;
 };
 
 export class TestAbacusDeploy extends TestDeploy<
@@ -73,6 +76,14 @@ export class TestAbacusDeploy extends TestDeploy<
     const xAppConnectionManager = await xAppConnectionManagerFactory.deploy();
     await xAppConnectionManager.setOutbox(outbox.address);
 
+    const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(
+      signer
+    );
+    const interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
+    await xAppConnectionManager.setInterchainGasPaymaster(
+      interchainGasPaymaster.address
+    );
+
     const inboxFactory = new TestInbox__factory(signer);
     const inboxes: Record<types.Domain, TestInbox> = {};
     // this.remotes reads this.instances which has not yet been set.
@@ -92,6 +103,7 @@ export class TestAbacusDeploy extends TestDeploy<
     return {
       outbox,
       xAppConnectionManager,
+      interchainGasPaymaster,
       validatorManager,
       inboxes,
       upgradeBeaconController,
@@ -118,6 +130,10 @@ export class TestAbacusDeploy extends TestDeploy<
 
   inbox(local: types.Domain, remote: types.Domain): TestInbox {
     return this.instances[local].inboxes[remote];
+  }
+
+  interchainGasPaymaster(domain: types.Domain): InterchainGasPaymaster {
+    return this.instances[domain].interchainGasPaymaster;
   }
 
   xAppConnectionManager(domain: types.Domain): XAppConnectionManager {

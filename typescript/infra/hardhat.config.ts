@@ -6,6 +6,8 @@ import { BadRandomRecipient__factory } from '@abacus-network/core';
 import { coreAddresses, AbacusCore } from '@abacus-network/sdk';
 import { utils, types } from '@abacus-network/utils';
 
+import { AbacusCoreDeployer } from './src/core';
+import { AbacusContractVerifier } from './src/verify';
 import { sleep } from './src/utils/utils';
 import {
   getCoreVerificationDirectory,
@@ -14,8 +16,6 @@ import {
   registerMultiProvider,
   getCoreConfig,
 } from './scripts/utils';
-import { AbacusCoreDeployer } from './src/core';
-import { ContractVerifier } from './src/verification';
 
 const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
   const contracts = core.mustGetContracts(domain);
@@ -126,7 +126,7 @@ task('verify-deploy', 'Verifies abacus deploy sourcecode')
     if (!etherscanKey) {
       throw new Error('set ETHERSCAN_API_KEY');
     }
-    const verifier = new ContractVerifier(
+    const verifier = new AbacusContractVerifier(
       environment,
       deployType,
       etherscanKey,
