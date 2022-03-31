@@ -5,7 +5,8 @@ export interface TokenPriceGetter {
   getNativeTokenUsdPrice(domain: NameOrDomain): Promise<FixedNumber>;
 }
 
-export class TestTokenPriceGetter implements TokenPriceGetter {
+// TODO implement in following PR
+export class DefaultTokenPriceGetter implements TokenPriceGetter {
   getNativeTokenUsdPrice(_domain: NameOrDomain): Promise<FixedNumber> {
     return Promise.resolve(FixedNumber.from('12.34'));
   }

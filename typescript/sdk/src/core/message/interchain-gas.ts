@@ -2,7 +2,7 @@ import { BigNumber, ethers, FixedNumber } from 'ethers';
 
 import { AbacusCore } from '..';
 import { mulBigAndFixed } from '../../utils';
-import { TestTokenPriceGetter, TokenPriceGetter } from '../token-prices';
+import { DefaultTokenPriceGetter, TokenPriceGetter } from '../token-prices';
 import { BaseMessage } from './base';
 
 /**
@@ -46,7 +46,7 @@ export class InterchainGasPayingMessage extends BaseMessage {
     super(core, serializedMessage);
 
     this.tokenPriceGetter =
-      config?.tokenPriceGetter ?? new TestTokenPriceGetter();
+      config?.tokenPriceGetter ?? new DefaultTokenPriceGetter();
 
     this.paymentEstimateMultiplier = FixedNumber.from(
       config?.paymentEstimateMultiplier ?? '1.1',
