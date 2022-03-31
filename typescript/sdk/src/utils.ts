@@ -59,7 +59,7 @@ export function delay(ms: number): Promise<void> {
  * @param big The BigNumber to convert.
  * @returns A FixedNumber representation of a BigNumber.
  */
-function bigToFixed(big: BigNumber): FixedNumber {
+export function bigToFixed(big: BigNumber): FixedNumber {
   return FixedNumber.from(
     big.toString()
   );
@@ -71,7 +71,7 @@ function bigToFixed(big: BigNumber): FixedNumber {
  * @param ceil If true, the ceiling of fixed is used. Otherwise, the floor is used.
  * @returns A BigNumber representation of a FixedNumber.
  */
-function fixedToBig(fixed: FixedNumber, ceil: boolean = false): BigNumber {
+export function fixedToBig(fixed: FixedNumber, ceil: boolean = false): BigNumber {
   const fixedAsInteger = ceil ? fixed.ceiling() : fixed.floor();
   return BigNumber.from(
     fixedAsInteger.toFormat('fixed256x0').toString()

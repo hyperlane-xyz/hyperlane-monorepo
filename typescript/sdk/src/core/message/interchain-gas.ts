@@ -12,6 +12,9 @@ import { BaseMessage } from './base';
  * number implementation as a dependency, we use ethers.FixedNumber, a
  * fixed point implementation intended to model how Solidity's half-supported
  * fixed point numbers work, see https://docs.soliditylang.org/en/v0.8.13/types.html#fixed-point-numbers).
+ * 
+ * Generally, ceiling is used rather than floor here to err on the side of over-
+ * estimating amounts.
  */
 
 // If a domain doesn't specify how many decimals their native token has, 18 is used.
@@ -30,11 +33,11 @@ export interface InterchainGasPaymentConfig {
 
 export class InterchainGasPayingMessage extends BaseMessage {
 
-  readonly tokenPriceGetter: TokenPriceGetter;
+  tokenPriceGetter: TokenPriceGetter;
 
-  readonly paymentEstimateMultiplier: ethers.FixedNumber;
-  readonly destinationGasPriceMultiplier: ethers.FixedNumber;
-  readonly destinationGasEstimateBuffer: ethers.BigNumber;
+  paymentEstimateMultiplier: ethers.FixedNumber;
+  destinationGasPriceMultiplier: ethers.FixedNumber;
+  destinationGasEstimateBuffer: ethers.BigNumber;
 
   constructor(core: AbacusCore, serializedMessage: string, config?: InterchainGasPaymentConfig) {
     super(core, serializedMessage);
@@ -57,19 +60,25 @@ export class InterchainGasPayingMessage extends BaseMessage {
    */
   async estimateInterchainGasPayment(): Promise<BigNumber> {
     const destinationGas = await this.estimateDestinationGas();
-    console.log('destinationGas', destinationGas.toString())
     const destinationPrice = await this.suggestedDestinationGasPrice();
-    console.log('destinationPrice', destinationPrice.toString())
     const destinationCostWei = destinationGas.mul(destinationPrice);
-    console.log('destinationCostWei', destinationCostWei.toString())
 
-    return this.convertDestinationWeiToSourceWei(destinationCostWei);
+    const sourceCostWei = await this.convertDestinationWeiToSourceWei(destinationCostWei);
+
+    // Applies a multiplier
+    return mulBigAndFixed(
+      sourceCostWei,
+      this.paymentEstimateMultiplier,
+      true, // ceil
+    );
   }
 
   /**
    * Converts a given amount of destination chain native tokens (in wei)
    * to source chain native tokens (in wei). Considers the decimals of both
    * tokens and the exchange rate between the two determined by USD prices.
+   * Note that if the source token decimals are too imprecise for the conversion
+   * result, 0 may be returned.
    * @param destinationWei The amount of destination chain native tokens (in wei).
    * @returns The amount of source chain native tokens (in wei) whose value matches
    * destinationWei.
@@ -80,8 +89,6 @@ export class InterchainGasPayingMessage extends BaseMessage {
     // whole destination token is equivalent in value to.
     const srcTokensPerDestToken = await this.sourceTokensPerDestinationToken();
 
-    console.log('srcTokensPerDestToken', srcTokensPerDestToken.toString())
-
     // Using the src token / dest token price, convert the destination wei
     // to source token wei. This does not yet move from destination token decimals
     // to source token decimals.
@@ -91,22 +98,11 @@ export class InterchainGasPayingMessage extends BaseMessage {
       true, // ceil
     );
 
-    console.log('sourceWeiWithDestinationDecimals', sourceWeiWithDestinationDecimals.toString())
-
     // Converts sourceWeiWithDestinationDecimals to have the correct number of decimals.
-    const sourceWei = convertDecimalValue(
+    return convertDecimalValue(
       sourceWeiWithDestinationDecimals,
       this.destinationTokenDecimals,
       this.sourceTokenDecimals
-    );
-
-    console.log('sourceWei a', sourceWei.toString())
-
-    // Applies a multiplier
-    return mulBigAndFixed(
-      sourceWei,
-      this.paymentEstimateMultiplier,
-      true, // ceil
     );
   }
 
@@ -145,12 +141,6 @@ export class InterchainGasPayingMessage extends BaseMessage {
       ]),
     });
 
-    console.log(
-      'directHandleCallGas',
-      directHandleCallGas,
-      directHandleCallGas.toNumber(),
-    );
-
     // directHandleCallGas includes the intrinsic gas
     return directHandleCallGas
       .add(this.inboxProvingAndProcessingGas)
@@ -167,8 +157,6 @@ export class InterchainGasPayingMessage extends BaseMessage {
 
     return destUsd.divUnsafe(sourceUsd);
   }
-
-  // Gas prices
 
   /**
    * @returns The suggested gas price in wei on the destination chain.
@@ -220,6 +208,14 @@ export class InterchainGasPayingMessage extends BaseMessage {
   }
 }
 
+/**
+ * Converts a value with `fromDecimals` decimals to a value with `toDecimals` decimals.
+ * Incurs a loss of precision when `fromDecimals` > `toDecimals`.
+ * @param value The value to convert.
+ * @param fromDecimals The number of decimals `value` has.
+ * @param toDecimals The number of decimals to convert `value` to.
+ * @returns `value` represented with `toDecimals` decimals.
+ */
 function convertDecimalValue(value: BigNumber, fromDecimals: number, toDecimals: number): BigNumber {
   if (fromDecimals === toDecimals) {
     return value;

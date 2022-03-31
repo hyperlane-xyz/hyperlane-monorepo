@@ -87,13 +87,11 @@ export const ropsten: Domain = {
 export const test1: Domain = {
   name: 'test1',
   id: 1,
-  nativeTokenDecimals: 18,
 };
 
 export const test2: Domain = {
   name: 'test2',
   id: 2,
-  nativeTokenDecimals: 10,
 };
 
 export const test3: Domain = {
