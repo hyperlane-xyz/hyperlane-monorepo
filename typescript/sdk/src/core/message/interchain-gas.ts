@@ -31,6 +31,9 @@ export interface InterchainGasPaymentConfig {
   tokenPriceGetter?: TokenPriceGetter;
 }
 
+/**
+ * An undispatched Abacus message that will pay destination gas costs.
+ */
 export class InterchainGasPayingMessage extends BaseMessage {
   tokenPriceGetter: TokenPriceGetter;
 

@@ -19,8 +19,8 @@ export type ParsedMessage = {
 /**
  * Parse a serialized Abacus message from raw bytes.
  *
- * @param message
- * @returns
+ * @param message A serialized message.
+ * @returns The parsed message.
  */
 export function parseMessage(message: string): ParsedMessage {
   const buf = Buffer.from(arrayify(message));
@@ -34,7 +34,7 @@ export function parseMessage(message: string): ParsedMessage {
 }
 
 /**
- * An undispatched and deserialized Abacus message.
+ * A deserialized Abacus message.
  */
 export class BaseMessage {
   readonly message: ParsedMessage;

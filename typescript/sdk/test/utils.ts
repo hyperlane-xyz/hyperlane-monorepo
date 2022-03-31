@@ -1,40 +1,42 @@
 import { ethers, FixedNumber } from 'ethers';
 import { NameOrDomain } from '../src';
 
+const ZERO_ADDRESS = ethers.constants.AddressZero;
+
 export const testAddresses = {
   test1: {
-    upgradeBeaconController: '0x0000000000000000000000000000000000000000',
-    xAppConnectionManager: '0x0000000000000000000000000000000000000000',
-    validatorManager: '0x0000000000000000000000000000000000000000',
-    interchainGasPaymaster: '0x0000000000000000000000000000000000000000',
+    upgradeBeaconController: ZERO_ADDRESS,
+    xAppConnectionManager: ZERO_ADDRESS,
+    validatorManager: ZERO_ADDRESS,
+    interchainGasPaymaster: ZERO_ADDRESS,
     outbox: {
-      proxy: '0x0000000000000000000000000000000000000000',
-      implementation: '0x0000000000000000000000000000000000000000',
-      beacon: '0x0000000000000000000000000000000000000000',
+      proxy: ZERO_ADDRESS,
+      implementation: ZERO_ADDRESS,
+      beacon: ZERO_ADDRESS,
     },
     inboxes: {
       test2: {
-        proxy: '0x0000000000000000000000000000000000000000',
-        implementation: '0x0000000000000000000000000000000000000000',
-        beacon: '0x0000000000000000000000000000000000000000',
+        proxy: ZERO_ADDRESS,
+        implementation: ZERO_ADDRESS,
+        beacon: ZERO_ADDRESS,
       },
     },
   },
   test2: {
-    upgradeBeaconController: '0x0000000000000000000000000000000000000000',
-    xAppConnectionManager: '0x0000000000000000000000000000000000000000',
-    validatorManager: '0x0000000000000000000000000000000000000000',
-    interchainGasPaymaster: '0x0000000000000000000000000000000000000000',
+    upgradeBeaconController: ZERO_ADDRESS,
+    xAppConnectionManager: ZERO_ADDRESS,
+    validatorManager: ZERO_ADDRESS,
+    interchainGasPaymaster: ZERO_ADDRESS,
     outbox: {
-      proxy: '0x0000000000000000000000000000000000000000',
-      implementation: '0x0000000000000000000000000000000000000000',
-      beacon: '0x0000000000000000000000000000000000000000',
+      proxy: ZERO_ADDRESS,
+      implementation: ZERO_ADDRESS,
+      beacon: ZERO_ADDRESS,
     },
     inboxes: {
       test1: {
-        proxy: '0x0000000000000000000000000000000000000000',
-        implementation: '0x0000000000000000000000000000000000000000',
-        beacon: '0x0000000000000000000000000000000000000000',
+        proxy: ZERO_ADDRESS,
+        implementation: ZERO_ADDRESS,
+        beacon: ZERO_ADDRESS,
       },
     },
   },
