@@ -29,13 +29,7 @@ export class AbacusContractVerifier extends ContractVerifier {
       .readdirSync(this.verificationDir, { withFileTypes: true })
       .map((dirEntry: fs.Dirent) => dirEntry.name);
 
-    const chainNames: ChainName[] = [];
-    for (const filename of filenames) {
-      const tokens: string[] = filename.split('.');
-      const chainName: ChainName = tokens[0] as ChainName;
-      chainNames.push(chainName);
-    }
-    return chainNames;
+    return filenames.map((name) => name.split('.')[0] as ChainName);
   }
 
   getVerificationInput(network: ChainName): VerificationInput {

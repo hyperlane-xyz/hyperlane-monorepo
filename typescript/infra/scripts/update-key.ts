@@ -13,7 +13,7 @@ async function rotateKey() {
 
   switch (environment) {
     // TODO: Reimplement this when the environments get readded
-    case 'local': {
+    case 'test': {
       console.log("I don't do anything");
       console.log(argv, agentConfig);
     }

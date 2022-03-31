@@ -95,7 +95,7 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
     }
 
     /**
-     * @notice Dispatches a message to an enrolled router via the local routers
+     * @notice Dispatches a message to an enrolled router via the local router's
      * Outbox
      * @dev Reverts if there is no enrolled router for _destination
      * @param _destination The domain of the chain to which to send the message
@@ -103,9 +103,30 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
      */
     function _dispatchToRemoteRouter(uint32 _destination, bytes memory _msg)
         internal
+        returns (uint256)
     {
         // ensure that destination chain has enrolled router
         bytes32 _router = _mustHaveRemoteRouter(_destination);
-        _outbox().dispatch(_destination, _router, _msg);
+        return _outbox().dispatch(_destination, _router, _msg);
+    }
+
+    /**
+     * @notice Dispatches a message to an enrolled router via the local router's
+     * Outbox and pays for message processing on the destination chain.
+     * @dev Reverts if there is no enrolled router for _destination.
+     * @param _destination The domain of the chain to which to send the message.
+     * @param _msg The message to dispatch.
+     * @param _gasPayment The amount of native tokens to pay the Interchain Gas
+     * Paymaster to process the dispatched message.
+     */
+    function _dispatchToRemoteRouterWithGas(
+        uint32 _destination,
+        bytes memory _msg,
+        uint256 _gasPayment
+    ) internal {
+        uint256 leafIndex = _dispatchToRemoteRouter(_destination, _msg);
+        if (_gasPayment > 0) {
+            _interchainGasPaymaster().payGasFor{value: _gasPayment}(leafIndex);
+        }
     }
 }
