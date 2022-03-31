@@ -3,9 +3,9 @@ import { expect } from 'chai';
 import { GovernanceRouter } from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 import { AbacusGovernance } from '@abacus-network/sdk';
+import { AbacusRouterChecker } from '@abacus-network/deploy';
 
 import { GovernanceConfig } from './types';
-import { AbacusRouterChecker } from '../router';
 
 export class AbacusGovernanceChecker extends AbacusRouterChecker<
   AbacusGovernance,

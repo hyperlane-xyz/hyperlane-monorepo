@@ -1,50 +1,35 @@
 import { expect } from 'chai';
-import { Contract, ethers } from 'ethers';
+import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import { AbacusApp, ProxiedAddress } from '@abacus-network/sdk';
 
-export enum ViolationType {
-  UpgradeBeacon = 'UpgradeBeacon',
-  ValidatorManager = 'ValidatorManager',
-  Validator = 'Validator',
+export enum CommonViolationType {
+  ProxiedContract = 'ProxiedContract',
 }
 
-export interface UpgradeBeaconViolation {
+export interface CheckerViolation {
   domain: number;
-  name: string;
-  type: ViolationType.UpgradeBeacon;
-  proxiedAddress: ProxiedAddress;
-  expected: string;
-  actual: string;
+  type: string;
+  expected: any;
+  actual: any;
+  data?: any;
 }
 
-export interface ValidatorManagerViolation {
-  domain: number;
-  type: ViolationType.ValidatorManager;
-  expected: string;
+export interface ProxiedContractViolation extends CheckerViolation {
+  type: CommonViolationType.ProxiedContract
+  data: {
+    proxiedAddress: ProxiedAddress;
+    name: string;
+  }
   actual: string;
-}
-
-export interface ValidatorViolation {
-  local: number;
-  remote: number;
-  type: ViolationType.Validator;
   expected: string;
-  actual: string;
 }
-
-export type Violation =
-  | UpgradeBeaconViolation
-  | ValidatorViolation
-  | ValidatorManagerViolation;
-
-export type VerificationInput = [string, Contract];
 
 export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   readonly app: A;
   readonly config: C;
   readonly owners: Record<types.Domain, types.Address>;
-  readonly violations: Violation[];
+  readonly violations: CheckerViolation[];
 
   abstract checkDomain(domain: types.Domain): Promise<void>;
   abstract checkOwnership(domain: types.Domain): Promise<void>;
@@ -64,20 +49,19 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
     );
   }
 
-  addViolation(v: Violation) {
-    switch (v.type) {
-      case ViolationType.UpgradeBeacon:
-        const duplicateIndex = this.violations.findIndex(
-          (m: Violation) =>
-            m.type === ViolationType.UpgradeBeacon &&
-            m.domain === v.domain &&
-            m.actual === v.actual &&
-            m.expected === v.expected,
-        );
-        if (duplicateIndex === -1) this.violations.push(v);
+  addViolation(violation: CheckerViolation) {
+    switch (violation.type) {
+      case CommonViolationType.ProxiedContract:
+        const proxiedContractViolations = this.violations.filter((v) => v.type === CommonViolationType.ProxiedContract)
+        const matchingViolations = proxiedContractViolations.filter((v) => {
+          return violation.domain === v.domain &&
+            violation.actual === v.actual &&
+            violation.expected === v.expected;
+        })
+        if (matchingViolations.length === 0) this.violations.push(violation);
         break;
       default:
-        this.violations.push(v);
+        this.violations.push(violation);
         break;
     }
   }
@@ -99,19 +83,20 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
     const expected = proxiedAddress.implementation;
 
     if (actual != expected) {
-      const violation: UpgradeBeaconViolation = {
+      this.violations.push({
         domain,
-        type: ViolationType.UpgradeBeacon,
-        name,
-        proxiedAddress,
+        type: CommonViolationType.ProxiedContract,
         actual,
         expected,
-      };
-      this.addViolation(violation);
+        data: {
+          name,
+          proxiedAddress,
+        },
+      })
     }
   }
 
-  expectViolations(types: ViolationType[], expectedMatches: number[]) {
+  expectViolations(types: string[], expectedMatches: number[]) {
     // Every type should have exactly the number of expected matches.
     const actualMatches = types.map(
       (t) => this.violations.map((v) => v.type === t).filter(Boolean).length,

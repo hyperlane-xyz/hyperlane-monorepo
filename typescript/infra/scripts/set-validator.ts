@@ -5,9 +5,7 @@ import {
   governanceAddresses,
 } from '@abacus-network/sdk';
 import { getCoreConfig, getEnvironment, registerMultiProvider } from './utils';
-import { ViolationType } from '../src/check';
-import { AbacusCoreChecker } from '../src/core';
-import { expectCalls, GovernanceCallBatchBuilder } from '../src/core/govern';
+import { AbacusCoreGovernor, CoreViolationType, expectCalls} from '../src/core';
 
 async function main() {
   const environment = await getEnvironment();
@@ -17,24 +15,14 @@ async function main() {
   registerMultiProvider(governance, environment);
 
   const config = await getCoreConfig(environment);
-  const checker = new AbacusCoreChecker(
-    core,
-    config,
-    governance.routerAddresses,
-  );
-  await checker.check();
-  checker.expectViolations(
-    [ViolationType.Validator],
+  const governor = new AbacusCoreGovernor(core, config, governance);
+  await governor.check();
+  governor.expectViolations(
+    [CoreViolationType.Validator],
     [core.domainNumbers.length],
   );
 
-  const builder = new GovernanceCallBatchBuilder(
-    core,
-    governance,
-    checker.violations,
-  );
-  const batch = await builder.build();
-
+  const batch = await governor.build();
   await batch.build();
   // For each domain, expect one call to set the updater.
   expectCalls(

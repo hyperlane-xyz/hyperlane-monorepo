@@ -1,3 +1,4 @@
 export { AbacusCoreDeployer } from './deploy';
-export { AbacusCoreChecker } from './check';
+export { AbacusCoreChecker, CoreViolationType } from './check';
+export { AbacusCoreGovernor, expectCalls } from './govern';
 export { CoreConfig } from './types';

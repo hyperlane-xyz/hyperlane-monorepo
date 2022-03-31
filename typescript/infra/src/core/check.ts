@@ -1,13 +1,24 @@
 import { expect } from 'chai';
 import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
+import { AbacusAppChecker, CheckerViolation } from '@abacus-network/deploy';
 import { CoreConfig } from './types';
-import {
-  ViolationType,
-  ValidatorViolation,
-  ValidatorManagerViolation,
-  AbacusAppChecker,
-} from '../check';
+
+export enum CoreViolationType {
+  ValidatorManager = 'ValidatorManager',
+  Validator = 'Validator',
+}
+
+export interface ValidatorManagerViolation extends CheckerViolation {
+  type: CoreViolationType.ValidatorManager;
+}
+
+export interface ValidatorViolation extends CheckerViolation {
+  type: CoreViolationType.Validator;
+  data: {
+    remote: number;
+  }
+}
 
 export class AbacusCoreChecker extends AbacusAppChecker<
   AbacusCore,
@@ -47,7 +58,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     if (actualManager !== expectedManager) {
       const violation: ValidatorManagerViolation = {
         domain: domain,
-        type: ViolationType.ValidatorManager,
+        type: CoreViolationType.ValidatorManager,
         actual: actualManager,
         expected: expectedManager,
       };
@@ -66,11 +77,13 @@ export class AbacusCoreChecker extends AbacusAppChecker<
       expect(actual).to.not.be.undefined;
       if (actual !== expected && expected !== undefined) {
         const violation: ValidatorViolation = {
-          local: domain,
-          remote: d,
-          type: ViolationType.Validator,
+          domain,
+          type: CoreViolationType.Validator,
           actual,
           expected,
+          data: {
+            remote: d,
+          },
         };
         this.addViolation(violation);
       }

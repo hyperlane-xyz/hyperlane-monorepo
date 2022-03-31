@@ -5,66 +5,57 @@ import {
   AbacusCore,
   AbacusGovernance,
 } from '@abacus-network/sdk';
-import {
-  ValidatorViolation,
-  UpgradeBeaconViolation,
-  Violation,
-  ViolationType,
-} from '../check';
+import { CheckerViolation, CommonViolationType, ProxiedContractViolation } from '@abacus-network/deploy';
+
+import { AbacusCoreChecker, CoreViolationType, ValidatorViolation } from './check';
+import { CoreConfig } from './types';
 
 interface DomainedCall {
   domain: number;
   call: Call;
 }
 
-export class GovernanceCallBatchBuilder {
-  private _core: AbacusCore;
-  private _governance: AbacusGovernance;
-  private _violations: Violation[];
+export class AbacusCoreGovernor extends AbacusCoreChecker {
+  readonly governance: AbacusGovernance;
 
-  constructor(
-    core: AbacusCore,
-    governance: AbacusGovernance,
-    violations: Violation[],
-  ) {
-    this._core = core;
-    this._governance = governance;
-    this._violations = violations;
+  constructor(app: AbacusCore, config: CoreConfig, governance: AbacusGovernance) {
+    super(app, config, governance.routerAddresses);
+    this.governance = governance;
   }
 
   async build(): Promise<CallBatch> {
-    const governor = await this._governance.governor();
+    const governor = await this.governance.governor();
     const batch = new CallBatch(
       governor.domain,
-      this._governance.mustGetContracts(governor.domain),
+      this.governance.mustGetContracts(governor.domain),
     );
     const txs = await Promise.all(
-      this._violations.map((v) => this.handleViolation(v)),
+      this.violations.map((v) => this.handleViolation(v)),
     );
     txs.map((call) => batch.push(call.domain, call.call));
     return batch;
   }
 
-  handleViolation(v: Violation): Promise<DomainedCall> {
+  handleViolation(v: CheckerViolation): Promise<DomainedCall> {
     switch (v.type) {
-      case ViolationType.UpgradeBeacon:
-        return this.handleUpgradeBeaconViolation(v);
-      case ViolationType.Validator:
-        return this.handleValidatorViolation(v);
+      case CommonViolationType.ProxiedContract:
+        return this.handleProxiedContractViolation(v as ProxiedContractViolation);
+      case CoreViolationType.Validator:
+        return this.handleValidatorViolation(v as ValidatorViolation);
       default:
         throw new Error(`No handler for violation type ${v.type}`);
         break;
     }
   }
 
-  async handleUpgradeBeaconViolation(
-    violation: UpgradeBeaconViolation,
+  async handleProxiedContractViolation(
+    violation: ProxiedContractViolation,
   ): Promise<DomainedCall> {
     const domain = violation.domain;
-    const ubc = this._core.mustGetContracts(domain).upgradeBeaconController;
+    const ubc = this.app.mustGetContracts(domain).upgradeBeaconController;
     if (ubc === undefined) throw new Error('Undefined ubc');
     const tx = await ubc.populateTransaction.upgrade(
-      violation.proxiedAddress.beacon,
+      violation.data.proxiedAddress.beacon,
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
@@ -74,11 +65,11 @@ export class GovernanceCallBatchBuilder {
   async handleValidatorViolation(
     violation: ValidatorViolation,
   ): Promise<DomainedCall> {
-    const domain = violation.local;
-    const manager = this._core.mustGetContracts(domain).validatorManager;
+    const domain = violation.domain;
+    const manager = this.app.mustGetContracts(domain).validatorManager;
     expect(manager).to.not.be.undefined;
     const tx = await manager.populateTransaction.enrollValidator(
-      violation.remote,
+      violation.data.remote,
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
