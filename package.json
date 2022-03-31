@@ -12,6 +12,7 @@
     "solidity/apps",
     "typescript/sdk",
     "typescript/contract-metrics",
-    "typescript/deploy"
+    "typescript/deploy",
+    "typescript/infra"
   ]
 }

@@ -1,8 +1,8 @@
 import { expect } from 'chai';
-
 import { types } from '@abacus-network/utils';
 import { AbacusBridge } from '@abacus-network/sdk';
 import { BridgeRouter } from '@abacus-network/apps';
+
 import { BridgeConfig } from './types';
 import { AbacusRouterChecker } from '../router';
 
