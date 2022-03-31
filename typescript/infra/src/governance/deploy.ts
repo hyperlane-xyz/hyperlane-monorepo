@@ -5,7 +5,7 @@ import {
   GovernanceRouter__factory,
 } from '@abacus-network/apps';
 import { ProxiedAddress } from '@abacus-network/sdk';
-import { AbacusRouterDeployer } from '../router';
+import { AbacusRouterDeployer } from '@abacus-network/deploy';
 import { GovernanceConfig } from './types';
 
 export class AbacusGovernanceDeployer extends AbacusRouterDeployer<

@@ -7,7 +7,7 @@ import {
   ETHHelper__factory,
 } from '@abacus-network/apps';
 import { AbacusBridge, BridgeContractAddresses } from '@abacus-network/sdk';
-import { AbacusRouterDeployer } from '../router';
+import { AbacusRouterDeployer } from '@abacus-network/deploy';
 import { BridgeConfig } from './types';
 
 export class AbacusBridgeDeployer extends AbacusRouterDeployer<

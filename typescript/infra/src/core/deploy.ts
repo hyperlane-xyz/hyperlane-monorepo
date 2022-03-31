@@ -7,6 +7,7 @@ import {
   CoreContractAddresses,
   ProxiedAddress,
 } from '@abacus-network/sdk';
+import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
   UpgradeBeaconController,
   XAppConnectionManager,
@@ -20,7 +21,6 @@ import {
   InterchainGasPaymaster__factory,
 } from '@abacus-network/core';
 import { DeployEnvironment, RustConfig } from '../config';
-import { AbacusAppDeployer, ProxiedContract } from '../deploy';
 import { CoreConfig } from './types';
 
 export class AbacusCoreDeployer extends AbacusAppDeployer<
