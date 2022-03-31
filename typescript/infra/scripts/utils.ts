@@ -6,6 +6,7 @@ import {
   ChainName,
   MultiProvider,
 } from '@abacus-network/sdk';
+import { RouterConfig, RouterAddresses } from '@abacus-network/deploy';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
   ALL_ENVIRONMENTS,
@@ -17,7 +18,6 @@ import {
 import { CoreConfig } from '../src/core';
 import { BridgeConfig } from '../src/bridge';
 import { GovernanceConfig } from '../src/governance';
-import { RouterConfig, RouterAddresses } from '../src/router';
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
