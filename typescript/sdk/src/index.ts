@@ -20,7 +20,6 @@ export {
   addresses as governanceAddresses,
   AbacusGovernance,
   Call,
-  CallBatch,
 } from './governance';
 export { MultiProvider } from './provider';
 export {

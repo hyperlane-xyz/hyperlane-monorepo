@@ -1,7 +1,6 @@
 import { expect } from 'chai';
 import {
   Call,
-  CallBatch,
   AbacusCore,
   AbacusGovernance,
 } from '@abacus-network/sdk';
@@ -23,17 +22,12 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
     this.governance = governance;
   }
 
-  async build(): Promise<CallBatch> {
-    const governor = await this.governance.governor();
-    const batch = new CallBatch(
-      governor.domain,
-      this.governance.mustGetContracts(governor.domain),
-    );
+  async check(): Promise<void> {
+    super.check();
     const txs = await Promise.all(
       this.violations.map((v) => this.handleViolation(v)),
     );
-    txs.map((call) => batch.push(call.domain, call.call));
-    return batch;
+    txs.map((call) => this.governance.push(call.domain, call.call));
   }
 
   handleViolation(v: CheckerViolation): Promise<DomainedCall> {
@@ -75,15 +69,14 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
     if (tx.to === undefined) throw new Error('undefined tx.to');
     return { domain, call: tx as Call };
   }
-}
 
-export function expectCalls(
-  batch: CallBatch,
-  domains: number[],
-  count: number[],
-) {
-  expect(domains).to.have.lengthOf(count.length);
-  domains.forEach((domain: number, i: number) => {
-    expect(batch.calls.get(domain)).to.have.lengthOf(count[i]);
-  });
+  expectCalls(
+    domains: number[],
+    count: number[],
+  ) {
+    expect(domains).to.have.lengthOf(count.length);
+    domains.forEach((domain: number, i: number) => {
+      expect(this.governance.calls.get(domain)).to.have.lengthOf(count[i]);
+    });
+  }
 }
