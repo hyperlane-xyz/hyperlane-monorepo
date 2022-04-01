@@ -13,43 +13,44 @@ import {
 } from '../config/environments/test';
 
 describe('governance', async () => {
-  const governanceDeployer = new AbacusGovernanceDeployer();
+  const deployer = new AbacusGovernanceDeployer();
   const owners: Record<types.Domain, types.Address> = {};
 
   before(async () => {
     const [signer] = await ethers.getSigners();
-    registerMultiProviderTest(governanceDeployer, signer);
+    registerMultiProviderTest(deployer, signer);
 
-    governanceDeployer.domainNumbers.map((domain) => {
-      const name = governanceDeployer.mustResolveDomainName(domain);
+    deployer.domainNumbers.map((domain) => {
+      const name = deployer.mustResolveDomainName(domain);
       const addresses = governanceConfig.addresses[name];
       if (!addresses) throw new Error('could not find addresses');
       const owner = addresses.governor;
       owners[domain] = owner ? owner : ethers.constants.AddressZero;
     });
 
-    // Setting for connection manager can be anything for a test deployment.
+    // Setting for connection manager can be anything for a test deployment
+    // so long as it's ownable.
     if (!governanceConfig.xAppConnectionManager) {
       governanceConfig.xAppConnectionManager = {};
-      governanceDeployer.domainNumbers.map((domain) => {
-        const name = governanceDeployer.mustResolveDomainName(domain);
+      deployer.domainNumbers.map((domain) => {
+        const name = deployer.mustResolveDomainName(domain);
         governanceConfig.xAppConnectionManager![name] = signer.address;
       });
     }
   });
 
   it('deploys', async () => {
-    await governanceDeployer.deploy(governanceConfig);
+    await deployer.deploy(governanceConfig);
   });
 
   it('writes', async () => {
     const base = './test/outputs/governance';
-    governanceDeployer.writeVerification(path.join(base, 'verification'));
-    governanceDeployer.writeContracts(path.join(base, 'contracts.ts'));
+    deployer.writeVerification(path.join(base, 'verification'));
+    deployer.writeContracts(path.join(base, 'contracts.ts'));
   });
 
   it('checks', async () => {
-    const governance = new AbacusGovernance(governanceDeployer.addressesRecord);
+    const governance = new AbacusGovernance(deployer.addressesRecord);
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(governance, signer);
 

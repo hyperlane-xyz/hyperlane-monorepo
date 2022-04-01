@@ -15,6 +15,7 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
     await super.checkDomain(domain);
     await this.checkProxiedContracts(domain);
     await this.checkGovernor(domain);
+    await this.checkOwnership(domain);
     await this.checkRecoveryManager(domain);
   }
 
@@ -38,6 +39,20 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
     } else {
       expect(actual).to.equal(ethers.constants.AddressZero);
     }
+  }
+
+  // TODO: Move to router checker?
+  async checkOwnership(domain: types.Domain): Promise<void> {
+    const contracts = this.app.mustGetContracts(domain);
+    const owners = [
+      // TODO: Local tests failing because the fake connection manager
+      // we set isn't ownable.
+      // contracts.xAppConnectionManager.owner(),
+      contracts.upgradeBeaconController.owner(),
+    ];
+    const actual = await Promise.all(owners);
+    const expected = contracts.router.address;
+    actual.map((_) => expect(_).to.equal(expected));
   }
 
   async checkRecoveryManager(domain: types.Domain): Promise<void> {
