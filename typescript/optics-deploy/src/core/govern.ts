@@ -110,10 +110,12 @@ export class GovernanceCallBatchBuilder {
     const deploy = this.getDeploy(domain);
     const connectionManager = deploy.contracts.xAppConnectionManager;
     expect(connectionManager).to.not.be.undefined;
-    const tx = await connectionManager!.populateTransaction.ownerEnrollReplica(
-      violation.watcher,
-      violation.remoteDomain,
-    );
+    const tx =
+      await connectionManager!.populateTransaction.setWatcherPermission(
+        violation.watcher,
+        violation.remoteDomain,
+        true,
+      );
     if (tx.to === undefined) throw new Error('undefined tx.to');
     return { domain, call: tx as Call };
   }
