@@ -57,4 +57,4 @@ export const utils = {
   canonizeId,
   evmId,
   delay,
-}
+};

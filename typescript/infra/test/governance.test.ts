@@ -26,7 +26,7 @@ describe('governance', async () => {
       if (!addresses) throw new Error('could not find addresses');
       const owner = addresses.governor;
       owners[domain] = owner ? owner : ethers.constants.AddressZero;
-    })
+    });
 
     // Setting for connection manager can be anything for a test deployment.
     if (!governanceConfig.xAppConnectionManager) {
@@ -34,7 +34,7 @@ describe('governance', async () => {
       governanceDeployer.domainNumbers.map((domain) => {
         const name = governanceDeployer.mustResolveDomainName(domain);
         governanceConfig.xAppConnectionManager![name] = signer.address;
-      })
+      });
     }
   });
 

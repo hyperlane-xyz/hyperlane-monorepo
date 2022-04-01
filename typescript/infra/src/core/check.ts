@@ -17,7 +17,7 @@ export interface ValidatorViolation extends CheckerViolation {
   type: CoreViolationType.Validator;
   data: {
     remote: number;
-  }
+  };
 }
 
 export class AbacusCoreChecker extends AbacusAppChecker<

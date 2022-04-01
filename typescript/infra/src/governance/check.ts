@@ -21,7 +21,11 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
   async checkProxiedContracts(domain: types.Domain): Promise<void> {
     const addresses = this.app.mustGetContracts(domain).addresses;
     // Outbox upgrade setup contracts are defined
-    await this.checkProxiedContract(domain, 'GovernanceRouter', addresses.router);
+    await this.checkProxiedContract(
+      domain,
+      'GovernanceRouter',
+      addresses.router,
+    );
   }
 
   async checkGovernor(domain: types.Domain): Promise<void> {

@@ -18,7 +18,9 @@ export class AbacusGovernance extends AbacusApp<
 > {
   readonly calls: Map<number, Readonly<Call>[]>;
 
-  constructor(addresses: Partial<Record<ChainName, GovernanceContractAddresses>>) {
+  constructor(
+    addresses: Partial<Record<ChainName, GovernanceContractAddresses>>,
+  ) {
     super();
     const chains = Object.keys(addresses) as ChainName[];
     chains.map((chain) => {
@@ -95,16 +97,19 @@ export class AbacusGovernance extends AbacusApp<
         } else {
           return router.populateTransaction.callRemote(d, calls[i]);
         }
-      })
+      }),
     );
   }
 
   // Sign each governance transaction and dispatch them to the chain
-  async execute(domain: number): Promise<ethers.providers.TransactionReceipt[]> {
+  async execute(
+    domain: number,
+  ): Promise<ethers.providers.TransactionReceipt[]> {
     const transactions = await this.build(domain);
-    const signer = this.mustGetSigner(domain); 
+    const signer = this.mustGetSigner(domain);
     const governor = await this.mustGetContracts(domain).router.governor();
-    if (await signer.getAddress() !== governor) throw new Error('signer is not governor');
+    if ((await signer.getAddress()) !== governor)
+      throw new Error('signer is not governor');
     const receipts = [];
     for (const tx of transactions) {
       const response = await signer.sendTransaction(tx);
@@ -122,7 +127,9 @@ export class AbacusGovernance extends AbacusApp<
       const txToEstimate = tx;
       // Estimate gas as the governor
       txToEstimate.from = governor;
-      responses.push(await this.mustGetProvider(domain).estimateGas(txToEstimate));
+      responses.push(
+        await this.mustGetProvider(domain).estimateGas(txToEstimate),
+      );
     }
     return responses;
   }

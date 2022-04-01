@@ -38,7 +38,8 @@ export abstract class AbacusRouterChecker<
   async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
     if (this.config.xAppConnectionManager === undefined) return;
     const actual = await this.mustGetRouter(domain).xAppConnectionManager();
-    const expected = this.config.xAppConnectionManager[this.app.mustResolveDomainName(domain)];
+    const expected =
+      this.config.xAppConnectionManager[this.app.mustResolveDomainName(domain)];
     expect(actual).to.equal(expected);
   }
 }

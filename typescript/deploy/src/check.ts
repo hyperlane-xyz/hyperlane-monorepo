@@ -16,11 +16,11 @@ export interface CheckerViolation {
 }
 
 export interface ProxiedContractViolation extends CheckerViolation {
-  type: CommonViolationType.ProxiedContract
+  type: CommonViolationType.ProxiedContract;
   data: {
     proxiedAddress: ProxiedAddress;
     name: string;
-  }
+  };
   actual: string;
   expected: string;
 }
@@ -52,12 +52,16 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   addViolation(violation: CheckerViolation) {
     switch (violation.type) {
       case CommonViolationType.ProxiedContract:
-        const proxiedContractViolations = this.violations.filter((v) => v.type === CommonViolationType.ProxiedContract)
+        const proxiedContractViolations = this.violations.filter(
+          (v) => v.type === CommonViolationType.ProxiedContract,
+        );
         const matchingViolations = proxiedContractViolations.filter((v) => {
-          return violation.domain === v.domain &&
+          return (
+            violation.domain === v.domain &&
             violation.actual === v.actual &&
-            violation.expected === v.expected;
-        })
+            violation.expected === v.expected
+          );
+        });
         if (matchingViolations.length === 0) this.violations.push(violation);
         break;
       default:
@@ -92,7 +96,7 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
           name,
           proxiedAddress,
         },
-      })
+      });
     }
   }
 

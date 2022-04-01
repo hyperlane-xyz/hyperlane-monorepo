@@ -6,8 +6,8 @@ import {
   ChainName,
   MultiProvider,
 } from '@abacus-network/sdk';
-import {types } from '@abacus-network/utils';
-import {RouterConfig } from '@abacus-network/deploy';
+import { types } from '@abacus-network/utils';
+import { RouterConfig } from '@abacus-network/deploy';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
   ALL_ENVIRONMENTS,
@@ -66,7 +66,7 @@ export async function getRouterConfig(
   const xAppConnectionManager: Record<string, types.Address> = {};
   core.domainNames.map((name) => {
     const contracts = core.mustGetContracts(name);
-    xAppConnectionManager[name] = contracts.xAppConnectionManager.address
+    xAppConnectionManager[name] = contracts.xAppConnectionManager.address;
   });
   return { xAppConnectionManager };
 }

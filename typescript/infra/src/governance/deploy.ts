@@ -4,9 +4,7 @@ import {
   GovernanceRouter,
   GovernanceRouter__factory,
 } from '@abacus-network/apps';
-import {
-  UpgradeBeaconController__factory,
-} from '@abacus-network/core';
+import { UpgradeBeaconController__factory } from '@abacus-network/core';
 import { GovernanceContractAddresses } from '@abacus-network/sdk';
 import { AbacusRouterDeployer } from '@abacus-network/deploy';
 import { GovernanceConfig } from './types';
@@ -20,13 +18,14 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
     config: GovernanceConfig,
   ): Promise<GovernanceContractAddresses> {
     const signer = this.mustGetSigner(domain);
-    const xAppConnectionManager = await this.deployConnectionManagerIfNotConfigured(domain, config);
+    const xAppConnectionManager =
+      await this.deployConnectionManagerIfNotConfigured(domain, config);
 
     const upgradeBeaconController = await this.deployContract(
-        domain,
-        'UpgradeBeaconController',
-        new UpgradeBeaconController__factory(signer),
-      );
+      domain,
+      'UpgradeBeaconController',
+      new UpgradeBeaconController__factory(signer),
+    );
 
     const router = await this.deployProxiedContract(
       domain,
@@ -37,7 +36,11 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
       [xAppConnectionManager.address],
     );
 
-    return { router: router.addresses, upgradeBeaconController: upgradeBeaconController.address, xAppConnectionManager: xAppConnectionManager.address };
+    return {
+      router: router.addresses,
+      upgradeBeaconController: upgradeBeaconController.address,
+      xAppConnectionManager: xAppConnectionManager.address,
+    };
   }
 
   async deploy(config: GovernanceConfig) {

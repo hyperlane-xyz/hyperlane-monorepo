@@ -1,13 +1,16 @@
 import { types, utils } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
-import { XAppConnectionManager, XAppConnectionManager__factory } from '@abacus-network/core';
+import {
+  XAppConnectionManager,
+  XAppConnectionManager__factory,
+} from '@abacus-network/core';
 import { AbacusAppDeployer } from '../deploy';
 import { Router, RouterConfig } from './types';
 
-export abstract class AbacusRouterDeployer<T, C extends RouterConfig> extends AbacusAppDeployer<
+export abstract class AbacusRouterDeployer<
   T,
-  C
-> {
+  C extends RouterConfig,
+> extends AbacusAppDeployer<T, C> {
   protected core?: AbacusCore;
 
   constructor(core?: AbacusCore) {
@@ -31,16 +34,16 @@ export abstract class AbacusRouterDeployer<T, C extends RouterConfig> extends Ab
     }
   }
 
-  async deployConnectionManagerIfNotConfigured(domain: number, config: C): Promise<XAppConnectionManager> {
+  async deployConnectionManagerIfNotConfigured(
+    domain: number,
+    config: C,
+  ): Promise<XAppConnectionManager> {
     const name = this.mustResolveDomainName(domain);
     const signer = this.mustGetSigner(domain);
     if (config.xAppConnectionManager) {
       const configured = config.xAppConnectionManager[name];
-      if (!configured) throw new Error('xAppConectionManager not found')
-      return XAppConnectionManager__factory.connect(
-        configured,
-        signer
-      );
+      if (!configured) throw new Error('xAppConectionManager not found');
+      return XAppConnectionManager__factory.connect(configured, signer);
     }
 
     const xAppConnectionManager: XAppConnectionManager =
@@ -50,7 +53,8 @@ export abstract class AbacusRouterDeployer<T, C extends RouterConfig> extends Ab
         new XAppConnectionManager__factory(signer),
       );
     const overrides = this.getOverrides(domain);
-    if (!this.core) throw new Error('must set core or configure xAppConnectionManager')
+    if (!this.core)
+      throw new Error('must set core or configure xAppConnectionManager');
     const core = this.core.mustGetContracts(domain);
     await xAppConnectionManager.setOutbox(core.outbox.address, overrides);
     for (const remote of this.core.remoteDomainNumbers(domain)) {
@@ -60,7 +64,7 @@ export abstract class AbacusRouterDeployer<T, C extends RouterConfig> extends Ab
         overrides,
       );
     }
-    return xAppConnectionManager
+    return xAppConnectionManager;
   }
 
   get routerAddresses(): Record<types.Domain, types.Address> {

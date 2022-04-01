@@ -1,7 +1,4 @@
-import {
-  AbacusCore,
-  coreAddresses,
-} from '@abacus-network/sdk';
+import { AbacusCore, coreAddresses } from '@abacus-network/sdk';
 import {
   getEnvironment,
   getGovernanceConfig,

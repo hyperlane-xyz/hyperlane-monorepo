@@ -1,12 +1,16 @@
 import { expect } from 'chai';
+import { Call, AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
 import {
-  Call,
-  AbacusCore,
-  AbacusGovernance,
-} from '@abacus-network/sdk';
-import { CheckerViolation, CommonViolationType, ProxiedContractViolation } from '@abacus-network/deploy';
+  CheckerViolation,
+  CommonViolationType,
+  ProxiedContractViolation,
+} from '@abacus-network/deploy';
 
-import { AbacusCoreChecker, CoreViolationType, ValidatorViolation } from './check';
+import {
+  AbacusCoreChecker,
+  CoreViolationType,
+  ValidatorViolation,
+} from './check';
 import { CoreConfig } from './types';
 
 interface DomainedCall {
@@ -17,7 +21,11 @@ interface DomainedCall {
 export class AbacusCoreGovernor extends AbacusCoreChecker {
   readonly governance: AbacusGovernance;
 
-  constructor(app: AbacusCore, config: CoreConfig, governance: AbacusGovernance) {
+  constructor(
+    app: AbacusCore,
+    config: CoreConfig,
+    governance: AbacusGovernance,
+  ) {
     super(app, config, governance.routerAddresses);
     this.governance = governance;
   }
@@ -33,7 +41,9 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
   handleViolation(v: CheckerViolation): Promise<DomainedCall> {
     switch (v.type) {
       case CommonViolationType.ProxiedContract:
-        return this.handleProxiedContractViolation(v as ProxiedContractViolation);
+        return this.handleProxiedContractViolation(
+          v as ProxiedContractViolation,
+        );
       case CoreViolationType.Validator:
         return this.handleValidatorViolation(v as ValidatorViolation);
       default:
@@ -70,10 +80,7 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
     return { domain, call: tx as Call };
   }
 
-  expectCalls(
-    domains: number[],
-    count: number[],
-  ) {
+  expectCalls(domains: number[], count: number[]) {
     expect(domains).to.have.lengthOf(count.length);
     domains.forEach((domain: number, i: number) => {
       expect(this.governance.calls.get(domain)).to.have.lengthOf(count[i]);
