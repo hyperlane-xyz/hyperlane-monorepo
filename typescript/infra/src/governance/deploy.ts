@@ -4,33 +4,40 @@ import {
   GovernanceRouter,
   GovernanceRouter__factory,
 } from '@abacus-network/apps';
-import { ProxiedAddress } from '@abacus-network/sdk';
+import {
+  UpgradeBeaconController__factory,
+} from '@abacus-network/core';
+import { GovernanceContractAddresses } from '@abacus-network/sdk';
 import { AbacusRouterDeployer } from '@abacus-network/deploy';
 import { GovernanceConfig } from './types';
 
 export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
-  ProxiedAddress,
+  GovernanceContractAddresses,
   GovernanceConfig
 > {
   async deployContracts(
     domain: types.Domain,
     config: GovernanceConfig,
-  ): Promise<ProxiedAddress> {
+  ): Promise<GovernanceContractAddresses> {
     const signer = this.mustGetSigner(domain);
-    const name = this.mustResolveDomainName(domain);
-    const core = config.core[name];
-    if (!core) throw new Error('could not find core');
+    const xAppConnectionManager = await this.deployConnectionManagerIfNotConfigured(domain, config);
+
+    const upgradeBeaconController = await this.deployContract(
+        domain,
+        'UpgradeBeaconController',
+        new UpgradeBeaconController__factory(signer),
+      );
 
     const router = await this.deployProxiedContract(
       domain,
       'GovernanceRouter',
       new GovernanceRouter__factory(signer),
-      core.upgradeBeaconController,
+      upgradeBeaconController.address,
       [config.recoveryTimelock],
-      [core.xAppConnectionManager],
+      [xAppConnectionManager.address],
     );
 
-    return router.addresses;
+    return { router: router.addresses, upgradeBeaconController: upgradeBeaconController.address, xAppConnectionManager: xAppConnectionManager.address };
   }
 
   async deploy(config: GovernanceConfig) {
@@ -53,7 +60,7 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
 
   mustGetRouter(domain: number): GovernanceRouter {
     return GovernanceRouter__factory.connect(
-      this.mustGetAddresses(domain).proxy,
+      this.mustGetAddresses(domain).router.proxy,
       this.mustGetSigner(domain),
     );
   }

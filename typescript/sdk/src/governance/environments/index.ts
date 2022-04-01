@@ -1,8 +1,8 @@
 import { addresses as test } from './test';
-import { ChainName, ProxiedAddress } from '../../';
+import { ChainName, GovernanceContractAddresses } from '../../';
 export const addresses: Record<
   any,
-  Partial<Record<ChainName, ProxiedAddress>>
+  Partial<Record<ChainName, GovernanceContractAddresses>>
 > = {
   test,
 };

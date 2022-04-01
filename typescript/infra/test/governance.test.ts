@@ -3,43 +3,39 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
 import { AbacusGovernance } from '@abacus-network/sdk';
-import { AbacusCoreDeployer } from '../src/core';
 import {
   AbacusGovernanceDeployer,
   AbacusGovernanceChecker,
-  GovernanceConfig,
 } from '../src/governance';
 import {
-  core as coreConfig,
   registerMultiProviderTest,
-  governance as partialGovernanceConfig,
+  governance as governanceConfig,
 } from '../config/environments/test';
 
 describe('governance', async () => {
-  const coreDeployer = new AbacusCoreDeployer();
   const governanceDeployer = new AbacusGovernanceDeployer();
   const owners: Record<types.Domain, types.Address> = {};
-  let governanceConfig: GovernanceConfig;
 
   before(async () => {
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(governanceDeployer, signer);
-    registerMultiProviderTest(coreDeployer, signer);
-    await coreDeployer.deploy(coreConfig);
 
-    governanceConfig = { ...partialGovernanceConfig, core: {} };
-    coreDeployer.domainNumbers.map((domain) => {
-      const name = coreDeployer.mustResolveDomainName(domain);
-      const addresses = partialGovernanceConfig.addresses[name];
+    governanceDeployer.domainNumbers.map((domain) => {
+      const name = governanceDeployer.mustResolveDomainName(domain);
+      const addresses = governanceConfig.addresses[name];
       if (!addresses) throw new Error('could not find addresses');
       const owner = addresses.governor;
       owners[domain] = owner ? owner : ethers.constants.AddressZero;
-      const coreAddresses = coreDeployer.mustGetAddresses(domain);
-      governanceConfig.core[name] = {
-        upgradeBeaconController: coreAddresses.upgradeBeaconController,
-        xAppConnectionManager: coreAddresses.xAppConnectionManager,
-      };
-    });
+    })
+
+    // Setting for connection manager can be anything for a test deployment.
+    if (!governanceConfig.xAppConnectionManager) {
+      governanceConfig.xAppConnectionManager = {};
+      governanceDeployer.domainNumbers.map((domain) => {
+        const name = governanceDeployer.mustResolveDomainName(domain);
+        governanceConfig.xAppConnectionManager![name] = signer.address;
+      })
+    }
   });
 
   it('deploys', async () => {

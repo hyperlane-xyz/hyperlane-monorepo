@@ -1,7 +1,6 @@
 export { AbacusGovernanceDeployer } from './deploy';
 export { AbacusGovernanceChecker } from './check';
 export {
-  GovernanceAddresses,
+  GovernanceConfigAddresses,
   GovernanceConfig,
-  GovernanceConfigWithoutCore,
 } from './types';

@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import { utils, types } from '@abacus-network/utils';
 import { AbacusApp } from '@abacus-network/sdk';
-import { Router, RouterConfig } from '@abacus-network/deploy';
-
 import { AbacusAppChecker } from '../check';
+
+import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterChecker<
   A extends AbacusApp<any, any>,
@@ -36,10 +36,9 @@ export abstract class AbacusRouterChecker<
   }
 
   async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
+    if (this.config.xAppConnectionManager === undefined) return;
     const actual = await this.mustGetRouter(domain).xAppConnectionManager();
-    const core = this.config.core[this.app.mustResolveDomainName(domain)];
-    if (!core) throw new Error('could not find core');
-    const expected = core.xAppConnectionManager;
+    const expected = this.config.xAppConnectionManager[this.app.mustResolveDomainName(domain)];
     expect(actual).to.equal(expected);
   }
 }

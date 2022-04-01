@@ -2,9 +2,9 @@ import { ethers } from 'ethers';
 
 import { AbacusApp } from '../app';
 import { domains } from '../domains';
-import { ChainName, ProxiedAddress } from '../types';
+import { ChainName } from '../types';
 
-import { GovernanceContracts } from './contracts';
+import { GovernanceContracts, GovernanceContractAddresses } from './contracts';
 import { Call, normalizeCall, associateCalls } from './utils';
 
 export type Governor = {
@@ -13,12 +13,12 @@ export type Governor = {
 };
 
 export class AbacusGovernance extends AbacusApp<
-  ProxiedAddress,
+  GovernanceContractAddresses,
   GovernanceContracts
 > {
   readonly calls: Map<number, Readonly<Call>[]>;
 
-  constructor(addresses: Partial<Record<ChainName, ProxiedAddress>>) {
+  constructor(addresses: Partial<Record<ChainName, GovernanceContractAddresses>>) {
     super();
     const chains = Object.keys(addresses) as ChainName[];
     chains.map((chain) => {

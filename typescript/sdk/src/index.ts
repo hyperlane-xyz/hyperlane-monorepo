@@ -19,6 +19,7 @@ export {
 export {
   addresses as governanceAddresses,
   AbacusGovernance,
+  GovernanceContractAddresses,
   Call,
 } from './governance';
 export { MultiProvider } from './provider';

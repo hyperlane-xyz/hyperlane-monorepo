@@ -3,7 +3,6 @@ export {
   AbacusRouterDeployer,
   AbacusRouterChecker,
   Router,
-  RouterAddresses,
   RouterConfig,
 } from './router';
 export { ContractVerifier, VerificationInput } from './verify';

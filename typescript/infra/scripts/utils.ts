@@ -6,7 +6,8 @@ import {
   ChainName,
   MultiProvider,
 } from '@abacus-network/sdk';
-import { RouterConfig, RouterAddresses } from '@abacus-network/deploy';
+import {types } from '@abacus-network/utils';
+import {RouterConfig } from '@abacus-network/deploy';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
   ALL_ENVIRONMENTS,
@@ -62,15 +63,12 @@ export async function getRouterConfig(
   environment: DeployEnvironment,
   core: AbacusCore,
 ): Promise<RouterConfig> {
-  const addresses: Record<string, RouterAddresses> = {};
+  const xAppConnectionManager: Record<string, types.Address> = {};
   core.domainNames.map((name) => {
     const contracts = core.mustGetContracts(name);
-    addresses[name] = {
-      upgradeBeaconController: contracts.upgradeBeaconController.address,
-      xAppConnectionManager: contracts.xAppConnectionManager.address,
-    };
+    xAppConnectionManager[name] = contracts.xAppConnectionManager.address
   });
-  return { core: addresses };
+  return { xAppConnectionManager };
 }
 
 export async function getGovernanceConfig(
@@ -78,7 +76,7 @@ export async function getGovernanceConfig(
   core: AbacusCore,
 ): Promise<GovernanceConfig> {
   const partial = (await importModule(moduleName(environment))).governance;
-  return { ...partial, core: await getRouterConfig(environment, core) };
+  return { ...partial, ...(await getRouterConfig(environment, core)) };
 }
 
 export async function getInfrastructureConfig(
