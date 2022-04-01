@@ -9,6 +9,7 @@ export enum ViolationType {
   UpdaterManager = 'UpdaterManager',
   HomeUpdater = 'HomeUpdater',
   ReplicaUpdater = 'ReplicaUpdater',
+  Watcher = 'Watcher',
 }
 
 export interface UpgradeBeaconViolation {
@@ -49,12 +50,20 @@ export interface ReplicaUpdaterViolation {
   actual: string;
 }
 
+export interface WatcherViolation {
+  domain: number;
+  remoteDomain: number;
+  type: ViolationType.Watcher;
+  watcher: string;
+}
+
 export type Violation =
   | UpgradeBeaconViolation
   | VerificationInputViolation
   | HomeUpdaterViolation
   | ReplicaUpdaterViolation
-  | UpdaterManagerViolation;
+  | UpdaterManagerViolation
+  | WatcherViolation;
 
 export type VerificationInput = [string, Contract];
 

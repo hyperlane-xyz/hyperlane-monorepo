@@ -7,6 +7,7 @@ import {
   UpgradeBeaconViolation,
   Violation,
   ViolationType,
+  WatcherViolation,
 } from '../checks';
 import {
   Call,
@@ -51,6 +52,8 @@ export class GovernanceCallBatchBuilder {
         return this.handleHomeUpdaterViolation(v);
       case ViolationType.ReplicaUpdater:
         return this.handleReplicaUpdaterViolation(v);
+      case ViolationType.Watcher:
+        return this.handleWatcherViolation(v);
       default:
         throw new Error(`No handler for violation type ${v.type}`);
         break;
@@ -95,6 +98,21 @@ export class GovernanceCallBatchBuilder {
     expect(replica).to.not.be.undefined;
     const tx = await replica!.proxy.populateTransaction.setUpdater(
       violation.expected,
+    );
+    if (tx.to === undefined) throw new Error('undefined tx.to');
+    return { domain, call: tx as Call };
+  }
+
+  async handleWatcherViolation(
+    violation: WatcherViolation,
+  ): Promise<DomainedCall> {
+    const domain = violation.domain;
+    const deploy = this.getDeploy(domain);
+    const connectionManager = deploy.contracts.xAppConnectionManager;
+    expect(connectionManager).to.not.be.undefined;
+    const tx = await connectionManager!.populateTransaction.ownerEnrollReplica(
+      violation.watcher,
+      violation.remoteDomain,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
     return { domain, call: tx as Call };

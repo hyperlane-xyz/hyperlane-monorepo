@@ -9,6 +9,7 @@ import {
   ReplicaUpdaterViolation,
   UpdaterManagerViolation,
   InvariantChecker,
+  WatcherViolation,
 } from '../checks';
 
 const emptyAddr = '0x' + '00'.repeat(20);
@@ -159,7 +160,17 @@ export class CoreInvariantChecker extends InvariantChecker<CoreDeploy> {
               watcher,
               domain,
             );
-          expect(watcherPermissions).to.be.true;
+          if (!watcherPermissions) {
+            const violation: WatcherViolation = {
+              // the domain on which the XCM is deployed
+              domain: deploy.chain.domain,
+              // the remote domain of the replica, i.e. the home domain
+              remoteDomain: parseInt(domain),
+              type: ViolationType.Watcher,
+              watcher,
+            };
+            this.addViolation(violation);
+          }
         }),
       );
     }
