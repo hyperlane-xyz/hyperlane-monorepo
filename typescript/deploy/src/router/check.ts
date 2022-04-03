@@ -11,9 +11,21 @@ export abstract class AbacusRouterChecker<
 > extends AbacusAppChecker<A, C> {
   abstract mustGetRouter(domain: types.Domain): Router;
 
-  async checkDomain(domain: types.Domain): Promise<void> {
+  async check(
+    owners: Partial<Record<types.Domain, types.Address>>,
+  ): Promise<void> {
+    await Promise.all(
+      this.app.domainNumbers.map((domain: types.Domain) => {
+        const owner = owners[domain];
+        if (!owner) throw new Error('owner not found');
+        return this.checkDomain(domain, owner);
+      }),
+    );
+  }
+
+  async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
     await this.checkEnrolledRouters(domain);
-    await this.checkOwnership(domain);
+    await this.checkOwnership(domain, owner);
     await this.checkXAppConnectionManager(domain);
   }
 
@@ -29,10 +41,22 @@ export abstract class AbacusRouterChecker<
     );
   }
 
-  async checkOwnership(domain: types.Domain): Promise<void> {
+  async checkOwnership(
+    domain: types.Domain,
+    owner: types.Address,
+  ): Promise<void> {
     const actual = await this.mustGetRouter(domain).owner();
-    const expected = this.owners[domain];
-    expect(actual).to.equal(expected);
+    expect(actual).to.equal(owner);
+    const contracts = this.app.mustGetContracts(domain);
+    const owners = [
+      // TODO: Local tests failing because the fake connection manager
+      // we set isn't ownable.
+      // contracts.xAppConnectionManager.owner(),
+      contracts.upgradeBeaconController.owner(),
+    ];
+    const actual = await Promise.all(owners);
+    const expected = contracts.router.address;
+    actual.map((_) => expect(_).to.equal(expected));
   }
 
   async checkXAppConnectionManager(domain: types.Domain): Promise<void> {

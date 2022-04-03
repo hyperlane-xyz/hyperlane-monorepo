@@ -24,8 +24,20 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   AbacusCore,
   CoreConfig
 > {
-  async checkDomain(domain: types.Domain): Promise<void> {
-    await this.checkOwnership(domain);
+  async check(
+    owners: Partial<Record<types.Domain, types.Address>>,
+  ): Promise<void> {
+    await Promise.all(
+      this.app.domainNumbers.map((domain: types.Domain) => {
+        const owner = owners[domain];
+        if (!owner) throw new Error('owner not found');
+        return this.checkDomain(domain, owner);
+      }),
+    );
+  }
+
+  async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
+    await this.checkOwnership(domain, owner);
     await this.checkProxiedContracts(domain);
     await this.checkOutbox(domain);
     await this.checkInboxes(domain);
@@ -33,7 +45,10 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     await this.checkValidatorManager(domain);
   }
 
-  async checkOwnership(domain: types.Domain): Promise<void> {
+  async checkOwnership(
+    domain: types.Domain,
+    owner: types.Address,
+  ): Promise<void> {
     const contracts = this.app.mustGetContracts(domain);
     const owners = [
       contracts.validatorManager.owner(),
@@ -45,8 +60,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
       owners.push(this.app.mustGetInbox(remote, domain).owner());
     });
     const actual = await Promise.all(owners);
-    const expected = this.owners[domain];
-    actual.map((_) => expect(_).to.equal(expected));
+    actual.map((_) => expect(_).to.equal(owner));
   }
 
   async checkOutbox(domain: types.Domain): Promise<void> {

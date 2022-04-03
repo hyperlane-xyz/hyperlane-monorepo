@@ -36,18 +36,13 @@ async function check() {
   const governanceChecker = new AbacusGovernanceChecker(
     governance,
     governanceConfig,
-    governors,
   );
-  await governanceChecker.check();
+  await governanceChecker.check(governors);
   governanceChecker.expectEmpty();
 
   const coreConfig = await getCoreConfig(environment);
-  const coreChecker = new AbacusCoreChecker(
-    core,
-    coreConfig,
-    governance.routerAddresses,
-  );
-  await coreChecker.check();
+  const coreChecker = new AbacusCoreChecker(core, coreConfig);
+  await coreChecker.check(governance.routerAddresses);
   coreChecker.expectEmpty();
 }
 

@@ -28,25 +28,12 @@ export interface ProxiedContractViolation extends CheckerViolation {
 export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   readonly app: A;
   readonly config: C;
-  readonly owners: Record<types.Domain, types.Address>;
   readonly violations: CheckerViolation[];
 
-  abstract checkDomain(domain: types.Domain): Promise<void>;
-  abstract checkOwnership(domain: types.Domain): Promise<void>;
-
-  constructor(app: A, config: C, owners: Record<types.Domain, types.Address>) {
+  constructor(app: A, config: C) {
     this.app = app;
     this.config = config;
-    this.owners = owners;
     this.violations = [];
-  }
-
-  async check(): Promise<void> {
-    await Promise.all(
-      this.app.domainNumbers.map((domain: types.Domain) =>
-        this.checkDomain(domain),
-      ),
-    );
   }
 
   addViolation(violation: CheckerViolation) {

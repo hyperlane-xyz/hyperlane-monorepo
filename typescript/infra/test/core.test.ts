@@ -41,7 +41,7 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const checker = new AbacusCoreChecker(core, coreConfig, owners);
-    await checker.check();
+    const checker = new AbacusCoreChecker(core, coreConfig);
+    await checker.check(owners);
   });
 });

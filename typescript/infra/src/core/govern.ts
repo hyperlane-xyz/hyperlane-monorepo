@@ -26,12 +26,12 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
     config: CoreConfig,
     governance: AbacusGovernance,
   ) {
-    super(app, config, governance.routerAddresses);
+    super(app, config);
     this.governance = governance;
   }
 
   async check(): Promise<void> {
-    super.check();
+    super.check(this.governance.routerAddresses);
     const txs = await Promise.all(
       this.violations.map((v) => this.handleViolation(v)),
     );

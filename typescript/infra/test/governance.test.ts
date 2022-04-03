@@ -54,11 +54,7 @@ describe('governance', async () => {
     const [signer] = await ethers.getSigners();
     registerMultiProviderTest(governance, signer);
 
-    const checker = new AbacusGovernanceChecker(
-      governance,
-      governanceConfig,
-      owners,
-    );
-    await checker.check();
+    const checker = new AbacusGovernanceChecker(governance, governanceConfig);
+    await checker.check(owners);
   });
 });
