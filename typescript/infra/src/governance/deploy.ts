@@ -38,8 +38,10 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
       [xAppConnectionManager.address],
     );
 
-    // TODO: Only transfer ownership if we deployed our own XCM.
-    await xAppConnectionManager.transferOwnership(router.address, overrides);
+    // Only transfer ownership if a new XCM was deployed.
+    if (xAppConnectionManager.deployTransaction) {
+      await xAppConnectionManager.transferOwnership(router.address, overrides);
+    }
     await upgradeBeaconController.transferOwnership(router.address, overrides);
 
     return {
@@ -59,7 +61,6 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
       const addresses = config.addresses[name];
       if (!addresses) throw new Error('could not find addresses');
       await router.transferOwnership(addresses.recoveryManager);
-
       if (addresses.governor !== undefined) {
         await router.setGovernor(addresses.governor);
       } else {

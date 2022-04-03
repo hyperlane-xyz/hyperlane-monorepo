@@ -45,14 +45,13 @@ export abstract class AbacusRouterChecker<
     domain: types.Domain,
     owner: types.Address,
   ): Promise<void> {
-    const actual = await this.mustGetRouter(domain).owner();
-    expect(actual).to.equal(owner);
     const contracts = this.app.mustGetContracts(domain);
     const owners = [
       // TODO: Local tests failing because the fake connection manager
       // we set isn't ownable.
       // contracts.xAppConnectionManager.owner(),
       contracts.upgradeBeaconController.owner(),
+      this.mustGetRouter(domain).owner(),
     ];
     const actual = await Promise.all(owners);
     const expected = contracts.router.address;
