@@ -27,15 +27,55 @@ contract ETHHelper {
 
     /**
      * @notice Sends ETH over the Abacus Bridge. Sends to a full-width Abacus
-     * identifer on the other side.
+     * identifer on the other side. Does not pay for message processing.
      * @dev As with all bridges, improper use may result in loss of funds.
      * @param _domain The domain to send funds to.
      * @param _to The 32-byte identifier of the recipient
+     */
+    function sendTo(uint32 _domain, bytes32 _to) public payable {
+        weth.deposit{value: msg.value}();
+        bridge.send(address(weth), msg.value, _domain, _to);
+    }
+
+    /**
+     * @notice Sends ETH over the Abacus Bridge. Sends to the same address on
+     * the other side. Does not pay for message processing.
+     * @dev WARNING: This function should only be used when sending TO an
+     * EVM-like domain. As with all bridges, improper use may result in loss of
+     * funds.
+     * @param _domain The domain to send funds to
+     */
+    function send(uint32 _domain) external payable {
+        sendTo(_domain, TypeCasts.addressToBytes32(msg.sender));
+    }
+
+    /**
+     * @notice Sends ETH over the Abacus Bridge. Sends to a specified EVM
+     * address on the other side. Does not pay for message processing.
+     * @dev This function should only be used when sending TO an EVM-like
+     * domain. As with all bridges, improper use may result in loss of funds
+     * @param _domain The domain to send funds to.
+     * @param _to The EVM address of the recipient.
+     */
+    function sendToEVMLike(uint32 _domain, address _to) external payable {
+        sendTo(_domain, TypeCasts.addressToBytes32(_to));
+    }
+
+    // ============
+    // Interchain gas aware functions, implemented separately for backward compatibility.
+    // ============
+
+    /**
+     * @notice Sends ETH over the Abacus Bridge. Sends to a full-width Abacus
+     * identifer on the other side.
+     * @dev As with all bridges, improper use may result in loss of funds.
+     * @param _domain The domain to send funds to.
+     * @param _to The 32-byte identifier of the recipient.
      * @param _gasPayment The amount of value paid to this function to spend toward
      * message processing on the destination chain. All other value is sent over
      * the Abacus Bridge.
      */
-    function sendTo(
+    function sendToWithGas(
         uint32 _domain,
         bytes32 _to,
         uint256 _gasPayment
@@ -62,8 +102,12 @@ contract ETHHelper {
      * message processing on the destination chain. All other value is sent over
      * the Abacus Bridge.
      */
-    function send(uint32 _domain, uint256 _gasPayment) external payable {
-        sendTo(_domain, TypeCasts.addressToBytes32(msg.sender), _gasPayment);
+    function sendWithGas(uint32 _domain, uint256 _gasPayment) external payable {
+        sendToWithGas(
+            _domain,
+            TypeCasts.addressToBytes32(msg.sender),
+            _gasPayment
+        );
     }
 
     /**
@@ -77,11 +121,11 @@ contract ETHHelper {
      * message processing on the destination chain. All other value is sent over
      * the Abacus Bridge.
      */
-    function sendToEVMLike(
+    function sendToEVMLikeWithGas(
         uint32 _domain,
         address _to,
         uint256 _gasPayment
     ) external payable {
-        sendTo(_domain, TypeCasts.addressToBytes32(_to), _gasPayment);
+        sendToWithGas(_domain, TypeCasts.addressToBytes32(_to), _gasPayment);
     }
 }
