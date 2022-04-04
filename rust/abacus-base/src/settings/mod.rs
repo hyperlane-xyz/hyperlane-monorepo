@@ -438,9 +438,9 @@ impl Settings {
         let env = env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
         s.merge(File::with_name(&format!("config/{}", env)).required(false))?;
 
-        // Add in settings from the environment (with a prefix of OPTICS)
-        // Eg.. `OPTICS_DEBUG=1 would set the `debug` key
-        s.merge(Environment::with_prefix("OPTICS"))?;
+        // Add in settings from the environment (with a prefix of ABACUS)
+        // Eg.. `ABACUS_DEBUG=1 would set the `debug` key
+        s.merge(Environment::with_prefix("ABACUS"))?;
 
         s.try_into()
     }

@@ -2,7 +2,7 @@ use ethers::{types::H256, utils::keccak256};
 
 use crate::{utils, AbacusError, Decode, Encode};
 
-const OPTICS_MESSAGE_PREFIX_LEN: usize = 76;
+const ABACUS_MESSAGE_PREFIX_LEN: usize = 76;
 
 /// A full Abacus message between chains
 #[derive(Debug, Default, Clone)]
@@ -43,7 +43,7 @@ impl Encode for AbacusMessage {
         writer.write_all(&self.destination.to_be_bytes())?;
         writer.write_all(self.recipient.as_ref())?;
         writer.write_all(&self.body)?;
-        Ok(OPTICS_MESSAGE_PREFIX_LEN + self.body.len())
+        Ok(ABACUS_MESSAGE_PREFIX_LEN + self.body.len())
     }
 }
 
