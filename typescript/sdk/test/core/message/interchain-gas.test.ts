@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { BigNumber, ethers, FixedNumber } from 'ethers';
 
 import { AbacusCore, InterchainGasPayingMessage } from '../../../src/core';
+import { InterchainGasCalculator } from '../../../src/core/interchain-gas-calculator';
 import { MockProvider, MockTokenPriceGetter, testAddresses } from '../../utils';
 
 describe('InterchainGasPayingMessage', () => {
@@ -20,6 +21,7 @@ describe('InterchainGasPayingMessage', () => {
 
   let core: AbacusCore;
   let provider: MockProvider;
+  let interchainGasCalculator: InterchainGasCalculator;
   let tokenPriceGetter: MockTokenPriceGetter;
   let testMessage: InterchainGasPayingMessage;
 
@@ -37,8 +39,11 @@ describe('InterchainGasPayingMessage', () => {
   });
 
   beforeEach(() => {
-    testMessage = new InterchainGasPayingMessage(core, testSerializedMessage, {
+    interchainGasCalculator = new InterchainGasCalculator(core, {
       tokenPriceGetter,
+    });
+    testMessage = new InterchainGasPayingMessage(core, testSerializedMessage, {
+      interchainGasCalculator,
     });
   });
 
@@ -46,74 +51,20 @@ describe('InterchainGasPayingMessage', () => {
     provider.clearMethodResolveValues();
   });
 
-  describe('estimateInterchainGasPayment', () => {
-    it('estimates source token payment', async () => {
+  describe('estimateGasPayment', () => {
+    it('estimates source token payment using estimated destination gas', async () => {
       // Set the estimated destination gas
       const estimatedDestinationGas = 100_000;
       testMessage.estimateDestinationGas = () => Promise.resolve(ethers.BigNumber.from(estimatedDestinationGas));
-
       // Set destination gas price to 10 wei
-      provider.setMethodResolveValue('getGasPrice', BigNumber.from(10));
+      interchainGasCalculator.suggestedDestinationGasPrice = (_) => Promise.resolve(BigNumber.from(10));
+      // Set paymentEstimateMultiplier to 1 just to test easily
+      interchainGasCalculator.paymentEstimateMultiplier = FixedNumber.from(1);
 
-      // Set paymentEstimateMultiplier and destinationGasPriceMultiplier to 1 just to test easily
-      testMessage.paymentEstimateMultiplier = FixedNumber.from(1);
-      testMessage.destinationGasPriceMultiplier = FixedNumber.from(1);
-
-      const estimatedPayment = await testMessage.estimateInterchainGasPayment();
+      const estimatedPayment = await testMessage.estimateGasPayment();
 
       // 100_000 dest gas * 10 gas price * ($5 per source token / $10 per source token)
       expect(estimatedPayment.toNumber()).to.equal(500_000);
-    });
-  });
-
-  describe('convertDestinationWeiToSourceWei', () => {
-    it('converts using the USD value of source and destination native tokens', async () => {
-      const destinationWei = BigNumber.from('1000');
-      const sourceWei = await testMessage.convertDestinationWeiToSourceWei(destinationWei);
-      
-      expect(sourceWei.toNumber()).to.equal(500);
-    });
-
-    it('considers when the source token decimals > the destination token decimals', async () => {
-      // Hack to mock a getter without something more heavyweight like Jest
-      Object.defineProperty(testMessage, 'sourceTokenDecimals', {
-        get() {
-          return 20;
-        }
-      });
-
-      const destinationWei = BigNumber.from('1000');
-      const sourceWei = await testMessage.convertDestinationWeiToSourceWei(destinationWei);
-
-      expect(sourceWei.toNumber()).to.equal(50000);
-    });
-
-    it('considers when the source token decimals < the destination token decimals', async () => {
-      // Hack to mock a getter without something more heavyweight like Jest
-      Object.defineProperty(testMessage, 'sourceTokenDecimals', {
-        get() {
-          return 16;
-        }
-      });
-
-      const destinationWei = BigNumber.from('1000');
-      const sourceWei = await testMessage.convertDestinationWeiToSourceWei(destinationWei);
-
-      expect(sourceWei.toNumber()).to.equal(5);
-    })
-  });
-
-  describe('suggestedDestinationGasPrice', () => {
-    it('gets the gas price from the provider', async () => {
-      const gasPrice = 1000;
-      provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
-
-      // Set destinationGasPriceMultiplier to 1 just to test easily
-      testMessage.destinationGasPriceMultiplier = FixedNumber.from(1);
-
-      expect(
-        (await testMessage.suggestedDestinationGasPrice()).toNumber()
-      ).to.equal(gasPrice);
     });
   });
 });
