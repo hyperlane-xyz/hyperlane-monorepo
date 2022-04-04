@@ -1,25 +1,25 @@
 apiVersion: v1
 kind: ConfigMap
 metadata:
-  name: {{ include "optics-agent.fullname" . }}
+  name: {{ include "abacus-agent.fullname" . }}
   labels:
-    {{- include "optics-agent.labels" . | nindent 4 }}
+    {{- include "abacus-agent.labels" . | nindent 4 }}
 data:
-  RUN_ENV: {{ .Values.optics.runEnv | quote }}
-  BASE_CONFIG: {{ .Values.optics.baseConfig }}
-  RUST_BACKTRACE: {{ .Values.optics.rustBacktrace }}
-  OPT_BASE_DB: {{ .Values.optics.dbPath }}
-  OPT_BASE_TRACING_FMT: {{ .Values.optics.tracing.format }}
-  OPT_BASE_TRACING_LEVEL: {{ .Values.optics.tracing.level }}
-  {{- if .Values.optics.homeChain.connectionType }}
-  OPT_BASE_HOME_CONNECTION_TYPE: {{ .Values.optics.homeChain.connectionType }}
+  RUN_ENV: {{ .Values.abacus.runEnv | quote }}
+  BASE_CONFIG: {{ .Values.abacus.baseConfig }}
+  RUST_BACKTRACE: {{ .Values.abacus.rustBacktrace }}
+  OPT_BASE_DB: {{ .Values.abacus.dbPath }}
+  OPT_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
+  OPT_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
+  {{- if .Values.abacus.homeChain.connectionType }}
+  OPT_BASE_HOME_CONNECTION_TYPE: {{ .Values.abacus.homeChain.connectionType }}
   {{- end }}
-  {{- range .Values.optics.replicaChains }}
+  {{- range .Values.abacus.replicaChains }}
   {{- if .address }}
   OPT_BASE_REPLICAS_{{ .name | upper }}_ADDRESS: {{ .address }}
   {{- end }}
   {{- end }}
-  {{- if .Values.optics.tracing.uri }}
-  OPT_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.optics.tracing.uri }}
+  {{- if .Values.abacus.tracing.uri }}
+  OPT_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}
   {{- end }}
-  OPT_BASE_METRICS: {{ .Values.optics.metrics.port | quote }}
+  OPT_BASE_METRICS: {{ .Values.abacus.metrics.port | quote }}

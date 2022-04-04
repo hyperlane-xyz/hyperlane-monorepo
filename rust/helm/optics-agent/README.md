@@ -13,25 +13,25 @@ Additional documentation is present in comments in `yalues.yaml`.
 | affinity | object | `{}` |  |
 | fullnameOverride | string | `""` |  |
 | image.pullPolicy | string | `"Always"` |  |
-| image.repository | string | `"gcr.io/clabs-optics/optics-agent"` | Main repository for Abacus Agent binaries, provided by cLabs |
+| image.repository | string | `"gcr.io/clabs-abacus/abacus-agent"` | Main repository for Abacus Agent binaries, provided by cLabs |
 | image.tag | string | `"latest"` | Overrides the image tag whose default is the chart appVersion. |
 | imagePullSecrets | list | `[]` |  |
 | nameOverride | string | `""` |  |
 | nodeSelector | object | `{}` |  |
-| optics | object | `{"baseConfig":"base.json","homeChain":{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"goerli","rpcStyle":null},"kathy":{"chatGenConfig":{"destination":null,"message":null,"recipient":null,"type":null},"enabled":false,"messageInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"processor":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"relayer":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"replicaChains":[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}],"runEnv":"default","updater":{"attestationSigner":"","enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}],"updatePause":null}}` | Abacus Overrides By Default, Abacus Agents load the config baked into the Docker Image Pass values here in order to override the values in the config Note: For successful operation, one _must_ pass signer keys as       they are not baked into the image for security reasons.  |
-| optics.homeChain.address | string | `nil` | The contract address for the home contract |
-| optics.homeChain.connectionUrl | string | `nil` | Connection string pointing to an RPC endpoint for the home chain  |
-| optics.homeChain.domain | string | `nil` | The hard-coded domain corresponding to this blockchain |
-| optics.homeChain.rpcStyle | string | `nil` | RPC Style |
-| optics.kathy.chatGenConfig | object | `{"destination":null,"message":null,"recipient":null,"type":null}` | Configuration for Kathy's message generation code |
-| optics.relayer.enabled | bool | `false` | Enables or disables the relayer |
-| optics.replicaChains | list | `[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}]` | Replica chain overrides, a sequence |
-| optics.replicaChains[0].address | string | `nil` | The contract address for the replica contract |
-| optics.replicaChains[0].connectionUrl | string | `nil` | Connection string pointing to an RPC endpoint for the replica chain |
-| optics.updater.attestationSigner | string | `""` | Specialized key used by updater and watcher used to sign attestations, separate from updater.keys |
-| optics.updater.enabled | bool | `false` | Enables or disables the updater |
-| optics.updater.pollingInterval | string | `nil` | How long to wait between checking for updates |
-| optics.updater.transactionSigners | list | `[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]` | Trnsaction Signing keys for home and replica(s) |
+| abacus | object | `{"baseConfig":"base.json","homeChain":{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"goerli","rpcStyle":null},"kathy":{"chatGenConfig":{"destination":null,"message":null,"recipient":null,"type":null},"enabled":false,"messageInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"processor":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"relayer":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"replicaChains":[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}],"runEnv":"default","updater":{"attestationSigner":"","enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}],"updatePause":null}}` | Abacus Overrides By Default, Abacus Agents load the config baked into the Docker Image Pass values here in order to override the values in the config Note: For successful operation, one _must_ pass signer keys as       they are not baked into the image for security reasons.  |
+| abacus.homeChain.address | string | `nil` | The contract address for the home contract |
+| abacus.homeChain.connectionUrl | string | `nil` | Connection string pointing to an RPC endpoint for the home chain  |
+| abacus.homeChain.domain | string | `nil` | The hard-coded domain corresponding to this blockchain |
+| abacus.homeChain.rpcStyle | string | `nil` | RPC Style |
+| abacus.kathy.chatGenConfig | object | `{"destination":null,"message":null,"recipient":null,"type":null}` | Configuration for Kathy's message generation code |
+| abacus.relayer.enabled | bool | `false` | Enables or disables the relayer |
+| abacus.replicaChains | list | `[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}]` | Replica chain overrides, a sequence |
+| abacus.replicaChains[0].address | string | `nil` | The contract address for the replica contract |
+| abacus.replicaChains[0].connectionUrl | string | `nil` | Connection string pointing to an RPC endpoint for the replica chain |
+| abacus.updater.attestationSigner | string | `""` | Specialized key used by updater and watcher used to sign attestations, separate from updater.keys |
+| abacus.updater.enabled | bool | `false` | Enables or disables the updater |
+| abacus.updater.pollingInterval | string | `nil` | How long to wait between checking for updates |
+| abacus.updater.transactionSigners | list | `[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]` | Trnsaction Signing keys for home and replica(s) |
 | podAnnotations | object | `{}` |  |
 | podSecurityContext | object | `{}` |  |
 | replicaCount | int | `1` |  |

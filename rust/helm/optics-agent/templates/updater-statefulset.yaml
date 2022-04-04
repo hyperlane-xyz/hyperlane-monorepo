@@ -1,18 +1,18 @@
-{{- if .Values.optics.updater.enabled }}
+{{- if .Values.abacus.updater.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "optics-agent.fullname" . }}-updater
+  name: {{ include "abacus-agent.fullname" . }}-updater
   labels:
-    {{- include "optics-agent.labels" . | nindent 4 }}
+    {{- include "abacus-agent.labels" . | nindent 4 }}
     app.kubernetes.io/component: updater
 spec:
   selector:
     matchLabels:
-      {{- include "optics-agent.selectorLabels" . | nindent 6 }}
+      {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: updater
   replicas: 1 
-  serviceName: {{ include "optics-agent.fullname" . }}-updater
+  serviceName: {{ include "abacus-agent.fullname" . }}-updater
   template:
     metadata:
       annotations:
@@ -20,16 +20,16 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.optics.updater.podAnnotations }}
+        {{- with .Values.abacus.updater.podAnnotations }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "optics-agent.labels" . | nindent 8 }}
+        {{- include "abacus-agent.labels" . | nindent 8 }}
         app.kubernetes.io/component: updater
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.optics.updater.podLabels }}
+        {{- with .Values.abacus.updater.podLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
@@ -49,21 +49,21 @@ spec:
         command: ["./updater"]
         envFrom:
         - configMapRef:
-            name: {{ include "optics-agent.fullname" . }}
+            name: {{ include "abacus-agent.fullname" . }}
         - secretRef:
-            name: {{ include "optics-agent.fullname" . }}-secret
+            name: {{ include "abacus-agent.fullname" . }}-secret
         - secretRef:
-            name: {{ include "optics-agent.fullname" . }}-updater-secret
+            name: {{ include "abacus-agent.fullname" . }}-updater-secret
         env:
-          {{- if .Values.optics.updater.pollingInterval }}
+          {{- if .Values.abacus.updater.pollingInterval }}
           - name: OPT_UPDATER_INTERVAL
-            value: {{ .Values.optics.updater.pollingInterval | quote }}
+            value: {{ .Values.abacus.updater.pollingInterval | quote }}
           {{- end }}
-          {{- if .Values.optics.updater.updatePause }}
+          {{- if .Values.abacus.updater.updatePause }}
           - name: OPT_UPDATER_PAUSE
-            value: {{ .Values.optics.updater.updatePause | quote }}
+            value: {{ .Values.abacus.updater.updatePause | quote }}
           {{- end }}
-          {{- range .Values.optics.updater.transactionSigners }}
+          {{- range .Values.abacus.updater.transactionSigners }}
           {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
@@ -73,26 +73,26 @@ spec:
             value: {{ .aws.region }}
           {{- end }}
           {{- end }}
-          {{- if (hasKey .Values.optics.updater.attestationSigner "aws") }}
+          {{- if (hasKey .Values.abacus.updater.attestationSigner "aws") }}
           - name: OPT_BASE_UPDATER_TYPE
             value: "aws"
           - name: OPT_BASE_UPDATER_ID
-            value: {{ .Values.optics.updater.attestationSigner.aws.keyId  }}
+            value: {{ .Values.abacus.updater.attestationSigner.aws.keyId  }}
           - name: OPT_BASE_UPDATER_REGION
-            value: {{ .Values.optics.updater.attestationSigner.aws.region }}
+            value: {{ .Values.abacus.updater.attestationSigner.aws.region }}
           {{- end }}
-          {{- if .Values.optics.tracing.uri }}
+          {{- if .Values.abacus.tracing.uri }}
           - name: OPT_BASE_TRACING_JAEGER_NAME
-            value: {{ include "optics-agent.fullname" . }}-updater
+            value: {{ include "abacus-agent.fullname" . }}-updater
           {{- end }}
         resources:
-          {{- toYaml .Values.optics.updater.resources | nindent 10 }}
+          {{- toYaml .Values.abacus.updater.resources | nindent 10 }}
         volumeMounts:
         - name: state
-          mountPath: {{ .Values.optics.dbPath }}
+          mountPath: {{ .Values.abacus.dbPath }}
         ports: 
         - name: metrics
-          containerPort: {{ .Values.optics.metrics.port }}
+          containerPort: {{ .Values.abacus.metrics.port }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -111,13 +111,13 @@ spec:
     spec:
       storageClassName: {{ .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.optics.updater.storage.snapshot.enabled }}
+      {{- if .Values.abacus.updater.storage.snapshot.enabled }}
       dataSource:
-        name: {{ .Values.optics.updater.storage.snapshot.name }}
+        name: {{ .Values.abacus.updater.storage.snapshot.name }}
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.optics.updater.storage.size }}
+          storage: {{ .Values.abacus.updater.storage.size }}
 {{- end }}

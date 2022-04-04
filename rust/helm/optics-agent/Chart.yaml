@@ -1,5 +1,5 @@
 apiVersion: v2
-name: optics-agent
+name: abacus-agent
 description: A Helm Chart that encapsulates the deployment of the Abacus Rust Agent(s)
 type: application
 version: 0.1.0

@@ -1,18 +1,18 @@
-{{- if .Values.optics.kathy.enabled }}
+{{- if .Values.abacus.kathy.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "optics-agent.fullname" . }}-kathy
+  name: {{ include "abacus-agent.fullname" . }}-kathy
   labels:
-    {{- include "optics-agent.labels" . | nindent 4 }}
+    {{- include "abacus-agent.labels" . | nindent 4 }}
     app.kubernetes.io/component: kathy
 spec:
   selector:
     matchLabels:
-      {{- include "optics-agent.selectorLabels" . | nindent 6 }}
+      {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: kathy
   replicas: 1 
-  serviceName: {{ include "optics-agent.fullname" . }}-kathy
+  serviceName: {{ include "abacus-agent.fullname" . }}-kathy
   template:
     metadata:
       annotations:
@@ -20,16 +20,16 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.optics.kathy.podAnnotations }}
+        {{- with .Values.abacus.kathy.podAnnotations }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "optics-agent.labels" . | nindent 8 }}
+        {{- include "abacus-agent.labels" . | nindent 8 }}
         app.kubernetes.io/component: kathy
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.optics.kathy.podLabels }}
+        {{- with .Values.abacus.kathy.podLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
@@ -49,13 +49,13 @@ spec:
         command: ["./kathy"]
         envFrom:
         - configMapRef:
-            name: {{ include "optics-agent.fullname" . }}
+            name: {{ include "abacus-agent.fullname" . }}
         env: 
-          {{- if .Values.optics.kathy.messageInterval }}
+          {{- if .Values.abacus.kathy.messageInterval }}
           - name: OPT_KATHY_INTERVAL
-            value: {{ .Values.optics.kathy.messageInterval | quote }}
+            value: {{ .Values.abacus.kathy.messageInterval | quote }}
           {{- end }}
-          {{- range .Values.optics.kathy.transactionSigners }}
+          {{- range .Values.abacus.kathy.transactionSigners }}
           {{- if .hexKey }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_KEY
             value: {{ .hexKey }}
@@ -68,18 +68,18 @@ spec:
             value: {{ .aws.region }}
           {{- end }}
           {{- end }}
-          {{- if .Values.optics.tracing.uri }}
+          {{- if .Values.abacus.tracing.uri }}
           - name: OPT_BASE_TRACING_JAEGER_NAME
-            value: {{ include "optics-agent.fullname" . }}-kathy
+            value: {{ include "abacus-agent.fullname" . }}-kathy
           {{- end }}
         resources:
-          {{- toYaml .Values.optics.kathy.resources | nindent 10 }}
+          {{- toYaml .Values.abacus.kathy.resources | nindent 10 }}
         volumeMounts:
         - name: state
-          mountPath: {{ .Values.optics.dbPath }}
+          mountPath: {{ .Values.abacus.dbPath }}
         ports: 
         - name: metrics
-          containerPort: {{ .Values.optics.metrics.port }}
+          containerPort: {{ .Values.abacus.metrics.port }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -98,13 +98,13 @@ spec:
     spec:
       storageClassName: {{ .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.optics.kathy.storage.snapshot.enabled }}
+      {{- if .Values.abacus.kathy.storage.snapshot.enabled }}
       dataSource:
-        name: {{ .Values.optics.kathy.storage.snapshot.name }}
+        name: {{ .Values.abacus.kathy.storage.snapshot.name }}
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.optics.kathy.storage.size }}
+          storage: {{ .Values.abacus.kathy.storage.size }}
 {{- end }}

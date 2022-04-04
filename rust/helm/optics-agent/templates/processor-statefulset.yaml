@@ -1,18 +1,18 @@
-{{- if .Values.optics.processor.enabled }}
+{{- if .Values.abacus.processor.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "optics-agent.fullname" . }}-processor
+  name: {{ include "abacus-agent.fullname" . }}-processor
   labels:
-    {{- include "optics-agent.labels" . | nindent 4 }}
+    {{- include "abacus-agent.labels" . | nindent 4 }}
     app.kubernetes.io/component: processor
 spec:
   selector:
     matchLabels:
-      {{- include "optics-agent.selectorLabels" . | nindent 6 }}
+      {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: processor
   replicas: 1 
-  serviceName: {{ include "optics-agent.fullname" . }}-processor
+  serviceName: {{ include "abacus-agent.fullname" . }}-processor
   template:
     metadata:
       annotations:
@@ -20,16 +20,16 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.optics.processor.podAnnotations }}
+        {{- with .Values.abacus.processor.podAnnotations }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
-        {{- include "optics-agent.labels" . | nindent 8 }}
+        {{- include "abacus-agent.labels" . | nindent 8 }}
         app.kubernetes.io/component: processor
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.optics.processor.podLabels }}
+        {{- with .Values.abacus.processor.podLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
@@ -49,27 +49,27 @@ spec:
         command: ["./processor"]
         envFrom:
         - configMapRef:
-            name: {{ include "optics-agent.fullname" . }}
+            name: {{ include "abacus-agent.fullname" . }}
         - secretRef:
-            name: {{ include "optics-agent.fullname" . }}-secret
+            name: {{ include "abacus-agent.fullname" . }}-secret
         - secretRef:
-            name: {{ include "optics-agent.fullname" . }}-processor-secret
+            name: {{ include "abacus-agent.fullname" . }}-processor-secret
         env: 
-          {{- if .Values.optics.processor.pollingInterval }}
+          {{- if .Values.abacus.processor.pollingInterval }}
           - name: OPT_PROCESSOR_INTERVAL
-            value: {{ .Values.optics.processor.pollingInterval | quote }}
+            value: {{ .Values.abacus.processor.pollingInterval | quote }}
           {{ end }}
-          {{ range .Values.optics.processor.indexonly }}
+          {{ range .Values.abacus.processor.indexonly }}
           - name: OPT_PROCESSOR_INDEXON_{{ . | upper }}
             value: "true"
           {{ end }}
-          {{- if .Values.optics.processor.s3BucketName }}
+          {{- if .Values.abacus.processor.s3BucketName }}
           - name: OPT_PROCESSOR_S3_BUCKET
-            value: {{ .Values.optics.processor.s3BucketName }}
+            value: {{ .Values.abacus.processor.s3BucketName }}
           - name: OPT_PROCESSOR_S3_REGION
-            value: {{ .Values.optics.processor.s3BucketRegion }}
+            value: {{ .Values.abacus.processor.s3BucketRegion }}
           {{- end }}
-          {{- range .Values.optics.processor.transactionSigners }}
+          {{- range .Values.abacus.processor.transactionSigners }}
           {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
@@ -79,18 +79,18 @@ spec:
             value: {{ .aws.region }}
           {{- end }}
           {{- end }}
-          {{- if .Values.optics.tracing.uri }}
+          {{- if .Values.abacus.tracing.uri }}
           - name: OPT_BASE_TRACING_JAEGER_NAME
-            value: {{ include "optics-agent.fullname" . }}-processor
+            value: {{ include "abacus-agent.fullname" . }}-processor
           {{- end }}
         resources:
-          {{- toYaml .Values.optics.processor.resources | nindent 10 }}
+          {{- toYaml .Values.abacus.processor.resources | nindent 10 }}
         volumeMounts:
         - name: state
-          mountPath: {{ .Values.optics.dbPath }}
+          mountPath: {{ .Values.abacus.dbPath }}
         ports: 
         - name: metrics
-          containerPort: {{ .Values.optics.metrics.port }}
+          containerPort: {{ .Values.abacus.metrics.port }}
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -109,13 +109,13 @@ spec:
     spec:
       storageClassName: {{ .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.optics.processor.storage.snapshot.enabled }}
+      {{- if .Values.abacus.processor.storage.snapshot.enabled }}
       dataSource:
-        name: {{ .Values.optics.processor.storage.snapshot.name }}
+        name: {{ .Values.abacus.processor.storage.snapshot.name }}
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.optics.processor.storage.size }}
+          storage: {{ .Values.abacus.processor.storage.size }}
 {{- end }}
