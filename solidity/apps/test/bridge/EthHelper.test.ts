@@ -14,7 +14,7 @@ const domains = [localDomain, remoteDomain];
 const defaultValue = 1_000_000;
 const defaultGasPayment = 100_000;
 
-describe.only('EthHelper', async () => {
+describe('EthHelper', async () => {
   let bridge: BridgeDeploy;
   let outbox: Outbox;
   let interchainGasPaymaster: InterchainGasPaymaster;
@@ -37,7 +37,7 @@ describe.only('EthHelper', async () => {
     ethHelper = bridge.helper(localDomain);
   });
 
-  // Used to test all send, sendTo, and sendToEvmLike functions and their
+  // Used to test functions: send, sendTo, and sendToEvmLike functions and their
   // interchain gas paying versions to avoid code duplication
   const testSendFunction = (
     sendFn: (value: number) => Promise<ContractTransaction>,
