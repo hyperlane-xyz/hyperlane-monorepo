@@ -2,7 +2,7 @@ use std::convert::TryFrom;
 
 use crate::{
     traits::{ChainCommunicationError, Common, TxOutcome},
-    utils::home_domain_hash,
+    utils::domain_hash,
     AbacusError, AbacusMessage, Decode, Encode, Message, SignedUpdate, Update,
 };
 use async_trait::async_trait;
@@ -111,7 +111,7 @@ pub trait Home: Common + Send + Sync + std::fmt::Debug {
 
     /// Return the domain hash
     fn home_domain_hash(&self) -> H256 {
-        home_domain_hash(self.local_domain())
+        domain_hash(self.local_domain())
     }
 
     /// Fetch the nonce
