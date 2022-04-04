@@ -1,4 +1,4 @@
-use crate::{utils::home_domain_hash, AbacusError, Decode, Encode, SignerExt};
+use crate::{utils::domain_hash, AbacusError, Decode, Encode, SignerExt};
 use ethers::{
     prelude::{Address, Signature},
     types::H256,
@@ -70,7 +70,7 @@ impl Update {
         // domain(home_domain) || previous_root || new_root
         H256::from_slice(
             Keccak256::new()
-                .chain(home_domain_hash(self.home_domain))
+                .chain(domain_hash(self.home_domain))
                 .chain(self.previous_root)
                 .chain(self.new_root)
                 .finalize()

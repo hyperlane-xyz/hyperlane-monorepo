@@ -4,7 +4,7 @@ use crate::{
         TREE_DEPTH,
     },
     test_utils::find_vector,
-    utils::{destination_and_nonce, home_domain_hash},
+    utils::{destination_and_nonce, domain_hash},
     AbacusMessage, FailureNotification, Update,
 };
 use ethers::{
@@ -98,12 +98,12 @@ pub mod output_functions {
     }
 
     /// Outputs domain hash test cases in /vector/domainHash.json
-    pub fn output_home_domain_hashes() {
+    pub fn output_domain_hashes() {
         let test_cases: Vec<Value> = (1..=3)
             .map(|i| {
                 json!({
-                    "homeDomain": i,
-                    "expectedDomainHash": home_domain_hash(i)
+                    "outboxDomain": i,
+                    "expectedDomainHash": domain_hash(i)
                 })
             })
             .collect();
@@ -114,7 +114,7 @@ pub mod output_functions {
             .write(true)
             .create(true)
             .truncate(true)
-            .open(find_vector("homeDomainHash.json"))
+            .open(find_vector("domainHash.json"))
             .expect("Failed to open/create file");
 
         file.write_all(json.as_bytes())

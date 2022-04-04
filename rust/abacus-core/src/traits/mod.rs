@@ -16,7 +16,7 @@ use ethers::{
 };
 use std::error::Error as StdError;
 
-use crate::{db::DbError, utils::home_domain_hash, AbacusError, Checkpoint, SignedUpdate};
+use crate::{db::DbError, utils::domain_hash, AbacusError, Checkpoint, SignedUpdate};
 
 pub use common::*;
 pub use encode::*;
@@ -149,7 +149,7 @@ pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
 
     /// Return the domain hash
     fn local_domain_hash(&self) -> H256 {
-        home_domain_hash(self.local_domain())
+        domain_hash(self.local_domain())
     }
 
     /// Return an identifier (not necessarily unique) for the chain this
