@@ -20,14 +20,13 @@ describe('InterchainGasPayingMessage', () => {
   );
 
   let core: AbacusCore;
-  let provider: MockProvider;
   let interchainGasCalculator: InterchainGasCalculator;
   let tokenPriceGetter: MockTokenPriceGetter;
   let testMessage: InterchainGasPayingMessage;
 
   before(() => {
     core = new AbacusCore(testAddresses);
-    provider = new MockProvider();
+    const provider = new MockProvider();
     core.registerProvider('test1', provider);
     core.registerProvider('test2', provider);
 
@@ -45,10 +44,6 @@ describe('InterchainGasPayingMessage', () => {
     testMessage = new InterchainGasPayingMessage(core, testSerializedMessage, {
       interchainGasCalculator,
     });
-  });
-
-  afterEach(() => {
-    provider.clearMethodResolveValues();
   });
 
   describe('estimateGasPayment', () => {

@@ -72,7 +72,6 @@ describe('InterchainGasCalculator', () => {
     });
 
     it('considers when the source token decimals > the destination token decimals', async () => {
-      // Hack to set the source domain decimals without something more heavyweight like Jest
       calculator.nativeTokenDecimals = (domain: number) => {
         if (domain === sourceDomain) {
           return 20;
@@ -91,7 +90,6 @@ describe('InterchainGasCalculator', () => {
     });
 
     it('considers when the source token decimals < the destination token decimals', async () => {
-      // Hack to set the source domain decimals without something more heavyweight like Jest
       calculator.nativeTokenDecimals = (domain: number) => {
         if (domain === sourceDomain) {
           return 16;
