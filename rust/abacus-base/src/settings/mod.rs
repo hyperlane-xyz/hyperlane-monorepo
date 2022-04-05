@@ -57,8 +57,6 @@ use serde::Deserialize;
 use std::{collections::HashMap, env, sync::Arc};
 use tracing::instrument;
 
-use std::io::{Error, ErrorKind};
-
 /// Chain configuartion
 pub mod chains;
 

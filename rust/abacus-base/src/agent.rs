@@ -2,11 +2,11 @@ use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingInbox, CachingOutbox, ContractSyncMetrics,
+    CachingInbox, CachingOutbox,
 };
 use abacus_core::db::DB;
 use async_trait::async_trait;
-use color_eyre::{eyre::WrapErr, Report, Result};
+use color_eyre::{Report, Result};
 use futures_util::future::select_all;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};

@@ -19,7 +19,7 @@ mod schema;
 
 use last_message::OptLatestLeafIndex;
 pub use metrics::ContractSyncMetrics;
-use schema::{CommonContractSyncDB, HomeContractSyncDB};
+use schema::{HomeContractSyncDB};
 
 const MESSAGES_LABEL: &str = "messages";
 
