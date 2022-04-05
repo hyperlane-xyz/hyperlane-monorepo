@@ -1,7 +1,7 @@
 import { BigNumber, ethers, FixedNumber } from 'ethers';
 
 import { AbacusCore } from '..';
-import { mulBigAndFixed } from '../utils';
+import { convertDecimalValue, mulBigAndFixed } from './utils';
 import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
 
 /**
@@ -21,7 +21,7 @@ const DEFAULT_TOKEN_DECIMALS = 18;
 
 export interface InterchainGasCalculatorConfig {
   /**
-   * A multiplier applied to the estimated source token payment amount.
+   * A multiplier applied to the estimated origin token payment amount.
    * @defaultValue 1.1
    */
   paymentEstimateMultiplier?: string;
@@ -29,9 +29,9 @@ export interface InterchainGasCalculatorConfig {
    * A multiplier applied to the suggested destination gas price.
    * @defaultValue 1.1
    */
-  destinationGasPriceMultiplier?: string;
+  suggestedGasPriceMultiplier?: string;
   /**
-   * Used to get the native token prices of the source and destination chains.
+   * Used to get the native token prices of the origin and destination chains.
    * @defaultValue An instance of DefaultTokenPriceGetter.
    */
   tokenPriceGetter?: TokenPriceGetter;
@@ -46,7 +46,7 @@ export class InterchainGasCalculator {
   tokenPriceGetter: TokenPriceGetter;
 
   paymentEstimateMultiplier: ethers.FixedNumber;
-  destinationGasPriceMultiplier: ethers.FixedNumber;
+  suggestedGasPriceMultiplier: ethers.FixedNumber;
 
   constructor(core: AbacusCore, config?: InterchainGasCalculatorConfig) {
     this.core = core;
@@ -57,25 +57,25 @@ export class InterchainGasCalculator {
     this.paymentEstimateMultiplier = FixedNumber.from(
       config?.paymentEstimateMultiplier ?? '1.1',
     );
-    this.destinationGasPriceMultiplier = FixedNumber.from(
-      config?.destinationGasPriceMultiplier ?? '1.1',
+    this.suggestedGasPriceMultiplier = FixedNumber.from(
+      config?.suggestedGasPriceMultiplier ?? '1.1',
     );
   }
 
   /**
-   * Calculates the estimated payment in source chain native tokens required
+   * Calculates the estimated payment in origin chain native tokens required
    * to cover the costs of proving and processing the message on the
-   * destination chain. Considers the price of source and destination native
+   * destination chain. Considers the price of origin and destination native
    * tokens, destination gas prices, and estimated gas required on the
    * destination chain. Applies the multiplier `paymentEstimateMultiplier`.
-   * @param sourceDomain The domain of the source chain.
+   * @param originDomain The domain of the origin chain.
    * @param destinationDomain The domain of the destination chain.
    * @param destinationGas The amount of gas to pay for on the destination chain.
-   * @returns An estimated amount of source chain tokens (in wei) to cover
+   * @returns An estimated amount of origin chain tokens (in wei) to cover
    * gas costs of the message on the destination chain.
    */
   async estimateGasPayment(
-    sourceDomain: number,
+    originDomain: number,
     destinationDomain: number,
     destinationGas: BigNumber,
   ): Promise<BigNumber> {
@@ -84,15 +84,15 @@ export class InterchainGasCalculator {
     );
     const destinationCostWei = destinationGas.mul(destinationPrice);
 
-    const sourceCostWei = await this.convertDestinationWeiToSourceWei(
-      sourceDomain,
+    const originCostWei = await this.convertDestinationWeiToOriginWei(
+      originDomain,
       destinationDomain,
       destinationCostWei,
     );
 
     // Applies a multiplier
     return mulBigAndFixed(
-      sourceCostWei,
+      originCostWei,
       this.paymentEstimateMultiplier,
       true, // ceil
     );
@@ -100,64 +100,64 @@ export class InterchainGasCalculator {
 
   /**
    * Converts a given amount of destination chain native tokens (in wei)
-   * to source chain native tokens (in wei). Considers the decimals of both
+   * to origin chain native tokens (in wei). Considers the decimals of both
    * tokens and the exchange rate between the two determined by USD prices.
-   * Note that if the source token decimals are too imprecise for the conversion
+   * Note that if the origin token decimals are too imprecise for the conversion
    * result, 0 may be returned.
-   * @param sourceDomain The domain of the source chain.
+   * @param originDomain The domain of the origin chain.
    * @param destinationDomain The domain of the destination chain.
    * @param destinationWei The amount of destination chain native tokens (in wei).
-   * @returns The amount of source chain native tokens (in wei) whose value matches
+   * @returns The amount of origin chain native tokens (in wei) whose value matches
    * destinationWei.
    */
-  async convertDestinationWeiToSourceWei(
-    sourceDomain: number,
+  async convertDestinationWeiToOriginWei(
+    originDomain: number,
     destinationDomain: number,
     destinationWei: BigNumber,
   ): Promise<BigNumber> {
-    // A FixedNumber that doesn't care what the decimals of the source/dest
-    // tokens are -- it is just the amount of whole source tokens that a single
+    // A FixedNumber that doesn't care what the decimals of the origin/dest
+    // tokens are -- it is just the amount of whole origin tokens that a single
     // whole destination token is equivalent in value to.
-    const srcTokensPerDestToken = await this.sourceTokensPerDestinationToken(
-      sourceDomain,
+    const srcTokensPerDestToken = await this.originTokensPerDestinationToken(
+      originDomain,
       destinationDomain,
     );
 
     // Using the src token / dest token price, convert the destination wei
-    // to source token wei. This does not yet move from destination token decimals
-    // to source token decimals.
-    const sourceWeiWithDestinationDecimals = mulBigAndFixed(
+    // to origin token wei. This does not yet move from destination token decimals
+    // to origin token decimals.
+    const originWeiWithDestinationDecimals = mulBigAndFixed(
       destinationWei,
       srcTokensPerDestToken,
       true, // ceil
     );
 
-    // Converts sourceWeiWithDestinationDecimals to have the correct number of decimals.
+    // Converts originWeiWithDestinationDecimals to have the correct number of decimals.
     return convertDecimalValue(
-      sourceWeiWithDestinationDecimals,
+      originWeiWithDestinationDecimals,
       this.nativeTokenDecimals(destinationDomain),
-      this.nativeTokenDecimals(sourceDomain),
+      this.nativeTokenDecimals(originDomain),
     );
   }
 
   /**
-   * @param sourceDomain The domain of the source chain.
+   * @param originDomain The domain of the origin chain.
    * @param destinationDomain The domain of the destination chain.
-   * @returns The exchange number of whole source tokens a single whole
+   * @returns The exchange number of whole origin tokens a single whole
    * destination token is equivalent in value to.
    */
-  async sourceTokensPerDestinationToken(
-    sourceDomain: number,
+  async originTokensPerDestinationToken(
+    originDomain: number,
     destinationDomain: number,
   ): Promise<FixedNumber> {
-    const sourceUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
-      sourceDomain,
+    const originUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
+      originDomain,
     );
     const destUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
       destinationDomain,
     );
 
-    return destUsd.divUnsafe(sourceUsd);
+    return destUsd.divUnsafe(originUsd);
   }
 
   /**
@@ -175,7 +175,7 @@ export class InterchainGasCalculator {
     // suggestedGasPrice * destinationGasPriceMultiplier
     return mulBigAndFixed(
       suggestedGasPrice,
-      this.destinationGasPriceMultiplier,
+      this.suggestedGasPriceMultiplier,
       true, // ceil
     );
   }
@@ -189,28 +189,5 @@ export class InterchainGasCalculator {
     return (
       this.core.getDomain(domain)?.nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS
     );
-  }
-}
-
-/**
- * Converts a value with `fromDecimals` decimals to a value with `toDecimals` decimals.
- * Incurs a loss of precision when `fromDecimals` > `toDecimals`.
- * @param value The value to convert.
- * @param fromDecimals The number of decimals `value` has.
- * @param toDecimals The number of decimals to convert `value` to.
- * @returns `value` represented with `toDecimals` decimals.
- */
-function convertDecimalValue(
-  value: BigNumber,
-  fromDecimals: number,
-  toDecimals: number,
-): BigNumber {
-  if (fromDecimals === toDecimals) {
-    return value;
-  } else if (fromDecimals > toDecimals) {
-    return value.div(10 ** (fromDecimals - toDecimals));
-  } else {
-    // if (fromDecimals < toDecimals)
-    return value.mul(10 ** (toDecimals - fromDecimals));
   }
 }

@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { BigNumber, FixedNumber } from 'ethers';
 
 import { AbacusCore } from '../../src/core';
-import { InterchainGasCalculator } from '../../src/core/interchain-gas-calculator';
+import { InterchainGasCalculator } from '../../src/gas/interchain-gas-calculator';
 import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
 
 describe('InterchainGasCalculator', () => {
@@ -44,9 +44,9 @@ describe('InterchainGasCalculator', () => {
       // Set destination gas price to 10 wei
       provider.setMethodResolveValue('getGasPrice', BigNumber.from(10));
 
-      // Set paymentEstimateMultiplier and destinationGasPriceMultiplier to 1 just to test easily
+      // Set paymentEstimateMultiplier and suggestedGasPriceMultiplier to 1 just to test easily
       calculator.paymentEstimateMultiplier = FixedNumber.from(1);
-      calculator.destinationGasPriceMultiplier = FixedNumber.from(1);
+      calculator.suggestedGasPriceMultiplier = FixedNumber.from(1);
 
       const estimatedPayment = await calculator.estimateGasPayment(
         sourceDomain,
@@ -113,8 +113,8 @@ describe('InterchainGasCalculator', () => {
       const gasPrice = 1000;
       provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
 
-      // Set destinationGasPriceMultiplier to 1 just to test easily
-      calculator.destinationGasPriceMultiplier = FixedNumber.from(1);
+      // Set suggestedGasPriceMultiplier to 1 just to test easily
+      calculator.suggestedGasPriceMultiplier = FixedNumber.from(1);
 
       expect(
         (await calculator.suggestedDestinationGasPrice(destinationDomain)).toNumber()

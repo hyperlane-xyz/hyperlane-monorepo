@@ -2,7 +2,7 @@ import { BigNumber, ethers } from 'ethers';
 
 import { BaseMessage } from './base';
 import { AbacusCore } from '..';
-import { InterchainGasCalculator } from '../interchain-gas-calculator';
+import { InterchainGasCalculator } from '../../gas/interchain-gas-calculator';
 
 export interface InterchainGasPaymentConfig {
   /**
