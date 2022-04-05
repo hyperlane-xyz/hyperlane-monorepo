@@ -3,28 +3,41 @@ import { expect } from 'chai';
 import { GovernanceRouter } from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 import { AbacusGovernance } from '@abacus-network/sdk';
+import { AbacusRouterChecker } from '@abacus-network/deploy';
 
 import { GovernanceConfig } from './types';
-import { AbacusRouterChecker } from '../router';
 
 export class AbacusGovernanceChecker extends AbacusRouterChecker<
   AbacusGovernance,
   GovernanceConfig
 > {
-  async checkDomain(domain: types.Domain): Promise<void> {
-    await super.checkDomain(domain);
+  async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
+    await super.checkDomain(domain, owner);
     await this.checkProxiedContracts(domain);
-    await this.checkGovernor(domain);
     await this.checkRecoveryManager(domain);
   }
 
   async checkProxiedContracts(domain: types.Domain): Promise<void> {
     const addresses = this.app.mustGetContracts(domain).addresses;
     // Outbox upgrade setup contracts are defined
-    await this.checkProxiedContract(domain, 'GovernanceRouter', addresses);
+    await this.checkUpgradeBeacon(domain, 'GovernanceRouter', addresses.router);
   }
 
-  async checkGovernor(domain: types.Domain): Promise<void> {
+  async checkOwnership(
+    domain: types.Domain,
+    owner: types.Address,
+  ): Promise<void> {
+    const contracts = this.app.mustGetContracts(domain);
+    const owners = [contracts.upgradeBeaconController.owner()];
+    // If the config specifies that a xAppConnectionManager should have been deployed,
+    // it should be owned by the router.
+    if (!this.config.xAppConnectionManager) {
+      owners.push(contracts.xAppConnectionManager.owner());
+    }
+    const expected = contracts.router.address;
+    (await Promise.all(owners)).map((_) => expect(_).to.equal(expected));
+
+    // Router should be owned by governor, or null address if not configured.
     const actual = await this.mustGetRouter(domain).governor();
     const addresses =
       this.config.addresses[this.app.mustResolveDomainName(domain)];

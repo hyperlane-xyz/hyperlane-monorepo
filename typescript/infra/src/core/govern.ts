@@ -1,56 +1,49 @@
 import { expect } from 'chai';
+import { Call, AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
 import {
-  Call,
-  CallBatch,
-  AbacusCore,
-  AbacusGovernance,
-} from '@abacus-network/sdk';
-import {
-  ValidatorViolation,
+  CheckerViolation,
+  ProxyViolationType,
   UpgradeBeaconViolation,
-  Violation,
-  ViolationType,
-} from '../check';
+} from '@abacus-network/deploy';
+
+import {
+  AbacusCoreChecker,
+  CoreViolationType,
+  ValidatorViolation,
+} from './check';
+import { CoreConfig } from './types';
 
 interface DomainedCall {
   domain: number;
   call: Call;
 }
 
-export class GovernanceCallBatchBuilder {
-  private _core: AbacusCore;
-  private _governance: AbacusGovernance;
-  private _violations: Violation[];
+export class AbacusCoreGovernor extends AbacusCoreChecker {
+  readonly governance: AbacusGovernance;
 
   constructor(
-    core: AbacusCore,
+    app: AbacusCore,
+    config: CoreConfig,
     governance: AbacusGovernance,
-    violations: Violation[],
   ) {
-    this._core = core;
-    this._governance = governance;
-    this._violations = violations;
+    super(app, config);
+    this.governance = governance;
   }
 
-  async build(): Promise<CallBatch> {
-    const governor = await this._governance.governor();
-    const batch = new CallBatch(
-      governor.domain,
-      this._governance.mustGetContracts(governor.domain),
-    );
+  async check(): Promise<void> {
+    super.check(this.governance.routerAddresses);
     const txs = await Promise.all(
-      this._violations.map((v) => this.handleViolation(v)),
+      this.violations.map((v) => this.handleViolation(v)),
     );
-    txs.map((call) => batch.push(call.domain, call.call));
-    return batch;
+    txs.map((call) => this.governance.push(call.domain, call.call));
   }
 
-  handleViolation(v: Violation): Promise<DomainedCall> {
+  handleViolation(v: CheckerViolation): Promise<DomainedCall> {
     switch (v.type) {
-      case ViolationType.UpgradeBeacon:
-        return this.handleUpgradeBeaconViolation(v);
-      case ViolationType.Validator:
-        return this.handleValidatorViolation(v);
+      case ProxyViolationType.UpgradeBeacon:
+        return this.handleUpgradeBeaconViolation(v as UpgradeBeaconViolation);
+      case CoreViolationType.Validator:
+        return this.handleValidatorViolation(v as ValidatorViolation);
       default:
         throw new Error(`No handler for violation type ${v.type}`);
         break;
@@ -61,10 +54,10 @@ export class GovernanceCallBatchBuilder {
     violation: UpgradeBeaconViolation,
   ): Promise<DomainedCall> {
     const domain = violation.domain;
-    const ubc = this._core.mustGetContracts(domain).upgradeBeaconController;
+    const ubc = this.app.mustGetContracts(domain).upgradeBeaconController;
     if (ubc === undefined) throw new Error('Undefined ubc');
     const tx = await ubc.populateTransaction.upgrade(
-      violation.proxiedAddress.beacon,
+      violation.data.proxiedAddress.beacon,
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
@@ -74,25 +67,21 @@ export class GovernanceCallBatchBuilder {
   async handleValidatorViolation(
     violation: ValidatorViolation,
   ): Promise<DomainedCall> {
-    const domain = violation.local;
-    const manager = this._core.mustGetContracts(domain).validatorManager;
+    const domain = violation.domain;
+    const manager = this.app.mustGetContracts(domain).validatorManager;
     expect(manager).to.not.be.undefined;
     const tx = await manager.populateTransaction.enrollValidator(
-      violation.remote,
+      violation.data.remote,
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
     return { domain, call: tx as Call };
   }
-}
 
-export function expectCalls(
-  batch: CallBatch,
-  domains: number[],
-  count: number[],
-) {
-  expect(domains).to.have.lengthOf(count.length);
-  domains.forEach((domain: number, i: number) => {
-    expect(batch.calls.get(domain)).to.have.lengthOf(count[i]);
-  });
+  expectCalls(domains: number[], count: number[]) {
+    expect(domains).to.have.lengthOf(count.length);
+    domains.forEach((domain: number, i: number) => {
+      expect(this.governance.calls.get(domain)).to.have.lengthOf(count[i]);
+    });
+  }
 }
