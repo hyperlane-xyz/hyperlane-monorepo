@@ -63,7 +63,10 @@ export class AbacusMessage {
     this.message = parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
     this.outbox = core.mustGetContracts(this.message.origin).outbox;
-    this.inbox = core.mustGetInbox(this.message.origin, this.message.destination);
+    this.inbox = core.mustGetInbox(
+      this.message.origin,
+      this.message.destination,
+    );
     this.cache = {};
   }
 

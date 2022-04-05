@@ -68,7 +68,7 @@ export function delay(ms: number): Promise<void> {
  * @param message A serialized message.
  * @returns The parsed message.
  */
- export function parseMessage(message: string): ParsedMessage {
+export function parseMessage(message: string): ParsedMessage {
   const buf = Buffer.from(arrayify(message));
   const origin = buf.readUInt32BE(0);
   const sender = hexlify(buf.slice(4, 36));

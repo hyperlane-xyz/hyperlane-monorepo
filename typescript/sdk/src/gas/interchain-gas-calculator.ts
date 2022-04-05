@@ -109,9 +109,7 @@ export class InterchainGasCalculator {
     );
   }
 
-  async estimatePaymentFromMessage(
-    message: ParsedMessage,
-  ) {
+  async estimatePaymentFromMessage(message: ParsedMessage) {
     const destinationGas = await this.estimateMessageGas(message);
     return this.estimatePaymentFromGasAmount(
       message.origin,
@@ -226,7 +224,7 @@ export class InterchainGasCalculator {
    * 4. A buffer to account for inaccuracies in the above estimations.
    * @returns The estimated gas required to process the message on the destination chain.
    */
-   async estimateMessageGas(message: ParsedMessage): Promise<BigNumber> {
+  async estimateMessageGas(message: ParsedMessage): Promise<BigNumber> {
     const provider = this.core.mustGetProvider(message.destination);
     const inbox = this.core.mustGetInbox(message.origin, message.destination);
 
