@@ -32,7 +32,8 @@ export class InterchainGasPayingMessage extends BaseMessage {
   ) {
     super(core, serializedMessage);
 
-    this.interchainGasCalculator = config?.interchainGasCalculator ?? new InterchainGasCalculator(core);
+    this.interchainGasCalculator =
+      config?.interchainGasCalculator ?? new InterchainGasCalculator(core);
 
     this.destinationGasEstimateBuffer = BigNumber.from(
       config?.destinationGasEstimateBuffer ?? 50_000,
@@ -51,9 +52,9 @@ export class InterchainGasPayingMessage extends BaseMessage {
   async estimateGasPayment(): Promise<BigNumber> {
     const destinationGas = await this.estimateDestinationGas();
     return this.interchainGasCalculator.estimateGasPayment(
-      this.from,
+      this.origin,
       this.destination,
-      destinationGas
+      destinationGas,
     );
   }
 
@@ -74,7 +75,7 @@ export class InterchainGasPayingMessage extends BaseMessage {
    */
   async estimateDestinationGas(): Promise<BigNumber> {
     const provider = this.core.mustGetProvider(this.destination);
-    const inbox = this.core.mustGetInbox(this.from, this.destination);
+    const inbox = this.core.mustGetInbox(this.origin, this.destination);
 
     const handlerInterface = new ethers.utils.Interface([
       'function handle(uint32,bytes32,bytes)',
@@ -86,7 +87,7 @@ export class InterchainGasPayingMessage extends BaseMessage {
       to: this.recipientAddress,
       from: inbox.address,
       data: handlerInterface.encodeFunctionData('handle', [
-        this.from,
+        this.origin,
         this.sender,
         this.serializedMessage,
       ]),

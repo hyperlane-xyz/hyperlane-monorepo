@@ -48,10 +48,7 @@ export class InterchainGasCalculator {
   paymentEstimateMultiplier: ethers.FixedNumber;
   destinationGasPriceMultiplier: ethers.FixedNumber;
 
-  constructor(
-    core: AbacusCore,
-    config?: InterchainGasCalculatorConfig,
-  ) {
+  constructor(core: AbacusCore, config?: InterchainGasCalculatorConfig) {
     this.core = core;
 
     this.tokenPriceGetter =
@@ -77,8 +74,14 @@ export class InterchainGasCalculator {
    * @returns An estimated amount of source chain tokens (in wei) to cover
    * gas costs of the message on the destination chain.
    */
-  async estimateGasPayment(sourceDomain: number, destinationDomain: number, destinationGas: BigNumber): Promise<BigNumber> {
-    const destinationPrice = await this.suggestedDestinationGasPrice(destinationDomain);
+  async estimateGasPayment(
+    sourceDomain: number,
+    destinationDomain: number,
+    destinationGas: BigNumber,
+  ): Promise<BigNumber> {
+    const destinationPrice = await this.suggestedDestinationGasPrice(
+      destinationDomain,
+    );
     const destinationCostWei = destinationGas.mul(destinationPrice);
 
     const sourceCostWei = await this.convertDestinationWeiToSourceWei(
@@ -115,7 +118,10 @@ export class InterchainGasCalculator {
     // A FixedNumber that doesn't care what the decimals of the source/dest
     // tokens are -- it is just the amount of whole source tokens that a single
     // whole destination token is equivalent in value to.
-    const srcTokensPerDestToken = await this.sourceTokensPerDestinationToken(sourceDomain, destinationDomain);
+    const srcTokensPerDestToken = await this.sourceTokensPerDestinationToken(
+      sourceDomain,
+      destinationDomain,
+    );
 
     // Using the src token / dest token price, convert the destination wei
     // to source token wei. This does not yet move from destination token decimals
@@ -140,9 +146,16 @@ export class InterchainGasCalculator {
    * @returns The exchange number of whole source tokens a single whole
    * destination token is equivalent in value to.
    */
-  async sourceTokensPerDestinationToken(sourceDomain: number, destinationDomain: number): Promise<FixedNumber> {
-    const sourceUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(sourceDomain);
-    const destUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(destinationDomain);
+  async sourceTokensPerDestinationToken(
+    sourceDomain: number,
+    destinationDomain: number,
+  ): Promise<FixedNumber> {
+    const sourceUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
+      sourceDomain,
+    );
+    const destUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
+      destinationDomain,
+    );
 
     return destUsd.divUnsafe(sourceUsd);
   }
@@ -153,7 +166,9 @@ export class InterchainGasCalculator {
    * @param destinationDomain The domain of the destination chain.
    * @returns The suggested gas price in wei on the destination chain.
    */
-  async suggestedDestinationGasPrice(destinationDomain: number): Promise<BigNumber> {
+  async suggestedDestinationGasPrice(
+    destinationDomain: number,
+  ): Promise<BigNumber> {
     const provider = this.core.mustGetProvider(destinationDomain);
     const suggestedGasPrice = await provider.getGasPrice();
 
@@ -172,8 +187,7 @@ export class InterchainGasCalculator {
    */
   nativeTokenDecimals(domain: number) {
     return (
-      this.core.getDomain(domain)?.nativeTokenDecimals ??
-      DEFAULT_TOKEN_DECIMALS
+      this.core.getDomain(domain)?.nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS
     );
   }
 }

@@ -133,7 +133,7 @@ class BridgeMessage extends AbacusMessage {
     super(core, event);
     this.bridge = bridge;
 
-    const fromBridge = bridge.mustGetContracts(this.message.from);
+    const fromBridge = bridge.mustGetContracts(this.message.origin);
     const toBridge = bridge.mustGetContracts(this.message.destination);
 
     this.fromBridge = fromBridge;

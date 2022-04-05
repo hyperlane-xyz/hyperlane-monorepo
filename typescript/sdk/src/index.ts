@@ -7,7 +7,6 @@ export {
   AbacusLifecyleEvent,
   CoreContracts,
   CoreContractAddresses,
-  InterchainGasPayingMessage,
   MessageStatus,
   BaseMessage,
 } from './core';
