@@ -10,11 +10,11 @@ pub mod iterator;
 mod typed_db;
 pub use typed_db::*;
 
-/// DB operations tied to specific home
+/// DB operations tied to specific Outbox
 mod abacus_db;
 pub use abacus_db::*;
 
-use crate::{AbacusError, Decode, Encode, Update};
+use crate::{AbacusError, Decode, Encode};
 
 #[derive(Debug, Clone)]
 /// A KV Store
@@ -35,16 +35,6 @@ pub enum DbError {
     /// Abacus Error
     #[error("{0}")]
     AbacusError(#[from] AbacusError),
-    /// UpdaterConflictError
-    ///
-    /// TODO(luke): move this agent-related stuff into abacus-base
-    #[error("Updater attempted to store conflicting signed update. Existing: {existing:?}. New conflicting: {conflicting:?}.")]
-    UpdaterConflictError {
-        /// Existing signed update
-        existing: Update,
-        /// Conflicting signed update
-        conflicting: Update,
-    },
 }
 
 type Result<T> = std::result::Result<T, DbError>;

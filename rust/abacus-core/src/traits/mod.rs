@@ -4,7 +4,6 @@ mod home;
 mod inbox;
 mod indexer;
 mod outbox;
-mod replica;
 mod xapp;
 
 use async_trait::async_trait;
@@ -16,7 +15,7 @@ use ethers::{
 };
 use std::error::Error as StdError;
 
-use crate::{db::DbError, utils::domain_hash, AbacusError, Checkpoint, SignedUpdate};
+use crate::{db::DbError, utils::domain_hash, AbacusError, Checkpoint};
 
 pub use common::*;
 pub use encode::*;
@@ -24,12 +23,7 @@ pub use home::*;
 pub use inbox::*;
 pub use indexer::*;
 pub use outbox::*;
-pub use replica::*;
 pub use xapp::*;
-
-/// Returned by `check_double_update` if double update exists
-#[derive(Debug, Clone, PartialEq)]
-pub struct DoubleUpdate(pub SignedUpdate, pub SignedUpdate);
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]
@@ -83,61 +77,6 @@ where
 {
     fn from(e: ContractError<M>) -> Self {
         Self::ContractError(Box::new(e))
-    }
-}
-
-/// Interface for attributes shared by Home and Replica
-#[async_trait]
-pub trait Common: Sync + Send + std::fmt::Debug {
-    /// Return an identifier (not necessarily unique) for the chain this
-    /// contract is running on.
-    fn name(&self) -> &str;
-
-    /// Get the status of a transaction.
-    async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError>;
-
-    /// Fetch the current updater value
-    async fn updater(&self) -> Result<H256, ChainCommunicationError>;
-
-    /// Fetch the current state.
-    async fn state(&self) -> Result<State, ChainCommunicationError>;
-
-    /// Fetch the current root.
-    async fn committed_root(&self) -> Result<H256, ChainCommunicationError>;
-
-    /// Submit a signed update for inclusion
-    async fn update(&self, update: &SignedUpdate) -> Result<TxOutcome, ChainCommunicationError>;
-
-    /// Submit a double update for slashing
-    async fn double_update(
-        &self,
-        double: &DoubleUpdate,
-    ) -> Result<TxOutcome, ChainCommunicationError>;
-}
-
-/// Interface for retrieving event data emitted by both the home and replica
-#[async_trait]
-pub trait CommonEvents: Common + Send + Sync + std::fmt::Debug {
-    /// Fetch the first signed update building off of `old_root`. If `old_root`
-    /// was never accepted or has never been updated, this will return `Ok(None )`.
-    /// This should fetch events from the chain API
-    async fn signed_update_by_old_root(
-        &self,
-        old_root: H256,
-    ) -> Result<Option<SignedUpdate>, ChainCommunicationError>;
-
-    /// Fetch the first signed update with a new root of `new_root`. If update
-    /// has not been produced, this will return `Ok(None)`. This should fetch
-    /// events from the chain API
-    async fn signed_update_by_new_root(
-        &self,
-        new_root: H256,
-    ) -> Result<Option<SignedUpdate>, ChainCommunicationError>;
-
-    /// Fetch most recent signed_update.
-    async fn poll_signed_update(&self) -> Result<Option<SignedUpdate>, ChainCommunicationError> {
-        let committed_root = self.committed_root().await?;
-        self.signed_update_by_new_root(committed_root).await
     }
 }
 

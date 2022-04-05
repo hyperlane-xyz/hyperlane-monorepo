@@ -11,18 +11,7 @@
 /// Accumulator management
 pub mod accumulator;
 
-/// Model instantatiations of the on-chain structures
-pub mod models {
-    /// A simple Home chain Abacus implementation
-    mod home;
-
-    /// A simple Replica chain Abacus implementation
-    mod replica;
-
-    pub use self::{home::*, replica::*};
-}
-
-/// Async Traits for Homes & Replicas for use in applications
+/// Async Traits for Outboxes & Inboxes for use in applications
 mod traits;
 use ethers_signers::WalletError;
 pub use traits::*;
@@ -212,10 +201,10 @@ mod test {
                 "1111111111111111111111111111111111111111111111111111111111111111"
                     .parse()
                     .unwrap();
-            let message = Update {
-                home_domain: 5,
-                new_root: H256::repeat_byte(1),
-                previous_root: H256::repeat_byte(2),
+            let message = Checkpoint {
+                outbox_domain: 5,
+                root: H256::repeat_byte(1),
+                index: 123,
             };
 
             let signed = message.sign_with(&signer).await.expect("!sign_with");

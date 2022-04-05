@@ -1,13 +1,12 @@
 use crate::db::{DbError, TypedDB, DB};
-use crate::UpdateMeta;
 use crate::{
     accumulator::merkle::Proof, traits::RawCommittedMessage, utils, AbacusMessage,
-    CommittedMessage, Decode, SignedUpdate, SignedUpdateWithMeta,
+    CommittedMessage, Decode,
 };
 use color_eyre::Result;
 use ethers::core::types::H256;
 use tokio::time::sleep;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 use std::future::Future;
 use std::time::Duration;
@@ -16,18 +15,14 @@ use crate::db::iterator::PrefixIterator;
 
 static LEAF_IDX: &str = "leaf_index_";
 static LEAF: &str = "leaf_";
-static PREV_ROOT: &str = "update_prev_root_";
 static PROOF: &str = "proof_";
 static MESSAGE: &str = "message_";
-static UPDATE: &str = "update_";
-static UPDATE_META: &str = "update_metadata_";
 static LATEST_ROOT: &str = "update_latest_root_";
 static LATEST_LEAF_INDEX: &str = "latest_known_leaf_index_";
 static LATEST_LEAF_INDEX_FOR_DESTINATION: &str = "latest_known_leaf_index_for_destination_";
-static UPDATER_PRODUCED_UPDATE: &str = "updater_produced_update_";
 static LEAF_PROCESS_STATUS: &str = "leaf_process_status_";
 
-/// DB handle for storing data tied to a specific home.
+/// DB handle for storing data tied to a specific Outbox.
 ///
 /// Key structure: ```<entity>_<additional_prefix(es)>_<key>```
 #[derive(Debug, Clone)]
@@ -233,108 +228,6 @@ impl AbacusDB {
         self.retrieve_decodable("", LATEST_ROOT)
     }
 
-    /// Store list of sorted updates and their metadata
-    pub fn store_updates_and_meta(&self, updates: &[SignedUpdateWithMeta]) -> Result<()> {
-        for update_with_meta in updates {
-            self.store_latest_update(&update_with_meta.signed_update)?;
-            self.store_update_metadata(update_with_meta)?;
-
-            info!(
-                block_number = update_with_meta.metadata.block_number,
-                previous_root = ?&update_with_meta.signed_update.update.previous_root,
-                new_root = ?&update_with_meta.signed_update.update.new_root,
-                "Stored new update in db.",
-            );
-        }
-
-        Ok(())
-    }
-
-    /// Store update metadata (by update's new root)
-    ///
-    /// Keys --> Values:
-    /// - `update_new_root` --> `update_metadata`
-    pub fn store_update_metadata(
-        &self,
-        update_with_meta: &SignedUpdateWithMeta,
-    ) -> Result<(), DbError> {
-        let new_root = update_with_meta.signed_update.update.new_root;
-        let metadata = update_with_meta.metadata;
-
-        debug!(new_root = ?new_root, metadata = ?metadata, "storing update metadata in DB");
-
-        self.store_keyed_encodable(UPDATE_META, &new_root, &metadata)
-    }
-
-    /// Retrieve update metadata (by update's new root)
-    pub fn retrieve_update_metadata(&self, new_root: H256) -> Result<Option<UpdateMeta>, DbError> {
-        self.retrieve_keyed_decodable(UPDATE_META, &new_root)
-    }
-
-    /// Store a signed update building off latest root
-    ///
-    /// Keys --> Values:
-    /// - `LATEST_ROOT` --> `root`
-    /// - `new_root` --> `prev_root`
-    /// - `prev_root` --> `update`
-    pub fn store_latest_update(&self, update: &SignedUpdate) -> Result<(), DbError> {
-        debug!(
-            previous_root = ?update.update.previous_root,
-            new_root = ?update.update.new_root,
-            "storing update in DB"
-        );
-
-        // If there is no latest root, or if this update is on the latest root
-        // update latest root
-        match self.retrieve_latest_root()? {
-            Some(root) => {
-                if root == update.update.previous_root {
-                    self.store_latest_root(update.update.new_root)?;
-                } else {
-                    warn!(
-                        "Attempted to store update not building off latest root: {:?}",
-                        update
-                    )
-                }
-            }
-            None => self.store_latest_root(update.update.new_root)?,
-        }
-
-        self.store_update(update)
-    }
-
-    /// Store an update.
-    ///
-    /// Keys --> Values:
-    /// - `new_root` --> `prev_root`
-    /// - `prev_root` --> `update`
-    pub fn store_update(&self, update: &SignedUpdate) -> Result<(), DbError> {
-        self.store_keyed_encodable(UPDATE, &update.update.previous_root, update)?;
-        self.store_keyed_encodable(
-            PREV_ROOT,
-            &update.update.new_root,
-            &update.update.previous_root,
-        )
-    }
-
-    /// Retrieve an update by its previous root
-    pub fn update_by_previous_root(
-        &self,
-        previous_root: H256,
-    ) -> Result<Option<SignedUpdate>, DbError> {
-        self.retrieve_keyed_decodable(UPDATE, &previous_root)
-    }
-
-    /// Retrieve an update by its new root
-    pub fn update_by_new_root(&self, new_root: H256) -> Result<Option<SignedUpdate>, DbError> {
-        let prev_root: Option<H256> = self.retrieve_keyed_decodable(PREV_ROOT, &new_root)?;
-
-        match prev_root {
-            Some(prev_root) => self.update_by_previous_root(prev_root),
-            None => Ok(None),
-        }
-    }
-
     /// Iterate over all leaves
     pub fn leaf_iterator(&self) -> PrefixIterator<H256> {
         PrefixIterator::new(self.0.as_ref().prefix_iterator(LEAF_IDX), LEAF_IDX.as_ref())
@@ -366,38 +259,6 @@ impl AbacusDB {
                 sleep(Duration::from_millis(100)).await
             }
         }
-    }
-
-    /// Store a pending update in the DB for potential submission.
-    ///
-    /// This does not produce update meta or update the latest update db value.
-    /// It is used by update production and submission.
-    pub fn store_produced_update(&self, update: &SignedUpdate) -> Result<(), DbError> {
-        let existing_opt = self.retrieve_produced_update(update.update.previous_root)?;
-        if let Some(existing) = existing_opt {
-            if existing.update.new_root != update.update.new_root {
-                error!("Updater attempted to store conflicting update. Existing update: {:?}. New conflicting update: {:?}.", &existing, &update);
-
-                return Err(DbError::UpdaterConflictError {
-                    existing: existing.update,
-                    conflicting: update.update,
-                });
-            }
-        }
-
-        self.store_keyed_encodable(
-            UPDATER_PRODUCED_UPDATE,
-            &update.update.previous_root,
-            update,
-        )
-    }
-
-    /// Retrieve a pending update from the DB (if one exists).
-    pub fn retrieve_produced_update(
-        &self,
-        previous_root: H256,
-    ) -> Result<Option<SignedUpdate>, DbError> {
-        self.retrieve_keyed_decodable(UPDATER_PRODUCED_UPDATE, &previous_root)
     }
 
     /// Mark leaf as processed
