@@ -6,7 +6,7 @@ import { InterchainGasCalculator } from '../../src/gas/interchain-gas-calculator
 import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
 
 describe('InterchainGasCalculator', () => {
-  const sourceDomain = 1;
+  const originDomain = 1;
   const destinationDomain = 2;
 
   let core: AbacusCore;
@@ -21,8 +21,8 @@ describe('InterchainGasCalculator', () => {
     core.registerProvider('test2', provider);
 
     tokenPriceGetter = new MockTokenPriceGetter();
-    // Source domain token
-    tokenPriceGetter.setTokenPrice(sourceDomain, 10);
+    // Origin domain token
+    tokenPriceGetter.setTokenPrice(originDomain, 10);
     // Destination domain token
     tokenPriceGetter.setTokenPrice(destinationDomain, 5);
   });
@@ -38,7 +38,7 @@ describe('InterchainGasCalculator', () => {
   });
 
   describe('estimateGasPayment', () => {
-    it('estimates source token payment', async () => {
+    it('estimates origin token payment', async () => {
       const destinationGas = BigNumber.from(100_000);
 
       // Set destination gas price to 10 wei
@@ -49,62 +49,62 @@ describe('InterchainGasCalculator', () => {
       calculator.suggestedGasPriceMultiplier = FixedNumber.from(1);
 
       const estimatedPayment = await calculator.estimateGasPayment(
-        sourceDomain,
+        originDomain,
         destinationDomain,
         destinationGas,
       );
 
-      // 100_000 dest gas * 10 gas price * ($5 per source token / $10 per source token)
+      // 100_000 dest gas * 10 gas price * ($5 per origin token / $10 per origin token)
       expect(estimatedPayment.toNumber()).to.equal(500_000);
     });
   });
 
-  describe('convertDestinationWeiToSourceWei', () => {
-    it('converts using the USD value of source and destination native tokens', async () => {
+  describe('convertDestinationWeiToOriginWei', () => {
+    it('converts using the USD value of origin and destination native tokens', async () => {
       const destinationWei = BigNumber.from('1000');
-      const sourceWei = await calculator.convertDestinationWeiToSourceWei(
-        sourceDomain,
+      const originWei = await calculator.convertDestinationWeiToOriginWei(
+        originDomain,
         destinationDomain,
         destinationWei,
       );
       
-      expect(sourceWei.toNumber()).to.equal(500);
+      expect(originWei.toNumber()).to.equal(500);
     });
 
-    it('considers when the source token decimals > the destination token decimals', async () => {
+    it('considers when the origin token decimals > the destination token decimals', async () => {
       calculator.nativeTokenDecimals = (domain: number) => {
-        if (domain === sourceDomain) {
+        if (domain === originDomain) {
           return 20;
         }
         return 18;
       };
 
       const destinationWei = BigNumber.from('1000');
-      const sourceWei = await calculator.convertDestinationWeiToSourceWei(
-        sourceDomain,
+      const originWei = await calculator.convertDestinationWeiToOriginWei(
+        originDomain,
         destinationDomain,
         destinationWei,
       );
 
-      expect(sourceWei.toNumber()).to.equal(50000);
+      expect(originWei.toNumber()).to.equal(50000);
     });
 
-    it('considers when the source token decimals < the destination token decimals', async () => {
+    it('considers when the origin token decimals < the destination token decimals', async () => {
       calculator.nativeTokenDecimals = (domain: number) => {
-        if (domain === sourceDomain) {
+        if (domain === originDomain) {
           return 16;
         }
         return 18;
       };
 
       const destinationWei = BigNumber.from('1000');
-      const sourceWei = await calculator.convertDestinationWeiToSourceWei(
-        sourceDomain,
+      const originWei = await calculator.convertDestinationWeiToOriginWei(
+        originDomain,
         destinationDomain,
         destinationWei,
       );
 
-      expect(sourceWei.toNumber()).to.equal(5);
+      expect(originWei.toNumber()).to.equal(5);
     })
   });
 

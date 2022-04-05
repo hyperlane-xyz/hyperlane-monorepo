@@ -2,16 +2,17 @@ import { formatMessage } from '@abacus-network/utils/dist/src/utils';
 import { expect } from 'chai';
 import { BigNumber, ethers, FixedNumber } from 'ethers';
 
-import { AbacusCore, InterchainGasPayingMessage } from '../../../src/core';
-import { InterchainGasCalculator } from '../../../src/core/interchain-gas-calculator';
+import { AbacusCore } from '../../../src/core';
+import { InterchainGasPayingMessage } from '../../../src/core/message/interchain-gas';
+import { InterchainGasCalculator } from '../../../src/gas/interchain-gas-calculator';
 import { MockProvider, MockTokenPriceGetter, testAddresses } from '../../utils';
 
 describe('InterchainGasPayingMessage', () => {
-  const sourceDomain = 1;
+  const originDomain = 1;
   const destinationDomain = 2;
 
   const testSerializedMessage = formatMessage(
-    sourceDomain,
+    originDomain,
     ethers.constants.AddressZero,
     0,
     destinationDomain,
@@ -31,8 +32,8 @@ describe('InterchainGasPayingMessage', () => {
     core.registerProvider('test2', provider);
 
     tokenPriceGetter = new MockTokenPriceGetter();
-    // Source domain token
-    tokenPriceGetter.setTokenPrice(sourceDomain, 10);
+    // Origin domain token
+    tokenPriceGetter.setTokenPrice(originDomain, 10);
     // Destination domain token
     tokenPriceGetter.setTokenPrice(destinationDomain, 5);
   });
@@ -47,7 +48,7 @@ describe('InterchainGasPayingMessage', () => {
   });
 
   describe('estimateGasPayment', () => {
-    it('estimates source token payment using estimated destination gas', async () => {
+    it('estimates origin token payment using estimated destination gas', async () => {
       // Set the estimated destination gas
       const estimatedDestinationGas = 100_000;
       testMessage.estimateDestinationGas = () => Promise.resolve(ethers.BigNumber.from(estimatedDestinationGas));
@@ -58,7 +59,7 @@ describe('InterchainGasPayingMessage', () => {
 
       const estimatedPayment = await testMessage.estimateGasPayment();
 
-      // 100_000 dest gas * 10 gas price * ($5 per source token / $10 per source token)
+      // 100_000 dest gas * 10 gas price * ($5 per origin token / $10 per origin token)
       expect(estimatedPayment.toNumber()).to.equal(500_000);
     });
   });
