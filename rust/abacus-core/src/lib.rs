@@ -50,7 +50,7 @@ use ethers::{
     signers::{AwsSignerError, LocalWallet, Signer},
 };
 
-/// Enum for validity of a list (of updates or messages)
+/// Enum for validity of a list (of checkpoints or messages)
 #[derive(Debug)]
 pub enum ListValidity {
     /// Empty list
@@ -67,18 +67,6 @@ pub enum AbacusError {
     /// Signature Error pasthrough
     #[error(transparent)]
     SignatureError(#[from] SignatureError),
-    /// Update does not build off the current root
-    #[error("Update has wrong current root. Expected: {expected}. Got: {actual}.")]
-    WrongCurrentRoot {
-        /// The provided root
-        actual: H256,
-        /// The current root
-        expected: H256,
-    },
-    /// Update specifies a new root that is not in the queue. This is an
-    /// improper update and is slashable
-    #[error("Update has unknown new root: {0}")]
-    UnknownNewRoot(H256),
     /// IO error from Read/Write usage
     #[error(transparent)]
     IoError(#[from] std::io::Error),

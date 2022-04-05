@@ -81,7 +81,9 @@ impl DbStateCommand {
         Ok(messages_by_committed_roots)
     }
 
-    // TODO: migrate away from Optics to Abacus
+    // TODO: migrate away from Optics to Abacus here.
+    // The Optics-specific code is commented out as a reference for the future move
+    // to Abacus-specific code.
     fn create_output_vec(
         &self,
         _db: &AbacusDB,

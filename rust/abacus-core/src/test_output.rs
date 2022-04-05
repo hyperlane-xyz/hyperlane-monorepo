@@ -147,7 +147,7 @@ pub mod output_functions {
             .expect("Failed to write to file");
     }
 
-    /// Outputs signed update test cases in /vector/signedCheckpoint.json
+    /// Outputs signed checkpoint test cases in /vector/signedCheckpoint.json
     pub fn output_signed_checkpoints() {
         let t = async {
             let signer: ethers::signers::LocalWallet =

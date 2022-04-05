@@ -17,7 +17,6 @@ static LEAF_IDX: &str = "leaf_index_";
 static LEAF: &str = "leaf_";
 static PROOF: &str = "proof_";
 static MESSAGE: &str = "message_";
-static LATEST_ROOT: &str = "update_latest_root_";
 static LATEST_LEAF_INDEX: &str = "latest_known_leaf_index_";
 static LATEST_LEAF_INDEX_FOR_DESTINATION: &str = "latest_known_leaf_index_for_destination_";
 static LEAF_PROCESS_STATUS: &str = "leaf_process_status_";
@@ -76,8 +75,7 @@ impl AbacusDB {
 
     /// Store a raw committed message building off of the latest leaf index
     pub fn store_latest_message(&self, message: &RawCommittedMessage) -> Result<()> {
-        // If there is no latest root, or if this update is on the latest root
-        // update latest root
+        // If this message is not building off the latest leaf index, log it.
         if let Some(idx) = self.retrieve_latest_leaf_index()? {
             if idx != message.leaf_index - 1 {
                 debug!(
@@ -215,11 +213,6 @@ impl AbacusDB {
             None => Ok(None),
             Some(leaf) => self.message_by_leaf(leaf),
         }
-    }
-
-    /// Retrieve the latest committed
-    pub fn retrieve_latest_root(&self) -> Result<Option<H256>, DbError> {
-        self.retrieve_decodable("", LATEST_ROOT)
     }
 
     /// Iterate over all leaves

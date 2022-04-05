@@ -28,7 +28,7 @@
 //!    env vars. `$RUN_ENV/$BASE_CONFIG`
 //! 2. The config file specified by the `RUN_ENV` env var and the
 //!    agent's name. `$RUN_ENV/{agent}-partial.json`.
-//!    E.g. `$RUN_ENV/updater-partial.json`
+//!    E.g. `$RUN_ENV/validator-partial.json`
 //! 3. Configuration env vars with the prefix `OPT_BASE` intended
 //!    to be shared by multiple agents in the same environment
 //!    E.g. `export OPT_BASE_REPLICAS_KOVAN_DOMAIN=3000`

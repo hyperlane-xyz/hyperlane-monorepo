@@ -96,7 +96,7 @@ pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
     /// Get the status of a transaction.
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError>;
 
-    /// Fetch the current updater value
+    /// Fetch the current validator manager value
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError>;
 
     /// Fetch the current root.
