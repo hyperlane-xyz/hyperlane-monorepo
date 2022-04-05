@@ -40,7 +40,7 @@ export type BytesArray = [
   BytesLike
 ];
 
-/********* OPTICS CORE *********/
+/********* ABACUS CORE *********/
 export type Checkpoint = {
   root: string;
   index: number;

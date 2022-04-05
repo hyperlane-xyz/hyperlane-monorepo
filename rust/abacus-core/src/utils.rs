@@ -17,12 +17,12 @@ pub fn strip_0x_prefix(s: &str) -> &str {
     }
 }
 
-/// Computes hash of home domain concatenated with "OPTICS"
-pub fn home_domain_hash(home_domain: u32) -> H256 {
+/// Computes hash of domain concatenated with "ABACUS"
+pub fn domain_hash(domain: u32) -> H256 {
     H256::from_slice(
         Keccak256::new()
-            .chain(home_domain.to_be_bytes())
-            .chain("OPTICS".as_bytes())
+            .chain(domain.to_be_bytes())
+            .chain("ABACUS".as_bytes())
             .finalize()
             .as_slice(),
     )

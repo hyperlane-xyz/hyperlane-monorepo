@@ -1,4 +1,4 @@
-use crate::{utils::home_domain_hash, AbacusError, AbacusIdentifier, SignerExt};
+use crate::{utils::domain_hash, AbacusError, AbacusIdentifier, SignerExt};
 use ethers::{
     prelude::{Address, Signature},
     types::H256,
@@ -20,7 +20,7 @@ impl FailureNotification {
     fn signing_hash(&self) -> H256 {
         H256::from_slice(
             Keccak256::new()
-                .chain(home_domain_hash(self.home_domain))
+                .chain(domain_hash(self.home_domain))
                 .chain(self.home_domain.to_be_bytes())
                 .chain(self.updater.as_ref())
                 .finalize()
