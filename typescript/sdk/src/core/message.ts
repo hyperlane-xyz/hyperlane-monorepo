@@ -397,17 +397,10 @@ export class AbacusMessage {
   }
 
   /**
-   * The domain from which the message was sent
-   */
-  get from(): number {
-    return this.message.origin;
-  }
-
-  /**
-   * The domain from which the message was sent. Alias for `from`
+   * The domain from which the message was sent.
    */
   get origin(): number {
-    return this.from;
+    return this.message.origin;
   }
 
   /**
