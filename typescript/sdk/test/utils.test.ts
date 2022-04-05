@@ -38,7 +38,7 @@ describe('utils', () => {
       expect(product.toNumber()).to.equal(1234);
     });
 
-    it('gets the floored product of a BigNumber and FixedNumber', () => {
+    it('gets the ceilinged product of a BigNumber and FixedNumber', () => {
       const big = BigNumber.from('1000');
       const fixed = FixedNumber.from('1.2345');
       const product = mulBigAndFixed(big, fixed, true);

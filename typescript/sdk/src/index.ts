@@ -8,7 +8,6 @@ export {
   CoreContracts,
   CoreContractAddresses,
   MessageStatus,
-  BaseMessage,
 } from './core';
 export {
   Annotated,

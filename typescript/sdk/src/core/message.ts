@@ -1,14 +1,14 @@
 import { BigNumber } from '@ethersproject/bignumber';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
+import { keccak256 } from 'ethers/lib/utils';
 
-import { Outbox__factory } from '@abacus-network/core';
+import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
 
-import { Annotated, findAnnotatedSingleEvent } from '../../events';
-import { NameOrDomain } from '../../types';
-import { BaseMessage } from './base';
-import { delay } from '../../utils';
+import { Annotated, findAnnotatedSingleEvent } from '../events';
+import { NameOrDomain } from '../types';
+import { delay, ParsedMessage, parseMessage } from '../utils';
 
-import { AbacusCore } from '..';
+import { AbacusCore } from '.';
 import {
   AnnotatedCheckpoint,
   AnnotatedDispatch,
@@ -20,7 +20,7 @@ import {
   DispatchTypes,
   ProcessArgs,
   ProcessTypes,
-} from '../events';
+} from './events';
 
 export type AbacusStatus = {
   status: MessageStatus;
@@ -47,18 +47,31 @@ export type EventCache = {
 };
 
 /**
- * A dispatched Abacus message.
+ * A deserialized Abacus message.
  */
-export class AbacusMessage extends BaseMessage {
+export class AbacusMessage {
   readonly dispatch: AnnotatedDispatch;
+  readonly message: ParsedMessage;
+  readonly outbox: Outbox;
+  readonly inbox: Inbox;
 
+  readonly core: AbacusCore;
   protected cache: EventCache;
 
   constructor(core: AbacusCore, dispatch: AnnotatedDispatch) {
-    super(core, dispatch.event.args.message);
-
+    this.core = core;
+    this.message = parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
+    this.outbox = core.mustGetContracts(this.message.origin).outbox;
+    this.inbox = core.mustGetInbox(this.message.origin, this.message.destination);
     this.cache = {};
+  }
+
+  /**
+   * The receipt of the TX that dispatched this message
+   */
+  get receipt(): TransactionReceipt {
+    return this.dispatch.receipt;
   }
 
   /**
@@ -364,6 +377,8 @@ export class AbacusMessage extends BaseMessage {
   /**
    * Returns a promise that resolves when the message has been delivered.
    *
+   * WARNING: May never resolve. Oftern takes hours to resolve.
+   *
    * @param opts Polling options.
    */
   async wait(opts?: { pollTime?: number }): Promise<void> {
@@ -379,10 +394,59 @@ export class AbacusMessage extends BaseMessage {
   }
 
   /**
-   * The receipt of the TX that dispatched this message
+   * The domain from which the message was sent
    */
-  get receipt(): TransactionReceipt {
-    return this.dispatch.receipt;
+  get from(): number {
+    return this.message.origin;
+  }
+
+  /**
+   * The domain from which the message was sent. Alias for `from`
+   */
+  get origin(): number {
+    return this.from;
+  }
+
+  /**
+   * The identifier for the sender of this message
+   */
+  get sender(): string {
+    return this.message.sender;
+  }
+
+  /**
+   * The domain nonce for this message
+   */
+  get nonce(): number {
+    return this.message.nonce;
+  }
+
+  /**
+   * The destination domain for this message
+   */
+  get destination(): number {
+    return this.message.destination;
+  }
+
+  /**
+   * The identifer for the recipient for this message
+   */
+  get recipient(): string {
+    return this.message.recipient;
+  }
+
+  /**
+   * The message body
+   */
+  get body(): string {
+    return this.message.body;
+  }
+
+  /**
+   * The keccak256 hash of the message body
+   */
+  get bodyHash(): string {
+    return keccak256(this.body);
   }
 
   /**
