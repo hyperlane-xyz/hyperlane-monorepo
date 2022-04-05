@@ -88,23 +88,23 @@ impl DbStateCommand {
     ) -> Result<OutputVec> {
         // Create mapping of (update root, block_number) to [messages]
         let mut output_map: HashMap<(H256, u64), Vec<CommittedMessage>> = HashMap::new();
-        for (committed_root, bucket) in messages_by_committed_roots {
-            let containing_update_opt = db.update_by_previous_root(committed_root)?;
+        // for (committed_root, bucket) in messages_by_committed_roots {
+        //     let containing_update_opt = db.update_by_previous_root(committed_root)?;
 
-            match containing_update_opt {
-                Some(containing_update) => {
-                    let new_root = containing_update.update.new_root;
-                    let update_metadata =
-                        db.retrieve_update_metadata(new_root)?.unwrap_or_else(|| {
-                            panic!("Couldn't find metadata for update {:?}", containing_update)
-                        });
+        //     match containing_update_opt {
+        //         Some(containing_update) => {
+        //             let new_root = containing_update.update.new_root;
+        //             let update_metadata =
+        //                 db.retrieve_update_metadata(new_root)?.unwrap_or_else(|| {
+        //                     panic!("Couldn't find metadata for update {:?}", containing_update)
+        //                 });
 
-                    output_map.insert((new_root, update_metadata.block_number), bucket);
-                }
-                // No more updates left
-                None => break,
-            }
-        }
+        //             output_map.insert((new_root, update_metadata.block_number), bucket);
+        //         }
+        //         // No more updates left
+        //         None => break,
+        //     }
+        // }
 
         // Convert hashmap into vector of k,v pairs and sort the entries by
         // update block number

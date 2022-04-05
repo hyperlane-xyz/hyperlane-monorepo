@@ -37,7 +37,7 @@
 //!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
 
 use crate::{
-    agent::AgentCore, AbacusAgentCore, AbacusCommonIndexers, CachingInbox,
+    AbacusAgentCore, AbacusCommonIndexers, CachingInbox,
     CachingOutbox, OutboxIndexers,
 };
 use abacus_core::{
@@ -219,32 +219,6 @@ impl Settings {
         self.signers.get(name)?.try_into_signer().await.ok()
     }
 
-    // /// Try to get all replicas from this settings object
-    // pub async fn try_caching_replicas(
-    //     &self,
-    //     db: DB,
-    // ) -> Result<HashMap<String, Arc<CachingReplica>>, Report> {
-    //     let mut result = HashMap::default();
-    //     for (k, v) in self.replicas.iter().filter(|(_, v)| v.disabled.is_none()) {
-    //         if k != &v.name {
-    //             bail!(
-    //                 "Replica key does not match replica name:\n key: {}  name: {}",
-    //                 k,
-    //                 v.name
-    //             );
-    //         }
-    //         let signer = self.get_signer(&v.name).await;
-    //         let replica = v.try_into_replica(signer).await?;
-    //         let indexer = Arc::new(self.try_replica_indexer(v).await?);
-    //         let abacus_db = AbacusDB::new(replica.name(), db.clone());
-    //         result.insert(
-    //             v.name.clone(),
-    //             Arc::new(CachingReplica::new(replica, abacus_db, indexer)),
-    //         );
-    //     }
-    //     Ok(result)
-    // }
-
     /// Try to get all inboxes from this settings object
     pub async fn try_caching_inboxes(
         &self,
@@ -270,15 +244,6 @@ impl Settings {
         }
         Ok(result)
     }
-
-    // /// Try to get a home object
-    // pub async fn try_caching_home(&self, db: DB) -> Result<CachingHome, Report> {
-    //     let signer = self.get_signer(&self.home.name).await;
-    //     let home = self.home.try_into_home(signer).await?;
-    //     let indexer = Arc::new(self.try_home_indexer().await?);
-    //     let abacus_db = AbacusDB::new(home.name(), db);
-    //     Ok(CachingHome::new(home, abacus_db, indexer))
-    // }
 
     /// Try to get a outbox object
     pub async fn try_caching_outbox(&self, db: DB) -> Result<CachingOutbox, Report> {
@@ -358,11 +323,6 @@ impl Settings {
             metrics,
             indexer: self.index.clone(),
         })
-    }
-
-    // TODO REMOVE
-    pub async fn try_into_core(&self, name: &str) -> Result<AgentCore, Report> {
-        Err(Error::new(ErrorKind::Other, "oh no!"))
     }
 
     /// Read settings from the config file
