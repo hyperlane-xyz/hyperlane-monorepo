@@ -234,7 +234,7 @@ where
 
 #[cfg(test)]
 mod test {
-    use abacus_test::mocks::MockIndexer;
+    use abacus_test::mocks::indexer::MockAbacusIndexer;
     use mockall::*;
 
     use std::sync::Arc;
@@ -243,7 +243,7 @@ mod test {
     use ethers::signers::LocalWallet;
 
     use abacus_core::{
-        AbacusMessage, Encode, RawCommittedMessage, SignedUpdateWithMeta, Update, UpdateMeta,
+        AbacusMessage, Checkpoint, CheckpointMeta, CheckpointWithMeta, Encode, RawCommittedMessage,
     };
     use abacus_test::test_utils;
 
@@ -251,7 +251,10 @@ mod test {
     use crate::CoreMetrics;
 
     #[tokio::test]
-    async fn handles_missing_rpc_updates() {
+    #[ignore]
+    // Checkpoints are not indexed at the moment, remove #[ignore] when checkpoint
+    // indexing is implemented to use this test.
+    async fn handles_missing_rpc_checkpoints() {
         test_utils::run_test_db(|db| async move {
             let signer: LocalWallet =
                 "1111111111111111111111111111111111111111111111111111111111111111"
@@ -263,147 +266,131 @@ mod test {
             let third_root = H256::from([2; 32]);
             let fourth_root = H256::from([3; 32]);
             let fifth_root = H256::from([4; 32]);
-            let sixth_root = H256::from([4; 32]);
 
-            let first_update = Update {
-                home_domain: 1,
-                previous_root: first_root,
-                new_root: second_root,
-            }
-            .sign_with(&signer)
-            .await
-            .expect("!sign");
+            let first_checkpoint = Checkpoint {
+                outbox_domain: 1,
+                root: first_root,
+                index: 1,
+            };
 
-            let second_update = Update {
-                home_domain: 1,
-                previous_root: second_root,
-                new_root: third_root,
-            }
-            .sign_with(&signer)
-            .await
-            .expect("!sign");
+            let second_checkpoint = Checkpoint {
+                outbox_domain: 1,
+                root: second_root,
+                index: 2,
+            };
 
-            let third_update = Update {
-                home_domain: 1,
-                previous_root: third_root,
-                new_root: fourth_root,
-            }
-            .sign_with(&signer)
-            .await
-            .expect("!sign");
+            let third_checkpoint = Checkpoint {
+                outbox_domain: 1,
+                root: third_root,
+                index: 3,
+            };
 
-            let fourth_update = Update {
-                home_domain: 1,
-                previous_root: fourth_root,
-                new_root: fifth_root,
-            }
-            .sign_with(&signer)
-            .await
-            .expect("!sign");
+            let fourth_checkpoint = Checkpoint {
+                outbox_domain: 1,
+                root: fourth_root,
+                index: 4,
+            };
 
-            let fifth_update = Update {
-                home_domain: 1,
-                previous_root: fifth_root,
-                new_root: sixth_root,
-            }
-            .sign_with(&signer)
-            .await
-            .expect("!sign");
+            let fifth_checkpoint = Checkpoint {
+                outbox_domain: 1,
+                root: fifth_root,
+                index: 5,
+            };
 
-            let mut mock_indexer = MockIndexer::new();
+            let mut mock_indexer = MockAbacusIndexer::new();
             {
                 let mut seq = Sequence::new();
 
-                let first_update_with_meta = SignedUpdateWithMeta {
-                    signed_update: first_update.clone(),
-                    metadata: UpdateMeta { block_number: 5 },
+                let first_checkpoint_with_meta = CheckpointWithMeta {
+                    checkpoint: first_checkpoint.clone(),
+                    metadata: CheckpointMeta { block_number: 5 },
                 };
 
-                let second_update_with_meta = SignedUpdateWithMeta {
-                    signed_update: second_update.clone(),
-                    metadata: UpdateMeta { block_number: 15 },
+                let second_checkpoint_with_meta = CheckpointWithMeta {
+                    checkpoint: second_checkpoint.clone(),
+                    metadata: CheckpointMeta { block_number: 15 },
                 };
-                let second_update_with_meta_clone = second_update_with_meta.clone();
+                let second_checkpoint_with_meta_clone = second_checkpoint_with_meta.clone();
 
-                let third_update_with_meta = SignedUpdateWithMeta {
-                    signed_update: third_update.clone(),
-                    metadata: UpdateMeta { block_number: 15 },
+                let third_checkpoint_with_meta = CheckpointWithMeta {
+                    checkpoint: third_checkpoint.clone(),
+                    metadata: CheckpointMeta { block_number: 15 },
                 };
 
-                let fourth_update_with_meta = SignedUpdateWithMeta {
-                    signed_update: fourth_update.clone(),
-                    metadata: UpdateMeta { block_number: 25 },
+                let fourth_checkpoint_with_meta = CheckpointWithMeta {
+                    checkpoint: fourth_checkpoint.clone(),
+                    metadata: CheckpointMeta { block_number: 25 },
                 };
-                let fourth_update_with_meta_clone_1 = fourth_update_with_meta.clone();
-                let fourth_update_with_meta_clone_2 = fourth_update_with_meta.clone();
+                let fourth_checkpoint_with_meta_clone_1 = fourth_checkpoint_with_meta.clone();
+                let fourth_checkpoint_with_meta_clone_2 = fourth_checkpoint_with_meta.clone();
 
-                let fifth_update_with_meta = SignedUpdateWithMeta {
-                    signed_update: fifth_update.clone(),
-                    metadata: UpdateMeta { block_number: 55 },
+                let fifth_checkpoint_with_meta = CheckpointWithMeta {
+                    checkpoint: fifth_checkpoint.clone(),
+                    metadata: CheckpointMeta { block_number: 55 },
                 };
-                let fifth_update_with_meta_clone_1 = fifth_update_with_meta.clone();
-                let fifth_update_with_meta_clone_2 = fifth_update_with_meta.clone();
-                let fifth_update_with_meta_clone_3 = fifth_update_with_meta.clone();
+                let fifth_checkpoint_with_meta_clone_1 = fifth_checkpoint_with_meta.clone();
+                let fifth_checkpoint_with_meta_clone_2 = fifth_checkpoint_with_meta.clone();
+                let fifth_checkpoint_with_meta_clone_3 = fifth_checkpoint_with_meta.clone();
 
-                // Return first update
+                // Return first checkpoint
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![first_update_with_meta]));
+                    .return_once(move |_, _| Ok(vec![first_checkpoint_with_meta]));
 
-                // Return second update, misses third update
+                // Return second checkpoint, misses third checkpoint
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![second_update_with_meta]));
+                    .return_once(move |_, _| Ok(vec![second_checkpoint_with_meta]));
 
-                // --> miss fourth update
+                // --> miss fourth checkpoint
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // Next block range is empty updates
+                // Next block range is empty checkpoints
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // second --> return fifth update is invalid
+                // second --> return fifth checkpoint is invalid
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fifth_update_with_meta]));
+                    .return_once(move |_, _| Ok(vec![fifth_checkpoint_with_meta]));
 
                 // Indexer goes back and tries empty block range
                 mock_indexer
@@ -412,7 +399,7 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
@@ -425,22 +412,22 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fifth_update_with_meta_clone_1]));
+                    .return_once(move |_, _| Ok(vec![fifth_checkpoint_with_meta_clone_1]));
 
-                // Indexer goes back further and gets to the fourth update
+                // Indexer goes back further and gets to the fourth checkpoint
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fourth_update_with_meta_clone_1]));
+                    .return_once(move |_, _| Ok(vec![fourth_checkpoint_with_meta_clone_1]));
 
                 // Indexer goes further for empty range
                 mock_indexer
@@ -449,48 +436,48 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // Indexer goes back further and gets to the fifth update
+                // Indexer goes back further and gets to the fifth checkpoint
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fifth_update_with_meta_clone_2]));
+                    .return_once(move |_, _| Ok(vec![fifth_checkpoint_with_meta_clone_2]));
 
-                // Indexer goes back even further to find 2nd and 3rd update
+                // Indexer goes back even further to find 2nd and 3rd checkpoint
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| {
-                        Ok(vec![second_update_with_meta_clone, third_update_with_meta])
+                        Ok(vec![second_checkpoint_with_meta_clone, third_checkpoint_with_meta])
                     });
 
-                // Indexer goes forward and gets to the fourth update again
+                // Indexer goes forward and gets to the fourth checkpoint again
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fourth_update_with_meta_clone_2]));
+                    .return_once(move |_, _| Ok(vec![fourth_checkpoint_with_meta_clone_2]));
 
                 // Indexer goes further for empty range
                 mock_indexer
@@ -499,22 +486,22 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| Ok(vec![]));
 
-                // Indexer goes back further and gets to the fifth update
+                // Indexer goes back further and gets to the fifth checkpoint
                 mock_indexer
                     .expect__get_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .times(1)
                     .in_sequence(&mut seq)
-                    .return_once(move |_, _| Ok(vec![fifth_update_with_meta_clone_3]));
+                    .return_once(move |_, _| Ok(vec![fifth_checkpoint_with_meta_clone_3]));
 
                 // Return empty vec for remaining calls
                 mock_indexer
@@ -523,11 +510,11 @@ mod test {
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
                 mock_indexer
-                    .expect__fetch_sorted_updates()
+                    .expect__fetch_sorted_checkpoints()
                     .return_once(move |_, _| Ok(vec![]));
             }
 
-            let abacus_db = AbacusDB::new("home_1", db);
+            let abacus_db = AbacusDB::new("outbox_1", db);
 
             let indexer = Arc::new(mock_indexer);
             let metrics = Arc::new(
@@ -553,46 +540,49 @@ mod test {
                 sync_metrics,
             );
 
-            let sync_task = contract_sync.sync_updates();
+            let sync_task = contract_sync.sync_checkpoints();
             sleep(Duration::from_secs(3)).await;
             cancel_task!(sync_task);
 
-            assert_eq!(
-                abacus_db
-                    .update_by_previous_root(first_root)
-                    .expect("!db")
-                    .expect("!update"),
-                first_update.clone()
-            );
-            assert_eq!(
-                abacus_db
-                    .update_by_previous_root(second_root)
-                    .expect("!db")
-                    .expect("!update"),
-                second_update.clone()
-            );
-            assert_eq!(
-                abacus_db
-                    .update_by_previous_root(third_root)
-                    .expect("!db")
-                    .expect("!update"),
-                third_update.clone()
-            );
-            assert_eq!(
-                abacus_db
-                    .update_by_previous_root(fourth_root)
-                    .expect("!db")
-                    .expect("!update"),
-                fourth_update.clone()
-            );
+            // Checkpoints indexing is not implemented at the moment.
+            // This can be used when it's implemented in the future.
 
-            assert_eq!(
-                abacus_db
-                    .update_by_previous_root(fifth_root)
-                    .expect("!db")
-                    .expect("!update"),
-                fifth_update.clone()
-            );
+            // assert_eq!(
+            //     abacus_db
+            //         .checkpoint_by_previous_root(first_root)
+            //         .expect("!db")
+            //         .expect("!checkpoint"),
+            //     first_checkpoint.clone()
+            // );
+            // assert_eq!(
+            //     abacus_db
+            //         .checkpoint_by_previous_root(second_root)
+            //         .expect("!db")
+            //         .expect("!checkpoint"),
+            //     second_checkpoint.clone()
+            // );
+            // assert_eq!(
+            //     abacus_db
+            //         .checkpoint_by_previous_root(third_root)
+            //         .expect("!db")
+            //         .expect("!checkpoint"),
+            //     third_checkpoint.clone()
+            // );
+            // assert_eq!(
+            //     abacus_db
+            //         .checkpoint_by_previous_root(fourth_root)
+            //         .expect("!db")
+            //         .expect("!checkpoint"),
+            //     fourth_checkpoint.clone()
+            // );
+
+            // assert_eq!(
+            //     abacus_db
+            //         .checkpoint_by_previous_root(fifth_root)
+            //         .expect("!db")
+            //         .expect("!checkpoint"),
+            //     fifth_checkpoint.clone()
+            // );
         })
         .await
     }
@@ -653,7 +643,7 @@ mod test {
             let fifth_message_clone_2 = fifth_message.clone();
             let fifth_message_clone_3 = fifth_message.clone();
 
-            let mut mock_indexer = MockIndexer::new();
+            let mut mock_indexer = MockAbacusIndexer::new();
             {
                 let mut seq = Sequence::new();
 
@@ -853,7 +843,7 @@ mod test {
 
             let contract_sync = ContractSync::new(
                 "agent".to_owned(),
-                "home_1".to_owned(),
+                "outbox_1".to_owned(),
                 abacus_db.clone(),
                 indexer.clone(),
                 IndexSettings {
@@ -863,7 +853,7 @@ mod test {
                 sync_metrics,
             );
 
-            let sync_task = contract_sync.sync_messages();
+            let sync_task = contract_sync.sync_outbox_messages();
             sleep(Duration::from_secs(3)).await;
             cancel_task!(sync_task);
 
