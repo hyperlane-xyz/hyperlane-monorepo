@@ -83,8 +83,8 @@ export class InterchainGasCalculator {
    * @param originDomain The domain of the origin chain.
    * @param destinationDomain The domain of the destination chain.
    * @param destinationGas The amount of gas to pay for on the destination chain.
-   * @returns An estimated amount of origin chain tokens (in wei) to cover
-   * gas costs of the message on the destination chain.
+   * @returns An estimated amount of origin chain tokens to cover gas costs of the
+   * message on the destination chain.
    */
   async estimatePaymentFromGasAmount(
     originDomain: number,
@@ -109,6 +109,15 @@ export class InterchainGasCalculator {
     );
   }
 
+  /**
+   * Calculates the estimated payment to process the message on its destination chain,
+   * denominated in the native token of the origin chain. The destination gas is
+   * determined by estimating the gas to process the provided message, which is then used
+   * to calculate the payment using {@link estimatePaymentFromGasAmount}.
+   * @param message The parsed message to estimate payment for.
+   * @returns An estimated amount of origin chain tokens to cover gas costs of the
+   * message on the destination chain.
+   */
   async estimatePaymentFromMessage(message: ParsedMessage) {
     const destinationGas = await this.estimateMessageGas(message);
     return this.estimatePaymentFromGasAmount(
