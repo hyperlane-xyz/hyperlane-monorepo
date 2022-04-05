@@ -464,7 +464,10 @@ mod test {
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(move |_, _| {
-                        Ok(vec![second_checkpoint_with_meta_clone, third_checkpoint_with_meta])
+                        Ok(vec![
+                            second_checkpoint_with_meta_clone,
+                            third_checkpoint_with_meta,
+                        ])
                     });
 
                 // Indexer goes forward and gets to the fourth checkpoint again
