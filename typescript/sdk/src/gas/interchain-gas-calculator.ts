@@ -79,9 +79,7 @@ export class InterchainGasCalculator {
     destinationDomain: number,
     destinationGas: BigNumber,
   ): Promise<BigNumber> {
-    const destinationGasPrice = await this.suggestedGasPrice(
-      destinationDomain,
-    );
+    const destinationGasPrice = await this.suggestedGasPrice(destinationDomain);
     const destinationCostWei = destinationGas.mul(destinationGasPrice);
 
     // Convert from destination domain native tokens to origin domain native tokens.
@@ -117,10 +115,7 @@ export class InterchainGasCalculator {
     // A FixedNumber that doesn't care what the decimals of the from/to
     // tokens are -- it is just the amount of whole from tokens that a single
     // whole to token is equivalent in value to.
-    const exchangeRate = await this.getExchangeRate(
-      toDomain,
-      fromDomain,
-    );
+    const exchangeRate = await this.getExchangeRate(toDomain, fromDomain);
 
     // Apply the exchange rate to the amount. This does not yet account for differences in
     // decimals between the two tokens.
@@ -145,7 +140,7 @@ export class InterchainGasCalculator {
    * I.e. the number of whole quote tokens a single whole base token is equivalent
    * in value to.
    */
-   async getExchangeRate(
+  async getExchangeRate(
     baseDomain: number,
     quoteDomain: number,
   ): Promise<FixedNumber> {
@@ -156,6 +151,13 @@ export class InterchainGasCalculator {
       quoteDomain,
     );
 
+    // This operation is called "unsafe" because of the unintuitive rounding that
+    // can occur due to fixed point arithmetic. We're not overly concerned about perfect
+    // precision because we're operating with fixed128x18, which has 18 decimals of
+    // precision, and gas payments are regardless expected to have a generous buffer to account
+    // for movements in native token prices or gas prices.
+    // For more details on FixedPoint arithmetic being "unsafe", see
+    // https://github.com/ethers-io/ethers.js/issues/1322#issuecomment-787430115.
     return quoteUsd.divUnsafe(baseUsd);
   }
 
@@ -165,9 +167,7 @@ export class InterchainGasCalculator {
    * @param destinationDomain The domain of the destination chain.
    * @returns The suggested gas price in wei on the destination chain.
    */
-  async suggestedGasPrice(
-    domain: number,
-  ): Promise<BigNumber> {
+  async suggestedGasPrice(domain: number): Promise<BigNumber> {
     const provider = this.core.mustGetProvider(domain);
     const suggestedGasPrice = await provider.getGasPrice();
 
