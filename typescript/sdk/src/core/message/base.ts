@@ -1,37 +1,10 @@
-import { arrayify, hexlify } from '@ethersproject/bytes';
 import { keccak256 } from 'ethers/lib/utils';
 
 import { Inbox, Outbox } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
 import { AbacusCore } from '..';
-import { Address } from '../../utils';
-
-export type ParsedMessage = {
-  origin: number;
-  sender: string;
-  nonce: number;
-  destination: number;
-  recipient: string;
-  body: string;
-};
-
-/**
- * Parse a serialized Abacus message from raw bytes.
- *
- * @param message A serialized message.
- * @returns The parsed message.
- */
-export function parseMessage(message: string): ParsedMessage {
-  const buf = Buffer.from(arrayify(message));
-  const origin = buf.readUInt32BE(0);
-  const sender = hexlify(buf.slice(4, 36));
-  const nonce = buf.readUInt32BE(36);
-  const destination = buf.readUInt32BE(40);
-  const recipient = hexlify(buf.slice(44, 76));
-  const body = hexlify(buf.slice(76));
-  return { origin, sender, nonce, destination, recipient, body };
-}
+import { Address, ParsedMessage, parseMessage } from '../../utils';
 
 /**
  * A deserialized Abacus message.

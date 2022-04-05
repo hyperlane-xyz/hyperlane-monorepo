@@ -3,6 +3,15 @@ import { ethers } from 'ethers';
 
 export type Address = string;
 
+export type ParsedMessage = {
+  origin: number;
+  sender: string;
+  nonce: number;
+  destination: number;
+  recipient: string;
+  body: string;
+};
+
 /**
  * Converts a 20-byte (or other length) ID to a 32-byte ID.
  * Ensures that a bytes-like is 32 long. left-padding with 0s if not.
@@ -51,4 +60,21 @@ export function evmId(data: BytesLike): Address {
  */
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Parse a serialized Abacus message from raw bytes.
+ *
+ * @param message A serialized message.
+ * @returns The parsed message.
+ */
+ export function parseMessage(message: string): ParsedMessage {
+  const buf = Buffer.from(arrayify(message));
+  const origin = buf.readUInt32BE(0);
+  const sender = hexlify(buf.slice(4, 36));
+  const nonce = buf.readUInt32BE(36);
+  const destination = buf.readUInt32BE(40);
+  const recipient = hexlify(buf.slice(44, 76));
+  const body = hexlify(buf.slice(76));
+  return { origin, sender, nonce, destination, recipient, body };
 }

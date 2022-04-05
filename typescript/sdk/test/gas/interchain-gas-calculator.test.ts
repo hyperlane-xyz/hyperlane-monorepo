@@ -1,8 +1,11 @@
 import { expect } from 'chai';
-import { BigNumber, FixedNumber } from 'ethers';
+import { BigNumber, ethers, FixedNumber } from 'ethers';
+
+import { utils } from '@abacus-network/utils';
 
 import { AbacusCore } from '../../src/core';
 import { InterchainGasCalculator } from '../../src/gas/interchain-gas-calculator';
+import { ParsedMessage } from '../../src/utils';
 import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
 
 describe('InterchainGasCalculator', () => {
@@ -37,8 +40,8 @@ describe('InterchainGasCalculator', () => {
     provider.clearMethodResolveValues();
   });
 
-  describe('estimateGasPayment', () => {
-    it('estimates origin token payment', async () => {
+  describe('estimatePaymentFromGasAmount', () => {
+    it('estimates origin token payment from a specified destination gas amount', async () => {
       const destinationGas = BigNumber.from(100_000);
 
       // Set destination gas price to 10 wei
@@ -48,11 +51,38 @@ describe('InterchainGasCalculator', () => {
       calculator.paymentEstimateMultiplier = FixedNumber.from(1);
       calculator.suggestedGasPriceMultiplier = FixedNumber.from(1);
 
-      const estimatedPayment = await calculator.estimateGasPayment(
+      const estimatedPayment = await calculator.estimatePaymentFromGasAmount(
         originDomain,
         destinationDomain,
         destinationGas,
       );
+
+      // 100_000 dest gas * 10 gas price * ($5 per origin token / $10 per origin token)
+      expect(estimatedPayment.toNumber()).to.equal(500_000);
+    });
+  });
+
+  describe('estimatePaymentFromMessage', () => {
+    it('estimates origin token payment from a specified message', async () => {
+      // Set the estimated destination gas
+      const estimatedDestinationGas = 100_000;
+      calculator.estimateMessageGas = () => Promise.resolve(BigNumber.from(estimatedDestinationGas));
+      // Set destination gas price to 10 wei
+      calculator.suggestedGasPrice = (_) => Promise.resolve(BigNumber.from(10));
+      // Set paymentEstimateMultiplier to 1 just to test easily
+      calculator.paymentEstimateMultiplier = FixedNumber.from(1);
+
+      const zeroAddressBytes32 = utils.addressToBytes32(ethers.constants.AddressZero);
+      const message: ParsedMessage = {
+        origin: originDomain,
+        sender: zeroAddressBytes32,
+        nonce: 0,
+        destination: destinationDomain,
+        recipient: zeroAddressBytes32,
+        body: '0x12345678',
+      };
+
+      const estimatedPayment = await calculator.estimatePaymentFromMessage(message);
 
       // 100_000 dest gas * 10 gas price * ($5 per origin token / $10 per origin token)
       expect(estimatedPayment.toNumber()).to.equal(500_000);
