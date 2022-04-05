@@ -81,13 +81,14 @@ impl DbStateCommand {
         Ok(messages_by_committed_roots)
     }
 
+    // TODO: migrate away from Optics to Abacus
     fn create_output_vec(
         &self,
-        db: &AbacusDB,
-        messages_by_committed_roots: HashMap<H256, Vec<CommittedMessage>>,
+        _db: &AbacusDB,
+        _messages_by_committed_roots: HashMap<H256, Vec<CommittedMessage>>,
     ) -> Result<OutputVec> {
         // Create mapping of (update root, block_number) to [messages]
-        let mut output_map: HashMap<(H256, u64), Vec<CommittedMessage>> = HashMap::new();
+        let output_map: HashMap<(H256, u64), Vec<CommittedMessage>> = HashMap::new();
         // for (committed_root, bucket) in messages_by_committed_roots {
         //     let containing_update_opt = db.update_by_previous_root(committed_root)?;
 
