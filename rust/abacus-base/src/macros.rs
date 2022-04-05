@@ -57,10 +57,11 @@ macro_rules! decl_agent {
 /// ### Usage
 ///
 /// ```ignore
-/// decl_settings!(Updater {
-///    updater: SignerConf,
-///    polling_interval: String,
-///    update_pause: String,
+/// decl_settings!(Validator {
+///    validator: SignerConf,
+///    checkpointsyncer: CheckpointSyncerConf,
+///    reorgperiod: String,
+///    interval: String,
 /// });
 /// ```
 macro_rules! decl_settings {

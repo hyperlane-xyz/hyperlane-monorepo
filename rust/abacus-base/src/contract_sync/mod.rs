@@ -24,7 +24,7 @@ use schema::HomeContractSyncDB;
 const MESSAGES_LABEL: &str = "messages";
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
-/// Extracts chain-specific data (emitted updates, messages, etc) from an
+/// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
 /// `indexer` and fills the agent's db with this data. A CachingHome or
 /// CachingReplica will use a contract sync to spawn syncing tasks to keep the
 /// db up-to-date.

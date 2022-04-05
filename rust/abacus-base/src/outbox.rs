@@ -143,8 +143,8 @@ impl OutboxEvents for CachingOutbox {
         tree_index: usize,
     ) -> Result<Option<H256>, ChainCommunicationError> {
         loop {
-            if let Some(update) = self.db.leaf_by_leaf_index(tree_index as u32)? {
-                return Ok(Some(update));
+            if let Some(leaf) = self.db.leaf_by_leaf_index(tree_index as u32)? {
+                return Ok(Some(leaf));
             }
             sleep(Duration::from_millis(500)).await;
         }
