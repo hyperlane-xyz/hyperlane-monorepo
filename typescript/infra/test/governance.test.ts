@@ -29,7 +29,6 @@ describe('governance', async () => {
     });
 
     // xAppConnectionManager can be set to anything for these tests.
-    // TODO: How to transfer ownership to the governance router?
     if (!governanceConfig.xAppConnectionManager) {
       governanceConfig.xAppConnectionManager = {};
       deployer.domainNames.map((name) => {
