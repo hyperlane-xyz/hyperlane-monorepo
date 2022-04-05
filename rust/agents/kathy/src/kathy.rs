@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use color_eyre::{eyre::bail, Result};
+use color_eyre::{eyre::WrapErr, Result};
 
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
@@ -10,30 +10,30 @@ use tracing::{info, Instrument};
 
 use ethers::core::types::H256;
 
-use abacus_base::{decl_agent, AbacusAgent, AgentCore};
-use abacus_core::{Home, Message, Replica};
+use abacus_base::{decl_agent, AbacusAgentCore, Agent, CachingInbox};
+use abacus_core::{AbacusCommon, Outbox, Message};
 
 use crate::settings::KathySettings as Settings;
 
 decl_agent!(Kathy {
     duration: u64,
     generator: ChatGenerator,
-    home_lock: Arc<Mutex<()>>,
+    outbox_lock: Arc<Mutex<()>>,
 });
 
 impl Kathy {
-    pub fn new(duration: u64, generator: ChatGenerator, core: AgentCore) -> Self {
+    pub fn new(duration: u64, generator: ChatGenerator, core: AbacusAgentCore) -> Self {
         Self {
             duration,
             generator,
             core,
-            home_lock: Arc::new(Mutex::new(())),
+            outbox_lock: Arc::new(Mutex::new(())),
         }
     }
 }
 
 #[async_trait::async_trait]
-impl AbacusAgent for Kathy {
+impl Agent for Kathy {
     const AGENT_NAME: &'static str = "kathy";
 
     type Settings = Settings;
@@ -42,26 +42,23 @@ impl AbacusAgent for Kathy {
         Ok(Self::new(
             settings.interval.parse().expect("invalid u64"),
             settings.chat.into(),
-            settings.base.try_into_core(Self::AGENT_NAME).await?,
+            settings.base.try_into_abacus_core(Self::AGENT_NAME).await?,
         ))
     }
 
+}
+
+impl Kathy {
     #[tracing::instrument]
-    fn run(&self, name: &str) -> Instrumented<JoinHandle<Result<()>>> {
-        let replica_opt = self.replica_by_name(name);
-        let name = name.to_owned();
-        let home = self.home();
-        let home_lock = self.home_lock.clone();
+    fn run_inbox(&self, inbox: Arc<CachingInbox>) -> Instrumented<JoinHandle<Result<()>>> {
+        let outbox = self.outbox();
+        let outbox_lock = self.outbox_lock.clone();
 
         let mut generator = self.generator.clone();
         let duration = Duration::from_secs(self.duration);
 
         tokio::spawn(async move {
-            if replica_opt.is_none() {
-                bail!("No replica named {}", name);
-            }
-            let replica = replica_opt.unwrap();
-            let destination = replica.local_domain();
+            let destination = inbox.local_domain();
 
             loop {
                 let msg = generator.gen_chat();
@@ -82,8 +79,8 @@ impl AbacusAgent for Kathy {
                             recipient = message.recipient
                         );
 
-                        let guard = home_lock.lock().await;
-                        home.dispatch(&message).await?;
+                        let guard = outbox_lock.lock().await;
+                        outbox.dispatch(&message).await?;
                         drop(guard);
                     }
                     _ => {
@@ -96,6 +93,27 @@ impl AbacusAgent for Kathy {
             }
         })
         .in_current_span()
+    }
+
+    fn wrap_inbox_run(
+        &self,
+        inbox_name: &str,
+        inbox: Arc<CachingInbox>,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
+        let m = format!("Task for inbox named {} failed", inbox_name);
+        let handle = self.run_inbox(inbox).in_current_span();
+        let fut = async move { handle.await?.wrap_err(m) };
+
+        tokio::spawn(fut).in_current_span()
+    }
+
+    pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
+            .inboxes()
+            .iter()
+            .map(|(inbox_name, inbox)| self.wrap_inbox_run(inbox_name, inbox.clone()))
+            .collect();
+        self.run_all(inbox_tasks)
     }
 }
 

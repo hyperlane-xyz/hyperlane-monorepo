@@ -15,8 +15,8 @@ macro_rules! cancel_task {
 /// Shortcut for implementing agent traits
 macro_rules! impl_as_ref_core {
     ($agent:ident) => {
-        impl AsRef<abacus_base::AgentCore> for $agent {
-            fn as_ref(&self) -> &abacus_base::AgentCore {
+        impl AsRef<abacus_base::AbacusAgentCore> for $agent {
+            fn as_ref(&self) -> &abacus_base::AbacusAgentCore {
                 &self.core
             }
         }
@@ -36,7 +36,7 @@ macro_rules! decl_agent {
         #[derive(Debug)]
         pub struct $name {
             $($prop: $type,)*
-            core: abacus_base::AgentCore,
+            core: abacus_base::AbacusAgentCore,
         }
 
         $crate::impl_as_ref_core!($name);
