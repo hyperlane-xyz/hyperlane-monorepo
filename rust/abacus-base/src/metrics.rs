@@ -115,7 +115,7 @@ impl CoreMetrics {
 
     /// Register an int counter.
     ///
-    /// If this metric is per-replica, use `new_replica_int_counter`
+    /// If this metric is per-inbox, use `new_inbox_int_counter`
     pub fn new_int_counter(
         &self,
         metric_name: &str,

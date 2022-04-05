@@ -44,7 +44,7 @@ use async_trait::async_trait;
 use ethers::{
     core::types::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712},
-        Address as EthAddress, Signature, SignatureError, H256,
+        Address as EthAddress, Signature, SignatureError,
     },
     prelude::AwsSigner,
     signers::{AwsSignerError, LocalWallet, Signer},
@@ -181,6 +181,8 @@ impl<T> SignerExt for T where T: Signer {}
 #[cfg(test)]
 mod test {
     use super::*;
+
+    use ethers::core::types::H256;
 
     #[test]
     fn it_sign() {
