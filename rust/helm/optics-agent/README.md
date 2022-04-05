@@ -13,7 +13,7 @@ Additional documentation is present in comments in `yalues.yaml`.
 | affinity | object | `{}` |  |
 | fullnameOverride | string | `""` |  |
 | image.pullPolicy | string | `"Always"` |  |
-| image.repository | string | `"gcr.io/clabs-abacus/abacus-agent"` | Main repository for Abacus Agent binaries, provided by cLabs |
+| image.repository | string | `"gcr.io/clabs-optics/optics-agent"` | Main repository for Abacus Agent binaries, provided by cLabs |
 | image.tag | string | `"latest"` | Overrides the image tag whose default is the chart appVersion. |
 | imagePullSecrets | list | `[]` |  |
 | nameOverride | string | `""` |  |

@@ -118,8 +118,8 @@ impl OutboxEvents for CachingOutbox {
         nonce: u32,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
         loop {
-            if let Some(update) = self.db.message_by_nonce(destination, nonce)? {
-                return Ok(Some(update));
+            if let Some(message) = self.db.message_by_nonce(destination, nonce)? {
+                return Ok(Some(message));
             }
             sleep(Duration::from_millis(500)).await;
         }
@@ -131,8 +131,8 @@ impl OutboxEvents for CachingOutbox {
         leaf: H256,
     ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
         loop {
-            if let Some(update) = self.db.message_by_leaf(leaf)? {
-                return Ok(Some(update));
+            if let Some(message) = self.db.message_by_leaf(leaf)? {
+                return Ok(Some(message));
             }
             sleep(Duration::from_millis(500)).await;
         }
