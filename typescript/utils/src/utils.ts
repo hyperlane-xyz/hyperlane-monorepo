@@ -70,6 +70,6 @@ export function destinationAndNonce(
 export function domainHash(domain: Number): string {
   return ethers.utils.solidityKeccak256(
     ["uint32", "string"],
-    [domain, "OPTICS"]
+    [domain, "ABACUS"]
   );
 }

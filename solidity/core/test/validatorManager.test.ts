@@ -12,7 +12,7 @@ import {
   ValidatorManager,
 } from '../types';
 
-const outboxDomainHashCases = require('../../../vectors/outboxDomainHash.json');
+const domainHashCases = require('../../../vectors/domainHash.json');
 const localDomain = 1000;
 
 describe('ValidatorManager', async () => {
@@ -65,7 +65,7 @@ describe('ValidatorManager', async () => {
   it('Calculated domain hash matches Rust-produced domain hash', async () => {
     // Compare Rust output in json file to solidity output (json file matches
     // hash for local domain of 1000)
-    for (let testCase of outboxDomainHashCases) {
+    for (let testCase of domainHashCases) {
       const { expectedDomainHash } = testCase;
       const domainHash = await validatorManager.domainHash(
         testCase.outboxDomain,
