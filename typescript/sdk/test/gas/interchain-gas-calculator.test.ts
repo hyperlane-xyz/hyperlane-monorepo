@@ -59,12 +59,12 @@ describe('InterchainGasCalculator', () => {
     });
   });
 
-  describe('convertDestinationWeiToOriginWei', () => {
+  describe('convertDomainNativeTokens', () => {
     it('converts using the USD value of origin and destination native tokens', async () => {
       const destinationWei = BigNumber.from('1000');
-      const originWei = await calculator.convertDestinationWeiToOriginWei(
-        originDomain,
+      const originWei = await calculator.convertDomainNativeTokens(
         destinationDomain,
+        originDomain,
         destinationWei,
       );
       
@@ -80,9 +80,9 @@ describe('InterchainGasCalculator', () => {
       };
 
       const destinationWei = BigNumber.from('1000');
-      const originWei = await calculator.convertDestinationWeiToOriginWei(
-        originDomain,
+      const originWei = await calculator.convertDomainNativeTokens(
         destinationDomain,
+        originDomain,
         destinationWei,
       );
 
@@ -98,9 +98,9 @@ describe('InterchainGasCalculator', () => {
       };
 
       const destinationWei = BigNumber.from('1000');
-      const originWei = await calculator.convertDestinationWeiToOriginWei(
-        originDomain,
+      const originWei = await calculator.convertDomainNativeTokens(
         destinationDomain,
+        originDomain,
         destinationWei,
       );
 
@@ -108,7 +108,7 @@ describe('InterchainGasCalculator', () => {
     })
   });
 
-  describe('suggestedDestinationGasPrice', () => {
+  describe('suggestedGasPrice', () => {
     it('gets the gas price from the provider', async () => {
       const gasPrice = 1000;
       provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
@@ -117,7 +117,7 @@ describe('InterchainGasCalculator', () => {
       calculator.suggestedGasPriceMultiplier = FixedNumber.from(1);
 
       expect(
-        (await calculator.suggestedDestinationGasPrice(destinationDomain)).toNumber()
+        (await calculator.suggestedGasPrice(destinationDomain)).toNumber()
       ).to.equal(gasPrice);
     });
   });

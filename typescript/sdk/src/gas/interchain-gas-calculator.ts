@@ -63,11 +63,11 @@ export class InterchainGasCalculator {
   }
 
   /**
-   * Calculates the estimated payment in origin chain native tokens required
-   * to cover the costs of proving and processing the message on the
-   * destination chain. Considers the price of origin and destination native
-   * tokens, destination gas prices, and estimated gas required on the
-   * destination chain. Applies the multiplier `paymentEstimateMultiplier`.
+   * Calculates the estimated payment for an amount of gas on the destination chain,
+   * denominated in the native token of the origin chain. Considers the exchange
+   * rate between the native tokens of the origin and destination chains, and the
+   * suggested gas price on the destination chain. Applies the multiplier
+   * `paymentEstimateMultiplier`.
    * @param originDomain The domain of the origin chain.
    * @param destinationDomain The domain of the destination chain.
    * @param destinationGas The amount of gas to pay for on the destination chain.
@@ -79,14 +79,15 @@ export class InterchainGasCalculator {
     destinationDomain: number,
     destinationGas: BigNumber,
   ): Promise<BigNumber> {
-    const destinationPrice = await this.suggestedDestinationGasPrice(
+    const destinationGasPrice = await this.suggestedGasPrice(
       destinationDomain,
     );
-    const destinationCostWei = destinationGas.mul(destinationPrice);
+    const destinationCostWei = destinationGas.mul(destinationGasPrice);
 
-    const originCostWei = await this.convertDestinationWeiToOriginWei(
-      originDomain,
+    // Convert from destination domain native tokens to origin domain native tokens.
+    const originCostWei = await this.convertDomainNativeTokens(
       destinationDomain,
+      originDomain,
       destinationCostWei,
     );
 
@@ -99,65 +100,63 @@ export class InterchainGasCalculator {
   }
 
   /**
-   * Converts a given amount of destination chain native tokens (in wei)
-   * to origin chain native tokens (in wei). Considers the decimals of both
-   * tokens and the exchange rate between the two determined by USD prices.
-   * Note that if the origin token decimals are too imprecise for the conversion
-   * result, 0 may be returned.
-   * @param originDomain The domain of the origin chain.
-   * @param destinationDomain The domain of the destination chain.
-   * @param destinationWei The amount of destination chain native tokens (in wei).
-   * @returns The amount of origin chain native tokens (in wei) whose value matches
-   * destinationWei.
+   * Using the exchange rates provided by tokenPriceGetter, returns the amount of
+   * `toDomain` native tokens equivalent in value to the provided `fromAmount` of
+   * `fromDomain` native tokens. Accounts for differences in the decimals of the tokens.
+   * @param fromDomain The domain whose native token is being converted from.
+   * @param toDomain The domain whose native token is being converted into.
+   * @param fromAmount The amount of `fromDomain` native tokens to convert from.
+   * @returns The amount of `toDomain` native tokens whose value is equivalent to
+   * `fromAmount` of `fromDomain` native tokens.
    */
-  async convertDestinationWeiToOriginWei(
-    originDomain: number,
-    destinationDomain: number,
-    destinationWei: BigNumber,
+  async convertDomainNativeTokens(
+    fromDomain: number,
+    toDomain: number,
+    fromAmount: BigNumber,
   ): Promise<BigNumber> {
-    // A FixedNumber that doesn't care what the decimals of the origin/dest
-    // tokens are -- it is just the amount of whole origin tokens that a single
-    // whole destination token is equivalent in value to.
-    const srcTokensPerDestToken = await this.originTokensPerDestinationToken(
-      originDomain,
-      destinationDomain,
+    // A FixedNumber that doesn't care what the decimals of the from/to
+    // tokens are -- it is just the amount of whole from tokens that a single
+    // whole to token is equivalent in value to.
+    const exchangeRate = await this.getExchangeRate(
+      toDomain,
+      fromDomain,
     );
 
-    // Using the src token / dest token price, convert the destination wei
-    // to origin token wei. This does not yet move from destination token decimals
-    // to origin token decimals.
-    const originWeiWithDestinationDecimals = mulBigAndFixed(
-      destinationWei,
-      srcTokensPerDestToken,
+    // Apply the exchange rate to the amount. This does not yet account for differences in
+    // decimals between the two tokens.
+    const exchangeRateProduct = mulBigAndFixed(
+      fromAmount,
+      exchangeRate,
       true, // ceil
     );
 
-    // Converts originWeiWithDestinationDecimals to have the correct number of decimals.
+    // Converts exchangeRateProduct to having the correct number of decimals.
     return convertDecimalValue(
-      originWeiWithDestinationDecimals,
-      this.nativeTokenDecimals(destinationDomain),
-      this.nativeTokenDecimals(originDomain),
+      exchangeRateProduct,
+      this.nativeTokenDecimals(fromDomain),
+      this.nativeTokenDecimals(toDomain),
     );
   }
 
   /**
-   * @param originDomain The domain of the origin chain.
-   * @param destinationDomain The domain of the destination chain.
-   * @returns The exchange number of whole origin tokens a single whole
-   * destination token is equivalent in value to.
+   * @param baseDomain The domain whose native token is the base asset.
+   * @param quoteDomain The domain whose native token is the quote asset.
+   * @returns The exchange rate of the native tokens of the baseDomain and the quoteDomain.
+   * I.e. the number of whole quote tokens a single whole base token is equivalent
+   * in value to.
    */
-  async originTokensPerDestinationToken(
-    originDomain: number,
-    destinationDomain: number,
+   async getExchangeRate(
+    baseDomain: number,
+    quoteDomain: number,
   ): Promise<FixedNumber> {
-    const originUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
-      originDomain,
+    const baseUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
+      baseDomain,
     );
-    const destUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
-      destinationDomain,
+    const quoteUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
+      quoteDomain,
     );
 
-    return destUsd.divUnsafe(originUsd);
+    return quoteUsd.divUnsafe(baseUsd);
   }
 
   /**
@@ -166,10 +165,10 @@ export class InterchainGasCalculator {
    * @param destinationDomain The domain of the destination chain.
    * @returns The suggested gas price in wei on the destination chain.
    */
-  async suggestedDestinationGasPrice(
-    destinationDomain: number,
+  async suggestedGasPrice(
+    domain: number,
   ): Promise<BigNumber> {
-    const provider = this.core.mustGetProvider(destinationDomain);
+    const provider = this.core.mustGetProvider(domain);
     const suggestedGasPrice = await provider.getGasPrice();
 
     // suggestedGasPrice * destinationGasPriceMultiplier

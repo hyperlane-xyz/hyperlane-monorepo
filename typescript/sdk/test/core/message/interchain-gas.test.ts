@@ -53,7 +53,7 @@ describe('InterchainGasPayingMessage', () => {
       const estimatedDestinationGas = 100_000;
       testMessage.estimateDestinationGas = () => Promise.resolve(ethers.BigNumber.from(estimatedDestinationGas));
       // Set destination gas price to 10 wei
-      interchainGasCalculator.suggestedDestinationGasPrice = (_) => Promise.resolve(BigNumber.from(10));
+      interchainGasCalculator.suggestedGasPrice = (_) => Promise.resolve(BigNumber.from(10));
       // Set paymentEstimateMultiplier to 1 just to test easily
       interchainGasCalculator.paymentEstimateMultiplier = FixedNumber.from(1);
 
