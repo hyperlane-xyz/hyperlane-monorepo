@@ -10,8 +10,6 @@ mock! {
     pub Indexer {
         pub fn _get_block_number(&self) -> Result<u32> {}
 
-        // pub fn _fetch_sorted_updates(&self, from: u32, to: u32) -> Result<Vec<SignedUpdateWithMeta>> {}
-
         pub fn _fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {}
     }
 }

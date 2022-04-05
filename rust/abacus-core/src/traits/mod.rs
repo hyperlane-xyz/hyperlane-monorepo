@@ -4,7 +4,6 @@ mod home;
 mod inbox;
 mod indexer;
 mod outbox;
-mod xapp;
 
 use async_trait::async_trait;
 use color_eyre::Result;
@@ -23,7 +22,6 @@ pub use home::*;
 pub use inbox::*;
 pub use indexer::*;
 pub use outbox::*;
-pub use xapp::*;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]
