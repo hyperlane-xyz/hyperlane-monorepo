@@ -68,22 +68,22 @@ pub struct Chain {
     ethers: ethers::providers::Provider<ethers::providers::Http>,
 }
 
-boxed_trait!(
-    make_home_indexer,
-    EthereumHomeIndexer,
-    HomeIndexer,
-    from_height: u32,
-    chunk_size: u32
-);
-boxed_trait!(
-    make_replica_indexer,
-    EthereumReplicaIndexer,
-    CommonIndexer,
-    from_height: u32,
-    chunk_size: u32
-);
-boxed_trait!(make_replica, EthereumReplica, Replica,);
-boxed_trait!(make_home, EthereumHome, Home,);
+// boxed_trait!(
+//     make_home_indexer,
+//     EthereumHomeIndexer,
+//     HomeIndexer,
+//     from_height: u32,
+//     chunk_size: u32
+// );
+// boxed_trait!(
+//     make_replica_indexer,
+//     EthereumReplicaIndexer,
+//     CommonIndexer,
+//     from_height: u32,
+//     chunk_size: u32
+// );
+// boxed_trait!(make_replica, EthereumReplica, Replica,);
+// boxed_trait!(make_home, EthereumHome, Home,);
 boxed_trait!(
     make_conn_manager,
     EthereumConnectionManager,

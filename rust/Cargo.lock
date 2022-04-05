@@ -21,11 +21,11 @@ dependencies = [
  "abacus-test",
  "async-trait",
  "color-eyre 0.6.1",
- "config 0.10.1",
+ "config",
  "ethers",
  "futures-util",
  "lazy_static",
- "mockall 0.10.2",
+ "mockall",
  "once_cell",
  "opentelemetry",
  "opentelemetry-jaeger",
@@ -120,10 +120,10 @@ dependencies = [
  "abacus-ethereum",
  "async-trait",
  "color-eyre 0.5.11",
- "config 0.10.1",
+ "config",
  "ethers",
  "futures-util",
- "mockall 0.10.2",
+ "mockall",
  "prometheus",
  "rand 0.8.5",
  "rocksdb",
@@ -645,7 +645,7 @@ dependencies = [
  "abacus-test",
  "async-trait",
  "color-eyre 0.5.11",
- "config 0.10.1",
+ "config",
  "ethers",
  "futures-util",
  "log",
@@ -868,22 +868,6 @@ name = "config"
 version = "0.10.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "19b076e143e1d9538dde65da30f8481c2a6c44040edb8e02b9bf1351edb92ce3"
-dependencies = [
- "lazy_static",
- "nom 5.1.2",
- "rust-ini",
- "serde 1.0.130",
- "serde-hjson",
- "serde_json",
- "toml",
- "yaml-rust",
-]
-
-[[package]]
-name = "config"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b1b9d958c2b1368a663f05538fc1b5975adce1e19f435acceae987aceeeb369"
 dependencies = [
  "lazy_static",
  "nom 5.1.2",
@@ -2191,7 +2175,7 @@ dependencies = [
  "abacus-core",
  "async-trait",
  "color-eyre 0.5.11",
- "config 0.10.1",
+ "config",
  "ethers",
  "futures-util",
  "log",
@@ -2534,21 +2518,6 @@ dependencies = [
 
 [[package]]
 name = "mockall"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "18d614ad23f9bb59119b8b5670a85c7ba92c5e9adf4385c81ea00c51c8be33d5"
-dependencies = [
- "cfg-if 1.0.0",
- "downcast",
- "fragile",
- "lazy_static",
- "mockall_derive 0.9.1",
- "predicates",
- "predicates-tree",
-]
-
-[[package]]
-name = "mockall"
 version = "0.10.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6ab571328afa78ae322493cacca3efac6a0f2e0a67305b4df31fd439ef129ac0"
@@ -2557,21 +2526,9 @@ dependencies = [
  "downcast",
  "fragile",
  "lazy_static",
- "mockall_derive 0.10.2",
+ "mockall_derive",
  "predicates",
  "predicates-tree",
-]
-
-[[package]]
-name = "mockall_derive"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5dd4234635bca06fc96c7368d038061e0aae1b00a764dc817e900dc974e3deea"
-dependencies = [
- "cfg-if 1.0.0",
- "proc-macro2",
- "quote",
- "syn",
 ]
 
 [[package]]
@@ -3303,7 +3260,7 @@ dependencies = [
  "abacus-test",
  "async-trait",
  "color-eyre 0.5.11",
- "config 0.10.1",
+ "config",
  "ethers",
  "futures-util",
  "log",
@@ -3560,7 +3517,7 @@ dependencies = [
  "abacus-test",
  "async-trait",
  "color-eyre 0.5.11",
- "config 0.10.1",
+ "config",
  "ethers",
  "futures-util",
  "log",
@@ -4842,35 +4799,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a156c684c91ea7d62626509bce3cb4e1d9ed5c4d978f7b4352658f96a4c26b4a"
 
 [[package]]
-name = "updater"
-version = "0.1.0"
-dependencies = [
- "abacus-base",
- "abacus-core",
- "abacus-ethereum",
- "abacus-test",
- "async-trait",
- "color-eyre 0.5.11",
- "config 0.11.0",
- "ethers",
- "futures-util",
- "hex",
- "log",
- "mockall 0.9.1",
- "paste",
- "prometheus",
- "rocksdb",
- "serde 1.0.130",
- "serde_json",
- "thiserror",
- "tokio",
- "tracing",
- "tracing-futures",
- "tracing-subscriber 0.2.25",
- "warp",
-]
-
-[[package]]
 name = "url"
 version = "2.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4908,7 +4836,7 @@ dependencies = [
  "abacus-test",
  "async-trait",
  "color-eyre 0.5.11",
- "config 0.10.1",
+ "config",
  "ethers",
  "futures-util",
  "log",
@@ -5090,33 +5018,6 @@ dependencies = [
  "wasm-bindgen",
  "wasm-bindgen-futures",
  "web-sys",
-]
-
-[[package]]
-name = "watcher"
-version = "0.1.0"
-dependencies = [
- "abacus-base",
- "abacus-core",
- "abacus-ethereum",
- "abacus-test",
- "async-trait",
- "color-eyre 0.5.11",
- "config 0.10.1",
- "ethers",
- "futures-util",
- "log",
- "paste",
- "prometheus",
- "rocksdb",
- "serde 1.0.130",
- "serde_json",
- "thiserror",
- "tokio",
- "tokio-test",
- "tracing",
- "tracing-futures",
- "tracing-subscriber 0.2.25",
 ]
 
 [[package]]

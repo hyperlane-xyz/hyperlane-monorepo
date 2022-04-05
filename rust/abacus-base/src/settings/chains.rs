@@ -3,12 +3,11 @@ use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};
 use abacus_ethereum::{
-    make_conn_manager, make_home, make_inbox, make_outbox, make_replica, Connection,
+    make_conn_manager, make_inbox, make_outbox, Connection,
 };
 
 use crate::{
-    home::Homes, replica::Replicas, xapp::ConnectionManagers, HomeVariants, InboxVariants, Inboxes,
-    OutboxVariants, Outboxes, ReplicaVariants,
+    xapp::ConnectionManagers, InboxVariants, Inboxes, OutboxVariants, Outboxes,
 };
 
 /// A connection to _some_ blockchain.
@@ -47,24 +46,24 @@ pub struct ChainSetup {
 }
 
 impl ChainSetup {
-    /// Try to convert the chain setting into a Home contract
-    pub async fn try_into_home(&self, signer: Option<Signers>) -> Result<Homes, Report> {
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(HomeVariants::Ethereum(
-                make_home(
-                    conf.clone(),
-                    &ContractLocator {
-                        name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self.address.parse::<ethers::types::Address>()?.into(),
-                    },
-                    signer,
-                )
-                .await?,
-            )
-            .into()),
-        }
-    }
+    // /// Try to convert the chain setting into a Home contract
+    // pub async fn try_into_home(&self, signer: Option<Signers>) -> Result<Homes, Report> {
+    //     match &self.chain {
+    //         ChainConf::Ethereum(conf) => Ok(HomeVariants::Ethereum(
+    //             make_home(
+    //                 conf.clone(),
+    //                 &ContractLocator {
+    //                     name: self.name.clone(),
+    //                     domain: self.domain.parse().expect("invalid uint"),
+    //                     address: self.address.parse::<ethers::types::Address>()?.into(),
+    //                 },
+    //                 signer,
+    //             )
+    //             .await?,
+    //         )
+    //         .into()),
+    //     }
+    // }
 
     /// Try to convert the chain setting into a Outbox contract
     pub async fn try_into_outbox(&self, signer: Option<Signers>) -> Result<Outboxes, Report> {
@@ -85,24 +84,24 @@ impl ChainSetup {
         }
     }
 
-    /// Try to convert the chain setting into a replica contract
-    pub async fn try_into_replica(&self, signer: Option<Signers>) -> Result<Replicas, Report> {
-        match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(ReplicaVariants::Ethereum(
-                make_replica(
-                    conf.clone(),
-                    &ContractLocator {
-                        name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self.address.parse::<ethers::types::Address>()?.into(),
-                    },
-                    signer,
-                )
-                .await?,
-            )
-            .into()),
-        }
-    }
+    // /// Try to convert the chain setting into a replica contract
+    // pub async fn try_into_replica(&self, signer: Option<Signers>) -> Result<Replicas, Report> {
+    //     match &self.chain {
+    //         ChainConf::Ethereum(conf) => Ok(ReplicaVariants::Ethereum(
+    //             make_replica(
+    //                 conf.clone(),
+    //                 &ContractLocator {
+    //                     name: self.name.clone(),
+    //                     domain: self.domain.parse().expect("invalid uint"),
+    //                     address: self.address.parse::<ethers::types::Address>()?.into(),
+    //                 },
+    //                 signer,
+    //             )
+    //             .await?,
+    //         )
+    //         .into()),
+    //     }
+    // }
 
     /// Try to convert the chain setting into a inbox contract
     pub async fn try_into_inbox(&self, signer: Option<Signers>) -> Result<Inboxes, Report> {

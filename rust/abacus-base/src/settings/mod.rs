@@ -37,16 +37,16 @@
 //!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
 
 use crate::{
-    agent::AgentCore, AbacusAgentCore, AbacusCommonIndexers, CachingHome, CachingInbox,
-    CachingOutbox, CachingReplica, CommonIndexers, HomeIndexers, OutboxIndexers,
+    agent::AgentCore, AbacusAgentCore, AbacusCommonIndexers, CachingInbox,
+    CachingOutbox, OutboxIndexers,
 };
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    AbacusCommon, Common, ContractLocator, Signers,
+    AbacusCommon, ContractLocator, Signers,
 };
 use abacus_ethereum::{
-    make_home_indexer, make_inbox_indexer, make_outbox_indexer, make_replica_indexer,
+    make_inbox_indexer, make_outbox_indexer,
 };
 use color_eyre::{eyre::bail, Report};
 use config::{Config, ConfigError, Environment, File};
@@ -56,6 +56,8 @@ use rusoto_kms::KmsClient;
 use serde::Deserialize;
 use std::{collections::HashMap, env, sync::Arc};
 use tracing::instrument;
+
+use std::io::{Error, ErrorKind};
 
 /// Chain configuartion
 pub mod chains;
@@ -124,13 +126,13 @@ impl SignerConf {
     }
 }
 
-/// Home indexing settings
+/// Outbox indexing settings
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(rename_all = "camelCase")]
 pub struct IndexSettings {
-    /// The height at which to start indexing the Home contract
+    /// The height at which to start indexing the Outbox contract
     pub from: Option<String>,
-    /// The number of blocks to query at once at which to start indexing the Home contract
+    /// The number of blocks to query at once at which to start indexing the Outbox contract
     pub chunk: Option<String>,
 }
 
@@ -183,16 +185,13 @@ pub struct Settings {
     pub db: String,
     /// Port to listen for prometheus scrape requests
     pub metrics: Option<String>,
-    /// Settings for the home indexer
+    /// Settings for the outbox indexer
     #[serde(default)]
     pub index: IndexSettings,
-    /// TODO: In this transitionary period, home and replicas
-    /// fields are reused for both home/replicas for optics agents
-    /// and outbox/inboxes for abacus agents
-    /// The home configuration
-    pub home: ChainSetup,
-    /// The replica configurations
-    pub replicas: HashMap<String, ChainSetup>,
+    /// The outbox configuration
+    pub outbox: ChainSetup,
+    /// The inbox configurations
+    pub inboxes: HashMap<String, ChainSetup>,
     /// The tracing configuration
     pub tracing: TracingConfig,
     /// Transaction signers
@@ -206,8 +205,8 @@ impl Settings {
             db: self.db.clone(),
             metrics: self.metrics.clone(),
             index: self.index.clone(),
-            home: self.home.clone(),
-            replicas: self.replicas.clone(),
+            outbox: self.outbox.clone(),
+            inboxes: self.inboxes.clone(),
             tracing: self.tracing.clone(),
             signers: self.signers.clone(),
         }
@@ -220,31 +219,31 @@ impl Settings {
         self.signers.get(name)?.try_into_signer().await.ok()
     }
 
-    /// Try to get all replicas from this settings object
-    pub async fn try_caching_replicas(
-        &self,
-        db: DB,
-    ) -> Result<HashMap<String, Arc<CachingReplica>>, Report> {
-        let mut result = HashMap::default();
-        for (k, v) in self.replicas.iter().filter(|(_, v)| v.disabled.is_none()) {
-            if k != &v.name {
-                bail!(
-                    "Replica key does not match replica name:\n key: {}  name: {}",
-                    k,
-                    v.name
-                );
-            }
-            let signer = self.get_signer(&v.name).await;
-            let replica = v.try_into_replica(signer).await?;
-            let indexer = Arc::new(self.try_replica_indexer(v).await?);
-            let abacus_db = AbacusDB::new(replica.name(), db.clone());
-            result.insert(
-                v.name.clone(),
-                Arc::new(CachingReplica::new(replica, abacus_db, indexer)),
-            );
-        }
-        Ok(result)
-    }
+    // /// Try to get all replicas from this settings object
+    // pub async fn try_caching_replicas(
+    //     &self,
+    //     db: DB,
+    // ) -> Result<HashMap<String, Arc<CachingReplica>>, Report> {
+    //     let mut result = HashMap::default();
+    //     for (k, v) in self.replicas.iter().filter(|(_, v)| v.disabled.is_none()) {
+    //         if k != &v.name {
+    //             bail!(
+    //                 "Replica key does not match replica name:\n key: {}  name: {}",
+    //                 k,
+    //                 v.name
+    //             );
+    //         }
+    //         let signer = self.get_signer(&v.name).await;
+    //         let replica = v.try_into_replica(signer).await?;
+    //         let indexer = Arc::new(self.try_replica_indexer(v).await?);
+    //         let abacus_db = AbacusDB::new(replica.name(), db.clone());
+    //         result.insert(
+    //             v.name.clone(),
+    //             Arc::new(CachingReplica::new(replica, abacus_db, indexer)),
+    //         );
+    //     }
+    //     Ok(result)
+    // }
 
     /// Try to get all inboxes from this settings object
     pub async fn try_caching_inboxes(
@@ -252,7 +251,7 @@ impl Settings {
         db: DB,
     ) -> Result<HashMap<String, Arc<CachingInbox>>, Report> {
         let mut result = HashMap::default();
-        for (k, v) in self.replicas.iter().filter(|(_, v)| v.disabled.is_none()) {
+        for (k, v) in self.inboxes.iter().filter(|(_, v)| v.disabled.is_none()) {
             if k != &v.name {
                 bail!(
                     "Inbox key does not match inbox name:\n key: {}  name: {}",
@@ -272,19 +271,19 @@ impl Settings {
         Ok(result)
     }
 
-    /// Try to get a home object
-    pub async fn try_caching_home(&self, db: DB) -> Result<CachingHome, Report> {
-        let signer = self.get_signer(&self.home.name).await;
-        let home = self.home.try_into_home(signer).await?;
-        let indexer = Arc::new(self.try_home_indexer().await?);
-        let abacus_db = AbacusDB::new(home.name(), db);
-        Ok(CachingHome::new(home, abacus_db, indexer))
-    }
+    // /// Try to get a home object
+    // pub async fn try_caching_home(&self, db: DB) -> Result<CachingHome, Report> {
+    //     let signer = self.get_signer(&self.home.name).await;
+    //     let home = self.home.try_into_home(signer).await?;
+    //     let indexer = Arc::new(self.try_home_indexer().await?);
+    //     let abacus_db = AbacusDB::new(home.name(), db);
+    //     Ok(CachingHome::new(home, abacus_db, indexer))
+    // }
 
     /// Try to get a outbox object
     pub async fn try_caching_outbox(&self, db: DB) -> Result<CachingOutbox, Report> {
-        let signer = self.get_signer(&self.home.name).await;
-        let outbox = self.home.try_into_outbox(signer).await?;
+        let signer = self.get_signer(&self.outbox.name).await;
+        let outbox = self.outbox.try_into_outbox(signer).await?;
         let indexer = Arc::new(self.try_outbox_indexer().await?);
         let abacus_db = AbacusDB::new(outbox.name(), db);
         Ok(CachingOutbox::new(outbox, abacus_db, indexer))
@@ -292,60 +291,16 @@ impl Settings {
 
     /// Try to get an indexer object for a outbox
     pub async fn try_outbox_indexer(&self) -> Result<OutboxIndexers, Report> {
-        let signer = self.get_signer(&self.home.name).await;
+        let signer = self.get_signer(&self.outbox.name).await;
 
-        match &self.home.chain {
+        match &self.outbox.chain {
             ChainConf::Ethereum(conn) => Ok(OutboxIndexers::Ethereum(
                 make_outbox_indexer(
                     conn.clone(),
                     &ContractLocator {
-                        name: self.home.name.clone(),
-                        domain: self.home.domain.parse().expect("invalid uint"),
-                        address: self.home.address.parse::<ethers::types::Address>()?.into(),
-                    },
-                    signer,
-                    self.index.from(),
-                    self.index.chunk_size(),
-                )
-                .await?,
-            )),
-        }
-    }
-
-    /// Try to get an indexer object for a home
-    pub async fn try_home_indexer(&self) -> Result<HomeIndexers, Report> {
-        let signer = self.get_signer(&self.home.name).await;
-
-        match &self.home.chain {
-            ChainConf::Ethereum(conn) => Ok(HomeIndexers::Ethereum(
-                make_home_indexer(
-                    conn.clone(),
-                    &ContractLocator {
-                        name: self.home.name.clone(),
-                        domain: self.home.domain.parse().expect("invalid uint"),
-                        address: self.home.address.parse::<ethers::types::Address>()?.into(),
-                    },
-                    signer,
-                    self.index.from(),
-                    self.index.chunk_size(),
-                )
-                .await?,
-            )),
-        }
-    }
-
-    /// Try to get an indexer object for a replica
-    pub async fn try_replica_indexer(&self, setup: &ChainSetup) -> Result<CommonIndexers, Report> {
-        let signer = self.get_signer(&setup.name).await;
-
-        match &setup.chain {
-            ChainConf::Ethereum(conn) => Ok(CommonIndexers::Ethereum(
-                make_replica_indexer(
-                    conn.clone(),
-                    &ContractLocator {
-                        name: setup.name.clone(),
-                        domain: setup.domain.parse().expect("invalid uint"),
-                        address: setup.address.parse::<ethers::types::Address>()?.into(),
+                        name: self.outbox.name.clone(),
+                        domain: self.outbox.domain.parse().expect("invalid uint"),
+                        address: self.outbox.address.parse::<ethers::types::Address>()?.into(),
                     },
                     signer,
                     self.index.from(),
@@ -405,28 +360,9 @@ impl Settings {
         })
     }
 
-    /// Try to generate an agent core for a named agent
+    // TODO REMOVE
     pub async fn try_into_core(&self, name: &str) -> Result<AgentCore, Report> {
-        let metrics = Arc::new(crate::metrics::CoreMetrics::new(
-            name,
-            self.metrics
-                .as_ref()
-                .map(|v| v.parse::<u16>().expect("metrics port must be u16")),
-            Arc::new(prometheus::Registry::new()),
-        )?);
-
-        let db = DB::from_path(&self.db)?;
-        let home = Arc::new(self.try_caching_home(db.clone()).await?);
-        let replicas = self.try_caching_replicas(db.clone()).await?;
-
-        Ok(AgentCore {
-            home,
-            replicas,
-            db,
-            settings: self.clone(),
-            metrics,
-            indexer: self.index.clone(),
-        })
+        Err(Error::new(ErrorKind::Other, "oh no!"))
     }
 
     /// Read settings from the config file
