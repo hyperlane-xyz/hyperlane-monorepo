@@ -240,7 +240,6 @@ mod test {
     use std::sync::Arc;
 
     use ethers::core::types::H256;
-    use ethers::signers::LocalWallet;
 
     use abacus_core::{
         AbacusMessage, Checkpoint, CheckpointMeta, CheckpointWithMeta, Encode, RawCommittedMessage,
@@ -256,11 +255,6 @@ mod test {
     // indexing is implemented to use this test.
     async fn handles_missing_rpc_checkpoints() {
         test_utils::run_test_db(|db| async move {
-            let signer: LocalWallet =
-                "1111111111111111111111111111111111111111111111111111111111111111"
-                    .parse()
-                    .unwrap();
-
             let first_root = H256::from([0; 32]);
             let second_root = H256::from([1; 32]);
             let third_root = H256::from([2; 32]);
