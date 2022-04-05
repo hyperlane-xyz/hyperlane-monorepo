@@ -2,8 +2,8 @@ import { expect } from 'chai';
 import { Call, AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
 import {
   CheckerViolation,
-  CommonViolationType,
-  ProxiedContractViolation,
+  ProxyViolationType,
+  UpgradeBeaconViolation,
 } from '@abacus-network/deploy';
 
 import {
@@ -40,10 +40,8 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
 
   handleViolation(v: CheckerViolation): Promise<DomainedCall> {
     switch (v.type) {
-      case CommonViolationType.ProxiedContract:
-        return this.handleProxiedContractViolation(
-          v as ProxiedContractViolation,
-        );
+      case ProxyViolationType.UpgradeBeacon:
+        return this.handleUpgradeBeaconViolation(v as UpgradeBeaconViolation);
       case CoreViolationType.Validator:
         return this.handleValidatorViolation(v as ValidatorViolation);
       default:
@@ -52,8 +50,8 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
     }
   }
 
-  async handleProxiedContractViolation(
-    violation: ProxiedContractViolation,
+  async handleUpgradeBeaconViolation(
+    violation: UpgradeBeaconViolation,
   ): Promise<DomainedCall> {
     const domain = violation.domain;
     const ubc = this.app.mustGetContracts(domain).upgradeBeaconController;

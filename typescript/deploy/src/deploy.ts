@@ -2,12 +2,7 @@ import path from 'path';
 import fs from 'fs';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import {
-  ChainName,
-  NameOrDomain,
-  MultiProvider,
-  ProxiedAddress,
-} from '@abacus-network/sdk';
+import { ChainName, NameOrDomain, MultiProvider } from '@abacus-network/sdk';
 import {
   UpgradeBeacon,
   UpgradeBeacon__factory,
@@ -15,18 +10,8 @@ import {
   UpgradeBeaconProxy__factory,
 } from '@abacus-network/core';
 
+import { ProxiedContract } from './proxy';
 import { VerificationInput, getContractVerificationInput } from './verify';
-
-export class ProxiedContract<T extends ethers.Contract> {
-  constructor(
-    public readonly contract: T,
-    public readonly addresses: ProxiedAddress,
-  ) {}
-
-  get address() {
-    return this.contract.address;
-  }
-}
 
 export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   protected addresses: Map<number, T>;

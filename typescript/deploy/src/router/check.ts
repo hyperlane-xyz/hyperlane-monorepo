@@ -47,13 +47,15 @@ export abstract class AbacusRouterChecker<
   ): Promise<void> {
     const contracts = this.app.mustGetContracts(domain);
     const owners = await Promise.all([
-      // TODO: Local tests failing because the fake connection manager
-      // we set isn't ownable.
-      // contracts.xAppConnectionManager.owner(),
       contracts.upgradeBeaconController.owner(),
       this.mustGetRouter(domain).owner(),
     ]);
-    owners.map((_) => expect(_).to.equal(owner));
+    // If the config specifies that a xAppConnectionManager should have been deployed,
+    // it should be owned by the owner.
+    if (!this.config.xAppConnectionManager) {
+      owners.push(contracts.xAppConectionManager.owner());
+    }
+    (await Promise.all(owners)).map((_) => expect(_).to.equal(owner));
   }
 
   async checkXAppConnectionManager(domain: types.Domain): Promise<void> {

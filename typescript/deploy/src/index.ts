@@ -1,4 +1,4 @@
-export { AbacusAppDeployer, ProxiedContract } from './deploy';
+export { AbacusAppDeployer } from './deploy';
 export {
   AbacusRouterDeployer,
   AbacusRouterChecker,
@@ -6,10 +6,10 @@ export {
   RouterConfig,
 } from './router';
 export { ContractVerifier, VerificationInput } from './verify';
+export { AbacusAppChecker } from './check';
 export {
-  AbacusAppChecker,
-  CheckerViolation,
-  CommonViolationType,
-  ProxiedContractViolation,
-} from './check';
-export { TransactionConfig, registerDomains } from './config';
+  ProxiedContract,
+  ProxyViolationType,
+  UpgradeBeaconViolation,
+} from './proxy';
+export { CheckerViolation, TransactionConfig, registerDomains } from './config';

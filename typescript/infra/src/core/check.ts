@@ -71,7 +71,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     const expectedManager = contracts.validatorManager.address;
     if (actualManager !== expectedManager) {
       const violation: ValidatorManagerViolation = {
-        domain: domain,
+        domain,
         type: CoreViolationType.ValidatorManager,
         actual: actualManager,
         expected: expectedManager,
@@ -146,12 +146,12 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   async checkProxiedContracts(domain: types.Domain): Promise<void> {
     const addresses = this.app.mustGetContracts(domain).addresses;
     // Outbox upgrade setup contracts are defined
-    await this.checkProxiedContract(domain, 'Outbox', addresses.outbox);
+    await this.checkUpgradeBeacon(domain, 'Outbox', addresses.outbox);
 
     const inboxes = Object.values(addresses.inboxes);
     await Promise.all(
       inboxes.map((inbox) => {
-        return this.checkProxiedContract(domain, 'Inbox', inbox);
+        return this.checkUpgradeBeacon(domain, 'Inbox', inbox);
       }),
     );
   }

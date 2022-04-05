@@ -28,12 +28,11 @@ describe('governance', async () => {
       owners[domain] = owner ? owner : ethers.constants.AddressZero;
     });
 
-    // Setting for connection manager can be anything for a test deployment
-    // so long as it's ownable.
+    // xAppConnectionManager can be set to anything for these tests.
+    // TODO: How to transfer ownership to the governance router?
     if (!governanceConfig.xAppConnectionManager) {
       governanceConfig.xAppConnectionManager = {};
-      deployer.domainNumbers.map((domain) => {
-        const name = deployer.mustResolveDomainName(domain);
+      deployer.domainNames.map((name) => {
         governanceConfig.xAppConnectionManager![name] = signer.address;
       });
     }

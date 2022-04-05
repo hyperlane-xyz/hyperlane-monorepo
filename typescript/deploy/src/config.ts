@@ -1,6 +1,14 @@
 import { ethers } from 'ethers';
 import { ChainName, domains, MultiProvider } from '@abacus-network/sdk';
 
+export interface CheckerViolation {
+  domain: number;
+  type: string;
+  expected: any;
+  actual: any;
+  data?: any;
+}
+
 export type TransactionConfig = {
   overrides: ethers.Overrides;
   supports1559?: boolean;

@@ -20,27 +20,22 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
   async checkProxiedContracts(domain: types.Domain): Promise<void> {
     const addresses = this.app.mustGetContracts(domain).addresses;
     // Outbox upgrade setup contracts are defined
-    await this.checkProxiedContract(
-      domain,
-      'GovernanceRouter',
-      addresses.router,
-    );
+    await this.checkUpgradeBeacon(domain, 'GovernanceRouter', addresses.router);
   }
 
   async checkOwnership(
     domain: types.Domain,
     owner: types.Address,
   ): Promise<void> {
-    // UBC and XCM should be owned by the router.
     const contracts = this.app.mustGetContracts(domain);
-    const owners = await Promise.all([
-      // TODO: Local tests failing because the fake connection manager
-      // we set isn't ownable.
-      // contracts.xAppConnectionManager.owner(),
-      contracts.upgradeBeaconController.owner(),
-    ]);
+    const owners = [contracts.upgradeBeaconController.owner()];
+    // If the config specifies that a xAppConnectionManager should have been deployed,
+    // it should be owned by the router.
+    if (!this.config.xAppConnectionManager) {
+      owners.push(contracts.xAppConnectionManager.owner());
+    }
     const expected = contracts.router.address;
-    owners.map((_) => expect(_).to.equal(expected));
+    (await Promise.all(owners)).map((_) => expect(_).to.equal(expected));
 
     // Router should be owned by governor, or null address if not configured.
     const actual = await this.mustGetRouter(domain).governor();

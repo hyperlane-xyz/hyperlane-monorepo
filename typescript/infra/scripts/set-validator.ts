@@ -22,7 +22,7 @@ async function main() {
     [CoreViolationType.Validator],
     [core.domainNumbers.length],
   );
-  // Sanity check: f each domain, expect one call to set the updater.
+  // Sanity check: for each domain, expect one call to set the validator.
   governor.expectCalls(
     core.domainNumbers,
     new Array(core.domainNumbers.length).fill(1),

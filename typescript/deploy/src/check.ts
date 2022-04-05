@@ -1,29 +1,9 @@
 import { expect } from 'chai';
-import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
 import { AbacusApp, ProxiedAddress } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
 
-export enum CommonViolationType {
-  ProxiedContract = 'ProxiedContract',
-}
-
-export interface CheckerViolation {
-  domain: number;
-  type: string;
-  expected: any;
-  actual: any;
-  data?: any;
-}
-
-export interface ProxiedContractViolation extends CheckerViolation {
-  type: CommonViolationType.ProxiedContract;
-  data: {
-    proxiedAddress: ProxiedAddress;
-    name: string;
-  };
-  actual: string;
-  expected: string;
-}
+import { CheckerViolation } from './config';
+import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 
 export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   readonly app: A;
@@ -37,54 +17,37 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   }
 
   addViolation(violation: CheckerViolation) {
-    switch (violation.type) {
-      case CommonViolationType.ProxiedContract:
-        const proxiedContractViolations = this.violations.filter(
-          (v) => v.type === CommonViolationType.ProxiedContract,
-        );
-        const matchingViolations = proxiedContractViolations.filter((v) => {
-          return (
-            violation.domain === v.domain &&
-            violation.actual === v.actual &&
-            violation.expected === v.expected
-          );
-        });
-        if (matchingViolations.length === 0) this.violations.push(violation);
-        break;
-      default:
-        this.violations.push(violation);
-        break;
+    if (!this.isDuplicateViolation(violation)) {
+      this.violations.push(violation);
     }
   }
 
-  async checkProxiedContract(
+  async checkUpgradeBeacon(
     domain: types.Domain,
     name: string,
     proxiedAddress: ProxiedAddress,
   ) {
-    // TODO: This should check the correct upgrade beacon controller
-    expect(proxiedAddress.beacon).to.not.be.undefined;
-    expect(proxiedAddress.proxy).to.not.be.undefined;
-    expect(proxiedAddress.implementation).to.not.be.undefined;
-
-    const provider = this.app.mustGetProvider(domain);
-    // Assert that the implementation is actually set
-    const storageValue = await provider.getStorageAt(proxiedAddress.beacon, 0);
-    const actual = ethers.utils.getAddress(storageValue.slice(26));
-    const expected = proxiedAddress.implementation;
-
-    if (actual != expected) {
-      this.violations.push({
-        domain,
-        type: CommonViolationType.ProxiedContract,
-        actual,
-        expected,
-        data: {
-          name,
-          proxiedAddress,
-        },
-      });
+    const provider = await this.app.mustGetProvider(domain);
+    const implementation = await upgradeBeaconImplementation(
+      provider,
+      proxiedAddress.beacon,
+    );
+    if (implementation !== proxiedAddress.implementation) {
+      this.addViolation(
+        upgradeBeaconViolation(domain, name, proxiedAddress, implementation),
+      );
     }
+  }
+
+  isDuplicateViolation(violation: CheckerViolation) {
+    const duplicates = this.violations.filter(
+      (v) =>
+        violation.type === v.type &&
+        violation.domain === v.domain &&
+        violation.actual === v.actual &&
+        violation.expected === v.expected,
+    );
+    return duplicates.length > 0;
   }
 
   expectViolations(types: string[], expectedMatches: number[]) {
