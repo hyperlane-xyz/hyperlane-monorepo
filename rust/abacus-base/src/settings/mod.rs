@@ -36,18 +36,13 @@
 //!    intended to be used by a specific agent.
 //!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
 
-use crate::{
-    AbacusAgentCore, AbacusCommonIndexers, CachingInbox,
-    CachingOutbox, OutboxIndexers,
-};
+use crate::{AbacusAgentCore, AbacusCommonIndexers, CachingInbox, CachingOutbox, OutboxIndexers};
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
     AbacusCommon, ContractLocator, Signers,
 };
-use abacus_ethereum::{
-    make_inbox_indexer, make_outbox_indexer,
-};
+use abacus_ethereum::{make_inbox_indexer, make_outbox_indexer};
 use color_eyre::{eyre::bail, Report};
 use config::{Config, ConfigError, Environment, File};
 use ethers::prelude::AwsSigner;
@@ -263,7 +258,11 @@ impl Settings {
                     &ContractLocator {
                         name: self.outbox.name.clone(),
                         domain: self.outbox.domain.parse().expect("invalid uint"),
-                        address: self.outbox.address.parse::<ethers::types::Address>()?.into(),
+                        address: self
+                            .outbox
+                            .address
+                            .parse::<ethers::types::Address>()?
+                            .into(),
                     },
                     signer,
                     self.index.from(),

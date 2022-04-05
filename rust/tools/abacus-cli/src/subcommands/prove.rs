@@ -6,7 +6,7 @@ use crate::{inboxes, rpc};
 use abacus_core::{
     accumulator::merkle::Proof,
     db::{AbacusDB, DB},
-    AbacusMessage, ContractLocator, Decode, MessageStatus, Inbox, Signers,
+    AbacusMessage, ContractLocator, Decode, Inbox, MessageStatus, Signers,
 };
 use abacus_ethereum::EthereumInbox;
 

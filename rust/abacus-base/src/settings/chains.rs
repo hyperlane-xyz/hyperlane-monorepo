@@ -2,13 +2,9 @@ use color_eyre::Report;
 use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};
-use abacus_ethereum::{
-    make_inbox, make_outbox, Connection,
-};
+use abacus_ethereum::{make_inbox, make_outbox, Connection};
 
-use crate::{
-    InboxVariants, Inboxes, OutboxVariants, Outboxes,
-};
+use crate::{InboxVariants, Inboxes, OutboxVariants, Outboxes};
 
 /// A connection to _some_ blockchain.
 ///

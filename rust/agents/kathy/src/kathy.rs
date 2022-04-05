@@ -11,7 +11,7 @@ use tracing::{info, Instrument};
 use ethers::core::types::H256;
 
 use abacus_base::{decl_agent, AbacusAgentCore, Agent, CachingInbox};
-use abacus_core::{AbacusCommon, Outbox, Message};
+use abacus_core::{AbacusCommon, Message, Outbox};
 
 use crate::settings::KathySettings as Settings;
 
@@ -45,7 +45,6 @@ impl Agent for Kathy {
             settings.base.try_into_abacus_core(Self::AGENT_NAME).await?,
         ))
     }
-
 }
 
 impl Kathy {

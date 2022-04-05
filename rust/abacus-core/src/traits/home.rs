@@ -1,8 +1,6 @@
 use std::convert::TryFrom;
 
-use crate::{
-    AbacusError, AbacusMessage, Decode, Encode,
-};
+use crate::{AbacusError, AbacusMessage, Decode, Encode};
 use color_eyre::Result;
 use ethers::{core::types::H256, utils::keccak256};
 
