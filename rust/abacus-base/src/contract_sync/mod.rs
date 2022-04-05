@@ -19,14 +19,14 @@ mod schema;
 
 use last_message::OptLatestLeafIndex;
 pub use metrics::ContractSyncMetrics;
-use schema::HomeContractSyncDB;
+use schema::OutboxContractSyncDB;
 
 const MESSAGES_LABEL: &str = "messages";
 
 /// Entity that drives the syncing of an agent's db with on-chain data.
 /// Extracts chain-specific data (emitted checkpoints, messages, etc) from an
-/// `indexer` and fills the agent's db with this data. A CachingHome or
-/// CachingReplica will use a contract sync to spawn syncing tasks to keep the
+/// `indexer` and fills the agent's db with this data. A CachingOutbox or
+/// CachingInbox will use a contract sync to spawn syncing tasks to keep the
 /// db up-to-date.
 #[derive(Debug)]
 pub struct ContractSync<I> {
@@ -533,7 +533,7 @@ mod test {
 
             let contract_sync = ContractSync::new(
                 "agent".to_owned(),
-                "home_1".to_owned(),
+                "outbox_1".to_owned(),
                 abacus_db.clone(),
                 indexer.clone(),
                 IndexSettings {
@@ -830,7 +830,7 @@ mod test {
                     .return_once(move |_, _| Ok(vec![]));
             }
 
-            let abacus_db = AbacusDB::new("home_1", db);
+            let abacus_db = AbacusDB::new("outbox_1", db);
 
             let indexer = Arc::new(mock_indexer);
             let metrics = Arc::new(

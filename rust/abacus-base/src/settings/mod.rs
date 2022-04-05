@@ -5,7 +5,7 @@
 //! Abacus Agents have a shared core, which contains connection info for rpc,
 //! relevant contract addresses on each chain, etc. In addition, each agent has
 //! agent-specific settings. Be convention, we represent these as a base config
-//! per-Home contract, and a "partial" config per agent. On bootup, the agent
+//! per-Outbox contract, and a "partial" config per agent. On bootup, the agent
 //! loads the configuration, establishes RPC connections, and monitors each
 //! configured chain.
 //!
@@ -31,7 +31,7 @@
 //!    E.g. `$RUN_ENV/validator-partial.json`
 //! 3. Configuration env vars with the prefix `OPT_BASE` intended
 //!    to be shared by multiple agents in the same environment
-//!    E.g. `export OPT_BASE_REPLICAS_KOVAN_DOMAIN=3000`
+//!    E.g. `export OPT_BASE_INBOXES_KOVAN_DOMAIN=3000`
 //! 4. Configuration env vars with the prefix `OPT_{agent name}`
 //!    intended to be used by a specific agent.
 //!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`

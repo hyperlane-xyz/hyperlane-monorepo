@@ -14,7 +14,7 @@ where
         .tracing
         .start_tracing(oa.metrics().span_duration())?;
 
-    // Use the agent to run a number of replicas
+    // Run the agent
     oa.run_all(vec![]).await?
 }
 

@@ -95,7 +95,7 @@ impl CoreMetrics {
 
     /// Register an int gauge.
     ///
-    /// If this metric is per-replica, use `new_replica_int_gauge`
+    /// If this metric is per-inbox, use `new_inbox_int_gauge`
     pub fn new_int_gauge(
         &self,
         metric_name: &str,

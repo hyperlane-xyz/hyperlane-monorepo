@@ -10,7 +10,7 @@ pub(crate) trait CommonContractSyncDB {
     fn retrieve_update_latest_block_end(&self) -> Option<u32>;
 }
 
-pub(crate) trait HomeContractSyncDB {
+pub(crate) trait OutboxContractSyncDB {
     fn store_message_latest_block_end(&self, latest_block: u32) -> Result<(), DbError>;
     fn retrieve_message_latest_block_end(&self) -> Option<u32>;
 }
@@ -26,7 +26,7 @@ impl CommonContractSyncDB for AbacusDB {
     }
 }
 
-impl HomeContractSyncDB for AbacusDB {
+impl ContractSyncDB for AbacusDB {
     fn store_message_latest_block_end(&self, latest_block: u32) -> Result<(), DbError> {
         self.store_encodable("", MESSAGES_LAST_BLOCK_END, &latest_block)
     }

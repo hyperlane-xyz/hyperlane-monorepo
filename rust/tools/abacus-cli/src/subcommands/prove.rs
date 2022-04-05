@@ -36,9 +36,9 @@ pub struct ProveCommand {
     #[structopt(long, required_unless = "leaf")]
     leaf_index: Option<u32>,
 
-    /// The name of the home chain, used to lookup keys in the db
+    /// The name of the outbox chain, used to lookup keys in the db
     #[structopt(long)]
-    home_name: String,
+    outbox_name: String,
 
     /// Path to db containing proof
     #[structopt(long)]
@@ -67,7 +67,7 @@ pub struct ProveCommand {
 
 impl ProveCommand {
     pub async fn run(&self) -> Result<()> {
-        let db = AbacusDB::new(&self.home_name, DB::from_path(&self.db_path)?);
+        let db = AbacusDB::new(&self.outbox_name, DB::from_path(&self.db_path)?);
         let (message, proof) = self.fetch_proof(db)?;
         let inbox = self.inbox(message.origin, message.destination).await?;
 

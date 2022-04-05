@@ -16,9 +16,9 @@ pub struct DbStateCommand {
     #[structopt(long)]
     db_path: String,
 
-    /// Name of associated home
+    /// Name of associated outbox
     #[structopt(long)]
-    home_name: String,
+    outbox_name: String,
 
     /// Save output to json file
     #[structopt(long)]
@@ -29,7 +29,7 @@ type OutputVec = Vec<((H256, u64), Vec<CommittedMessage>)>;
 
 impl DbStateCommand {
     pub async fn run(&self) -> Result<()> {
-        let db = AbacusDB::new(&self.home_name, DB::from_path(&self.db_path)?);
+        let db = AbacusDB::new(&self.outbox_name, DB::from_path(&self.db_path)?);
 
         let messages_by_committed_roots = self.create_comitted_root_to_message_map(&db)?;
 

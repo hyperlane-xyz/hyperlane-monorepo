@@ -23,8 +23,8 @@ impl Default for ChainConf {
     }
 }
 
-/// A chain setup is a domain ID, an address on that chain (where the home or
-/// replica is deployed) and details for connecting to the chain API.
+/// A chain setup is a domain ID, an address on that chain (where the outbox or
+/// inbox is deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize, Default)]
 pub struct ChainSetup {
     /// Chain name
@@ -36,7 +36,7 @@ pub struct ChainSetup {
     /// The chain connection details
     #[serde(flatten)]
     pub chain: ChainConf,
-    /// Set this key to disable the replica. Does nothing for homes.
+    /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,
 }

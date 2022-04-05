@@ -3,8 +3,8 @@
 //! way to retrieve data such as the chain's latest block number or a list of
 //! checkpoints/messages emitted within a certain block range by calling out to a
 //! chain-specific library and provider (e.g. ethers::provider). A
-//! chain-specific home or replica should implement one or both of the Indexer
-//! traits (CommonIndexer or HomeIndexer) to provide an common interface which
+//! chain-specific outbox or inbox should implement one or both of the Indexer
+//! traits (CommonIndexer or OutboxIndexer) to provide an common interface which
 //! other entities can retrieve this chain-specific info.
 
 use async_trait::async_trait;
@@ -24,8 +24,8 @@ pub trait AbacusCommonIndexer: Send + Sync + std::fmt::Debug {
         -> Result<Vec<CheckpointWithMeta>>;
 }
 
-/// Interface for Home contract indexer. Interface for allowing other
-/// entities to retrieve chain-specific data from a home.
+/// Interface for Outbox contract indexer. Interface for allowing other
+/// entities to retrieve chain-specific data from an outbox.
 #[async_trait]
 pub trait OutboxIndexer: AbacusCommonIndexer + Send + Sync + std::fmt::Debug {
     /// Fetch list of messages between blocks `from` and `to`.

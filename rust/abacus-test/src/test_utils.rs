@@ -48,8 +48,8 @@ mod test {
     #[tokio::test]
     async fn db_stores_and_retrieves_messages() {
         run_test_db(|db| async move {
-            let home_name = "home_1".to_owned();
-            let db = AbacusDB::new(home_name, db);
+            let outbox_name = "outbox_1".to_owned();
+            let db = AbacusDB::new(outbox_name, db);
 
             let m = AbacusMessage {
                 origin: 10,
@@ -90,8 +90,8 @@ mod test {
     #[tokio::test]
     async fn db_stores_and_retrieves_proofs() {
         run_test_db(|db| async move {
-            let home_name = "home_1".to_owned();
-            let db = AbacusDB::new(home_name, db);
+            let outbox_name = "outbox_1".to_owned();
+            let db = AbacusDB::new(outbox_name, db);
 
             let proof = Proof {
                 leaf: H256::from_low_u64_be(15),

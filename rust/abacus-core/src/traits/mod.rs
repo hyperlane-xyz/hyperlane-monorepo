@@ -1,8 +1,8 @@
 mod common;
 mod encode;
-mod home;
 mod inbox;
 mod indexer;
+mod message;
 mod outbox;
 
 use async_trait::async_trait;
@@ -18,9 +18,9 @@ use crate::{db::DbError, utils::domain_hash, AbacusError, Checkpoint};
 
 pub use common::*;
 pub use encode::*;
-pub use home::*;
 pub use inbox::*;
 pub use indexer::*;
+pub use message::*;
 pub use outbox::*;
 
 /// The result of a transaction

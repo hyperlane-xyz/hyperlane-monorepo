@@ -45,7 +45,7 @@ impl Relayer {
                 .new_int_counter(
                     "checkpoints_relayed_count",
                     "Number of checkpoints relayed from given outbox to inbox",
-                    &["home", "replica", "agent"],
+                    &["outbox", "inbox", "agent"],
                 )
                 .expect("processor metric already registered -- should have be a singleton"),
         );
