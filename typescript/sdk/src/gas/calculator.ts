@@ -42,7 +42,7 @@ export interface InterchainGasCalculatorConfig {
 }
 
 /**
- * An undispatched Abacus message that will pay destination gas costs.
+ * Calculates interchain gas payments.
  */
 export class InterchainGasCalculator {
   core: AbacusCore;
