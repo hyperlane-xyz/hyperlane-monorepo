@@ -3,6 +3,7 @@ export {
   AbacusCore,
   AbacusStatus,
   AbacusMessage,
+  AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   AbacusLifecyleEvent,
   CoreContracts,
@@ -20,8 +21,8 @@ export {
 export {
   addresses as governanceAddresses,
   AbacusGovernance,
+  GovernanceContractAddresses,
   Call,
-  CallBatch,
 } from './governance';
 export { MultiProvider } from './provider';
 export {
@@ -31,19 +32,6 @@ export {
   NameOrDomain,
   ProxiedAddress,
 } from './types';
-export {
-  addresses as bridgeAddresses,
-  AbacusBridge,
-  AnnotatedSend,
-  AnnotatedTokenDeployed,
-  BridgeContractAddresses,
-  SendArgs,
-  SendTypes,
-  SendEvent,
-  TokenDeployedArgs,
-  TokenDeployedTypes,
-  TokenDeployedEvent,
-} from './bridge';
 export { AbacusAppContracts } from './contracts';
 export { AbacusApp } from './app';
 export { domains } from './domains';
@@ -52,3 +40,4 @@ export {
   InterchainGasCalculator,
   TokenPriceGetter,
 } from './gas';
+export { utils } from './utils';

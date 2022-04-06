@@ -2,31 +2,25 @@ import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import {
   AbacusCore,
-  AbacusBridge,
   AbacusGovernance,
   coreAddresses,
-  bridgeAddresses,
   governanceAddresses,
 } from '@abacus-network/sdk';
 
 import {
-  getBridgeConfig,
   getCoreConfig,
   getEnvironment,
   getGovernanceConfig,
   registerMultiProvider,
 } from './utils';
 import { AbacusCoreChecker } from '../src/core';
-import { AbacusBridgeChecker } from '../src/bridge';
 import { AbacusGovernanceChecker } from '../src/governance';
 
 async function check() {
   const environment = await getEnvironment();
   const core = new AbacusCore(coreAddresses[environment]);
-  const bridge = new AbacusBridge(bridgeAddresses[environment]);
   const governance = new AbacusGovernance(governanceAddresses[environment]);
   registerMultiProvider(core, environment);
-  registerMultiProvider(bridge, environment);
   registerMultiProvider(governance, environment);
 
   const governanceConfig = await getGovernanceConfig(environment, core);
@@ -42,28 +36,14 @@ async function check() {
   const governanceChecker = new AbacusGovernanceChecker(
     governance,
     governanceConfig,
-    governors,
   );
-  await governanceChecker.check();
+  await governanceChecker.check(governors);
   governanceChecker.expectEmpty();
 
   const coreConfig = await getCoreConfig(environment);
-  const coreChecker = new AbacusCoreChecker(
-    core,
-    coreConfig,
-    governance.routerAddresses,
-  );
-  await coreChecker.check();
+  const coreChecker = new AbacusCoreChecker(core, coreConfig);
+  await coreChecker.check(governance.routerAddresses);
   coreChecker.expectEmpty();
-
-  const bridgeConfig = await getBridgeConfig(environment, core);
-  const bridgeChecker = new AbacusBridgeChecker(
-    bridge,
-    bridgeConfig,
-    governance.routerAddresses,
-  );
-  await bridgeChecker.check();
-  bridgeChecker.expectEmpty();
 }
 
 check().then(console.log).catch(console.error);

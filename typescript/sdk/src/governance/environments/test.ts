@@ -1,22 +1,38 @@
 export const addresses = {
   alfajores: {
-    proxy: '0x70E5370b8981Abc6e14C91F4AcE823954EFC8eA3',
-    implementation: '0x286B8DecD5ED79c962b2d8F4346CD97FF0E2C352',
-    beacon: '0xb868Cc77A95a65F42611724AF05Aa2d3B6Ec05F2',
+    router: {
+      proxy: '0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9',
+      implementation: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
+      beacon: '0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0',
+    },
+    upgradeBeaconController: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
+    xAppConnectionManager: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
   },
   kovan: {
-    proxy: '0x9c65f85425c619A6cB6D29fF8d57ef696323d188',
-    implementation: '0x4000F8820522AC96C4221b299876e3e53bCc8525',
-    beacon: '0x9338CA7d556248055f5751d85cDA7aD6eF254433',
+    router: {
+      proxy: '0xa513E6E4b8f2a923D98304ec87F64353C4D5C853',
+      implementation: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707',
+      beacon: '0x0165878A594ca255338adfa4d48449f69242Eb8F',
+    },
+    upgradeBeaconController: '0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9',
+    xAppConnectionManager: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
   },
   mumbai: {
-    proxy: '0x0c626FC4A447b01554518550e30600136864640B',
-    implementation: '0x7Cf4be31f546c04787886358b9486ca3d62B9acf',
-    beacon: '0x33E45b187da34826aBCEDA1039231Be46f1b05Af',
+    router: {
+      proxy: '0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e',
+      implementation: '0x8A791620dd6260079BF849Dc5567aDC3F2FdC318',
+      beacon: '0x610178dA211FEF7D417bC0e6FeD39F05609AD788',
+    },
+    upgradeBeaconController: '0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6',
+    xAppConnectionManager: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
   },
   fuji: {
-    proxy: '0x158d291D8b47F056751cfF47d1eEcd19FDF9B6f8',
-    implementation: '0xA21DDc1f17dF41589BC6A5209292AED2dF61Cc94',
-    beacon: '0x2A590C461Db46bca129E8dBe5C3998A8fF402e76',
+    router: {
+      proxy: '0x0B306BF915C4d645ff596e518fAf3F9669b97016',
+      implementation: '0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82',
+      beacon: '0x9A676e781A523b5d0C0e43731313A708CB607508',
+    },
+    upgradeBeaconController: '0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0',
+    xAppConnectionManager: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
   },
 };

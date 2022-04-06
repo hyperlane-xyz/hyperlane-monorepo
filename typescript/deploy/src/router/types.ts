@@ -11,11 +11,6 @@ export interface Router {
   owner(): Promise<types.Address>;
 }
 
-export type RouterAddresses = {
-  upgradeBeaconController: types.Address;
-  xAppConnectionManager: types.Address;
-};
-
 export type RouterConfig = {
-  core: Partial<Record<ChainName, RouterAddresses>>;
+  xAppConnectionManager?: Partial<Record<ChainName, types.Address>>;
 };

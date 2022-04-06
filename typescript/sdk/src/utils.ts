@@ -52,3 +52,9 @@ export function evmId(data: BytesLike): Address {
 export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
+
+export const utils = {
+  canonizeId,
+  evmId,
+  delay,
+};
