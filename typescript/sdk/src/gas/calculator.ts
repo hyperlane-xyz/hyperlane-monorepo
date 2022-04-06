@@ -86,7 +86,7 @@ export class InterchainGasCalculator {
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
-  async estimatePaymentFromGasAmount(
+  async estimatePaymentForGasAmount(
     originDomain: number,
     destinationDomain: number,
     destinationGas: BigNumber,
@@ -95,7 +95,7 @@ export class InterchainGasCalculator {
     const destinationCostWei = destinationGas.mul(destinationGasPrice);
 
     // Convert from destination domain native tokens to origin domain native tokens.
-    const originCostWei = await this.convertDomainNativeTokens(
+    const originCostWei = await this.convertBetweenNativeTokens(
       destinationDomain,
       originDomain,
       destinationCostWei,
@@ -113,14 +113,14 @@ export class InterchainGasCalculator {
    * Calculates the estimated payment to process the message on its destination chain,
    * denominated in the native token of the origin chain. The destination gas is
    * determined by estimating the gas to process the provided message, which is then used
-   * to calculate the payment using {@link estimatePaymentFromGasAmount}.
+   * to calculate the payment using {@link estimatePaymentForGasAmount}.
    * @param message The parsed message to estimate payment for.
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
-  async estimatePaymentFromMessage(message: ParsedMessage) {
-    const destinationGas = await this.estimateMessageGas(message);
-    return this.estimatePaymentFromGasAmount(
+  async estimatePaymentForMessage(message: ParsedMessage) {
+    const destinationGas = await this.estimateGasForMessage(message);
+    return this.estimatePaymentForGasAmount(
       message.origin,
       message.destination,
       destinationGas,
@@ -137,7 +137,7 @@ export class InterchainGasCalculator {
    * @returns The amount of `toDomain` native tokens whose value is equivalent to
    * `fromAmount` of `fromDomain` native tokens.
    */
-  async convertDomainNativeTokens(
+  async convertBetweenNativeTokens(
     fromDomain: number,
     toDomain: number,
     fromAmount: BigNumber,
@@ -233,7 +233,7 @@ export class InterchainGasCalculator {
    * 4. A buffer to account for inaccuracies in the above estimations.
    * @returns The estimated gas required to process the message on the destination chain.
    */
-  async estimateMessageGas(message: ParsedMessage): Promise<BigNumber> {
+  async estimateGasForMessage(message: ParsedMessage): Promise<BigNumber> {
     const provider = this.core.mustGetProvider(message.destination);
     const inbox = this.core.mustGetInbox(message.origin, message.destination);
 

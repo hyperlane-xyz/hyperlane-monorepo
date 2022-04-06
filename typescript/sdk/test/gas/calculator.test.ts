@@ -40,7 +40,7 @@ describe('InterchainGasCalculator', () => {
     provider.clearMethodResolveValues();
   });
 
-  describe('estimatePaymentFromGasAmount', () => {
+  describe('estimatePaymentForGasAmount', () => {
     it('estimates origin token payment from a specified destination gas amount', async () => {
       const destinationGas = BigNumber.from(100_000);
 
@@ -51,7 +51,7 @@ describe('InterchainGasCalculator', () => {
       calculator.paymentEstimateMultiplier = FixedNumber.from(1);
       calculator.suggestedGasPriceMultiplier = FixedNumber.from(1);
 
-      const estimatedPayment = await calculator.estimatePaymentFromGasAmount(
+      const estimatedPayment = await calculator.estimatePaymentForGasAmount(
         originDomain,
         destinationDomain,
         destinationGas,
@@ -62,7 +62,7 @@ describe('InterchainGasCalculator', () => {
     });
   });
 
-  describe('estimatePaymentFromMessage', () => {
+  describe('estimatePaymentForMessage', () => {
     it('estimates origin token payment from a specified message', async () => {
       // Set the estimated destination gas
       const estimatedDestinationGas = 100_000;
@@ -82,17 +82,17 @@ describe('InterchainGasCalculator', () => {
         body: '0x12345678',
       };
 
-      const estimatedPayment = await calculator.estimatePaymentFromMessage(message);
+      const estimatedPayment = await calculator.estimatePaymentForMessage(message);
 
       // 100_000 dest gas * 10 gas price * ($5 per origin token / $10 per origin token)
       expect(estimatedPayment.toNumber()).to.equal(500_000);
     });
   });
 
-  describe('convertDomainNativeTokens', () => {
+  describe('convertBetweenNativeTokens', () => {
     it('converts using the USD value of origin and destination native tokens', async () => {
       const destinationWei = BigNumber.from('1000');
-      const originWei = await calculator.convertDomainNativeTokens(
+      const originWei = await calculator.convertBetweenNativeTokens(
         destinationDomain,
         originDomain,
         destinationWei,
@@ -110,7 +110,7 @@ describe('InterchainGasCalculator', () => {
       };
 
       const destinationWei = BigNumber.from('1000');
-      const originWei = await calculator.convertDomainNativeTokens(
+      const originWei = await calculator.convertBetweenNativeTokens(
         destinationDomain,
         originDomain,
         destinationWei,
@@ -128,7 +128,7 @@ describe('InterchainGasCalculator', () => {
       };
 
       const destinationWei = BigNumber.from('1000');
-      const originWei = await calculator.convertDomainNativeTokens(
+      const originWei = await calculator.convertBetweenNativeTokens(
         destinationDomain,
         originDomain,
         destinationWei,
