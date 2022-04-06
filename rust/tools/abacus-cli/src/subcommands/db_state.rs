@@ -81,7 +81,9 @@ impl DbStateCommand {
         Ok(messages_by_committed_roots)
     }
 
-    // TODO: migrate away from Optics to Abacus here.
+    // TODO: We currently aren't indexing checkpoints, which are the successor
+    // of updates, so this cannot be implemented right now. Once checkpoint indexing
+    // is added, we should implement this for Abacus.
     // The Optics-specific code is commented out as a reference for the future move
     // to Abacus-specific code.
     fn create_output_vec(
