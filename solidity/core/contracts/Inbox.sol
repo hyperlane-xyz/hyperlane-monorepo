@@ -89,7 +89,7 @@ contract Inbox is Version0, Common {
     function checkpoint(
         bytes32 _root,
         uint256 _index,
-        bytes memory _signature
+        bytes calldata _signature
     ) external {
         // ensure that update is more recent than the latest we've seen
         require(_index > checkpoints[checkpointedRoot], "old checkpoint");
@@ -116,7 +116,7 @@ contract Inbox is Version0, Common {
      * @param _index Index of leaf in outbox's merkle tree
      */
     function proveAndProcess(
-        bytes memory _message,
+        bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _index
     ) external {
@@ -134,7 +134,7 @@ contract Inbox is Version0, Common {
      * if message has not been proven, or if the dispatch transaction fails.
      * @param _message Formatted message
      */
-    function process(bytes memory _message) public {
+    function process(bytes calldata _message) public {
         bytes29 _m = _message.ref(0);
         // ensure message was meant for this domain
         require(_m.destination() == localDomain, "!destination");
