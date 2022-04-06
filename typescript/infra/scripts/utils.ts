@@ -50,7 +50,7 @@ export async function registerMultiProvider(
 export async function getDomainNames(
   environment: DeployEnvironment,
 ): Promise<ChainName[]> {
-  return (await importModule(moduleName(environment))).domains;
+  return (await importModule(moduleName(environment))).domainNames;
 }
 
 export async function getCoreConfig(

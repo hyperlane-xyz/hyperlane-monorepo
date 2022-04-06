@@ -12,11 +12,11 @@ data:
   OPT_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
   OPT_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
   {{- if .Values.abacus.homeChain.connectionType }}
-  OPT_BASE_HOME_CONNECTION_TYPE: {{ .Values.abacus.homeChain.connectionType }}
+  OPT_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.homeChain.connectionType }}
   {{- end }}
   {{- range .Values.abacus.replicaChains }}
   {{- if .address }}
-  OPT_BASE_REPLICAS_{{ .name | upper }}_ADDRESS: {{ .address }}
+  OPT_BASE_INBOXES_{{ .name | upper }}_ADDRESS: {{ .address }}
   {{- end }}
   {{- end }}
   {{- if .Values.abacus.tracing.uri }}

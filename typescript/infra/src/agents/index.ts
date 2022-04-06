@@ -108,10 +108,10 @@ export async function getAgentEnvVars(
   );
   const envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
-  envVars.push(`OPT_BASE_HOME_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
+  envVars.push(`OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
   valueDict.abacus.replicaChains.forEach((replicaChain: any) => {
     envVars.push(
-      `OPT_BASE_REPLICAS_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
+      `OPT_BASE_INBOXES_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
         rpcEndpoints[replicaChain.name]
       }`,
     );
@@ -140,6 +140,7 @@ export async function getAgentEnvVars(
             gcpKeys[role].privateKey,
           )}`,
         );
+        envVars.push(`OPT_BASE_SIGNERS_${name.toUpperCase()}_TYPE=hexKey`);
       });
     } else if (role === KEY_ROLE_ENUM.Validator) {
       envVars.push(
