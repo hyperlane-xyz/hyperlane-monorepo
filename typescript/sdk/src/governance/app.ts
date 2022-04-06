@@ -2,9 +2,10 @@ import { ethers } from 'ethers';
 
 import { AbacusApp } from '../app';
 import { domains } from '../domains';
-import { ChainName, ProxiedAddress } from '../types';
+import { ChainName } from '../types';
 
-import { GovernanceContracts } from './contracts';
+import { GovernanceContracts, GovernanceContractAddresses } from './contracts';
+import { Call, normalizeCall, associateCalls } from './utils';
 
 export type Governor = {
   domain: number;
@@ -12,10 +13,14 @@ export type Governor = {
 };
 
 export class AbacusGovernance extends AbacusApp<
-  ProxiedAddress,
+  GovernanceContractAddresses,
   GovernanceContracts
 > {
-  constructor(addresses: Partial<Record<ChainName, ProxiedAddress>>) {
+  readonly calls: Map<number, Readonly<Call>[]>;
+
+  constructor(
+    addresses: Partial<Record<ChainName, GovernanceContractAddresses>>,
+  ) {
     super();
     const chains = Object.keys(addresses) as ChainName[];
     chains.map((chain) => {
@@ -23,6 +28,7 @@ export class AbacusGovernance extends AbacusApp<
       const domain = this.resolveDomain(chain);
       this.contracts.set(domain, new GovernanceContracts(addresses[chain]!));
     });
+    this.calls = new Map();
   }
 
   /**
@@ -67,5 +73,64 @@ export class AbacusGovernance extends AbacusApp<
       addresses[domain] = this.mustGetContracts(domain).router.address;
     }
     return addresses;
+  }
+
+  push(domain: number, call: Call): void {
+    const calls = this.calls.get(domain);
+    const normalized = normalizeCall(call);
+    if (!calls) {
+      this.calls.set(domain, [normalized]);
+    } else {
+      calls.push(normalized);
+    }
+  }
+
+  // Build governance transactions called by the governor at the specified
+  // domain.
+  async build(domain: number): Promise<ethers.PopulatedTransaction[]> {
+    const [domains, calls] = associateCalls(this.calls);
+    const router = this.mustGetContracts(domain).router;
+    return Promise.all(
+      domains.map((d: number, i: number) => {
+        if (d === domain) {
+          return router.populateTransaction.call(calls[i]);
+        } else {
+          return router.populateTransaction.callRemote(d, calls[i]);
+        }
+      }),
+    );
+  }
+
+  // Sign each governance transaction and dispatch them to the chain
+  async execute(
+    domain: number,
+  ): Promise<ethers.providers.TransactionReceipt[]> {
+    const transactions = await this.build(domain);
+    const signer = this.mustGetSigner(domain);
+    const governor = await this.mustGetContracts(domain).router.governor();
+    if ((await signer.getAddress()) !== governor)
+      throw new Error('signer is not governor');
+    const receipts = [];
+    for (const tx of transactions) {
+      const response = await signer.sendTransaction(tx);
+      receipts.push(await response.wait(5));
+    }
+    return receipts;
+  }
+
+  async estimateGas(domain: number): Promise<ethers.BigNumber[]> {
+    const transactions = await this.build(domain);
+    const router = this.mustGetContracts(domain).router;
+    const governor = await router.governor();
+    const responses = [];
+    for (const tx of transactions) {
+      const txToEstimate = tx;
+      // Estimate gas as the governor
+      txToEstimate.from = governor;
+      responses.push(
+        await this.mustGetProvider(domain).estimateGas(txToEstimate),
+      );
+    }
+    return responses;
   }
 }

@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
 import { ChainName, MultiProvider } from '@abacus-network/sdk';
-import { registerDomains } from '../../../src/config';
+import { registerDomains } from '@abacus-network/deploy';
 import { configs } from '../../networks/testnets';
 
 export const domainNames: ChainName[] = [

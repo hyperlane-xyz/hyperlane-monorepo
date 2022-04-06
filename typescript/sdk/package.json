@@ -25,6 +25,7 @@
   "dependencies": {
     "@abacus-network/apps": "file:../../solidity/apps",
     "@abacus-network/core": "file:../../solidity/core",
+    "@abacus-network/utils": "file:../utils",
     "@ethersproject/bignumber": "^5.5.0",
     "@ethersproject/bytes": "^5.5.0",
     "celo-ethers-provider": "0.0.0",
