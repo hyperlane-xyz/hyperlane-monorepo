@@ -20,6 +20,15 @@
     "target": "es6",
     "strict": true,
     "outDir": "./dist/",
-    "rootDir": "./src/"
+    "rootDir": "./src/",
   },
+  "exclude": [
+    "./node_modules/",
+    "./dist/",
+    "./types/hardhat.d.ts"
+  ],
+  "include": [
+    "./types/*.ts",
+    "./types/factories/*.ts"
+  ]
 }
