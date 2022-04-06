@@ -91,9 +91,13 @@ contract Inbox is Version0, Common {
         uint256 _index,
         bytes memory _signature
     ) external {
-        // ensure that update is more recent than the latest we've seen
-        require(_index > checkpoints[checkpointedRoot], "old checkpoint");
-        // validate validator signature
+        // Ensure that update is more recent than the latest we've seen.
+        // We skip this check if a root hasn't been checkpointed already.
+        require(
+            _index > checkpoints[checkpointedRoot] || checkpointedRoot == 0x0,
+            "old checkpoint"
+        );
+        // Validate validator signature
         require(
             validatorManager.isValidatorSignature(
                 remoteDomain,

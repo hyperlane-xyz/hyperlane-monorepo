@@ -114,7 +114,7 @@ abstract contract Common is OwnableUpgradeable {
     /**
      * @notice Store the provided checkpoint.
      * @param _root The merkle root
-     * @param _index The next available leaf index of the merkle tree.
+     * @param _index The leaf index of the latest message in the merkle tree.
      */
     function _checkpoint(bytes32 _root, uint256 _index) internal {
         checkpoints[_root] = _index;

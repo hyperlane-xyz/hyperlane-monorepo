@@ -161,7 +161,7 @@ contract Outbox is Version0, MerkleTreeManager, Common {
         uint256 count = count();
         require(count > 0, "!count");
         bytes32 root = root();
-        _checkpoint(root, count);
+        _checkpoint(root, count - 1);
     }
 
     /**
