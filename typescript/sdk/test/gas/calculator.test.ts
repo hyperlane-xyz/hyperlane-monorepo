@@ -3,8 +3,7 @@ import { BigNumber, ethers, FixedNumber } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 
-import { InterchainGasCalculator, ParsedMessage } from '../..';
-import { AbacusCore } from '../../src/core';
+import { AbacusCore, InterchainGasCalculator, ParsedMessage } from '../..';
 import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
 
 describe('InterchainGasCalculator', () => {
