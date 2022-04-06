@@ -3,9 +3,8 @@ import { BigNumber, ethers, FixedNumber } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 
+import { InterchainGasCalculator, ParsedMessage } from '../..';
 import { AbacusCore } from '../../src/core';
-import { InterchainGasCalculator } from '../../src/gas/interchain-gas-calculator';
-import { ParsedMessage } from '../../src/utils';
 import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
 
 describe('InterchainGasCalculator', () => {
@@ -47,9 +46,8 @@ describe('InterchainGasCalculator', () => {
       // Set destination gas price to 10 wei
       provider.setMethodResolveValue('getGasPrice', BigNumber.from(10));
 
-      // Set paymentEstimateMultiplier and suggestedGasPriceMultiplier to 1 just to test easily
+      // Set paymentEstimateMultiplier to 1 just to test easily
       calculator.paymentEstimateMultiplier = FixedNumber.from(1);
-      calculator.suggestedGasPriceMultiplier = FixedNumber.from(1);
 
       const estimatedPayment = await calculator.estimatePaymentForGasAmount(
         originDomain,
@@ -66,7 +64,7 @@ describe('InterchainGasCalculator', () => {
     it('estimates origin token payment from a specified message', async () => {
       // Set the estimated destination gas
       const estimatedDestinationGas = 100_000;
-      calculator.estimateMessageGas = () => Promise.resolve(BigNumber.from(estimatedDestinationGas));
+      calculator.estimateGasForMessage = () => Promise.resolve(BigNumber.from(estimatedDestinationGas));
       // Set destination gas price to 10 wei
       calculator.suggestedGasPrice = (_) => Promise.resolve(BigNumber.from(10));
       // Set paymentEstimateMultiplier to 1 just to test easily
@@ -142,9 +140,6 @@ describe('InterchainGasCalculator', () => {
     it('gets the gas price from the provider', async () => {
       const gasPrice = 1000;
       provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
-
-      // Set suggestedGasPriceMultiplier to 1 just to test easily
-      calculator.suggestedGasPriceMultiplier = FixedNumber.from(1);
 
       expect(
         (await calculator.suggestedGasPrice(destinationDomain)).toNumber()

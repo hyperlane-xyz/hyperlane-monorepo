@@ -23,14 +23,11 @@ const DEFAULT_TOKEN_DECIMALS = 18;
 export interface InterchainGasCalculatorConfig {
   /**
    * A multiplier applied to the estimated origin token payment amount.
-   * @defaultValue 1.1
+   * This should be high enough to account for movements in native token prices and
+   * gas prices.
+   * @defaultValue 1.25
    */
   paymentEstimateMultiplier?: string;
-  /**
-   * A multiplier applied to the suggested gas price.
-   * @defaultValue 1.1
-   */
-  suggestedGasPriceMultiplier?: string;
   /**
    * An amount of additional gas to add to the estimated gas of processing a message.
    * Only used when estimating a payment from a message.
@@ -53,7 +50,6 @@ export class InterchainGasCalculator {
   tokenPriceGetter: TokenPriceGetter;
 
   paymentEstimateMultiplier: ethers.FixedNumber;
-  suggestedGasPriceMultiplier: ethers.FixedNumber;
   messageGasEstimateBuffer: ethers.BigNumber;
 
   constructor(core: AbacusCore, config?: InterchainGasCalculatorConfig) {
@@ -63,10 +59,7 @@ export class InterchainGasCalculator {
       config?.tokenPriceGetter ?? new DefaultTokenPriceGetter();
 
     this.paymentEstimateMultiplier = FixedNumber.from(
-      config?.paymentEstimateMultiplier ?? '1.1',
-    );
-    this.suggestedGasPriceMultiplier = FixedNumber.from(
-      config?.suggestedGasPriceMultiplier ?? '1.1',
+      config?.paymentEstimateMultiplier ?? '1.25',
     );
     this.messageGasEstimateBuffer = BigNumber.from(
       config?.messageGasEstimateBuffer ?? 50_000,
@@ -191,21 +184,13 @@ export class InterchainGasCalculator {
   }
 
   /**
-   * Gets a suggested gas price for the destination chain, applying the multiplier
-   * `destinationGasPriceMultiplier`.
-   * @param destinationDomain The domain of the destination chain.
+   * Gets a suggested gas price for a domain.
+   * @param domain The domain of the chain to estimate gas prices for.
    * @returns The suggested gas price in wei on the destination chain.
    */
   async suggestedGasPrice(domain: number): Promise<BigNumber> {
     const provider = this.core.mustGetProvider(domain);
-    const suggestedGasPrice = await provider.getGasPrice();
-
-    // suggestedGasPrice * destinationGasPriceMultiplier
-    return mulBigAndFixed(
-      suggestedGasPrice,
-      this.suggestedGasPriceMultiplier,
-      true, // ceil
-    );
+    return provider.getGasPrice();
   }
 
   /**
