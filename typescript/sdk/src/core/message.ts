@@ -1,4 +1,5 @@
 import { BigNumber } from '@ethersproject/bignumber';
+import { arrayify, hexlify } from '@ethersproject/bytes';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { keccak256 } from 'ethers/lib/utils';
 
@@ -6,7 +7,7 @@ import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
 
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { NameOrDomain } from '../types';
-import { delay, ParsedMessage, parseMessage } from '../utils';
+import { delay } from '../utils';
 
 import { AbacusCore } from '.';
 import {
@@ -21,6 +22,15 @@ import {
   ProcessArgs,
   ProcessTypes,
 } from './events';
+
+export type ParsedMessage = {
+  origin: number;
+  sender: string;
+  nonce: number;
+  destination: number;
+  recipient: string;
+  body: string;
+};
 
 export type AbacusStatus = {
   status: MessageStatus;
@@ -45,6 +55,23 @@ export type EventCache = {
   inboxCheckpoint?: AnnotatedCheckpoint;
   process?: AnnotatedProcess;
 };
+
+/**
+ * Parse a serialized Abacus message from raw bytes.
+ *
+ * @param message
+ * @returns
+ */
+export function parseMessage(message: string): ParsedMessage {
+  const buf = Buffer.from(arrayify(message));
+  const origin = buf.readUInt32BE(0);
+  const sender = hexlify(buf.slice(4, 36));
+  const nonce = buf.readUInt32BE(36);
+  const destination = buf.readUInt32BE(40);
+  const recipient = hexlify(buf.slice(44, 76));
+  const body = hexlify(buf.slice(76));
+  return { origin, sender, nonce, destination, recipient, body };
+}
 
 /**
  * A deserialized Abacus message.

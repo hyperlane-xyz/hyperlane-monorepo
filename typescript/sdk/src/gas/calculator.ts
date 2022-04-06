@@ -1,8 +1,7 @@
 import { BigNumber, ethers, FixedNumber } from 'ethers';
 import { utils } from '@abacus-network/utils';
 
-import { AbacusCore } from '..';
-import { ParsedMessage } from '../utils';
+import { AbacusCore, ParsedMessage } from '..';
 import { convertDecimalValue, mulBigAndFixed } from './utils';
 import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
 

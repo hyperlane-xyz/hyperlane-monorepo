@@ -8,6 +8,8 @@ export {
   CoreContracts,
   CoreContractAddresses,
   MessageStatus,
+  ParsedMessage,
+  parseMessage,
 } from './core';
 export {
   Annotated,
