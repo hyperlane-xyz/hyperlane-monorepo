@@ -134,6 +134,11 @@ export function expectCalls(
 ) {
   expect(domains).to.have.lengthOf(count.length);
   domains.forEach((domain: number, i: number) => {
-    expect(batch.calls.get(domain)).to.have.lengthOf(count[i]);
+    const calls = batch.calls.get(domain);
+    if (count[i] === 0) {
+      expect(calls).to.be.undefined;
+    } else {
+      expect(calls).to.have.lengthOf(count[i]);
+    }
   });
 }
