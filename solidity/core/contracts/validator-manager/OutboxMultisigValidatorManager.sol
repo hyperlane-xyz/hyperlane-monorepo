@@ -28,7 +28,11 @@ contract OutboxMultisigValidatorManager is MultisigValidatorManager {
      * @param _localDomain The local domain.
      */
     // solhint-disable-next-line no-empty-blocks
-    constructor(uint32 _localDomain) MultisigValidatorManager(_localDomain) {}
+    constructor(
+        uint32 _localDomain,
+        address[] memory _validatorSet,
+        uint256 _quorumThreshold
+    ) MultisigValidatorManager(_localDomain, _validatorSet, _quorumThreshold) {}
 
     // ============ External Functions ============
 

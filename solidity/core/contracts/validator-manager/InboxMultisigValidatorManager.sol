@@ -13,7 +13,13 @@ contract InboxMultisigValidatorManager is MultisigValidatorManager {
      * @param _remoteDomain The remote domain of the outbox chain.
      */
     // solhint-disable-next-line no-empty-blocks
-    constructor(uint32 _remoteDomain) MultisigValidatorManager(_remoteDomain) {}
+    constructor(
+        uint32 _remoteDomain,
+        address[] memory _validatorSet,
+        uint256 _quorumThreshold
+    )
+        MultisigValidatorManager(_remoteDomain, _validatorSet, _quorumThreshold)
+    {}
 
     // ============ External Functions ============
 

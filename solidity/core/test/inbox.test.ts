@@ -21,7 +21,7 @@ const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json'
 const localDomain = 2000;
 const remoteDomain = 1000;
 
-describe.only('Inbox', async () => {
+describe('Inbox', async () => {
   const badRecipientFactories = [
     BadRecipient1__factory,
     BadRecipient3__factory,
@@ -39,7 +39,9 @@ describe.only('Inbox', async () => {
     // Inbox.initialize will ensure the validator manager is a contract.
     // TestValidatorManager doesn't have any special logic, it just submits
     // checkpoints without any signature verification.
-    const testValidatorManagerFactory = new TestValidatorManager__factory(signer);
+    const testValidatorManagerFactory = new TestValidatorManager__factory(
+      signer,
+    );
     validatorManager = await testValidatorManagerFactory.deploy();
   });
 

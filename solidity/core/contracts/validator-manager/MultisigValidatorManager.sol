@@ -58,9 +58,22 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _outboxDomain The domain of the outbox this validator manager
      * tracks the validator set for.
      */
-    constructor(uint32 _outboxDomain) Ownable() {
+    constructor(
+        uint32 _outboxDomain,
+        address[] memory _validatorSet,
+        uint256 _quorumThreshold
+    ) Ownable() {
+        // Set immutables.
         outboxDomain = _outboxDomain;
         outboxDomainHash = keccak256(abi.encodePacked(_outboxDomain, "ABACUS"));
+
+        // Enroll validators. Reverts if there are any duplicates.
+        uint256 _validatorSetLength = _validatorSet.length;
+        for (uint256 i = 0; i < _validatorSetLength; i++) {
+            _enrollValidator(_validatorSet[i]);
+        }
+
+        _setQuorumThreshold(_quorumThreshold);
     }
 
     // ============ External Functions ============
@@ -71,8 +84,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to add to the validator set.
      */
     function enrollValidator(address _validator) external onlyOwner {
-        require(validators.add(_validator), "enrolled");
-        emit EnrollValidator(_validator);
+        _enrollValidator(_validator);
     }
 
     /**
@@ -81,8 +93,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to remove from the validator set.
      */
     function unenrollValidator(address _validator) external onlyOwner {
-        require(validators.remove(_validator), "!enrolled");
-        emit UnenrollValidator(_validator);
+        _unenrollValidator(_validator);
     }
 
     /**
@@ -90,12 +101,21 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _quorumThreshold The new quorum threshold.
      */
     function setQuorumThreshold(uint256 _quorumThreshold) external onlyOwner {
-        require(
-            _quorumThreshold > 0 && _quorumThreshold <= validators.length(),
-            "!range"
-        );
-        quorumThreshold = _quorumThreshold;
-        emit SetQuorumThreshold(_quorumThreshold);
+        _setQuorumThreshold(_quorumThreshold);
+    }
+
+    /**
+     * @notice Gets the addresses of the current validator set.
+     * @dev There is no ordering guarantee.
+     * @return The addresses of the validator set.
+     */
+    function validatorSet() external view returns (address[] memory) {
+        uint256 _length = validators.length();
+        address[] memory _validatorSet = new address[](_length);
+        for (uint256 i = 0; i < _length; i++) {
+            _validatorSet[i] = validators.at(i);
+        }
+        return _validatorSet;
     }
 
     // ============ Public Functions ============
@@ -130,7 +150,7 @@ abstract contract MultisigValidatorManager is Ownable {
         address _previousSigner = address(0);
         uint256 _validatorSignatureCount = 0;
         for (uint256 i = 0; i < _signaturesLength; i++) {
-            address _signer = recoverCheckpointSigner(
+            address _signer = _recoverCheckpointSigner(
                 _root,
                 _index,
                 _signatures[i]
@@ -155,7 +175,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _signature Signature on the the checkpoint.
      * @return The signer of the checkpoint signature.
      **/
-    function recoverCheckpointSigner(
+    function _recoverCheckpointSigner(
         bytes32 _root,
         uint256 _index,
         bytes calldata _signature
@@ -165,5 +185,38 @@ abstract contract MultisigValidatorManager is Ownable {
         );
         _digest = ECDSA.toEthSignedMessageHash(_digest);
         return ECDSA.recover(_digest, _signature);
+    }
+
+    /**
+     * @notice Enrolls a validator into the validator set.
+     * @dev Reverts if _validator is already in the validator set.
+     * @param _validator The validator to add to the validator set.
+     */
+    function _enrollValidator(address _validator) internal {
+        require(validators.add(_validator), "enrolled");
+        emit EnrollValidator(_validator);
+    }
+
+    /**
+     * @notice Unenrolls a validator from the validator set.
+     * @dev Reverts if _validator is not in the validator set.
+     * @param _validator The validator to remove from the validator set.
+     */
+    function _unenrollValidator(address _validator) internal {
+        require(validators.remove(_validator), "!enrolled");
+        emit UnenrollValidator(_validator);
+    }
+
+    /**
+     * @notice Sets the quorum threshold.
+     * @param _quorumThreshold The new quorum threshold.
+     */
+    function _setQuorumThreshold(uint256 _quorumThreshold) internal {
+        require(
+            _quorumThreshold > 0 && _quorumThreshold <= validators.length(),
+            "!range"
+        );
+        quorumThreshold = _quorumThreshold;
+        emit SetQuorumThreshold(_quorumThreshold);
     }
 }
