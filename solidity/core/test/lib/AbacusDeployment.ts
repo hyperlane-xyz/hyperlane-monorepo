@@ -164,19 +164,20 @@ export class AbacusDeployment {
     ) {
       return;
     }
+    // TODO come back to this!
     // Update the Outbox and Inboxs to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
-    const validator = this.validator(local);
-    const { signature } = await validator.signCheckpoint(
-      root,
-      index.toNumber(),
-    );
+    // const validator = this.validator(local);
+    // const { signature } = await validator.signCheckpoint(
+    //   root,
+    //   index.toNumber(),
+    // );
 
     for (const remote of this.domains) {
       if (remote !== local) {
         const inbox = this.inbox(remote, local);
-        await inbox.checkpoint(root, index, signature);
+        await inbox.checkpoint(root, index); // TODO come back to this!
       }
     }
 
