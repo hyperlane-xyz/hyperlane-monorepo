@@ -78,7 +78,7 @@ contract ValidatorManager is IValidatorManager, Ownable {
         address _outbox,
         bytes32 _root,
         uint256 _index,
-        bytes memory _signature
+        bytes calldata _signature
     ) external returns (bool) {
         uint32 _domain = Outbox(_outbox).localDomain();
         require(
@@ -112,7 +112,7 @@ contract ValidatorManager is IValidatorManager, Ownable {
         uint32 _domain,
         bytes32 _root,
         uint256 _index,
-        bytes memory _signature
+        bytes calldata _signature
     ) public view override returns (bool) {
         bytes32 _digest = keccak256(
             abi.encodePacked(domainHash(_domain), _root, _index)

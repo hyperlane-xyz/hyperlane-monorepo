@@ -27,7 +27,7 @@ contract TestInbox is Inbox {
         return MerkleLib.branchRoot(leaf, proof, index);
     }
 
-    function testProcess(bytes memory _message) external {
+    function testProcess(bytes calldata _message) external {
         process(_message);
     }
 
