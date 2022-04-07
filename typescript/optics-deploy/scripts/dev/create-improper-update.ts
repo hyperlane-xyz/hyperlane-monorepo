@@ -57,15 +57,13 @@ async function main() {
     new ethers.Wallet(process.env.ALFAJORES_DEPLOYER_KEY!),
   );
 
-  const fujiDeploy = deploys.find((_) => _.chain.name === 'fuji')!;
   const kovanDeploy = deploys.find((_) => _.chain.name === 'kovan')!;
 
-  const kovanHome = kovanDeploy.contracts.home!;
-  const kovanReplica =
-    fujiDeploy.contracts.replicas[kovanDeploy?.chain.domain!]!;
+  const kovanHome = devCommunity.mustGetCore('kovan').home;
+  const kovanReplica = devCommunity.mustGetReplicaFor('kovan', 'fuji');
 
-  const homeRoot = await kovanHome.proxy.committedRoot();
-  const replicaRoot = await kovanReplica.proxy.committedRoot();
+  const homeRoot = await kovanHome.committedRoot();
+  const replicaRoot = await kovanReplica.committedRoot();
 
   console.log(`homeRoot: ${homeRoot}, replicaRoot: ${replicaRoot}`);
 
@@ -81,12 +79,12 @@ async function main() {
   const improperUpdate = await updater.signUpdate(homeRoot, fakeRoot);
 
   console.log(improperUpdate);
-  const gas = await kovanReplica.proxy.estimateGas.update(
+  const gas = await kovanReplica.estimateGas.update(
     homeRoot,
     fakeRoot,
     improperUpdate.signature,
   );
-  const ret = await kovanReplica.proxy.callStatic.update(
+  const ret = await kovanReplica.callStatic.update(
     homeRoot,
     fakeRoot,
     improperUpdate.signature,
