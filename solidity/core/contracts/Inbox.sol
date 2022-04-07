@@ -80,29 +80,19 @@ contract Inbox is Version0, Common {
     // ============ External Functions ============
 
     /**
-     * @notice Checkpoints the provided root and index given a signature.
+     * @notice Checkpoints the provided root and index.
+     * @dev Called by the ValidatorManager, which is responsible for verifying
+     * quorum of validator signatures on the checkpoint.
      * @dev Reverts if checkpoints's index is not greater than our latest index.
-     * @param _root Checkpoint's merkle root
-     * @param _index Checkpoint's index
-     * @param _signature Validator's signature on `_root` and `_index`
+     * @param _root Checkpoint's merkle root.
+     * @param _index Checkpoint's index.
      */
-    function checkpoint(
-        bytes32 _root,
-        uint256 _index,
-        bytes memory _signature
-    ) external {
-        // ensure that update is more recent than the latest we've seen
+    function checkpoint(bytes32 _root, uint256 _index)
+        external
+        onlyValidatorManager
+    {
+        // Ensure that the checkpoint is more recent than the latest we've seen.
         require(_index > checkpoints[checkpointedRoot], "old checkpoint");
-        // validate validator signature
-        require(
-            validatorManager.isValidatorSignature(
-                remoteDomain,
-                _root,
-                _index,
-                _signature
-            ),
-            "!validator sig"
-        );
         _checkpoint(_root, _index);
     }
 

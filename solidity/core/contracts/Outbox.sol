@@ -98,14 +98,6 @@ contract Outbox is Version0, MerkleTreeManager, Common {
         _;
     }
 
-    /**
-     * @notice Ensures that function is called by the ValidatorManager contract
-     */
-    modifier onlyValidatorManager() {
-        require(msg.sender == address(validatorManager), "!validatorManager");
-        _;
-    }
-
     // ============ External Functions  ============
 
     /**
@@ -172,6 +164,22 @@ contract Outbox is Version0, MerkleTreeManager, Common {
         // set contract to FAILED
         state = States.Failed;
         emit Fail();
+    }
+
+    /**
+     * @notice Returns whether the provided root and index are a known
+     * checkpoint.
+     * @param _root The merkle root.
+     * @param _index The index.
+     * @return TRUE iff _root and _index are a known checkpoint.
+     */
+    function isCheckpoint(bytes32 _root, uint256 _index)
+        external
+        view
+        returns (bool)
+    {
+        // Checkpoint indices are one-indexed.
+        return _index > 0 && checkpoints[_root] == _index;
     }
 
     // ============ Internal Functions  ============

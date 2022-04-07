@@ -50,6 +50,14 @@ abstract contract Common is OwnableUpgradeable {
 
     // ============ Modifiers ============
 
+    /**
+     * @notice Ensures that function is called by the ValidatorManager contract
+     */
+    modifier onlyValidatorManager() {
+        require(msg.sender == address(validatorManager), "!validatorManager");
+        _;
+    }
+
     // ============ Constructor ============
 
     constructor(uint32 _localDomain) {
