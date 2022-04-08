@@ -20,7 +20,7 @@
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@abacus-network/core": "file:../../solidity/core",
-    "@abacus-network/sdk": "^0.0.1",
+    "@abacus-network/sdk": "file:../sdk",
     "@types/node": "^16.9.1",
     "axios": "^0.21.3"
   }
