@@ -1,5 +1,5 @@
-import { ethers } from "ethers";
-import { utils, types } from "@abacus-network/utils";
+import { ethers } from 'ethers';
+import { utils, types } from '@abacus-network/utils';
 
 export class Validator {
   localDomain: types.Domain;
@@ -10,10 +10,10 @@ export class Validator {
     signer: ethers.Signer,
     address: types.Address,
     localDomain: types.Domain,
-    disableWarn: boolean
+    disableWarn: boolean,
   ) {
     if (!disableWarn) {
-      throw new Error("Please use `Validator.fromSigner()` to instantiate.");
+      throw new Error('Please use `Validator.fromSigner()` to instantiate.');
     }
     this.localDomain = localDomain ? localDomain : 0;
     this.signer = signer;
@@ -30,8 +30,8 @@ export class Validator {
 
   message(root: types.HexString, index: number) {
     return ethers.utils.solidityPack(
-      ["bytes32", "bytes32", "uint256"],
-      [this.domainHash(), root, index]
+      ['bytes32', 'bytes32', 'uint256'],
+      [this.domainHash(), root, index],
     );
   }
 
