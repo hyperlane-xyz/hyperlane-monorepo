@@ -7,6 +7,7 @@ import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {MerkleTreeManager} from "./Merkle.sol";
+import {IOutbox} from "../interfaces/IOutbox.sol";
 
 /**
  * @title Outbox
@@ -18,7 +19,7 @@ import {MerkleTreeManager} from "./Merkle.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Outbox is Version0, MerkleTreeManager, Common {
+contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -121,7 +122,7 @@ contract Outbox is Version0, MerkleTreeManager, Common {
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes memory _messageBody
-    ) external notFailed returns (uint256) {
+    ) external override notFailed returns (uint256) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // get the next nonce for the destination domain, then increment it
         uint32 _nonce = nonces[_destinationDomain];
@@ -157,7 +158,7 @@ contract Outbox is Version0, MerkleTreeManager, Common {
      * relayed to the Inbox contracts.
      * @dev emits Checkpoint event
      */
-    function checkpoint() external notFailed {
+    function checkpoint() external override notFailed {
         uint256 count = count();
         require(count > 0, "!count");
         bytes32 root = root();

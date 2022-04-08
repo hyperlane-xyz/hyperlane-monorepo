@@ -3,7 +3,7 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
-import {Outbox} from "../Outbox.sol";
+import {IOutbox} from "../../interfaces/IOutbox.sol";
 import {XAppConnectionManager} from "../XAppConnectionManager.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -73,7 +73,7 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
      * @notice Get the local Outbox contract from the xAppConnectionManager
      * @return The local Outbox contract
      */
-    function _outbox() internal view returns (Outbox) {
+    function _outbox() internal view returns (IOutbox) {
         return xAppConnectionManager.outbox();
     }
 
