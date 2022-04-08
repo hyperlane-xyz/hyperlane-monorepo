@@ -17,7 +17,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     // ============ Immutable Variables ============
 
     // Domain of chain on which the contract is deployed
-    uint32 public immutable localDomain;
+    uint32 public immutable override localDomain;
 
     // ============ Public Variables ============
 
@@ -89,6 +89,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     function latestCheckpoint()
         external
         view
+        override
         returns (bytes32 root, uint256 index)
     {
         root = checkpointedRoot;

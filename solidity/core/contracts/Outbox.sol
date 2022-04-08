@@ -122,7 +122,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes memory _messageBody
-    ) external notFailed returns (uint256) {
+    ) external override notFailed returns (uint256) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // get the next nonce for the destination domain, then increment it
         uint32 _nonce = nonces[_destinationDomain];
@@ -158,7 +158,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      * relayed to the Inbox contracts.
      * @dev emits Checkpoint event
      */
-    function checkpoint() external notFailed {
+    function checkpoint() external override notFailed {
         uint256 count = count();
         require(count > 0, "!count");
         bytes32 root = root();

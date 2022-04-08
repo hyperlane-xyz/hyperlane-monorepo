@@ -40,7 +40,7 @@ contract Inbox is IInbox, Version0, Common {
     // ============ Public Storage ============
 
     // Domain of outbox chain
-    uint32 public remoteDomain;
+    uint32 public override remoteDomain;
     // re-entrancy guard
     uint8 private entered;
     // Mapping of message leaves to MessageStatus
@@ -91,7 +91,7 @@ contract Inbox is IInbox, Version0, Common {
         bytes32 _root,
         uint256 _index,
         bytes calldata _signature
-    ) external {
+    ) external override {
         // ensure that update is more recent than the latest we've seen
         require(_index > checkpoints[checkpointedRoot], "old checkpoint");
         // validate validator signature
@@ -120,7 +120,7 @@ contract Inbox is IInbox, Version0, Common {
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _index
-    ) external {
+    ) external override {
         require(prove(keccak256(_message), _proof, _index), "!prove");
         process(_message);
     }
