@@ -11,18 +11,7 @@
 /// Accumulator management
 pub mod accumulator;
 
-/// Model instantatiations of the on-chain structures
-pub mod models {
-    /// A simple Home chain Abacus implementation
-    mod home;
-
-    /// A simple Replica chain Abacus implementation
-    mod replica;
-
-    pub use self::{home::*, replica::*};
-}
-
-/// Async Traits for Homes & Replicas for use in applications
+/// Async Traits for Outboxes & Inboxes for use in applications
 mod traits;
 use ethers_signers::WalletError;
 pub use traits::*;
@@ -55,13 +44,13 @@ use async_trait::async_trait;
 use ethers::{
     core::types::{
         transaction::{eip2718::TypedTransaction, eip712::Eip712},
-        Address as EthAddress, Signature, SignatureError, H256,
+        Address as EthAddress, Signature, SignatureError,
     },
     prelude::AwsSigner,
     signers::{AwsSignerError, LocalWallet, Signer},
 };
 
-/// Enum for validity of a list (of updates or messages)
+/// Enum for validity of a list (of checkpoints or messages)
 #[derive(Debug)]
 pub enum ListValidity {
     /// Empty list
@@ -78,18 +67,6 @@ pub enum AbacusError {
     /// Signature Error pasthrough
     #[error(transparent)]
     SignatureError(#[from] SignatureError),
-    /// Update does not build off the current root
-    #[error("Update has wrong current root. Expected: {expected}. Got: {actual}.")]
-    WrongCurrentRoot {
-        /// The provided root
-        actual: H256,
-        /// The current root
-        expected: H256,
-    },
-    /// Update specifies a new root that is not in the queue. This is an
-    /// improper update and is slashable
-    #[error("Update has unknown new root: {0}")]
-    UnknownNewRoot(H256),
     /// IO error from Read/Write usage
     #[error(transparent)]
     IoError(#[from] std::io::Error),
@@ -205,6 +182,8 @@ impl<T> SignerExt for T where T: Signer {}
 mod test {
     use super::*;
 
+    use ethers::core::types::H256;
+
     #[test]
     fn it_sign() {
         let t = async {
@@ -212,10 +191,10 @@ mod test {
                 "1111111111111111111111111111111111111111111111111111111111111111"
                     .parse()
                     .unwrap();
-            let message = Update {
-                home_domain: 5,
-                new_root: H256::repeat_byte(1),
-                previous_root: H256::repeat_byte(2),
+            let message = Checkpoint {
+                outbox_domain: 5,
+                root: H256::repeat_byte(1),
+                index: 123,
             };
 
             let signed = message.sign_with(&signer).await.expect("!sign_with");

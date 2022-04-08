@@ -2,7 +2,7 @@ use color_eyre::Result;
 use structopt::StructOpt;
 
 mod commands;
-mod replicas;
+mod inboxes;
 mod rpc;
 mod subcommands;
 

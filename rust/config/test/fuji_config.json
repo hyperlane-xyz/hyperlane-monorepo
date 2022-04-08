@@ -1,7 +1,7 @@
 {
   "environment": "test",
   "signers": {},
-  "replicas": {
+  "inboxes": {
     "alfajores": {
       "address": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
       "domain": "1000",
@@ -33,7 +33,7 @@
       }
     }
   },
-  "home": {
+  "outbox": {
     "address": "0x5081a39b8A5f0E35a8D959395a630b68B74Dd30f",
     "domain": "43113",
     "name": "fuji",

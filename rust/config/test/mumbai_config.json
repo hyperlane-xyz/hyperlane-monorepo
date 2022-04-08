@@ -1,7 +1,7 @@
 {
   "environment": "test",
   "signers": {},
-  "replicas": {
+  "inboxes": {
     "alfajores": {
       "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
       "domain": "1000",
@@ -33,7 +33,7 @@
       }
     }
   },
-  "home": {
+  "outbox": {
     "address": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
     "domain": "80001",
     "name": "mumbai",

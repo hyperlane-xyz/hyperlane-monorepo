@@ -28,11 +28,8 @@ RUN --mount=id=cargo,type=cache,target=/usr/src/target \
 
 # Copy artifacts out of volume
 WORKDIR /release 
-RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/updater .
+RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/validator .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/relayer .
-# Commented out pending https://github.com/celo-org/optics-monorepo/issues/782
-# RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/watcher .
-RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/processor .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/kathy .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/kms-cli .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/abacus-cli .
@@ -44,10 +41,8 @@ RUN apt-get update && \
     ca-certificates
 
 WORKDIR /app
-COPY --from=builder /release/updater .
+COPY --from=builder /release/validator .
 COPY --from=builder /release/relayer .
-# COPY --from=builder /release/watcher .
-COPY --from=builder /release/processor .
 COPY --from=builder /release/kathy .
 COPY --from=builder /release/kms-cli .
 COPY --from=builder /release/abacus-cli .
@@ -55,4 +50,4 @@ COPY config ./config
 RUN chmod 777 /app
 RUN mkdir /usr/share/abacus/ && chmod 1000 /usr/share/abacus
 USER 1000
-CMD ["./watcher"]
+CMD ["./validator"]

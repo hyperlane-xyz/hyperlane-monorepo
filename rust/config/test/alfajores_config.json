@@ -1,7 +1,7 @@
 {
   "environment": "test",
   "signers": {},
-  "replicas": {
+  "inboxes": {
     "kovan": {
       "address": "0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB",
       "domain": "3000",
@@ -33,7 +33,7 @@
       }
     }
   },
-  "home": {
+  "outbox": {
     "address": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
     "domain": "1000",
     "name": "alfajores",
