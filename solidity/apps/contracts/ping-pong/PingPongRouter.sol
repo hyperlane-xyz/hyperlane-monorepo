@@ -154,7 +154,7 @@ contract PingPongRouter is Router {
             ? PingPongMessage.formatPing(_match, _count)
             : PingPongMessage.formatPong(_match, _count);
         // send the message to the xApp Router
-        (_outbox()).dispatch(
+        _outbox().dispatch(
             _destinationDomain,
             _remoteRouterAddress,
             _message

@@ -7,6 +7,7 @@ import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
+import {IInbox} from "../interfaces/IInbox.sol";
 // ============ External Imports ============
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
@@ -16,7 +17,7 @@ import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
  * @notice Track root updates on Outbox, prove and dispatch messages to end
  * recipients.
  */
-contract Inbox is Version0, Common {
+contract Inbox is IInbox, Version0, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;

@@ -3,6 +3,7 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {IValidatorManager} from "../interfaces/IValidatorManager.sol";
+import {ICommon} from "../interfaces/ICommon.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -12,7 +13,7 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @author Celo Labs Inc.
  * @notice Shared utilities between Outbox and Inbox.
  */
-abstract contract Common is OwnableUpgradeable {
+abstract contract Common is ICommon, OwnableUpgradeable {
     // ============ Immutable Variables ============
 
     // Domain of chain on which the contract is deployed

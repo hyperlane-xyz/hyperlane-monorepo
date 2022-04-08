@@ -7,6 +7,7 @@ import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {MerkleTreeManager} from "./Merkle.sol";
+import {IOutbox} from "../interfaces/IOutbox.sol";
 
 /**
  * @title Outbox
@@ -18,7 +19,7 @@ import {MerkleTreeManager} from "./Merkle.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Outbox is Version0, MerkleTreeManager, Common {
+contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
