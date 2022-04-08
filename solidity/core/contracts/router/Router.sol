@@ -56,17 +56,14 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
     function handle(
         uint32 _origin,
         bytes32 _sender,
-        bytes memory _message
-    ) external onlyInbox onlyRemoteRouter(_origin, _sender) {
-        _handle(_origin, _sender, _message);
+        bytes calldata _message
+    ) external override onlyInbox onlyRemoteRouter(_origin, _sender) {
+        (bool success, bytes memory returned) = _handle(_message);
+        // TODO: callbacks on success/failure
     }
 
     // ============ Virtual functions ============
-    function _handle(
-        uint32 _origin,
-        bytes32 _sender,
-        bytes memory _message
-    ) virtual internal;
+    function _handle(bytes calldata _message) virtual internal returns (bool, bytes memory);
 
     // ============ Internal functions ============
 
