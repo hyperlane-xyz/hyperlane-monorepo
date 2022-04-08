@@ -8,7 +8,7 @@
   },
   "prepublish": "npm run build",
   "name": "@abacus-network/deploy",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Abacus deploy tools",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
@@ -19,8 +19,8 @@
   },
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "@abacus-network/core": "file:../../solidity/core",
-    "@abacus-network/sdk": "file:../sdk",
+    "@abacus-network/core": "^0.0.3",
+    "@abacus-network/sdk": "^0.0.3",
     "@types/node": "^16.9.1",
     "axios": "^0.21.3"
   }
