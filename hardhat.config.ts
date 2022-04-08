@@ -1,21 +1,28 @@
-import 'solidity-coverage';
-import '@typechain/hardhat';
-import '@nomiclabs/hardhat-waffle';
-import 'hardhat-gas-reporter';
 import '@abacus-network/hardhat';
+import '@nomiclabs/hardhat-waffle';
+import '@typechain/hardhat';
+import 'hardhat-gas-reporter';
+import 'solidity-coverage';
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
  */
 module.exports = {
   solidity: {
-    version: '0.7.6',
-    settings: {
-      optimizer: {
-        enabled: true,
-        runs: 999999,
+    compilers: [
+      {
+        version: '0.8.13',
       },
-    },
+      {
+        version: '0.7.6',
+        // settings: {
+        //   optimizer: {
+        //     enabled: true,
+        //     runs: 999999,
+        //   },
+        // },
+      },
+    ],
   },
   gasReporter: {
     currency: 'USD',

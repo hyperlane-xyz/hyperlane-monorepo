@@ -20,17 +20,17 @@
   "dependencies": {
     "@abacus-network/sdk": "file:../abacus-monorepo/typescript/sdk",
     "@abacus-network/utils": "file:../abacus-monorepo/typescript/utils",
+    "@abacus-network/hardhat": "file:../abacus-monorepo/typescript/hardhat",
+    "@abacus-network/core": "file:../abacus-monorepo/solidity/core",
+    "@abacus-network/apps": "file:../abacus-monorepo/solidity/apps",
+    "@summa-tx/memview-sol": "^2.0.0",
+    "@openzeppelin/contracts": "~4.5.0",
+    "@openzeppelin/contracts-upgradeable": "~4.5.0",
     "@ethersproject/bignumber": "^5.5.0",
     "@ethersproject/bytes": "^5.5.0",
     "ethers": "^5.4.7"
   },
   "devDependencies": {
-    "@abacus-network/hardhat": "file:../abacus-monorepo/typescript/hardhat",
-    "@abacus-network/core": "file:../abacus-monorepo/solidity/core",
-    "@abacus-network/apps": "file:../abacus-monorepo/solidity/apps",
-    "@openzeppelin/contracts": "~3.4.2",
-    "@openzeppelin/contracts-upgradeable": "~3.4.2",
-    "@summa-tx/memview-sol": "^2.0.0",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typechain/ethers-v5": "~7.0.0",
