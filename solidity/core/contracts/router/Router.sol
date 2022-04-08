@@ -47,13 +47,26 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
         _enrollRemoteRouter(_domain, _router);
     }
 
-    // ============ Virtual functions ============
-
+    /**
+     * @notice Handles an incoming message
+     * @param _origin The origin domain
+     * @param _sender The sender address
+     * @param _message The message
+     */
     function handle(
         uint32 _origin,
         bytes32 _sender,
         bytes memory _message
-    ) external virtual override;
+    ) external onlyInbox onlyRemoteRouter(_origin, _sender) {
+        _handle(_origin, _sender, _message);
+    }
+
+    // ============ Virtual functions ============
+    function _handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes memory _message
+    ) virtual internal;
 
     // ============ Internal functions ============
 
