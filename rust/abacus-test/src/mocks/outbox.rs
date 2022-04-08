@@ -9,7 +9,7 @@ use abacus_core::*;
 
 mock! {
     pub OutboxContract {
-        // Home
+        // Outbox
         pub fn _local_domain(&self) -> u32 {}
 
         pub fn _domain_hash(&self) -> H256 {}

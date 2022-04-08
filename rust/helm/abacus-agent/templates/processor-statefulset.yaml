@@ -1,0 +1,121 @@
+{{- if .Values.abacus.processor.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "abacus-agent.fullname" . }}-processor
+  labels:
+    {{- include "abacus-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: processor
+spec:
+  selector:
+    matchLabels:
+      {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: processor
+  replicas: 1 
+  serviceName: {{ include "abacus-agent.fullname" . }}-processor
+  template:
+    metadata:
+      annotations:
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.abacus.processor.podAnnotations }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "abacus-agent.labels" . | nindent 8 }}
+        app.kubernetes.io/component: processor
+        {{- with .Values.podCommonLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.abacus.processor.podLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: agent
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["./processor"]
+        envFrom:
+        - configMapRef:
+            name: {{ include "abacus-agent.fullname" . }}
+        - secretRef:
+            name: {{ include "abacus-agent.fullname" . }}-secret
+        - secretRef:
+            name: {{ include "abacus-agent.fullname" . }}-processor-secret
+        env: 
+          {{- if .Values.abacus.processor.pollingInterval }}
+          - name: OPT_PROCESSOR_INTERVAL
+            value: {{ .Values.abacus.processor.pollingInterval | quote }}
+          {{ end }}
+          {{ range .Values.abacus.processor.indexonly }}
+          - name: OPT_PROCESSOR_INDEXON_{{ . | upper }}
+            value: "true"
+          {{ end }}
+          {{- if .Values.abacus.processor.s3BucketName }}
+          - name: OPT_PROCESSOR_S3_BUCKET
+            value: {{ .Values.abacus.processor.s3BucketName }}
+          - name: OPT_PROCESSOR_S3_REGION
+            value: {{ .Values.abacus.processor.s3BucketRegion }}
+          {{- end }}
+          {{- range .Values.abacus.processor.transactionSigners }}
+          {{- if (hasKey . "aws") }}
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
+            value: "aws"
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID
+            value: {{ .aws.keyId }}
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_REGION
+            value: {{ .aws.region }}
+          {{- end }}
+          {{- end }}
+          {{- if .Values.abacus.tracing.uri }}
+          - name: OPT_BASE_TRACING_JAEGER_NAME
+            value: {{ include "abacus-agent.fullname" . }}-processor
+          {{- end }}
+        resources:
+          {{- toYaml .Values.abacus.processor.resources | nindent 10 }}
+        volumeMounts:
+        - name: state
+          mountPath: {{ .Values.abacus.dbPath }}
+        ports: 
+        - name: metrics
+          containerPort: {{ .Values.abacus.metrics.port }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: state
+    spec:
+      storageClassName: {{ .Values.storage.storageClass }}
+      accessModes: [ {{ .Values.storage.accessModes }} ]
+      {{- if .Values.abacus.processor.storage.snapshot.enabled }}
+      dataSource:
+        name: {{ .Values.abacus.processor.storage.snapshot.name }}
+        kind: VolumeSnapshot
+        apiGroup: snapshot.storage.k8s.io
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.abacus.processor.storage.size }}
+{{- end }}

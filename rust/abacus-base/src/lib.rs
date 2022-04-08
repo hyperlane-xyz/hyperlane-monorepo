@@ -2,7 +2,7 @@
 //! It has common utils and tools for configuring the app, interacting with the
 //! smart contracts, etc.
 //!
-//! Implementations of the `Home` and `Replica` traits on different chains
+//! Implementations of the `Outbox` and `Inbox` traits on different chains
 //! ought to live here.
 
 #![forbid(unsafe_code)]
@@ -22,10 +22,6 @@ pub use agent::*;
 mod macros;
 pub use macros::*;
 
-/// Home type
-mod home;
-pub use home::*;
-
 /// outbox type
 mod outbox;
 pub use outbox::*;
@@ -33,13 +29,6 @@ pub use outbox::*;
 /// inbox type
 mod inbox;
 pub use inbox::*;
-
-/// Replica type
-mod replica;
-pub use replica::*;
-/// XAppConnectionManager type
-mod xapp;
-pub use xapp::*;
 
 mod metrics;
 pub use metrics::*;
