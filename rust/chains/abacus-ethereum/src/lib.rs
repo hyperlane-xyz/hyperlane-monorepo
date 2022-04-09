@@ -22,18 +22,6 @@ mod outbox;
 #[cfg(not(doctest))]
 mod inbox;
 
-/// Home abi
-#[cfg(not(doctest))]
-mod home;
-
-/// Replica abi
-#[cfg(not(doctest))]
-mod replica;
-
-/// XAppConnectionManager abi
-#[cfg(not(doctest))]
-mod xapp;
-
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -59,7 +47,7 @@ impl Default for Connection {
 }
 
 #[cfg(not(doctest))]
-pub use crate::{home::*, inbox::*, outbox::*, replica::*, xapp::*};
+pub use crate::{inbox::*, outbox::*};
 
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
@@ -67,28 +55,6 @@ pub struct Chain {
     creation_metadata: Connection,
     ethers: ethers::providers::Provider<ethers::providers::Http>,
 }
-
-boxed_trait!(
-    make_home_indexer,
-    EthereumHomeIndexer,
-    HomeIndexer,
-    from_height: u32,
-    chunk_size: u32
-);
-boxed_trait!(
-    make_replica_indexer,
-    EthereumReplicaIndexer,
-    CommonIndexer,
-    from_height: u32,
-    chunk_size: u32
-);
-boxed_trait!(make_replica, EthereumReplica, Replica,);
-boxed_trait!(make_home, EthereumHome, Home,);
-boxed_trait!(
-    make_conn_manager,
-    EthereumConnectionManager,
-    ConnectionManager,
-);
 
 boxed_trait!(
     make_outbox_indexer,

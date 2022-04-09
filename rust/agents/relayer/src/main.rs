@@ -1,7 +1,7 @@
-//! The relayer forwards signed updates from the home to chain to replicas
+//! The relayer forwards signed checkpoints from the outbox to chain to inboxes
 //!
-//! At a regular interval, the relayer polls Home for signed updates and
-//! submits them as updates with a pending timelock on the replica.
+//! At a regular interval, the relayer polls Outbox for signed checkpoints and
+//! submits them as checkpoints on the inbox.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]

@@ -9,7 +9,7 @@ mod settings;
 
 use color_eyre::Result;
 
-use abacus_base::AbacusAgent;
+use abacus_base::Agent;
 
 use crate::{kathy::Kathy, settings::KathySettings as Settings};
 
@@ -26,7 +26,7 @@ async fn _main() -> Result<()> {
         .start_tracing(agent.metrics().span_duration())?;
     let _ = agent.metrics().run_http_server();
 
-    agent.run_all().await?
+    agent.run().await?
 }
 
 fn main() -> Result<()> {

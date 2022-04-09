@@ -143,8 +143,8 @@ impl AbacusCommon for CachingInbox {
 pub struct Inboxes(Arc<InboxVariants>);
 
 impl From<InboxVariants> for Inboxes {
-    fn from(homes: InboxVariants) -> Self {
-        Self(Arc::new(homes))
+    fn from(inboxes: InboxVariants) -> Self {
+        Self(Arc::new(inboxes))
     }
 }
 
