@@ -36,6 +36,7 @@
   },
   "license": "MIT OR Apache-2.0",
   "dependencies": {
+    "@abacus-network/app": "file:../app",
     "@abacus-network/core": "file:../core",
     "@abacus-network/hardhat": "^0.0.5",
     "@abacus-network/utils": "^0.0.5",

@@ -3,8 +3,7 @@ pragma solidity >=0.6.11;
 
 // ============ External Imports ============
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
-import {Router} from "@abacus-network/core/contracts/router/Router.sol";
-import {XAppConnectionClient} from "@abacus-network/core/contracts/router/XAppConnectionClient.sol";
+import {Router} from "@abacus-network/app/contracts/Router.sol";
 // ============ Internal Imports ============
 import {Message} from "./MessageTemplate.sol";
 
