@@ -3,7 +3,7 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {XAppConnectionClient} from "./XAppConnectionClient.sol";
-import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
+import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
 
 abstract contract Router is XAppConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
@@ -63,7 +63,10 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
     }
 
     // ============ Virtual functions ============
-    function _handle(bytes calldata _message) virtual internal returns (bool, bytes memory);
+    function _handle(bytes calldata _message)
+        internal
+        virtual
+        returns (bool, bytes memory);
 
     // ============ Internal functions ============
 

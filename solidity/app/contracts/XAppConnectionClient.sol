@@ -2,16 +2,17 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
-import {IOutbox} from "../../interfaces/IOutbox.sol";
-import {XAppConnectionManager} from "../XAppConnectionManager.sol";
+import {IInterchainGasPaymaster} from "@abacus-network/core/interfaces/IInterchainGasPaymaster.sol";
+import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
+import {IXAppConnectionManager} from "@abacus-network/core/interfaces/IXAppConnectionManager.sol";
+
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 abstract contract XAppConnectionClient is OwnableUpgradeable {
     // ============ Mutable Storage ============
 
-    XAppConnectionManager public xAppConnectionManager;
+    IXAppConnectionManager public xAppConnectionManager;
     uint256[49] private __GAP; // gap for upgrade safety
 
     // ============ Events ============
@@ -38,7 +39,7 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
         internal
         initializer
     {
-        xAppConnectionManager = XAppConnectionManager(_xAppConnectionManager);
+        xAppConnectionManager = IXAppConnectionManager(_xAppConnectionManager);
         __Ownable_init();
     }
 
@@ -65,7 +66,7 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
     function _setXAppConnectionManager(address _xAppConnectionManager)
         internal
     {
-        xAppConnectionManager = XAppConnectionManager(_xAppConnectionManager);
+        xAppConnectionManager = IXAppConnectionManager(_xAppConnectionManager);
         emit SetXAppConnectionManager(_xAppConnectionManager);
     }
 

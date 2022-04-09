@@ -1,10 +1,11 @@
 {
-  "name": "@abacus-network/core",
+  "name": "@abacus-network/app",
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typechain/ethers-v5": "~7.0.0",
     "@typechain/hardhat": "^2.0.1",
+    "@types/mocha": "^9.1.0",
     "chai": "^4.3.0",
     "eslint": "^7.20.0",
     "ethereum-waffle": "^3.2.2",
@@ -17,16 +18,17 @@
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.14",
     "ts-node": "^10.1.0",
-    "typechain": "^5.0.0"
+    "typechain": "^5.0.0",
+    "typescript": "^4.3.5"
   },
-  "version": "0.0.2",
+  "version": "0.0.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "directories": {
     "test": "test"
   },
   "scripts": {
-    "prettier": "prettier --write ./contracts ./libs ./test",
+    "prettier": "prettier --write ./contracts",
     "build": "hardhat compile && hardhat typechain && npm run prettier && tsc && npm run copy-types",
     "copy-types": "cp types/*.d.ts dist/",
     "coverage": "hardhat coverage",
@@ -34,10 +36,9 @@
   },
   "license": "MIT OR Apache-2.0",
   "dependencies": {
+    "@abacus-network/core": "^0.0.2",
+    "@abacus-network/hardhat": "^0.0.5",
     "@abacus-network/utils": "^0.0.5",
-    "@openzeppelin/contracts": "^3.4.2",
-    "@openzeppelin/contracts-upgradeable": "~3.4.2",
-    "@summa-tx/memview-sol": "^2.0.0",
-    "ts-generator": "^0.1.1"
+    "@openzeppelin/contracts-upgradeable": "^4.5.0"
   }
 }
