@@ -42,7 +42,7 @@ describe('Router', async () => {
 
   it('accepts message from enrolled inbox and router', async () => {
     await connectionManager.enrollInbox(origin, signer.address);
-    const remote = utils.addressToBytes32(nonOwner.address)
+    const remote = utils.addressToBytes32(nonOwner.address);
     await router.enrollRemoteRouter(origin, remote);
     // Does not revert.
     await router.handle(origin, remote, message);
@@ -75,7 +75,9 @@ describe('Router', async () => {
 
   it('non-owner cannot enroll remote router', async () => {
     await expect(
-      router.connect(nonOwner).enrollRemoteRouter(origin, utils.addressToBytes32(nonOwner.address))
+      router
+        .connect(nonOwner)
+        .enrollRemoteRouter(origin, utils.addressToBytes32(nonOwner.address)),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
   });
 
@@ -85,7 +87,10 @@ describe('Router', async () => {
     await connectionManager.setOutbox(outbox.address);
 
     const remote = nonOwner.address;
-    await router.enrollRemoteRouter(destination, utils.addressToBytes32(remote));
+    await router.enrollRemoteRouter(
+      destination,
+      utils.addressToBytes32(remote),
+    );
     await expect(router.dispatchToRemoteRouter(destination, message)).to.emit(
       outbox,
       'Dispatch',
