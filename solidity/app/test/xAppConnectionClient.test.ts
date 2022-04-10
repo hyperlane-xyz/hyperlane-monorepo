@@ -62,7 +62,9 @@ describe('XAppConnectionClient', async () => {
 
   it('returns outbox from connection manager', async () => {
     const outbox = nonOwner.address;
-    expect(await connectionClient.outbox()).to.equal(ethers.constants.AddressZero);
+    expect(await connectionClient.outbox()).to.equal(
+      ethers.constants.AddressZero,
+    );
     await connectionManager.setOutbox(outbox);
     expect(await connectionClient.outbox()).to.equal(outbox);
   });

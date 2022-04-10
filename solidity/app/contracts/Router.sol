@@ -4,6 +4,7 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {XAppConnectionClient} from "./XAppConnectionClient.sol";
 import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
+import {IXAppConnectionManager} from "@abacus-network/core/interfaces/IXAppConnectionManager.sol";
 
 abstract contract Router is XAppConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
@@ -30,6 +31,17 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
     modifier onlyRemoteRouter(uint32 _origin, bytes32 _router) {
         require(_isRemoteRouter(_origin, _router), "!router");
         _;
+    }
+
+    // ======== Initializer =========
+
+    // Can't have one initializer call another....
+    function __Router_initialize(address _xAppConnectionManager)
+        internal
+        initializer
+    {
+        xAppConnectionManager = IXAppConnectionManager(_xAppConnectionManager);
+        __Ownable_init();
     }
 
     // ============ External functions ============

@@ -103,7 +103,7 @@ contract GovernanceRouter is Version0, Router {
     // ============ Initializer ============
 
     function initialize(address _xAppConnectionManager) public initializer {
-        __XAppConnectionClient_initialize(_xAppConnectionManager);
+        __Router_initialize(_xAppConnectionManager);
         governor = msg.sender;
     }
 
