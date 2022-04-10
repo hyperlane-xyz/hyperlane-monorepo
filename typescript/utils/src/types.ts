@@ -1,4 +1,4 @@
-import { BytesLike } from "ethers";
+import { BytesLike } from 'ethers';
 
 /********* BASIC TYPES *********/
 export type Domain = number;
@@ -37,7 +37,7 @@ export type BytesArray = [
   BytesLike,
   BytesLike,
   BytesLike,
-  BytesLike
+  BytesLike,
 ];
 
 /********* ABACUS CORE *********/

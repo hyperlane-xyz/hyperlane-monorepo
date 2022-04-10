@@ -1,8 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { types, utils } from '@abacus-network/utils';
-import { Validator } from './lib/core';
+import { types, utils, Validator } from '@abacus-network/utils';
 import {
   BadRecipient1__factory,
   BadRecipient3__factory,

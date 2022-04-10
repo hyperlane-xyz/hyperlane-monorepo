@@ -28,7 +28,7 @@
     "@abacus-network/apps": "file:../../solidity/apps",
     "@abacus-network/core": "file:../../solidity/core",
     "@abacus-network/deploy": "file:../deploy",
-    "@abacus-network/sdk": "^0.0.1",
+    "@abacus-network/sdk": "file:../sdk",
     "@aws-sdk/client-kms": "3.48.0",
     "@ethersproject/experimental": "^5.3.0",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",

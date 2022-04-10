@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { types } from "@abacus-network/utils";
+import { types, Validator } from "@abacus-network/utils";
 import {
   Outbox,
   Outbox__factory,
@@ -14,7 +14,6 @@ import {
   TestInbox,
   TestInbox__factory,
 } from "@abacus-network/core";
-import { Validator } from "@abacus-network/core/test/lib/core";
 import { TestDeploy } from "./TestDeploy";
 
 export type TestAbacusConfig = {
