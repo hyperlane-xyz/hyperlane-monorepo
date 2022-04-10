@@ -115,8 +115,8 @@ export class TestAbacusDeploy extends TestDeploy<
     await this.upgradeBeaconController(domain).transferOwnership(address);
     await this.xAppConnectionManager(domain).transferOwnership(address);
     await this.validatorManager(domain).transferOwnership(address);
-    for (const remote of this.remotes(domain)) {
-      await this.inbox(domain, remote).transferOwnership(address);
+    for (const origin of this.remotes(domain)) {
+      await this.inbox(origin, domain).transferOwnership(address);
     }
   }
 
@@ -128,8 +128,8 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].upgradeBeaconController;
   }
 
-  inbox(local: types.Domain, remote: types.Domain): TestInbox {
-    return this.instances[local].inboxes[remote];
+  inbox(origin: types.Domain, destination: types.Domain): TestInbox {
+    return this.instances[destination].inboxes[origin];
   }
 
   interchainGasPaymaster(domain: types.Domain): InterchainGasPaymaster {
@@ -144,18 +144,24 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].validatorManager;
   }
 
-  async processMessages() {
-    await Promise.all(
-      this.domains.map((d) => this.processMessagesFromDomain(d))
-    );
+  async processMessages(): Promise<Map<types.Domain, Map<types.Domain, ethers.providers.TransactionResponse[]>>> {
+    const responses: Map<types.Domain, Map<types.Domain, ethers.providers.TransactionResponse[]>> = new Map();
+    this.domains.forEach(async (origin) => {
+      const outbound = await this.processOutboundMessages(origin);
+      this.domains.forEach(async (destination) => {
+        responses.get(origin)?.set(destination, outbound.get(destination) ?? []);
+      })
+    })
+    return responses;
   }
 
-  async processMessagesFromDomain(domain: types.Domain) {
-    const outbox = this.outbox(domain);
+  async processOutboundMessages(origin: types.Domain): Promise<Map<types.Domain, ethers.providers.TransactionResponse[]>> {
+    const responses: Map<types.Domain, ethers.providers.TransactionResponse[]> = new Map();
+    const outbox = this.outbox(origin);
     const [checkpointedRoot, checkpointedIndex] =
       await outbox.latestCheckpoint();
     const latestIndex = await outbox.tree();
-    if (latestIndex.eq(checkpointedIndex)) return;
+    if (latestIndex.eq(checkpointedIndex)) return responses;
 
     // Find the block number of the last checkpoint submitted on Outbox.
     const checkpointFilter = outbox.filters.Checkpoint(checkpointedRoot);
@@ -171,22 +177,22 @@ export class TestAbacusDeploy extends TestDeploy<
       index.eq(0) ||
       (checkpoints.length == 1 && index.eq(checkpoints[0].args.index))
     ) {
-      return;
+      return responses;
     }
     // Update the Outbox and Inboxes to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
     const validator = await Validator.fromSigner(
-      this.config.signer[domain],
-      domain
+      this.config.signer[origin],
+      origin
     );
     const { signature } = await validator.signCheckpoint(
       root,
       index.toNumber()
     );
 
-    for (const remote of this.remotes(domain)) {
-      const inbox = this.inbox(remote, domain);
+    for (const destination of this.remotes(origin)) {
+      const inbox = this.inbox(origin, destination);
       await inbox.checkpoint(root, index, signature);
     }
 
@@ -195,11 +201,17 @@ export class TestAbacusDeploy extends TestDeploy<
     const dispatches = await outbox.queryFilter(dispatchFilter, fromBlock);
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
-      if (destination !== domain) {
-        const inbox = this.inbox(destination, domain);
+      if (destination !== origin) {
+        const inbox = this.inbox(origin, destination);
         await inbox.setMessageProven(dispatch.args.message);
-        await inbox.testProcess(dispatch.args.message);
+        const response = await inbox.testProcess(dispatch.args.message);
+        if (!responses.get(destination)) {
+          responses.set(destination, [response])
+        } else {
+          responses.get(destination)?.push(response);
+        }
       }
     }
+    return responses
   }
 }
