@@ -53,8 +53,10 @@ export class TestAbacusDeploy extends TestDeploy<
     const validatorManagerFactory = new ValidatorManager__factory(signer);
     const validatorManager = await validatorManagerFactory.deploy();
     await validatorManager.enrollValidator(domain, signerAddress);
+    // this.remotes reads this.instances which has not yet been set.
+    const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
     await Promise.all(
-      this.remotes(domain).map(async (remote) =>
+      remotes.map(async (remote) =>
         validatorManager.enrollValidator(remote, signerAddress)
       )
     );
@@ -85,8 +87,6 @@ export class TestAbacusDeploy extends TestDeploy<
 
     const inboxFactory = new TestInbox__factory(signer);
     const inboxes: Record<types.Domain, TestInbox> = {};
-    // this.remotes reads this.instances which has not yet been set.
-    const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
     const deploys = remotes.map(async (remote) => {
       const inbox = await inboxFactory.deploy(domain);
       await inbox.initialize(
@@ -145,13 +145,13 @@ export class TestAbacusDeploy extends TestDeploy<
 
   async processMessages(): Promise<Map<types.Domain, Map<types.Domain, ethers.providers.TransactionResponse[]>>> {
     const responses: Map<types.Domain, Map<types.Domain, ethers.providers.TransactionResponse[]>> = new Map();
-    this.domains.forEach(async (origin) => {
+    for (const origin of this.domains) {
       const outbound = await this.processOutboundMessages(origin);
       responses.set(origin, new Map());
-      this.domains.forEach(async (destination) => {
+      this.domains.forEach((destination) => {
         responses.get(origin)!.set(destination, outbound.get(destination) ?? []);
       })
-    })
+    }
     return responses;
   }
 
@@ -172,14 +172,8 @@ export class TestAbacusDeploy extends TestDeploy<
 
     await outbox.checkpoint();
     const [root, index] = await outbox.latestCheckpoint();
-    // If there have been no checkpoints since the last checkpoint, return.
-    if (
-      index.eq(0) ||
-      (checkpoints.length == 1 && index.eq(checkpoints[0].args.index))
-    ) {
-      return responses;
-    }
-    // Update the Outbox and Inboxes to the latest roots.
+
+    // Update the Inboxes to the latest root.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
     const validator = await Validator.fromSigner(
@@ -201,15 +195,14 @@ export class TestAbacusDeploy extends TestDeploy<
     const dispatches = await outbox.queryFilter(dispatchFilter, fromBlock);
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
-      if (destination !== origin) {
-        const inbox = this.inbox(origin, destination);
-        await inbox.setMessageProven(dispatch.args.message);
-        const response = await inbox.testProcess(dispatch.args.message);
-        if (!responses.get(destination)) {
-          responses.set(destination, [response])
-        } else {
-          responses.get(destination)?.push(response);
-        }
+      if (destination === origin) throw new Error('Dispatched message to local domain')
+      const inbox = this.inbox(origin, destination);
+      await inbox.setMessageProven(dispatch.args.message);
+      const response = await inbox.testProcess(dispatch.args.message);
+      if (!responses.get(destination)) {
+        responses.set(destination, [response])
+      } else {
+        responses.get(destination)?.push(response);
       }
     }
     return responses
