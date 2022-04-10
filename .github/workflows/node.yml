@@ -84,7 +84,13 @@ jobs:
           key: ${{ github.sha }}
 
       - name: test
-        run: npm --prefix ./typescript/infra run test
+        run: |
+          npm --prefix ./typescript/utils run test
+          npm --prefix ./typescript/hardhat run test
+          npm --prefix ./typescript/sdk run test
+          npm --prefix ./typescript/contract-metrics run test
+          npm --prefix ./typescript/deploy run test
+          npm --prefix ./typescript/infra run test
 
   test-sol:
     env:
@@ -102,5 +108,7 @@ jobs:
 
       - name: core
         run: npm --prefix ./solidity/core run test
+      - name: app
+        run: npm --prefix ./solidity/app run test
       - name: apps
         run: npm --prefix ./solidity/apps run test

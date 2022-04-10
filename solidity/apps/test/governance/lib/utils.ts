@@ -66,21 +66,31 @@ export function formatCalls(callsData: types.CallData[]): string {
   );
 }
 
-export async function formatCall(
+// TODO: asa - move these to utils
+export function formatCallData(
   destinationContract: ethers.Contract,
   functionStr: string,
   functionArgs: any[],
-): Promise<types.CallData> {
+): string {
   // Set up data for call message
   const callFunc = destinationContract.interface.getFunction(functionStr);
   const callDataEncoded = destinationContract.interface.encodeFunctionData(
     callFunc,
     functionArgs,
   );
+  return callDataEncoded;
+}
 
+export function formatCall(
+  destinationContract: ethers.Contract,
+  functionStr: string,
+  functionArgs: any[],
+): types.CallData {
+  // Set up data for call message
+  const callData = formatCallData(destinationContract, functionStr, functionArgs)
   return {
     to: utils.addressToBytes32(destinationContract.address),
-    data: callDataEncoded,
+    data: callData,
   };
 }
 
