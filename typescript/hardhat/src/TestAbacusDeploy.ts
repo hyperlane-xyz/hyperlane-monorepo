@@ -147,8 +147,9 @@ export class TestAbacusDeploy extends TestDeploy<
     const responses: Map<types.Domain, Map<types.Domain, ethers.providers.TransactionResponse[]>> = new Map();
     this.domains.forEach(async (origin) => {
       const outbound = await this.processOutboundMessages(origin);
+      responses.set(origin, new Map());
       this.domains.forEach(async (destination) => {
-        responses.get(origin)?.set(destination, outbound.get(destination) ?? []);
+        responses.get(origin)!.set(destination, outbound.get(destination) ?? []);
       })
     })
     return responses;

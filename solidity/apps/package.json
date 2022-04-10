@@ -38,7 +38,7 @@
   "dependencies": {
     "@abacus-network/app": "^0.0.1",
     "@abacus-network/core": "^0.0.5",
-    "@abacus-network/hardhat": "^0.0.11",
+    "@abacus-network/hardhat": "^0.0.12",
     "@abacus-network/utils": "^0.0.7",
     "@openzeppelin/contracts": "~3.4.2",
     "@openzeppelin/contracts-upgradeable": "~3.4.2",
