@@ -158,17 +158,9 @@ export class TestAbacusDeploy extends TestDeploy<
   async processOutboundMessages(origin: types.Domain): Promise<Map<types.Domain, ethers.providers.TransactionResponse[]>> {
     const responses: Map<types.Domain, ethers.providers.TransactionResponse[]> = new Map();
     const outbox = this.outbox(origin);
-    const [checkpointedRoot, checkpointedIndex] =
-      await outbox.latestCheckpoint();
-    const latestIndex = await outbox.tree();
+    const [, checkpointedIndex] = await outbox.latestCheckpoint();
+    const latestIndex = await outbox.count();
     if (latestIndex.eq(checkpointedIndex)) return responses;
-
-    // Find the block number of the last checkpoint submitted on Outbox.
-    const checkpointFilter = outbox.filters.Checkpoint(checkpointedRoot);
-    const checkpoints = await outbox.queryFilter(checkpointFilter);
-    if (!(checkpoints.length === 0 || checkpoints.length === 1))
-      throw new Error("found multiple checkpoints");
-    const fromBlock = checkpoints.length === 0 ? 0 : checkpoints[0].blockNumber;
 
     await outbox.checkpoint();
     const [root, index] = await outbox.latestCheckpoint();
@@ -192,17 +184,20 @@ export class TestAbacusDeploy extends TestDeploy<
 
     // Find all messages dispatched on the outbox since the previous checkpoint.
     const dispatchFilter = outbox.filters.Dispatch();
-    const dispatches = await outbox.queryFilter(dispatchFilter, fromBlock);
+    const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
       if (destination === origin) throw new Error('Dispatched message to local domain')
       const inbox = this.inbox(origin, destination);
-      await inbox.setMessageProven(dispatch.args.message);
-      const response = await inbox.testProcess(dispatch.args.message);
-      if (!responses.get(destination)) {
-        responses.set(destination, [response])
-      } else {
-        responses.get(destination)?.push(response);
+      const status = await inbox.messages(dispatch.args.messageHash)
+      if (status !== types.MessageStatus.PROCESSED) {
+        await inbox.setMessageProven(dispatch.args.message);
+        const response = await inbox.testProcess(dispatch.args.message);
+        if (!responses.get(destination)) {
+          responses.set(destination, [response])
+        } else {
+          responses.get(destination)!.push(response);
+        }
       }
     }
     return responses
