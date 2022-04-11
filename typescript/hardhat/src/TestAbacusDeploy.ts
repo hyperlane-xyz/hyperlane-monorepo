@@ -1,19 +1,19 @@
-import { ethers } from "ethers";
-import { types, Validator } from "@abacus-network/utils";
 import {
-  Outbox,
-  Outbox__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
-  ValidatorManager,
-  ValidatorManager__factory,
-  UpgradeBeaconController,
-  UpgradeBeaconController__factory,
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
+  Outbox,
+  Outbox__factory,
   TestInbox,
   TestInbox__factory,
+  UpgradeBeaconController,
+  UpgradeBeaconController__factory,
+  ValidatorManager,
+  ValidatorManager__factory,
+  XAppConnectionManager,
+  XAppConnectionManager__factory,
 } from "@abacus-network/core";
+import { types, Validator } from "@abacus-network/utils";
+import { ethers } from "ethers";
 import { TestDeploy } from "./TestDeploy";
 
 export type TestAbacusConfig = {
@@ -203,8 +203,9 @@ export class TestAbacusDeploy extends TestDeploy<
       if (status !== types.MessageStatus.PROCESSED) {
         await inbox.setMessageProven(dispatch.args.message);
         const response = await inbox.testProcess(dispatch.args.message);
-        const destinationResponses = responses.get(destination) || [];
-        responses.set(destination, destinationResponses.push(response));
+        let destinationResponses = responses.get(destination) || [];
+        destinationResponses.push(response);
+        responses.set(destination, destinationResponses);
       }
     }
     return responses;
