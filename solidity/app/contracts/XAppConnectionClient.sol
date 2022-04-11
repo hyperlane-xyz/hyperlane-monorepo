@@ -39,7 +39,7 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
         internal
         initializer
     {
-        xAppConnectionManager = IXAppConnectionManager(_xAppConnectionManager);
+        _setXAppConnectionManager(_xAppConnectionManager);
         __Ownable_init();
     }
 

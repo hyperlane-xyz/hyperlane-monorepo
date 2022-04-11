@@ -175,7 +175,7 @@ export class TestAbacusDeploy extends TestDeploy<
     await outbox.checkpoint();
     const [root, index] = await outbox.latestCheckpoint();
 
-    // Update the Inboxes to the latest root.
+    // Sign the checkpoint and update the Inboxes to the latest root.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
     const validator = await Validator.fromSigner(
@@ -186,7 +186,6 @@ export class TestAbacusDeploy extends TestDeploy<
       root,
       index.toNumber()
     );
-
     for (const destination of this.remotes(origin)) {
       const inbox = this.inbox(origin, destination);
       await inbox.checkpoint(root, index, signature);
