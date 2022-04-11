@@ -115,15 +115,13 @@ contract GovernanceRouter is Version0, Router {
      * sent from the Governor chain via Abacus.
      * Governor chain should never receive messages,
      * because non-Governor chains are not able to send them
-     * @param _origin The domain (of the Governor Router)
-     * @param _sender The message sender (must be the Governor Router)
      * @param _message The message
      */
-    function handle(
-        uint32 _origin,
-        bytes32 _sender,
+    function _handle(
+        uint32,
+        bytes32,
         bytes memory _message
-    ) external override onlyInbox onlyRemoteRouter(_origin, _sender) {
+    ) internal override {
         bytes29 _msg = _message.ref(0);
         if (_msg.isValidCall()) {
             _handleCall(_msg.tryAsCall());

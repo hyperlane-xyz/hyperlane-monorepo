@@ -72,7 +72,11 @@ export function formatCall(
   functionArgs: any[],
 ): types.CallData {
   // Set up data for call message
-  const callData = utils.formatCallData(destinationContract, functionStr, functionArgs)
+  const callData = utils.formatCallData(
+    destinationContract,
+    functionStr,
+    functionArgs,
+  );
   return {
     to: utils.addressToBytes32(destinationContract.address),
     data: callData,

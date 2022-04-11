@@ -143,20 +143,30 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].validatorManager;
   }
 
-  async processMessages(): Promise<Map<types.Domain, Map<types.Domain, ethers.providers.TransactionResponse[]>>> {
-    const responses: Map<types.Domain, Map<types.Domain, ethers.providers.TransactionResponse[]>> = new Map();
+  async processMessages(): Promise<
+    Map<types.Domain, Map<types.Domain, ethers.providers.TransactionResponse[]>>
+  > {
+    const responses: Map<
+      types.Domain,
+      Map<types.Domain, ethers.providers.TransactionResponse[]>
+    > = new Map();
     for (const origin of this.domains) {
       const outbound = await this.processOutboundMessages(origin);
       responses.set(origin, new Map());
       this.domains.forEach((destination) => {
-        responses.get(origin)!.set(destination, outbound.get(destination) ?? []);
-      })
+        responses
+          .get(origin)!
+          .set(destination, outbound.get(destination) ?? []);
+      });
     }
     return responses;
   }
 
-  async processOutboundMessages(origin: types.Domain): Promise<Map<types.Domain, ethers.providers.TransactionResponse[]>> {
-    const responses: Map<types.Domain, ethers.providers.TransactionResponse[]> = new Map();
+  async processOutboundMessages(
+    origin: types.Domain
+  ): Promise<Map<types.Domain, ethers.providers.TransactionResponse[]>> {
+    const responses: Map<types.Domain, ethers.providers.TransactionResponse[]> =
+      new Map();
     const outbox = this.outbox(origin);
     const [, checkpointedIndex] = await outbox.latestCheckpoint();
     const latestIndex = await outbox.count();
@@ -187,19 +197,20 @@ export class TestAbacusDeploy extends TestDeploy<
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
-      if (destination === origin) throw new Error('Dispatched message to local domain')
+      if (destination === origin)
+        throw new Error("Dispatched message to local domain");
       const inbox = this.inbox(origin, destination);
-      const status = await inbox.messages(dispatch.args.messageHash)
+      const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
         await inbox.setMessageProven(dispatch.args.message);
         const response = await inbox.testProcess(dispatch.args.message);
         if (!responses.get(destination)) {
-          responses.set(destination, [response])
+          responses.set(destination, [response]);
         } else {
           responses.get(destination)!.push(response);
         }
       }
     }
-    return responses
+    return responses;
   }
 }

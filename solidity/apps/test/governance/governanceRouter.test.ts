@@ -4,11 +4,7 @@ import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
-import {
-  formatSetGovernor,
-  formatCall,
-  increaseTimestampBy,
-} from './lib/utils';
+import { formatCall, increaseTimestampBy } from './lib/utils';
 import { GovernanceConfig, GovernanceDeploy } from './lib/GovernanceDeploy';
 import { TestSet, TestSet__factory, GovernanceRouter } from '../../types';
 

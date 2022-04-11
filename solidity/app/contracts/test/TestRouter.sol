@@ -8,14 +8,11 @@ contract TestRouter is Router {
         __Router_initialize(_xAppConnectionManager);
     }
 
-    function _handle(bytes calldata _message)
-        internal
-        pure
-        override
-        returns (bool, bytes memory)
-    {
-        return (true, _message);
-    }
+    function _handle(
+        uint32,
+        bytes32,
+        bytes memory
+    ) internal pure override {}
 
     function isRemoteRouter(uint32 _domain, bytes32 _potentialRemoteRouter)
         external
