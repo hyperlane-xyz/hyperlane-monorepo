@@ -85,11 +85,7 @@ jobs:
 
       - name: test
         run: |
-          npm --prefix ./typescript/utils run test
           npm --prefix ./typescript/hardhat run test
-          npm --prefix ./typescript/sdk run test
-          npm --prefix ./typescript/contract-metrics run test
-          npm --prefix ./typescript/deploy run test
           npm --prefix ./typescript/infra run test
 
   test-sol:

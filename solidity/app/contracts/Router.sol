@@ -35,7 +35,6 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
 
     // ======== Initializer =========
 
-    // Can't have one initializer call another....
     function __Router_initialize(address _xAppConnectionManager)
         internal
         initializer

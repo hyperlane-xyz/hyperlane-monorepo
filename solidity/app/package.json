@@ -37,7 +37,6 @@
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@abacus-network/core": "^0.0.5",
-    "@abacus-network/hardhat": "^0.0.5",
     "@abacus-network/utils": "^0.0.5",
     "@openzeppelin/contracts-upgradeable": "^4.5.0"
   }

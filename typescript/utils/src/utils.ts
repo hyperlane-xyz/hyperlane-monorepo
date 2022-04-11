@@ -34,6 +34,20 @@ export function addressToBytes32(address: Address): string {
     .toLowerCase();
 }
 
+export function formatCallData(
+  destinationContract: ethers.Contract,
+  functionStr: string,
+  functionArgs: any[],
+): string {
+  // Set up data for call message
+  const callFunc = destinationContract.interface.getFunction(functionStr);
+  const callDataEncoded = destinationContract.interface.encodeFunctionData(
+    callFunc,
+    functionArgs,
+  );
+  return callDataEncoded;
+}
+
 export const formatMessage = (
   localDomain: Domain,
   senderAddr: Address,
