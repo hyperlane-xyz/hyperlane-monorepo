@@ -204,11 +204,8 @@ export class TestAbacusDeploy extends TestDeploy<
       if (status !== types.MessageStatus.PROCESSED) {
         await inbox.setMessageProven(dispatch.args.message);
         const response = await inbox.testProcess(dispatch.args.message);
-        if (!responses.get(destination)) {
-          responses.set(destination, [response]);
-        } else {
-          responses.get(destination)!.push(response);
-        }
+        const destinationResponses = responses.get(destination) || [];
+        responses.set(destination, destinationResponses.push(response));
       }
     }
     return responses;
