@@ -33,7 +33,7 @@ contract OutboxMultisigValidatorManager is MultisigValidatorManager {
     // ============ Constructor ============
 
     /**
-     * @param _outboxDomain The local domain.
+     * @param _localDomain The local domain.
      * @param _validatorSet The set of validator addresses.
      * @param _quorumThreshold The quorum threshold. Must be greater than or equal
      * to the length of _validatorSet.
