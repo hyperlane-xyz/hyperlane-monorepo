@@ -26,9 +26,9 @@
     "typescript": "^4.4.3"
   },
   "dependencies": {
-    "@abacus-network/apps": "^0.0.1",
-    "@abacus-network/core": "^0.0.3",
-    "@abacus-network/utils": "^0.0.7",
+    "@abacus-network/apps": "^0.0.2",
+    "@abacus-network/core": "^0.0.6",
+    "@abacus-network/utils": "^0.0.8",
     "@ethersproject/bignumber": "^5.5.0",
     "@ethersproject/bytes": "^5.5.0",
     "celo-ethers-provider": "0.0.0",
