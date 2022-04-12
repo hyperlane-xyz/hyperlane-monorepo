@@ -15,10 +15,8 @@ const OUTBOX_DOMAIN_HASH = ethers.utils.keccak256(
 );
 const QUORUM_THRESHOLD = 1;
 
-// const VALIDATOR = '0xdeadbeef00000000000000000000000000000000';
-
-// Signs a checkpoint with the provided validators,
-// sorts
+// Signs a checkpoint with the provided validators and returns
+// the signatures sorted by validator addresses in ascending order
 async function getCheckpointSignatures(
   root: types.HexString,
   index: number,
