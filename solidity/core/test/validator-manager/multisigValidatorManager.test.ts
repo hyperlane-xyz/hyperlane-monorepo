@@ -246,12 +246,14 @@ describe('MultisigValidatorManager', async () => {
     });
   });
 
-  describe('#domainHash', () => {
+  describe('#_domainHash', () => {
     it('matches Rust-produced domain hashes', async () => {
       // Compare Rust output in json file to solidity output (json file matches
       // hash for local domain of 1000)
       for (let testCase of domainHashTestCases) {
         const { expectedDomainHash } = testCase;
+        // This public function on TestMultisigValidatorManager exposes
+        // the internal _domainHash on MultisigValidatorManager.
         const domainHash = await validatorManager.domainHash(
           testCase.outboxDomain,
         );

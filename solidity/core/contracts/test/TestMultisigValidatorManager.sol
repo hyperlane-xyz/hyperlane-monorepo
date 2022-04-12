@@ -17,4 +17,13 @@ contract TestMultisigValidatorManager is MultisigValidatorManager {
     )
         MultisigValidatorManager(_outboxDomain, _validatorSet, _quorumThreshold)
     {}
+
+    /**
+     * @notice Hash of domain concatenated with "ABACUS".
+     * @dev This is a public getter of _domainHash to test with.
+     * @param _domain The domain to hash.
+     */
+    function domainHash(uint32 _domain) external pure returns (bytes32) {
+        return _domainHash(_domain);
+    }
 }
