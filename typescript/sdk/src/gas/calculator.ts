@@ -200,7 +200,8 @@ export class InterchainGasCalculator {
    */
   nativeTokenDecimals(domain: number) {
     return (
-      this.core.mustGetDomain(domain).nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS
+      this.core.mustGetDomain(domain).nativeTokenDecimals ??
+      DEFAULT_TOKEN_DECIMALS
     );
   }
 
