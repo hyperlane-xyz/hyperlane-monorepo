@@ -9,6 +9,8 @@ export {
   CoreContracts,
   CoreContractAddresses,
   MessageStatus,
+  ParsedMessage,
+  parseMessage,
 } from './core';
 export {
   Annotated,
@@ -33,4 +35,9 @@ export {
 export { AbacusAppContracts } from './contracts';
 export { AbacusApp } from './app';
 export { domains } from './domains';
+export {
+  DefaultTokenPriceGetter,
+  InterchainGasCalculator,
+  TokenPriceGetter,
+} from './gas';
 export { utils } from './utils';

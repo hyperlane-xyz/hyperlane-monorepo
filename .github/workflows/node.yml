@@ -83,7 +83,9 @@ jobs:
           path: ./*
           key: ${{ github.sha }}
 
-      - name: test
+      - name: sdk
+        run: npm --prefix ./typescript/sdk run test
+      - name: infra
         run: npm --prefix ./typescript/infra run test
 
   test-sol:
