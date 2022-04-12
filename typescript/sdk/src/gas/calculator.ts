@@ -23,8 +23,8 @@ const DEFAULT_TOKEN_DECIMALS = 18;
 export interface InterchainGasCalculatorConfig {
   /**
    * A multiplier applied to the estimated origin token payment amount.
-   * This should be high enough to account for movements in native token prices and
-   * gas prices.
+   * This should be high enough to account for movements in token exchange
+   * rates and gas prices.
    * @defaultValue 1.25
    */
   paymentEstimateMultiplier?: string;
@@ -200,7 +200,7 @@ export class InterchainGasCalculator {
    */
   nativeTokenDecimals(domain: number) {
     return (
-      this.core.getDomain(domain)?.nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS
+      this.core.mustGetDomain(domain).nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS
     );
   }
 
