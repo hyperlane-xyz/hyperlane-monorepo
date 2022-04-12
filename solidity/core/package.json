@@ -19,7 +19,7 @@
     "ts-node": "^10.1.0",
     "typechain": "^5.0.0"
   },
-  "version": "0.0.3",
+  "version": "0.0.5",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "directories": {

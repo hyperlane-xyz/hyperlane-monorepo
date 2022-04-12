@@ -4,11 +4,7 @@ import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
-import {
-  formatSetGovernor,
-  formatCall,
-  increaseTimestampBy,
-} from './lib/utils';
+import { formatCall, increaseTimestampBy } from './lib/utils';
 import { GovernanceConfig, GovernanceDeploy } from './lib/GovernanceDeploy';
 import { TestSet, TestSet__factory, GovernanceRouter } from '../../types';
 
@@ -55,54 +51,6 @@ describe('GovernanceRouter', async () => {
     await expect(
       router.initialize(ethers.constants.AddressZero),
     ).to.be.revertedWith('Initializable: contract is already initialized');
-  });
-
-  it('accepts message from enrolled inbox and router', async () => {
-    expect(await router.governor()).to.not.equal(ethers.constants.AddressZero);
-    const message = formatSetGovernor(ethers.constants.AddressZero);
-    // Create a fake abacus message coming from the remote governance router.
-    const fakeMessage = utils.formatMessage(
-      remoteDomain,
-      remote.address,
-      0, // nonce is ignored
-      localDomain,
-      router.address,
-      message,
-    );
-
-    const inbox = abacus.inbox(localDomain, remoteDomain);
-    await inbox.setMessageProven(fakeMessage);
-    await inbox.testProcess(fakeMessage);
-    expect(await router.governor()).to.equal(ethers.constants.AddressZero);
-  });
-
-  it('rejects message from unenrolled inbox', async () => {
-    const message = formatSetGovernor(ethers.constants.AddressZero);
-    await expect(
-      router.handle(
-        remoteDomain,
-        utils.addressToBytes32(remote.address),
-        message,
-      ),
-    ).to.be.revertedWith('!inbox');
-  });
-
-  it('rejects message from unenrolled router', async () => {
-    const message = formatSetGovernor(ethers.constants.AddressZero);
-    // Create a fake abacus message coming from the remote governance router.
-    const fakeMessage = utils.formatMessage(
-      remoteDomain,
-      ethers.constants.AddressZero,
-      0, // nonce is ignored
-      localDomain,
-      router.address,
-      message,
-    );
-
-    const inbox = abacus.inbox(localDomain, remoteDomain);
-    await inbox.setMessageProven(fakeMessage);
-    // Expect inbox processing to fail when reverting in handle
-    await expect(inbox.testProcess(fakeMessage)).to.be.revertedWith('!router');
   });
 
   describe('when not in recovery mode', async () => {

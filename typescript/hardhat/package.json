@@ -1,18 +1,22 @@
 {
   "prepublish": "npm run build",
   "name": "@abacus-network/hardhat",
-  "version": "0.0.8",
+  "version": "0.0.17",
   "description": "Abacus hardhat tools",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src"
+    "prettier": "prettier --write ./src ./test",
+    "test": "hardhat test"
   },
   "license": "MIT OR Apache-2.0",
+  "directories": {
+    "test": "test"
+  },
   "dependencies": {
-    "@abacus-network/core": "^0.0.3",
+    "@abacus-network/core": "^0.0.5",
     "@abacus-network/utils": "^0.0.7",
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",

@@ -66,21 +66,20 @@ export function formatCalls(callsData: types.CallData[]): string {
   );
 }
 
-export async function formatCall(
+export function formatCall(
   destinationContract: ethers.Contract,
   functionStr: string,
   functionArgs: any[],
-): Promise<types.CallData> {
+): types.CallData {
   // Set up data for call message
-  const callFunc = destinationContract.interface.getFunction(functionStr);
-  const callDataEncoded = destinationContract.interface.encodeFunctionData(
-    callFunc,
+  const callData = utils.formatCallData(
+    destinationContract,
+    functionStr,
     functionArgs,
   );
-
   return {
     to: utils.addressToBytes32(destinationContract.address),
-    data: callDataEncoded,
+    data: callData,
   };
 }
 

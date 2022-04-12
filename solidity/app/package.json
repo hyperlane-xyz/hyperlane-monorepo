@@ -1,5 +1,5 @@
 {
-  "name": "@abacus-network/apps",
+  "name": "@abacus-network/app",
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
@@ -21,7 +21,7 @@
     "typechain": "^5.0.0",
     "typescript": "^4.3.5"
   },
-  "version": "0.0.1",
+  "version": "0.0.2",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "directories": {
@@ -36,12 +36,8 @@
   },
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "@abacus-network/app": "^0.0.1",
     "@abacus-network/core": "^0.0.5",
-    "@abacus-network/hardhat": "^0.0.12",
-    "@abacus-network/utils": "^0.0.7",
-    "@openzeppelin/contracts": "~3.4.2",
-    "@openzeppelin/contracts-upgradeable": "~3.4.2",
-    "@summa-tx/memview-sol": "^2.0.0"
+    "@abacus-network/utils": "^0.0.5",
+    "@openzeppelin/contracts-upgradeable": "^4.5.0"
   }
 }
