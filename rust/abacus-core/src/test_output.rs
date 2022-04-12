@@ -5,7 +5,7 @@ use crate::{
     },
     test_utils::find_vector,
     utils::{destination_and_nonce, domain_hash},
-    AbacusMessage, FailureNotification, Update,
+    AbacusMessage, Checkpoint,
 };
 use ethers::{
     core::types::{H160, H256},
@@ -147,8 +147,8 @@ pub mod output_functions {
             .expect("Failed to write to file");
     }
 
-    /// Outputs signed update test cases in /vector/signedUpdate.json
-    pub fn output_signed_updates() {
+    /// Outputs signed checkpoint test cases in /vector/signedCheckpoint.json
+    pub fn output_signed_checkpoints() {
         let t = async {
             let signer: ethers::signers::LocalWallet =
                 "1111111111111111111111111111111111111111111111111111111111111111"
@@ -159,20 +159,20 @@ pub mod output_functions {
 
             // test suite
             for i in 1..=3 {
-                let signed_update = Update {
-                    home_domain: 1000,
-                    new_root: H256::repeat_byte(i + 1),
-                    previous_root: H256::repeat_byte(i),
+                let signed_checkpoint = Checkpoint {
+                    outbox_domain: 1000,
+                    root: H256::repeat_byte(i + 1),
+                    index: i as u32,
                 }
                 .sign_with(&signer)
                 .await
                 .expect("!sign_with");
 
                 test_cases.push(json!({
-                    "homeDomain": signed_update.update.home_domain,
-                    "oldRoot": signed_update.update.previous_root,
-                    "newRoot": signed_update.update.new_root,
-                    "signature": signed_update.signature,
+                    "outboxDomain": signed_checkpoint.checkpoint.outbox_domain,
+                    "root": signed_checkpoint.checkpoint.root,
+                    "index": signed_checkpoint.checkpoint.index,
+                    "signature": signed_checkpoint.signature,
                     "signer": signer.address(),
                 }))
             }
@@ -183,57 +183,7 @@ pub mod output_functions {
                 .write(true)
                 .create(true)
                 .truncate(true)
-                .open(find_vector("signedUpdate.json"))
-                .expect("Failed to open/create file");
-
-            file.write_all(json.as_bytes())
-                .expect("Failed to write to file");
-        };
-
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap()
-            .block_on(t)
-    }
-
-    /// Outputs signed update test cases in /vector/signedFailure.json
-    pub fn output_signed_failure_notifications() {
-        let t = async {
-            let signer: ethers::signers::LocalWallet =
-                "1111111111111111111111111111111111111111111111111111111111111111"
-                    .parse()
-                    .unwrap();
-
-            let updater: ethers::signers::LocalWallet =
-                "2222222222222222222222222222222222222222222222222222222222222222"
-                    .parse()
-                    .unwrap();
-
-            // `home_domain` MUST BE 2000 to match home_domain domain of
-            // XAppConnectionManager test suite
-            let signed_failure = FailureNotification {
-                home_domain: 2000,
-                updater: updater.address().into(),
-            }
-            .sign_with(&signer)
-            .await
-            .expect("!sign_with");
-
-            let signed_json = json!({
-                "domain": signed_failure.notification.home_domain,
-                "updater": signed_failure.notification.updater.as_ethereum_address(),
-                "signature": signed_failure.signature,
-                "signer": signer.address()
-            });
-
-            let json = json!(vec!(signed_json)).to_string();
-
-            let mut file = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(find_vector("signedFailure.json"))
+                .open(find_vector("signedCheckpoint.json"))
                 .expect("Failed to open/create file");
 
             file.write_all(json.as_bytes())

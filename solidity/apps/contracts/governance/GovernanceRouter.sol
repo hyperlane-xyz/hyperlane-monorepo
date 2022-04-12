@@ -7,7 +7,7 @@ import {GovernanceMessage} from "./GovernanceMessage.sol";
 // ============ External Imports ============
 import {Version0} from "@abacus-network/core/contracts/Version0.sol";
 import {Router} from "@abacus-network/core/contracts/router/Router.sol";
-import {TypeCasts} from "@abacus-network/core/contracts/XAppConnectionManager.sol";
+import {TypeCasts} from "@abacus-network/core/libs/TypeCasts.sol";
 import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
 import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";

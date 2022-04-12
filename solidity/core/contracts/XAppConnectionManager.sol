@@ -2,12 +2,9 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {Outbox} from "./Outbox.sol";
-import {Inbox} from "./Inbox.sol";
+import {IOutbox} from "../interfaces/IOutbox.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {TypeCasts} from "../libs/TypeCasts.sol";
 // ============ External Imports ============
-import {ECDSA} from "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
@@ -20,7 +17,7 @@ contract XAppConnectionManager is Ownable {
     // ============ Public Storage ============
 
     // Outbox contract
-    Outbox public outbox;
+    IOutbox public outbox;
     // Interchain Gas Paymaster contract. The off-chain processor associated with
     // the paymaster contract must be willing to process messages dispatched from
     // the current Outbox contract, otherwise payments made to the paymaster will
@@ -122,7 +119,7 @@ contract XAppConnectionManager is Ownable {
      * @param _outbox The address of the new local Outbox contract.
      */
     function setOutbox(address _outbox) public onlyOwner {
-        outbox = Outbox(_outbox);
+        outbox = IOutbox(_outbox);
         emit NewOutbox(_outbox);
     }
 

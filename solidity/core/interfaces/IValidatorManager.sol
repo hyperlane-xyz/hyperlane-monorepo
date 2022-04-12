@@ -6,6 +6,6 @@ interface IValidatorManager {
         uint32 _domain,
         bytes32 _root,
         uint256 _index,
-        bytes memory _signature
+        bytes calldata _signature
     ) external view returns (bool);
 }
