@@ -3,8 +3,10 @@ import {
   XAppConnectionManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-  ValidatorManager,
-  ValidatorManager__factory,
+  OutboxMultisigValidatorManager,
+  OutboxMultisigValidatorManager__factory,
+  InboxMultisigValidatorManager,
+  InboxMultisigValidatorManager__factory,
   Outbox,
   Outbox__factory,
   Inbox,
@@ -18,9 +20,10 @@ import { ChainName, ProxiedAddress } from '../types';
 export type CoreContractAddresses = {
   upgradeBeaconController: types.Address;
   xAppConnectionManager: types.Address;
-  validatorManager: types.Address;
   outbox: ProxiedAddress;
   inboxes: Partial<Record<ChainName, ProxiedAddress>>;
+  outboxMultisigValidatorManager: types.Address;
+  inboxMultisigValidatorManagers: Partial<Record<ChainName, types.Address>>;
 };
 
 export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
@@ -32,6 +35,17 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
     return Inbox__factory.connect(inbox.proxy, this.connection);
   }
 
+  inboxMultisigValidatorManager(chain: ChainName): InboxMultisigValidatorManager {
+    const inboxMultisigValidatorManager = this.addresses.inboxMultisigValidatorManagers[chain];
+    if (!inboxMultisigValidatorManager) {
+      throw new Error(`No inboxMultisigValidatorManager for ${chain}`);
+    }
+    return InboxMultisigValidatorManager__factory.connect(
+      inboxMultisigValidatorManager,
+      this.connection,
+    );
+  }
+
   get outbox(): Outbox {
     return Outbox__factory.connect(
       this.addresses.outbox.proxy,
@@ -39,9 +53,9 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
     );
   }
 
-  get validatorManager(): ValidatorManager {
-    return ValidatorManager__factory.connect(
-      this.addresses.validatorManager,
+  get outboxMultisigValidatorManager(): OutboxMultisigValidatorManager {
+    return OutboxMultisigValidatorManager__factory.connect(
+      this.addresses.outboxMultisigValidatorManager,
       this.connection,
     );
   }
