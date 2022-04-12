@@ -34,6 +34,10 @@ export function addressToBytes32(address: Address): string {
     .toLowerCase();
 }
 
+export function bytes32ToAddress(bytes32: string): Address {
+  return ethers.utils.getAddress(bytes32.slice(-40));
+}
+
 export const formatMessage = (
   localDomain: Domain,
   senderAddr: Address,
