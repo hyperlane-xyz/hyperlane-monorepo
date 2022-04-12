@@ -1,9 +1,7 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { types, utils } from '@abacus-network/utils';
+import { types, utils, Validator } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-
-import { Validator } from './lib/core';
 
 import {
   Outbox__factory,

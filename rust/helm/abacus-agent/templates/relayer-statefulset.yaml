@@ -1,0 +1,111 @@
+{{- if .Values.abacus.relayer.enabled }}
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: {{ include "abacus-agent.fullname" . }}-relayer
+  labels:
+    {{- include "abacus-agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: relayer
+spec:
+  selector:
+    matchLabels:
+      {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: relayer
+  replicas: 1 
+  serviceName: {{ include "abacus-agent.fullname" . }}-relayer
+  template:
+    metadata:
+      annotations:
+        checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        {{- with .Values.podAnnotations }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.abacus.relayer.podAnnotations }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+      labels:
+        {{- include "abacus-agent.labels" . | nindent 8 }}
+        app.kubernetes.io/component: relayer
+        {{- with .Values.podCommonLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+        {{- with .Values.abacus.relayer.podLabels }}
+        {{ toYaml . | nindent 8 }}
+        {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      terminationGracePeriodSeconds: 10
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+      - name: agent
+        securityContext:
+          {{- toYaml .Values.securityContext | nindent 10 }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        command: ["./relayer"]
+        envFrom:
+        - configMapRef:
+            name: {{ include "abacus-agent.fullname" . }}
+        - secretRef:
+            name: {{ include "abacus-agent.fullname" . }}-secret
+        - secretRef:
+            name: {{ include "abacus-agent.fullname" . }}-relayer-secret
+        env: 
+          {{- if .Values.abacus.relayer.pollingInterval }}
+          - name: OPT_RELAYER_INTERVAL
+            value: {{ .Values.abacus.relayer.pollingInterval | quote }}
+          {{- end }}
+          {{- range .Values.abacus.relayer.transactionSigners }}
+          {{- if (hasKey . "aws") }}
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
+            value: "aws"
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID
+            value: {{ .aws.keyId }}
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_REGION
+            value: {{ .aws.region }}
+          {{- end }}
+          {{- end }}
+          {{- if .Values.abacus.tracing.uri }}
+          - name: OPT_BASE_TRACING_JAEGER_NAME
+            value: {{ include "abacus-agent.fullname" . }}-relayer
+          {{- end }}
+        resources:
+          {{- toYaml .Values.abacus.relayer.resources | nindent 10 }}
+        volumeMounts:
+        - name: state
+          mountPath: {{ .Values.abacus.dbPath }}
+        ports: 
+        - name: metrics
+          containerPort: {{ .Values.abacus.metrics.port }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+  volumeClaimTemplates:
+  - metadata:
+      name: state
+    spec:
+      storageClassName: {{ .Values.storage.storageClass }}
+      accessModes: [ {{ .Values.storage.accessModes }} ]
+      {{- if .Values.abacus.relayer.storage.snapshot.enabled }}
+      dataSource:
+        name: {{ .Values.abacus.relayer.storage.snapshot.name }}
+        kind: VolumeSnapshot
+        apiGroup: snapshot.storage.k8s.io
+      {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.abacus.relayer.storage.size }}
+{{- end }}

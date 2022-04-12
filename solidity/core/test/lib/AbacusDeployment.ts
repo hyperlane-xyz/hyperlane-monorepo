@@ -1,8 +1,6 @@
 import { assert } from 'chai';
 import * as ethers from 'ethers';
-import { types } from '@abacus-network/utils';
-
-import { Validator } from './core';
+import { types, Validator } from '@abacus-network/utils';
 
 import {
   TestOutbox,

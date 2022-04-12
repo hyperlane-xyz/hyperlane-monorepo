@@ -18,4 +18,3 @@ typescript/*/.env
 typescript/*/node_modules
 typescript/**/tsconfig.tsbuildinfo
 **/**/tsconfig.tsbuildinfo
-typescript/optics-provider/src/tmp.ts

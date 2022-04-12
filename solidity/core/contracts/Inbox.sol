@@ -7,6 +7,7 @@ import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
+import {IInbox} from "../interfaces/IInbox.sol";
 // ============ External Imports ============
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
@@ -16,7 +17,7 @@ import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
  * @notice Track root updates on Outbox, prove and dispatch messages to end
  * recipients.
  */
-contract Inbox is Version0, Common {
+contract Inbox is IInbox, Version0, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -39,7 +40,7 @@ contract Inbox is Version0, Common {
     // ============ Public Storage ============
 
     // Domain of outbox chain
-    uint32 public remoteDomain;
+    uint32 public override remoteDomain;
     // re-entrancy guard
     uint8 private entered;
     // Mapping of message leaves to MessageStatus
@@ -106,10 +107,10 @@ contract Inbox is Version0, Common {
      * @param _index Index of leaf in outbox's merkle tree
      */
     function proveAndProcess(
-        bytes memory _message,
+        bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _index
-    ) external {
+    ) external override {
         require(prove(keccak256(_message), _proof, _index), "!prove");
         process(_message);
     }
@@ -124,7 +125,7 @@ contract Inbox is Version0, Common {
      * if message has not been proven, or if the dispatch transaction fails.
      * @param _message Formatted message
      */
-    function process(bytes memory _message) public {
+    function process(bytes calldata _message) public {
         bytes29 _m = _message.ref(0);
         // ensure message was meant for this domain
         require(_m.destination() == localDomain, "!destination");

@@ -15,31 +15,31 @@ export class MetricCollector {
     this.logger = logger;
 
     this.numDispatchedGauge = new Gauge({
-      name: 'optics_number_messages_dispatched',
+      name: 'abacus_number_messages_dispatched',
       help: 'Gauge that indicates how many messages have been dispatched for a network.',
       labelNames: ['network', 'environment'],
     });
 
     this.numProcessedGauge = new Gauge({
-      name: 'optics_number_messages_processed',
+      name: 'abacus_number_messages_processed',
       help: 'Gauge that indicates how many messages have been processed for a network.',
       labelNames: ['network', 'environment'],
     });
 
     this.numUnprocessedGauge = new Gauge({
-      name: 'optics_number_messages_unprocessed',
+      name: 'abacus_number_messages_unprocessed',
       help: 'Gauge that indicates how many messages are unprocessed for a network.',
       labelNames: ['network', 'environment'],
     });
 
     this.outboxStateGauge = new Gauge({
-      name: 'optics_outbox_state',
+      name: 'abacus_outbox_state',
       help: 'Gauge that tracks the state of a outbox contract for a network',
       labelNames: ['network', 'environment'],
     });
 
     this.governorRecoveryActiveAt = new Gauge({
-      name: 'optics_governor_recovery_active_at',
+      name: 'abacus_governor_recovery_active_at',
       help: 'Gauge that tracks the timestamp (seconds) of the governor recovery mode being active',
       labelNames: ['network', 'environment'],
     });

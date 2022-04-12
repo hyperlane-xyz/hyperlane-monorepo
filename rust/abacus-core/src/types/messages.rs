@@ -9,7 +9,7 @@ const ABACUS_MESSAGE_PREFIX_LEN: usize = 76;
 pub struct AbacusMessage {
     /// 4   SLIP-44 ID
     pub origin: u32,
-    /// 32  Address in home convention
+    /// 32  Address in Outbox convention
     pub sender: H256,
     /// 4   Count of all previous messages to destination
     pub nonce: u32,

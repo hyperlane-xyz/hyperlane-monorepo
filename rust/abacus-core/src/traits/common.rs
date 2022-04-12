@@ -7,7 +7,7 @@ pub enum State {
     Failed,
 }
 
-/// The status of a message in the replica
+/// The status of a message in the inbox
 #[repr(u8)]
 pub enum MessageStatus {
     /// Message is unknown
