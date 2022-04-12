@@ -24,7 +24,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     mapping(bytes32 => uint256) public checkpoints;
     // The latest checkpointed root
     bytes32 public checkpointedRoot;
-    // Address of ValidatorManager contract.
+    // Address of the validator manager contract.
     address public validatorManager;
 
     // ============ Upgrade Gap ============
