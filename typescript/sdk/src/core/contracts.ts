@@ -9,6 +9,8 @@ import {
   Outbox__factory,
   Inbox,
   Inbox__factory,
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 
@@ -19,6 +21,7 @@ export type CoreContractAddresses = {
   upgradeBeaconController: types.Address;
   xAppConnectionManager: types.Address;
   validatorManager: types.Address;
+  interchainGasPaymaster: types.Address;
   outbox: ProxiedAddress;
   inboxes: Partial<Record<ChainName, ProxiedAddress>>;
 };
@@ -56,6 +59,13 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
   get xAppConnectionManager(): XAppConnectionManager {
     return XAppConnectionManager__factory.connect(
       this.addresses.xAppConnectionManager,
+      this.connection,
+    );
+  }
+
+  get interchainGasPaymaster(): InterchainGasPaymaster {
+    return InterchainGasPaymaster__factory.connect(
+      this.addresses.interchainGasPaymaster,
       this.connection,
     );
   }

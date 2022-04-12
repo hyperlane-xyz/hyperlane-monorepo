@@ -18,6 +18,7 @@ import {
   ValidatorManager__factory,
   Outbox__factory,
   Inbox__factory,
+  InterchainGasPaymaster__factory,
 } from '@abacus-network/core';
 import { DeployEnvironment, RustConfig } from '../config';
 import { CoreConfig } from './types';
@@ -64,6 +65,12 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       [validatorManager.address],
     );
 
+    const interchainGasPaymaster = await this.deployContract(
+      domain,
+      'InterchainGasPaymaster',
+      new InterchainGasPaymaster__factory(signer),
+    );
+
     const xAppConnectionManager: XAppConnectionManager =
       await this.deployContract(
         domain,
@@ -71,6 +78,10 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         new XAppConnectionManager__factory(signer),
       );
     await xAppConnectionManager.setOutbox(outbox.address, overrides);
+    await xAppConnectionManager.setInterchainGasPaymaster(
+      interchainGasPaymaster.address,
+      overrides,
+    );
 
     const inboxes: Record<types.Domain, ProxiedContract<Inbox>> = {};
     const inboxAddresses: Partial<Record<ChainName, ProxiedAddress>> = {};
@@ -114,6 +125,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       upgradeBeaconController: upgradeBeaconController.address,
       xAppConnectionManager: xAppConnectionManager.address,
       validatorManager: validatorManager.address,
+      interchainGasPaymaster: interchainGasPaymaster.address,
       outbox: outbox.addresses,
       inboxes: inboxAddresses,
     };

@@ -6,4 +6,10 @@ export {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
 } from './events';
-export { AbacusMessage, AbacusStatus, MessageStatus } from './message';
+export {
+  AbacusMessage,
+  AbacusStatus,
+  MessageStatus,
+  ParsedMessage,
+  parseMessage,
+} from './message';

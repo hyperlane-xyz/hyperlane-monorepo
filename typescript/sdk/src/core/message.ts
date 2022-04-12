@@ -24,7 +24,7 @@ import {
 } from './events';
 
 export type ParsedMessage = {
-  from: number;
+  origin: number;
   sender: string;
   nonce: number;
   destination: number;
@@ -64,13 +64,13 @@ export type EventCache = {
  */
 export function parseMessage(message: string): ParsedMessage {
   const buf = Buffer.from(arrayify(message));
-  const from = buf.readUInt32BE(0);
+  const origin = buf.readUInt32BE(0);
   const sender = hexlify(buf.slice(4, 36));
   const nonce = buf.readUInt32BE(36);
   const destination = buf.readUInt32BE(40);
   const recipient = hexlify(buf.slice(44, 76));
   const body = hexlify(buf.slice(76));
-  return { from, sender, nonce, destination, recipient, body };
+  return { origin, sender, nonce, destination, recipient, body };
 }
 
 /**
@@ -89,8 +89,11 @@ export class AbacusMessage {
     this.core = core;
     this.message = parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
-    this.outbox = core.mustGetContracts(this.message.from).outbox;
-    this.inbox = core.mustGetInbox(this.message.from, this.message.destination);
+    this.outbox = core.mustGetContracts(this.message.origin).outbox;
+    this.inbox = core.mustGetInbox(
+      this.message.origin,
+      this.message.destination,
+    );
     this.cache = {};
   }
 
@@ -421,17 +424,10 @@ export class AbacusMessage {
   }
 
   /**
-   * The domain from which the message was sent
-   */
-  get from(): number {
-    return this.message.from;
-  }
-
-  /**
-   * The domain from which the message was sent. Alias for `from`
+   * The domain from which the message was sent.
    */
   get origin(): number {
-    return this.from;
+    return this.message.origin;
   }
 
   /**
