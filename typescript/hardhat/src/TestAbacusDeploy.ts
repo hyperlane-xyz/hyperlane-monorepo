@@ -3,10 +3,12 @@ import { types } from "@abacus-network/utils";
 import {
   Outbox,
   Outbox__factory,
+  InboxMultisigValidatorManager,
+  InboxMultisigValidatorManager__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
-  ValidatorManager,
-  ValidatorManager__factory,
+  OutboxMultisigValidatorManager,
+  OutboxMultisigValidatorManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
   XAppConnectionManager,
@@ -21,12 +23,13 @@ export type TestAbacusConfig = {
 };
 
 export type TestAbacusInstance = {
-  validatorManager: ValidatorManager;
   outbox: Outbox;
   xAppConnectionManager: XAppConnectionManager;
   upgradeBeaconController: UpgradeBeaconController;
   inboxes: Record<types.Domain, TestInbox>;
   interchainGasPaymaster: InterchainGasPaymaster;
+  outboxMultisigValidatorManager: OutboxMultisigValidatorManager,
+  inboxMultisigValidatorManagers: Record<types.Domain, InboxMultisigValidatorManager>,
 };
 
 export class TestAbacusDeploy extends TestDeploy<
@@ -50,14 +53,28 @@ export class TestAbacusDeploy extends TestDeploy<
   async deployInstance(domain: types.Domain): Promise<TestAbacusInstance> {
     const signer = this.config.signer[domain];
     const signerAddress = await signer.getAddress();
-    const validatorManagerFactory = new ValidatorManager__factory(signer);
-    const validatorManager = await validatorManagerFactory.deploy();
-    await validatorManager.enrollValidator(domain, signerAddress);
-    await Promise.all(
-      this.remotes(domain).map(async (remote) =>
-        validatorManager.enrollValidator(remote, signerAddress)
-      )
+
+    const outboxMultisigValidatorManagerFactory = new OutboxMultisigValidatorManager__factory(signer);
+    const outboxMultisigValidatorManager = await outboxMultisigValidatorManagerFactory.deploy(
+      domain,
+      [signerAddress],
+      1,
     );
+
+    const inboxMultisigValidatorManagerFactory = new InboxMultisigValidatorManager__factory(signer);
+    const inboxMultisigValidatorManagers: Record<types.Domain, InboxMultisigValidatorManager> = {};
+
+    // this.remotes reads this.instances which has not yet been set.
+    const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
+    const inboxMultisigValidatorManagerDeploys = remotes.map(async (remote) => {
+      const inboxMultisigValidatorManager = await inboxMultisigValidatorManagerFactory.deploy(
+        remote,
+        [signerAddress],
+        1,
+      );
+      inboxMultisigValidatorManagers[remote] = inboxMultisigValidatorManager;
+    });
+    await Promise.all(inboxMultisigValidatorManagerDeploys);
 
     const upgradeBeaconControllerFactory = new UpgradeBeaconController__factory(
       signer
@@ -67,7 +84,7 @@ export class TestAbacusDeploy extends TestDeploy<
 
     const outboxFactory = new Outbox__factory(signer);
     const outbox = await outboxFactory.deploy(domain);
-    await outbox.initialize(validatorManager.address);
+    await outbox.initialize(outboxMultisigValidatorManager.address);
 
     const xAppConnectionManagerFactory = new XAppConnectionManager__factory(
       signer
@@ -86,26 +103,28 @@ export class TestAbacusDeploy extends TestDeploy<
     const inboxFactory = new TestInbox__factory(signer);
     const inboxes: Record<types.Domain, TestInbox> = {};
     // this.remotes reads this.instances which has not yet been set.
-    const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
-    const deploys = remotes.map(async (remote) => {
+    // const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
+    const inboxDeploys = remotes.map(async (remote) => {
+      const inboxMultisigValidatorManager = inboxMultisigValidatorManagers[remote];
       const inbox = await inboxFactory.deploy(domain);
       await inbox.initialize(
         remote,
-        validatorManager.address,
+        inboxMultisigValidatorManager.address,
         ethers.constants.HashZero,
         0
       );
       await xAppConnectionManager.enrollInbox(remote, inbox.address);
       inboxes[remote] = inbox;
     });
-    await Promise.all(deploys);
+    await Promise.all(inboxDeploys);
     return {
       outbox,
       xAppConnectionManager,
       interchainGasPaymaster,
-      validatorManager,
       inboxes,
       upgradeBeaconController,
+      outboxMultisigValidatorManager,
+      inboxMultisigValidatorManagers,
     };
   }
 
@@ -113,8 +132,9 @@ export class TestAbacusDeploy extends TestDeploy<
     await this.outbox(domain).transferOwnership(address);
     await this.upgradeBeaconController(domain).transferOwnership(address);
     await this.xAppConnectionManager(domain).transferOwnership(address);
-    await this.validatorManager(domain).transferOwnership(address);
+    await this.outboxMultisigValidatorManager(domain).transferOwnership(address);
     for (const remote of this.remotes(domain)) {
+      await this.inboxMultisigValidatorManager(domain, remote).transferOwnership(address);
       await this.inbox(domain, remote).transferOwnership(address);
     }
   }
@@ -139,8 +159,12 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].xAppConnectionManager;
   }
 
-  validatorManager(domain: types.Domain): ValidatorManager {
-    return this.instances[domain].validatorManager;
+  outboxMultisigValidatorManager(domain: types.Domain): OutboxMultisigValidatorManager {
+    return this.instances[domain].outboxMultisigValidatorManager;
+  }
+
+  inboxMultisigValidatorManager(local: types.Domain, remote: types.Domain): InboxMultisigValidatorManager {
+    return this.instances[local].inboxMultisigValidatorManagers[remote];
   }
 
   async processMessages() {
