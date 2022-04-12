@@ -66,12 +66,7 @@ describe('OutboxMultisigValidatorManager', () => {
         ),
       )
         .to.emit(validatorManager, 'ImproperCheckpoint')
-        .withArgs(
-          outbox.address,
-          root,
-          index,
-          signatures,
-        );
+        .withArgs(outbox.address, root, index, signatures);
       expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
     });
 
@@ -81,14 +76,14 @@ describe('OutboxMultisigValidatorManager', () => {
         index,
         [validator0], // 1/2 signers is not a quorum
       );
-      
+
       await expect(
         validatorManager.improperCheckpoint(
           outbox.address,
           root,
           index,
-          signatures
-        )
+          signatures,
+        ),
       ).to.be.revertedWith('!quorum');
     });
 
@@ -107,14 +102,14 @@ describe('OutboxMultisigValidatorManager', () => {
         index.toNumber(),
         [validator0, validator1], // 2/2 signers, making a quorum
       );
-      
+
       await expect(
         validatorManager.improperCheckpoint(
           outbox.address,
           root,
           index,
-          signatures
-        )
+          signatures,
+        ),
       ).to.be.revertedWith('!improper');
     });
   });

@@ -25,11 +25,7 @@ describe.only('InboxMultisigValidatorManager', () => {
   before(async () => {
     const signers = await ethers.getSigners();
     [signer] = signers;
-    const [
-      ,
-      validatorSigner0,
-      validatorSigner1,
-    ] = signers;
+    const [, validatorSigner0, validatorSigner1] = signers;
     validator0 = await Validator.fromSigner(validatorSigner0, OUTBOX_DOMAIN);
     validator1 = await Validator.fromSigner(validatorSigner1, OUTBOX_DOMAIN);
   });
@@ -65,16 +61,9 @@ describe.only('InboxMultisigValidatorManager', () => {
         [validator0, validator1], // 2/2 signers, making a quorum
       );
 
-      await validatorManager.checkpoint(
-        inbox.address,
-        root,
-        index,
-        signatures,
-      );
-      
-      expect(
-        await inbox.checkpoints(root)
-      ).to.equal(index);
+      await validatorManager.checkpoint(inbox.address, root, index, signatures);
+
+      expect(await inbox.checkpoints(root)).to.equal(index);
     });
 
     it('reverts if there is not a quorum', async () => {
@@ -85,12 +74,7 @@ describe.only('InboxMultisigValidatorManager', () => {
       );
 
       await expect(
-        validatorManager.checkpoint(
-          inbox.address,
-          root,
-          index,
-          signatures,
-        )
+        validatorManager.checkpoint(inbox.address, root, index, signatures),
       ).to.be.revertedWith('!quorum');
     });
   });
