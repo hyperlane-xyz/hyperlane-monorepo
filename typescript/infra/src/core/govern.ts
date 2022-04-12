@@ -84,14 +84,19 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
       tx = await multisigValidatorManager.populateTransaction.enrollValidator(
         violation.expected,
       );
-    } else if (violation.actual !== undefined && violation.expected === undefined) {
+    } else if (
+      violation.actual !== undefined &&
+      violation.expected === undefined
+    ) {
       // Unenrolling an existing validator
       tx = await multisigValidatorManager.populateTransaction.unenrollValidator(
         violation.actual,
       );
     } else {
       // Invalid state
-      throw new Error(`Expected exactly one of actual ${violation.actual} or expected ${violation.expected} to be undefined`);
+      throw new Error(
+        `Expected exactly one of actual ${violation.actual} or expected ${violation.expected} to be undefined`,
+      );
     }
 
     if (tx.to === undefined) throw new Error('undefined tx.to');

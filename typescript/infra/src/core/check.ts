@@ -60,7 +60,9 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     ];
     this.app.remoteDomainNumbers(domain).map((remote) => {
       owners.push(this.app.mustGetInbox(remote, domain).owner());
-      owners.push(this.app.mustGetInboxMultisigValidatorManager(remote, domain).owner());
+      owners.push(
+        this.app.mustGetInboxMultisigValidatorManager(remote, domain).owner(),
+      );
     });
     const actual = await Promise.all(owners);
     actual.map((_) => expect(_).to.equal(owner));
@@ -90,10 +92,12 @@ export class AbacusCoreChecker extends AbacusAppChecker<
       let multisigValidatorManager: MultisigValidatorManager;
       // Check the outboxMultisigValidatorManager
       if (domain === outboxDomain) {
-        multisigValidatorManager = this.app.mustGetContracts(domain).outboxMultisigValidatorManager;
+        multisigValidatorManager =
+          this.app.mustGetContracts(domain).outboxMultisigValidatorManager;
       } else {
         // Check an inboxMultisigValidatorManager
-        multisigValidatorManager = this.app.mustGetInboxMultisigValidatorManager(outboxDomain, domain);
+        multisigValidatorManager =
+          this.app.mustGetInboxMultisigValidatorManager(outboxDomain, domain);
       }
       return this.checkMultisigValidatorManager(
         domain,
@@ -115,7 +119,8 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     multisigValidatorManager: MultisigValidatorManager,
   ): Promise<void> {
     const outboxDomainName = this.app.mustResolveDomainName(outboxDomain);
-    const expected = this.config.multisigValidatorManagers[outboxDomainName]?.validatorSet;
+    const expected =
+      this.config.multisigValidatorManagers[outboxDomainName]?.validatorSet;
     expect(expected).to.not.be.undefined;
 
     const actual = await multisigValidatorManager.validatorSet();
@@ -124,17 +129,11 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     const expectedSet = new Set<string>(expected);
     const actualSet = new Set<string>(actual);
 
-    const toEnroll = setDifference(
-      expectedSet,
-      actualSet,
-    );
-    const toUnenroll = setDifference(
-      actualSet,
-      expectedSet,
-    );
+    const toEnroll = setDifference(expectedSet, actualSet);
+    const toUnenroll = setDifference(actualSet, expectedSet);
 
     // Validators that should be enrolled
-    for (const [validatorToEnroll] of toEnroll.entries()) {
+    for (const validatorToEnroll of toEnroll) {
       const violation: ValidatorViolation = {
         domain: localDomain,
         type: CoreViolationType.Validator,
@@ -148,7 +147,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     }
 
     // Validators that should be unenrolled
-    for (const [validatorToUnenroll] of toUnenroll.entries()) {
+    for (const validatorToUnenroll of toUnenroll) {
       const violation: ValidatorViolation = {
         domain: localDomain,
         type: CoreViolationType.Validator,

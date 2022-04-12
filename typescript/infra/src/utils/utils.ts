@@ -161,8 +161,8 @@ export function writeJSON(directory: string, filename: string, obj: any) {
 // Returns a \ b
 export function setDifference<T>(a: Set<T>, b: Set<T>) {
   let diff = new Set(a);
-  for (const elem of diff) {
-    diff.delete(elem);
+  for (const element of b) {
+    diff.delete(element);
   }
   return diff;
 }

@@ -26,7 +26,10 @@ export class AbacusCore extends AbacusApp<
     return contracts.inbox(srcName);
   }
 
-  mustGetInboxMultisigValidatorManager(src: NameOrDomain, dest: NameOrDomain): InboxMultisigValidatorManager {
+  mustGetInboxMultisigValidatorManager(
+    src: NameOrDomain,
+    dest: NameOrDomain,
+  ): InboxMultisigValidatorManager {
     const contracts = this.mustGetContracts(dest);
     const srcName = this.mustGetDomain(src).name;
     return contracts.inboxMultisigValidatorManager(srcName);
