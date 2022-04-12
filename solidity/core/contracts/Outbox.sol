@@ -159,7 +159,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
 
     /**
      * @notice Set contract state to FAILED.
-     * @dev Called by the ValidatorManager when fraud is proven.
+     * @dev Called by the validator manager when fraud is proven.
      */
     function fail() external override onlyValidatorManager {
         // set contract to FAILED

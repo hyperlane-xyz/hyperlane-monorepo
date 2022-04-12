@@ -82,7 +82,7 @@ contract Inbox is IInbox, Version0, Common {
 
     /**
      * @notice Checkpoints the provided root and index.
-     * @dev Called by the ValidatorManager, which is responsible for verifying a
+     * @dev Called by the validator manager, which is responsible for verifying a
      * quorum of validator signatures on the checkpoint.
      * @dev Reverts if checkpoints's index is not greater than our latest index.
      * @param _root Checkpoint's merkle root.
