@@ -1,3 +1,4 @@
+// @ts-nocheck
 import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
@@ -11,21 +12,35 @@ import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
   UpgradeBeaconController,
   XAppConnectionManager,
-  ValidatorManager,
+  InboxMultisigValidatorManager,
+  InboxMultisigValidatorManager__factory,
+  OutboxMultisigValidatorManager,
+  OutboxMultisigValidatorManager__factory,
   Inbox,
   UpgradeBeaconController__factory,
   XAppConnectionManager__factory,
-  ValidatorManager__factory,
   Outbox__factory,
   Inbox__factory,
 } from '@abacus-network/core';
 import { DeployEnvironment, RustConfig } from '../config';
-import { CoreConfig } from './types';
+import { CoreConfig, MultisigValidatorManagerConfig } from './types';
 
 export class AbacusCoreDeployer extends AbacusAppDeployer<
   CoreContractAddresses,
   CoreConfig
 > {
+  multisigValidatorManagerConfig(
+    config: CoreConfig,
+    domain: types.Domain,
+  ): MultisigValidatorManagerConfig {
+    const domainName = this.mustResolveDomainName(domain);
+    const validatorManagerConfig = config.multisigValidatorManagers[domainName];
+    if (!validatorManagerConfig) {
+      throw new Error(`No validator manager config for ${domainName}`);
+    }
+    return validatorManagerConfig;
+  }
+
   async deployContracts(
     domain: types.Domain,
     config: CoreConfig,
@@ -39,21 +54,27 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         new UpgradeBeaconController__factory(signer),
       );
 
-    const validatorManager: ValidatorManager = await this.deployContract(
-      domain,
-      'ValidatorManager',
-      new ValidatorManager__factory(signer),
-    );
-
-    for (const name of this.domainNames) {
-      const validator = config.validators[name];
-      if (!validator) throw new Error(`No validator for ${name}`);
-      await validatorManager.enrollValidator(
-        this.resolveDomain(name),
-        validator,
-        overrides,
+    const outboxMultisigValidatorManagerConfig =
+      this.multisigValidatorManagerConfig(config, domain);
+    const outboxMultisigValidatorManager: OutboxMultisigValidatorManager =
+      await this.deployContract(
+        domain,
+        'OutboxMultisigValidatorManager',
+        new OutboxMultisigValidatorManager__factory(signer),
+        domain,
+        outboxMultisigValidatorManagerConfig.validatorSet,
+        outboxMultisigValidatorManagerConfig.quorumThreshold,
       );
-    }
+
+    // for (const name of this.domainNames) {
+    //   const validator = config.validators[name];
+    //   if (!validator) throw new Error(`No validator for ${name}`);
+    //   await validatorManager.enrollValidator(
+    //     this.resolveDomain(name),
+    //     validator,
+    //     overrides,
+    //   );
+    // }
 
     const outbox = await this.deployProxiedContract(
       domain,
@@ -61,7 +82,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       new Outbox__factory(signer),
       upgradeBeaconController.address,
       [domain],
-      [validatorManager.address],
+      [outboxMultisigValidatorManager.address],
     );
 
     const xAppConnectionManager: XAppConnectionManager =
@@ -72,14 +93,39 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       );
     await xAppConnectionManager.setOutbox(outbox.address, overrides);
 
+    const inboxMultisigValidatorManagers: Record<
+      types.Domain,
+      InboxMultisigValidatorManager
+    > = {};
+    const inboxMultisigValidatorManagerAddresses: Partial<
+      Record<ChainName, types.Address>
+    > = {};
+
     const inboxes: Record<types.Domain, ProxiedContract<Inbox>> = {};
     const inboxAddresses: Partial<Record<ChainName, ProxiedAddress>> = {};
     const remotes = this.remoteDomainNumbers(domain);
     for (let i = 0; i < remotes.length; i++) {
       const remote = remotes[i];
+      const remoteName = this.mustResolveDomainName(remote);
+
+      const inboxMultisigValidatorManagerConfig =
+        this.multisigValidatorManagerConfig(config, remote);
+      const inboxMultisigValidatorManager: InboxMultisigValidatorManager =
+        await this.deployContract(
+          domain,
+          'InboxMultisigValidatorManager',
+          new InboxMultisigValidatorManager__factory(signer),
+          remote,
+          inboxMultisigValidatorManagerConfig.validatorSet,
+          inboxMultisigValidatorManagerConfig.quorumThreshold,
+        );
+      inboxMultisigValidatorManagers[remote] = inboxMultisigValidatorManager;
+      inboxMultisigValidatorManagerAddresses[remoteName] =
+        inboxMultisigValidatorManager.address;
+
       const initArgs = [
         remote,
-        validatorManager.address,
+        inboxMultisigValidatorManager.address,
         ethers.constants.HashZero,
         0,
       ];
@@ -113,7 +159,8 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
     const addresses = {
       upgradeBeaconController: upgradeBeaconController.address,
       xAppConnectionManager: xAppConnectionManager.address,
-      validatorManager: validatorManager.address,
+      outboxMultisigValidatorManager: outboxMultisigValidatorManager.address,
+      inboxMultisigValidatorManagers: inboxMultisigValidatorManagerAddresses,
       outbox: outbox.addresses,
       inboxes: inboxAddresses,
     };

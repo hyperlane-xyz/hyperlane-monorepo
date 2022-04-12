@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { expect } from 'chai';
 import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
