@@ -2,7 +2,6 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {IValidatorManager} from "../interfaces/IValidatorManager.sol";
 import {ICommon} from "../interfaces/ICommon.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -26,7 +25,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     // The latest checkpointed root
     bytes32 public checkpointedRoot;
     // Address of ValidatorManager contract.
-    IValidatorManager public validatorManager;
+    address public validatorManager;
 
     // ============ Upgrade Gap ============
 
@@ -55,7 +54,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
      * @notice Ensures that function is called by the ValidatorManager contract
      */
     modifier onlyValidatorManager() {
-        require(msg.sender == address(validatorManager), "!validatorManager");
+        require(msg.sender == validatorManager, "!validatorManager");
         _;
     }
 
@@ -73,7 +72,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     {
         // initialize owner
         __Ownable_init();
-        _setValidatorManager(IValidatorManager(_validatorManager));
+        _setValidatorManager(_validatorManager);
     }
 
     // ============ External Functions ============
@@ -86,7 +85,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
      * @param _validatorManager the new ValidatorManager contract
      */
     function setValidatorManager(address _validatorManager) external onlyOwner {
-        _setValidatorManager(IValidatorManager(_validatorManager));
+        _setValidatorManager(_validatorManager);
     }
 
     /**
@@ -110,15 +109,13 @@ abstract contract Common is ICommon, OwnableUpgradeable {
      * @notice Set the ValidatorManager
      * @param _validatorManager Address of the ValidatorManager
      */
-    function _setValidatorManager(IValidatorManager _validatorManager)
-        internal
-    {
+    function _setValidatorManager(address _validatorManager) internal {
         require(
-            Address.isContract(address(_validatorManager)),
+            Address.isContract(_validatorManager),
             "!contract validatorManager"
         );
         validatorManager = _validatorManager;
-        emit NewValidatorManager(address(_validatorManager));
+        emit NewValidatorManager(_validatorManager);
     }
 
     /**
