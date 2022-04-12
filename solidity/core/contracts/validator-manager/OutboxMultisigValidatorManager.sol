@@ -3,8 +3,8 @@ pragma solidity >=0.6.11;
 pragma abicoder v2;
 
 // ============ Internal Imports ============
+import {IOutbox} from "../../interfaces/IOutbox.sol";
 import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
-import {Outbox} from "../Outbox.sol";
 
 contract OutboxMultisigValidatorManager is MultisigValidatorManager {
     // ============ Events ============
@@ -47,7 +47,7 @@ contract OutboxMultisigValidatorManager is MultisigValidatorManager {
     // requires that the checkpoint is an improper checkpoint,
     // and calls IOutbox(_outbox).fail(). (Similar behavior as existing improperCheckpoint)
     function improperCheckpoint(
-        Outbox _outbox,
+        IOutbox _outbox,
         bytes32 _root,
         uint256 _index,
         bytes[] calldata _signatures

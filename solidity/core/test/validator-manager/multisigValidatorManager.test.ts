@@ -1,47 +1,19 @@
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { types } from '@abacus-network/utils';
+import { Validator } from '@abacus-network/utils';
 
 import {
   TestMultisigValidatorManager,
   TestMultisigValidatorManager__factory,
 } from '../../types';
-import { Validator } from '../lib/core';
+import { getCheckpointSignatures } from './utils';
 
 const OUTBOX_DOMAIN = 1234;
 const OUTBOX_DOMAIN_HASH = ethers.utils.keccak256(
   ethers.utils.solidityPack(['uint32', 'string'], [OUTBOX_DOMAIN, 'ABACUS']),
 );
 const QUORUM_THRESHOLD = 1;
-
-// Signs a checkpoint with the provided validators and returns
-// the signatures sorted by validator addresses in ascending order
-async function getCheckpointSignatures(
-  root: types.HexString,
-  index: number,
-  unsortedValidators: Validator[],
-): Promise<string[]> {
-  const validators = unsortedValidators.sort((a, b) => {
-    const aAddress = a.address.toLowerCase();
-    const bAddress = b.address.toLowerCase();
-
-    if (aAddress < bAddress) {
-      return -1;
-    } else if (aAddress > bAddress) {
-      return 1;
-    } else {
-      return 0;
-    }
-  });
-
-  const signedCheckpoints = await Promise.all(
-    validators.map((validator) => validator.signCheckpoint(root, index)),
-  );
-  return signedCheckpoints.map(
-    (signedCheckpoint) => signedCheckpoint.signature,
-  );
-}
 
 describe.only('MultisigValidatorManager', async () => {
   let validatorManager: TestMultisigValidatorManager,

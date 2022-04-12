@@ -3,8 +3,8 @@ pragma solidity >=0.6.11;
 pragma abicoder v2;
 
 // ============ Internal Imports ============
+import {IInbox} from "../../interfaces/IInbox.sol";
 import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
-import {Inbox} from "../Inbox.sol";
 
 contract InboxMultisigValidatorManager is MultisigValidatorManager {
     // ============ Constructor ============
@@ -35,7 +35,7 @@ contract InboxMultisigValidatorManager is MultisigValidatorManager {
      * quorum. Must be sorted in ascending order by signer address.
      */
     function checkpoint(
-        Inbox _inbox,
+        IInbox _inbox,
         bytes32 _root,
         uint256 _index,
         bytes[] calldata _signatures

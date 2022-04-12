@@ -1,5 +1,5 @@
 import { ethers } from "ethers";
-import { types, Validator } from "@abacus-network/utils";
+import { types } from "@abacus-network/utils";
 import {
   Outbox,
   Outbox__factory,
@@ -172,21 +172,23 @@ export class TestAbacusDeploy extends TestDeploy<
     ) {
       return;
     }
+    // TODO come back to this
+
     // Update the Outbox and Inboxes to the latest roots.
     // This is technically not necessary given that we are not proving against
     // a root in the TestInbox.
-    const validator = await Validator.fromSigner(
-      this.config.signer[domain],
-      domain
-    );
-    const { signature } = await validator.signCheckpoint(
-      root,
-      index.toNumber()
-    );
+    // const validator = await Validator.fromSigner(
+    //   this.config.signer[domain],
+    //   domain
+    // );
+    // const { signature } = await validator.signCheckpoint(
+    //   root,
+    //   index.toNumber()
+    // );
 
     for (const remote of this.remotes(domain)) {
       const inbox = this.inbox(remote, domain);
-      await inbox.checkpoint(root, index, signature);
+      await inbox.checkpoint(root, index /*, signature*/);
     }
 
     // Find all messages dispatched on the outbox since the previous checkpoint.

@@ -90,6 +90,7 @@ contract Inbox is IInbox, Version0, Common {
      */
     function checkpoint(bytes32 _root, uint256 _index)
         external
+        override
         onlyValidatorManager
     {
         // Ensure that the checkpoint is more recent than the latest we've seen.
