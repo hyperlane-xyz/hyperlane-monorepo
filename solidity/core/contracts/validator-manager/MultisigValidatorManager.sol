@@ -201,7 +201,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to add to the validator set.
      */
     function _enrollValidator(address _validator) internal {
-        require(validators.add(_validator), "enrolled");
+        require(validators.add(_validator), "already enrolled");
         emit EnrollValidator(_validator);
     }
 
@@ -211,6 +211,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to remove from the validator set.
      */
     function _unenrollValidator(address _validator) internal {
+        require(validators.length() > quorumThreshold, "violates quorum threshold");
         require(validators.remove(_validator), "!enrolled");
         emit UnenrollValidator(_validator);
     }

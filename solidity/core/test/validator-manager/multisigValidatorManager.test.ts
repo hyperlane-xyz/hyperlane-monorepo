@@ -15,7 +15,7 @@ const OUTBOX_DOMAIN_HASH = ethers.utils.keccak256(
 );
 const QUORUM_THRESHOLD = 1;
 
-const domainHashTestCases = require('../../../vectors/domainHash.json');
+const domainHashTestCases = require('../../../../vectors/domainHash.json');
 
 describe('MultisigValidatorManager', async () => {
   let validatorManager: TestMultisigValidatorManager,
@@ -97,7 +97,7 @@ describe('MultisigValidatorManager', async () => {
     it('reverts if the validator is already enrolled', async () => {
       await expect(
         validatorManager.enrollValidator(validator0.address),
-      ).to.be.revertedWith('enrolled');
+      ).to.be.revertedWith('already enrolled');
     });
 
     it('reverts when called by a non-owner', async () => {
@@ -108,21 +108,36 @@ describe('MultisigValidatorManager', async () => {
   });
 
   describe('#unenrollValidator', () => {
-    it('unenrolls a validator from the validator set', async () => {
-      await validatorManager.unenrollValidator(validator0.address);
+    beforeEach(async () => {
+      // Enroll a second validator
+      await validatorManager.enrollValidator(validator1.address);
+    });
 
-      expect(await validatorManager.validatorSet()).to.deep.equal([]);
+    it('unenrolls a validator from the validator set', async () => {
+      await validatorManager.unenrollValidator(validator1.address);
+
+      expect(await validatorManager.validatorSet()).to.deep.equal([
+        validator0.address,
+      ]);
     });
 
     it('emits the UnenrollValidator event', async () => {
-      expect(await validatorManager.unenrollValidator(validator0.address))
+      expect(await validatorManager.unenrollValidator(validator1.address))
         .to.emit(validatorManager, 'UnenrollValidator')
-        .withArgs(validator0.address);
+        .withArgs(validator1.address);
+    });
+
+    it('reverts if the resulting validator set size will be less than the quorum threshold', async () => {
+      await validatorManager.setQuorumThreshold(2);
+
+      await expect(
+        validatorManager.unenrollValidator(validator1.address)
+      ).to.be.revertedWith("violates quorum threshold");
     });
 
     it('reverts if the validator is not already enrolled', async () => {
       await expect(
-        validatorManager.unenrollValidator(validator1.address),
+        validatorManager.unenrollValidator(validator2.address),
       ).to.be.revertedWith('!enrolled');
     });
 
@@ -130,7 +145,7 @@ describe('MultisigValidatorManager', async () => {
       await expect(
         validatorManager
           .connect(nonOwner)
-          .unenrollValidator(validator0.address),
+          .unenrollValidator(validator1.address),
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
