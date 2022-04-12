@@ -12,4 +12,4 @@ export {
   ProxyViolationType,
   UpgradeBeaconViolation,
 } from './proxy';
-export { CheckerViolation, TransactionConfig, registerDomains } from './config';
+export { CheckerViolation, Environment, TransactionConfig, registerDomains, registerEnvironment, registerHardhatEnvironment, registerSigner, registerSigners, registerTransactionConfigs } from './config';
