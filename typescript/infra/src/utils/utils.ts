@@ -157,3 +157,12 @@ export function writeJSON(directory: string, filename: string, obj: any) {
     JSON.stringify(obj, null, 2),
   );
 }
+
+// Returns a \ b
+export function setDifference<T>(a: Set<T>, b: Set<T>) {
+  let diff = new Set(a);
+  for (const elem of diff) {
+    diff.delete(elem);
+  }
+  return diff;
+}

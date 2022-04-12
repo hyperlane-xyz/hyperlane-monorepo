@@ -63,7 +63,7 @@ export class TestAbacusDeploy extends TestDeploy<
       await outboxMultisigValidatorManagerFactory.deploy(
         domain,
         [signerAddress],
-        1,
+        1
       );
 
     const inboxMultisigValidatorManagerFactory =
@@ -80,7 +80,7 @@ export class TestAbacusDeploy extends TestDeploy<
         await inboxMultisigValidatorManagerFactory.deploy(
           remote,
           [signerAddress],
-          1,
+          1
         );
       inboxMultisigValidatorManagers[remote] = inboxMultisigValidatorManager;
     });
@@ -229,12 +229,15 @@ export class TestAbacusDeploy extends TestDeploy<
 
     for (const remote of this.remotes(domain)) {
       const inbox = this.inbox(remote, domain);
-      const inboxMultisigValidatorManager = this.inboxMultisigValidatorManager(remote, domain);
+      const inboxMultisigValidatorManager = this.inboxMultisigValidatorManager(
+        remote,
+        domain
+      );
       await inboxMultisigValidatorManager.checkpoint(
         inbox.address,
         root,
         index,
-        [signature],
+        [signature]
       );
     }
 

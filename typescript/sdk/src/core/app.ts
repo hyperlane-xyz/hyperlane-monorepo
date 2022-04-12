@@ -1,4 +1,4 @@
-import { Inbox } from '@abacus-network/core';
+import { Inbox, InboxMultisigValidatorManager } from '@abacus-network/core';
 
 import { AbacusApp } from '../app';
 import { domains } from '../domains';
@@ -24,5 +24,11 @@ export class AbacusCore extends AbacusApp<
     const contracts = this.mustGetContracts(dest);
     const srcName = this.mustGetDomain(src).name;
     return contracts.inbox(srcName);
+  }
+
+  mustGetInboxMultisigValidatorManager(src: NameOrDomain, dest: NameOrDomain): InboxMultisigValidatorManager {
+    const contracts = this.mustGetContracts(dest);
+    const srcName = this.mustGetDomain(src).name;
+    return contracts.inboxMultisigValidatorManager(srcName);
   }
 }

@@ -1,9 +1,10 @@
-// @ts-nocheck
 import { expect } from 'chai';
+import { MultisigValidatorManager } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
 import { AbacusAppChecker, CheckerViolation } from '@abacus-network/deploy';
 import { CoreConfig } from './types';
+import { setDifference } from '../utils/utils';
 
 export enum CoreViolationType {
   ValidatorManager = 'ValidatorManager',
@@ -17,7 +18,7 @@ export interface ValidatorManagerViolation extends CheckerViolation {
 export interface ValidatorViolation extends CheckerViolation {
   type: CoreViolationType.Validator;
   data: {
-    remote: number;
+    multisigValidatorManagerAddress: string;
   };
 }
 
@@ -43,7 +44,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     await this.checkOutbox(domain);
     await this.checkInboxes(domain);
     await this.checkXAppConnectionManager(domain);
-    await this.checkValidatorManager(domain);
+    await this.checkMultisigValidatorManagers(domain);
   }
 
   async checkOwnership(
@@ -52,13 +53,14 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   ): Promise<void> {
     const contracts = this.app.mustGetContracts(domain);
     const owners = [
-      contracts.validatorManager.owner(),
       contracts.xAppConnectionManager.owner(),
       contracts.upgradeBeaconController.owner(),
       contracts.outbox.owner(),
+      contracts.outboxMultisigValidatorManager.owner(),
     ];
     this.app.remoteDomainNumbers(domain).map((remote) => {
       owners.push(this.app.mustGetInbox(remote, domain).owner());
+      owners.push(this.app.mustGetInboxMultisigValidatorManager(remote, domain).owner());
     });
     const actual = await Promise.all(owners);
     actual.map((_) => expect(_).to.equal(owner));
@@ -69,7 +71,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     const outbox = contracts.outbox;
     // validatorManager is set on Outbox
     const actualManager = await outbox.validatorManager();
-    const expectedManager = contracts.validatorManager.address;
+    const expectedManager = contracts.outboxMultisigValidatorManager.address;
     if (actualManager !== expectedManager) {
       const violation: ValidatorManagerViolation = {
         domain,
@@ -81,27 +83,82 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     }
   }
 
-  async checkValidatorManager(domain: types.Domain): Promise<void> {
-    const manager = this.app.mustGetContracts(domain).validatorManager;
-
-    for (const d of this.app.domainNumbers) {
-      const name = this.app.mustResolveDomainName(d);
-      const expected = this.config.validators[name];
-      expect(expected).to.not.be.undefined;
-      const actual = await manager.validators(d);
-      expect(actual).to.not.be.undefined;
-      if (actual !== expected && expected !== undefined) {
-        const violation: ValidatorViolation = {
-          domain,
-          type: CoreViolationType.Validator,
-          actual,
-          expected,
-          data: {
-            remote: d,
-          },
-        };
-        this.addViolation(violation);
+  // Checks validator sets of the OutboxMultisigValidatorManager and all
+  // InboxMultisigValidatorManagers on the domain.
+  async checkMultisigValidatorManagers(domain: types.Domain): Promise<void> {
+    const promises = this.app.domainNumbers.map((outboxDomain: number) => {
+      let multisigValidatorManager: MultisigValidatorManager;
+      // Check the outboxMultisigValidatorManager
+      if (domain === outboxDomain) {
+        multisigValidatorManager = this.app.mustGetContracts(domain).outboxMultisigValidatorManager;
+      } else {
+        // Check an inboxMultisigValidatorManager
+        multisigValidatorManager = this.app.mustGetInboxMultisigValidatorManager(outboxDomain, domain);
       }
+      return this.checkMultisigValidatorManager(
+        domain,
+        outboxDomain,
+        multisigValidatorManager,
+      );
+    });
+
+    await Promise.all(promises);
+  }
+
+  // Checks the validator set for a MultisigValidatorManager on the localDomain that tracks
+  // the validator set for the outboxDomain.
+  // If localDomain == outboxDomain, this checks the OutboxMultisigValidatorManager, otherwise
+  // it checks an InboxMultisigValidatorManager.
+  async checkMultisigValidatorManager(
+    localDomain: types.Domain,
+    outboxDomain: types.Domain,
+    multisigValidatorManager: MultisigValidatorManager,
+  ): Promise<void> {
+    const outboxDomainName = this.app.mustResolveDomainName(outboxDomain);
+    const expected = this.config.multisigValidatorManagers[outboxDomainName]?.validatorSet;
+    expect(expected).to.not.be.undefined;
+
+    const actual = await multisigValidatorManager.validatorSet();
+    expect(actual).to.not.be.undefined;
+
+    const expectedSet = new Set<string>(expected);
+    const actualSet = new Set<string>(actual);
+
+    const toEnroll = setDifference(
+      expectedSet,
+      actualSet,
+    );
+    const toUnenroll = setDifference(
+      actualSet,
+      expectedSet,
+    );
+
+    // Validators that should be enrolled
+    for (const [validatorToEnroll] of toEnroll.entries()) {
+      const violation: ValidatorViolation = {
+        domain: localDomain,
+        type: CoreViolationType.Validator,
+        actual: undefined,
+        expected: validatorToEnroll,
+        data: {
+          multisigValidatorManagerAddress: multisigValidatorManager.address,
+        },
+      };
+      this.addViolation(violation);
+    }
+
+    // Validators that should be unenrolled
+    for (const [validatorToUnenroll] of toUnenroll.entries()) {
+      const violation: ValidatorViolation = {
+        domain: localDomain,
+        type: CoreViolationType.Validator,
+        actual: validatorToUnenroll,
+        expected: undefined,
+        data: {
+          multisigValidatorManagerAddress: multisigValidatorManager.address,
+        },
+      };
+      this.addViolation(violation);
     }
   }
 
@@ -109,12 +166,13 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     // Check that all inboxes on this domain are pointed to the right validator
     // manager.
     const contracts = this.app.mustGetContracts(domain);
-    const validatorManager = contracts.validatorManager;
+
     await Promise.all(
       this.app.remoteDomainNumbers(domain).map(async (remote) => {
+        const expectedValidatorManager = this.app.mustGetInboxMultisigValidatorManager(remote, domain);
         expect(
           await this.app.mustGetInbox(remote, domain).validatorManager(),
-        ).to.equal(validatorManager.address);
+        ).to.equal(expectedValidatorManager.address);
       }),
     );
 

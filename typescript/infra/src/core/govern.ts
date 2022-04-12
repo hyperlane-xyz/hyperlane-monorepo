@@ -1,4 +1,3 @@
-// @ts-nocheck
 import { expect } from 'chai';
 import { Call, AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
 import {
@@ -13,6 +12,8 @@ import {
   ValidatorViolation,
 } from './check';
 import { CoreConfig } from './types';
+import { MultisigValidatorManager__factory } from '@abacus-network/core';
+import { PopulatedTransaction } from 'ethers';
 
 interface DomainedCall {
   domain: number;
@@ -69,12 +70,30 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
     violation: ValidatorViolation,
   ): Promise<DomainedCall> {
     const domain = violation.domain;
-    const manager = this.app.mustGetContracts(domain).validatorManager;
-    expect(manager).to.not.be.undefined;
-    const tx = await manager.populateTransaction.enrollValidator(
-      violation.data.remote,
-      violation.expected,
+    const provider = this.app.mustGetProvider(domain);
+
+    const multisigValidatorManager = MultisigValidatorManager__factory.connect(
+      violation.data.multisigValidatorManagerAddress,
+      provider,
     );
+
+    let tx: PopulatedTransaction;
+
+    // Enrolling a new validator
+    if (violation.actual === undefined && violation.expected !== undefined) {
+      tx = await multisigValidatorManager.populateTransaction.enrollValidator(
+        violation.expected,
+      );
+    } else if (violation.actual !== undefined && violation.expected === undefined) {
+      // Unenrolling an existing validator
+      tx = await multisigValidatorManager.populateTransaction.unenrollValidator(
+        violation.actual,
+      );
+    } else {
+      // Invalid state
+      throw new Error(`Expected exactly one of actual ${violation.actual} or expected ${violation.expected} to be undefined`);
+    }
+
     if (tx.to === undefined) throw new Error('undefined tx.to');
     return { domain, call: tx as Call };
   }

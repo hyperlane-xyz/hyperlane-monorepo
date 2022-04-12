@@ -226,13 +226,18 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
   ): Promise<ethers.ContractReceipt> {
     const contracts = core.mustGetContracts(domain);
     const overrides = core.getOverrides(domain);
-    await contracts.outboxMultisigValidatorManager.transferOwnership(owner, overrides);
+    await contracts.outboxMultisigValidatorManager.transferOwnership(
+      owner,
+      overrides,
+    );
     await contracts.xAppConnectionManager.transferOwnership(owner, overrides);
     await contracts.upgradeBeaconController.transferOwnership(owner, overrides);
     for (const chain of Object.keys(
       contracts.addresses.inboxes,
     ) as ChainName[]) {
-      await contracts.inboxMultisigValidatorManager(chain).transferOwnership(owner, overrides);
+      await contracts
+        .inboxMultisigValidatorManager(chain)
+        .transferOwnership(owner, overrides);
       await contracts.inbox(chain).transferOwnership(owner, overrides);
     }
     const tx = await contracts.outbox.transferOwnership(owner, overrides);

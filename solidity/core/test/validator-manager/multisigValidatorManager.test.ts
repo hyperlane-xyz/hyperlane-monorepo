@@ -218,9 +218,7 @@ describe('MultisigValidatorManager', async () => {
     });
 
     it('returns false when the signature count is less than the quorum threshold', async () => {
-      const signatures = await signCheckpoint(root, index, [
-        validator0,
-      ]);
+      const signatures = await signCheckpoint(root, index, [validator0]);
       expect(await validatorManager.isQuorum(root, index, signatures)).to.be
         .false;
     });
