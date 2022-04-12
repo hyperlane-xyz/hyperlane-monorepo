@@ -43,7 +43,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     event Checkpoint(bytes32 indexed root, uint256 indexed index);
 
     /**
-     * @notice Emitted when the ValidatorManager contract is changed
+     * @notice Emitted when the validator manager contract is changed
      * @param validatorManager The address of the new validatorManager
      */
     event NewValidatorManager(address validatorManager);
@@ -51,7 +51,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     // ============ Modifiers ============
 
     /**
-     * @notice Ensures that a function is called by the ValidatorManager contract.
+     * @notice Ensures that a function is called by the validator manager contract.
      */
     modifier onlyValidatorManager() {
         require(msg.sender == validatorManager, "!validatorManager");
@@ -78,11 +78,11 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     // ============ External Functions ============
 
     /**
-     * @notice Set a new ValidatorManager contract
-     * @dev Outbox(es) will initially be initialized using a trusted ValidatorManager contract;
+     * @notice Set a new validator manager contract
+     * @dev Outbox(es) will initially be initialized using a trusted validator manager contract;
      * we will progressively decentralize by swapping the trusted contract with a new implementation
      * that implements Validator bonding & slashing, and rules for Validator selection & rotation
-     * @param _validatorManager the new ValidatorManager contract
+     * @param _validatorManager the new validator manager contract
      */
     function setValidatorManager(address _validatorManager) external onlyOwner {
         _setValidatorManager(_validatorManager);
@@ -106,8 +106,8 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     // ============ Internal Functions ============
 
     /**
-     * @notice Set the ValidatorManager
-     * @param _validatorManager Address of the ValidatorManager
+     * @notice Set the validator manager
+     * @param _validatorManager Address of the validator manager
      */
     function _setValidatorManager(address _validatorManager) internal {
         require(
