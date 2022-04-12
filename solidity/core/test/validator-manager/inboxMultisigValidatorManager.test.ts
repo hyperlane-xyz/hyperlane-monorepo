@@ -81,7 +81,7 @@ describe.only('InboxMultisigValidatorManager', () => {
       const signatures = await getCheckpointSignatures(
         root,
         index,
-        [validator0], // 1/2 signer is not a quorum
+        [validator0], // 1/2 signers is not a quorum
       );
 
       await expect(

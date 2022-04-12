@@ -1,5 +1,5 @@
-import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { ethers } from 'hardhat';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { Validator } from '@abacus-network/utils';
 
@@ -15,7 +15,7 @@ const OUTBOX_DOMAIN_HASH = ethers.utils.keccak256(
 );
 const QUORUM_THRESHOLD = 1;
 
-describe.only('MultisigValidatorManager', async () => {
+describe('MultisigValidatorManager', async () => {
   let validatorManager: TestMultisigValidatorManager,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress,
