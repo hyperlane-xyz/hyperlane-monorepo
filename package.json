@@ -1,0 +1,46 @@
+{
+  "name": "@abacus-network/template",
+  "version": "0.0.0",
+  "license": "MIT OR Apache-2.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "build:contracts": "hardhat compile && hardhat typechain",
+    "build:sdk": "tsc",
+    "build": "npm run build:contracts && npm run build:sdk",
+    "test:contracts": "hardhat test",
+    "test:sdk": "",
+    "test": "npm run test:contracts && npm run test:sdk",
+    "prettier": "prettier --write ./contracts ./test",
+    "coverage": "hardhat coverage"
+  },
+  "dependencies": {
+    "@abacus-network/app": "^0.0.2",
+    "@ethersproject/bignumber": "^5.5.0",
+    "@ethersproject/bytes": "^5.5.0",
+    "ethers": "^5.4.7"
+  },
+  "devDependencies": {
+    "@abacus-network/hardhat": "^0.0.17",
+    "@nomiclabs/hardhat-ethers": "^2.0.1",
+    "@nomiclabs/hardhat-waffle": "^2.0.1",
+    "@typechain/ethers-v5": "~7.0.0",
+    "@typechain/hardhat": "^2.0.1",
+    "@types/mocha": "^9.1.0",
+    "chai": "^4.3.0",
+    "eslint": "^7.20.0",
+    "hardhat": "^2.8.3",
+    "hardhat-gas-reporter": "^1.0.7",
+    "prettier": "^2.2.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.5",
+    "solhint": "^3.3.2",
+    "solhint-plugin-prettier": "^0.0.5",
+    "solidity-coverage": "^0.7.14",
+    "ts-node": "^10.1.0",
+    "typechain": "^5.0.0",
+    "typescript": "^4.3.5"
+  }
+}
