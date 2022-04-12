@@ -38,8 +38,11 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
     return Inbox__factory.connect(inbox.proxy, this.connection);
   }
 
-  inboxMultisigValidatorManager(chain: ChainName): InboxMultisigValidatorManager {
-    const inboxMultisigValidatorManager = this.addresses.inboxMultisigValidatorManagers[chain];
+  inboxMultisigValidatorManager(
+    chain: ChainName,
+  ): InboxMultisigValidatorManager {
+    const inboxMultisigValidatorManager =
+      this.addresses.inboxMultisigValidatorManagers[chain];
     if (!inboxMultisigValidatorManager) {
       throw new Error(`No inboxMultisigValidatorManager for ${chain}`);
     }

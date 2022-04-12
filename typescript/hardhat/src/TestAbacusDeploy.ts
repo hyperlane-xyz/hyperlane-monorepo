@@ -28,8 +28,11 @@ export type TestAbacusInstance = {
   upgradeBeaconController: UpgradeBeaconController;
   inboxes: Record<types.Domain, TestInbox>;
   interchainGasPaymaster: InterchainGasPaymaster;
-  outboxMultisigValidatorManager: OutboxMultisigValidatorManager,
-  inboxMultisigValidatorManagers: Record<types.Domain, InboxMultisigValidatorManager>,
+  outboxMultisigValidatorManager: OutboxMultisigValidatorManager;
+  inboxMultisigValidatorManagers: Record<
+    types.Domain,
+    InboxMultisigValidatorManager
+  >;
 };
 
 export class TestAbacusDeploy extends TestDeploy<
@@ -54,24 +57,31 @@ export class TestAbacusDeploy extends TestDeploy<
     const signer = this.config.signer[domain];
     const signerAddress = await signer.getAddress();
 
-    const outboxMultisigValidatorManagerFactory = new OutboxMultisigValidatorManager__factory(signer);
-    const outboxMultisigValidatorManager = await outboxMultisigValidatorManagerFactory.deploy(
-      domain,
-      [signerAddress],
-      1,
-    );
+    const outboxMultisigValidatorManagerFactory =
+      new OutboxMultisigValidatorManager__factory(signer);
+    const outboxMultisigValidatorManager =
+      await outboxMultisigValidatorManagerFactory.deploy(
+        domain,
+        [signerAddress],
+        1
+      );
 
-    const inboxMultisigValidatorManagerFactory = new InboxMultisigValidatorManager__factory(signer);
-    const inboxMultisigValidatorManagers: Record<types.Domain, InboxMultisigValidatorManager> = {};
+    const inboxMultisigValidatorManagerFactory =
+      new InboxMultisigValidatorManager__factory(signer);
+    const inboxMultisigValidatorManagers: Record<
+      types.Domain,
+      InboxMultisigValidatorManager
+    > = {};
 
     // this.remotes reads this.instances which has not yet been set.
     const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
     const inboxMultisigValidatorManagerDeploys = remotes.map(async (remote) => {
-      const inboxMultisigValidatorManager = await inboxMultisigValidatorManagerFactory.deploy(
-        remote,
-        [signerAddress],
-        1,
-      );
+      const inboxMultisigValidatorManager =
+        await inboxMultisigValidatorManagerFactory.deploy(
+          remote,
+          [signerAddress],
+          1
+        );
       inboxMultisigValidatorManagers[remote] = inboxMultisigValidatorManager;
     });
     await Promise.all(inboxMultisigValidatorManagerDeploys);
@@ -105,7 +115,8 @@ export class TestAbacusDeploy extends TestDeploy<
     // this.remotes reads this.instances which has not yet been set.
     // const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
     const inboxDeploys = remotes.map(async (remote) => {
-      const inboxMultisigValidatorManager = inboxMultisigValidatorManagers[remote];
+      const inboxMultisigValidatorManager =
+        inboxMultisigValidatorManagers[remote];
       const inbox = await inboxFactory.deploy(domain);
       await inbox.initialize(
         remote,
@@ -132,9 +143,14 @@ export class TestAbacusDeploy extends TestDeploy<
     await this.outbox(domain).transferOwnership(address);
     await this.upgradeBeaconController(domain).transferOwnership(address);
     await this.xAppConnectionManager(domain).transferOwnership(address);
-    await this.outboxMultisigValidatorManager(domain).transferOwnership(address);
+    await this.outboxMultisigValidatorManager(domain).transferOwnership(
+      address
+    );
     for (const remote of this.remotes(domain)) {
-      await this.inboxMultisigValidatorManager(domain, remote).transferOwnership(address);
+      await this.inboxMultisigValidatorManager(
+        domain,
+        remote
+      ).transferOwnership(address);
       await this.inbox(domain, remote).transferOwnership(address);
     }
   }
@@ -159,11 +175,16 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].xAppConnectionManager;
   }
 
-  outboxMultisigValidatorManager(domain: types.Domain): OutboxMultisigValidatorManager {
+  outboxMultisigValidatorManager(
+    domain: types.Domain
+  ): OutboxMultisigValidatorManager {
     return this.instances[domain].outboxMultisigValidatorManager;
   }
 
-  inboxMultisigValidatorManager(local: types.Domain, remote: types.Domain): InboxMultisigValidatorManager {
+  inboxMultisigValidatorManager(
+    local: types.Domain,
+    remote: types.Domain
+  ): InboxMultisigValidatorManager {
     return this.instances[local].inboxMultisigValidatorManagers[remote];
   }
 

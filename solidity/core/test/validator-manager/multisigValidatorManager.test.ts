@@ -131,8 +131,8 @@ describe('MultisigValidatorManager', async () => {
       await validatorManager.setQuorumThreshold(2);
 
       await expect(
-        validatorManager.unenrollValidator(validator1.address)
-      ).to.be.revertedWith("violates quorum threshold");
+        validatorManager.unenrollValidator(validator1.address),
+      ).to.be.revertedWith('violates quorum threshold');
     });
 
     it('reverts if the validator is not already enrolled', async () => {
