@@ -15,6 +15,8 @@ const OUTBOX_DOMAIN_HASH = ethers.utils.keccak256(
 );
 const QUORUM_THRESHOLD = 1;
 
+const domainHashTestCases = require('../../../vectors/domainHash.json');
+
 describe('MultisigValidatorManager', async () => {
   let validatorManager: TestMultisigValidatorManager,
     signer: SignerWithAddress,
@@ -230,6 +232,20 @@ describe('MultisigValidatorManager', async () => {
       await expect(
         validatorManager.isQuorum(root, index, signatures),
       ).to.be.revertedWith('!sorted signers');
+    });
+  });
+
+  describe('#domainHash', () => {
+    it('matches Rust-produced domain hashes', async () => {
+      // Compare Rust output in json file to solidity output (json file matches
+      // hash for local domain of 1000)
+      for (let testCase of domainHashTestCases) {
+        const { expectedDomainHash } = testCase;
+        const domainHash = await validatorManager.domainHash(
+          testCase.outboxDomain,
+        );
+        expect(domainHash).to.equal(expectedDomainHash);
+      }
     });
   });
 });

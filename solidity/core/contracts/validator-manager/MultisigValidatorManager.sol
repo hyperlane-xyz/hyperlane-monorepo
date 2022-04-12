@@ -65,7 +65,7 @@ abstract contract MultisigValidatorManager is Ownable {
     ) Ownable() {
         // Set immutables.
         outboxDomain = _outboxDomain;
-        outboxDomainHash = keccak256(abi.encodePacked(_outboxDomain, "ABACUS"));
+        outboxDomainHash = domainHash(_outboxDomain);
 
         // Enroll validators. Reverts if there are any duplicates.
         uint256 _validatorSetLength = _validatorSet.length;
@@ -164,6 +164,14 @@ abstract contract MultisigValidatorManager is Ownable {
             _previousSigner = _signer;
         }
         return _validatorSignatureCount >= quorumThreshold;
+    }
+
+    /**
+     * @notice Hash of domain concatenated with "ABACUS".
+     * @param _domain The domain to hash.
+     */
+    function domainHash(uint32 _domain) public pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_domain, "ABACUS"));
     }
 
     // ============ Internal Functions ============
