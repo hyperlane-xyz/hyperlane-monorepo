@@ -3,12 +3,9 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
-import { registerHardhatEnvironment } from '@abacus-network/deploy'
+import { registerHardhatEnvironment } from '@abacus-network/deploy';
 import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
-import {
-  core as coreConfig,
-  environment,
-} from '../config/environments/test';
+import { core as coreConfig, environment } from '../config/environments/test';
 
 describe('core', async () => {
   const deployer = new AbacusCoreDeployer();

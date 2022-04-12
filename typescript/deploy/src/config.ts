@@ -19,7 +19,7 @@ export type TransactionConfig = {
 export type Environment = {
   domains: ChainName[];
   transactionConfigs: Partial<Record<ChainName, TransactionConfig>>;
-}
+};
 
 // this is currently a kludge to account for ethers issues
 function fixOverrides(config: TransactionConfig): ethers.Overrides {
@@ -85,8 +85,8 @@ export const registerEnvironment = (
   multiProvider: MultiProvider,
   environment: Environment,
 ) => {
-  registerDomains(multiProvider, environment.domains)
-  registerTransactionConfigs(multiProvider, environment.transactionConfigs)
+  registerDomains(multiProvider, environment.domains);
+  registerTransactionConfigs(multiProvider, environment.transactionConfigs);
 };
 
 export const registerHardhatEnvironment = (
@@ -94,10 +94,10 @@ export const registerHardhatEnvironment = (
   environment: Environment,
   signer: ethers.Signer,
 ) => {
-  registerDomains(multiProvider, environment.domains)
-  registerTransactionConfigs(multiProvider, environment.transactionConfigs)
+  registerDomains(multiProvider, environment.domains);
+  registerTransactionConfigs(multiProvider, environment.transactionConfigs);
   multiProvider.domainNames.forEach((name) => {
     multiProvider.registerConfirmations(name, 0);
   });
-  registerSigner(multiProvider, signer)
+  registerSigner(multiProvider, signer);
 };

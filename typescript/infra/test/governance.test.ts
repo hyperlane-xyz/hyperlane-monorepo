@@ -3,7 +3,7 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
 import { AbacusGovernance } from '@abacus-network/sdk';
-import { registerHardhatEnvironment } from '@abacus-network/deploy'
+import { registerHardhatEnvironment } from '@abacus-network/deploy';
 import {
   AbacusGovernanceDeployer,
   AbacusGovernanceChecker,
