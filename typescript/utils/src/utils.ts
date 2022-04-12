@@ -36,7 +36,8 @@ export function addressToBytes32(address: Address): string {
 
 export function bytes32ToAddress(bytes32: string): Address {
   return ethers.utils.getAddress(bytes32.slice(-40));
-  
+}
+
 export function formatCallData<
   C extends ethers.Contract,
   I extends Parameters<C['interface']['encodeFunctionData']>,
