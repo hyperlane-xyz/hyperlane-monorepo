@@ -16,8 +16,8 @@ contract TestOutbox is Outbox {
     }
 
     /**
-     * @notice Set the ValidatorManager
-     * @param _validatorManager Address of the ValidatorManager
+     * @notice Set the validator manager
+     * @param _validatorManager Address of the validator manager
      */
     function testSetValidatorManager(address _validatorManager) external {
         validatorManager = _validatorManager;
