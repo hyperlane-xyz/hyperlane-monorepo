@@ -1,12 +1,11 @@
-import { ethers, abacus } from 'hardhat';
-import { expect } from 'chai';
 import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-
-import { formatCall, increaseTimestampBy } from './lib/utils';
+import { expect } from 'chai';
+import { abacus, ethers } from 'hardhat';
+import { GovernanceRouter, TestSet, TestSet__factory } from '../../types';
 import { GovernanceConfig, GovernanceDeploy } from './lib/GovernanceDeploy';
-import { TestSet, TestSet__factory, GovernanceRouter } from '../../types';
+import { formatCall, increaseTimestampBy } from './lib/utils';
 
 const recoveryTimelock = 60 * 60 * 24 * 7;
 const localDomain = 1000;
@@ -67,7 +66,7 @@ describe('GovernanceRouter', async () => {
 
     it('governor can make local calls', async () => {
       const value = 12;
-      const call = await formatCall(testSet, 'set', [value]);
+      const call = formatCall(testSet, 'set', [value]);
       await router.call([call]);
       expect(await testSet.get()).to.equal(value);
     });
@@ -99,7 +98,7 @@ describe('GovernanceRouter', async () => {
 
     it('governor can make remote calls', async () => {
       const value = 13;
-      const call = await formatCall(testSet, 'set', [value]);
+      const call = formatCall(testSet, 'set', [value]);
       await router.callRemote(domains[1], [call]);
       await abacus.processMessages();
       expect(await testSet.get()).to.equal(value);
@@ -161,7 +160,7 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager cannot make local calls', async () => {
       const value = 12;
-      const call = await formatCall(testSet, 'set', [value]);
+      const call = formatCall(testSet, 'set', [value]);
       await expect(
         router.connect(recoveryManager).call([call]),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
@@ -196,7 +195,7 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager cannot make remote calls', async () => {
       const value = 13;
-      const call = await formatCall(testSet, 'set', [value]);
+      const call = formatCall(testSet, 'set', [value]);
       await expect(
         router.connect(recoveryManager).callRemote(domains[1], [call]),
       ).to.be.revertedWith('!governor');
@@ -266,7 +265,7 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager can make local calls', async () => {
       const value = 12;
-      const call = await formatCall(testSet, 'set', [value]);
+      const call = formatCall(testSet, 'set', [value]);
       await router.call([call]);
       expect(await testSet.get()).to.equal(value);
     });
@@ -298,7 +297,7 @@ describe('GovernanceRouter', async () => {
 
     it('recovery manager cannot make remote calls', async () => {
       const value = 13;
-      const call = await formatCall(testSet, 'set', [value]);
+      const call = formatCall(testSet, 'set', [value]);
       await expect(router.callRemote(domains[1], [call])).to.be.revertedWith(
         '!governor',
       );
@@ -339,7 +338,7 @@ describe('GovernanceRouter', async () => {
 
     it('governor cannot make local calls', async () => {
       const value = 12;
-      const call = await formatCall(testSet, 'set', [value]);
+      const call = formatCall(testSet, 'set', [value]);
       await expect(router.connect(governor).call([call])).to.be.revertedWith(
         ONLY_OWNER_REVERT_MESSAGE,
       );
@@ -376,7 +375,7 @@ describe('GovernanceRouter', async () => {
 
     it('governor cannot make remote calls', async () => {
       const value = 13;
-      const call = await formatCall(testSet, 'set', [value]);
+      const call = formatCall(testSet, 'set', [value]);
       await expect(
         router.connect(governor).callRemote(domains[1], [call]),
       ).to.be.revertedWith('recovery');
@@ -436,7 +435,7 @@ describe('GovernanceRouter', async () => {
 
     it('allows interchain gas payment for remote calls', async () => {
       const leafIndex = await outbox.count();
-      const call = await formatCall(testSet, 'set', [13]);
+      const call = formatCall(testSet, 'set', [13]);
       await expect(
         await router.callRemote(domains[1], [call], {
           value: testInterchainGasPayment,

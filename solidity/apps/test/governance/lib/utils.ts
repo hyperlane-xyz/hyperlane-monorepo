@@ -1,5 +1,5 @@
-import { ethers } from 'ethers';
 import { types, utils } from '@abacus-network/utils';
+import { ethers } from 'ethers';
 
 export enum GovernanceMessage {
   CALL = 1,
@@ -66,16 +66,19 @@ export function formatCalls(callsData: types.CallData[]): string {
   );
 }
 
-export function formatCall(
-  destinationContract: ethers.Contract,
-  functionStr: string,
-  functionArgs: any[],
+export function formatCall<
+  C extends ethers.Contract,
+  I extends Parameters<C['interface']['encodeFunctionData']>,
+>(
+  destinationContract: C,
+  functionName: I[0],
+  functionArgs: I[1],
 ): types.CallData {
   // Set up data for call message
   const callData = utils.formatCallData(
     destinationContract,
-    functionStr,
-    functionArgs,
+    functionName as any,
+    functionArgs as any,
   );
   return {
     to: utils.addressToBytes32(destinationContract.address),

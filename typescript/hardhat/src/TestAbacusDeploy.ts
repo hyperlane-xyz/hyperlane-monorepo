@@ -191,7 +191,7 @@ export class TestAbacusDeploy extends TestDeploy<
       await inbox.checkpoint(root, index, signature);
     }
 
-    // Find all messages dispatched on the outbox since the previous checkpoint.
+    // Find all unprocessed messages dispatched on the outbox since the previous checkpoint.
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
