@@ -8,8 +8,9 @@ import {ECDSA} from "@openzeppelin/contracts/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/EnumerableSet.sol";
 
 /**
- * @notice Manages an ownable validator set that sign checkpoints with
- * a basic ECDSA multi-signature.
+ * @title MultisigValidatorManager
+ * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
+ * reach a quorum.
  */
 abstract contract MultisigValidatorManager is Ownable {
     // ============ Libraries ============
@@ -41,22 +42,24 @@ abstract contract MultisigValidatorManager is Ownable {
     event EnrollValidator(address indexed validator);
 
     /**
-     * @notice Emitted when a validator is unenrolled in the validator set.
+     * @notice Emitted when a validator is unenrolled from the validator set.
      * @param validator The address of the validator.
      */
     event UnenrollValidator(address indexed validator);
 
     /**
      * @notice Emitted when the quorum threshold is set.
-     * @param quorumThreshold The quorum threshold.
+     * @param quorumThreshold The new quorum threshold.
      */
     event SetQuorumThreshold(uint256 quorumThreshold);
 
     // ============ Constructor ============
 
     /**
-     * @param _outboxDomain The domain of the outbox this validator manager
-     * tracks the validator set for.
+     * @param _outboxDomain The domain of the outbox the validator set is for.
+     * @param _validatorSet The set of validator addresses.
+     * @param _quorumThreshold The quorum threshold. Must be greater than or equal
+     * to the length of _validatorSet.
      */
     constructor(
         uint32 _outboxDomain,
@@ -106,7 +109,7 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Gets the addresses of the current validator set.
-     * @dev There is no ordering guarantee.
+     * @dev There ordering guarantee due to the semantics of EnumerableSet.AddressSet.
      * @return The addresses of the validator set.
      */
     function validatorSet() external view returns (address[] memory) {
@@ -207,6 +210,8 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Unenrolls a validator from the validator set.
+     * @dev Reverts if the resulting validator set length is less than
+     * the quorum threshold.
      * @dev Reverts if _validator is not in the validator set.
      * @param _validator The validator to remove from the validator set.
      */

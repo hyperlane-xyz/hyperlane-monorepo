@@ -1,4 +1,3 @@
-// @ts-nocheck
 import path from 'path';
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
@@ -30,18 +29,6 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
   CoreContractAddresses,
   CoreConfig
 > {
-  multisigValidatorManagerConfig(
-    config: CoreConfig,
-    domain: types.Domain,
-  ): MultisigValidatorManagerConfig {
-    const domainName = this.mustResolveDomainName(domain);
-    const validatorManagerConfig = config.multisigValidatorManagers[domainName];
-    if (!validatorManagerConfig) {
-      throw new Error(`No validator manager config for ${domainName}`);
-    }
-    return validatorManagerConfig;
-  }
-
   async deployContracts(
     domain: types.Domain,
     config: CoreConfig,
@@ -66,16 +53,6 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         outboxMultisigValidatorManagerConfig.validatorSet,
         outboxMultisigValidatorManagerConfig.quorumThreshold,
       );
-
-    // for (const name of this.domainNames) {
-    //   const validator = config.validators[name];
-    //   if (!validator) throw new Error(`No validator for ${name}`);
-    //   await validatorManager.enrollValidator(
-    //     this.resolveDomain(name),
-    //     validator,
-    //     overrides,
-    //   );
-    // }
 
     const outbox = await this.deployProxiedContract(
       domain,
@@ -249,15 +226,28 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
   ): Promise<ethers.ContractReceipt> {
     const contracts = core.mustGetContracts(domain);
     const overrides = core.getOverrides(domain);
-    await contracts.validatorManager.transferOwnership(owner, overrides);
+    await contracts.outboxMultisigValidatorManager.transferOwnership(owner, overrides);
     await contracts.xAppConnectionManager.transferOwnership(owner, overrides);
     await contracts.upgradeBeaconController.transferOwnership(owner, overrides);
     for (const chain of Object.keys(
       contracts.addresses.inboxes,
     ) as ChainName[]) {
+      await contracts.inboxMultisigValidatorManager(chain).transferOwnership(owner, overrides);
       await contracts.inbox(chain).transferOwnership(owner, overrides);
     }
     const tx = await contracts.outbox.transferOwnership(owner, overrides);
     return tx.wait(core.getConfirmations(domain));
+  }
+
+  multisigValidatorManagerConfig(
+    config: CoreConfig,
+    domain: types.Domain,
+  ): MultisigValidatorManagerConfig {
+    const domainName = this.mustResolveDomainName(domain);
+    const validatorManagerConfig = config.multisigValidatorManagers[domainName];
+    if (!validatorManagerConfig) {
+      throw new Error(`No validator manager config for ${domainName}`);
+    }
+    return validatorManagerConfig;
   }
 }

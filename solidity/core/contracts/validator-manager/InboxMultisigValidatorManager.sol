@@ -6,6 +6,11 @@ pragma abicoder v2;
 import {IInbox} from "../../interfaces/IInbox.sol";
 import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
 
+/**
+ * @title InboxMultisigValidatorManager
+ * @notice Verifies checkpoints are signed by a quorum of validators and submits
+ * them to an Inbox.
+ */
 contract InboxMultisigValidatorManager is MultisigValidatorManager {
     // ============ Constructor ============
 

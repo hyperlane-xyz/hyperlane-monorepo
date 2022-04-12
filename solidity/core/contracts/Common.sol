@@ -51,7 +51,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     // ============ Modifiers ============
 
     /**
-     * @notice Ensures that function is called by the ValidatorManager contract
+     * @notice Ensures that a function is called by the ValidatorManager contract.
      */
     modifier onlyValidatorManager() {
         require(msg.sender == validatorManager, "!validatorManager");

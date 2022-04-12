@@ -8,14 +8,14 @@ import {
   InboxMultisigValidatorManager,
   InboxMultisigValidatorManager__factory,
 } from '../../types';
-import { getCheckpointSignatures } from './utils';
+import { signCheckpoint } from './utils';
 import { expect } from 'chai';
 
 const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;
 const QUORUM_THRESHOLD = 2;
 
-describe.only('InboxMultisigValidatorManager', () => {
+describe('InboxMultisigValidatorManager', () => {
   let validatorManager: InboxMultisigValidatorManager,
     inbox: Inbox,
     signer: SignerWithAddress,
@@ -55,7 +55,7 @@ describe.only('InboxMultisigValidatorManager', () => {
     const index = 1;
 
     it('submits a checkpoint to the Inbox if there is a quorum', async () => {
-      const signatures = await getCheckpointSignatures(
+      const signatures = await signCheckpoint(
         root,
         index,
         [validator0, validator1], // 2/2 signers, making a quorum
@@ -67,7 +67,7 @@ describe.only('InboxMultisigValidatorManager', () => {
     });
 
     it('reverts if there is not a quorum', async () => {
-      const signatures = await getCheckpointSignatures(
+      const signatures = await signCheckpoint(
         root,
         index,
         [validator0], // 1/2 signers is not a quorum

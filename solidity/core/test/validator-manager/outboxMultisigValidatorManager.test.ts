@@ -9,7 +9,7 @@ import {
   OutboxMultisigValidatorManager,
   OutboxMultisigValidatorManager__factory,
 } from '../../types';
-import { getCheckpointSignatures } from './utils';
+import { signCheckpoint } from './utils';
 
 const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;
@@ -50,7 +50,7 @@ describe('OutboxMultisigValidatorManager', () => {
     const index = 1;
 
     it('accepts an improper checkpoint if there is a quorum', async () => {
-      const signatures = await getCheckpointSignatures(
+      const signatures = await signCheckpoint(
         root,
         index,
         [validator0, validator1], // 2/2 signers, making a quorum
@@ -71,7 +71,7 @@ describe('OutboxMultisigValidatorManager', () => {
     });
 
     it('reverts if there is not a quorum', async () => {
-      const signatures = await getCheckpointSignatures(
+      const signatures = await signCheckpoint(
         root,
         index,
         [validator0], // 1/2 signers is not a quorum
@@ -97,7 +97,7 @@ describe('OutboxMultisigValidatorManager', () => {
       await outbox.checkpoint();
       const [root, index] = await outbox.latestCheckpoint();
 
-      const signatures = await getCheckpointSignatures(
+      const signatures = await signCheckpoint(
         root,
         index.toNumber(),
         [validator0, validator1], // 2/2 signers, making a quorum

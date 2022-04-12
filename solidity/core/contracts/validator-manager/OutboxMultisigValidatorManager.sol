@@ -6,14 +6,22 @@ pragma abicoder v2;
 import {IOutbox} from "../../interfaces/IOutbox.sol";
 import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
 
+/**
+ * @title OutboxMultisigValidatorManager
+ * @notice Verifies if an improper checkpoint has been signed by a quorum of
+ * validators and reports it to an Outbox.
+ */
 contract OutboxMultisigValidatorManager is MultisigValidatorManager {
     // ============ Events ============
 
     /**
      * @notice Emitted when proof of an improper checkpoint is submitted.
+     * @dev Observers of this event should filter by the outbox address.
+     * @param outbox The outbox.
      * @param root Root of the improper checkpoint.
      * @param index Index of the improper checkpoint.
      * @param signatures A quorum of signatures on the improper checkpoint.
+     * May include non-validator signatures.
      */
     event ImproperCheckpoint(
         address indexed outbox,
@@ -25,7 +33,10 @@ contract OutboxMultisigValidatorManager is MultisigValidatorManager {
     // ============ Constructor ============
 
     /**
-     * @param _localDomain The local domain.
+     * @param _outboxDomain The local domain.
+     * @param _validatorSet The set of validator addresses.
+     * @param _quorumThreshold The quorum threshold. Must be greater than or equal
+     * to the length of _validatorSet.
      */
     // solhint-disable-next-line no-empty-blocks
     constructor(
@@ -36,16 +47,17 @@ contract OutboxMultisigValidatorManager is MultisigValidatorManager {
 
     // ============ External Functions ============
 
-    // Determines if a quorum of signers have signed an improper checkpoint,
-    // and fails the Outbox if so.
-    // If staking / slashing existed, we'd want to check this for individual validator
-    // signatures. Because we don't care about that and we don't want a single byzantine
-    // validator to be able to fail the outbox, we require a quorum.
-    //
-    // Gets the domain from IOutbox(_outbox).localDomain(), then
-    // requires isQuorum(domain, _root, _index, _signatures),
-    // requires that the checkpoint is an improper checkpoint,
-    // and calls IOutbox(_outbox).fail(). (Similar behavior as existing improperCheckpoint)
+    /**
+     * @notice Determines if a quorum of validators have signed an improper checkpoint,
+     * failing the Outbox if so.
+     * @dev Improper checkpoints signed by individual validators are not handled to prevent
+     * a single byzantine validator from failing the Outbox.
+     * @param _outbox The outbox.
+     * @param _root The merkle root of the checkpoint.
+     * @param _index The index of the checkpoint.
+     * @param _signatures Signatures over the checkpoint to be checked for a validator
+     * quorum. Must be sorted in ascending order by signer address.
+     */
     function improperCheckpoint(
         IOutbox _outbox,
         bytes32 _root,

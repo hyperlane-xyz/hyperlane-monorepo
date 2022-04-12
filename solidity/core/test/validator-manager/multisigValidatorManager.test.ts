@@ -7,12 +7,9 @@ import {
   TestMultisigValidatorManager,
   TestMultisigValidatorManager__factory,
 } from '../../types';
-import { getCheckpointSignatures } from './utils';
+import { signCheckpoint } from './utils';
 
 const OUTBOX_DOMAIN = 1234;
-const OUTBOX_DOMAIN_HASH = ethers.utils.keccak256(
-  ethers.utils.solidityPack(['uint32', 'string'], [OUTBOX_DOMAIN, 'ABACUS']),
-);
 const QUORUM_THRESHOLD = 1;
 
 const domainHashTestCases = require('../../../../vectors/domainHash.json');
@@ -60,8 +57,9 @@ describe('MultisigValidatorManager', async () => {
     });
 
     it('sets the outboxDomainHash', async () => {
+      const outboxDomainHash = await validatorManager.domainHash(OUTBOX_DOMAIN);
       expect(await validatorManager.outboxDomainHash()).to.equal(
-        OUTBOX_DOMAIN_HASH,
+        outboxDomainHash,
       );
     });
 
@@ -175,7 +173,7 @@ describe('MultisigValidatorManager', async () => {
       );
     });
 
-    it('reverts if the new quorum threshold is > the validator set size', async () => {
+    it('reverts if the new quorum threshold is greater than the validator set size', async () => {
       await expect(validatorManager.setQuorumThreshold(3)).to.be.revertedWith(
         '!range',
       );
@@ -201,7 +199,7 @@ describe('MultisigValidatorManager', async () => {
     });
 
     it('returns true when there is a quorum', async () => {
-      const signatures = await getCheckpointSignatures(root, index, [
+      const signatures = await signCheckpoint(root, index, [
         validator0,
         validator1,
       ]);
@@ -210,7 +208,7 @@ describe('MultisigValidatorManager', async () => {
     });
 
     it('returns true when a quorum exists even if provided with non-validator signatures', async () => {
-      const signatures = await getCheckpointSignatures(
+      const signatures = await signCheckpoint(
         root,
         index,
         [validator0, validator1, validator3], // validator 3 is not enrolled
@@ -219,8 +217,8 @@ describe('MultisigValidatorManager', async () => {
         .true;
     });
 
-    it('returns false when the signature count is < the quorum threshold', async () => {
-      const signatures = await getCheckpointSignatures(root, index, [
+    it('returns false when the signature count is less than the quorum threshold', async () => {
+      const signatures = await signCheckpoint(root, index, [
         validator0,
       ]);
       expect(await validatorManager.isQuorum(root, index, signatures)).to.be
@@ -228,7 +226,7 @@ describe('MultisigValidatorManager', async () => {
     });
 
     it('returns false when some signatures are not from enrolled validators', async () => {
-      const signatures = await getCheckpointSignatures(
+      const signatures = await signCheckpoint(
         root,
         index,
         [validator0, validator3], // validator 3 is not enrolled
@@ -241,7 +239,7 @@ describe('MultisigValidatorManager', async () => {
       // Reverse the signature order, purposely messing up the
       // ascending sort
       const signatures = (
-        await getCheckpointSignatures(root, index, [validator0, validator1])
+        await signCheckpoint(root, index, [validator0, validator1])
       ).reverse();
 
       await expect(
