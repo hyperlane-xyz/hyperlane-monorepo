@@ -6,7 +6,7 @@ import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
 import "../XAppConnectionClient.sol";
 
 contract TestXAppConnectionClient is XAppConnectionClient {
-    function initialize(address _xAppConnectionManager) external {
+    function initialize(address _xAppConnectionManager) external initializer {
         __XAppConnectionClient_initialize(_xAppConnectionManager);
     }
 

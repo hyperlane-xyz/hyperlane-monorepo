@@ -4,7 +4,6 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {XAppConnectionClient} from "./XAppConnectionClient.sol";
 import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
-import {IXAppConnectionManager} from "@abacus-network/core/interfaces/IXAppConnectionManager.sol";
 
 abstract contract Router is XAppConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
