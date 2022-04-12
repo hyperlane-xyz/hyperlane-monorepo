@@ -1,7 +1,7 @@
 {
   "prepublish": "npm run build",
   "name": "@abacus-network/utils",
-  "version": "0.0.5",
+  "version": "0.0.7",
   "description": "Abacus utilities",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",

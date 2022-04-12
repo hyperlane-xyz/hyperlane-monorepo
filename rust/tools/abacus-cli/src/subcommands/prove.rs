@@ -1,14 +1,14 @@
 use std::{convert::TryFrom, sync::Arc};
 use structopt::StructOpt;
 
-use crate::{replicas, rpc};
+use crate::{inboxes, rpc};
 
 use abacus_core::{
     accumulator::merkle::Proof,
     db::{AbacusDB, DB},
-    AbacusMessage, ContractLocator, Decode, MessageStatus, Replica, Signers,
+    AbacusMessage, ContractLocator, Decode, Inbox, MessageStatus, Signers,
 };
-use abacus_ethereum::EthereumReplica;
+use abacus_ethereum::EthereumInbox;
 
 use ethers::{
     prelude::{Http, Middleware, Provider, SignerMiddleware, H160},
@@ -24,7 +24,7 @@ use rusoto_kms::KmsClient;
 
 static KMS_CLIENT: OnceCell<KmsClient> = OnceCell::new();
 
-type ConcreteReplica = EthereumReplica<SignerMiddleware<Provider<Http>, Signers>>;
+type ConcreteInbox = EthereumInbox<SignerMiddleware<Provider<Http>, Signers>>;
 
 #[derive(StructOpt, Debug)]
 pub struct ProveCommand {
@@ -36,9 +36,9 @@ pub struct ProveCommand {
     #[structopt(long, required_unless = "leaf")]
     leaf_index: Option<u32>,
 
-    /// The name of the home chain, used to lookup keys in the db
+    /// The name of the outbox chain, used to lookup keys in the db
     #[structopt(long)]
-    home_name: String,
+    outbox_name: String,
 
     /// Path to db containing proof
     #[structopt(long)]
@@ -56,7 +56,7 @@ pub struct ProveCommand {
     #[structopt(long)]
     aws_region: Option<String>,
 
-    /// replica contract address
+    /// inbox contract address
     #[structopt(long)]
     address: Option<String>,
 
@@ -67,14 +67,14 @@ pub struct ProveCommand {
 
 impl ProveCommand {
     pub async fn run(&self) -> Result<()> {
-        let db = AbacusDB::new(&self.home_name, DB::from_path(&self.db_path)?);
+        let db = AbacusDB::new(&self.outbox_name, DB::from_path(&self.db_path)?);
         let (message, proof) = self.fetch_proof(db)?;
-        let replica = self.replica(message.origin, message.destination).await?;
+        let inbox = self.inbox(message.origin, message.destination).await?;
 
-        let status = replica.message_status(message.to_leaf()).await?;
+        let status = inbox.message_status(message.to_leaf()).await?;
         let outcome = match status {
-            MessageStatus::None => replica.prove_and_process(&message, &proof).await?,
-            MessageStatus::Proven => replica.process(&message).await?,
+            MessageStatus::None => inbox.prove_and_process(&message, &proof).await?,
+            MessageStatus::Proven => inbox.process(&message).await?,
             _ => {
                 println!("Message already processed.");
                 return Ok(());
@@ -127,7 +127,7 @@ impl ProveCommand {
         Ok((message, proof))
     }
 
-    async fn replica(&self, origin: u32, destination: u32) -> Result<ConcreteReplica> {
+    async fn inbox(&self, origin: u32, destination: u32) -> Result<ConcreteInbox> {
         // bit ugly. Tries passed-in rpc first, then defaults to lookup by
         // domain
         let provider = self
@@ -148,9 +148,9 @@ impl ProveCommand {
             .as_ref()
             .map(|addr| addr.parse::<H160>())
             .transpose()?
-            .unwrap_or_else(|| replicas::address_by_domain_pair(origin, destination).unwrap());
+            .unwrap_or_else(|| inboxes::address_by_domain_pair(origin, destination).unwrap());
 
-        Ok(EthereumReplica::new(
+        Ok(EthereumInbox::new(
             Arc::new(middleware),
             &ContractLocator {
                 name: "".into(),

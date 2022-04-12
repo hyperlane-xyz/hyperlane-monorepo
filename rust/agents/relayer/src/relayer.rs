@@ -20,7 +20,7 @@ pub struct Relayer {
     relayer_message_processing: bool,
     checkpoint_syncer: CheckpointSyncers,
     core: AbacusAgentCore,
-    updates_relayed_count: Arc<prometheus::IntCounterVec>,
+    checkpoints_relayed_count: Arc<prometheus::IntCounterVec>,
 }
 
 impl AsRef<AbacusAgentCore> for Relayer {
@@ -40,12 +40,12 @@ impl Relayer {
         checkpoint_syncer: CheckpointSyncers,
         core: AbacusAgentCore,
     ) -> Self {
-        let updates_relayed_count = Arc::new(
+        let checkpoints_relayed_count = Arc::new(
             core.metrics
                 .new_int_counter(
-                    "updates_relayed_count",
-                    "Number of updates relayed from given home to replica",
-                    &["home", "replica", "agent"],
+                    "checkpoints_relayed_count",
+                    "Number of checkpoints relayed from given outbox to inbox",
+                    &["outbox", "inbox", "agent"],
                 )
                 .expect("processor metric already registered -- should have be a singleton"),
         );
@@ -57,7 +57,7 @@ impl Relayer {
             relayer_message_processing,
             checkpoint_syncer,
             core,
-            updates_relayed_count,
+            checkpoints_relayed_count,
         }
     }
 }

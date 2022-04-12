@@ -19,7 +19,7 @@
     "ts-node": "^10.1.0",
     "typechain": "^5.0.0"
   },
-  "version": "0.0.1",
+  "version": "0.0.3",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "directories": {
@@ -34,7 +34,7 @@
   },
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "@abacus-network/utils": "^0.0.5",
+    "@abacus-network/utils": "^0.0.7",
     "@openzeppelin/contracts": "^3.4.2",
     "@openzeppelin/contracts-upgradeable": "~3.4.2",
     "@summa-tx/memview-sol": "^2.0.0",

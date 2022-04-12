@@ -50,7 +50,7 @@ impl<M> EthereumInboxIndexer<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
-    /// Create new EthereumHomeIndexer
+    /// Create new EthereumInboxIndexer
     pub fn new(
         provider: Arc<M>,
         ContractLocator {

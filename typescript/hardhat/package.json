@@ -1,7 +1,7 @@
 {
   "prepublish": "npm run build",
   "name": "@abacus-network/hardhat",
-  "version": "0.0.5",
+  "version": "0.0.8",
   "description": "Abacus hardhat tools",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -12,8 +12,8 @@
   },
   "license": "MIT OR Apache-2.0",
   "dependencies": {
-    "@abacus-network/core": "file:../../solidity/core",
-    "@abacus-network/utils": "^0.0.5",
+    "@abacus-network/core": "^0.0.3",
+    "@abacus-network/utils": "^0.0.7",
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
     "@typechain/hardhat": "^2.0.1",
