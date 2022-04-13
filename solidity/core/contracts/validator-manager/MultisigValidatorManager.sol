@@ -56,6 +56,7 @@ abstract contract MultisigValidatorManager is Ownable {
     // ============ Constructor ============
 
     /**
+     * @dev Reverts if `_validatorSet` has any duplicates.
      * @param _outboxDomain The domain of the outbox the validator set is for.
      * @param _validatorSet The set of validator addresses.
      * @param _quorumThreshold The quorum threshold. Must be greater than or equal
@@ -109,7 +110,7 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Gets the addresses of the current validator set.
-     * @dev There ordering guarantee due to the semantics of EnumerableSet.AddressSet.
+     * @dev There are no ordering guarantees due to the semantics of EnumerableSet.AddressSet.
      * @return The addresses of the validator set.
      */
     function validatorSet() external view returns (address[] memory) {
