@@ -25,7 +25,6 @@ export class AbacusCore extends AbacusApp<
     } else {
       _addresses = addressesOrEnv;
     }
-    console.log(_addresses);
     const chains = Object.keys(_addresses) as ChainName[];
     chains.map((chain) => {
       this.registerDomain(domains[chain]);
