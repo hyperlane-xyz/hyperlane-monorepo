@@ -25,7 +25,7 @@ contract OutboxMultisigValidatorManager is MultisigValidatorManager {
      */
     event ImproperCheckpoint(
         address indexed outbox,
-        bytes32 indexed root,
+        bytes32 root,
         uint256 index,
         bytes[] signatures
     );

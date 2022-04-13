@@ -26,18 +26,10 @@ describe('MultisigValidatorManager', async () => {
   before(async () => {
     const signers = await ethers.getSigners();
     [signer, nonOwner] = signers;
-    const [
-      ,
-      ,
-      validatorSigner0,
-      validatorSigner1,
-      validatorSigner2,
-      validatorSigner3,
-    ] = signers;
-    validator0 = await Validator.fromSigner(validatorSigner0, OUTBOX_DOMAIN);
-    validator1 = await Validator.fromSigner(validatorSigner1, OUTBOX_DOMAIN);
-    validator2 = await Validator.fromSigner(validatorSigner2, OUTBOX_DOMAIN);
-    validator3 = await Validator.fromSigner(validatorSigner3, OUTBOX_DOMAIN);
+    validator0 = await Validator.fromSigner(signers[2], OUTBOX_DOMAIN);
+    validator1 = await Validator.fromSigner(signers[3], OUTBOX_DOMAIN);
+    validator2 = await Validator.fromSigner(signers[4], OUTBOX_DOMAIN);
+    validator3 = await Validator.fromSigner(signers[5], OUTBOX_DOMAIN);
   });
 
   beforeEach(async () => {
