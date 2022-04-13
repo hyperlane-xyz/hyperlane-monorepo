@@ -77,7 +77,7 @@ describe('MultisigValidatorManager', async () => {
     it('emits the EnrollValidator event', async () => {
       expect(await validatorManager.enrollValidator(validator1.address))
         .to.emit(validatorManager, 'EnrollValidator')
-        .withArgs(validator1.address);
+        .withArgs(validator1.address, 2);
     });
 
     it('reverts if the validator is already enrolled', async () => {
@@ -110,7 +110,7 @@ describe('MultisigValidatorManager', async () => {
     it('emits the UnenrollValidator event', async () => {
       expect(await validatorManager.unenrollValidator(validator1.address))
         .to.emit(validatorManager, 'UnenrollValidator')
-        .withArgs(validator1.address);
+        .withArgs(validator1.address, 1);
     });
 
     it('reverts if the resulting validator set size will be less than the quorum threshold', async () => {

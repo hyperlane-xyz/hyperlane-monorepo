@@ -38,14 +38,16 @@ abstract contract MultisigValidatorManager is Ownable {
     /**
      * @notice Emitted when a validator is enrolled in the validator set.
      * @param validator The address of the validator.
+     * @param validatorCount The new number of enrolled validators in the validator set.
      */
-    event EnrollValidator(address indexed validator);
+    event EnrollValidator(address indexed validator, uint256 validatorCount);
 
     /**
      * @notice Emitted when a validator is unenrolled from the validator set.
      * @param validator The address of the validator.
+     * @param validatorCount The new number of enrolled validators in the validator set.
      */
-    event UnenrollValidator(address indexed validator);
+    event UnenrollValidator(address indexed validator, uint256 validatorCount);
 
     /**
      * @notice Emitted when the quorum threshold is set.
@@ -122,14 +124,6 @@ abstract contract MultisigValidatorManager is Ownable {
         return _validators;
     }
 
-    /**
-     * @notice Returns the number of validators enrolled in the validator set.
-     * @return The number of validators enrolled in the validator set.
-     */
-    function validatorCount() external view returns (uint256) {
-        return validatorSet.length();
-    }
-
     // ============ Public Functions ============
 
     /**
@@ -187,6 +181,14 @@ abstract contract MultisigValidatorManager is Ownable {
         return validatorSet.contains(_validator);
     }
 
+    /**
+     * @notice Returns the number of validators enrolled in the validator set.
+     * @return The number of validators enrolled in the validator set.
+     */
+    function validatorCount() public view returns (uint256) {
+        return validatorSet.length();
+    }
+
     // ============ Internal Functions ============
 
     /**
@@ -214,7 +216,7 @@ abstract contract MultisigValidatorManager is Ownable {
      */
     function _enrollValidator(address _validator) internal {
         require(validatorSet.add(_validator), "already enrolled");
-        emit EnrollValidator(_validator);
+        emit EnrollValidator(_validator, validatorCount());
     }
 
     /**
@@ -225,9 +227,10 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to remove from the validator set.
      */
     function _unenrollValidator(address _validator) internal {
-        require(validatorSet.length() > threshold, "violates quorum threshold");
         require(validatorSet.remove(_validator), "!enrolled");
-        emit UnenrollValidator(_validator);
+        uint256 _numValidators = validatorCount();
+        require(_numValidators >= threshold, "violates quorum threshold");
+        emit UnenrollValidator(_validator, _numValidators);
     }
 
     /**
@@ -235,10 +238,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _threshold The new quorum threshold.
      */
     function _setThreshold(uint256 _threshold) internal {
-        require(
-            _threshold > 0 && _threshold <= validatorSet.length(),
-            "!range"
-        );
+        require(_threshold > 0 && _threshold <= validatorCount(), "!range");
         threshold = _threshold;
         emit SetThreshold(_threshold);
     }
