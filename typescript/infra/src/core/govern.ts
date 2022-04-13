@@ -10,6 +10,7 @@ import {
   AbacusCoreChecker,
   CoreViolationType,
   ValidatorViolation,
+  ValidatorViolationType,
 } from './check';
 import { CoreConfig } from './types';
 import { MultisigValidatorManager__factory } from '@abacus-network/core';
@@ -72,31 +73,35 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
     const domain = violation.domain;
     const provider = this.app.mustGetProvider(domain);
 
-    const multisigValidatorManager = MultisigValidatorManager__factory.connect(
-      violation.data.multisigValidatorManagerAddress,
+    const validatorManager = MultisigValidatorManager__factory.connect(
+      violation.data.validatorManagerAddress,
       provider,
     );
 
     let tx: PopulatedTransaction;
 
-    // Enrolling a new validator
-    if (violation.actual === undefined && violation.expected !== undefined) {
-      tx = await multisigValidatorManager.populateTransaction.enrollValidator(
-        violation.expected,
-      );
-    } else if (
-      violation.actual !== undefined &&
-      violation.expected === undefined
-    ) {
-      // Unenrolling an existing validator
-      tx = await multisigValidatorManager.populateTransaction.unenrollValidator(
-        violation.actual,
-      );
-    } else {
-      // Invalid state
-      throw new Error(
-        `Expected exactly one of actual ${violation.actual} or expected ${violation.expected} to be undefined`,
-      );
+    switch (violation.data.type) {
+      case ValidatorViolationType.EnrollValidator:
+        // Enrolling a new validator
+        tx = await validatorManager.populateTransaction.enrollValidator(
+          violation.expected,
+        );
+        break;
+      case ValidatorViolationType.UnenrollValidator:
+        // Unenrolling an existing validator
+        tx = await validatorManager.populateTransaction.unenrollValidator(
+          violation.actual,
+        );
+        break;
+      case ValidatorViolationType.Threshold:
+        tx = await validatorManager.populateTransaction.setThreshold(
+          violation.expected,
+        );
+        break;
+      default:
+        throw new Error(
+          `Invalid validator violation type: ${violation.data.type}`,
+        );
     }
 
     if (tx.to === undefined) throw new Error('undefined tx.to');

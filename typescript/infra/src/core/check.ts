@@ -11,6 +11,12 @@ export enum CoreViolationType {
   Validator = 'Validator',
 }
 
+export enum ValidatorViolationType {
+  EnrollValidator = 'EnrollValidator',
+  UnenrollValidator = 'UnenrollValidator',
+  Threshold = 'Threshold',
+}
+
 export interface ValidatorManagerViolation extends CheckerViolation {
   type: CoreViolationType.ValidatorManager;
 }
@@ -18,7 +24,8 @@ export interface ValidatorManagerViolation extends CheckerViolation {
 export interface ValidatorViolation extends CheckerViolation {
   type: CoreViolationType.Validator;
   data: {
-    multisigValidatorManagerAddress: string;
+    type: ValidatorViolationType;
+    validatorManagerAddress: string;
   };
 }
 
@@ -89,23 +96,19 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   // InboxValidatorManagers on the domain.
   async checkValidatorManagers(domain: types.Domain): Promise<void> {
     const promises = this.app.domainNumbers.map((outboxDomain: number) => {
-      let multisigValidatorManager: MultisigValidatorManager;
+      let validatorManager: MultisigValidatorManager;
       // Check the OutboxValidatorManager
       if (domain === outboxDomain) {
-        multisigValidatorManager =
+        validatorManager =
           this.app.mustGetContracts(domain).outboxValidatorManager;
       } else {
         // Check an InboxValidatorManager
-        multisigValidatorManager = this.app.mustGetInboxValidatorManager(
+        validatorManager = this.app.mustGetInboxValidatorManager(
           outboxDomain,
           domain,
         );
       }
-      return this.checkMultisigValidatorManager(
-        domain,
-        outboxDomain,
-        multisigValidatorManager,
-      );
+      return this.checkValidatorManager(domain, outboxDomain, validatorManager);
     });
 
     await Promise.all(promises);
@@ -115,21 +118,24 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   // the validator set for the outboxDomain.
   // If localDomain == outboxDomain, this checks the OutboxValidatorManager, otherwise
   // it checks an InboxValidatorManager.
-  async checkMultisigValidatorManager(
+  async checkValidatorManager(
     localDomain: types.Domain,
     outboxDomain: types.Domain,
-    multisigValidatorManager: MultisigValidatorManager,
+    validatorManager: MultisigValidatorManager,
   ): Promise<void> {
     const outboxDomainName = this.app.mustResolveDomainName(outboxDomain);
-    const expected =
-      this.config.validatorManagers[outboxDomainName]?.validators;
-    expect(expected).to.not.be.undefined;
+    const validatorManagerConfig =
+      this.config.validatorManagers[outboxDomainName];
+    expect(validatorManagerConfig).to.not.be.undefined;
 
-    const actual = await multisigValidatorManager.validators();
-    expect(actual).to.not.be.undefined;
+    const expectedValidators = validatorManagerConfig?.validators;
+    expect(expectedValidators).to.not.be.undefined;
 
-    const expectedSet = new Set<string>(expected);
-    const actualSet = new Set<string>(actual);
+    const actualValidators = await validatorManager.validators();
+    expect(actualValidators).to.not.be.undefined;
+
+    const expectedSet = new Set<string>(expectedValidators);
+    const actualSet = new Set<string>(actualValidators);
 
     const toEnroll = setDifference(expectedSet, actualSet);
     const toUnenroll = setDifference(actualSet, expectedSet);
@@ -142,7 +148,8 @@ export class AbacusCoreChecker extends AbacusAppChecker<
         actual: undefined,
         expected: validatorToEnroll,
         data: {
-          multisigValidatorManagerAddress: multisigValidatorManager.address,
+          type: ValidatorViolationType.EnrollValidator,
+          validatorManagerAddress: validatorManager.address,
         },
       };
       this.addViolation(violation);
@@ -156,7 +163,27 @@ export class AbacusCoreChecker extends AbacusAppChecker<
         actual: validatorToUnenroll,
         expected: undefined,
         data: {
-          multisigValidatorManagerAddress: multisigValidatorManager.address,
+          type: ValidatorViolationType.UnenrollValidator,
+          validatorManagerAddress: validatorManager.address,
+        },
+      };
+      this.addViolation(violation);
+    }
+
+    const expectedThreshold = validatorManagerConfig?.threshold;
+    expect(expectedThreshold).to.not.be.undefined;
+
+    const actualThreshold = await validatorManager.threshold();
+
+    if (expectedThreshold !== actualThreshold.toNumber()) {
+      const violation: ValidatorViolation = {
+        domain: localDomain,
+        type: CoreViolationType.Validator,
+        actual: actualThreshold,
+        expected: expectedThreshold,
+        data: {
+          type: ValidatorViolationType.Threshold,
+          validatorManagerAddress: validatorManager.address,
         },
       };
       this.addViolation(violation);
