@@ -63,11 +63,9 @@ function fixOverrides(config: TransactionConfig): ethers.Overrides {
 export const registerDomains = (
   multiProvider: MultiProvider,
   domainNames: ChainName[],
-) => {
-  domainNames.forEach((name) => {
-    multiProvider.registerDomain(domains[name]);
-  });
-};
+) => domainNames.forEach((name) =>
+    multiProvider.registerDomain(domains[name])
+);
 
 export const registerTransactionConfigs = (
   multiProvider: MultiProvider,
