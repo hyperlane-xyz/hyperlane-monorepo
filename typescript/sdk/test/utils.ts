@@ -8,8 +8,8 @@ export const testAddresses = {
     upgradeBeaconController: ZERO_ADDRESS,
     xAppConnectionManager: ZERO_ADDRESS,
     interchainGasPaymaster: ZERO_ADDRESS,
-    outboxMultisigValidatorManager: ZERO_ADDRESS,
-    inboxMultisigValidatorManagers: {
+    outboxValidatorManager: ZERO_ADDRESS,
+    inboxValidatorManagers: {
       test2: ZERO_ADDRESS,
     },
     outbox: {
@@ -29,8 +29,8 @@ export const testAddresses = {
     upgradeBeaconController: ZERO_ADDRESS,
     xAppConnectionManager: ZERO_ADDRESS,
     interchainGasPaymaster: ZERO_ADDRESS,
-    outboxMultisigValidatorManager: ZERO_ADDRESS,
-    inboxMultisigValidatorManagers: {
+    outboxValidatorManager: ZERO_ADDRESS,
+    inboxValidatorManagers: {
       test1: ZERO_ADDRESS,
     },
     outbox: {

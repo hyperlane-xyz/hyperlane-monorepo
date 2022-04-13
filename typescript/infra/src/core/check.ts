@@ -44,7 +44,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     await this.checkOutbox(domain);
     await this.checkInboxes(domain);
     await this.checkXAppConnectionManager(domain);
-    await this.checkMultisigValidatorManagers(domain);
+    await this.checkValidatorManagers(domain);
   }
 
   async checkOwnership(
@@ -56,12 +56,12 @@ export class AbacusCoreChecker extends AbacusAppChecker<
       contracts.xAppConnectionManager.owner(),
       contracts.upgradeBeaconController.owner(),
       contracts.outbox.owner(),
-      contracts.outboxMultisigValidatorManager.owner(),
+      contracts.outboxValidatorManager.owner(),
     ];
     this.app.remoteDomainNumbers(domain).map((remote) => {
       owners.push(this.app.mustGetInbox(remote, domain).owner());
       owners.push(
-        this.app.mustGetInboxMultisigValidatorManager(remote, domain).owner(),
+        this.app.mustGetInboxValidatorManager(remote, domain).owner(),
       );
     });
     const actual = await Promise.all(owners);
@@ -73,7 +73,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     const outbox = contracts.outbox;
     // validatorManager is set on Outbox
     const actualManager = await outbox.validatorManager();
-    const expectedManager = contracts.outboxMultisigValidatorManager.address;
+    const expectedManager = contracts.outboxValidatorManager.address;
     if (actualManager !== expectedManager) {
       const violation: ValidatorManagerViolation = {
         domain,
@@ -87,17 +87,19 @@ export class AbacusCoreChecker extends AbacusAppChecker<
 
   // Checks validator sets of the OutboxMultisigValidatorManager and all
   // InboxMultisigValidatorManagers on the domain.
-  async checkMultisigValidatorManagers(domain: types.Domain): Promise<void> {
+  async checkValidatorManagers(domain: types.Domain): Promise<void> {
     const promises = this.app.domainNumbers.map((outboxDomain: number) => {
       let multisigValidatorManager: MultisigValidatorManager;
-      // Check the outboxMultisigValidatorManager
+      // Check the OutboxMultisigValidatorManager
       if (domain === outboxDomain) {
         multisigValidatorManager =
-          this.app.mustGetContracts(domain).outboxMultisigValidatorManager;
+          this.app.mustGetContracts(domain).outboxValidatorManager;
       } else {
-        // Check an inboxMultisigValidatorManager
-        multisigValidatorManager =
-          this.app.mustGetInboxMultisigValidatorManager(outboxDomain, domain);
+        // Check an InboxMultisigValidatorManager
+        multisigValidatorManager = this.app.mustGetInboxValidatorManager(
+          outboxDomain,
+          domain,
+        );
       }
       return this.checkMultisigValidatorManager(
         domain,
@@ -120,10 +122,10 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   ): Promise<void> {
     const outboxDomainName = this.app.mustResolveDomainName(outboxDomain);
     const expected =
-      this.config.multisigValidatorManagers[outboxDomainName]?.validatorSet;
+      this.config.validatorManagers[outboxDomainName]?.validators;
     expect(expected).to.not.be.undefined;
 
-    const actual = await multisigValidatorManager.validatorSet();
+    const actual = await multisigValidatorManager.validators();
     expect(actual).to.not.be.undefined;
 
     const expectedSet = new Set<string>(expected);
@@ -168,7 +170,10 @@ export class AbacusCoreChecker extends AbacusAppChecker<
 
     await Promise.all(
       this.app.remoteDomainNumbers(domain).map(async (remote) => {
-        const expectedValidatorManager = this.app.mustGetInboxMultisigValidatorManager(remote, domain);
+        const expectedValidatorManager = this.app.mustGetInboxValidatorManager(
+          remote,
+          domain,
+        );
         expect(
           await this.app.mustGetInbox(remote, domain).validatorManager(),
         ).to.equal(expectedValidatorManager.address);

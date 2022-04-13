@@ -25,8 +25,8 @@ export type CoreContractAddresses = {
   interchainGasPaymaster: types.Address;
   outbox: ProxiedAddress;
   inboxes: Partial<Record<ChainName, ProxiedAddress>>;
-  outboxMultisigValidatorManager: types.Address;
-  inboxMultisigValidatorManagers: Partial<Record<ChainName, types.Address>>;
+  outboxValidatorManager: types.Address;
+  inboxValidatorManagers: Partial<Record<ChainName, types.Address>>;
 };
 
 export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
@@ -38,16 +38,13 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
     return Inbox__factory.connect(inbox.proxy, this.connection);
   }
 
-  inboxMultisigValidatorManager(
-    chain: ChainName,
-  ): InboxMultisigValidatorManager {
-    const inboxMultisigValidatorManager =
-      this.addresses.inboxMultisigValidatorManagers[chain];
-    if (!inboxMultisigValidatorManager) {
-      throw new Error(`No inboxMultisigValidatorManager for ${chain}`);
+  inboxValidatorManager(chain: ChainName): InboxMultisigValidatorManager {
+    const inboxValidatorManager = this.addresses.inboxValidatorManagers[chain];
+    if (!inboxValidatorManager) {
+      throw new Error(`No inboxValidatorManager for ${chain}`);
     }
     return InboxMultisigValidatorManager__factory.connect(
-      inboxMultisigValidatorManager,
+      inboxValidatorManager,
       this.connection,
     );
   }
@@ -59,9 +56,9 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
     );
   }
 
-  get outboxMultisigValidatorManager(): OutboxMultisigValidatorManager {
+  get outboxValidatorManager(): OutboxMultisigValidatorManager {
     return OutboxMultisigValidatorManager__factory.connect(
-      this.addresses.outboxMultisigValidatorManager,
+      this.addresses.outboxValidatorManager,
       this.connection,
     );
   }
