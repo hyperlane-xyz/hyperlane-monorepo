@@ -46,7 +46,7 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   async checkOwnership(
     domain: types.Domain,
     owner: types.Address,
-    ownables: Ownable[]
+    ownables: Ownable[],
   ): Promise<void> {
     const owners = ownables.map((o) => o.owner());
     (await Promise.all(owners)).map((_) => expect(_).to.equal(owner));

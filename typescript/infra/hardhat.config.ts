@@ -61,9 +61,9 @@ task('abacus', 'Deploys abacus on top of an already running Harthat Network')
   .setAction(async (args: any) => {
     const environment = args.environment;
     const deployer = new AbacusCoreDeployer();
-    const environmentConfig = await getCoreEnvironmentConfig(environment)
-    await deployUtils.registerEnvironment(deployer, environmentConfig)
-    await deployUtils.registerHardhatSigner(deployer)
+    const environmentConfig = await getCoreEnvironmentConfig(environment);
+    await deployUtils.registerEnvironment(deployer, environmentConfig);
+    await deployUtils.registerHardhatSigner(deployer);
     await deployer.deploy(environmentConfig.core);
 
     // Write configs
@@ -80,9 +80,9 @@ task('kathy', 'Dispatches random abacus messages')
   .setAction(async (args: any, hre: HardhatRuntimeEnvironment) => {
     const environment = args.environment;
     const core = new AbacusCore(coreAddresses[environment]);
-    const environmentConfig = await getCoreEnvironmentConfig(environment)
-    await deployUtils.registerEnvironment(core, environmentConfig)
-    await deployUtils.registerHardhatSigner(core)
+    const environmentConfig = await getCoreEnvironmentConfig(environment);
+    await deployUtils.registerEnvironment(core, environmentConfig);
+    await deployUtils.registerHardhatSigner(core);
     const randomElement = (list: types.Domain[]) =>
       list[Math.floor(Math.random() * list.length)];
 

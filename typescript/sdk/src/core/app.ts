@@ -11,16 +11,21 @@ export class AbacusCore extends AbacusApp<
   CoreContractAddresses,
   CoreContracts
 > {
-  constructor(addressesOrEnv: Partial<Record<ChainName, CoreContractAddresses>> | string) {
+  constructor(
+    addressesOrEnv: Partial<Record<ChainName, CoreContractAddresses>> | string,
+  ) {
     super();
-    let _addresses: Partial<Record<ChainName, CoreContractAddresses>> = {}
+    let _addresses: Partial<Record<ChainName, CoreContractAddresses>> = {};
     if (typeof addressesOrEnv == 'string') {
       _addresses = addresses[addressesOrEnv];
-      if (!_addresses) throw new Error(`addresses for environment ${addressesOrEnv} not found`)
+      if (!_addresses)
+        throw new Error(
+          `addresses for environment ${addressesOrEnv} not found`,
+        );
     } else {
       _addresses = addressesOrEnv;
     }
-    console.log(_addresses)
+    console.log(_addresses);
     const chains = Object.keys(_addresses) as ChainName[];
     chains.map((chain) => {
       this.registerDomain(domains[chain]);

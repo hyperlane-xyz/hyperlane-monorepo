@@ -1,7 +1,12 @@
 import yargs from 'yargs';
 import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-import { AbacusCore, ChainName, domains, MultiProvider } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  ChainName,
+  domains,
+  MultiProvider,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { TransactionConfig, EnvironmentConfig } from './config';
 import { RouterConfig } from './router';
@@ -19,7 +24,9 @@ export async function importModule(moduleName: string): Promise<any> {
   return importedModule;
 }
 
-export async function getEnvironmentConfig<E extends EnvironmentConfig>(moduleName: string): Promise<E> {
+export async function getEnvironmentConfig<E extends EnvironmentConfig>(
+  moduleName: string,
+): Promise<E> {
   return importModule(moduleName);
 }
 
@@ -27,9 +34,7 @@ export async function getEnvironment(): Promise<string> {
   return (await getArgs().argv).e as Promise<string>;
 }
 
-export function getRouterConfig(
-  core: AbacusCore,
-): RouterConfig {
+export function getRouterConfig(core: AbacusCore): RouterConfig {
   const xAppConnectionManager: Record<string, types.Address> = {};
   core.domainNames.map((name) => {
     const contracts = core.mustGetContracts(name);
@@ -129,11 +134,11 @@ export const getTestConnectionManagers = (multiProvider: MultiProvider) => {
     xAppConnectionManagers[name] = ethers.constants.AddressZero;
   });
   return xAppConnectionManagers;
-}
+};
 
 export const getHardhatSigner = (): ethers.Signer => {
-    // Hardhat account 0
-    const key =
+  // Hardhat account 0
+  const key =
     '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
   const provider = new ethers.providers.JsonRpcProvider(
     'http://localhost:8545',
@@ -141,10 +146,8 @@ export const getHardhatSigner = (): ethers.Signer => {
 
   const wallet = new ethers.Wallet(key, provider);
   return new NonceManager(wallet);
-}
+};
 
-export const registerHardhatSigner = (
-  multiProvider: MultiProvider,
-) => {
-  registerSigner(multiProvider, getHardhatSigner())
+export const registerHardhatSigner = (multiProvider: MultiProvider) => {
+  registerSigner(multiProvider, getHardhatSigner());
 };

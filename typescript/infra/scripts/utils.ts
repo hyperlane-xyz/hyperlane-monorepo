@@ -1,20 +1,21 @@
 import path from 'path';
 // import fs from 'fs';
-import {
-  ALL_CHAIN_NAMES,
-} from '@abacus-network/sdk';
+import { ALL_CHAIN_NAMES } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/deploy';
 import { KEY_ROLE_ENUM } from '../src/agents';
-import {
-  CoreEnvironmentConfig,
-  DeployEnvironment,
-} from '../src/config';
+import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
+
+export function getEnvironment(): Promise<DeployEnvironment> {
+  return utils.getEnvironment() as Promise<DeployEnvironment>;
+}
 
 export function moduleName(environment: DeployEnvironment) {
   return `../config/environments/${environment}`;
 }
 
-export async function getCoreEnvironmentConfig(environment: DeployEnvironment): Promise<CoreEnvironmentConfig> {
+export async function getCoreEnvironmentConfig(
+  environment: DeployEnvironment,
+): Promise<CoreEnvironmentConfig> {
   return (await import(moduleName(environment))).environment;
 }
 

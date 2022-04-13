@@ -3,14 +3,12 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
 import { AbacusGovernance } from '@abacus-network/sdk';
-import { registerHardhatEnvironment } from '@abacus-network/deploy';
+import { utils } from '@abacus-network/deploy';
 import {
   AbacusGovernanceDeployer,
   AbacusGovernanceChecker,
 } from '../src/governance';
-import {
-  environment,
-} from '../config/environments/test';
+import { environment } from '../config/environments/test';
 
 describe('governance', async () => {
   const deployer = new AbacusGovernanceDeployer();
@@ -19,7 +17,7 @@ describe('governance', async () => {
 
   before(async () => {
     const [signer] = await ethers.getSigners();
-    registerHardhatEnvironment(deployer, environment, signer);
+    utils.registerHardhatEnvironment(deployer, environment, signer);
 
     deployer.domainNumbers.map((domain) => {
       const name = deployer.mustResolveDomainName(domain);
@@ -51,7 +49,7 @@ describe('governance', async () => {
   it('checks', async () => {
     const governance = new AbacusGovernance(deployer.addressesRecord);
     const [signer] = await ethers.getSigners();
-    registerHardhatEnvironment(governance, environment, signer);
+    utils.registerHardhatEnvironment(governance, environment, signer);
 
     const checker = new AbacusGovernanceChecker(governance, governanceConfig);
     await checker.check(owners);

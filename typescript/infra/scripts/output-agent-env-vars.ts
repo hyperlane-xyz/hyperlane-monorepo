@@ -1,10 +1,9 @@
 import { writeFile } from 'fs/promises';
 import { getAgentEnvVars } from '../src/agents';
 import {
-  getKeyRoleAndChainArgs,
-  getAgentConfig,
   getEnvironment,
-  getDomainNames,
+  getCoreEnvironmentConfig,
+  getKeyRoleAndChainArgs,
 } from './utils';
 
 async function main() {
@@ -16,13 +15,12 @@ async function main() {
     .require('f').argv;
 
   const environment = await getEnvironment();
-  const agentConfig = await getAgentConfig(environment);
-  const domainNames = await getDomainNames(environment);
+  const config = await getCoreEnvironmentConfig(environment);
   const envVars = await getAgentEnvVars(
     argv.c,
     argv.r,
-    agentConfig,
-    domainNames,
+    config.agent,
+    config.domains,
   );
 
   await writeFile(argv.f, envVars.join('\n'));

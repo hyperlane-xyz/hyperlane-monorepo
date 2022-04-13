@@ -1,12 +1,15 @@
 import { runKeymasterHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
-import { getAgentConfig, getDomainNames, getEnvironment } from './utils';
+import { getEnvironment, getCoreEnvironmentConfig } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const domainNames = await getDomainNames(environment);
-  const agentConfig = await getAgentConfig(environment);
-  return runKeymasterHelmCommand(HelmCommand.Install, agentConfig, domainNames);
+  const config = await getCoreEnvironmentConfig(environment);
+  return runKeymasterHelmCommand(
+    HelmCommand.Install,
+    config.agent,
+    config.domains,
+  );
 }
 
 main().then(console.log).catch(console.error);

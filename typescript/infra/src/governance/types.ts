@@ -4,7 +4,7 @@ import { RouterConfig } from '@abacus-network/deploy';
 
 export type GovernanceConfigAddresses = {
   recoveryManager: types.Address;
-  governor?: types.Address;
+  governor: types.Address;
 };
 
 export type GovernanceConfig = RouterConfig & {

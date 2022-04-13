@@ -17,4 +17,4 @@ export {
   EnvironmentConfig,
   TransactionConfig,
 } from './config';
-export * as utils from './utils'
+export * as utils from './utils';

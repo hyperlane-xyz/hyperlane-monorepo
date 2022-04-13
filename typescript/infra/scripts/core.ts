@@ -1,20 +1,19 @@
+import { utils } from '@abacus-network/deploy';
 import {
   getEnvironment,
-  getCoreConfig,
+  getCoreEnvironmentConfig,
   getCoreContractsSdkFilepath,
   getCoreRustDirectory,
   getCoreVerificationDirectory,
-  registerMultiProvider,
 } from './utils';
 import { AbacusCoreDeployer } from '../src/core';
 
 async function main() {
   const environment = await getEnvironment();
   const deployer = new AbacusCoreDeployer();
-  await registerMultiProvider(deployer, environment);
-
-  const config = await getCoreConfig(environment);
-  await deployer.deploy(config);
+  const config = await getCoreEnvironmentConfig(environment);
+  await utils.registerEnvironment(deployer, config);
+  await deployer.deploy(config.core);
 
   deployer.writeContracts(getCoreContractsSdkFilepath(environment));
   deployer.writeVerification(getCoreVerificationDirectory(environment));

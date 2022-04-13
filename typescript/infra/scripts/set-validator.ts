@@ -1,21 +1,17 @@
-import {
-  AbacusCore,
-  AbacusGovernance,
-  coreAddresses,
-  governanceAddresses,
-} from '@abacus-network/sdk';
-import { getCoreConfig, getEnvironment, registerMultiProvider } from './utils';
+import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+import { utils } from '@abacus-network/deploy';
+import { getEnvironment, getCoreEnvironmentConfig } from './utils';
 import { AbacusCoreGovernor, CoreViolationType } from '../src/core';
 
 async function main() {
   const environment = await getEnvironment();
-  const core = new AbacusCore(coreAddresses[environment]);
-  const governance = new AbacusGovernance(governanceAddresses[environment]);
-  registerMultiProvider(core, environment);
-  registerMultiProvider(governance, environment);
+  const core = new AbacusCore(environment);
+  const governance = new AbacusGovernance(environment);
+  const config = await getCoreEnvironmentConfig(environment);
+  utils.registerEnvironment(core, config);
+  utils.registerEnvironment(governance, config);
 
-  const config = await getCoreConfig(environment);
-  const governor = new AbacusCoreGovernor(core, config, governance);
+  const governor = new AbacusCoreGovernor(core, config.core, governance);
   await governor.check();
   // Sanity check: for each domain, expect one validator violation.
   governor.expectViolations(

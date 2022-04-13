@@ -3,7 +3,7 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
-import { registerHardhatEnvironment } from '@abacus-network/deploy';
+import { utils } from '@abacus-network/deploy';
 import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
 import { environment } from '../config/environments/test';
 
@@ -14,7 +14,7 @@ describe('core', async () => {
   const owners: Record<types.Domain, types.Address> = {};
   before(async () => {
     const [signer, owner] = await ethers.getSigners();
-    registerHardhatEnvironment(deployer, environment, signer);
+    utils.registerHardhatEnvironment(deployer, environment, signer);
     deployer.domainNumbers.map((d) => {
       owners[d] = owner.address;
     });
@@ -34,7 +34,7 @@ describe('core', async () => {
   it('transfers ownership', async () => {
     core = new AbacusCore(deployer.addressesRecord);
     const [signer] = await ethers.getSigners();
-    registerHardhatEnvironment(core, environment, signer);
+    utils.registerHardhatEnvironment(core, environment, signer);
     await AbacusCoreDeployer.transferOwnership(core, owners);
   });
 

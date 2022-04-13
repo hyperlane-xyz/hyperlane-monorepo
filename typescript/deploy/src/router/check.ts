@@ -46,9 +46,7 @@ export abstract class AbacusRouterChecker<
     );
   }
 
-  ownables(
-    domain: types.Domain,
-  ): Ownable[] {
+  ownables(domain: types.Domain): Ownable[] {
     const ownables: Ownable[] = [this.mustGetRouter(domain)];
     // If the config specifies that a xAppConnectionManager should have been deployed,
     // it should be owned by the owner.

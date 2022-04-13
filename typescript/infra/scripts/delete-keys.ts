@@ -1,11 +1,11 @@
 import { deleteAgentGCPKeys } from '../src/agents/gcp';
-import { getEnvironment, getDomainNames } from './utils';
+import { getEnvironment, getCoreEnvironmentConfig } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const domainNames = await getDomainNames(environment);
+  const config = await getCoreEnvironmentConfig(environment);
 
-  return deleteAgentGCPKeys(environment, domainNames);
+  return deleteAgentGCPKeys(environment, config.domains);
 }
 
 main().then(console.log).catch(console.error);

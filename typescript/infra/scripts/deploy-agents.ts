@@ -1,18 +1,17 @@
-import { getAgentConfig, getDomainNames, getEnvironment } from './utils';
+import { getEnvironment, getCoreEnvironmentConfig } from './utils';
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
 async function deploy() {
   const environment = await getEnvironment();
-  const agentConfig = await getAgentConfig(environment);
-  const domainNames = await getDomainNames(environment);
+  const config = await getCoreEnvironmentConfig(environment);
   await Promise.all(
-    domainNames.map((name) => {
+    config.domains.map((name) => {
       return runAgentHelmCommand(
         HelmCommand.Upgrade,
-        agentConfig,
+        config.agent,
         name,
-        domainNames,
+        config.domains,
       );
     }),
   );

@@ -19,12 +19,20 @@ export class AbacusGovernance extends AbacusApp<
 > {
   readonly calls: Map<number, Readonly<Call>[]>;
 
-  constructor(addressesOrEnv: Partial<Record<ChainName, GovernanceContractAddresses>> | string) {
+  constructor(
+    addressesOrEnv:
+      | Partial<Record<ChainName, GovernanceContractAddresses>>
+      | string,
+  ) {
     super();
-    let _addresses: Partial<Record<ChainName, GovernanceContractAddresses>> = {}
+    let _addresses: Partial<Record<ChainName, GovernanceContractAddresses>> =
+      {};
     if (typeof addressesOrEnv == 'string') {
       _addresses = addresses[addressesOrEnv];
-      if (!_addresses) throw new Error(`addresses for environment ${addressesOrEnv} not found`)
+      if (!_addresses)
+        throw new Error(
+          `addresses for environment ${addressesOrEnv} not found`,
+        );
     } else {
       _addresses = addressesOrEnv;
     }

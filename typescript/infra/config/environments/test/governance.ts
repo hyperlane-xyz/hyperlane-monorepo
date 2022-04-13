@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { GovernanceConfig } from '../../../src/governance';
 
 export const governance: GovernanceConfig = {
@@ -9,12 +10,15 @@ export const governance: GovernanceConfig = {
     },
     kovan: {
       recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
+      governor: ethers.constants.AddressZero,
     },
     mumbai: {
       recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
+      governor: ethers.constants.AddressZero,
     },
     fuji: {
       recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
+      governor: ethers.constants.AddressZero,
     },
   },
 };

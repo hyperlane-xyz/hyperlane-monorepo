@@ -173,8 +173,8 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   }
 
   writeOutput(directory: string) {
-    this.writeContracts(path.join(directory, 'addresses.ts'))
-    this.writeVerification(path.join(directory, 'verification'))
+    this.writeContracts(path.join(directory, 'addresses.ts'));
+    this.writeVerification(path.join(directory, 'verification'));
   }
 
   writeContracts(filepath: string) {

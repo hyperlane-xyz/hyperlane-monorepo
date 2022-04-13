@@ -1,47 +1,35 @@
-import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
-import {
-  AbacusCore,
-  AbacusGovernance,
-  coreAddresses,
-  governanceAddresses,
-} from '@abacus-network/sdk';
+import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+import { utils } from '@abacus-network/deploy';
 
-import {
-  getCoreConfig,
-  getEnvironment,
-  getGovernanceConfig,
-  registerMultiProvider,
-} from './utils';
+import { getEnvironment, getCoreEnvironmentConfig } from './utils';
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusGovernanceChecker } from '../src/governance';
 
 async function check() {
   const environment = await getEnvironment();
-  const core = new AbacusCore(coreAddresses[environment]);
-  const governance = new AbacusGovernance(governanceAddresses[environment]);
-  registerMultiProvider(core, environment);
-  registerMultiProvider(governance, environment);
+  const core = new AbacusCore(environment);
+  const governance = new AbacusGovernance(environment);
+  const config = await getCoreEnvironmentConfig(environment);
+  await utils.registerEnvironment(core, config);
+  await utils.registerEnvironment(governance, config);
 
-  const governanceConfig = await getGovernanceConfig(environment, core);
   const governors: Record<types.Domain, types.Address> = {};
   governance.domainNumbers.map((domain) => {
     const addresses =
-      governanceConfig.addresses[governance.mustResolveDomainName(domain)];
+      config.governance.addresses[governance.mustResolveDomainName(domain)];
     if (!addresses) throw new Error('could not find addresses');
-    governors[domain] = addresses.governor
-      ? addresses.governor
-      : ethers.constants.AddressZero;
+    governors[domain] = addresses.governor;
   });
+
   const governanceChecker = new AbacusGovernanceChecker(
     governance,
-    governanceConfig,
+    config.governance,
   );
   await governanceChecker.check(governors);
   governanceChecker.expectEmpty();
 
-  const coreConfig = await getCoreConfig(environment);
-  const coreChecker = new AbacusCoreChecker(core, coreConfig);
+  const coreChecker = new AbacusCoreChecker(core, config.core);
   await coreChecker.check(governance.routerAddresses);
   coreChecker.expectEmpty();
 }

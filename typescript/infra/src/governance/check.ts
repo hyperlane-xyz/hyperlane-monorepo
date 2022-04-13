@@ -49,12 +49,10 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
     }
   }
 
-  ownables(
-    domain: types.Domain,
-  ): Ownable[] {
+  ownables(domain: types.Domain): Ownable[] {
     const ownables = super.ownables(domain);
-    ownables.push(this.app.mustGetContracts(domain).upgradeBeaconController)
-    return ownables
+    ownables.push(this.app.mustGetContracts(domain).upgradeBeaconController);
+    return ownables;
   }
 
   async checkRecoveryManager(domain: types.Domain): Promise<void> {
