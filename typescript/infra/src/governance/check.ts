@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import { GovernanceRouter } from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 import { AbacusGovernance } from '@abacus-network/sdk';
-import { AbacusRouterChecker } from '@abacus-network/deploy';
+import { AbacusRouterChecker, Ownable } from '@abacus-network/deploy';
 
 import { GovernanceConfig } from './types';
 
@@ -47,6 +47,14 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
     } else {
       expect(actual).to.equal(ethers.constants.AddressZero);
     }
+  }
+
+  ownables(
+    domain: types.Domain,
+  ): Ownable[] {
+    const ownables = super.ownables(domain);
+    ownables.push(this.app.mustGetContracts(domain).upgradeBeaconController)
+    return ownables
   }
 
   async checkRecoveryManager(domain: types.Domain): Promise<void> {

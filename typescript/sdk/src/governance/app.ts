@@ -5,6 +5,7 @@ import { domains } from '../domains';
 import { ChainName } from '../types';
 
 import { GovernanceContracts, GovernanceContractAddresses } from './contracts';
+import { addresses } from './environments';
 import { Call, normalizeCall, associateCalls } from './utils';
 
 export type Governor = {
@@ -18,15 +19,20 @@ export class AbacusGovernance extends AbacusApp<
 > {
   readonly calls: Map<number, Readonly<Call>[]>;
 
-  constructor(
-    addresses: Partial<Record<ChainName, GovernanceContractAddresses>>,
-  ) {
+  constructor(addressesOrEnv: Partial<Record<ChainName, GovernanceContractAddresses>> | string) {
     super();
-    const chains = Object.keys(addresses) as ChainName[];
+    let _addresses: Partial<Record<ChainName, GovernanceContractAddresses>> = {}
+    if (typeof addressesOrEnv == 'string') {
+      _addresses = addresses[addressesOrEnv];
+      if (!_addresses) throw new Error(`addresses for environment ${addressesOrEnv} not found`)
+    } else {
+      _addresses = addressesOrEnv;
+    }
+    const chains = Object.keys(_addresses) as ChainName[];
     chains.map((chain) => {
       this.registerDomain(domains[chain]);
       const domain = this.resolveDomain(chain);
-      this.contracts.set(domain, new GovernanceContracts(addresses[chain]!));
+      this.contracts.set(domain, new GovernanceContracts(_addresses[chain]!));
     });
     this.calls = new Map();
   }

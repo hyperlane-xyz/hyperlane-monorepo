@@ -1,9 +1,9 @@
 import { expect } from 'chai';
 import { utils, types } from '@abacus-network/utils';
 import { AbacusApp } from '@abacus-network/sdk';
-import { AbacusAppChecker } from '../check';
 
-import { Router, RouterConfig } from './types';
+import { AbacusAppChecker, Ownable } from '../check';
+import { RouterConfig, Router } from './types';
 
 export abstract class AbacusRouterChecker<
   A extends AbacusApp<any, any>,
@@ -12,12 +12,17 @@ export abstract class AbacusRouterChecker<
   abstract mustGetRouter(domain: types.Domain): Router;
 
   async check(
-    owners: Partial<Record<types.Domain, types.Address>>,
+    owners: Partial<Record<types.Domain, types.Address>> | types.Address,
   ): Promise<void> {
     await Promise.all(
       this.app.domainNumbers.map((domain: types.Domain) => {
-        const owner = owners[domain];
-        if (!owner) throw new Error('owner not found');
+        let owner: types.Address;
+        if (typeof owners === 'string') {
+          owner = owners;
+        } else {
+          owner = owners[domain]!;
+          if (!owner) throw new Error('owner not found');
+        }
         return this.checkDomain(domain, owner);
       }),
     );
@@ -25,7 +30,7 @@ export abstract class AbacusRouterChecker<
 
   async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
     await this.checkEnrolledRouters(domain);
-    await this.checkOwnership(domain, owner);
+    await this.checkOwnership(domain, owner, this.ownables(domain));
     await this.checkXAppConnectionManager(domain);
   }
 
@@ -41,21 +46,17 @@ export abstract class AbacusRouterChecker<
     );
   }
 
-  async checkOwnership(
+  ownables(
     domain: types.Domain,
-    owner: types.Address,
-  ): Promise<void> {
-    const contracts = this.app.mustGetContracts(domain);
-    const owners = await Promise.all([
-      contracts.upgradeBeaconController.owner(),
-      this.mustGetRouter(domain).owner(),
-    ]);
+  ): Ownable[] {
+    const ownables: Ownable[] = [this.mustGetRouter(domain)];
     // If the config specifies that a xAppConnectionManager should have been deployed,
     // it should be owned by the owner.
     if (!this.config.xAppConnectionManager) {
-      owners.push(contracts.xAppConectionManager.owner());
+      const contracts = this.app.mustGetContracts(domain);
+      ownables.push(contracts.xAppConectionManager);
     }
-    (await Promise.all(owners)).map((_) => expect(_).to.equal(owner));
+    return ownables;
   }
 
   async checkXAppConnectionManager(domain: types.Domain): Promise<void> {

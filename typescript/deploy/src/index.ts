@@ -6,7 +6,7 @@ export {
   RouterConfig,
 } from './router';
 export { ContractVerifier, VerificationInput } from './verify';
-export { AbacusAppChecker } from './check';
+export { AbacusAppChecker, Ownable } from './check';
 export {
   ProxiedContract,
   ProxyViolationType,
@@ -14,12 +14,7 @@ export {
 } from './proxy';
 export {
   CheckerViolation,
-  Environment,
+  EnvironmentConfig,
   TransactionConfig,
-  registerDomains,
-  registerEnvironment,
-  registerHardhatEnvironment,
-  registerSigner,
-  registerSigners,
-  registerTransactionConfigs,
 } from './config';
+export * as utils from './utils'

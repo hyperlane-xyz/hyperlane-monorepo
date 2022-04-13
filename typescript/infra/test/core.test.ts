@@ -5,7 +5,7 @@ import { types } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
 import { registerHardhatEnvironment } from '@abacus-network/deploy';
 import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
-import { core as coreConfig, environment } from '../config/environments/test';
+import { environment } from '../config/environments/test';
 
 describe('core', async () => {
   const deployer = new AbacusCoreDeployer();
@@ -21,7 +21,7 @@ describe('core', async () => {
   });
 
   it('deploys', async () => {
-    await deployer.deploy(coreConfig);
+    await deployer.deploy(environment.core);
   });
 
   it('writes', async () => {
@@ -39,7 +39,7 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const checker = new AbacusCoreChecker(core, coreConfig);
+    const checker = new AbacusCoreChecker(core, environment.core);
     await checker.check(owners);
   });
 });

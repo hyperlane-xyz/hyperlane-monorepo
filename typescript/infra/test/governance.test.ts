@@ -10,12 +10,12 @@ import {
 } from '../src/governance';
 import {
   environment,
-  governance as governanceConfig,
 } from '../config/environments/test';
 
 describe('governance', async () => {
   const deployer = new AbacusGovernanceDeployer();
   const owners: Record<types.Domain, types.Address> = {};
+  const governanceConfig = environment.governance;
 
   before(async () => {
     const [signer] = await ethers.getSigners();

@@ -1,104 +1,21 @@
 import path from 'path';
-import yargs from 'yargs';
+// import fs from 'fs';
 import {
   ALL_CHAIN_NAMES,
-  AbacusCore,
-  ChainName,
-  MultiProvider,
 } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
-import { RouterConfig } from '@abacus-network/deploy';
+import { utils } from '@abacus-network/deploy';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import {
-  ALL_ENVIRONMENTS,
-  AgentConfig,
+  CoreEnvironmentConfig,
   DeployEnvironment,
-  InfrastructureConfig,
-  ContractMetricsConfig,
 } from '../src/config';
-import { CoreConfig } from '../src/core';
-import { GovernanceConfig } from '../src/governance';
 
-export function getArgs() {
-  return yargs(process.argv.slice(2))
-    .alias('e', 'env')
-    .describe('e', 'deploy environment')
-    .choices('e', ALL_ENVIRONMENTS)
-    .require('e')
-    .help('h')
-    .alias('h', 'help');
-}
-
-async function importModule(moduleName: string): Promise<any> {
-  const importedModule = await import(moduleName);
-  return importedModule;
-}
-
-function moduleName(environment: DeployEnvironment) {
+export function moduleName(environment: DeployEnvironment) {
   return `../config/environments/${environment}`;
 }
 
-export async function registerMultiProvider(
-  multiProvider: MultiProvider,
-  environment: DeployEnvironment,
-): Promise<void> {
-  return (await importModule(moduleName(environment))).registerMultiProvider(
-    multiProvider,
-  );
-}
-
-export async function getDomainNames(
-  environment: DeployEnvironment,
-): Promise<ChainName[]> {
-  return (await importModule(moduleName(environment))).domainNames;
-}
-
-export async function getCoreConfig(
-  environment: DeployEnvironment,
-): Promise<CoreConfig> {
-  return (await importModule(moduleName(environment))).core;
-}
-
-export async function getRouterConfig(
-  environment: DeployEnvironment,
-  core: AbacusCore,
-): Promise<RouterConfig> {
-  const xAppConnectionManager: Record<string, types.Address> = {};
-  core.domainNames.map((name) => {
-    const contracts = core.mustGetContracts(name);
-    xAppConnectionManager[name] = contracts.xAppConnectionManager.address;
-  });
-  return { xAppConnectionManager };
-}
-
-export async function getGovernanceConfig(
-  environment: DeployEnvironment,
-  core: AbacusCore,
-): Promise<GovernanceConfig> {
-  const partial = (await importModule(moduleName(environment))).governance;
-  return { ...partial, ...(await getRouterConfig(environment, core)) };
-}
-
-export async function getInfrastructureConfig(
-  environment: DeployEnvironment,
-): Promise<InfrastructureConfig> {
-  return (await importModule(moduleName(environment))).infrastructure;
-}
-
-export async function getAgentConfig(
-  environment: DeployEnvironment,
-): Promise<AgentConfig> {
-  return (await importModule(moduleName(environment))).agent;
-}
-
-export async function getContractMetricsConfig(
-  environment: DeployEnvironment,
-): Promise<ContractMetricsConfig> {
-  return (await importModule(moduleName(environment))).metrics;
-}
-
-export async function getEnvironment(): Promise<DeployEnvironment> {
-  return (await getArgs().argv).e;
+export async function getCoreEnvironmentConfig(environment: DeployEnvironment): Promise<CoreEnvironmentConfig> {
+  return (await import(moduleName(environment))).environment;
 }
 
 function getContractsSdkFilepath(mod: string, environment: DeployEnvironment) {
@@ -142,7 +59,7 @@ export function getGovernanceVerificationDirectory(
 }
 
 export async function getKeyRoleAndChainArgs() {
-  const args = await getArgs();
+  const args = await utils.getArgs();
   return args
     .alias('r', 'role')
     .describe('r', 'key role')

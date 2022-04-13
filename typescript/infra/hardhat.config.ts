@@ -10,12 +10,12 @@ import { AbacusCoreDeployer } from './src/core';
 import { AbacusContractVerifier } from './src/verify';
 import { sleep } from './src/utils/utils';
 import {
+  getCoreEnvironmentConfig,
   getCoreVerificationDirectory,
   getCoreContractsSdkFilepath,
   getCoreRustDirectory,
-  registerMultiProvider,
-  getCoreConfig,
 } from './scripts/utils';
+import { utils as deployUtils } from '@abacus-network/deploy';
 
 const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
   const contracts = core.mustGetContracts(domain);
@@ -61,9 +61,10 @@ task('abacus', 'Deploys abacus on top of an already running Harthat Network')
   .setAction(async (args: any) => {
     const environment = args.environment;
     const deployer = new AbacusCoreDeployer();
-    await registerMultiProvider(deployer, environment);
-    const coreConfig = await getCoreConfig(environment);
-    await deployer.deploy(coreConfig);
+    const environmentConfig = await getCoreEnvironmentConfig(environment)
+    await deployUtils.registerEnvironment(deployer, environmentConfig)
+    await deployUtils.registerHardhatSigner(deployer)
+    await deployer.deploy(environmentConfig.core);
 
     // Write configs
     deployer.writeVerification(getCoreVerificationDirectory(environment));
@@ -79,7 +80,9 @@ task('kathy', 'Dispatches random abacus messages')
   .setAction(async (args: any, hre: HardhatRuntimeEnvironment) => {
     const environment = args.environment;
     const core = new AbacusCore(coreAddresses[environment]);
-    await registerMultiProvider(core, environment);
+    const environmentConfig = await getCoreEnvironmentConfig(environment)
+    await deployUtils.registerEnvironment(core, environmentConfig)
+    await deployUtils.registerHardhatSigner(core)
     const randomElement = (list: types.Domain[]) =>
       list[Math.floor(Math.random() * list.length)];
 

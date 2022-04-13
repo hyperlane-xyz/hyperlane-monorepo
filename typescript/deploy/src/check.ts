@@ -5,6 +5,10 @@ import { types } from '@abacus-network/utils';
 import { CheckerViolation } from './config';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 
+export interface Ownable {
+  owner(): Promise<types.Address>;
+}
+
 export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   readonly app: A;
   readonly config: C;
@@ -37,6 +41,15 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
         upgradeBeaconViolation(domain, name, proxiedAddress, implementation),
       );
     }
+  }
+
+  async checkOwnership(
+    domain: types.Domain,
+    owner: types.Address,
+    ownables: Ownable[]
+  ): Promise<void> {
+    const owners = ownables.map((o) => o.owner());
+    (await Promise.all(owners)).map((_) => expect(_).to.equal(owner));
   }
 
   isDuplicateViolation(violation: CheckerViolation) {

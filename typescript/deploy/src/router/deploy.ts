@@ -5,7 +5,7 @@ import {
   XAppConnectionManager__factory,
 } from '@abacus-network/core';
 import { AbacusAppDeployer } from '../deploy';
-import { Router, RouterConfig } from './types';
+import { RouterConfig, Router } from './types';
 
 export abstract class AbacusRouterDeployer<
   T,
