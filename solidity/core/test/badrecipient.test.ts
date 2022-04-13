@@ -1,8 +1,7 @@
-import { ethers } from 'hardhat';
-
-import { BadRandomRecipient__factory } from '../types';
 import { utils } from '@abacus-network/utils';
 import { expect } from 'chai';
+import { ethers } from 'hardhat';
+import { BadRandomRecipient__factory } from '../types';
 
 describe('BadRecipient', () => {
   describe('RandomBadRecipient', () => {
@@ -15,7 +14,7 @@ describe('BadRecipient', () => {
       // Didn't know how else to test the randomness
       let successes = 0;
       let failures = 0;
-      for (let i = 0; i < 10; i++) {
+      for (let i = 0; i < 100; i++) {
         try {
           // "Inject randomness"
           await signer.sendTransaction({
@@ -34,8 +33,8 @@ describe('BadRecipient', () => {
         }
       }
 
-      expect(successes).to.be.greaterThan(1);
-      expect(failures).to.be.greaterThan(1);
+      expect(successes).to.be.greaterThan(5);
+      expect(failures).to.be.greaterThan(5);
     });
   });
 });

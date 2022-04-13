@@ -4,6 +4,7 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {IOutbox} from "../interfaces/IOutbox.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IXAppConnectionManager} from "../interfaces/IXAppConnectionManager.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -13,16 +14,16 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * @notice Manages a registry of local Inbox contracts for remote Outbox
  * domains.
  */
-contract XAppConnectionManager is Ownable {
+contract XAppConnectionManager is IXAppConnectionManager, Ownable {
     // ============ Public Storage ============
 
     // Outbox contract
-    IOutbox public outbox;
+    IOutbox public override outbox;
     // Interchain Gas Paymaster contract. The off-chain processor associated with
     // the paymaster contract must be willing to process messages dispatched from
     // the current Outbox contract, otherwise payments made to the paymaster will
     // not result in processed messages.
-    IInterchainGasPaymaster public interchainGasPaymaster;
+    IInterchainGasPaymaster public override interchainGasPaymaster;
     // local Inbox address => remote Outbox domain
     mapping(address => uint32) public inboxToDomain;
     // remote Outbox domain => local Inbox address
@@ -104,7 +105,7 @@ contract XAppConnectionManager is Ownable {
      * @notice Query local domain from Outbox
      * @return local domain
      */
-    function localDomain() external view returns (uint32) {
+    function localDomain() external view override returns (uint32) {
         return outbox.localDomain();
     }
 
@@ -142,7 +143,7 @@ contract XAppConnectionManager is Ownable {
      * @param _inbox the inbox to check for enrollment
      * @return TRUE iff _inbox is enrolled
      */
-    function isInbox(address _inbox) public view returns (bool) {
+    function isInbox(address _inbox) public view override returns (bool) {
         return inboxToDomain[_inbox] != 0;
     }
 
