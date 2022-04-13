@@ -172,7 +172,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      * checkpoint.
      * @param _root The merkle root.
      * @param _index The index.
-     * @return TRUE iff _root and _index are a known checkpoint.
+     * @return TRUE iff `_root` and `_index` are a known checkpoint.
      */
     function isCheckpoint(bytes32 _root, uint256 _index)
         external

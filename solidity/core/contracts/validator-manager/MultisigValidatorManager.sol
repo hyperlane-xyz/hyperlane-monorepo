@@ -56,11 +56,11 @@ abstract contract MultisigValidatorManager is Ownable {
     // ============ Constructor ============
 
     /**
-     * @dev Reverts if _validators has any duplicates.
+     * @dev Reverts if `_validators` has any duplicates.
      * @param _domain The domain of the outbox the validator set is for.
      * @param _validators The set of validator addresses.
      * @param _quorumThreshold The quorum threshold. Must be greater than or equal
-     * to the length of _validators.
+     * to the length of `_validators`.
      */
     constructor(
         uint32 _domain,
@@ -84,7 +84,7 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Enrolls a validator into the validator set.
-     * @dev Reverts if _validator is already in the validator set.
+     * @dev Reverts if `_validator` is already in the validator set.
      * @param _validator The validator to add to the validator set.
      */
     function enrollValidator(address _validator) external onlyOwner {
@@ -93,7 +93,7 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Unenrolls a validator from the validator set.
-     * @dev Reverts if _validator is not in the validator set.
+     * @dev Reverts if `_validator` is not in the validator set.
      * @param _validator The validator to remove from the validator set.
      */
     function unenrollValidator(address _validator) external onlyOwner {
@@ -127,14 +127,14 @@ abstract contract MultisigValidatorManager is Ownable {
     /**
      * @notice Returns whether provided signatures over a checkpoint constitute
      * a quorum of validator signatures.
-     * @dev Reverts if _signatures is not sorted in ascending order by the signer
+     * @dev Reverts if `_signatures` is not sorted in ascending order by the signer
      * address, which is required for duplicate detection.
      * @dev Does not revert if a signature's signer is not in the validator set.
      * @param _root The merkle root of the checkpoint.
      * @param _index The index of the checkpoint.
      * @param _signatures Signatures over the checkpoint to be checked for a validator
      * quorum. Must be sorted in ascending order by signer address.
-     * @return TRUE iff _signatures constitute a quorum of validator signatures over
+     * @return TRUE iff `_signatures` constitute a quorum of validator signatures over
      * the checkpoint.
      */
     function isQuorum(
@@ -193,7 +193,7 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Enrolls a validator into the validator set.
-     * @dev Reverts if _validator is already in the validator set.
+     * @dev Reverts if `_validator` is already in the validator set.
      * @param _validator The validator to add to the validator set.
      */
     function _enrollValidator(address _validator) internal {
@@ -205,7 +205,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @notice Unenrolls a validator from the validator set.
      * @dev Reverts if the resulting validator set length is less than
      * the quorum threshold.
-     * @dev Reverts if _validator is not in the validator set.
+     * @dev Reverts if `_validator` is not in the validator set.
      * @param _validator The validator to remove from the validator set.
      */
     function _unenrollValidator(address _validator) internal {
@@ -231,7 +231,7 @@ abstract contract MultisigValidatorManager is Ownable {
     }
 
     /**
-     * @notice Hash of domain concatenated with "ABACUS".
+     * @notice Hash of `_domain` concatenated with "ABACUS".
      * @param _domain The domain to hash.
      */
     function _domainHash(uint32 _domain) internal pure returns (bytes32) {

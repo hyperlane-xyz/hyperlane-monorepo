@@ -15,11 +15,11 @@ contract InboxMultisigValidatorManager is MultisigValidatorManager {
     // ============ Constructor ============
 
     /**
-     * @dev Reverts if _validators has any duplicates.
+     * @dev Reverts if `_validators` has any duplicates.
      * @param _remoteDomain The remote domain of the outbox chain.
      * @param _validators The set of validator addresses.
      * @param _quorumThreshold The quorum threshold. Must be greater than or equal
-     * to the length of _validators.
+     * to the length of `_validators`.
      */
     // solhint-disable-next-line no-empty-blocks
     constructor(
@@ -32,8 +32,8 @@ contract InboxMultisigValidatorManager is MultisigValidatorManager {
 
     /**
      * @notice Submits a checkpoint signed by a quorum of validators to an Inbox.
-     * @dev Reverts if _signatures is not a quorum of validator signatures.
-     * @dev Reverts if _signatures is not sorted in ascending order by the signer
+     * @dev Reverts if `_signatures` is not a quorum of validator signatures.
+     * @dev Reverts if `_signatures` is not sorted in ascending order by the signer
      * address, which is required for duplicate detection.
      * @param _inbox The inbox to submit the checkpoint to.
      * @param _root The merkle root of the checkpoint.
