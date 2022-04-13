@@ -122,6 +122,14 @@ abstract contract MultisigValidatorManager is Ownable {
         return _validators;
     }
 
+    /**
+     * @notice Returns the number of validators enrolled in the validator set.
+     * @return The number of validators enrolled in the validator set.
+     */
+    function validatorCount() external view returns (uint256) {
+        return validatorSet.length();
+    }
+
     // ============ Public Functions ============
 
     /**
@@ -162,12 +170,21 @@ abstract contract MultisigValidatorManager is Ownable {
             // Revert if the signer violates the required sort order.
             require(_previousSigner < _signer, "!sorted signers");
             // If the signer is a validator, increment _validatorSignatureCount.
-            if (validatorSet.contains(_signer)) {
+            if (isValidator(_signer)) {
                 _validatorSignatureCount++;
             }
             _previousSigner = _signer;
         }
         return _validatorSignatureCount >= threshold;
+    }
+
+    /**
+     * @notice Returns if `_validator` is enrolled in the validator set.
+     * @param _validator The address of the validator.
+     * @return TRUE iff `_validator` is enrolled in the validator set.
+     */
+    function isValidator(address _validator) public view returns (bool) {
+        return validatorSet.contains(_validator);
     }
 
     // ============ Internal Functions ============
@@ -208,10 +225,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to remove from the validator set.
      */
     function _unenrollValidator(address _validator) internal {
-        require(
-            validatorSet.length() > threshold,
-            "violates quorum threshold"
-        );
+        require(validatorSet.length() > threshold, "violates quorum threshold");
         require(validatorSet.remove(_validator), "!enrolled");
         emit UnenrollValidator(_validator);
     }

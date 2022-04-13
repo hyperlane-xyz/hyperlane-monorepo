@@ -44,27 +44,23 @@ describe('MultisigValidatorManager', async () => {
   });
 
   describe('#constructor', () => {
-    it('sets the outboxDomain', async () => {
-      expect(await validatorManager.outboxDomain()).to.equal(OUTBOX_DOMAIN);
+    it('sets the domain', async () => {
+      expect(await validatorManager.domain()).to.equal(OUTBOX_DOMAIN);
     });
 
-    it('sets the outboxDomainHash', async () => {
-      const outboxDomainHash = await validatorManager.domainHash(OUTBOX_DOMAIN);
-      expect(await validatorManager.outboxDomainHash()).to.equal(
-        outboxDomainHash,
-      );
+    it('sets the domainHash', async () => {
+      const domainHash = await validatorManager.getDomainHash(OUTBOX_DOMAIN);
+      expect(await validatorManager.domainHash()).to.equal(domainHash);
     });
 
     it('enrolls the validator set', async () => {
-      expect(await validatorManager.validatorSet()).to.deep.equal([
+      expect(await validatorManager.validators()).to.deep.equal([
         validator0.address,
       ]);
     });
 
     it('sets the quorum threshold', async () => {
-      expect(await validatorManager.threshold()).to.equal([
-        QUORUM_THRESHOLD,
-      ]);
+      expect(await validatorManager.threshold()).to.equal([QUORUM_THRESHOLD]);
     });
   });
 
@@ -72,7 +68,7 @@ describe('MultisigValidatorManager', async () => {
     it('enrolls a validator into the validator set', async () => {
       await validatorManager.enrollValidator(validator1.address);
 
-      expect(await validatorManager.validatorSet()).to.deep.equal([
+      expect(await validatorManager.validators()).to.deep.equal([
         validator0.address,
         validator1.address,
       ]);
@@ -106,7 +102,7 @@ describe('MultisigValidatorManager', async () => {
     it('unenrolls a validator from the validator set', async () => {
       await validatorManager.unenrollValidator(validator1.address);
 
-      expect(await validatorManager.validatorSet()).to.deep.equal([
+      expect(await validatorManager.validators()).to.deep.equal([
         validator0.address,
       ]);
     });
@@ -178,6 +174,12 @@ describe('MultisigValidatorManager', async () => {
     });
   });
 
+  describe('#validatorCount', () => {
+    it('returns the number of validators enrolled in the validator set', async () => {
+      expect(await validatorManager.validatorCount()).to.equal(1);
+    });
+  });
+
   describe('#isQuorum', () => {
     const root = ethers.utils.formatBytes32String('test root');
     const index = 1;
@@ -235,6 +237,17 @@ describe('MultisigValidatorManager', async () => {
       await expect(
         validatorManager.isQuorum(root, index, signatures),
       ).to.be.revertedWith('!sorted signers');
+    });
+  });
+
+  describe('#isValidator', () => {
+    it('returns true if an address is enrolled in the validator set', async () => {
+      expect(await validatorManager.isValidator(validator0.address)).to.be.true;
+    });
+
+    it('returns false if an address is not enrolled in the validator set', async () => {
+      expect(await validatorManager.isValidator(validator1.address)).to.be
+        .false;
     });
   });
 
