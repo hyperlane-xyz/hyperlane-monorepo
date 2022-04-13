@@ -1,6 +1,11 @@
 import { types } from '@abacus-network/utils';
 import { ChainName } from '@abacus-network/sdk';
 
+export type ValidatorManagerConfig = {
+  validators: Array<types.Address>;
+  threshold: number;
+};
+
 export type CoreConfig = {
-  validators: Partial<Record<ChainName, types.Address>>;
+  validatorManagers: Partial<Record<ChainName, ValidatorManagerConfig>>;
 };

@@ -3,7 +3,6 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import "../Outbox.sol";
-import {IValidatorManager} from "../../interfaces/IValidatorManager.sol";
 
 contract TestOutbox is Outbox {
     constructor(uint32 _localDomain) Outbox(_localDomain) {} // solhint-disable-line no-empty-blocks
@@ -17,10 +16,10 @@ contract TestOutbox is Outbox {
     }
 
     /**
-     * @notice Set the ValidatorManager
-     * @param _validatorManager Address of the ValidatorManager
+     * @notice Set the validator manager
+     * @param _validatorManager Address of the validator manager
      */
     function testSetValidatorManager(address _validatorManager) external {
-        validatorManager = IValidatorManager(_validatorManager);
+        validatorManager = _validatorManager;
     }
 }

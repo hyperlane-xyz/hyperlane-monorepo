@@ -11,17 +11,19 @@ import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
   UpgradeBeaconController,
   XAppConnectionManager,
-  ValidatorManager,
+  InboxValidatorManager,
+  InboxValidatorManager__factory,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
   Inbox,
   UpgradeBeaconController__factory,
   XAppConnectionManager__factory,
-  ValidatorManager__factory,
   Outbox__factory,
   Inbox__factory,
   InterchainGasPaymaster__factory,
 } from '@abacus-network/core';
 import { DeployEnvironment, RustConfig } from '../config';
-import { CoreConfig } from './types';
+import { CoreConfig, ValidatorManagerConfig } from './types';
 
 export class AbacusCoreDeployer extends AbacusAppDeployer<
   CoreContractAddresses,
@@ -40,21 +42,19 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         new UpgradeBeaconController__factory(signer),
       );
 
-    const validatorManager: ValidatorManager = await this.deployContract(
+    const outboxValidatorManagerConfig = this.validatorManagerConfig(
+      config,
       domain,
-      'ValidatorManager',
-      new ValidatorManager__factory(signer),
     );
-
-    for (const name of this.domainNames) {
-      const validator = config.validators[name];
-      if (!validator) throw new Error(`No validator for ${name}`);
-      await validatorManager.enrollValidator(
-        this.resolveDomain(name),
-        validator,
-        overrides,
+    const outboxValidatorManager: OutboxValidatorManager =
+      await this.deployContract(
+        domain,
+        'OutboxValidatorManager',
+        new OutboxValidatorManager__factory(signer),
+        domain,
+        outboxValidatorManagerConfig.validators,
+        outboxValidatorManagerConfig.threshold,
       );
-    }
 
     const outbox = await this.deployProxiedContract(
       domain,
@@ -62,7 +62,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       new Outbox__factory(signer),
       upgradeBeaconController.address,
       [domain],
-      [validatorManager.address],
+      [outboxValidatorManager.address],
     );
 
     const interchainGasPaymaster = await this.deployContract(
@@ -83,14 +83,39 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       overrides,
     );
 
+    const inboxValidatorManagers: Record<types.Domain, InboxValidatorManager> =
+      {};
+    const inboxValidatorManagerAddresses: Partial<
+      Record<ChainName, types.Address>
+    > = {};
+
     const inboxes: Record<types.Domain, ProxiedContract<Inbox>> = {};
     const inboxAddresses: Partial<Record<ChainName, ProxiedAddress>> = {};
     const remotes = this.remoteDomainNumbers(domain);
     for (let i = 0; i < remotes.length; i++) {
       const remote = remotes[i];
+      const remoteName = this.mustResolveDomainName(remote);
+
+      const validatorManagerConfig = this.validatorManagerConfig(
+        config,
+        remote,
+      );
+      const inboxValidatorManager: InboxValidatorManager =
+        await this.deployContract(
+          domain,
+          'InboxValidatorManager',
+          new InboxValidatorManager__factory(signer),
+          remote,
+          validatorManagerConfig.validators,
+          validatorManagerConfig.threshold,
+        );
+      inboxValidatorManagers[remote] = inboxValidatorManager;
+      inboxValidatorManagerAddresses[remoteName] =
+        inboxValidatorManager.address;
+
       const initArgs = [
         remote,
-        validatorManager.address,
+        inboxValidatorManager.address,
         ethers.constants.HashZero,
         0,
       ];
@@ -124,8 +149,9 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
     const addresses = {
       upgradeBeaconController: upgradeBeaconController.address,
       xAppConnectionManager: xAppConnectionManager.address,
-      validatorManager: validatorManager.address,
       interchainGasPaymaster: interchainGasPaymaster.address,
+      outboxValidatorManager: outboxValidatorManager.address,
+      inboxValidatorManagers: inboxValidatorManagerAddresses,
       outbox: outbox.addresses,
       inboxes: inboxAddresses,
     };
@@ -202,15 +228,30 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
   ): Promise<ethers.ContractReceipt> {
     const contracts = core.mustGetContracts(domain);
     const overrides = core.getOverrides(domain);
-    await contracts.validatorManager.transferOwnership(owner, overrides);
+    await contracts.outboxValidatorManager.transferOwnership(owner, overrides);
     await contracts.xAppConnectionManager.transferOwnership(owner, overrides);
     await contracts.upgradeBeaconController.transferOwnership(owner, overrides);
     for (const chain of Object.keys(
       contracts.addresses.inboxes,
     ) as ChainName[]) {
+      await contracts
+        .inboxValidatorManager(chain)
+        .transferOwnership(owner, overrides);
       await contracts.inbox(chain).transferOwnership(owner, overrides);
     }
     const tx = await contracts.outbox.transferOwnership(owner, overrides);
     return tx.wait(core.getConfirmations(domain));
+  }
+
+  validatorManagerConfig(
+    config: CoreConfig,
+    domain: types.Domain,
+  ): ValidatorManagerConfig {
+    const domainName = this.mustResolveDomainName(domain);
+    const validatorManagerConfig = config.validatorManagers[domainName];
+    if (!validatorManagerConfig) {
+      throw new Error(`No validator manager config for ${domainName}`);
+    }
+    return validatorManagerConfig;
   }
 }
