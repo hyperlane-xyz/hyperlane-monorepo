@@ -3,8 +3,10 @@ import {
   XAppConnectionManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-  ValidatorManager,
-  ValidatorManager__factory,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
+  InboxValidatorManager,
+  InboxValidatorManager__factory,
   Outbox,
   Outbox__factory,
   Inbox,
@@ -20,10 +22,11 @@ import { ChainName, ProxiedAddress } from '../types';
 export type CoreContractAddresses = {
   upgradeBeaconController: types.Address;
   xAppConnectionManager: types.Address;
-  validatorManager: types.Address;
   interchainGasPaymaster: types.Address;
   outbox: ProxiedAddress;
   inboxes: Partial<Record<ChainName, ProxiedAddress>>;
+  outboxValidatorManager: types.Address;
+  inboxValidatorManagers: Partial<Record<ChainName, types.Address>>;
 };
 
 export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
@@ -35,6 +38,17 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
     return Inbox__factory.connect(inbox.proxy, this.connection);
   }
 
+  inboxValidatorManager(chain: ChainName): InboxValidatorManager {
+    const inboxValidatorManager = this.addresses.inboxValidatorManagers[chain];
+    if (!inboxValidatorManager) {
+      throw new Error(`No inboxValidatorManager for ${chain}`);
+    }
+    return InboxValidatorManager__factory.connect(
+      inboxValidatorManager,
+      this.connection,
+    );
+  }
+
   get outbox(): Outbox {
     return Outbox__factory.connect(
       this.addresses.outbox.proxy,
@@ -42,9 +56,9 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
     );
   }
 
-  get validatorManager(): ValidatorManager {
-    return ValidatorManager__factory.connect(
-      this.addresses.validatorManager,
+  get outboxValidatorManager(): OutboxValidatorManager {
+    return OutboxValidatorManager__factory.connect(
+      this.addresses.outboxValidatorManager,
       this.connection,
     );
   }

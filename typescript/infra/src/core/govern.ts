@@ -10,8 +10,11 @@ import {
   AbacusCoreChecker,
   CoreViolationType,
   ValidatorViolation,
+  ValidatorViolationType,
 } from './check';
 import { CoreConfig } from './types';
+import { MultisigValidatorManager__factory } from '@abacus-network/core';
+import { PopulatedTransaction } from 'ethers';
 
 interface DomainedCall {
   domain: number;
@@ -68,12 +71,39 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
     violation: ValidatorViolation,
   ): Promise<DomainedCall> {
     const domain = violation.domain;
-    const manager = this.app.mustGetContracts(domain).validatorManager;
-    expect(manager).to.not.be.undefined;
-    const tx = await manager.populateTransaction.enrollValidator(
-      violation.data.remote,
-      violation.expected,
+    const provider = this.app.mustGetProvider(domain);
+
+    const validatorManager = MultisigValidatorManager__factory.connect(
+      violation.data.validatorManagerAddress,
+      provider,
     );
+
+    let tx: PopulatedTransaction;
+
+    switch (violation.data.type) {
+      case ValidatorViolationType.EnrollValidator:
+        // Enrolling a new validator
+        tx = await validatorManager.populateTransaction.enrollValidator(
+          violation.expected,
+        );
+        break;
+      case ValidatorViolationType.UnenrollValidator:
+        // Unenrolling an existing validator
+        tx = await validatorManager.populateTransaction.unenrollValidator(
+          violation.actual,
+        );
+        break;
+      case ValidatorViolationType.Threshold:
+        tx = await validatorManager.populateTransaction.setThreshold(
+          violation.expected,
+        );
+        break;
+      default:
+        throw new Error(
+          `Invalid validator violation type: ${violation.data.type}`,
+        );
+    }
+
     if (tx.to === undefined) throw new Error('undefined tx.to');
     return { domain, call: tx as Call };
   }
