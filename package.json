@@ -9,6 +9,7 @@
     "typescript/utils",
     "solidity/core",
     "typescript/hardhat",
+    "solidity/app",
     "solidity/apps",
     "typescript/sdk",
     "typescript/contract-metrics",

@@ -87,6 +87,8 @@ jobs:
         run: npm --prefix ./typescript/sdk run test
       - name: infra
         run: npm --prefix ./typescript/infra run test
+      - name: hardhat
+        run: npm --prefix ./typescript/hardhat run test
 
   test-sol:
     env:
@@ -104,5 +106,7 @@ jobs:
 
       - name: core
         run: npm --prefix ./solidity/core run test
+      - name: app
+        run: npm --prefix ./solidity/app run test
       - name: apps
         run: npm --prefix ./solidity/apps run test

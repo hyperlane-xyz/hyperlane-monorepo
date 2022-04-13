@@ -3,8 +3,7 @@ pragma solidity >=0.6.11;
 
 // ============ External Imports ============
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
-import {Router} from "@abacus-network/core/contracts/router/Router.sol";
-import {XAppConnectionClient} from "@abacus-network/core/contracts/router/XAppConnectionClient.sol";
+import {Router} from "@abacus-network/app/contracts/Router.sol";
 // ============ Internal Imports ============
 import {PingPongMessage} from "./PingPongMessage.sol";
 
@@ -57,14 +56,13 @@ contract PingPongRouter is Router {
     /**
      * @notice Handle "volleys" sent via Abacus from other remote PingPong Routers
      * @param _origin The domain the message is coming from
-     * @param _sender The address the message is coming from
      * @param _message The message in the form of raw bytes
      */
-    function handle(
+    function _handle(
         uint32 _origin,
-        bytes32 _sender,
+        bytes32,
         bytes memory _message
-    ) external override onlyInbox onlyRemoteRouter(_origin, _sender) {
+    ) internal override {
         bytes29 _msg = _message.ref(0);
         if (_msg.isPing()) {
             _handlePing(_origin, _msg);

@@ -1,6 +1,6 @@
 import { assert } from 'chai';
 import { ethers } from 'ethers';
-import { Domain, Address, HexString } from './types';
+import { Address, Domain, HexString } from './types';
 
 /*
  * Gets the byte length of a hex string
@@ -36,6 +36,16 @@ export function addressToBytes32(address: Address): string {
 
 export function bytes32ToAddress(bytes32: string): Address {
   return ethers.utils.getAddress(bytes32.slice(-40));
+}
+
+export function formatCallData<
+  C extends ethers.Contract,
+  I extends Parameters<C['interface']['encodeFunctionData']>,
+>(destinationContract: C, functionName: I[0], functionArgs: I[1]): string {
+  return destinationContract.interface.encodeFunctionData(
+    functionName,
+    functionArgs,
+  );
 }
 
 export const formatMessage = (
