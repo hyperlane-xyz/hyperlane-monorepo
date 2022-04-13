@@ -9,20 +9,7 @@ import 'solidity-coverage';
  */
 module.exports = {
   solidity: {
-    compilers: [
-      {
-        version: '0.8.13',
-      },
-      {
-        version: '0.7.6',
-        // settings: {
-        //   optimizer: {
-        //     enabled: true,
-        //     runs: 999999,
-        //   },
-        // },
-      },
-    ],
+    version: '0.8.13',
   },
   gasReporter: {
     currency: 'USD',
