@@ -3,12 +3,12 @@ import { types, Validator } from "@abacus-network/utils";
 import {
   Outbox,
   Outbox__factory,
-  InboxMultisigValidatorManager,
-  InboxMultisigValidatorManager__factory,
+  InboxValidatorManager,
+  InboxValidatorManager__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
-  OutboxMultisigValidatorManager,
-  OutboxMultisigValidatorManager__factory,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
   XAppConnectionManager,
@@ -28,11 +28,8 @@ export type TestAbacusInstance = {
   upgradeBeaconController: UpgradeBeaconController;
   inboxes: Record<types.Domain, TestInbox>;
   interchainGasPaymaster: InterchainGasPaymaster;
-  outboxMultisigValidatorManager: OutboxMultisigValidatorManager;
-  inboxMultisigValidatorManagers: Record<
-    types.Domain,
-    InboxMultisigValidatorManager
-  >;
+  outboxValidatorManager: OutboxValidatorManager;
+  inboxValidatorManagers: Record<types.Domain, InboxValidatorManager>;
 };
 
 export class TestAbacusDeploy extends TestDeploy<
@@ -57,34 +54,32 @@ export class TestAbacusDeploy extends TestDeploy<
     const signer = this.config.signer[domain];
     const signerAddress = await signer.getAddress();
 
-    const outboxMultisigValidatorManagerFactory =
-      new OutboxMultisigValidatorManager__factory(signer);
-    const outboxMultisigValidatorManager =
-      await outboxMultisigValidatorManagerFactory.deploy(
-        domain,
-        [signerAddress],
-        1
-      );
+    const outboxValidatorManagerFactory = new OutboxValidatorManager__factory(
+      signer
+    );
+    const outboxValidatorManager = await outboxValidatorManagerFactory.deploy(
+      domain,
+      [signerAddress],
+      1
+    );
 
-    const inboxMultisigValidatorManagerFactory =
-      new InboxMultisigValidatorManager__factory(signer);
-    const inboxMultisigValidatorManagers: Record<
-      types.Domain,
-      InboxMultisigValidatorManager
-    > = {};
+    const inboxValidatorManagerFactory = new InboxValidatorManager__factory(
+      signer
+    );
+    const inboxValidatorManagers: Record<types.Domain, InboxValidatorManager> =
+      {};
 
     // this.remotes reads this.instances which has not yet been set.
     const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
-    const inboxMultisigValidatorManagerDeploys = remotes.map(async (remote) => {
-      const inboxMultisigValidatorManager =
-        await inboxMultisigValidatorManagerFactory.deploy(
-          remote,
-          [signerAddress],
-          1
-        );
-      inboxMultisigValidatorManagers[remote] = inboxMultisigValidatorManager;
+    const inboxValidatorManagerDeploys = remotes.map(async (remote) => {
+      const inboxValidatorManager = await inboxValidatorManagerFactory.deploy(
+        remote,
+        [signerAddress],
+        1
+      );
+      inboxValidatorManagers[remote] = inboxValidatorManager;
     });
-    await Promise.all(inboxMultisigValidatorManagerDeploys);
+    await Promise.all(inboxValidatorManagerDeploys);
 
     const upgradeBeaconControllerFactory = new UpgradeBeaconController__factory(
       signer
@@ -94,7 +89,7 @@ export class TestAbacusDeploy extends TestDeploy<
 
     const outboxFactory = new Outbox__factory(signer);
     const outbox = await outboxFactory.deploy(domain);
-    await outbox.initialize(outboxMultisigValidatorManager.address);
+    await outbox.initialize(outboxValidatorManager.address);
 
     const xAppConnectionManagerFactory = new XAppConnectionManager__factory(
       signer
@@ -113,12 +108,11 @@ export class TestAbacusDeploy extends TestDeploy<
     const inboxFactory = new TestInbox__factory(signer);
     const inboxes: Record<types.Domain, TestInbox> = {};
     const inboxDeploys = remotes.map(async (remote) => {
-      const inboxMultisigValidatorManager =
-        inboxMultisigValidatorManagers[remote];
+      const inboxValidatorManager = inboxValidatorManagers[remote];
       const inbox = await inboxFactory.deploy(domain);
       await inbox.initialize(
         remote,
-        inboxMultisigValidatorManager.address,
+        inboxValidatorManager.address,
         ethers.constants.HashZero,
         0
       );
@@ -132,8 +126,8 @@ export class TestAbacusDeploy extends TestDeploy<
       interchainGasPaymaster,
       inboxes,
       upgradeBeaconController,
-      outboxMultisigValidatorManager,
-      inboxMultisigValidatorManagers,
+      outboxValidatorManager,
+      inboxValidatorManagers,
     };
   }
 
@@ -141,14 +135,11 @@ export class TestAbacusDeploy extends TestDeploy<
     await this.outbox(domain).transferOwnership(address);
     await this.upgradeBeaconController(domain).transferOwnership(address);
     await this.xAppConnectionManager(domain).transferOwnership(address);
-    await this.outboxMultisigValidatorManager(domain).transferOwnership(
-      address
-    );
+    await this.outboxValidatorManager(domain).transferOwnership(address);
     for (const remote of this.remotes(domain)) {
-      await this.inboxMultisigValidatorManager(
-        domain,
-        remote
-      ).transferOwnership(address);
+      await this.inboxValidatorManager(domain, remote).transferOwnership(
+        address
+      );
       await this.inbox(domain, remote).transferOwnership(address);
     }
   }
@@ -173,17 +164,15 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].xAppConnectionManager;
   }
 
-  outboxMultisigValidatorManager(
-    domain: types.Domain
-  ): OutboxMultisigValidatorManager {
-    return this.instances[domain].outboxMultisigValidatorManager;
+  outboxValidatorManager(domain: types.Domain): OutboxValidatorManager {
+    return this.instances[domain].outboxValidatorManager;
   }
 
-  inboxMultisigValidatorManager(
+  inboxValidatorManager(
     local: types.Domain,
     remote: types.Domain
-  ): InboxMultisigValidatorManager {
-    return this.instances[local].inboxMultisigValidatorManagers[remote];
+  ): InboxValidatorManager {
+    return this.instances[local].inboxValidatorManagers[remote];
   }
 
   async processMessages() {
@@ -229,16 +218,10 @@ export class TestAbacusDeploy extends TestDeploy<
 
     for (const remote of this.remotes(domain)) {
       const inbox = this.inbox(remote, domain);
-      const inboxMultisigValidatorManager = this.inboxMultisigValidatorManager(
-        remote,
-        domain
-      );
-      await inboxMultisigValidatorManager.checkpoint(
-        inbox.address,
-        root,
-        index,
-        [signature]
-      );
+      const inboxValidatorManager = this.inboxValidatorManager(remote, domain);
+      await inboxValidatorManager.checkpoint(inbox.address, root, index, [
+        signature,
+      ]);
     }
 
     // Find all messages dispatched on the outbox since the previous checkpoint.

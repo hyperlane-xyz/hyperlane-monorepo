@@ -85,17 +85,17 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     }
   }
 
-  // Checks validator sets of the OutboxMultisigValidatorManager and all
-  // InboxMultisigValidatorManagers on the domain.
+  // Checks validator sets of the OutboxValidatorManager and all
+  // InboxValidatorManagers on the domain.
   async checkValidatorManagers(domain: types.Domain): Promise<void> {
     const promises = this.app.domainNumbers.map((outboxDomain: number) => {
       let multisigValidatorManager: MultisigValidatorManager;
-      // Check the OutboxMultisigValidatorManager
+      // Check the OutboxValidatorManager
       if (domain === outboxDomain) {
         multisigValidatorManager =
           this.app.mustGetContracts(domain).outboxValidatorManager;
       } else {
-        // Check an InboxMultisigValidatorManager
+        // Check an InboxValidatorManager
         multisigValidatorManager = this.app.mustGetInboxValidatorManager(
           outboxDomain,
           domain,
@@ -113,8 +113,8 @@ export class AbacusCoreChecker extends AbacusAppChecker<
 
   // Checks the validator set for a MultisigValidatorManager on the localDomain that tracks
   // the validator set for the outboxDomain.
-  // If localDomain == outboxDomain, this checks the OutboxMultisigValidatorManager, otherwise
-  // it checks an InboxMultisigValidatorManager.
+  // If localDomain == outboxDomain, this checks the OutboxValidatorManager, otherwise
+  // it checks an InboxValidatorManager.
   async checkMultisigValidatorManager(
     localDomain: types.Domain,
     outboxDomain: types.Domain,

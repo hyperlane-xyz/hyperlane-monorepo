@@ -11,10 +11,10 @@ import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
   UpgradeBeaconController,
   XAppConnectionManager,
-  InboxMultisigValidatorManager,
-  InboxMultisigValidatorManager__factory,
-  OutboxMultisigValidatorManager,
-  OutboxMultisigValidatorManager__factory,
+  InboxValidatorManager,
+  InboxValidatorManager__factory,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
   Inbox,
   UpgradeBeaconController__factory,
   XAppConnectionManager__factory,
@@ -46,11 +46,11 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       config,
       domain,
     );
-    const outboxValidatorManager: OutboxMultisigValidatorManager =
+    const outboxValidatorManager: OutboxValidatorManager =
       await this.deployContract(
         domain,
-        'OutboxMultisigValidatorManager',
-        new OutboxMultisigValidatorManager__factory(signer),
+        'OutboxValidatorManager',
+        new OutboxValidatorManager__factory(signer),
         domain,
         outboxValidatorManagerConfig.validators,
         outboxValidatorManagerConfig.threshold,
@@ -83,10 +83,8 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       overrides,
     );
 
-    const inboxValidatorManagers: Record<
-      types.Domain,
-      InboxMultisigValidatorManager
-    > = {};
+    const inboxValidatorManagers: Record<types.Domain, InboxValidatorManager> =
+      {};
     const inboxValidatorManagerAddresses: Partial<
       Record<ChainName, types.Address>
     > = {};
@@ -102,11 +100,11 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         config,
         remote,
       );
-      const inboxValidatorManager: InboxMultisigValidatorManager =
+      const inboxValidatorManager: InboxValidatorManager =
         await this.deployContract(
           domain,
-          'InboxMultisigValidatorManager',
-          new InboxMultisigValidatorManager__factory(signer),
+          'InboxValidatorManager',
+          new InboxValidatorManager__factory(signer),
           remote,
           validatorManagerConfig.validators,
           validatorManagerConfig.threshold,

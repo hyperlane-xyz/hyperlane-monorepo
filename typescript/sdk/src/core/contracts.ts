@@ -3,10 +3,10 @@ import {
   XAppConnectionManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-  OutboxMultisigValidatorManager,
-  OutboxMultisigValidatorManager__factory,
-  InboxMultisigValidatorManager,
-  InboxMultisigValidatorManager__factory,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
+  InboxValidatorManager,
+  InboxValidatorManager__factory,
   Outbox,
   Outbox__factory,
   Inbox,
@@ -38,12 +38,12 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
     return Inbox__factory.connect(inbox.proxy, this.connection);
   }
 
-  inboxValidatorManager(chain: ChainName): InboxMultisigValidatorManager {
+  inboxValidatorManager(chain: ChainName): InboxValidatorManager {
     const inboxValidatorManager = this.addresses.inboxValidatorManagers[chain];
     if (!inboxValidatorManager) {
       throw new Error(`No inboxValidatorManager for ${chain}`);
     }
-    return InboxMultisigValidatorManager__factory.connect(
+    return InboxValidatorManager__factory.connect(
       inboxValidatorManager,
       this.connection,
     );
@@ -56,8 +56,8 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
     );
   }
 
-  get outboxValidatorManager(): OutboxMultisigValidatorManager {
-    return OutboxMultisigValidatorManager__factory.connect(
+  get outboxValidatorManager(): OutboxValidatorManager {
+    return OutboxValidatorManager__factory.connect(
       this.addresses.outboxValidatorManager,
       this.connection,
     );

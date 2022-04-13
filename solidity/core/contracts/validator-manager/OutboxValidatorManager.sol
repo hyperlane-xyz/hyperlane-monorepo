@@ -7,11 +7,11 @@ import {IOutbox} from "../../interfaces/IOutbox.sol";
 import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
 
 /**
- * @title OutboxMultisigValidatorManager
+ * @title OutboxValidatorManager
  * @notice Verifies if an improper checkpoint has been signed by a quorum of
  * validators and reports it to an Outbox.
  */
-contract OutboxMultisigValidatorManager is MultisigValidatorManager {
+contract OutboxValidatorManager is MultisigValidatorManager {
     // ============ Events ============
 
     /**

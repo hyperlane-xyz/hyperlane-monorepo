@@ -7,11 +7,11 @@ import {IInbox} from "../../interfaces/IInbox.sol";
 import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
 
 /**
- * @title InboxMultisigValidatorManager
+ * @title InboxValidatorManager
  * @notice Verifies checkpoints are signed by a quorum of validators and submits
  * them to an Inbox.
  */
-contract InboxMultisigValidatorManager is MultisigValidatorManager {
+contract InboxValidatorManager is MultisigValidatorManager {
     // ============ Constructor ============
 
     /**

@@ -6,8 +6,8 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import {
   Outbox,
   Outbox__factory,
-  OutboxMultisigValidatorManager,
-  OutboxMultisigValidatorManager__factory,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
 } from '../../types';
 import { signCheckpoint } from './utils';
 
@@ -15,8 +15,8 @@ const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;
 const QUORUM_THRESHOLD = 2;
 
-describe('OutboxMultisigValidatorManager', () => {
-  let validatorManager: OutboxMultisigValidatorManager,
+describe('OutboxValidatorManager', () => {
+  let validatorManager: OutboxValidatorManager,
     outbox: Outbox,
     signer: SignerWithAddress,
     validator0: Validator,
@@ -30,9 +30,7 @@ describe('OutboxMultisigValidatorManager', () => {
   });
 
   beforeEach(async () => {
-    const validatorManagerFactory = new OutboxMultisigValidatorManager__factory(
-      signer,
-    );
+    const validatorManagerFactory = new OutboxValidatorManager__factory(signer);
     validatorManager = await validatorManagerFactory.deploy(
       OUTBOX_DOMAIN,
       [validator0.address, validator1.address],
