@@ -1,16 +1,16 @@
 import { ethers } from "ethers";
 import { types } from "@abacus-network/utils";
 import {
-  Outbox,
-  Outbox__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
+  Outbox,
+  Outbox__factory,
+  TestInbox,
+  TestInbox__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
   XAppConnectionManager,
   XAppConnectionManager__factory,
-  TestInbox,
-  TestInbox__factory,
 } from "@abacus-network/core";
 import { TestDeploy } from "./TestDeploy";
 
@@ -81,7 +81,7 @@ export class TestAbacusDeploy extends TestDeploy<
 
     // this.remotes reads this.instances which has not yet been set.
     const remotes = Object.keys(this.config.signer).map((d) => parseInt(d));
-    const inboxDeploys = remotes.map(async (remote) => {
+    const deploys = remotes.map(async (remote) => {
       const inbox = await inboxFactory.deploy(domain);
       // Inbox will require the validator manager to be a contract. We don't
       // actually make use of the validator manager, so we just pass in the
@@ -96,7 +96,7 @@ export class TestAbacusDeploy extends TestDeploy<
       await xAppConnectionManager.enrollInbox(remote, inbox.address);
       inboxes[remote] = inbox;
     });
-    await Promise.all(inboxDeploys);
+    await Promise.all(deploys);
     return {
       outbox,
       xAppConnectionManager,
@@ -123,8 +123,8 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].upgradeBeaconController;
   }
 
-  inbox(local: types.Domain, remote: types.Domain): TestInbox {
-    return this.instances[local].inboxes[remote];
+  inbox(origin: types.Domain, destination: types.Domain): TestInbox {
+    return this.instances[destination].inboxes[origin];
   }
 
   interchainGasPaymaster(domain: types.Domain): InterchainGasPaymaster {
@@ -135,51 +135,60 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].xAppConnectionManager;
   }
 
-  async processMessages() {
-    await Promise.all(
-      this.domains.map((d) => this.processMessagesFromDomain(d))
-    );
+  async processMessages(): Promise<
+    Map<types.Domain, Map<types.Domain, ethers.providers.TransactionResponse[]>>
+  > {
+    const responses: Map<
+      types.Domain,
+      Map<types.Domain, ethers.providers.TransactionResponse[]>
+    > = new Map();
+    for (const origin of this.domains) {
+      const outbound = await this.processOutboundMessages(origin);
+      responses.set(origin, new Map());
+      this.domains.forEach((destination) => {
+        responses
+          .get(origin)!
+          .set(destination, outbound.get(destination) ?? []);
+      });
+    }
+    return responses;
   }
 
-  async processMessagesFromDomain(domain: types.Domain) {
-    const outbox = this.outbox(domain);
-    const [checkpointedRoot, checkpointedIndex] =
-      await outbox.latestCheckpoint();
-    const latestIndex = await outbox.tree();
-    if (latestIndex.eq(checkpointedIndex)) return;
-
-    // Find the block number of the last checkpoint submitted on Outbox.
-    const checkpointFilter = outbox.filters.Checkpoint(checkpointedRoot);
-    const checkpoints = await outbox.queryFilter(checkpointFilter);
-    if (!(checkpoints.length === 0 || checkpoints.length === 1))
-      throw new Error("found multiple checkpoints");
-    const fromBlock = checkpoints.length === 0 ? 0 : checkpoints[0].blockNumber;
+  async processOutboundMessages(
+    origin: types.Domain
+  ): Promise<Map<types.Domain, ethers.providers.TransactionResponse[]>> {
+    const responses: Map<types.Domain, ethers.providers.TransactionResponse[]> =
+      new Map();
+    const outbox = this.outbox(origin);
+    const [, checkpointedIndex] = await outbox.latestCheckpoint();
+    const latestIndex = await outbox.count();
+    if (latestIndex.eq(checkpointedIndex)) return responses;
 
     await outbox.checkpoint();
     const [root, index] = await outbox.latestCheckpoint();
-    // If there have been no checkpoints since the last checkpoint, return.
-    if (
-      index.eq(0) ||
-      (checkpoints.length == 1 && index.eq(checkpoints[0].args.index))
-    ) {
-      return;
-    }
 
-    for (const remote of this.remotes(domain)) {
-      const inbox = this.inbox(remote, domain);
+    for (const destination of this.remotes(origin)) {
+      const inbox = this.inbox(origin, destination);
       await inbox.setCheckpoint(root, index);
     }
 
-    // Find all messages dispatched on the outbox since the previous checkpoint.
+    // Find all unprocessed messages dispatched on the outbox since the previous checkpoint.
     const dispatchFilter = outbox.filters.Dispatch();
-    const dispatches = await outbox.queryFilter(dispatchFilter, fromBlock);
+    const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
       const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
-      if (destination !== domain) {
-        const inbox = this.inbox(destination, domain);
+      if (destination === origin)
+        throw new Error("Dispatched message to local domain");
+      const inbox = this.inbox(origin, destination);
+      const status = await inbox.messages(dispatch.args.messageHash);
+      if (status !== types.MessageStatus.PROCESSED) {
         await inbox.setMessageProven(dispatch.args.message);
-        await inbox.testProcess(dispatch.args.message);
+        const response = await inbox.testProcess(dispatch.args.message);
+        let destinationResponses = responses.get(destination) || [];
+        destinationResponses.push(response);
+        responses.set(destination, destinationResponses);
       }
     }
+    return responses;
   }
 }

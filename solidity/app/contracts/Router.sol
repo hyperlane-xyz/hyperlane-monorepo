@@ -3,7 +3,7 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {XAppConnectionClient} from "./XAppConnectionClient.sol";
-import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
+import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
 
 abstract contract Router is XAppConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
@@ -32,6 +32,12 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
         _;
     }
 
+    // ======== Initializer =========
+
+    function __Router_initialize(address _xAppConnectionManager) internal {
+        __XAppConnectionClient_initialize(_xAppConnectionManager);
+    }
+
     // ============ External functions ============
 
     /**
@@ -47,13 +53,27 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
         _enrollRemoteRouter(_domain, _router);
     }
 
-    // ============ Virtual functions ============
-
+    /**
+     * @notice Handles an incoming message
+     * @param _origin The origin domain
+     * @param _sender The sender address
+     * @param _message The message
+     */
     function handle(
         uint32 _origin,
         bytes32 _sender,
         bytes memory _message
-    ) external virtual override;
+    ) external virtual override onlyInbox onlyRemoteRouter(_origin, _sender) {
+        // TODO: callbacks on success/failure
+        _handle(_origin, _sender, _message);
+    }
+
+    // ============ Virtual functions ============
+    function _handle(
+        uint32 _origin,
+        bytes32 _sender,
+        bytes memory _message
+    ) internal virtual;
 
     // ============ Internal functions ============
 
