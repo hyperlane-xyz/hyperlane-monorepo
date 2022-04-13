@@ -11,4 +11,11 @@ interface IOutbox is ICommon {
     ) external returns (uint256);
 
     function checkpoint() external;
+
+    function isCheckpoint(
+        bytes32 _root,
+        uint256 _index
+    ) external returns (bool);
+
+    function fail() external;
 }

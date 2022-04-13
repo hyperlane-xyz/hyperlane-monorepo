@@ -1,7 +1,7 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { ethers } from 'hardhat';
 import { expect } from 'chai';
-import { types, utils, Validator } from '@abacus-network/utils';
+import { types, utils } from '@abacus-network/utils';
 import {
   BadRecipient1__factory,
   BadRecipient3__factory,
@@ -10,9 +10,9 @@ import {
   BadRecipientHandle__factory,
   TestInbox,
   TestInbox__factory,
-  ValidatorManager,
-  ValidatorManager__factory,
   TestRecipient__factory,
+  TestValidatorManager,
+  TestValidatorManager__factory,
 } from '../types';
 
 const merkleTestCases = require('../../../vectors/merkle.json');
@@ -30,20 +30,19 @@ describe('Inbox', async () => {
   ];
 
   let inbox: TestInbox,
-    validatorManager: ValidatorManager,
     signer: SignerWithAddress,
-    fakeSigner: SignerWithAddress,
     abacusMessageSender: SignerWithAddress,
-    validator: Validator,
-    fakeValidator: Validator;
+    validatorManager: TestValidatorManager;
 
   before(async () => {
-    [signer, fakeSigner, abacusMessageSender] = await ethers.getSigners();
-    validator = await Validator.fromSigner(signer, remoteDomain);
-    fakeValidator = await Validator.fromSigner(fakeSigner, remoteDomain);
-    const validatorManagerFactory = new ValidatorManager__factory(signer);
-    validatorManager = await validatorManagerFactory.deploy();
-    await validatorManager.enrollValidator(remoteDomain, validator.address);
+    [signer, abacusMessageSender] = await ethers.getSigners();
+    // Inbox.initialize will ensure the validator manager is a contract.
+    // TestValidatorManager doesn't have any special logic, it just submits
+    // checkpoints without any signature verification.
+    const testValidatorManagerFactory = new TestValidatorManager__factory(
+      signer,
+    );
+    validatorManager = await testValidatorManagerFactory.deploy();
   });
 
   beforeEach(async () => {
@@ -68,40 +67,36 @@ describe('Inbox', async () => {
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
-  it('Accepts signed checkpoint from validator', async () => {
+  it('Accepts checkpoint from validator manager', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
     const index = 1;
-    const { signature } = await validator.signCheckpoint(root, index);
-    await inbox.checkpoint(root, index, signature);
+    await validatorManager.checkpoint(inbox.address, root, index);
     const [croot, cindex] = await inbox.latestCheckpoint();
     expect(croot).to.equal(root);
     expect(cindex).to.equal(index);
   });
 
-  it('Rejects signed checkpoint from non-validator', async () => {
+  it('Rejects checkpoint from non-validator manager', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
     const index = 1;
-    const { signature } = await fakeValidator.signCheckpoint(root, index);
-    await expect(inbox.checkpoint(root, index, signature)).to.be.revertedWith(
-      '!validator sig',
+    await expect(inbox.checkpoint(root, index)).to.be.revertedWith(
+      '!validatorManager',
     );
   });
 
-  it('Rejects old signed checkpoint from validator', async () => {
+  it('Rejects old checkpoint from validator manager', async () => {
     let root = ethers.utils.formatBytes32String('first new root');
     let index = 10;
-    let { signature } = await validator.signCheckpoint(root, index);
-    await inbox.checkpoint(root, index, signature);
+    await validatorManager.checkpoint(inbox.address, root, index);
     const [croot, cindex] = await inbox.latestCheckpoint();
     expect(croot).to.equal(root);
     expect(cindex).to.equal(index);
 
     root = ethers.utils.formatBytes32String('second new root');
     index = 9;
-    ({ signature } = await validator.signCheckpoint(root, index));
-    await expect(inbox.checkpoint(root, index, signature)).to.be.revertedWith(
-      'old checkpoint',
-    );
+    await expect(
+      validatorManager.checkpoint(inbox.address, root, index),
+    ).to.be.revertedWith('old checkpoint');
   });
 
   it('Proves a valid message', async () => {

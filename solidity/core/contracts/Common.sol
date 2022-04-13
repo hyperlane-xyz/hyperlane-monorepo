@@ -2,7 +2,6 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {IValidatorManager} from "../interfaces/IValidatorManager.sol";
 import {ICommon} from "../interfaces/ICommon.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -25,8 +24,8 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     mapping(bytes32 => uint256) public checkpoints;
     // The latest checkpointed root
     bytes32 public checkpointedRoot;
-    // Address of ValidatorManager contract.
-    IValidatorManager public validatorManager;
+    // Address of the validator manager contract.
+    address public validatorManager;
 
     // ============ Upgrade Gap ============
 
@@ -44,12 +43,20 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     event Checkpoint(bytes32 indexed root, uint256 indexed index);
 
     /**
-     * @notice Emitted when the ValidatorManager contract is changed
+     * @notice Emitted when the validator manager contract is changed
      * @param validatorManager The address of the new validatorManager
      */
     event NewValidatorManager(address validatorManager);
 
     // ============ Modifiers ============
+
+    /**
+     * @notice Ensures that a function is called by the validator manager contract.
+     */
+    modifier onlyValidatorManager() {
+        require(msg.sender == validatorManager, "!validatorManager");
+        _;
+    }
 
     // ============ Constructor ============
 
@@ -65,20 +72,20 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     {
         // initialize owner
         __Ownable_init();
-        _setValidatorManager(IValidatorManager(_validatorManager));
+        _setValidatorManager(_validatorManager);
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Set a new ValidatorManager contract
-     * @dev Outbox(es) will initially be initialized using a trusted ValidatorManager contract;
+     * @notice Set a new validator manager contract
+     * @dev Mailbox(es) will initially be initialized using a trusted validator manager contract;
      * we will progressively decentralize by swapping the trusted contract with a new implementation
      * that implements Validator bonding & slashing, and rules for Validator selection & rotation
-     * @param _validatorManager the new ValidatorManager contract
+     * @param _validatorManager the new validator manager contract
      */
     function setValidatorManager(address _validatorManager) external onlyOwner {
-        _setValidatorManager(IValidatorManager(_validatorManager));
+        _setValidatorManager(_validatorManager);
     }
 
     /**
@@ -99,18 +106,16 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     // ============ Internal Functions ============
 
     /**
-     * @notice Set the ValidatorManager
-     * @param _validatorManager Address of the ValidatorManager
+     * @notice Set the validator manager
+     * @param _validatorManager Address of the validator manager
      */
-    function _setValidatorManager(IValidatorManager _validatorManager)
-        internal
-    {
+    function _setValidatorManager(address _validatorManager) internal {
         require(
-            Address.isContract(address(_validatorManager)),
+            Address.isContract(_validatorManager),
             "!contract validatorManager"
         );
         validatorManager = _validatorManager;
-        emit NewValidatorManager(address(_validatorManager));
+        emit NewValidatorManager(_validatorManager);
     }
 
     /**
