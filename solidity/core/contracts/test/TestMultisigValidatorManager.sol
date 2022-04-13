@@ -12,9 +12,9 @@ contract TestMultisigValidatorManager is MultisigValidatorManager {
     // solhint-disable-next-line no-empty-blocks
     constructor(
         uint32 _domain,
-        address[] memory _validatorSet,
+        address[] memory _validators,
         uint256 _threshold
-    ) MultisigValidatorManager(_domain, _validatorSet, _threshold) {}
+    ) MultisigValidatorManager(_domain, _validators, _threshold) {}
 
     /**
      * @notice Hash of domain concatenated with "ABACUS".

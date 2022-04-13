@@ -89,7 +89,7 @@ export class TestAbacusDeploy extends TestDeploy<
       // requirement and avoid deploying a new validator manager.
       await inbox.initialize(
         remote,
-        xAppConnectionManager.address,
+        upgradeBeaconController.address,
         ethers.constants.HashZero,
         0
       );
