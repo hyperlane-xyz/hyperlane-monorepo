@@ -13,8 +13,8 @@ contract TestMultisigValidatorManager is MultisigValidatorManager {
     constructor(
         uint32 _domain,
         address[] memory _validatorSet,
-        uint256 _quorumThreshold
-    ) MultisigValidatorManager(_domain, _validatorSet, _quorumThreshold) {}
+        uint256 _threshold
+    ) MultisigValidatorManager(_domain, _validatorSet, _threshold) {}
 
     /**
      * @notice Hash of domain concatenated with "ABACUS".

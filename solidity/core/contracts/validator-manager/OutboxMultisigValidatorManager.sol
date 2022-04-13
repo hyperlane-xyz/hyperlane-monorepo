@@ -36,15 +36,15 @@ contract OutboxMultisigValidatorManager is MultisigValidatorManager {
      * @dev Reverts if `_validators` has any duplicates.
      * @param _localDomain The local domain.
      * @param _validators The set of validator addresses.
-     * @param _quorumThreshold The quorum threshold. Must be greater than or equal
+     * @param _threshold The quorum threshold. Must be greater than or equal
      * to the length of `_validators`.
      */
     // solhint-disable-next-line no-empty-blocks
     constructor(
         uint32 _localDomain,
         address[] memory _validators,
-        uint256 _quorumThreshold
-    ) MultisigValidatorManager(_localDomain, _validators, _quorumThreshold) {}
+        uint256 _threshold
+    ) MultisigValidatorManager(_localDomain, _validators, _threshold) {}
 
     // ============ External Functions ============
 

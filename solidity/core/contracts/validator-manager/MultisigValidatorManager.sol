@@ -28,7 +28,7 @@ abstract contract MultisigValidatorManager is Ownable {
     // ============ Mutable Storage ============
 
     // The minimum threshold of validator signatures to constitute a quorum.
-    uint256 public quorumThreshold;
+    uint256 public threshold;
 
     // The set of validators.
     EnumerableSet.AddressSet private validatorSet;
@@ -49,9 +49,9 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Emitted when the quorum threshold is set.
-     * @param quorumThreshold The new quorum threshold.
+     * @param threshold The new quorum threshold.
      */
-    event SetQuorumThreshold(uint256 quorumThreshold);
+    event SetThreshold(uint256 threshold);
 
     // ============ Constructor ============
 
@@ -59,13 +59,13 @@ abstract contract MultisigValidatorManager is Ownable {
      * @dev Reverts if `_validators` has any duplicates.
      * @param _domain The domain of the outbox the validator set is for.
      * @param _validators The set of validator addresses.
-     * @param _quorumThreshold The quorum threshold. Must be greater than or equal
+     * @param _threshold The quorum threshold. Must be greater than or equal
      * to the length of `_validators`.
      */
     constructor(
         uint32 _domain,
         address[] memory _validators,
-        uint256 _quorumThreshold
+        uint256 _threshold
     ) Ownable() {
         // Set immutables.
         domain = _domain;
@@ -77,7 +77,7 @@ abstract contract MultisigValidatorManager is Ownable {
             _enrollValidator(_validators[i]);
         }
 
-        _setQuorumThreshold(_quorumThreshold);
+        _setThreshold(_threshold);
     }
 
     // ============ External Functions ============
@@ -102,10 +102,10 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Sets the quorum threshold.
-     * @param _quorumThreshold The new quorum threshold.
+     * @param _threshold The new quorum threshold.
      */
-    function setQuorumThreshold(uint256 _quorumThreshold) external onlyOwner {
-        _setQuorumThreshold(_quorumThreshold);
+    function setThreshold(uint256 _threshold) external onlyOwner {
+        _setThreshold(_threshold);
     }
 
     /**
@@ -145,7 +145,7 @@ abstract contract MultisigValidatorManager is Ownable {
         uint256 _numSignatures = _signatures.length;
         // If there are fewer signatures provided than the required quorum threshold,
         // this is not a quorum.
-        if (_numSignatures < quorumThreshold) {
+        if (_numSignatures < threshold) {
             return false;
         }
         // To identify duplicates, the signers recovered from _signatures
@@ -167,7 +167,7 @@ abstract contract MultisigValidatorManager is Ownable {
             }
             _previousSigner = _signer;
         }
-        return _validatorSignatureCount >= quorumThreshold;
+        return _validatorSignatureCount >= threshold;
     }
 
     // ============ Internal Functions ============
@@ -209,7 +209,7 @@ abstract contract MultisigValidatorManager is Ownable {
      */
     function _unenrollValidator(address _validator) internal {
         require(
-            validatorSet.length() > quorumThreshold,
+            validatorSet.length() > threshold,
             "violates quorum threshold"
         );
         require(validatorSet.remove(_validator), "!enrolled");
@@ -218,15 +218,15 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Sets the quorum threshold.
-     * @param _quorumThreshold The new quorum threshold.
+     * @param _threshold The new quorum threshold.
      */
-    function _setQuorumThreshold(uint256 _quorumThreshold) internal {
+    function _setThreshold(uint256 _threshold) internal {
         require(
-            _quorumThreshold > 0 && _quorumThreshold <= validatorSet.length(),
+            _threshold > 0 && _threshold <= validatorSet.length(),
             "!range"
         );
-        quorumThreshold = _quorumThreshold;
-        emit SetQuorumThreshold(_quorumThreshold);
+        threshold = _threshold;
+        emit SetThreshold(_threshold);
     }
 
     /**

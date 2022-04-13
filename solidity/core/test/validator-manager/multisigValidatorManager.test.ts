@@ -62,7 +62,7 @@ describe('MultisigValidatorManager', async () => {
     });
 
     it('sets the quorum threshold', async () => {
-      expect(await validatorManager.quorumThreshold()).to.equal([
+      expect(await validatorManager.threshold()).to.equal([
         QUORUM_THRESHOLD,
       ]);
     });
@@ -118,7 +118,7 @@ describe('MultisigValidatorManager', async () => {
     });
 
     it('reverts if the resulting validator set size will be less than the quorum threshold', async () => {
-      await validatorManager.setQuorumThreshold(2);
+      await validatorManager.setThreshold(2);
 
       await expect(
         validatorManager.unenrollValidator(validator1.address),
@@ -140,7 +140,7 @@ describe('MultisigValidatorManager', async () => {
     });
   });
 
-  describe('#setQuorumThreshold', () => {
+  describe('#setThreshold', () => {
     beforeEach(async () => {
       // Have 2 validators to allow us to have more than 1 valid
       // quorum threshold
@@ -148,32 +148,32 @@ describe('MultisigValidatorManager', async () => {
     });
 
     it('sets the quorum threshold', async () => {
-      await validatorManager.setQuorumThreshold(2);
+      await validatorManager.setThreshold(2);
 
-      expect(await validatorManager.quorumThreshold()).to.equal(2);
+      expect(await validatorManager.threshold()).to.equal(2);
     });
 
-    it('emits the SetQuorumThreshold event', async () => {
-      expect(await validatorManager.setQuorumThreshold(2))
-        .to.emit(validatorManager, 'SetQuorumThreshold')
+    it('emits the SetThreshold event', async () => {
+      expect(await validatorManager.setThreshold(2))
+        .to.emit(validatorManager, 'SetThreshold')
         .withArgs(2);
     });
 
     it('reverts if the new quorum threshold is zero', async () => {
-      await expect(validatorManager.setQuorumThreshold(0)).to.be.revertedWith(
+      await expect(validatorManager.setThreshold(0)).to.be.revertedWith(
         '!range',
       );
     });
 
     it('reverts if the new quorum threshold is greater than the validator set size', async () => {
-      await expect(validatorManager.setQuorumThreshold(3)).to.be.revertedWith(
+      await expect(validatorManager.setThreshold(3)).to.be.revertedWith(
         '!range',
       );
     });
 
     it('reverts when called by a non-owner', async () => {
       await expect(
-        validatorManager.connect(nonOwner).setQuorumThreshold(2),
+        validatorManager.connect(nonOwner).setThreshold(2),
       ).to.be.revertedWith('Ownable: caller is not the owner');
     });
   });
@@ -187,7 +187,7 @@ describe('MultisigValidatorManager', async () => {
       await validatorManager.enrollValidator(validator1.address);
       await validatorManager.enrollValidator(validator2.address);
 
-      await validatorManager.setQuorumThreshold(2);
+      await validatorManager.setThreshold(2);
     });
 
     it('returns true when there is a quorum', async () => {
