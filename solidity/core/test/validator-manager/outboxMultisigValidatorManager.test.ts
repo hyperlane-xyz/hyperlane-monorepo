@@ -56,7 +56,6 @@ describe('OutboxMultisigValidatorManager', () => {
         [validator0, validator1], // 2/2 signers, making a quorum
       );
 
-      // Send message with signer address as msg.sender
       await expect(
         validatorManager.improperCheckpoint(
           outbox.address,

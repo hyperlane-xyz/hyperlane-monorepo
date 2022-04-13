@@ -254,7 +254,7 @@ describe('MultisigValidatorManager', async () => {
         const { expectedDomainHash } = testCase;
         // This public function on TestMultisigValidatorManager exposes
         // the internal _domainHash on MultisigValidatorManager.
-        const domainHash = await validatorManager.domainHash(
+        const domainHash = await validatorManager.getDomainHash(
           testCase.outboxDomain,
         );
         expect(domainHash).to.equal(expectedDomainHash);

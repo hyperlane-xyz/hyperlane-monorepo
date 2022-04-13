@@ -79,7 +79,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
 
     /**
      * @notice Set a new validator manager contract
-     * @dev Outbox(es) will initially be initialized using a trusted validator manager contract;
+     * @dev Mailbox(es) will initially be initialized using a trusted validator manager contract;
      * we will progressively decentralize by swapping the trusted contract with a new implementation
      * that implements Validator bonding & slashing, and rules for Validator selection & rotation
      * @param _validatorManager the new validator manager contract

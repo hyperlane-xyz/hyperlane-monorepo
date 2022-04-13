@@ -11,19 +11,17 @@ import {MultisigValidatorManager} from "../validator-manager/MultisigValidatorMa
 contract TestMultisigValidatorManager is MultisigValidatorManager {
     // solhint-disable-next-line no-empty-blocks
     constructor(
-        uint32 _outboxDomain,
+        uint32 _domain,
         address[] memory _validatorSet,
         uint256 _quorumThreshold
-    )
-        MultisigValidatorManager(_outboxDomain, _validatorSet, _quorumThreshold)
-    {}
+    ) MultisigValidatorManager(_domain, _validatorSet, _quorumThreshold) {}
 
     /**
      * @notice Hash of domain concatenated with "ABACUS".
      * @dev This is a public getter of _domainHash to test with.
      * @param _domain The domain to hash.
      */
-    function domainHash(uint32 _domain) external pure returns (bytes32) {
+    function getDomainHash(uint32 _domain) external pure returns (bytes32) {
         return _domainHash(_domain);
     }
 }

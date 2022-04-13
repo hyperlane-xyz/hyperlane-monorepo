@@ -20,10 +20,10 @@ abstract contract MultisigValidatorManager is Ownable {
     // ============ Immutables ============
 
     // The domain of the validator set's outbox chain.
-    uint32 public immutable outboxDomain;
+    uint32 public immutable domain;
 
     // The domain hash of the validator set's outbox chain.
-    bytes32 public immutable outboxDomainHash;
+    bytes32 public immutable domainHash;
 
     // ============ Mutable Storage ============
 
@@ -31,7 +31,7 @@ abstract contract MultisigValidatorManager is Ownable {
     uint256 public quorumThreshold;
 
     // The set of validators.
-    EnumerableSet.AddressSet private validators;
+    EnumerableSet.AddressSet private validatorSet;
 
     // ============ Events ============
 
@@ -56,25 +56,25 @@ abstract contract MultisigValidatorManager is Ownable {
     // ============ Constructor ============
 
     /**
-     * @dev Reverts if `_validatorSet` has any duplicates.
-     * @param _outboxDomain The domain of the outbox the validator set is for.
-     * @param _validatorSet The set of validator addresses.
+     * @dev Reverts if _validators has any duplicates.
+     * @param _domain The domain of the outbox the validator set is for.
+     * @param _validators The set of validator addresses.
      * @param _quorumThreshold The quorum threshold. Must be greater than or equal
-     * to the length of _validatorSet.
+     * to the length of _validators.
      */
     constructor(
-        uint32 _outboxDomain,
-        address[] memory _validatorSet,
+        uint32 _domain,
+        address[] memory _validators,
         uint256 _quorumThreshold
     ) Ownable() {
         // Set immutables.
-        outboxDomain = _outboxDomain;
-        outboxDomainHash = _domainHash(_outboxDomain);
+        domain = _domain;
+        domainHash = _domainHash(_domain);
 
         // Enroll validators. Reverts if there are any duplicates.
-        uint256 _validatorSetLength = _validatorSet.length;
-        for (uint256 i = 0; i < _validatorSetLength; i++) {
-            _enrollValidator(_validatorSet[i]);
+        uint256 _numValidators = _validators.length;
+        for (uint256 i = 0; i < _numValidators; i++) {
+            _enrollValidator(_validators[i]);
         }
 
         _setQuorumThreshold(_quorumThreshold);
@@ -113,13 +113,13 @@ abstract contract MultisigValidatorManager is Ownable {
      * @dev There are no ordering guarantees due to the semantics of EnumerableSet.AddressSet.
      * @return The addresses of the validator set.
      */
-    function validatorSet() external view returns (address[] memory) {
-        uint256 _length = validators.length();
-        address[] memory _validatorSet = new address[](_length);
-        for (uint256 i = 0; i < _length; i++) {
-            _validatorSet[i] = validators.at(i);
+    function validators() external view returns (address[] memory) {
+        uint256 _numValidators = validatorSet.length();
+        address[] memory _validators = new address[](_numValidators);
+        for (uint256 i = 0; i < _numValidators; i++) {
+            _validators[i] = validatorSet.at(i);
         }
-        return _validatorSet;
+        return _validators;
     }
 
     // ============ Public Functions ============
@@ -142,10 +142,10 @@ abstract contract MultisigValidatorManager is Ownable {
         uint256 _index,
         bytes[] calldata _signatures
     ) public view returns (bool) {
-        uint256 _signaturesLength = _signatures.length;
-        // If there are less signatures provided than the required quorum threshold,
+        uint256 _numSignatures = _signatures.length;
+        // If there are fewer signatures provided than the required quorum threshold,
         // this is not a quorum.
-        if (_signaturesLength < quorumThreshold) {
+        if (_numSignatures < quorumThreshold) {
             return false;
         }
         // To identify duplicates, the signers recovered from _signatures
@@ -153,7 +153,7 @@ abstract contract MultisigValidatorManager is Ownable {
         // enforce ordering.
         address _previousSigner = address(0);
         uint256 _validatorSignatureCount = 0;
-        for (uint256 i = 0; i < _signaturesLength; i++) {
+        for (uint256 i = 0; i < _numSignatures; i++) {
             address _signer = _recoverCheckpointSigner(
                 _root,
                 _index,
@@ -162,7 +162,7 @@ abstract contract MultisigValidatorManager is Ownable {
             // Revert if the signer violates the required sort order.
             require(_previousSigner < _signer, "!sorted signers");
             // If the signer is a validator, increment _validatorSignatureCount.
-            if (validators.contains(_signer)) {
+            if (validatorSet.contains(_signer)) {
                 _validatorSignatureCount++;
             }
             _previousSigner = _signer;
@@ -185,7 +185,7 @@ abstract contract MultisigValidatorManager is Ownable {
         bytes calldata _signature
     ) internal view returns (address) {
         bytes32 _digest = keccak256(
-            abi.encodePacked(outboxDomainHash, _root, _index)
+            abi.encodePacked(domainHash, _root, _index)
         );
         _digest = ECDSA.toEthSignedMessageHash(_digest);
         return ECDSA.recover(_digest, _signature);
@@ -197,7 +197,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to add to the validator set.
      */
     function _enrollValidator(address _validator) internal {
-        require(validators.add(_validator), "already enrolled");
+        require(validatorSet.add(_validator), "already enrolled");
         emit EnrollValidator(_validator);
     }
 
@@ -210,10 +210,10 @@ abstract contract MultisigValidatorManager is Ownable {
      */
     function _unenrollValidator(address _validator) internal {
         require(
-            validators.length() > quorumThreshold,
+            validatorSet.length() > quorumThreshold,
             "violates quorum threshold"
         );
-        require(validators.remove(_validator), "!enrolled");
+        require(validatorSet.remove(_validator), "!enrolled");
         emit UnenrollValidator(_validator);
     }
 
@@ -223,7 +223,7 @@ abstract contract MultisigValidatorManager is Ownable {
      */
     function _setQuorumThreshold(uint256 _quorumThreshold) internal {
         require(
-            _quorumThreshold > 0 && _quorumThreshold <= validators.length(),
+            _quorumThreshold > 0 && _quorumThreshold <= validatorSet.length(),
             "!range"
         );
         quorumThreshold = _quorumThreshold;
