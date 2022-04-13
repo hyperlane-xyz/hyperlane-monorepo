@@ -187,8 +187,7 @@ abstract contract MultisigValidatorManager is Ownable {
         bytes32 _digest = keccak256(
             abi.encodePacked(domainHash, _root, _index)
         );
-        _digest = ECDSA.toEthSignedMessageHash(_digest);
-        return ECDSA.recover(_digest, _signature);
+        return ECDSA.recover(ECDSA.toEthSignedMessageHash(_digest), _signature);
     }
 
     /**

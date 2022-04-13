@@ -24,10 +24,9 @@ describe('InboxMultisigValidatorManager', () => {
 
   before(async () => {
     const signers = await ethers.getSigners();
-    [signer] = signers;
-    const [, validatorSigner0, validatorSigner1] = signers;
-    validator0 = await Validator.fromSigner(validatorSigner0, OUTBOX_DOMAIN);
-    validator1 = await Validator.fromSigner(validatorSigner1, OUTBOX_DOMAIN);
+    signer = signers[0];
+    validator0 = await Validator.fromSigner(signers[1], OUTBOX_DOMAIN);
+    validator1 = await Validator.fromSigner(signers[2], OUTBOX_DOMAIN);
   });
 
   beforeEach(async () => {
