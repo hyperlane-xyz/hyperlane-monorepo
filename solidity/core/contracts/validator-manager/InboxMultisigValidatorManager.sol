@@ -32,12 +32,12 @@ contract InboxMultisigValidatorManager is MultisigValidatorManager {
      * @notice Submits a checkpoint signed by a quorum of validators to an Inbox.
      * @dev Reverts if _signatures is not a quorum of validator signatures.
      * @dev Reverts if _signatures is not sorted in ascending order by the signer
-     * address, which is required for duplicate detection.
+     * 		  address, which is required for duplicate detection.
      * @param _inbox The inbox to submit the checkpoint to.
      * @param _root The merkle root of the checkpoint.
      * @param _index The index of the checkpoint.
      * @param _signatures Signatures over the checkpoint to be checked for a validator
-     * quorum. Must be sorted in ascending order by signer address.
+     * 		      quorum. Must be sorted in ascending order by signer address.
      */
     function checkpoint(
         IInbox _inbox,
