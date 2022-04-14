@@ -1,14 +1,15 @@
-import yargs from 'yargs';
-import { ethers } from 'ethers';
-import { NonceManager } from '@ethersproject/experimental';
 import {
   AbacusCore,
   ChainName,
+  ChainSubsetMap,
   domains,
   MultiProvider,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import { TransactionConfig, EnvironmentConfig } from './config';
+import { NonceManager } from '@ethersproject/experimental';
+import { ethers } from 'ethers';
+import yargs from 'yargs';
+import { EnvironmentConfig, TransactionConfig } from './config';
 import { RouterConfig } from './router';
 
 export function getArgs() {
@@ -24,7 +25,7 @@ export async function importModule(moduleName: string): Promise<any> {
   return importedModule;
 }
 
-export async function getEnvironmentConfig<E extends EnvironmentConfig>(
+export async function getEnvironmentConfig<E extends EnvironmentConfig<any>>(
   moduleName: string,
 ): Promise<E> {
   return importModule(moduleName);
@@ -63,9 +64,7 @@ function fixOverrides(config: TransactionConfig): ethers.Overrides {
 export const registerDomains = (
   multiProvider: MultiProvider,
   domainNames: ChainName[],
-) => domainNames.forEach((name) =>
-    multiProvider.registerDomain(domains[name])
-);
+) => domainNames.forEach((name) => multiProvider.registerDomain(domains[name]));
 
 export const registerTransactionConfigs = (
   multiProvider: MultiProvider,
@@ -84,37 +83,33 @@ export const registerTransactionConfigs = (
   });
 };
 
-export const registerEnvironment = (
+export const registerEnvironment = <Networks extends ChainName>(
   multiProvider: MultiProvider,
-  environment: EnvironmentConfig,
+  environment: EnvironmentConfig<Networks>,
 ) => {
   registerDomains(multiProvider, environment.domains);
   registerTransactionConfigs(multiProvider, environment.transactionConfigs);
 };
 
-export const registerSigners = (
+export const registerSigners = <Networks extends ChainName>(
   multiProvider: MultiProvider,
-  signers: Partial<Record<ChainName, ethers.Signer>>,
-) => {
-  multiProvider.domainNames.forEach((name) => {
-    const signer = signers[name];
-    if (!signer) throw new Error(`Missing signer for ${name}`);
-    multiProvider.registerSigner(name, signer);
-  });
-};
+  signers: ChainSubsetMap<Networks, ethers.Signer>,
+) =>
+  multiProvider.domainNames.forEach((name) =>
+    multiProvider.registerSigner(name, signers[name as Networks]),
+  );
 
 export const registerSigner = (
   multiProvider: MultiProvider,
   signer: ethers.Signer,
-) => {
-  multiProvider.domainNames.forEach((name) => {
-    multiProvider.registerSigner(name, signer);
-  });
-};
+) =>
+  multiProvider.domainNames.forEach((name) =>
+    multiProvider.registerSigner(name, signer),
+  );
 
-export const registerHardhatEnvironment = (
+export const registerHardhatEnvironment = <Networks extends ChainName>(
   multiProvider: MultiProvider,
-  environment: EnvironmentConfig,
+  environment: EnvironmentConfig<Networks>,
   signer: ethers.Signer,
 ) => {
   registerDomains(multiProvider, environment.domains);

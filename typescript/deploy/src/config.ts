@@ -1,5 +1,5 @@
+import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
-import { ChainName } from '@abacus-network/sdk';
 
 export interface CheckerViolation {
   domain: number;
@@ -17,7 +17,7 @@ export type TransactionConfig = {
   signer?: ethers.Signer;
 };
 
-export type EnvironmentConfig = {
-  domains: ChainName[];
-  transactionConfigs: Partial<Record<ChainName, TransactionConfig>>;
+export type EnvironmentConfig<Networks extends ChainName> = {
+  domains: Networks[];
+  transactionConfigs: ChainSubsetMap<Networks, TransactionConfig>;
 };

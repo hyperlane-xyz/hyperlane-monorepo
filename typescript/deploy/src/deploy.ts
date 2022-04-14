@@ -1,17 +1,16 @@
-import path from 'path';
-import fs from 'fs';
-import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
-import { ChainName, NameOrDomain, MultiProvider } from '@abacus-network/sdk';
 import {
   UpgradeBeacon,
-  UpgradeBeacon__factory,
   UpgradeBeaconProxy,
   UpgradeBeaconProxy__factory,
+  UpgradeBeacon__factory,
 } from '@abacus-network/core';
-
+import { ChainName, MultiProvider, NameOrDomain } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
+import { ethers } from 'ethers';
+import fs from 'fs';
+import path from 'path';
 import { ProxiedContract } from './proxy';
-import { VerificationInput, getContractVerificationInput } from './verify';
+import { getContractVerificationInput, VerificationInput } from './verify';
 
 export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   protected addresses: Map<number, T>;
@@ -41,10 +40,11 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
 
   get addressesRecord(): Partial<Record<ChainName, T>> {
     const addresses: Partial<Record<ChainName, T>> = {};
-    this.domainNumbers.map((domain) => {
-      addresses[this.mustResolveDomainName(domain)] =
-        this.mustGetAddresses(domain);
-    });
+    this.domainNumbers.forEach(
+      (domain) =>
+        (addresses[this.mustResolveDomainName(domain)] =
+          this.mustGetAddresses(domain)),
+    );
     return addresses;
   }
 
@@ -64,14 +64,17 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     }
   }
 
-  async deployContract<L extends ethers.Contract>(
+  async deployContract<
+    C extends ethers.Contract,
+    F extends ethers.ContractFactory,
+  >(
     nameOrDomain: NameOrDomain,
     contractName: string,
-    factory: ethers.ContractFactory,
-    ...args: any[]
-  ): Promise<L> {
+    factory: F,
+    args: Parameters<F['deploy']>,
+  ): Promise<C> {
     const overrides = this.getOverrides(nameOrDomain);
-    const contract = (await factory.deploy(...args, overrides)) as L;
+    const contract = (await factory.deploy(args, overrides)) as C;
     await contract.deployTransaction.wait(this.getConfirmations(nameOrDomain));
     this.addVerificationInput(nameOrDomain, [
       getContractVerificationInput(
@@ -87,29 +90,30 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   /**
    * Deploys the UpgradeBeacon, Implementation and Proxy for a given contract
    *
-   * @param T - The contract
    */
-  async deployProxiedContract<L extends ethers.Contract>(
+  async deployProxiedContract<
+    C extends ethers.Contract,
+    F extends ethers.ContractFactory,
+  >(
     nameOrDomain: NameOrDomain,
     contractName: string,
-    factory: ethers.ContractFactory,
+    factory: F,
+    deployArgs: Parameters<F['deploy']>,
     ubcAddress: types.Address,
-    deployArgs: any[],
-    initArgs: any[],
-  ): Promise<ProxiedContract<L>> {
+    initArgs: Parameters<C['initialize']>,
+  ): Promise<ProxiedContract<C>> {
     const signer = this.mustGetSigner(nameOrDomain);
-    const implementation: L = await this.deployContract(
+    const implementation = await this.deployContract(
       nameOrDomain,
       `${contractName} Implementation`,
       factory,
-      ...deployArgs,
+      deployArgs,
     );
     const beacon: UpgradeBeacon = await this.deployContract(
       nameOrDomain,
       `${contractName} UpgradeBeacon`,
       new UpgradeBeacon__factory(signer),
-      implementation.address,
-      ubcAddress,
+      [implementation.address, ubcAddress],
     );
 
     const initData = implementation.interface.encodeFunctionData(
@@ -120,13 +124,12 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
       nameOrDomain,
       `${contractName} Proxy`,
       new UpgradeBeaconProxy__factory(signer),
-      beacon.address,
-      initData,
+      [beacon.address, initData],
     );
     // proxy wait(x) implies implementation and beacon wait(>=x)
     // due to nonce ordering
     await proxy.deployTransaction.wait(this.getConfirmations(nameOrDomain));
-    return new ProxiedContract(factory.attach(proxy.address) as L, {
+    return new ProxiedContract(factory.attach(proxy.address) as C, {
       proxy: proxy.address,
       implementation: implementation.address,
       beacon: beacon.address,
@@ -136,14 +139,13 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
   /**
    * Sets up a new proxy with the same beacon and implementation
    *
-   * @param T - The contract
    */
-  async duplicateProxiedContract<L extends ethers.Contract>(
+  async duplicateProxiedContract<C extends ethers.Contract>(
     nameOrDomain: NameOrDomain,
     contractName: string,
-    contract: ProxiedContract<L>,
-    initArgs: any[],
-  ): Promise<ProxiedContract<L>> {
+    contract: ProxiedContract<C>,
+    initArgs: Parameters<C['initialize']>,
+  ): Promise<ProxiedContract<C>> {
     const initData = contract.contract.interface.encodeFunctionData(
       'initialize',
       initArgs,
@@ -152,11 +154,10 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
       nameOrDomain,
       `${contractName} Proxy`,
       new UpgradeBeaconProxy__factory(this.mustGetSigner(nameOrDomain)),
-      contract.addresses.beacon,
-      initData,
+      [contract.addresses.beacon, initData],
     );
 
-    return new ProxiedContract(contract.contract.attach(proxy.address) as L, {
+    return new ProxiedContract(contract.contract.attach(proxy.address) as C, {
       ...contract.addresses,
       proxy: proxy.address,
     });

@@ -1,7 +1,6 @@
-import { expect } from 'chai';
-import { AbacusApp, ProxiedAddress } from '@abacus-network/sdk';
+import { AbacusApp, ChainName, ProxiedAddress } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-
+import { expect } from 'chai';
 import { CheckerViolation } from './config';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 
@@ -9,7 +8,11 @@ export interface Ownable {
   owner(): Promise<types.Address>;
 }
 
-export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
+export abstract class AbacusAppChecker<
+  N extends ChainName,
+  A extends AbacusApp<N, any, any>,
+  C,
+> {
   readonly app: A;
   readonly config: C;
   readonly violations: CheckerViolation[];
@@ -44,7 +47,6 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   }
 
   async checkOwnership(
-    domain: types.Domain,
     owner: types.Address,
     ownables: Ownable[],
   ): Promise<void> {

@@ -1,7 +1,6 @@
-import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
 import { ProxiedAddress } from '@abacus-network/sdk';
-
+import { types } from '@abacus-network/utils';
+import { ethers } from 'ethers';
 import { CheckerViolation } from './config';
 
 export class ProxiedContract<T extends ethers.Contract> {

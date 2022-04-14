@@ -1,18 +1,18 @@
+import { AbacusApp, ChainName, ChainSubsetMap } from '@abacus-network/sdk';
+import { types, utils } from '@abacus-network/utils';
 import { expect } from 'chai';
-import { utils, types } from '@abacus-network/utils';
-import { AbacusApp } from '@abacus-network/sdk';
-
 import { AbacusAppChecker, Ownable } from '../check';
-import { RouterConfig, Router } from './types';
+import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterChecker<
-  A extends AbacusApp<any, any>,
+  N extends ChainName,
+  A extends AbacusApp<any, any, any>,
   C extends RouterConfig,
-> extends AbacusAppChecker<A, C> {
+> extends AbacusAppChecker<N, A, C> {
   abstract mustGetRouter(domain: types.Domain): Router;
 
   async check(
-    owners: Partial<Record<types.Domain, types.Address>> | types.Address,
+    owners: ChainSubsetMap<N, types.Address> | types.Address,
   ): Promise<void> {
     await Promise.all(
       this.app.domainNumbers.map((domain: types.Domain) => {
@@ -20,8 +20,8 @@ export abstract class AbacusRouterChecker<
         if (typeof owners === 'string') {
           owner = owners;
         } else {
-          owner = owners[domain]!;
-          if (!owner) throw new Error('owner not found');
+          const domainName = this.app.mustResolveDomainName(domain);
+          owner = owners[domainName as N];
         }
         return this.checkDomain(domain, owner);
       }),
@@ -30,7 +30,7 @@ export abstract class AbacusRouterChecker<
 
   async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
     await this.checkEnrolledRouters(domain);
-    await this.checkOwnership(domain, owner, this.ownables(domain));
+    await this.checkOwnership(owner, this.ownables(domain));
     await this.checkXAppConnectionManager(domain);
   }
 

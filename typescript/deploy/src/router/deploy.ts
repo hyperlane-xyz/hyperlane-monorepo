@@ -1,11 +1,11 @@
-import { types, utils } from '@abacus-network/utils';
-import { AbacusCore } from '@abacus-network/sdk';
 import {
   XAppConnectionManager,
   XAppConnectionManager__factory,
 } from '@abacus-network/core';
+import { AbacusCore } from '@abacus-network/sdk';
+import { types, utils } from '@abacus-network/utils';
 import { AbacusAppDeployer } from '../deploy';
-import { RouterConfig, Router } from './types';
+import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   T,
@@ -51,6 +51,7 @@ export abstract class AbacusRouterDeployer<
         domain,
         'XAppConnectionManager',
         new XAppConnectionManager__factory(signer),
+        [],
       );
     const overrides = this.getOverrides(domain);
     if (!this.core)
