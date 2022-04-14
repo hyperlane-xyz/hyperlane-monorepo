@@ -22,6 +22,10 @@ mod outbox;
 #[cfg(not(doctest))]
 mod inbox;
 
+/// InboxValidatorManager abi
+#[cfg(not(doctest))]
+mod validator_manager;
+
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
@@ -47,7 +51,7 @@ impl Default for Connection {
 }
 
 #[cfg(not(doctest))]
-pub use crate::{inbox::*, outbox::*};
+pub use crate::{inbox::*, outbox::*, validator_manager::*};
 
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
@@ -72,6 +76,7 @@ boxed_trait!(
 );
 boxed_trait!(make_outbox, EthereumOutbox, Outbox,);
 boxed_trait!(make_inbox, EthereumInbox, Inbox,);
+boxed_trait!(make_inbox_validator_manager, EthereumInboxValidatorManager, InboxValidatorManager,);
 
 #[async_trait::async_trait]
 impl abacus_core::Chain for Chain {

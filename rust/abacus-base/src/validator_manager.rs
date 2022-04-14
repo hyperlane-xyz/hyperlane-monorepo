@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use ethers::types::Address;
 
 use abacus_core::{
     ChainCommunicationError, InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
@@ -20,22 +21,23 @@ impl InboxValidatorManager for InboxValidatorManagerVariants {
     /// Submit a signed checkpoint for inclusion
     async fn submit_checkpoint(
         &self,
+        inbox: Address,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         match self {
             InboxValidatorManagerVariants::Ethereum(validator_manager) => {
                 validator_manager
-                    .submit_checkpoint(multisig_signed_checkpoint)
+                    .submit_checkpoint(inbox, multisig_signed_checkpoint)
                     .await
             }
             InboxValidatorManagerVariants::Mock(mock_validator_manager) => {
                 mock_validator_manager
-                    .submit_checkpoint(multisig_signed_checkpoint)
+                    .submit_checkpoint(inbox, multisig_signed_checkpoint)
                     .await
             }
             InboxValidatorManagerVariants::Other(validator_manager) => {
                 validator_manager
-                    .submit_checkpoint(multisig_signed_checkpoint)
+                    .submit_checkpoint(inbox, multisig_signed_checkpoint)
                     .await
             }
         }
