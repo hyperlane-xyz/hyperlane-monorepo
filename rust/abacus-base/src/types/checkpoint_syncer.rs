@@ -1,10 +1,14 @@
+use core::str::FromStr;
+use ethers::types::Address;
+use std::collections::HashMap;
+
 use abacus_core::SignedCheckpoint;
 use async_trait::async_trait;
 use color_eyre::Report;
 use color_eyre::Result;
 
 use crate::S3Storage;
-use crate::{CheckpointSyncer, LocalStorage};
+use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer};
 
 /// Checkpoint Syncer types
 #[derive(Debug, Clone, serde::Deserialize)]
@@ -26,7 +30,7 @@ pub enum CheckpointSyncerConf {
 
 impl CheckpointSyncerConf {
     /// Turn conf info a Checkpoint Syncer
-    pub async fn try_into_checkpoint_syncer(&self) -> Result<CheckpointSyncers, Report> {
+    pub fn try_into_checkpoint_syncer(&self) -> Result<CheckpointSyncers, Report> {
         match self {
             CheckpointSyncerConf::LocalStorage { path } => {
                 Ok(CheckpointSyncers::Local(LocalStorage::new(path)))
@@ -35,6 +39,33 @@ impl CheckpointSyncerConf {
                 S3Storage::new(bucket, region.parse().expect("invalid s3 region")),
             )),
         }
+    }
+}
+
+/// Config for a MultisigCheckpointSyncer
+#[derive(Debug, Clone, serde::Deserialize)]
+#[serde(tag = "type", rename_all = "camelCase")]
+pub struct MultisigCheckpointSyncerConf {
+    /// The quorum threshold
+    threshold: usize,
+    /// The checkpoint syncer for each valid validator signer address
+    checkpoint_syncers: HashMap<String, CheckpointSyncerConf>,
+}
+
+impl MultisigCheckpointSyncerConf {
+    /// Get a MultisigCheckpointSyncer from the config
+    pub fn try_into_multisig_checkpoint_syncer(&self) -> Result<MultisigCheckpointSyncer, Report> {
+        let mut checkpoint_syncers = HashMap::new();
+        for (key, value) in self.checkpoint_syncers.iter() {
+            checkpoint_syncers.insert(
+                Address::from_str(&key)?,
+                value.try_into_checkpoint_syncer()?,
+            );
+        }
+        Ok(MultisigCheckpointSyncer::new(
+            self.threshold,
+            checkpoint_syncers,
+        ))
     }
 }
 

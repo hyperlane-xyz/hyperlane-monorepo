@@ -4,7 +4,9 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_base::{AbacusAgentCore, Agent, CachingInbox, CheckpointSyncers, ContractSyncMetrics};
+use abacus_base::{
+    AbacusAgentCore, Agent, CachingInbox, ContractSyncMetrics, MultisigCheckpointSyncer,
+};
 
 use crate::{
     checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,
@@ -18,7 +20,7 @@ pub struct Relayer {
     max_retries: u32,
     submission_latency: u64,
     relayer_message_processing: bool,
-    checkpoint_syncer: CheckpointSyncers,
+    multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
     checkpoints_relayed_count: Arc<prometheus::IntCounterVec>,
 }
@@ -37,7 +39,7 @@ impl Relayer {
         max_retries: u32,
         submission_latency: u64,
         relayer_message_processing: bool,
-        checkpoint_syncer: CheckpointSyncers,
+        multisig_checkpoint_syncer: MultisigCheckpointSyncer,
         core: AbacusAgentCore,
     ) -> Self {
         let checkpoints_relayed_count = Arc::new(
@@ -55,7 +57,7 @@ impl Relayer {
             max_retries,
             submission_latency,
             relayer_message_processing,
-            checkpoint_syncer,
+            multisig_checkpoint_syncer,
             core,
             checkpoints_relayed_count,
         }
@@ -73,16 +75,15 @@ impl Agent for Relayer {
     where
         Self: Sized,
     {
-        let checkpoint_syncer = settings
-            .checkpointsyncer
-            .try_into_checkpoint_syncer()
-            .await?;
+        let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
+            .multisigcheckpointsyncer
+            .try_into_multisig_checkpoint_syncer()?;
         Ok(Self::new(
             settings.pollinginterval.parse().unwrap_or(5),
             settings.maxretries.parse().unwrap_or(10),
             settings.submissionlatency.parse().expect("invalid uint"),
             settings.relayermessageprocessing.parse().unwrap_or(false),
-            checkpoint_syncer,
+            multisig_checkpoint_syncer,
             settings
                 .as_ref()
                 .try_into_abacus_core(Self::AGENT_NAME)
@@ -110,7 +111,7 @@ impl Relayer {
             self.relayer_message_processing,
             db.clone(),
             inbox.clone(),
-            self.checkpoint_syncer.clone(),
+            self.multisig_checkpoint_syncer.clone(),
         );
         let message_processor = MessageProcessor::new(
             self.polling_interval,

@@ -75,13 +75,6 @@ impl Inbox for MockInboxContract {
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         self._message_status(leaf)
     }
-
-    async fn submit_checkpoint(
-        &self,
-        signed_checkpoint: &SignedCheckpoint,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        self._checkpoint(signed_checkpoint)
-    }
 }
 
 #[async_trait]

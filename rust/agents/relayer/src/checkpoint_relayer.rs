@@ -1,6 +1,6 @@
 use std::{sync::Arc, time::Duration};
 
-use abacus_base::{CachingInbox, CheckpointSyncer, CheckpointSyncers};
+use abacus_base::{CachingInbox, MultisigCheckpointSyncer};
 use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox};
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
@@ -16,7 +16,7 @@ pub(crate) struct CheckpointRelayer {
     db: AbacusDB,
     inbox: Arc<CachingInbox>,
     prover_sync: MerkleTreeBuilder,
-    checkpoint_syncer: CheckpointSyncers,
+    multisig_checkpoint_syncer: MultisigCheckpointSyncer,
 }
 
 impl CheckpointRelayer {
@@ -26,7 +26,7 @@ impl CheckpointRelayer {
         immediate_message_processing: bool,
         db: AbacusDB,
         inbox: Arc<CachingInbox>,
-        checkpoint_syncer: CheckpointSyncers,
+        multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     ) -> Self {
         Self {
             polling_interval,
@@ -35,7 +35,7 @@ impl CheckpointRelayer {
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
             inbox,
-            checkpoint_syncer,
+            multisig_checkpoint_syncer,
         }
     }
 
@@ -81,20 +81,20 @@ impl CheckpointRelayer {
         // If the checkpoint storage is inconsistent, then this arm won't match
         // and it will cause us to have skipped this message batch
         if let Some(latest_signed_checkpoint) = self
-            .checkpoint_syncer
+            .multisig_checkpoint_syncer
             .fetch_checkpoint(signed_checkpoint_index)
             .await?
         {
             let batch = MessageBatch::new(
                 messages,
                 onchain_checkpoint_index,
-                latest_signed_checkpoint.clone(),
+                latest_signed_checkpoint.checkpoint.clone(),
             );
 
             self.prover_sync.update_from_batch(&batch)?;
-            self.inbox
-                .submit_checkpoint(&latest_signed_checkpoint)
-                .await?;
+            // self.inbox
+            //     .submit_checkpoint(&latest_signed_checkpoint)
+            //     .await?;
 
             if self.immediate_message_processing {
                 // TODO: sign in parallel
@@ -136,7 +136,8 @@ impl CheckpointRelayer {
             loop {
                 sleep(Duration::from_secs(self.polling_interval)).await;
 
-                if let Some(signed_checkpoint_index) = self.checkpoint_syncer.latest_index().await?
+                if let Some(signed_checkpoint_index) =
+                    self.multisig_checkpoint_syncer.latest_index().await?
                 {
                     if signed_checkpoint_index <= onchain_checkpoint_index {
                         debug!(

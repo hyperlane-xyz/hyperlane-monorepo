@@ -9,6 +9,7 @@ use color_eyre::Result;
 use crate::{CheckpointSyncer, CheckpointSyncers};
 
 /// Fetches signed checkpoints from multiple validators to create MultisigSignedCheckpoints
+#[derive(Clone, Debug)]
 pub struct MultisigCheckpointSyncer {
     /// The quorum threshold
     threshold: usize,
@@ -35,9 +36,9 @@ struct SignedCheckpointWithSigner {
 /// A checkpoint and multiple signatures
 pub struct MultisigSignedCheckpoint {
     /// The checkpoint
-    checkpoint: Checkpoint,
+    pub checkpoint: Checkpoint,
     /// ECDSA signatures over the checkpoint, sorted in ascending order by their signer's address
-    signatures: Vec<Signature>,
+    pub signatures: Vec<Signature>,
 }
 
 impl TryFrom<&mut Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
@@ -77,7 +78,7 @@ impl MultisigCheckpointSyncer {
 
     /// Fetches a checkpoint suitable for a multisig validator manager if there is a quorum.
     /// Returns Ok(None) if there is no quorum.
-    async fn fetch_checkpoint(&self, index: u32) -> Result<Option<MultisigSignedCheckpoint>> {
+    pub async fn fetch_checkpoint(&self, index: u32) -> Result<Option<MultisigSignedCheckpoint>> {
         // Keeps track of signed validator checkpoints for a particular root.
         // In practice, it's likely that validators will all sign the same root for a
         // particular index, but we'd like to be robust to this not being the case
@@ -145,7 +146,7 @@ impl MultisigCheckpointSyncer {
     /// Note it's possible for both strategies for finding the latest index to not find a quorum.
     /// A more robust implementation should be considered in the future that indexes historical
     /// checkpoint indices.
-    async fn latest_index(&self) -> Result<Option<u32>> {
+    pub async fn latest_index(&self) -> Result<Option<u32>> {
         // Get the latest_index from each validator's checkpoint syncer.
         let mut latest_indices = Vec::with_capacity(self.checkpoint_syncers.len());
         for checkpoint_syncer in self.checkpoint_syncers.values() {
