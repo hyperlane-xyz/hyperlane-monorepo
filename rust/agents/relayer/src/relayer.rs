@@ -47,7 +47,7 @@ impl Relayer {
                     "Number of checkpoints relayed from given outbox to inbox",
                     &["outbox", "inbox", "agent"],
                 )
-                .expect("processor metric already registered -- should have be a singleton"),
+                .expect("processor metric already registered -- should be a singleton"),
         );
 
         Self {
@@ -101,6 +101,7 @@ impl Relayer {
         );
         sync
     }
+
     fn run_inbox(&self, inbox: Arc<CachingInbox>) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
         let checkpoint_relayer = CheckpointRelayer::new(
