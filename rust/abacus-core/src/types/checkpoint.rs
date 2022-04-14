@@ -187,3 +187,53 @@ impl SignedCheckpoint {
             .verify(self.checkpoint.prepended_hash(), signer)?)
     }
 }
+
+/// A individiual signed checkpoint with the recovered signer
+pub struct SignedCheckpointWithSigner {
+    /// The recovered signer
+    pub signer: Address,
+    /// The signed checkpoint
+    pub signed_checkpoint: SignedCheckpoint,
+}
+
+/// A checkpoint and multiple signatures
+pub struct MultisigSignedCheckpoint {
+    /// The checkpoint
+    pub checkpoint: Checkpoint,
+    /// ECDSA signatures over the checkpoint, sorted in ascending order by their signer's address
+    pub signatures: Vec<Signature>,
+}
+
+/// Error types for MultisigSignedCheckpoint
+#[derive(Debug, thiserror::Error)]
+pub enum MultisigSignedCheckpointError {
+    /// The signed checkpoint has no signatures
+    #[error("Multisig signed checkpoint has no signatures")]
+    EmptySignatures(),
+}
+
+impl TryFrom<&mut Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
+    type Error = MultisigSignedCheckpointError;
+
+    /// Given multiple signed checkpoints with their signer, creates a MultisigSignedCheckpoint
+    fn try_from(
+        signed_checkpoints: &mut Vec<SignedCheckpointWithSigner>,
+    ) -> Result<Self, Self::Error> {
+        if signed_checkpoints.is_empty() {
+            return Err(MultisigSignedCheckpointError::EmptySignatures());
+        }
+        // MultisigValidatorManagers expect signatures to be sorted by their signer in ascending
+        // order to prevent duplicates
+        signed_checkpoints.sort_by_key(|c| c.signer);
+        let signatures = signed_checkpoints
+            .iter()
+            .map(|c| c.signed_checkpoint.signature)
+            .collect();
+
+        Ok(MultisigSignedCheckpoint {
+            // Assume all signed_checkpoints are for the same checkpoint
+            checkpoint: signed_checkpoints[0].signed_checkpoint.checkpoint,
+            signatures,
+        })
+    }
+}

@@ -4,6 +4,7 @@ mod inbox;
 mod indexer;
 mod message;
 mod outbox;
+mod validator_manager;
 
 use async_trait::async_trait;
 use color_eyre::Result;
@@ -22,6 +23,7 @@ pub use inbox::*;
 pub use indexer::*;
 pub use message::*;
 pub use outbox::*;
+pub use validator_manager::*;
 
 /// The result of a transaction
 #[derive(Debug, Clone, Copy)]
