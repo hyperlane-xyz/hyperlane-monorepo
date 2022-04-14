@@ -1,10 +1,11 @@
-import { addresses as test } from './test';
-import { ChainName } from '../../';
 import { CoreContractAddresses } from '../';
+import { addresses as test } from './test';
 
-export const addresses: Record<
-  any,
-  Partial<Record<ChainName, CoreContractAddresses>>
-> = {
-  test,
-};
+export type CoreDeployedNetworks = keyof typeof test;
+
+export const addresses: {
+  [Network in CoreDeployedNetworks]: CoreContractAddresses<
+    CoreDeployedNetworks,
+    Network
+  >;
+} = test;

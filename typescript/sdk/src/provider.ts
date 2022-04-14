@@ -1,7 +1,7 @@
-import { ethers } from 'ethers';
 import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
-
-import { ChainName, NameOrDomain, Domain } from './types';
+import { ethers } from 'ethers';
+import { domains } from './domains';
+import { ChainName, Domain, NameOrDomain } from './types';
 
 type Provider = ethers.providers.Provider;
 
@@ -99,16 +99,10 @@ export class MultiProvider {
    * @returns The canonical domain number.
    */
   resolveDomain(nameOrDomain: NameOrDomain): number {
-    if (typeof nameOrDomain === 'string') {
-      const domains = Array.from(this.domains.values()).filter(
-        (domain) => domain.name.toLowerCase() === nameOrDomain.toLowerCase(),
-      );
-      if (domains.length === 0) {
-        throw new Error(`Domain not found: ${nameOrDomain}`);
-      }
-      return domains[0].id;
-    } else {
+    if (typeof nameOrDomain === 'number') {
       return nameOrDomain;
+    } else {
+      return domains[nameOrDomain].id;
     }
   }
 

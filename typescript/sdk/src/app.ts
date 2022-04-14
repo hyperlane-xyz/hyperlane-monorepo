@@ -1,28 +1,36 @@
 import { ethers } from 'ethers';
-import { MultiProvider } from './provider';
 import { AbacusAppContracts } from './contracts';
-import { NameOrDomain } from './types';
+import { MultiProvider } from './provider';
+import { ChainName, ChainSubsetMap, NameOrDomain } from './types';
 
 /**
  * Abstract class for interacting with collections of contracts on multiple
  * chains.
  */
 export abstract class AbacusApp<
-  T,
-  V extends AbacusAppContracts<T>,
+  Networks extends ChainName,
+  Addresses,
+  Contracts extends AbacusAppContracts<Addresses>,
 > extends MultiProvider {
-  protected contracts: Map<number, V>;
+  protected contracts: Map<number, Contracts>;
 
-  constructor() {
+  constructor(addresses: ChainSubsetMap<Networks, Addresses>) {
     super();
     this.contracts = new Map();
+    for (const [chain, address] of Object.entries<Addresses>(addresses)) {
+      const domain = this.resolveDomain(chain as Networks);
+      this.contracts.set(domain, this.buildContracts(address));
+    }
   }
 
-  getContracts(nameOrDomain: NameOrDomain): V | undefined {
+  // TODO: make this generic
+  abstract buildContracts(addresses: Addresses): Contracts;
+
+  getContracts(nameOrDomain: NameOrDomain) {
     return this.getFromMap(nameOrDomain, this.contracts);
   }
 
-  mustGetContracts(nameOrDomain: NameOrDomain): V {
+  mustGetContracts(nameOrDomain: NameOrDomain) {
     return this.mustGetFromMap(nameOrDomain, this.contracts, 'Contracts');
   }
 

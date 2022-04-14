@@ -1,43 +1,45 @@
+export { AbacusApp } from './app';
+export { AbacusAppContracts } from './contracts';
 export {
-  addresses as coreAddresses,
   AbacusCore,
-  AbacusStatus,
+  AbacusLifecyleEvent,
   AbacusMessage,
+  AbacusStatus,
+  addresses as coreAddresses,
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
-  AbacusLifecyleEvent,
-  CoreContracts,
   CoreContractAddresses,
+  CoreContracts,
   MessageStatus,
   ParsedMessage,
   parseMessage,
 } from './core';
+export { domains } from './domains';
 export {
   Annotated,
   getEvents,
-  TSContract,
   queryAnnotatedEvents,
+  TSContract,
 } from './events';
-export {
-  addresses as governanceAddresses,
-  AbacusGovernance,
-  GovernanceContractAddresses,
-  Call,
-} from './governance';
-export { MultiProvider } from './provider';
-export {
-  ALL_CHAIN_NAMES,
-  ChainName,
-  Connection,
-  NameOrDomain,
-  ProxiedAddress,
-} from './types';
-export { AbacusAppContracts } from './contracts';
-export { AbacusApp } from './app';
-export { domains } from './domains';
 export {
   DefaultTokenPriceGetter,
   InterchainGasCalculator,
   TokenPriceGetter,
 } from './gas';
+export {
+  AbacusGovernance,
+  addresses as governanceAddresses,
+  Call,
+  GovernanceContractAddresses,
+} from './governance';
+export { MultiProvider } from './provider';
+export {
+  ChainMap,
+  ChainName,
+  Chains,
+  ChainSubsetMap,
+  Connection,
+  NameOrDomain,
+  ProxiedAddress,
+} from './types';
 export { utils } from './utils';

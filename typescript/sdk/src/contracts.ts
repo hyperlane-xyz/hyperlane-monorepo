@@ -3,7 +3,7 @@ import { Connection } from './types';
 /**
  * Abstract class for managing collections of contracts
  */
-export abstract class AbacusAppContracts<T> {
+export class AbacusAppContracts<T> {
   public readonly addresses: T;
   private _connection?: Connection;
 

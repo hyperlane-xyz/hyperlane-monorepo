@@ -1,50 +1,39 @@
 import { Inbox, InboxValidatorManager } from '@abacus-network/core';
-
 import { AbacusApp } from '../app';
-import { domains } from '../domains';
-import { ChainName, NameOrDomain } from '../types';
-
+import { CoreDeployedNetworks } from '../core/environments';
+import { Remotes } from '../types';
 import { CoreContractAddresses, CoreContracts } from './contracts';
-import { addresses } from './environments';
 
 export class AbacusCore extends AbacusApp<
-  CoreContractAddresses,
-  CoreContracts
+  CoreDeployedNetworks,
+  CoreContractAddresses<CoreDeployedNetworks, any>,
+  CoreContracts<CoreDeployedNetworks, any>
 > {
-  constructor(
-    addressesOrEnv: Partial<Record<ChainName, CoreContractAddresses>> | string,
+  buildContracts<Local extends CoreDeployedNetworks>(
+    addresses: CoreContractAddresses<CoreDeployedNetworks, Local>,
   ) {
-    super();
-    let _addresses: Partial<Record<ChainName, CoreContractAddresses>> = {};
-    if (typeof addressesOrEnv == 'string') {
-      _addresses = addresses[addressesOrEnv];
-      if (!_addresses)
-        throw new Error(
-          `addresses for environment ${addressesOrEnv} not found`,
-        );
-    } else {
-      _addresses = addressesOrEnv;
-    }
-    const chains = Object.keys(_addresses) as ChainName[];
-    chains.map((chain) => {
-      this.registerDomain(domains[chain]);
-      const domain = this.resolveDomain(chain);
-      this.contracts.set(domain, new CoreContracts(_addresses[chain]!));
-    });
+    return new CoreContracts<CoreDeployedNetworks, Local>(addresses);
   }
 
-  mustGetInbox(src: NameOrDomain, dest: NameOrDomain): Inbox {
-    const contracts = this.mustGetContracts(dest);
-    const srcName = this.mustGetDomain(src).name;
-    return contracts.inbox(srcName);
+  mustGetInbox<Local extends CoreDeployedNetworks>(
+    src: number | Remotes<CoreDeployedNetworks, Local>,
+    dest: number | Local,
+  ): Inbox {
+    const contracts: CoreContracts<CoreDeployedNetworks, Local> =
+      this.mustGetContracts(dest);
+    const srcName =
+      typeof src === 'number' ? this.mustGetDomain(src).name : src;
+    return contracts.inbox(srcName as any);
   }
 
-  mustGetInboxValidatorManager(
-    src: NameOrDomain,
-    dest: NameOrDomain,
+  mustGetInboxValidatorManager<Local extends CoreDeployedNetworks>(
+    src: number | Remotes<CoreDeployedNetworks, Local>,
+    dest: number | Local,
   ): InboxValidatorManager {
-    const contracts = this.mustGetContracts(dest);
-    const srcName = this.mustGetDomain(src).name;
-    return contracts.inboxValidatorManager(srcName);
+    const contracts: CoreContracts<CoreDeployedNetworks, Local> =
+      this.mustGetContracts(dest);
+    const srcName =
+      typeof src === 'number' ? this.mustGetDomain(src).name : src;
+    return contracts.inboxValidatorManager(srcName as any);
   }
 }

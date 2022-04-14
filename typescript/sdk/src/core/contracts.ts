@@ -1,50 +1,54 @@
 import {
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
-  UpgradeBeaconController,
-  UpgradeBeaconController__factory,
-  OutboxValidatorManager,
-  OutboxValidatorManager__factory,
+  Inbox,
   InboxValidatorManager,
   InboxValidatorManager__factory,
-  Outbox,
-  Outbox__factory,
-  Inbox,
   Inbox__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
+  Outbox,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
+  Outbox__factory,
+  UpgradeBeaconController,
+  UpgradeBeaconController__factory,
+  XAppConnectionManager,
+  XAppConnectionManager__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
-
 import { AbacusAppContracts } from '../contracts';
-import { ChainName, ProxiedAddress } from '../types';
+import {
+  ChainName,
+  ProxiedAddress,
+  RemoteChainSubsetMap,
+  Remotes,
+} from '../types';
 
-export type CoreContractAddresses = {
+type Mailbox = ProxiedAddress & { validatorManager: types.Address };
+
+export type CoreContractAddresses<
+  Networks extends ChainName,
+  Local extends Networks,
+> = {
   upgradeBeaconController: types.Address;
   xAppConnectionManager: types.Address;
   interchainGasPaymaster: types.Address;
-  outbox: ProxiedAddress;
-  inboxes: Partial<Record<ChainName, ProxiedAddress>>;
-  outboxValidatorManager: types.Address;
-  inboxValidatorManagers: Partial<Record<ChainName, types.Address>>;
+  outbox: Mailbox;
+  inboxes: RemoteChainSubsetMap<Networks, Local, Mailbox>;
 };
 
-export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
-  inbox(chain: ChainName): Inbox {
+export class CoreContracts<
+  N extends ChainName,
+  L extends N,
+> extends AbacusAppContracts<CoreContractAddresses<N, L>> {
+  inbox(chain: Remotes<N, L>): Inbox {
     const inbox = this.addresses.inboxes[chain];
-    if (!inbox) {
-      throw new Error(`No inbox for ${chain}`);
-    }
     return Inbox__factory.connect(inbox.proxy, this.connection);
   }
 
-  inboxValidatorManager(chain: ChainName): InboxValidatorManager {
-    const inboxValidatorManager = this.addresses.inboxValidatorManagers[chain];
-    if (!inboxValidatorManager) {
-      throw new Error(`No inboxValidatorManager for ${chain}`);
-    }
+  inboxValidatorManager(chain: Remotes<N, L>): InboxValidatorManager {
+    const inbox = this.addresses.inboxes[chain];
     return InboxValidatorManager__factory.connect(
-      inboxValidatorManager,
+      inbox.validatorManager,
       this.connection,
     );
   }
@@ -58,7 +62,7 @@ export class CoreContracts extends AbacusAppContracts<CoreContractAddresses> {
 
   get outboxValidatorManager(): OutboxValidatorManager {
     return OutboxValidatorManager__factory.connect(
-      this.addresses.outboxValidatorManager,
+      this.addresses.outbox.validatorManager,
       this.connection,
     );
   }
