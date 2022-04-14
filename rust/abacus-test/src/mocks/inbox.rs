@@ -16,9 +16,7 @@ mock! {
 
         pub fn _prove(&self, proof: &Proof) -> Result<TxOutcome, ChainCommunicationError> {}
 
-        pub fn _process(&self, message: &AbacusMessage) -> Result<TxOutcome, ChainCommunicationError> {}
-
-        pub fn _prove_and_process(
+        pub fn _process(
             &self,
             message: &AbacusMessage,
             proof: &Proof,
@@ -56,20 +54,12 @@ impl Inbox for MockInboxContract {
         self._remote_domain()
     }
 
-    async fn prove(&self, proof: &Proof) -> Result<TxOutcome, ChainCommunicationError> {
-        self._prove(proof)
-    }
-
-    async fn process(&self, message: &AbacusMessage) -> Result<TxOutcome, ChainCommunicationError> {
-        self._process(message)
-    }
-
-    async fn prove_and_process(
+    async fn process(
         &self,
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        self._prove_and_process(message, proof)
+        self._process(message, proof)
     }
 
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {

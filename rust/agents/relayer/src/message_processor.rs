@@ -91,44 +91,27 @@ impl MessageProcessor {
                         }
 
                         match self.prover_sync.get_proof(message_leaf_index) {
-                            Ok(proof) => {
-                                match self.inbox.prove_and_process(&message.message, &proof).await {
-                                    Ok(outcome) => {
-                                        info!(
-                                            leaf_index = message_leaf_index,
-                                            hash = ?outcome.txid,
-                                            "[MessageProcessor] processed"
-                                        );
-                                        self.db.mark_leaf_as_processed(message_leaf_index)?;
-                                        Ok(MessageProcessingStatus::Processed)
-                                    }
-                                    Err(err) => {
-                                        error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
-                                        Ok(MessageProcessingStatus::Error)
-                                    }
+                            Ok(proof) => match self.inbox.process(&message.message, &proof).await {
+                                Ok(outcome) => {
+                                    info!(
+                                        leaf_index = message_leaf_index,
+                                        hash = ?outcome.txid,
+                                        "[MessageProcessor] processed"
+                                    );
+                                    self.db.mark_leaf_as_processed(message_leaf_index)?;
+                                    Ok(MessageProcessingStatus::Processed)
                                 }
-                            }
+                                Err(err) => {
+                                    error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
+                                    Ok(MessageProcessingStatus::Error)
+                                }
+                            },
                             Err(err) => {
                                 error!(error=?err, "MessageProcessor was unable to fetch proof");
                                 bail!("MessageProcessor was unable to fetch proof");
                             }
                         }
                     }
-                    MessageStatus::Proven => match self.inbox.process(&message.message).await {
-                        Ok(outcome) => {
-                            info!(
-                                leaf_index = message_leaf_index,
-                                hash = ?outcome.txid,
-                                "[MessageProcessor] processed a message that was already proven"
-                            );
-                            self.db.mark_leaf_as_processed(message_leaf_index)?;
-                            Ok(MessageProcessingStatus::Processed)
-                        }
-                        Err(err) => {
-                            error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
-                            Ok(MessageProcessingStatus::Error)
-                        }
-                    },
                     MessageStatus::Processed => {
                         debug!(
                             leaf_index = message_leaf_index,

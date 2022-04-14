@@ -185,7 +185,6 @@ export class AbacusDeployment {
       const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
       if (destination !== local) {
         const inbox = this.inbox(destination, local);
-        await inbox.setMessageProven(dispatch.args.message);
         await inbox.testProcess(dispatch.args.message);
       }
     }

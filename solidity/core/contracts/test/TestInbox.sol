@@ -10,11 +10,6 @@ contract TestInbox is Inbox {
 
     constructor(uint32 _localDomain) Inbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
-    function setMessageProven(bytes memory _message) external {
-        bytes29 _m = _message.ref(0);
-        messages[_m.keccak()] = MessageStatus.Proven;
-    }
-
     function setCheckpoint(bytes32 _root, uint256 _index) external {
         checkpoints[_root] = _index;
     }
@@ -28,7 +23,11 @@ contract TestInbox is Inbox {
     }
 
     function testProcess(bytes calldata _message) external {
-        process(_message);
+        _process(_message);
+    }
+
+    function setMessageStatus(bytes32 _leaf, MessageStatus status) external {
+        messages[_leaf] = status;
     }
 
     function getRevertMsg(bytes memory _res)

@@ -102,7 +102,7 @@ impl CheckpointRelayer {
                     match self.prover_sync.get_proof(message.leaf_index) {
                         Ok(proof) => {
                             // Ignore errors and expect the lagged message processor to retry
-                            match self.inbox.prove_and_process(&message.message, &proof).await {
+                            match self.inbox.process(&message.message, &proof).await {
                                 Ok(outcome) => {
                                     info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message")
                                 }

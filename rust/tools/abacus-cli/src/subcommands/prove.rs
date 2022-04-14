@@ -73,8 +73,7 @@ impl ProveCommand {
 
         let status = inbox.message_status(message.to_leaf()).await?;
         let outcome = match status {
-            MessageStatus::None => inbox.prove_and_process(&message, &proof).await?,
-            MessageStatus::Proven => inbox.process(&message).await?,
+            MessageStatus::None => inbox.process(&message, &proof).await?,
             _ => {
                 println!("Message already processed.");
                 return Ok(());

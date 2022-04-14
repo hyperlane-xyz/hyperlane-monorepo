@@ -11,10 +11,11 @@ interface IInbox is ICommon {
     ) external;
 
     function remoteDomain() external returns (uint32);
-    
-    function proveAndProcess(
+
+    function process(
         bytes calldata _message,
         bytes32[32] calldata _proof,
-        uint256 _index
+        uint256 _index,
+        bytes calldata sovereignData
     ) external;
 }
