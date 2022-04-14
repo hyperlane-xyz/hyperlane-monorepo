@@ -68,7 +68,7 @@ impl MultisigCheckpointSyncer {
         }
     }
 
-    /// Fetches a checkpoint if there is a quorum.
+    /// Fetches a checkpoint suitable for a multisig validator manager if there is a quorum.
     /// Returns Ok(None) if there is no quorum.
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<MultisigSignedCheckpoint>> {
         let validator_count = self.checkpoint_syncers.len();
@@ -138,7 +138,11 @@ impl MultisigCheckpointSyncer {
     /// Attempts to get the latest index with a quorum of signatures among validators.
     /// First iterates through the `latest_index` of each validator's checkpoint syncer,
     /// looking for the highest index that >= `threshold` validators have returned.
-    /// If there isn't a quorum found this way, each
+    /// If there isn't a quorum found this way, each unique index from the highest -> lowest
+    /// is checked for a quorum of signed checkpoints using `fetch_checkpoint`.
+    /// Note it's possible for both strategies for finding the latest index to not find a quorum.
+    /// A more robust implementation should be considered in the future that indexes historical
+    /// checkpoint indices.
     async fn latest_index(&self) -> Result<Option<u32>> {
         // Get the latest_index from each validator's checkpoint syncer.
         let mut latest_indices = Vec::with_capacity(self.checkpoint_syncers.len());
