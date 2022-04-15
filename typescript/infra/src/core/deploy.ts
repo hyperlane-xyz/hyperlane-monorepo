@@ -178,8 +178,8 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       const rustConfig: RustConfig = {
         environment,
         signers: {},
-        replicas: {},
-        home: outbox,
+        inboxes: {},
+        outbox,
         tracing: {
           level: 'debug',
           fmt: 'json',
@@ -204,7 +204,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
           },
         };
 
-        rustConfig.replicas[remoteName] = inbox;
+        rustConfig.inboxes[remoteName] = inbox;
       }
       AbacusAppDeployer.writeJson(filepath, rustConfig);
     }

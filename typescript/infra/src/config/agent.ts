@@ -76,8 +76,8 @@ export type RustConfig = {
   environment: DeployEnvironment;
   signers: Partial<Record<ChainName, RustSigner>>;
   // Agents have not yet been moved to use the Outbox/Inbox names.
-  replicas: Partial<Record<ChainName, RustContractBlock>>;
-  home: RustContractBlock;
+  inboxes: Partial<Record<ChainName, RustContractBlock>>;
+  outbox: RustContractBlock;
   tracing: {
     level: string;
     fmt: 'json';
