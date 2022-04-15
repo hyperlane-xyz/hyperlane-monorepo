@@ -75,9 +75,9 @@ export type RustContractBlock = {
 export type RustConfig = {
   environment: DeployEnvironment;
   signers: Partial<Record<ChainName, RustSigner>>;
-  // Agents have not yet been moved to use the Outbox/Inbox names.
-  replicas: Partial<Record<ChainName, RustContractBlock>>;
-  home: RustContractBlock;
+  outbox: RustContractBlock;
+  inboxes: Partial<Record<ChainName, RustContractBlock>>;
+  inboxValidatorManagers: Partial<Record<ChainName, RustContractBlock>>;
   tracing: {
     level: string;
     fmt: 'json';

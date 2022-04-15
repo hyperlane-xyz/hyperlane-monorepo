@@ -49,14 +49,14 @@ pub struct MultisigCheckpointSyncerConf {
     /// The quorum threshold
     threshold: usize,
     /// The checkpoint syncer for each valid validator signer address
-    checkpoint_syncers: HashMap<String, CheckpointSyncerConf>,
+    checkpointsyncers: HashMap<String, CheckpointSyncerConf>,
 }
 
 impl MultisigCheckpointSyncerConf {
     /// Get a MultisigCheckpointSyncer from the config
     pub fn try_into_multisig_checkpoint_syncer(&self) -> Result<MultisigCheckpointSyncer, Report> {
         let mut checkpoint_syncers = HashMap::new();
-        for (key, value) in self.checkpoint_syncers.iter() {
+        for (key, value) in self.checkpointsyncers.iter() {
             checkpoint_syncers.insert(
                 Address::from_str(&key)?,
                 value.try_into_checkpoint_syncer()?,

@@ -189,7 +189,7 @@ pub struct Settings {
     /// The inbox configurations
     pub inboxes: HashMap<String, ChainSetup>,
     /// The InboxValidatorManager configurations
-    pub inbox_validator_managers: HashMap<String, ChainSetup>,
+    pub inboxvalidatormanagers: HashMap<String, ChainSetup>,
     /// The tracing configuration
     pub tracing: TracingConfig,
     /// Transaction signers
@@ -205,7 +205,7 @@ impl Settings {
             index: self.index.clone(),
             outbox: self.outbox.clone(),
             inboxes: self.inboxes.clone(),
-            inbox_validator_managers: self.inbox_validator_managers.clone(),
+            inboxvalidatormanagers: self.inboxvalidatormanagers.clone(),
             tracing: self.tracing.clone(),
             signers: self.signers.clone(),
         }
@@ -250,7 +250,7 @@ impl Settings {
     ) -> Result<HashMap<String, Arc<InboxValidatorManagers>>, Report> {
         let mut result = HashMap::default();
         for (k, v) in self
-            .inbox_validator_managers
+            .inboxvalidatormanagers
             .iter()
             .filter(|(_, v)| v.disabled.is_none())
         {

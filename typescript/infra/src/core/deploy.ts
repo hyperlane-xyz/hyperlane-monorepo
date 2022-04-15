@@ -178,8 +178,9 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       const rustConfig: RustConfig = {
         environment,
         signers: {},
-        replicas: {},
-        home: outbox,
+        outbox,
+        inboxes: {},
+        inboxValidatorManagers: {},
         tracing: {
           level: 'debug',
           fmt: 'json',
@@ -193,8 +194,8 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         const inboxAddress = remoteAddresses.inboxes[name];
         if (!inboxAddress)
           throw new Error(`No inbox for ${domain} on ${remote}`);
-        const inbox = {
-          address: inboxAddress.proxy,
+
+        const common = {
           domain: remote.toString(),
           name: remoteName,
           rpcStyle: 'ethereum',
@@ -203,9 +204,27 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
             url: '',
           },
         };
+        const inbox = {
+          ...common,
+          address: inboxAddress.proxy,
+        };
 
-        rustConfig.replicas[remoteName] = inbox;
+        const inboxValidatorManagerAddress =
+          remoteAddresses.inboxValidatorManagers[name];
+        if (!inboxValidatorManagerAddress)
+          throw new Error(
+            `No inbox validator manager for ${domain} on ${remote}`,
+          );
+
+        const inboxValidatorManager = {
+          ...common,
+          address: inboxValidatorManagerAddress,
+        };
+
+        rustConfig.inboxes[remoteName] = inbox;
+        rustConfig.inboxValidatorManagers[remoteName] = inboxValidatorManager;
       }
+      console.log('hello', filepath, rustConfig)
       AbacusAppDeployer.writeJson(filepath, rustConfig);
     }
   }
