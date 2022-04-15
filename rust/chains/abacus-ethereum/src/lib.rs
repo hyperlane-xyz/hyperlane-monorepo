@@ -76,7 +76,11 @@ boxed_trait!(
 );
 boxed_trait!(make_outbox, EthereumOutbox, Outbox,);
 boxed_trait!(make_inbox, EthereumInbox, Inbox,);
-boxed_trait!(make_inbox_validator_manager, EthereumInboxValidatorManager, InboxValidatorManager,);
+boxed_trait!(
+    make_inbox_validator_manager,
+    EthereumInboxValidatorManager,
+    InboxValidatorManager,
+);
 
 #[async_trait::async_trait]
 impl abacus_core::Chain for Chain {

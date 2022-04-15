@@ -1,9 +1,34 @@
 use async_trait::async_trait;
 use ethers::types::Address;
+use std::sync::Arc;
 
 use abacus_core::{
     ChainCommunicationError, InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
+
+#[derive(Debug, Clone)]
+/// Arc wrapper for InboxValidatorManagerVariants enum
+pub struct InboxValidatorManagers(Arc<InboxValidatorManagerVariants>);
+
+impl From<InboxValidatorManagerVariants> for InboxValidatorManagers {
+    fn from(inbox_validator_managers: InboxValidatorManagerVariants) -> Self {
+        Self(Arc::new(inbox_validator_managers))
+    }
+}
+
+impl std::ops::Deref for InboxValidatorManagers {
+    type Target = Arc<InboxValidatorManagerVariants>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl std::ops::DerefMut for InboxValidatorManagers {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
 
 /// InboxValidatorManager type
 #[derive(Debug)]

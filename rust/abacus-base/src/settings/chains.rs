@@ -2,9 +2,12 @@ use color_eyre::Report;
 use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};
-use abacus_ethereum::{make_inbox, make_outbox, Connection};
+use abacus_ethereum::{make_inbox, make_inbox_validator_manager, make_outbox, Connection};
 
-use crate::{InboxVariants, Inboxes, OutboxVariants, Outboxes};
+use crate::{
+    InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes, OutboxVariants,
+    Outboxes,
+};
 
 /// A connection to _some_ blockchain.
 ///
@@ -61,11 +64,33 @@ impl ChainSetup {
         }
     }
 
-    /// Try to convert the chain setting into a inbox contract
+    /// Try to convert the chain setting into an inbox contract
     pub async fn try_into_inbox(&self, signer: Option<Signers>) -> Result<Inboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
                 make_inbox(
+                    conf.clone(),
+                    &ContractLocator {
+                        name: self.name.clone(),
+                        domain: self.domain.parse().expect("invalid uint"),
+                        address: self.address.parse::<ethers::types::Address>()?.into(),
+                    },
+                    signer,
+                )
+                .await?,
+            )
+            .into()),
+        }
+    }
+
+    /// Try to convert the chain setting into an InboxValidatorManager contract
+    pub async fn try_into_inbox_validator_manager(
+        &self,
+        signer: Option<Signers>,
+    ) -> Result<InboxValidatorManagers, Report> {
+        match &self.chain {
+            ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerVariants::Ethereum(
+                make_inbox_validator_manager(
                     conf.clone(),
                     &ContractLocator {
                         name: self.name.clone(),

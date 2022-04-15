@@ -2,7 +2,7 @@ use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingInbox, CachingOutbox,
+    CachingInbox, CachingOutbox, InboxValidatorManagers,
 };
 use abacus_core::db::DB;
 use async_trait::async_trait;
@@ -21,6 +21,8 @@ pub struct AbacusAgentCore {
     pub outbox: Arc<CachingOutbox>,
     /// A map of boxed Inboxes
     pub inboxes: HashMap<String, Arc<CachingInbox>>,
+    /// A map of boxed InboxValidatorManagers
+    pub inbox_validator_managers: HashMap<String, Arc<InboxValidatorManagers>>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -65,9 +67,19 @@ pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
         &self.as_ref().inboxes
     }
 
-    /// Get a reference to a inbox by its name
+    /// Get a reference to an inbox by its name
     fn inbox_by_name(&self, name: &str) -> Option<Arc<CachingInbox>> {
         self.inboxes().get(name).map(Clone::clone)
+    }
+
+    /// Get a reference to the inbox_validator_managers map
+    fn inbox_validator_managers(&self) -> &HashMap<String, Arc<InboxValidatorManagers>> {
+        &self.as_ref().inbox_validator_managers
+    }
+
+    /// Get a reference to an InboxValidatorManager in by its name
+    fn inbox_validator_manager_by_name(&self, name: &str) -> Option<Arc<InboxValidatorManagers>> {
+        self.inbox_validator_managers().get(name).map(Clone::clone)
     }
 
     /// Run tasks

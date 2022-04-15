@@ -1,14 +1,12 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use abacus_core::{ChainCommunicationError, ContractLocator, TxOutcome};
 use abacus_core::{InboxValidatorManager, MultisigSignedCheckpoint};
-use abacus_core::{
-    ChainCommunicationError, ContractLocator, TxOutcome,
-};
 use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::contract::abigen;
-use ethers::core::types::{Address};
+use ethers::core::types::Address;
 // use tracing::instrument;
 
 use std::sync::Arc;
@@ -56,7 +54,10 @@ where
         }: &ContractLocator,
     ) -> Self {
         Self {
-            contract: Arc::new(EthereumInboxValidatorManagerInternal::new(address, provider.clone())),
+            contract: Arc::new(EthereumInboxValidatorManagerInternal::new(
+                address,
+                provider.clone(),
+            )),
             domain: *domain,
             name: name.to_owned(),
             provider,
@@ -79,7 +80,11 @@ where
             inbox,
             multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
             multisig_signed_checkpoint.checkpoint.index.into(),
-            multisig_signed_checkpoint.signatures.iter().map(|s| s.to_vec().into()).collect(),
+            multisig_signed_checkpoint
+                .signatures
+                .iter()
+                .map(|s| s.to_vec().into())
+                .collect(),
         );
 
         Ok(report_tx!(tx).into())

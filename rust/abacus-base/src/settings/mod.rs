@@ -36,7 +36,10 @@
 //!    intended to be used by a specific agent.
 //!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
 
-use crate::{AbacusAgentCore, AbacusCommonIndexers, CachingInbox, CachingOutbox, OutboxIndexers};
+use crate::{
+    AbacusAgentCore, AbacusCommonIndexers, CachingInbox, CachingOutbox, InboxValidatorManagers,
+    OutboxIndexers,
+};
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
@@ -185,6 +188,8 @@ pub struct Settings {
     pub outbox: ChainSetup,
     /// The inbox configurations
     pub inboxes: HashMap<String, ChainSetup>,
+    /// The InboxValidatorManager configurations
+    pub inbox_validator_managers: HashMap<String, ChainSetup>,
     /// The tracing configuration
     pub tracing: TracingConfig,
     /// Transaction signers
@@ -200,6 +205,7 @@ impl Settings {
             index: self.index.clone(),
             outbox: self.outbox.clone(),
             inboxes: self.inboxes.clone(),
+            inbox_validator_managers: self.inbox_validator_managers.clone(),
             tracing: self.tracing.clone(),
             signers: self.signers.clone(),
         }
@@ -234,6 +240,30 @@ impl Settings {
                 v.name.clone(),
                 Arc::new(CachingInbox::new(inbox, abacus_db, indexer)),
             );
+        }
+        Ok(result)
+    }
+
+    /// Try to get all inboxes from this settings object
+    pub async fn try_inbox_validator_managers(
+        &self,
+    ) -> Result<HashMap<String, Arc<InboxValidatorManagers>>, Report> {
+        let mut result = HashMap::default();
+        for (k, v) in self
+            .inbox_validator_managers
+            .iter()
+            .filter(|(_, v)| v.disabled.is_none())
+        {
+            if k != &v.name {
+                bail!(
+                    "InboxValidatorManager key does not match name:\n key: {}  name: {}",
+                    k,
+                    v.name
+                );
+            }
+            let signer = self.get_signer(&v.name).await;
+            let inbox_validator_manager = v.try_into_inbox_validator_manager(signer).await?;
+            result.insert(v.name.clone(), Arc::new(inbox_validator_manager));
         }
         Ok(result)
     }
@@ -311,10 +341,12 @@ impl Settings {
         let db = DB::from_path(&self.db)?;
         let outbox = Arc::new(self.try_caching_outbox(db.clone()).await?);
         let inboxes = self.try_caching_inboxes(db.clone()).await?;
+        let inbox_validator_managers = self.try_inbox_validator_managers().await?;
 
         Ok(AbacusAgentCore {
             outbox,
             inboxes,
+            inbox_validator_managers,
             db,
             settings: self.clone(),
             metrics,
