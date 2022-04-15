@@ -1,6 +1,5 @@
 use async_trait::async_trait;
 use color_eyre::Result;
-use ethers::types::Address;
 
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
@@ -14,7 +13,6 @@ pub trait InboxValidatorManager: Send + Sync + std::fmt::Debug {
     /// Mocks already have a function called checkpoint
     async fn submit_checkpoint(
         &self,
-        inbox: Address,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
     ) -> Result<TxOutcome, ChainCommunicationError>;
 }

@@ -261,9 +261,18 @@ impl Settings {
                     v.name
                 );
             }
-            let signer = self.get_signer(&v.name).await;
-            let inbox_validator_manager = v.try_into_inbox_validator_manager(signer).await?;
-            result.insert(v.name.clone(), Arc::new(inbox_validator_manager));
+            if let Some(inbox) = self.inboxes.get(k) {
+                let signer = self.get_signer(&v.name).await;
+                let inbox_validator_manager = v
+                    .try_into_inbox_validator_manager(
+                        signer,
+                        inbox.address.parse::<ethers::types::Address>()?.into(),
+                    )
+                    .await?;
+                result.insert(v.name.clone(), Arc::new(inbox_validator_manager));
+            } else {
+                bail!("Inbox not found for InboxValidatorManager key {}", k);
+            }
         }
         Ok(result)
     }
@@ -343,15 +352,15 @@ impl Settings {
         let inboxes = self.try_caching_inboxes(db.clone()).await?;
         let inbox_validator_managers = self.try_inbox_validator_managers().await?;
 
-        Ok(AbacusAgentCore {
+        AbacusAgentCore::new(
             outbox,
             inboxes,
             inbox_validator_managers,
             db,
-            settings: self.clone(),
             metrics,
-            indexer: self.index.clone(),
-        })
+            self.index.clone(),
+            self.clone(),
+        )
     }
 
     /// Read settings from the config file

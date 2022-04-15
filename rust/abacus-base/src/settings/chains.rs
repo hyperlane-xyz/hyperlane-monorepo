@@ -1,4 +1,5 @@
 use color_eyre::Report;
+use ethers::types::Address;
 use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};
@@ -87,6 +88,7 @@ impl ChainSetup {
     pub async fn try_into_inbox_validator_manager(
         &self,
         signer: Option<Signers>,
+        inbox_address: Address,
     ) -> Result<InboxValidatorManagers, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerVariants::Ethereum(
@@ -98,6 +100,7 @@ impl ChainSetup {
                         address: self.address.parse::<ethers::types::Address>()?.into(),
                     },
                     signer,
+                    inbox_address,
                 )
                 .await?,
             )

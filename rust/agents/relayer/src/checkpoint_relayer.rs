@@ -1,7 +1,7 @@
 use std::{sync::Arc, time::Duration};
 
-use abacus_base::{CachingInbox, MultisigCheckpointSyncer};
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox};
+use abacus_base::{CachingInbox, InboxValidatorManagers, MultisigCheckpointSyncer};
+use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxValidatorManager};
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument::Instrumented, Instrument};
@@ -15,6 +15,7 @@ pub(crate) struct CheckpointRelayer {
     immediate_message_processing: bool,
     db: AbacusDB,
     inbox: Arc<CachingInbox>,
+    inbox_validator_manager: Arc<InboxValidatorManagers>,
     prover_sync: MerkleTreeBuilder,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
 }
@@ -26,6 +27,7 @@ impl CheckpointRelayer {
         immediate_message_processing: bool,
         db: AbacusDB,
         inbox: Arc<CachingInbox>,
+        inbox_validator_manager: Arc<InboxValidatorManagers>,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     ) -> Self {
         Self {
@@ -35,6 +37,7 @@ impl CheckpointRelayer {
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
             inbox,
+            inbox_validator_manager,
             multisig_checkpoint_syncer,
         }
     }
@@ -92,9 +95,9 @@ impl CheckpointRelayer {
             );
 
             self.prover_sync.update_from_batch(&batch)?;
-            // self.inbox
-            //     .submit_checkpoint(&latest_signed_checkpoint)
-            //     .await?;
+            self.inbox_validator_manager
+                .submit_checkpoint(&latest_signed_checkpoint)
+                .await?;
 
             if self.immediate_message_processing {
                 // TODO: sign in parallel

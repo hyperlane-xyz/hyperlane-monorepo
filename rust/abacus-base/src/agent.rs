@@ -6,7 +6,7 @@ use crate::{
 };
 use abacus_core::db::DB;
 use async_trait::async_trait;
-use color_eyre::{Report, Result};
+use color_eyre::{eyre::bail, Report, Result};
 use futures_util::future::select_all;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
@@ -23,6 +23,9 @@ pub struct AbacusAgentCore {
     pub inboxes: HashMap<String, Arc<CachingInbox>>,
     /// A map of boxed InboxValidatorManagers
     pub inbox_validator_managers: HashMap<String, Arc<InboxValidatorManagers>>,
+    /// A map of boxed (Inbox, InboxValidatorManagers)
+    pub inboxes_and_validator_managers:
+        HashMap<String, (Arc<CachingInbox>, Arc<InboxValidatorManagers>)>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -31,6 +34,41 @@ pub struct AbacusAgentCore {
     pub indexer: IndexSettings,
     /// Settings this agent was created with
     pub settings: crate::settings::Settings,
+}
+
+impl AbacusAgentCore {
+    /// Constructor
+    pub fn new(
+        outbox: Arc<CachingOutbox>,
+        inboxes: HashMap<String, Arc<CachingInbox>>,
+        inbox_validator_managers: HashMap<String, Arc<InboxValidatorManagers>>,
+        db: DB,
+        metrics: Arc<CoreMetrics>,
+        indexer: IndexSettings,
+        settings: crate::settings::Settings,
+    ) -> Result<AbacusAgentCore> {
+        let mut inboxes_and_validator_managers = HashMap::default();
+        for (name, inbox) in &inboxes {
+            if let Some(inbox_validator_manager) = inbox_validator_managers.get(name) {
+                inboxes_and_validator_managers.insert(
+                    name.to_owned(),
+                    (inbox.clone(), inbox_validator_manager.clone()),
+                );
+            } else {
+                bail!("No InboxValidatorManager for Inbox named {}", name);
+            }
+        }
+        Ok(AbacusAgentCore {
+            outbox,
+            inboxes,
+            inbox_validator_managers,
+            inboxes_and_validator_managers,
+            db,
+            metrics,
+            indexer,
+            settings,
+        })
+    }
 }
 
 /// A trait for an abacus agent
@@ -80,6 +118,13 @@ pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
     /// Get a reference to an InboxValidatorManager in by its name
     fn inbox_validator_manager_by_name(&self, name: &str) -> Option<Arc<InboxValidatorManagers>> {
         self.inbox_validator_managers().get(name).map(Clone::clone)
+    }
+
+    /// Gets a map of names to a tuple of (Inbox, InboxValidatorManager).
+    fn inboxes_and_validator_managers(
+        &self,
+    ) -> &HashMap<String, (Arc<CachingInbox>, Arc<InboxValidatorManagers>)> {
+        &self.as_ref().inboxes_and_validator_managers
     }
 
     /// Run tasks

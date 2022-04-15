@@ -6,7 +6,9 @@
 
 use abacus_core::*;
 use color_eyre::eyre::Result;
-use ethers::prelude::*;
+// use ethers::prelude::*;
+use ethers::providers::Middleware;
+use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
 use num::Num;
 use std::convert::TryFrom;
 use std::sync::Arc;
@@ -80,6 +82,7 @@ boxed_trait!(
     make_inbox_validator_manager,
     EthereumInboxValidatorManager,
     InboxValidatorManager,
+    inbox_address: Address
 );
 
 #[async_trait::async_trait]

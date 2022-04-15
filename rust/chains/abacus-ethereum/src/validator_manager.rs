@@ -37,6 +37,7 @@ where
     domain: u32,
     name: String,
     provider: Arc<M>,
+    inbox_address: Address,
 }
 
 impl<M> EthereumInboxValidatorManager<M>
@@ -52,6 +53,7 @@ where
             domain,
             address,
         }: &ContractLocator,
+        inbox_address: Address,
     ) -> Self {
         Self {
             contract: Arc::new(EthereumInboxValidatorManagerInternal::new(
@@ -61,6 +63,7 @@ where
             domain: *domain,
             name: name.to_owned(),
             provider,
+            inbox_address,
         }
     }
 }
@@ -73,11 +76,10 @@ where
     // #[tracing::instrument(err, skip(self), fields(hex_signature = %format!("0x{}", hex::encode(multisig_signed_checkpoint.signatures.to_vec()))))]
     async fn submit_checkpoint(
         &self,
-        inbox: Address,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         let tx = self.contract.checkpoint(
-            inbox,
+            self.inbox_address,
             multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
             multisig_signed_checkpoint.checkpoint.index.into(),
             multisig_signed_checkpoint
