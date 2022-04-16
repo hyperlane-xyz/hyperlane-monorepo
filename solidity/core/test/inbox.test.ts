@@ -158,11 +158,9 @@ describe('Inbox', async () => {
     const testRecipientFactory = new TestRecipient__factory(signer);
     const testRecipient = await testRecipientFactory.deploy();
 
-    const nonce = 0;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       testRecipient.address,
       '0x',
@@ -179,13 +177,11 @@ describe('Inbox', async () => {
 
   it('Fails to process an unproved message', async () => {
     const [sender, recipient] = await ethers.getSigners();
-    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       recipient.address,
       body,
@@ -202,11 +198,9 @@ describe('Inbox', async () => {
       const factory = new badRecipientFactories[i](signer);
       const badRecipient = await factory.deploy();
 
-      const nonce = 0;
       const abacusMessage = utils.formatMessage(
         remoteDomain,
         sender.address,
-        nonce,
         localDomain,
         badRecipient.address,
         '0x',
@@ -220,13 +214,11 @@ describe('Inbox', async () => {
 
   it('Fails to process message with wrong destination Domain', async () => {
     const [sender, recipient] = await ethers.getSigners();
-    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       // Wrong destination Domain
       localDomain + 5,
       recipient.address,
@@ -239,13 +231,11 @@ describe('Inbox', async () => {
   });
 
   it('Fails to process message sent to a non-existent contract address', async () => {
-    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       abacusMessageSender.address,
-      nonce,
       localDomain,
       '0x1234567890123456789012345678901234567890', // non-existent contract address
       body,
@@ -262,11 +252,9 @@ describe('Inbox', async () => {
     const factory = new BadRecipientHandle__factory(recipient);
     const testRecipient = await factory.deploy();
 
-    const nonce = 0;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       testRecipient.address,
       '0x',
@@ -284,14 +272,11 @@ describe('Inbox', async () => {
     const testRecipientFactory = new TestRecipient__factory(signer);
     const testRecipient = await testRecipientFactory.deploy();
 
-    const nonce = 0;
-
     // Note that hash of this message specifically matches leaf of 1st
     // proveAndProcess test case
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       testRecipient.address,
       '0x',
@@ -320,7 +305,6 @@ describe('Inbox', async () => {
 
   it('Has proveAndProcess fail if prove fails', async () => {
     const [sender, recipient] = await ethers.getSigners();
-    const nonce = 0;
 
     // Use 1st proof of 1st merkle vector test case
     const testCase = merkleTestCases[0];
@@ -330,7 +314,6 @@ describe('Inbox', async () => {
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       recipient.address,
       '0x',

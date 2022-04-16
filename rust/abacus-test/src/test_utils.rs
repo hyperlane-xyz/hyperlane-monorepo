@@ -54,7 +54,6 @@ mod test {
             let m = AbacusMessage {
                 origin: 10,
                 sender: H256::from_low_u64_be(4),
-                nonce: 11,
                 destination: 12,
                 recipient: H256::from_low_u64_be(5),
                 body: vec![1, 2, 3],
@@ -68,12 +67,6 @@ mod test {
             assert_eq!(m.to_leaf(), message.leaf());
 
             db.store_raw_committed_message(&message).unwrap();
-
-            let by_nonce = db
-                .message_by_nonce(m.destination, m.nonce)
-                .unwrap()
-                .unwrap();
-            assert_eq!(by_nonce, message);
 
             let by_leaf = db.message_by_leaf(message.leaf()).unwrap().unwrap();
             assert_eq!(by_leaf, message);

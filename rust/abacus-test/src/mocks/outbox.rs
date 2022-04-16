@@ -14,24 +14,15 @@ mock! {
 
         pub fn _domain_hash(&self) -> H256 {}
 
-        pub fn _raw_message_by_nonce(
-            &self,
-            destination: u32,
-            nonce: u32,
-        ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {}
-
         pub fn _raw_message_by_leaf(
             &self,
             leaf: H256,
         ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {}
 
-
         pub fn _leaf_by_tree_index(
             &self,
             tree_index: usize,
         ) -> Result<Option<H256>, ChainCommunicationError> {}
-
-        pub fn _nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {}
 
         pub fn _dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {}
 
@@ -62,10 +53,6 @@ impl std::fmt::Debug for MockOutboxContract {
 
 #[async_trait]
 impl Outbox for MockOutboxContract {
-    async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
-        self._nonces(destination)
-    }
-
     async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
         self._dispatch(message)
     }

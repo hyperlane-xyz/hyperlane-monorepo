@@ -51,7 +51,6 @@ export function formatCallData<
 export const formatMessage = (
   localDomain: Domain,
   senderAddr: Address,
-  sequence: number,
   destinationDomain: Domain,
   recipientAddr: Address,
   body: HexString,
@@ -60,8 +59,8 @@ export const formatMessage = (
   recipientAddr = addressToBytes32(recipientAddr);
 
   return ethers.utils.solidityPack(
-    ['uint32', 'bytes32', 'uint32', 'uint32', 'bytes32', 'bytes'],
-    [localDomain, senderAddr, sequence, destinationDomain, recipientAddr, body],
+    ['uint32', 'bytes32', 'uint32', 'bytes32', 'bytes'],
+    [localDomain, senderAddr, destinationDomain, recipientAddr, body],
   );
 };
 

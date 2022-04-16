@@ -58,30 +58,23 @@ describe('Outbox', async () => {
   describe('#dispatch', () => {
     const testMessageValues = async () => {
       const message = ethers.utils.formatBytes32String('message');
-      const nonce = await outbox.nonces(localDomain);
-
-      // Format data that will be emitted from Dispatch event
-      const destAndNonce = utils.destinationAndNonce(destDomain, nonce);
 
       const abacusMessage = utils.formatMessage(
         localDomain,
         signer.address,
-        nonce,
         destDomain,
         recipient.address,
         message,
       );
       const hash = utils.messageHash(abacusMessage);
       const leafIndex = await outbox.tree();
-      const [checkpointedRoot] = await outbox.latestCheckpoint();
 
       return {
         message,
-        destAndNonce,
+        destDomain,
         abacusMessage,
         hash,
         leafIndex,
-        checkpointedRoot,
       };
     };
 
@@ -97,14 +90,8 @@ describe('Outbox', async () => {
     });
 
     it('Dispatches a message', async () => {
-      const {
-        message,
-        destAndNonce,
-        abacusMessage,
-        hash,
-        leafIndex,
-        checkpointedRoot,
-      } = await testMessageValues();
+      const { message, destDomain, abacusMessage, hash, leafIndex } =
+        await testMessageValues();
 
       // Send message with signer address as msg.sender
       await expect(
@@ -117,13 +104,7 @@ describe('Outbox', async () => {
           ),
       )
         .to.emit(outbox, 'Dispatch')
-        .withArgs(
-          hash,
-          leafIndex,
-          destAndNonce,
-          checkpointedRoot,
-          abacusMessage,
-        );
+        .withArgs(hash, leafIndex, destDomain, abacusMessage);
     });
 
     it('Returns the leaf index of the dispatched message', async () => {

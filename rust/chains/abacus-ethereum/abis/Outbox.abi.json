@@ -46,15 +46,9 @@
       },
       {
         "indexed": true,
-        "internalType": "uint64",
-        "name": "destinationAndNonce",
-        "type": "uint64"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32",
-        "name": "checkpointedRoot",
-        "type": "bytes32"
+        "internalType": "uint32",
+        "name": "destination",
+        "type": "uint32"
       },
       {
         "indexed": false,
@@ -201,7 +195,13 @@
       }
     ],
     "name": "dispatch",
-    "outputs": [],
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
     "stateMutability": "nonpayable",
     "type": "function"
   },
@@ -226,6 +226,30 @@
     "type": "function"
   },
   {
+    "inputs": [
+      {
+        "internalType": "bytes32",
+        "name": "_root",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_index",
+        "type": "uint256"
+      }
+    ],
+    "name": "isCheckpoint",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
     "inputs": [],
     "name": "latestCheckpoint",
     "outputs": [
@@ -246,25 +270,6 @@
   {
     "inputs": [],
     "name": "localDomain",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "name": "nonces",
     "outputs": [
       {
         "internalType": "uint32",
@@ -365,7 +370,7 @@
     "name": "validatorManager",
     "outputs": [
       {
-        "internalType": "contract IValidatorManager",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }

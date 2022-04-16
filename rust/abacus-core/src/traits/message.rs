@@ -9,8 +9,6 @@ use ethers::{core::types::H256, utils::keccak256};
 pub struct RawCommittedMessage {
     /// The index at which the message is committed
     pub leaf_index: u32,
-    /// The Outbox's current root when the message was committed.
-    pub committed_root: H256,
     /// The fully detailed message that was committed
     pub message: Vec<u8>,
 }
@@ -31,7 +29,6 @@ impl Encode for RawCommittedMessage {
         W: std::io::Write,
     {
         writer.write_all(&self.leaf_index.to_be_bytes())?;
-        writer.write_all(self.committed_root.as_ref())?;
         writer.write_all(&self.message)?;
         Ok(4 + 32 + self.message.len())
     }
@@ -46,15 +43,11 @@ impl Decode for RawCommittedMessage {
         let mut idx = [0u8; 4];
         reader.read_exact(&mut idx)?;
 
-        let mut hash = [0u8; 32];
-        reader.read_exact(&mut hash)?;
-
         let mut message = vec![];
         reader.read_to_end(&mut message)?;
 
         Ok(Self {
             leaf_index: u32::from_be_bytes(idx),
-            committed_root: hash.into(),
             message,
         })
     }
@@ -66,8 +59,6 @@ impl Decode for RawCommittedMessage {
 pub struct CommittedMessage {
     /// The index at which the message is committed
     pub leaf_index: u32,
-    /// The Outbox's current root when the message was committed.
-    pub committed_root: H256,
     /// The fully detailed message that was committed
     pub message: AbacusMessage,
 }
@@ -91,7 +82,6 @@ impl TryFrom<RawCommittedMessage> for CommittedMessage {
     fn try_from(raw: RawCommittedMessage) -> Result<Self, Self::Error> {
         Ok(Self {
             leaf_index: raw.leaf_index,
-            committed_root: raw.committed_root,
             message: AbacusMessage::read_from(&mut &raw.message[..])?,
         })
     }
