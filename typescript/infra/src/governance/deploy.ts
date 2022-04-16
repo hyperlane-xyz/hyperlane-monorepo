@@ -1,12 +1,12 @@
-import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
 import {
   GovernanceRouter,
   GovernanceRouter__factory,
 } from '@abacus-network/apps';
 import { UpgradeBeaconController__factory } from '@abacus-network/core';
-import { GovernanceContractAddresses } from '@abacus-network/sdk';
 import { AbacusRouterDeployer } from '@abacus-network/deploy';
+import { GovernanceContractAddresses } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
+import { ethers } from 'ethers';
 import { GovernanceConfig } from './types';
 
 export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
@@ -27,6 +27,7 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
       domain,
       'UpgradeBeaconController',
       new UpgradeBeaconController__factory(signer),
+      [],
     );
 
     const router = await this.deployProxiedContract(

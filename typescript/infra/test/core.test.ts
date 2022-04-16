@@ -1,11 +1,11 @@
-import path from 'path';
+import { utils } from '@abacus-network/deploy';
+import { AbacusCore } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
-import { types } from '@abacus-network/utils';
-import { AbacusCore } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/deploy';
-import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
+import path from 'path';
 import { environment } from '../config/environments/test';
+import { AbacusCoreChecker, AbacusCoreDeployer } from '../src/core';
 
 describe('core', async () => {
   const deployer = new AbacusCoreDeployer();
@@ -21,7 +21,7 @@ describe('core', async () => {
   });
 
   it('deploys', async () => {
-    await deployer.deploy(environment.core);
+    await deployer.deploy(environment.core as any); // TODO: fix types
   });
 
   it('writes', async () => {
@@ -32,7 +32,7 @@ describe('core', async () => {
   });
 
   it('transfers ownership', async () => {
-    core = new AbacusCore(deployer.addressesRecord);
+    core = new AbacusCore(deployer.addressesRecord as any); // TODO: fix types
     const [signer] = await ethers.getSigners();
     utils.registerHardhatEnvironment(core, environment, signer);
     await AbacusCoreDeployer.transferOwnership(core, owners);

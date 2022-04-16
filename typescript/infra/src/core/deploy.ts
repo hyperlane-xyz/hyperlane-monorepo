@@ -1,38 +1,38 @@
-import path from 'path';
-import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
+import {
+  InboxValidatorManager,
+  InboxValidatorManager__factory,
+  Inbox__factory,
+  InterchainGasPaymaster__factory,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
+  Outbox__factory,
+  UpgradeBeaconController,
+  UpgradeBeaconController__factory,
+  XAppConnectionManager,
+  XAppConnectionManager__factory,
+} from '@abacus-network/core';
+import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainName,
   CoreContractAddresses,
-  ProxiedAddress,
+  Mailbox,
 } from '@abacus-network/sdk';
-import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
-import {
-  UpgradeBeaconController,
-  XAppConnectionManager,
-  InboxValidatorManager,
-  InboxValidatorManager__factory,
-  OutboxValidatorManager,
-  OutboxValidatorManager__factory,
-  Inbox,
-  UpgradeBeaconController__factory,
-  XAppConnectionManager__factory,
-  Outbox__factory,
-  Inbox__factory,
-  InterchainGasPaymaster__factory,
-} from '@abacus-network/core';
+import { Remotes } from '@abacus-network/sdk/dist/types';
+import { types } from '@abacus-network/utils';
+import { ethers } from 'ethers';
+import path from 'path';
 import { DeployEnvironment, RustConfig } from '../config';
-import { CoreConfig, ValidatorManagerConfig } from './types';
+import { CoreConfig } from './types';
 
 export class AbacusCoreDeployer extends AbacusAppDeployer<
-  CoreContractAddresses,
-  CoreConfig
+  CoreContractAddresses<ChainName, any>,
+  CoreConfig<ChainName>
 > {
-  async deployContracts(
-    domain: types.Domain,
-    config: CoreConfig,
-  ): Promise<CoreContractAddresses> {
+  async deployContracts<Networks extends ChainName, Local extends Networks>(
+    domain: number | Local,
+    config: CoreConfig<Networks>,
+  ): Promise<CoreContractAddresses<Networks, Local>> {
     const overrides = this.getOverrides(domain);
     const signer = this.mustGetSigner(domain);
     const upgradeBeaconController: UpgradeBeaconController =
@@ -40,20 +40,22 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         domain,
         'UpgradeBeaconController',
         new UpgradeBeaconController__factory(signer),
+        [],
       );
 
-    const outboxValidatorManagerConfig = this.validatorManagerConfig(
-      config,
-      domain,
-    );
+    const domainName = this.mustResolveDomainName(domain) as Local;
+
+    const outboxValidatorManagerConfig = config.validatorManagers[domainName];
     const outboxValidatorManager: OutboxValidatorManager =
       await this.deployContract(
         domain,
         'OutboxValidatorManager',
         new OutboxValidatorManager__factory(signer),
-        domain,
-        outboxValidatorManagerConfig.validators,
-        outboxValidatorManagerConfig.threshold,
+        [
+          domain,
+          outboxValidatorManagerConfig.validators,
+          outboxValidatorManagerConfig.threshold,
+        ],
       );
 
     const outbox = await this.deployProxiedContract(
@@ -69,6 +71,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       domain,
       'InterchainGasPaymaster',
       new InterchainGasPaymaster__factory(signer),
+      [],
     );
 
     const xAppConnectionManager: XAppConnectionManager =
@@ -76,6 +79,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         domain,
         'XAppConnectionManager',
         new XAppConnectionManager__factory(signer),
+        [],
       );
     await xAppConnectionManager.setOutbox(outbox.address, overrides);
     await xAppConnectionManager.setInterchainGasPaymaster(
@@ -83,79 +87,86 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       overrides,
     );
 
-    const inboxValidatorManagers: Record<types.Domain, InboxValidatorManager> =
-      {};
-    const inboxValidatorManagerAddresses: Partial<
-      Record<ChainName, types.Address>
-    > = {};
+    const remotes = Object.keys(config.validatorManagers).filter(
+      (k) => k !== domain,
+    ) as Remotes<Networks, Local>[];
 
-    const inboxes: Record<types.Domain, ProxiedContract<Inbox>> = {};
-    const inboxAddresses: Partial<Record<ChainName, ProxiedAddress>> = {};
-    const remotes = this.remoteDomainNumbers(domain);
-    for (let i = 0; i < remotes.length; i++) {
-      const remote = remotes[i];
-      const remoteName = this.mustResolveDomainName(remote);
-
-      const validatorManagerConfig = this.validatorManagerConfig(
-        config,
-        remote,
-      );
-      const inboxValidatorManager: InboxValidatorManager =
-        await this.deployContract(
-          domain,
-          'InboxValidatorManager',
-          new InboxValidatorManager__factory(signer),
+    const deployValidatorManager = async (
+      remote: Remotes<Networks, Local>,
+    ): Promise<InboxValidatorManager> => {
+      const validatorManagerConfig = config.validatorManagers[remote];
+      return this.deployContract(
+        domain,
+        'InboxValidatorManager',
+        new InboxValidatorManager__factory(signer),
+        [
           remote,
           validatorManagerConfig.validators,
           validatorManagerConfig.threshold,
-        );
-      inboxValidatorManagers[remote] = inboxValidatorManager;
-      inboxValidatorManagerAddresses[remoteName] =
-        inboxValidatorManager.address;
+        ],
+      );
+    };
 
-      const initArgs = [
-        remote,
-        inboxValidatorManager.address,
+    const getMailbox = (
+      validatorManager: ethers.Contract,
+      box: ProxiedContract<ethers.Contract>,
+    ): Mailbox => ({
+      ...box.addresses,
+      validatorManager: validatorManager.address,
+    });
+
+    const [firstRemote, ...trailingRemotes] = remotes;
+    const firstValidatorManager = await deployValidatorManager(firstRemote);
+    const firstInbox = await this.deployProxiedContract(
+      domain,
+      'Inbox',
+      new Inbox__factory(signer),
+      upgradeBeaconController.address,
+      [domain],
+      [
+        firstRemote,
+        firstValidatorManager.address,
         ethers.constants.HashZero,
         0,
-      ];
-      if (i === 0) {
-        inboxes[remote] = await this.deployProxiedContract(
+      ],
+    );
+
+    type RemoteMailboxEntry = [Remotes<Networks, Local>, Mailbox];
+
+    const firstRemoteMailbox: RemoteMailboxEntry = [
+      firstRemote,
+      getMailbox(firstValidatorManager, firstInbox),
+    ];
+
+    const trailingRemoteMailboxes = await Promise.all(
+      trailingRemotes.map(async (remote): Promise<RemoteMailboxEntry> => {
+        const validatorManager = await deployValidatorManager(remote);
+        const inbox = await this.duplicateProxiedContract(
           domain,
           'Inbox',
-          new Inbox__factory(signer),
-          upgradeBeaconController.address,
-          [domain],
-          initArgs,
+          firstInbox,
+          [remote, validatorManager.address, ethers.constants.HashZero, 0],
         );
-      } else {
-        inboxes[remote] = await this.duplicateProxiedContract(
-          domain,
-          'Inbox',
-          inboxes[remotes[0]],
-          initArgs,
-        );
-      }
-      inboxAddresses[this.mustResolveDomainName(remote)] =
-        inboxes[remote].addresses;
 
-      await xAppConnectionManager.enrollInbox(
-        remote,
-        inboxes[remote].address,
-        overrides,
-      );
-    }
+        return [remote, getMailbox(validatorManager, inbox)];
+      }),
+    );
 
-    const addresses = {
+    const remoteMailboxes = [firstRemoteMailbox, ...trailingRemoteMailboxes];
+
+    await Promise.all(
+      remoteMailboxes.map(([remote, mailbox]) =>
+        xAppConnectionManager.enrollInbox(remote, mailbox.proxy),
+      ),
+    );
+
+    return {
       upgradeBeaconController: upgradeBeaconController.address,
       xAppConnectionManager: xAppConnectionManager.address,
       interchainGasPaymaster: interchainGasPaymaster.address,
-      outboxValidatorManager: outboxValidatorManager.address,
-      inboxValidatorManagers: inboxValidatorManagerAddresses,
-      outbox: outbox.addresses,
-      inboxes: inboxAddresses,
+      outbox: getMailbox(outboxValidatorManager, outbox),
+      inboxes: Object.fromEntries(remoteMailboxes) as any, // TODO: fix cast
     };
-    return addresses;
   }
 
   writeRustConfigs(environment: DeployEnvironment, directory: string) {
@@ -190,6 +201,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       for (const remote of this.remoteDomainNumbers(domain)) {
         const remoteName = this.mustResolveDomainName(remote);
         const remoteAddresses = this.mustGetAddresses(remote);
+        // @ts-ignore TODO: fix types
         const inboxAddress = remoteAddresses.inboxes[name];
         if (!inboxAddress)
           throw new Error(`No inbox for ${domain} on ${remote}`);
@@ -231,27 +243,15 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
     await contracts.outboxValidatorManager.transferOwnership(owner, overrides);
     await contracts.xAppConnectionManager.transferOwnership(owner, overrides);
     await contracts.upgradeBeaconController.transferOwnership(owner, overrides);
-    for (const chain of Object.keys(
-      contracts.addresses.inboxes,
-    ) as ChainName[]) {
+    for (const chain of Object.keys(contracts.addresses.inboxes)) {
       await contracts
+        // @ts-ignore TODO: fix types
         .inboxValidatorManager(chain)
         .transferOwnership(owner, overrides);
+      // @ts-ignore TODO: fix types
       await contracts.inbox(chain).transferOwnership(owner, overrides);
     }
     const tx = await contracts.outbox.transferOwnership(owner, overrides);
     return tx.wait(core.getConfirmations(domain));
-  }
-
-  validatorManagerConfig(
-    config: CoreConfig,
-    domain: types.Domain,
-  ): ValidatorManagerConfig {
-    const domainName = this.mustResolveDomainName(domain);
-    const validatorManagerConfig = config.validatorManagers[domainName];
-    if (!validatorManagerConfig) {
-      throw new Error(`No validator manager config for ${domainName}`);
-    }
-    return validatorManagerConfig;
   }
 }

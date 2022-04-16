@@ -1,7 +1,7 @@
-import path from 'path';
-// import fs from 'fs';
-import { ALL_CHAIN_NAMES } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/deploy';
+// import fs from 'fs';
+import { ChainName, Chains } from '@abacus-network/sdk';
+import path from 'path';
 import { KEY_ROLE_ENUM } from '../src/agents';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
 
@@ -15,7 +15,7 @@ export function moduleName(environment: DeployEnvironment) {
 
 export async function getCoreEnvironmentConfig(
   environment: DeployEnvironment,
-): Promise<CoreEnvironmentConfig> {
+): Promise<CoreEnvironmentConfig<any>> {
   return (await import(moduleName(environment))).environment;
 }
 
@@ -68,6 +68,6 @@ export async function getKeyRoleAndChainArgs() {
     .require('r')
     .alias('c', 'chain')
     .describe('c', 'chain name')
-    .choices('c', ALL_CHAIN_NAMES)
+    .choices('c', Object.values(Chains) as ChainName[])
     .require('c');
 }

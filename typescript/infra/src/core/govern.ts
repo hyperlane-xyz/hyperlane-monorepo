@@ -1,11 +1,17 @@
-import { expect } from 'chai';
-import { Call, AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+import { MultisigValidatorManager__factory } from '@abacus-network/core';
 import {
   CheckerViolation,
   ProxyViolationType,
   UpgradeBeaconViolation,
 } from '@abacus-network/deploy';
-
+import {
+  AbacusCore,
+  AbacusGovernance,
+  Call,
+  CoreDeployedNetworks,
+} from '@abacus-network/sdk';
+import { expect } from 'chai';
+import { PopulatedTransaction } from 'ethers';
 import {
   AbacusCoreChecker,
   CoreViolationType,
@@ -13,8 +19,6 @@ import {
   ValidatorViolationType,
 } from './check';
 import { CoreConfig } from './types';
-import { MultisigValidatorManager__factory } from '@abacus-network/core';
-import { PopulatedTransaction } from 'ethers';
 
 interface DomainedCall {
   domain: number;
@@ -26,7 +30,7 @@ export class AbacusCoreGovernor extends AbacusCoreChecker {
 
   constructor(
     app: AbacusCore,
-    config: CoreConfig,
+    config: CoreConfig<CoreDeployedNetworks>,
     governance: AbacusGovernance,
   ) {
     super(app, config);

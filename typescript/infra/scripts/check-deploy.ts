@@ -1,18 +1,22 @@
-import { types } from '@abacus-network/utils';
-import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/deploy';
-
-import { getEnvironment, getCoreEnvironmentConfig } from './utils';
+import {
+  AbacusCore,
+  AbacusGovernance,
+  coreAddresses,
+  governanceAddresses,
+} from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusGovernanceChecker } from '../src/governance';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {
   const environment = await getEnvironment();
-  const core = new AbacusCore(environment);
-  const governance = new AbacusGovernance(environment);
+  const core = new AbacusCore(coreAddresses);
+  const governance = new AbacusGovernance(governanceAddresses);
   const config = await getCoreEnvironmentConfig(environment);
-  await utils.registerEnvironment(core, config);
-  await utils.registerEnvironment(governance, config);
+  utils.registerEnvironment(core, config);
+  utils.registerEnvironment(governance, config);
 
   const governors: Record<types.Domain, types.Address> = {};
   governance.domainNumbers.map((domain) => {
@@ -26,7 +30,7 @@ async function check() {
     governance,
     config.governance,
   );
-  await governanceChecker.check(governors);
+  await governanceChecker.check(governors as any);
   governanceChecker.expectEmpty();
 
   const coreChecker = new AbacusCoreChecker(core, config.core);

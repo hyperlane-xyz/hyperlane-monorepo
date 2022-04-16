@@ -1,12 +1,15 @@
 import { CoreEnvironmentConfig } from '../../../src/config';
 import { configs } from '../../networks/testnets';
+import { agent } from './agent';
 import { core } from './core';
 import { governance } from './governance';
-import { agent } from './agent';
-import { metrics } from './metrics';
 import { infra } from './infra';
+import { metrics } from './metrics';
 
-export const environment: CoreEnvironmentConfig = {
+// TODO: fix type inference
+export const environment: CoreEnvironmentConfig<
+  'alfajores' | 'kovan' | 'mumbai' | 'fuji'
+> = {
   domains: ['alfajores', 'kovan', 'mumbai', 'fuji'],
   transactionConfigs: configs,
   agent,

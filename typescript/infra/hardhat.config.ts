@@ -1,21 +1,24 @@
-import '@nomiclabs/hardhat-waffle';
+import { BadRandomRecipient__factory } from '@abacus-network/core';
+import { utils as deployUtils } from '@abacus-network/deploy';
+import {
+  AbacusCore,
+  coreAddresses,
+  CoreDeployedNetworks,
+} from '@abacus-network/sdk';
+import { types, utils } from '@abacus-network/utils';
 import '@nomiclabs/hardhat-etherscan';
+import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import { BadRandomRecipient__factory } from '@abacus-network/core';
-import { coreAddresses, AbacusCore } from '@abacus-network/sdk';
-import { utils, types } from '@abacus-network/utils';
-
-import { AbacusCoreDeployer } from './src/core';
-import { AbacusContractVerifier } from './src/verify';
-import { sleep } from './src/utils/utils';
 import {
-  getCoreEnvironmentConfig,
-  getCoreVerificationDirectory,
   getCoreContractsSdkFilepath,
+  getCoreEnvironmentConfig,
   getCoreRustDirectory,
+  getCoreVerificationDirectory,
 } from './scripts/utils';
-import { utils as deployUtils } from '@abacus-network/deploy';
+import { AbacusCoreDeployer } from './src/core';
+import { sleep } from './src/utils/utils';
+import { AbacusContractVerifier } from './src/verify';
 
 const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
   const contracts = core.mustGetContracts(domain);
@@ -73,14 +76,13 @@ task('abacus', 'Deploys abacus on top of an already running Harthat Network')
   });
 
 task('kathy', 'Dispatches random abacus messages')
-  .addParam(
+  .addParam<CoreDeployedNetworks>(
     'environment',
     'The name of the environment from which to read configs',
   )
-  .setAction(async (args: any, hre: HardhatRuntimeEnvironment) => {
-    const environment = args.environment;
-    const core = new AbacusCore(coreAddresses[environment]);
-    const environmentConfig = await getCoreEnvironmentConfig(environment);
+  .setAction(async (args, hre: HardhatRuntimeEnvironment) => {
+    const core = new AbacusCore(coreAddresses);
+    const environmentConfig = await getCoreEnvironmentConfig(args.environment);
     await deployUtils.registerEnvironment(core, environmentConfig);
     await deployUtils.registerHardhatSigner(core);
     const randomElement = (list: types.Domain[]) =>

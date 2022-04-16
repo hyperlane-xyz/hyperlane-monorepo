@@ -1,12 +1,17 @@
-import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/deploy';
-import { getEnvironment, getCoreEnvironmentConfig } from './utils';
+import {
+  AbacusCore,
+  AbacusGovernance,
+  coreAddresses,
+  governanceAddresses,
+} from '@abacus-network/sdk';
 import { AbacusCoreGovernor, CoreViolationType } from '../src/core';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const core = new AbacusCore(environment);
-  const governance = new AbacusGovernance(environment);
+  const core = new AbacusCore(coreAddresses);
+  const governance = new AbacusGovernance(governanceAddresses);
   const config = await getCoreEnvironmentConfig(environment);
   utils.registerEnvironment(core, config);
   utils.registerEnvironment(governance, config);

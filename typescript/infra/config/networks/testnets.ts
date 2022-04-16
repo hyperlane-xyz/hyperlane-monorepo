@@ -1,6 +1,6 @@
-import { BigNumber } from 'ethers';
-import { ChainName } from '@abacus-network/sdk';
 import { TransactionConfig } from '@abacus-network/deploy';
+import { ChainSubsetMap } from '@abacus-network/sdk';
+import { BigNumber } from 'ethers';
 
 export const alfajores: TransactionConfig = {
   confirmations: 1,
@@ -51,7 +51,7 @@ export const ropsten: TransactionConfig = {
   },
 };
 
-export const configs: Partial<Record<ChainName, TransactionConfig>> = {
+const _configs = {
   alfajores,
   fuji,
   goerli,
@@ -61,3 +61,6 @@ export const configs: Partial<Record<ChainName, TransactionConfig>> = {
   rinkeby,
   ropsten,
 };
+
+export const configs: ChainSubsetMap<keyof typeof _configs, TransactionConfig> =
+  _configs;

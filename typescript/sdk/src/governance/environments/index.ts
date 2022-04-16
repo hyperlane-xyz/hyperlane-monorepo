@@ -1,8 +1,9 @@
+import { ChainSubsetMap, GovernanceContractAddresses } from '../../';
 import { addresses as test } from './test';
-import { ChainName, GovernanceContractAddresses } from '../../';
-export const addresses: Record<
-  any,
-  Partial<Record<ChainName, GovernanceContractAddresses>>
-> = {
-  test,
-};
+
+export type GovernanceDeployedNetworks = keyof typeof test;
+
+export const addresses: ChainSubsetMap<
+  GovernanceDeployedNetworks,
+  GovernanceContractAddresses
+> = test;

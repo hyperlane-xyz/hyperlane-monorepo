@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
 import { AbacusApp } from '../app';
-import { ChainName } from '../types';
 import { GovernanceContractAddresses, GovernanceContracts } from './contracts';
+import { GovernanceDeployedNetworks } from './environments';
 import { associateCalls, Call, normalizeCall } from './utils';
 
 export type Governor = {
@@ -10,7 +10,7 @@ export type Governor = {
 };
 
 export class AbacusGovernance extends AbacusApp<
-  ChainName, // TODO: narrow
+  GovernanceDeployedNetworks, // TODO: narrow
   GovernanceContractAddresses,
   GovernanceContracts
 > {

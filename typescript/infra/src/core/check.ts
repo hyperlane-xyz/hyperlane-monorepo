@@ -1,10 +1,10 @@
-import { expect } from 'chai';
 import { MultisigValidatorManager } from '@abacus-network/core';
-import { types } from '@abacus-network/utils';
-import { AbacusCore } from '@abacus-network/sdk';
 import { AbacusAppChecker, CheckerViolation } from '@abacus-network/deploy';
-import { CoreConfig } from './types';
+import { AbacusCore, CoreDeployedNetworks, Mailbox } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
+import { expect } from 'chai';
 import { setDifference } from '../utils/utils';
+import { CoreConfig } from './types';
 
 export enum CoreViolationType {
   ValidatorManager = 'ValidatorManager',
@@ -30,8 +30,9 @@ export interface ValidatorViolation extends CheckerViolation {
 }
 
 export class AbacusCoreChecker extends AbacusAppChecker<
+  CoreDeployedNetworks,
   AbacusCore,
-  CoreConfig
+  CoreConfig<CoreDeployedNetworks>
 > {
   async check(
     owners: Partial<Record<types.Domain, types.Address>>,
@@ -46,7 +47,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   }
 
   async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
-    await this.checkOwnership(domain, owner);
+    await this.checkDomainOwnership(domain, owner);
     await this.checkProxiedContracts(domain);
     await this.checkOutbox(domain);
     await this.checkInboxes(domain);
@@ -54,7 +55,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     await this.checkValidatorManagers(domain);
   }
 
-  async checkOwnership(
+  async checkDomainOwnership(
     domain: types.Domain,
     owner: types.Address,
   ): Promise<void> {
@@ -125,7 +126,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   ): Promise<void> {
     const outboxDomainName = this.app.mustResolveDomainName(outboxDomain);
     const validatorManagerConfig =
-      this.config.validatorManagers[outboxDomainName];
+      this.config.validatorManagers[outboxDomainName as CoreDeployedNetworks];
     expect(validatorManagerConfig).to.not.be.undefined;
 
     const expectedValidators = validatorManagerConfig?.validators;
@@ -209,7 +210,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
 
     // Check that all inboxes on this domain share the same implementation and
     // UpgradeBeacon.
-    const inboxes = Object.values(contracts.addresses.inboxes);
+    const inboxes: Mailbox[] = Object.values(contracts.addresses.inboxes);
     const implementations = inboxes.map((r) => r.implementation);
     const identical = (a: any, b: any) => (a === b ? a : false);
     const upgradeBeacons = inboxes.map((r) => r.beacon);
@@ -238,7 +239,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     // Outbox upgrade setup contracts are defined
     await this.checkUpgradeBeacon(domain, 'Outbox', addresses.outbox);
 
-    const inboxes = Object.values(addresses.inboxes);
+    const inboxes: Mailbox[] = Object.values(addresses.inboxes);
     await Promise.all(
       inboxes.map((inbox) => {
         return this.checkUpgradeBeacon(domain, 'Inbox', inbox);

@@ -1,8 +1,8 @@
 import { writeFile } from 'fs/promises';
 import { getAgentEnvVars } from '../src/agents';
 import {
-  getEnvironment,
   getCoreEnvironmentConfig,
+  getEnvironment,
   getKeyRoleAndChainArgs,
 } from './utils';
 

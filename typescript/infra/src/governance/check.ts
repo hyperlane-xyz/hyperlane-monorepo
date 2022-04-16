@@ -1,13 +1,16 @@
-import { ethers } from 'ethers';
-import { expect } from 'chai';
 import { GovernanceRouter } from '@abacus-network/apps';
-import { types } from '@abacus-network/utils';
-import { AbacusGovernance } from '@abacus-network/sdk';
 import { AbacusRouterChecker, Ownable } from '@abacus-network/deploy';
-
+import {
+  AbacusGovernance,
+  GovernanceDeployedNetworks,
+} from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
+import { expect } from 'chai';
+import { ethers } from 'ethers';
 import { GovernanceConfig } from './types';
 
 export class AbacusGovernanceChecker extends AbacusRouterChecker<
+  GovernanceDeployedNetworks,
   AbacusGovernance,
   GovernanceConfig
 > {
@@ -23,10 +26,7 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
     await this.checkUpgradeBeacon(domain, 'GovernanceRouter', addresses.router);
   }
 
-  async checkOwnership(
-    domain: types.Domain,
-    owner: types.Address,
-  ): Promise<void> {
+  async checkDomainOwnership(domain: types.Domain): Promise<void> {
     const contracts = this.app.mustGetContracts(domain);
     const owners = [contracts.upgradeBeaconController.owner()];
     // If the config specifies that a xAppConnectionManager should have been deployed,

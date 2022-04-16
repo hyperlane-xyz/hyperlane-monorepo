@@ -1,17 +1,19 @@
 import { EnvironmentConfig } from '@abacus-network/deploy';
-import { AgentConfig } from './agent';
+import { ChainName } from '@abacus-network/sdk';
+import { ContractMetricsConfig } from '.';
 import { CoreConfig } from '../core';
 import { GovernanceConfig } from '../governance';
-import { ContractMetricsConfig } from '.';
+import { AgentConfig } from './agent';
 import { InfrastructureConfig } from './infrastructure';
 
-export type CoreEnvironmentConfig = EnvironmentConfig & {
-  agent: AgentConfig;
-  core: CoreConfig;
-  governance: GovernanceConfig;
-  metrics: ContractMetricsConfig;
-  infra: InfrastructureConfig;
-};
+export type CoreEnvironmentConfig<Networks extends ChainName> =
+  EnvironmentConfig<Networks> & {
+    agent: AgentConfig;
+    core: CoreConfig<Networks>;
+    governance: GovernanceConfig;
+    metrics: ContractMetricsConfig;
+    infra: InfrastructureConfig;
+  };
 
 export const ALL_ENVIRONMENTS = ['test'] as const;
 type DeployEnvironmentTuple = typeof ALL_ENVIRONMENTS;

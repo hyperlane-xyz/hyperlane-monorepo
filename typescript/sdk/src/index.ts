@@ -10,6 +10,8 @@ export {
   AnnotatedLifecycleEvent,
   CoreContractAddresses,
   CoreContracts,
+  CoreDeployedNetworks,
+  Mailbox,
   MessageStatus,
   ParsedMessage,
   parseMessage,
@@ -31,6 +33,7 @@ export {
   addresses as governanceAddresses,
   Call,
   GovernanceContractAddresses,
+  GovernanceDeployedNetworks,
 } from './governance';
 export { MultiProvider } from './provider';
 export {

@@ -1,14 +1,14 @@
-import path from 'path';
+import { utils } from '@abacus-network/deploy';
+import { AbacusGovernance } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
-import { types } from '@abacus-network/utils';
-import { AbacusGovernance } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/deploy';
-import {
-  AbacusGovernanceDeployer,
-  AbacusGovernanceChecker,
-} from '../src/governance';
+import path from 'path';
 import { environment } from '../config/environments/test';
+import {
+  AbacusGovernanceChecker,
+  AbacusGovernanceDeployer,
+} from '../src/governance';
 
 describe('governance', async () => {
   const deployer = new AbacusGovernanceDeployer();
@@ -47,11 +47,11 @@ describe('governance', async () => {
   });
 
   it('checks', async () => {
-    const governance = new AbacusGovernance(deployer.addressesRecord);
+    const governance = new AbacusGovernance(deployer.addressesRecord as any); // TODO: fix types
     const [signer] = await ethers.getSigners();
     utils.registerHardhatEnvironment(governance, environment, signer);
 
     const checker = new AbacusGovernanceChecker(governance, governanceConfig);
-    await checker.check(owners);
+    await checker.check(owners as any); // TODO: fix types
   });
 });

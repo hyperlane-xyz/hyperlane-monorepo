@@ -23,7 +23,7 @@ import {
   Remotes,
 } from '../types';
 
-type Mailbox = ProxiedAddress & { validatorManager: types.Address };
+export type Mailbox = ProxiedAddress & { validatorManager: types.Address };
 
 export type CoreContractAddresses<
   Networks extends ChainName,
