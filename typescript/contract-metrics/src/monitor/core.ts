@@ -1,7 +1,13 @@
-import { AbacusCore, ChainName, getEvents } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  ChainName,
+  CoreDeployedNetworks,
+  getEvents,
+} from '@abacus-network/sdk';
+import { Remotes } from '@abacus-network/sdk/dist/types';
 import Logger from 'bunyan';
-import { logMonitorMetrics, writeUnprocessedMessages } from '../print';
 import config from '../config';
+import { logMonitorMetrics, writeUnprocessedMessages } from '../print';
 
 export async function monitorCore(
   core: AbacusCore,
@@ -64,10 +70,10 @@ export async function monitorCore(
   writeUnprocessedMessages(unprocessedDetails, originNetwork);
 }
 
-async function monitorCoreInbox(
+async function monitorCoreInbox<Local extends CoreDeployedNetworks>(
   core: AbacusCore,
-  originNetwork: ChainName,
-  remoteNetwork: ChainName,
+  originNetwork: Remotes<CoreDeployedNetworks, Local>,
+  remoteNetwork: Local,
   logger: Logger,
 ) {
   logger.info(`Getting inbox state and Process logs`);
