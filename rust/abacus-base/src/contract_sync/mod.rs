@@ -597,7 +597,6 @@ mod test {
                 origin: 1000,
                 destination: 2000,
                 sender: H256::from([10; 32]),
-                nonce: 1,
                 recipient: H256::from([11; 32]),
                 body: [10u8; 5].to_vec(),
             }
@@ -606,26 +605,22 @@ mod test {
 
             let first_message = RawCommittedMessage {
                 leaf_index: 0,
-                committed_root: first_root,
                 message: message_vec.clone(),
             };
 
             let second_message = RawCommittedMessage {
                 leaf_index: 1,
-                committed_root: second_root,
                 message: message_vec.clone(),
             };
             let second_message_clone = second_message.clone();
 
             let third_message = RawCommittedMessage {
                 leaf_index: 2,
-                committed_root: second_root,
                 message: message_vec.clone(),
             };
 
             let fourth_message = RawCommittedMessage {
                 leaf_index: 3,
-                committed_root: third_root,
                 message: message_vec.clone(),
             };
             let fourth_message_clone_1 = fourth_message.clone();
@@ -633,7 +628,6 @@ mod test {
 
             let fifth_message = RawCommittedMessage {
                 leaf_index: 4,
-                committed_root: fourth_root,
                 message: message_vec.clone(),
             };
             let fifth_message_clone_1 = fifth_message.clone();
