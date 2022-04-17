@@ -61,7 +61,6 @@ mod test {
 
             let message = RawCommittedMessage {
                 leaf_index: 100,
-                committed_root: H256::from_low_u64_be(3),
                 message: m.to_vec(),
             };
             assert_eq!(m.to_leaf(), message.leaf());
