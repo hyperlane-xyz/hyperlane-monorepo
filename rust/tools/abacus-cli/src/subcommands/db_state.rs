@@ -44,11 +44,8 @@ impl DbStateCommand {
         Ok(())
     }
 
-    fn create_comitted_root_to_message_map(
-        &self,
-        db: &AbacusDB,
-    ) -> Result<HashMap<H256, Vec<CommittedMessage>>> {
-        let mut messages_by_committed_roots: HashMap<H256, Vec<CommittedMessage>> = HashMap::new();
+    fn create_comitted_root_to_message_map(&self, db: &AbacusDB) -> Result<Vec<CommittedMessage>> {
+        let mut messages: Vec<CommittedMessage> = vec![];
         for index in 0.. {
             match db.message_by_leaf_index(index)? {
                 Some(message) => {
@@ -56,29 +53,14 @@ impl DbStateCommand {
                         println!("Failed to find proof for leaf index {}!", index);
                     }
 
-                    let committed_root = message.committed_root;
-                    let bucket_opt = messages_by_committed_roots.get_mut(&committed_root);
-
-                    // Get reference to bucket for committed root
-                    let bucket = match bucket_opt {
-                        Some(bucket) => bucket,
-                        None => {
-                            messages_by_committed_roots
-                                .insert(committed_root, Vec::<CommittedMessage>::new());
-                            messages_by_committed_roots
-                                .get_mut(&committed_root)
-                                .unwrap()
-                        }
-                    };
-
                     // Add message to bucket for committed root
-                    bucket.push(message.try_into()?);
+                    messages.push(message.try_into()?);
                 }
                 None => break,
             }
         }
 
-        Ok(messages_by_committed_roots)
+        Ok(messages)
     }
 
     // TODO: We currently aren't indexing checkpoints, which are the successor
@@ -89,7 +71,7 @@ impl DbStateCommand {
     fn create_output_vec(
         &self,
         _db: &AbacusDB,
-        _messages_by_committed_roots: HashMap<H256, Vec<CommittedMessage>>,
+        _messages_by_committed_roots: Vec<CommittedMessage>,
     ) -> Result<OutputVec> {
         // Create mapping of (update root, block_number) to [messages]
         let output_map: HashMap<(H256, u64), Vec<CommittedMessage>> = HashMap::new();
