@@ -16,17 +16,61 @@ interface ProcessorConfig {
   s3Bucket: string;
 }
 
-interface RelayerConfig {
-  // How often a relayer should check for new signed checkpoints
-  interval?: number;
+export enum CheckpointSyncerType {
+  Local = 'Local',
+  S3 = 'S3'
 }
 
+interface LocalCheckpointSyncerConfig {
+  type: CheckpointSyncerType.Local;
+  path: string;
+}
+
+interface S3CheckpointSyncerConfig {
+  type: CheckpointSyncerType.S3;
+  bucket: string;
+  region: string;
+}
+
+type CheckpointSyncerConfig = LocalCheckpointSyncerConfig | S3CheckpointSyncerConfig;
+
+type MultisigCheckpointSyncerConfig = {
+  // Quorum threshold
+  threshold: number;
+  // Mapping of validator address -> checkpoint syncer
+  checkpointSyncers: {
+    [validatorAddress: string]: CheckpointSyncerConfig;
+  };
+}
+
+interface RelayerConfig {
+  // The multisig checkpoint syncer configuration
+  multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
+  // The minimum latency in seconds between two relayed checkpoints on the inbox
+  submissionLatency: number;
+  // The polling interval to check for new checkpoints in seconds
+  pollingInterval?: number;
+  // The maxinmum number of times a processor will try to process a message
+  maxRetries?: number;
+  // Whether the CheckpointRelayer should try to immediately process messages
+  relayerMessageProcessing?: boolean;
+}
+
+// /// The validator attestation signer
+// validator: abacus_base::SignerConf,
+// /// The checkpoint syncer configuration
+// checkpointsyncer: abacus_base::CheckpointSyncerConf,
+// /// The reorg_period in blocks
+// reorgperiod: String,
+
 interface ValidatorConfig {
-  // How often an validator should check for new updates
+  // How frequently to check for new checkpoints
   interval?: number;
-  // How long an validator should wait for relevant state changes afterwords
-  pause?: number;
-  confirmations: number;
+  // The reorg_period in blocks
+  // reorgPeriod: String;
+  // The checkpoint syncer configuration
+  // checkpointSyncer: CheckpointSyncerConfig,
+  // validator
 }
 
 interface CheckpointerConfig {

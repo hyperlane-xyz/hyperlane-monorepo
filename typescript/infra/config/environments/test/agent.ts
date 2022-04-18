@@ -1,4 +1,5 @@
 import { AgentConfig } from '../../../src/config';
+import { CheckpointSyncerType } from '../../../src/config/agent';
 
 export const agent: AgentConfig = {
   environment: 'test',
@@ -10,10 +11,22 @@ export const agent: AgentConfig = {
   },
   validator: {
     interval: 5,
-    confirmations: 1,
+    // confirmations: 1,
   },
   relayer: {
-    interval: 5,
+    multisigCheckpointSyncer: {
+      threshold: 1,
+      checkpointSyncers: {
+        '0x70997970c51812dc3a010c7d01b50e0d17dc79c8': {
+          type: CheckpointSyncerType.Local,
+          path: '/tmp/local',
+        },
+      },
+    },
+    pollingInterval: 5,
+    submissionLatency: 10,
+    maxRetries: 10,
+    relayerMessageProcessing: true,
   },
   checkpointer: {
     pollingInterval: 5,

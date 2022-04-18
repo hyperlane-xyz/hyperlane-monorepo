@@ -68,3 +68,16 @@ The name of the ClusterSecretStore
 {{- define "abacus-agent.cluster-secret-store.name" -}}
 {{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.clusterSecretStore }}
 {{- end }}
+
+{{ define "abacus-agent.relayer-env-var" }}
+{{ include "abacus-agent.config-env-var" (dict "agent_name" "relayer" "config_key" .config_key "Values" .Values) }}
+{{ end }}
+
+{{ define "abacus-agent.config-env-var" }}
+{{- $agent_config := get .Values.abacus .agent_name }}
+{{- $config_value := get $agent_config .config_key }}
+{{- if not empty $config_value }}
+- name: OPT_{{ .agent_name | upper }}_{{ .config_key | upper }}
+  value: {{ .Values.abacus.relayer.pollingInterval | quote }}
+{{ end }}
+{{ end }}

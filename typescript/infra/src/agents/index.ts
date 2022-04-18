@@ -63,22 +63,19 @@ async function helmValuesForChain(
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.Validator),
         },
-        reorg_period: agentConfig.validator?.confirmations,
+        reorgPeriod: agentConfig.validator?.reorgPeriod,
         ...include(!!agentConfig.validator?.interval, {
-          pollingInterval: agentConfig.validator?.interval || '',
-        }),
-        ...include(!!agentConfig.validator?.pause, {
-          updatePause: agentConfig.validator?.pause || '',
+          interval: agentConfig.validator?.interval || '',
         }),
       },
       relayer: {
         enabled: true,
-        transactionSigners: chainNames.map((name) => ({
+        signers: chainNames.map((name) => ({
           name,
           ...credentials(KEY_ROLE_ENUM.Relayer),
         })),
-        ...include(!!agentConfig.validator?.interval, {
-          pollingInterval: agentConfig.validator?.interval || '',
+        ...include(!!agentConfig.relayer?.pollingInterval, {
+          pollingInterval: agentConfig.relayer?.pollingInterval || '',
         }),
       },
       checkpointer: {
@@ -212,7 +209,7 @@ export async function getAgentEnvVars(
     }
   }
 
-  if (role.startsWith('checkpointer')) {
+  if (role === KEY_ROLE_ENUM.Checkpointer) {
     envVars.push(
       `OPT_CHECKPOINTER_POLLINGINTERVAL=${agentConfig.checkpointer?.pollingInterval}`,
     );
