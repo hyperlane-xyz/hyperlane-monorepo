@@ -84,8 +84,8 @@ export type InboxAddresses = {
 export type RustConfig = {
   environment: DeployEnvironment;
   signers: Partial<Record<ChainName, RustSigner>>;
-  outbox: RustContractBlock<OutboxAddresses>;
   inboxes: Partial<Record<ChainName, RustContractBlock<InboxAddresses>>>;
+  outbox: RustContractBlock<OutboxAddresses>;
   tracing: {
     level: string;
     fmt: 'json';

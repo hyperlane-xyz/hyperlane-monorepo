@@ -180,8 +180,8 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       const rustConfig: RustConfig = {
         environment,
         signers: {},
-        outbox,
         inboxes: {},
+        outbox,
         tracing: {
           level: 'debug',
           fmt: 'json',
