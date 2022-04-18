@@ -6,12 +6,19 @@ import { governance } from './governance';
 import { infra } from './infra';
 import { metrics } from './metrics';
 
+const coreConfig = {
+  alfajores: configs.alfajores,
+  kovan: configs.kovan,
+  mumbai: configs.mumbai,
+  fuji: configs.fuji,
+};
+
+type corenet = keyof typeof coreConfig;
+
 // TODO: fix type inference
-export const environment: CoreEnvironmentConfig<
-  'alfajores' | 'kovan' | 'mumbai' | 'fuji'
-> = {
-  domains: ['alfajores', 'kovan', 'mumbai', 'fuji'],
-  transactionConfigs: configs,
+export const environment: CoreEnvironmentConfig<corenet> = {
+  domains: Object.keys(core) as corenet[],
+  transactionConfigs: coreConfig,
   agent,
   core,
   governance,

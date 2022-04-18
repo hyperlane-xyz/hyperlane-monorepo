@@ -1,6 +1,6 @@
-import { BigNumber } from 'ethers';
-import { ChainName } from '@abacus-network/sdk';
 import { TransactionConfig } from '@abacus-network/deploy';
+import { ChainSubsetMap } from '@abacus-network/sdk';
+import { BigNumber } from 'ethers';
 
 export const celo: TransactionConfig = {
   overrides: {},
@@ -32,9 +32,12 @@ export const polygon: TransactionConfig = {
   },
 };
 
-export const configs: Partial<Record<ChainName, TransactionConfig>> = {
+const _configs = {
   celo,
   ethereum,
   avalanche,
   polygon,
 };
+
+export const configs: ChainSubsetMap<keyof typeof _configs, TransactionConfig> =
+  _configs;

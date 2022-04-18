@@ -10,7 +10,7 @@ export type CoreEnvironmentConfig<Networks extends ChainName> =
   EnvironmentConfig<Networks> & {
     agent: AgentConfig;
     core: CoreConfig<Networks>;
-    governance: GovernanceConfig;
+    governance: GovernanceConfig<Networks>;
     metrics: ContractMetricsConfig;
     infra: InfrastructureConfig;
   };

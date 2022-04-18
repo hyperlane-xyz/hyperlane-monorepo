@@ -12,7 +12,7 @@ import { GovernanceConfig } from './types';
 export class AbacusGovernanceChecker extends AbacusRouterChecker<
   GovernanceDeployedNetworks,
   AbacusGovernance,
-  GovernanceConfig
+  GovernanceConfig<GovernanceDeployedNetworks>
 > {
   async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
     await super.checkDomain(domain, owner);
