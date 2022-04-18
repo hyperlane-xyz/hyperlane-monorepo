@@ -5,8 +5,7 @@ use tokio::task::JoinHandle;
 use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_base::{
-    AbacusAgentCore, Agent, CachingInbox, ContractSyncMetrics, InboxValidatorManagers,
-    MultisigCheckpointSyncer,
+    AbacusAgentCore, Agent, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
 
 use crate::{
@@ -106,8 +105,7 @@ impl Relayer {
 
     fn run_inbox(
         &self,
-        inbox: Arc<CachingInbox>,
-        inbox_validator_manager: Arc<InboxValidatorManagers>,
+        inbox_contracts: InboxContracts,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
         let checkpoint_relayer = CheckpointRelayer::new(
@@ -115,8 +113,7 @@ impl Relayer {
             self.submission_latency,
             self.relayer_message_processing,
             db.clone(),
-            inbox.clone(),
-            inbox_validator_manager.clone(),
+            inbox_contracts.clone(),
             self.multisig_checkpoint_syncer.clone(),
         );
         let message_processor = MessageProcessor::new(
@@ -124,7 +121,7 @@ impl Relayer {
             self.max_retries,
             db,
             self.submission_latency,
-            inbox,
+            inbox_contracts.inbox,
         );
 
         self.run_all(vec![checkpoint_relayer.spawn(), message_processor.spawn()])
@@ -133,12 +130,11 @@ impl Relayer {
     fn wrap_inbox_run(
         &self,
         inbox_name: &str,
-        inbox: Arc<CachingInbox>,
-        inbox_validator_manager: Arc<InboxValidatorManagers>,
+        inbox_contracts: InboxContracts,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let m = format!("Task for inbox named {} failed", inbox_name);
         let handle = self
-            .run_inbox(inbox, inbox_validator_manager)
+            .run_inbox(inbox_contracts)
             .in_current_span();
         let fut = async move { handle.await?.wrap_err(m) };
 
@@ -152,8 +148,7 @@ impl Relayer {
             .map(|(inbox_name, inbox_contracts)| {
                 self.wrap_inbox_run(
                     inbox_name,
-                    inbox_contracts.inbox.clone(),
-                    inbox_contracts.validator_manager.clone(),
+                    inbox_contracts.clone(),
                 )
             })
             .collect();

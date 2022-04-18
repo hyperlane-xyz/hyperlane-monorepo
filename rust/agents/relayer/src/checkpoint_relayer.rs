@@ -1,6 +1,6 @@
-use std::{sync::Arc, time::Duration};
+use std::{time::Duration};
 
-use abacus_base::{CachingInbox, InboxValidatorManagers, MultisigCheckpointSyncer};
+use abacus_base::{InboxContracts, MultisigCheckpointSyncer};
 use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxValidatorManager};
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
@@ -14,8 +14,7 @@ pub(crate) struct CheckpointRelayer {
     submission_latency: u64,
     immediate_message_processing: bool,
     db: AbacusDB,
-    inbox: Arc<CachingInbox>,
-    inbox_validator_manager: Arc<InboxValidatorManagers>,
+    inbox_contracts: InboxContracts,
     prover_sync: MerkleTreeBuilder,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
 }
@@ -26,8 +25,7 @@ impl CheckpointRelayer {
         submission_latency: u64,
         immediate_message_processing: bool,
         db: AbacusDB,
-        inbox: Arc<CachingInbox>,
-        inbox_validator_manager: Arc<InboxValidatorManagers>,
+        inbox_contracts: InboxContracts,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     ) -> Self {
         Self {
@@ -36,8 +34,7 @@ impl CheckpointRelayer {
             submission_latency,
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
-            inbox,
-            inbox_validator_manager,
+            inbox_contracts,
             multisig_checkpoint_syncer,
         }
     }
@@ -61,7 +58,7 @@ impl CheckpointRelayer {
                 .transpose()?;
             match maybe_message {
                 Some(message) => {
-                    if message.message.destination == self.inbox.local_domain() {
+                    if message.message.destination == self.inbox_contracts.inbox.local_domain() {
                         messages.push(message);
                     }
                 }
@@ -95,7 +92,7 @@ impl CheckpointRelayer {
             );
 
             self.prover_sync.update_from_batch(&batch)?;
-            self.inbox_validator_manager
+            self.inbox_contracts.validator_manager
                 .submit_checkpoint(&latest_signed_checkpoint)
                 .await?;
 
@@ -105,7 +102,7 @@ impl CheckpointRelayer {
                     match self.prover_sync.get_proof(message.leaf_index) {
                         Ok(proof) => {
                             // Ignore errors and expect the lagged message processor to retry
-                            match self.inbox.prove_and_process(&message.message, &proof).await {
+                            match self.inbox_contracts.inbox.prove_and_process(&message.message, &proof).await {
                                 Ok(outcome) => {
                                     info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message")
                                 }
@@ -132,7 +129,7 @@ impl CheckpointRelayer {
     pub(crate) fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("CheckpointRelayer");
         tokio::spawn(async move {
-            let latest_inbox_checkpoint = self.inbox.latest_checkpoint(None).await?;
+            let latest_inbox_checkpoint = self.inbox_contracts.inbox.latest_checkpoint(None).await?;
             let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
             // Checkpoints are 1-indexed, while leaves are 0-indexed
             let mut next_inbox_leaf_index = onchain_checkpoint_index;
