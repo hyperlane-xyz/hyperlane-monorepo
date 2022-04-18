@@ -32,8 +32,9 @@ async function monitorAll() {
   await monitorGovernance(governance, config.networks);
   for (let network of config.networks) {
     const origin = network;
-    const remotes = config.networks.filter((m) => m != origin);
+    const remotes = config.networks.filter((m) => m !== origin);
     try {
+      // @ts-ignore
       await monitorCore(core, origin, remotes);
     } catch (e) {
       config.baseLogger.error(

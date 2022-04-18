@@ -62,8 +62,8 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       domain,
       'Outbox',
       new Outbox__factory(signer),
-      upgradeBeaconController.address,
       [domain],
+      upgradeBeaconController.address,
       [outboxValidatorManager.address],
     );
 
@@ -121,8 +121,8 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       domain,
       'Inbox',
       new Inbox__factory(signer),
-      upgradeBeaconController.address,
       [domain],
+      upgradeBeaconController.address,
       [
         firstRemote,
         firstValidatorManager.address,

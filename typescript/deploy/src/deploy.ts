@@ -54,7 +54,7 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     this.verification.set(domain, verification.concat(input));
   }
 
-  abstract deployContracts(domain: NameOrDomain, config: C): Promise<T>;
+  abstract deployContracts(domain: types.Domain, config: C): Promise<T>;
 
   async deploy(config: C) {
     await this.ready();
@@ -98,8 +98,8 @@ export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
     nameOrDomain: NameOrDomain,
     contractName: string,
     factory: F,
-    ubcAddress: types.Address,
     deployArgs: Parameters<F['deploy']>,
+    ubcAddress: types.Address,
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C>> {
     const signer = this.mustGetSigner(nameOrDomain);
