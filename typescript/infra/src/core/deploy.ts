@@ -165,7 +165,9 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       const addresses = this.mustGetAddresses(domain);
 
       const outbox = {
-        address: addresses.outbox.proxy,
+        addresses: {
+          outbox: addresses.outbox.proxy,
+        },
         domain: domain.toString(),
         name,
         rpcStyle: 'ethereum',
@@ -193,14 +195,26 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         const inboxAddress = remoteAddresses.inboxes[name];
         if (!inboxAddress)
           throw new Error(`No inbox for ${domain} on ${remote}`);
+
+        const inboxValidatorManagerAddress =
+          remoteAddresses.inboxValidatorManagers[name];
+        if (!inboxValidatorManagerAddress) {
+          throw new Error(
+            `No inbox validator manager for ${domain} on ${remote}`,
+          );
+        }
+
         const inbox = {
-          address: inboxAddress.proxy,
           domain: remote.toString(),
           name: remoteName,
           rpcStyle: 'ethereum',
           connection: {
             type: 'http',
             url: '',
+          },
+          addresses: {
+            inbox: inboxAddress.proxy,
+            validatorManager: inboxValidatorManagerAddress,
           },
         };
 

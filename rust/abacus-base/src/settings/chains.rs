@@ -2,9 +2,12 @@ use color_eyre::Report;
 use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};
-use abacus_ethereum::{make_inbox, make_outbox, Connection};
+use abacus_ethereum::{make_inbox, make_inbox_validator_manager, make_outbox, Connection};
 
-use crate::{InboxVariants, Inboxes, OutboxVariants, Outboxes};
+use crate::{
+    InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes, OutboxVariants,
+    Outboxes,
+};
 
 /// A connection to _some_ blockchain.
 ///
@@ -23,16 +26,33 @@ impl Default for ChainConf {
     }
 }
 
+/// Addresses for outbox chain contracts
+#[derive(Clone, Debug, Deserialize, Default)]
+pub struct OutboxAddresses {
+    /// Address of the Outbox contract
+    pub outbox: String,
+}
+
+/// Addresses for inbox chain contracts
+#[derive(Clone, Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct InboxAddresses {
+    /// Address of the Inbox contract
+    pub inbox: String,
+    /// Address of the InboxValidatorManager contract
+    pub validator_manager: String,
+}
+
 /// A chain setup is a domain ID, an address on that chain (where the outbox or
 /// inbox is deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize, Default)]
-pub struct ChainSetup {
+pub struct ChainSetup<T> {
     /// Chain name
     pub name: String,
     /// Chain domain identifier
     pub domain: String,
-    /// Address of contract on the chain
-    pub address: String,
+    /// Addresses of contracts on the chain
+    pub addresses: T,
     /// The chain connection details
     #[serde(flatten)]
     pub chain: ChainConf,
@@ -41,7 +61,7 @@ pub struct ChainSetup {
     pub disabled: Option<String>,
 }
 
-impl ChainSetup {
+impl ChainSetup<OutboxAddresses> {
     /// Try to convert the chain setting into a Outbox contract
     pub async fn try_into_outbox(&self, signer: Option<Signers>) -> Result<Outboxes, Report> {
         match &self.chain {
@@ -51,7 +71,36 @@ impl ChainSetup {
                     &ContractLocator {
                         name: self.name.clone(),
                         domain: self.domain.parse().expect("invalid uint"),
-                        address: self.address.parse::<ethers::types::Address>()?.into(),
+                        address: self
+                            .addresses
+                            .outbox
+                            .parse::<ethers::types::Address>()?
+                            .into(),
+                    },
+                    signer,
+                )
+                .await?,
+            )
+            .into()),
+        }
+    }
+}
+
+impl ChainSetup<InboxAddresses> {
+    /// Try to convert the chain setting into an inbox contract
+    pub async fn try_into_inbox(&self, signer: Option<Signers>) -> Result<Inboxes, Report> {
+        match &self.chain {
+            ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
+                make_inbox(
+                    conf.clone(),
+                    &ContractLocator {
+                        name: self.name.clone(),
+                        domain: self.domain.parse().expect("invalid uint"),
+                        address: self
+                            .addresses
+                            .inbox
+                            .parse::<ethers::types::Address>()?
+                            .into(),
                     },
                     signer,
                 )
@@ -61,18 +110,28 @@ impl ChainSetup {
         }
     }
 
-    /// Try to convert the chain setting into a inbox contract
-    pub async fn try_into_inbox(&self, signer: Option<Signers>) -> Result<Inboxes, Report> {
+    /// Try to convert the chain setting into an InboxValidatorManager contract
+    pub async fn try_into_inbox_validator_manager(
+        &self,
+        signer: Option<Signers>,
+        // inbox_address: Address,
+    ) -> Result<InboxValidatorManagers, Report> {
+        let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
-                make_inbox(
+            ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerVariants::Ethereum(
+                make_inbox_validator_manager(
                     conf.clone(),
                     &ContractLocator {
                         name: self.name.clone(),
                         domain: self.domain.parse().expect("invalid uint"),
-                        address: self.address.parse::<ethers::types::Address>()?.into(),
+                        address: self
+                            .addresses
+                            .validator_manager
+                            .parse::<ethers::types::Address>()?
+                            .into(),
                     },
                     signer,
+                    inbox_address,
                 )
                 .await?,
             )

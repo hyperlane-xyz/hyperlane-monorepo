@@ -98,11 +98,6 @@
         "internalType": "uint256",
         "name": "_index",
         "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_signature",
-        "type": "bytes"
       }
     ],
     "name": "checkpoint",
@@ -349,7 +344,7 @@
     "name": "validatorManager",
     "outputs": [
       {
-        "internalType": "contract IValidatorManager",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }

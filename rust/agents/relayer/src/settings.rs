@@ -11,6 +11,6 @@ decl_settings!(Relayer {
     maxretries: String,
     /// Whether the CheckpointRelayer should try to immediately process messages
     relayermessageprocessing: String,
-    /// The checkpoint syncer configuration
-    checkpointsyncer: abacus_base::CheckpointSyncerConf,
+    /// The multisig checkpoint syncer configuration
+    multisigcheckpointsyncer: abacus_base::MultisigCheckpointSyncerConf,
 });

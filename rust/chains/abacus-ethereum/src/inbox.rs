@@ -287,18 +287,4 @@ where
             _ => panic!("Bad status from solidity"),
         }
     }
-
-    #[tracing::instrument(err, skip(self), fields(hex_signature = %format!("0x{}", hex::encode(signed_checkpoint.signature.to_vec()))))]
-    async fn submit_checkpoint(
-        &self,
-        signed_checkpoint: &SignedCheckpoint,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.checkpoint(
-            signed_checkpoint.checkpoint.root.to_fixed_bytes(),
-            signed_checkpoint.checkpoint.index.into(),
-            signed_checkpoint.signature.to_vec().into(),
-        );
-
-        Ok(report_tx!(tx).into())
-    }
 }

@@ -6,7 +6,8 @@
 
 use abacus_core::*;
 use color_eyre::eyre::Result;
-use ethers::prelude::*;
+use ethers::providers::Middleware;
+use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
 use num::Num;
 use std::convert::TryFrom;
 use std::sync::Arc;
@@ -21,6 +22,10 @@ mod outbox;
 /// Inbox abi
 #[cfg(not(doctest))]
 mod inbox;
+
+/// InboxValidatorManager abi
+#[cfg(not(doctest))]
+mod validator_manager;
 
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -47,7 +52,7 @@ impl Default for Connection {
 }
 
 #[cfg(not(doctest))]
-pub use crate::{inbox::*, outbox::*};
+pub use crate::{inbox::*, outbox::*, validator_manager::*};
 
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
@@ -72,6 +77,12 @@ boxed_trait!(
 );
 boxed_trait!(make_outbox, EthereumOutbox, Outbox,);
 boxed_trait!(make_inbox, EthereumInbox, Inbox,);
+boxed_trait!(
+    make_inbox_validator_manager,
+    EthereumInboxValidatorManager,
+    InboxValidatorManager,
+    inbox_address: Address
+);
 
 #[async_trait::async_trait]
 impl abacus_core::Chain for Chain {

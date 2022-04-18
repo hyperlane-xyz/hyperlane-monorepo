@@ -8,8 +8,11 @@ use human_panic::setup_panic;
 use tokio::time::Instant;
 
 #[derive(serde::Deserialize, Debug)]
+struct Contract(String);
+
+#[derive(serde::Deserialize, Debug)]
 struct Input {
-    contracts: Vec<ChainSetup>,
+    contracts: Vec<ChainSetup<Contract>>,
 }
 
 struct Sample {
@@ -110,13 +113,13 @@ async fn main() -> color_eyre::Result<()> {
         for (ix, res) in results.balances.into_iter().enumerate() {
             let ChainSetup {
                 name: network,
-                address,
+                addresses,
                 ..
             } = &setup.contracts[ix];
             match res {
                 Ok(s) => {
                     // TODO: export metric
-                    println!("{} {} = {}", network, address, s);
+                    println!("{} {} = {}", network, addresses.0, s);
                 }
                 Err(e) => {
                     eprintln!("Error while querying {:?}: {}", setup.contracts[ix], e);
@@ -146,7 +149,7 @@ async fn mainnet_works() {
                 chain: abacus_base::chains::ChainConf::Ethereum(abacus_ethereum::Connection::Ws {
                     url: "wss://main-light.eth.linkpool.io/ws".into(),
                 }),
-                address: "0xcEc158A719d11005Bd9339865965bed938BEafA3".into(),
+                addresses: Contract("0xcEc158A719d11005Bd9339865965bed938BEafA3".into()),
                 disabled: None,
             }],
         },

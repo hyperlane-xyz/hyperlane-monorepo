@@ -64,20 +64,28 @@ export type RustConnection = {
   url: string;
 };
 
-export type RustContractBlock = {
-  address: types.Address;
+export type RustContractBlock<T> = {
+  addresses: T;
   domain: string;
   name: ChainName;
   rpcStyle: string; // TODO
   connection: RustConnection;
 };
 
+export type OutboxAddresses = {
+  outbox: types.Address;
+};
+
+export type InboxAddresses = {
+  inbox: types.Address;
+  validatorManager: types.Address;
+};
+
 export type RustConfig = {
   environment: DeployEnvironment;
   signers: Partial<Record<ChainName, RustSigner>>;
-  // Agents have not yet been moved to use the Outbox/Inbox names.
-  inboxes: Partial<Record<ChainName, RustContractBlock>>;
-  outbox: RustContractBlock;
+  inboxes: Partial<Record<ChainName, RustContractBlock<InboxAddresses>>>;
+  outbox: RustContractBlock<OutboxAddresses>;
   tracing: {
     level: string;
     fmt: 'json';
