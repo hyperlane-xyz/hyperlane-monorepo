@@ -6,8 +6,7 @@ import {ICommon} from "./ICommon.sol";
 interface IInbox is ICommon {
     function checkpoint(
         bytes32 _root,
-        uint256 _index,
-        bytes calldata _signature
+        uint256 _index
     ) external;
 
     function remoteDomain() external returns (uint32);
