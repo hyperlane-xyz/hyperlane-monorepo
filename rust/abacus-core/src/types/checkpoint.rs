@@ -209,6 +209,9 @@ pub struct MultisigSignedCheckpoint {
 /// Error types for MultisigSignedCheckpoint
 #[derive(Debug, thiserror::Error)]
 pub enum MultisigSignedCheckpointError {
+    /// The signed checkpoint's signatures are over inconsistent checkpoints
+    #[error("Multisig signed checkpoint is for inconsistent checkpoints")]
+    InconsistentCheckpoints(),
     /// The signed checkpoint has no signatures
     #[error("Multisig signed checkpoint has no signatures")]
     EmptySignatures(),
@@ -222,6 +225,15 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
         if signed_checkpoints.is_empty() {
             return Err(MultisigSignedCheckpointError::EmptySignatures());
         }
+        // Get the first checkpoint and ensure all other signed checkpoints are for
+        // the same checkpoint
+        let checkpoint = signed_checkpoints[0].signed_checkpoint.checkpoint;
+        if !signed_checkpoints
+            .iter()
+            .all(|c| checkpoint == c.signed_checkpoint.checkpoint)
+        {
+            return Err(MultisigSignedCheckpointError::InconsistentCheckpoints());
+        }
         // MultisigValidatorManagers expect signatures to be sorted by their signer in ascending
         // order to prevent duplicates.
         let mut sorted_signed_checkpoints = signed_checkpoints.clone();
@@ -233,8 +245,7 @@ impl TryFrom<&Vec<SignedCheckpointWithSigner>> for MultisigSignedCheckpoint {
             .collect();
 
         Ok(MultisigSignedCheckpoint {
-            // Assume all signed_checkpoints are for the same checkpoint
-            checkpoint: sorted_signed_checkpoints[0].signed_checkpoint.checkpoint,
+            checkpoint,
             signatures,
         })
     }
