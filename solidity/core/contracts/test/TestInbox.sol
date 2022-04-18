@@ -23,7 +23,8 @@ contract TestInbox is Inbox {
     }
 
     function testProcess(bytes calldata _message) external {
-        _process(_message);
+        bytes32 _messageHash = keccak256(_message);
+        _process(_message, _messageHash);
     }
 
     function setMessageStatus(bytes32 _leaf, MessageStatus status) external {

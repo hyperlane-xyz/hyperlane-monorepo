@@ -125,30 +125,38 @@ contract Inbox is IInbox, Version0, Common {
         require(entered == 1, "!reentrant");
         entered = 0;
 
-        bytes32 _leaf = keccak256(_message);
+        bytes32 _messageHash = keccak256(_message);
         // ensure that message has not been processed
-        require(messages[_leaf] == MessageStatus.None, "!MessageStatus.None");
+        require(
+            messages[_messageHash] == MessageStatus.None,
+            "!MessageStatus.None"
+        );
         // calculate the expected root based on the proof
-        bytes32 _calculatedRoot = MerkleLib.branchRoot(_leaf, _proof, _index);
+        bytes32 _calculatedRoot = MerkleLib.branchRoot(
+            _messageHash,
+            _proof,
+            _index
+        );
         // ensure that the root has been checkpointed
         require(checkpoints[_calculatedRoot] > 0, "!checkpointed root");
-        _process(_message);
+        _process(_message, _messageHash);
         // reset re-entrancy guard
         entered = 1;
     }
 
-    // ============ Internal Functions  ============
+    // ============ Internal Functions ============
 
     /**
-     * @notice Internal function that can be called by contracts like TestInbox
+     * @notice Marks a message as processed and calls handle on the recipient
+     * @dev Internal function that can be called by contracts like TestInbox
      * @param _message Formatted message (refer to Common.sol Message library)
+     * @param _messageHash keccak256 hash of the message
      */
-    function _process(bytes calldata _message) internal {
+    function _process(bytes calldata _message, bytes32 _messageHash) internal {
         bytes29 _m = _message.ref(0);
         // ensure message was meant for this domain
         require(_m.destination() == localDomain, "!destination");
 
-        bytes32 _messageHash = _m.keccak();
         // update message status as processed
         messages[_messageHash] = MessageStatus.Processed;
         IMessageRecipient _recipient = IMessageRecipient(_m.recipientAddress());

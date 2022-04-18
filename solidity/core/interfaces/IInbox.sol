@@ -16,6 +16,6 @@ interface IInbox is ICommon {
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _index,
-        bytes calldata sovereignData
+        bytes calldata _sovereignData
     ) external;
 }
