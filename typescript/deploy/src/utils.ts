@@ -2,6 +2,7 @@ import {
   AbacusCore,
   ChainName,
   ChainSubsetMap,
+  CoreDeployedNetworks,
   domains,
   MultiProvider,
 } from '@abacus-network/sdk';
@@ -35,13 +36,16 @@ export async function getEnvironment(): Promise<string> {
   return (await getArgs().argv).e as Promise<string>;
 }
 
-export function getRouterConfig(core: AbacusCore): RouterConfig {
+export function getRouterConfig(
+  core: AbacusCore,
+): RouterConfig<CoreDeployedNetworks> {
   const xAppConnectionManager: Record<string, types.Address> = {};
   core.domainNames.map((name) => {
     const contracts = core.mustGetContracts(name);
     xAppConnectionManager[name] = contracts.xAppConnectionManager.address;
   });
-  return { xAppConnectionManager };
+
+  return { xAppConnectionManager } as any;
 }
 
 // this is currently a kludge to account for ethers issues

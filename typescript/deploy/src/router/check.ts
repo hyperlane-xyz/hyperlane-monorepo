@@ -7,7 +7,7 @@ import { Router, RouterConfig } from './types';
 export abstract class AbacusRouterChecker<
   N extends ChainName,
   A extends AbacusApp<any, any, any>,
-  C extends RouterConfig,
+  C extends RouterConfig<N>,
 > extends AbacusAppChecker<N, A, C> {
   abstract mustGetRouter(domain: types.Domain): Router;
 
@@ -61,7 +61,9 @@ export abstract class AbacusRouterChecker<
     if (this.config.xAppConnectionManager === undefined) return;
     const actual = await this.mustGetRouter(domain).xAppConnectionManager();
     const expected =
-      this.config.xAppConnectionManager[this.app.mustResolveDomainName(domain)];
+      this.config.xAppConnectionManager[
+        this.app.mustResolveDomainName(domain) as N
+      ];
     expect(actual).to.equal(expected);
   }
 }

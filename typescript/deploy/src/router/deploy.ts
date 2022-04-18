@@ -2,14 +2,14 @@ import {
   XAppConnectionManager,
   XAppConnectionManager__factory,
 } from '@abacus-network/core';
-import { AbacusCore } from '@abacus-network/sdk';
+import { AbacusCore, ChainName } from '@abacus-network/sdk';
 import { types, utils } from '@abacus-network/utils';
 import { AbacusAppDeployer } from '../deploy';
 import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   T,
-  C extends RouterConfig,
+  C extends RouterConfig<ChainName>,
 > extends AbacusAppDeployer<T, C> {
   protected core?: AbacusCore;
 
