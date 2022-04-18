@@ -38,53 +38,50 @@ impl MultisigCheckpointSyncer {
         for (validator, checkpoint_syncer) in self.checkpoint_syncers.iter() {
             // Gracefully ignore an error fetching the checkpoint from a validator's checkpoint syncer,
             // which can happen if the validator has not signed the checkpoint at `index`.
-            match checkpoint_syncer.fetch_checkpoint(index).await {
-                Ok(Some(signed_checkpoint)) => {
-                    // If the signed checkpoint is for a different index, ignore it
-                    if signed_checkpoint.checkpoint.index != index {
-                        continue;
-                    }
-                    // Ensure that the signature is actually by the validator
-                    let signer = signed_checkpoint.recover()?;
-                    if signer != *validator {
-                        continue;
-                    }
+            if let Ok(Some(signed_checkpoint)) = checkpoint_syncer.fetch_checkpoint(index).await {
+                // If the signed checkpoint is for a different index, ignore it
+                if signed_checkpoint.checkpoint.index != index {
+                    continue;
+                }
+                // Ensure that the signature is actually by the validator
+                let signer = signed_checkpoint.recover()?;
+                if signer != *validator {
+                    continue;
+                }
 
-                    // Insert the SignedCheckpointWithSigner into signed_checkpoints_per_root
-                    let signed_checkpoint_with_signer = SignedCheckpointWithSigner {
-                        signer: signer,
-                        signed_checkpoint: signed_checkpoint,
-                    };
-                    let root = signed_checkpoint_with_signer
-                        .signed_checkpoint
-                        .checkpoint
-                        .root;
+                // Insert the SignedCheckpointWithSigner into signed_checkpoints_per_root
+                let signed_checkpoint_with_signer = SignedCheckpointWithSigner {
+                    signer,
+                    signed_checkpoint,
+                };
+                let root = signed_checkpoint_with_signer
+                    .signed_checkpoint
+                    .checkpoint
+                    .root;
 
-                    let signature_count = match signed_checkpoints_per_root.entry(root) {
-                        Entry::Occupied(mut entry) => {
-                            let vec = entry.get_mut();
-                            vec.push(signed_checkpoint_with_signer);
-                            vec.len()
-                        }
-                        Entry::Vacant(entry) => {
-                            entry.insert(vec![signed_checkpoint_with_signer]);
-                            1 // length of 1
-                        }
-                    };
-                    // If we've hit a quorum, create a MultisigSignedCheckpoint
-                    if signature_count >= self.threshold {
-                        if let Some(signed_checkpoints) = signed_checkpoints_per_root.get(&root) {
-                            return Ok(Some(MultisigSignedCheckpoint::try_from(
-                                signed_checkpoints,
-                            )?));
-                        }
+                let signature_count = match signed_checkpoints_per_root.entry(root) {
+                    Entry::Occupied(mut entry) => {
+                        let vec = entry.get_mut();
+                        vec.push(signed_checkpoint_with_signer);
+                        vec.len()
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(vec![signed_checkpoint_with_signer]);
+                        1 // length of 1
+                    }
+                };
+                // If we've hit a quorum, create a MultisigSignedCheckpoint
+                if signature_count >= self.threshold {
+                    if let Some(signed_checkpoints) = signed_checkpoints_per_root.get(&root) {
+                        return Ok(Some(MultisigSignedCheckpoint::try_from(
+                            signed_checkpoints,
+                        )?));
                     }
                 }
-                _ => {}
             }
         }
 
-        return Ok(None);
+        Ok(None)
     }
 
     /// Attempts to get the latest index with a quorum of signatures among validators.
@@ -100,11 +97,8 @@ impl MultisigCheckpointSyncer {
         let mut latest_indices = Vec::with_capacity(self.checkpoint_syncers.len());
         for checkpoint_syncer in self.checkpoint_syncers.values() {
             // Gracefully handle errors getting the latest_index
-            match checkpoint_syncer.latest_index().await {
-                Ok(Some(index)) => {
-                    latest_indices.push(index);
-                }
-                _ => {}
+            if let Ok(Some(index)) = checkpoint_syncer.latest_index().await {
+                latest_indices.push(index);
             }
         }
         if latest_indices.is_empty() {
@@ -144,7 +138,7 @@ impl MultisigCheckpointSyncer {
             }
             last_processed_index = *latest_index;
 
-            if let Some(_) = self.fetch_checkpoint(last_processed_index).await? {
+            if let Ok(Some(_)) = self.fetch_checkpoint(last_processed_index).await {
                 return Ok(Some(last_processed_index));
             }
         }

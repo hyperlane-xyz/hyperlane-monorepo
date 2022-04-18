@@ -88,7 +88,7 @@ impl CheckpointRelayer {
             let batch = MessageBatch::new(
                 messages,
                 onchain_checkpoint_index,
-                latest_signed_checkpoint.checkpoint.clone(),
+                latest_signed_checkpoint.checkpoint,
             );
 
             self.prover_sync.update_from_batch(&batch)?;

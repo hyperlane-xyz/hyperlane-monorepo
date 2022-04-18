@@ -116,11 +116,7 @@ impl ChainSetup<InboxAddresses> {
         signer: Option<Signers>,
         // inbox_address: Address,
     ) -> Result<InboxValidatorManagers, Report> {
-        let inbox_address = self
-            .addresses
-            .inbox
-            .parse::<ethers::types::Address>()?
-            .into();
+        let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerVariants::Ethereum(
                 make_inbox_validator_manager(
