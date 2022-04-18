@@ -5,7 +5,7 @@ use ethers::core::types::H256;
 use crate::{
     accumulator::merkle::Proof,
     traits::{AbacusCommon, ChainCommunicationError, TxOutcome},
-    AbacusMessage, MessageStatus, SignedCheckpoint,
+    AbacusMessage, MessageStatus,
 };
 
 /// Interface for on-chain inboxes
@@ -23,11 +23,4 @@ pub trait Inbox: AbacusCommon + Send + Sync + std::fmt::Debug {
 
     /// Fetch the status of a message
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError>;
-
-    /// Submit a signed checkpoint for inclusion
-    /// Mocks already have a function called checkpoint
-    async fn submit_checkpoint(
-        &self,
-        signed_checkpoint: &SignedCheckpoint,
-    ) -> Result<TxOutcome, ChainCommunicationError>;
 }
