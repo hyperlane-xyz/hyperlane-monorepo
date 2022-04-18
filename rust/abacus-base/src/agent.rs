@@ -40,27 +40,6 @@ pub struct AbacusAgentCore {
     pub settings: crate::settings::Settings,
 }
 
-impl AbacusAgentCore {
-    /// Constructor
-    pub fn new(
-        outbox: Arc<CachingOutbox>,
-        inboxes: HashMap<String, InboxContracts>,
-        db: DB,
-        metrics: Arc<CoreMetrics>,
-        indexer: IndexSettings,
-        settings: crate::settings::Settings,
-    ) -> Result<AbacusAgentCore> {
-        Ok(AbacusAgentCore {
-            outbox,
-            inboxes,
-            db,
-            metrics,
-            indexer,
-            settings,
-        })
-    }
-}
-
 /// A trait for an abacus agent
 #[async_trait]
 pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
@@ -97,9 +76,7 @@ pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
 
     /// Get a reference to an inbox by its name
     fn inbox_by_name(&self, name: &str) -> Option<InboxContracts> {
-        self.inboxes()
-            .get(name)
-            .map(Clone::clone)
+        self.inboxes().get(name).map(Clone::clone)
     }
 
     /// Run tasks

@@ -184,7 +184,7 @@ pub struct Settings {
     /// Settings for the outbox indexer
     #[serde(default)]
     pub index: IndexSettings,
-    /// The outbox configuration
+    /// Configurations for contracts on the outbox chain
     pub outbox: ChainSetup<OutboxAddresses>,
     /// Configurations for contracts on inbox chains
     pub inboxes: HashMap<String, ChainSetup<InboxAddresses>>,
@@ -221,11 +221,7 @@ impl Settings {
         db: DB,
     ) -> Result<HashMap<String, InboxContracts>, Report> {
         let mut result = HashMap::default();
-        for (k, v) in self
-            .inboxes
-            .iter()
-            .filter(|(_, v)| v.disabled.is_none())
-        {
+        for (k, v) in self.inboxes.iter().filter(|(_, v)| v.disabled.is_none()) {
             if k != &v.name {
                 bail!(
                     "Inbox key does not match inbox name:\n key: {}  name: {}",
@@ -348,14 +344,14 @@ impl Settings {
 
         let inbox_contracts = self.try_inbox_contracts(db.clone()).await?;
 
-        AbacusAgentCore::new(
+        Ok(AbacusAgentCore {
             outbox,
-            inbox_contracts,
+            inboxes: inbox_contracts,
             db,
             metrics,
-            self.index.clone(),
-            self.clone(),
-        )
+            indexer: self.index.clone(),
+            settings: self.clone(),
+        })
     }
 
     /// Read settings from the config file

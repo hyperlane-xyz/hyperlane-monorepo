@@ -26,14 +26,14 @@ impl Default for ChainConf {
     }
 }
 
-/// Contracts for an outbox
+/// Addresses for outbox chain contracts
 #[derive(Clone, Debug, Deserialize, Default)]
 pub struct OutboxAddresses {
     /// Address of the Outbox contract
     pub outbox: String,
 }
 
-/// Contracts for an inbox
+/// Addresses for inbox chain contracts
 #[derive(Clone, Debug, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct InboxAddresses {
@@ -51,7 +51,7 @@ pub struct ChainSetup<T> {
     pub name: String,
     /// Chain domain identifier
     pub domain: String,
-    /// Address of contract on the chain
+    /// Addresses of contracts on the chain
     pub addresses: T,
     /// The chain connection details
     #[serde(flatten)]
