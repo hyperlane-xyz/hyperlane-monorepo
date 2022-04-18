@@ -147,10 +147,14 @@ impl Relayer {
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
-            .inboxes_and_validator_managers()
+            .inbox_contracts()
             .iter()
-            .map(|(inbox_name, (inbox, validator_manager))| {
-                self.wrap_inbox_run(inbox_name, inbox.clone(), validator_manager.clone())
+            .map(|(inbox_name, inbox_contracts)| {
+                self.wrap_inbox_run(
+                    inbox_name,
+                    inbox_contracts.inbox.clone(),
+                    inbox_contracts.validator_manager.clone(),
+                )
             })
             .collect();
         inbox_tasks.push(self.run_contract_sync());

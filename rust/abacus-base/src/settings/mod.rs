@@ -37,8 +37,8 @@
 //!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
 
 use crate::{
-    AbacusAgentCore, AbacusCommonIndexers, CachingInbox, CachingOutbox, InboxValidatorManagers,
-    OutboxIndexers,
+    AbacusAgentCore, AbacusCommonIndexers, CachingInbox, CachingOutbox, InboxContracts,
+    InboxValidatorManagers, OutboxIndexers,
 };
 use abacus_core::{
     db::{AbacusDB, DB},
@@ -58,7 +58,7 @@ use tracing::instrument;
 /// Chain configuartion
 pub mod chains;
 
-pub use chains::{ChainConf, ChainSetup};
+pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
 
 /// Tracing subscriber management
 pub mod trace;
@@ -185,11 +185,9 @@ pub struct Settings {
     #[serde(default)]
     pub index: IndexSettings,
     /// The outbox configuration
-    pub outbox: ChainSetup,
-    /// The inbox configurations
-    pub inboxes: HashMap<String, ChainSetup>,
-    /// The InboxValidatorManager configurations
-    pub inboxvalidatormanagers: HashMap<String, ChainSetup>,
+    pub outbox: ChainSetup<OutboxAddresses>,
+    /// Configurations for contracts on inbox chains
+    pub inbox_contracts: HashMap<String, ChainSetup<InboxAddresses>>,
     /// The tracing configuration
     pub tracing: TracingConfig,
     /// Transaction signers
@@ -204,8 +202,7 @@ impl Settings {
             metrics: self.metrics.clone(),
             index: self.index.clone(),
             outbox: self.outbox.clone(),
-            inboxes: self.inboxes.clone(),
-            inboxvalidatormanagers: self.inboxvalidatormanagers.clone(),
+            inbox_contracts: self.inbox_contracts.clone(),
             tracing: self.tracing.clone(),
             signers: self.signers.clone(),
         }
@@ -218,13 +215,17 @@ impl Settings {
         self.signers.get(name)?.try_into_signer().await.ok()
     }
 
-    /// Try to get all inboxes from this settings object
-    pub async fn try_caching_inboxes(
+    /// Try to get a map of inbox name -> inbox contracts
+    pub async fn try_inbox_contracts(
         &self,
         db: DB,
-    ) -> Result<HashMap<String, Arc<CachingInbox>>, Report> {
+    ) -> Result<HashMap<String, InboxContracts>, Report> {
         let mut result = HashMap::default();
-        for (k, v) in self.inboxes.iter().filter(|(_, v)| v.disabled.is_none()) {
+        for (k, v) in self
+            .inbox_contracts
+            .iter()
+            .filter(|(_, v)| v.disabled.is_none())
+        {
             if k != &v.name {
                 bail!(
                     "Inbox key does not match inbox name:\n key: {}  name: {}",
@@ -232,49 +233,39 @@ impl Settings {
                     v.name
                 );
             }
-            let signer = self.get_signer(&v.name).await;
-            let inbox = v.try_into_inbox(signer).await?;
-            let indexer = Arc::new(self.try_inbox_indexer(v).await?);
-            let abacus_db = AbacusDB::new(inbox.name(), db.clone());
+            let caching_inbox = self.try_caching_inbox(v, db.clone()).await?;
+            let validator_manager = self.try_inbox_validator_manager(v).await?;
             result.insert(
                 v.name.clone(),
-                Arc::new(CachingInbox::new(inbox, abacus_db, indexer)),
+                InboxContracts {
+                    inbox: Arc::new(caching_inbox),
+                    validator_manager: Arc::new(validator_manager),
+                },
             );
         }
         Ok(result)
     }
 
-    /// Try to get all inboxes from this settings object
-    pub async fn try_inbox_validator_managers(
+    /// Try to get a CachingInbox
+    async fn try_caching_inbox(
         &self,
-    ) -> Result<HashMap<String, Arc<InboxValidatorManagers>>, Report> {
-        let mut result = HashMap::default();
-        for (k, v) in self
-            .inboxvalidatormanagers
-            .iter()
-            .filter(|(_, v)| v.disabled.is_none())
-        {
-            if k != &v.name {
-                bail!(
-                    "InboxValidatorManager key does not match name:\n key: {}  name: {}",
-                    k,
-                    v.name
-                );
-            }
-            if let Some(inbox) = self.inboxes.get(k) {
-                let signer = self.get_signer(&v.name).await;
-                let inbox_validator_manager = v
-                    .try_into_inbox_validator_manager(
-                        signer,
-                        inbox.address.parse::<ethers::types::Address>()?.into(),
-                    )
-                    .await?;
-                result.insert(v.name.clone(), Arc::new(inbox_validator_manager));
-            } else {
-                bail!("Inbox not found for InboxValidatorManager key {}", k);
-            }
-        }
-        Ok(result)
+        chain_setup: &ChainSetup<InboxAddresses>,
+        db: DB,
+    ) -> Result<CachingInbox, Report> {
+        let signer = self.get_signer(&chain_setup.name).await;
+        let inbox = chain_setup.try_into_inbox(signer).await?;
+        let indexer = Arc::new(self.try_inbox_indexer(chain_setup).await?);
+        let abacus_db = AbacusDB::new(inbox.name(), db);
+        Ok(CachingInbox::new(inbox, abacus_db, indexer))
+    }
+
+    /// Try to get an InboxValidatorManager
+    async fn try_inbox_validator_manager(
+        &self,
+        chain_setup: &ChainSetup<InboxAddresses>,
+    ) -> Result<InboxValidatorManagers, Report> {
+        let signer = self.get_signer(&chain_setup.name).await;
+        chain_setup.try_into_inbox_validator_manager(signer).await
     }
 
     /// Try to get a outbox object
@@ -299,7 +290,8 @@ impl Settings {
                         domain: self.outbox.domain.parse().expect("invalid uint"),
                         address: self
                             .outbox
-                            .address
+                            .addresses
+                            .outbox
                             .parse::<ethers::types::Address>()?
                             .into(),
                     },
@@ -315,7 +307,7 @@ impl Settings {
     /// Try to get an indexer object for a inbox
     pub async fn try_inbox_indexer(
         &self,
-        setup: &ChainSetup,
+        setup: &ChainSetup<InboxAddresses>,
     ) -> Result<AbacusCommonIndexers, Report> {
         let signer = self.get_signer(&setup.name).await;
 
@@ -326,7 +318,11 @@ impl Settings {
                     &ContractLocator {
                         name: setup.name.clone(),
                         domain: setup.domain.parse().expect("invalid uint"),
-                        address: setup.address.parse::<ethers::types::Address>()?.into(),
+                        address: setup
+                            .addresses
+                            .inbox
+                            .parse::<ethers::types::Address>()?
+                            .into(),
                     },
                     signer,
                     self.index.from(),
@@ -349,13 +345,12 @@ impl Settings {
 
         let db = DB::from_path(&self.db)?;
         let outbox = Arc::new(self.try_caching_outbox(db.clone()).await?);
-        let inboxes = self.try_caching_inboxes(db.clone()).await?;
-        let inbox_validator_managers = self.try_inbox_validator_managers().await?;
+
+        let inbox_contracts = self.try_inbox_contracts(db.clone()).await?;
 
         AbacusAgentCore::new(
             outbox,
-            inboxes,
-            inbox_validator_managers,
+            inbox_contracts,
             db,
             metrics,
             self.index.clone(),

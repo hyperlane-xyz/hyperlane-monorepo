@@ -1,5 +1,4 @@
 use color_eyre::Report;
-use ethers::types::Address;
 use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};
@@ -27,16 +26,32 @@ impl Default for ChainConf {
     }
 }
 
+/// Contracts for an outbox
+#[derive(Clone, Debug, Deserialize, Default)]
+pub struct OutboxAddresses {
+    /// Address of the Outbox contract
+    pub outbox: String,
+}
+
+/// Contracts for an inbox
+#[derive(Clone, Debug, Deserialize, Default)]
+pub struct InboxAddresses {
+    /// Address of the Inbox contract
+    pub inbox: String,
+    /// Address of the InboxValidatorManager contract
+    pub validatormanager: String,
+}
+
 /// A chain setup is a domain ID, an address on that chain (where the outbox or
 /// inbox is deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize, Default)]
-pub struct ChainSetup {
+pub struct ChainSetup<T> {
     /// Chain name
     pub name: String,
     /// Chain domain identifier
     pub domain: String,
     /// Address of contract on the chain
-    pub address: String,
+    pub addresses: T,
     /// The chain connection details
     #[serde(flatten)]
     pub chain: ChainConf,
@@ -45,7 +60,7 @@ pub struct ChainSetup {
     pub disabled: Option<String>,
 }
 
-impl ChainSetup {
+impl ChainSetup<OutboxAddresses> {
     /// Try to convert the chain setting into a Outbox contract
     pub async fn try_into_outbox(&self, signer: Option<Signers>) -> Result<Outboxes, Report> {
         match &self.chain {
@@ -55,7 +70,11 @@ impl ChainSetup {
                     &ContractLocator {
                         name: self.name.clone(),
                         domain: self.domain.parse().expect("invalid uint"),
-                        address: self.address.parse::<ethers::types::Address>()?.into(),
+                        address: self
+                            .addresses
+                            .outbox
+                            .parse::<ethers::types::Address>()?
+                            .into(),
                     },
                     signer,
                 )
@@ -64,7 +83,9 @@ impl ChainSetup {
             .into()),
         }
     }
+}
 
+impl ChainSetup<InboxAddresses> {
     /// Try to convert the chain setting into an inbox contract
     pub async fn try_into_inbox(&self, signer: Option<Signers>) -> Result<Inboxes, Report> {
         match &self.chain {
@@ -74,7 +95,11 @@ impl ChainSetup {
                     &ContractLocator {
                         name: self.name.clone(),
                         domain: self.domain.parse().expect("invalid uint"),
-                        address: self.address.parse::<ethers::types::Address>()?.into(),
+                        address: self
+                            .addresses
+                            .inbox
+                            .parse::<ethers::types::Address>()?
+                            .into(),
                     },
                     signer,
                 )
@@ -88,8 +113,13 @@ impl ChainSetup {
     pub async fn try_into_inbox_validator_manager(
         &self,
         signer: Option<Signers>,
-        inbox_address: Address,
+        // inbox_address: Address,
     ) -> Result<InboxValidatorManagers, Report> {
+        let inbox_address = self
+            .addresses
+            .inbox
+            .parse::<ethers::types::Address>()?
+            .into();
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerVariants::Ethereum(
                 make_inbox_validator_manager(
@@ -97,7 +127,11 @@ impl ChainSetup {
                     &ContractLocator {
                         name: self.name.clone(),
                         domain: self.domain.parse().expect("invalid uint"),
-                        address: self.address.parse::<ethers::types::Address>()?.into(),
+                        address: self
+                            .addresses
+                            .validatormanager
+                            .parse::<ethers::types::Address>()?
+                            .into(),
                     },
                     signer,
                     inbox_address,
