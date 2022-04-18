@@ -74,7 +74,7 @@ pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
         &self.as_ref().inboxes
     }
 
-    /// Get a reference to an inbox by its name
+    /// Get a reference to an inbox's contracts by its name
     fn inbox_by_name(&self, name: &str) -> Option<InboxContracts> {
         self.inboxes().get(name).map(Clone::clone)
     }
