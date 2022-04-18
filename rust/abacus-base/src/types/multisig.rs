@@ -26,7 +26,7 @@ impl MultisigCheckpointSyncer {
         }
     }
 
-    /// Fetches a checkpoint suitable for a multisig validator manager if there is a quorum.
+    /// Fetches a MultisigSignedCheckpoint if there is a quorum.
     /// Returns Ok(None) if there is no quorum.
     pub async fn fetch_checkpoint(&self, index: u32) -> Result<Option<MultisigSignedCheckpoint>> {
         // Keeps track of signed validator checkpoints for a particular root.
@@ -73,8 +73,7 @@ impl MultisigCheckpointSyncer {
                     };
                     // If we've hit a quorum, create a MultisigSignedCheckpoint
                     if signature_count >= self.threshold {
-                        if let Some(signed_checkpoints) = signed_checkpoints_per_root.get_mut(&root)
-                        {
+                        if let Some(signed_checkpoints) = signed_checkpoints_per_root.get(&root) {
                             return Ok(Some(MultisigSignedCheckpoint::try_from(
                                 signed_checkpoints,
                             )?));

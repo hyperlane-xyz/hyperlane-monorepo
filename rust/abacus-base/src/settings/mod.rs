@@ -220,7 +220,7 @@ impl Settings {
         &self,
         db: DB,
     ) -> Result<HashMap<String, InboxContracts>, Report> {
-        let mut result = HashMap::default();
+        let mut result = HashMap::new();
         for (k, v) in self.inboxes.iter().filter(|(_, v)| v.disabled.is_none()) {
             if k != &v.name {
                 bail!(
