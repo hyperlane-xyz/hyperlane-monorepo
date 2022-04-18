@@ -1,4 +1,4 @@
-use std::{time::Duration};
+use std::time::Duration;
 
 use abacus_base::{InboxContracts, MultisigCheckpointSyncer};
 use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxValidatorManager};
@@ -92,7 +92,8 @@ impl CheckpointRelayer {
             );
 
             self.prover_sync.update_from_batch(&batch)?;
-            self.inbox_contracts.validator_manager
+            self.inbox_contracts
+                .validator_manager
                 .submit_checkpoint(&latest_signed_checkpoint)
                 .await?;
 
@@ -102,7 +103,12 @@ impl CheckpointRelayer {
                     match self.prover_sync.get_proof(message.leaf_index) {
                         Ok(proof) => {
                             // Ignore errors and expect the lagged message processor to retry
-                            match self.inbox_contracts.inbox.prove_and_process(&message.message, &proof).await {
+                            match self
+                                .inbox_contracts
+                                .inbox
+                                .prove_and_process(&message.message, &proof)
+                                .await
+                            {
                                 Ok(outcome) => {
                                     info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message")
                                 }
@@ -129,7 +135,8 @@ impl CheckpointRelayer {
     pub(crate) fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("CheckpointRelayer");
         tokio::spawn(async move {
-            let latest_inbox_checkpoint = self.inbox_contracts.inbox.latest_checkpoint(None).await?;
+            let latest_inbox_checkpoint =
+                self.inbox_contracts.inbox.latest_checkpoint(None).await?;
             let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
             // Checkpoints are 1-indexed, while leaves are 0-indexed
             let mut next_inbox_leaf_index = onchain_checkpoint_index;

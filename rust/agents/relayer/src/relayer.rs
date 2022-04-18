@@ -103,10 +103,7 @@ impl Relayer {
         sync
     }
 
-    fn run_inbox(
-        &self,
-        inbox_contracts: InboxContracts,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
+    fn run_inbox(&self, inbox_contracts: InboxContracts) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
         let checkpoint_relayer = CheckpointRelayer::new(
             self.polling_interval,
@@ -133,9 +130,7 @@ impl Relayer {
         inbox_contracts: InboxContracts,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let m = format!("Task for inbox named {} failed", inbox_name);
-        let handle = self
-            .run_inbox(inbox_contracts)
-            .in_current_span();
+        let handle = self.run_inbox(inbox_contracts).in_current_span();
         let fut = async move { handle.await?.wrap_err(m) };
 
         tokio::spawn(fut).in_current_span()
@@ -146,10 +141,7 @@ impl Relayer {
             .inboxes()
             .iter()
             .map(|(inbox_name, inbox_contracts)| {
-                self.wrap_inbox_run(
-                    inbox_name,
-                    inbox_contracts.clone(),
-                )
+                self.wrap_inbox_run(inbox_name, inbox_contracts.clone())
             })
             .collect();
         inbox_tasks.push(self.run_contract_sync());

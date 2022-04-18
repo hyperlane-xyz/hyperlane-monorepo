@@ -15,22 +15,17 @@ async function main() {
     .describe('f', 'filepath')
     .require('f').argv;
 
-  console.log('a')
-
   const environment = await getEnvironment();
   const agentConfig = await getAgentConfig(environment);
   const domainNames = await getDomainNames(environment);
-  console.log('b')
   const envVars = await getAgentEnvVars(
     argv.c,
     argv.r,
     agentConfig,
     domainNames,
   );
-  console.log('c')
 
   await writeFile(argv.f, envVars.join('\n'));
-  console.log('d')
 }
 
 main().then(console.log).catch(console.error);

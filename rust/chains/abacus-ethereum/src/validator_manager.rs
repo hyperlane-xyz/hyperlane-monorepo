@@ -7,7 +7,6 @@ use async_trait::async_trait;
 use color_eyre::Result;
 use ethers::contract::abigen;
 use ethers::core::types::Address;
-// use tracing::instrument;
 
 use std::sync::Arc;
 
@@ -73,7 +72,7 @@ impl<M> InboxValidatorManager for EthereumInboxValidatorManager<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
-    // #[tracing::instrument(err, skip(self), fields(hex_signature = %format!("0x{}", hex::encode(multisig_signed_checkpoint.signatures.to_vec()))))]
+    #[tracing::instrument(err, skip(self))]
     async fn submit_checkpoint(
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,

@@ -197,7 +197,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
           throw new Error(`No inbox for ${domain} on ${remote}`);
 
         const inboxValidatorManagerAddress =
-        remoteAddresses.inboxValidatorManagers[name];
+          remoteAddresses.inboxValidatorManagers[name];
         if (!inboxValidatorManagerAddress) {
           throw new Error(
             `No inbox validator manager for ${domain} on ${remote}`,
@@ -215,7 +215,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
           addresses: {
             inbox: inboxAddress.proxy,
             validatorManager: inboxValidatorManagerAddress,
-          }
+          },
         };
 
         rustConfig.inboxes[remoteName] = inbox;

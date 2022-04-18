@@ -166,29 +166,8 @@ export async function getAgentEnvVars(
 
     if (role === KEY_ROLE_ENUM.Relayer) {
       envVars.push(
-        `OPT_RELAYER_POLLINGINTERVAL=${valueDict.abacus.relayer.pollingInterval}`,
+        `OPT_RELAYER_INTERVAL=${valueDict.abacus.relayer.pollingInterval}`,
       );
-
-      // TODO change
-      envVars.push(
-        `OPT_RELAYER_SUBMISSIONLATENCY=${valueDict.abacus.relayer.pollingInterval}`,
-      );
-
-      // TODO change
-      envVars.push(
-        `OPT_RELAYER_MAXRETRIES=${valueDict.abacus.relayer.pollingInterval}`,
-      );
-
-          /// The polling interval to check for new checkpoints in seconds
-    // pollinginterval: String,
-    // /// The minimum latency in seconds between two relayed checkpoints on the inbox
-    // submissionlatency: String,
-    // /// The maxinmum number of times a processor will try to process a message
-    // maxretries: String,
-    // /// Whether the CheckpointRelayer should try to immediately process messages
-    // relayermessageprocessing: String,
-    // /// The multisig checkpoint syncer configuration
-    // multisigcheckpointsyncer: abacus_base::MultisigCheckpointSyncerConf,
     }
   } catch (error) {
     // This happens if you don't have a result type

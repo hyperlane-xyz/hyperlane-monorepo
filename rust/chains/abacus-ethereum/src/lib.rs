@@ -6,7 +6,6 @@
 
 use abacus_core::*;
 use color_eyre::eyre::Result;
-// use ethers::prelude::*;
 use ethers::providers::Middleware;
 use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
 use num::Num;
