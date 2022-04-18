@@ -106,7 +106,7 @@ impl CheckpointRelayer {
                             match self
                                 .inbox_contracts
                                 .inbox
-                                .prove_and_process(&message.message, &proof)
+                                .process(&message.message, &proof)
                                 .await
                             {
                                 Ok(outcome) => {
