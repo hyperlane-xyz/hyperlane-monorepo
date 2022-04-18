@@ -187,7 +187,7 @@ pub struct Settings {
     /// The outbox configuration
     pub outbox: ChainSetup<OutboxAddresses>,
     /// Configurations for contracts on inbox chains
-    pub inbox_contracts: HashMap<String, ChainSetup<InboxAddresses>>,
+    pub inboxes: HashMap<String, ChainSetup<InboxAddresses>>,
     /// The tracing configuration
     pub tracing: TracingConfig,
     /// Transaction signers
@@ -202,7 +202,7 @@ impl Settings {
             metrics: self.metrics.clone(),
             index: self.index.clone(),
             outbox: self.outbox.clone(),
-            inbox_contracts: self.inbox_contracts.clone(),
+            inboxes: self.inboxes.clone(),
             tracing: self.tracing.clone(),
             signers: self.signers.clone(),
         }
@@ -222,7 +222,7 @@ impl Settings {
     ) -> Result<HashMap<String, InboxContracts>, Report> {
         let mut result = HashMap::default();
         for (k, v) in self
-            .inbox_contracts
+            .inboxes
             .iter()
             .filter(|(_, v)| v.disabled.is_none())
         {

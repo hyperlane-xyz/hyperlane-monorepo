@@ -147,7 +147,7 @@ impl Relayer {
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let mut inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
-            .inbox_contracts()
+            .inboxes()
             .iter()
             .map(|(inbox_name, inbox_contracts)| {
                 self.wrap_inbox_run(

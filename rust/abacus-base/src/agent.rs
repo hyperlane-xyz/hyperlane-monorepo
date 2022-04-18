@@ -15,7 +15,7 @@ use std::{collections::HashMap, sync::Arc};
 use tokio::task::JoinHandle;
 
 /// Contracts relating to an inbox chain
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct InboxContracts {
     /// A boxed Inbox
     pub inbox: Arc<CachingInbox>,
@@ -29,7 +29,7 @@ pub struct AbacusAgentCore {
     /// A boxed Outbox
     pub outbox: Arc<CachingOutbox>,
     /// A map of boxed Inbox contracts
-    pub inbox_contracts: HashMap<String, InboxContracts>,
+    pub inboxes: HashMap<String, InboxContracts>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -44,7 +44,7 @@ impl AbacusAgentCore {
     /// Constructor
     pub fn new(
         outbox: Arc<CachingOutbox>,
-        inbox_contracts: HashMap<String, InboxContracts>,
+        inboxes: HashMap<String, InboxContracts>,
         db: DB,
         metrics: Arc<CoreMetrics>,
         indexer: IndexSettings,
@@ -52,7 +52,7 @@ impl AbacusAgentCore {
     ) -> Result<AbacusAgentCore> {
         Ok(AbacusAgentCore {
             outbox,
-            inbox_contracts,
+            inboxes,
             db,
             metrics,
             indexer,
@@ -91,15 +91,15 @@ pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
     }
 
     /// Get a reference to the inboxes map
-    fn inbox_contracts(&self) -> &HashMap<String, InboxContracts> {
-        &self.as_ref().inbox_contracts
+    fn inboxes(&self) -> &HashMap<String, InboxContracts> {
+        &self.as_ref().inboxes
     }
 
     /// Get a reference to an inbox by its name
-    fn inbox_by_name(&self, name: &str) -> Option<Arc<CachingInbox>> {
-        self.inbox_contracts()
+    fn inbox_by_name(&self, name: &str) -> Option<InboxContracts> {
+        self.inboxes()
             .get(name)
-            .map(|inbox_contracts| inbox_contracts.inbox.clone())
+            .map(Clone::clone)
     }
 
     /// Run tasks

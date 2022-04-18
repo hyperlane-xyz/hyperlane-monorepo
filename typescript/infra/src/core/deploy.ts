@@ -165,7 +165,9 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       const addresses = this.mustGetAddresses(domain);
 
       const outbox = {
-        address: addresses.outbox.proxy,
+        addresses: {
+          outbox: addresses.outbox.proxy,
+        },
         domain: domain.toString(),
         name,
         rpcStyle: 'ethereum',
@@ -180,7 +182,6 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         signers: {},
         outbox,
         inboxes: {},
-        inboxValidatorManagers: {},
         tracing: {
           level: 'debug',
           fmt: 'json',
@@ -195,7 +196,15 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         if (!inboxAddress)
           throw new Error(`No inbox for ${domain} on ${remote}`);
 
-        const common = {
+        const inboxValidatorManagerAddress =
+        remoteAddresses.inboxValidatorManagers[name];
+        if (!inboxValidatorManagerAddress) {
+          throw new Error(
+            `No inbox validator manager for ${domain} on ${remote}`,
+          );
+        }
+
+        const inbox = {
           domain: remote.toString(),
           name: remoteName,
           rpcStyle: 'ethereum',
@@ -203,28 +212,14 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
             type: 'http',
             url: '',
           },
-        };
-        const inbox = {
-          ...common,
-          address: inboxAddress.proxy,
-        };
-
-        const inboxValidatorManagerAddress =
-          remoteAddresses.inboxValidatorManagers[name];
-        if (!inboxValidatorManagerAddress)
-          throw new Error(
-            `No inbox validator manager for ${domain} on ${remote}`,
-          );
-
-        const inboxValidatorManager = {
-          ...common,
-          address: inboxValidatorManagerAddress,
+          addresses: {
+            inbox: inboxAddress.proxy,
+            validatorManager: inboxValidatorManagerAddress,
+          }
         };
 
         rustConfig.inboxes[remoteName] = inbox;
-        rustConfig.inboxValidatorManagers[remoteName] = inboxValidatorManager;
       }
-      console.log('hello', filepath, rustConfig)
       AbacusAppDeployer.writeJson(filepath, rustConfig);
     }
   }

@@ -35,11 +35,12 @@ pub struct OutboxAddresses {
 
 /// Contracts for an inbox
 #[derive(Clone, Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct InboxAddresses {
     /// Address of the Inbox contract
     pub inbox: String,
     /// Address of the InboxValidatorManager contract
-    pub validatormanager: String,
+    pub validator_manager: String,
 }
 
 /// A chain setup is a domain ID, an address on that chain (where the outbox or
@@ -129,7 +130,7 @@ impl ChainSetup<InboxAddresses> {
                         domain: self.domain.parse().expect("invalid uint"),
                         address: self
                             .addresses
-                            .validatormanager
+                            .validator_manager
                             .parse::<ethers::types::Address>()?
                             .into(),
                     },
