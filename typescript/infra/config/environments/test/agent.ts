@@ -7,7 +7,7 @@ export const agent: AgentConfig = {
   runEnv: 'test',
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'e309bb2187f56a83bc8a2120da0f2c38bfce951d',
+    tag: 'bef1be950322fdffd510c92d690b03aca8a5e250',
   },
   validator: {
     interval: 5,

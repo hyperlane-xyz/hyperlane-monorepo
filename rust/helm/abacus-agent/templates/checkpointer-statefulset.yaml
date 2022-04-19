@@ -55,20 +55,7 @@ spec:
         - secretRef:
             name: {{ include "abacus-agent.fullname" . }}-checkpointer-secret
         env: 
-          {{- if .Values.abacus.checkpointer.pollingInterval }}
-          - name: OPT_checkpointer_INTERVAL
-            value: {{ .Values.abacus.checkpointer.pollingInterval | quote }}
-          {{ end }}
-          {{ range .Values.abacus.checkpointer.indexonly }}
-          - name: OPT_checkpointer_INDEXON_{{ . | upper }}
-            value: "true"
-          {{ end }}
-          {{- if .Values.abacus.checkpointer.s3BucketName }}
-          - name: OPT_checkpointer_S3_BUCKET
-            value: {{ .Values.abacus.checkpointer.s3BucketName }}
-          - name: OPT_checkpointer_S3_REGION
-            value: {{ .Values.abacus.checkpointer.s3BucketRegion }}
-          {{- end }}
+{{- include "abacus-agent.config-env-vars" (dict "config" .Values.abacus.checkpointer.config "agent_name" "checkpointer") | indent 10 }}
           {{- range .Values.abacus.checkpointer.signers }}
           {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
