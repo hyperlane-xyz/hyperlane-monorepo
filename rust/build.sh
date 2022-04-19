@@ -8,5 +8,5 @@ if [[ -z $TAG ]]; then
   fi
 fi
 
-docker build -t gcr.io/clabs-optics/optics-agent:$TAG .
+DOCKER_BUILDKIT=1 docker build -t gcr.io/abacus-labs-dev/abacus-agent:$TAG .
 
