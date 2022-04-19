@@ -3,8 +3,18 @@
     "inputs": [
       {
         "internalType": "uint32",
-        "name": "_localDomain",
+        "name": "_remoteDomain",
         "type": "uint32"
+      },
+      {
+        "internalType": "address[]",
+        "name": "_validators",
+        "type": "address[]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_threshold",
+        "type": "uint256"
       }
     ],
     "stateMutability": "nonpayable",
@@ -15,31 +25,18 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "root",
-        "type": "bytes32"
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
       },
       {
-        "indexed": true,
+        "indexed": false,
         "internalType": "uint256",
-        "name": "index",
+        "name": "validatorCount",
         "type": "uint256"
       }
     ],
-    "name": "Checkpoint",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
-        "indexed": false,
-        "internalType": "address",
-        "name": "validatorManager",
-        "type": "address"
-      }
-    ],
-    "name": "NewValidatorManager",
+    "name": "EnrollValidator",
     "type": "event"
   },
   {
@@ -65,26 +62,99 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "messageHash",
-        "type": "bytes32"
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "threshold",
+        "type": "uint256"
       }
     ],
-    "name": "Process",
+    "name": "SetThreshold",
     "type": "event"
   },
   {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": true,
+        "internalType": "address",
+        "name": "validator",
+        "type": "address"
+      },
+      {
+        "indexed": false,
+        "internalType": "uint256",
+        "name": "validatorCount",
+        "type": "uint256"
+      }
+    ],
+    "name": "UnenrollValidator",
+    "type": "event"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "contract IInbox",
+        "name": "_inbox",
+        "type": "address"
+      },
+      {
+        "internalType": "bytes32",
+        "name": "_root",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_index",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes[]",
+        "name": "_signatures",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "checkpoint",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
     "inputs": [],
-    "name": "VERSION",
+    "name": "domain",
     "outputs": [
       {
-        "internalType": "uint8",
+        "internalType": "uint32",
         "name": "",
-        "type": "uint8"
+        "type": "uint32"
       }
     ],
     "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "domainHash",
+    "outputs": [
+      {
+        "internalType": "bytes32",
+        "name": "",
+        "type": "bytes32"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
+      {
+        "internalType": "address",
+        "name": "_validator",
+        "type": "address"
+      }
+    ],
+    "name": "enrollValidator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
     "type": "function"
   },
   {
@@ -98,118 +168,38 @@
         "internalType": "uint256",
         "name": "_index",
         "type": "uint256"
-      }
-    ],
-    "name": "checkpoint",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "checkpointedRoot",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "name": "checkpoints",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "uint32",
-        "name": "_remoteDomain",
-        "type": "uint32"
       },
+      {
+        "internalType": "bytes[]",
+        "name": "_signatures",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "isQuorum",
+    "outputs": [
+      {
+        "internalType": "bool",
+        "name": "",
+        "type": "bool"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [
       {
         "internalType": "address",
-        "name": "_validatorManager",
+        "name": "_validator",
         "type": "address"
-      },
-      {
-        "internalType": "bytes32",
-        "name": "_checkpointedRoot",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_checkpointedIndex",
-        "type": "uint256"
       }
     ],
-    "name": "initialize",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "latestCheckpoint",
+    "name": "isValidator",
     "outputs": [
       {
-        "internalType": "bytes32",
-        "name": "root",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "index",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "localDomain",
-    "outputs": [
-      {
-        "internalType": "uint32",
+        "internalType": "bool",
         "name": "",
-        "type": "uint32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "name": "messages",
-    "outputs": [
-      {
-        "internalType": "enum Inbox.MessageStatus",
-        "name": "",
-        "type": "uint8"
+        "type": "bool"
       }
     ],
     "stateMutability": "view",
@@ -229,47 +219,6 @@
     "type": "function"
   },
   {
-    "inputs": [
-      {
-        "internalType": "bytes",
-        "name": "_message",
-        "type": "bytes"
-      },
-      {
-        "internalType": "bytes32[32]",
-        "name": "_proof",
-        "type": "bytes32[32]"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_index",
-        "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "",
-        "type": "bytes"
-      }
-    ],
-    "name": "process",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "remoteDomain",
-    "outputs": [
-      {
-        "internalType": "uint32",
-        "name": "",
-        "type": "uint32"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
     "inputs": [],
     "name": "renounceOwnership",
     "outputs": [],
@@ -279,14 +228,27 @@
   {
     "inputs": [
       {
-        "internalType": "address",
-        "name": "_validatorManager",
-        "type": "address"
+        "internalType": "uint256",
+        "name": "_threshold",
+        "type": "uint256"
       }
     ],
-    "name": "setValidatorManager",
+    "name": "setThreshold",
     "outputs": [],
     "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "threshold",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -303,13 +265,39 @@
     "type": "function"
   },
   {
-    "inputs": [],
-    "name": "validatorManager",
-    "outputs": [
+    "inputs": [
       {
         "internalType": "address",
-        "name": "",
+        "name": "_validator",
         "type": "address"
+      }
+    ],
+    "name": "unenrollValidator",
+    "outputs": [],
+    "stateMutability": "nonpayable",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "validatorCount",
+    "outputs": [
+      {
+        "internalType": "uint256",
+        "name": "",
+        "type": "uint256"
+      }
+    ],
+    "stateMutability": "view",
+    "type": "function"
+  },
+  {
+    "inputs": [],
+    "name": "validators",
+    "outputs": [
+      {
+        "internalType": "address[]",
+        "name": "",
+        "type": "address[]"
       }
     ],
     "stateMutability": "view",

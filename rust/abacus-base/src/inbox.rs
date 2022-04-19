@@ -1,6 +1,6 @@
 use abacus_core::{
     accumulator::merkle::Proof, db::AbacusDB, AbacusCommon, AbacusMessage, ChainCommunicationError,
-    Checkpoint, Inbox, MessageStatus, SignedCheckpoint, TxOutcome,
+    Checkpoint, Inbox, MessageStatus, TxOutcome,
 };
 use abacus_test::mocks::inbox::MockInboxContract;
 use async_trait::async_trait;
@@ -79,32 +79,17 @@ impl Inbox for CachingInbox {
         self.inbox.remote_domain().await
     }
 
-    async fn prove(&self, proof: &Proof) -> Result<TxOutcome, ChainCommunicationError> {
-        self.inbox.prove(proof).await
-    }
-
-    async fn process(&self, message: &AbacusMessage) -> Result<TxOutcome, ChainCommunicationError> {
-        self.inbox.process(message).await
-    }
-
-    /// Prove a leaf in the inbox and then process its message
-    async fn prove_and_process(
+    /// Process a message
+    async fn process(
         &self,
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        self.inbox.prove_and_process(message, proof).await
+        self.inbox.process(message, proof).await
     }
 
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         self.inbox.message_status(leaf).await
-    }
-
-    async fn submit_checkpoint(
-        &self,
-        signed_checkpoint: &SignedCheckpoint,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        self.inbox.submit_checkpoint(signed_checkpoint).await
     }
 }
 
@@ -217,22 +202,6 @@ impl Inbox for InboxVariants {
         }
     }
 
-    async fn prove(&self, proof: &Proof) -> Result<TxOutcome, ChainCommunicationError> {
-        match self {
-            InboxVariants::Ethereum(inbox) => inbox.prove(proof).await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.prove(proof).await,
-            InboxVariants::Other(inbox) => inbox.prove(proof).await,
-        }
-    }
-
-    async fn process(&self, message: &AbacusMessage) -> Result<TxOutcome, ChainCommunicationError> {
-        match self {
-            InboxVariants::Ethereum(inbox) => inbox.process(message).await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.process(message).await,
-            InboxVariants::Other(inbox) => inbox.process(message).await,
-        }
-    }
-
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         match self {
             InboxVariants::Ethereum(inbox) => inbox.message_status(leaf).await,
@@ -241,28 +210,15 @@ impl Inbox for InboxVariants {
         }
     }
 
-    async fn prove_and_process(
+    async fn process(
         &self,
         message: &AbacusMessage,
         proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         match self {
-            InboxVariants::Ethereum(inbox) => inbox.prove_and_process(message, proof).await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.prove_and_process(message, proof).await,
-            InboxVariants::Other(inbox) => inbox.prove_and_process(message, proof).await,
-        }
-    }
-
-    async fn submit_checkpoint(
-        &self,
-        signed_checkpoint: &SignedCheckpoint,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        match self {
-            InboxVariants::Ethereum(inbox) => inbox.submit_checkpoint(signed_checkpoint).await,
-            InboxVariants::Mock(mock_inbox) => {
-                mock_inbox.submit_checkpoint(signed_checkpoint).await
-            }
-            InboxVariants::Other(inbox) => inbox.submit_checkpoint(signed_checkpoint).await,
+            InboxVariants::Ethereum(inbox) => inbox.process(message, proof).await,
+            InboxVariants::Mock(mock_inbox) => mock_inbox.process(message, proof).await,
+            InboxVariants::Other(inbox) => inbox.process(message, proof).await,
         }
     }
 }

@@ -3,7 +3,7 @@
   "signers": {},
   "inboxes": {
     "alfajores": {
-      "address": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+      "address": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE",
       "domain": "1000",
       "name": "alfajores",
       "rpcStyle": "ethereum",
@@ -13,7 +13,7 @@
       }
     },
     "kovan": {
-      "address": "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8",
+      "address": "0x95401dc811bb5740090279Ba06cfA8fcF6113778",
       "domain": "3000",
       "name": "kovan",
       "rpcStyle": "ethereum",
@@ -23,7 +23,7 @@
       }
     },
     "fuji": {
-      "address": "0x202CCe504e04bEd6fC0521238dDf04Bc9E8E15aB",
+      "address": "0xBEc49fA140aCaA83533fB00A2BB19bDdd0290f25",
       "domain": "43113",
       "name": "fuji",
       "rpcStyle": "ethereum",
@@ -34,7 +34,7 @@
     }
   },
   "outbox": {
-    "address": "0x8f86403A4DE0BB5791fa46B8e795C547942fE4Cf",
+    "address": "0x1291Be112d480055DaFd8a610b7d1e203891C274",
     "domain": "80001",
     "name": "mumbai",
     "rpcStyle": "ethereum",

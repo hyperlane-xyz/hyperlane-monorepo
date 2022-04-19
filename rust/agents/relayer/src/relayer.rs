@@ -4,7 +4,9 @@ use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::{instrument::Instrumented, Instrument};
 
-use abacus_base::{AbacusAgentCore, Agent, CachingInbox, CheckpointSyncers, ContractSyncMetrics};
+use abacus_base::{
+    AbacusAgentCore, Agent, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
+};
 
 use crate::{
     checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,
@@ -18,7 +20,7 @@ pub struct Relayer {
     max_retries: u32,
     submission_latency: u64,
     relayer_message_processing: bool,
-    checkpoint_syncer: CheckpointSyncers,
+    multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
     checkpoints_relayed_count: Arc<prometheus::IntCounterVec>,
 }
@@ -37,7 +39,7 @@ impl Relayer {
         max_retries: u32,
         submission_latency: u64,
         relayer_message_processing: bool,
-        checkpoint_syncer: CheckpointSyncers,
+        multisig_checkpoint_syncer: MultisigCheckpointSyncer,
         core: AbacusAgentCore,
     ) -> Self {
         let checkpoints_relayed_count = Arc::new(
@@ -47,7 +49,7 @@ impl Relayer {
                     "Number of checkpoints relayed from given outbox to inbox",
                     &["outbox", "inbox", "agent"],
                 )
-                .expect("processor metric already registered -- should have be a singleton"),
+                .expect("processor metric already registered -- should be a singleton"),
         );
 
         Self {
@@ -55,7 +57,7 @@ impl Relayer {
             max_retries,
             submission_latency,
             relayer_message_processing,
-            checkpoint_syncer,
+            multisig_checkpoint_syncer,
             core,
             checkpoints_relayed_count,
         }
@@ -73,16 +75,15 @@ impl Agent for Relayer {
     where
         Self: Sized,
     {
-        let checkpoint_syncer = settings
-            .checkpointsyncer
-            .try_into_checkpoint_syncer()
-            .await?;
+        let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
+            .multisigcheckpointsyncer
+            .try_into_multisig_checkpoint_syncer()?;
         Ok(Self::new(
             settings.pollinginterval.parse().unwrap_or(5),
             settings.maxretries.parse().unwrap_or(10),
             settings.submissionlatency.parse().expect("invalid uint"),
             settings.relayermessageprocessing.parse().unwrap_or(false),
-            checkpoint_syncer,
+            multisig_checkpoint_syncer,
             settings
                 .as_ref()
                 .try_into_abacus_core(Self::AGENT_NAME)
@@ -101,22 +102,23 @@ impl Relayer {
         );
         sync
     }
-    fn run_inbox(&self, inbox: Arc<CachingInbox>) -> Instrumented<JoinHandle<Result<()>>> {
+
+    fn run_inbox(&self, inbox_contracts: InboxContracts) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
         let checkpoint_relayer = CheckpointRelayer::new(
             self.polling_interval,
             self.submission_latency,
             self.relayer_message_processing,
             db.clone(),
-            inbox.clone(),
-            self.checkpoint_syncer.clone(),
+            inbox_contracts.clone(),
+            self.multisig_checkpoint_syncer.clone(),
         );
         let message_processor = MessageProcessor::new(
             self.polling_interval,
             self.max_retries,
             db,
             self.submission_latency,
-            inbox,
+            inbox_contracts.inbox,
         );
 
         self.run_all(vec![checkpoint_relayer.spawn(), message_processor.spawn()])
@@ -125,10 +127,10 @@ impl Relayer {
     fn wrap_inbox_run(
         &self,
         inbox_name: &str,
-        inbox: Arc<CachingInbox>,
+        inbox_contracts: InboxContracts,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let m = format!("Task for inbox named {} failed", inbox_name);
-        let handle = self.run_inbox(inbox).in_current_span();
+        let handle = self.run_inbox(inbox_contracts).in_current_span();
         let fut = async move { handle.await?.wrap_err(m) };
 
         tokio::spawn(fut).in_current_span()
@@ -138,7 +140,9 @@ impl Relayer {
         let mut inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
             .inboxes()
             .iter()
-            .map(|(inbox_name, inbox)| self.wrap_inbox_run(inbox_name, inbox.clone()))
+            .map(|(inbox_name, inbox_contracts)| {
+                self.wrap_inbox_run(inbox_name, inbox_contracts.clone())
+            })
             .collect();
         inbox_tasks.push(self.run_contract_sync());
         self.run_all(inbox_tasks)

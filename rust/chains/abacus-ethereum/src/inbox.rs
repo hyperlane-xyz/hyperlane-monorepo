@@ -234,30 +234,7 @@ where
     }
 
     #[tracing::instrument(err)]
-    async fn prove(&self, proof: &Proof) -> Result<TxOutcome, ChainCommunicationError> {
-        let mut sol_proof: [[u8; 32]; 32] = Default::default();
-        sol_proof
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
-
-        let tx = self
-            .contract
-            .prove(proof.leaf.into(), sol_proof, proof.index.into());
-
-        Ok(report_tx!(tx).into())
-    }
-
-    #[tracing::instrument(err)]
-    async fn process(&self, message: &AbacusMessage) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.process(message.to_vec().into());
-        let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
-        let gassed = tx.gas(gas);
-        Ok(report_tx!(gassed).into())
-    }
-
-    #[tracing::instrument(err)]
-    async fn prove_and_process(
+    async fn process(
         &self,
         message: &AbacusMessage,
         proof: &Proof,
@@ -268,10 +245,13 @@ where
             .enumerate()
             .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
 
-        //
-        let tx =
-            self.contract
-                .prove_and_process(message.to_vec().into(), sol_proof, proof.index.into());
+        let tx = self.contract.process(
+            message.to_vec().into(),
+            sol_proof,
+            proof.index.into(),
+            // Sovereign Consensus is not yet implemented
+            Default::default(),
+        );
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
         Ok(report_tx!(gassed).into())
@@ -282,23 +262,8 @@ where
         let status = self.contract.messages(leaf.into()).call().await?;
         match status {
             0 => Ok(MessageStatus::None),
-            1 => Ok(MessageStatus::Proven),
-            2 => Ok(MessageStatus::Processed),
+            1 => Ok(MessageStatus::Processed),
             _ => panic!("Bad status from solidity"),
         }
-    }
-
-    #[tracing::instrument(err, skip(self), fields(hex_signature = %format!("0x{}", hex::encode(signed_checkpoint.signature.to_vec()))))]
-    async fn submit_checkpoint(
-        &self,
-        signed_checkpoint: &SignedCheckpoint,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.checkpoint(
-            signed_checkpoint.checkpoint.root.to_fixed_bytes(),
-            signed_checkpoint.checkpoint.index.into(),
-            signed_checkpoint.signature.to_vec().into(),
-        );
-
-        Ok(report_tx!(tx).into())
     }
 }
