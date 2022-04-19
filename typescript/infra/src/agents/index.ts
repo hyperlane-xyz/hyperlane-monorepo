@@ -59,7 +59,7 @@ async function helmValuesForChain(
           };
         }),
       validator: {
-        enabled: true,
+        enabled: false,
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.Validator),
         },
@@ -74,7 +74,7 @@ async function helmValuesForChain(
         config: agentConfig.relayer,
       },
       checkpointer: {
-        enabled: true,
+        enabled: false,
         transactionSigners: chainNames.map((name) => ({
           name,
           ...credentials(KEY_ROLE_ENUM.Checkpointer),
