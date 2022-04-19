@@ -26,7 +26,6 @@ import {
 export type ParsedMessage = {
   origin: number;
   sender: string;
-  nonce: number;
   destination: number;
   recipient: string;
   body: string;
@@ -66,11 +65,10 @@ export function parseMessage(message: string): ParsedMessage {
   const buf = Buffer.from(arrayify(message));
   const origin = buf.readUInt32BE(0);
   const sender = hexlify(buf.slice(4, 36));
-  const nonce = buf.readUInt32BE(36);
-  const destination = buf.readUInt32BE(40);
-  const recipient = hexlify(buf.slice(44, 76));
-  const body = hexlify(buf.slice(76));
-  return { origin, sender, nonce, destination, recipient, body };
+  const destination = buf.readUInt32BE(36);
+  const recipient = hexlify(buf.slice(40, 72));
+  const body = hexlify(buf.slice(72));
+  return { origin, sender, destination, recipient, body };
 }
 
 /**
@@ -435,13 +433,6 @@ export class AbacusMessage {
    */
   get sender(): string {
     return this.message.sender;
-  }
-
-  /**
-   * The domain nonce for this message
-   */
-  get nonce(): number {
-    return this.message.nonce;
   }
 
   /**
