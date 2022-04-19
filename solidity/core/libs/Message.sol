@@ -50,6 +50,7 @@ library Message {
      * @param _destination Domain of destination chain
      * @param _recipient Address of recipient on destination chain as bytes32
      * @param _body Raw bytes of message body
+     * @param _leafIndex Index of the message in the tree
      * @return Leaf (hash) of formatted message
      **/
     function messageHash(
@@ -57,11 +58,21 @@ library Message {
         bytes32 _sender,
         uint32 _destination,
         bytes32 _recipient,
-        bytes memory _body
+        bytes memory _body,
+        uint256 _leafIndex
     ) internal pure returns (bytes32) {
         return
             keccak256(
-                formatMessage(_origin, _sender, _destination, _recipient, _body)
+                abi.encodePacked(
+                    formatMessage(
+                        _origin,
+                        _sender,
+                        _destination,
+                        _recipient,
+                        _body
+                    ),
+                    _leafIndex
+                )
             );
     }
 
@@ -99,14 +110,19 @@ library Message {
         return _message.slice(PREFIX_LENGTH, _message.len() - PREFIX_LENGTH, 0);
     }
 
-    function leaf(bytes29 _message) internal view returns (bytes32) {
+    function leaf(bytes29 _message, uint256 _leafIndex)
+        internal
+        view
+        returns (bytes32)
+    {
         return
             messageHash(
                 origin(_message),
                 sender(_message),
                 destination(_message),
                 recipient(_message),
-                TypedMemView.clone(body(_message))
+                TypedMemView.clone(body(_message)),
+                _leafIndex
             );
     }
 }

@@ -110,6 +110,8 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         bytes memory _messageBody
     ) external override notFailed returns (uint256) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
+        // The leaf has not been inserted yet at this point1
+        uint256 _leafIndex = count();
         // format the message into packed bytes
         bytes memory _message = Message.formatMessage(
             localDomain,
@@ -118,10 +120,10 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
             _recipientAddress,
             _messageBody
         );
-        // The leaf has not been inserted yet at this point
-        uint256 _leafIndex = count();
         // insert the hashed message into the Merkle tree
-        bytes32 _messageHash = keccak256(_message);
+        bytes32 _messageHash = keccak256(
+            abi.encodePacked(_message, _leafIndex)
+        );
         tree.insert(_messageHash);
         // Emit Dispatch event with message information
         emit Dispatch(_messageHash, _leafIndex, _destinationDomain, _message);

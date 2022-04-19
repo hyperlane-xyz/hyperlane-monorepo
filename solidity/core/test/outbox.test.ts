@@ -66,8 +66,8 @@ describe('Outbox', async () => {
         recipient.address,
         message,
       );
-      const hash = utils.messageHash(abacusMessage);
       const leafIndex = await outbox.tree();
+      const hash = utils.messageHash(abacusMessage, leafIndex.toNumber());
 
       return {
         message,

@@ -2,7 +2,8 @@ use std::convert::TryFrom;
 
 use crate::{AbacusError, AbacusMessage, Decode, Encode};
 use color_eyre::Result;
-use ethers::{core::types::H256, utils::keccak256};
+use ethers::core::types::H256;
+use sha3::{Digest, Keccak256};
 
 /// A Stamped message that has been committed at some leaf index
 #[derive(Debug, Default, Clone, PartialEq)]
@@ -19,7 +20,15 @@ impl RawCommittedMessage {
     /// The leaf is the keccak256 digest of the message, which is committed
     /// in the message tree
     pub fn leaf(&self) -> H256 {
-        keccak256(&self.message).into()
+        let buffer = [0u8; 28];
+        H256::from_slice(
+            Keccak256::new()
+                .chain(&self.message)
+                .chain(buffer)
+                .chain(self.leaf_index.to_be_bytes())
+                .finalize()
+                .as_slice(),
+        )
     }
 }
 
@@ -66,7 +75,7 @@ pub struct CommittedMessage {
 impl CommittedMessage {
     /// Return the leaf associated with the message
     pub fn to_leaf(&self) -> H256 {
-        self.message.to_leaf()
+        self.message.to_leaf(self.leaf_index)
     }
 }
 

@@ -51,6 +51,7 @@ describe('Message', async () => {
     const recipient = '0x2222222222222222222222222222222222222222';
     const body = '0x1234';
 
+    const leafIndex = 0;
     const abacusMessage = utils.formatMessage(
       origin,
       sender,
@@ -77,7 +78,9 @@ describe('Message', async () => {
     expect(await messageLib.body(abacusMessage)).to.equal(
       ethers.utils.hexlify(testBody),
     );
-    expect(await messageLib.leaf(abacusMessage)).to.equal(messageHash);
-    expect(utils.messageHash(abacusMessage)).to.equal(messageHash);
+    expect(await messageLib.leaf(abacusMessage, leafIndex)).to.equal(
+      messageHash,
+    );
+    expect(utils.messageHash(abacusMessage, leafIndex)).to.equal(messageHash);
   });
 });

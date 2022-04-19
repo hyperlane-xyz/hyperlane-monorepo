@@ -1,4 +1,5 @@
-use ethers::{types::H256, utils::keccak256};
+use ethers::types::H256;
+use sha3::{Digest, Keccak256};
 
 use crate::{AbacusError, Decode, Encode};
 
@@ -76,13 +77,21 @@ impl Decode for AbacusMessage {
 
 impl AbacusMessage {
     /// Convert the message to a leaf
-    pub fn to_leaf(&self) -> H256 {
-        keccak256(self.to_vec()).into()
+    pub fn to_leaf(&self, leaf_index: u32) -> H256 {
+        let buffer = [0u8; 28];
+        H256::from_slice(
+            Keccak256::new()
+                .chain(&self.to_vec())
+                .chain(buffer)
+                .chain(leaf_index.to_be_bytes())
+                .finalize()
+                .as_slice(),
+        )
     }
 }
 
 impl std::fmt::Display for AbacusMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "AbacusMessage {}->{}", self.origin, self.destination,)
+        write!(f, "AbacusMessage {}->{}", self.origin, self.destination)
     }
 }

@@ -37,13 +37,14 @@ pub mod output_functions {
             body: Vec::from_hex("1234").unwrap(),
         };
 
+        let leaf_index = 0;
         let message_json = json!({
             "origin": abacus_message.origin,
             "sender": abacus_message.sender,
             "destination": abacus_message.destination,
             "recipient": abacus_message.recipient,
             "body": abacus_message.body,
-            "messageHash": abacus_message.to_leaf(),
+            "messageHash": abacus_message.to_leaf(0),
         });
         let json = json!([message_json]).to_string();
 

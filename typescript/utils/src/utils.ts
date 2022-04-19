@@ -64,8 +64,11 @@ export const formatMessage = (
   );
 };
 
-export function messageHash(message: HexString): string {
-  return ethers.utils.solidityKeccak256(['bytes'], [message]);
+export function messageHash(message: HexString, leafIndex: number): string {
+  return ethers.utils.solidityKeccak256(
+    ['bytes', 'uint256'],
+    [message, leafIndex],
+  );
 }
 
 export function destinationAndNonce(
