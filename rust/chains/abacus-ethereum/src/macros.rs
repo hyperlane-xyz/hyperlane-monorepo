@@ -96,9 +96,8 @@ macro_rules! boxed_trait {
         boxed_trait!(@finish provider, $($tail)*)
     }};
     (@http $url:expr, $($tail:tt)*) => {{
-        let provider: crate::retrying::RetryingProvider<ethers::providers::Http> = $url.parse()?;
-        let provider = ethers::providers::Provider::new(provider);
-        let provider = Arc::new(provider);
+        let provider =
+            Arc::new(ethers::providers::Provider::<ethers::providers::Http>::try_from($url.as_ref())?);
         boxed_trait!(@finish provider, $($tail)*)
     }};
     ($name:ident, $abi:ident, $trait:ident, $($n:ident:$t:ty),*)  => {

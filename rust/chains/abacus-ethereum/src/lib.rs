@@ -15,8 +15,6 @@ use std::sync::Arc;
 #[macro_use]
 mod macros;
 
-mod retrying;
-
 /// Outbox abi
 #[cfg(not(doctest))]
 mod outbox;
