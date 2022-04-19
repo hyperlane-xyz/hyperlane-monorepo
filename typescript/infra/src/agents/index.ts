@@ -4,7 +4,7 @@ import { ChainName } from '@abacus-network/sdk';
 import { AgentConfig } from '../config';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
-import { ensure0x, execCmd, include, strip0x } from '../utils/utils';
+import { ensure0x, execCmd, strip0x } from '../utils/utils';
 import { fetchAgentGCPKeys } from './gcp';
 import { AgentAwsKey } from './aws';
 
@@ -51,7 +51,7 @@ async function helmValuesForChain(
         name: chainName,
       },
       aws: !!agentConfig.aws,
-      replicaChains: chainNames
+      inboxChains: chainNames
         .filter((name) => name !== chainName)
         .map((remoteChainName) => {
           return {
@@ -63,10 +63,7 @@ async function helmValuesForChain(
         attestationSigner: {
           ...credentials(KEY_ROLE_ENUM.Validator),
         },
-        reorgPeriod: agentConfig.validator?.reorgPeriod,
-        ...include(!!agentConfig.validator?.interval, {
-          interval: agentConfig.validator?.interval || '',
-        }),
+        config: agentConfig.validator,
       },
       relayer: {
         enabled: true,
@@ -74,9 +71,7 @@ async function helmValuesForChain(
           name,
           ...credentials(KEY_ROLE_ENUM.Relayer),
         })),
-        ...include(!!agentConfig.relayer?.pollingInterval, {
-          pollingInterval: agentConfig.relayer?.pollingInterval || '',
-        }),
+        config: agentConfig.relayer,
       },
       checkpointer: {
         enabled: true,
@@ -84,9 +79,7 @@ async function helmValuesForChain(
           name,
           ...credentials(KEY_ROLE_ENUM.Checkpointer),
         })),
-        indexonly: agentConfig.processor?.indexOnly || [],
-        s3BucketName: agentConfig.processor?.s3Bucket || '',
-        s3BucketRegion: agentConfig.aws?.region || '',
+        config: agentConfig.checkpointer,
       },
     },
   };
@@ -106,7 +99,7 @@ export async function getAgentEnvVars(
   const envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
   envVars.push(`OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
-  valueDict.abacus.replicaChains.forEach((replicaChain: any) => {
+  valueDict.abacus.inboxChains.forEach((replicaChain: any) => {
     envVars.push(
       `OPT_BASE_INBOXES_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
         rpcEndpoints[replicaChain.name]
@@ -147,7 +140,7 @@ export async function getAgentEnvVars(
         `OPT_BASE_VALIDATOR_TYPE=hexKey`,
       );
       // Throw an error if the chain config did not specify the reorg period
-      if (valueDict.abacus.validator.reorg_period === undefined) {
+      if (valueDict.abacus.validator.config?.reorgPeriod === undefined) {
         throw new Error(
           `Panic: Chain config for ${homeChainName} did not specify a reorg period`,
         );
@@ -155,15 +148,15 @@ export async function getAgentEnvVars(
 
       envVars.push(
         `OPT_VALIDATOR_REORGPERIOD=${
-          valueDict.abacus.validator.reorg_period! - 1
+          valueDict.abacus.validator.config.reorgPeriod - 1
         }`,
-        `OPT_VALIDATOR_INTERVAL=${valueDict.abacus.validator.pollingInterval}`,
+        `OPT_VALIDATOR_INTERVAL=${valueDict.abacus.validator.config.interval}`,
       );
     }
 
     if (role === KEY_ROLE_ENUM.Relayer) {
       envVars.push(
-        `OPT_RELAYER_INTERVAL=${valueDict.abacus.relayer.pollingInterval}`,
+        `OPT_RELAYER_INTERVAL=${valueDict.abacus.relayer.config?.pollingInterval}`,
       );
     }
   } catch (error) {
@@ -298,7 +291,7 @@ export async function runAgentHelmCommand(
   return execCmd(
     `helm ${action} ${homeChainName} ../../rust/helm/abacus-agent/ --namespace ${
       agentConfig.namespace
-    } ${values.join(' ')} ${extraPipe}`,
+    } ${values.join(' ')} --dry-run --debug ${extraPipe}`,
     {},
     false,
     true,

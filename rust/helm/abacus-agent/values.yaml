@@ -56,7 +56,7 @@ abacus:
   aws: # true | false
 
   # -- Replica chain overrides, a sequence
-  replicaChains:
+  inboxChains:
     - name: "alfajores"
       # -- The contract address for the replica contract
       address: # "0x0C473afC0cabd469751CBE3Ac08aBac3e40bF586"
@@ -67,7 +67,7 @@ abacus:
 
   # Abacus Agent Roles
   # Individually Switchable via <role>.enabled
-  updater:
+  validator:
     enabled: false
     podAnnotations:
       prometheus.io/port: "9090"
@@ -85,7 +85,7 @@ abacus:
         # aws:
       - name: "alfajores"
         # aws:
-    # -- Specialized key used by updater and watcher used to sign attestations, separate from updater.transactionSigners
+    # -- Specialized key used by validator and watcher used to sign attestations, separate from validator.transactionSigners
     attestationSigner: {}
         # aws:
     # -- How long to wait between checking for updates

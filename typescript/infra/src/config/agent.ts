@@ -16,13 +16,14 @@ interface ProcessorConfig {
   s3Bucket: string;
 }
 
+// Rust expects values to be camelCase
 export enum CheckpointSyncerType {
-  Local = 'Local',
-  S3 = 'S3'
+  LocalStorage = 'localStorage',
+  S3 = 's3',
 }
 
 interface LocalCheckpointSyncerConfig {
-  type: CheckpointSyncerType.Local;
+  type: CheckpointSyncerType.LocalStorage;
   path: string;
 }
 
@@ -65,11 +66,11 @@ interface RelayerConfig {
 
 interface ValidatorConfig {
   // How frequently to check for new checkpoints
-  interval?: number;
+  interval: number;
   // The reorg_period in blocks
-  // reorgPeriod: String;
+  reorgPeriod: number;
   // The checkpoint syncer configuration
-  // checkpointSyncer: CheckpointSyncerConfig,
+  checkpointSyncer: CheckpointSyncerConfig,
   // validator
 }
 

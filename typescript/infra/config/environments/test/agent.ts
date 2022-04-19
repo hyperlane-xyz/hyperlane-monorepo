@@ -11,6 +11,11 @@ export const agent: AgentConfig = {
   },
   validator: {
     interval: 5,
+    reorgPeriod: 0,
+    checkpointSyncer: {
+      type: CheckpointSyncerType.LocalStorage,
+      path: '/tmp/local',
+    },
     // confirmations: 1,
   },
   relayer: {
@@ -18,7 +23,7 @@ export const agent: AgentConfig = {
       threshold: 1,
       checkpointSyncers: {
         '0x70997970c51812dc3a010c7d01b50e0d17dc79c8': {
-          type: CheckpointSyncerType.Local,
+          type: CheckpointSyncerType.LocalStorage,
           path: '/tmp/local',
         },
       },

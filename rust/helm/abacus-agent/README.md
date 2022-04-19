@@ -18,20 +18,20 @@ Additional documentation is present in comments in `yalues.yaml`.
 | imagePullSecrets | list | `[]` |  |
 | nameOverride | string | `""` |  |
 | nodeSelector | object | `{}` |  |
-| abacus | object | `{"baseConfig":"base.json","homeChain":{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"goerli","rpcStyle":null},"kathy":{"chatGenConfig":{"destination":null,"message":null,"recipient":null,"type":null},"enabled":false,"messageInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"processor":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"relayer":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"replicaChains":[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}],"runEnv":"default","updater":{"attestationSigner":"","enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}],"updatePause":null}}` | Abacus Overrides By Default, Abacus Agents load the config baked into the Docker Image Pass values here in order to override the values in the config Note: For successful operation, one _must_ pass signer keys as       they are not baked into the image for security reasons.  |
+| abacus | object | `{"baseConfig":"base.json","homeChain":{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"goerli","rpcStyle":null},"kathy":{"chatGenConfig":{"destination":null,"message":null,"recipient":null,"type":null},"enabled":false,"messageInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"processor":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"relayer":{"enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]},"inboxChains":[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}],"runEnv":"default","validator":{"attestationSigner":"","enabled":false,"pollingInterval":null,"transactionSigners":[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}],"updatePause":null}}` | Abacus Overrides By Default, Abacus Agents load the config baked into the Docker Image Pass values here in order to override the values in the config Note: For successful operation, one _must_ pass signer keys as       they are not baked into the image for security reasons.  |
 | abacus.homeChain.address | string | `nil` | The contract address for the home contract |
 | abacus.homeChain.connectionUrl | string | `nil` | Connection string pointing to an RPC endpoint for the home chain  |
 | abacus.homeChain.domain | string | `nil` | The hard-coded domain corresponding to this blockchain |
 | abacus.homeChain.rpcStyle | string | `nil` | RPC Style |
 | abacus.kathy.chatGenConfig | object | `{"destination":null,"message":null,"recipient":null,"type":null}` | Configuration for Kathy's message generation code |
 | abacus.relayer.enabled | bool | `false` | Enables or disables the relayer |
-| abacus.replicaChains | list | `[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}]` | Replica chain overrides, a sequence |
-| abacus.replicaChains[0].address | string | `nil` | The contract address for the replica contract |
-| abacus.replicaChains[0].connectionUrl | string | `nil` | Connection string pointing to an RPC endpoint for the replica chain |
-| abacus.updater.attestationSigner | string | `""` | Specialized key used by updater and watcher used to sign attestations, separate from updater.keys |
-| abacus.updater.enabled | bool | `false` | Enables or disables the updater |
-| abacus.updater.pollingInterval | string | `nil` | How long to wait between checking for updates |
-| abacus.updater.transactionSigners | list | `[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]` | Trnsaction Signing keys for home and replica(s) |
+| abacus.inboxChains | list | `[{"address":null,"connectionType":null,"connectionUrl":null,"domain":null,"name":"alfajores","rpcStyle":null}]` | Replica chain overrides, a sequence |
+| abacus.inboxChains[0].address | string | `nil` | The contract address for the replica contract |
+| abacus.inboxChains[0].connectionUrl | string | `nil` | Connection string pointing to an RPC endpoint for the replica chain |
+| abacus.validator.attestationSigner | string | `""` | Specialized key used by validator and watcher used to sign attestations, separate from validator.keys |
+| abacus.validator.enabled | bool | `false` | Enables or disables the validator |
+| abacus.validator.pollingInterval | string | `nil` | How long to wait between checking for updates |
+| abacus.validator.transactionSigners | list | `[{"key":"","name":"goerli"},{"key":"","name":"alfajores"}]` | Trnsaction Signing keys for home and replica(s) |
 | podAnnotations | object | `{}` |  |
 | podSecurityContext | object | `{}` |  |
 | replicaCount | int | `1` |  |

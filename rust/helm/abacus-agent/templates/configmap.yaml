@@ -14,7 +14,7 @@ data:
   {{- if .Values.abacus.homeChain.connectionType }}
   OPT_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.homeChain.connectionType }}
   {{- end }}
-  {{- range .Values.abacus.replicaChains }}
+  {{- range .Values.abacus.inboxChains }}
   {{- if .address }}
   OPT_BASE_INBOXES_{{ .name | upper }}_ADDRESS: {{ .address }}
   {{- end }}

@@ -69,15 +69,18 @@ The name of the ClusterSecretStore
 {{- default "external-secrets-gcp-cluster-secret-store" .Values.externalSecrets.clusterSecretStore }}
 {{- end }}
 
-{{ define "abacus-agent.relayer-env-var" }}
-{{ include "abacus-agent.config-env-var" (dict "agent_name" "relayer" "config_key" .config_key "Values" .Values) }}
-{{ end }}
+{{- define "abacus-agent.config-env-vars" -}}
+{{- range $key, $value := .config }}
+{{- $key_name := printf "%s%s" (default "" $.key_name_prefix) $key }}
+{{- if typeIs "map[string]interface {}" $value }}
+{{- include "abacus-agent.config-env-vars" (dict "config" $value "agent_name" $.agent_name "key_name_prefix" (printf "%s_" $key_name)) }}
+{{- else }}
+{{- include "abacus-agent.config-env-var" (dict "agent_name" $.agent_name "key" $key_name "value" $value ) }}
+{{- end }}
+{{- end }}
+{{- end }}
 
-{{ define "abacus-agent.config-env-var" }}
-{{- $agent_config := get .Values.abacus .agent_name }}
-{{- $config_value := get $agent_config .config_key }}
-{{- if not empty $config_value }}
-- name: OPT_{{ .agent_name | upper }}_{{ .config_key | upper }}
-  value: {{ .Values.abacus.relayer.pollingInterval | quote }}
-{{ end }}
-{{ end }}
+{{- define "abacus-agent.config-env-var" }}
+- name: OPT_{{ .agent_name | upper }}_{{ .key | upper }}
+  value: {{ .value | quote }}
+{{- end }}
