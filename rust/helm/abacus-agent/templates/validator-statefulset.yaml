@@ -1,18 +1,18 @@
-{{- if .Values.abacus.processor.enabled }}
+{{- if .Values.abacus.validator.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "abacus-agent.fullname" . }}-processor
+  name: {{ include "abacus-agent.fullname" . }}-validator
   labels:
     {{- include "abacus-agent.labels" . | nindent 4 }}
-    app.kubernetes.io/component: processor
+    app.kubernetes.io/component: validator
 spec:
   selector:
     matchLabels:
       {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: processor
+      app.kubernetes.io/component: validator
   replicas: 1 
-  serviceName: {{ include "abacus-agent.fullname" . }}-processor
+  serviceName: {{ include "abacus-agent.fullname" . }}-validator
   template:
     metadata:
       annotations:
@@ -20,16 +20,16 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.processor.podAnnotations }}
+        {{- with .Values.abacus.validator.podAnnotations }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "abacus-agent.labels" . | nindent 8 }}
-        app.kubernetes.io/component: processor
+        app.kubernetes.io/component: validator
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.processor.podLabels }}
+        {{- with .Values.abacus.validator.podLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
@@ -46,31 +46,18 @@ spec:
           {{- toYaml .Values.securityContext | nindent 10 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["./processor"]
+        command: ["./validator"]
         envFrom:
         - configMapRef:
             name: {{ include "abacus-agent.fullname" . }}
         - secretRef:
             name: {{ include "abacus-agent.fullname" . }}-secret
         - secretRef:
-            name: {{ include "abacus-agent.fullname" . }}-processor-secret
-        env: 
-          {{- if .Values.abacus.processor.pollingInterval }}
-          - name: OPT_PROCESSOR_INTERVAL
-            value: {{ .Values.abacus.processor.pollingInterval | quote }}
-          {{ end }}
-          {{ range .Values.abacus.processor.indexonly }}
-          - name: OPT_PROCESSOR_INDEXON_{{ . | upper }}
-            value: "true"
-          {{ end }}
-          {{- if .Values.abacus.processor.s3BucketName }}
-          - name: OPT_PROCESSOR_S3_BUCKET
-            value: {{ .Values.abacus.processor.s3BucketName }}
-          - name: OPT_PROCESSOR_S3_REGION
-            value: {{ .Values.abacus.processor.s3BucketRegion }}
-          {{- end }}
-          {{- range .Values.abacus.processor.transactionSigners }}
-          {{- if (hasKey . "aws") }}
+            name: {{ include "abacus-agent.fullname" . }}-validator-secret
+        env:
+{{- include "abacus-agent.config-env-vars" (dict "config" .Values.abacus.validator.config "agent_name" "validator") | indent 10 }}
+          {{- if (hasKey .Values.abacus.validator.signer "aws") }}
+          {{- with .Values.abacus.validator.signer }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID
@@ -81,10 +68,10 @@ spec:
           {{- end }}
           {{- if .Values.abacus.tracing.uri }}
           - name: OPT_BASE_TRACING_JAEGER_NAME
-            value: {{ include "abacus-agent.fullname" . }}-processor
+            value: {{ include "abacus-agent.fullname" . }}-validator
           {{- end }}
         resources:
-          {{- toYaml .Values.abacus.processor.resources | nindent 10 }}
+          {{- toYaml .Values.abacus.validator.resources | nindent 10 }}
         volumeMounts:
         - name: state
           mountPath: {{ .Values.abacus.dbPath }}
@@ -109,13 +96,13 @@ spec:
     spec:
       storageClassName: {{ .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.abacus.processor.storage.snapshot.enabled }}
+      {{- if .Values.abacus.validator.storage.snapshot.enabled }}
       dataSource:
-        name: {{ .Values.abacus.processor.storage.snapshot.name }}
+        name: {{ .Values.abacus.validator.storage.snapshot.name }}
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.abacus.processor.storage.size }}
+          storage: {{ .Values.abacus.validator.storage.size }}
 {{- end }}

@@ -47,7 +47,7 @@ async function helmValuesForChain(
     abacus: {
       runEnv: agentConfig.runEnv,
       baseConfig: `${chainName}_config.json`,
-      homeChain: {
+      outboxChain: {
         name: chainName,
       },
       aws: !!agentConfig.aws,
@@ -59,8 +59,8 @@ async function helmValuesForChain(
           };
         }),
       validator: {
-        enabled: false,
-        attestationSigner: {
+        enabled: true,
+        signer: {
           ...credentials(KEY_ROLE_ENUM.Validator),
         },
         config: agentConfig.validator,
@@ -74,8 +74,8 @@ async function helmValuesForChain(
         config: agentConfig.relayer,
       },
       checkpointer: {
-        enabled: false,
-        transactionSigners: chainNames.map((name) => ({
+        enabled: true,
+        signers: chainNames.map((name) => ({
           name,
           ...credentials(KEY_ROLE_ENUM.Checkpointer),
         })),
@@ -86,19 +86,19 @@ async function helmValuesForChain(
 }
 
 export async function getAgentEnvVars(
-  homeChainName: ChainName,
+  outboxChainName: ChainName,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig,
   chainNames: ChainName[],
 ) {
   const valueDict = await helmValuesForChain(
-    homeChainName,
+    outboxChainName,
     agentConfig,
     chainNames,
   );
   const envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
-  envVars.push(`OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[homeChainName]}`);
+  envVars.push(`OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`);
   valueDict.abacus.inboxChains.forEach((replicaChain: any) => {
     envVars.push(
       `OPT_BASE_INBOXES_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
@@ -113,13 +113,13 @@ export async function getAgentEnvVars(
   envVars.push(`OPT_BASE_METRICS=9090`);
   envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
   envVars.push(
-    `OPT_BASE_DB=/tmp/${agentConfig.environment}-${role}-${homeChainName}-db`,
+    `OPT_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}-db`,
   );
 
   try {
     const gcpKeys = await fetchAgentGCPKeys(
       agentConfig.environment,
-      homeChainName,
+      outboxChainName,
     );
 
     // Only checkpointer and relayer need to sign txs
@@ -135,14 +135,14 @@ export async function getAgentEnvVars(
     } else if (role === KEY_ROLE_ENUM.Validator) {
       envVars.push(
         `OPT_BASE_VALIDATOR_KEY=${strip0x(
-          gcpKeys[homeChainName + '-' + KEY_ROLE_ENUM.Validator].privateKey,
+          gcpKeys[outboxChainName + '-' + KEY_ROLE_ENUM.Validator].privateKey,
         )}`,
         `OPT_BASE_VALIDATOR_TYPE=hexKey`,
       );
       // Throw an error if the chain config did not specify the reorg period
       if (valueDict.abacus.validator.config?.reorgPeriod === undefined) {
         throw new Error(
-          `Panic: Chain config for ${homeChainName} did not specify a reorg period`,
+          `Panic: Chain config for ${outboxChainName} did not specify a reorg period`,
         );
       }
 
@@ -191,7 +191,7 @@ export async function getAgentEnvVars(
 
     // Validator attestation key
     if (role === KEY_ROLE_ENUM.Validator) {
-      const key = new AgentAwsKey(agentConfig, role, homeChainName);
+      const key = new AgentAwsKey(agentConfig, role, outboxChainName);
       envVars.push(`OPT_BASE_VALIDATOR_TYPE=aws`);
       envVars.push(
         `OPT_BASE_VALIDATOR_ID=${key.credentialsAsHelmValue.aws.keyId}`,
@@ -273,11 +273,11 @@ async function getSecretForEachChain(
 export async function runAgentHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig,
-  homeChainName: ChainName,
+  outboxChainName: ChainName,
   chainNames: ChainName[],
 ) {
   const valueDict = await helmValuesForChain(
-    homeChainName,
+    outboxChainName,
     agentConfig,
     chainNames,
   );
@@ -289,9 +289,9 @@ export async function runAgentHelmCommand(
       : '';
 
   return execCmd(
-    `helm ${action} ${homeChainName} ../../rust/helm/abacus-agent/ --namespace ${
+    `helm ${action} ${outboxChainName} ../../rust/helm/abacus-agent/ --namespace ${
       agentConfig.namespace
-    } ${values.join(' ')} --dry-run --debug ${extraPipe}`,
+    } ${values.join(' ')} ${extraPipe}`,
     {},
     false,
     true,

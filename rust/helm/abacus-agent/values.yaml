@@ -43,7 +43,7 @@ abacus:
     uri: ""
   metrics: 
     port: 9090
-  homeChain:
+  outboxChain:
     name: "kovan"
     # -- The contract address for the home contract
     address: # "0x0C473afC0cabd469751CBE3Ac08aBac3e40bF586"
@@ -80,14 +80,7 @@ abacus:
         name: ""
     resources: {}
     # -- Transaction Signing keys for home and replica(s)
-    transactionSigners:
-      - name: "kovan"
-        # aws:
-      - name: "alfajores"
-        # aws:
-    # -- Specialized key used by validator and watcher used to sign attestations, separate from validator.transactionSigners
-    attestationSigner: {}
-        # aws:
+    signer: {}
     # -- How long to wait between checking for updates
     pollingInterval: # 5
     updatePause: # 15
@@ -104,14 +97,14 @@ abacus:
         enabled: false
         name: ""
     resources: {}
-    transactionSigners:
+    signers:
       - name: "kovan"
         # aws:
       - name: "alfajores"
         # aws:
     pollingInterval: # 10
 
-  processor:
+  checkpointer:
     enabled: false
     podAnnotations:
       prometheus.io/port: "9090"
@@ -123,7 +116,7 @@ abacus:
         enabled: false
         name: ""
     resources: {}
-    transactionSigners:
+    signers:
       - name: "kovan"
         # aws:
       - name: "alfajores"
@@ -142,7 +135,7 @@ abacus:
         enabled: false
         name: ""
     resources: {}
-    transactionSigners:
+    signers:
       - name: "kovan"
         aws:
           keyId: ""

@@ -3,11 +3,11 @@ import { CheckpointSyncerType } from '../../../src/config/agent';
 
 export const agent: AgentConfig = {
   environment: 'test',
-  namespace: 'abacus-test',
+  namespace: 'test',
   runEnv: 'test',
   docker: {
-    repo: 'gcr.io/abacus-labs/abacus-agent',
-    tag: 'e3c1b3bdcc8f92d506626785e4e7c058ba8d79be',
+    repo: 'gcr.io/abacus-labs-dev/abacus-agent',
+    tag: 'e309bb2187f56a83bc8a2120da0f2c38bfce951d',
   },
   validator: {
     interval: 5,
