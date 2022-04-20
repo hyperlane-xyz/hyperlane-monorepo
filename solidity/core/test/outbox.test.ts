@@ -155,6 +155,8 @@ describe('Outbox', async () => {
     const [root, index] = await outbox.latestCheckpoint();
     expect(root).to.not.equal(ethers.constants.HashZero);
     expect(index).to.equal(count - 1);
+
+    expect(await outbox.isCheckpoint(root, index)).to.be.true;
   });
 
   it('Correctly calculates destinationAndNonce', async () => {

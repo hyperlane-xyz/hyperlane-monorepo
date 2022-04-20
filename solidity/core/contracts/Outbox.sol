@@ -180,8 +180,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         override
         returns (bool)
     {
-        // Checkpoint indices are one-indexed.
-        return _index > 0 && checkpoints[_root] == _index;
+        return checkpoints[_root] == _index;
     }
 
     // ============ Internal Functions  ============
