@@ -8,7 +8,7 @@ async function deploy() {
   const domainNames = await getDomainNames(environment);
   for (const name of domainNames) {
     await runAgentHelmCommand(
-      HelmCommand.Upgrade,
+      HelmCommand.InstallOrUpgrade,
       agentConfig,
       name,
       domainNames,

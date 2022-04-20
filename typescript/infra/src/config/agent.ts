@@ -11,12 +11,7 @@ interface AwsConfig {
   region: string;
 }
 
-interface ProcessorConfig {
-  indexOnly: string[];
-  s3Bucket: string;
-}
-
-// Rust expects values to be camelCase
+// These values are eventually passed to Rust, which expects the values to be camelCase
 export enum CheckpointSyncerType {
   LocalStorage = 'localStorage',
   S3 = 's3',
@@ -33,70 +28,67 @@ interface S3CheckpointSyncerConfig {
   region: string;
 }
 
-type CheckpointSyncerConfig = LocalCheckpointSyncerConfig | S3CheckpointSyncerConfig;
+export type CheckpointSyncerConfig = LocalCheckpointSyncerConfig | S3CheckpointSyncerConfig;
 
-// validator address -> checkpoint syncer
-export type ValidatorCheckpointSyncerConfigs = {
-  [validatorAddress: string]: CheckpointSyncerConfig;
-};
+interface BaseRelayerConfig {
+  // The minimum latency in seconds between two relayed checkpoints on the inbox
+  submissionLatency: number;
+  // The polling interval to check for new checkpoints in seconds
+  pollingInterval?: number;
+  // The maxinmum number of times a processor will try to process a message
+  maxRetries?: number;
+  // Whether the CheckpointRelayer should try to immediately process messages
+  relayerMessageProcessing?: boolean;
+}
 
-type MultisigCheckpointSyncerConfig = {
-  // Quorum threshold
+interface OverridableAgentConfig<T> {
+  default: T;
+  chainOverrides?: ChainConfig<T>;
+}
+
+export function getConfig<T>(overridableConfig: OverridableAgentConfig<T>, chain: ChainName) {
+  return {
+    ...overridableConfig.default,
+    ...overridableConfig.chainOverrides?.[chain],
+  };
+}
+
+interface ValidatorSet {
   threshold: number;
-  checkpointSyncers: ValidatorCheckpointSyncerConfigs;
+  validators: Array<Validator>;
 }
 
-interface RelayerConfig {
-  // The multisig checkpoint syncer configuration
-  multisigCheckpointSyncers: {
-    [chain in ChainName]?: MultisigCheckpointSyncerConfig;
-  };
-  common: {
-    // The minimum latency in seconds between two relayed checkpoints on the inbox
-    submissionLatency: number;
-    // The polling interval to check for new checkpoints in seconds
-    pollingInterval?: number;
-    // The maxinmum number of times a processor will try to process a message
-    maxRetries?: number;
-    // Whether the CheckpointRelayer should try to immediately process messages
-    relayerMessageProcessing?: boolean;
-  };
-  // validators: {
-  //   [chain in ChainName]?: ValidatorCheckpointSyncerConfigs
-  // },
-  
+interface Validator {
+  address: string;
+  checkpointSyncer: CheckpointSyncerConfig
 }
 
-// /// The validator attestation signer
-// validator: abacus_base::SignerConf,
-// /// The checkpoint syncer configuration
-// checkpointsyncer: abacus_base::CheckpointSyncerConf,
-// /// The reorg_period in blocks
-// reorgperiod: String,
 
-interface ValidatorCommonConfig {
+type ChainConfig<T> = {
+  [chain in ChainName]?: T;
+}
+
+export type ValidatorSets = ChainConfig<ValidatorSet>;
+
+type BaseRelayersConfig = OverridableAgentConfig<BaseRelayerConfig>;
+
+interface BaseValidatorConfig {
   // How frequently to check for new checkpoints
   interval: number;
   // The reorg_period in blocks
   reorgPeriod: number;
-  // The checkpoint syncer configuration
-  // checkpointSyncer: CheckpointSyncerConfig;
-  // validator
 }
 
-interface ValidatorsConfig {
-  common: ValidatorCommonConfig;
-  validators: {
-    [chain in ChainName]?: ValidatorCheckpointSyncerConfigs
-  },
-}
+type BaseValidatorsConfig = OverridableAgentConfig<BaseValidatorConfig>;
 
-interface CheckpointerConfig {
+interface BaseCheckpointerConfig {
   // Polling interval (in seconds)
   pollingInterval: number;
   // Minimum time between created checkpoints (in seconds)
   creationLatency: number;
 }
+
+type BaseCheckpointersConfig = OverridableAgentConfig<BaseCheckpointerConfig>;
 
 export interface DockerConfig {
   repo: string;
@@ -110,10 +102,10 @@ export interface AgentConfig {
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
-  processor?: ProcessorConfig;
-  validators?: ValidatorsConfig;
-  relayer?: RelayerConfig;
-  checkpointer?: CheckpointerConfig;
+  validator?: BaseValidatorsConfig;
+  relayer?: BaseRelayersConfig;
+  checkpointer?: BaseCheckpointersConfig;
+  validatorSets: ValidatorSets;
 }
 
 export type RustSigner = {

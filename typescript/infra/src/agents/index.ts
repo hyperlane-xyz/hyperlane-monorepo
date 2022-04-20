@@ -7,6 +7,7 @@ import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
 import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
 import { AgentAwsKey } from './aws';
+import { getConfig } from '../config/agent';
 
 export enum KEY_ROLE_ENUM {
   Validator = 'validator',
@@ -39,20 +40,6 @@ async function helmValuesForChain(
     return undefined;
   };
 
-  const validatorConfigs: any = [];
-  
-  const chainValidators =  agentConfig.validators?.validators[chainName] //  as ValidatorCheckpointSyncerConfigs;
-  for (const validatorAddress in chainValidators) {
-    const validator = chainValidators[validatorAddress];
-
-    validatorConfigs.push({
-      ...agentConfig.validators?.common,
-      checkpointSyncer: validator,
-    });
-  }
-
-  console.log('validator configs', validatorConfigs, JSON.stringify(validatorConfigs, undefined, 2))
-
   return {
     image: {
       repository: agentConfig.docker.repo,
@@ -77,9 +64,7 @@ async function helmValuesForChain(
         signer: {
           ...credentials(KEY_ROLE_ENUM.Validator),
         },
-        configs: validatorConfigs,
-        // @ts-ignore
-        // config: agentConfig.validator,
+        configs: getValidatorConfigs(agentConfig, chainName),
       },
       relayer: {
         enabled: true,
@@ -87,10 +72,7 @@ async function helmValuesForChain(
           name,
           ...credentials(KEY_ROLE_ENUM.Relayer),
         })),
-        config: {
-          ...agentConfig.relayer?.common,
-          multisigCheckpointSyncer: agentConfig.relayer?.multisigCheckpointSyncers[chainName],
-        },
+        config: getRelayerConfig(agentConfig, chainName),
       },
       checkpointer: {
         enabled: true,
@@ -98,9 +80,48 @@ async function helmValuesForChain(
           name,
           ...credentials(KEY_ROLE_ENUM.Checkpointer),
         })),
-        config: agentConfig.checkpointer,
+        config: getConfig(agentConfig.checkpointer!, chainName),
       },
     },
+  };
+}
+
+function getValidatorConfigs(agentConfig: AgentConfig, chainName: ChainName) {
+  if (!agentConfig.validator) {
+    throw Error('No relayer config')
+  }
+  const baseConfig = getConfig(agentConfig.validator, chainName);
+
+  const validatorSet = agentConfig.validatorSets[chainName];
+  if (!validatorSet) {
+    throw Error(`No validator set for chain ${chainName}`);
+  }
+  return validatorSet.validators.map((val) => ({
+    ...baseConfig,
+    checkpointSyncer: val.checkpointSyncer,
+  }));
+}
+
+function getRelayerConfig(agentConfig: AgentConfig, chainName: ChainName) {
+  if (!agentConfig.relayer) {
+    throw Error('No relayer config')
+  }
+  const baseConfig = getConfig(agentConfig.relayer, chainName);
+
+  const validatorSet = agentConfig.validatorSets[chainName];
+  if (!validatorSet) {
+    throw Error(`No validator set for chain ${chainName}`);
+  }
+  const multisigCheckpointSyncer = validatorSet.validators.reduce((agg, val) => ({
+    ...agg,
+    [val.address]: val.checkpointSyncer,
+  }), {
+    threshold: validatorSet.threshold,
+  });
+
+  return {
+    ...baseConfig,
+    multisigCheckpointSyncer,
   };
 }
 
@@ -223,10 +244,10 @@ export async function getAgentEnvVars(
 
   if (role === KEY_ROLE_ENUM.Checkpointer) {
     envVars.push(
-      `OPT_CHECKPOINTER_POLLINGINTERVAL=${agentConfig.checkpointer?.pollingInterval}`,
+      `OPT_CHECKPOINTER_POLLINGINTERVAL=${agentConfig.checkpointer?.default.pollingInterval}`,
     );
     envVars.push(
-      `OPT_CHECKPOINTER_CREATIONLATENCY=${agentConfig.checkpointer?.creationLatency}`,
+      `OPT_CHECKPOINTER_CREATIONLATENCY=${agentConfig.checkpointer?.default.creationLatency}`,
     );
   }
 
