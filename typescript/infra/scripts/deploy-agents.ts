@@ -6,16 +6,16 @@ async function deploy() {
   const environment = await getEnvironment();
   const agentConfig = await getAgentConfig(environment);
   const domainNames = await getDomainNames(environment);
-  // await Promise.all(
-  //   domainNames.map((name) => {
+  await Promise.all(
+    domainNames.map((name) => {
       return runAgentHelmCommand(
-        HelmCommand.Upgrade,
+        HelmCommand.InstallOrUpgrade,
         agentConfig,
-        domainNames[0],
+        name,
         domainNames,
       );
-  //   }),
-  // );
+    }),
+  );
 }
 
 deploy().then(console.log).catch(console.error);

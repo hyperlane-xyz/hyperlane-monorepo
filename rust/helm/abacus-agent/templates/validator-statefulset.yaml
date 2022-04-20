@@ -11,7 +11,7 @@ spec:
     matchLabels:
       {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
       app.kubernetes.io/component: validator
-  replicas: 1 
+  replicas: {{ len .Values.abacus.validator.configs }}
   serviceName: {{ include "abacus-agent.fullname" . }}-validator
   template:
     metadata:
@@ -46,7 +46,11 @@ spec:
           {{- toYaml .Values.securityContext | nindent 10 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["./validator"]
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+            RID=$(echo $REPLICA_NAME | grep -Eo '[0-9]+$')
+            env $(cat /config-env-vars/validator-$RID.env /secret-env-vars/validator-$RID.env | xargs) ./validator
         envFrom:
         - configMapRef:
             name: {{ include "abacus-agent.fullname" . }}
@@ -55,17 +59,14 @@ spec:
         - secretRef:
             name: {{ include "abacus-agent.fullname" . }}-validator-secret
         env:
-{{- include "abacus-agent.config-env-vars" (dict "config" .Values.abacus.validator.config "agent_name" "validator") | indent 10 }}
-          {{- if (hasKey .Values.abacus.validator.signer "aws") }}
-          {{- with .Values.abacus.validator.signer }}
-          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
-            value: "aws"
-          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID
-            value: {{ .aws.keyId }}
-          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_REGION
-            value: {{ .aws.region }}
-          {{- end }}
-          {{- end }}
+          - name: OPT_VALIDATOR_CHECKPOINTSYNCER_PATH
+            value: /tmp/validatorsignatures
+          - name: OPT_VALIDATOR_CHECKPOINTSYNCER_TYPE
+            value: localStorage
+          - name: REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
           {{- if .Values.abacus.tracing.uri }}
           - name: OPT_BASE_TRACING_JAEGER_NAME
             value: {{ include "abacus-agent.fullname" . }}-validator
@@ -75,9 +76,20 @@ spec:
         volumeMounts:
         - name: state
           mountPath: {{ .Values.abacus.dbPath }}
+        - name: config-env-vars
+          mountPath: /config-env-vars
+        - name: secret-env-vars
+          mountPath: /secret-env-vars
         ports: 
         - name: metrics
           containerPort: {{ .Values.abacus.metrics.port }}
+      volumes:
+      - name: config-env-vars
+        configMap:
+          name: {{ include "abacus-agent.fullname" . }}-validator
+      - name: secret-env-vars
+        secret:
+          secretName: {{ include "abacus-agent.fullname" . }}-validator-secret
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}

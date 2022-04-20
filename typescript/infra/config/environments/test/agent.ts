@@ -1,10 +1,12 @@
+// @ts-nocheck
 import { AgentConfig } from '../../../src/config';
 import { CheckpointSyncerType } from '../../../src/config/agent';
+import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
 
 export const agent: AgentConfig = {
-  environment: 'test',
-  namespace: 'test',
-  runEnv: 'test',
+  environment: ENVIRONMENTS_ENUM.Test,
+  namespace: ENVIRONMENTS_ENUM.Test,
+  runEnv: ENVIRONMENTS_ENUM.Test,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'bef1be950322fdffd510c92d690b03aca8a5e250',

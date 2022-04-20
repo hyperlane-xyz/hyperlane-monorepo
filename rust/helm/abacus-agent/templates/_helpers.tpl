@@ -73,14 +73,18 @@ The name of the ClusterSecretStore
 {{- range $key, $value := .config }}
 {{- $key_name := printf "%s%s" (default "" $.key_name_prefix) $key }}
 {{- if typeIs "map[string]interface {}" $value }}
-{{- include "abacus-agent.config-env-vars" (dict "config" $value "agent_name" $.agent_name "key_name_prefix" (printf "%s_" $key_name)) }}
+{{- include "abacus-agent.config-env-vars" (dict "config" $value "agent_name" $.agent_name "dot_env_format" $.dot_env_format "key_name_prefix" (printf "%s_" $key_name)) }}
 {{- else }}
-{{- include "abacus-agent.config-env-var" (dict "agent_name" $.agent_name "key" $key_name "value" $value ) }}
+{{- include "abacus-agent.config-env-var" (dict "agent_name" $.agent_name "key" $key_name "value" $value "dot_env_format" $.dot_env_format ) }}
 {{- end }}
 {{- end }}
 {{- end }}
 
 {{- define "abacus-agent.config-env-var" }}
+{{- if .dot_env_format }}
+OPT_{{ .agent_name | upper }}_{{ .key | upper }}={{ .value | quote }}
+{{- else }}
 - name: OPT_{{ .agent_name | upper }}_{{ .key | upper }}
   value: {{ .value | quote }}
+{{- end }}
 {{- end }}

@@ -39,6 +39,20 @@ async function helmValuesForChain(
     return undefined;
   };
 
+  const validatorConfigs: any = [];
+  
+  const chainValidators =  agentConfig.validators?.validators[chainName] //  as ValidatorCheckpointSyncerConfigs;
+  for (const validatorAddress in chainValidators) {
+    const validator = chainValidators[validatorAddress];
+
+    validatorConfigs.push({
+      ...agentConfig.validators?.common,
+      checkpointSyncer: validator,
+    });
+  }
+
+  console.log('validator configs', validatorConfigs, JSON.stringify(validatorConfigs, undefined, 2))
+
   return {
     image: {
       repository: agentConfig.docker.repo,
@@ -63,7 +77,9 @@ async function helmValuesForChain(
         signer: {
           ...credentials(KEY_ROLE_ENUM.Validator),
         },
-        config: agentConfig.validator,
+        configs: validatorConfigs,
+        // @ts-ignore
+        // config: agentConfig.validator,
       },
       relayer: {
         enabled: true,
@@ -71,7 +87,10 @@ async function helmValuesForChain(
           name,
           ...credentials(KEY_ROLE_ENUM.Relayer),
         })),
-        config: agentConfig.relayer,
+        config: {
+          ...agentConfig.relayer?.common,
+          multisigCheckpointSyncer: agentConfig.relayer?.multisigCheckpointSyncers[chainName],
+        },
       },
       checkpointer: {
         enabled: true,
@@ -140,7 +159,7 @@ export async function getAgentEnvVars(
         `OPT_BASE_VALIDATOR_TYPE=hexKey`,
       );
       // Throw an error if the chain config did not specify the reorg period
-      if (valueDict.abacus.validator.config?.reorgPeriod === undefined) {
+      if (valueDict.abacus.validator.configs[0].reorgPeriod === undefined) {
         throw new Error(
           `Panic: Chain config for ${outboxChainName} did not specify a reorg period`,
         );
@@ -148,9 +167,9 @@ export async function getAgentEnvVars(
 
       envVars.push(
         `OPT_VALIDATOR_REORGPERIOD=${
-          valueDict.abacus.validator.config.reorgPeriod - 1
+          valueDict.abacus.validator.configs[0].reorgPeriod - 1
         }`,
-        `OPT_VALIDATOR_INTERVAL=${valueDict.abacus.validator.config.interval}`,
+        `OPT_VALIDATOR_INTERVAL=${valueDict.abacus.validator.configs[0].interval}`,
       );
     }
 
@@ -290,7 +309,7 @@ export async function runAgentHelmCommand(
       : '';
 
   return execCmd(
-    `helm ${action} ${outboxChainName} ../../rust/helm/abacus-agent/ --namespace ${
+    `helm ${action} ${outboxChainName} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
     } ${values.join(' ')} ${extraPipe}`,
     {},

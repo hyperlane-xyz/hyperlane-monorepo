@@ -6,7 +6,7 @@ async function main() {
   const environment = await getEnvironment();
   const infraConfig = await getInfrastructureConfig(environment);
   return runExternalSecretsHelmCommand(
-    HelmCommand.Install,
+    HelmCommand.InstallOrUpgrade,
     infraConfig,
     environment,
   );

@@ -35,26 +35,36 @@ interface S3CheckpointSyncerConfig {
 
 type CheckpointSyncerConfig = LocalCheckpointSyncerConfig | S3CheckpointSyncerConfig;
 
+// validator address -> checkpoint syncer
+export type ValidatorCheckpointSyncerConfigs = {
+  [validatorAddress: string]: CheckpointSyncerConfig;
+};
+
 type MultisigCheckpointSyncerConfig = {
   // Quorum threshold
   threshold: number;
-  // Mapping of validator address -> checkpoint syncer
-  checkpointSyncers: {
-    [validatorAddress: string]: CheckpointSyncerConfig;
-  };
+  checkpointSyncers: ValidatorCheckpointSyncerConfigs;
 }
 
 interface RelayerConfig {
   // The multisig checkpoint syncer configuration
-  multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
-  // The minimum latency in seconds between two relayed checkpoints on the inbox
-  submissionLatency: number;
-  // The polling interval to check for new checkpoints in seconds
-  pollingInterval?: number;
-  // The maxinmum number of times a processor will try to process a message
-  maxRetries?: number;
-  // Whether the CheckpointRelayer should try to immediately process messages
-  relayerMessageProcessing?: boolean;
+  multisigCheckpointSyncers: {
+    [chain in ChainName]?: MultisigCheckpointSyncerConfig;
+  };
+  common: {
+    // The minimum latency in seconds between two relayed checkpoints on the inbox
+    submissionLatency: number;
+    // The polling interval to check for new checkpoints in seconds
+    pollingInterval?: number;
+    // The maxinmum number of times a processor will try to process a message
+    maxRetries?: number;
+    // Whether the CheckpointRelayer should try to immediately process messages
+    relayerMessageProcessing?: boolean;
+  };
+  // validators: {
+  //   [chain in ChainName]?: ValidatorCheckpointSyncerConfigs
+  // },
+  
 }
 
 // /// The validator attestation signer
@@ -64,14 +74,21 @@ interface RelayerConfig {
 // /// The reorg_period in blocks
 // reorgperiod: String,
 
-interface ValidatorConfig {
+interface ValidatorCommonConfig {
   // How frequently to check for new checkpoints
   interval: number;
   // The reorg_period in blocks
   reorgPeriod: number;
   // The checkpoint syncer configuration
-  checkpointSyncer: CheckpointSyncerConfig,
+  // checkpointSyncer: CheckpointSyncerConfig;
   // validator
+}
+
+interface ValidatorsConfig {
+  common: ValidatorCommonConfig;
+  validators: {
+    [chain in ChainName]?: ValidatorCheckpointSyncerConfigs
+  },
 }
 
 interface CheckpointerConfig {
@@ -94,7 +111,7 @@ export interface AgentConfig {
   index?: IndexingConfig;
   aws?: AwsConfig;
   processor?: ProcessorConfig;
-  validator?: ValidatorConfig;
+  validators?: ValidatorsConfig;
   relayer?: RelayerConfig;
   checkpointer?: CheckpointerConfig;
 }

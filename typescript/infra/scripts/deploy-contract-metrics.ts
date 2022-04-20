@@ -11,7 +11,7 @@ async function main() {
   const contractMetricsConfig = await getContractMetricsConfig(environment);
   const domainNames = await getDomainNames(environment);
   return runContractMetricsHelmCommand(
-    HelmCommand.Install,
+    HelmCommand.InstallOrUpgrade,
     contractMetricsConfig,
     domainNames,
     environment,

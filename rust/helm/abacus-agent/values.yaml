@@ -78,7 +78,10 @@ abacus:
       snapshot:
         enabled: false
         name: ""
-    resources: {}
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
     # -- Transaction Signing keys for home and replica(s)
     signer: {}
     # -- How long to wait between checking for updates
@@ -96,7 +99,10 @@ abacus:
       snapshot:
         enabled: false
         name: ""
-    resources: {}
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
     signers:
       - name: "kovan"
         # aws:
@@ -115,7 +121,10 @@ abacus:
       snapshot:
         enabled: false
         name: ""
-    resources: {}
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
     signers:
       - name: "kovan"
         # aws:
@@ -134,7 +143,10 @@ abacus:
       snapshot:
         enabled: false
         name: ""
-    resources: {}
+    resources:
+      requests:
+        cpu: 250m
+        memory: 1Gi
     signers:
       - name: "kovan"
         aws:
@@ -164,13 +176,13 @@ securityContext: {}
   # runAsNonRoot: true
   # runAsUser: 1000
 
-resources: {}
+resources:
   # limits:
   #   cpu: 100m
   #   memory: 128Mi
-  # requests:
-  #   cpu: 100m
-  #   memory: 128Mi
+  requests:
+    cpu: 250m
+    memory: 1Gi
 
 nodeSelector: {}
 
