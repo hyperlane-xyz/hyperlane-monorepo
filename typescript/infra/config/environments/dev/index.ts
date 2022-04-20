@@ -1,0 +1,1 @@
+export { domainNames } from './domains';
