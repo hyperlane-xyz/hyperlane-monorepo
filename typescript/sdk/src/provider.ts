@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { ChainName } from './types';
+import { ChainName, ChainSubsetMap } from './types';
 import { MultiGeneric } from './utils';
 
 export class DomainProvider {
@@ -7,9 +7,14 @@ export class DomainProvider {
   protected signer?: ethers.Signer;
 
   constructor(
+    protected rpc?: string,
     protected overrides: ethers.Overrides = {},
     protected confirmations: number = 0,
-  ) {}
+  ) {
+    if (rpc) {
+      this.registerRpcURL(rpc);
+    }
+  }
 
   registerProvider = (provider: ethers.providers.Provider) =>
     (this.provider = provider);
@@ -31,4 +36,18 @@ export class DomainProvider {
 export class MultiProvider<
   Networks extends ChainName,
   Value,
-> extends MultiGeneric<Networks, Value & DomainProvider> {}
+> extends MultiGeneric<Networks, Value & { provider: DomainProvider }> {
+  constructor(domainMap: ChainSubsetMap<Networks, Value & { rpc: string }>) {
+    const providerEntries = Object.entries<Value & { rpc: string }>(
+      domainMap,
+    ).map(([network, v]) => [
+      network,
+      { ...v, provider: new DomainProvider(v.rpc) },
+    ]);
+    const providers: ChainSubsetMap<
+      Networks,
+      Value & { provider: DomainProvider }
+    > = Object.fromEntries(providerEntries);
+    super(providers);
+  }
+}

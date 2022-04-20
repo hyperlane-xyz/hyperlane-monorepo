@@ -13,16 +13,14 @@ type AbacusContractAddresses = {
   [key: string]: Addr;
 };
 
-type AbacusContractFactory<C extends Contract> = (
+type AbacusContractFactory = (
   address: types.Address,
   connection: Connection,
-) => C;
+) => Contract;
 
 abstract class AbacusAppContracts<A extends AbacusContractAddresses> {
-  abstract get _factories(): {
-    [key in keyof A]: AbacusContractFactory<any>; // TODO: infer contract type
-  };
-  contracts: { [key in keyof A]: Contract };
+  abstract get _factories(): Record<keyof A, AbacusContractFactory>;
+  contracts: Record<keyof A, Contract>; // TODO; infer Contract type from key
   constructor(public readonly addresses: A, connection: Connection) {
     const contractEntries = Object.entries(addresses).map(([key, addr]) => {
       const factory = this._factories[key];
@@ -30,6 +28,11 @@ abstract class AbacusAppContracts<A extends AbacusContractAddresses> {
       return [key, factory(contractAddress, connection)];
     });
     this.contracts = Object.fromEntries(contractEntries);
+  }
+  reconnect(connection: Connection) {
+    Object.values(this.contracts).forEach((contract) =>
+      contract.connect(connection),
+    );
   }
 }
 
@@ -40,20 +43,16 @@ export type AbacusRouterAddresses = {
 };
 
 export abstract class AbacusRouterContracts<
-  A extends AbacusContractAddresses,
-> extends AbacusAppContracts<A & AbacusRouterAddresses> {
-  abstract get factories(): {
-    [key in keyof Omit<
-      A,
-      keyof AbacusRouterAddresses
-    >]: AbacusContractFactory<any>;
-  };
+  A extends AbacusRouterAddresses,
+  O = Omit<A, keyof AbacusRouterAddresses>,
+> extends AbacusAppContracts<A> {
+  abstract get factories(): Record<keyof O, AbacusContractFactory>;
   get _factories() {
     return {
       router: Router__factory.connect,
       xappConnectionManager: XAppConnectionManager__factory.connect,
       upgradeBeaconController: UpgradeBeaconController__factory.connect,
       ...this.factories,
-    } as any;
+    } as any; // TODO: remove any
   }
 }

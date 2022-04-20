@@ -1,76 +1,28 @@
+import { GovernanceRouter } from '@abacus-network/apps';
 import { ethers } from 'ethers';
 import { AbacusApp } from '../app';
-import { GovernanceContractAddresses, GovernanceContracts } from './contracts';
+import { objMap, promiseObjAll } from '../utils';
+import { GovernanceContracts } from './contracts';
 import { GovernanceDeployedNetworks } from './environments';
 import { associateCalls, Call, normalizeCall } from './utils';
 
-export type Governor = {
-  domain: number;
-  identifier: string;
-};
-
 export class AbacusGovernance extends AbacusApp<
   GovernanceDeployedNetworks,
-  GovernanceContractAddresses
+  GovernanceContracts & { calls: Call[] }
 > {
-  readonly calls: Map<number, Readonly<Call>[]> = new Map();
+  routers = () =>
+    objMap(this.domainMap, (d) => d.contracts.router as GovernanceRouter);
 
-  buildContracts(addresses: GovernanceContractAddresses): GovernanceContracts {
-    return new GovernanceContracts(addresses);
+  governors = () =>
+    promiseObjAll(objMap(this.routers(), (router) => router.governor()));
+
+  getCalls(network: GovernanceDeployedNetworks) {
+    return this.get(network).calls;
   }
 
-  /**
-   * Returns the governors of this abacus deployment.
-   *
-   * @returns The governors of the deployment
-   */
-  async governors(): Promise<Governor[]> {
-    const governorDomains = Array.from(this.contracts.keys());
-    const governorAddresses = await Promise.all(
-      governorDomains.map((domain) =>
-        this.mustGetContracts(domain).router.governor(),
-      ),
-    );
-    const governors: Governor[] = [];
-    for (let i = 0; i < governorAddresses.length; i++) {
-      if (governorAddresses[i] !== ethers.constants.AddressZero) {
-        governors.push({
-          identifier: governorAddresses[i],
-          domain: governorDomains[i],
-        });
-      }
-    }
-    if (governors.length === 0) throw new Error('no governors');
-    return governors;
-  }
-
-  /**
-   * Returns the single governor of this deployment, throws an error if not found.
-   *
-   * @returns The governor of the deployment
-   */
-  async governor(): Promise<Governor> {
-    const governors = await this.governors();
-    if (governors.length !== 1) throw new Error('multiple governors');
-    return governors[0];
-  }
-
-  get routerAddresses(): Record<number, string> {
-    const addresses: Record<number, string> = {};
-    for (const domain of this.domainNumbers) {
-      addresses[domain] = this.mustGetContracts(domain).router.address;
-    }
-    return addresses;
-  }
-
-  push(domain: number, call: Call): void {
-    const calls = this.calls.get(domain);
+  push(network: GovernanceDeployedNetworks, call: Call) {
     const normalized = normalizeCall(call);
-    if (!calls) {
-      this.calls.set(domain, [normalized]);
-    } else {
-      calls.push(normalized);
-    }
+    this.getCalls(network).push(normalized);
   }
 
   // Build governance transactions called by the governor at the specified

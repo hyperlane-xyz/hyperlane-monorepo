@@ -73,7 +73,7 @@ export class MultiGeneric<Networks extends ChainName, Value> {
       [network]: value,
     });
 
-  knownDomain = (network: Networks) => network in this.domainMap;
+  knownDomain = (network: ChainName) => network in this.domainMap;
 }
 
 export function inferChainSubsetMap<M>(map: M) {
@@ -82,8 +82,35 @@ export function inferChainSubsetMap<M>(map: M) {
     : never;
 }
 
+export function objMapEntries<N extends ChainName, I, O>(
+  obj: ChainSubsetMap<N, I>,
+  func: (_: I) => O,
+) {
+  return Object.entries<I>(obj).map(([k, v]) => [k, func(v)]);
+}
+
+export function objMap<N extends ChainName, I, O>(
+  obj: ChainSubsetMap<N, I>,
+  func: (_: I) => O,
+) {
+  return Object.fromEntries(
+    objMapEntries<N, I, O>(obj, func),
+  ) as ChainSubsetMap<N, O>;
+}
+
+type PromiseValues<TO> = {
+  [TK in keyof TO]: Promise<TO[TK]>;
+};
+
+// promiseObjectAll :: {k: Promise a} -> Promise {k: a}
+export const promiseObjAll = <T>(object: PromiseValues<T>): Promise<T> => {
+  const promiseList = Object.entries(object).map(([name, promise]) =>
+    (promise as Promise<any>).then((result) => [name, result]),
+  );
+  return Promise.all(promiseList).then(Object.fromEntries);
+};
+
 export const utils = {
-  inferChainSubsetMap,
   canonizeId,
   evmId,
   delay,
