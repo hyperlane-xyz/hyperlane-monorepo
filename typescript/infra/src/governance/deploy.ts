@@ -20,7 +20,7 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
     const signer = this.mustGetSigner(domain);
     const overrides = this.getOverrides(domain);
 
-    const xAppConnectionManager =
+    const abacusConnectionManager =
       await this.deployConnectionManagerIfNotConfigured(domain, config);
 
     const upgradeBeaconController = await this.deployContract(
@@ -35,19 +35,22 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
       new GovernanceRouter__factory(signer),
       upgradeBeaconController.address,
       [config.recoveryTimelock],
-      [xAppConnectionManager.address],
+      [abacusConnectionManager.address],
     );
 
     // Only transfer ownership if a new XCM was deployed.
-    if (xAppConnectionManager.deployTransaction) {
-      await xAppConnectionManager.transferOwnership(router.address, overrides);
+    if (abacusConnectionManager.deployTransaction) {
+      await abacusConnectionManager.transferOwnership(
+        router.address,
+        overrides,
+      );
     }
     await upgradeBeaconController.transferOwnership(router.address, overrides);
 
     return {
       router: router.addresses,
       upgradeBeaconController: upgradeBeaconController.address,
-      xAppConnectionManager: xAppConnectionManager.address,
+      abacusConnectionManager: abacusConnectionManager.address,
     };
   }
 

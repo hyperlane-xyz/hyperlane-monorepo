@@ -29,10 +29,10 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
   ): Promise<void> {
     const contracts = this.app.mustGetContracts(domain);
     const owners = [contracts.upgradeBeaconController.owner()];
-    // If the config specifies that a xAppConnectionManager should have been deployed,
+    // If the config specifies that a abacusConnectionManager should have been deployed,
     // it should be owned by the router.
-    if (!this.config.xAppConnectionManager) {
-      owners.push(contracts.xAppConnectionManager.owner());
+    if (!this.config.abacusConnectionManager) {
+      owners.push(contracts.abacusConnectionManager.owner());
     }
     const expected = contracts.router.address;
     (await Promise.all(owners)).map((_) => expect(_).to.equal(expected));

@@ -4,17 +4,17 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {IOutbox} from "../interfaces/IOutbox.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {IXAppConnectionManager} from "../interfaces/IXAppConnectionManager.sol";
+import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
- * @title XAppConnectionManager
+ * @title AbacusConnectionManager
  * @author Celo Labs Inc.
  * @notice Manages a registry of local Inbox contracts for remote Outbox
  * domains.
  */
-contract XAppConnectionManager is IXAppConnectionManager, Ownable {
+contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     // ============ Public Storage ============
 
     // Outbox contract

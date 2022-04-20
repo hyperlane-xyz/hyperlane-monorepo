@@ -1,0 +1,64 @@
+{
+  "environment": "local",
+  "signers": {
+    "alfajores": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "kovan": {
+      "key": "",
+      "type": "hexKey"
+    },
+    "fuji": {
+      "key": "",
+      "type": "hexKey"
+    }
+  },
+  "replicas": {
+    "alfajores": {
+      "address": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
+      "domain": "1000",
+      "name": "alfajores",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "kovan": {
+      "address": "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8",
+      "domain": "3000",
+      "name": "kovan",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    },
+    "fuji": {
+      "address": "0x82e01223d51Eb87e16A03E24687EDF0F294da6f1",
+      "domain": "43113",
+      "name": "fuji",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      }
+    }
+  },
+  "home": {
+    "address": "0xB0D4afd8879eD9F52b28595d31B441D079B2Ca07",
+    "domain": "80001",
+    "name": "mumbai",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path"
+}

@@ -26,7 +26,7 @@ export abstract class AbacusRouterChecker<
   async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
     await this.checkEnrolledRouters(domain);
     await this.checkOwnership(domain, owner);
-    await this.checkXAppConnectionManager(domain);
+    await this.checkAbacusConnectionManager(domain);
   }
 
   async checkEnrolledRouters(domain: types.Domain): Promise<void> {
@@ -50,19 +50,21 @@ export abstract class AbacusRouterChecker<
       contracts.upgradeBeaconController.owner(),
       this.mustGetRouter(domain).owner(),
     ]);
-    // If the config specifies that a xAppConnectionManager should have been deployed,
+    // If the config specifies that a abacusConnectionManager should have been deployed,
     // it should be owned by the owner.
-    if (!this.config.xAppConnectionManager) {
-      owners.push(contracts.xAppConectionManager.owner());
+    if (!this.config.abacusConnectionManager) {
+      owners.push(contracts.abacusConnectionManager.owner());
     }
     (await Promise.all(owners)).map((_) => expect(_).to.equal(owner));
   }
 
-  async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
-    if (this.config.xAppConnectionManager === undefined) return;
-    const actual = await this.mustGetRouter(domain).xAppConnectionManager();
+  async checkAbacusConnectionManager(domain: types.Domain): Promise<void> {
+    if (this.config.abacusConnectionManager === undefined) return;
+    const actual = await this.mustGetRouter(domain).abacusConnectionManager();
     const expected =
-      this.config.xAppConnectionManager[this.app.mustResolveDomainName(domain)];
+      this.config.abacusConnectionManager[
+        this.app.mustResolveDomainName(domain)
+      ];
     expect(actual).to.equal(expected);
   }
 }

@@ -9,8 +9,8 @@ import {
   TestInbox__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
 } from "@abacus-network/core";
 import { TestDeploy } from "./TestDeploy";
 
@@ -21,7 +21,7 @@ export type TestAbacusConfig = {
 // Outbox & inbox validator managers are not required for testing and are therefore omitted.
 export type TestAbacusInstance = {
   outbox: Outbox;
-  xAppConnectionManager: XAppConnectionManager;
+  abacusConnectionManager: AbacusConnectionManager;
   upgradeBeaconController: UpgradeBeaconController;
   inboxes: Record<types.Domain, TestInbox>;
   interchainGasPaymaster: InterchainGasPaymaster;
@@ -62,17 +62,18 @@ export class TestAbacusDeploy extends TestDeploy<
     // requirement and avoid deploying a new validator manager.
     await outbox.initialize(upgradeBeaconController.address);
 
-    const xAppConnectionManagerFactory = new XAppConnectionManager__factory(
+    const abacusConnectionManagerFactory = new AbacusConnectionManager__factory(
       signer
     );
-    const xAppConnectionManager = await xAppConnectionManagerFactory.deploy();
-    await xAppConnectionManager.setOutbox(outbox.address);
+    const abacusConnectionManager =
+      await abacusConnectionManagerFactory.deploy();
+    await abacusConnectionManager.setOutbox(outbox.address);
 
     const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(
       signer
     );
     const interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
-    await xAppConnectionManager.setInterchainGasPaymaster(
+    await abacusConnectionManager.setInterchainGasPaymaster(
       interchainGasPaymaster.address
     );
 
@@ -93,13 +94,13 @@ export class TestAbacusDeploy extends TestDeploy<
         ethers.constants.HashZero,
         0
       );
-      await xAppConnectionManager.enrollInbox(remote, inbox.address);
+      await abacusConnectionManager.enrollInbox(remote, inbox.address);
       inboxes[remote] = inbox;
     });
     await Promise.all(deploys);
     return {
       outbox,
-      xAppConnectionManager,
+      abacusConnectionManager,
       interchainGasPaymaster,
       inboxes,
       upgradeBeaconController,
@@ -109,7 +110,7 @@ export class TestAbacusDeploy extends TestDeploy<
   async transferOwnership(domain: types.Domain, address: types.Address) {
     await this.outbox(domain).transferOwnership(address);
     await this.upgradeBeaconController(domain).transferOwnership(address);
-    await this.xAppConnectionManager(domain).transferOwnership(address);
+    await this.abacusConnectionManager(domain).transferOwnership(address);
     for (const remote of this.remotes(domain)) {
       await this.inbox(domain, remote).transferOwnership(address);
     }
@@ -131,8 +132,8 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].interchainGasPaymaster;
   }
 
-  xAppConnectionManager(domain: types.Domain): XAppConnectionManager {
-    return this.instances[domain].xAppConnectionManager;
+  abacusConnectionManager(domain: types.Domain): AbacusConnectionManager {
+    return this.instances[domain].abacusConnectionManager;
   }
 
   async processMessages(): Promise<

@@ -3,8 +3,8 @@ import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import {
   Outbox__factory,
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
 } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
@@ -17,7 +17,7 @@ const message = '0xdeadbeef';
 
 describe('Router', async () => {
   let router: TestRouter,
-    connectionManager: XAppConnectionManager,
+    connectionManager: AbacusConnectionManager,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
 
@@ -26,7 +26,9 @@ describe('Router', async () => {
   });
 
   beforeEach(async () => {
-    const connectionManagerFactory = new XAppConnectionManager__factory(signer);
+    const connectionManagerFactory = new AbacusConnectionManager__factory(
+      signer,
+    );
     connectionManager = await connectionManagerFactory.deploy();
 
     const routerFactory = new TestRouter__factory(signer);

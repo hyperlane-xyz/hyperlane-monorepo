@@ -1,0 +1,27 @@
+{
+  "upgradeBeaconController": "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650",
+  "abacusConnectionManager": "0x162A433068F51e18b7d13932F27e66a3f99E6890",
+  "validatorManager": "0xc351628EB244ec633d5f21fBD6621e1a683B1181",
+  "outbox": {
+    "proxy": "0xB0D4afd8879eD9F52b28595d31B441D079B2Ca07",
+    "implementation": "0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc",
+    "beacon": "0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f"
+  },
+  "inboxes": {
+    "1000": {
+      "proxy": "0xdbC43Ba45381e02825b14322cDdd15eC4B3164E6",
+      "implementation": "0x5081a39b8A5f0E35a8D959395a630b68B74Dd30f",
+      "beacon": "0x1fA02b2d6A771842690194Cf62D91bdd92BfE28d"
+    },
+    "3000": {
+      "proxy": "0x21dF544947ba3E8b3c32561399E88B52Dc8b2823",
+      "implementation": "0x5081a39b8A5f0E35a8D959395a630b68B74Dd30f",
+      "beacon": "0x1fA02b2d6A771842690194Cf62D91bdd92BfE28d"
+    },
+    "43113": {
+      "proxy": "0xDC11f7E700A4c898AE5CAddB1082cFfa76512aDD",
+      "implementation": "0x5081a39b8A5f0E35a8D959395a630b68B74Dd30f",
+      "beacon": "0x1fA02b2d6A771842690194Cf62D91bdd92BfE28d"
+    }
+  }
+}

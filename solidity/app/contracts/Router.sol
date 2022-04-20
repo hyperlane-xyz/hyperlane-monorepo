@@ -2,10 +2,10 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {XAppConnectionClient} from "./XAppConnectionClient.sol";
+import {AbacusConnectionClient} from "./AbacusConnectionClient.sol";
 import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
 
-abstract contract Router is XAppConnectionClient, IMessageRecipient {
+abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
 
     mapping(uint32 => bytes32) public routers;
@@ -21,7 +21,6 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
     event EnrollRemoteRouter(uint32 indexed domain, bytes32 indexed router);
 
     // ============ Modifiers ============
-
     /**
      * @notice Only accept messages from a remote Router contract
      * @param _origin The domain the message is coming from
@@ -34,8 +33,8 @@ abstract contract Router is XAppConnectionClient, IMessageRecipient {
 
     // ======== Initializer =========
 
-    function __Router_initialize(address _xAppConnectionManager) internal {
-        __XAppConnectionClient_initialize(_xAppConnectionManager);
+    function __Router_initialize(address _abacusConnectionManager) internal {
+        __AbacusConnectionClient_initialize(_abacusConnectionManager);
     }
 
     // ============ External functions ============

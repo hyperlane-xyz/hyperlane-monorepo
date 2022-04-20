@@ -1,0 +1,79 @@
+[
+  {
+    "name": "AbacusConnectionManager",
+    "address": "0x8f86403A4DE0BB5791fa46B8e795C547942fE4Cf",
+    "constructorArguments": []
+  },
+  {
+    "name": "ValidatorManager",
+    "address": "0x998abeb3E57409262aE5b751f60747921B33613E",
+    "constructorArguments": []
+  },
+  {
+    "name": "UpgradeBeaconController",
+    "address": "0x95401dc811bb5740090279Ba06cfA8fcF6113778",
+    "constructorArguments": []
+  },
+  {
+    "name": "Outbox Implementation",
+    "address": "0x4826533B4897376654Bb4d4AD88B7faFD0C98528",
+    "constructorArguments": [43113]
+  },
+  {
+    "name": "Outbox UpgradeBeacon",
+    "address": "0x99bbA657f2BbC93c02D617f8bA121cB8Fc104Acf",
+    "constructorArguments": [
+      "0x4826533B4897376654Bb4d4AD88B7faFD0C98528",
+      "0x95401dc811bb5740090279Ba06cfA8fcF6113778"
+    ]
+  },
+  {
+    "name": "Outbox Proxy",
+    "address": "0x0E801D84Fa97b50751Dbf25036d067dCf18858bF",
+    "constructorArguments": [
+      "0x99bbA657f2BbC93c02D617f8bA121cB8Fc104Acf",
+      "0xc4d66de8000000000000000000000000998abeb3e57409262ae5b751f60747921b33613e"
+    ],
+    "isProxy": true
+  },
+  {
+    "name": "Inbox Implementation",
+    "address": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
+    "constructorArguments": [43113]
+  },
+  {
+    "name": "Inbox UpgradeBeacon",
+    "address": "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570",
+    "constructorArguments": [
+      "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
+      "0x95401dc811bb5740090279Ba06cfA8fcF6113778"
+    ]
+  },
+  {
+    "name": "Inbox Proxy",
+    "address": "0x809d550fca64d94Bd9F66E60752A544199cfAC3D",
+    "constructorArguments": [
+      "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570",
+      "0xe7e7a7b700000000000000000000000000000000000000000000000000000000000003e8000000000000000000000000998abeb3e57409262ae5b751f60747921b33613e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "isProxy": true
+  },
+  {
+    "name": "Inbox Proxy",
+    "address": "0x5f3f1dBD7B74C6B46e8c44f98792A1dAf8d69154",
+    "constructorArguments": [
+      "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570",
+      "0xe7e7a7b70000000000000000000000000000000000000000000000000000000000000bb8000000000000000000000000998abeb3e57409262ae5b751f60747921b33613e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "isProxy": true
+  },
+  {
+    "name": "Inbox Proxy",
+    "address": "0x82e01223d51Eb87e16A03E24687EDF0F294da6f1",
+    "constructorArguments": [
+      "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570",
+      "0xe7e7a7b70000000000000000000000000000000000000000000000000000000000013881000000000000000000000000998abeb3e57409262ae5b751f60747921b33613e00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+    ],
+    "isProxy": true
+  }
+]
