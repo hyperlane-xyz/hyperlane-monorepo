@@ -88,7 +88,7 @@ async function helmValuesForChain(
 
 function getValidatorConfigs(agentConfig: AgentConfig, chainName: ChainName) {
   if (!agentConfig.validator) {
-    throw Error('No relayer config')
+    throw Error('No relayer config');
   }
   const baseConfig = getConfig(agentConfig.validator, chainName);
 
@@ -104,7 +104,7 @@ function getValidatorConfigs(agentConfig: AgentConfig, chainName: ChainName) {
 
 function getRelayerConfig(agentConfig: AgentConfig, chainName: ChainName) {
   if (!agentConfig.relayer) {
-    throw Error('No relayer config')
+    throw Error('No relayer config');
   }
   const baseConfig = getConfig(agentConfig.relayer, chainName);
 
@@ -112,12 +112,15 @@ function getRelayerConfig(agentConfig: AgentConfig, chainName: ChainName) {
   if (!validatorSet) {
     throw Error(`No validator set for chain ${chainName}`);
   }
-  const multisigCheckpointSyncer = validatorSet.validators.reduce((agg, val) => ({
-    ...agg,
-    [val.address]: val.checkpointSyncer,
-  }), {
-    threshold: validatorSet.threshold,
-  });
+  const multisigCheckpointSyncer = validatorSet.validators.reduce(
+    (agg, val) => ({
+      ...agg,
+      [val.address]: val.checkpointSyncer,
+    }),
+    {
+      threshold: validatorSet.threshold,
+    },
+  );
 
   return {
     ...baseConfig,
@@ -138,7 +141,9 @@ export async function getAgentEnvVars(
   );
   const envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
-  envVars.push(`OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`);
+  envVars.push(
+    `OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
+  );
   valueDict.abacus.inboxChains.forEach((replicaChain: any) => {
     envVars.push(
       `OPT_BASE_INBOXES_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
@@ -274,7 +279,10 @@ export async function getSecretRpcEndpoint(
   return fetchGCPSecret(`${environment}-rpc-endpoint-${chainName}`, false);
 }
 
-export async function getSecretDeployerKey(environment: string, chainName: string) {
+export async function getSecretDeployerKey(
+  environment: string,
+  chainName: string,
+) {
   const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chainName);
   await key.fetch();
   return key.privateKey;

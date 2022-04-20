@@ -28,7 +28,9 @@ interface S3CheckpointSyncerConfig {
   region: string;
 }
 
-export type CheckpointSyncerConfig = LocalCheckpointSyncerConfig | S3CheckpointSyncerConfig;
+export type CheckpointSyncerConfig =
+  | LocalCheckpointSyncerConfig
+  | S3CheckpointSyncerConfig;
 
 interface BaseRelayerConfig {
   // The minimum latency in seconds between two relayed checkpoints on the inbox
@@ -46,7 +48,10 @@ interface OverridableAgentConfig<T> {
   chainOverrides?: ChainConfig<T>;
 }
 
-export function getConfig<T>(overridableConfig: OverridableAgentConfig<T>, chain: ChainName) {
+export function getConfig<T>(
+  overridableConfig: OverridableAgentConfig<T>,
+  chain: ChainName,
+) {
   return {
     ...overridableConfig.default,
     ...overridableConfig.chainOverrides?.[chain],
@@ -60,13 +65,12 @@ interface ValidatorSet {
 
 interface Validator {
   address: string;
-  checkpointSyncer: CheckpointSyncerConfig
+  checkpointSyncer: CheckpointSyncerConfig;
 }
-
 
 type ChainConfig<T> = {
   [chain in ChainName]?: T;
-}
+};
 
 export type ValidatorSets = ChainConfig<ValidatorSet>;
 

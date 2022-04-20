@@ -4,15 +4,9 @@ import { fetchSigner } from '../../../src/config/chain';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
 import { configs } from '../../networks/testnets';
 
-export const domainNamesReadonly = [
-  'alfajores',
-  'kovan',
-] as const;
+export const domainNamesReadonly = ['alfajores', 'kovan'] as const;
 
-export const domainNames: ChainName[] = [
-  'alfajores',
-  'kovan',
-];
+export const domainNames: ChainName[] = ['alfajores', 'kovan'];
 
 export type domainNamesType = typeof domainNamesReadonly;
 
@@ -23,6 +17,6 @@ export const registerMultiProvider = async (multiProvider: MultiProvider) => {
     domainNames.map(async (name) => {
       const signer = await fetchSigner(ENVIRONMENTS_ENUM.Dev, name);
       multiProvider.registerSigner(name, signer);
-    })
+    }),
   );
 };

@@ -26,7 +26,12 @@ interface KeyAsAddress {
   address: string;
 }
 
-function identifier(environment: string, role: string, chainName: string, index: number | undefined) {
+function identifier(
+  environment: string,
+  role: string,
+  chainName: string,
+  index: number | undefined,
+) {
   return isValidatorKey(role)
     ? `abacus-${environment}-key-${chainName}-${role}-${index}`
     : `abacus-${environment}-key-${role}`;
@@ -54,11 +59,18 @@ export class AgentGCPKey extends AgentKey {
   ) {
     super();
     if (this.isValidatorKey && index === undefined) {
-      throw Error(`Expected index to be defined for key with environment ${environment}, role ${role}, and chainName ${chainName}`);
+      throw Error(
+        `Expected index to be defined for key with environment ${environment}, role ${role}, and chainName ${chainName}`,
+      );
     }
   }
 
-  static async create(environment: string, role: string, chainName: string, index?: number) {
+  static async create(
+    environment: string,
+    role: string,
+    chainName: string,
+    index?: number,
+  ) {
     const key = new AgentGCPKey(environment, role, chainName, index);
     await key.create();
     return key;
@@ -144,7 +156,7 @@ export class AgentGCPKey extends AgentKey {
     let labels = `environment=${this.environment},role=${this.role}`;
     if (this.isValidatorKey) {
       labels += `,chain=${this.chainName},index=${this.index}`;
-    };
+    }
 
     await writeFile(
       fileName,
@@ -215,7 +227,9 @@ export async function createAgentGCPKeys(
       if (isValidatorKey(role)) {
         // For each chainName, create validatorCount keys
         return chainNames.flatMap((chainName) =>
-          [...Array(validatorCount).keys()].map((index) => AgentGCPKey.create(environment, role, chainName, index)),
+          [...Array(validatorCount).keys()].map((index) =>
+            AgentGCPKey.create(environment, role, chainName, index),
+          ),
         );
       } else {
         // Chain name doesnt matter for non attestation keys

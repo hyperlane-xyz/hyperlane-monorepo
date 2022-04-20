@@ -6,7 +6,11 @@ async function main() {
   const environment = await getEnvironment();
   const domainNames = await getDomainNames(environment);
   const agentConfig = await getAgentConfig(environment);
-  return runKeymasterHelmCommand(HelmCommand.InstallOrUpgrade, agentConfig, domainNames);
+  return runKeymasterHelmCommand(
+    HelmCommand.InstallOrUpgrade,
+    agentConfig,
+    domainNames,
+  );
 }
 
 main().then(console.log).catch(console.error);

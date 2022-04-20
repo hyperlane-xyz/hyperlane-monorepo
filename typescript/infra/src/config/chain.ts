@@ -12,9 +12,9 @@ export async function fetchSigner(
   const key = await getSecretDeployerKey(environment, chainName);
   // See https://github.com/ethers-io/ethers.js/issues/2107
   const celoChainNames = new Set(['alfajores', 'baklava', 'celo']);
-  const provider = celoChainNames.has(chainName) ?
-    new StaticCeloJsonRpcProvider(rpc) :
-    new ethers.providers.JsonRpcProvider(rpc);
+  const provider = celoChainNames.has(chainName)
+    ? new StaticCeloJsonRpcProvider(rpc)
+    : new ethers.providers.JsonRpcProvider(rpc);
   const wallet = new ethers.Wallet(key, provider);
   return new NonceManager(wallet);
 }
