@@ -5,6 +5,7 @@ pragma solidity >=0.6.11;
 import {IOutbox} from "../interfaces/IOutbox.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
@@ -15,6 +16,8 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  * domains.
  */
 contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
+    using SafeMath for uint256;
+
     // ============ Public Storage ============
 
     // Outbox contract
@@ -26,8 +29,8 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     IInterchainGasPaymaster public override interchainGasPaymaster;
     // local Inbox address => remote Outbox domain
     mapping(address => uint32) public inboxToDomain;
-    // remote Outbox domain => local Inbox address
-    mapping(uint32 => address) public domainToInbox;
+    // remote Outbox domain => local Inbox addresses
+    mapping(uint32 => address[]) public domainToInboxes;
 
     // ============ Events ============
 
@@ -85,11 +88,9 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _inbox the address of the Inbox
      */
     function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
-        // un-enroll any existing inbox
-        _unenrollInbox(_inbox);
         // add inbox and domain to two-way mapping
         inboxToDomain[_inbox] = _domain;
-        domainToInbox[_domain] = _inbox;
+        domainToInboxes[_domain].push(_inbox);
         emit InboxEnrolled(_domain, _inbox);
     }
 
@@ -107,6 +108,18 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function localDomain() external view override returns (uint32) {
         return outbox.localDomain();
+    }
+
+    /**
+     * @notice Returns the Inbox addresses for a given remote domain
+     * @return inboxes An array of addresses of the Inboxes
+     */
+    function domainInboxes(uint32 remoteDomain)
+        external
+        view
+        returns (address[] memory)
+    {
+        return domainToInboxes[remoteDomain];
     }
 
     // ============ Public Functions ============
@@ -155,7 +168,14 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function _unenrollInbox(address _inbox) internal {
         uint32 _currentDomain = inboxToDomain[_inbox];
-        domainToInbox[_currentDomain] = address(0);
+        address[] storage inboxes = domainToInboxes[_currentDomain];
+        for (uint256 i = 0; i < inboxes.length; i = i.add(1)) {
+            if (inboxes[i] == _inbox) {
+                inboxes[i] = inboxes[inboxes.length - 1];
+                inboxes.pop();
+            }
+        }
+
         inboxToDomain[_inbox] = 0;
         emit InboxUnenrolled(_currentDomain, _inbox);
     }

@@ -190,9 +190,9 @@ describe('AbacusConnectionManager', async () => {
       connectionManager.enrollInbox(newRemoteDomain, newInbox.address),
     ).to.emit(connectionManager, 'InboxEnrolled');
 
-    expect(await connectionManager.domainToInbox(newRemoteDomain)).to.equal(
+    expect(await connectionManager.domainInboxes(newRemoteDomain)).to.eql([
       newInbox.address,
-    );
+    ]);
     expect(await connectionManager.inboxToDomain(newInbox.address)).to.equal(
       newRemoteDomain,
     );
@@ -200,6 +200,9 @@ describe('AbacusConnectionManager', async () => {
   });
 
   it('Owner can unenroll a inbox', async () => {
+    expect(await connectionManager.domainInboxes(remoteDomain)).to.eql([
+      enrolledInbox.address,
+    ]);
     await expect(
       connectionManager.unenrollInbox(enrolledInbox.address),
     ).to.emit(connectionManager, 'InboxUnenrolled');
@@ -207,9 +210,40 @@ describe('AbacusConnectionManager', async () => {
     expect(
       await connectionManager.inboxToDomain(enrolledInbox.address),
     ).to.equal(0);
-    expect(await connectionManager.domainToInbox(localDomain)).to.equal(
-      ethers.constants.AddressZero,
-    );
+    expect(await connectionManager.domainInboxes(remoteDomain)).to.eql([]);
     expect(await connectionManager.isInbox(enrolledInbox.address)).to.be.false;
+  });
+
+  it('Owner can enroll multiple inboxes per domain', async () => {
+    const newRemoteDomain = 3000;
+    const inboxFactory = new TestInbox__factory(signer);
+    const newInbox1 = await inboxFactory.deploy(localDomain);
+    const newInbox2 = await inboxFactory.deploy(localDomain);
+
+    // Assert new inbox not considered inbox before enrolled
+    expect(await connectionManager.isInbox(newInbox1.address)).to.be.false;
+    expect(await connectionManager.isInbox(newInbox2.address)).to.be.false;
+
+    await expect(
+      connectionManager.enrollInbox(newRemoteDomain, newInbox1.address),
+    ).to.emit(connectionManager, 'InboxEnrolled');
+    await expect(
+      connectionManager.enrollInbox(newRemoteDomain, newInbox2.address),
+    ).to.emit(connectionManager, 'InboxEnrolled');
+
+    expect(await connectionManager.inboxToDomain(newInbox1.address)).to.equal(
+      newRemoteDomain,
+    );
+    expect(await connectionManager.inboxToDomain(newInbox2.address)).to.equal(
+      newRemoteDomain,
+    );
+
+    expect(await connectionManager.isInbox(newInbox1.address)).to.be.true;
+    expect(await connectionManager.isInbox(newInbox2.address)).to.be.true;
+
+    expect(await connectionManager.domainInboxes(newRemoteDomain)).to.eql([
+      newInbox1.address,
+      newInbox2.address,
+    ]);
   });
 });
