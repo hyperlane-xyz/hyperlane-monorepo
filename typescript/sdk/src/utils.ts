@@ -1,5 +1,6 @@
 import { arrayify, BytesLike, hexlify } from '@ethersproject/bytes';
 import { ethers } from 'ethers';
+import { ChainName, ChainSubsetMap, Remotes } from './types';
 
 export type Address = string;
 
@@ -53,7 +54,36 @@ export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export class MultiGeneric<Networks extends ChainName, Value> {
+  constructor(protected domainMap: ChainSubsetMap<Networks, Value>) {}
+
+  protected get = (network: Networks) => this.domainMap[network];
+
+  networks = () => Object.keys(this.domainMap) as Networks[];
+
+  remotes = <Name extends Networks>(name: Name) =>
+    this.networks().filter((key) => key !== name) as Remotes<Networks, Name>[];
+
+  extendWithDomain = <New extends Remotes<ChainName, Networks>>(
+    network: New,
+    value: Value,
+  ) =>
+    new MultiGeneric<New & Networks, Value>({
+      ...this.domainMap,
+      [network]: value,
+    });
+
+  knownDomain = (network: Networks) => network in this.domainMap;
+}
+
+export function inferChainSubsetMap<M>(map: M) {
+  return map as M extends ChainSubsetMap<infer Networks, infer Value>
+    ? Record<Networks, Value>
+    : never;
+}
+
 export const utils = {
+  inferChainSubsetMap,
   canonizeId,
   evmId,
   delay,

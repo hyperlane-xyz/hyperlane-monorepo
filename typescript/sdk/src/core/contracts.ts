@@ -2,89 +2,60 @@ import {
   Inbox,
   InboxValidatorManager,
   InboxValidatorManager__factory,
-  Inbox__factory,
-  InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
-  Outbox,
-  OutboxValidatorManager,
   OutboxValidatorManager__factory,
   Outbox__factory,
-  UpgradeBeaconController,
-  UpgradeBeaconController__factory,
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
-import { AbacusAppContracts } from '../contracts';
-import {
-  ChainName,
-  ProxiedAddress,
-  RemoteChainSubsetMap,
-  Remotes,
-} from '../types';
+import { AbacusRouterContracts } from '../contracts';
+import { ChainName, ProxiedAddress, Remotes } from '../types';
 
-export type Mailbox = ProxiedAddress & { validatorManager: types.Address };
-
-export type CoreContractAddresses<
-  Networks extends ChainName,
-  Local extends Networks,
-> = {
-  upgradeBeaconController: types.Address;
-  xAppConnectionManager: types.Address;
+export type CoreContractAddresses<N extends ChainName, L extends N> = {
   interchainGasPaymaster: types.Address;
-  outbox: Mailbox;
-  inboxes: RemoteChainSubsetMap<Networks, Local, Mailbox>;
+  outbox: ProxiedAddress;
+  outboxValidatorManager: types.Address;
+} & {
+  [key in Remotes<N, L> as `${key}Inbox`]: ProxiedAddress;
+} & {
+  [key in Remotes<N, L> as `${key}InboxValidatorManager`]: types.Address;
 };
 
 export class CoreContracts<
   N extends ChainName,
   L extends N,
-> extends AbacusAppContracts<CoreContractAddresses<N, L>> {
+> extends AbacusRouterContracts<CoreContractAddresses<N, L>> {
+  get factories() {
+    const inboxKeys = Object.keys(this.addresses).filter(
+      (key) => key.includes('Inbox') && !key.includes('ValidatorManager'),
+    );
+    const inboxEntries = inboxKeys.map((key) => [
+      key,
+      InboxValidatorManager__factory.connect,
+    ]);
+    const validatorManagerKeys = inboxKeys.filter((key) =>
+      key.includes('ValidatorManager'),
+    );
+    const validatorManagerEntries = validatorManagerKeys.map((key) => [
+      key,
+      InboxValidatorManager__factory.connect,
+    ]);
+
+    return {
+      interchainGasPaymaster: InterchainGasPaymaster__factory.connect,
+      outbox: Outbox__factory.connect,
+      outboxValidatorManager: OutboxValidatorManager__factory.connect,
+      ...Object.fromEntries(inboxEntries),
+      ...Object.fromEntries(validatorManagerEntries),
+    };
+  }
+
   inbox(chain: Remotes<N, L>): Inbox {
-    const inbox = this.addresses.inboxes[chain];
-    return Inbox__factory.connect(inbox.proxy, this.connection);
+    return this.contracts[`${chain}Inbox`] as Inbox;
   }
 
   inboxValidatorManager(chain: Remotes<N, L>): InboxValidatorManager {
-    const inbox = this.addresses.inboxes[chain];
-    return InboxValidatorManager__factory.connect(
-      inbox.validatorManager,
-      this.connection,
-    );
-  }
-
-  get outbox(): Outbox {
-    return Outbox__factory.connect(
-      this.addresses.outbox.proxy,
-      this.connection,
-    );
-  }
-
-  get outboxValidatorManager(): OutboxValidatorManager {
-    return OutboxValidatorManager__factory.connect(
-      this.addresses.outbox.validatorManager,
-      this.connection,
-    );
-  }
-
-  get upgradeBeaconController(): UpgradeBeaconController {
-    return UpgradeBeaconController__factory.connect(
-      this.addresses.upgradeBeaconController,
-      this.connection,
-    );
-  }
-
-  get xAppConnectionManager(): XAppConnectionManager {
-    return XAppConnectionManager__factory.connect(
-      this.addresses.xAppConnectionManager,
-      this.connection,
-    );
-  }
-
-  get interchainGasPaymaster(): InterchainGasPaymaster {
-    return InterchainGasPaymaster__factory.connect(
-      this.addresses.interchainGasPaymaster,
-      this.connection,
-    );
+    return this.contracts[
+      `${chain}InboxValidatorManager`
+    ] as InboxValidatorManager;
   }
 }

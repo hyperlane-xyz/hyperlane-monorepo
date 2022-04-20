@@ -10,9 +10,8 @@ export type Governor = {
 };
 
 export class AbacusGovernance extends AbacusApp<
-  GovernanceDeployedNetworks, // TODO: narrow
-  GovernanceContractAddresses,
-  GovernanceContracts
+  GovernanceDeployedNetworks,
+  GovernanceContractAddresses
 > {
   readonly calls: Map<number, Readonly<Call>[]> = new Map();
 

@@ -27,27 +27,29 @@ export enum Chains {
   polygon,
 }
 export type ChainName = keyof typeof Chains;
-export type ChainMap<V> = Record<ChainName, V>;
-export type ChainSubsetMap<K extends ChainName, V> = Record<K, V>;
+export type ChainMap<Value> = Record<ChainName, Value>;
+export type ChainSubsetMap<Networks extends ChainName, Value> = Record<
+  Networks,
+  Value
+>;
 export type Remotes<
   Networks extends ChainName,
   Local extends Networks,
 > = Exclude<Networks, Local>;
 export type RemoteChainSubsetMap<
-  N extends ChainName,
-  L extends N,
-  V,
-> = ChainSubsetMap<Remotes<N, L>, V>;
+  Networks extends ChainName,
+  Local extends Networks,
+  Value,
+> = Record<Remotes<Networks, Local>, Value>;
 
 /**
  * A Domain (and its characteristics)
  */
-export interface Domain {
-  name: ChainName;
+export type Domain = {
   id: number;
   nativeTokenDecimals?: number;
   paginate?: Pagination;
-}
+};
 
 export type Connection = ethers.providers.Provider | ethers.Signer;
 
@@ -56,5 +58,3 @@ export type ProxiedAddress = {
   implementation: types.Address;
   beacon: types.Address;
 };
-
-export type NameOrDomain = ChainName | number;

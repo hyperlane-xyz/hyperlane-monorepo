@@ -1,24 +1,59 @@
-import { Connection } from './types';
+import { Router__factory } from '@abacus-network/apps';
+import {
+  UpgradeBeaconController__factory,
+  XAppConnectionManager__factory,
+} from '@abacus-network/core';
+import { types } from '@abacus-network/utils';
+import { Contract } from 'ethers';
+import { Connection, ProxiedAddress } from './types';
 
-/**
- * Abstract class for managing collections of contracts
- */
-export class AbacusAppContracts<T> {
-  public readonly addresses: T;
-  private _connection?: Connection;
+type Addr = ProxiedAddress | types.Address;
 
-  constructor(addresses: T) {
-    this.addresses = addresses;
+type AbacusContractAddresses = {
+  [key: string]: Addr;
+};
+
+type AbacusContractFactory<C extends Contract> = (
+  address: types.Address,
+  connection: Connection,
+) => C;
+
+abstract class AbacusAppContracts<A extends AbacusContractAddresses> {
+  abstract get _factories(): {
+    [key in keyof A]: AbacusContractFactory<any>; // TODO: infer contract type
+  };
+  contracts: { [key in keyof A]: Contract };
+  constructor(public readonly addresses: A, connection: Connection) {
+    const contractEntries = Object.entries(addresses).map(([key, addr]) => {
+      const factory = this._factories[key];
+      const contractAddress = typeof addr === 'string' ? addr : addr.proxy;
+      return [key, factory(contractAddress, connection)];
+    });
+    this.contracts = Object.fromEntries(contractEntries);
   }
+}
 
-  connect(connection: Connection) {
-    this._connection = connection;
-  }
+export type AbacusRouterAddresses = {
+  router: Addr;
+  xappConnectionManager: Addr;
+  upgradeBeaconController: Addr;
+};
 
-  get connection(): Connection {
-    if (!this._connection) {
-      throw new Error('No provider or signer. Call `connect` first.');
-    }
-    return this._connection;
+export abstract class AbacusRouterContracts<
+  A extends AbacusContractAddresses,
+> extends AbacusAppContracts<A & AbacusRouterAddresses> {
+  abstract get factories(): {
+    [key in keyof Omit<
+      A,
+      keyof AbacusRouterAddresses
+    >]: AbacusContractFactory<any>;
+  };
+  get _factories() {
+    return {
+      router: Router__factory.connect,
+      xappConnectionManager: XAppConnectionManager__factory.connect,
+      upgradeBeaconController: UpgradeBeaconController__factory.connect,
+      ...this.factories,
+    } as any;
   }
 }
