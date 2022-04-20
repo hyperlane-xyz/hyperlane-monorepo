@@ -71,7 +71,9 @@ impl ProveCommand {
         let (message, proof) = self.fetch_proof(db)?;
         let inbox = self.inbox(message.origin, message.destination).await?;
 
-        let status = inbox.message_status(message.to_leaf()).await?;
+        let status = inbox
+            .message_status(message.to_leaf(self.leaf_index.unwrap()))
+            .await?;
         let outcome = match status {
             MessageStatus::None => inbox.process(&message, &proof).await?,
             _ => {

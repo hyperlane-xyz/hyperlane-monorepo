@@ -116,7 +116,7 @@ contract Inbox is IInbox, Version0, Common {
         require(entered == 1, "!reentrant");
         entered = 0;
 
-        bytes32 _messageHash = keccak256(_message);
+        bytes32 _messageHash = keccak256(abi.encodePacked(_message, _index));
         // ensure that message has not been processed
         require(
             messages[_messageHash] == MessageStatus.None,

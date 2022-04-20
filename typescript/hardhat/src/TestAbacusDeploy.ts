@@ -176,13 +176,16 @@ export class TestAbacusDeploy extends TestDeploy<
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
-      const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
+      const destination = dispatch.args.destination;
       if (destination === origin)
         throw new Error("Dispatched message to local domain");
       const inbox = this.inbox(origin, destination);
       const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
-        const response = await inbox.testProcess(dispatch.args.message);
+        const response = await inbox.testProcess(
+          dispatch.args.message,
+          dispatch.args.leafIndex.toNumber()
+        );
         let destinationResponses = responses.get(destination) || [];
         destinationResponses.push(response);
         responses.set(destination, destinationResponses);
