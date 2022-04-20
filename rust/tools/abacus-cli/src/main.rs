@@ -14,6 +14,5 @@ async fn main() -> Result<()> {
 
     match command {
         Commands::Prove(prove) => prove.run().await,
-        Commands::DbState(db_state) => db_state.run().await,
     }
 }
