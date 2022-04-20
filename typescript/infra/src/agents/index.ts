@@ -5,7 +5,7 @@ import { AgentConfig } from '../config';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
-import { fetchAgentGCPKeys } from './gcp';
+import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
 import { AgentAwsKey } from './aws';
 
 export enum KEY_ROLE_ENUM {
@@ -229,14 +229,15 @@ export async function getSecretAwsCredentials(agentConfig: AgentConfig) {
 
 export async function getSecretRpcEndpoint(
   environment: string,
-  network: string,
+  chainName: ChainName,
 ) {
-  return fetchGCPSecret(`${environment}-rpc-endpoint-${network}`, false);
+  return fetchGCPSecret(`${environment}-rpc-endpoint-${chainName}`, false);
 }
 
-export async function getSecretDeployerKey(deployerKeySecretName: string) {
-  const keyObject = await fetchGCPSecret(deployerKeySecretName, true);
-  return keyObject.privateKey;
+export async function getSecretDeployerKey(environment: string, chainName: string) {
+  const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chainName);
+  await key.fetch();
+  return key.privateKey;
 }
 
 async function getSecretRpcEndpoints(
