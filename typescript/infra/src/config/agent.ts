@@ -32,6 +32,13 @@ export type CheckpointSyncerConfig =
   | LocalCheckpointSyncerConfig
   | S3CheckpointSyncerConfig;
 
+interface MultisigCheckpointSyncerConfig {
+  threshold: number;
+  checkpointSyncers: {
+    [validatorAddress: string]: CheckpointSyncerConfig;
+  };
+}
+
 interface BaseRelayerConfig {
   // The minimum latency in seconds between two relayed checkpoints on the inbox
   submissionLatency: number;
@@ -85,14 +92,14 @@ interface BaseValidatorConfig {
 
 type BaseValidatorsConfig = OverridableAgentConfig<BaseValidatorConfig>;
 
-interface BaseCheckpointerConfig {
+interface CheckpointerConfig {
   // Polling interval (in seconds)
   pollingInterval: number;
   // Minimum time between created checkpoints (in seconds)
   creationLatency: number;
 }
 
-type BaseCheckpointersConfig = OverridableAgentConfig<BaseCheckpointerConfig>;
+type CheckpointersConfig = OverridableAgentConfig<CheckpointerConfig>;
 
 export interface DockerConfig {
   repo: string;
@@ -106,9 +113,9 @@ export interface AgentConfig {
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
-  validator?: BaseValidatorsConfig;
-  relayer?: BaseRelayersConfig;
-  checkpointer?: BaseCheckpointersConfig;
+  validator: BaseValidatorsConfig;
+  relayer: BaseRelayersConfig;
+  checkpointer: CheckpointersConfig;
   validatorSets: ValidatorSets;
 }
 
@@ -150,3 +157,70 @@ export type RustConfig = {
   };
   db: string;
 };
+
+interface RelayerConfig extends BaseRelayerConfig {
+  multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
+}
+
+interface ValidatorConfig extends BaseValidatorConfig {
+  checkpointSyncer: CheckpointSyncerConfig;
+}
+
+export class ChainAgentConfig {
+  constructor(
+    public readonly agentConfig: AgentConfig,
+    public readonly chainName: ChainName,
+  ) {}
+
+  get validatorSet(): ValidatorSet {
+    const validatorSet = this.agentConfig.validatorSets[this.chainName];
+    if (!validatorSet) {
+      throw Error(`No validator set for chain ${this.chainName}`);
+    }
+    return validatorSet;
+  }
+
+  get validatorConfigs(): Array<ValidatorConfig> {
+    if (!this.agentConfig.validator) {
+      throw Error('No relayer config');
+    }
+    const baseConfig = getConfig(this.agentConfig.validator, this.chainName);
+
+    const validatorSet = this.agentConfig.validatorSets[this.chainName];
+    if (!validatorSet) {
+      throw Error(`No validator set for chain ${this.chainName}`);
+    }
+    return validatorSet.validators.map((val) => ({
+      ...baseConfig,
+      checkpointSyncer: val.checkpointSyncer,
+    }));
+  }
+
+  get relayerConfig(): RelayerConfig {
+    const baseConfig = getConfig(this.agentConfig.relayer, this.chainName);
+
+    const validatorSet = this.agentConfig.validatorSets[this.chainName];
+    if (!validatorSet) {
+      throw Error(`No validator set for chain ${this.chainName}`);
+    }
+    const checkpointSyncers = validatorSet.validators.reduce(
+      (agg, val) => ({
+        ...agg,
+        [val.address]: val.checkpointSyncer,
+      }),
+      {},
+    );
+
+    return {
+      ...baseConfig,
+      multisigCheckpointSyncer: {
+        threshold: validatorSet.threshold,
+        checkpointSyncers,
+      },
+    };
+  }
+
+  get checkpointerConfig(): CheckpointerConfig {
+    return getConfig(this.agentConfig.checkpointer, this.chainName);
+  }
+}

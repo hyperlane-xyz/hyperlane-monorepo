@@ -7,7 +7,7 @@ import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
 import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
 import { AgentAwsKey } from './aws';
-import { getConfig } from '../config/agent';
+import { ChainAgentConfig } from '../config/agent';
 
 export enum KEY_ROLE_ENUM {
   Validator = 'validator',
@@ -40,6 +40,8 @@ async function helmValuesForChain(
     return undefined;
   };
 
+  const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
+
   return {
     image: {
       repository: agentConfig.docker.repo,
@@ -64,7 +66,7 @@ async function helmValuesForChain(
         signer: {
           ...credentials(KEY_ROLE_ENUM.Validator),
         },
-        configs: getValidatorConfigs(agentConfig, chainName),
+        configs: chainAgentConfig.validatorConfigs,
       },
       relayer: {
         enabled: true,
@@ -72,7 +74,7 @@ async function helmValuesForChain(
           name,
           ...credentials(KEY_ROLE_ENUM.Relayer),
         })),
-        config: getRelayerConfig(agentConfig, chainName),
+        config: chainAgentConfig.relayerConfig,
       },
       checkpointer: {
         enabled: true,
@@ -80,51 +82,9 @@ async function helmValuesForChain(
           name,
           ...credentials(KEY_ROLE_ENUM.Checkpointer),
         })),
-        config: getConfig(agentConfig.checkpointer!, chainName),
+        config: chainAgentConfig.checkpointerConfig,
       },
     },
-  };
-}
-
-function getValidatorConfigs(agentConfig: AgentConfig, chainName: ChainName) {
-  if (!agentConfig.validator) {
-    throw Error('No relayer config');
-  }
-  const baseConfig = getConfig(agentConfig.validator, chainName);
-
-  const validatorSet = agentConfig.validatorSets[chainName];
-  if (!validatorSet) {
-    throw Error(`No validator set for chain ${chainName}`);
-  }
-  return validatorSet.validators.map((val) => ({
-    ...baseConfig,
-    checkpointSyncer: val.checkpointSyncer,
-  }));
-}
-
-function getRelayerConfig(agentConfig: AgentConfig, chainName: ChainName) {
-  if (!agentConfig.relayer) {
-    throw Error('No relayer config');
-  }
-  const baseConfig = getConfig(agentConfig.relayer, chainName);
-
-  const validatorSet = agentConfig.validatorSets[chainName];
-  if (!validatorSet) {
-    throw Error(`No validator set for chain ${chainName}`);
-  }
-  const multisigCheckpointSyncer = validatorSet.validators.reduce(
-    (agg, val) => ({
-      ...agg,
-      [val.address]: val.checkpointSyncer,
-    }),
-    {
-      threshold: validatorSet.threshold,
-    },
-  );
-
-  return {
-    ...baseConfig,
-    multisigCheckpointSyncer,
   };
 }
 
