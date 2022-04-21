@@ -38,7 +38,7 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
       [abacusConnectionManager.address],
     );
 
-    // Only transfer ownership if a new XCM was deployed.
+    // Only transfer ownership if a new ACM was deployed.
     if (abacusConnectionManager.deployTransaction) {
       await abacusConnectionManager.transferOwnership(
         router.address,
