@@ -92,11 +92,7 @@ contract Inbox is IInbox, Version0, Common {
         onlyValidatorManager
     {
         // Ensure that the checkpoint is more recent than the latest we've seen.
-        // We skip this check if a root hasn't been checkpointed already.
-        require(
-            _index > checkpoints[checkpointedRoot] || checkpointedRoot == 0x0,
-            "old checkpoint"
-        );
+        require(_index > checkpoints[checkpointedRoot], "old checkpoint");
         _checkpoint(_root, _index);
     }
 
