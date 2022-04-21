@@ -1,4 +1,4 @@
-export { AbacusGovernance } from './app';
-export { GovernanceContractAddresses, GovernanceContracts } from './contracts';
-export { addresses, GovernanceDeployedNetworks } from './environments';
+export { GovernanceApp } from './app';
+export { GovernanceContracts } from './contracts';
+export { addresses } from './environments';
 export { Call } from './utils';

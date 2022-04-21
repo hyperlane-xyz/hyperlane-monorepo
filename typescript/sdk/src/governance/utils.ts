@@ -1,5 +1,5 @@
-import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
+import { ethers } from 'ethers';
 import { canonizeId } from '../utils';
 
 export interface Call {
@@ -29,18 +29,6 @@ export function serializeCall(call: Call): string {
     ['bytes32', 'uint32', 'bytes'],
     [to, dataLen, data],
   );
-}
-
-export function associateCalls(
-  _calls: Map<number, Call[]>,
-): [number[], Call[][]] {
-  const domains = [];
-  const calls = [];
-  for (const [key, value] of _calls) {
-    domains.push(key);
-    calls.push(value);
-  }
-  return [domains, calls];
 }
 
 export function normalizeCall(partial: Partial<Call>): Readonly<Call> {

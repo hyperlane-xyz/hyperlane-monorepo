@@ -1,24 +1,21 @@
 import { ethers } from 'ethers';
-import { AbacusRouterAddresses, AbacusRouterContracts } from './contracts';
-import { MultiProvider } from './provider';
+import { AbacusContracts } from './contracts';
 import { ChainName } from './types';
+import { MultiGeneric } from './utils';
 
 export class AbacusApp<
-  Networks extends ChainName,
-  Addresses extends AbacusRouterAddresses,
-  Contracts extends AbacusRouterContracts<Addresses>,
-> extends MultiProvider<Networks, { contracts: Contracts }> {
-  getContracts(network: Networks) {
+  N extends ChainName,
+  C extends AbacusContracts<any, any>,
+> extends MultiGeneric<N, C> {
+  getContracts(network: N) {
     return this.get(network).contracts;
   }
 
-  registerProvider(network: Networks, provider: ethers.providers.Provider) {
-    this.get(network).provider.registerProvider(provider);
-    this.getContracts(network).reconnect(provider);
+  registerProvider(network: N, provider: ethers.providers.Provider) {
+    this.get(network).reconnect(provider);
   }
 
-  registerSigner(network: Networks, signer: ethers.Signer) {
-    this.get(network).provider.registerSigner(signer);
-    this.getContracts(network).reconnect(signer);
+  registerSigner(network: N, signer: ethers.Signer) {
+    this.get(network).reconnect(signer);
   }
 }

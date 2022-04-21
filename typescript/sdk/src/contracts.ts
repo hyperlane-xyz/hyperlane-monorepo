@@ -1,58 +1,59 @@
 import { Router__factory } from '@abacus-network/apps';
-import {
-  UpgradeBeaconController__factory,
-  XAppConnectionManager__factory,
-} from '@abacus-network/core';
+import { XAppConnectionManager__factory } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 import { Contract } from 'ethers';
 import { Connection, ProxiedAddress } from './types';
 
 type Addr = ProxiedAddress | types.Address;
 
-type AbacusContractAddresses = {
-  [key: string]: Addr;
+// Deploy/Hardhat should generate this upon deploy as JSON
+export type AbacusContractAddresses = {
+  [key in string]: Addr;
 };
 
-type AbacusContractFactory = (
-  address: types.Address,
-  connection: Connection,
-) => Contract;
+type FactoryFunction<C> = (address: types.Address, connection: Connection) => C;
+export type Factories<A extends AbacusContractAddresses> = Record<
+  keyof A,
+  FactoryFunction<Contract>
+>;
 
-abstract class AbacusAppContracts<A extends AbacusContractAddresses> {
-  abstract get _factories(): Record<keyof A, AbacusContractFactory>;
-  contracts: Record<keyof A, Contract>; // TODO; infer Contract type from key
-  constructor(public readonly addresses: A, connection: Connection) {
+export abstract class AbacusContracts<
+  A extends AbacusContractAddresses,
+  F extends Factories<A>,
+> {
+  abstract factories: F;
+  // complexity here allows for subclasses to have strong typing on `this.contracts` inferred
+  // from the return types of the factory functions provided to the constructor
+  contracts: {
+    [key in keyof A]: F[key] extends FactoryFunction<infer C> ? C : never;
+  };
+  constructor(addresses: A, connection: Connection) {
     const contractEntries = Object.entries(addresses).map(([key, addr]) => {
-      const factory = this._factories[key];
       const contractAddress = typeof addr === 'string' ? addr : addr.proxy;
-      return [key, factory(contractAddress, connection)];
+      return [key, this.factories[key](contractAddress, connection)];
     });
     this.contracts = Object.fromEntries(contractEntries);
   }
+
   reconnect(connection: Connection) {
-    Object.values(this.contracts).forEach((contract) =>
+    Object.values(this.contracts).forEach((contract: Contract) =>
       contract.connect(connection),
     );
   }
-}
 
-export type AbacusRouterAddresses = {
-  router: Addr;
-  xappConnectionManager: Addr;
-  upgradeBeaconController: Addr;
-};
-
-export abstract class AbacusRouterContracts<
-  A extends AbacusRouterAddresses,
-  O = Omit<A, keyof AbacusRouterAddresses>,
-> extends AbacusAppContracts<A> {
-  abstract get factories(): Record<keyof O, AbacusContractFactory>;
-  get _factories() {
-    return {
-      router: Router__factory.connect,
-      xappConnectionManager: XAppConnectionManager__factory.connect,
-      upgradeBeaconController: UpgradeBeaconController__factory.connect,
-      ...this.factories,
-    } as any; // TODO: remove any
+  async onlySigner(actual: types.Address, expected: types.Address) {
+    if (actual !== expected) {
+      throw new Error(`Signer ${actual} must be ${expected} for this method`);
+    }
   }
 }
+
+export type RouterAddresses = {
+  xAppConnectionManager: Addr;
+  router: Addr;
+};
+
+export const routerFactories = {
+  router: Router__factory.connect,
+  xAppConnectionManager: XAppConnectionManager__factory.connect,
+};

@@ -1,5 +1,11 @@
 export { AbacusApp } from './app';
-export { AbacusAppContracts } from './contracts';
+export {
+  AbacusContractAddresses,
+  AbacusContracts,
+  Factories,
+  RouterAddresses,
+  routerFactories,
+} from './contracts';
 export {
   AbacusCore,
   AbacusLifecyleEvent,
@@ -29,11 +35,10 @@ export {
   TokenPriceGetter,
 } from './gas';
 export {
-  AbacusGovernance,
   addresses as governanceAddresses,
   Call,
-  GovernanceContractAddresses,
-  GovernanceDeployedNetworks,
+  GovernanceApp,
+  GovernanceContracts,
 } from './governance';
 export { MultiProvider } from './provider';
 export {
@@ -42,7 +47,6 @@ export {
   Chains,
   ChainSubsetMap,
   Connection,
-  NameOrDomain,
   ProxiedAddress,
 } from './types';
 export { utils } from './utils';

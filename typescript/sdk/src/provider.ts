@@ -3,14 +3,10 @@ import { ChainName, ChainSubsetMap } from './types';
 import { MultiGeneric } from './utils';
 
 export class DomainProvider {
-  protected provider?: ethers.providers.Provider;
-  protected signer?: ethers.Signer;
+  provider?: ethers.providers.Provider;
+  signer?: ethers.Signer;
 
-  constructor(
-    protected rpc?: string,
-    protected overrides: ethers.Overrides = {},
-    protected confirmations: number = 0,
-  ) {
+  constructor(rpc?: string) {
     if (rpc) {
       this.registerRpcURL(rpc);
     }
@@ -33,21 +29,22 @@ export class DomainProvider {
   getAddress = () => this.signer?.getAddress();
 }
 
-export class MultiProvider<
-  Networks extends ChainName,
-  Value,
-> extends MultiGeneric<Networks, Value & { provider: DomainProvider }> {
-  constructor(domainMap: ChainSubsetMap<Networks, Value & { rpc: string }>) {
-    const providerEntries = Object.entries<Value & { rpc: string }>(
-      domainMap,
-    ).map(([network, v]) => [
-      network,
-      { ...v, provider: new DomainProvider(v.rpc) },
-    ]);
-    const providers: ChainSubsetMap<
+export class MultiProvider<Networks extends ChainName> extends MultiGeneric<
+  Networks,
+  DomainProvider
+> {
+  constructor(
+    domainMap: ChainSubsetMap<
       Networks,
-      Value & { provider: DomainProvider }
-    > = Object.fromEntries(providerEntries);
-    super(providers);
+      ConstructorParameters<typeof DomainProvider>[0]
+    >,
+  ) {
+    const providerEntries = Object.entries<
+      ConstructorParameters<typeof DomainProvider>[0]
+    >(domainMap).map(([network, v]) => [network, new DomainProvider(v)]);
+    super(Object.fromEntries(providerEntries));
+  }
+  getProvider(network: Networks) {
+    return this.get(network);
   }
 }

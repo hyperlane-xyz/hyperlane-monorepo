@@ -55,9 +55,12 @@ export function delay(ms: number): Promise<void> {
 }
 
 export class MultiGeneric<Networks extends ChainName, Value> {
-  constructor(protected domainMap: ChainSubsetMap<Networks, Value>) {}
+  constructor(protected readonly domainMap: ChainSubsetMap<Networks, Value>) {}
 
   protected get = (network: Networks) => this.domainMap[network];
+
+  protected entries = () =>
+    Object.entries(this.domainMap) as Array<[Networks, Value]>;
 
   networks = () => Object.keys(this.domainMap) as Networks[];
 
@@ -96,6 +99,10 @@ export function objMap<N extends ChainName, I, O>(
   return Object.fromEntries(
     objMapEntries<N, I, O>(obj, func),
   ) as ChainSubsetMap<N, O>;
+}
+
+export interface IConstructor<T> {
+  new (...args: any[]): T;
 }
 
 type PromiseValues<TO> = {
