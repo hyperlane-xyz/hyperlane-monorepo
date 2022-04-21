@@ -1,15 +1,28 @@
 import { types } from '@abacus-network/utils';
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
 import { DeployEnvironment } from './environment';
 
-interface IndexingConfig {
-  from: number;
-  chunk: number;
+// Allows a "default" config to be specified and any per-network overrides.
+interface ChainOverridableConfig<Networks extends ChainName, T> {
+  default: T;
+  chainOverrides?: Partial<ChainSubsetMap<Networks, T>>;
 }
 
-interface AwsConfig {
-  region: string;
+// Returns the default config with any overriden values specified for the provided chain.
+export function getChainOverriddenConfig<Networks extends ChainName, T>(
+  overridableConfig: ChainOverridableConfig<Networks, T>,
+  chain: Networks,
+): T {
+  return {
+    ...overridableConfig.default,
+    ...overridableConfig.chainOverrides?.[chain],
+  };
 }
+
+
+// =====================================
+// =====     Checkpoint Syncer     =====
+// =====================================
 
 // These values are eventually passed to Rust, which expects the values to be camelCase
 export enum CheckpointSyncerType {
@@ -39,6 +52,31 @@ interface MultisigCheckpointSyncerConfig {
   };
 }
 
+// =================================
+// =====     Validator Set     =====
+// =================================
+
+// A validator set for a single chain
+interface ValidatorSet {
+  threshold: number;
+  validators: Array<Validator>;
+}
+
+// A validator. This isn't agent-specific configuration, just information
+// on the validator that is enrolled in a validator set.
+interface Validator {
+  address: string;
+  checkpointSyncer: CheckpointSyncerConfig;
+}
+
+// Validator sets for each network
+export type ChainValidatorSets<Networks extends ChainName> = ChainSubsetMap<Networks, ValidatorSet>;
+
+// =================================
+// =====     Relayer Agent     =====
+// =================================
+
+// Incomplete basic relayer agent config
 interface BaseRelayerConfig {
   // The minimum latency in seconds between two relayed checkpoints on the inbox
   submissionLatency: number;
@@ -50,39 +88,19 @@ interface BaseRelayerConfig {
   relayerMessageProcessing?: boolean;
 }
 
-interface OverridableAgentConfig<T> {
-  default: T;
-  chainOverrides?: ChainConfig<T>;
+// Per-chain relayer agent configs
+type ChainRelayerConfigs<Networks extends ChainName> = ChainOverridableConfig<Networks, BaseRelayerConfig>;
+
+// Full relayer agent config for a single chain
+interface RelayerConfig extends BaseRelayerConfig {
+  multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
 }
 
-export function getConfig<T>(
-  overridableConfig: OverridableAgentConfig<T>,
-  chain: ChainName,
-) {
-  return {
-    ...overridableConfig.default,
-    ...overridableConfig.chainOverrides?.[chain],
-  };
-}
+// ===================================
+// =====     Validator Agent     =====
+// ===================================
 
-interface ValidatorSet {
-  threshold: number;
-  validators: Array<Validator>;
-}
-
-interface Validator {
-  address: string;
-  checkpointSyncer: CheckpointSyncerConfig;
-}
-
-type ChainConfig<T> = {
-  [chain in ChainName]?: T;
-};
-
-export type ValidatorSets = ChainConfig<ValidatorSet>;
-
-type BaseRelayersConfig = OverridableAgentConfig<BaseRelayerConfig>;
-
+// Incomplete basic validator agent config
 interface BaseValidatorConfig {
   // How frequently to check for new checkpoints
   interval: number;
@@ -90,8 +108,19 @@ interface BaseValidatorConfig {
   reorgPeriod: number;
 }
 
-type BaseValidatorsConfig = OverridableAgentConfig<BaseValidatorConfig>;
+// Per-chain validator agent configs
+type ChainValidatorConfigs<Networks extends ChainName> = ChainOverridableConfig<Networks, BaseValidatorConfig>;
 
+// Full validator agent config for a single chain
+interface ValidatorConfig extends BaseValidatorConfig {
+  checkpointSyncer: CheckpointSyncerConfig;
+}
+
+// ======================================
+// =====     Checkpointer Agent     =====
+// ======================================
+
+// Full checkpointer agent config for a single chain
 interface CheckpointerConfig {
   // Polling interval (in seconds)
   pollingInterval: number;
@@ -99,24 +128,34 @@ interface CheckpointerConfig {
   creationLatency: number;
 }
 
-type CheckpointersConfig = OverridableAgentConfig<CheckpointerConfig>;
+// Per-chain checkpointer agent configs
+type CheckpointersConfig<Networks extends ChainName> = ChainOverridableConfig<Networks, CheckpointerConfig>;
+
+interface IndexingConfig {
+  from: number;
+  chunk: number;
+}
+
+interface AwsConfig {
+  region: string;
+}
 
 export interface DockerConfig {
   repo: string;
   tag: string;
 }
 
-export interface AgentConfig {
+export interface AgentConfig<Networks extends ChainName> {
   environment: DeployEnvironment;
   namespace: string;
   runEnv: string;
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
-  validator: BaseValidatorsConfig;
-  relayer: BaseRelayersConfig;
-  checkpointer: CheckpointersConfig;
-  validatorSets: ValidatorSets;
+  validator: ChainValidatorConfigs<Networks>;
+  relayer: ChainRelayerConfigs<Networks>;
+  checkpointer: CheckpointersConfig<Networks>;
+  validatorSets: ChainValidatorSets<Networks>;
 }
 
 export type RustSigner = {
@@ -158,52 +197,33 @@ export type RustConfig = {
   db: string;
 };
 
-interface RelayerConfig extends BaseRelayerConfig {
-  multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
-}
-
-interface ValidatorConfig extends BaseValidatorConfig {
-  checkpointSyncer: CheckpointSyncerConfig;
-}
-
-export class ChainAgentConfig {
+// Helper to get chain-specific agent configurations
+export class ChainAgentConfig<Networks extends ChainName> {
   constructor(
-    public readonly agentConfig: AgentConfig,
-    public readonly chainName: ChainName,
+    public readonly agentConfig: AgentConfig<Networks>,
+    public readonly chainName: Networks,
   ) {}
 
   get validatorSet(): ValidatorSet {
-    const validatorSet = this.agentConfig.validatorSets[this.chainName];
-    if (!validatorSet) {
-      throw Error(`No validator set for chain ${this.chainName}`);
-    }
-    return validatorSet;
+    return this.agentConfig.validatorSets[this.chainName];
   }
 
   get validatorConfigs(): Array<ValidatorConfig> {
     if (!this.agentConfig.validator) {
       throw Error('No relayer config');
     }
-    const baseConfig = getConfig(this.agentConfig.validator, this.chainName);
+    const baseConfig = getChainOverriddenConfig(this.agentConfig.validator, this.chainName);
 
-    const validatorSet = this.agentConfig.validatorSets[this.chainName];
-    if (!validatorSet) {
-      throw Error(`No validator set for chain ${this.chainName}`);
-    }
-    return validatorSet.validators.map((val) => ({
+    return this.validatorSet.validators.map((val) => ({
       ...baseConfig,
       checkpointSyncer: val.checkpointSyncer,
     }));
   }
 
   get relayerConfig(): RelayerConfig {
-    const baseConfig = getConfig(this.agentConfig.relayer, this.chainName);
+    const baseConfig = getChainOverriddenConfig(this.agentConfig.relayer, this.chainName);
 
-    const validatorSet = this.agentConfig.validatorSets[this.chainName];
-    if (!validatorSet) {
-      throw Error(`No validator set for chain ${this.chainName}`);
-    }
-    const checkpointSyncers = validatorSet.validators.reduce(
+    const checkpointSyncers = this.validatorSet.validators.reduce(
       (agg, val) => ({
         ...agg,
         [val.address]: val.checkpointSyncer,
@@ -214,13 +234,13 @@ export class ChainAgentConfig {
     return {
       ...baseConfig,
       multisigCheckpointSyncer: {
-        threshold: validatorSet.threshold,
+        threshold: this.validatorSet.threshold,
         checkpointSyncers,
       },
     };
   }
 
   get checkpointerConfig(): CheckpointerConfig {
-    return getConfig(this.agentConfig.checkpointer, this.chainName);
+    return getChainOverriddenConfig(this.agentConfig.checkpointer, this.chainName);
   }
 }

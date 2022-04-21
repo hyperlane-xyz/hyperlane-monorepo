@@ -31,6 +31,11 @@ export {
   Connection,
   NameOrDomain,
   ProxiedAddress,
+  Chains,
+  ChainMap,
+  ChainSubsetMap,
+  Remotes,
+  RemoteChainSubsetMap,
 } from './types';
 export { AbacusAppContracts } from './contracts';
 export { AbacusApp } from './app';

@@ -1,8 +1,9 @@
 import { AgentConfig } from '../../../src/config';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
+import { DevNetworks } from './domains';
 import { validators } from './validators';
 
-export const agent: AgentConfig = {
+export const agent: AgentConfig<DevNetworks> = {
   environment: ENVIRONMENTS_ENUM.Dev,
   namespace: ENVIRONMENTS_ENUM.Dev,
   runEnv: ENVIRONMENTS_ENUM.Dev,

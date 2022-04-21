@@ -1,7 +1,8 @@
 import { ChainName } from '@abacus-network/sdk';
+import { DevNetworks } from './domains';
 import {
   CheckpointSyncerType,
-  CheckpointSyncerConfig,
+  ChainValidatorSets,
 } from '../../../src/config/agent';
 
 const localCheckpointSyncerPath = (
@@ -9,19 +10,7 @@ const localCheckpointSyncerPath = (
   validatorAddress: string,
 ) => `/local-checkpoint-syncers/${chainName}/${validatorAddress.toLowerCase()}`;
 
-interface ValidatorSet {
-  threshold: number;
-  validators: Array<Validator>;
-}
-
-interface Validator {
-  address: string;
-  checkpointSyncer: CheckpointSyncerConfig;
-}
-
-export const validators: {
-  [chain in ChainName]?: ValidatorSet;
-} = {
+export const validators: ChainValidatorSets<DevNetworks> = {
   alfajores: {
     threshold: 2,
     validators: [

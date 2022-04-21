@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getSecretAwsCredentials } from '../agents';
 import { AgentConfig } from '../../src/config/agent';
 import {
