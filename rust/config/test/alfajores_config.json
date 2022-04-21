@@ -1,18 +1,6 @@
 {
   "environment": "test",
   "signers": {},
-  "outbox": {
-    "addresses": {
-      "outbox": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
-    },
-    "domain": "1000",
-    "name": "alfajores",
-    "rpcStyle": "ethereum",
-    "connection": {
-      "type": "http",
-      "url": ""
-    }
-  },
   "inboxes": {
     "kovan": {
       "domain": "3000",
@@ -52,6 +40,18 @@
         "inbox": "0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43",
         "validatorManager": "0x4C4a2f8c81640e47606d3fd77B353E87Ba015584"
       }
+    }
+  },
+  "outbox": {
+    "addresses": {
+      "outbox": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+    },
+    "domain": "1000",
+    "name": "alfajores",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": ""
     }
   },
   "tracing": {

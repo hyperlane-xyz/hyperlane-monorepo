@@ -21,10 +21,6 @@ contract TestMessage {
         return _message.ref(0).sender();
     }
 
-    function nonce(bytes memory _message) external pure returns (uint32) {
-        return _message.ref(0).nonce();
-    }
-
     function destination(bytes memory _message) external pure returns (uint32) {
         return _message.ref(0).destination();
     }
@@ -41,7 +37,11 @@ contract TestMessage {
         return _message.ref(0).recipientAddress();
     }
 
-    function leaf(bytes memory _message) external view returns (bytes32) {
-        return _message.ref(0).leaf();
+    function leaf(bytes memory _message, uint256 _leafIndex)
+        external
+        view
+        returns (bytes32)
+    {
+        return _message.ref(0).leaf(_leafIndex);
     }
 }

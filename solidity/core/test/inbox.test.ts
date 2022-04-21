@@ -14,11 +14,12 @@ import {
   TestValidatorManager,
   TestValidatorManager__factory,
 } from '../types';
+import { MessageStatus } from '@abacus-network/utils/dist/src/types';
 
-const merkleTestCases = require('../../../vectors/merkle.json');
 const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json');
+const messageWithProof = require('../../../vectors/messageWithProof.json');
 
-const localDomain = 2000;
+const localDomain = 3000;
 const remoteDomain = 1000;
 
 describe('Inbox', async () => {
@@ -99,99 +100,45 @@ describe('Inbox', async () => {
     ).to.be.revertedWith('old checkpoint');
   });
 
-  it('Proves a valid message', async () => {
-    // Use 1st proof of 1st merkle vector test case
-    const testCase = merkleTestCases[0];
-    let { leaf, index, path } = testCase.proofs[0];
+  it('Processes a valid message', async () => {
+    let { index, proof, root, message } = messageWithProof;
+    await inbox.setCheckpoint(root, 1);
 
-    await inbox.setCheckpoint(testCase.expectedRoot, 1);
-
-    // Ensure proper static call return value
-    expect(await inbox.callStatic.prove(leaf, path as types.BytesArray, index))
-      .to.be.true;
-
-    await inbox.prove(leaf, path as types.BytesArray, index);
-    expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.PENDING);
+    // We assume correctness of processing via a successful call to a non-existing account
+    await expect(inbox.process(message, proof, index, '0x')).to.be.revertedWith(
+      'function call to a non-contract account',
+    );
   });
 
-  it('Rejects an already-proven message', async () => {
-    const testCase = merkleTestCases[0];
-    let { leaf, index, path } = testCase.proofs[0];
+  it('Rejects an already-processed message', async () => {
+    let { leaf, index, proof, root, message } = messageWithProof;
 
-    await inbox.setCheckpoint(testCase.expectedRoot, 1);
+    await inbox.setCheckpoint(root, 1);
+    // Set message status as MessageStatus.Processed
+    await inbox.setMessageStatus(leaf, MessageStatus.PROCESSED);
 
-    // Prove message, which changes status to MessageStatus.Pending
-    await inbox.prove(leaf, path as types.BytesArray, index);
-    expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.PENDING);
-
-    // Try to prove message again
-    await expect(
-      inbox.prove(leaf, path as types.BytesArray, index),
-    ).to.be.revertedWith('!MessageStatus.None');
+    // Try to process message again
+    await expect(inbox.process(message, proof, index, '0x')).to.be.revertedWith(
+      '!MessageStatus.None',
+    );
   });
 
   it('Rejects invalid message proof', async () => {
-    // Use 1st proof of 1st merkle vector test case
-    const testCase = merkleTestCases[0];
-    let { leaf, index, path } = testCase.proofs[0];
+    let { leaf, index, proof, root, message } = messageWithProof;
 
     // Switch ordering of proof hashes
     // NB: We copy 'path' here to avoid mutating the test cases for
     // other tests.
-    const newPath = [...path];
-    newPath[0] = path[1];
-    newPath[1] = path[0];
+    const newProof = [...proof];
+    newProof[0] = proof[1];
+    newProof[1] = proof[0];
 
-    await inbox.setCheckpoint(testCase.expectedRoot, 1);
+    await inbox.setCheckpoint(root, 1);
 
     expect(
-      await inbox.callStatic.prove(leaf, newPath as types.BytesArray, index),
-    ).to.be.false;
-
-    await inbox.prove(leaf, newPath as types.BytesArray, index);
+      inbox.process(message, newProof as types.BytesArray, index, '0x'),
+    ).to.be.revertedWith('!checkpointed root');
     expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.NONE);
-  });
-
-  it('Processes a proved message', async () => {
-    const sender = abacusMessageSender;
-
-    const testRecipientFactory = new TestRecipient__factory(signer);
-    const testRecipient = await testRecipientFactory.deploy();
-
-    const nonce = 0;
-    const abacusMessage = utils.formatMessage(
-      remoteDomain,
-      sender.address,
-      nonce,
-      localDomain,
-      testRecipient.address,
-      '0x',
-    );
-
-    // Set message status to types.MessageStatus.Pending
-    await inbox.setMessageProven(abacusMessage);
-
-    const processTx = inbox.process(abacusMessage);
-    await expect(processTx)
-      .to.emit(inbox, 'Process')
-      .withArgs(utils.messageHash(abacusMessage));
-  });
-
-  it('Fails to process an unproved message', async () => {
-    const [sender, recipient] = await ethers.getSigners();
-    const nonce = 0;
-    const body = ethers.utils.formatBytes32String('message');
-
-    const abacusMessage = utils.formatMessage(
-      remoteDomain,
-      sender.address,
-      nonce,
-      localDomain,
-      recipient.address,
-      body,
-    );
-
-    await expect(inbox.process(abacusMessage)).to.be.revertedWith('!proven');
   });
 
   for (let i = 0; i < badRecipientFactories.length; i++) {
@@ -202,58 +149,52 @@ describe('Inbox', async () => {
       const factory = new badRecipientFactories[i](signer);
       const badRecipient = await factory.deploy();
 
-      const nonce = 0;
+      const leafIndex = 0;
       const abacusMessage = utils.formatMessage(
         remoteDomain,
         sender.address,
-        nonce,
+
         localDomain,
         badRecipient.address,
         '0x',
       );
 
-      // Set message status to MessageStatus.Pending
-      await inbox.setMessageProven(abacusMessage);
-      await expect(inbox.process(abacusMessage)).to.be.reverted;
+      await expect(inbox.testProcess(abacusMessage, leafIndex)).to.be.reverted;
     });
   }
 
   it('Fails to process message with wrong destination Domain', async () => {
     const [sender, recipient] = await ethers.getSigners();
-    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
+    const leafIndex = 0;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       // Wrong destination Domain
       localDomain + 5,
       recipient.address,
       body,
     );
 
-    await expect(inbox.process(abacusMessage)).to.be.revertedWith(
-      '!destination',
-    );
+    await expect(
+      inbox.testProcess(abacusMessage, leafIndex),
+    ).to.be.revertedWith('!destination');
   });
 
   it('Fails to process message sent to a non-existent contract address', async () => {
-    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
+    const leafIndex = 0;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       abacusMessageSender.address,
-      nonce,
       localDomain,
       '0x1234567890123456789012345678901234567890', // non-existent contract address
       body,
     );
 
-    // Set message status to types.MessageStatus.Pending
-    await inbox.setMessageProven(abacusMessage);
-    await expect(inbox.process(abacusMessage)).to.be.reverted;
+    await expect(inbox.testProcess(abacusMessage, leafIndex)).to.be.reverted;
   });
 
   it('Fails to process a message for bad handler function', async () => {
@@ -262,21 +203,38 @@ describe('Inbox', async () => {
     const factory = new BadRecipientHandle__factory(recipient);
     const testRecipient = await factory.deploy();
 
-    const nonce = 0;
+    const leafIndex = 0;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       testRecipient.address,
       '0x',
     );
 
-    // Set message status to MessageStatus.Pending
-    await inbox.setMessageProven(abacusMessage);
-
     // Ensure bad handler function causes process to fail
-    await expect(inbox.process(abacusMessage)).to.be.reverted;
+    await expect(inbox.testProcess(abacusMessage, leafIndex)).to.be.reverted;
+  });
+
+  it('Processes a message directly', async () => {
+    const sender = abacusMessageSender;
+    const [recipient] = await ethers.getSigners();
+    const factory = new TestRecipient__factory(recipient);
+    const testRecipient = await factory.deploy();
+
+    const leafIndex = 0;
+    const abacusMessage = utils.formatMessage(
+      remoteDomain,
+      sender.address,
+      localDomain,
+      testRecipient.address,
+      '0x',
+    );
+
+    await inbox.testProcess(abacusMessage, leafIndex);
+
+    const hash = utils.messageHash(abacusMessage, leafIndex);
+    expect(await inbox.messages(hash)).to.eql(MessageStatus.PROCESSED);
   });
 
   it('Proves and processes a message', async () => {
@@ -284,14 +242,12 @@ describe('Inbox', async () => {
     const testRecipientFactory = new TestRecipient__factory(signer);
     const testRecipient = await testRecipientFactory.deploy();
 
-    const nonce = 0;
-
+    const leafIndex = 0;
     // Note that hash of this message specifically matches leaf of 1st
     // proveAndProcess test case
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       testRecipient.address,
       '0x',
@@ -299,7 +255,7 @@ describe('Inbox', async () => {
 
     // Assert above message and test case have matching leaves
     const { path, index } = proveAndProcessTestCases[0];
-    const hash = utils.messageHash(abacusMessage);
+    const hash = utils.messageHash(abacusMessage, leafIndex);
 
     // Set inbox's current root to match newly computed root that includes
     // the new leaf (normally root will have already been computed and path
@@ -313,41 +269,8 @@ describe('Inbox', async () => {
     );
     await inbox.setCheckpoint(proofRoot, 1);
 
-    await inbox.proveAndProcess(abacusMessage, path as types.BytesArray, index);
+    await inbox.process(abacusMessage, path as types.BytesArray, index, '0x');
 
     expect(await inbox.messages(hash)).to.equal(types.MessageStatus.PROCESSED);
-  });
-
-  it('Has proveAndProcess fail if prove fails', async () => {
-    const [sender, recipient] = await ethers.getSigners();
-    const nonce = 0;
-
-    // Use 1st proof of 1st merkle vector test case
-    const testCase = merkleTestCases[0];
-    let { leaf, index, path } = testCase.proofs[0];
-
-    // Create arbitrary message (contents not important)
-    const abacusMessage = utils.formatMessage(
-      remoteDomain,
-      sender.address,
-      nonce,
-      localDomain,
-      recipient.address,
-      '0x',
-    );
-
-    // Ensure root given in proof and actual root don't match so that
-    // inbox.prove(...) will fail
-    const proofRoot = await inbox.testBranchRoot(
-      leaf,
-      path as types.BytesArray,
-      index,
-    );
-    const rootIndex = await inbox.checkpoints(proofRoot);
-    expect(rootIndex).to.equal(0);
-
-    await expect(
-      inbox.proveAndProcess(abacusMessage, path as types.BytesArray, index),
-    ).to.be.revertedWith('!prove');
   });
 });
