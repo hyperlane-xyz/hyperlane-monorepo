@@ -1,18 +1,6 @@
 {
   "environment": "test",
   "signers": {},
-  "outbox": {
-    "addresses": {
-      "outbox": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
-    },
-    "domain": "1000",
-    "name": "alfajores",
-    "rpcStyle": "ethereum",
-    "connection": {
-      "type": "http",
-      "url": ""
-    }
-  },
   "inboxes": {
     "kovan": {
       "domain": "3000",
@@ -23,7 +11,7 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x851356ae760d987E095750cCeb3bC6014560891C",
+        "inbox": "0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB",
         "validatorManager": "0x67d269191c92Caf3cD7723F116c85e6E9bf55933"
       }
     },
@@ -36,7 +24,7 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x7bc06c482DEAd17c0e297aFbC32f6e63d3846650",
+        "inbox": "0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575",
         "validatorManager": "0x4c5859f0F772848b2D91F1D83E2Fe57935348029"
       }
     },
@@ -49,9 +37,21 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x202CCe504e04bEd6fC0521238dDf04Bc9E8E15aB",
+        "inbox": "0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43",
         "validatorManager": "0x4C4a2f8c81640e47606d3fd77B353E87Ba015584"
       }
+    }
+  },
+  "outbox": {
+    "addresses": {
+      "outbox": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+    },
+    "domain": "1000",
+    "name": "alfajores",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": ""
     }
   },
   "tracing": {

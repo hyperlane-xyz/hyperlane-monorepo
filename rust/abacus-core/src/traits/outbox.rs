@@ -15,9 +15,6 @@ pub trait Outbox: AbacusCommon + Send + Sync + std::fmt::Debug {
     /// Fetch the current state.
     async fn state(&self) -> Result<State, ChainCommunicationError>;
 
-    /// Fetch the nonce
-    async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError>;
-
     /// Gets the current leaf count of the merkle tree
     async fn count(&self) -> Result<u32, ChainCommunicationError>;
 
@@ -34,30 +31,6 @@ pub trait Outbox: AbacusCommon + Send + Sync + std::fmt::Debug {
 /// Interface for retrieving event data emitted specifically by the outbox
 #[async_trait]
 pub trait OutboxEvents: Outbox + Send + Sync + std::fmt::Debug {
-    /// Fetch the message to destination at the nonce (or error).
-    /// This should fetch events from the chain API.
-    ///
-    /// Used by processors to get messages in order
-    async fn raw_message_by_nonce(
-        &self,
-        destination: u32,
-        nonce: u32,
-    ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError>;
-
-    /// Fetch the message to destination at the nonce (or error).
-    /// This should fetch events from the chain API
-    async fn message_by_nonce(
-        &self,
-        destination: u32,
-        nonce: u32,
-    ) -> Result<Option<CommittedMessage>, ChainCommunicationError> {
-        self.raw_message_by_nonce(destination, nonce)
-            .await?
-            .map(CommittedMessage::try_from)
-            .transpose()
-            .map_err(Into::into)
-    }
-
     /// Look up a message by its hash.
     /// This should fetch events from the chain API
     async fn raw_message_by_leaf(

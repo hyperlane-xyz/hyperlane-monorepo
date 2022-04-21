@@ -19,7 +19,7 @@ import { MessageStatus } from '@abacus-network/utils/dist/src/types';
 const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json');
 const messageWithProof = require('../../../vectors/messageWithProof.json');
 
-const localDomain = 2000;
+const localDomain = 3000;
 const remoteDomain = 1000;
 
 describe('Inbox', async () => {
@@ -149,54 +149,52 @@ describe('Inbox', async () => {
       const factory = new badRecipientFactories[i](signer);
       const badRecipient = await factory.deploy();
 
-      const nonce = 0;
+      const leafIndex = 0;
       const abacusMessage = utils.formatMessage(
         remoteDomain,
         sender.address,
-        nonce,
+
         localDomain,
         badRecipient.address,
         '0x',
       );
 
-      await expect(inbox.testProcess(abacusMessage)).to.be.reverted;
+      await expect(inbox.testProcess(abacusMessage, leafIndex)).to.be.reverted;
     });
   }
 
   it('Fails to process message with wrong destination Domain', async () => {
     const [sender, recipient] = await ethers.getSigners();
-    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
+    const leafIndex = 0;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       // Wrong destination Domain
       localDomain + 5,
       recipient.address,
       body,
     );
 
-    await expect(inbox.testProcess(abacusMessage)).to.be.revertedWith(
-      '!destination',
-    );
+    await expect(
+      inbox.testProcess(abacusMessage, leafIndex),
+    ).to.be.revertedWith('!destination');
   });
 
   it('Fails to process message sent to a non-existent contract address', async () => {
-    const nonce = 0;
     const body = ethers.utils.formatBytes32String('message');
 
+    const leafIndex = 0;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       abacusMessageSender.address,
-      nonce,
       localDomain,
       '0x1234567890123456789012345678901234567890', // non-existent contract address
       body,
     );
 
-    await expect(inbox.testProcess(abacusMessage)).to.be.reverted;
+    await expect(inbox.testProcess(abacusMessage, leafIndex)).to.be.reverted;
   });
 
   it('Fails to process a message for bad handler function', async () => {
@@ -205,18 +203,17 @@ describe('Inbox', async () => {
     const factory = new BadRecipientHandle__factory(recipient);
     const testRecipient = await factory.deploy();
 
-    const nonce = 0;
+    const leafIndex = 0;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       testRecipient.address,
       '0x',
     );
 
     // Ensure bad handler function causes process to fail
-    await expect(inbox.testProcess(abacusMessage)).to.be.reverted;
+    await expect(inbox.testProcess(abacusMessage, leafIndex)).to.be.reverted;
   });
 
   it('Processes a message directly', async () => {
@@ -225,19 +222,18 @@ describe('Inbox', async () => {
     const factory = new TestRecipient__factory(recipient);
     const testRecipient = await factory.deploy();
 
-    const nonce = 0;
+    const leafIndex = 0;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       testRecipient.address,
       '0x',
     );
 
-    await inbox.testProcess(abacusMessage);
+    await inbox.testProcess(abacusMessage, leafIndex);
 
-    const hash = utils.messageHash(abacusMessage);
+    const hash = utils.messageHash(abacusMessage, leafIndex);
     expect(await inbox.messages(hash)).to.eql(MessageStatus.PROCESSED);
   });
 
@@ -246,14 +242,12 @@ describe('Inbox', async () => {
     const testRecipientFactory = new TestRecipient__factory(signer);
     const testRecipient = await testRecipientFactory.deploy();
 
-    const nonce = 0;
-
+    const leafIndex = 0;
     // Note that hash of this message specifically matches leaf of 1st
     // proveAndProcess test case
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      nonce,
       localDomain,
       testRecipient.address,
       '0x',
@@ -261,7 +255,7 @@ describe('Inbox', async () => {
 
     // Assert above message and test case have matching leaves
     const { path, index } = proveAndProcessTestCases[0];
-    const hash = utils.messageHash(abacusMessage);
+    const hash = utils.messageHash(abacusMessage, leafIndex);
 
     // Set inbox's current root to match newly computed root that includes
     // the new leaf (normally root will have already been computed and path

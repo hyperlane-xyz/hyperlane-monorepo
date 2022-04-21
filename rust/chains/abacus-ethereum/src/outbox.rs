@@ -138,7 +138,6 @@ where
             .into_iter()
             .map(|f| RawCommittedMessage {
                 leaf_index: f.leaf_index.as_u32(),
-                committed_root: f.checkpointed_root.into(),
                 message: f.message.to_vec(),
             })
             .collect())
@@ -248,11 +247,6 @@ impl<M> Outbox for EthereumOutbox<M>
 where
     M: ethers::providers::Middleware + 'static,
 {
-    #[tracing::instrument(err, skip(self))]
-    async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
-        Ok(self.contract.nonces(destination).call().await?)
-    }
-
     #[tracing::instrument(err, skip(self))]
     async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
         let tx = self.contract.dispatch(
