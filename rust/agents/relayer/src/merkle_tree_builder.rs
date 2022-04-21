@@ -8,63 +8,20 @@ use color_eyre::eyre::Result;
 use ethers::core::types::H256;
 use std::fmt::Display;
 
-use tracing::{debug, error, info};
-
-// Helper type to denote the fact that a Inbox that has received no checkpoint is different from an Inbox that has been checkpointed with checkpoint index 0
-#[derive(Debug, Copy, Clone)]
-pub struct OnchainCheckpointIndex {
-    index: Option<u32>,
-}
-
-impl OnchainCheckpointIndex {
-    pub fn from_checkpoint(checkpoint: &Checkpoint) -> Self {
-        Self {
-            index: if checkpoint.root.is_zero() {
-                None
-            } else {
-                Some(checkpoint.index)
-            },
-        }
-    }
-
-    pub fn from_index(index: u32) -> Self {
-        Self { index: Some(index) }
-    }
-
-    pub fn matches_signed_checkpoint(&self, other_checkpoint_index: u32) -> bool {
-        match self.index {
-            Some(index) => index >= other_checkpoint_index,
-            None => false,
-        }
-    }
-
-    pub fn is_behind_prover(&self, prover_count: usize) -> bool {
-        match self.index {
-            Some(index) => prover_count > index as usize + 1,
-            None => prover_count > 0,
-        }
-    }
-
-    pub fn next_leaf_index(&self) -> u32 {
-        match self.index {
-            Some(index) => index + 1,
-            None => 0,
-        }
-    }
-}
+use tracing::{debug, error};
 
 /// Struct to update prover
 pub struct MessageBatch {
     /// Messages
     pub messages: Vec<CommittedMessage>,
-    current_checkpoint_index: OnchainCheckpointIndex,
+    current_checkpoint_index: u32,
     target_checkpoint: Checkpoint,
 }
 
 impl MessageBatch {
     pub fn new(
         messages: Vec<CommittedMessage>,
-        current_checkpoint_index: OnchainCheckpointIndex,
+        current_checkpoint_index: u32,
         target_checkpoint: Checkpoint,
     ) -> Self {
         Self {
@@ -128,7 +85,7 @@ pub enum MerkleTreeBuilderError {
         /// Count of leaves in the prover
         prover_count: u32,
         /// Batch on-chain checkpoint index
-        onchain_checkpoint_index: OnchainCheckpointIndex,
+        onchain_checkpoint_index: u32,
         /// Batch signed checkpoint index
         signed_checkpoint_index: u32,
     },
@@ -183,7 +140,7 @@ impl MerkleTreeBuilder {
         &mut self,
         checkpoint: &Checkpoint,
     ) -> Result<(), MerkleTreeBuilderError> {
-        if checkpoint.root.is_zero() {
+        if checkpoint.index == 0 {
             return Ok(());
         }
         let starting_index = self.prover.count() as u32;
@@ -211,10 +168,7 @@ impl MerkleTreeBuilder {
         &mut self,
         batch: &MessageBatch,
     ) -> Result<(), MerkleTreeBuilderError> {
-        if batch
-            .current_checkpoint_index
-            .is_behind_prover(self.prover.count())
-        {
+        if self.prover.count() as u32 > batch.current_checkpoint_index + 1 {
             error!("Prover was already ahead of MessageBatch, something went wrong");
             return Err(MerkleTreeBuilderError::UnexpectedProverState {
                 prover_count: self.prover.count() as u32,
@@ -223,7 +177,7 @@ impl MerkleTreeBuilder {
             });
         }
         // if we are somehow behind the current index, prove until then
-        for i in (self.prover.count() as u32)..batch.current_checkpoint_index.next_leaf_index() {
+        for i in (self.prover.count() as u32)..batch.current_checkpoint_index + 1 {
             self.ingest_leaf_index(i)?;
         }
 
@@ -232,7 +186,7 @@ impl MerkleTreeBuilder {
             "update_from_batch fast forward"
         );
         // prove the until target
-        for i in batch.current_checkpoint_index.next_leaf_index()..=batch.target_checkpoint.index {
+        for i in (batch.current_checkpoint_index + 1)..=batch.target_checkpoint.index {
             self.ingest_leaf_index(i)?;
         }
 

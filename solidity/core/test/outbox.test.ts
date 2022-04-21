@@ -159,6 +159,16 @@ describe('Outbox', async () => {
     expect(await outbox.isCheckpoint(root, index)).to.be.true;
   });
 
+  it('does not allow a checkpoint of index 0', async () => {
+    const message = ethers.utils.formatBytes32String('message');
+    await outbox.dispatch(
+      destDomain,
+      utils.addressToBytes32(recipient.address),
+      message,
+    );
+    await expect(outbox.checkpoint()).to.be.revertedWith('!count');
+  });
+
   it('Correctly calculates destinationAndNonce', async () => {
     for (let testCase of destinationNonceTestCases) {
       let { destination, nonce, expectedDestinationAndNonce } = testCase;

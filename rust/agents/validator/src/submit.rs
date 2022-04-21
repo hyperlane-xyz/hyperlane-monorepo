@@ -36,18 +36,18 @@ impl ValidatorSubmitter {
         let span = info_span!("ValidatorSubmitter");
         let reorg_period = Some(self.reorg_period);
         tokio::spawn(async move {
-            let mut maybe_current_index = self.checkpoint_syncer.latest_index().await?;
+            let mut current_index = self.checkpoint_syncer.latest_index().await?.unwrap_or_default();
             loop {
                 sleep(Duration::from_secs(self.interval)).await;
 
                 // Check the current checkpoint
                 let checkpoint = self.outbox.latest_checkpoint(reorg_period).await?;
 
-                if maybe_current_index.map_or(true, |current_index| current_index < checkpoint.index ) && !checkpoint.root.is_zero() {
+                if current_index < checkpoint.index {
                     let signed_checkpoint = checkpoint.sign_with(self.signer.as_ref()).await?;
 
                     info!(signature = ?signed_checkpoint, signer=?self.signer, "Sign latest checkpoint");
-                    maybe_current_index = Some(checkpoint.index);
+                    current_index = checkpoint.index;
 
                     self.checkpoint_syncer.write_checkpoint(signed_checkpoint.clone()).await?;
                 }

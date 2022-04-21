@@ -152,7 +152,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      */
     function checkpoint() external override notFailed {
         uint256 count = count();
-        require(count > 0, "!count");
+        require(count > 1, "!count");
         bytes32 root = root();
         _checkpoint(root, count - 1);
     }

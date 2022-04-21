@@ -1,14 +1,12 @@
 use std::time::Duration;
 
 use abacus_base::{InboxContracts, MultisigCheckpointSyncer};
-use abacus_core::{
-    db::AbacusDB, AbacusCommon, Checkpoint, CommittedMessage, Inbox, InboxValidatorManager,
-};
+use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxValidatorManager};
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument::Instrumented, Instrument};
 
-use crate::merkle_tree_builder::{MerkleTreeBuilder, MessageBatch, OnchainCheckpointIndex};
+use crate::merkle_tree_builder::{MerkleTreeBuilder, MessageBatch};
 
 pub(crate) struct CheckpointRelayer {
     polling_interval: u64,
@@ -42,7 +40,7 @@ impl CheckpointRelayer {
     }
 
     /// Only gets the messages desinated for the Relayers inbox
-    /// inclusive the to_checkpoint_index
+    /// Exclusive the to_checkpoint_index
     async fn get_messages_between(
         &self,
         from_leaf_index: u32,
@@ -76,10 +74,10 @@ impl CheckpointRelayer {
     // Returns the newest "current" checkpoint index
     async fn submit_checkpoint_and_messages(
         &mut self,
-        onchain_checkpoint_index: OnchainCheckpointIndex,
+        onchain_checkpoint_index: u32,
         signed_checkpoint_index: u32,
         messages: Vec<CommittedMessage>,
-    ) -> Result<OnchainCheckpointIndex> {
+    ) -> Result<u32> {
         // If the checkpoint storage is inconsistent, then this arm won't match
         // and it will cause us to have skipped this message batch
         if let Some(latest_signed_checkpoint) = self
@@ -128,9 +126,7 @@ impl CheckpointRelayer {
 
             // Sleep latency period after submission
             sleep(Duration::from_secs(self.submission_latency)).await;
-            Ok(OnchainCheckpointIndex::from_index(
-                latest_signed_checkpoint.checkpoint.index,
-            ))
+            Ok(latest_signed_checkpoint.checkpoint.index)
         } else {
             Ok(onchain_checkpoint_index)
         }
@@ -141,18 +137,21 @@ impl CheckpointRelayer {
         tokio::spawn(async move {
             let latest_inbox_checkpoint =
                 self.inbox_contracts.inbox.latest_checkpoint(None).await?;
-            let mut onchain_checkpoint_index =
-                OnchainCheckpointIndex::from_checkpoint(&latest_inbox_checkpoint);
-            let mut next_inbox_leaf_index = onchain_checkpoint_index.next_leaf_index();
+            let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
+            let mut next_inbox_leaf_index = if onchain_checkpoint_index == 0 {
+                0
+            } else {
+                onchain_checkpoint_index + 1
+            };
             loop {
                 sleep(Duration::from_secs(self.polling_interval)).await;
 
                 if let Some(signed_checkpoint_index) =
                     self.multisig_checkpoint_syncer.latest_index().await?
                 {
-                    if onchain_checkpoint_index.matches_signed_checkpoint(signed_checkpoint_index) {
+                    if signed_checkpoint_index <= onchain_checkpoint_index {
                         debug!(
-                            onchain = ?onchain_checkpoint_index,
+                            onchain = onchain_checkpoint_index,
                             signed = signed_checkpoint_index,
                             "Signed checkpoint matches known checkpoint on-chain, continue"
                         );
