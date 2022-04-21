@@ -246,4 +246,11 @@ describe('AbacusConnectionManager', async () => {
       newInbox2.address,
     ]);
   });
+
+  it('Owner cannot enroll an inbox twice', async () => {
+    const newRemoteDomain = 3000;
+    await expect(
+      connectionManager.enrollInbox(newRemoteDomain, enrolledInbox.address),
+    ).to.be.revertedWith('already inbox');
+  });
 });
