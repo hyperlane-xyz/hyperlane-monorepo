@@ -9,4 +9,3 @@ if [[ -z $TAG ]]; then
 fi
 
 DOCKER_BUILDKIT=1 docker build -t gcr.io/abacus-labs-dev/abacus-agent:$TAG .
-
