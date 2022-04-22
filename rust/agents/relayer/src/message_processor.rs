@@ -6,7 +6,7 @@ use std::{
 };
 
 use abacus_base::CachingInbox;
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, MessageStatus};
+use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Encode, Inbox, MessageStatus};
 use color_eyre::{eyre::bail, Result};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument::Instrumented, warn, Instrument};
@@ -91,21 +91,30 @@ impl MessageProcessor {
                         }
 
                         match self.prover_sync.get_proof(message_leaf_index) {
-                            Ok(proof) => match self.inbox.process(&message.message, &proof).await {
-                                Ok(outcome) => {
-                                    info!(
-                                        leaf_index = message_leaf_index,
-                                        hash = ?outcome.txid,
-                                        "[MessageProcessor] processed"
-                                    );
-                                    self.db.mark_leaf_as_processed(message_leaf_index)?;
-                                    Ok(MessageProcessingStatus::Processed)
+                            Ok(proof) => {
+                                error!(
+                                    leaf=?&message.message.to_leaf(message_leaf_index),
+                                    proof=?&proof,
+                                    message=?message.message.to_vec(),
+                                    root=?self.prover_sync.get_root(),
+                                    "Output"
+                                );
+                                match self.inbox.process(&message.message, &proof).await {
+                                    Ok(outcome) => {
+                                        info!(
+                                            leaf_index = message_leaf_index,
+                                            hash = ?outcome.txid,
+                                            "[MessageProcessor] processed"
+                                        );
+                                        self.db.mark_leaf_as_processed(message_leaf_index)?;
+                                        Ok(MessageProcessingStatus::Processed)
+                                    }
+                                    Err(err) => {
+                                        error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
+                                        Ok(MessageProcessingStatus::Error)
+                                    }
                                 }
-                                Err(err) => {
-                                    error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
-                                    Ok(MessageProcessingStatus::Error)
-                                }
-                            },
+                            }
                             Err(err) => {
                                 error!(error=?err, "MessageProcessor was unable to fetch proof");
                                 bail!("MessageProcessor was unable to fetch proof");

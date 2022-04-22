@@ -111,6 +111,10 @@ impl MerkleTreeBuilder {
         }
     }
 
+    pub fn get_root(&self) -> H256 {
+        self.prover.root()
+    }
+
     pub fn get_proof(&self, leaf_index: u32) -> Result<Proof, MerkleTreeBuilderError> {
         self.prover.prove(leaf_index as usize).map_err(Into::into)
     }

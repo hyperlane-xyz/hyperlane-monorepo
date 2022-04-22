@@ -2,7 +2,7 @@ import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import { BadRandomRecipient__factory } from '@abacus-network/core';
+import { TestRecipient__factory } from '@abacus-network/core';
 import { coreAddresses, AbacusCore } from '@abacus-network/sdk';
 import { utils, types } from '@abacus-network/utils';
 
@@ -84,8 +84,8 @@ task('kathy', 'Dispatches random abacus messages')
       list[Math.floor(Math.random() * list.length)];
 
     // Deploy a recipient
-    const [signer] = await hre.ethers.getSigners();
-    const recipientF = new BadRandomRecipient__factory(signer);
+    const signers = await hre.ethers.getSigners();
+    const recipientF = new TestRecipient__factory(signers[signers.length - 1]);
     const recipient = await recipientF.deploy();
     await recipient.deployTransaction.wait();
 
@@ -105,7 +105,7 @@ task('kathy', 'Dispatches random abacus messages')
         console.log(
           `send to ${recipient.address} on ${remote} at index ${
             (await outbox.count()).toNumber() - 1
-          }`,
+          } to ${recipient.address}`,
         );
         console.log(await domainSummary(core, local));
         await sleep(5000);
