@@ -2,12 +2,12 @@ name: Push to GCR GitHub Action
 on: 
   push:
     branches:
-      - '**'
+      - 'main'
     tags:
       - '**'
-  # pull_request:
-  #   branches:
-  #     - 'main'
+  pull_request:
+    paths:
+      - 'rust/**'
 jobs:
   check-env:
     runs-on: ubuntu-latest
@@ -39,7 +39,7 @@ jobs:
         with:
           # list of Docker images to use as base name for tags
           images: |
-            gcr.io/clabs-optics/optics-agent
+            gcr.io/abacus-labs-dev/abacus-agent
           # generate Docker tags based on the following events/attributes
           tags: |
             type=ref,event=branch
