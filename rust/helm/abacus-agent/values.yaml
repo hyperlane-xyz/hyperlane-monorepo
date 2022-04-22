@@ -46,9 +46,9 @@ abacus:
   outboxChain:
     name: "kovan"
     # -- The contract address for the home contract
-    address: # "0x0C473afC0cabd469751CBE3Ac08aBac3e40bF586"
+    address:
     # -- The hard-coded domain corresponding to this blockchain
-    domain: # 1000
+    domain:
     # -- RPC Style
     rpcStyle: # "ethereum"
     connectionType: # "http"
@@ -59,8 +59,8 @@ abacus:
   inboxChains:
     - name: "alfajores"
       # -- The contract address for the replica contract
-      address: # "0x0C473afC0cabd469751CBE3Ac08aBac3e40bF586"
-      domain: # 1000
+      address:
+      domain:
       rpcStyle: # "ethereum"
       connectionType: # "http"
       # -- Connection string pointing to an RPC endpoint for the replica chain
@@ -85,8 +85,10 @@ abacus:
     # -- Transaction Signing keys for home and replica(s)
     signer: {}
     # -- How long to wait between checking for updates
-    pollingInterval: # 5
-    updatePause: # 15
+    configs:
+      - interval:
+        reorgPeriod:
+        checkpointSyncers:
 
   relayer:
     enabled: false
@@ -108,7 +110,14 @@ abacus:
         # aws:
       - name: "alfajores"
         # aws:
-    pollingInterval: # 10
+    config:
+      submissionLatency:
+      pollingInterval:
+      maxRetries:
+      relayerMessageProcessing:
+      multisigCheckpointSyncer:
+        threshold:
+        checkpointSyncers:
 
   checkpointer:
     enabled: false
@@ -130,9 +139,9 @@ abacus:
         # aws:
       - name: "alfajores"
         # aws:
-    s3BucketName:
-    indexonly: []
-    pollingInterval: # 10
+    config:
+      pollingInterval:
+      creationLatency:
 
   kathy:
     enabled: false
@@ -157,13 +166,14 @@ abacus:
         #   keyId: ""
         #   region: ""
     # Polling Interval Override
-    messageInterval: # 100
-    # -- Configuration for Kathy's message generation code
-    chatGenConfig:
-      destination: # 2000
-      message: # "hello are you listening?"
-      recipient: # "recipient"
-      type: # "static"
+    config:
+      interval: # 100
+      # -- Configuration for Kathy's message generation code
+      chatGenConfig:
+        destination: # 2000
+        message: # "hello are you listening?"
+        recipient: # "recipient"
+        type: # "static"
 
 podSecurityContext:
   fsGroup: 2000
@@ -180,9 +190,9 @@ resources:
   # limits:
   #   cpu: 100m
   #   memory: 128Mi
-  requests:
-    cpu: 250m
-    memory: 1Gi
+  # requests:
+  #   cpu: 250m
+  #   memory: 1Gi
 
 nodeSelector: {}
 
