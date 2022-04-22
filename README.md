@@ -34,7 +34,7 @@ Integrations require a few key components:
   These contracts manage Abacus communication channels and will be used by the
   app to send and receive messages.
 
-- A `XAppConnectionManager` (in `solidity/core/contracts`). This
+- An `AbacusConnectionManager` (in `solidity/core/contracts`). This
   contract connects the app to Abacus by allowing the app admin to enroll new
   `Outbox` and `Inbox` contracts. Enrolling and unenrolling channels is the
   primary way to ensure that your app handles messages correctly. Apps may
@@ -69,27 +69,27 @@ This monorepo uses [NPM Workspaces](https://docs.npmjs.com/cli/v7/using-npm/work
 
 - Installing dependencies
 
-   ```bash
-   npm install
-   ```
+  ```bash
+  npm install
+  ```
 
 - Building
 
-   ```bash
-   npm run build
-   ```
+  ```bash
+  npm run build
+  ```
 
 - Testing
 
-   ```bash
-   npm run test
-   ```
+  ```bash
+  npm run test
+  ```
 
 - Running prettier
 
-   ```bash
-   npm run prettier
-   ```
+  ```bash
+  npm run prettier
+  ```
 
 ### Rust
 

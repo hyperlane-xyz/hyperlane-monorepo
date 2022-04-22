@@ -10,14 +10,14 @@ import {
 import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
   UpgradeBeaconController,
-  XAppConnectionManager,
+  AbacusConnectionManager,
   InboxValidatorManager,
   InboxValidatorManager__factory,
   OutboxValidatorManager,
   OutboxValidatorManager__factory,
   Inbox,
   UpgradeBeaconController__factory,
-  XAppConnectionManager__factory,
+  AbacusConnectionManager__factory,
   Outbox__factory,
   Inbox__factory,
   InterchainGasPaymaster__factory,
@@ -71,14 +71,14 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       new InterchainGasPaymaster__factory(signer),
     );
 
-    const xAppConnectionManager: XAppConnectionManager =
+    const abacusConnectionManager: AbacusConnectionManager =
       await this.deployContract(
         domain,
-        'XAppConnectionManager',
-        new XAppConnectionManager__factory(signer),
+        'AbacusConnectionManager',
+        new AbacusConnectionManager__factory(signer),
       );
-    await xAppConnectionManager.setOutbox(outbox.address, overrides);
-    await xAppConnectionManager.setInterchainGasPaymaster(
+    await abacusConnectionManager.setOutbox(outbox.address, overrides);
+    await abacusConnectionManager.setInterchainGasPaymaster(
       interchainGasPaymaster.address,
       overrides,
     );
@@ -139,7 +139,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
       inboxAddresses[this.mustResolveDomainName(remote)] =
         inboxes[remote].addresses;
 
-      await xAppConnectionManager.enrollInbox(
+      await abacusConnectionManager.enrollInbox(
         remote,
         inboxes[remote].address,
         overrides,
@@ -148,7 +148,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
 
     const addresses = {
       upgradeBeaconController: upgradeBeaconController.address,
-      xAppConnectionManager: xAppConnectionManager.address,
+      abacusConnectionManager: abacusConnectionManager.address,
       interchainGasPaymaster: interchainGasPaymaster.address,
       outboxValidatorManager: outboxValidatorManager.address,
       inboxValidatorManagers: inboxValidatorManagerAddresses,
@@ -243,7 +243,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
     const contracts = core.mustGetContracts(domain);
     const overrides = core.getOverrides(domain);
     await contracts.outboxValidatorManager.transferOwnership(owner, overrides);
-    await contracts.xAppConnectionManager.transferOwnership(owner, overrides);
+    await contracts.abacusConnectionManager.transferOwnership(owner, overrides);
     await contracts.upgradeBeaconController.transferOwnership(owner, overrides);
     for (const chain of Object.keys(
       contracts.addresses.inboxes,

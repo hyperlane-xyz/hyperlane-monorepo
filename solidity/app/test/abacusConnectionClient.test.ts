@@ -3,20 +3,20 @@ import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import {
   Outbox__factory,
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
 } from '@abacus-network/core';
 
 import {
-  TestXAppConnectionClient,
-  TestXAppConnectionClient__factory,
+  TestAbacusConnectionClient,
+  TestAbacusConnectionClient__factory,
 } from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
-describe('XAppConnectionClient', async () => {
-  let connectionClient: TestXAppConnectionClient,
-    connectionManager: XAppConnectionManager,
+describe('AbacusConnectionClient', async () => {
+  let connectionClient: TestAbacusConnectionClient,
+    connectionManager: AbacusConnectionManager,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
 
@@ -25,10 +25,12 @@ describe('XAppConnectionClient', async () => {
   });
 
   beforeEach(async () => {
-    const connectionManagerFactory = new XAppConnectionManager__factory(signer);
+    const connectionManagerFactory = new AbacusConnectionManager__factory(
+      signer,
+    );
     connectionManager = await connectionManagerFactory.deploy();
 
-    const connectionClientFactory = new TestXAppConnectionClient__factory(
+    const connectionClientFactory = new TestAbacusConnectionClient__factory(
       signer,
     );
     connectionClient = await connectionClientFactory.deploy();
@@ -43,11 +45,11 @@ describe('XAppConnectionClient', async () => {
 
   it('owner can set connection manager', async () => {
     const newConnectionManager = signer.address;
-    expect(await connectionClient.xAppConnectionManager()).to.not.equal(
+    expect(await connectionClient.abacusConnectionManager()).to.not.equal(
       newConnectionManager,
     );
-    await connectionClient.setXAppConnectionManager(newConnectionManager);
-    expect(await connectionClient.xAppConnectionManager()).to.equal(
+    await connectionClient.setAbacusConnectionManager(newConnectionManager);
+    expect(await connectionClient.abacusConnectionManager()).to.equal(
       newConnectionManager,
     );
   });
@@ -56,7 +58,7 @@ describe('XAppConnectionClient', async () => {
     await expect(
       connectionClient
         .connect(nonOwner)
-        .setXAppConnectionManager(signer.address),
+        .setAbacusConnectionManager(signer.address),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
   });
 

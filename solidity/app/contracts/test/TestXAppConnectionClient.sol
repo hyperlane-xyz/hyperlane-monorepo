@@ -3,11 +3,11 @@ pragma solidity >=0.6.11;
 import {IInterchainGasPaymaster} from "@abacus-network/core/interfaces/IInterchainGasPaymaster.sol";
 import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
 
-import "../XAppConnectionClient.sol";
+import "../AbacusConnectionClient.sol";
 
-contract TestXAppConnectionClient is XAppConnectionClient {
-    function initialize(address _xAppConnectionManager) external initializer {
-        __XAppConnectionClient_initialize(_xAppConnectionManager);
+contract TestAbacusConnectionClient is AbacusConnectionClient {
+    function initialize(address _abacusConnectionManager) external initializer {
+        __AbacusConnectionClient_initialize(_abacusConnectionManager);
     }
 
     function outbox() external view returns (IOutbox) {

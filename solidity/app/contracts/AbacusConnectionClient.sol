@@ -4,24 +4,24 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {IInterchainGasPaymaster} from "@abacus-network/core/interfaces/IInterchainGasPaymaster.sol";
 import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
-import {IXAppConnectionManager} from "@abacus-network/core/interfaces/IXAppConnectionManager.sol";
+import {IAbacusConnectionManager} from "@abacus-network/core/interfaces/IAbacusConnectionManager.sol";
 
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
-abstract contract XAppConnectionClient is OwnableUpgradeable {
+abstract contract AbacusConnectionClient is OwnableUpgradeable {
     // ============ Mutable Storage ============
 
-    IXAppConnectionManager public xAppConnectionManager;
+    IAbacusConnectionManager public abacusConnectionManager;
     uint256[49] private __GAP; // gap for upgrade safety
 
     // ============ Events ============
 
     /**
-     * @notice Emitted when a new xAppConnectionManager is set.
-     * @param xAppConnectionManager The address of the xAppConnectionManager contract
+     * @notice Emitted when a new abacusConnectionManager is set.
+     * @param abacusConnectionManager The address of the abacusConnectionManager contract
      */
-    event SetXAppConnectionManager(address indexed xAppConnectionManager);
+    event SetAbacusConnectionManager(address indexed abacusConnectionManager);
 
     // ============ Modifiers ============
 
@@ -35,10 +35,10 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
 
     // ======== Initializer =========
 
-    function __XAppConnectionClient_initialize(address _xAppConnectionManager)
-        internal
-    {
-        _setXAppConnectionManager(_xAppConnectionManager);
+    function __AbacusConnectionClient_initialize(
+        address _abacusConnectionManager
+    ) internal {
+        _setAbacusConnectionManager(_abacusConnectionManager);
         __Ownable_init();
     }
 
@@ -46,39 +46,41 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
 
     /**
      * @notice Modify the contract the xApp uses to validate Inbox contracts
-     * @param _xAppConnectionManager The address of the xAppConnectionManager contract
+     * @param _abacusConnectionManager The address of the abacusConnectionManager contract
      */
-    function setXAppConnectionManager(address _xAppConnectionManager)
+    function setAbacusConnectionManager(address _abacusConnectionManager)
         external
         virtual
         onlyOwner
     {
-        _setXAppConnectionManager(_xAppConnectionManager);
+        _setAbacusConnectionManager(_abacusConnectionManager);
     }
 
     // ============ Internal functions ============
 
     /**
      * @notice Modify the contract the xApp uses to validate Inbox contracts
-     * @param _xAppConnectionManager The address of the xAppConnectionManager contract
+     * @param _abacusConnectionManager The address of the abacusConnectionManager contract
      */
-    function _setXAppConnectionManager(address _xAppConnectionManager)
+    function _setAbacusConnectionManager(address _abacusConnectionManager)
         internal
     {
-        xAppConnectionManager = IXAppConnectionManager(_xAppConnectionManager);
-        emit SetXAppConnectionManager(_xAppConnectionManager);
+        abacusConnectionManager = IAbacusConnectionManager(
+            _abacusConnectionManager
+        );
+        emit SetAbacusConnectionManager(_abacusConnectionManager);
     }
 
     /**
-     * @notice Get the local Outbox contract from the xAppConnectionManager
+     * @notice Get the local Outbox contract from the abacusConnectionManager
      * @return The local Outbox contract
      */
     function _outbox() internal view returns (IOutbox) {
-        return xAppConnectionManager.outbox();
+        return abacusConnectionManager.outbox();
     }
 
     /**
-     * @notice Gets the local Interchain Gas Paymaster contract from the xAppConnectionManager.
+     * @notice Gets the local Interchain Gas Paymaster contract from the abacusConnectionManager.
      * @return The local Interchain Gas Paymaster contract.
      */
     function _interchainGasPaymaster()
@@ -86,22 +88,22 @@ abstract contract XAppConnectionClient is OwnableUpgradeable {
         view
         returns (IInterchainGasPaymaster)
     {
-        return xAppConnectionManager.interchainGasPaymaster();
+        return abacusConnectionManager.interchainGasPaymaster();
     }
 
     /**
-     * @notice Determine whether _potentialInbox is an enrolled Inbox from the xAppConnectionManager
+     * @notice Determine whether _potentialInbox is an enrolled Inbox from the abacusConnectionManager
      * @return True if _potentialInbox is an enrolled Inbox
      */
     function _isInbox(address _potentialInbox) internal view returns (bool) {
-        return xAppConnectionManager.isInbox(_potentialInbox);
+        return abacusConnectionManager.isInbox(_potentialInbox);
     }
 
     /**
-     * @notice Get the local domain from the xAppConnectionManager
+     * @notice Get the local domain from the abacusConnectionManager
      * @return The local domain
      */
     function _localDomain() internal view virtual returns (uint32) {
-        return xAppConnectionManager.localDomain();
+        return abacusConnectionManager.localDomain();
     }
 }

@@ -4,8 +4,8 @@ pragma solidity >=0.6.11;
 import "../Router.sol";
 
 contract TestRouter is Router {
-    function initialize(address _xAppConnectionManager) external initializer {
-        __Router_initialize(_xAppConnectionManager);
+    function initialize(address _abacusConnectionManager) external initializer {
+        __Router_initialize(_abacusConnectionManager);
     }
 
     function _handle(

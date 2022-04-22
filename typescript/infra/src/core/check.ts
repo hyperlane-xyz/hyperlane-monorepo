@@ -50,7 +50,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     await this.checkProxiedContracts(domain);
     await this.checkOutbox(domain);
     await this.checkInboxes(domain);
-    await this.checkXAppConnectionManager(domain);
+    await this.checkAbacusConnectionManager(domain);
     await this.checkValidatorManagers(domain);
   }
 
@@ -60,7 +60,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   ): Promise<void> {
     const contracts = this.app.mustGetContracts(domain);
     const owners = [
-      contracts.xAppConnectionManager.owner(),
+      contracts.abacusConnectionManager.owner(),
       contracts.upgradeBeaconController.owner(),
       contracts.outbox.owner(),
       contracts.outboxValidatorManager.owner(),
@@ -217,19 +217,18 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     expect(upgradeBeacons.reduce(identical)).to.not.be.false;
   }
 
-  async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
+  async checkAbacusConnectionManager(domain: types.Domain): Promise<void> {
     const contracts = this.app.mustGetContracts(domain);
     for (const remote of this.app.remoteDomainNumbers(domain)) {
-      // inbox is enrolled in xAppConnectionManager
-      const enrolledInbox = await contracts.xAppConnectionManager.domainToInbox(
-        remote,
-      );
+      // inbox is enrolled in abacusConnectionManager
+      const enrolledInbox =
+        await contracts.abacusConnectionManager.domainToInbox(remote);
       expect(enrolledInbox).to.equal(
         this.app.mustGetInbox(remote, domain).address,
       );
     }
-    // Outbox is set on xAppConnectionManager
-    const outbox = await contracts.xAppConnectionManager.outbox();
+    // Outbox is set on abacusConnectionManager
+    const outbox = await contracts.abacusConnectionManager.outbox();
     expect(outbox).to.equal(contracts.outbox.address);
   }
 

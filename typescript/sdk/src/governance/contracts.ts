@@ -1,6 +1,6 @@
 import {
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
 } from '@abacus-network/core';
@@ -15,7 +15,7 @@ import { ProxiedAddress } from '../types';
 
 export type GovernanceContractAddresses = {
   upgradeBeaconController: types.Address;
-  xAppConnectionManager: types.Address;
+  abacusConnectionManager: types.Address;
   router: ProxiedAddress;
 };
 
@@ -34,9 +34,9 @@ export class GovernanceContracts extends AbacusAppContracts<GovernanceContractAd
     );
   }
 
-  get xAppConnectionManager(): XAppConnectionManager {
-    return XAppConnectionManager__factory.connect(
-      this.addresses.xAppConnectionManager,
+  get abacusConnectionManager(): AbacusConnectionManager {
+    return AbacusConnectionManager__factory.connect(
+      this.addresses.abacusConnectionManager,
       this.connection,
     );
   }

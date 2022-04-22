@@ -21,7 +21,7 @@ library GovernanceMessage {
         SetGovernor, // 2
         EnrollRemoteRouter, // 3
         Data, // 4
-        SetXAppConnectionManager // 5
+        SetAbacusConnectionManager // 5
     }
 
     struct Call {
@@ -94,17 +94,17 @@ library GovernanceMessage {
         );
     }
 
-    function formatSetXAppConnectionManager(bytes32 _xAppConnectionManager)
+    function formatSetAbacusConnectionManager(bytes32 _abacusConnectionManager)
         internal
         view
         returns (bytes memory _msg)
     {
         _msg = TypedMemView.clone(
-            mustBeSetXAppConnectionManager(
+            mustBeSetAbacusConnectionManager(
                 abi
                     .encodePacked(
-                        Types.SetXAppConnectionManager,
-                        _xAppConnectionManager
+                        Types.SetAbacusConnectionManager,
+                        _abacusConnectionManager
                     )
                     .ref(0)
             )
@@ -188,8 +188,8 @@ library GovernanceMessage {
         return _view.index(1, 32);
     }
 
-    // Types.SetXAppConnectionManager
-    function xAppConnectionManager(bytes29 _view)
+    // Types.SetAbacusConnectionManager
+    function abacusConnectionManager(bytes29 _view)
         internal
         pure
         returns (bytes32)
@@ -308,48 +308,48 @@ library GovernanceMessage {
 
     /*
         Message Type: SET XAPPCONNECTIONMANAGER
-        struct SetXAppConnectionManager {
+        struct SetAbacusConnectionManager {
             identifier, // message ID -- 1 byte
-            addr        // address of new xAppConnectionManager -- 32 bytes
+            addr        // address of new abacusConnectionManager -- 32 bytes
         }
     */
 
-    function isValidSetXAppConnectionManager(bytes29 _view)
+    function isValidSetAbacusConnectionManager(bytes29 _view)
         internal
         pure
         returns (bool)
     {
         return
-            identifier(_view) == uint8(Types.SetXAppConnectionManager) &&
+            identifier(_view) == uint8(Types.SetAbacusConnectionManager) &&
             _view.len() == SET_ADDRESS_LEN;
     }
 
-    function isSetXAppConnectionManager(bytes29 _view)
+    function isSetAbacusConnectionManager(bytes29 _view)
         internal
         pure
         returns (bool)
     {
         return
-            isValidSetXAppConnectionManager(_view) &&
-            messageType(_view) == Types.SetXAppConnectionManager;
+            isValidSetAbacusConnectionManager(_view) &&
+            messageType(_view) == Types.SetAbacusConnectionManager;
     }
 
-    function tryAsSetXAppConnectionManager(bytes29 _view)
+    function tryAsSetAbacusConnectionManager(bytes29 _view)
         internal
         pure
         returns (bytes29)
     {
-        if (isValidSetXAppConnectionManager(_view)) {
-            return _view.castTo(uint40(Types.SetXAppConnectionManager));
+        if (isValidSetAbacusConnectionManager(_view)) {
+            return _view.castTo(uint40(Types.SetAbacusConnectionManager));
         }
         return TypedMemView.nullView();
     }
 
-    function mustBeSetXAppConnectionManager(bytes29 _view)
+    function mustBeSetAbacusConnectionManager(bytes29 _view)
         internal
         pure
         returns (bytes29)
     {
-        return tryAsSetXAppConnectionManager(_view).assertValid();
+        return tryAsSetAbacusConnectionManager(_view).assertValid();
     }
 }

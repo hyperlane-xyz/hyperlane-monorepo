@@ -32,8 +32,8 @@ contract RouterTemplate is Router {
 
     // ============ Constructor ============
 
-    constructor(address _xAppConnectionManager) {
-        __XAppConnectionClient_initialize(_xAppConnectionManager);
+    constructor(address _abacusConnectionManager) {
+        __AbacusConnectionClient_initialize(_abacusConnectionManager);
     }
 
     // ============ Handle message functions ============
