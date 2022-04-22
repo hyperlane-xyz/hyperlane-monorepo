@@ -5,9 +5,9 @@ on:
       - 'main'
     tags:
       - '**'
-  # pull_request:
-  #   branches:
-  #     - 'main'
+  pull_request:
+    paths:
+      - 'rust/**'
 jobs:
   check-env:
     runs-on: ubuntu-latest
