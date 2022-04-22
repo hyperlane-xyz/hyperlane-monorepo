@@ -1,6 +1,8 @@
 import { types } from '@abacus-network/utils';
 import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
 import { DeployEnvironment } from './environment';
+import { AgentAwsUser } from '../agents/aws';
+import { KEY_ROLE_ENUM } from '../agents';
 
 // Allows a "default" config to be specified and any per-network overrides.
 interface ChainOverridableConfig<Networks extends ChainName, T> {
@@ -18,7 +20,6 @@ export function getChainOverriddenConfig<Networks extends ChainName, T>(
     ...overridableConfig.chainOverrides?.[chain],
   };
 }
-
 
 // =====================================
 // =====     Checkpoint Syncer     =====
@@ -70,7 +71,10 @@ interface Validator {
 }
 
 // Validator sets for each network
-export type ChainValidatorSets<Networks extends ChainName> = ChainSubsetMap<Networks, ValidatorSet>;
+export type ChainValidatorSets<Networks extends ChainName> = ChainSubsetMap<
+  Networks,
+  ValidatorSet
+>;
 
 // =================================
 // =====     Relayer Agent     =====
@@ -89,7 +93,10 @@ interface BaseRelayerConfig {
 }
 
 // Per-chain relayer agent configs
-type ChainRelayerConfigs<Networks extends ChainName> = ChainOverridableConfig<Networks, BaseRelayerConfig>;
+type ChainRelayerConfigs<Networks extends ChainName> = ChainOverridableConfig<
+  Networks,
+  BaseRelayerConfig
+>;
 
 // Full relayer agent config for a single chain
 interface RelayerConfig extends BaseRelayerConfig {
@@ -109,7 +116,10 @@ interface BaseValidatorConfig {
 }
 
 // Per-chain validator agent configs
-type ChainValidatorConfigs<Networks extends ChainName> = ChainOverridableConfig<Networks, BaseValidatorConfig>;
+type ChainValidatorConfigs<Networks extends ChainName> = ChainOverridableConfig<
+  Networks,
+  BaseValidatorConfig
+>;
 
 // Full validator agent config for a single chain
 interface ValidatorConfig extends BaseValidatorConfig {
@@ -129,14 +139,17 @@ interface CheckpointerConfig {
 }
 
 // Per-chain checkpointer agent configs
-type CheckpointersConfig<Networks extends ChainName> = ChainOverridableConfig<Networks, CheckpointerConfig>;
+type CheckpointersConfig<Networks extends ChainName> = ChainOverridableConfig<
+  Networks,
+  CheckpointerConfig
+>;
 
 interface IndexingConfig {
   from: number;
   chunk: number;
 }
 
-interface AwsConfig {
+export interface AwsConfig {
   region: string;
 }
 
@@ -208,20 +221,40 @@ export class ChainAgentConfig<Networks extends ChainName> {
     return this.agentConfig.validatorSets[this.chainName];
   }
 
-  get validatorConfigs(): Array<ValidatorConfig> {
-    if (!this.agentConfig.validator) {
-      throw Error('No relayer config');
-    }
-    const baseConfig = getChainOverriddenConfig(this.agentConfig.validator, this.chainName);
+  async validatorConfigs(): Promise<Array<ValidatorConfig>> {
+    const baseConfig = getChainOverriddenConfig(
+      this.agentConfig.validator,
+      this.chainName,
+    );
 
-    return this.validatorSet.validators.map((val) => ({
-      ...baseConfig,
-      checkpointSyncer: val.checkpointSyncer,
-    }));
+    return Promise.all(
+      this.validatorSet.validators.map(async (val, i) => {
+        if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
+          const awsUser = new AgentAwsUser(
+            this.agentConfig.environment,
+            val.checkpointSyncer.region,
+            KEY_ROLE_ENUM.Validator,
+            this.chainName,
+            i,
+          );
+          await awsUser.createIfNotExists();
+          await awsUser.createCheckpointSyncerS3BucketIfNotExists(
+            val.checkpointSyncer.bucket,
+          );
+        }
+        return {
+          ...baseConfig,
+          checkpointSyncer: val.checkpointSyncer,
+        };
+      }),
+    );
   }
 
   get relayerConfig(): RelayerConfig {
-    const baseConfig = getChainOverriddenConfig(this.agentConfig.relayer, this.chainName);
+    const baseConfig = getChainOverriddenConfig(
+      this.agentConfig.relayer,
+      this.chainName,
+    );
 
     const checkpointSyncers = this.validatorSet.validators.reduce(
       (agg, val) => ({
@@ -241,6 +274,9 @@ export class ChainAgentConfig<Networks extends ChainName> {
   }
 
   get checkpointerConfig(): CheckpointerConfig {
-    return getChainOverriddenConfig(this.agentConfig.checkpointer, this.chainName);
+    return getChainOverriddenConfig(
+      this.agentConfig.checkpointer,
+      this.chainName,
+    );
   }
 }

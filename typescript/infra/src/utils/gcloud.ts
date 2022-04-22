@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { rm, writeFile } from 'fs/promises';
 import { execCmd, execCmdAndParseJson } from './utils';
 
 interface IamCondition {
@@ -17,6 +18,40 @@ export async function fetchGCPSecret(
     return JSON.parse(output);
   }
   return output;
+}
+
+export async function gcpSecretExists(secretName: string) {
+  const fullName = `projects/${await getCurrentProjectNumber()}/secrets/${secretName}`;
+  const matches = await execCmdAndParseJson(
+    `gcloud secrets list --filter name=${fullName} --format json`,
+  );
+  return matches.length > 0;
+}
+
+export async function setGCPSecret(
+  secretName: string,
+  secret: string,
+  labels: {
+    [key: string]: string;
+  },
+) {
+  const fileName = `/tmp/${secretName}.txt`;
+  await writeFile(fileName, secret);
+
+  const exists = await gcpSecretExists(secretName);
+  if (!exists) {
+    const labelString = Object.keys(labels)
+      .map((key) => `${key}=${labels[key]}`)
+      .join(',');
+    await execCmd(
+      `gcloud secrets create ${secretName} --data-file=${fileName} --replication-policy=automatic --labels=${labelString}`,
+    );
+  } else {
+    await execCmd(
+      `gcloud secrets versions add ${secretName} --data-file=${fileName}`,
+    );
+  }
+  await rm(fileName);
 }
 
 // Returns the email of the service account

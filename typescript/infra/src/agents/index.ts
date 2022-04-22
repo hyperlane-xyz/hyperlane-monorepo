@@ -66,7 +66,7 @@ async function helmValuesForChain<Networks extends ChainName>(
         signer: {
           ...credentials(KEY_ROLE_ENUM.Validator),
         },
-        configs: chainAgentConfig.validatorConfigs,
+        configs: await chainAgentConfig.validatorConfigs(),
       },
       relayer: {
         enabled: true,
@@ -219,7 +219,9 @@ export async function getAgentEnvVars<Networks extends ChainName>(
   return envVars;
 }
 
-export async function getSecretAwsCredentials<Networks extends ChainName>(agentConfig: AgentConfig<Networks>) {
+export async function getSecretAwsCredentials<Networks extends ChainName>(
+  agentConfig: AgentConfig<Networks>,
+) {
   return {
     accessKeyId: await fetchGCPSecret(
       `${agentConfig.runEnv}-aws-access-key-id`,

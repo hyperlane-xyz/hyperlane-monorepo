@@ -17,11 +17,9 @@ export const validators: ChainValidatorSets<DevNetworks> = {
       {
         address: '0x4455f6B4c341d48ef8CDBe1b9bE8bb3a63c97a46',
         checkpointSyncer: {
-          type: CheckpointSyncerType.LocalStorage,
-          path: localCheckpointSyncerPath(
-            'alfajores',
-            '0x4455f6B4c341d48ef8CDBe1b9bE8bb3a63c97a46',
-          ),
+          type: CheckpointSyncerType.S3,
+          bucket: 'abacus-dev-alfajores-validator-0',
+          region: 'us-east-1',
         },
       },
       {
