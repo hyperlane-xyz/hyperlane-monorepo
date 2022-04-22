@@ -146,16 +146,16 @@ abacus:
     resources:
       requests:
         cpu: 250m
-        memory: 1Gi
+        memory: 512Mi
     signers:
       - name: "kovan"
-        aws:
-          keyId: ""
-          region: ""
+        # aws:
+        #   keyId: ""
+        #   region: ""
       - name: "alfajores"
-        aws:
-          keyId: ""
-          region: ""
+        # aws:
+        #   keyId: ""
+        #   region: ""
     # Polling Interval Override
     messageInterval: # 100
     # -- Configuration for Kathy's message generation code

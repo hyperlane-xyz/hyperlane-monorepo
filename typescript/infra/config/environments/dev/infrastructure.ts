@@ -29,7 +29,7 @@ export const infrastructure: InfrastructureConfig = {
         url: 'https://charts.external-secrets.io',
       },
       name: 'external-secrets',
-      version: '0.4.4',
+      version: '0.5.1',
     },
     gcpServiceAccountName: 'k8s-external-secrets-dev',
     accessibleGCPSecretPrefixes: ['abacus-dev-', 'dev-'],

@@ -15,14 +15,16 @@ export enum KEY_ROLE_ENUM {
   Relayer = 'relayer',
   Deployer = 'deployer',
   Bank = 'bank',
+  Kathy = 'kathy',
 }
 
 export const KEY_ROLES = [
-  'validator',
-  'checkpointer',
-  'relayer',
-  'deployer',
-  'bank',
+  KEY_ROLE_ENUM.Validator,
+  KEY_ROLE_ENUM.Checkpointer,
+  KEY_ROLE_ENUM.Relayer,
+  KEY_ROLE_ENUM.Deployer,
+  KEY_ROLE_ENUM.Bank,
+  KEY_ROLE_ENUM.Kathy,
 ];
 
 async function helmValuesForChain<Networks extends ChainName>(
@@ -41,6 +43,8 @@ async function helmValuesForChain<Networks extends ChainName>(
   };
 
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
+
+  const kathyConfig = chainAgentConfig.kathyConfig;
 
   return {
     image: {
@@ -84,6 +88,14 @@ async function helmValuesForChain<Networks extends ChainName>(
         })),
         config: chainAgentConfig.checkpointerConfig,
       },
+      kathy: {
+        signers: chainNames.map((name) => ({
+          name,
+          ...credentials(KEY_ROLE_ENUM.Kathy),
+        })),
+        enabled: kathyConfig !== undefined,
+        config: kathyConfig,
+      }
     },
   };
 }

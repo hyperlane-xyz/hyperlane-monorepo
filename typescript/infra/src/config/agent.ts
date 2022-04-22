@@ -139,9 +139,25 @@ interface CheckpointerConfig {
 }
 
 // Per-chain checkpointer agent configs
-type CheckpointersConfig<Networks extends ChainName> = ChainOverridableConfig<
+type ChainCheckpointerConfigs<Networks extends ChainName> = ChainOverridableConfig<
   Networks,
   CheckpointerConfig
+>;
+
+// ===============================
+// =====     Kathy Agent     =====
+// ===============================
+
+// Full kathy agent config for a single chain
+interface KathyConfig {
+  // The message interval (in seconds)
+  interval: number;
+}
+
+// Per-chain kathy agent configs
+type ChainKathyConfigs<Networks extends ChainName> = ChainOverridableConfig<
+  Networks,
+  KathyConfig
 >;
 
 interface IndexingConfig {
@@ -165,10 +181,11 @@ export interface AgentConfig<Networks extends ChainName> {
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
+  validatorSets: ChainValidatorSets<Networks>;
   validator: ChainValidatorConfigs<Networks>;
   relayer: ChainRelayerConfigs<Networks>;
-  checkpointer: CheckpointersConfig<Networks>;
-  validatorSets: ChainValidatorSets<Networks>;
+  checkpointer: ChainCheckpointerConfigs<Networks>;
+  kathy?: ChainKathyConfigs<Networks>;
 }
 
 export type RustSigner = {
@@ -276,6 +293,16 @@ export class ChainAgentConfig<Networks extends ChainName> {
   get checkpointerConfig(): CheckpointerConfig {
     return getChainOverriddenConfig(
       this.agentConfig.checkpointer,
+      this.chainName,
+    );
+  }
+
+  get kathyConfig(): KathyConfig | undefined {
+    if (!this.agentConfig.kathy) {
+      return undefined;
+    }
+    return getChainOverriddenConfig(
+      this.agentConfig.kathy,
       this.chainName,
     );
   }

@@ -44,4 +44,14 @@ export const agent: AgentConfig<DevNetworks> = {
     },
     chainOverrides: {},
   },
+  kathy: {
+    default: {
+      interval: 30,
+    },
+    chainOverrides: {
+      kovan: {
+        interval: 120,
+      },
+    },
+  }
 };

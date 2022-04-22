@@ -130,8 +130,6 @@ export class AgentAwsUser<Networks extends ChainName> {
   async createCheckpointSyncerS3Bucket(bucketName: string) {
     const cmd = new CreateBucketCommand({
       Bucket: bucketName,
-      ACL: 'public-read',
-      // GrantFullControl: this.userName,
     });
     await this.adminS3Client.send(cmd);
   }
@@ -142,6 +140,12 @@ export class AgentAwsUser<Networks extends ChainName> {
     }
     const policy = {
       Statement: [
+        {
+          Effect: 'Allow',
+          Principal: '*',
+          Action: ['s3:GetObject', 's3:ListBucket'],
+          Resource: [`arn:aws:s3:::${bucketName}`, `arn:aws:s3:::${bucketName}/*`],
+        },
         {
           Effect: 'Allow',
           Principal: {
