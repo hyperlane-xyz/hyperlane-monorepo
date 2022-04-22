@@ -51,29 +51,23 @@ mod test {
             let outbox_name = "outbox_1".to_owned();
             let db = AbacusDB::new(outbox_name, db);
 
+            let leaf_index = 100;
             let m = AbacusMessage {
                 origin: 10,
                 sender: H256::from_low_u64_be(4),
-                nonce: 11,
                 destination: 12,
                 recipient: H256::from_low_u64_be(5),
                 body: vec![1, 2, 3],
             };
 
             let message = RawCommittedMessage {
-                leaf_index: 100,
-                committed_root: H256::from_low_u64_be(3),
+                leaf_index,
                 message: m.to_vec(),
             };
-            assert_eq!(m.to_leaf(), message.leaf());
+
+            assert_eq!(m.to_leaf(leaf_index), message.leaf());
 
             db.store_raw_committed_message(&message).unwrap();
-
-            let by_nonce = db
-                .message_by_nonce(m.destination, m.nonce)
-                .unwrap()
-                .unwrap();
-            assert_eq!(by_nonce, message);
 
             let by_leaf = db.message_by_leaf(message.leaf()).unwrap().unwrap();
             assert_eq!(by_leaf, message);

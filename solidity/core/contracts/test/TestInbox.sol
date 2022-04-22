@@ -22,8 +22,8 @@ contract TestInbox is Inbox {
         return MerkleLib.branchRoot(leaf, proof, index);
     }
 
-    function testProcess(bytes calldata _message) external {
-        bytes32 _messageHash = keccak256(_message);
+    function testProcess(bytes calldata _message, uint256 leafIndex) external {
+        bytes32 _messageHash = keccak256(abi.encodePacked(_message, leafIndex));
         _process(_message, _messageHash);
     }
 
