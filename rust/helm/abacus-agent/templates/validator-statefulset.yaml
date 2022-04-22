@@ -63,6 +63,16 @@ spec:
             valueFrom:
               fieldRef:
                 fieldPath: metadata.name
+          {{- range .Values.abacus.validator.signers }}
+          {{- if (hasKey . "aws") }}
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
+            value: "aws"
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID
+            value: {{ .aws.keyId }}
+          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_REGION
+            value: {{ .aws.region }}
+          {{- end }}
+          {{- end }}
           {{- if .Values.abacus.tracing.uri }}
           - name: OPT_BASE_TRACING_JAEGER_NAME
             value: {{ include "abacus-agent.fullname" . }}-validator
