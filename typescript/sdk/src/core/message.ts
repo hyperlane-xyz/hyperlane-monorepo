@@ -4,7 +4,9 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { keccak256 } from 'ethers/lib/utils';
 import { AbacusCore } from '.';
+import { domains } from '../domains';
 import { Annotated, findAnnotatedSingleEvent } from '../events';
+import { MultiProvider } from '../provider';
 import { ChainIdToName, ChainName, NameOrDomain } from '../types';
 import { delay } from '../utils';
 import {
@@ -29,10 +31,13 @@ export type ParsedMessage = {
   body: string;
 };
 
-const resolveDomain = (nameOrDomain: NameOrDomain): ChainName =>
+export const resolveDomain = (nameOrDomain: NameOrDomain): ChainName =>
   typeof nameOrDomain === 'number' ? ChainIdToName[nameOrDomain] : nameOrDomain;
 
-const decodeNetworks = (message: ParsedMessage) => {
+export const resolveId = (nameOrDomain: NameOrDomain): number =>
+  typeof nameOrDomain === 'string' ? domains[nameOrDomain].id : nameOrDomain;
+
+export const resolveNetworks = (message: ParsedMessage) => {
   return {
     origin: resolveDomain(message.origin),
     destination: resolveDomain(message.destination),
@@ -80,6 +85,8 @@ export function parseMessage(message: string): ParsedMessage {
   return { origin, sender, nonce, destination, recipient, body };
 }
 
+// TODO: move AbacusMessage into AbacusCore app
+
 /**
  * A deserialized Abacus message.
  */
@@ -89,22 +96,28 @@ export class AbacusMessage {
   readonly outbox: Outbox;
   readonly inbox: Inbox;
 
+  readonly multiProvider: MultiProvider;
   readonly core: AbacusCore;
   protected cache: EventCache;
 
-  constructor(core: AbacusCore, dispatch: AnnotatedDispatch) {
+  constructor(
+    multiProvider: MultiProvider,
+    core: AbacusCore,
+    dispatch: AnnotatedDispatch,
+  ) {
+    this.multiProvider = multiProvider;
     this.core = core;
     this.message = parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
 
-    const messageNetworks = decodeNetworks(this.message);
+    const messageNetworks = resolveNetworks(this.message);
+    const mailboxes = core.getMailboxPair(
+      messageNetworks.origin as never, // TODO: Fix never type
+      messageNetworks.destination,
+    );
 
-    this.outbox = core.getContracts(
-      messageNetworks.origin,
-    ).contracts.outbox.outbox;
-    this.inbox = core
-      .getContracts(messageNetworks.destination)
-      .inbox(messageNetworks.origin as never); // TODO: fix type
+    this.outbox = mailboxes.outbox;
+    this.inbox = mailboxes.inbox;
     this.cache = {};
   }
 
@@ -124,40 +137,36 @@ export class AbacusMessage {
    * @returns an array of {@link AbacusMessage} objects
    */
   static fromReceipt(
+    multiProvider: MultiProvider,
     core: AbacusCore,
     nameOrDomain: NameOrDomain,
     receipt: TransactionReceipt,
   ): AbacusMessage[] {
     const messages: AbacusMessage[] = [];
     const outbox = new Outbox__factory().interface;
+    const network = resolveDomain(nameOrDomain);
+    const provider = multiProvider.getProvider(network).provider!;
 
     for (const log of receipt.logs) {
       try {
         const parsed = outbox.parseLog(log);
         if (parsed.name === 'Dispatch') {
-          const dispatch = parsed as unknown as DispatchEvent;
-          dispatch.getBlock = () => {
-            return core.mustGetProvider(nameOrDomain).getBlock(log.blockHash);
-          };
-          dispatch.getTransaction = () => {
-            return core
-              .mustGetProvider(nameOrDomain)
-              .getTransaction(log.transactionHash);
-          };
-          dispatch.getTransactionReceipt = () => {
-            return core
-              .mustGetProvider(nameOrDomain)
-              .getTransactionReceipt(log.transactionHash);
-          };
+          const dispatch = {
+            ...parsed,
+            getBlock: () => provider.getBlock(log.blockHash),
+            getTransaction: () => provider.getTransaction(log.transactionHash),
+            getTransactionReceipt: () =>
+              provider.getTransactionReceipt(log.transactionHash),
+          } as unknown as DispatchEvent;
 
           const annotated = new Annotated<DispatchTypes, DispatchEvent>(
-            core.resolveDomain(nameOrDomain),
+            resolveId(nameOrDomain),
             receipt,
             dispatch,
             true,
           );
           annotated.event.blockNumber = annotated.receipt.blockNumber;
-          const message = new AbacusMessage(core, annotated);
+          const message = new AbacusMessage(multiProvider, core, annotated);
           messages.push(message);
         }
       } catch (e) {
@@ -177,11 +186,13 @@ export class AbacusMessage {
    * @throws if there is not EXACTLY 1 dispatch in the receipt
    */
   static singleFromReceipt(
+    multiProvider: MultiProvider,
     core: AbacusCore,
     nameOrDomain: NameOrDomain,
     receipt: TransactionReceipt,
   ): AbacusMessage {
     const messages: AbacusMessage[] = AbacusMessage.fromReceipt(
+      multiProvider,
       core,
       nameOrDomain,
       receipt,
@@ -202,16 +213,23 @@ export class AbacusMessage {
    * @throws if there is no receipt for the TX
    */
   static async fromTransactionHash(
+    multiProvider: MultiProvider,
     core: AbacusCore,
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AbacusMessage[]> {
-    const provider = core.mustGetProvider(nameOrDomain);
+    const provider = multiProvider.getProvider(resolveDomain(nameOrDomain))
+      .provider!;
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return AbacusMessage.fromReceipt(core, nameOrDomain, receipt);
+    return AbacusMessage.fromReceipt(
+      multiProvider,
+      core,
+      nameOrDomain,
+      receipt,
+    );
   }
 
   /**
@@ -225,16 +243,23 @@ export class AbacusMessage {
    *         the receipt
    */
   static async singleFromTransactionHash(
+    multiProvider: MultiProvider,
     core: AbacusCore,
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AbacusMessage> {
-    const provider = core.mustGetProvider(nameOrDomain);
+    const provider = multiProvider.getProvider(resolveDomain(nameOrDomain))
+      .provider!;
     const receipt = await provider.getTransactionReceipt(transactionHash);
     if (!receipt) {
       throw new Error(`No receipt for ${transactionHash} on ${nameOrDomain}`);
     }
-    return AbacusMessage.singleFromReceipt(core, nameOrDomain, receipt);
+    return AbacusMessage.singleFromReceipt(
+      multiProvider,
+      core,
+      nameOrDomain,
+      receipt,
+    );
   }
 
   /**
@@ -266,8 +291,8 @@ export class AbacusMessage {
 
     const checkpointLogs: AnnotatedCheckpoint[] =
       await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
-        this.core,
-        this.origin,
+        this.multiProvider,
+        this.originName,
         this.outbox,
         checkpointFilter,
       );
@@ -310,8 +335,8 @@ export class AbacusMessage {
     );
     const checkpointLogs: AnnotatedCheckpoint[] =
       await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
-        this.core,
-        this.destination,
+        this.multiProvider,
+        this.destinationName,
         this.inbox,
         checkpointFilter,
       );
@@ -341,7 +366,13 @@ export class AbacusMessage {
     const processLogs = await findAnnotatedSingleEvent<
       ProcessTypes,
       ProcessArgs
-    >(this.core, this.destination, this.inbox, processFilter, startBlock);
+    >(
+      this.multiProvider,
+      this.destinationName,
+      this.inbox,
+      processFilter,
+      startBlock,
+    );
     if (processLogs.length === 1) {
       // if event is returned, store it to the object
       this.cache.process = processLogs[0];
@@ -441,6 +472,10 @@ export class AbacusMessage {
     return this.message.origin;
   }
 
+  get originName(): ChainName {
+    return resolveDomain(this.origin);
+  }
+
   /**
    * The identifier for the sender of this message
    */
@@ -460,6 +495,10 @@ export class AbacusMessage {
    */
   get destination(): number {
     return this.message.destination;
+  }
+
+  get destinationName(): ChainName {
+    return resolveDomain(this.destination);
   }
 
   /**

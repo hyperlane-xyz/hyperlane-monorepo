@@ -1,6 +1,6 @@
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
-import { ChainName } from '../types';
+import { ChainName, Remotes } from '../types';
 import { objMap } from '../utils';
 import { CoreContracts } from './contracts';
 import { environments } from './environments';
@@ -15,6 +15,15 @@ export class AbacusCore<
     network: Local,
   ): CoreContracts<Networks, Local> {
     return this.get(network).contracts as any;
+  }
+
+  getMailboxPair<Local extends Networks>(
+    origin: Remotes<Networks, Local>,
+    destination: Local,
+  ) {
+    const outbox = this.getContracts(origin).contracts.outbox.outbox;
+    const inbox = this.getContracts(destination).getInbox(origin);
+    return { outbox, inbox };
   }
 
   static fromEnvironment(

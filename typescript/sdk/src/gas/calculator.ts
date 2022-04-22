@@ -1,6 +1,7 @@
 import { utils } from '@abacus-network/utils';
 import { BigNumber, ethers, FixedNumber } from 'ethers';
-import { AbacusCore, ParsedMessage } from '..';
+import { AbacusCore, domains, MultiProvider, ParsedMessage } from '..';
+import { resolveDomain, resolveNetworks } from '../core/message';
 import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
 import { convertDecimalValue, mulBigAndFixed } from './utils';
 
@@ -45,13 +46,19 @@ export interface InterchainGasCalculatorConfig {
  */
 export class InterchainGasCalculator {
   core: AbacusCore;
+  multiProvider: MultiProvider;
 
   tokenPriceGetter: TokenPriceGetter;
 
   paymentEstimateMultiplier: ethers.FixedNumber;
   messageGasEstimateBuffer: ethers.BigNumber;
 
-  constructor(core: AbacusCore, config?: InterchainGasCalculatorConfig) {
+  constructor(
+    multiProvider: MultiProvider,
+    core: AbacusCore,
+    config?: InterchainGasCalculatorConfig,
+  ) {
+    this.multiProvider = multiProvider;
     this.core = core;
 
     this.tokenPriceGetter =
@@ -188,7 +195,8 @@ export class InterchainGasCalculator {
    * @returns The suggested gas price in wei on the destination chain.
    */
   async suggestedGasPrice(domain: number): Promise<BigNumber> {
-    const provider = this.core.mustGetProvider(domain);
+    const provider = this.multiProvider.getProvider(resolveDomain(domain))
+      .provider!;
     return provider.getGasPrice();
   }
 
@@ -199,7 +207,7 @@ export class InterchainGasCalculator {
    */
   nativeTokenDecimals(domain: number) {
     return (
-      this.core.mustGetDomain(domain).nativeTokenDecimals ??
+      domains[resolveDomain(domain)].nativeTokenDecimals ??
       DEFAULT_TOKEN_DECIMALS
     );
   }
@@ -218,8 +226,15 @@ export class InterchainGasCalculator {
    * @returns The estimated gas required to process the message on the destination chain.
    */
   async estimateGasForMessage(message: ParsedMessage): Promise<BigNumber> {
-    const provider = this.core.mustGetProvider(message.destination);
-    const inbox = this.core.mustGetInbox(message.origin, message.destination);
+    const provider = this.multiProvider.getProvider(
+      resolveDomain(message.destination),
+    ).provider!;
+
+    const messageNetworks = resolveNetworks(message);
+    const { inbox } = this.core.getMailboxPair(
+      messageNetworks.origin as never,
+      messageNetworks.destination,
+    );
 
     const handlerInterface = new ethers.utils.Interface([
       'function handle(uint32,bytes32,bytes)',

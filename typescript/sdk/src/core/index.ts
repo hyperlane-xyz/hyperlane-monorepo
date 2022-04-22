@@ -4,7 +4,7 @@ export {
   CoreContracts,
   coreFactories,
 } from './contracts';
-export { addresses, CoreDeployedNetworks } from './environments';
+export { environments as coreEnvironments } from './environments';
 export {
   AbacusLifecyleEvent,
   AnnotatedDispatch,

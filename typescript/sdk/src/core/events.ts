@@ -1,6 +1,5 @@
-import { BigNumber } from '@ethersproject/bignumber';
-
 import { TypedEvent } from '@abacus-network/core/dist/commons';
+import { BigNumber } from '@ethersproject/bignumber';
 import { Annotated } from '../events';
 
 // copied from the Outbox.d.ts

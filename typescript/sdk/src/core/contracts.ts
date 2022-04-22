@@ -93,8 +93,12 @@ export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
     });
   }
 
-  inbox = (chain: Remotes<N, L>) => this.contracts.inboxes[chain].inbox;
+  getOutbox = () => this.contracts.outbox.outbox;
 
-  inboxValidatorManager = (chain: Remotes<N, L>) =>
+  getOutboxValidatorManager = () => this.contracts.outbox.validatorManager;
+
+  getInbox = (chain: Remotes<N, L>) => this.contracts.inboxes[chain].inbox;
+
+  getInboxValidatorManager = (chain: Remotes<N, L>) =>
     this.contracts.inboxes[chain].validatorManager;
 }

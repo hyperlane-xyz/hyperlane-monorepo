@@ -147,7 +147,7 @@ export async function findEvent<T extends Result, U>(
   if (domain.paginate) {
     return findFromPaginatedEvents(
       multiprovider,
-      domain,
+      network,
       contract,
       filter,
       startBlock,

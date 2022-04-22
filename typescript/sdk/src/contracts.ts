@@ -20,10 +20,6 @@ export type Factories<A extends AbacusContractAddresses> = Record<
 export interface IAbacusContracts<Contracts> {
   contracts: Contracts;
   reconnect(connection: Connection): void;
-  // new (addresses: Addresses, connection: Connection): IAbacusContracts<
-  //   Contracts,
-  //   Addresses
-  // >;
 }
 
 export abstract class AbacusContracts<
