@@ -5,16 +5,12 @@ async function main() {
   const environment = await getEnvironment();
   const domainNames = await getDomainNames(environment);
 
-  const {
-    v: validatorCount,
-    kathy,
-  } = await getArgs()
+  const { v: validatorCount, kathy } = await getArgs()
     .alias('v', 'validatorCount')
     .number('v')
     .demandOption('v')
     .boolean('kathy')
-    .demandOption('kathy')
-    .argv;
+    .demandOption('kathy').argv;
 
   return createAgentGCPKeys(environment, domainNames, validatorCount, kathy);
 }

@@ -95,7 +95,7 @@ async function helmValuesForChain<Networks extends ChainName>(
         })),
         enabled: kathyConfig !== undefined,
         config: kathyConfig,
-      }
+      },
     },
   };
 }

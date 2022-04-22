@@ -41,5 +41,5 @@ export const agent: AgentConfig<DevNetworks> = {
         interval: 120,
       },
     },
-  }
+  },
 };

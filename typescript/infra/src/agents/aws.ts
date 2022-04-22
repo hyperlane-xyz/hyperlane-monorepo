@@ -144,7 +144,10 @@ export class ValidatorAgentAwsUser<Networks extends ChainName> {
           Effect: 'Allow',
           Principal: '*',
           Action: ['s3:GetObject', 's3:ListBucket'],
-          Resource: [`arn:aws:s3:::${bucketName}`, `arn:aws:s3:::${bucketName}/*`],
+          Resource: [
+            `arn:aws:s3:::${bucketName}`,
+            `arn:aws:s3:::${bucketName}/*`,
+          ],
         },
         // Allow the user to modify objects
         {

@@ -138,10 +138,8 @@ interface CheckpointerConfig {
 }
 
 // Per-chain checkpointer agent configs
-type ChainCheckpointerConfigs<Networks extends ChainName> = ChainOverridableConfig<
-  Networks,
-  CheckpointerConfig
->;
+type ChainCheckpointerConfigs<Networks extends ChainName> =
+  ChainOverridableConfig<Networks, CheckpointerConfig>;
 
 // ===============================
 // =====     Kathy Agent     =====
@@ -299,9 +297,6 @@ export class ChainAgentConfig<Networks extends ChainName> {
     if (!this.agentConfig.kathy) {
       return undefined;
     }
-    return getChainOverriddenConfig(
-      this.agentConfig.kathy,
-      this.chainName,
-    );
+    return getChainOverriddenConfig(this.agentConfig.kathy, this.chainName);
   }
 }

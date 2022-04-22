@@ -255,17 +255,10 @@ export async function rotateGCPKey(
   await persistAddresses(environment, filteredAddresses);
 }
 
-async function persistAddresses(
-  environment: string,
-  keys: KeyAsAddress[],
-) {
-  await setGCPSecret(
-    addressesIdentifier(environment),
-    JSON.stringify(keys),
-    {
-      environment: environment,
-    }
-  );
+async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
+  await setGCPSecret(addressesIdentifier(environment), JSON.stringify(keys), {
+    environment: environment,
+  });
 }
 
 // This function returns all the GCP keys for a given outbox chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
