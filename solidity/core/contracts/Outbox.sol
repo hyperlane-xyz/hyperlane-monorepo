@@ -133,7 +133,9 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     /**
      * @notice Checkpoints the latest root and index.
      * Validators are expected to sign this checkpoint so that it can be
-     * relayed to the Inbox contracts.
+     * relayed to the Inbox contracts. Checkpoints for a single message (i.e.
+     * count = 1) are disallowed since they make checkpoint tracking more
+     * difficult.
      * @dev emits Checkpoint event
      */
     function checkpoint() external override notFailed {

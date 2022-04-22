@@ -124,7 +124,7 @@ describe('Outbox', async () => {
 
   it('Checkpoints the latest root', async () => {
     const message = ethers.utils.formatBytes32String('message');
-    const count = 10;
+    const count = 2;
     for (let i = 0; i < count; i++) {
       await outbox.dispatch(
         destDomain,

@@ -169,11 +169,12 @@ export class TestAbacusDeploy extends TestDeploy<
       new Map();
     const outbox = this.outbox(origin);
     const [, checkpointedIndex] = await outbox.latestCheckpoint();
-    const latestIndex = await outbox.count();
-    if (latestIndex.eq(checkpointedIndex)) return responses;
+    const messageCount = await outbox.count();
+    // Message count does allow for a checkpoint
+    if (messageCount.lte(checkpointedIndex.add(1))) return responses;
 
-    // Can't checkpoint a single mesage
-    if (latestIndex.toNumber() <= 1) {
+    // Can't checkpoint a single message
+    if (messageCount.toNumber() <= 1) {
       return responses;
     }
 

@@ -21,6 +21,8 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     // ============ Public Variables ============
 
     // Checkpoints of root => leaf index
+    // Checkpoints of index 0 have to be disallowed as the existence of such
+    // a checkpoint cannot be distinguished from their non-existence
     mapping(bytes32 => uint256) public checkpoints;
     // The latest checkpointed root
     bytes32 public checkpointedRoot;
