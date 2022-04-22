@@ -1,7 +1,7 @@
 export const addresses = {
   alfajores: {
     upgradeBeaconController: '0x5FbDB2315678afecb367f032d93F642f64180aa3',
-    xAppConnectionManager: '0x0165878A594ca255338adfa4d48449f69242Eb8F',
+    abacusConnectionManager: '0x0165878A594ca255338adfa4d48449f69242Eb8F',
     interchainGasPaymaster: '0x5FC8d32690cc91D4c39d9d3abcBD16989F875707',
     outboxValidatorManager: '0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512',
     inboxValidatorManagers: {
@@ -34,7 +34,7 @@ export const addresses = {
   },
   kovan: {
     upgradeBeaconController: '0xc6e7DF5E7b4f2A278906862b61205850344D4e7d',
-    xAppConnectionManager: '0x7a2088a1bFc9d81c55368AE168C2C02570cB814F',
+    abacusConnectionManager: '0x7a2088a1bFc9d81c55368AE168C2C02570cB814F',
     interchainGasPaymaster: '0x4A679253410272dd5232B3Ff7cF5dbB88f295319',
     outboxValidatorManager: '0x59b670e9fA9D0A427751Af201D676719a970857b',
     inboxValidatorManagers: {
@@ -67,7 +67,7 @@ export const addresses = {
   },
   mumbai: {
     upgradeBeaconController: '0x70e0bA845a1A0F2DA3359C97E0285013525FFC49',
-    xAppConnectionManager: '0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00',
+    abacusConnectionManager: '0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00',
     interchainGasPaymaster: '0x9d4454B023096f34B160D6B654540c56A1F81688',
     outboxValidatorManager: '0x4826533B4897376654Bb4d4AD88B7faFD0C98528',
     inboxValidatorManagers: {
@@ -100,7 +100,7 @@ export const addresses = {
   },
   fuji: {
     upgradeBeaconController: '0xcbEAF3BDe82155F56486Fb5a1072cb8baAf547cc',
-    xAppConnectionManager: '0x1fA02b2d6A771842690194Cf62D91bdd92BfE28d',
+    abacusConnectionManager: '0x1fA02b2d6A771842690194Cf62D91bdd92BfE28d',
     interchainGasPaymaster: '0x5081a39b8A5f0E35a8D959395a630b68B74Dd30f',
     outboxValidatorManager: '0x1429859428C0aBc9C2C47C8Ee9FBaf82cFA0F20f',
     inboxValidatorManagers: {

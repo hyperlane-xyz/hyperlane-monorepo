@@ -1,8 +1,8 @@
 import { types, utils } from '@abacus-network/utils';
 import { AbacusCore } from '@abacus-network/sdk';
 import {
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
 } from '@abacus-network/core';
 import { AbacusAppDeployer } from '../deploy';
 import { Router, RouterConfig } from './types';
@@ -37,34 +37,34 @@ export abstract class AbacusRouterDeployer<
   async deployConnectionManagerIfNotConfigured(
     domain: number,
     config: C,
-  ): Promise<XAppConnectionManager> {
+  ): Promise<AbacusConnectionManager> {
     const name = this.mustResolveDomainName(domain);
     const signer = this.mustGetSigner(domain);
-    if (config.xAppConnectionManager) {
-      const configured = config.xAppConnectionManager[name];
-      if (!configured) throw new Error('xAppConectionManager not found');
-      return XAppConnectionManager__factory.connect(configured, signer);
+    if (config.abacusConnectionManager) {
+      const configured = config.abacusConnectionManager[name];
+      if (!configured) throw new Error('abacusConnectionManager not found');
+      return AbacusConnectionManager__factory.connect(configured, signer);
     }
 
-    const xAppConnectionManager: XAppConnectionManager =
+    const abacusConnectionManager: AbacusConnectionManager =
       await this.deployContract(
         domain,
-        'XAppConnectionManager',
-        new XAppConnectionManager__factory(signer),
+        'AbacusConnectionManager',
+        new AbacusConnectionManager__factory(signer),
       );
     const overrides = this.getOverrides(domain);
     if (!this.core)
-      throw new Error('must set core or configure xAppConnectionManager');
+      throw new Error('must set core or configure abacusConnectionManager');
     const core = this.core.mustGetContracts(domain);
-    await xAppConnectionManager.setOutbox(core.outbox.address, overrides);
+    await abacusConnectionManager.setOutbox(core.outbox.address, overrides);
     for (const remote of this.core.remoteDomainNumbers(domain)) {
-      await xAppConnectionManager.enrollInbox(
+      await abacusConnectionManager.enrollInbox(
         remote,
         this.core.mustGetInbox(remote, domain).address,
         overrides,
       );
     }
-    return xAppConnectionManager;
+    return abacusConnectionManager;
   }
 
   get routerAddresses(): Record<types.Domain, types.Address> {

@@ -101,13 +101,17 @@ describe('Inbox', async () => {
   });
 
   it('Processes a valid message', async () => {
+    const signers = await ethers.getSigners();
+    const recipientF = new TestRecipient__factory(signers[signers.length - 1]);
+    const recipient = await recipientF.deploy();
+    await recipient.deployTransaction.wait();
+
     let { index, proof, root, message } = messageWithProof;
     await inbox.setCheckpoint(root, 1);
 
-    // We assume correctness of processing via a successful call to a non-existing account
-    await expect(inbox.process(message, proof, index, '0x')).to.be.revertedWith(
-      'function call to a non-contract account',
-    );
+    await inbox.process(message, proof, index, '0x');
+    const hash = utils.messageHash(message, index);
+    expect(await inbox.messages(hash)).to.eql(MessageStatus.PROCESSED);
   });
 
   it('Rejects an already-processed message', async () => {
