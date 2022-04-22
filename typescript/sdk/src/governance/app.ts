@@ -4,12 +4,13 @@ import { objMap, promiseObjAll } from '../utils';
 import { GovernanceNetworks } from './contracts';
 
 export class GovernanceApp extends AbacusApp<
-  GovernanceNetworks,
-  GovernanceContracts
+  GovernanceContracts,
+  GovernanceNetworks
 > {
-  routers = () => objMap(this.domainMap, (d) => d.contracts.router);
+  routers = () => objMap(this.domainMap, (_, d) => d.contracts.router);
 
-  governors = () => promiseObjAll(objMap(this.domainMap, (d) => d.governor()));
+  governors = () =>
+    promiseObjAll(objMap(this.domainMap, (_, d) => d.governor()));
 
   getCalls(network: GovernanceNetworks) {
     return this.get(network).calls;

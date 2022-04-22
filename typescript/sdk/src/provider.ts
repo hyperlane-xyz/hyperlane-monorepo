@@ -29,19 +29,13 @@ export class DomainProvider {
   getAddress = () => this.signer?.getAddress();
 }
 
-export class MultiProvider<Networks extends ChainName> extends MultiGeneric<
-  Networks,
-  DomainProvider
-> {
-  constructor(
-    domainMap: ChainSubsetMap<
-      Networks,
-      ConstructorParameters<typeof DomainProvider>[0]
-    >,
-  ) {
-    const providerEntries = Object.entries<
-      ConstructorParameters<typeof DomainProvider>[0]
-    >(domainMap).map(([network, v]) => [network, new DomainProvider(v)]);
+export class MultiProvider<
+  Networks extends ChainName = ChainName,
+> extends MultiGeneric<DomainProvider, Networks> {
+  constructor(domainMap: ChainSubsetMap<Networks, string>) {
+    const providerEntries = Object.entries<string>(domainMap).map(
+      ([network, v]) => [network, new DomainProvider(v)],
+    );
     super(Object.fromEntries(providerEntries));
   }
   getProvider(network: Networks) {

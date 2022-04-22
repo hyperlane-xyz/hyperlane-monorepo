@@ -1,12 +1,12 @@
-import { TransactionReceipt } from '@ethersproject/abstract-provider';
-import { Result } from '@ethersproject/abi';
 import {
   TypedEvent,
   TypedEventFilter,
 } from '@abacus-network/core/dist/commons';
-
-import { NameOrDomain, Domain } from './types';
+import { Result } from '@ethersproject/abi';
+import { TransactionReceipt } from '@ethersproject/abstract-provider';
+import { domains } from './domains';
 import { MultiProvider } from './provider';
+import { ChainName } from './types';
 
 export class Annotated<U extends Result, T extends TypedEvent<U>> {
   readonly domain: number;
@@ -73,14 +73,14 @@ export class Annotated<U extends Result, T extends TypedEvent<U>> {
 export interface TSContract<T extends Result, U> {
   queryFilter(
     event: TypedEventFilter<T, U>,
-    fromBlockOrBlockhash?: NameOrDomain | undefined,
-    toBlock?: NameOrDomain | undefined,
+    fromBlockOrBlockhash?: number | undefined,
+    toBlock?: number | undefined,
   ): Promise<Array<TypedEvent<T & U>>>;
 }
 
 export async function queryAnnotatedEvents<T extends Result, U>(
-  multiprovider: MultiProvider,
-  nameOrDomain: NameOrDomain,
+  multiprovider: MultiProvider<any>,
+  network: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
@@ -88,51 +88,45 @@ export async function queryAnnotatedEvents<T extends Result, U>(
 ): Promise<Array<Annotated<T, TypedEvent<T & U>>>> {
   const events = await getEvents(
     multiprovider,
-    nameOrDomain,
+    network,
     contract,
     filter,
     startBlock,
     endBlock,
   );
-  return Annotated.fromEvents(
-    multiprovider.resolveDomain(nameOrDomain),
-    events,
-  );
+  return Annotated.fromEvents(domains[network].id, events);
 }
 
 export async function findAnnotatedSingleEvent<T extends Result, U>(
-  multiprovider: MultiProvider,
-  nameOrDomain: NameOrDomain,
+  multiprovider: MultiProvider<any>,
+  network: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
 ): Promise<Array<Annotated<T, TypedEvent<T & U>>>> {
   const events = await findEvent(
     multiprovider,
-    nameOrDomain,
+    network,
     contract,
     filter,
     startBlock,
   );
-  return Annotated.fromEvents(
-    multiprovider.resolveDomain(nameOrDomain),
-    events,
-  );
+  return Annotated.fromEvents(domains[network].id, events);
 }
 
 export async function getEvents<T extends Result, U>(
-  multiprovider: MultiProvider,
-  nameOrDomain: NameOrDomain,
+  multiprovider: MultiProvider<any>,
+  network: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = multiprovider.mustGetDomain(nameOrDomain);
+  const domain = domains[network];
   if (domain.paginate) {
     return getPaginatedEvents(
       multiprovider,
-      domain,
+      network,
       contract,
       filter,
       startBlock,
@@ -143,13 +137,13 @@ export async function getEvents<T extends Result, U>(
 }
 
 export async function findEvent<T extends Result, U>(
-  multiprovider: MultiProvider,
-  nameOrDomain: NameOrDomain,
+  multiprovider: MultiProvider<any>,
+  network: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = multiprovider.mustGetDomain(nameOrDomain);
+  const domain = domains[network];
   if (domain.paginate) {
     return findFromPaginatedEvents(
       multiprovider,
@@ -163,13 +157,14 @@ export async function findEvent<T extends Result, U>(
 }
 
 async function getPaginatedEvents<T extends Result, U>(
-  multiprovider: MultiProvider,
-  domain: Domain,
+  multiprovider: MultiProvider<any>,
+  network: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
+  const domain = domains[network];
   if (!domain.paginate) {
     throw new Error('Domain need not be paginated');
   }
@@ -182,7 +177,7 @@ async function getPaginatedEvents<T extends Result, U>(
   // or current block number
   let lastBlock;
   if (!endBlock) {
-    const provider = multiprovider.mustGetProvider(domain.id);
+    const provider = multiprovider.getProvider(network).provider!;
     lastBlock = await provider.getBlockNumber();
   } else {
     lastBlock = endBlock;
@@ -209,13 +204,14 @@ async function getPaginatedEvents<T extends Result, U>(
 }
 
 async function findFromPaginatedEvents<T extends Result, U>(
-  multiprovider: MultiProvider,
-  domain: Domain,
+  multiprovider: MultiProvider<any>,
+  network: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
+  const domain = domains[network];
   if (!domain.paginate) {
     throw new Error('Domain need not be paginated');
   }
@@ -228,7 +224,7 @@ async function findFromPaginatedEvents<T extends Result, U>(
   // or current block number
   let lastBlock;
   if (!endBlock) {
-    const provider = multiprovider.mustGetProvider(domain.id);
+    const provider = multiprovider.getProvider(network).provider!;
     lastBlock = await provider.getBlockNumber();
   } else {
     lastBlock = endBlock;

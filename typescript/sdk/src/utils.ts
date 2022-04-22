@@ -54,7 +54,7 @@ export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export class MultiGeneric<Networks extends ChainName, Value> {
+export class MultiGeneric<Value, Networks extends ChainName = ChainName> {
   constructor(protected readonly domainMap: ChainSubsetMap<Networks, Value>) {}
 
   protected get = (network: Networks) => this.domainMap[network];
@@ -71,7 +71,7 @@ export class MultiGeneric<Networks extends ChainName, Value> {
     network: New,
     value: Value,
   ) =>
-    new MultiGeneric<New & Networks, Value>({
+    new MultiGeneric<Value, New & Networks>({
       ...this.domainMap,
       [network]: value,
     });
@@ -87,18 +87,19 @@ export function inferChainSubsetMap<M>(map: M) {
 
 export function objMapEntries<N extends ChainName, I, O>(
   obj: ChainSubsetMap<N, I>,
-  func: (_: I) => O,
-) {
-  return Object.entries<I>(obj).map(([k, v]) => [k, func(v)]);
+  func: (k: N, _: I) => O,
+): [N, O][] {
+  return Object.entries<I>(obj).map(([k, v]) => [k as N, func(k as N, v)]);
 }
 
 export function objMap<N extends ChainName, I, O>(
   obj: ChainSubsetMap<N, I>,
-  func: (_: I) => O,
+  func: (k: N, _: I) => O,
 ) {
-  return Object.fromEntries(
-    objMapEntries<N, I, O>(obj, func),
-  ) as ChainSubsetMap<N, O>;
+  return Object.fromEntries<O>(objMapEntries<N, I, O>(obj, func)) as Record<
+    N,
+    O
+  >;
 }
 
 export interface IConstructor<T> {

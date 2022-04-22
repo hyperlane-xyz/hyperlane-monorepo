@@ -17,7 +17,6 @@ export {
   CoreContractAddresses,
   CoreContracts,
   CoreDeployedNetworks,
-  Mailbox,
   MessageStatus,
   ParsedMessage,
   parseMessage,

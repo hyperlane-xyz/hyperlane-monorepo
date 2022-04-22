@@ -1,21 +1,33 @@
 import { ethers } from 'ethers';
-import { AbacusContracts } from './contracts';
+import { IAbacusContracts } from './contracts';
+import { domains } from './domains';
 import { ChainName } from './types';
 import { MultiGeneric } from './utils';
 
+// TODO: add generic fromEnvironment
+
 export class AbacusApp<
-  N extends ChainName,
-  C extends AbacusContracts<any, any>,
-> extends MultiGeneric<N, C> {
-  getContracts(network: N) {
+  Contracts extends IAbacusContracts<any>,
+  Networks extends ChainName = ChainName,
+> extends MultiGeneric<Contracts, Networks> {
+  getContracts(network: Networks) {
     return this.get(network).contracts;
   }
 
-  registerProvider(network: N, provider: ethers.providers.Provider) {
+  async registerProvider(
+    network: Networks,
+    provider: ethers.providers.Provider,
+  ) {
+    const actualNetwork = await provider.getNetwork();
+    if (actualNetwork.chainId !== domains[network].id) {
+      throw new Error(
+        `Provider network ${actualNetwork} does not match ${network}`,
+      );
+    }
     this.get(network).reconnect(provider);
   }
 
-  registerSigner(network: N, signer: ethers.Signer) {
+  registerSigner(network: Networks, signer: ethers.Signer) {
     this.get(network).reconnect(signer);
   }
 }

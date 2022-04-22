@@ -2,60 +2,99 @@ import {
   Inbox,
   InboxValidatorManager,
   InboxValidatorManager__factory,
+  Inbox__factory,
+  InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
+  Outbox,
+  OutboxValidatorManager,
   OutboxValidatorManager__factory,
   Outbox__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
-import { AbacusRouterContracts } from '../contracts';
-import { ChainName, ProxiedAddress, Remotes } from '../types';
+import { IAbacusContracts } from '../contracts';
+import {
+  ChainName,
+  Connection,
+  ProxiedAddress,
+  RemoteChainSubsetMap,
+  Remotes,
+} from '../types';
+import { objMap } from '../utils';
 
+type MailboxAddresses = ProxiedAddress & { validatorManager: types.Address };
+
+// Deploy/Hardhat should generate this as JSON
 export type CoreContractAddresses<N extends ChainName, L extends N> = {
   interchainGasPaymaster: types.Address;
-  outbox: ProxiedAddress;
-  outboxValidatorManager: types.Address;
-} & {
-  [key in Remotes<N, L> as `${key}Inbox`]: ProxiedAddress;
-} & {
-  [key in Remotes<N, L> as `${key}InboxValidatorManager`]: types.Address;
+  outbox: MailboxAddresses;
+  inboxes: RemoteChainSubsetMap<N, L, MailboxAddresses>;
 };
 
-export class CoreContracts<
-  N extends ChainName,
-  L extends N,
-> extends AbacusRouterContracts<CoreContractAddresses<N, L>> {
-  get factories() {
-    const inboxKeys = Object.keys(this.addresses).filter(
-      (key) => key.includes('Inbox') && !key.includes('ValidatorManager'),
-    );
-    const inboxEntries = inboxKeys.map((key) => [
-      key,
-      InboxValidatorManager__factory.connect,
-    ]);
-    const validatorManagerKeys = inboxKeys.filter((key) =>
-      key.includes('ValidatorManager'),
-    );
-    const validatorManagerEntries = validatorManagerKeys.map((key) => [
-      key,
-      InboxValidatorManager__factory.connect,
-    ]);
+type InboxContracts = {
+  inbox: Inbox;
+  validatorManager: InboxValidatorManager;
+};
 
-    return {
-      interchainGasPaymaster: InterchainGasPaymaster__factory.connect,
-      outbox: Outbox__factory.connect,
-      outboxValidatorManager: OutboxValidatorManager__factory.connect,
-      ...Object.fromEntries(inboxEntries),
-      ...Object.fromEntries(validatorManagerEntries),
+type OutboxContracts = {
+  outbox: Outbox;
+  validatorManager: OutboxValidatorManager;
+};
+
+type CoreContractSchema<N extends ChainName, L extends N> = {
+  outbox: OutboxContracts;
+  inboxes: RemoteChainSubsetMap<N, L, InboxContracts>;
+  interchainGasPaymaster: InterchainGasPaymaster;
+};
+
+export const coreFactories = {
+  interchainGasPaymaster: InterchainGasPaymaster__factory.connect,
+  outbox: Outbox__factory.connect,
+  outboxValidatorManager: OutboxValidatorManager__factory.connect,
+  inbox: Inbox__factory.connect,
+  inboxValidatorManager: InboxValidatorManager__factory.connect,
+};
+
+export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
+  implements IAbacusContracts<CoreContractSchema<N, L>>
+{
+  contracts: CoreContractSchema<N, L>;
+
+  constructor(addresses: CoreContractAddresses<N, L>, connection: Connection) {
+    const factories = coreFactories;
+    this.contracts = {
+      outbox: {
+        outbox: factories.outbox(addresses.outbox.proxy, connection),
+        validatorManager: factories.outboxValidatorManager(
+          addresses.outbox.validatorManager,
+          connection,
+        ),
+      },
+      inboxes: objMap(addresses.inboxes, (_, mailboxAddresses) => ({
+        inbox: factories.inbox(mailboxAddresses.proxy, connection),
+        validatorManager: factories.inboxValidatorManager(
+          mailboxAddresses.validatorManager,
+          connection,
+        ),
+      })),
+      interchainGasPaymaster: factories.interchainGasPaymaster(
+        addresses.interchainGasPaymaster,
+        connection,
+      ),
     };
   }
 
-  inbox(chain: Remotes<N, L>): Inbox {
-    return this.contracts[`${chain}Inbox`] as Inbox;
+  reconnect(connection: Connection) {
+    this.contracts.outbox.outbox.connect(connection);
+    this.contracts.outbox.validatorManager.connect(connection);
+    this.contracts.interchainGasPaymaster.connect(connection);
+    objMap(this.contracts.inboxes, (_, inboxContracts) => {
+      inboxContracts.inbox.connect(connection);
+      inboxContracts.validatorManager.connect(connection);
+    });
   }
 
-  inboxValidatorManager(chain: Remotes<N, L>): InboxValidatorManager {
-    return this.contracts[
-      `${chain}InboxValidatorManager`
-    ] as InboxValidatorManager;
-  }
+  inbox = (chain: Remotes<N, L>) => this.contracts.inboxes[chain].inbox;
+
+  inboxValidatorManager = (chain: Remotes<N, L>) =>
+    this.contracts.inboxes[chain].validatorManager;
 }

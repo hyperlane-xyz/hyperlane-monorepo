@@ -26,7 +26,7 @@ export class GovernanceContracts extends AbacusContracts<
   GovernanceAddresses,
   GovernanceFactories
 > {
-  factories = governanceFactories;
+  factories = () => governanceFactories;
   calls: Call[] = [];
 
   push = (call: Call) => this.calls.push(normalizeCall(call));

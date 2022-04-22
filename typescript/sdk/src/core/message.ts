@@ -1,15 +1,12 @@
+import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
-import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { keccak256 } from 'ethers/lib/utils';
-
-import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
-
-import { Annotated, findAnnotatedSingleEvent } from '../events';
-import { NameOrDomain } from '../types';
-import { delay } from '../utils';
-
 import { AbacusCore } from '.';
+import { Annotated, findAnnotatedSingleEvent } from '../events';
+import { ChainIdToName, ChainName, NameOrDomain } from '../types';
+import { delay } from '../utils';
 import {
   AnnotatedCheckpoint,
   AnnotatedDispatch,
@@ -30,6 +27,16 @@ export type ParsedMessage = {
   destination: number;
   recipient: string;
   body: string;
+};
+
+const resolveDomain = (nameOrDomain: NameOrDomain): ChainName =>
+  typeof nameOrDomain === 'number' ? ChainIdToName[nameOrDomain] : nameOrDomain;
+
+const decodeNetworks = (message: ParsedMessage) => {
+  return {
+    origin: resolveDomain(message.origin),
+    destination: resolveDomain(message.destination),
+  };
 };
 
 export type AbacusStatus = {
@@ -89,11 +96,15 @@ export class AbacusMessage {
     this.core = core;
     this.message = parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
-    this.outbox = core.mustGetContracts(this.message.origin).outbox;
-    this.inbox = core.mustGetInbox(
-      this.message.origin,
-      this.message.destination,
-    );
+
+    const messageNetworks = decodeNetworks(this.message);
+
+    this.outbox = core.getContracts(
+      messageNetworks.origin,
+    ).contracts.outbox.outbox;
+    this.inbox = core
+      .getContracts(messageNetworks.destination)
+      .inbox(messageNetworks.origin as never); // TODO: fix type
     this.cache = {};
   }
 
