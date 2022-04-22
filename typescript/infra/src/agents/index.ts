@@ -100,6 +100,7 @@ async function helmValuesForChain<Networks extends ChainName>(
   };
 }
 
+// TODO this function needs some love
 export async function getAgentEnvVars<Networks extends ChainName>(
   outboxChainName: Networks,
   role: KEY_ROLE_ENUM,

@@ -48,9 +48,10 @@ export class ValidatorAgentAwsUser<Networks extends ChainName> {
 
   constructor(
     public readonly environment: string,
-    public readonly region: string,
     public readonly chainName: Networks,
     public readonly index: number,
+    public readonly region: string,
+    public readonly bucket: string,
   ) {
     this.adminIamClient = new IAMClient({ region });
     this.adminS3Client = new S3Client({ region });
@@ -114,29 +115,29 @@ export class ValidatorAgentAwsUser<Networks extends ChainName> {
     );
   }
 
-  async createCheckpointSyncerS3BucketIfNotExists(bucketName: string) {
-    if (!(await this.checkpointSyncerS3BucketExists(bucketName))) {
-      await this.createCheckpointSyncerS3Bucket(bucketName);
+  async createBucketIfNotExists() {
+    if (!(await this.bucketExists())) {
+      await this.createBucket();
     }
-    await this.putCheckpointSyncerS3BucketAccessPolicy(bucketName);
+    await this.putBucketAccessPolicy();
   }
 
-  async checkpointSyncerS3BucketExists(bucketName: string): Promise<boolean> {
+  async bucketExists(): Promise<boolean> {
     const cmd = new ListBucketsCommand({});
     const result = await this.adminS3Client.send(cmd);
     return (
-      result.Buckets?.find((bucket) => bucket.Name === bucketName) !== undefined
+      result.Buckets?.find((bucket) => bucket.Name === this.bucket) !== undefined
     );
   }
 
-  async createCheckpointSyncerS3Bucket(bucketName: string) {
+  async createBucket() {
     const cmd = new CreateBucketCommand({
-      Bucket: bucketName,
+      Bucket: this.bucket,
     });
     await this.adminS3Client.send(cmd);
   }
 
-  async putCheckpointSyncerS3BucketAccessPolicy(bucketName: string) {
+  async putBucketAccessPolicy() {
     const policy = {
       Statement: [
         // Make the bucket publicly readable
@@ -145,8 +146,8 @@ export class ValidatorAgentAwsUser<Networks extends ChainName> {
           Principal: '*',
           Action: ['s3:GetObject', 's3:ListBucket'],
           Resource: [
-            `arn:aws:s3:::${bucketName}`,
-            `arn:aws:s3:::${bucketName}/*`,
+            `arn:aws:s3:::${this.bucket}`,
+            `arn:aws:s3:::${this.bucket}/*`,
           ],
         },
         // Allow the user to modify objects
@@ -156,12 +157,12 @@ export class ValidatorAgentAwsUser<Networks extends ChainName> {
             AWS: this.arn,
           },
           Action: ['s3:DeleteObject', 's3:PutObject'],
-          Resource: `arn:aws:s3:::${bucketName}/*`,
+          Resource: `arn:aws:s3:::${this.bucket}/*`,
         },
       ],
     };
     const cmd = new PutBucketPolicyCommand({
-      Bucket: bucketName,
+      Bucket: this.bucket,
       Policy: JSON.stringify(policy),
     });
     await this.adminS3Client.send(cmd);

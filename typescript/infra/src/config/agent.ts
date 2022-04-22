@@ -246,14 +246,13 @@ export class ChainAgentConfig<Networks extends ChainName> {
         if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
           const awsUser = new ValidatorAgentAwsUser(
             this.agentConfig.environment,
-            val.checkpointSyncer.region,
             this.chainName,
             i,
-          );
-          await awsUser.createIfNotExists();
-          await awsUser.createCheckpointSyncerS3BucketIfNotExists(
+            val.checkpointSyncer.region,
             val.checkpointSyncer.bucket,
           );
+          await awsUser.createIfNotExists();
+          await awsUser.createBucketIfNotExists();
         }
         return {
           ...baseConfig,
