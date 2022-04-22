@@ -27,7 +27,6 @@ describe('GovernanceRouter', async () => {
 
     const testSetFactory = new TestSet__factory(governor);
     testSet = await testSetFactory.deploy();
-    await abacus.deploy(domains, governor);
   });
 
   beforeEach(async () => {
@@ -40,6 +39,7 @@ describe('GovernanceRouter', async () => {
         address: governor.address,
       },
     };
+    await abacus.deploy(domains, governor);
     governance = new GovernanceDeploy(config);
     await governance.deploy(abacus);
     router = governance.router(localDomain);
