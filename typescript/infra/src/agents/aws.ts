@@ -40,38 +40,40 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentAwsUser<Networks extends ChainName> {
+export class ValidatorAgentAwsUser<Networks extends ChainName> {
   private adminIamClient: IAMClient;
   private adminS3Client: S3Client;
 
-  private arn: string | undefined;
+  private _arn: string | undefined;
 
   constructor(
     public readonly environment: string,
     public readonly region: string,
-    public readonly role: KEY_ROLE_ENUM,
     public readonly chainName: Networks,
-    public readonly index?: number,
+    public readonly index: number,
   ) {
     this.adminIamClient = new IAMClient({ region });
     this.adminS3Client = new S3Client({ region });
   }
 
+  // Creates the AWS user if it doesn't exist.
+  // Gets API access keys and saves them in GCP secret manager if they do not already exist.
+  // Populates `this._arn` with the ARN of the user.
   async createIfNotExists() {
     const cmd = new ListUsersCommand({});
     const result = await this.adminIamClient.send(cmd);
     const match = result.Users?.find((user) => user.UserName === this.userName);
     if (match) {
-      this.arn = match?.Arn;
+      this._arn = match?.Arn;
     } else {
-      this.arn = await this.create();
+      this._arn = await this.create();
     }
     if (!(await this.accessKeysExist())) {
       await this.createAndSaveAccessKey();
     }
   }
 
-  // Creates the user
+  // Creates the AWS user
   async create() {
     const cmd = new CreateUserCommand({
       UserName: this.userName,
@@ -135,17 +137,16 @@ export class AgentAwsUser<Networks extends ChainName> {
   }
 
   async putCheckpointSyncerS3BucketAccessPolicy(bucketName: string) {
-    if (!this.arn) {
-      throw Error('ARN must be set');
-    }
     const policy = {
       Statement: [
+        // Make the bucket publicly readable
         {
           Effect: 'Allow',
           Principal: '*',
           Action: ['s3:GetObject', 's3:ListBucket'],
           Resource: [`arn:aws:s3:::${bucketName}`, `arn:aws:s3:::${bucketName}/*`],
         },
+        // Allow the user to modify objects
         {
           Effect: 'Allow',
           Principal: {
@@ -171,33 +172,21 @@ export class AgentAwsUser<Networks extends ChainName> {
     }));
   }
 
-  get tags(): {
-    [key: string]: string;
-  } {
-    let tags: {
-      [key: string]: string;
-    } = {
+  get tags(): Record<string, string> {
+    return {
       environment: this.environment,
       role: this.role,
+      chain: this.chainName,
+      index: this.index!.toString(),
     };
-    if (this.isValidator) {
-      tags = {
-        ...tags,
-        chain_name: this.chainName,
-        index: this.index!.toString(),
-      };
-    }
-    return tags;
   }
 
-  get isValidator() {
-    return this.role === KEY_ROLE_ENUM.Validator;
+  get role() {
+    return KEY_ROLE_ENUM.Validator;
   }
 
   get userName() {
-    return this.isValidator
-      ? `abacus-${this.environment}-${this.chainName}-${this.role}-${this.index}`
-      : `abacus-${this.environment}-${this.role}`;
+    return `abacus-${this.environment}-${this.chainName}-${this.role}-${this.index}`;
   }
 
   get accessKeyIdSecretName() {
@@ -206,6 +195,13 @@ export class AgentAwsUser<Networks extends ChainName> {
 
   get secretAccessKeySecretName() {
     return `${this.userName}-aws-secret-access-key`;
+  }
+
+  get arn(): string {
+    if (!this._arn) {
+      throw Error('ARN is undefined');
+    }
+    return this._arn;
   }
 }
 

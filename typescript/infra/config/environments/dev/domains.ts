@@ -1,12 +1,12 @@
-import { ChainName, MultiProvider } from '@abacus-network/sdk';
+import { MultiProvider } from '@abacus-network/sdk';
 import { registerDomains } from '@abacus-network/deploy';
 import { fetchSigner } from '../../../src/config/chain';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
 import { configs } from '../../networks/testnets';
 
-export const domainNames: ChainName[] = ['alfajores', 'kovan'];
-
 export type DevNetworks = 'alfajores' | 'kovan';
+
+export const domainNames: DevNetworks[] = ['alfajores', 'kovan'];
 
 export const registerMultiProvider = async (multiProvider: MultiProvider) => {
   registerDomains(domainNames, configs, multiProvider);

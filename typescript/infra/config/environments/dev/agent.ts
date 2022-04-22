@@ -17,7 +17,6 @@ export const agent: AgentConfig<DevNetworks> = {
       interval: 5,
       reorgPeriod: 1,
     },
-    chainOverrides: {},
   },
   relayer: {
     default: {
@@ -26,23 +25,12 @@ export const agent: AgentConfig<DevNetworks> = {
       maxRetries: 10,
       relayerMessageProcessing: true,
     },
-    chainOverrides: {
-      alfajores: {
-        pollingInterval: 5,
-        submissionLatency: 10,
-      },
-      kovan: {
-        pollingInterval: 5,
-        submissionLatency: 10,
-      },
-    },
   },
   checkpointer: {
     default: {
       pollingInterval: 5,
       creationLatency: 10,
     },
-    chainOverrides: {},
   },
   kathy: {
     default: {

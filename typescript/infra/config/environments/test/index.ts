@@ -6,4 +6,3 @@ export {
   registerMultiProvider,
   registerMultiProviderTest,
 } from './domains';
-export { infrastructure } from './infrastructure';

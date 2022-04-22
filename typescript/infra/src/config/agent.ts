@@ -1,8 +1,7 @@
 import { types } from '@abacus-network/utils';
 import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
 import { DeployEnvironment } from './environment';
-import { AgentAwsUser } from '../agents/aws';
-import { KEY_ROLE_ENUM } from '../agents';
+import { ValidatorAgentAwsUser } from '../agents/aws';
 
 // Allows a "default" config to be specified and any per-network overrides.
 interface ChainOverridableConfig<Networks extends ChainName, T> {
@@ -247,10 +246,9 @@ export class ChainAgentConfig<Networks extends ChainName> {
     return Promise.all(
       this.validatorSet.validators.map(async (val, i) => {
         if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
-          const awsUser = new AgentAwsUser(
+          const awsUser = new ValidatorAgentAwsUser(
             this.agentConfig.environment,
             val.checkpointSyncer.region,
-            KEY_ROLE_ENUM.Validator,
             this.chainName,
             i,
           );

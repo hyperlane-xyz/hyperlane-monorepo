@@ -1,10 +1,8 @@
 import { Wallet } from 'ethers';
-import { rm, writeFile } from 'fs/promises';
-
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
 import { execCmd, include, strip0x } from '../utils/utils';
 import { AgentKey } from './agent';
-import { fetchGCPSecret } from '../utils/gcloud';
+import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 
 function isValidatorKey(role: string) {
   return role === KEY_ROLE_ENUM.Validator;
@@ -151,15 +149,9 @@ export class AgentGCPKey extends AgentKey {
     const wallet = Wallet.createRandom();
     const address = await wallet.getAddress();
     const identifier = this.identifier;
-    const fileName = `${identifier}.txt`;
 
-    let labels = `environment=${this.environment},role=${this.role}`;
-    if (this.isValidatorKey) {
-      labels += `,chain=${this.chainName},index=${this.index}`;
-    }
-
-    await writeFile(
-      fileName,
+    await setGCPSecret(
+      identifier,
       JSON.stringify({
         role: this.role,
         environment: this.environment,
@@ -167,19 +159,16 @@ export class AgentGCPKey extends AgentKey {
         address,
         ...include(this.isValidatorKey, { chainName: this.chainName }),
       }),
+      {
+        environment: this.environment,
+        role: this.role,
+        ...include(this.isValidatorKey, {
+          chain: this.chainName,
+          index: this.index!.toString(),
+        }),
+      },
     );
 
-    if (rotate) {
-      await execCmd(
-        `gcloud secrets versions add ${identifier} --data-file=${fileName}`,
-      );
-    } else {
-      await execCmd(
-        `gcloud secrets create ${identifier} --data-file=${fileName} --replication-policy=automatic --labels=${labels}`,
-      );
-    }
-
-    await rm(fileName);
     return {
       fetched: true,
       privateKey: wallet.privateKey,
@@ -246,7 +235,6 @@ export async function createAgentGCPKeys(
   await persistAddresses(
     environment,
     keys.map((_) => _.serializeAsAddress()),
-    true,
   );
 }
 
@@ -264,27 +252,20 @@ export async function rotateGCPKey(
   });
 
   filteredAddresses.push(key.serializeAsAddress());
-  await persistAddresses(environment, filteredAddresses, false);
+  await persistAddresses(environment, filteredAddresses);
 }
 
 async function persistAddresses(
   environment: string,
   keys: KeyAsAddress[],
-  create = false,
 ) {
-  const identifier = addressesIdentifier(environment);
-  const fileName = `${identifier}.txt`;
-  await writeFile(fileName, JSON.stringify(keys));
-  if (create) {
-    await execCmd(
-      `gcloud secrets create ${identifier} --data-file=${fileName} --replication-policy=automatic --labels=environment=${environment}`,
-    );
-  } else {
-    await execCmd(
-      `gcloud secrets versions add ${identifier} --data-file=${fileName}`,
-    );
-  }
-  await rm(fileName);
+  await setGCPSecret(
+    addressesIdentifier(environment),
+    JSON.stringify(keys),
+    {
+      environment: environment,
+    }
+  );
 }
 
 // This function returns all the GCP keys for a given outbox chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys

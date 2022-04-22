@@ -1,4 +1,3 @@
-// @ts-nocheck
 import path from 'path';
 import yargs from 'yargs';
 import {
@@ -86,9 +85,9 @@ export async function getInfrastructureConfig(
   return (await importModule(moduleName(environment))).infrastructure;
 }
 
-export async function getAgentConfig(
+export async function getAgentConfig<Networks extends ChainName>(
   environment: DeployEnvironment,
-): Promise<AgentConfig> {
+): Promise<AgentConfig<Networks>> {
   return (await importModule(moduleName(environment))).agent;
 }
 

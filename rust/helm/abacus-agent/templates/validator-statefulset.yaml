@@ -59,10 +59,6 @@ spec:
         - secretRef:
             name: {{ include "abacus-agent.fullname" . }}-validator-secret
         env:
-          - name: OPT_VALIDATOR_CHECKPOINTSYNCER_PATH
-            value: /tmp/validatorsignatures
-          - name: OPT_VALIDATOR_CHECKPOINTSYNCER_TYPE
-            value: localStorage
           - name: REPLICA_NAME
             valueFrom:
               fieldRef:

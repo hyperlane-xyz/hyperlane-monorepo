@@ -31,9 +31,7 @@ export async function gcpSecretExists(secretName: string) {
 export async function setGCPSecret(
   secretName: string,
   secret: string,
-  labels: {
-    [key: string]: string;
-  },
+  labels: Record<string, string>,
 ) {
   const fileName = `/tmp/${secretName}.txt`;
   await writeFile(fileName, secret);
