@@ -126,7 +126,8 @@ export class ValidatorAgentAwsUser<Networks extends ChainName> {
     const cmd = new ListBucketsCommand({});
     const result = await this.adminS3Client.send(cmd);
     return (
-      result.Buckets?.find((bucket) => bucket.Name === this.bucket) !== undefined
+      result.Buckets?.find((bucket) => bucket.Name === this.bucket) !==
+      undefined
     );
   }
 
