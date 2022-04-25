@@ -135,7 +135,9 @@ export async function getAgentEnvVars<Networks extends ChainName>(
   envVars.push(`OPT_BASE_METRICS=9090`);
   envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
   envVars.push(
-    `OPT_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}-db`,
+    `OPT_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}${
+      role === KEY_ROLE_ENUM.Validator ? `-${index}` : ''
+    }-db`,
   );
 
   try {
@@ -162,12 +164,6 @@ export async function getAgentEnvVars<Networks extends ChainName>(
       envVars.push(
         `OPT_VALIDATOR_VALIDATOR_KEY=${strip0x(privateKey)}`,
         `OPT_VALIDATOR_VALIDATOR_TYPE=hexKey`,
-      );
-    }
-
-    if (role === KEY_ROLE_ENUM.Relayer) {
-      envVars.push(
-        `OPT_RELAYER_INTERVAL=${valueDict.abacus.relayer.config?.pollingInterval}`,
       );
     }
   } catch (error) {
