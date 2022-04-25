@@ -32,15 +32,15 @@ async function helmValuesForChain<Networks extends ChainName>(
   agentConfig: AgentConfig<Networks>,
   chainNames: Networks[],
 ) {
-  // Credentials are only needed if AWS keys are needed -- otherwise, the
-  // key is pulled from GCP Secret Manager by the helm chart
-  const credentials = (role: KEY_ROLE_ENUM) => {
-    if (agentConfig.aws) {
-      const key = new AgentAwsKey(agentConfig, role, chainName);
-      return key.credentialsAsHelmValue;
-    }
-    return undefined;
-  };
+  // // Credentials are only needed if AWS keys are needed -- otherwise, the
+  // // key is pulled from GCP Secret Manager by the helm chart
+  // const credentials = (role: KEY_ROLE_ENUM) => {
+  //   if (agentConfig.aws) {
+  //     const key = new AgentAwsKey(agentConfig, role, chainName);
+  //     return key.credentialsAsHelmValue;
+  //   }
+  //   return undefined;
+  // };
 
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
 

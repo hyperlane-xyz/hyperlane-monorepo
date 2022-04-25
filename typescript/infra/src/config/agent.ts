@@ -1,7 +1,11 @@
 import { types } from '@abacus-network/utils';
 import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
 import { DeployEnvironment } from './environment';
-import { AgentAwsKey, AgentAwsUser, ValidatorAgentAwsUser } from '../agents/aws';
+import {
+  AgentAwsKey,
+  AgentAwsUser,
+  ValidatorAgentAwsUser,
+} from '../agents/aws';
 import { KEY_ROLE_ENUM } from '../agents';
 
 // Allows a "default" config to be specified and any per-network overrides.
@@ -178,7 +182,7 @@ export interface AgentConfig<Networks extends ChainName> {
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
-  domainNames: Networks[],
+  domainNames: Networks[];
   validatorSets: ChainValidatorSets<Networks>;
   validator: ChainValidatorConfigs<Networks>;
   relayer: ChainRelayerConfigs<Networks>;
@@ -240,7 +244,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
       return key.credentialsAsHelmValue;
     }
     return undefined;
-  };
+  }
 
   signers(role: KEY_ROLE_ENUM) {
     return this.agentConfig.domainNames.map((name) => ({
@@ -294,7 +298,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
         this.agentConfig.environment,
         this.chainName,
         KEY_ROLE_ENUM.Relayer,
-        firstS3Syncer.region
+        firstS3Syncer.region,
       );
       await awsUser.createIfNotExists();
       return true;
