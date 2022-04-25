@@ -9,7 +9,7 @@ export const agent: AgentConfig<DevNetworks> = {
   runEnv: ENVIRONMENTS_ENUM.Dev,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
+    tag: '8ee03796167efdf80daf6d7fc4673de47f8657f9',
   },
   validatorSets: validators,
   validator: {
