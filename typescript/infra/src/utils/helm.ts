@@ -5,8 +5,7 @@ import {
 import { execCmd } from './utils';
 
 export enum HelmCommand {
-  Install = 'install',
-  Upgrade = 'upgrade',
+  InstallOrUpgrade = 'upgrade --install',
   UpgradeDiff = 'template --debug',
 }
 

@@ -1,18 +1,18 @@
-{{- if .Values.abacus.processor.enabled }}
+{{- if .Values.abacus.checkpointer.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "abacus-agent.fullname" . }}-processor
+  name: {{ include "abacus-agent.fullname" . }}-checkpointer
   labels:
     {{- include "abacus-agent.labels" . | nindent 4 }}
-    app.kubernetes.io/component: processor
+    app.kubernetes.io/component: checkpointer
 spec:
   selector:
     matchLabels:
       {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: processor
+      app.kubernetes.io/component: checkpointer
   replicas: 1 
-  serviceName: {{ include "abacus-agent.fullname" . }}-processor
+  serviceName: {{ include "abacus-agent.fullname" . }}-checkpointer
   template:
     metadata:
       annotations:
@@ -20,16 +20,16 @@ spec:
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.processor.podAnnotations }}
+        {{- with .Values.abacus.checkpointer.podAnnotations }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "abacus-agent.labels" . | nindent 8 }}
-        app.kubernetes.io/component: processor
+        app.kubernetes.io/component: checkpointer
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.processor.podLabels }}
+        {{- with .Values.abacus.checkpointer.podLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
@@ -46,30 +46,17 @@ spec:
           {{- toYaml .Values.securityContext | nindent 10 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["./processor"]
+        command: ["./checkpointer"]
         envFrom:
         - configMapRef:
             name: {{ include "abacus-agent.fullname" . }}
         - secretRef:
             name: {{ include "abacus-agent.fullname" . }}-secret
         - secretRef:
-            name: {{ include "abacus-agent.fullname" . }}-processor-secret
+            name: {{ include "abacus-agent.fullname" . }}-checkpointer-secret
         env: 
-          {{- if .Values.abacus.processor.pollingInterval }}
-          - name: OPT_PROCESSOR_INTERVAL
-            value: {{ .Values.abacus.processor.pollingInterval | quote }}
-          {{ end }}
-          {{ range .Values.abacus.processor.indexonly }}
-          - name: OPT_PROCESSOR_INDEXON_{{ . | upper }}
-            value: "true"
-          {{ end }}
-          {{- if .Values.abacus.processor.s3BucketName }}
-          - name: OPT_PROCESSOR_S3_BUCKET
-            value: {{ .Values.abacus.processor.s3BucketName }}
-          - name: OPT_PROCESSOR_S3_REGION
-            value: {{ .Values.abacus.processor.s3BucketRegion }}
-          {{- end }}
-          {{- range .Values.abacus.processor.transactionSigners }}
+{{- include "abacus-agent.config-env-vars" (dict "config" .Values.abacus.checkpointer.config "agent_name" "checkpointer") | indent 10 }}
+          {{- range .Values.abacus.checkpointer.signers }}
           {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
@@ -81,10 +68,10 @@ spec:
           {{- end }}
           {{- if .Values.abacus.tracing.uri }}
           - name: OPT_BASE_TRACING_JAEGER_NAME
-            value: {{ include "abacus-agent.fullname" . }}-processor
+            value: {{ include "abacus-agent.fullname" . }}-checkpointer
           {{- end }}
         resources:
-          {{- toYaml .Values.abacus.processor.resources | nindent 10 }}
+          {{- toYaml .Values.abacus.checkpointer.resources | nindent 10 }}
         volumeMounts:
         - name: state
           mountPath: {{ .Values.abacus.dbPath }}
@@ -109,13 +96,13 @@ spec:
     spec:
       storageClassName: {{ .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.abacus.processor.storage.snapshot.enabled }}
+      {{- if .Values.abacus.checkpointer.storage.snapshot.enabled }}
       dataSource:
-        name: {{ .Values.abacus.processor.storage.snapshot.name }}
+        name: {{ .Values.abacus.checkpointer.storage.snapshot.name }}
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.abacus.processor.storage.size }}
+          storage: {{ .Values.abacus.checkpointer.storage.size }}
 {{- end }}

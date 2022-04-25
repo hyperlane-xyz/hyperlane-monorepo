@@ -50,16 +50,14 @@ spec:
         envFrom:
         - configMapRef:
             name: {{ include "abacus-agent.fullname" . }}
+        - secretRef:
+            name: {{ include "abacus-agent.fullname" . }}-secret
+        - secretRef:
+            name: {{ include "abacus-agent.fullname" . }}-kathy-secret
         env: 
-          {{- if .Values.abacus.kathy.messageInterval }}
-          - name: OPT_KATHY_INTERVAL
-            value: {{ .Values.abacus.kathy.messageInterval | quote }}
-          {{- end }}
-          {{- range .Values.abacus.kathy.transactionSigners }}
-          {{- if .hexKey }}
-          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_KEY
-            value: {{ .hexKey }}
-          {{- else }}
+{{- include "abacus-agent.config-env-vars" (dict "config" .Values.abacus.kathy.config "agent_name" "kathy") | indent 10 }}
+          {{- range .Values.abacus.kathy.signers }}
+          {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID

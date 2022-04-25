@@ -54,12 +54,9 @@ spec:
             name: {{ include "abacus-agent.fullname" . }}-secret
         - secretRef:
             name: {{ include "abacus-agent.fullname" . }}-relayer-secret
-        env: 
-          {{- if .Values.abacus.relayer.pollingInterval }}
-          - name: OPT_RELAYER_INTERVAL
-            value: {{ .Values.abacus.relayer.pollingInterval | quote }}
-          {{- end }}
-          {{- range .Values.abacus.relayer.transactionSigners }}
+        env:
+{{- include "abacus-agent.config-env-vars" (dict "config" .Values.abacus.relayer.config "agent_name" "relayer") | indent 10 }}
+          {{- range .Values.abacus.relayer.signers }}
           {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"

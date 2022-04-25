@@ -30,6 +30,7 @@ RUN --mount=id=cargo,type=cache,target=/usr/src/target \
 WORKDIR /release 
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/validator .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/relayer .
+RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/checkpointer .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/kathy .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/kms-cli .
 RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/abacus-cli .
@@ -43,6 +44,7 @@ RUN apt-get update && \
 WORKDIR /app
 COPY --from=builder /release/validator .
 COPY --from=builder /release/relayer .
+COPY --from=builder /release/checkpointer .
 COPY --from=builder /release/kathy .
 COPY --from=builder /release/kms-cli .
 COPY --from=builder /release/abacus-cli .

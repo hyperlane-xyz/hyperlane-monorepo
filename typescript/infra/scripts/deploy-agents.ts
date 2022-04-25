@@ -9,7 +9,7 @@ async function deploy() {
   await Promise.all(
     domainNames.map((name) => {
       return runAgentHelmCommand(
-        HelmCommand.Upgrade,
+        HelmCommand.InstallOrUpgrade,
         agentConfig,
         name,
         domainNames,

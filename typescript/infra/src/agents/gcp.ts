@@ -1,10 +1,8 @@
 import { Wallet } from 'ethers';
-import { rm, writeFile } from 'fs/promises';
-
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
 import { execCmd, include, strip0x } from '../utils/utils';
 import { AgentKey } from './agent';
-import { fetchGCPSecret } from '../utils/gcloud';
+import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 
 function isValidatorKey(role: string) {
   return role === KEY_ROLE_ENUM.Validator;
@@ -26,10 +24,15 @@ interface KeyAsAddress {
   address: string;
 }
 
-function identifier(environment: string, role: string, chainName: string) {
+function identifier(
+  environment: string,
+  role: string,
+  chainName: string,
+  index: number | undefined,
+) {
   return isValidatorKey(role)
-    ? `optics-key-${environment}-${chainName}-${role}`
-    : `optics-key-${environment}-${role}`;
+    ? `abacus-${environment}-key-${chainName}-${role}-${index}`
+    : `abacus-${environment}-key-${role}`;
 }
 
 interface UnfetchedKey {
@@ -49,13 +52,24 @@ export class AgentGCPKey extends AgentKey {
     public readonly environment: string,
     public readonly role: string,
     public readonly chainName: string,
+    public readonly index?: number,
     private remoteKey: RemoteKey = { fetched: false },
   ) {
     super();
+    if (this.isValidatorKey && index === undefined) {
+      throw Error(
+        `Expected index to be defined for key with environment ${environment}, role ${role}, and chainName ${chainName}`,
+      );
+    }
   }
 
-  static async create(environment: string, role: string, chainName: string) {
-    const key = new AgentGCPKey(environment, role, chainName);
+  static async create(
+    environment: string,
+    role: string,
+    chainName: string,
+    index?: number,
+  ) {
+    const key = new AgentGCPKey(environment, role, chainName, index);
     await key.create();
     return key;
   }
@@ -63,9 +77,7 @@ export class AgentGCPKey extends AgentKey {
   serializeAsAddress() {
     this.requireFetched();
     return {
-      role: isValidatorKey(this.role)
-        ? `${this.chainName}-${this.role}`
-        : this.role,
+      role: this.memoryKeyIdentifier,
       // @ts-ignore
       address: this.remoteKey.address,
     };
@@ -76,7 +88,7 @@ export class AgentGCPKey extends AgentKey {
   }
 
   get identifier() {
-    return identifier(this.environment, this.role, this.chainName);
+    return identifier(this.environment, this.role, this.chainName, this.index);
   }
 
   get credentialsAsHelmValue() {
@@ -87,9 +99,7 @@ export class AgentGCPKey extends AgentKey {
 
   // The identifier for this key within a set of keys for an enrivonment
   get memoryKeyIdentifier() {
-    return isValidatorKey(this.role)
-      ? `${this.chainName}-${this.role}`
-      : this.role;
+    return memoryKeyIdentifier(this.role, this.chainName, this.index);
   }
 
   get privateKey() {
@@ -137,13 +147,9 @@ export class AgentGCPKey extends AgentKey {
     const wallet = Wallet.createRandom();
     const address = await wallet.getAddress();
     const identifier = this.identifier;
-    const fileName = `${identifier}.txt`;
 
-    let labels = `environment=${this.environment},role=${this.role}`;
-    if (this.isValidatorKey) labels += `,chain=${this.chainName}`;
-
-    await writeFile(
-      fileName,
+    await setGCPSecret(
+      identifier,
       JSON.stringify({
         role: this.role,
         environment: this.environment,
@@ -151,19 +157,16 @@ export class AgentGCPKey extends AgentKey {
         address,
         ...include(this.isValidatorKey, { chainName: this.chainName }),
       }),
+      {
+        environment: this.environment,
+        role: this.role,
+        ...include(this.isValidatorKey, {
+          chain: this.chainName,
+          index: this.index!.toString(),
+        }),
+      },
     );
 
-    if (rotate) {
-      await execCmd(
-        `gcloud secrets versions add ${identifier} --data-file=${fileName}`,
-      );
-    } else {
-      await execCmd(
-        `gcloud secrets create ${identifier} --data-file=${fileName} --replication-policy=automatic --labels=${labels}`,
-      );
-    }
-
-    await rm(fileName);
     return {
       fetched: true,
       privateKey: wallet.privateKey,
@@ -192,24 +195,38 @@ export async function deleteAgentGCPKeys(
     }),
   );
   await execCmd(
-    `gcloud secrets delete optics-key-${environment}-addresses --quiet`,
+    `gcloud secrets delete ${addressesIdentifier(environment)} --quiet`,
   );
 }
 
 // The identifier for a key within a memory representation
-export function memoryKeyIdentifier(role: string, chainName: string) {
-  return isValidatorKey(role) ? `${chainName}-${role}` : role;
+export function memoryKeyIdentifier(
+  role: string,
+  chainName: string,
+  index?: number,
+) {
+  if (isValidatorKey(role)) {
+    if (index === undefined) {
+      throw Error('Expected index');
+    }
+    return `${chainName}-${role}-${index}`;
+  }
+  return role;
 }
 
 export async function createAgentGCPKeys(
   environment: string,
   chainNames: string[],
+  validatorCount: number,
 ) {
   const keys: AgentGCPKey[] = await Promise.all(
     KEY_ROLES.flatMap((role) => {
       if (isValidatorKey(role)) {
-        return chainNames.map(async (chainName) =>
-          AgentGCPKey.create(environment, role, chainName),
+        // For each chainName, create validatorCount keys
+        return chainNames.flatMap((chainName) =>
+          [...Array(validatorCount).keys()].map((index) =>
+            AgentGCPKey.create(environment, role, chainName, index),
+          ),
         );
       } else {
         // Chain name doesnt matter for non attestation keys
@@ -221,7 +238,6 @@ export async function createAgentGCPKeys(
   await persistAddresses(
     environment,
     keys.map((_) => _.serializeAsAddress()),
-    true,
   );
 }
 
@@ -239,45 +255,47 @@ export async function rotateGCPKey(
   });
 
   filteredAddresses.push(key.serializeAsAddress());
-  await persistAddresses(environment, filteredAddresses, false);
+  await persistAddresses(environment, filteredAddresses);
 }
 
-async function persistAddresses(
-  environment: string,
-  keys: KeyAsAddress[],
-  create = false,
-) {
-  const addressesIdentifier = `optics-key-${environment}-addresses`;
-  const fileName = `${addressesIdentifier}.txt`;
-  await writeFile(fileName, JSON.stringify(keys));
-  if (create) {
-    await execCmd(
-      `gcloud secrets create ${addressesIdentifier} --data-file=${fileName} --replication-policy=automatic --labels=environment=${environment}`,
-    );
-  } else {
-    await execCmd(
-      `gcloud secrets versions add ${addressesIdentifier} --data-file=${fileName}`,
-    );
-  }
-  await rm(fileName);
+async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
+  await setGCPSecret(addressesIdentifier(environment), JSON.stringify(keys), {
+    environment: environment,
+  });
 }
 
-// This function returns all the GCP keys for a given outbox chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
+// This function returns all the GCP keys for a given outbox chain in a dictionary where the key is the memoryKeyIdentifier
 export async function fetchAgentGCPKeys(
   environment: string,
   chainName: string,
+  validatorCount: number,
 ): Promise<Record<string, AgentGCPKey>> {
   const secrets = await Promise.all(
     KEY_ROLES.map(async (role) => {
-      const key = new AgentGCPKey(environment, role, chainName);
-      await key.fetch();
-      return [key.memoryKeyIdentifier, key];
+      if (role === KEY_ROLE_ENUM.Validator) {
+        return Promise.all(
+          [...Array(validatorCount).keys()].map(async (index) => {
+            const key = new AgentGCPKey(environment, role, chainName, index);
+            await key.fetch();
+            return [key.memoryKeyIdentifier, key];
+          }),
+        );
+      } else {
+        const key = new AgentGCPKey(environment, role, chainName);
+        await key.fetch();
+        return [[key.memoryKeyIdentifier, key]];
+      }
     }),
   );
-  return Object.fromEntries(secrets);
+
+  return Object.fromEntries(secrets.flat(1));
 }
 
 async function fetchGCPKeyAddresses(environment: string) {
-  const addresses = await fetchGCPSecret(`optics-key-${environment}-addresses`);
+  const addresses = await fetchGCPSecret(addressesIdentifier(environment));
   return addresses as KeyAsAddress[];
+}
+
+function addressesIdentifier(environment: string) {
+  return `abacus-${environment}-key-addresses`;
 }

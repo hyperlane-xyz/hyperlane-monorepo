@@ -1,10 +1,12 @@
 import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-import { ChainName, MultiProvider } from '@abacus-network/sdk';
+import { MultiProvider } from '@abacus-network/sdk';
 import { registerDomains } from '@abacus-network/deploy';
 import { configs } from '../../networks/testnets';
 
-export const domainNames: ChainName[] = [
+export type TestNetworks = 'alfajores' | 'kovan' | 'mumbai' | 'fuji';
+
+export const domainNames: TestNetworks[] = [
   'alfajores',
   'kovan',
   'mumbai',
