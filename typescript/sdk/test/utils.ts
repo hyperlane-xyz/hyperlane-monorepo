@@ -55,7 +55,6 @@ const MOCK_NETWORK = {
 
 // A mock ethers Provider used for testing with mocked provider functionality
 export class MockProvider extends ethers.providers.BaseProvider {
-
   private methodResolveValues: { [key: string]: any };
 
   constructor() {
@@ -68,9 +67,9 @@ export class MockProvider extends ethers.providers.BaseProvider {
   async detectNetwork() {
     return Promise.resolve(MOCK_NETWORK);
   }
-  
+
   perform(method: string, params: any): Promise<any> {
-    const value = this.methodResolveValues[method]
+    const value = this.methodResolveValues[method];
     if (value) {
       return Promise.resolve(value);
     }
@@ -89,7 +88,7 @@ export class MockProvider extends ethers.providers.BaseProvider {
 
 // A mock TokenPriceGetter intended to be used by tests when mocking token prices
 export class MockTokenPriceGetter {
-  private tokenPrices: { [domain: number]: FixedNumber }
+  private tokenPrices: { [domain: number]: FixedNumber };
 
   constructor() {
     this.tokenPrices = {};

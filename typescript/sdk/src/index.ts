@@ -46,6 +46,7 @@ export {
   Chains,
   ChainSubsetMap,
   Connection,
+  NameOrDomain,
   ProxiedAddress,
 } from './types';
 export { utils } from './utils';

@@ -2,79 +2,86 @@ import {
   XAppConnectionManager,
   XAppConnectionManager__factory,
 } from '@abacus-network/core';
-import { AbacusCore, ChainName } from '@abacus-network/sdk';
-import { types, utils } from '@abacus-network/utils';
+import {
+  AbacusCore,
+  ChainName,
+  ChainSubsetMap,
+  MultiProvider,
+} from '@abacus-network/sdk';
+import { utils } from '@abacus-network/utils';
 import { AbacusAppDeployer } from '../deploy';
 import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
-  T,
-  C extends RouterConfig<ChainName>,
-> extends AbacusAppDeployer<T, C> {
+  N extends ChainName,
+  C extends RouterConfig,
+  A,
+> extends AbacusAppDeployer<N, C, A> {
   protected core?: AbacusCore;
 
-  constructor(core?: AbacusCore) {
-    super();
+  abstract mustGetRouter(network: ChainName): Router;
+
+  constructor(
+    multiProvider: MultiProvider<N>,
+    configMap: ChainSubsetMap<N, C>,
+    core?: AbacusCore,
+  ) {
+    super(multiProvider, configMap);
     this.core = core;
   }
 
-  async deploy(config: C) {
-    await super.deploy(config);
+  async deploy() {
+    const deploymentOutput = await super.deploy();
 
     // Make all routers aware of eachother.
-    for (const local of this.domainNumbers) {
-      const router = this.mustGetRouter(local);
-      for (const remote of this.remoteDomainNumbers(local)) {
+    const networks = Object.keys(deploymentOutput) as N[];
+    for (const local of networks) {
+      const localRouter = this.mustGetRouter(local);
+      for (const remote of this.multiProvider.remotes(local)) {
         const remoteRouter = this.mustGetRouter(remote);
-        await router.enrollRemoteRouter(
+        await localRouter.enrollRemoteRouter(
           remote,
           utils.addressToBytes32(remoteRouter.address),
         );
       }
     }
+    return deploymentOutput;
   }
 
   async deployConnectionManagerIfNotConfigured(
-    domain: number,
-    config: C,
+    network: N,
   ): Promise<XAppConnectionManager> {
-    const name = this.mustResolveDomainName(domain);
-    const signer = this.mustGetSigner(domain);
+    const dc = this.multiProvider.getDomainConnection(network);
+    const signer = dc.signer!;
+    const config = this.configMap[network];
     if (config.xAppConnectionManager) {
-      const configured = config.xAppConnectionManager[name];
-      if (!configured) throw new Error('xAppConectionManager not found');
-      return XAppConnectionManager__factory.connect(configured, signer);
+      return XAppConnectionManager__factory.connect(
+        config.xAppConnectionManager,
+        signer,
+      );
     }
 
-    const xAppConnectionManager: XAppConnectionManager =
-      await this.deployContract(
-        domain,
-        'XAppConnectionManager',
-        new XAppConnectionManager__factory(signer),
-        [],
-      );
-    const overrides = this.getOverrides(domain);
+    const xAppConnectionManager = await this.deployContract(
+      network,
+      'XAppConnectionManager',
+      new XAppConnectionManager__factory(signer),
+      [],
+    );
+    const overrides = dc.overrides;
     if (!this.core)
       throw new Error('must set core or configure xAppConnectionManager');
-    const core = this.core.mustGetContracts(domain);
-    await xAppConnectionManager.setOutbox(core.outbox.address, overrides);
-    for (const remote of this.core.remoteDomainNumbers(domain)) {
-      await xAppConnectionManager.enrollInbox(
+    const localCore = this.core.getContracts(network);
+    await xAppConnectionManager.contract.setOutbox(
+      localCore.getOutbox().address,
+      overrides,
+    );
+    for (const remote of this.core.remotes(network)) {
+      await xAppConnectionManager.contract.enrollInbox(
         remote,
-        this.core.mustGetInbox(remote, domain).address,
+        localCore.getInbox(remote).address,
         overrides,
       );
     }
-    return xAppConnectionManager;
+    return xAppConnectionManager.contract; // TODO: persist verificationInput
   }
-
-  get routerAddresses(): Record<types.Domain, types.Address> {
-    const addresses: Record<types.Domain, types.Address> = {};
-    for (const domain of this.domainNumbers) {
-      addresses[domain] = this.mustGetRouter(domain).address;
-    }
-    return addresses;
-  }
-
-  abstract mustGetRouter(domain: types.Domain): Router;
 }

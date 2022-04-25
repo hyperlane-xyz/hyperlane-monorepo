@@ -177,7 +177,7 @@ async function getPaginatedEvents<T extends Result, U>(
   // or current block number
   let lastBlock;
   if (!endBlock) {
-    const provider = multiprovider.getProvider(network).provider!;
+    const provider = multiprovider.getDomainConnection(network).provider!;
     lastBlock = await provider.getBlockNumber();
   } else {
     lastBlock = endBlock;
@@ -224,7 +224,7 @@ async function findFromPaginatedEvents<T extends Result, U>(
   // or current block number
   let lastBlock;
   if (!endBlock) {
-    const provider = multiprovider.getProvider(network).provider!;
+    const provider = multiprovider.getDomainConnection(network).provider!;
     lastBlock = await provider.getBlockNumber();
   } else {
     lastBlock = endBlock;

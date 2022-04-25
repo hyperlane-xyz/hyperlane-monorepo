@@ -195,8 +195,9 @@ export class InterchainGasCalculator {
    * @returns The suggested gas price in wei on the destination chain.
    */
   async suggestedGasPrice(domain: number): Promise<BigNumber> {
-    const provider = this.multiProvider.getProvider(resolveDomain(domain))
-      .provider!;
+    const provider = this.multiProvider.getDomainConnection(
+      resolveDomain(domain),
+    ).provider!;
     return provider.getGasPrice();
   }
 
@@ -226,7 +227,7 @@ export class InterchainGasCalculator {
    * @returns The estimated gas required to process the message on the destination chain.
    */
   async estimateGasForMessage(message: ParsedMessage): Promise<BigNumber> {
-    const provider = this.multiProvider.getProvider(
+    const provider = this.multiProvider.getDomainConnection(
       resolveDomain(message.destination),
     ).provider!;
 

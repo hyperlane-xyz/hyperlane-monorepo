@@ -14,6 +14,8 @@ export class AbacusApp<
     return this.get(network).contracts;
   }
 
+  public contractsMap = this.domainMap;
+
   async registerProvider(
     network: Networks,
     provider: ethers.providers.Provider,

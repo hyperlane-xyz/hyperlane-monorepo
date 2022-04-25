@@ -1,4 +1,4 @@
-import { ProxiedAddress } from '@abacus-network/sdk';
+import { ChainName, ProxiedAddress } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import { CheckerViolation } from './config';
@@ -38,13 +38,13 @@ export async function upgradeBeaconImplementation(
 }
 
 export function upgradeBeaconViolation(
-  domain: types.Domain,
+  network: ChainName,
   name: string,
   proxiedAddress: ProxiedAddress,
   actual: types.Address,
 ): UpgradeBeaconViolation {
   return {
-    domain,
+    network,
     type: ProxyViolationType.UpgradeBeacon,
     actual,
     expected: proxiedAddress.implementation,

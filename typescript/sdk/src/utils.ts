@@ -62,6 +62,8 @@ export class MultiGeneric<Value, Networks extends ChainName = ChainName> {
   protected entries = () =>
     Object.entries(this.domainMap) as Array<[Networks, Value]>;
 
+  protected values = (): Array<Value> => Object.values(this.domainMap);
+
   networks = () => Object.keys(this.domainMap) as Networks[];
 
   remotes = <Name extends Networks>(name: Name) =>
@@ -119,6 +121,7 @@ export const promiseObjAll = <T>(object: PromiseValues<T>): Promise<T> => {
 };
 
 export const utils = {
+  objMap,
   canonizeId,
   evmId,
   delay,

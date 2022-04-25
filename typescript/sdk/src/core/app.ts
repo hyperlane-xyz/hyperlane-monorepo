@@ -33,7 +33,9 @@ export class AbacusCore<
     const env = environments[name];
     type Networks = keyof typeof env;
     const contractsMap = objMap(env, (network, addresses) => {
-      const connection = multiProvider.getProvider(network).getConnection();
+      const connection = multiProvider
+        .getDomainConnection(network)
+        .getConnection();
       if (!connection) {
         throw new Error(
           `No connection found for network ${network} in environment ${name}`,

@@ -2,11 +2,9 @@ import {
   AbacusCore,
   ChainName,
   ChainSubsetMap,
-  CoreDeployedNetworks,
-  domains,
   MultiProvider,
+  utils,
 } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
 import { NonceManager } from '@ethersproject/experimental';
 import { ethers } from 'ethers';
 import yargs from 'yargs';
@@ -21,31 +19,16 @@ export function getArgs() {
     .alias('h', 'help');
 }
 
-export async function importModule(moduleName: string): Promise<any> {
-  const importedModule = await import(moduleName);
-  return importedModule;
-}
-
-export async function getEnvironmentConfig<E extends EnvironmentConfig<any>>(
-  moduleName: string,
-): Promise<E> {
-  return importModule(moduleName);
-}
-
 export async function getEnvironment(): Promise<string> {
   return (await getArgs().argv).e as Promise<string>;
 }
 
-export function getRouterConfig(
-  core: AbacusCore,
-): RouterConfig<CoreDeployedNetworks> {
-  const xAppConnectionManager: Record<string, types.Address> = {};
-  core.domainNames.map((name) => {
-    const contracts = core.mustGetContracts(name);
-    xAppConnectionManager[name] = contracts.xAppConnectionManager.address;
-  });
-
-  return { xAppConnectionManager } as any;
+export function getRouterConfig<N extends ChainName>(
+  core: AbacusCore<N>,
+): ChainSubsetMap<N, RouterConfig> {
+  return utils.objMap(core.contractsMap, (_, coreContacts) => ({
+    xAppConnectionManager: coreContacts.contracts.xAppConnectionManager.address,
+  }));
 }
 
 // this is currently a kludge to account for ethers issues
@@ -65,24 +48,18 @@ function fixOverrides(config: TransactionConfig): ethers.Overrides {
   }
 }
 
-export const registerDomains = (
+export const registerTransactionConfigs = <Networks extends ChainName>(
   multiProvider: MultiProvider,
-  domainNames: ChainName[],
-) => domainNames.forEach((name) => multiProvider.registerDomain(domains[name]));
-
-export const registerTransactionConfigs = (
-  multiProvider: MultiProvider,
-  configs: Partial<Record<ChainName, TransactionConfig>>,
+  txConfigMap: ChainSubsetMap<Networks, TransactionConfig>,
 ) => {
-  multiProvider.domainNames.forEach((name) => {
-    const config = configs[name];
-    if (!config) throw new Error(`Missing TransactionConfig for ${name}`);
-    multiProvider.registerOverrides(name, fixOverrides(config));
-    if (config.confirmations) {
-      multiProvider.registerConfirmations(name, config.confirmations);
+  utils.objMap(txConfigMap, (network, txConfig) => {
+    const domainConnection = multiProvider.getDomainConnection(network);
+    domainConnection.registerOverrides(fixOverrides(txConfig));
+    if (txConfig.confirmations) {
+      domainConnection.registerConfirmations(txConfig.confirmations);
     }
-    if (config.signer) {
-      multiProvider.registerSigner(name, config.signer);
+    if (txConfig.signer) {
+      domainConnection.registerSigner(txConfig.signer);
     }
   });
 };
@@ -91,7 +68,6 @@ export const registerEnvironment = <Networks extends ChainName>(
   multiProvider: MultiProvider,
   environment: EnvironmentConfig<Networks>,
 ) => {
-  registerDomains(multiProvider, environment.domains);
   registerTransactionConfigs(multiProvider, environment.transactionConfigs);
 };
 
@@ -99,38 +75,34 @@ export const registerSigners = <Networks extends ChainName>(
   multiProvider: MultiProvider,
   signers: ChainSubsetMap<Networks, ethers.Signer>,
 ) =>
-  multiProvider.domainNames.forEach((name) =>
-    multiProvider.registerSigner(name, signers[name as Networks]),
+  utils.objMap(signers, (network, signer) =>
+    multiProvider.getDomainConnection(network).registerSigner(signer),
   );
 
 export const registerSigner = (
   multiProvider: MultiProvider,
   signer: ethers.Signer,
-) =>
-  multiProvider.domainNames.forEach((name) =>
-    multiProvider.registerSigner(name, signer),
-  );
+) => multiProvider.getAll().map((dc) => dc.registerSigner(signer));
 
 export const registerHardhatEnvironment = <Networks extends ChainName>(
   multiProvider: MultiProvider,
   environment: EnvironmentConfig<Networks>,
   signer: ethers.Signer,
 ) => {
-  registerDomains(multiProvider, environment.domains);
   registerTransactionConfigs(multiProvider, environment.transactionConfigs);
-  multiProvider.domainNames.forEach((name) => {
-    multiProvider.registerConfirmations(name, 0);
-  });
   registerSigner(multiProvider, signer);
 };
 
-export const getTestConnectionManagers = (multiProvider: MultiProvider) => {
-  const xAppConnectionManagers: Partial<Record<ChainName, types.Address>> = {};
-  multiProvider.domainNames.map((name) => {
-    // Setting for connection manager can be anything for a test deployment.
-    xAppConnectionManagers[name] = ethers.constants.AddressZero;
-  });
-  return xAppConnectionManagers;
+export const getTestConnectionManagers = <N extends ChainName>(
+  multiProvider: MultiProvider<N>,
+): ChainSubsetMap<N, RouterConfig> => {
+  const entries = multiProvider
+    .networks()
+    .map((network) => [
+      network,
+      { xAppConnectionManagers: ethers.constants.AddressZero },
+    ]);
+  return Object.fromEntries(entries);
 };
 
 export const getHardhatSigner = (): ethers.Signer => {

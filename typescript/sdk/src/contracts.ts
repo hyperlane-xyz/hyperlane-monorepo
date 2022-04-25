@@ -65,3 +65,50 @@ export const routerFactories = {
   router: Router__factory.connect,
   xAppConnectionManager: XAppConnectionManager__factory.connect,
 };
+
+// type RemoteFunctionName = `${string}Remote${string}`;
+// abstract class RouterContract<C extends Router> {
+//   abstract factory(): FactoryFunction<C>;
+//   router: C;
+
+//   constructor(address: types.Address, connection: Connection) {
+//     this.router = this.factory()(address, connection);
+//   }
+
+//   protected resolveChainId = (chain: ChainName) => domains[chain].id;
+
+//   // remoteInterface(
+//   //   destination: ChainName,
+//   //   remoteFunctionName: Extract<keyof C['functions'], RemoteFunctionName>,
+//   //   ...remoteParams: Parameters<C['functions'][typeof remoteFunctionName]>
+//   // ): ReturnType<C['functions'][typeof remoteFunctionName]> {
+//   //   const destinationChainId = this.resolveChainId(destination);
+//   //   // @ts-ignore
+//   //   return this.router.functions[remoteFunctionName](
+//   //     destinationChainId,
+//   //     ...remoteParams,
+//   //   );
+//   // }
+
+//   getRemoteRouter = async (chain: ChainName, multiProvider: MultiProvider) => {
+//     const chainId = this.resolveChainId(chain);
+//     const routerAddress = await this.router.routers(chainId);
+//     const provider = multiProvider.getDomainConnection(chain);
+//     return this.factory()(routerAddress, provider.getConnection()!);
+//   };
+
+//   // estimateGas = async (
+//   //   destinationRouter: RouterContract<C>,
+//   //   sender: string,
+//   //   message: string,
+//   //   overrides?: ethers.Overrides,
+//   // ) {
+//   //   const originChainId = domains[origin].id;
+//   //   return this.router.estimateGas.handle(
+//   //     originChainId,
+//   //     sender,
+//   //     message,
+//   //     overrides,
+//   //   );
+//   // }
+// }

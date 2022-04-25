@@ -1,4 +1,8 @@
 import {
+  XAppConnectionManager,
+  XAppConnectionManager__factory,
+} from '@abacus-network/apps';
+import {
   Inbox,
   InboxValidatorManager,
   InboxValidatorManager__factory,
@@ -25,6 +29,7 @@ type MailboxAddresses = ProxiedAddress & { validatorManager: types.Address };
 
 // Deploy/Hardhat should generate this as JSON
 export type CoreContractAddresses<N extends ChainName, L extends N> = {
+  xAppConnectionManager: types.Address;
   interchainGasPaymaster: types.Address;
   outbox: MailboxAddresses;
   inboxes: RemoteChainSubsetMap<N, L, MailboxAddresses>;
@@ -41,6 +46,7 @@ type OutboxContracts = {
 };
 
 type CoreContractSchema<N extends ChainName, L extends N> = {
+  xAppConnectionManager: XAppConnectionManager;
   outbox: OutboxContracts;
   inboxes: RemoteChainSubsetMap<N, L, InboxContracts>;
   interchainGasPaymaster: InterchainGasPaymaster;
@@ -52,6 +58,7 @@ export const coreFactories = {
   outboxValidatorManager: OutboxValidatorManager__factory.connect,
   inbox: Inbox__factory.connect,
   inboxValidatorManager: InboxValidatorManager__factory.connect,
+  xAppConnectionManager: XAppConnectionManager__factory.connect,
 };
 
 export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
@@ -80,6 +87,10 @@ export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
         addresses.interchainGasPaymaster,
         connection,
       ),
+      xAppConnectionManager: factories.xAppConnectionManager(
+        addresses.xAppConnectionManager,
+        connection,
+      ),
     };
   }
 
@@ -87,6 +98,7 @@ export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
     this.contracts.outbox.outbox.connect(connection);
     this.contracts.outbox.validatorManager.connect(connection);
     this.contracts.interchainGasPaymaster.connect(connection);
+    this.contracts.xAppConnectionManager.connect(connection);
     objMap(this.contracts.inboxes, (_, inboxContracts) => {
       inboxContracts.inbox.connect(connection);
       inboxContracts.validatorManager.connect(connection);

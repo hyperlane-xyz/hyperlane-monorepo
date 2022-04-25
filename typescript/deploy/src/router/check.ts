@@ -1,4 +1,10 @@
-import { AbacusApp, ChainName, ChainSubsetMap } from '@abacus-network/sdk';
+import {
+  AbacusApp,
+  ChainName,
+  ChainSubsetMap,
+  domains,
+  MultiProvider,
+} from '@abacus-network/sdk';
 import { types, utils } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { AbacusAppChecker, Ownable } from '../check';
@@ -6,64 +12,64 @@ import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterChecker<
   N extends ChainName,
-  A extends AbacusApp<any, any, any>,
-  C extends RouterConfig<N>,
-> extends AbacusAppChecker<N, A, C> {
-  abstract mustGetRouter(domain: types.Domain): Router;
+  A extends AbacusApp<any, N>,
+> extends AbacusAppChecker<A> {
+  abstract mustGetRouter(network: N): Router; // TODO: implement on AbacusRouterApp
 
-  async check(
-    owners: ChainSubsetMap<N, types.Address> | types.Address,
-  ): Promise<void> {
-    await Promise.all(
-      this.app.domainNumbers.map((domain: types.Domain) => {
-        let owner: types.Address;
-        if (typeof owners === 'string') {
-          owner = owners;
-        } else {
-          const domainName = this.app.mustResolveDomainName(domain);
-          owner = owners[domainName as N];
-        }
-        return this.checkDomain(domain, owner);
+  constructor(
+    multiProvider: MultiProvider,
+    app: A,
+    protected config: ChainSubsetMap<N, RouterConfig>,
+  ) {
+    super(multiProvider, app);
+  }
+
+  async check(owners: ChainSubsetMap<N, types.Address> | types.Address) {
+    const networks = this.app.networks();
+    return Promise.all(
+      networks.map((network) => {
+        let owner: types.Address =
+          typeof owners === 'string' ? owners : owners[network];
+        this.checkDomain(network, owner);
       }),
     );
   }
 
-  async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
-    await this.checkEnrolledRouters(domain);
-    await this.checkOwnership(owner, this.ownables(domain));
-    await this.checkXAppConnectionManager(domain);
+  async checkDomain(network: N, owner: types.Address): Promise<void> {
+    await this.checkEnrolledRouters(network);
+    await this.checkOwnership(owner, this.ownables(network));
+    await this.checkXAppConnectionManager(network);
   }
 
-  async checkEnrolledRouters(domain: types.Domain): Promise<void> {
-    const router = this.mustGetRouter(domain);
+  async checkEnrolledRouters(network: N): Promise<void> {
+    const router = this.mustGetRouter(network);
+
     await Promise.all(
-      this.app.remoteDomainNumbers(domain).map(async (remote) => {
-        const remoteRouter = await this.mustGetRouter(remote);
-        expect(await router.routers(remote)).to.equal(
+      this.app.remotes(network).map(async (remoteNetwork) => {
+        const remoteRouter = this.mustGetRouter(remoteNetwork);
+        const remoteChainId = domains[remoteNetwork as ChainName].id; // TODO: remove cast
+        expect(await router.routers(remoteChainId)).to.equal(
           utils.addressToBytes32(remoteRouter.address),
         );
       }),
     );
   }
 
-  ownables(domain: types.Domain): Ownable[] {
-    const ownables: Ownable[] = [this.mustGetRouter(domain)];
+  ownables(network: N): Ownable[] {
+    const ownables: Ownable[] = [this.mustGetRouter(network)];
     // If the config specifies that a xAppConnectionManager should have been deployed,
     // it should be owned by the owner.
-    if (!this.config.xAppConnectionManager) {
-      const contracts = this.app.mustGetContracts(domain);
+    if (!this.config[network].xAppConnectionManager) {
+      const contracts = this.app.getContracts(network);
       ownables.push(contracts.xAppConectionManager);
     }
     return ownables;
   }
 
-  async checkXAppConnectionManager(domain: types.Domain): Promise<void> {
-    if (this.config.xAppConnectionManager === undefined) return;
-    const actual = await this.mustGetRouter(domain).xAppConnectionManager();
-    const expected =
-      this.config.xAppConnectionManager[
-        this.app.mustResolveDomainName(domain) as N
-      ];
+  async checkXAppConnectionManager(network: N): Promise<void> {
+    if (this.config[network].xAppConnectionManager === undefined) return;
+    const actual = await this.mustGetRouter(network).xAppConnectionManager();
+    const expected = this.config[network].xAppConnectionManager;
     expect(actual).to.equal(expected);
   }
 }

@@ -20,7 +20,7 @@
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@abacus-network/core": "^0.0.6",
-    "@abacus-network/sdk": "^0.0.4",
+    "@abacus-network/sdk": "^0.0.5",
     "@types/node": "^16.9.1",
     "@types/yargs": "^17.0.10",
     "axios": "^0.21.3",

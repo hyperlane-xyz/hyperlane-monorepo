@@ -1,4 +1,9 @@
-import { AbacusApp, ChainName, ProxiedAddress } from '@abacus-network/sdk';
+import {
+  AbacusApp,
+  ChainName,
+  MultiProvider,
+  ProxiedAddress,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { CheckerViolation } from './config';
@@ -8,18 +13,14 @@ export interface Ownable {
   owner(): Promise<types.Address>;
 }
 
-export abstract class AbacusAppChecker<
-  N extends ChainName,
-  A extends AbacusApp<N, any, any>,
-  C,
-> {
+export abstract class AbacusAppChecker<A extends AbacusApp<any, any>> {
+  readonly multiProvider: MultiProvider;
   readonly app: A;
-  readonly config: C;
   readonly violations: CheckerViolation[];
 
-  constructor(app: A, config: C) {
+  constructor(multiProvider: MultiProvider, app: A) {
+    this.multiProvider = multiProvider;
     this.app = app;
-    this.config = config;
     this.violations = [];
   }
 
@@ -30,18 +31,18 @@ export abstract class AbacusAppChecker<
   }
 
   async checkUpgradeBeacon(
-    domain: types.Domain,
+    network: ChainName,
     name: string,
     proxiedAddress: ProxiedAddress,
   ) {
-    const provider = await this.app.mustGetProvider(domain);
+    const dc = this.multiProvider.getDomainConnection(network);
     const implementation = await upgradeBeaconImplementation(
-      provider,
+      dc.provider!,
       proxiedAddress.beacon,
     );
     if (implementation !== proxiedAddress.implementation) {
       this.addViolation(
-        upgradeBeaconViolation(domain, name, proxiedAddress, implementation),
+        upgradeBeaconViolation(network, name, proxiedAddress, implementation),
       );
     }
   }
@@ -58,7 +59,7 @@ export abstract class AbacusAppChecker<
     const duplicates = this.violations.filter(
       (v) =>
         violation.type === v.type &&
-        violation.domain === v.domain &&
+        violation.network === v.network &&
         violation.actual === v.actual &&
         violation.expected === v.expected,
     );
