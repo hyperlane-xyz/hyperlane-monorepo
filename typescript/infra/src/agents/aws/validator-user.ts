@@ -20,7 +20,7 @@ export class ValidatorAgentAwsUser<
     region: string,
     public readonly bucket: string,
   ) {
-    super(environment, chainName, region);
+    super(environment, chainName, KEY_ROLE_ENUM.Validator, region);
     this.adminS3Client = new S3Client({ region });
   }
 
@@ -85,10 +85,6 @@ export class ValidatorAgentAwsUser<
       chain: this.chainName,
       index: this.index!.toString(),
     };
-  }
-
-  get role() {
-    return KEY_ROLE_ENUM.Validator;
   }
 
   get userName() {

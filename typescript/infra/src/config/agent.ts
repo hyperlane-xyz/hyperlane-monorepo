@@ -1,7 +1,8 @@
 import { types } from '@abacus-network/utils';
 import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
 import { DeployEnvironment } from './environment';
-import { ValidatorAgentAwsUser } from '../agents/aws';
+import { AgentAwsKey, AgentAwsUser, ValidatorAgentAwsUser } from '../agents/aws';
+import { KEY_ROLE_ENUM } from '../agents';
 
 // Allows a "default" config to be specified and any per-network overrides.
 interface ChainOverridableConfig<Networks extends ChainName, T> {
@@ -177,6 +178,7 @@ export interface AgentConfig<Networks extends ChainName> {
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
+  domainNames: Networks[],
   validatorSets: ChainValidatorSets<Networks>;
   validator: ChainValidatorConfigs<Networks>;
   relayer: ChainRelayerConfigs<Networks>;
@@ -230,6 +232,27 @@ export class ChainAgentConfig<Networks extends ChainName> {
     public readonly chainName: Networks,
   ) {}
 
+  // Credentials are only needed if AWS keys are needed -- otherwise, the
+  // key is pulled from GCP Secret Manager by the helm chart
+  credentials(role: KEY_ROLE_ENUM) {
+    if (this.agentConfig.aws) {
+      const key = new AgentAwsKey(this.agentConfig, role, this.chainName);
+      return key.credentialsAsHelmValue;
+    }
+    return undefined;
+  };
+
+  signers(role: KEY_ROLE_ENUM) {
+    return this.agentConfig.domainNames.map((name) => ({
+      name,
+      ...this.credentials(role),
+    }));
+  }
+
+  get validatorSigners() {
+    return [];
+  }
+
   async validatorConfigs(): Promise<Array<ValidatorConfig>> {
     const baseConfig = getChainOverriddenConfig(
       this.agentConfig.validator,
@@ -257,7 +280,33 @@ export class ChainAgentConfig<Networks extends ChainName> {
     );
   }
 
-  async relayerConfig(): Promise<RelayerConfig> {
+  async relayerRequiresAwsCredentials(): Promise<boolean> {
+    const firstS3Syncer = this.validatorSet.validators.find(
+      (validator) =>
+        validator.checkpointSyncer.type === CheckpointSyncerType.S3,
+    )?.checkpointSyncer as S3CheckpointSyncerConfig | undefined;
+
+    // If there is an S3 checkpoint syncer, we need AWS credentials.
+    // We ensure they are created here, but they are actually read from using `external-secrets`
+    // on the cluster.
+    if (firstS3Syncer !== undefined) {
+      const awsUser = new AgentAwsUser(
+        this.agentConfig.environment,
+        this.chainName,
+        KEY_ROLE_ENUM.Relayer,
+        firstS3Syncer.region
+      );
+      await awsUser.createIfNotExists();
+      return true;
+    }
+    return false;
+  }
+
+  get relayerSigners() {
+    return this.signers(KEY_ROLE_ENUM.Relayer);
+  }
+
+  get relayerConfig(): RelayerConfig {
     const baseConfig = getChainOverriddenConfig(
       this.agentConfig.relayer,
       this.chainName,
@@ -271,11 +320,6 @@ export class ChainAgentConfig<Networks extends ChainName> {
       {},
     );
 
-    // If there is an S3 checkpoint syncer, we need AWS credentials
-    if (this.s3CheckpointSyncerExists) {
-      // const awsUser =
-    }
-
     return {
       ...baseConfig,
       multisigCheckpointSyncer: {
@@ -285,11 +329,19 @@ export class ChainAgentConfig<Networks extends ChainName> {
     };
   }
 
+  get checkpointerSigner() {
+    return this.credentials(KEY_ROLE_ENUM.Checkpointer);
+  }
+
   get checkpointerConfig(): CheckpointerConfig {
     return getChainOverriddenConfig(
       this.agentConfig.checkpointer,
       this.chainName,
     );
+  }
+
+  get kathySigners() {
+    return this.signers(KEY_ROLE_ENUM.Kathy);
   }
 
   get kathyConfig(): KathyConfig | undefined {

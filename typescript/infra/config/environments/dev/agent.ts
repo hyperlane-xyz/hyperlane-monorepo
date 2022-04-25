@@ -1,6 +1,6 @@
 import { AgentConfig } from '../../../src/config';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
-import { DevNetworks } from './domains';
+import { DevNetworks, domainNames } from './domains';
 import { validators } from './validators';
 
 export const agent: AgentConfig<DevNetworks> = {
@@ -9,8 +9,9 @@ export const agent: AgentConfig<DevNetworks> = {
   runEnv: ENVIRONMENTS_ENUM.Dev,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: '8ee03796167efdf80daf6d7fc4673de47f8657f9',
+    tag: 'sha-c7fa127',
   },
+  domainNames,
   validatorSets: validators,
   validator: {
     default: {

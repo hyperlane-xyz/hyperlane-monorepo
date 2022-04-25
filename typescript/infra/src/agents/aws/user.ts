@@ -16,6 +16,7 @@ export class AgentAwsUser<Networks extends ChainName> {
   constructor(
     public readonly environment: string,
     public readonly chainName: Networks,
+    public readonly role: KEY_ROLE_ENUM,
     public readonly region: string,
   ) {
     this.adminIamClient = new IAMClient({ region });
@@ -93,10 +94,6 @@ export class AgentAwsUser<Networks extends ChainName> {
       role: this.role,
       chain: this.chainName,
     };
-  }
-
-  get role() {
-    return KEY_ROLE_ENUM.Relayer;
   }
 
   get userName() {
