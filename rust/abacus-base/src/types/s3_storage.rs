@@ -107,7 +107,7 @@ impl CheckpointSyncer for S3Storage {
 
         self.write_to_bucket(
             S3Storage::index_key(),
-            &S3Storage::checkpoint_key(signed_checkpoint.checkpoint.index),
+            &signed_checkpoint.checkpoint.index.to_string(),
         )
         .await?;
         Ok(())

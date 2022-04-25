@@ -10,16 +10,16 @@ import {
   TestOutbox__factory,
   TestInbox,
   TestInbox__factory,
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
 } from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 const localDomain = 1000;
 const remoteDomain = 2000;
 
-describe('XAppConnectionManager', async () => {
-  let connectionManager: XAppConnectionManager,
+describe('AbacusConnectionManager', async () => {
+  let connectionManager: AbacusConnectionManager,
     enrolledInbox: TestInbox,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
@@ -43,7 +43,9 @@ describe('XAppConnectionManager', async () => {
       0,
     );
 
-    const connectionManagerFactory = new XAppConnectionManager__factory(signer);
+    const connectionManagerFactory = new AbacusConnectionManager__factory(
+      signer,
+    );
     connectionManager = await connectionManagerFactory.deploy();
     await connectionManager.setOutbox(outbox.address);
     await connectionManager.enrollInbox(remoteDomain, enrolledInbox.address);

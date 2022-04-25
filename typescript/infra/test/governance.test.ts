@@ -28,11 +28,11 @@ describe('governance', async () => {
       owners[domain] = owner ? owner : ethers.constants.AddressZero;
     });
 
-    // xAppConnectionManager can be set to anything for these tests.
-    if (!governanceConfig.xAppConnectionManager) {
-      governanceConfig.xAppConnectionManager = {};
+    // abacusConnectionManager can be set to anything for these tests.
+    if (!governanceConfig.abacusConnectionManager) {
+      governanceConfig.abacusConnectionManager = {};
       deployer.domainNames.map((name) => {
-        governanceConfig.xAppConnectionManager![name] = signer.address;
+        governanceConfig.abacusConnectionManager![name] = signer.address;
       });
     }
   });
