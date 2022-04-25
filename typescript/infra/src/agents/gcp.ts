@@ -210,7 +210,6 @@ export async function createAgentGCPKeys(
   environment: string,
   chainNames: string[],
   validatorCount: number,
-  kathy: boolean = false,
 ) {
   const keys: AgentGCPKey[] = await Promise.all(
     KEY_ROLES.flatMap((role) => {
@@ -222,10 +221,6 @@ export async function createAgentGCPKeys(
           ),
         );
       } else {
-        // Only create a key for Kathy if specified
-        if (role === KEY_ROLE_ENUM.Kathy && !kathy) {
-          return [];
-        }
         // Chain name doesnt matter for non attestation keys
         return [AgentGCPKey.create(environment, role, 'any')];
       }
