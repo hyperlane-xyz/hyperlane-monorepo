@@ -44,4 +44,8 @@ contract TestRouter is Router {
     ) external {
         return _dispatchToRemoteRouterWithGas(_destination, _msg, _gasPayment);
     }
+
+    function checkpoint() external {
+        _checkpoint_on_outbox();
+    }
 }

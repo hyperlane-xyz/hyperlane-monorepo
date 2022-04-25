@@ -104,4 +104,23 @@ describe('Router', async () => {
       router.dispatchToRemoteRouter(destination, message),
     ).to.be.revertedWith('!router');
   });
+
+  it('calls checkpoint on the outbox', async () => {
+    const outboxFactory = new Outbox__factory(signer);
+    const outbox = await outboxFactory.deploy(origin);
+    // dispatch dummy messages
+    await outbox.dispatch(
+      destination,
+      utils.addressToBytes32(outbox.address),
+      '0x',
+    );
+    await outbox.dispatch(
+      destination,
+      utils.addressToBytes32(outbox.address),
+      '0x',
+    );
+    await connectionManager.setOutbox(outbox.address);
+
+    await expect(router.checkpoint()).to.emit(outbox, 'Checkpoint');
+  });
 });

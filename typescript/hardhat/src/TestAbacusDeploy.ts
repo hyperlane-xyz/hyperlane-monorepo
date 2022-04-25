@@ -169,28 +169,17 @@ export class TestAbacusDeploy extends TestDeploy<
     const responses: Map<types.Domain, ethers.providers.TransactionResponse[]> =
       new Map();
     const outbox = this.outbox(origin);
-    const [, checkpointedIndex] = await outbox.latestCheckpoint();
-    const messageCount = await outbox.count();
-    // Message count does allow for a checkpoint
-    if (messageCount.lte(checkpointedIndex.add(1))) return responses;
-
-    // Can't checkpoint a single message
-    if (messageCount.toNumber() <= 1) {
-      return responses;
-    }
-
-    await outbox.checkpoint();
     const [root, index] = await outbox.latestCheckpoint();
-
-    for (const destination of this.remotes(origin)) {
-      const inbox = this.inbox(origin, destination);
-      await inbox.setCheckpoint(root, index);
-    }
 
     // Find all unprocessed messages dispatched on the outbox since the previous checkpoint.
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
+      if (dispatch.args.leafIndex > index) {
+        // Message has not been checkpointed on the outbox
+        break;
+      }
+
       const destination = dispatch.args.destination;
       if (destination === origin)
         throw new Error("Dispatched message to local domain");
@@ -201,6 +190,15 @@ export class TestAbacusDeploy extends TestDeploy<
           // disregard the dummy message
           continue;
         }
+
+        const [, inboxCheckpointIndex] = await inbox.latestCheckpoint();
+        if (
+          inboxCheckpointIndex < dispatch.args.leafIndex &&
+          inboxCheckpointIndex < index
+        ) {
+          await inbox.setCheckpoint(root, index);
+        }
+
         const response = await inbox.testProcess(
           dispatch.args.message,
           dispatch.args.leafIndex.toNumber()

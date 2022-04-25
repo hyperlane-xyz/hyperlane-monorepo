@@ -148,4 +148,11 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
             _interchainGasPaymaster().payGasFor{value: _gasPayment}(leafIndex);
         }
     }
+
+    /**
+     * @notice Calls checkpoint on the outbox
+     */
+    function _checkpoint_on_outbox() internal {
+        _outbox().checkpoint();
+    }
 }

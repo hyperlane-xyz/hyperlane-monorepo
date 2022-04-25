@@ -426,6 +426,38 @@ describe('GovernanceRouter', async () => {
     });
   });
 
+  describe('Built-in checkpointing', () => {
+    it('calls Outbox#checkpoint for remote calls', async () => {
+      const call = formatCall(testSet, 'set', [13]);
+      await expect(await router.callRemote(domains[1], [call])).to.emit(
+        outbox,
+        'Checkpoint',
+      );
+    });
+
+    it('calls Outbox#checkpoint when setting a remote governor', async () => {
+      await expect(
+        router.setGovernorRemote(remoteDomain, governor.address),
+      ).to.emit(outbox, 'Checkpoint');
+    });
+
+    it('calls Outbox#checkpoint when setting a remote abacusConnectionManager', async () => {
+      await expect(
+        router.setAbacusConnectionManagerRemote(
+          remoteDomain,
+          ethers.constants.AddressZero,
+        ),
+      ).to.emit(outbox, 'Checkpoint');
+    });
+
+    it('calls Outbox#checkpoint when enrolling a remote router', async () => {
+      const newRouter = utils.addressToBytes32(router.address);
+      await expect(
+        router.enrollRemoteRouterRemote(remoteDomain, testDomain, newRouter),
+      ).to.emit(outbox, 'Checkpoint');
+    });
+  });
+
   describe('interchain gas payments for dispatched messages', async () => {
     const testInterchainGasPayment = 123456789;
 
