@@ -5,7 +5,7 @@ import { AgentConfig } from '../config';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
-import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
+import { AgentGCPKey, fetchAgentGCPKeys, memoryKeyIdentifier } from './gcp';
 import { AgentAwsKey } from './aws';
 import { ChainAgentConfig } from '../config/agent';
 
@@ -100,19 +100,23 @@ async function helmValuesForChain<Networks extends ChainName>(
   };
 }
 
-// TODO this function needs some love
 export async function getAgentEnvVars<Networks extends ChainName>(
   outboxChainName: Networks,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig<Networks>,
   chainNames: Networks[],
+  index?: number,
 ) {
+  if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
+    throw Error('Expected index for validator role');
+  }
+
   const valueDict = await helmValuesForChain(
     outboxChainName,
     agentConfig,
     chainNames,
   );
-  const envVars: string[] = [];
+  let envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
   envVars.push(
     `OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
@@ -138,6 +142,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     const gcpKeys = await fetchAgentGCPKeys(
       agentConfig.environment,
       outboxChainName,
+      agentConfig.validatorSets[outboxChainName].validators.length,
     );
 
     // Only checkpointer and relayer need to sign txs
@@ -151,24 +156,12 @@ export async function getAgentEnvVars<Networks extends ChainName>(
         envVars.push(`OPT_BASE_SIGNERS_${name.toUpperCase()}_TYPE=hexKey`);
       });
     } else if (role === KEY_ROLE_ENUM.Validator) {
-      envVars.push(
-        `OPT_BASE_VALIDATOR_KEY=${strip0x(
-          gcpKeys[outboxChainName + '-' + KEY_ROLE_ENUM.Validator].privateKey,
-        )}`,
-        `OPT_BASE_VALIDATOR_TYPE=hexKey`,
-      );
-      // Throw an error if the chain config did not specify the reorg period
-      if (valueDict.abacus.validator.configs[0].reorgPeriod === undefined) {
-        throw new Error(
-          `Panic: Chain config for ${outboxChainName} did not specify a reorg period`,
-        );
-      }
+      const privateKey =
+        gcpKeys[memoryKeyIdentifier(role, outboxChainName, index)].privateKey;
 
       envVars.push(
-        `OPT_VALIDATOR_REORGPERIOD=${
-          valueDict.abacus.validator.configs[0].reorgPeriod - 1
-        }`,
-        `OPT_VALIDATOR_INTERVAL=${valueDict.abacus.validator.configs[0].interval}`,
+        `OPT_VALIDATOR_VALIDATOR_KEY=${strip0x(privateKey)}`,
+        `OPT_VALIDATOR_VALIDATOR_TYPE=hexKey`,
       );
     }
 
@@ -220,15 +213,64 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     }
   }
 
-  if (role === KEY_ROLE_ENUM.Checkpointer) {
-    envVars.push(
-      `OPT_CHECKPOINTER_POLLINGINTERVAL=${agentConfig.checkpointer?.default.pollingInterval}`,
-    );
-    envVars.push(
-      `OPT_CHECKPOINTER_CREATIONLATENCY=${agentConfig.checkpointer?.default.creationLatency}`,
-    );
+  switch (role) {
+    case KEY_ROLE_ENUM.Validator:
+      envVars.concat(
+        configEnvVars(
+          valueDict.abacus.validator.configs[index!],
+          KEY_ROLE_ENUM.Validator,
+        ),
+      );
+      break;
+    case KEY_ROLE_ENUM.Relayer:
+      envVars.concat(
+        configEnvVars(valueDict.abacus.relayer.config, KEY_ROLE_ENUM.Relayer),
+      );
+      break;
+    case KEY_ROLE_ENUM.Checkpointer:
+      envVars.concat(
+        configEnvVars(
+          valueDict.abacus.checkpointer.config,
+          KEY_ROLE_ENUM.Checkpointer,
+        ),
+      );
+      break;
+    case KEY_ROLE_ENUM.Kathy:
+      if (valueDict.abacus.kathy.config) {
+        envVars.concat(
+          configEnvVars(valueDict.abacus.kathy.config, KEY_ROLE_ENUM.Kathy),
+        );
+      }
+      break;
   }
 
+  return envVars;
+}
+
+// Recursively converts a config object into environment variables than can
+// be parsed by rust. For example, a config of { foo: { bar: { baz: 420 }, boo: 421 } } will
+// be: OPT_FOO_BAR_BAZ=420 and OPT_FOO_BOO=421
+function configEnvVars(
+  config: Record<string, any>,
+  role: string,
+  key_name_prefix: string = '',
+) {
+  let envVars: string[] = [];
+  for (const key of Object.keys(config)) {
+    const value = config[key];
+    if (typeof value === 'object') {
+      envVars = [
+        ...envVars,
+        ...configEnvVars(value, role, `${key.toUpperCase()}_`),
+      ];
+    } else {
+      envVars.push(
+        `OPT_${role.toUpperCase()}_${key_name_prefix}${key.toUpperCase()}=${
+          config[key]
+        }`,
+      );
+    }
+  }
   return envVars;
 }
 
@@ -328,9 +370,11 @@ export async function runKeymasterHelmCommand<Networks extends ChainName>(
   chainNames: Networks[],
 ) {
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
+  const chainName = chainNames[0];
   const gcpKeys = await fetchAgentGCPKeys(
     agentConfig.environment,
-    chainNames[0],
+    chainName,
+    agentConfig.validatorSets[chainName].validators.length,
   );
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {

@@ -99,9 +99,7 @@ export class AgentGCPKey extends AgentKey {
 
   // The identifier for this key within a set of keys for an enrivonment
   get memoryKeyIdentifier() {
-    return this.isValidatorKey
-      ? `${this.chainName}-${this.role}-${this.index}`
-      : this.role;
+    return memoryKeyIdentifier(this.role, this.chainName, this.index);
   }
 
   get privateKey() {
@@ -202,8 +200,18 @@ export async function deleteAgentGCPKeys(
 }
 
 // The identifier for a key within a memory representation
-export function memoryKeyIdentifier(role: string, chainName: string) {
-  return isValidatorKey(role) ? `${chainName}-${role}` : role;
+export function memoryKeyIdentifier(
+  role: string,
+  chainName: string,
+  index?: number,
+) {
+  if (isValidatorKey(role)) {
+    if (index === undefined) {
+      throw Error('Expected index');
+    }
+    return `${chainName}-${role}-${index}`;
+  }
+  return role;
 }
 
 export async function createAgentGCPKeys(
@@ -256,19 +264,31 @@ async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
   });
 }
 
-// This function returns all the GCP keys for a given outbox chain in a dictionary where the key is either the role or `${chainName}-${role}` in the case of attestation keys
+// This function returns all the GCP keys for a given outbox chain in a dictionary where the key is the memoryKeyIdentifier
 export async function fetchAgentGCPKeys(
   environment: string,
   chainName: string,
+  validatorCount: number,
 ): Promise<Record<string, AgentGCPKey>> {
   const secrets = await Promise.all(
     KEY_ROLES.map(async (role) => {
-      const key = new AgentGCPKey(environment, role, chainName);
-      await key.fetch();
-      return [key.memoryKeyIdentifier, key];
+      if (role === KEY_ROLE_ENUM.Validator) {
+        return Promise.all(
+          [...Array(validatorCount).keys()].map(async (index) => {
+            const key = new AgentGCPKey(environment, role, chainName, index);
+            await key.fetch();
+            return [key.memoryKeyIdentifier, key];
+          }),
+        );
+      } else {
+        const key = new AgentGCPKey(environment, role, chainName);
+        await key.fetch();
+        return [[key.memoryKeyIdentifier, key]];
+      }
     }),
   );
-  return Object.fromEntries(secrets);
+
+  return Object.fromEntries(secrets.flat(1));
 }
 
 async function fetchGCPKeyAddresses(environment: string) {
