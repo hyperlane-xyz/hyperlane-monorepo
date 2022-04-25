@@ -144,7 +144,7 @@ impl MerkleTreeBuilder {
             return Ok(());
         }
         let starting_index = self.prover.count() as u32;
-        for i in starting_index..checkpoint.index {
+        for i in starting_index..=checkpoint.index {
             self.db.wait_for_leaf(i).await?;
             self.ingest_leaf_index(i)?;
         }
@@ -168,7 +168,7 @@ impl MerkleTreeBuilder {
         &mut self,
         batch: &MessageBatch,
     ) -> Result<(), MerkleTreeBuilderError> {
-        if self.prover.count() as u32 > batch.current_checkpoint_index {
+        if self.prover.count() as u32 > batch.current_checkpoint_index + 1 {
             error!("Prover was already ahead of MessageBatch, something went wrong");
             return Err(MerkleTreeBuilderError::UnexpectedProverState {
                 prover_count: self.prover.count() as u32,
@@ -185,8 +185,8 @@ impl MerkleTreeBuilder {
             count = self.prover.count(),
             "update_from_batch fast forward"
         );
-        // prove the until target (checkpoints are 1-indexed)
-        for i in (batch.current_checkpoint_index + 1)..batch.target_checkpoint.index {
+        // prove the until target
+        for i in (batch.current_checkpoint_index + 1)..=batch.target_checkpoint.index {
             self.ingest_leaf_index(i)?;
         }
 

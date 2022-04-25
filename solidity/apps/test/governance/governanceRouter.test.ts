@@ -21,13 +21,14 @@ describe('GovernanceRouter', async () => {
     remote: GovernanceRouter,
     testSet: TestSet,
     governance: GovernanceDeploy;
+  let outbox: Outbox;
+  let interchainGasPaymaster: InterchainGasPaymaster;
 
   before(async () => {
     [governor, recoveryManager] = await ethers.getSigners();
 
     const testSetFactory = new TestSet__factory(governor);
     testSet = await testSetFactory.deploy();
-    await abacus.deploy(domains, governor);
   });
 
   beforeEach(async () => {
@@ -40,10 +41,13 @@ describe('GovernanceRouter', async () => {
         address: governor.address,
       },
     };
+    await abacus.deploy(domains, governor);
     governance = new GovernanceDeploy(config);
     await governance.deploy(abacus);
     router = governance.router(localDomain);
     remote = governance.router(remoteDomain);
+    outbox = abacus.outbox(localDomain);
+    interchainGasPaymaster = abacus.interchainGasPaymaster(localDomain);
   });
 
   it('Cannot be initialized twice', async () => {
@@ -424,14 +428,6 @@ describe('GovernanceRouter', async () => {
 
   describe('interchain gas payments for dispatched messages', async () => {
     const testInterchainGasPayment = 123456789;
-
-    let outbox: Outbox;
-    let interchainGasPaymaster: InterchainGasPaymaster;
-
-    before(() => {
-      outbox = abacus.outbox(localDomain);
-      interchainGasPaymaster = abacus.interchainGasPaymaster(localDomain);
-    });
 
     it('allows interchain gas payment for remote calls', async () => {
       const leafIndex = await outbox.count();

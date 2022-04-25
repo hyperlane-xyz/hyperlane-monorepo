@@ -85,6 +85,12 @@ describe('OutboxValidatorManager', () => {
 
     it('reverts if the checkpoint is not improper', async () => {
       const message = `0x${Buffer.alloc(10).toString('hex')}`;
+      // Send two messages to allow checkpointing
+      await outbox.dispatch(
+        INBOX_DOMAIN,
+        utils.addressToBytes32(signer.address),
+        message,
+      );
       await outbox.dispatch(
         INBOX_DOMAIN,
         utils.addressToBytes32(signer.address),
