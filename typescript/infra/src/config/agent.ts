@@ -230,10 +230,6 @@ export class ChainAgentConfig<Networks extends ChainName> {
     public readonly chainName: Networks,
   ) {}
 
-  get validatorSet(): ValidatorSet {
-    return this.agentConfig.validatorSets[this.chainName];
-  }
-
   async validatorConfigs(): Promise<Array<ValidatorConfig>> {
     const baseConfig = getChainOverriddenConfig(
       this.agentConfig.validator,
@@ -261,7 +257,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
     );
   }
 
-  get relayerConfig(): RelayerConfig {
+  async relayerConfig(): Promise<RelayerConfig> {
     const baseConfig = getChainOverriddenConfig(
       this.agentConfig.relayer,
       this.chainName,
@@ -274,6 +270,11 @@ export class ChainAgentConfig<Networks extends ChainName> {
       }),
       {},
     );
+
+    // If there is an S3 checkpoint syncer, we need AWS credentials
+    if (this.s3CheckpointSyncerExists) {
+      // const awsUser =
+    }
 
     return {
       ...baseConfig,
@@ -296,5 +297,19 @@ export class ChainAgentConfig<Networks extends ChainName> {
       return undefined;
     }
     return getChainOverriddenConfig(this.agentConfig.kathy, this.chainName);
+  }
+
+  get validatorSet(): ValidatorSet {
+    return this.agentConfig.validatorSets[this.chainName];
+  }
+
+  // Returns true if any of the validators in the validator set are using an S3 checkpoint syncer.
+  get s3CheckpointSyncerExists(): boolean {
+    return (
+      this.validatorSet.validators.find(
+        (validator) =>
+          validator.checkpointSyncer.type === CheckpointSyncerType.S3,
+      ) !== undefined
+    );
   }
 }

@@ -6,7 +6,7 @@ import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
 import { AgentGCPKey, fetchAgentGCPKeys, memoryKeyIdentifier } from './gcp';
-import { AgentAwsKey } from './aws';
+import { AgentAwsKey } from './aws/key';
 import { ChainAgentConfig } from '../config/agent';
 
 export enum KEY_ROLE_ENUM {
@@ -78,7 +78,7 @@ async function helmValuesForChain<Networks extends ChainName>(
           name,
           ...credentials(KEY_ROLE_ENUM.Relayer),
         })),
-        config: chainAgentConfig.relayerConfig,
+        config: await chainAgentConfig.relayerConfig(),
       },
       checkpointer: {
         enabled: true,
