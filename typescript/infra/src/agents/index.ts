@@ -117,10 +117,10 @@ export async function getAgentEnvVars<Networks extends ChainName>(
   envVars.push(
     `OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
   );
-  valueDict.abacus.inboxChains.forEach((replicaChain: any) => {
+  valueDict.abacus.inboxChains.forEach((inboxChain: any) => {
     envVars.push(
-      `OPT_BASE_INBOXES_${replicaChain.name.toUpperCase()}_CONNECTION_URL=${
-        rpcEndpoints[replicaChain.name]
+      `OPT_BASE_INBOXES_${inboxChain.name.toUpperCase()}_CONNECTION_URL=${
+        rpcEndpoints[inboxChain.name]
       }`,
     );
   });
