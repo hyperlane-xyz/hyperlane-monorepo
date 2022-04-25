@@ -63,12 +63,12 @@ export async function getRouterConfig(
   environment: DeployEnvironment,
   core: AbacusCore,
 ): Promise<RouterConfig> {
-  const xAppConnectionManager: Record<string, types.Address> = {};
+  const abacusConnectionManager: Record<string, types.Address> = {};
   core.domainNames.map((name) => {
     const contracts = core.mustGetContracts(name);
-    xAppConnectionManager[name] = contracts.xAppConnectionManager.address;
+    abacusConnectionManager[name] = contracts.abacusConnectionManager.address;
   });
-  return { xAppConnectionManager };
+  return { abacusConnectionManager };
 }
 
 export async function getGovernanceConfig(
