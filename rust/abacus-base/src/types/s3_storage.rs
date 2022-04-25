@@ -45,6 +45,7 @@ impl S3Storage {
         }
     }
 
+    #[tracing::instrument(err, skip(self))]
     async fn write_to_bucket(&self, key: String, body: &str) -> Result<()> {
         let req = PutObjectRequest {
             key,
@@ -57,6 +58,7 @@ impl S3Storage {
         Ok(())
     }
 
+    #[tracing::instrument(err, skip(self))]
     async fn read_from_bucket(&self, key: String) -> Result<Option<Vec<u8>>> {
         let req = GetObjectRequest {
             key,
