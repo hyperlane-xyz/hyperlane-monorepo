@@ -124,15 +124,30 @@ describe('Outbox', async () => {
 
   it('Checkpoints the latest root', async () => {
     const message = ethers.utils.formatBytes32String('message');
+    const count = 2;
+    for (let i = 0; i < count; i++) {
+      await outbox.dispatch(
+        destDomain,
+        utils.addressToBytes32(recipient.address),
+        message,
+      );
+    }
+    await outbox.checkpoint();
+    const [root, index] = await outbox.latestCheckpoint();
+    expect(root).to.not.equal(ethers.constants.HashZero);
+    expect(index).to.equal(count - 1);
+
+    expect(await outbox.isCheckpoint(root, index)).to.be.true;
+  });
+
+  it('does not allow a checkpoint of index 0', async () => {
+    const message = ethers.utils.formatBytes32String('message');
     await outbox.dispatch(
       destDomain,
       utils.addressToBytes32(recipient.address),
       message,
     );
-    await outbox.checkpoint();
-    const [root, index] = await outbox.latestCheckpoint();
-    expect(root).to.not.equal(ethers.constants.HashZero);
-    expect(index).to.equal(1);
+    await expect(outbox.checkpoint()).to.be.revertedWith('!count');
   });
 
   it('Correctly calculates destinationAndNonce', async () => {

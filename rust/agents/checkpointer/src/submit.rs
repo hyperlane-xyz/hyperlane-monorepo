@@ -49,8 +49,9 @@ impl CheckpointSubmitter {
                     "Got latest checkpoint and count"
                 );
                 // If there are any new messages, the count will be greater than
-                // the latest checkpoint index.
-                if count > latest_checkpoint_index {
+                // the latest checkpoint index + 1. Don't checkpoint for count < 2
+                // since checkpoints with index 0 are disallowed
+                if count > latest_checkpoint_index + 1 && count > 1 {
                     debug!("Creating checkpoint");
                     self.outbox.create_checkpoint().await?;
                     // Sleep to ensure that another checkpoint isn't made until
