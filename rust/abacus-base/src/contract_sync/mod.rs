@@ -6,7 +6,7 @@ use abacus_core::db::AbacusDB;
 use abacus_core::{AbacusCommonIndexer, ListValidity, OutboxIndexer};
 
 use tokio::time::sleep;
-use tracing::{info, info_span, warn};
+use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
 use std::cmp::min;
@@ -173,6 +173,11 @@ where
                 );
 
                 let sorted_messages = indexer.fetch_sorted_messages(from, to).await?;
+
+                debug!(
+                    count = sorted_messages.len(),
+                    "Indexed messages"
+                );
 
                 // If no messages found, update last seen block and next height
                 // and continue
