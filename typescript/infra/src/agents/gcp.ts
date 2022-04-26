@@ -24,7 +24,7 @@ interface KeyAsAddress {
   address: string;
 }
 
-function identifier(
+export function identifier(
   environment: string,
   role: string,
   chainName: string,

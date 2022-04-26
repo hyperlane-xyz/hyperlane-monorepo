@@ -240,7 +240,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
   // key is pulled from GCP Secret Manager by the helm chart
   credentials(role: KEY_ROLE_ENUM) {
     if (this.agentConfig.aws) {
-      const key = new AgentAwsKey(this.agentConfig, role, this.chainName);
+      const key = new AgentAwsKey(this.agentConfig, this.chainName, role);
       return key.credentialsAsHelmValue;
     }
     return undefined;
@@ -254,7 +254,8 @@ export class ChainAgentConfig<Networks extends ChainName> {
   }
 
   get validatorSigners() {
-    return [];
+    // was getting Error: Expected index for validator key
+    return [] // this.credentials(KEY_ROLE_ENUM.Validator);
   }
 
   async validatorConfigs(): Promise<Array<ValidatorConfig>> {
@@ -285,22 +286,32 @@ export class ChainAgentConfig<Networks extends ChainName> {
   }
 
   async relayerRequiresAwsCredentials(): Promise<boolean> {
+    // If there is an S3 checkpoint syncer, we need AWS credentials.
+    // We ensure they are created here, but they are actually read from using `external-secrets`
+    // on the cluster.
     const firstS3Syncer = this.validatorSet.validators.find(
       (validator) =>
         validator.checkpointSyncer.type === CheckpointSyncerType.S3,
     )?.checkpointSyncer as S3CheckpointSyncerConfig | undefined;
 
-    // If there is an S3 checkpoint syncer, we need AWS credentials.
-    // We ensure they are created here, but they are actually read from using `external-secrets`
-    // on the cluster.
-    if (firstS3Syncer !== undefined) {
+    // If AWS is present on the agentConfig, we are using AWS keys and need credentials regardless.
+    // undefined if AWS is not required
+    const awsRegion: string | undefined = this.agentConfig.aws?.region ?? firstS3Syncer?.region;
+
+    if (awsRegion !== undefined) {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
         this.chainName,
         KEY_ROLE_ENUM.Relayer,
-        firstS3Syncer.region,
+        awsRegion,
       );
       await awsUser.createIfNotExists();
+      // If we're using AWS keys, ensure the key is created and the user can use it
+      if (this.agentConfig.aws) {
+        const key = awsUser.key(this.agentConfig);
+        await key.createIfNotExists();
+        await key.putKeyPolicy(awsUser.arn);
+      }
       return true;
     }
     return false;
@@ -334,7 +345,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
   }
 
   get checkpointerSigner() {
-    return this.credentials(KEY_ROLE_ENUM.Checkpointer);
+    return this.signers(KEY_ROLE_ENUM.Checkpointer);
   }
 
   get checkpointerConfig(): CheckpointerConfig {

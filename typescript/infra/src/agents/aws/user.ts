@@ -6,7 +6,9 @@ import {
   ListUsersCommand,
 } from '@aws-sdk/client-iam';
 import { KEY_ROLE_ENUM } from '../../agents';
+import { AgentConfig } from '../../config';
 import { gcpSecretExists, setGCPSecret } from '../../utils/gcloud';
+import { AgentAwsKey } from './key';
 
 export class AgentAwsUser<Networks extends ChainName> {
   private adminIamClient: IAMClient;
@@ -80,6 +82,14 @@ export class AgentAwsUser<Networks extends ChainName> {
     );
   }
 
+  key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
+    return new AgentAwsKey<Networks>(
+      agentConfig,
+      this.chainName,
+      this.role,
+    );
+  }
+
   get awsTags() {
     const tags = this.tags;
     return Object.keys(tags).map((key) => ({
@@ -97,7 +107,7 @@ export class AgentAwsUser<Networks extends ChainName> {
   }
 
   get userName() {
-    return `abacus-${this.environment}-${this.chainName}-${this.role}`;
+    return `abacus-${this.environment}-${this.role}`;
   }
 
   get accessKeyIdSecretName() {

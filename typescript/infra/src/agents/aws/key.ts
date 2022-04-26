@@ -1,5 +1,5 @@
 import { ChainName } from '@abacus-network/sdk';
-import { getSecretAwsCredentials, KEY_ROLE_ENUM } from '..';
+import { /*getSecretAwsCredentials,*/ KEY_ROLE_ENUM } from '..';
 import { AgentConfig } from '../../config/agent';
 import {
   CreateAliasCommand,
@@ -11,9 +11,11 @@ import {
   KMSClient,
   ListAliasesCommand,
   OriginType,
+  PutKeyPolicyCommand,
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
-import { getEthereumAddress } from '../../utils/utils';
+import { identifier } from '../gcp';
+import { getEthereumAddress, sleep } from '../../utils/utils';
 import { AgentKey } from '../agent';
 
 interface UnfetchedKey {
@@ -29,6 +31,7 @@ type RemoteKey = UnfetchedKey | FetchedKey;
 
 export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
   private environment: string;
+  // @ts-ignore
   private agentConfig: AgentConfig<Networks>;
   private client: KMSClient | undefined;
   private region: string;
@@ -36,12 +39,16 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
 
   constructor(
     agentConfig: AgentConfig<Networks>,
-    public readonly role: KEY_ROLE_ENUM,
     public readonly chainName: Networks,
+    public readonly role: KEY_ROLE_ENUM,
+    public readonly index?: number,
   ) {
     super();
     if (!agentConfig.aws) {
       throw new Error('No AWS env vars set');
+    }
+    if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
+      throw new Error('Expected index for validator key');
     }
     this.environment = agentConfig.environment;
     this.agentConfig = agentConfig;
@@ -52,16 +59,23 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
     if (this.client) {
       return this.client;
     }
-    const awsCredentials = await getSecretAwsCredentials(this.agentConfig);
+    // const awsCredentials = await getSecretAwsCredentials(this.agentConfig);
     this.client = new KMSClient({
       region: this.region,
-      credentials: awsCredentials,
+      // credentials: awsCredentials,
     });
     return this.client;
   }
 
   get identifier() {
-    return `alias/${this.environment}-${this.chainName}-${this.role}`;
+    return `alias/${
+      identifier(
+        this.environment,
+        this.role,
+        this.chainName,
+        this.index
+      )
+    }`;
   }
 
   get credentialsAsHelmValue() {
@@ -85,6 +99,64 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
       fetched: true,
       address,
     };
+  }
+
+  async createIfNotExists() {
+    let keyId = await this.getId();
+    // If it doesn't exist, create it
+    if (!keyId) {
+      this.create();
+      // It can take a moment for the change to propagate
+      await sleep(1000);
+    }
+  }
+
+  // Allows the `userArn` to use the key
+  async putKeyPolicy(userArn: string) {
+    const client = await this.getClient();
+    const policy = {
+      Version: '2012-10-17',
+      Id: 'key-default-1',
+      Statement: [
+        {
+          Sid: 'Enable IAM User Permissions',
+          Effect: 'Allow',
+          Principal: {
+            AWS: 'arn:aws:iam::625457692493:root',
+          },
+          Action: 'kms:*',
+          Resource: '*',
+        },
+        {
+          Effect: 'Allow',
+          Principal: {
+            AWS: userArn,
+          },
+          Action: ['kms:GetPublicKey', 'kms:Sign'],
+          Resource: '*',
+        },
+      ],
+    };
+
+    console.log('await this.getId()', await this.getId());
+    const cmd = new PutKeyPolicyCommand({
+      KeyId: await this.getId(),
+      Policy: JSON.stringify(policy),
+      PolicyName: 'default', // This is the only accepted name
+    });
+    await client.send(cmd);
+  }
+
+  // Gets the Key's ID if it exists, undefined otherwise
+  async getId() {
+    const client = await this.getClient();
+    const listAliasResponse = await client.send(
+      new ListAliasesCommand({ Limit: 100 }),
+    );
+    const match = listAliasResponse.Aliases!.find(
+      (_) => _.AliasName === this.identifier,
+    );
+    return match?.TargetKeyId;
   }
 
   async create() {

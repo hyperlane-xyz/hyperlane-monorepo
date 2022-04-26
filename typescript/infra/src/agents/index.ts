@@ -171,7 +171,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     // Only checkpointer and relayer need to sign txs
     if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
       chainNames.forEach((name) => {
-        const key = new AgentAwsKey(agentConfig, role, name);
+        const key = new AgentAwsKey(agentConfig, name, role);
         envVars.push(`OPT_BASE_SIGNERS_${name.toUpperCase()}_TYPE=aws`);
         envVars.push(
           `OPT_BASE_SIGNERS_${name.toUpperCase()}_ID=${
@@ -188,7 +188,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
 
     // Validator attestation key
     if (role === KEY_ROLE_ENUM.Validator) {
-      const key = new AgentAwsKey(agentConfig, role, outboxChainName);
+      const key = new AgentAwsKey(agentConfig, outboxChainName, role);
       envVars.push(`OPT_BASE_VALIDATOR_TYPE=aws`);
       envVars.push(
         `OPT_BASE_VALIDATOR_ID=${key.credentialsAsHelmValue.aws.keyId}`,
@@ -343,7 +343,7 @@ export async function runAgentHelmCommand<Networks extends ChainName>(
   return execCmd(
     `helm ${action} ${outboxChainName} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
-    } ${values.join(' ')} ${extraPipe}`,
+    } ${values.join(' ')} --debug --dry-run ${extraPipe}`,
     {},
     false,
     true,
