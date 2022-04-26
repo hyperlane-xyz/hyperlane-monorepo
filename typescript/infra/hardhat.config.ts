@@ -102,6 +102,7 @@ task('kathy', 'Dispatches random abacus messages')
           utils.addressToBytes32(recipient.address),
           '0x1234',
         );
+        await outbox.checkpoint();
         console.log(
           `send to ${recipient.address} on ${remote} at index ${
             (await outbox.count()).toNumber() - 1
