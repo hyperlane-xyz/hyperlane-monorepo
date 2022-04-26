@@ -24,6 +24,7 @@ pub(crate) struct CheckpointRelayer {
 }
 
 impl CheckpointRelayer {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         outbox: Outboxes,
         polling_interval: u64,

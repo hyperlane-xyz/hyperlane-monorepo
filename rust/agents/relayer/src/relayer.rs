@@ -85,10 +85,8 @@ impl Relayer {
     fn run_contract_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.core.outbox.outbox();
         let outbox_name = outbox.name();
-        let sync_metrics = ContractSyncMetrics::new(
-            self.metrics(),
-            Some(&[&"dispatch", &outbox_name, &"unknown"]),
-        );
+        let sync_metrics =
+            ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", outbox_name, "unknown"]));
         let sync = self.outbox().sync(
             Self::AGENT_NAME.to_string(),
             self.as_ref().indexer.clone(),

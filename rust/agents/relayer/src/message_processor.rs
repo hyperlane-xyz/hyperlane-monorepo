@@ -42,6 +42,7 @@ enum MessageProcessingStatus {
 }
 
 impl MessageProcessor {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         outbox: Outboxes,
         polling_interval: u64,
