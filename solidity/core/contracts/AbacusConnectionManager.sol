@@ -8,8 +8,8 @@ import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol
 import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
 
 // ============ External Imports ============
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/EnumerableSet.sol";
 
 /**
@@ -119,7 +119,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @notice Returns the Inbox addresses for a given remote domain
      * @return inboxes An array of addresses of the Inboxes
      */
-    function domainInboxes(uint32 remoteDomain)
+    function getInboxes(uint32 remoteDomain)
         external
         view
         returns (address[] memory)

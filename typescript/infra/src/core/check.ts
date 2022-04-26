@@ -222,7 +222,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     for (const remote of this.app.remoteDomainNumbers(domain)) {
       // inbox is enrolled in abacusConnectionManager
       const enrolledInboxes =
-        await contracts.abacusConnectionManager.domainInboxes(remote);
+        await contracts.abacusConnectionManager.getInboxes(remote);
       expect(enrolledInboxes).to.eql([
         this.app.mustGetInbox(remote, domain).address,
       ]);

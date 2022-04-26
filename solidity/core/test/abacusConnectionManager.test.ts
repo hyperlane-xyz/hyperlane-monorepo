@@ -190,7 +190,7 @@ describe('AbacusConnectionManager', async () => {
       connectionManager.enrollInbox(newRemoteDomain, newInbox.address),
     ).to.emit(connectionManager, 'InboxEnrolled');
 
-    expect(await connectionManager.domainInboxes(newRemoteDomain)).to.eql([
+    expect(await connectionManager.getInboxes(newRemoteDomain)).to.eql([
       newInbox.address,
     ]);
     expect(await connectionManager.inboxToDomain(newInbox.address)).to.equal(
@@ -200,7 +200,7 @@ describe('AbacusConnectionManager', async () => {
   });
 
   it('Owner can unenroll a inbox', async () => {
-    expect(await connectionManager.domainInboxes(remoteDomain)).to.eql([
+    expect(await connectionManager.getInboxes(remoteDomain)).to.eql([
       enrolledInbox.address,
     ]);
     await expect(
@@ -210,7 +210,7 @@ describe('AbacusConnectionManager', async () => {
     expect(
       await connectionManager.inboxToDomain(enrolledInbox.address),
     ).to.equal(0);
-    expect(await connectionManager.domainInboxes(remoteDomain)).to.eql([]);
+    expect(await connectionManager.getInboxes(remoteDomain)).to.eql([]);
     expect(await connectionManager.isInbox(enrolledInbox.address)).to.be.false;
   });
 
@@ -241,7 +241,7 @@ describe('AbacusConnectionManager', async () => {
     expect(await connectionManager.isInbox(newInbox1.address)).to.be.true;
     expect(await connectionManager.isInbox(newInbox2.address)).to.be.true;
 
-    expect(await connectionManager.domainInboxes(newRemoteDomain)).to.eql([
+    expect(await connectionManager.getInboxes(newRemoteDomain)).to.eql([
       newInbox1.address,
       newInbox2.address,
     ]);
