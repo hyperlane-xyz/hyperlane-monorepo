@@ -83,11 +83,7 @@ export class AgentAwsUser<Networks extends ChainName> {
   }
 
   key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
-    return new AgentAwsKey<Networks>(
-      agentConfig,
-      this.chainName,
-      this.role,
-    );
+    return new AgentAwsKey<Networks>(agentConfig, this.chainName, this.role);
   }
 
   get awsTags() {

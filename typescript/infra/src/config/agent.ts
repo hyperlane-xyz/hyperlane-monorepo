@@ -127,6 +127,7 @@ type ChainValidatorConfigs<Networks extends ChainName> = ChainOverridableConfig<
 // Full validator agent config for a single chain
 interface ValidatorConfig extends BaseValidatorConfig {
   checkpointSyncer: CheckpointSyncerConfig;
+  validator: KeyConfig;
 }
 
 // ======================================
@@ -160,6 +161,27 @@ type ChainKathyConfigs<Networks extends ChainName> = ChainOverridableConfig<
   Networks,
   KathyConfig
 >;
+
+// Eventually consumed by Rust, which expects camelCase values
+export enum KeyType {
+  Aws = 'aws',
+  Hex = 'hexKey',
+}
+
+export interface AwsKeyConfig {
+  type: KeyType.Aws;
+  // ID of the key, can be an alias of the form `alias/foo-bar`
+  id: string;
+  // AWS region where the key is
+  region: string;
+}
+
+// The private key is omitted so it can be fetched using external-secrets
+export interface HexKeyConfig {
+  type: KeyType.Hex;
+}
+
+export type KeyConfig = AwsKeyConfig | HexKeyConfig;
 
 interface IndexingConfig {
   from: number;
@@ -255,7 +277,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
 
   get validatorSigners() {
     // was getting Error: Expected index for validator key
-    return [] // this.credentials(KEY_ROLE_ENUM.Validator);
+    return []; // this.credentials(KEY_ROLE_ENUM.Validator);
   }
 
   async validatorConfigs(): Promise<Array<ValidatorConfig>> {
@@ -266,20 +288,36 @@ export class ChainAgentConfig<Networks extends ChainName> {
 
     return Promise.all(
       this.validatorSet.validators.map(async (val, i) => {
-        if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
-          const awsUser = new ValidatorAgentAwsUser(
-            this.agentConfig.environment,
-            this.chainName,
-            i,
-            val.checkpointSyncer.region,
-            val.checkpointSyncer.bucket,
+        if (val.checkpointSyncer.type !== CheckpointSyncerType.S3) {
+          throw Error(
+            'Expected k8s-based validator to use S3 checkpoint syncer',
           );
-          await awsUser.createIfNotExists();
-          await awsUser.createBucketIfNotExists();
         }
+
+        const awsUser = new ValidatorAgentAwsUser(
+          this.agentConfig.environment,
+          this.chainName,
+          i,
+          val.checkpointSyncer.region,
+          val.checkpointSyncer.bucket,
+        );
+        await awsUser.createIfNotExists();
+        await awsUser.createBucketIfNotExists();
+
+        let validator: KeyConfig = {
+          type: KeyType.Hex,
+        };
+        if (this.agentConfig.aws) {
+          const key = awsUser.key(this.agentConfig);
+          await key.createIfNotExists();
+          await key.putKeyPolicy(awsUser.arn);
+          validator = key.keyConfig;
+        }
+
         return {
           ...baseConfig,
           checkpointSyncer: val.checkpointSyncer,
+          validator,
         };
       }),
     );
@@ -296,7 +334,8 @@ export class ChainAgentConfig<Networks extends ChainName> {
 
     // If AWS is present on the agentConfig, we are using AWS keys and need credentials regardless.
     // undefined if AWS is not required
-    const awsRegion: string | undefined = this.agentConfig.aws?.region ?? firstS3Syncer?.region;
+    const awsRegion: string | undefined =
+      this.agentConfig.aws?.region ?? firstS3Syncer?.region;
 
     if (awsRegion !== undefined) {
       const awsUser = new AgentAwsUser(

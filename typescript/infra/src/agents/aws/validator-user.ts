@@ -6,6 +6,8 @@ import {
   PutBucketPolicyCommand,
 } from '@aws-sdk/client-s3';
 import { KEY_ROLE_ENUM } from '../../agents';
+import { AgentConfig } from '../../config';
+import { AgentAwsKey } from './key';
 import { AgentAwsUser } from './user';
 
 export class ValidatorAgentAwsUser<
@@ -76,6 +78,15 @@ export class ValidatorAgentAwsUser<
       Policy: JSON.stringify(policy),
     });
     await this.adminS3Client.send(cmd);
+  }
+
+  key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
+    return new AgentAwsKey<Networks>(
+      agentConfig,
+      this.chainName,
+      this.role,
+      this.index,
+    );
   }
 
   get tags(): Record<string, string> {

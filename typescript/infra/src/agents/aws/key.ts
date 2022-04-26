@@ -1,6 +1,6 @@
 import { ChainName } from '@abacus-network/sdk';
 import { /*getSecretAwsCredentials,*/ KEY_ROLE_ENUM } from '..';
-import { AgentConfig } from '../../config/agent';
+import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import {
   CreateAliasCommand,
   CreateKeyCommand,
@@ -68,14 +68,20 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
   }
 
   get identifier() {
-    return `alias/${
-      identifier(
-        this.environment,
-        this.role,
-        this.chainName,
-        this.index
-      )
-    }`;
+    return `alias/${identifier(
+      this.environment,
+      this.role,
+      this.chainName,
+      this.index,
+    )}`;
+  }
+
+  get keyConfig(): AwsKeyConfig {
+    return {
+      type: KeyType.Aws,
+      id: this.identifier,
+      region: this.region,
+    };
   }
 
   get credentialsAsHelmValue() {
