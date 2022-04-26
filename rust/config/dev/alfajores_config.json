@@ -1,0 +1,36 @@
+{
+  "environment": "dev",
+  "signers": {},
+  "inboxes": {
+    "kovan": {
+      "domain": "3000",
+      "name": "kovan",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x0bA30c539f67027797209B314afE7A0390F536ab",
+        "validatorManager": "0x73B075e931B7dA89E00422Dbc8205369211C40e2"
+      }
+    }
+  },
+  "outbox": {
+    "addresses": {
+      "outbox": "0xdCCA08dC4ec34d58f69415b0C7C8e0042779c559"
+    },
+    "domain": "1000",
+    "name": "alfajores",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path"
+}

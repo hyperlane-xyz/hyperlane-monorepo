@@ -1,35 +1,36 @@
-{{- if .Values.abacus.updater.enabled }}
+{{- if .Values.abacus.validator.enabled }}
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
-  name: {{ include "abacus-agent.fullname" . }}-updater
+  name: {{ include "abacus-agent.fullname" . }}-validator
   labels:
     {{- include "abacus-agent.labels" . | nindent 4 }}
-    app.kubernetes.io/component: updater
+    app.kubernetes.io/component: validator
 spec:
   selector:
     matchLabels:
       {{- include "abacus-agent.selectorLabels" . | nindent 6 }}
-      app.kubernetes.io/component: updater
-  replicas: 1 
-  serviceName: {{ include "abacus-agent.fullname" . }}-updater
+      app.kubernetes.io/component: validator
+  replicas: {{ len .Values.abacus.validator.configs }}
+  serviceName: {{ include "abacus-agent.fullname" . }}-validator
   template:
     metadata:
       annotations:
         checksum/configmap: {{ include (print $.Template.BasePath "/configmap.yaml") . | sha256sum }}
+        checksum/validator-configmap: {{ include (print $.Template.BasePath "/validator-configmap.yaml") . | sha256sum }}
         {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.updater.podAnnotations }}
+        {{- with .Values.abacus.validator.podAnnotations }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
       labels:
         {{- include "abacus-agent.labels" . | nindent 8 }}
-        app.kubernetes.io/component: updater
+        app.kubernetes.io/component: validator
         {{- with .Values.podCommonLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
-        {{- with .Values.abacus.updater.podLabels }}
+        {{- with .Values.abacus.validator.podLabels }}
         {{ toYaml . | nindent 8 }}
         {{- end }}
     spec:
@@ -46,24 +47,24 @@ spec:
           {{- toYaml .Values.securityContext | nindent 10 }}
         image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
         imagePullPolicy: {{ .Values.image.pullPolicy }}
-        command: ["./updater"]
+        command: ["/bin/sh", "-c"]
+        args:
+        - |
+            RID=$(echo $REPLICA_NAME | grep -Eo '[0-9]+$')
+            env $(cat /config-env-vars/validator-$RID.env /secret-env-vars/validator-$RID.env | xargs) ./validator
         envFrom:
         - configMapRef:
             name: {{ include "abacus-agent.fullname" . }}
         - secretRef:
             name: {{ include "abacus-agent.fullname" . }}-secret
         - secretRef:
-            name: {{ include "abacus-agent.fullname" . }}-updater-secret
+            name: {{ include "abacus-agent.fullname" . }}-validator-secret
         env:
-          {{- if .Values.abacus.updater.pollingInterval }}
-          - name: OPT_UPDATER_INTERVAL
-            value: {{ .Values.abacus.updater.pollingInterval | quote }}
-          {{- end }}
-          {{- if .Values.abacus.updater.updatePause }}
-          - name: OPT_UPDATER_PAUSE
-            value: {{ .Values.abacus.updater.updatePause | quote }}
-          {{- end }}
-          {{- range .Values.abacus.updater.transactionSigners }}
+          - name: REPLICA_NAME
+            valueFrom:
+              fieldRef:
+                fieldPath: metadata.name
+          {{- range .Values.abacus.validator.signers }}
           {{- if (hasKey . "aws") }}
           - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
             value: "aws"
@@ -73,26 +74,29 @@ spec:
             value: {{ .aws.region }}
           {{- end }}
           {{- end }}
-          {{- if (hasKey .Values.abacus.updater.attestationSigner "aws") }}
-          - name: OPT_BASE_UPDATER_TYPE
-            value: "aws"
-          - name: OPT_BASE_UPDATER_ID
-            value: {{ .Values.abacus.updater.attestationSigner.aws.keyId  }}
-          - name: OPT_BASE_UPDATER_REGION
-            value: {{ .Values.abacus.updater.attestationSigner.aws.region }}
-          {{- end }}
           {{- if .Values.abacus.tracing.uri }}
           - name: OPT_BASE_TRACING_JAEGER_NAME
-            value: {{ include "abacus-agent.fullname" . }}-updater
+            value: {{ include "abacus-agent.fullname" . }}-validator
           {{- end }}
         resources:
-          {{- toYaml .Values.abacus.updater.resources | nindent 10 }}
+          {{- toYaml .Values.abacus.validator.resources | nindent 10 }}
         volumeMounts:
         - name: state
           mountPath: {{ .Values.abacus.dbPath }}
+        - name: config-env-vars
+          mountPath: /config-env-vars
+        - name: secret-env-vars
+          mountPath: /secret-env-vars
         ports: 
         - name: metrics
           containerPort: {{ .Values.abacus.metrics.port }}
+      volumes:
+      - name: config-env-vars
+        configMap:
+          name: {{ include "abacus-agent.fullname" . }}-validator
+      - name: secret-env-vars
+        secret:
+          secretName: {{ include "abacus-agent.fullname" . }}-validator-secret
       {{- with .Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
@@ -111,13 +115,13 @@ spec:
     spec:
       storageClassName: {{ .Values.storage.storageClass }}
       accessModes: [ {{ .Values.storage.accessModes }} ]
-      {{- if .Values.abacus.updater.storage.snapshot.enabled }}
+      {{- if .Values.abacus.validator.storage.snapshot.enabled }}
       dataSource:
-        name: {{ .Values.abacus.updater.storage.snapshot.name }}
+        name: {{ .Values.abacus.validator.storage.snapshot.name }}
         kind: VolumeSnapshot
         apiGroup: snapshot.storage.k8s.io
       {{- end }}
       resources:
         requests:
-          storage: {{ .Values.abacus.updater.storage.size }}
+          storage: {{ .Values.abacus.validator.storage.size }}
 {{- end }}

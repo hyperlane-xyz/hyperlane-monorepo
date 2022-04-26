@@ -18,7 +18,7 @@ In other words, Abacus is designed to prioritize:
 - Cost: No header verification or state management.
 - Speed of implementation: Requires only simple smart contracts, no complex
   cryptography.
-- Ease of use: Simple interface for maintaining xApp connections.
+- Ease of use: Simple interface for maintaining application connections.
 
 You can read more about Abacus' architecture in the [documentation](https://docs.useabacus.network/).
 
@@ -51,7 +51,7 @@ Integrations require a few key components:
   other chains.
 
 Solidity developers interested in implementing their own `Message` library and
-`Router` contract should check out the [apps](./solidity/apps/) package. It contains several example xApps.
+`Router` contract should check out the [apps](./solidity/apps/) package. It contains several example applications.
 
 You can find current testnet deploy configurations in the `rust/config/`
 directory. These deployments happen frequently and are unstable. Please feel

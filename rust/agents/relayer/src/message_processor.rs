@@ -5,9 +5,10 @@ use std::{
     time::{Duration, Instant},
 };
 
-use abacus_base::CachingInbox;
+use abacus_base::{CachingInbox, Outboxes};
 use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, MessageStatus};
 use color_eyre::{eyre::bail, Result};
+use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument::Instrumented, warn, Instrument};
 
@@ -21,6 +22,9 @@ pub(crate) struct MessageProcessor {
     inbox: Arc<CachingInbox>,
     prover_sync: MerkleTreeBuilder,
     retry_queue: BinaryHeap<MessageToRetry>,
+    processor_loop_gauge: IntGauge,
+    processed_gauge: IntGauge,
+    retry_queue_length_gauge: IntGauge,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -38,13 +42,23 @@ enum MessageProcessingStatus {
 }
 
 impl MessageProcessor {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
+        outbox: Outboxes,
         polling_interval: u64,
         max_retries: u32,
         db: AbacusDB,
         reorg_period: u64,
         inbox: Arc<CachingInbox>,
+        leaf_index_gauge: IntGaugeVec,
+        retry_queue_length: IntGaugeVec,
     ) -> Self {
+        let processor_loop_gauge =
+            leaf_index_gauge.with_label_values(&["processor_loop", outbox.name(), inbox.name()]);
+        let processed_gauge =
+            leaf_index_gauge.with_label_values(&["message_processed", outbox.name(), inbox.name()]);
+        let retry_queue_length_gauge =
+            retry_queue_length.with_label_values(&[outbox.name(), inbox.name()]);
         Self {
             polling_interval,
             max_retries,
@@ -53,6 +67,9 @@ impl MessageProcessor {
             db,
             inbox,
             retry_queue: BinaryHeap::new(),
+            processor_loop_gauge,
+            processed_gauge,
+            retry_queue_length_gauge,
         }
     }
 
@@ -136,6 +153,8 @@ impl MessageProcessor {
         let mut message_leaf_index = 0;
         tokio::spawn(async move {
             loop {
+                self.processor_loop_gauge.set(message_leaf_index as i64);
+                self.retry_queue_length_gauge.set(self.retry_queue.len() as i64);
                 if self.db.retrieve_leaf_processing_status(message_leaf_index)?.is_some() {
                     message_leaf_index += 1;
                     continue
@@ -152,7 +171,10 @@ impl MessageProcessor {
                             "Process fresh leaf"
                         );
                         match self.try_processing_message(message_leaf_index).await? {
-                            MessageProcessingStatus::Processed => message_leaf_index += 1,
+                            MessageProcessingStatus::Processed => {
+                                self.processed_gauge.set(message_leaf_index as i64);
+                                message_leaf_index += 1
+                            },
                             MessageProcessingStatus::NotYetCheckpointed => {
                                 // If we don't have an up to date checkpoint, sleep and try again
                                 sleep(Duration::from_secs(self.polling_interval)).await;

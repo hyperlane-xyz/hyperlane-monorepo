@@ -5,7 +5,7 @@ import {
 } from './utils';
 
 async function rotateKey() {
-  const args = await getKeyRoleAndChainArgs();
+  const args = getKeyRoleAndChainArgs();
   const argv = await args.argv;
 
   const environment = await getEnvironment();

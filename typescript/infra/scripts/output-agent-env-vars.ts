@@ -8,7 +8,7 @@ import {
 } from './utils';
 
 async function main() {
-  const args = await getKeyRoleAndChainArgs();
+  const args = getKeyRoleAndChainArgs();
   const argv = await args
     .alias('f', 'file')
     .string('f')
@@ -23,6 +23,7 @@ async function main() {
     argv.r,
     agentConfig,
     domainNames,
+    argv.i,
   );
 
   await writeFile(argv.f, envVars.join('\n'));

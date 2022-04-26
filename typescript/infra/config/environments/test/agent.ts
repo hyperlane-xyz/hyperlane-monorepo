@@ -1,22 +1,35 @@
+import { TestNetworks } from './domains';
+import { validators } from './validators';
 import { AgentConfig } from '../../../src/config';
+import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
 
-export const agent: AgentConfig = {
-  environment: 'test',
-  namespace: 'abacus-test',
-  runEnv: 'test',
+export const agent: AgentConfig<TestNetworks> = {
+  environment: ENVIRONMENTS_ENUM.Test,
+  namespace: ENVIRONMENTS_ENUM.Test,
+  runEnv: ENVIRONMENTS_ENUM.Test,
   docker: {
-    repo: 'gcr.io/abacus-labs/abacus-agent',
-    tag: 'e3c1b3bdcc8f92d506626785e4e7c058ba8d79be',
+    repo: 'gcr.io/abacus-labs-dev/abacus-agent',
+    tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
   },
+  validatorSets: validators,
   validator: {
-    interval: 5,
-    confirmations: 1,
+    default: {
+      interval: 5,
+      reorgPeriod: 0,
+    },
   },
   relayer: {
-    interval: 5,
+    default: {
+      pollingInterval: 5,
+      submissionLatency: 10,
+      maxRetries: 10,
+      relayerMessageProcessing: true,
+    },
   },
   checkpointer: {
-    pollingInterval: 5,
-    creationLatency: 10,
+    default: {
+      pollingInterval: 5,
+      creationLatency: 10,
+    },
   },
 };

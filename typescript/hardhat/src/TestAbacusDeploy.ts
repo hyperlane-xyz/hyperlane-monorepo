@@ -13,6 +13,7 @@ import {
   AbacusConnectionManager__factory,
 } from "@abacus-network/core";
 import { TestDeploy } from "./TestDeploy";
+import { addressToBytes32 } from "@abacus-network/utils/dist/src/utils";
 
 export type TestAbacusConfig = {
   signer: Record<types.Domain, ethers.Signer>;
@@ -98,6 +99,13 @@ export class TestAbacusDeploy extends TestDeploy<
       inboxes[remote] = inbox;
     });
     await Promise.all(deploys);
+
+    // dispatch a dummy event to allow a consumer to checkpoint/process a single message
+    await outbox.dispatch(
+      remotes.find((_) => _ !== domain)!,
+      addressToBytes32(ethers.constants.AddressZero),
+      "0x"
+    );
     return {
       outbox,
       abacusConnectionManager,
@@ -162,8 +170,14 @@ export class TestAbacusDeploy extends TestDeploy<
       new Map();
     const outbox = this.outbox(origin);
     const [, checkpointedIndex] = await outbox.latestCheckpoint();
-    const latestIndex = await outbox.count();
-    if (latestIndex.eq(checkpointedIndex)) return responses;
+    const messageCount = await outbox.count();
+    // Message count does allow for a checkpoint
+    if (messageCount.lte(checkpointedIndex.add(1))) return responses;
+
+    // Can't checkpoint a single message
+    if (messageCount.toNumber() <= 1) {
+      return responses;
+    }
 
     await outbox.checkpoint();
     const [root, index] = await outbox.latestCheckpoint();
@@ -183,6 +197,10 @@ export class TestAbacusDeploy extends TestDeploy<
       const inbox = this.inbox(origin, destination);
       const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
+        if (dispatch.args.leafIndex.toNumber() == 0) {
+          // disregard the dummy message
+          continue;
+        }
         const response = await inbox.testProcess(
           dispatch.args.message,
           dispatch.args.leafIndex.toNumber()

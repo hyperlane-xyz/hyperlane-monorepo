@@ -8,6 +8,7 @@ import {
   core as coreConfig,
   registerMultiProviderTest,
 } from '../config/environments/test';
+import { ENVIRONMENTS_ENUM } from '../src/config/environment';
 
 describe('core', async () => {
   const deployer = new AbacusCoreDeployer();
@@ -30,7 +31,7 @@ describe('core', async () => {
     const base = './test/outputs/core';
     deployer.writeVerification(path.join(base, 'verification'));
     deployer.writeContracts(path.join(base, 'contracts.ts'));
-    deployer.writeRustConfigs('test', path.join(base, 'rust'));
+    deployer.writeRustConfigs(ENVIRONMENTS_ENUM.Test, path.join(base, 'rust'));
   });
 
   it('transfers ownership', async () => {

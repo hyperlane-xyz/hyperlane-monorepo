@@ -1,8 +1,9 @@
 use std::time::Duration;
 
-use abacus_base::{InboxContracts, MultisigCheckpointSyncer};
+use abacus_base::{InboxContracts, MultisigCheckpointSyncer, Outboxes};
 use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxValidatorManager};
 use color_eyre::Result;
+use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument::Instrumented, Instrument};
 
@@ -17,17 +18,38 @@ pub(crate) struct CheckpointRelayer {
     inbox_contracts: InboxContracts,
     prover_sync: MerkleTreeBuilder,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
+    signed_checkpoint_gauge: IntGauge,
+    inbox_checkpoint_gauge: IntGauge,
+    relayer_processed_gauge: IntGauge,
 }
 
 impl CheckpointRelayer {
+    #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
+        outbox: Outboxes,
         polling_interval: u64,
         submission_latency: u64,
         immediate_message_processing: bool,
         db: AbacusDB,
         inbox_contracts: InboxContracts,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
+        leaf_index_gauge: IntGaugeVec,
     ) -> Self {
+        let signed_checkpoint_gauge = leaf_index_gauge.with_label_values(&[
+            "signed_offchain_checkpoint",
+            outbox.name(),
+            inbox_contracts.inbox.name(),
+        ]);
+        let inbox_checkpoint_gauge = leaf_index_gauge.with_label_values(&[
+            "inbox_checkpoint",
+            outbox.name(),
+            inbox_contracts.inbox.name(),
+        ]);
+        let relayer_processed_gauge = leaf_index_gauge.with_label_values(&[
+            "relayer_processed",
+            outbox.name(),
+            inbox_contracts.inbox.name(),
+        ]);
         Self {
             polling_interval,
             immediate_message_processing,
@@ -36,11 +58,14 @@ impl CheckpointRelayer {
             db,
             inbox_contracts,
             multisig_checkpoint_syncer,
+            signed_checkpoint_gauge,
+            inbox_checkpoint_gauge,
+            relayer_processed_gauge,
         }
     }
 
     /// Only gets the messages desinated for the Relayers inbox
-    /// Exclusive the to_checkpoint_index
+    /// Inclusive the to_checkpoint_index
     async fn get_messages_between(
         &self,
         from_leaf_index: u32,
@@ -48,7 +73,7 @@ impl CheckpointRelayer {
     ) -> Result<Option<Vec<CommittedMessage>>> {
         let mut messages: Vec<CommittedMessage> = vec![];
         let mut current_leaf_index = from_leaf_index;
-        while current_leaf_index < to_checkpoint_index {
+        while current_leaf_index <= to_checkpoint_index {
             // Relies on the indexer finding this message eventually
             self.db.wait_for_leaf(current_leaf_index).await?;
             let maybe_message = self
@@ -97,6 +122,9 @@ impl CheckpointRelayer {
                 .submit_checkpoint(&latest_signed_checkpoint)
                 .await?;
 
+            self.inbox_checkpoint_gauge
+                .set(latest_signed_checkpoint.checkpoint.index as i64);
+
             if self.immediate_message_processing {
                 // TODO: sign in parallel
                 for message in &batch.messages {
@@ -110,7 +138,8 @@ impl CheckpointRelayer {
                                 .await
                             {
                                 Ok(outcome) => {
-                                    info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message")
+                                    info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message");
+                                    self.relayer_processed_gauge.set(message.leaf_index as i64);
                                 }
                                 Err(error) => {
                                     error!(error=?error, leaf_index=message.leaf_index, "CheckpointRelayer encountered error while processing message, ignoring")
@@ -138,14 +167,21 @@ impl CheckpointRelayer {
             let latest_inbox_checkpoint =
                 self.inbox_contracts.inbox.latest_checkpoint(None).await?;
             let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
-            // Checkpoints are 1-indexed, while leaves are 0-indexed
-            let mut next_inbox_leaf_index = onchain_checkpoint_index;
+            self.inbox_checkpoint_gauge
+                .set(onchain_checkpoint_index as i64);
+            let mut next_inbox_leaf_index = if onchain_checkpoint_index == 0 {
+                0
+            } else {
+                onchain_checkpoint_index + 1
+            };
             loop {
                 sleep(Duration::from_secs(self.polling_interval)).await;
 
                 if let Some(signed_checkpoint_index) =
                     self.multisig_checkpoint_syncer.latest_index().await?
                 {
+                    self.signed_checkpoint_gauge
+                        .set(signed_checkpoint_index as i64);
                     if signed_checkpoint_index <= onchain_checkpoint_index {
                         debug!(
                             onchain = onchain_checkpoint_index,
@@ -161,11 +197,11 @@ impl CheckpointRelayer {
                     {
                         None => debug!("Couldn't fetch the relevant messages, retry this range"),
                         Some(messages) if messages.is_empty() => {
-                            next_inbox_leaf_index = signed_checkpoint_index;
+                            next_inbox_leaf_index = signed_checkpoint_index + 1;
                             debug!("New checkpoint does not include messages for inbox")
                         }
                         Some(messages) => {
-                            next_inbox_leaf_index = signed_checkpoint_index;
+                            next_inbox_leaf_index = signed_checkpoint_index + 1;
                             debug!(
                                 len = messages.len(),
                                 "Signed checkpoint allows for processing of new messages"

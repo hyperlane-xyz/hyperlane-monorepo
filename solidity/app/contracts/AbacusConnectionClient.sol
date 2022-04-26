@@ -45,7 +45,7 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
     // ============ External functions ============
 
     /**
-     * @notice Modify the contract the xApp uses to validate Inbox contracts
+     * @notice Modify the contract the Application uses to validate Inbox contracts
      * @param _abacusConnectionManager The address of the abacusConnectionManager contract
      */
     function setAbacusConnectionManager(address _abacusConnectionManager)
@@ -59,7 +59,7 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
     // ============ Internal functions ============
 
     /**
-     * @notice Modify the contract the xApp uses to validate Inbox contracts
+     * @notice Modify the contract the Application uses to validate Inbox contracts
      * @param _abacusConnectionManager The address of the abacusConnectionManager contract
      */
     function _setAbacusConnectionManager(address _abacusConnectionManager)

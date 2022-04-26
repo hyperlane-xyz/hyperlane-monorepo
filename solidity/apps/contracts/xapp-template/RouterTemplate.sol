@@ -8,10 +8,10 @@ import {Router} from "@abacus-network/app/contracts/Router.sol";
 import {Message} from "./MessageTemplate.sol";
 
 /*
-============ Overview: Building a xApp ============
-To implement a xApp, define the actions you would like to execute across chains.
+============ Overview: Building a Application ============
+To implement a Application, define the actions you would like to execute across chains.
 For each type of action,
-- in the xApp Router
+- in the Application Router
     - implement a function like doTypeA to initiate the action from one domain to another (add your own parameters and logic)
     - implement a corresponding _handle function to receive, parse, and execute this type of message on the remote domain
     - add logic to the handle function to route incoming messages to the appropriate _handle function
@@ -39,7 +39,7 @@ contract RouterTemplate is Router {
     // ============ Handle message functions ============
 
     /**
-     * @notice Receive messages sent via Abacus from other remote xApp Routers;
+     * @notice Receive messages sent via Abacus from other remote Application Routers;
      * parse the contents of the message and enact the message's effects on the local chain
      * @dev Called by an Abacus Inbox contract while processing a message sent via Abacus
      * @param _message The message in the form of raw bytes
@@ -77,7 +77,7 @@ contract RouterTemplate is Router {
     // ============ Dispatch message functions ============
 
     /**
-     * @notice Send a message of "Type A" to a remote xApp Router via Abacus;
+     * @notice Send a message of "Type A" to a remote Application Router via Abacus;
      * this message is called to take some action in the cross-chain context
      * Example message types:
      * Sending tokens from this chain to the destination chain;
@@ -88,13 +88,13 @@ contract RouterTemplate is Router {
     function dispatchTypeA(uint32 _destinationDomain, uint256 _number)
         external
     {
-        // get the xApp Router at the destinationDomain
+        // get the Application Router at the destinationDomain
         bytes32 _remoteRouterAddress = _mustHaveRemoteRouter(
             _destinationDomain
         );
-        // encode a message to send to the remote xApp Router
+        // encode a message to send to the remote Application Router
         bytes memory _outboundMessage = Message.formatTypeA(_number);
-        // send the message to the xApp Router
+        // send the message to the Application Router
         _outbox().dispatch(
             _destinationDomain,
             _remoteRouterAddress,

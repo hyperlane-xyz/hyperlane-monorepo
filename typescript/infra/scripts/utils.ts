@@ -85,9 +85,9 @@ export async function getInfrastructureConfig(
   return (await importModule(moduleName(environment))).infrastructure;
 }
 
-export async function getAgentConfig(
+export async function getAgentConfig<Networks extends ChainName>(
   environment: DeployEnvironment,
-): Promise<AgentConfig> {
+): Promise<AgentConfig<Networks>> {
   return (await importModule(moduleName(environment))).agent;
 }
 
@@ -141,8 +141,8 @@ export function getGovernanceVerificationDirectory(
   return path.join(getGovernanceDirectory(environment), 'verification');
 }
 
-export async function getKeyRoleAndChainArgs() {
-  const args = await getArgs();
+export function getKeyRoleAndChainArgs() {
+  const args = getArgs();
   return args
     .alias('r', 'role')
     .describe('r', 'key role')
@@ -151,5 +151,8 @@ export async function getKeyRoleAndChainArgs() {
     .alias('c', 'chain')
     .describe('c', 'chain name')
     .choices('c', ALL_CHAIN_NAMES)
-    .require('c');
+    .require('c')
+    .alias('i', 'index')
+    .describe('i', 'index of role')
+    .number('i');
 }

@@ -8,8 +8,8 @@ import {Router} from "@abacus-network/app/contracts/Router.sol";
 import {PingPongMessage} from "./PingPongMessage.sol";
 
 /*
-============ PingPong xApp ============
-The PingPong xApp is capable of initiating PingPong "matches" between two chains.
+============ PingPong Application ============
+The PingPong Application is capable of initiating PingPong "matches" between two chains.
 A match consists of "volleys" sent back-and-forth between the two chains via Abacus.
 
 The first volley in a match is always a Ping volley.
@@ -46,7 +46,7 @@ contract PingPongRouter is Router {
 
     // ============ Constructor ============
     constructor(address _abacusConnectionManager) {
-        require(false, "example xApp, do not deploy");
+        require(false, "example application, do not deploy");
 
         __AbacusConnectionClient_initialize(_abacusConnectionManager);
     }
@@ -143,7 +143,7 @@ contract PingPongRouter is Router {
         uint32 _match,
         uint256 _count
     ) internal {
-        // get the xApp Router at the destinationDomain
+        // get the Application Router at the destinationDomain
         bytes32 _remoteRouterAddress = _mustHaveRemoteRouter(
             _destinationDomain
         );
@@ -151,7 +151,7 @@ contract PingPongRouter is Router {
         bytes memory _message = _isPing
             ? PingPongMessage.formatPing(_match, _count)
             : PingPongMessage.formatPong(_match, _count);
-        // send the message to the xApp Router
+        // send the message to the Application Router
         _outbox().dispatch(_destinationDomain, _remoteRouterAddress, _message);
         // emit a Sent event
         emit Sent(_destinationDomain, _match, _count, _isPing);

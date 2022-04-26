@@ -40,9 +40,9 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     // ============ External functions ============
 
     /**
-     * @notice Register the address of a Router contract for the same xApp on a remote chain
-     * @param _domain The domain of the remote xApp Router
-     * @param _router The address of the remote xApp Router
+     * @notice Register the address of a Router contract for the same Application on a remote chain
+     * @param _domain The domain of the remote Application Router
+     * @param _router The address of the remote Application Router
      */
     function enrollRemoteRouter(uint32 _domain, bytes32 _router)
         external
@@ -87,9 +87,9 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     }
 
     /**
-     * @notice Return true if the given domain / router is the address of a remote xApp Router
-     * @param _domain The domain of the potential remote xApp Router
-     * @param _router The address of the potential remote xApp Router
+     * @notice Return true if the given domain / router is the address of a remote Application Router
+     * @param _domain The domain of the potential remote Application Router
+     * @param _router The address of the potential remote Application Router
      */
     function _isRemoteRouter(uint32 _domain, bytes32 _router)
         internal
@@ -100,9 +100,9 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     }
 
     /**
-     * @notice Assert that the given domain has a xApp Router registered and return its address
-     * @param _domain The domain of the chain for which to get the xApp Router
-     * @return _router The address of the remote xApp Router on _domain
+     * @notice Assert that the given domain has a Application Router registered and return its address
+     * @param _domain The domain of the chain for which to get the Application Router
+     * @return _router The address of the remote Application Router on _domain
      */
     function _mustHaveRemoteRouter(uint32 _domain)
         internal

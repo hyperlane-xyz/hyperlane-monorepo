@@ -133,14 +133,16 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     /**
      * @notice Checkpoints the latest root and index.
      * Validators are expected to sign this checkpoint so that it can be
-     * relayed to the Inbox contracts.
+     * relayed to the Inbox contracts. Checkpoints for a single message (i.e.
+     * count = 1) are disallowed since they make checkpoint tracking more
+     * difficult.
      * @dev emits Checkpoint event
      */
     function checkpoint() external override notFailed {
         uint256 count = count();
-        require(count > 0, "!count");
+        require(count > 1, "!count");
         bytes32 root = root();
-        _checkpoint(root, count);
+        _checkpoint(root, count - 1);
     }
 
     /**
@@ -166,7 +168,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         override
         returns (bool)
     {
-        // Checkpoint indices are one-indexed.
+        // Checkpoints are zero-indexed, but checkpoints of index 0 are disallowed
         return _index > 0 && checkpoints[_root] == _index;
     }
 
