@@ -261,7 +261,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
   // Credentials are only needed if AWS keys are needed -- otherwise, the
   // key is pulled from GCP Secret Manager by the helm chart
   keyConfig(role: KEY_ROLE_ENUM): KeyConfig {
-    if (this.agentConfig.aws) {
+    if (this.awsKeys) {
       const key = new AgentAwsKey(this.agentConfig, this.chainName, role);
       return key.keyConfig;
     }
@@ -304,7 +304,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
         let validator: KeyConfig = {
           type: KeyType.Hex,
         };
-        if (this.agentConfig.aws) {
+        if (this.awsKeys) {
           const key = awsUser.key(this.agentConfig);
           await key.createIfNotExists();
           await key.putKeyPolicy(awsUser.arn);
@@ -343,7 +343,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
       );
       await awsUser.createIfNotExists();
       // If we're using AWS keys, ensure the key is created and the user can use it
-      if (this.agentConfig.aws) {
+      if (this.awsKeys) {
         const key = awsUser.key(this.agentConfig);
         await key.createIfNotExists();
         await key.putKeyPolicy(awsUser.arn);
@@ -381,12 +381,12 @@ export class ChainAgentConfig<Networks extends ChainName> {
   }
 
   async getAndPrepareSigners(role: KEY_ROLE_ENUM) {
-    if (this.agentConfig.aws) {
+    if (this.awsKeys) {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
         this.chainName,
         role,
-        this.agentConfig.aws.region,
+        this.agentConfig.aws!.region,
       );
       await awsUser.createIfNotExists();
       const key = awsUser.key(this.agentConfig);
@@ -398,6 +398,10 @@ export class ChainAgentConfig<Networks extends ChainName> {
 
   checkpointerSigners() {
     return this.getAndPrepareSigners(KEY_ROLE_ENUM.Checkpointer);
+  }
+
+  get checkpointerRequiresAwsCredentials() {
+    return this.awsKeys;
   }
 
   get checkpointerConfig(): CheckpointerConfig {
@@ -412,6 +416,10 @@ export class ChainAgentConfig<Networks extends ChainName> {
       return [];
     }
     return this.getAndPrepareSigners(KEY_ROLE_ENUM.Kathy);
+  }
+
+  get kathyRequiresAwsCredentials() {
+    return this.awsKeys;
   }
 
   get kathyConfig(): KathyConfig | undefined {
@@ -437,5 +445,9 @@ export class ChainAgentConfig<Networks extends ChainName> {
           validator.checkpointSyncer.type === CheckpointSyncerType.S3,
       ) !== undefined
     );
+  }
+
+  get awsKeys(): boolean {
+    return this.agentConfig.aws !== undefined;
   }
 }

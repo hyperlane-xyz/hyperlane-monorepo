@@ -69,17 +69,19 @@ async function helmValuesForChain<Networks extends ChainName>(
       },
       relayer: {
         enabled: true,
-        signers: chainAgentConfig.relayerSigners,
         aws: await chainAgentConfig.relayerRequiresAwsCredentials(),
+        signers: chainAgentConfig.relayerSigners,
         config: chainAgentConfig.relayerConfig,
       },
       checkpointer: {
         enabled: true,
+        aws: chainAgentConfig.checkpointerRequiresAwsCredentials,
         signers: await chainAgentConfig.checkpointerSigners(),
         config: chainAgentConfig.checkpointerConfig,
       },
       kathy: {
         enabled: chainAgentConfig.kathyEnabled,
+        aws: chainAgentConfig.kathyRequiresAwsCredentials,
         signers: await chainAgentConfig.kathySigners(),
         config: chainAgentConfig.kathyConfig,
       },
