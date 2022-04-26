@@ -260,24 +260,21 @@ export class ChainAgentConfig<Networks extends ChainName> {
 
   // Credentials are only needed if AWS keys are needed -- otherwise, the
   // key is pulled from GCP Secret Manager by the helm chart
-  credentials(role: KEY_ROLE_ENUM) {
+  keyConfig(role: KEY_ROLE_ENUM): KeyConfig {
     if (this.agentConfig.aws) {
       const key = new AgentAwsKey(this.agentConfig, this.chainName, role);
-      return key.credentialsAsHelmValue;
+      return key.keyConfig;
     }
-    return undefined;
+    return {
+      type: KeyType.Hex,
+    };
   }
 
   signers(role: KEY_ROLE_ENUM) {
     return this.agentConfig.domainNames.map((name) => ({
       name,
-      ...this.credentials(role),
+      keyConfig: this.keyConfig(role),
     }));
-  }
-
-  get validatorSigners() {
-    // was getting Error: Expected index for validator key
-    return []; // this.credentials(KEY_ROLE_ENUM.Validator);
   }
 
   async validatorConfigs(): Promise<Array<ValidatorConfig>> {
@@ -383,8 +380,24 @@ export class ChainAgentConfig<Networks extends ChainName> {
     };
   }
 
-  get checkpointerSigner() {
+  async getAndPrepareSigners(role: KEY_ROLE_ENUM) {
+    if (this.agentConfig.aws) {
+      const awsUser = new AgentAwsUser(
+        this.agentConfig.environment,
+        this.chainName,
+        role,
+        this.agentConfig.aws.region,
+      );
+      await awsUser.createIfNotExists();
+      const key = awsUser.key(this.agentConfig);
+      await key.createIfNotExists();
+      await key.putKeyPolicy(awsUser.arn);
+    }
     return this.signers(KEY_ROLE_ENUM.Checkpointer);
+  }
+
+  checkpointerSigners() {
+    return this.getAndPrepareSigners(KEY_ROLE_ENUM.Checkpointer);
   }
 
   get checkpointerConfig(): CheckpointerConfig {
@@ -394,8 +407,11 @@ export class ChainAgentConfig<Networks extends ChainName> {
     );
   }
 
-  get kathySigners() {
-    return this.signers(KEY_ROLE_ENUM.Kathy);
+  kathySigners() {
+    if (!this.kathyEnabled) {
+      return [];
+    }
+    return this.getAndPrepareSigners(KEY_ROLE_ENUM.Kathy);
   }
 
   get kathyConfig(): KathyConfig | undefined {
@@ -403,6 +419,10 @@ export class ChainAgentConfig<Networks extends ChainName> {
       return undefined;
     }
     return getChainOverriddenConfig(this.agentConfig.kathy, this.chainName);
+  }
+
+  get kathyEnabled() {
+    return this.kathyConfig !== undefined;
   }
 
   get validatorSet(): ValidatorSet {

@@ -44,8 +44,6 @@ async function helmValuesForChain<Networks extends ChainName>(
 
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
 
-  const kathyConfig = chainAgentConfig.kathyConfig;
-
   return {
     image: {
       repository: agentConfig.docker.repo,
@@ -67,7 +65,6 @@ async function helmValuesForChain<Networks extends ChainName>(
         }),
       validator: {
         enabled: true,
-        signers: chainAgentConfig.validatorSigners,
         configs: await chainAgentConfig.validatorConfigs(),
       },
       relayer: {
@@ -78,13 +75,13 @@ async function helmValuesForChain<Networks extends ChainName>(
       },
       checkpointer: {
         enabled: true,
-        signer: chainAgentConfig.checkpointerSigner,
+        signers: await chainAgentConfig.checkpointerSigners(),
         config: chainAgentConfig.checkpointerConfig,
       },
       kathy: {
-        signers: chainAgentConfig.kathySigners,
-        enabled: kathyConfig !== undefined,
-        config: kathyConfig,
+        enabled: chainAgentConfig.kathyEnabled,
+        signers: await chainAgentConfig.kathySigners(),
+        config: chainAgentConfig.kathyConfig,
       },
     },
   };
@@ -343,7 +340,7 @@ export async function runAgentHelmCommand<Networks extends ChainName>(
   return execCmd(
     `helm ${action} ${outboxChainName} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
-    } ${values.join(' ')} --debug --dry-run ${extraPipe}`,
+    } ${values.join(' ')} ${extraPipe}`,
     {},
     false,
     true,
