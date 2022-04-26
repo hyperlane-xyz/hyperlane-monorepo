@@ -16,6 +16,7 @@ pub struct CoreMetrics {
     rpc_latencies: Box<HistogramVec>,
     span_durations: Box<HistogramVec>,
     last_known_message_leaf_index: Box<IntGaugeVec>,
+    retry_queue_length: Box<IntGaugeVec>,
     listen_port: Option<u16>,
     /// Metrics registry for adding new metrics and gathering reports
     registry: Arc<Registry>,
@@ -74,7 +75,23 @@ impl CoreMetrics {
                 .namespace("abacus")
                 .const_label("VERSION", env!("CARGO_PKG_VERSION")),
                 // "remote is unknown where remote is unavailable"
+                // The following phases are implemented:
+                // - dispatch: When a message is indexed and stored in the DB
+                // - signed_offchain_checkpoint: When a leaf index is known to be signed by a validator
+                // - inbox_checkpoint: When a leaf index is known to be checkpointed on the inbox
+                // - relayer_processed: When a leaf index was processed with CheckpointRelayer
+                // - processor_loop: The current leaf index in the MessageProcessor loop
+                // - message_processed: When a leaf index was processed as part of the regular MessageProcessor loop
                 &["phase", "origin", "remote"],
+            )?),
+            retry_queue_length: Box::new(IntGaugeVec::new(
+                Opts::new(
+                    "processor_retry_queue",
+                    "The retry queue length of MessageProcessor",
+                )
+                .namespace("abacus")
+                .const_label("VERSION", env!("CARGO_PKG_VERSION")),
+                &["origin", "remote"],
             )?),
             registry,
             listen_port,
@@ -89,7 +106,9 @@ impl CoreMetrics {
         metrics
             .registry
             .register(metrics.last_known_message_leaf_index.clone())?;
-
+        metrics
+            .registry
+            .register(metrics.retry_queue_length.clone())?;
         Ok(metrics)
     }
 
@@ -156,6 +175,11 @@ impl CoreMetrics {
     /// Gauge for measuing the last known message leaf index
     pub fn last_known_message_leaf_index(&self) -> IntGaugeVec {
         *self.last_known_message_leaf_index.clone()
+    }
+
+    /// Gauge for measuing the retry queue length in MessageProcessor
+    pub fn retry_queue_length(&self) -> IntGaugeVec {
+        *self.retry_queue_length.clone()
     }
 
     /// Histogram for measuring span durations.
