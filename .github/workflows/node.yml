@@ -52,7 +52,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        run: yarn run build
+        run: yarn workspaces foreach run build
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -66,7 +66,7 @@ jobs:
 
       - name: prettier
         run: |
-          yarn run prettier
+          yarn workspaces foreach run prettier
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"
