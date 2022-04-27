@@ -164,19 +164,15 @@ where
                 let candidate = from + chunk_size;
                 let to = min(tip, candidate);
 
+                let sorted_messages = indexer.fetch_sorted_messages(from, to).await?;
+
                 info!(
                     from = from,
                     to = to,
-                    "[Messages]: indexing block heights {}...{}",
+                    message_count = sorted_messages.len(),
+                    "[Messages]: indexed block heights {}...{}",
                     from,
                     to
-                );
-
-                let sorted_messages = indexer.fetch_sorted_messages(from, to).await?;
-
-                debug!(
-                    count = sorted_messages.len(),
-                    "Indexed messages"
                 );
 
                 // If no messages found, update last seen block and next height
