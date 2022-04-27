@@ -6,7 +6,7 @@ use abacus_core::db::AbacusDB;
 use abacus_core::{AbacusCommonIndexer, ListValidity, OutboxIndexer};
 
 use tokio::time::sleep;
-use tracing::{debug, info, info_span, warn};
+use tracing::{info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
 use std::cmp::min;
