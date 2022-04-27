@@ -1,7 +1,12 @@
 import { utils } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { BigNumber, ethers, FixedNumber } from 'ethers';
-import { AbacusCore, InterchainGasCalculator, ParsedMessage } from '../..';
+import {
+  AbacusCore,
+  InterchainGasCalculator,
+  MultiProvider,
+  ParsedMessage,
+} from '../..';
 import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
 
 describe('InterchainGasCalculator', () => {
@@ -10,16 +15,19 @@ describe('InterchainGasCalculator', () => {
 
   let core: AbacusCore;
   let provider: MockProvider;
+  let multiProvider: MultiProvider;
   let tokenPriceGetter: MockTokenPriceGetter;
   let calculator: InterchainGasCalculator;
 
   before(() => {
     provider = new MockProvider();
 
-    core = new AbacusCore(testAddresses, {
+    multiProvider = new MultiProvider({
       test1: provider,
       test2: provider,
-    });
+    } as any);
+
+    core = new AbacusCore(testAddresses as any, multiProvider);
 
     tokenPriceGetter = new MockTokenPriceGetter();
     // Origin domain token
@@ -29,7 +37,7 @@ describe('InterchainGasCalculator', () => {
   });
 
   beforeEach(() => {
-    calculator = new InterchainGasCalculator(core, {
+    calculator = new InterchainGasCalculator(multiProvider, core, {
       tokenPriceGetter,
     });
   });

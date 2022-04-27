@@ -1,11 +1,7 @@
 import { BadRandomRecipient__factory } from '@abacus-network/core';
 import { utils as deployUtils } from '@abacus-network/deploy';
-import {
-  AbacusCore,
-  coreAddresses,
-  CoreDeployedNetworks,
-} from '@abacus-network/sdk';
-import { types, utils } from '@abacus-network/utils';
+import { AbacusCore, ChainName } from '@abacus-network/sdk';
+import { utils } from '@abacus-network/utils';
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
@@ -20,14 +16,33 @@ import { AbacusCoreDeployer } from './src/core';
 import { sleep } from './src/utils/utils';
 import { AbacusContractVerifier } from './src/verify';
 
-const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
-  const contracts = core.mustGetContracts(domain);
-  const outbox = contracts.outbox;
+const domainSummary = async <Networks extends ChainName>(
+  core: AbacusCore<Networks>,
+  network: Networks,
+) => {
+  const coreContracts = core.getContracts(network);
+  const outbox = coreContracts.outbox.outbox;
   const [outboxCheckpointRoot, outboxCheckpointIndex] =
     await outbox.latestCheckpoint();
   const count = (await outbox.tree()).toNumber();
-  const summary: any = {
-    domain: core.mustResolveDomainName(domain),
+
+  const inboxSummary = async (remote: Networks) => {
+    const inbox =
+      coreContracts.inboxes[remote as Exclude<Networks, Networks>].inbox;
+    const [inboxCheckpointRoot, inboxCheckpointIndex] =
+      await inbox.latestCheckpoint();
+    const processFilter = inbox.filters.Process();
+    const processes = await inbox.queryFilter(processFilter);
+    return {
+      network: remote,
+      processed: processes.length,
+      root: inboxCheckpointRoot,
+      index: inboxCheckpointIndex.toNumber(),
+    };
+  };
+
+  const summary = {
+    network,
     outbox: {
       count,
       checkpoint: {
@@ -35,57 +50,55 @@ const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
         index: outboxCheckpointIndex.toNumber(),
       },
     },
+    inboxes: await Promise.all(
+      core.remotes(network).map((remote) => inboxSummary(remote)),
+    ),
   };
-
-  const inboxSummary = async (remote: types.Domain) => {
-    const inbox = core.mustGetInbox(domain, remote);
-    const [inboxCheckpointRoot, inboxCheckpointIndex] =
-      await inbox.latestCheckpoint();
-    const processFilter = inbox.filters.Process();
-    const processes = await inbox.queryFilter(processFilter);
-    return {
-      domain: core.mustResolveDomainName(remote),
-      processed: processes.length,
-      root: inboxCheckpointRoot,
-      index: inboxCheckpointIndex.toNumber(),
-    };
-  };
-  summary.inboxes = await Promise.all(
-    core.remoteDomainNumbers(domain).map(inboxSummary),
-  );
   return summary;
 };
 
-task('abacus', 'Deploys abacus on top of an already running Harthat Network')
+task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
   .addParam(
     'environment',
     'The name of the environment from which to read configs',
   )
   .setAction(async (args: any) => {
     const environment = args.environment;
-    const deployer = new AbacusCoreDeployer();
     const environmentConfig = await getCoreEnvironmentConfig(environment);
-    await deployUtils.registerEnvironment(deployer, environmentConfig);
-    await deployUtils.registerHardhatSigner(deployer);
-    await deployer.deploy(environmentConfig.core);
+    const multiProvider =
+      deployUtils.initHardhatMultiProvider(environmentConfig);
+
+    const deployer = new AbacusCoreDeployer(
+      multiProvider,
+      environmentConfig.core,
+    );
+    const addresses = await deployer.deploy();
 
     // Write configs
     deployer.writeVerification(getCoreVerificationDirectory(environment));
-    deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
-    deployer.writeContracts(getCoreContractsSdkFilepath(environment));
+    deployer.writeRustConfigs(
+      environment,
+      getCoreRustDirectory(environment),
+      addresses,
+    );
+    deployer.writeContracts(
+      addresses,
+      getCoreContractsSdkFilepath(environment),
+    );
   });
 
 task('kathy', 'Dispatches random abacus messages')
-  .addParam<CoreDeployedNetworks>(
+  .addParam(
     'environment',
     'The name of the environment from which to read configs',
   )
   .setAction(async (args, hre: HardhatRuntimeEnvironment) => {
-    const core = new AbacusCore(coreAddresses);
     const environmentConfig = await getCoreEnvironmentConfig(args.environment);
-    await deployUtils.registerEnvironment(core, environmentConfig);
-    await deployUtils.registerHardhatSigner(core);
-    const randomElement = (list: types.Domain[]) =>
+    const multiProvider =
+      deployUtils.initHardhatMultiProvider(environmentConfig);
+    const core = AbacusCore.fromEnvironment(args.environment, multiProvider);
+
+    const randomElement = (list: any[]) =>
       list[Math.floor(Math.random() * list.length)];
 
     // Deploy a recipient
@@ -96,9 +109,10 @@ task('kathy', 'Dispatches random abacus messages')
 
     // Generate artificial traffic
     while (true) {
-      const local = core.domainNumbers[0];
-      const remote = randomElement(core.remoteDomainNumbers(local));
-      const outbox = core.mustGetContracts(local).outbox;
+      const local = core.networks()[0];
+      const remote = randomElement(core.remotes(local));
+      const coreContracts = core.getContracts(local);
+      const outbox = coreContracts.outbox.outbox;
       // Send a batch of messages to the remote domain to test
       // the checkpointer/relayer submitting only greedily
       for (let i = 0; i < 10; i++) {

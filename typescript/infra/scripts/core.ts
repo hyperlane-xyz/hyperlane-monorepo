@@ -1,23 +1,29 @@
 import { utils } from '@abacus-network/deploy';
+import { AbacusCoreDeployer } from '../src/core';
 import {
-  getEnvironment,
-  getCoreEnvironmentConfig,
   getCoreContractsSdkFilepath,
+  getCoreEnvironmentConfig,
   getCoreRustDirectory,
   getCoreVerificationDirectory,
+  getEnvironment,
 } from './utils';
-import { AbacusCoreDeployer } from '../src/core';
 
 async function main() {
   const environment = await getEnvironment();
-  const deployer = new AbacusCoreDeployer();
   const config = await getCoreEnvironmentConfig(environment);
-  await utils.registerEnvironment(deployer, config);
-  await deployer.deploy(config.core);
 
-  deployer.writeContracts(getCoreContractsSdkFilepath(environment));
+  const multiProvider = utils.initHardhatMultiProvider(config);
+
+  const deployer = new AbacusCoreDeployer(multiProvider, config.core);
+  const addresses = await deployer.deploy();
+
+  deployer.writeContracts(addresses, getCoreContractsSdkFilepath(environment));
   deployer.writeVerification(getCoreVerificationDirectory(environment));
-  deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
+  deployer.writeRustConfigs(
+    environment,
+    getCoreRustDirectory(environment),
+    addresses,
+  );
 }
 
 main().then(console.log).catch(console.error);

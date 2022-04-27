@@ -1,7 +1,6 @@
 import { GovernanceRouter__factory } from '@abacus-network/apps';
-import { UpgradeBeaconController__factory } from '@abacus-network/core';
 import { ethers } from 'ethers';
-import { Call, governanceAddresses } from '..';
+import { Call } from '..';
 import {
   AbacusContracts,
   RouterAddresses,
@@ -9,17 +8,13 @@ import {
 } from '../contracts';
 import { normalizeCall } from './utils';
 
-export type GovernanceAddresses = RouterAddresses & {
-  upgradeBeaconController: string;
-};
+export type GovernanceAddresses = RouterAddresses;
 
 export const governanceFactories = {
-  upgradeBeaconController: UpgradeBeaconController__factory.connect,
+  ...routerFactories,
   router: GovernanceRouter__factory.connect,
-  xAppConnectionManager: routerFactories.xAppConnectionManager,
 };
 
-export type GovernanceNetworks = keyof typeof governanceAddresses;
 export type GovernanceFactories = typeof governanceFactories;
 
 export class GovernanceContracts extends AbacusContracts<

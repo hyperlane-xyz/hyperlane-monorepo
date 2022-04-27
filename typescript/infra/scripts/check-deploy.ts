@@ -2,39 +2,43 @@ import { utils } from '@abacus-network/deploy';
 import {
   AbacusCore,
   AbacusGovernance,
-  coreAddresses,
-  governanceAddresses,
+  coreEnvironments,
 } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusGovernanceChecker } from '../src/governance';
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {
   const environment = await getEnvironment();
-  const core = new AbacusCore(coreAddresses);
-  const governance = new AbacusGovernance(governanceAddresses);
-  const config = await getCoreEnvironmentConfig(environment);
-  utils.registerEnvironment(core, config);
-  utils.registerEnvironment(governance, config);
+  if (environment !== 'test') {
+    throw new Error(`Do not have addresses for ${environment} in SDK`);
+  }
 
-  const governors: Record<types.Domain, types.Address> = {};
-  governance.domainNumbers.map((domain) => {
-    const addresses =
-      config.governance.addresses[governance.mustResolveDomainName(domain)];
-    if (!addresses) throw new Error('could not find addresses');
-    governors[domain] = addresses.governor;
-  });
+  const config = await getCoreEnvironmentConfig(environment);
+
+  const multiProvider = utils.initHardhatMultiProvider(config);
+
+  const core = AbacusCore.fromEnvironment(environment, multiProvider);
+  const governance = AbacusGovernance.fromEnvironment(
+    environment,
+    multiProvider,
+  );
+
+  const governors = await governance.governors();
 
   const governanceChecker = new AbacusGovernanceChecker(
+    multiProvider,
     governance,
     config.governance,
   );
-  await governanceChecker.check(governors as any);
+  await governanceChecker.check(governors);
   governanceChecker.expectEmpty();
 
-  const coreChecker = new AbacusCoreChecker(core, config.core);
-  await coreChecker.check(governance.routerAddresses);
+  const coreChecker = new AbacusCoreChecker(multiProvider, core, config.core);
+  await coreChecker.check(
+    governance.routerAddresses(),
+    coreEnvironments[environment],
+  );
   coreChecker.expectEmpty();
 }
 

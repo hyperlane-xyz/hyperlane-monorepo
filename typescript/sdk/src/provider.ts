@@ -2,32 +2,49 @@ import { ethers } from 'ethers';
 import { ChainName, ChainSubsetMap } from './types';
 import { MultiGeneric } from './utils';
 
+interface IDomainConnection {
+  provider?: ethers.providers.BaseProvider;
+  signer?: ethers.Signer;
+  overrides?: ethers.Overrides;
+  confirmations?: number;
+}
+
 export class DomainConnection {
   provider?: ethers.providers.BaseProvider;
   signer?: ethers.Signer;
+  overrides: ethers.Overrides;
+  confirmations: number;
 
-  constructor(
-    rpc?: string,
-    public overrides: ethers.Overrides = {},
-    public confirmations: number = 0,
-  ) {
-    if (rpc) {
-      this.registerRpcURL(rpc);
-    }
+  constructor(dc: IDomainConnection = {}) {
+    this.provider = dc.provider;
+    this.signer = dc.signer;
+    this.overrides = dc.overrides ?? {};
+    this.confirmations = dc.confirmations ?? 0;
   }
 
-  registerOverrides = (overrides: ethers.Overrides) => this.overrides = overrides;
+  registerOverrides = (overrides: ethers.Overrides) =>
+    (this.overrides = overrides);
 
-  registerConfirmations = (confirmations: number) => this.confirmations = confirmations;
+  registerConfirmations = (confirmations: number) =>
+    (this.confirmations = confirmations);
 
-  registerProvider = (provider: ethers.providers.BaseProvider) =>
-    (this.provider = provider);
+  registerProvider(provider: ethers.providers.BaseProvider) {
+    if (this.signer) {
+      this.signer.connect(provider);
+    }
+    this.provider = provider;
+  }
 
-  registerRpcURL = (url: string) =>
+  registerRpcURL(url: string) {
     this.registerProvider(new ethers.providers.JsonRpcProvider(url));
+  }
 
-  registerSigner = (signer: ethers.Signer) =>
-    (this.signer = signer.connect(this.provider!));
+  registerSigner(signer: ethers.Signer) {
+    if (this.provider) {
+      signer.connect(this.provider);
+    }
+    this.signer = signer;
+  }
 
   registerWalletSigner = (privatekey: string) =>
     this.registerSigner(new ethers.Wallet(privatekey));
@@ -40,10 +57,16 @@ export class DomainConnection {
 export class MultiProvider<
   Networks extends ChainName = ChainName,
 > extends MultiGeneric<DomainConnection, Networks> {
-  constructor(networkRpcUrls: ChainSubsetMap<Networks, string>) {
-    const providerEntries = Object.entries<string>(networkRpcUrls).map(
-      ([network, v]) => [network, new DomainConnection(v)],
-    );
+  constructor(
+    networks: ChainSubsetMap<Networks, IDomainConnection> | Networks[],
+  ) {
+    const params = Array.isArray(networks)
+      ? networks.map((v) => [v, {}])
+      : (Object.entries(networks) as [Networks, IDomainConnection][]);
+    const providerEntries = params.map(([network, v]) => [
+      network,
+      new DomainConnection(v),
+    ]);
     super(Object.fromEntries(providerEntries));
   }
   getDomainConnection(network: Networks) {

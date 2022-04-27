@@ -1,18 +1,50 @@
 import { GovernanceContracts } from '.';
 import { AbacusApp } from '../app';
+import { MultiProvider } from '../provider';
+import { ChainName, ChainSubsetMap } from '../types';
 import { objMap, promiseObjAll } from '../utils';
-import { GovernanceNetworks } from './contracts';
+import { GovernanceAddresses } from './contracts';
+import { environments } from './environments';
 
-export class GovernanceApp extends AbacusApp<
-  GovernanceContracts,
-  GovernanceNetworks
-> {
+type Environments = typeof environments;
+type EnvironmentName = keyof Environments;
+
+export class AbacusGovernance<
+  Networks extends ChainName = ChainName,
+> extends AbacusApp<GovernanceContracts, Networks> {
+  constructor(
+    networkAddresses: ChainSubsetMap<Networks, GovernanceAddresses>,
+    multiProvider: MultiProvider<Networks>,
+  ) {
+    super(
+      objMap<Networks, any, any>(
+        networkAddresses,
+        (local, addresses) =>
+          new GovernanceContracts(
+            addresses,
+            multiProvider.getDomainConnection(local).getConnection()!,
+          ),
+      ),
+    );
+  }
+
+  static fromEnvironment(
+    name: EnvironmentName,
+    multiProvider: MultiProvider<keyof Environments[typeof name]>,
+  ) {
+    return new AbacusGovernance(environments[name], multiProvider);
+  }
+
   routers = () => objMap(this.domainMap, (_, d) => d.contracts.router);
 
-  governors = () =>
-    promiseObjAll(objMap(this.domainMap, (_, d) => d.governor()));
+  routerAddresses = () => objMap(this.routers(), (_, r) => r.address);
 
-  getCalls(network: GovernanceNetworks) {
+  governors = () =>
+    promiseObjAll<Record<Networks, string>>(
+      objMap(this.domainMap, (_, d) => d.governor()),
+    );
+
+  getCalls(network: Networks) {
     return this.get(network).calls;
   }
 }

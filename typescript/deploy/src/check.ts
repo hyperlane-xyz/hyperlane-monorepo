@@ -2,7 +2,7 @@ import {
   AbacusApp,
   ChainName,
   MultiProvider,
-  ProxiedAddress,
+  ProxiedAddress
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { expect } from 'chai';
@@ -13,15 +13,17 @@ export interface Ownable {
   owner(): Promise<types.Address>;
 }
 
-export abstract class AbacusAppChecker<A extends AbacusApp<any, any>> {
-  readonly multiProvider: MultiProvider;
+export abstract class AbacusAppChecker<N extends ChainName, A extends AbacusApp<any, N>, C> {
+  readonly multiProvider: MultiProvider<N>;
   readonly app: A;
+  readonly config: C;
   readonly violations: CheckerViolation[];
 
-  constructor(multiProvider: MultiProvider, app: A) {
+  constructor(multiProvider: MultiProvider<N>, app: A, config: C) {
     this.multiProvider = multiProvider;
     this.app = app;
     this.violations = [];
+    this.config = config;
   }
 
   addViolation(violation: CheckerViolation) {
@@ -31,7 +33,7 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>> {
   }
 
   async checkUpgradeBeacon(
-    network: ChainName,
+    network: N,
     name: string,
     proxiedAddress: ProxiedAddress,
   ) {

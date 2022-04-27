@@ -1,5 +1,8 @@
 import { Router__factory } from '@abacus-network/apps';
-import { XAppConnectionManager__factory } from '@abacus-network/core';
+import {
+  AbacusConnectionManager__factory,
+  UpgradeBeaconController__factory
+} from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 import { Contract } from 'ethers';
 import { Connection, ProxiedAddress } from './types';
@@ -18,7 +21,7 @@ export type Factories<A extends AbacusContractAddresses> = Record<
 >;
 
 export interface IAbacusContracts<Contracts> {
-  contracts: Contracts;
+  readonly contracts: Contracts;
   reconnect(connection: Connection): void;
 }
 
@@ -33,7 +36,7 @@ export abstract class AbacusContracts<
   abstract factories(): F;
   // complexity here allows for subclasses to have strong typing on `this.contracts` inferred
   // from the return types of the factory functions provided to the constructor
-  contracts: CM;
+  readonly contracts: CM;
   constructor(addresses: A, connection: Connection) {
     const factories = this.factories();
     const contractEntries = Object.entries(addresses).map(([key, addr]) => {
@@ -57,13 +60,15 @@ export abstract class AbacusContracts<
 }
 
 export type RouterAddresses = {
-  xAppConnectionManager: Addr;
-  router: Addr;
+  upgradeBeaconController: types.Address;
+  abacusConnectionManager: types.Address;
+  router: ProxiedAddress;
 };
 
 export const routerFactories = {
   router: Router__factory.connect,
-  xAppConnectionManager: XAppConnectionManager__factory.connect,
+  abacusConnectionManager: AbacusConnectionManager__factory.connect,
+  upgradeBeaconController: UpgradeBeaconController__factory.connect,
 };
 
 // type RemoteFunctionName = `${string}Remote${string}`;

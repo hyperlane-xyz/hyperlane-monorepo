@@ -1,47 +1,47 @@
-import { GovernanceRouter } from '@abacus-network/apps';
 import { AbacusRouterChecker, Ownable } from '@abacus-network/deploy';
-import {
-  AbacusGovernance,
-  GovernanceDeployedNetworks,
-} from '@abacus-network/sdk';
+import { AbacusGovernance, ChainName } from '@abacus-network/sdk';
+import { GovernanceAddresses } from '@abacus-network/sdk/dist/governance/contracts';
 import { types } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { GovernanceConfig } from './types';
 
-export class AbacusGovernanceChecker extends AbacusRouterChecker<
-  GovernanceDeployedNetworks,
-  AbacusGovernance,
-  GovernanceConfig<GovernanceDeployedNetworks>
+export class AbacusGovernanceChecker<
+  Networks extends ChainName,
+> extends AbacusRouterChecker<
+  Networks,
+  AbacusGovernance<Networks>,
+  GovernanceConfig<Networks>
 > {
-  async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
-    await super.checkDomain(domain, owner);
-    await this.checkProxiedContracts(domain);
-    await this.checkRecoveryManager(domain);
+  async checkDomainAddresses(
+    network: Networks,
+    owner: types.Address,
+    addresses: GovernanceAddresses,
+  ): Promise<void> {
+    await super.checkDomain(network, owner);
+    await this.checkProxiedContracts(network, addresses);
+    await this.checkRecoveryManager(network);
   }
 
-  async checkProxiedContracts(domain: types.Domain): Promise<void> {
-    const addresses = this.app.mustGetContracts(domain).addresses;
+  async checkProxiedContracts(
+    network: Networks,
+    addresses: GovernanceAddresses,
+  ): Promise<void> {
     // Outbox upgrade setup contracts are defined
-    await this.checkUpgradeBeacon(domain, 'GovernanceRouter', addresses.router);
+    await this.checkUpgradeBeacon(
+      network,
+      'GovernanceRouter',
+      addresses.router,
+    );
   }
 
-  async checkDomainOwnership(domain: types.Domain): Promise<void> {
-    const contracts = this.app.mustGetContracts(domain);
-    const owners = [contracts.upgradeBeaconController.owner()];
-    // If the config specifies that a abacusConnectionManager should have been deployed,
-    // it should be owned by the router.
-    if (!this.config.abacusConnectionManager) {
-      owners.push(contracts.abacusConnectionManager.owner());
-    }
-    const expected = contracts.router.address;
-    (await Promise.all(owners)).map((_) => expect(_).to.equal(expected));
+  async checkDomainOwnership(network: Networks): Promise<void> {
+    const contracts = this.app.getContracts(network);
+    await this.checkOwnership(contracts.router.address, this.ownables(network));
 
     // Router should be owned by governor, or null address if not configured.
-    const actual = await this.mustGetRouter(domain).governor();
-    const addresses =
-      this.config.addresses[this.app.mustResolveDomainName(domain)];
-    if (!addresses) throw new Error('could not find addresses');
+    const actual = await contracts.router.governor();
+    const addresses = this.config.addresses[network];
     if (addresses.governor) {
       expect(actual).to.equal(addresses.governor);
     } else {
@@ -49,21 +49,18 @@ export class AbacusGovernanceChecker extends AbacusRouterChecker<
     }
   }
 
-  ownables(domain: types.Domain): Ownable[] {
-    const ownables = super.ownables(domain);
-    ownables.push(this.app.mustGetContracts(domain).upgradeBeaconController);
-    return ownables;
+  ownables(network: Networks): Ownable[] {
+    const contracts = this.app.getContracts(network);
+    return super.ownables(network).concat(contracts.upgradeBeaconController);
   }
 
-  async checkRecoveryManager(domain: types.Domain): Promise<void> {
-    const actual = await this.mustGetRouter(domain).recoveryManager();
-    const addresses =
-      this.config.addresses[this.app.mustResolveDomainName(domain)];
-    if (!addresses) throw new Error('could not find addresses');
+  async checkRecoveryManager(network: Networks): Promise<void> {
+    const actual = await this.mustGetRouter(network).recoveryManager();
+    const addresses = this.config.addresses[network];
     expect(actual).to.equal(addresses.recoveryManager);
   }
 
-  mustGetRouter(domain: types.Domain): GovernanceRouter {
-    return this.app.mustGetContracts(domain).router;
+  mustGetRouter(network: Networks) {
+    return this.app.getContracts(network).router;
   }
 }

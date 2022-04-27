@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
-
 import { ContractVerificationInput } from './types';
+
 
 function getConstructorArguments(
   contract: ethers.Contract,
@@ -25,7 +25,7 @@ export function getContractVerificationInput(
   name: string,
   contract: ethers.Contract,
   bytecode: string,
-  isProxy?: boolean,
+  isProxy: boolean = name.includes('Proxy'),
 ): ContractVerificationInput {
   return {
     name,

@@ -2,8 +2,7 @@ import {
   AbacusApp,
   ChainName,
   ChainSubsetMap,
-  domains,
-  MultiProvider,
+  domains
 } from '@abacus-network/sdk';
 import { types, utils } from '@abacus-network/utils';
 import { expect } from 'chai';
@@ -13,16 +12,9 @@ import { Router, RouterConfig } from './types';
 export abstract class AbacusRouterChecker<
   N extends ChainName,
   A extends AbacusApp<any, N>,
-> extends AbacusAppChecker<A> {
+  C extends RouterConfig<N>,
+> extends AbacusAppChecker<N, A, C> {
   abstract mustGetRouter(network: N): Router; // TODO: implement on AbacusRouterApp
-
-  constructor(
-    multiProvider: MultiProvider,
-    app: A,
-    protected config: ChainSubsetMap<N, RouterConfig>,
-  ) {
-    super(multiProvider, app);
-  }
 
   async check(owners: ChainSubsetMap<N, types.Address> | types.Address) {
     const networks = this.app.networks();
@@ -47,7 +39,7 @@ export abstract class AbacusRouterChecker<
     await Promise.all(
       this.app.remotes(network).map(async (remoteNetwork) => {
         const remoteRouter = this.mustGetRouter(remoteNetwork);
-        const remoteChainId = domains[remoteNetwork as ChainName].id; // TODO: remove cast
+        const remoteChainId = domains[remoteNetwork as N].id; // TODO: remove cast
         expect(await router.routers(remoteChainId)).to.equal(
           utils.addressToBytes32(remoteRouter.address),
         );
@@ -57,19 +49,27 @@ export abstract class AbacusRouterChecker<
 
   ownables(network: N): Ownable[] {
     const ownables: Ownable[] = [this.mustGetRouter(network)];
-    // If the config specifies that a checkAbacusConnectionManager should have been deployed,
+    // If the config specifies that an abacusConnectionManager should have been deployed,
     // it should be owned by the owner.
-    if (!this.config[network].abacusConnectionManager) {
-      const contracts = this.app.getContracts(network);
+    if (
+      this.config.abacusConnectionManager &&
+      this.config.abacusConnectionManager[network] === undefined
+    ) {
+      const contracts: any = this.app.getContracts(network);
       ownables.push(contracts.abacusConnectionManager);
     }
     return ownables;
   }
 
   async checkAbacusConnectionManager(network: N): Promise<void> {
-    if (this.config[network].abacusConnectionManager === undefined) return;
+    if (
+      this.config.abacusConnectionManager &&
+      this.config.abacusConnectionManager[network] === undefined
+    ) {
+      return;
+    }
     const actual = await this.mustGetRouter(network).abacusConnectionManager();
-    const expected = this.config[network].abacusConnectionManager;
+    const expected = this.config.abacusConnectionManager![network];
     expect(actual).to.equal(expected);
   }
 }

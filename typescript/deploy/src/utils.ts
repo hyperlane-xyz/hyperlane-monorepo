@@ -3,7 +3,7 @@ import {
   ChainName,
   ChainSubsetMap,
   MultiProvider,
-  utils,
+  utils
 } from '@abacus-network/sdk';
 import { NonceManager } from '@ethersproject/experimental';
 import { ethers } from 'ethers';
@@ -25,10 +25,14 @@ export async function getEnvironment(): Promise<string> {
 
 export function getRouterConfig<N extends ChainName>(
   core: AbacusCore<N>,
-): ChainSubsetMap<N, RouterConfig> {
-  return utils.objMap(core.contractsMap, (_, coreContacts) => ({
-    xAppConnectionManager: coreContacts.contracts.xAppConnectionManager.address,
-  }));
+): RouterConfig<N> {
+  return {
+    abacusConnectionManager: utils.objMap(
+      core.contractsMap,
+      (_, coreContacts) =>
+        coreContacts.contracts.abacusConnectionManager.address,
+    ),
+  };
 }
 
 // this is currently a kludge to account for ethers issues
@@ -49,7 +53,7 @@ function fixOverrides(config: TransactionConfig): ethers.Overrides {
 }
 
 export const registerTransactionConfigs = <Networks extends ChainName>(
-  multiProvider: MultiProvider,
+  multiProvider: MultiProvider<Networks>,
   txConfigMap: ChainSubsetMap<Networks, TransactionConfig>,
 ) => {
   utils.objMap(txConfigMap, (network, txConfig) => {
@@ -65,7 +69,7 @@ export const registerTransactionConfigs = <Networks extends ChainName>(
 };
 
 export const registerEnvironment = <Networks extends ChainName>(
-  multiProvider: MultiProvider,
+  multiProvider: MultiProvider<Networks>,
   environment: EnvironmentConfig<Networks>,
 ) => {
   registerTransactionConfigs(multiProvider, environment.transactionConfigs);
@@ -79,30 +83,28 @@ export const registerSigners = <Networks extends ChainName>(
     multiProvider.getDomainConnection(network).registerSigner(signer),
   );
 
-export const registerSigner = (
-  multiProvider: MultiProvider,
+export const registerSigner = <Networks extends ChainName>(
+  multiProvider: MultiProvider<Networks>,
   signer: ethers.Signer,
 ) => multiProvider.getAll().map((dc) => dc.registerSigner(signer));
 
-export const registerHardhatEnvironment = <Networks extends ChainName>(
-  multiProvider: MultiProvider,
-  environment: EnvironmentConfig<Networks>,
-  signer: ethers.Signer,
+export const initHardhatMultiProvider = <Networks extends ChainName>(
+  environment: EnvironmentConfig<Networks>
 ) => {
+  const networks = Object.keys(environment.transactionConfigs) as Networks[];
+  const multiProvider = new MultiProvider(networks);
   registerTransactionConfigs(multiProvider, environment.transactionConfigs);
-  registerSigner(multiProvider, signer);
+  registerHardhatSigner(multiProvider);
+  return multiProvider;
 };
 
 export const getTestConnectionManagers = <N extends ChainName>(
   multiProvider: MultiProvider<N>,
-): ChainSubsetMap<N, RouterConfig> => {
+): RouterConfig<N> => {
   const entries = multiProvider
     .networks()
-    .map((network) => [
-      network,
-      { xAppConnectionManagers: ethers.constants.AddressZero },
-    ]);
-  return Object.fromEntries(entries);
+    .map((network) => [network, ethers.constants.AddressZero]);
+  return { abacusConnectionManager: Object.fromEntries(entries) };
 };
 
 export const getHardhatSigner = (): ethers.Signer => {
@@ -117,6 +119,6 @@ export const getHardhatSigner = (): ethers.Signer => {
   return new NonceManager(wallet);
 };
 
-export const registerHardhatSigner = (multiProvider: MultiProvider) => {
+export const registerHardhatSigner = <Networks extends ChainName>(multiProvider: MultiProvider<Networks>) => {
   registerSigner(multiProvider, getHardhatSigner());
 };

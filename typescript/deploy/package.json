@@ -8,7 +8,7 @@
   },
   "prepublish": "npm run build",
   "name": "@abacus-network/deploy",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Abacus deploy tools",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",

@@ -1,7 +1,7 @@
-import { types } from '@abacus-network/utils';
 import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
-import { DeployEnvironment } from './environment';
+import { types } from '@abacus-network/utils';
 import { ValidatorAgentAwsUser } from '../agents/aws';
+import { DeployEnvironment } from './environment';
 
 // Allows a "default" config to be specified and any per-network overrides.
 interface ChainOverridableConfig<Networks extends ChainName, T> {

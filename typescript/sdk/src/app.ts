@@ -10,7 +10,9 @@ export class AbacusApp<
   Contracts extends IAbacusContracts<any>,
   Networks extends ChainName = ChainName,
 > extends MultiGeneric<Contracts, Networks> {
-  getContracts(network: Networks) {
+  getContracts(
+    network: Networks,
+  ): Contracts extends IAbacusContracts<infer C> ? C : never {
     return this.get(network).contracts;
   }
 

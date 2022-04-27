@@ -4,7 +4,7 @@ export {
   AbacusContracts,
   Factories,
   RouterAddresses,
-  routerFactories,
+  routerFactories
 } from './contracts';
 export {
   AbacusCore,
@@ -17,27 +17,26 @@ export {
   CoreContracts,
   coreEnvironments,
   coreFactories,
+  MailboxAddresses,
   MessageStatus,
   ParsedMessage,
-  parseMessage,
+  parseMessage
 } from './core';
 export { domains } from './domains';
 export {
   Annotated,
   getEvents,
   queryAnnotatedEvents,
-  TSContract,
+  TSContract
 } from './events';
 export {
   DefaultTokenPriceGetter,
   InterchainGasCalculator,
-  TokenPriceGetter,
+  TokenPriceGetter
 } from './gas';
 export {
-  addresses as governanceAddresses,
-  Call,
-  GovernanceApp,
-  GovernanceContracts,
+  AbacusGovernance,
+  Call, GovernanceAddresses, GovernanceContracts, governanceEnvironments
 } from './governance';
 export { MultiProvider } from './provider';
 export {
@@ -47,6 +46,7 @@ export {
   ChainSubsetMap,
   Connection,
   NameOrDomain,
-  ProxiedAddress,
+  ProxiedAddress
 } from './types';
 export { utils } from './utils';
+

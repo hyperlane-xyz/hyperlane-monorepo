@@ -20,7 +20,6 @@ const validatorManagers = {
   },
 };
 
-// TODO: fix type inference
 export const core: CoreConfig<keyof typeof validatorManagers> = {
   validatorManagers,
 };

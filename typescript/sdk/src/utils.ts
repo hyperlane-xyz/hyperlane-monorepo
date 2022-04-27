@@ -95,7 +95,7 @@ export function objMapEntries<N extends ChainName, I, O>(
 }
 
 export function objMap<N extends ChainName, I, O>(
-  obj: ChainSubsetMap<N, I>,
+  obj: Record<N, I>,
   func: (k: N, _: I) => O,
 ) {
   return Object.fromEntries<O>(objMapEntries<N, I, O>(obj, func)) as Record<
@@ -122,6 +122,7 @@ export const promiseObjAll = <T>(object: PromiseValues<T>): Promise<T> => {
 
 export const utils = {
   objMap,
+  promiseObjAll,
   canonizeId,
   evmId,
   delay,

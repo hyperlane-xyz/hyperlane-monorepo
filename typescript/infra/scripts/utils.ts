@@ -1,5 +1,4 @@
 import { utils } from '@abacus-network/deploy';
-// import fs from 'fs';
 import { ChainName, Chains } from '@abacus-network/sdk';
 import path from 'path';
 import { KEY_ROLE_ENUM } from '../src/agents';
