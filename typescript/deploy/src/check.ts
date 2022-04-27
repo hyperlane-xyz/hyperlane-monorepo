@@ -57,8 +57,8 @@ export abstract class AbacusAppChecker<
     owner: types.Address,
     ownables: Ownable[],
   ): Promise<void> {
-    const owners = ownables.map((o) => o.owner());
-    (await Promise.all(owners)).map((_) => expect(_).to.equal(owner));
+    const owners = await Promise.all(ownables.map((o) => o.owner()));
+    owners.map((_) => expect(_).to.equal(owner));
   }
 
   isDuplicateViolation(violation: CheckerViolation) {

@@ -12,7 +12,7 @@ import {
   OutboxValidatorManager__factory,
   Outbox__factory,
   UpgradeBeaconController,
-  UpgradeBeaconController__factory,
+  UpgradeBeaconController__factory
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 import { IAbacusContracts } from '../contracts';
@@ -21,7 +21,7 @@ import {
   Connection,
   ProxiedAddress,
   RemoteChainMap,
-  Remotes,
+  Remotes
 } from '../types';
 import { objMap } from '../utils';
 
@@ -37,7 +37,7 @@ export type CoreContractAddresses<N extends ChainName, L extends N> = {
   inboxes: RemoteChainMap<N, L, MailboxAddresses>;
 };
 
-type InboxContracts = {
+export type InboxContracts = {
   inbox: Inbox;
   validatorManager: InboxValidatorManager;
 };

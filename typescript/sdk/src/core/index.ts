@@ -3,6 +3,7 @@ export {
   CoreContractAddresses,
   CoreContracts,
   coreFactories,
+  InboxContracts,
   MailboxAddresses,
 } from './contracts';
 export { environments as coreEnvironments } from './environments';

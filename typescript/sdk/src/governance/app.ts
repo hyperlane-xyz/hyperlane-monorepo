@@ -1,13 +1,12 @@
 import { GovernanceRouter } from '@abacus-network/apps';
 import { Call, domains } from '@abacus-network/sdk';
-import { promiseObjAll } from '@abacus-network/sdk/dist/utils';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import { GovernanceContracts } from '.';
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
-import { ChainName, ChainMap } from '../types';
-import { objMap } from '../utils';
+import { ChainMap, ChainName } from '../types';
+import { objMap, promiseObjAll } from '../utils';
 import { GovernanceAddresses } from './contracts';
 import { environments } from './environments';
 

@@ -2,8 +2,7 @@ import {
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
-import { ChainName, ChainMap, MultiProvider } from '@abacus-network/sdk';
-import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
+import { ChainMap, ChainName, MultiProvider, utils } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import fs from 'fs';
@@ -22,18 +21,18 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
     protected readonly multiProvider: MultiProvider<Networks>,
     protected readonly configMap: ChainMap<Networks, C>,
   ) {
-    this.verificationInputs = objMap(configMap, () => []);
+    this.verificationInputs = utils.objMap(configMap, () => []);
   }
 
   abstract deployContracts(network: Networks, config: C): Promise<A>;
 
   async deploy() {
-    this.verificationInputs = objMap(this.configMap, () => []);
+    this.verificationInputs = utils.objMap(this.configMap, () => []);
     await this.multiProvider.ready();
-    const addressMap = objMap(this.configMap, (network, config) =>
+    const addressMap = utils.objMap(this.configMap, (network, config) =>
       this.deployContracts(network, config),
     );
-    return promiseObjAll<Record<Networks, A>>(addressMap);
+    return utils.promiseObjAll<Record<Networks, A>>(addressMap);
   }
 
   async deployContract<F extends ethers.ContractFactory>(
@@ -148,7 +147,7 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
   }
 
   writeVerification(directory: string) {
-    objMap(this.verificationInputs, (network, input) => {
+    utils.objMap(this.verificationInputs, (network, input) => {
       AbacusAppDeployer.writeJson(
         path.join(directory, `${network}.json`),
         input,

@@ -4,8 +4,8 @@ import {
   ChainMap,
   CoreContractAddresses,
   MultiProvider,
+  utils as sdkUtils,
 } from '@abacus-network/sdk';
-import { objMap } from '@abacus-network/sdk/dist/utils';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import path from 'path';
@@ -25,7 +25,10 @@ describe('core', async () => {
     const [signer, owner] = await ethers.getSigners();
     multiProvider = utils.initHardhatMultiProvider(environment, signer);
     deployer = new AbacusCoreDeployer(multiProvider, environment.core);
-    owners = objMap(environment.transactionConfigs, () => owner.address);
+    owners = sdkUtils.objMap(
+      environment.transactionConfigs,
+      () => owner.address,
+    );
   });
 
   it('deploys', async () => {

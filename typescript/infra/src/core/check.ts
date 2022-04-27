@@ -2,13 +2,12 @@ import { MultisigValidatorManager } from '@abacus-network/core';
 import { AbacusAppChecker, CheckerViolation } from '@abacus-network/deploy';
 import {
   AbacusCore,
-  ChainName,
   ChainMap,
+  ChainName,
   domains,
   MailboxAddresses,
   utils,
 } from '@abacus-network/sdk';
-import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 import { types } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { setDifference } from '../utils/utils';
@@ -208,8 +207,8 @@ export class AbacusCoreChecker<
     const outbox = await coreContracts.abacusConnectionManager.outbox();
     expect(outbox).to.equal(coreContracts.outbox.outbox.address);
 
-    await promiseObjAll(
-      objMap(coreContracts.inboxes, async (remote, inbox) => {
+    await utils.promiseObjAll(
+      utils.objMap(coreContracts.inboxes, async (remote, inbox) => {
         const domain = domains[remote as ChainName].id;
         const enrolledInbox =
           await coreContracts.abacusConnectionManager.domainToInbox(domain);
@@ -222,8 +221,8 @@ export class AbacusCoreChecker<
     // Outbox upgrade setup contracts are defined
     const addresses = this.app.getAddresses(network);
     await this.checkUpgradeBeacon(network, 'Outbox', addresses.outbox);
-    await promiseObjAll(
-      objMap(addresses.inboxes, (network, inbox) =>
+    await utils.promiseObjAll(
+      utils.objMap(addresses.inboxes, (network, inbox) =>
         this.checkUpgradeBeacon(network, 'Inbox', inbox),
       ),
     );

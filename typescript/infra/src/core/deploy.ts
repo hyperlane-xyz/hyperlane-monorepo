@@ -11,20 +11,19 @@ import {
 import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
   AbacusCore,
+  ChainMap,
   ChainName,
   CoreContractAddresses,
   CoreContracts,
+  DomainConnection,
   domains,
+  InboxContracts,
   MailboxAddresses,
   MultiProvider,
-} from '@abacus-network/sdk';
-import { DomainConnection } from '@abacus-network/sdk/dist/provider';
-import {
-  ChainMap,
   RemoteChainMap,
   Remotes,
-} from '@abacus-network/sdk/dist/types';
-import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
+  utils as sdkUtils,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import path from 'path';
@@ -199,7 +198,7 @@ export class AbacusCoreDeployer<
       ReturnType<AbacusCoreDeployer<Networks>['deploy']>
     >,
   ) {
-    objMap(this.configMap, (network) => {
+    sdkUtils.objMap(this.configMap, (network) => {
       const filepath = path.join(directory, `${network}_config.json`);
       const addresses = networkAddresses[network];
 
@@ -256,8 +255,8 @@ export class AbacusCoreDeployer<
     owners: ChainMap<CoreNetworks, types.Address>,
     multiProvider: MultiProvider<CoreNetworks>,
   ) {
-    return promiseObjAll<Record<any, any>>(
-      objMap(core.contractsMap, async (network, coreContracts) => {
+    return sdkUtils.promiseObjAll<Record<any, any>>(
+      sdkUtils.objMap(core.contractsMap, async (network, coreContracts) => {
         const owner = owners[network];
         const domainConnection = multiProvider.getDomainConnection(network);
         return AbacusCoreDeployer.transferOwnershipOfDomain(
@@ -289,8 +288,11 @@ export class AbacusCoreDeployer<
       owner,
       domainConnection.overrides,
     );
-    await promiseObjAll<Record<any, any>>(
-      objMap(core.contracts.inboxes, async (_, inbox) => {
+    const inboxContracts: InboxContracts[] = Object.values(
+      core.contracts.inboxes,
+    );
+    await Promise.all(
+      inboxContracts.map(async (inbox) => {
         await inbox.validatorManager.transferOwnership(
           owner,
           domainConnection.overrides,
@@ -298,6 +300,7 @@ export class AbacusCoreDeployer<
         await inbox.inbox.transferOwnership(owner, domainConnection.overrides);
       }),
     );
+
     const tx = await core.contracts.outbox.outbox.transferOwnership(
       owner,
       domainConnection.overrides,

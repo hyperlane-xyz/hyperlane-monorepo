@@ -33,11 +33,12 @@ export type ChainMap<Networks extends ChainName, Value> = Record<
   Networks,
   Value
 >;
+
+// TODO: remove
 export const AllChains = Object.keys(Chains) as ChainName[];
 export const ChainIdToName: { [id: number]: ChainName } = Object.fromEntries(
   AllChains.map((chain) => [domains[chain].id, chain]),
 );
-// TODO: remove
 export type NameOrDomain = ChainName | number;
 
 export type Remotes<
