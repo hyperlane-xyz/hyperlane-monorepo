@@ -104,11 +104,11 @@ impl MultisigCheckpointSyncer {
                 latest_indices.push(index);
             }
         }
+        debug!(latest_indices=?latest_indices, "Fetched latest indices from checkpoint syncers");
+
         if latest_indices.is_empty() {
             return Ok(None);
         }
-
-        debug!(latest_indices=?latest_indices, "Fetched latest indices from checkpoint syncers");
 
         // Sort in descending order to iterate through higher indices first.
         latest_indices.sort_by(|a, b| b.cmp(a));
