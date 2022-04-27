@@ -37,15 +37,12 @@ contract TestRouter is Router {
         return _dispatchToRemoteRouter(_destination, _msg);
     }
 
-    function dispatchToRemoteRouterWithGas(
+    function comboDispatch(
         uint32 _destination,
-        bytes calldata _msg,
-        uint256 _gasPayment
-    ) external {
-        return _dispatchToRemoteRouterWithGas(_destination, _msg, _gasPayment);
-    }
-
-    function checkpoint() external {
-        _checkpoint_on_outbox();
+        bytes memory _msg,
+        uint256 _gasPayment,
+        bool _shouldCheckpoint
+    ) external payable {
+        _comboDispatch(_destination, _msg, _gasPayment, _shouldCheckpoint);
     }
 }

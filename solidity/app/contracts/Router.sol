@@ -3,7 +3,9 @@ pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
 import {AbacusConnectionClient} from "./AbacusConnectionClient.sol";
+import {IAbacusConnectionManager} from "@abacus-network/core/interfaces/IAbacusConnectionManager.sol";
 import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
+import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
 
 abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
@@ -130,29 +132,50 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     }
 
     /**
-     * @notice Dispatches a message to an enrolled router via the local router's
-     * Outbox and pays for message processing on the destination chain.
-     * @dev Reverts if there is no enrolled router for _destination.
+     * @notice Pay for message processing on the destination
+     * @param _leafIndex The leaf index of the message to pay processing for
+     * @param _gasPayment The amount of native tokens to pay the Interchain Gas
+     * Paymaster to process the dispatched message.
+     */
+    function _payForGas(uint256 _leafIndex, uint256 _gasPayment) internal {
+        _interchainGasPaymaster().payGasFor{value: _gasPayment}(_leafIndex);
+    }
+
+    /**
+     * @notice Calls #checkpoint on the Outbox
+     */
+    function _checkpointOnOutbox() internal {
+        _outbox().checkpoint();
+    }
+
+    /**
+     * @notice A convenience function which allows the caller to 1) send a message
+     * to the enrolled router on _destination as specified on the ACM, 2) pay
+     * for message processing on the destination chain and 3) checkpoint the
+     * message on the Outbox
      * @param _destination The domain of the chain to which to send the message.
      * @param _msg The message to dispatch.
      * @param _gasPayment The amount of native tokens to pay the Interchain Gas
      * Paymaster to process the dispatched message.
+     * @param _shouldCheckpoint Whether checkpoint should be called on the Outbox
      */
-    function _dispatchToRemoteRouterWithGas(
+    function _comboDispatch(
         uint32 _destination,
         bytes memory _msg,
-        uint256 _gasPayment
+        uint256 _gasPayment,
+        bool _shouldCheckpoint
     ) internal {
-        uint256 leafIndex = _dispatchToRemoteRouter(_destination, _msg);
+        IAbacusConnectionManager _abacusConnectionManager = abacusConnectionManager;
+        IOutbox _outboxVar = _abacusConnectionManager.outbox();
+        bytes32 _router = _mustHaveRemoteRouter(_destination);
+        uint256 leafIndex = _outboxVar.dispatch(_destination, _router, _msg);
         if (_gasPayment > 0) {
-            _interchainGasPaymaster().payGasFor{value: _gasPayment}(leafIndex);
+            _abacusConnectionManager.interchainGasPaymaster().payGasFor{
+                value: _gasPayment
+            }(leafIndex);
         }
-    }
-
-    /**
-     * @notice Calls checkpoint on the outbox
-     */
-    function _checkpoint_on_outbox() internal {
-        _outbox().checkpoint();
+        if (_shouldCheckpoint) {
+            _outboxVar.checkpoint();
+        }
     }
 }

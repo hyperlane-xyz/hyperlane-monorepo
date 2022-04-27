@@ -5,6 +5,9 @@ import {
   Outbox__factory,
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
+  Outbox,
+  InterchainGasPaymaster__factory,
+  InterchainGasPaymaster,
 } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
@@ -105,22 +108,68 @@ describe('Router', async () => {
     ).to.be.revertedWith('!router');
   });
 
-  it('calls checkpoint on the outbox', async () => {
-    const outboxFactory = new Outbox__factory(signer);
-    const outbox = await outboxFactory.deploy(origin);
-    // dispatch dummy messages
-    await outbox.dispatch(
-      destination,
-      utils.addressToBytes32(outbox.address),
-      '0x',
-    );
-    await outbox.dispatch(
-      destination,
-      utils.addressToBytes32(outbox.address),
-      '0x',
-    );
-    await connectionManager.setOutbox(outbox.address);
+  describe('#comboDispatch', () => {
+    let outbox: Outbox;
+    let interchainGasPaymaster: InterchainGasPaymaster;
+    beforeEach(async () => {
+      const outboxFactory = new Outbox__factory(signer);
+      outbox = await outboxFactory.deploy(origin);
+      // dispatch dummy message
+      await outbox.dispatch(
+        destination,
+        utils.addressToBytes32(outbox.address),
+        '0x',
+      );
+      await connectionManager.setOutbox(outbox.address);
+      const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(
+        signer,
+      );
+      interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
+      await connectionManager.setInterchainGasPaymaster(
+        interchainGasPaymaster.address,
+      );
+    });
 
-    await expect(router.checkpoint()).to.emit(outbox, 'Checkpoint');
+    describe('with a remote router enrolled', () => {
+      beforeEach(async () => {
+        const remote = nonOwner.address;
+        await router.enrollRemoteRouter(
+          destination,
+          utils.addressToBytes32(remote),
+        );
+      });
+
+      it('can call comboDispatch', async () => {
+        await expect(router.comboDispatch(destination, '0x', 0, false));
+      });
+
+      it('triggers an InterchainGasPayment', async () => {
+        const testInterchainGasPayment = 1234;
+        await expect(
+          router.comboDispatch(
+            destination,
+            '0x',
+            testInterchainGasPayment,
+            false,
+            { value: testInterchainGasPayment },
+          ),
+        ).to.emit(interchainGasPaymaster, 'GasPayment');
+      });
+
+      it('checkpoints when specified', async () => {
+        await expect(router.comboDispatch(destination, '0x', 0, true)).to.emit(
+          outbox,
+          'Checkpoint',
+        );
+      });
+    });
+
+    describe('without a remote router enrolled', () => {
+      it('reverts', async () => {
+        await expect(
+          router.comboDispatch(destination, '0x', 0, true),
+        ).to.revertedWith('!router');
+      });
+    });
   });
 });
