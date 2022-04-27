@@ -1,7 +1,7 @@
 use core::str::FromStr;
 use ethers::types::Address;
-use tracing::instrument;
 use std::collections::HashMap;
+use tracing::instrument;
 
 use abacus_core::SignedCheckpoint;
 use async_trait::async_trait;
