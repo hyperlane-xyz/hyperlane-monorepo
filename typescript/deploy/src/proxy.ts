@@ -37,8 +37,8 @@ export async function upgradeBeaconImplementation(
   return ethers.utils.getAddress(storageValue.slice(26));
 }
 
-export function upgradeBeaconViolation(
-  network: ChainName,
+export function upgradeBeaconViolation<N extends ChainName>(
+  network: N,
   name: string,
   proxiedAddress: ProxiedAddress,
   actual: types.Address,

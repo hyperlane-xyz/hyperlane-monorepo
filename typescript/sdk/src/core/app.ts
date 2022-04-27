@@ -1,11 +1,10 @@
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
 import { ChainName, Remotes } from '../types';
-import { objMap } from '../utils';
 import {
   CoreContractAddresses,
   CoreContracts,
-  CoreContractSchema,
+  CoreContractSchema
 } from './contracts';
 import { environments } from './environments';
 
@@ -21,14 +20,7 @@ export class AbacusCore<
     },
     multiProvider: MultiProvider<Networks>,
   ) {
-    super(
-      objMap<Networks, any, any>(networkAddresses, (local, addresses) => {
-        return new CoreContracts<Networks, typeof local>(
-          addresses,
-          multiProvider.getDomainConnection(local).getConnection()!,
-        );
-      }),
-    );
+    super(CoreContracts, networkAddresses, multiProvider);
   }
 
   static fromEnvironment(
@@ -38,10 +30,18 @@ export class AbacusCore<
     return new AbacusCore(environments[name], multiProvider);
   }
 
+  // override type to be derived from network key
   getContracts<Local extends Networks>(
     network: Local,
   ): CoreContractSchema<Networks, Local> {
-    return this.get(network).contracts as any;
+    return super.getContracts(network) as any;
+  }
+
+  // override type to be derived from network key
+  getAddresses<Local extends Networks>(
+    network: Local,
+  ): CoreContractAddresses<Networks, Local> {
+    return super.getAddresses(network) as any;
   }
 
   getMailboxPair<Local extends Networks>(

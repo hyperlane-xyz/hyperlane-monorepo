@@ -1,9 +1,6 @@
 import { utils } from '@abacus-network/deploy';
-import {
-  AbacusCore,
-  AbacusGovernance,
-  coreEnvironments,
-} from '@abacus-network/sdk';
+import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+import { ethers } from 'hardhat';
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusGovernanceChecker } from '../src/governance';
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
@@ -15,8 +12,8 @@ async function check() {
   }
 
   const config = await getCoreEnvironmentConfig(environment);
-
-  const multiProvider = utils.initHardhatMultiProvider(config);
+  const [signer] = await ethers.getSigners();
+  const multiProvider = utils.initHardhatMultiProvider(config, signer);
 
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
   const governance = AbacusGovernance.fromEnvironment(
@@ -24,21 +21,18 @@ async function check() {
     multiProvider,
   );
 
-  const governors = await governance.governors();
+  const governor = await governance.governor();
 
   const governanceChecker = new AbacusGovernanceChecker(
     multiProvider,
     governance,
     config.governance,
   );
-  await governanceChecker.check(governors);
+  await governanceChecker.check(governor);
   governanceChecker.expectEmpty();
 
   const coreChecker = new AbacusCoreChecker(multiProvider, core, config.core);
-  await coreChecker.check(
-    governance.routerAddresses(),
-    coreEnvironments[environment],
-  );
+  await coreChecker.checkOwners(governance.routerAddresses());
   coreChecker.expectEmpty();
 }
 

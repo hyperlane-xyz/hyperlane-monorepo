@@ -2,7 +2,7 @@ import {
   AbacusApp,
   ChainName,
   MultiProvider,
-  ProxiedAddress
+  ProxiedAddress,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { expect } from 'chai';
@@ -13,7 +13,11 @@ export interface Ownable {
   owner(): Promise<types.Address>;
 }
 
-export abstract class AbacusAppChecker<N extends ChainName, A extends AbacusApp<any, N>, C> {
+export abstract class AbacusAppChecker<
+  N extends ChainName,
+  A extends AbacusApp<any, N>,
+  C,
+> {
   readonly multiProvider: MultiProvider<N>;
   readonly app: A;
   readonly config: C;

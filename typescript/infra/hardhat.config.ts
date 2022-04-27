@@ -4,6 +4,7 @@ import { AbacusCore, ChainName } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
+import { ethers } from 'hardhat';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import {
@@ -65,8 +66,11 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
   .setAction(async (args: any) => {
     const environment = args.environment;
     const environmentConfig = await getCoreEnvironmentConfig(environment);
-    const multiProvider =
-      deployUtils.initHardhatMultiProvider(environmentConfig);
+    const [signer] = await ethers.getSigners();
+    const multiProvider = deployUtils.initHardhatMultiProvider(
+      environmentConfig,
+      signer,
+    );
 
     const deployer = new AbacusCoreDeployer(
       multiProvider,
@@ -94,15 +98,17 @@ task('kathy', 'Dispatches random abacus messages')
   )
   .setAction(async (args, hre: HardhatRuntimeEnvironment) => {
     const environmentConfig = await getCoreEnvironmentConfig(args.environment);
-    const multiProvider =
-      deployUtils.initHardhatMultiProvider(environmentConfig);
+    const [signer] = await hre.ethers.getSigners();
+    const multiProvider = deployUtils.initHardhatMultiProvider(
+      environmentConfig,
+      signer,
+    );
     const core = AbacusCore.fromEnvironment(args.environment, multiProvider);
 
     const randomElement = (list: any[]) =>
       list[Math.floor(Math.random() * list.length)];
 
     // Deploy a recipient
-    const [signer] = await hre.ethers.getSigners();
     const recipientF = new BadRandomRecipient__factory(signer);
     const recipient = await recipientF.deploy();
     await recipient.deployTransaction.wait();

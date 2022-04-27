@@ -1,16 +1,18 @@
+import { ChainName } from '@abacus-network/sdk';
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
-import { getEnvironment, getCoreEnvironmentConfig } from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function deploy() {
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);
-  for (const name of config.domains) {
+  const networks = Object.keys(config.transactionConfigs) as ChainName[];
+  for (const network of networks) {
     await runAgentHelmCommand(
       HelmCommand.UpgradeDiff,
       config.agent,
-      name,
-      config.domains,
+      network,
+      networks,
     );
   }
 }

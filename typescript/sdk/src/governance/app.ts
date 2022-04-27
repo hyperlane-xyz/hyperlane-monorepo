@@ -1,8 +1,13 @@
+import { GovernanceRouter } from '@abacus-network/apps';
+import { Call, domains } from '@abacus-network/sdk';
+import { promiseObjAll } from '@abacus-network/sdk/dist/utils';
+import { types } from '@abacus-network/utils';
+import { ethers } from 'ethers';
 import { GovernanceContracts } from '.';
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
 import { ChainName, ChainSubsetMap } from '../types';
-import { objMap, promiseObjAll } from '../utils';
+import { objMap } from '../utils';
 import { GovernanceAddresses } from './contracts';
 import { environments } from './environments';
 
@@ -16,16 +21,7 @@ export class AbacusGovernance<
     networkAddresses: ChainSubsetMap<Networks, GovernanceAddresses>,
     multiProvider: MultiProvider<Networks>,
   ) {
-    super(
-      objMap<Networks, any, any>(
-        networkAddresses,
-        (local, addresses) =>
-          new GovernanceContracts(
-            addresses,
-            multiProvider.getDomainConnection(local).getConnection()!,
-          ),
-      ),
-    );
+    super(GovernanceContracts, networkAddresses, multiProvider);
   }
 
   static fromEnvironment(
@@ -35,16 +31,65 @@ export class AbacusGovernance<
     return new AbacusGovernance(environments[name], multiProvider);
   }
 
-  routers = () => objMap(this.domainMap, (_, d) => d.contracts.router);
-
-  routerAddresses = () => objMap(this.routers(), (_, r) => r.address);
-
-  governors = () =>
-    promiseObjAll<Record<Networks, string>>(
-      objMap(this.domainMap, (_, d) => d.governor()),
-    );
+  pushCall(network: Networks, call: Call) {
+    this.get(network).push(call);
+  }
 
   getCalls(network: Networks) {
     return this.get(network).calls;
+  }
+
+  networkCalls = () => Object.fromEntries(this.networks().map((network) => [network, this.getCalls(network)])) as ChainSubsetMap<Networks, Call[]>;
+
+  routers = () => objMap(this.contractsMap, (_, d) => d.contracts.router);
+
+  routerAddresses = () => objMap(this.routers(), (_, r) => r.address);
+
+  governor = async (): Promise<{network: Networks, address: types.Address }> => {
+    for (const [network, router] of Object.entries<GovernanceRouter>(this.routers())) {
+      const address = await router.governor()
+      if (address !== ethers.constants.AddressZero) {
+        return {network: network as Networks, address };
+      }
+    }
+    throw new Error('No governor found');
+  }
+
+  build = async (): Promise<ethers.PopulatedTransaction[]> => {
+    const governor = await this.governor();
+    const governorRouter = this.routers()[governor.network];
+    
+    const networkTransactions = await promiseObjAll<Record<Networks, ethers.PopulatedTransaction>>(objMap(this.networkCalls(), (network, calls) => {
+      if (network === governor.network) {
+        return governorRouter.populateTransaction.call(calls);
+      } else {
+        return governorRouter.populateTransaction.callRemote(domains[network].id, calls);
+      }
+    }));
+    return Object.values(networkTransactions);
+  }
+
+  execute = async (signer: ethers.Signer) => {
+    const governor = await this.governor();
+    
+    const signerAddress = await signer.getAddress()
+    if (signerAddress !== governor.address) {
+      throw new Error(`Signer ${signerAddress} is not the governor ${governor.address}`);
+    }
+
+    const transactions = await this.build();
+
+    return Promise.all(transactions.map(async (tx) => {
+      const response = await signer.sendTransaction(tx);
+      return response.wait(5);
+    }));
+  }
+
+  estimateGas = async (provider: ethers.providers.Provider): Promise<ethers.BigNumber[]> => {
+    const transactions = await this.build()
+    const governor = await this.governor();
+    return Promise.all(transactions.map((tx) => 
+      provider.estimateGas({...tx, from: governor.address}) // Estimate gas as the governor
+    ))
   }
 }

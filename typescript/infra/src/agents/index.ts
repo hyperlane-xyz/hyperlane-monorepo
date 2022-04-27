@@ -1,13 +1,12 @@
-import { rm, writeFile } from 'fs/promises';
 import { ChainName } from '@abacus-network/sdk';
-
+import { rm, writeFile } from 'fs/promises';
 import { AgentConfig } from '../config';
+import { ChainAgentConfig } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
-import { AgentGCPKey, fetchAgentGCPKeys, memoryKeyIdentifier } from './gcp';
 import { AgentAwsKey } from './aws';
-import { ChainAgentConfig } from '../config/agent';
+import { AgentGCPKey, fetchAgentGCPKeys, memoryKeyIdentifier } from './gcp';
 
 export enum KEY_ROLE_ENUM {
   Validator = 'validator',

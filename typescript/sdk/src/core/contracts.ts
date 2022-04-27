@@ -29,7 +29,6 @@ export type MailboxAddresses = ProxiedAddress & {
   validatorManager: types.Address;
 };
 
-// Deploy/Hardhat should generate this as JSON
 export type CoreContractAddresses<N extends ChainName, L extends N> = {
   upgradeBeaconController: types.Address;
   abacusConnectionManager: types.Address;
@@ -43,15 +42,13 @@ type InboxContracts = {
   validatorManager: InboxValidatorManager;
 };
 
-type OutboxContracts = {
-  outbox: Outbox;
-  validatorManager: OutboxValidatorManager;
-};
-
 export type CoreContractSchema<N extends ChainName, L extends N> = {
   abacusConnectionManager: AbacusConnectionManager;
   upgradeBeaconController: UpgradeBeaconController;
-  outbox: OutboxContracts;
+  outbox: {
+    outbox: Outbox;
+    validatorManager: OutboxValidatorManager;
+  };
   inboxes: RemoteChainSubsetMap<N, L, InboxContracts>;
   interchainGasPaymaster: InterchainGasPaymaster;
 };
@@ -66,12 +63,17 @@ export const coreFactories = {
   upgradeBeaconController: UpgradeBeaconController__factory.connect,
 };
 
+// TODO: extend AbacusContracts for more generic behavior
 export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
-  implements IAbacusContracts<CoreContractSchema<N, L>>
+  implements
+    IAbacusContracts<CoreContractAddresses<N, L>, CoreContractSchema<N, L>>
 {
   readonly contracts: CoreContractSchema<N, L>;
 
-  constructor(addresses: CoreContractAddresses<N, L>, connection: Connection) {
+  constructor(
+    readonly addresses: CoreContractAddresses<N, L>,
+    connection: Connection,
+  ) {
     const factories = coreFactories;
     this.contracts = {
       outbox: {

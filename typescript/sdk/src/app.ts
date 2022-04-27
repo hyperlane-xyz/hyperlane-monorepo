@@ -1,37 +1,44 @@
-import { ethers } from 'ethers';
-import { IAbacusContracts } from './contracts';
-import { domains } from './domains';
-import { ChainName } from './types';
-import { MultiGeneric } from './utils';
-
-// TODO: add generic fromEnvironment
+import { ContractsBuilder, IAbacusContracts } from './contracts';
+import { MultiProvider } from './provider';
+import { ChainName, ChainSubsetMap, Connection } from './types';
+import { MultiGeneric, objMap } from './utils';
 
 export class AbacusApp<
-  Contracts extends IAbacusContracts<any>,
+  Contracts extends IAbacusContracts<any, any>,
   Networks extends ChainName = ChainName,
 > extends MultiGeneric<Contracts, Networks> {
-  getContracts(
-    network: Networks,
-  ): Contracts extends IAbacusContracts<infer C> ? C : never {
-    return this.get(network).contracts;
+  constructor(
+    builder: ContractsBuilder<any, Contracts>,
+    networkAddresses: ChainSubsetMap<Networks, any>,
+    multiProvider: MultiProvider<Networks>,
+  ) {
+    super(
+      objMap(
+        networkAddresses,
+        (network, addresses) =>
+          new builder(
+            addresses,
+            multiProvider.getDomainConnection(network).getConnection()!,
+          ),
+      ),
+    );
   }
 
   public contractsMap = this.domainMap;
 
-  async registerProvider(
+  getContracts(
     network: Networks,
-    provider: ethers.providers.Provider,
-  ) {
-    const actualNetwork = await provider.getNetwork();
-    if (actualNetwork.chainId !== domains[network].id) {
-      throw new Error(
-        `Provider network ${actualNetwork} does not match ${network}`,
-      );
-    }
-    this.get(network).reconnect(provider);
+  ): Contracts extends IAbacusContracts<any, infer C> ? C : never {
+    return this.get(network).contracts;
   }
 
-  registerSigner(network: Networks, signer: ethers.Signer) {
-    this.get(network).reconnect(signer);
+  getAddresses(
+    network: Networks,
+  ): Contracts extends IAbacusContracts<infer A, any> ? A : never {
+    return this.get(network).addresses;
+  }
+
+  reconnect(network: Networks, connection: Connection) {
+    this.get(network).reconnect(connection);
   }
 }

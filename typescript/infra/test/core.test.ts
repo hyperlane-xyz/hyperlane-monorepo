@@ -29,7 +29,7 @@ describe('core', async () => {
   });
 
   it('deploys', async () => {
-    addresses = await deployer.deploy();
+    addresses = await deployer.deploy(); // TODO: return AbacusApp from AbacusDeployer.deploy()
   });
 
   it('writes', async () => {
@@ -54,6 +54,6 @@ describe('core', async () => {
       core,
       environment.core,
     );
-    await checker.check(owners, addresses);
+    await checker.checkOwners(owners);
   });
 });

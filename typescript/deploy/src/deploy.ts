@@ -1,6 +1,6 @@
 import {
   UpgradeBeaconProxy__factory,
-  UpgradeBeacon__factory
+  UpgradeBeacon__factory,
 } from '@abacus-network/core';
 import { ChainName, ChainSubsetMap, MultiProvider } from '@abacus-network/sdk';
 import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
@@ -11,9 +11,10 @@ import path from 'path';
 import { ProxiedContract } from './proxy';
 import {
   ContractVerificationInput,
-  getContractVerificationInput
+  getContractVerificationInput,
 } from './verify';
 
+// TODO: Make AppDeployer generic on AbacusApp and return instance from deploy()
 export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
   verificationInputs: ChainSubsetMap<Networks, ContractVerificationInput[]>;
 

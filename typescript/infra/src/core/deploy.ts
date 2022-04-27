@@ -232,7 +232,7 @@ export class AbacusCoreDeployer<
         const inboxAddresses = addresses.inboxes[remote];
 
         const inbox = {
-          domain: domains[remote].id.toString(),
+          domain: domains[remote as ChainName].id.toString(),
           name: remote,
           rpcStyle: 'ethereum',
           connection: {

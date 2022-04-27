@@ -2,9 +2,8 @@ import { GovernanceRouter__factory } from '@abacus-network/apps';
 import { ethers } from 'ethers';
 import { Call } from '..';
 import {
-  AbacusContracts,
-  RouterAddresses,
-  routerFactories,
+  AbacusContracts, RouterAddresses,
+  routerFactories
 } from '../contracts';
 import { normalizeCall } from './utils';
 
@@ -15,12 +14,7 @@ export const governanceFactories = {
   router: GovernanceRouter__factory.connect,
 };
 
-export type GovernanceFactories = typeof governanceFactories;
-
-export class GovernanceContracts extends AbacusContracts<
-  GovernanceAddresses,
-  GovernanceFactories
-> {
+export class GovernanceContracts extends AbacusContracts<GovernanceAddresses, typeof governanceFactories> {
   factories = () => governanceFactories;
   calls: Call[] = [];
 

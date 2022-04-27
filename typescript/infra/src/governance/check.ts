@@ -1,6 +1,5 @@
 import { AbacusRouterChecker, Ownable } from '@abacus-network/deploy';
 import { AbacusGovernance, ChainName } from '@abacus-network/sdk';
-import { GovernanceAddresses } from '@abacus-network/sdk/dist/governance/contracts';
 import { types } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
@@ -16,17 +15,14 @@ export class AbacusGovernanceChecker<
   async checkDomainAddresses(
     network: Networks,
     owner: types.Address,
-    addresses: GovernanceAddresses,
   ): Promise<void> {
     await super.checkDomain(network, owner);
-    await this.checkProxiedContracts(network, addresses);
+    await this.checkProxiedContracts(network);
     await this.checkRecoveryManager(network);
   }
 
-  async checkProxiedContracts(
-    network: Networks,
-    addresses: GovernanceAddresses,
-  ): Promise<void> {
+  async checkProxiedContracts(network: Networks): Promise<void> {
+    const addresses = this.app.getAddresses(network);
     // Outbox upgrade setup contracts are defined
     await this.checkUpgradeBeacon(
       network,
