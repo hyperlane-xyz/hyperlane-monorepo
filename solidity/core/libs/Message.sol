@@ -15,13 +15,12 @@ library Message {
     using TypedMemView for bytes29;
 
     // Number of bytes in formatted message before `body` field
-    uint256 internal constant PREFIX_LENGTH = 76;
+    uint256 internal constant PREFIX_LENGTH = 72;
 
     /**
      * @notice Returns formatted (packed) message with provided fields
      * @param _originDomain Domain of home chain
      * @param _sender Address of sender as bytes32
-     * @param _nonce Destination-specific nonce
      * @param _destinationDomain Domain of destination chain
      * @param _recipient Address of recipient on destination chain as bytes32
      * @param _messageBody Raw bytes of message body
@@ -30,7 +29,6 @@ library Message {
     function formatMessage(
         uint32 _originDomain,
         bytes32 _sender,
-        uint32 _nonce,
         uint32 _destinationDomain,
         bytes32 _recipient,
         bytes memory _messageBody
@@ -39,7 +37,6 @@ library Message {
             abi.encodePacked(
                 _originDomain,
                 _sender,
-                _nonce,
                 _destinationDomain,
                 _recipient,
                 _messageBody
@@ -50,29 +47,31 @@ library Message {
      * @notice Returns leaf of formatted message with provided fields.
      * @param _origin Domain of home chain
      * @param _sender Address of sender as bytes32
-     * @param _nonce Destination-specific nonce number
      * @param _destination Domain of destination chain
      * @param _recipient Address of recipient on destination chain as bytes32
      * @param _body Raw bytes of message body
+     * @param _leafIndex Index of the message in the tree
      * @return Leaf (hash) of formatted message
      **/
     function messageHash(
         uint32 _origin,
         bytes32 _sender,
-        uint32 _nonce,
         uint32 _destination,
         bytes32 _recipient,
-        bytes memory _body
+        bytes memory _body,
+        uint256 _leafIndex
     ) internal pure returns (bytes32) {
         return
             keccak256(
-                formatMessage(
-                    _origin,
-                    _sender,
-                    _nonce,
-                    _destination,
-                    _recipient,
-                    _body
+                abi.encodePacked(
+                    formatMessage(
+                        _origin,
+                        _sender,
+                        _destination,
+                        _recipient,
+                        _body
+                    ),
+                    _leafIndex
                 )
             );
     }
@@ -87,19 +86,14 @@ library Message {
         return _message.index(4, 32);
     }
 
-    /// @notice Returns message's nonce field
-    function nonce(bytes29 _message) internal pure returns (uint32) {
-        return uint32(_message.indexUint(36, 4));
-    }
-
     /// @notice Returns message's destination field
     function destination(bytes29 _message) internal pure returns (uint32) {
-        return uint32(_message.indexUint(40, 4));
+        return uint32(_message.indexUint(36, 4));
     }
 
     /// @notice Returns message's recipient field as bytes32
     function recipient(bytes29 _message) internal pure returns (bytes32) {
-        return _message.index(44, 32);
+        return _message.index(40, 32);
     }
 
     /// @notice Returns message's recipient field as an address
@@ -116,15 +110,19 @@ library Message {
         return _message.slice(PREFIX_LENGTH, _message.len() - PREFIX_LENGTH, 0);
     }
 
-    function leaf(bytes29 _message) internal view returns (bytes32) {
+    function leaf(bytes29 _message, uint256 _leafIndex)
+        internal
+        view
+        returns (bytes32)
+    {
         return
             messageHash(
                 origin(_message),
                 sender(_message),
-                nonce(_message),
                 destination(_message),
                 recipient(_message),
-                TypedMemView.clone(body(_message))
+                TypedMemView.clone(body(_message)),
+                _leafIndex
             );
     }
 }

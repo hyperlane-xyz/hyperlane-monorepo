@@ -3,38 +3,49 @@
   "signers": {},
   "inboxes": {
     "kovan": {
-      "address": "0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB",
       "domain": "3000",
       "name": "kovan",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
         "url": ""
+      },
+      "addresses": {
+        "inbox": "0x84eA74d481Ee0A5332c457a4d796187F6Ba67fEB",
+        "validatorManager": "0x67d269191c92Caf3cD7723F116c85e6E9bf55933"
       }
     },
     "mumbai": {
-      "address": "0x5f3f1dBD7B74C6B46e8c44f98792A1dAf8d69154",
       "domain": "80001",
       "name": "mumbai",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
         "url": ""
+      },
+      "addresses": {
+        "inbox": "0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575",
+        "validatorManager": "0x4c5859f0F772848b2D91F1D83E2Fe57935348029"
       }
     },
     "fuji": {
-      "address": "0x21dF544947ba3E8b3c32561399E88B52Dc8b2823",
       "domain": "43113",
       "name": "fuji",
       "rpcStyle": "ethereum",
       "connection": {
         "type": "http",
         "url": ""
+      },
+      "addresses": {
+        "inbox": "0xD8a5a9b31c3C0232E196d518E89Fd8bF83AcAd43",
+        "validatorManager": "0x4C4a2f8c81640e47606d3fd77B353E87Ba015584"
       }
     }
   },
   "outbox": {
-    "address": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6",
+    "addresses": {
+      "outbox": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+    },
     "domain": "1000",
     "name": "alfajores",
     "rpcStyle": "ethereum",

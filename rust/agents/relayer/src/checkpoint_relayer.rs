@@ -1,7 +1,7 @@
-use std::{sync::Arc, time::Duration};
+use std::time::Duration;
 
-use abacus_base::{CachingInbox, CheckpointSyncer, CheckpointSyncers};
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox};
+use abacus_base::{InboxContracts, MultisigCheckpointSyncer};
+use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxValidatorManager};
 use color_eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument::Instrumented, Instrument};
@@ -14,9 +14,9 @@ pub(crate) struct CheckpointRelayer {
     submission_latency: u64,
     immediate_message_processing: bool,
     db: AbacusDB,
-    inbox: Arc<CachingInbox>,
+    inbox_contracts: InboxContracts,
     prover_sync: MerkleTreeBuilder,
-    checkpoint_syncer: CheckpointSyncers,
+    multisig_checkpoint_syncer: MultisigCheckpointSyncer,
 }
 
 impl CheckpointRelayer {
@@ -25,8 +25,8 @@ impl CheckpointRelayer {
         submission_latency: u64,
         immediate_message_processing: bool,
         db: AbacusDB,
-        inbox: Arc<CachingInbox>,
-        checkpoint_syncer: CheckpointSyncers,
+        inbox_contracts: InboxContracts,
+        multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     ) -> Self {
         Self {
             polling_interval,
@@ -34,13 +34,13 @@ impl CheckpointRelayer {
             submission_latency,
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
-            inbox,
-            checkpoint_syncer,
+            inbox_contracts,
+            multisig_checkpoint_syncer,
         }
     }
 
     /// Only gets the messages desinated for the Relayers inbox
-    /// Exclusive the to_checkpoint_index
+    /// Inclusive the to_checkpoint_index
     async fn get_messages_between(
         &self,
         from_leaf_index: u32,
@@ -48,7 +48,7 @@ impl CheckpointRelayer {
     ) -> Result<Option<Vec<CommittedMessage>>> {
         let mut messages: Vec<CommittedMessage> = vec![];
         let mut current_leaf_index = from_leaf_index;
-        while current_leaf_index < to_checkpoint_index {
+        while current_leaf_index <= to_checkpoint_index {
             // Relies on the indexer finding this message eventually
             self.db.wait_for_leaf(current_leaf_index).await?;
             let maybe_message = self
@@ -58,7 +58,7 @@ impl CheckpointRelayer {
                 .transpose()?;
             match maybe_message {
                 Some(message) => {
-                    if message.message.destination == self.inbox.local_domain() {
+                    if message.message.destination == self.inbox_contracts.inbox.local_domain() {
                         messages.push(message);
                     }
                 }
@@ -81,18 +81,19 @@ impl CheckpointRelayer {
         // If the checkpoint storage is inconsistent, then this arm won't match
         // and it will cause us to have skipped this message batch
         if let Some(latest_signed_checkpoint) = self
-            .checkpoint_syncer
+            .multisig_checkpoint_syncer
             .fetch_checkpoint(signed_checkpoint_index)
             .await?
         {
             let batch = MessageBatch::new(
                 messages,
                 onchain_checkpoint_index,
-                latest_signed_checkpoint.clone(),
+                latest_signed_checkpoint.checkpoint,
             );
 
             self.prover_sync.update_from_batch(&batch)?;
-            self.inbox
+            self.inbox_contracts
+                .validator_manager
                 .submit_checkpoint(&latest_signed_checkpoint)
                 .await?;
 
@@ -102,7 +103,12 @@ impl CheckpointRelayer {
                     match self.prover_sync.get_proof(message.leaf_index) {
                         Ok(proof) => {
                             // Ignore errors and expect the lagged message processor to retry
-                            match self.inbox.prove_and_process(&message.message, &proof).await {
+                            match self
+                                .inbox_contracts
+                                .inbox
+                                .process(&message.message, &proof)
+                                .await
+                            {
                                 Ok(outcome) => {
                                     info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message")
                                 }
@@ -129,14 +135,19 @@ impl CheckpointRelayer {
     pub(crate) fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("CheckpointRelayer");
         tokio::spawn(async move {
-            let latest_inbox_checkpoint = self.inbox.latest_checkpoint(None).await?;
+            let latest_inbox_checkpoint =
+                self.inbox_contracts.inbox.latest_checkpoint(None).await?;
             let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
-            // Checkpoints are 1-indexed, while leaves are 0-indexed
-            let mut next_inbox_leaf_index = onchain_checkpoint_index;
+            let mut next_inbox_leaf_index = if onchain_checkpoint_index == 0 {
+                0
+            } else {
+                onchain_checkpoint_index + 1
+            };
             loop {
                 sleep(Duration::from_secs(self.polling_interval)).await;
 
-                if let Some(signed_checkpoint_index) = self.checkpoint_syncer.latest_index().await?
+                if let Some(signed_checkpoint_index) =
+                    self.multisig_checkpoint_syncer.latest_index().await?
                 {
                     if signed_checkpoint_index <= onchain_checkpoint_index {
                         debug!(
@@ -153,11 +164,11 @@ impl CheckpointRelayer {
                     {
                         None => debug!("Couldn't fetch the relevant messages, retry this range"),
                         Some(messages) if messages.is_empty() => {
-                            next_inbox_leaf_index = signed_checkpoint_index;
+                            next_inbox_leaf_index = signed_checkpoint_index + 1;
                             debug!("New checkpoint does not include messages for inbox")
                         }
                         Some(messages) => {
-                            next_inbox_leaf_index = signed_checkpoint_index;
+                            next_inbox_leaf_index = signed_checkpoint_index + 1;
                             debug!(
                                 len = messages.len(),
                                 "Signed checkpoint allows for processing of new messages"

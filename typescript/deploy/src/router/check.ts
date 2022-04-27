@@ -38,7 +38,7 @@ export abstract class AbacusRouterChecker<
   async checkDomain(network: N, owner: types.Address): Promise<void> {
     await this.checkEnrolledRouters(network);
     await this.checkOwnership(owner, this.ownables(network));
-    await this.checkXAppConnectionManager(network);
+    await this.checkAbacusConnectionManager(network);
   }
 
   async checkEnrolledRouters(network: N): Promise<void> {
@@ -57,19 +57,19 @@ export abstract class AbacusRouterChecker<
 
   ownables(network: N): Ownable[] {
     const ownables: Ownable[] = [this.mustGetRouter(network)];
-    // If the config specifies that a xAppConnectionManager should have been deployed,
+    // If the config specifies that a checkAbacusConnectionManager should have been deployed,
     // it should be owned by the owner.
-    if (!this.config[network].xAppConnectionManager) {
+    if (!this.config[network].abacusConnectionManager) {
       const contracts = this.app.getContracts(network);
-      ownables.push(contracts.xAppConectionManager);
+      ownables.push(contracts.abacusConnectionManager);
     }
     return ownables;
   }
 
-  async checkXAppConnectionManager(network: N): Promise<void> {
-    if (this.config[network].xAppConnectionManager === undefined) return;
-    const actual = await this.mustGetRouter(network).xAppConnectionManager();
-    const expected = this.config[network].xAppConnectionManager;
+  async checkAbacusConnectionManager(network: N): Promise<void> {
+    if (this.config[network].abacusConnectionManager === undefined) return;
+    const actual = await this.mustGetRouter(network).abacusConnectionManager();
+    const expected = this.config[network].abacusConnectionManager;
     expect(actual).to.equal(expected);
   }
 }

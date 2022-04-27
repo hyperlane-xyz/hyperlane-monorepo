@@ -8,13 +8,20 @@ import { InfrastructureConfig } from './infrastructure';
 
 export type CoreEnvironmentConfig<Networks extends ChainName> =
   EnvironmentConfig<Networks> & {
-    agent: AgentConfig;
+    agent: AgentConfig<Networks>;
     core: CoreConfig<Networks>;
     governance: GovernanceConfig<Networks>;
     metrics: ContractMetricsConfig;
     infra: InfrastructureConfig;
   };
 
-export const ALL_ENVIRONMENTS = ['test'] as const;
+export enum ENVIRONMENTS_ENUM {
+  Test = 'test',
+  Dev = 'dev',
+}
+export const ALL_ENVIRONMENTS = [
+  ENVIRONMENTS_ENUM.Test,
+  ENVIRONMENTS_ENUM.Dev,
+] as const;
 type DeployEnvironmentTuple = typeof ALL_ENVIRONMENTS;
 export type DeployEnvironment = DeployEnvironmentTuple[number];

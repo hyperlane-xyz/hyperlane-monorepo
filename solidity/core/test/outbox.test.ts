@@ -58,30 +58,23 @@ describe('Outbox', async () => {
   describe('#dispatch', () => {
     const testMessageValues = async () => {
       const message = ethers.utils.formatBytes32String('message');
-      const nonce = await outbox.nonces(localDomain);
-
-      // Format data that will be emitted from Dispatch event
-      const destAndNonce = utils.destinationAndNonce(destDomain, nonce);
 
       const abacusMessage = utils.formatMessage(
         localDomain,
         signer.address,
-        nonce,
         destDomain,
         recipient.address,
         message,
       );
-      const hash = utils.messageHash(abacusMessage);
       const leafIndex = await outbox.tree();
-      const [checkpointedRoot] = await outbox.latestCheckpoint();
+      const hash = utils.messageHash(abacusMessage, leafIndex.toNumber());
 
       return {
         message,
-        destAndNonce,
+        destDomain,
         abacusMessage,
         hash,
         leafIndex,
-        checkpointedRoot,
       };
     };
 
@@ -97,14 +90,8 @@ describe('Outbox', async () => {
     });
 
     it('Dispatches a message', async () => {
-      const {
-        message,
-        destAndNonce,
-        abacusMessage,
-        hash,
-        leafIndex,
-        checkpointedRoot,
-      } = await testMessageValues();
+      const { message, destDomain, abacusMessage, hash, leafIndex } =
+        await testMessageValues();
 
       // Send message with signer address as msg.sender
       await expect(
@@ -117,13 +104,7 @@ describe('Outbox', async () => {
           ),
       )
         .to.emit(outbox, 'Dispatch')
-        .withArgs(
-          hash,
-          leafIndex,
-          destAndNonce,
-          checkpointedRoot,
-          abacusMessage,
-        );
+        .withArgs(hash, leafIndex, destDomain, abacusMessage);
     });
 
     it('Returns the leaf index of the dispatched message', async () => {
@@ -143,15 +124,30 @@ describe('Outbox', async () => {
 
   it('Checkpoints the latest root', async () => {
     const message = ethers.utils.formatBytes32String('message');
+    const count = 2;
+    for (let i = 0; i < count; i++) {
+      await outbox.dispatch(
+        destDomain,
+        utils.addressToBytes32(recipient.address),
+        message,
+      );
+    }
+    await outbox.checkpoint();
+    const [root, index] = await outbox.latestCheckpoint();
+    expect(root).to.not.equal(ethers.constants.HashZero);
+    expect(index).to.equal(count - 1);
+
+    expect(await outbox.isCheckpoint(root, index)).to.be.true;
+  });
+
+  it('does not allow a checkpoint of index 0', async () => {
+    const message = ethers.utils.formatBytes32String('message');
     await outbox.dispatch(
       destDomain,
       utils.addressToBytes32(recipient.address),
       message,
     );
-    await outbox.checkpoint();
-    const [root, index] = await outbox.latestCheckpoint();
-    expect(root).to.not.equal(ethers.constants.HashZero);
-    expect(index).to.equal(1);
+    await expect(outbox.checkpoint()).to.be.revertedWith('!count');
   });
 
   it('Correctly calculates destinationAndNonce', async () => {

@@ -76,7 +76,6 @@ describe('InterchainGasCalculator', () => {
       const message: ParsedMessage = {
         origin: originDomain,
         sender: zeroAddressBytes32,
-        nonce: 0,
         destination: destinationDomain,
         recipient: zeroAddressBytes32,
         body: '0x12345678',

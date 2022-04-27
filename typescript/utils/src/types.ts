@@ -60,6 +60,5 @@ export enum AbacusState {
 
 export enum MessageStatus {
   NONE = 0,
-  PENDING,
   PROCESSED,
 }

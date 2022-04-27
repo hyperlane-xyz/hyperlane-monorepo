@@ -21,13 +21,14 @@ describe('GovernanceRouter', async () => {
     remote: GovernanceRouter,
     testSet: TestSet,
     governance: GovernanceDeploy;
+  let outbox: Outbox;
+  let interchainGasPaymaster: InterchainGasPaymaster;
 
   before(async () => {
     [governor, recoveryManager] = await ethers.getSigners();
 
     const testSetFactory = new TestSet__factory(governor);
     testSet = await testSetFactory.deploy();
-    await abacus.deploy(domains, governor);
   });
 
   beforeEach(async () => {
@@ -40,10 +41,13 @@ describe('GovernanceRouter', async () => {
         address: governor.address,
       },
     };
+    await abacus.deploy(domains, governor);
     governance = new GovernanceDeploy(config);
     await governance.deploy(abacus);
     router = governance.router(localDomain);
     remote = governance.router(remoteDomain);
+    outbox = abacus.outbox(localDomain);
+    interchainGasPaymaster = abacus.interchainGasPaymaster(localDomain);
   });
 
   it('Cannot be initialized twice', async () => {
@@ -77,12 +81,12 @@ describe('GovernanceRouter', async () => {
       expect(await router.governor()).to.equal(ethers.constants.AddressZero);
     });
 
-    it('governor can set local xAppConnectionManager', async () => {
-      expect(await router.xAppConnectionManager()).to.equal(
-        abacus.xAppConnectionManager(localDomain).address,
+    it('governor can set local abacusConnectionManager', async () => {
+      expect(await router.abacusConnectionManager()).to.equal(
+        abacus.abacusConnectionManager(localDomain).address,
       );
-      await router.setXAppConnectionManager(ethers.constants.AddressZero);
-      expect(await router.xAppConnectionManager()).to.equal(
+      await router.setAbacusConnectionManager(ethers.constants.AddressZero);
+      expect(await router.abacusConnectionManager()).to.equal(
         ethers.constants.AddressZero,
       );
     });
@@ -112,17 +116,17 @@ describe('GovernanceRouter', async () => {
       expect(await remote.governor()).to.equal(newGovernor);
     });
 
-    it('governor can set remote xAppConnectionManager', async () => {
+    it('governor can set remote abacusConnectionManager', async () => {
       const newConnectionManager = ethers.constants.AddressZero;
-      expect(await remote.xAppConnectionManager()).to.not.equal(
+      expect(await remote.abacusConnectionManager()).to.not.equal(
         newConnectionManager,
       );
-      await router.setXAppConnectionManagerRemote(
+      await router.setAbacusConnectionManagerRemote(
         remoteDomain,
         newConnectionManager,
       );
       await abacus.processMessages();
-      expect(await remote.xAppConnectionManager()).to.equal(
+      expect(await remote.abacusConnectionManager()).to.equal(
         newConnectionManager,
       );
     });
@@ -174,11 +178,11 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
-    it('recovery manager cannot set local xAppConnectionManager', async () => {
+    it('recovery manager cannot set local abacusConnectionManager', async () => {
       await expect(
         router
           .connect(recoveryManager)
-          .setXAppConnectionManager(router.address),
+          .setAbacusConnectionManager(router.address),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
@@ -209,11 +213,11 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith('!governor');
     });
 
-    it('recovery manager cannot set remote xAppConnectionManager', async () => {
+    it('recovery manager cannot set remote abacusConnectionManager', async () => {
       await expect(
         router
           .connect(recoveryManager)
-          .setXAppConnectionManagerRemote(remoteDomain, router.address),
+          .setAbacusConnectionManagerRemote(remoteDomain, router.address),
       ).to.be.revertedWith('!governor');
     });
 
@@ -276,12 +280,12 @@ describe('GovernanceRouter', async () => {
       expect(await router.governor()).to.equal(ethers.constants.AddressZero);
     });
 
-    it('recovery manager can set local xAppConnectionManager', async () => {
-      expect(await router.xAppConnectionManager()).to.equal(
-        abacus.xAppConnectionManager(localDomain).address,
+    it('recovery manager can set local abacusConnectionManager', async () => {
+      expect(await router.abacusConnectionManager()).to.equal(
+        abacus.abacusConnectionManager(localDomain).address,
       );
-      await router.setXAppConnectionManager(ethers.constants.AddressZero);
-      expect(await router.xAppConnectionManager()).to.equal(
+      await router.setAbacusConnectionManager(ethers.constants.AddressZero);
+      expect(await router.abacusConnectionManager()).to.equal(
         ethers.constants.AddressZero,
       );
     });
@@ -309,9 +313,9 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith('!governor');
     });
 
-    it('recovery manager cannot set remote xAppConnectionManager', async () => {
+    it('recovery manager cannot set remote abacusConnectionManager', async () => {
       await expect(
-        router.setXAppConnectionManagerRemote(remoteDomain, router.address),
+        router.setAbacusConnectionManagerRemote(remoteDomain, router.address),
       ).to.be.revertedWith('!governor');
     });
 
@@ -356,9 +360,9 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
-    it('governor cannot set local xAppConnectionManager', async () => {
+    it('governor cannot set local abacusConnectionManager', async () => {
       await expect(
-        router.connect(governor).setXAppConnectionManager(router.address),
+        router.connect(governor).setAbacusConnectionManager(router.address),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
@@ -389,11 +393,11 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith('recovery');
     });
 
-    it('governor cannot set remote xAppConnectionManager', async () => {
+    it('governor cannot set remote abacusConnectionManager', async () => {
       await expect(
         router
           .connect(governor)
-          .setXAppConnectionManagerRemote(remoteDomain, router.address),
+          .setAbacusConnectionManagerRemote(remoteDomain, router.address),
       ).to.be.revertedWith('recovery');
     });
 
@@ -425,14 +429,6 @@ describe('GovernanceRouter', async () => {
   describe('interchain gas payments for dispatched messages', async () => {
     const testInterchainGasPayment = 123456789;
 
-    let outbox: Outbox;
-    let interchainGasPaymaster: InterchainGasPaymaster;
-
-    before(() => {
-      outbox = abacus.outbox(localDomain);
-      interchainGasPaymaster = abacus.interchainGasPaymaster(localDomain);
-    });
-
     it('allows interchain gas payment for remote calls', async () => {
       const leafIndex = await outbox.count();
       const call = formatCall(testSet, 'set', [13]);
@@ -456,10 +452,10 @@ describe('GovernanceRouter', async () => {
         .withArgs(leafIndex, testInterchainGasPayment);
     });
 
-    it('allows interchain gas payment when setting a remote xAppConnectionManager', async () => {
+    it('allows interchain gas payment when setting a remote abacusConnectionManager', async () => {
       const leafIndex = await outbox.count();
       await expect(
-        router.setXAppConnectionManagerRemote(
+        router.setAbacusConnectionManagerRemote(
           remoteDomain,
           ethers.constants.AddressZero,
           { value: testInterchainGasPayment },

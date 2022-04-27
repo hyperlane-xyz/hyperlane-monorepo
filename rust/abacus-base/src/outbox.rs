@@ -88,10 +88,6 @@ impl CachingOutbox {
 
 #[async_trait]
 impl Outbox for CachingOutbox {
-    async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
-        self.outbox.nonces(destination).await
-    }
-
     async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
         self.outbox.dispatch(message).await
     }
@@ -111,20 +107,6 @@ impl Outbox for CachingOutbox {
 
 #[async_trait]
 impl OutboxEvents for CachingOutbox {
-    #[tracing::instrument(err, skip(self))]
-    async fn raw_message_by_nonce(
-        &self,
-        destination: u32,
-        nonce: u32,
-    ) -> Result<Option<RawCommittedMessage>, ChainCommunicationError> {
-        loop {
-            if let Some(message) = self.db.message_by_nonce(destination, nonce)? {
-                return Ok(Some(message));
-            }
-            sleep(Duration::from_millis(500)).await;
-        }
-    }
-
     #[tracing::instrument(err, skip(self))]
     async fn raw_message_by_leaf(
         &self,
@@ -252,15 +234,6 @@ impl From<Box<dyn Outbox>> for Outboxes {
 
 #[async_trait]
 impl Outbox for OutboxVariants {
-    #[instrument(level = "trace", err)]
-    async fn nonces(&self, destination: u32) -> Result<u32, ChainCommunicationError> {
-        match self {
-            OutboxVariants::Ethereum(outbox) => outbox.nonces(destination).await,
-            OutboxVariants::Mock(mock_outbox) => mock_outbox.nonces(destination).await,
-            OutboxVariants::Other(outbox) => outbox.nonces(destination).await,
-        }
-    }
-
     #[instrument(level = "trace", err)]
     async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {
         match self {

@@ -1,8 +1,9 @@
-use ethers::{types::H256, utils::keccak256};
+use ethers::types::H256;
+use sha3::{Digest, Keccak256};
 
-use crate::{utils, AbacusError, Decode, Encode};
+use crate::{AbacusError, Decode, Encode};
 
-const ABACUS_MESSAGE_PREFIX_LEN: usize = 76;
+const ABACUS_MESSAGE_PREFIX_LEN: usize = 72;
 
 /// A full Abacus message between chains
 #[derive(Debug, Default, Clone)]
@@ -11,8 +12,6 @@ pub struct AbacusMessage {
     pub origin: u32,
     /// 32  Address in Outbox convention
     pub sender: H256,
-    /// 4   Count of all previous messages to destination
-    pub nonce: u32,
     /// 4   SLIP-44 ID
     pub destination: u32,
     /// 32  Address in destination convention
@@ -39,7 +38,6 @@ impl Encode for AbacusMessage {
     {
         writer.write_all(&self.origin.to_be_bytes())?;
         writer.write_all(self.sender.as_ref())?;
-        writer.write_all(&self.nonce.to_be_bytes())?;
         writer.write_all(&self.destination.to_be_bytes())?;
         writer.write_all(self.recipient.as_ref())?;
         writer.write_all(&self.body)?;
@@ -58,9 +56,6 @@ impl Decode for AbacusMessage {
         let mut sender = H256::zero();
         reader.read_exact(sender.as_mut())?;
 
-        let mut nonce = [0u8; 4];
-        reader.read_exact(&mut nonce)?;
-
         let mut destination = [0u8; 4];
         reader.read_exact(&mut destination)?;
 
@@ -75,7 +70,6 @@ impl Decode for AbacusMessage {
             sender,
             destination: u32::from_be_bytes(destination),
             recipient,
-            nonce: u32::from_be_bytes(nonce),
             body,
         })
     }
@@ -83,22 +77,21 @@ impl Decode for AbacusMessage {
 
 impl AbacusMessage {
     /// Convert the message to a leaf
-    pub fn to_leaf(&self) -> H256 {
-        keccak256(self.to_vec()).into()
-    }
-
-    /// Get the encoded destination + nonce
-    pub fn destination_and_nonce(&self) -> u64 {
-        utils::destination_and_nonce(self.destination, self.nonce)
+    pub fn to_leaf(&self, leaf_index: u32) -> H256 {
+        let buffer = [0u8; 28];
+        H256::from_slice(
+            Keccak256::new()
+                .chain(&self.to_vec())
+                .chain(buffer)
+                .chain(leaf_index.to_be_bytes())
+                .finalize()
+                .as_slice(),
+        )
     }
 }
 
 impl std::fmt::Display for AbacusMessage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "AbacusMessage {}->{}:{}",
-            self.origin, self.destination, self.nonce,
-        )
+        write!(f, "AbacusMessage {}->{}", self.origin, self.destination)
     }
 }

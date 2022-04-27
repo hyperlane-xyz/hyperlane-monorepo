@@ -9,10 +9,11 @@ import {
   TestInbox__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
 } from "@abacus-network/core";
 import { TestDeploy } from "./TestDeploy";
+import { addressToBytes32 } from "@abacus-network/utils/dist/src/utils";
 
 export type TestAbacusConfig = {
   signer: Record<types.Domain, ethers.Signer>;
@@ -21,7 +22,7 @@ export type TestAbacusConfig = {
 // Outbox & inbox validator managers are not required for testing and are therefore omitted.
 export type TestAbacusInstance = {
   outbox: Outbox;
-  xAppConnectionManager: XAppConnectionManager;
+  abacusConnectionManager: AbacusConnectionManager;
   upgradeBeaconController: UpgradeBeaconController;
   inboxes: Record<types.Domain, TestInbox>;
   interchainGasPaymaster: InterchainGasPaymaster;
@@ -62,17 +63,18 @@ export class TestAbacusDeploy extends TestDeploy<
     // requirement and avoid deploying a new validator manager.
     await outbox.initialize(upgradeBeaconController.address);
 
-    const xAppConnectionManagerFactory = new XAppConnectionManager__factory(
+    const abacusConnectionManagerFactory = new AbacusConnectionManager__factory(
       signer
     );
-    const xAppConnectionManager = await xAppConnectionManagerFactory.deploy();
-    await xAppConnectionManager.setOutbox(outbox.address);
+    const abacusConnectionManager =
+      await abacusConnectionManagerFactory.deploy();
+    await abacusConnectionManager.setOutbox(outbox.address);
 
     const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(
       signer
     );
     const interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
-    await xAppConnectionManager.setInterchainGasPaymaster(
+    await abacusConnectionManager.setInterchainGasPaymaster(
       interchainGasPaymaster.address
     );
 
@@ -93,13 +95,20 @@ export class TestAbacusDeploy extends TestDeploy<
         ethers.constants.HashZero,
         0
       );
-      await xAppConnectionManager.enrollInbox(remote, inbox.address);
+      await abacusConnectionManager.enrollInbox(remote, inbox.address);
       inboxes[remote] = inbox;
     });
     await Promise.all(deploys);
+
+    // dispatch a dummy event to allow a consumer to checkpoint/process a single message
+    await outbox.dispatch(
+      remotes.find((_) => _ !== domain)!,
+      addressToBytes32(ethers.constants.AddressZero),
+      "0x"
+    );
     return {
       outbox,
-      xAppConnectionManager,
+      abacusConnectionManager,
       interchainGasPaymaster,
       inboxes,
       upgradeBeaconController,
@@ -109,7 +118,7 @@ export class TestAbacusDeploy extends TestDeploy<
   async transferOwnership(domain: types.Domain, address: types.Address) {
     await this.outbox(domain).transferOwnership(address);
     await this.upgradeBeaconController(domain).transferOwnership(address);
-    await this.xAppConnectionManager(domain).transferOwnership(address);
+    await this.abacusConnectionManager(domain).transferOwnership(address);
     for (const remote of this.remotes(domain)) {
       await this.inbox(domain, remote).transferOwnership(address);
     }
@@ -131,8 +140,8 @@ export class TestAbacusDeploy extends TestDeploy<
     return this.instances[domain].interchainGasPaymaster;
   }
 
-  xAppConnectionManager(domain: types.Domain): XAppConnectionManager {
-    return this.instances[domain].xAppConnectionManager;
+  abacusConnectionManager(domain: types.Domain): AbacusConnectionManager {
+    return this.instances[domain].abacusConnectionManager;
   }
 
   async processMessages(): Promise<
@@ -161,8 +170,14 @@ export class TestAbacusDeploy extends TestDeploy<
       new Map();
     const outbox = this.outbox(origin);
     const [, checkpointedIndex] = await outbox.latestCheckpoint();
-    const latestIndex = await outbox.count();
-    if (latestIndex.eq(checkpointedIndex)) return responses;
+    const messageCount = await outbox.count();
+    // Message count does allow for a checkpoint
+    if (messageCount.lte(checkpointedIndex.add(1))) return responses;
+
+    // Can't checkpoint a single message
+    if (messageCount.toNumber() <= 1) {
+      return responses;
+    }
 
     await outbox.checkpoint();
     const [root, index] = await outbox.latestCheckpoint();
@@ -176,14 +191,20 @@ export class TestAbacusDeploy extends TestDeploy<
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
-      const destination = dispatch.args.destinationAndNonce.shr(32).toNumber();
+      const destination = dispatch.args.destination;
       if (destination === origin)
         throw new Error("Dispatched message to local domain");
       const inbox = this.inbox(origin, destination);
       const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
-        await inbox.setMessageProven(dispatch.args.message);
-        const response = await inbox.testProcess(dispatch.args.message);
+        if (dispatch.args.leafIndex.toNumber() == 0) {
+          // disregard the dummy message
+          continue;
+        }
+        const response = await inbox.testProcess(
+          dispatch.args.message,
+          dispatch.args.leafIndex.toNumber()
+        );
         let destinationResponses = responses.get(destination) || [];
         destinationResponses.push(response);
         responses.set(destination, destinationResponses);

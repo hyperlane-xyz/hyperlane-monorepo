@@ -44,3 +44,6 @@ pub use traits::*;
 
 mod types;
 pub use types::*;
+
+mod validator_manager;
+pub use validator_manager::*;

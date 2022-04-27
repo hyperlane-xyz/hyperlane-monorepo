@@ -2,7 +2,7 @@ use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingInbox, CachingOutbox,
+    CachingInbox, CachingOutbox, InboxValidatorManagers,
 };
 use abacus_core::db::DB;
 use async_trait::async_trait;
@@ -14,13 +14,22 @@ use tracing::{info_span, Instrument};
 use std::{collections::HashMap, sync::Arc};
 use tokio::task::JoinHandle;
 
+/// Contracts relating to an inbox chain
+#[derive(Clone, Debug)]
+pub struct InboxContracts {
+    /// A boxed Inbox
+    pub inbox: Arc<CachingInbox>,
+    /// A boxed InboxValidatorManager
+    pub validator_manager: Arc<InboxValidatorManagers>,
+}
+
 /// Properties shared across all abacus agents
 #[derive(Debug)]
 pub struct AbacusAgentCore {
     /// A boxed Outbox
     pub outbox: Arc<CachingOutbox>,
-    /// A map of boxed Inboxes
-    pub inboxes: HashMap<String, Arc<CachingInbox>>,
+    /// A map of boxed Inbox contracts
+    pub inboxes: HashMap<String, InboxContracts>,
     /// A persistent KV Store (currently implemented as rocksdb)
     pub db: DB,
     /// Prometheus metrics
@@ -61,12 +70,12 @@ pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
     }
 
     /// Get a reference to the inboxes map
-    fn inboxes(&self) -> &HashMap<String, Arc<CachingInbox>> {
+    fn inboxes(&self) -> &HashMap<String, InboxContracts> {
         &self.as_ref().inboxes
     }
 
-    /// Get a reference to a inbox by its name
-    fn inbox_by_name(&self, name: &str) -> Option<Arc<CachingInbox>> {
+    /// Get a reference to an inbox's contracts by its name
+    fn inbox_by_name(&self, name: &str) -> Option<InboxContracts> {
         self.inboxes().get(name).map(Clone::clone)
     }
 

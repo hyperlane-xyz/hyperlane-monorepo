@@ -12,8 +12,6 @@ pub enum State {
 pub enum MessageStatus {
     /// Message is unknown
     None = 0,
-    /// Message has been proven but not processed
-    Proven = 1,
     /// Message has been processed
-    Processed = 2,
+    Processed = 1,
 }

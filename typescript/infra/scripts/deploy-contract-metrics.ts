@@ -1,14 +1,15 @@
+import { ChainName } from '@abacus-network/sdk';
 import { runContractMetricsHelmCommand } from '../src/contract-metrics';
 import { HelmCommand } from '../src/utils/helm';
-import { getEnvironment, getCoreEnvironmentConfig } from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);
   return runContractMetricsHelmCommand(
-    HelmCommand.Install,
+    HelmCommand.InstallOrUpgrade,
     config.metrics,
-    config.domains,
+    Object.keys(config.transactionConfigs) as ChainName[],
     environment,
   );
 }

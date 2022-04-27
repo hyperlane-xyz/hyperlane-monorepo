@@ -98,11 +98,6 @@
         "internalType": "uint256",
         "name": "_index",
         "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "_signature",
-        "type": "bytes"
       }
     ],
     "name": "checkpoint",
@@ -239,61 +234,24 @@
         "internalType": "bytes",
         "name": "_message",
         "type": "bytes"
+      },
+      {
+        "internalType": "bytes32[32]",
+        "name": "_proof",
+        "type": "bytes32[32]"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_index",
+        "type": "uint256"
+      },
+      {
+        "internalType": "bytes",
+        "name": "",
+        "type": "bytes"
       }
     ],
     "name": "process",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "_leaf",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "bytes32[32]",
-        "name": "_proof",
-        "type": "bytes32[32]"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_index",
-        "type": "uint256"
-      }
-    ],
-    "name": "prove",
-    "outputs": [
-      {
-        "internalType": "bool",
-        "name": "",
-        "type": "bool"
-      }
-    ],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes",
-        "name": "_message",
-        "type": "bytes"
-      },
-      {
-        "internalType": "bytes32[32]",
-        "name": "_proof",
-        "type": "bytes32[32]"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_index",
-        "type": "uint256"
-      }
-    ],
-    "name": "proveAndProcess",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"
@@ -349,7 +307,7 @@
     "name": "validatorManager",
     "outputs": [
       {
-        "internalType": "contract IValidatorManager",
+        "internalType": "address",
         "name": "",
         "type": "address"
       }

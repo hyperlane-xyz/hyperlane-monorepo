@@ -6,7 +6,7 @@ const ZERO_ADDRESS = ethers.constants.AddressZero;
 export const testAddresses = {
   test1: {
     upgradeBeaconController: ZERO_ADDRESS,
-    xAppConnectionManager: ZERO_ADDRESS,
+    abacusConnectionManager: ZERO_ADDRESS,
     interchainGasPaymaster: ZERO_ADDRESS,
     outboxValidatorManager: ZERO_ADDRESS,
     inboxValidatorManagers: {
@@ -27,7 +27,7 @@ export const testAddresses = {
   },
   test2: {
     upgradeBeaconController: ZERO_ADDRESS,
-    xAppConnectionManager: ZERO_ADDRESS,
+    abacusConnectionManager: ZERO_ADDRESS,
     interchainGasPaymaster: ZERO_ADDRESS,
     outboxValidatorManager: ZERO_ADDRESS,
     inboxValidatorManagers: {

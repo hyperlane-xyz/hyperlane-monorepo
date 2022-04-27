@@ -1,17 +1,19 @@
-import { getEnvironment, getCoreEnvironmentConfig } from './utils';
+import { ChainName } from '@abacus-network/sdk';
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function deploy() {
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);
+  const domains = Object.keys(config.transactionConfigs) as ChainName[];
   await Promise.all(
-    config.domains.map((name) => {
+    domains.map((name) => {
       return runAgentHelmCommand(
-        HelmCommand.Upgrade,
+        HelmCommand.InstallOrUpgrade,
         config.agent,
         name,
-        config.domains,
+        domains,
       );
     }),
   );

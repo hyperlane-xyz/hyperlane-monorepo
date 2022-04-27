@@ -17,7 +17,6 @@ type corenet = keyof typeof coreConfig;
 
 // TODO: fix type inference
 export const environment: CoreEnvironmentConfig<corenet> = {
-  domains: Object.keys(core) as corenet[],
   transactionConfigs: coreConfig,
   agent,
   core,

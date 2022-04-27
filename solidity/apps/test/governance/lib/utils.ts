@@ -15,7 +15,9 @@ export function formatSetGovernor(address: types.Address): string {
   );
 }
 
-export function formatSetXAppConnectionManager(address: types.Address): string {
+export function formatSetAbacusConnectionManager(
+  address: types.Address,
+): string {
   return ethers.utils.solidityPack(
     ['bytes1', 'bytes32'],
     [

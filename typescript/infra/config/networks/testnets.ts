@@ -23,6 +23,7 @@ export const kovan: TransactionConfig = {
   confirmations: 3,
   overrides: {
     gasPrice: BigNumber.from(10_000_000_000),
+    gasLimit: 15_000_000,
   },
 };
 

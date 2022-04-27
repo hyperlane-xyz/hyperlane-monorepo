@@ -1,8 +1,6 @@
 import {
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
-} from '@abacus-network/apps';
-import {
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
   Inbox,
   InboxValidatorManager,
   InboxValidatorManager__factory,
@@ -13,6 +11,8 @@ import {
   OutboxValidatorManager,
   OutboxValidatorManager__factory,
   Outbox__factory,
+  UpgradeBeaconController,
+  UpgradeBeaconController__factory
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 import { IAbacusContracts } from '../contracts';
@@ -21,15 +21,18 @@ import {
   Connection,
   ProxiedAddress,
   RemoteChainSubsetMap,
-  Remotes,
+  Remotes
 } from '../types';
 import { objMap } from '../utils';
 
-type MailboxAddresses = ProxiedAddress & { validatorManager: types.Address };
+export type MailboxAddresses = ProxiedAddress & {
+  validatorManager: types.Address;
+};
 
 // Deploy/Hardhat should generate this as JSON
 export type CoreContractAddresses<N extends ChainName, L extends N> = {
-  xAppConnectionManager: types.Address;
+  upgradeBeaconController: types.Address;
+  abacusConnectionManager: types.Address;
   interchainGasPaymaster: types.Address;
   outbox: MailboxAddresses;
   inboxes: RemoteChainSubsetMap<N, L, MailboxAddresses>;
@@ -46,7 +49,8 @@ type OutboxContracts = {
 };
 
 type CoreContractSchema<N extends ChainName, L extends N> = {
-  xAppConnectionManager: XAppConnectionManager;
+  abacusConnectionManager: AbacusConnectionManager;
+  upgradeBeaconController: UpgradeBeaconController;
   outbox: OutboxContracts;
   inboxes: RemoteChainSubsetMap<N, L, InboxContracts>;
   interchainGasPaymaster: InterchainGasPaymaster;
@@ -58,13 +62,14 @@ export const coreFactories = {
   outboxValidatorManager: OutboxValidatorManager__factory.connect,
   inbox: Inbox__factory.connect,
   inboxValidatorManager: InboxValidatorManager__factory.connect,
-  xAppConnectionManager: XAppConnectionManager__factory.connect,
+  abacusConnectionManager: AbacusConnectionManager__factory.connect,
+  upgradeBeaconController: UpgradeBeaconController__factory.connect,
 };
 
 export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
   implements IAbacusContracts<CoreContractSchema<N, L>>
 {
-  contracts: CoreContractSchema<N, L>;
+  readonly contracts: CoreContractSchema<N, L>;
 
   constructor(addresses: CoreContractAddresses<N, L>, connection: Connection) {
     const factories = coreFactories;
@@ -87,8 +92,12 @@ export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
         addresses.interchainGasPaymaster,
         connection,
       ),
-      xAppConnectionManager: factories.xAppConnectionManager(
-        addresses.xAppConnectionManager,
+      abacusConnectionManager: factories.abacusConnectionManager(
+        addresses.abacusConnectionManager,
+        connection,
+      ),
+      upgradeBeaconController: factories.upgradeBeaconController(
+        addresses.upgradeBeaconController,
         connection,
       ),
     };
@@ -98,7 +107,8 @@ export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
     this.contracts.outbox.outbox.connect(connection);
     this.contracts.outbox.validatorManager.connect(connection);
     this.contracts.interchainGasPaymaster.connect(connection);
-    this.contracts.xAppConnectionManager.connect(connection);
+    this.contracts.abacusConnectionManager.connect(connection);
+    this.contracts.upgradeBeaconController.connect(connection);
     objMap(this.contracts.inboxes, (_, inboxContracts) => {
       inboxContracts.inbox.connect(connection);
       inboxContracts.validatorManager.connect(connection);

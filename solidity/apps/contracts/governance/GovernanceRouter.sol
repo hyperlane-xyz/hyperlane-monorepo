@@ -102,8 +102,8 @@ contract GovernanceRouter is Version0, Router {
 
     // ============ Initializer ============
 
-    function initialize(address _xAppConnectionManager) public initializer {
-        __Router_initialize(_xAppConnectionManager);
+    function initialize(address _abacusConnectionManager) public initializer {
+        __Router_initialize(_abacusConnectionManager);
         governor = msg.sender;
     }
 
@@ -129,9 +129,9 @@ contract GovernanceRouter is Version0, Router {
             _handleSetGovernor(_msg.tryAsSetGovernor());
         } else if (_msg.isValidEnrollRemoteRouter()) {
             _handleEnrollRemoteRouter(_msg.tryAsEnrollRemoteRouter());
-        } else if (_msg.isValidSetXAppConnectionManager()) {
-            _handleSetXAppConnectionManager(
-                _msg.tryAsSetXAppConnectionManager()
+        } else if (_msg.isValidSetAbacusConnectionManager()) {
+            _handleSetAbacusConnectionManager(
+                _msg.tryAsSetAbacusConnectionManager()
             );
         } else {
             require(false, "!valid message type");
@@ -218,17 +218,17 @@ contract GovernanceRouter is Version0, Router {
     }
 
     /**
-     * @notice Sets the xAppConnectionManager of a remote router. Any value paid to this
+     * @notice Sets the abacusConnectionManager of a remote router. Any value paid to this
      * function is used to pay for message processing on the remote chain.
-     * @param _destination The domain of router on which to set the xAppConnectionManager
-     * @param _xAppConnectionManager The address of the xAppConnectionManager contract
+     * @param _destination The domain of router on which to set the abacusConnectionManager
+     * @param _abacusConnectionManager The address of the abacusConnectionManager contract
      */
-    function setXAppConnectionManagerRemote(
+    function setAbacusConnectionManagerRemote(
         uint32 _destination,
-        address _xAppConnectionManager
+        address _abacusConnectionManager
     ) external payable onlyGovernor onlyNotInRecovery {
-        bytes memory _msg = GovernanceMessage.formatSetXAppConnectionManager(
-            TypeCasts.addressToBytes32(_xAppConnectionManager)
+        bytes memory _msg = GovernanceMessage.formatSetAbacusConnectionManager(
+            TypeCasts.addressToBytes32(_abacusConnectionManager)
         );
         _dispatchToRemoteRouterWithGas(_destination, _msg, msg.value);
     }
@@ -347,17 +347,17 @@ contract GovernanceRouter is Version0, Router {
     }
 
     /**
-     * @notice Handle message setting the xAppConnectionManager address
+     * @notice Handle message setting the abacusConnectionManager address
      * @param _msg The message
      */
-    function _handleSetXAppConnectionManager(bytes29 _msg)
+    function _handleSetAbacusConnectionManager(bytes29 _msg)
         internal
-        typeAssert(_msg, GovernanceMessage.Types.SetXAppConnectionManager)
+        typeAssert(_msg, GovernanceMessage.Types.SetAbacusConnectionManager)
     {
-        address _xAppConnectionManager = TypeCasts.bytes32ToAddress(
-            _msg.xAppConnectionManager()
+        address _abacusConnectionManager = TypeCasts.bytes32ToAddress(
+            _msg.abacusConnectionManager()
         );
-        _setXAppConnectionManager(_xAppConnectionManager);
+        _setAbacusConnectionManager(_abacusConnectionManager);
     }
 
     /**

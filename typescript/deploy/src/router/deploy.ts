@@ -1,6 +1,6 @@
 import {
-  XAppConnectionManager,
-  XAppConnectionManager__factory,
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
 } from '@abacus-network/core';
 import {
   AbacusCore,
@@ -50,38 +50,38 @@ export abstract class AbacusRouterDeployer<
 
   async deployConnectionManagerIfNotConfigured(
     network: N,
-  ): Promise<XAppConnectionManager> {
+  ): Promise<AbacusConnectionManager> {
     const dc = this.multiProvider.getDomainConnection(network);
     const signer = dc.signer!;
     const config = this.configMap[network];
-    if (config.xAppConnectionManager) {
-      return XAppConnectionManager__factory.connect(
-        config.xAppConnectionManager,
+    if (config.abacusConnectionManager) {
+      return AbacusConnectionManager__factory.connect(
+        config.abacusConnectionManager,
         signer,
       );
     }
 
-    const xAppConnectionManager = await this.deployContract(
+    const abacusConnectionManager = await this.deployContract(
       network,
-      'XAppConnectionManager',
-      new XAppConnectionManager__factory(signer),
+      'AbacusConnectionManager',
+      new AbacusConnectionManager__factory(signer),
       [],
     );
     const overrides = dc.overrides;
     if (!this.core)
-      throw new Error('must set core or configure xAppConnectionManager');
+      throw new Error('must set core or configure abacusConnectionManager');
     const localCore = this.core.getContracts(network);
-    await xAppConnectionManager.contract.setOutbox(
+    await abacusConnectionManager.contract.setOutbox(
       localCore.getOutbox().address,
       overrides,
     );
     for (const remote of this.core.remotes(network)) {
-      await xAppConnectionManager.contract.enrollInbox(
+      await abacusConnectionManager.contract.enrollInbox(
         remote,
         localCore.getInbox(remote).address,
         overrides,
       );
     }
-    return xAppConnectionManager.contract; // TODO: persist verificationInput
+    return abacusConnectionManager.contract; // TODO: persist verificationInput
   }
 }

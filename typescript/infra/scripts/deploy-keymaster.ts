@@ -1,14 +1,16 @@
+import { ChainName } from '@abacus-network/sdk';
 import { runKeymasterHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
-import { getEnvironment, getCoreEnvironmentConfig } from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);
+  const domains = Object.keys(config.transactionConfigs) as ChainName[];
   return runKeymasterHelmCommand(
-    HelmCommand.Install,
+    HelmCommand.InstallOrUpgrade,
     config.agent,
-    config.domains,
+    domains,
   );
 }
 

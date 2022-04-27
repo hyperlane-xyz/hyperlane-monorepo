@@ -59,9 +59,9 @@ export function getGovernanceVerificationDirectory(
   return path.join(getGovernanceDirectory(environment), 'verification');
 }
 
-export async function getKeyRoleAndChainArgs() {
-  const args = await utils.getArgs();
-  return args
+export function getKeyRoleAndChainArgs() {
+  return utils
+    .getArgs()
     .alias('r', 'role')
     .describe('r', 'key role')
     .choices('r', Object.values(KEY_ROLE_ENUM))
@@ -69,5 +69,8 @@ export async function getKeyRoleAndChainArgs() {
     .alias('c', 'chain')
     .describe('c', 'chain name')
     .choices('c', Object.values(Chains) as ChainName[])
-    .require('c');
+    .require('c')
+    .alias('i', 'index')
+    .describe('i', 'index of role')
+    .number('i');
 }

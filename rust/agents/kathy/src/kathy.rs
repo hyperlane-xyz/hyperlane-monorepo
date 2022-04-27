@@ -110,7 +110,9 @@ impl Kathy {
         let inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
             .inboxes()
             .iter()
-            .map(|(inbox_name, inbox)| self.wrap_inbox_run(inbox_name, inbox.clone()))
+            .map(|(inbox_name, inbox_contracts)| {
+                self.wrap_inbox_run(inbox_name, inbox_contracts.inbox.clone())
+            })
             .collect();
         self.run_all(inbox_tasks)
     }

@@ -2,7 +2,7 @@ use crate::prover::{Prover, ProverError};
 use abacus_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     db::{AbacusDB, DbError},
-    ChainCommunicationError, Checkpoint, CommittedMessage, SignedCheckpoint,
+    ChainCommunicationError, Checkpoint, CommittedMessage,
 };
 use color_eyre::eyre::Result;
 use ethers::core::types::H256;
@@ -15,19 +15,19 @@ pub struct MessageBatch {
     /// Messages
     pub messages: Vec<CommittedMessage>,
     current_checkpoint_index: u32,
-    signed_target_checkpoint: SignedCheckpoint,
+    target_checkpoint: Checkpoint,
 }
 
 impl MessageBatch {
     pub fn new(
         messages: Vec<CommittedMessage>,
         current_checkpoint_index: u32,
-        signed_target_checkpoint: SignedCheckpoint,
+        target_checkpoint: Checkpoint,
     ) -> Self {
         Self {
             messages,
             current_checkpoint_index,
-            signed_target_checkpoint,
+            target_checkpoint,
         }
     }
 }
@@ -144,7 +144,7 @@ impl MerkleTreeBuilder {
             return Ok(());
         }
         let starting_index = self.prover.count() as u32;
-        for i in starting_index..checkpoint.index {
+        for i in starting_index..=checkpoint.index {
             self.db.wait_for_leaf(i).await?;
             self.ingest_leaf_index(i)?;
         }
@@ -168,12 +168,12 @@ impl MerkleTreeBuilder {
         &mut self,
         batch: &MessageBatch,
     ) -> Result<(), MerkleTreeBuilderError> {
-        if self.prover.count() as u32 > batch.current_checkpoint_index {
+        if self.prover.count() as u32 > batch.current_checkpoint_index + 1 {
             error!("Prover was already ahead of MessageBatch, something went wrong");
             return Err(MerkleTreeBuilderError::UnexpectedProverState {
                 prover_count: self.prover.count() as u32,
                 onchain_checkpoint_index: batch.current_checkpoint_index,
-                signed_checkpoint_index: batch.signed_target_checkpoint.checkpoint.index,
+                signed_checkpoint_index: batch.target_checkpoint.index,
             });
         }
         // if we are somehow behind the current index, prove until then
@@ -185,16 +185,14 @@ impl MerkleTreeBuilder {
             count = self.prover.count(),
             "update_from_batch fast forward"
         );
-        // prove the until target (checkpoints are 1-indexed)
-        for i in
-            (batch.current_checkpoint_index + 1)..batch.signed_target_checkpoint.checkpoint.index
-        {
+        // prove the until target
+        for i in (batch.current_checkpoint_index + 1)..=batch.target_checkpoint.index {
             self.ingest_leaf_index(i)?;
         }
 
         let prover_root = self.prover.root();
         let incremental_root = self.incremental.root();
-        let checkpoint_root = batch.signed_target_checkpoint.checkpoint.root;
+        let checkpoint_root = batch.target_checkpoint.root;
         if prover_root != incremental_root || prover_root != checkpoint_root {
             return Err(MerkleTreeBuilderError::MismatchedRoots {
                 prover_root,

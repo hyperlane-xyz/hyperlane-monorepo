@@ -1,11 +1,19 @@
+import { utils } from '@abacus-network/deploy';
 import { createAgentGCPKeys } from '../src/agents/gcp';
-import { getEnvironment, getCoreEnvironmentConfig } from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);
+  const domains = Object.keys(config.transactionConfigs);
 
-  return createAgentGCPKeys(environment, config.domains);
+  const { v: validatorCount } = await utils
+    .getArgs()
+    .alias('v', 'validatorCount')
+    .number('v')
+    .demandOption('v').argv;
+
+  return createAgentGCPKeys(environment, domains, validatorCount);
 }
 
 main().then(console.log).catch(console.error);

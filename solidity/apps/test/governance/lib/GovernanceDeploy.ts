@@ -37,7 +37,7 @@ export class GovernanceDeploy extends TestRouterDeploy<
   ): Promise<GovernanceRouter> {
     const routerFactory = new GovernanceRouter__factory(this.config.signer);
     const router = await routerFactory.deploy(this.config.timelock);
-    await router.initialize(abacus.xAppConnectionManager(domain).address);
+    await router.initialize(abacus.abacusConnectionManager(domain).address);
     await router.transferOwnership(this.config.recoveryManager);
     return router;
   }
