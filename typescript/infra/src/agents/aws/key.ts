@@ -14,7 +14,7 @@ import {
   PutKeyPolicyCommand,
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
-import { identifier } from '../gcp';
+import { identifier } from '../agent';
 import { getEthereumAddress, sleep } from '../../utils/utils';
 import { AgentKey } from '../agent';
 
@@ -130,7 +130,6 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
       ],
     };
 
-    console.log('await this.getId()', await this.getId());
     const cmd = new PutKeyPolicyCommand({
       KeyId: await this.getId(),
       Policy: JSON.stringify(policy),

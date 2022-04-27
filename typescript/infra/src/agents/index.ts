@@ -155,16 +155,20 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     let user: AgentAwsUser<Networks>;
 
     if (role === KEY_ROLE_ENUM.Validator) {
-      const checkpointSyncer = agentConfig.validatorSets[outboxChainName].validators[index!].checkpointSyncer;
+      const checkpointSyncer =
+        agentConfig.validatorSets[outboxChainName].validators[index!]
+          .checkpointSyncer;
       if (checkpointSyncer.type !== CheckpointSyncerType.S3) {
-        throw Error('Expected S3 checkpoint syncer for validator with AWS keys')
+        throw Error(
+          'Expected S3 checkpoint syncer for validator with AWS keys',
+        );
       }
       user = new ValidatorAgentAwsUser(
         agentConfig.environment,
         outboxChainName,
         index!,
         checkpointSyncer.region,
-        checkpointSyncer.bucket
+        checkpointSyncer.bucket,
       );
     } else {
       user = new AgentAwsUser(
@@ -181,14 +185,16 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     envVars.push(`AWS_SECRET_ACCESS_KEY=${accessKeys.secretAccessKey}`);
 
     // Only checkpointer and relayer need to sign txs
-    if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer || role === KEY_ROLE_ENUM.Kathy) {
+    if (
+      role === KEY_ROLE_ENUM.Checkpointer ||
+      role === KEY_ROLE_ENUM.Relayer ||
+      role === KEY_ROLE_ENUM.Kathy
+    ) {
       chainNames.forEach((name) => {
         const key = new AgentAwsKey(agentConfig, name, role);
-        envVars = envVars.concat(configEnvVars(
-          key.keyConfig,
-          'BASE',
-          'SIGNERS_'
-        ));
+        envVars = envVars.concat(
+          configEnvVars(key.keyConfig, 'BASE', 'SIGNERS_'),
+        );
       });
     }
   }
