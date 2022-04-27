@@ -20,4 +20,3 @@ typescript/**/tsconfig.tsbuildinfo
 **/**/tsconfig.tsbuildinfo
 
 .yarn/install-state.gz
-.yarn/cache
