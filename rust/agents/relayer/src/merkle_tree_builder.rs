@@ -8,8 +8,9 @@ use color_eyre::eyre::Result;
 use ethers::core::types::H256;
 use std::fmt::Display;
 
-use tracing::{debug, error};
+use tracing::{debug, error, instrument};
 
+#[derive(Debug)]
 /// Struct to update prover
 pub struct MessageBatch {
     /// Messages
@@ -111,6 +112,7 @@ impl MerkleTreeBuilder {
         }
     }
 
+    #[instrument(err, skip(self), level = "debug")]
     pub fn get_proof(&self, leaf_index: u32) -> Result<Proof, MerkleTreeBuilderError> {
         self.prover.prove(leaf_index as usize).map_err(Into::into)
     }
@@ -136,6 +138,7 @@ impl MerkleTreeBuilder {
         self.prover.count() as u32
     }
 
+    #[instrument(err, skip(self), level = "debug")]
     pub async fn update_to_checkpoint(
         &mut self,
         checkpoint: &Checkpoint,
@@ -163,6 +166,7 @@ impl MerkleTreeBuilder {
         Ok(())
     }
 
+    #[instrument(err, skip(self), level = "debug")]
     /// Update the prover with a message batch
     pub fn update_from_batch(
         &mut self,

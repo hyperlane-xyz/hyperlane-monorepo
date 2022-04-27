@@ -10,7 +10,9 @@ use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, MessageSt
 use color_eyre::{eyre::bail, Result};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, error, info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{
+    debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument,
+};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
@@ -34,6 +36,7 @@ struct MessageToRetry {
     retries: u32,
 }
 
+#[derive(Debug)]
 enum MessageProcessingStatus {
     NotDestinedForInbox,
     NotYetCheckpointed,
@@ -73,6 +76,7 @@ impl MessageProcessor {
         }
     }
 
+    #[instrument(ret, err, skip(self), level = "debug")]
     async fn try_processing_message(
         &mut self,
         message_leaf_index: u32,
