@@ -1,6 +1,7 @@
+use abacus_core::AbacusCommon;
 use async_trait::async_trait;
 use color_eyre::{eyre::Context, Result};
-use std::sync::Arc;
+
 use tokio::task::JoinHandle;
 use tracing::{instrument::Instrumented, Instrument};
 
@@ -22,7 +23,6 @@ pub struct Relayer {
     relayer_message_processing: bool,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
-    checkpoints_relayed_count: Arc<prometheus::IntCounterVec>,
 }
 
 impl AsRef<AbacusAgentCore> for Relayer {
@@ -42,16 +42,6 @@ impl Relayer {
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
         core: AbacusAgentCore,
     ) -> Self {
-        let checkpoints_relayed_count = Arc::new(
-            core.metrics
-                .new_int_counter(
-                    "checkpoints_relayed_count",
-                    "Number of checkpoints relayed from given outbox to inbox",
-                    &["outbox", "inbox", "agent"],
-                )
-                .expect("processor metric already registered -- should be a singleton"),
-        );
-
         Self {
             polling_interval,
             max_retries,
@@ -59,7 +49,6 @@ impl Relayer {
             relayer_message_processing,
             multisig_checkpoint_syncer,
             core,
-            checkpoints_relayed_count,
         }
     }
 }
@@ -94,7 +83,10 @@ impl Agent for Relayer {
 
 impl Relayer {
     fn run_contract_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let sync_metrics = ContractSyncMetrics::new(self.metrics(), None);
+        let outbox = self.core.outbox.outbox();
+        let outbox_name = outbox.name();
+        let sync_metrics =
+            ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", outbox_name, "unknown"]));
         let sync = self.outbox().sync(
             Self::AGENT_NAME.to_string(),
             self.as_ref().indexer.clone(),
@@ -106,19 +98,24 @@ impl Relayer {
     fn run_inbox(&self, inbox_contracts: InboxContracts) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
         let checkpoint_relayer = CheckpointRelayer::new(
+            self.outbox().outbox(),
             self.polling_interval,
             self.submission_latency,
             self.relayer_message_processing,
             db.clone(),
             inbox_contracts.clone(),
             self.multisig_checkpoint_syncer.clone(),
+            self.core.metrics.last_known_message_leaf_index(),
         );
         let message_processor = MessageProcessor::new(
+            self.outbox().outbox(),
             self.polling_interval,
             self.max_retries,
             db,
             self.submission_latency,
             inbox_contracts.inbox,
+            self.core.metrics.last_known_message_leaf_index(),
+            self.core.metrics.retry_queue_length(),
         );
 
         self.run_all(vec![checkpoint_relayer.spawn(), message_processor.spawn()])

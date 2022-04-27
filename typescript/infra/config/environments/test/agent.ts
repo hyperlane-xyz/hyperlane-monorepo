@@ -1,4 +1,4 @@
-import { TestNetworks } from './domains';
+import { domainNames, TestNetworks } from './domains';
 import { validators } from './validators';
 import { AgentConfig } from '../../../src/config';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
@@ -11,6 +11,7 @@ export const agent: AgentConfig<TestNetworks> = {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
   },
+  domainNames,
   validatorSets: validators,
   validator: {
     default: {

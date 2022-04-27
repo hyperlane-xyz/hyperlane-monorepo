@@ -1,12 +1,8 @@
 import { Wallet } from 'ethers';
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
-import { execCmd, include, strip0x } from '../utils/utils';
-import { AgentKey } from './agent';
+import { execCmd, include } from '../utils/utils';
+import { AgentKey, isValidatorKey, identifier } from './agent';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
-
-function isValidatorKey(role: string) {
-  return role === KEY_ROLE_ENUM.Validator;
-}
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {
@@ -22,17 +18,6 @@ export interface SecretManagerPersistedKeys {
 interface KeyAsAddress {
   role: string;
   address: string;
-}
-
-function identifier(
-  environment: string,
-  role: string,
-  chainName: string,
-  index: number | undefined,
-) {
-  return isValidatorKey(role)
-    ? `abacus-${environment}-key-${chainName}-${role}-${index}`
-    : `abacus-${environment}-key-${role}`;
 }
 
 interface UnfetchedKey {
@@ -89,12 +74,6 @@ export class AgentGCPKey extends AgentKey {
 
   get identifier() {
     return identifier(this.environment, this.role, this.chainName, this.index);
-  }
-
-  get credentialsAsHelmValue() {
-    return {
-      hexKey: strip0x(this.privateKey),
-    };
   }
 
   // The identifier for this key within a set of keys for an enrivonment
