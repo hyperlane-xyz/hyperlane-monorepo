@@ -67,27 +67,12 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/apps@file:../../solidity/apps::locator=%40abacus-network%2Fcontract-metrics%40workspace%3Atypescript%2Fcontract-metrics":
-  version: 0.0.2
-  resolution: "@abacus-network/apps@file:../../solidity/apps#../../solidity/apps::hash=1d6dd7&locator=%40abacus-network%2Fcontract-metrics%40workspace%3Atypescript%2Fcontract-metrics"
-  dependencies:
-    "@abacus-network/app": ^0.0.3
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/hardhat": ^0.0.18
-    "@abacus-network/utils": ^0.0.8
-    "@openzeppelin/contracts": ~3.4.2
-    "@openzeppelin/contracts-upgradeable": ~3.4.2
-    "@summa-tx/memview-sol": ^2.0.0
-  checksum: 6f99407509dd1dc7ba7f8bb96513ede71398f71084c2d44dce07036d61bdea1119f49120df44b75c3e014cd98557bd047399320f4a17d2eacc26dc43eec342a7
-  languageName: node
-  linkType: hard
-
 "@abacus-network/contract-metrics@workspace:typescript/contract-metrics":
   version: 0.0.0-use.local
   resolution: "@abacus-network/contract-metrics@workspace:typescript/contract-metrics"
   dependencies:
-    "@abacus-network/apps": "file:../../solidity/apps"
-    "@abacus-network/sdk": "file:../sdk"
+    "@abacus-network/apps": 0.0.2
+    "@abacus-network/sdk": 0.0.4
     "@types/bunyan": ^1.8.7
     "@types/express": ^4.17.13
     "@types/google-spreadsheet": ^3.1.5
@@ -243,21 +228,6 @@ __metadata:
     typescript: ^4.4.3
   languageName: unknown
   linkType: soft
-
-"@abacus-network/sdk@file:../sdk::locator=%40abacus-network%2Fcontract-metrics%40workspace%3Atypescript%2Fcontract-metrics":
-  version: 0.0.4
-  resolution: "@abacus-network/sdk@file:../sdk#../sdk::hash=5546cd&locator=%40abacus-network%2Fcontract-metrics%40workspace%3Atypescript%2Fcontract-metrics"
-  dependencies:
-    "@abacus-network/apps": ^0.0.2
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/utils": ^0.0.8
-    "@ethersproject/bignumber": ^5.5.0
-    "@ethersproject/bytes": ^5.5.0
-    celo-ethers-provider: 0.0.0
-    ethers: ^5.4.7
-  checksum: 434177ec1ede6e3df592b962649ca0d7c4ddd73eaf231bbeef7eeaba62431a6e8a78f0a53d3c81f9cd0130655036e057fc4eabb12bbe69b887c9bce9d57f4bc0
-  languageName: node
-  linkType: hard
 
 "@abacus-network/utils@^0.0.8, @abacus-network/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
