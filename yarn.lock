@@ -34,7 +34,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/apps@^0.0.2, @abacus-network/apps@workspace:solidity/apps":
+"@abacus-network/apps@0.0.2, @abacus-network/apps@^0.0.2, @abacus-network/apps@workspace:solidity/apps":
   version: 0.0.0-use.local
   resolution: "@abacus-network/apps@workspace:solidity/apps"
   dependencies:
@@ -82,21 +82,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@abacus-network/apps@file:../../solidity/apps::locator=%40abacus-network%2Finfra%40workspace%3Atypescript%2Finfra":
-  version: 0.0.2
-  resolution: "@abacus-network/apps@file:../../solidity/apps#../../solidity/apps::hash=1d6dd7&locator=%40abacus-network%2Finfra%40workspace%3Atypescript%2Finfra"
-  dependencies:
-    "@abacus-network/app": ^0.0.3
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/hardhat": ^0.0.18
-    "@abacus-network/utils": ^0.0.8
-    "@openzeppelin/contracts": ~3.4.2
-    "@openzeppelin/contracts-upgradeable": ~3.4.2
-    "@summa-tx/memview-sol": ^2.0.0
-  checksum: 6f99407509dd1dc7ba7f8bb96513ede71398f71084c2d44dce07036d61bdea1119f49120df44b75c3e014cd98557bd047399320f4a17d2eacc26dc43eec342a7
-  languageName: node
-  linkType: hard
-
 "@abacus-network/contract-metrics@workspace:typescript/contract-metrics":
   version: 0.0.0-use.local
   resolution: "@abacus-network/contract-metrics@workspace:typescript/contract-metrics"
@@ -128,7 +113,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/core@^0.0.6, @abacus-network/core@workspace:solidity/core":
+"@abacus-network/core@0.0.6, @abacus-network/core@^0.0.6, @abacus-network/core@workspace:solidity/core":
   version: 0.0.0-use.local
   resolution: "@abacus-network/core@workspace:solidity/core"
   dependencies:
@@ -157,32 +142,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/core@file:../../solidity/core::locator=%40abacus-network%2Finfra%40workspace%3Atypescript%2Finfra":
-  version: 0.0.6
-  resolution: "@abacus-network/core@file:../../solidity/core#../../solidity/core::hash=f75cae&locator=%40abacus-network%2Finfra%40workspace%3Atypescript%2Finfra"
-  dependencies:
-    "@abacus-network/utils": ^0.0.8
-    "@openzeppelin/contracts": ^3.4.2
-    "@openzeppelin/contracts-upgradeable": ~3.4.2
-    "@summa-tx/memview-sol": ^2.0.0
-    ts-generator: ^0.1.1
-  checksum: 7f00f0ebf5ee9ff41c0b2aac6148c12723e4cb902d1ac1fd38307e0a6579a8242e5426cbac0588292c9020397b6274bf638d31cebdae4cb9676cf7fb23c784a3
-  languageName: node
-  linkType: hard
-
-"@abacus-network/deploy@file:../deploy::locator=%40abacus-network%2Finfra%40workspace%3Atypescript%2Finfra":
-  version: 0.0.7
-  resolution: "@abacus-network/deploy@file:../deploy#../deploy::hash=4fb316&locator=%40abacus-network%2Finfra%40workspace%3Atypescript%2Finfra"
-  dependencies:
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/sdk": ^0.0.4
-    "@types/node": ^16.9.1
-    axios: ^0.21.3
-  checksum: 76e4a57fd71edcd5e42dbf40f0c8e6bdec248db430d994b6cb930d88d3890b787288f60d8f92b68d582413af36c6dadc418469d8903e966a99fe5a95fff9a521
-  languageName: node
-  linkType: hard
-
-"@abacus-network/deploy@workspace:typescript/deploy":
+"@abacus-network/deploy@0.0.7, @abacus-network/deploy@workspace:typescript/deploy":
   version: 0.0.0-use.local
   resolution: "@abacus-network/deploy@workspace:typescript/deploy"
   dependencies:
@@ -221,10 +181,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/infra@workspace:typescript/infra"
   dependencies:
-    "@abacus-network/apps": "file:../../solidity/apps"
-    "@abacus-network/core": "file:../../solidity/core"
-    "@abacus-network/deploy": "file:../deploy"
-    "@abacus-network/sdk": "file:../sdk"
+    "@abacus-network/apps": 0.0.2
+    "@abacus-network/core": 0.0.6
+    "@abacus-network/deploy": 0.0.7
+    "@abacus-network/sdk": 0.0.4
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -259,7 +219,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@^0.0.4, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@0.0.4, @abacus-network/sdk@^0.0.4, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
@@ -286,7 +246,7 @@ __metadata:
 
 "@abacus-network/sdk@file:../sdk::locator=%40abacus-network%2Fcontract-metrics%40workspace%3Atypescript%2Fcontract-metrics":
   version: 0.0.4
-  resolution: "@abacus-network/sdk@file:../sdk#../sdk::hash=2fe409&locator=%40abacus-network%2Fcontract-metrics%40workspace%3Atypescript%2Fcontract-metrics"
+  resolution: "@abacus-network/sdk@file:../sdk#../sdk::hash=5546cd&locator=%40abacus-network%2Fcontract-metrics%40workspace%3Atypescript%2Fcontract-metrics"
   dependencies:
     "@abacus-network/apps": ^0.0.2
     "@abacus-network/core": ^0.0.6
@@ -295,22 +255,7 @@ __metadata:
     "@ethersproject/bytes": ^5.5.0
     celo-ethers-provider: 0.0.0
     ethers: ^5.4.7
-  checksum: 8a37f7e951364601fa9336fa793de3515c7d80427b336c899d7fe5f0e6c0cad4e90b7d1d113dd31760a718381b8b5954e6f6b48871d8f1d18a38a9d8c118b3e6
-  languageName: node
-  linkType: hard
-
-"@abacus-network/sdk@file:../sdk::locator=%40abacus-network%2Finfra%40workspace%3Atypescript%2Finfra":
-  version: 0.0.4
-  resolution: "@abacus-network/sdk@file:../sdk#../sdk::hash=2fe409&locator=%40abacus-network%2Finfra%40workspace%3Atypescript%2Finfra"
-  dependencies:
-    "@abacus-network/apps": ^0.0.2
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/utils": ^0.0.8
-    "@ethersproject/bignumber": ^5.5.0
-    "@ethersproject/bytes": ^5.5.0
-    celo-ethers-provider: 0.0.0
-    ethers: ^5.4.7
-  checksum: 8a37f7e951364601fa9336fa793de3515c7d80427b336c899d7fe5f0e6c0cad4e90b7d1d113dd31760a718381b8b5954e6f6b48871d8f1d18a38a9d8c118b3e6
+  checksum: 434177ec1ede6e3df592b962649ca0d7c4ddd73eaf231bbeef7eeaba62431a6e8a78f0a53d3c81f9cd0130655036e057fc4eabb12bbe69b887c9bce9d57f4bc0
   languageName: node
   linkType: hard
 
