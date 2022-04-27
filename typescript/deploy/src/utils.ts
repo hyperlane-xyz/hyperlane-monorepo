@@ -1,7 +1,7 @@
 import {
   AbacusCore,
   ChainName,
-  ChainSubsetMap,
+  ChainMap,
   MultiProvider,
   utils
 } from '@abacus-network/sdk';
@@ -54,7 +54,7 @@ function fixOverrides(config: TransactionConfig): ethers.Overrides {
 
 export const registerTransactionConfigs = <Networks extends ChainName>(
   multiProvider: MultiProvider<Networks>,
-  txConfigMap: ChainSubsetMap<Networks, TransactionConfig>,
+  txConfigMap: ChainMap<Networks, TransactionConfig>,
 ) => {
   utils.objMap(txConfigMap, (network, txConfig) => {
     const domainConnection = multiProvider.getDomainConnection(network);
@@ -77,7 +77,7 @@ export const registerEnvironment = <Networks extends ChainName>(
 
 export const registerSigners = <Networks extends ChainName>(
   multiProvider: MultiProvider,
-  signers: ChainSubsetMap<Networks, ethers.Signer>,
+  signers: ChainMap<Networks, ethers.Signer>,
 ) =>
   utils.objMap(signers, (network, signer) =>
     multiProvider.getDomainConnection(network).registerSigner(signer),

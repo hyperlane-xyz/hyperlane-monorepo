@@ -20,7 +20,7 @@ import {
   ChainName,
   Connection,
   ProxiedAddress,
-  RemoteChainSubsetMap,
+  RemoteChainMap,
   Remotes,
 } from '../types';
 import { objMap } from '../utils';
@@ -34,7 +34,7 @@ export type CoreContractAddresses<N extends ChainName, L extends N> = {
   abacusConnectionManager: types.Address;
   interchainGasPaymaster: types.Address;
   outbox: MailboxAddresses;
-  inboxes: RemoteChainSubsetMap<N, L, MailboxAddresses>;
+  inboxes: RemoteChainMap<N, L, MailboxAddresses>;
 };
 
 type InboxContracts = {
@@ -49,7 +49,7 @@ export type CoreContractSchema<N extends ChainName, L extends N> = {
     outbox: Outbox;
     validatorManager: OutboxValidatorManager;
   };
-  inboxes: RemoteChainSubsetMap<N, L, InboxContracts>;
+  inboxes: RemoteChainMap<N, L, InboxContracts>;
   interchainGasPaymaster: InterchainGasPaymaster;
 };
 

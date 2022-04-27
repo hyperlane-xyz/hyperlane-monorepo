@@ -1,5 +1,5 @@
 import { TransactionConfig } from '@abacus-network/deploy';
-import { ChainSubsetMap } from '@abacus-network/sdk';
+import { ChainMap } from '@abacus-network/sdk';
 import { BigNumber } from 'ethers';
 
 export const celo: TransactionConfig = {
@@ -39,5 +39,5 @@ const _configs = {
   polygon,
 };
 
-export const configs: ChainSubsetMap<keyof typeof _configs, TransactionConfig> =
+export const configs: ChainMap<keyof typeof _configs, TransactionConfig> =
   _configs;

@@ -1,6 +1,6 @@
 import { ContractsBuilder, IAbacusContracts } from './contracts';
 import { MultiProvider } from './provider';
-import { ChainName, ChainSubsetMap, Connection } from './types';
+import { ChainName, ChainMap, Connection } from './types';
 import { MultiGeneric, objMap } from './utils';
 
 export class AbacusApp<
@@ -9,7 +9,7 @@ export class AbacusApp<
 > extends MultiGeneric<Contracts, Networks> {
   constructor(
     builder: ContractsBuilder<any, Contracts>,
-    networkAddresses: ChainSubsetMap<Networks, any>,
+    networkAddresses: ChainMap<Networks, any>,
     multiProvider: MultiProvider<Networks>,
   ) {
     super(

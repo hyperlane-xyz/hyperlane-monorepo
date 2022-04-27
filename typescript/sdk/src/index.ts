@@ -40,10 +40,10 @@ export {
 } from './governance';
 export { MultiProvider } from './provider';
 export {
-  ChainMap,
+  CompleteChainMap,
   ChainName,
   Chains,
-  ChainSubsetMap,
+  ChainMap,
   Connection,
   NameOrDomain,
   ProxiedAddress

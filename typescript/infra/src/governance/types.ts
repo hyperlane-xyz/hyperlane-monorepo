@@ -1,5 +1,5 @@
 import { RouterConfig } from '@abacus-network/deploy';
-import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
+import { ChainName, ChainMap } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 export type GovernanceConfigAddresses = {
@@ -10,5 +10,5 @@ export type GovernanceConfigAddresses = {
 export type GovernanceConfig<Networks extends ChainName> =
   RouterConfig<Networks> & {
     recoveryTimelock: number;
-    addresses: ChainSubsetMap<Networks, GovernanceConfigAddresses>;
+    addresses: ChainMap<Networks, GovernanceConfigAddresses>;
   };

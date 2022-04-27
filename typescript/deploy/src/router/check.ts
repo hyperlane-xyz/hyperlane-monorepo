@@ -1,7 +1,7 @@
 import {
   AbacusApp,
   ChainName,
-  ChainSubsetMap,
+  ChainMap,
   domains
 } from '@abacus-network/sdk';
 import { types, utils } from '@abacus-network/utils';
@@ -16,7 +16,7 @@ export abstract class AbacusRouterChecker<
 > extends AbacusAppChecker<N, A, C> {
   abstract mustGetRouter(network: N): Router; // TODO: implement on AbacusRouterApp
 
-  async check(owners: ChainSubsetMap<N, types.Address> | types.Address) {
+  async check(owners: ChainMap<N, types.Address> | types.Address) {
     const networks = this.app.networks();
     return Promise.all(
       networks.map((network) => {

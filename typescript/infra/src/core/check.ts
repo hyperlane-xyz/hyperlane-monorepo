@@ -3,7 +3,7 @@ import { AbacusAppChecker, CheckerViolation } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainName,
-  ChainSubsetMap,
+  ChainMap,
   domains,
   MailboxAddresses,
   utils,
@@ -44,7 +44,7 @@ export class AbacusCoreChecker<
   AbacusCore<Networks>,
   CoreConfig<Networks>
 > {
-  async checkOwners(owners: ChainSubsetMap<Networks, types.Address>) {
+  async checkOwners(owners: ChainMap<Networks, types.Address>) {
     return Promise.all(
       this.app
         .networks()

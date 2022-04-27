@@ -1,4 +1,4 @@
-import { ChainMap, Domain } from './types';
+import { CompleteChainMap, Domain } from './types';
 
 /**
  * Mainnets
@@ -69,7 +69,7 @@ export const ropsten: Domain = {
   id: 3,
 };
 
-export const domains: ChainMap<Domain> = {
+export const domains: CompleteChainMap<Domain> = {
   celo,
   ethereum,
   avalanche,

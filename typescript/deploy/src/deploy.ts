@@ -2,7 +2,7 @@ import {
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
-import { ChainName, ChainSubsetMap, MultiProvider } from '@abacus-network/sdk';
+import { ChainName, ChainMap, MultiProvider } from '@abacus-network/sdk';
 import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
@@ -16,11 +16,11 @@ import {
 
 // TODO: Make AppDeployer generic on AbacusApp and return instance from deploy()
 export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
-  verificationInputs: ChainSubsetMap<Networks, ContractVerificationInput[]>;
+  verificationInputs: ChainMap<Networks, ContractVerificationInput[]>;
 
   constructor(
     protected readonly multiProvider: MultiProvider<Networks>,
-    protected readonly configMap: ChainSubsetMap<Networks, C>,
+    protected readonly configMap: ChainMap<Networks, C>,
   ) {
     this.verificationInputs = objMap(configMap, () => []);
   }
@@ -135,12 +135,12 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
     return newProxiedContract;
   }
 
-  writeOutput(directory: string, addresses: ChainSubsetMap<Networks, A>) {
+  writeOutput(directory: string, addresses: ChainMap<Networks, A>) {
     this.writeContracts(addresses, path.join(directory, 'addresses.ts'));
     this.writeVerification(path.join(directory, 'verification'));
   }
 
-  writeContracts(addresses: ChainSubsetMap<Networks, A>, filepath: string) {
+  writeContracts(addresses: ChainMap<Networks, A>, filepath: string) {
     const contents = `export const addresses = ${AbacusAppDeployer.stringify(
       addresses,
     )}`;

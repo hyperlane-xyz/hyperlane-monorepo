@@ -4,7 +4,7 @@ import { AbacusRouterDeployer } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainName,
-  ChainSubsetMap,
+  ChainMap,
   GovernanceAddresses,
   MultiProvider,
   utils,
@@ -27,7 +27,7 @@ export class AbacusGovernanceDeployer<
     const networks = Object.keys(config.addresses) as Networks[];
     const crossConfigMap = Object.fromEntries(
       networks.map((network) => [network, config]),
-    ) as ChainSubsetMap<Networks, GovernanceConfig<Networks>>;
+    ) as ChainMap<Networks, GovernanceConfig<Networks>>;
     super(multiProvider, crossConfigMap, core);
   }
 

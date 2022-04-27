@@ -20,8 +20,8 @@ import {
 } from '@abacus-network/sdk';
 import { DomainConnection } from '@abacus-network/sdk/dist/provider';
 import {
-  ChainSubsetMap,
-  RemoteChainSubsetMap,
+  ChainMap,
+  RemoteChainMap,
   Remotes,
 } from '@abacus-network/sdk/dist/types';
 import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
@@ -45,7 +45,7 @@ export class AbacusCoreDeployer<
     const networks = Object.keys(config) as Networks[];
     const crossConfigMap = Object.fromEntries(
       networks.map((network) => [network, config]),
-    ) as ChainSubsetMap<Networks, CoreConfig<Networks>>;
+    ) as ChainMap<Networks, CoreConfig<Networks>>;
     super(multiProvider, crossConfigMap);
   }
 
@@ -184,7 +184,7 @@ export class AbacusCoreDeployer<
       abacusConnectionManager: abacusConnectionManager.address,
       interchainGasPaymaster: interchainGasPaymaster.address,
       outbox: getMailbox(outboxValidatorManager, outbox),
-      inboxes: Object.fromEntries(remoteMailboxes) as RemoteChainSubsetMap<
+      inboxes: Object.fromEntries(remoteMailboxes) as RemoteChainMap<
         Networks,
         Local,
         MailboxAddresses
@@ -253,7 +253,7 @@ export class AbacusCoreDeployer<
 
   static async transferOwnership<CoreNetworks extends ChainName>(
     core: AbacusCore<CoreNetworks>,
-    owners: ChainSubsetMap<CoreNetworks, types.Address>,
+    owners: ChainMap<CoreNetworks, types.Address>,
     multiProvider: MultiProvider<CoreNetworks>,
   ) {
     return promiseObjAll<Record<any, any>>(

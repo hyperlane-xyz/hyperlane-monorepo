@@ -5,7 +5,7 @@ import {
 import {
   AbacusCore,
   ChainName,
-  ChainSubsetMap,
+  ChainMap,
   domains,
   MultiProvider,
   RouterAddresses,
@@ -26,7 +26,7 @@ export abstract class AbacusRouterDeployer<
 
   constructor(
     multiProvider: MultiProvider<N>,
-    configMap: ChainSubsetMap<N, C>,
+    configMap: ChainMap<N, C>,
     core?: AbacusCore<N>,
   ) {
     super(multiProvider, configMap);

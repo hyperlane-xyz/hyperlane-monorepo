@@ -1,6 +1,6 @@
 import { arrayify, BytesLike, hexlify } from '@ethersproject/bytes';
 import { ethers } from 'ethers';
-import { ChainName, ChainSubsetMap, Remotes } from './types';
+import { ChainName, ChainMap, Remotes } from './types';
 
 export type Address = string;
 
@@ -55,7 +55,7 @@ export function delay(ms: number): Promise<void> {
 }
 
 export class MultiGeneric<Value, Networks extends ChainName = ChainName> {
-  constructor(protected readonly domainMap: ChainSubsetMap<Networks, Value>) {}
+  constructor(protected readonly domainMap: ChainMap<Networks, Value>) {}
 
   protected get = (network: Networks) => this.domainMap[network];
 
@@ -81,14 +81,14 @@ export class MultiGeneric<Value, Networks extends ChainName = ChainName> {
   knownDomain = (network: ChainName) => network in this.domainMap;
 }
 
-export function inferChainSubsetMap<M>(map: M) {
-  return map as M extends ChainSubsetMap<infer Networks, infer Value>
+export function inferChainMap<M>(map: M) {
+  return map as M extends ChainMap<infer Networks, infer Value>
     ? Record<Networks, Value>
     : never;
 }
 
 export function objMapEntries<N extends ChainName, I, O>(
-  obj: ChainSubsetMap<N, I>,
+  obj: ChainMap<N, I>,
   func: (k: N, _: I) => O,
 ): [N, O][] {
   return Object.entries<I>(obj).map(([k, v]) => [k as N, func(k as N, v)]);

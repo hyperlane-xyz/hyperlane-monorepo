@@ -1,7 +1,7 @@
 import { utils } from '@abacus-network/deploy';
 import {
   AbacusCore,
-  ChainSubsetMap,
+  ChainMap,
   CoreContractAddresses,
   MultiProvider,
 } from '@abacus-network/sdk';
@@ -18,9 +18,9 @@ describe('core', async () => {
   let multiProvider: MultiProvider<networks>;
   let deployer: AbacusCoreDeployer<networks>;
   let core: AbacusCore<networks>;
-  let addresses: ChainSubsetMap<networks, CoreContractAddresses<networks, any>>;
+  let addresses: ChainMap<networks, CoreContractAddresses<networks, any>>;
 
-  let owners: ChainSubsetMap<networks, string>;
+  let owners: ChainMap<networks, string>;
   before(async () => {
     const [signer, owner] = await ethers.getSigners();
     multiProvider = utils.initHardhatMultiProvider(environment, signer);

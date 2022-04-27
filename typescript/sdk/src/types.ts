@@ -28,8 +28,8 @@ export enum Chains {
   polygon,
 }
 export type ChainName = keyof typeof Chains;
-export type ChainMap<Value> = Record<ChainName, Value>;
-export type ChainSubsetMap<Networks extends ChainName, Value> = Record<
+export type CompleteChainMap<Value> = Record<ChainName, Value>;
+export type ChainMap<Networks extends ChainName, Value> = Record<
   Networks,
   Value
 >;
@@ -44,7 +44,7 @@ export type Remotes<
   Networks extends ChainName,
   Local extends Networks,
 > = Exclude<Networks, Local>;
-export type RemoteChainSubsetMap<
+export type RemoteChainMap<
   Networks extends ChainName,
   Local extends Networks,
   Value,

@@ -6,7 +6,7 @@ import { ethers } from 'ethers';
 import { GovernanceContracts } from '.';
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
-import { ChainName, ChainSubsetMap } from '../types';
+import { ChainName, ChainMap } from '../types';
 import { objMap } from '../utils';
 import { GovernanceAddresses } from './contracts';
 import { environments } from './environments';
@@ -18,7 +18,7 @@ export class AbacusGovernance<
   Networks extends ChainName = ChainName,
 > extends AbacusApp<GovernanceContracts, Networks> {
   constructor(
-    networkAddresses: ChainSubsetMap<Networks, GovernanceAddresses>,
+    networkAddresses: ChainMap<Networks, GovernanceAddresses>,
     multiProvider: MultiProvider<Networks>,
   ) {
     super(GovernanceContracts, networkAddresses, multiProvider);
@@ -39,57 +39,80 @@ export class AbacusGovernance<
     return this.get(network).calls;
   }
 
-  networkCalls = () => Object.fromEntries(this.networks().map((network) => [network, this.getCalls(network)])) as ChainSubsetMap<Networks, Call[]>;
+  networkCalls = () =>
+    Object.fromEntries(
+      this.networks().map((network) => [network, this.getCalls(network)]),
+    ) as ChainMap<Networks, Call[]>;
 
   routers = () => objMap(this.contractsMap, (_, d) => d.contracts.router);
 
   routerAddresses = () => objMap(this.routers(), (_, r) => r.address);
 
-  governor = async (): Promise<{network: Networks, address: types.Address }> => {
-    for (const [network, router] of Object.entries<GovernanceRouter>(this.routers())) {
-      const address = await router.governor()
+  governor = async (): Promise<{
+    network: Networks;
+    address: types.Address;
+  }> => {
+    for (const [network, router] of Object.entries<GovernanceRouter>(
+      this.routers(),
+    )) {
+      const address = await router.governor();
       if (address !== ethers.constants.AddressZero) {
-        return {network: network as Networks, address };
+        return { network: network as Networks, address };
       }
     }
     throw new Error('No governor found');
-  }
+  };
 
   build = async (): Promise<ethers.PopulatedTransaction[]> => {
     const governor = await this.governor();
     const governorRouter = this.routers()[governor.network];
-    
-    const networkTransactions = await promiseObjAll<Record<Networks, ethers.PopulatedTransaction>>(objMap(this.networkCalls(), (network, calls) => {
-      if (network === governor.network) {
-        return governorRouter.populateTransaction.call(calls);
-      } else {
-        return governorRouter.populateTransaction.callRemote(domains[network].id, calls);
-      }
-    }));
+
+    const networkTransactions = await promiseObjAll<
+      Record<Networks, ethers.PopulatedTransaction>
+    >(
+      objMap(this.networkCalls(), (network, calls) => {
+        if (network === governor.network) {
+          return governorRouter.populateTransaction.call(calls);
+        } else {
+          return governorRouter.populateTransaction.callRemote(
+            domains[network].id,
+            calls,
+          );
+        }
+      }),
+    );
     return Object.values(networkTransactions);
-  }
+  };
 
   execute = async (signer: ethers.Signer) => {
     const governor = await this.governor();
-    
-    const signerAddress = await signer.getAddress()
+
+    const signerAddress = await signer.getAddress();
     if (signerAddress !== governor.address) {
-      throw new Error(`Signer ${signerAddress} is not the governor ${governor.address}`);
+      throw new Error(
+        `Signer ${signerAddress} is not the governor ${governor.address}`,
+      );
     }
 
     const transactions = await this.build();
 
-    return Promise.all(transactions.map(async (tx) => {
-      const response = await signer.sendTransaction(tx);
-      return response.wait(5);
-    }));
-  }
+    return Promise.all(
+      transactions.map(async (tx) => {
+        const response = await signer.sendTransaction(tx);
+        return response.wait(5);
+      }),
+    );
+  };
 
-  estimateGas = async (provider: ethers.providers.Provider): Promise<ethers.BigNumber[]> => {
-    const transactions = await this.build()
+  estimateGas = async (
+    provider: ethers.providers.Provider,
+  ): Promise<ethers.BigNumber[]> => {
+    const transactions = await this.build();
     const governor = await this.governor();
-    return Promise.all(transactions.map((tx) => 
-      provider.estimateGas({...tx, from: governor.address}) // Estimate gas as the governor
-    ))
-  }
+    return Promise.all(
+      transactions.map(
+        (tx) => provider.estimateGas({ ...tx, from: governor.address }), // Estimate gas as the governor
+      ),
+    );
+  };
 }

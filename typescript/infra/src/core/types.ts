@@ -1,4 +1,4 @@
-import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
+import { ChainName, ChainMap } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 export type ValidatorManagerConfig = {
@@ -7,5 +7,5 @@ export type ValidatorManagerConfig = {
 };
 
 export type CoreConfig<Networks extends ChainName> = {
-  validatorManagers: ChainSubsetMap<Networks, ValidatorManagerConfig>;
+  validatorManagers: ChainMap<Networks, ValidatorManagerConfig>;
 };
