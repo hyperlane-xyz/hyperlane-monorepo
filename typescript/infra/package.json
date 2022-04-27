@@ -1,4 +1,5 @@
 {
+  "name": "@abacus-network/infra",
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
