@@ -5,7 +5,7 @@ use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxVali
 use color_eyre::Result;
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, error, info, info_span, instrument::Instrumented, Instrument};
+use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
 use crate::merkle_tree_builder::{MerkleTreeBuilder, MessageBatch};
 
@@ -66,6 +66,7 @@ impl CheckpointRelayer {
 
     /// Only gets the messages desinated for the Relayers inbox
     /// Inclusive the to_checkpoint_index
+    #[instrument(ret, err, skip(self), level = "debug")]
     async fn get_messages_between(
         &self,
         from_leaf_index: u32,
@@ -97,6 +98,7 @@ impl CheckpointRelayer {
     }
 
     // Returns the newest "current" checkpoint index
+    #[instrument(ret, err, skip(self, messages), fields(messages=messages.len()))]
     async fn submit_checkpoint_and_messages(
         &mut self,
         onchain_checkpoint_index: u32,
