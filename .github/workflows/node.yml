@@ -25,7 +25,6 @@ jobs:
         # verify the lockfile matches what was committed.
         run: |
             yarn install
-            cat yarn-error.log
             CHANGES=$(git status -s)
             if [[ ! -z $CHANGES ]]; then
               echo "Changes found: $CHANGES"
