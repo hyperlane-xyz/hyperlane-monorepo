@@ -7,7 +7,7 @@ import {
 } from '@aws-sdk/client-iam';
 import { KEY_ROLE_ENUM } from '../../agents';
 import { AgentConfig } from '../../config';
-import { gcpSecretExists, setGCPSecret } from '../../utils/gcloud';
+import { fetchGCPSecret, gcpSecretExists, setGCPSecret } from '../../utils/gcloud';
 import { AgentAwsKey } from './key';
 
 export class AgentAwsUser<Networks extends ChainName> {
@@ -60,6 +60,18 @@ export class AgentAwsUser<Networks extends ChainName> {
       this.secretAccessKeySecretName,
     );
     return accessKeyIdExists && secretAccessKeyExists;
+  }
+
+  async getAccessKeys(): Promise<{
+    accessKeyId: string,
+    secretAccessKey: string,
+  }> {
+    return {
+      accessKeyId: await fetchGCPSecret(this.accessKeyIdSecretName),
+      secretAccessKey: await fetchGCPSecret(
+        this.secretAccessKeySecretName,
+      ),
+    }
   }
 
   async createAndSaveAccessKey() {

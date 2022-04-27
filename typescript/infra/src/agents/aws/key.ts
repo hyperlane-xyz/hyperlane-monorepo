@@ -1,5 +1,5 @@
 import { ChainName } from '@abacus-network/sdk';
-import { /*getSecretAwsCredentials,*/ KEY_ROLE_ENUM } from '..';
+import { KEY_ROLE_ENUM } from '..';
 import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import {
   CreateAliasCommand,
@@ -31,8 +31,6 @@ type RemoteKey = UnfetchedKey | FetchedKey;
 
 export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
   private environment: string;
-  // @ts-ignore
-  private agentConfig: AgentConfig<Networks>;
   private client: KMSClient | undefined;
   private region: string;
   public remoteKey: RemoteKey = { fetched: false };
@@ -45,13 +43,12 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
   ) {
     super();
     if (!agentConfig.aws) {
-      throw new Error('No AWS env vars set');
+      throw new Error('Not configured as AWS');
     }
     if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
       throw new Error('Expected index for validator key');
     }
     this.environment = agentConfig.environment;
-    this.agentConfig = agentConfig;
     this.region = agentConfig.aws.region;
   }
 
@@ -59,10 +56,8 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
     if (this.client) {
       return this.client;
     }
-    // const awsCredentials = await getSecretAwsCredentials(this.agentConfig);
     this.client = new KMSClient({
       region: this.region,
-      // credentials: awsCredentials,
     });
     return this.client;
   }
@@ -81,15 +76,6 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
       type: KeyType.Aws,
       id: this.identifier,
       region: this.region,
-    };
-  }
-
-  get credentialsAsHelmValue() {
-    return {
-      aws: {
-        keyId: this.identifier,
-        region: this.region,
-      },
     };
   }
 

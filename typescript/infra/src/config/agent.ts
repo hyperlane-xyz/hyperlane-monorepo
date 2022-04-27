@@ -320,6 +320,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
     );
   }
 
+  // Returns whetehr the relayer requires AWS credentials, creating them if required.
   async relayerRequiresAwsCredentials(): Promise<boolean> {
     // If there is an S3 checkpoint syncer, we need AWS credentials.
     // We ensure they are created here, but they are actually read from using `external-secrets`
@@ -330,7 +331,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
     )?.checkpointSyncer as S3CheckpointSyncerConfig | undefined;
 
     // If AWS is present on the agentConfig, we are using AWS keys and need credentials regardless.
-    // undefined if AWS is not required
+    // This is undefined if AWS is not required
     const awsRegion: string | undefined =
       this.agentConfig.aws?.region ?? firstS3Syncer?.region;
 
@@ -380,6 +381,8 @@ export class ChainAgentConfig<Networks extends ChainName> {
     };
   }
 
+  // Gets signers for a provided role. If AWS keys are used, the corresponding
+  // key and users are created if necessary.
   async getAndPrepareSigners(role: KEY_ROLE_ENUM) {
     if (this.awsKeys) {
       const awsUser = new AgentAwsUser(
@@ -396,6 +399,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
     return this.signers(KEY_ROLE_ENUM.Checkpointer);
   }
 
+  // Gets signer info, creating them if necessary
   checkpointerSigners() {
     return this.getAndPrepareSigners(KEY_ROLE_ENUM.Checkpointer);
   }
@@ -411,6 +415,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
     );
   }
 
+  // Gets signer info, creating them if necessary
   kathySigners() {
     if (!this.kathyEnabled) {
       return [];

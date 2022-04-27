@@ -1,6 +1,6 @@
 import { Wallet } from 'ethers';
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
-import { execCmd, include, strip0x } from '../utils/utils';
+import { execCmd, include } from '../utils/utils';
 import { AgentKey } from './agent';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 
@@ -89,12 +89,6 @@ export class AgentGCPKey extends AgentKey {
 
   get identifier() {
     return identifier(this.environment, this.role, this.chainName, this.index);
-  }
-
-  get credentialsAsHelmValue() {
-    return {
-      hexKey: strip0x(this.privateKey),
-    };
   }
 
   // The identifier for this key within a set of keys for an enrivonment
