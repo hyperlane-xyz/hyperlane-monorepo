@@ -235,6 +235,7 @@ __metadata:
   dependencies:
     chai: ^4.3.0
     ethers: ^5.4.7
+    prettier: ^2.2.1
   languageName: unknown
   linkType: soft
 

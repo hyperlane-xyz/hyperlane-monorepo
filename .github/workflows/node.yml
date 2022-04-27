@@ -52,7 +52,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        run: yarn workspaces foreach run build
+        run: ./build.sh
 
   lint-prettier:
     runs-on: ubuntu-latest
