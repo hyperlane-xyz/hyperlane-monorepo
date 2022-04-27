@@ -71,8 +71,11 @@ export class AgentAwsUser<Networks extends ChainName> {
     secretAccessKey: string;
   }> {
     return {
-      accessKeyId: await fetchGCPSecret(this.accessKeyIdSecretName),
-      secretAccessKey: await fetchGCPSecret(this.secretAccessKeySecretName),
+      accessKeyId: await fetchGCPSecret(this.accessKeyIdSecretName, false),
+      secretAccessKey: await fetchGCPSecret(
+        this.secretAccessKeySecretName,
+        false,
+      ),
     };
   }
 

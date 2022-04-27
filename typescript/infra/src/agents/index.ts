@@ -120,7 +120,8 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     }-db`,
   );
 
-  try {
+  // GCP keys
+  if (!agentConfig.aws) {
     const gcpKeys = await fetchAgentGCPKeys(
       agentConfig.environment,
       outboxChainName,
@@ -146,11 +147,8 @@ export async function getAgentEnvVars<Networks extends ChainName>(
         `OPT_VALIDATOR_VALIDATOR_TYPE=hexKey`,
       );
     }
-  } catch (error) {
-    // This happens if you don't have a result type
-    if ((error as any).toString().includes('Panic')) {
-      throw error;
-    }
+  } else {
+    // AWS keys
 
     let user: AgentAwsUser<Networks>;
 
