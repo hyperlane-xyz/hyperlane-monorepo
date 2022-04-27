@@ -1,13 +1,13 @@
 [
   {
     "name": "UpgradeBeaconController",
-    "address": "0x943bA1d4c8A20dd3c568cE16FbaB297F7d3178C3",
+    "address": "0x74A77C554685651F7dB3784359E1436604794438",
     "constructorArguments": [],
     "isProxy": false
   },
   {
     "name": "OutboxValidatorManager",
-    "address": "0x81485d5C439a393375A65b9060aaD791aCD90439",
+    "address": "0x3f0e80FfACE85DC573F57b2f552f6F98Fc5984c4",
     "constructorArguments": [
       3000,
       [
@@ -21,43 +21,43 @@
   },
   {
     "name": "Outbox Implementation",
-    "address": "0xB5a43311274bEb8478Bd5909e08Fd940FC2A75C9",
+    "address": "0xbA2C920a863122a42c249d89D5954506F00513C3",
     "constructorArguments": [3000],
     "isProxy": false
   },
   {
     "name": "Outbox UpgradeBeacon",
-    "address": "0xB4dD7B062A927ff166312a9B49975184965950f7",
+    "address": "0xE8bF352efbC50754442095a04e81A5141fe75e16",
     "constructorArguments": [
-      "0xB5a43311274bEb8478Bd5909e08Fd940FC2A75C9",
-      "0x943bA1d4c8A20dd3c568cE16FbaB297F7d3178C3"
+      "0xbA2C920a863122a42c249d89D5954506F00513C3",
+      "0x74A77C554685651F7dB3784359E1436604794438"
     ],
     "isProxy": false
   },
   {
     "name": "Outbox Proxy",
-    "address": "0xa42Eb261e74Fd92bC376Bb4CC19Ca51Ca7EBFf6C",
+    "address": "0x24D05ae06F3Ce4CF146958714c2B2FBE8B6a29c4",
     "constructorArguments": [
-      "0xB4dD7B062A927ff166312a9B49975184965950f7",
-      "0xc4d66de800000000000000000000000081485d5c439a393375a65b9060aad791acd90439"
+      "0xE8bF352efbC50754442095a04e81A5141fe75e16",
+      "0xc4d66de80000000000000000000000003f0e80fface85dc573f57b2f552f6f98fc5984c4"
     ],
     "isProxy": true
   },
   {
     "name": "InterchainGasPaymaster",
-    "address": "0x93Ea081a3F8c5e34F51FA4d164a43d2925e24238",
+    "address": "0x33bE4eAa1A7c04E6Bba63e4F9cfff1eb98CF59F0",
     "constructorArguments": [],
     "isProxy": false
   },
   {
-    "name": "XAppConnectionManager",
-    "address": "0x9318D51F02EcAf21682d546D8260c96580D4b49e",
+    "name": "AbacusConnectionManager",
+    "address": "0x3c3b0367A960a6ea1cDe58Bb8A7E33bfC38554D3",
     "constructorArguments": [],
     "isProxy": false
   },
   {
     "name": "InboxValidatorManager",
-    "address": "0x73B075e931B7dA89E00422Dbc8205369211C40e2",
+    "address": "0x63C950170534907d40B77ecF61bd07980B51f2a4",
     "constructorArguments": [
       1000,
       [
@@ -71,25 +71,25 @@
   },
   {
     "name": "Inbox Implementation",
-    "address": "0x84710af0473Fe6672C9C9e7B2d8B16eCE6D1b581",
+    "address": "0x6D91F26Fb1430bC0F557cC8BD7F815b441541c68",
     "constructorArguments": [3000],
     "isProxy": false
   },
   {
     "name": "Inbox UpgradeBeacon",
-    "address": "0x75f3E7BB237cAEADdf8BA2B22f93884eD3923B8C",
+    "address": "0xdCCA08dC4ec34d58f69415b0C7C8e0042779c559",
     "constructorArguments": [
-      "0x84710af0473Fe6672C9C9e7B2d8B16eCE6D1b581",
-      "0x943bA1d4c8A20dd3c568cE16FbaB297F7d3178C3"
+      "0x6D91F26Fb1430bC0F557cC8BD7F815b441541c68",
+      "0x74A77C554685651F7dB3784359E1436604794438"
     ],
     "isProxy": false
   },
   {
     "name": "Inbox Proxy",
-    "address": "0x0bA30c539f67027797209B314afE7A0390F536ab",
+    "address": "0x125379056774C4246d016b2C58c6fbb80ab8829b",
     "constructorArguments": [
-      "0x75f3E7BB237cAEADdf8BA2B22f93884eD3923B8C",
-      "0xe7e7a7b700000000000000000000000000000000000000000000000000000000000003e800000000000000000000000073b075e931b7da89e00422dbc8205369211c40e200000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+      "0xdCCA08dC4ec34d58f69415b0C7C8e0042779c559",
+      "0xe7e7a7b700000000000000000000000000000000000000000000000000000000000003e800000000000000000000000063c950170534907d40b77ecf61bd07980b51f2a400000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
     ],
     "isProxy": true
   }
