@@ -11,14 +11,14 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x65D545ae04b394fAfBE2EeD4036aBbc0485De8Db",
-        "validatorManager": "0x70a122D942B38EDC1C3E691aF19209CD17aDe555"
+        "inbox": "0x0fda1FDfEaDADdAE9C07C2bdA184935E317688C6",
+        "validatorManager": "0x78BEAd8669B1657BCA3F7aC202D8098f37Eb6c6A"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xa42Eb261e74Fd92bC376Bb4CC19Ca51Ca7EBFf6C"
+      "outbox": "0x24D05ae06F3Ce4CF146958714c2B2FBE8B6a29c4"
     },
     "domain": "3000",
     "name": "kovan",
