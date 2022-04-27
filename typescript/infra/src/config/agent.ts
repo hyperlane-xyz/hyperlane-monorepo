@@ -396,7 +396,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
       await key.createIfNotExists();
       await key.putKeyPolicy(awsUser.arn);
     }
-    return this.signers(KEY_ROLE_ENUM.Checkpointer);
+    return this.signers(role);
   }
 
   // Gets signer info, creating them if necessary
