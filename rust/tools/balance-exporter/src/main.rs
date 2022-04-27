@@ -139,7 +139,7 @@ impl Sample {
 #[tokio::test]
 #[should_panic]
 async fn mainnet_works() {
-    // query ethereum instance of XAppConnectionManager and asserts the balance is nonzero.
+    // query ethereum instance of AbacusConnectionManager and asserts the balance is nonzero.
     let sample = poll_once(
         &Input {
             contracts: vec![ChainSetup {
