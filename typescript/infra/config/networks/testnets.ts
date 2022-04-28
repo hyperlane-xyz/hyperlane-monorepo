@@ -52,6 +52,26 @@ export const ropsten: TransactionConfig = {
   },
 };
 
+export const bsctestnet: TransactionConfig = {
+  confirmations: 3,
+  overrides: {},
+};
+
+export const arbitrumrinkeby: TransactionConfig = {
+  confirmations: 3,
+  overrides: {},
+};
+
+export const optimismkovan: TransactionConfig = {
+  confirmations: 3,
+  overrides: {},
+};
+
+export const auroratestnet: TransactionConfig = {
+  confirmations: 3,
+  overrides: {},
+};
+
 export const configs: Partial<Record<ChainName, TransactionConfig>> = {
   alfajores,
   fuji,
@@ -61,4 +81,8 @@ export const configs: Partial<Record<ChainName, TransactionConfig>> = {
   rinkarby,
   rinkeby,
   ropsten,
+  bsctestnet,
+  arbitrumrinkeby,
+  optimismkovan,
+  auroratestnet,
 };

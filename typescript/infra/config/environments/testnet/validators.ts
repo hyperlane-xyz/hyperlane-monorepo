@@ -8,7 +8,7 @@ import {
 const s3BucketRegion = 'us-east-1';
 
 const s3BucketName = (chainName: ChainName, index: number) =>
-  `abacus-dev-${chainName}-validator-${index}`;
+  `abacus-testnet-${chainName}-validator-${index}`;
 
 export const validators: ChainValidatorSets<TestnetNetworks> = {
   alfajores: {

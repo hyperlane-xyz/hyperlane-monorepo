@@ -29,7 +29,7 @@ export const registerMultiProvider = async (multiProvider: MultiProvider) => {
 
   await Promise.all(
     domainNames.map(async (name) => {
-      const signer = await fetchSigner(ENVIRONMENTS_ENUM.Dev, name);
+      const signer = await fetchSigner(ENVIRONMENTS_ENUM.Testnet, name);
       multiProvider.registerSigner(name, signer);
     }),
   );
