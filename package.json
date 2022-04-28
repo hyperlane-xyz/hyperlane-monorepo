@@ -1,9 +1,8 @@
 {
   "name": "@abacus-network/monorepo",
   "scripts": {
-    "build": "yarn workspaces run build",
-    "test": "yarn workspaces run test",
-    "prettier": "yarn workspaces run prettier"
+    "build": "./build.sh",
+    "prettier": "./lint-prettier.sh"
   },
   "workspaces": [
     "typescript/utils",
