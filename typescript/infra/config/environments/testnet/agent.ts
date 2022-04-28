@@ -9,7 +9,7 @@ export const agent: AgentConfig<TestnetNetworks> = {
   runEnv: ENVIRONMENTS_ENUM.Testnet,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'f30aa0a68a645bf966638e145ba8a4e15f80280e',
+    tag: 'b7ea3edee7d8d6557ae2ba830c2972586d4687fa',
   },
   aws: {
     region: 'us-east-1',
@@ -21,6 +21,12 @@ export const agent: AgentConfig<TestnetNetworks> = {
       interval: 5,
       reorgPeriod: 1,
     },
+    chainOverrides: {
+      optimismkovan: {
+        interval: 5,
+        reorgPeriod: 2,
+      }
+    }
   },
   relayer: {
     default: {

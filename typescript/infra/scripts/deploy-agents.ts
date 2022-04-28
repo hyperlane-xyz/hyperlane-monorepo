@@ -11,17 +11,13 @@ async function deploy() {
   // in attempting to create a user or key multiple times. This was found to happen in
   // situations where agents for different domains would share the same AWS user or
   // AWS KMS key.
-  let i = 0;
   for (const name of domainNames) {
-    if (i >= 4) {
-      await runAgentHelmCommand(
-        HelmCommand.InstallOrUpgrade,
-        agentConfig,
-        name,
-        domainNames,
-      );
-    }
-    i++;
+    await runAgentHelmCommand(
+      HelmCommand.InstallOrUpgrade,
+      agentConfig,
+      name,
+      domainNames,
+    );
   }
 }
 
