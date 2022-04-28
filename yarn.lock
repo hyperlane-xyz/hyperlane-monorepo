@@ -201,6 +201,8 @@ __metadata:
 "@abacus-network/monorepo@workspace:.":
   version: 0.0.0-use.local
   resolution: "@abacus-network/monorepo@workspace:."
+  dependencies:
+    typescript: ^4.3.5
   languageName: unknown
   linkType: soft
 
