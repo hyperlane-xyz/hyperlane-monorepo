@@ -22,9 +22,7 @@
   {
     "name": "Outbox Implementation",
     "address": "0x589C201a07c26b4725A4A829d772f24423da480B",
-    "constructorArguments": [
-      80001
-    ],
+    "constructorArguments": [80001],
     "isProxy": false
   },
   {
@@ -74,9 +72,7 @@
   {
     "name": "Inbox Implementation",
     "address": "0x7d498740A4572f2B5c6b0A1Ba9d1d9DbE207e89E",
-    "constructorArguments": [
-      80001
-    ],
+    "constructorArguments": [80001],
     "isProxy": false
   },
   {

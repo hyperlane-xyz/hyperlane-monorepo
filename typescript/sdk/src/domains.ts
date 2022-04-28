@@ -88,22 +88,22 @@ export const ropsten: Domain = {
 export const bsctestnet: Domain = {
   name: 'bsctestnet',
   id: 0x62732d74, // b'bs-t' interpreted as an int
-}
+};
 
 export const arbitrumrinkeby: Domain = {
   name: 'arbitrumrinkeby',
   id: 0x61722d72, // b'ar-r' interpreted as an int
-}
+};
 
 export const optimismkovan: Domain = {
   name: 'optimismkovan',
   id: 0x6f702d6b, // b'op-k' interpreted as an int
-}
+};
 
 export const auroratestnet: Domain = {
   name: 'auroratestnet',
   id: 0x61752d74, // b'au-t' interpreted as an int
-}
+};
 
 /**
  * Test

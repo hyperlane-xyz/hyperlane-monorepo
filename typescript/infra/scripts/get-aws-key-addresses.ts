@@ -2,11 +2,7 @@ import { KEY_ROLE_ENUM, KEY_ROLES } from '../src/agents';
 import { isValidatorKey } from '../src/agents/agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from '../src/agents/aws';
 import { AgentConfig } from '../src/config';
-import {
-  getAgentConfig,
-  getEnvironment,
-  getDomainNames,
-} from './utils';
+import { getAgentConfig, getEnvironment, getDomainNames } from './utils';
 import { CheckpointSyncerType } from '../src/config/agent';
 import { ChainName } from '@abacus-network/sdk';
 
@@ -20,9 +16,11 @@ async function main() {
       if (isValidatorKey(role)) {
         // For each chainName, create validatorCount keys
         return domainNames.flatMap((chainName) =>
-          [...Array(agentConfig.validatorSets[chainName].validators.length).keys()].map((index) =>
-            getAddress(agentConfig, role, chainName, index),
-          ),
+          [
+            ...Array(
+              agentConfig.validatorSets[chainName].validators.length,
+            ).keys(),
+          ].map((index) => getAddress(agentConfig, role, chainName, index)),
         );
       } else {
         // Chain name doesnt matter for non attestation keys
@@ -46,8 +44,7 @@ async function getAddress(
       throw Error('Expected index');
     }
     const checkpointSyncer =
-      agentConfig.validatorSets[chain].validators[index]
-        .checkpointSyncer;
+      agentConfig.validatorSets[chain].validators[index].checkpointSyncer;
     if (checkpointSyncer.type !== CheckpointSyncerType.S3) {
       throw Error('Expected S3 checkpoint syncer for validator with AWS keys');
     }
