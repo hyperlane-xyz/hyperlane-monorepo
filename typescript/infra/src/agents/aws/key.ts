@@ -283,7 +283,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
       );
 
       if (!match || !match.TargetKeyId) {
-        throw new Error('Couldnt find key');
+        throw new Error(`Couldn't find key ${this.identifier}`);
       }
       keyId = match.TargetKeyId;
     }
