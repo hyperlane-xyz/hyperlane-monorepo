@@ -1,13 +1,13 @@
 import { rm, writeFile } from 'fs/promises';
 import { ChainName } from '@abacus-network/sdk';
-
 import { AgentConfig } from '../config';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
-import { AgentGCPKey, fetchAgentGCPKeys, memoryKeyIdentifier } from './gcp';
+import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
 import { AgentAwsKey } from './aws/key';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
+import { identifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 
 export enum KEY_ROLE_ENUM {
@@ -140,7 +140,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
       });
     } else if (role === KEY_ROLE_ENUM.Validator) {
       const privateKey =
-        gcpKeys[memoryKeyIdentifier(role, outboxChainName, index)].privateKey;
+        gcpKeys[identifier(agentConfig.environment, role, outboxChainName, index)].privateKey;
 
       envVars.push(
         `OPT_VALIDATOR_VALIDATOR_KEY=${strip0x(privateKey)}`,
