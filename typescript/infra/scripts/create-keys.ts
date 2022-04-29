@@ -1,4 +1,4 @@
-import { createAgentGCPKeys } from '../src/agents/gcp';
+import { createAgentGCPKeysIfNotExists } from '../src/agents/gcp';
 import { getArgs, getEnvironment, getDomainNames } from './utils';
 
 async function main() {
@@ -10,7 +10,7 @@ async function main() {
     .number('v')
     .demandOption('v').argv;
 
-  return createAgentGCPKeys(environment, domainNames, validatorCount);
+  return createAgentGCPKeysIfNotExists(environment, domainNames, validatorCount);
 }
 
 main().then(console.log).catch(console.error);

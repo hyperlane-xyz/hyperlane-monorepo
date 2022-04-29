@@ -51,14 +51,18 @@ export class AgentGCPKey extends AgentKey {
     }
   }
 
-  static async create(
+  static async createIfNotExists(
     environment: string,
     role: string,
     chainName: string,
     suffix?: string | number,
   ) {
     const key = new AgentGCPKey(environment, role, chainName, suffix);
-    await key.create();
+    try {
+      await key.fetch();
+    } catch (err) {
+      await key.create();
+    }
     return key;
   }
 
@@ -176,23 +180,30 @@ export async function deleteAgentGCPKeys(
   );
 }
 
-export async function createAgentGCPKeys(
+export async function createAgentGCPKeysIfNotExists(
   environment: string,
   chainNames: string[],
   validatorCount: number,
 ) {
   const keys: AgentGCPKey[] = await Promise.all(
     KEY_ROLES.flatMap((role) => {
-      if (isValidatorKey(role)) {
+      if (role === KEY_ROLE_ENUM.Validator) {
         // For each chainName, create validatorCount keys
         return chainNames.flatMap((chainName) =>
           [...Array(validatorCount).keys()].map((index) =>
-            AgentGCPKey.create(environment, role, chainName, index),
+            AgentGCPKey.createIfNotExists(environment, role, chainName, index),
           ),
         );
+      } else if (role === KEY_ROLE_ENUM.Relayer) {
+        return chainNames
+          .flatMap((chainName) =>
+            chainNames
+              .filter((c) => c !== chainName)
+              .map((remote) => AgentGCPKey.createIfNotExists(environment, role, chainName, remote))
+          );
       } else {
-        // Chain name doesnt matter for non attestation keys
-        return [AgentGCPKey.create(environment, role, 'any')];
+        return chainNames
+          .flatMap((chainName) => AgentGCPKey.createIfNotExists(environment, role, chainName));
       }
     }),
   );

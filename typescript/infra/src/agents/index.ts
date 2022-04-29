@@ -123,7 +123,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
   // GCP keys
   if (!agentConfig.aws) {
     const gcpKeys = await fetchAgentGCPKeys(
-      agentConfig.environment,
+      agentConfig,
       outboxChainName,
       agentConfig.validatorSets[outboxChainName].validators.length,
     );
@@ -358,7 +358,7 @@ export async function runKeymasterHelmCommand<Networks extends ChainName>(
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
   const chainName = chainNames[0];
   const gcpKeys = await fetchAgentGCPKeys(
-    agentConfig.environment,
+    agentConfig,
     chainName,
     agentConfig.validatorSets[chainName].validators.length,
   );
