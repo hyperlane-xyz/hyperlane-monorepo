@@ -3,7 +3,6 @@ import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
 import { DeployEnvironment } from './environment';
 import {
   AgentAwsKey,
-  AgentAwsUser,
   RelayerAgentAwsUser,
   ValidatorAgentAwsUser,
 } from '../agents/aws';
