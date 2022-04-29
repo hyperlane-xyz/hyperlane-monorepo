@@ -262,7 +262,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
   // key is pulled from GCP Secret Manager by the helm chart
   keyConfig(role: KEY_ROLE_ENUM): KeyConfig {
     if (this.awsKeys) {
-      const key = new AgentAwsKey(this.agentConfig, this.chainName, role);
+      const key = new AgentAwsKey(this.agentConfig, role, this.chainName);
       return key.keyConfig;
     }
     return {

@@ -1,10 +1,11 @@
 import { Wallet } from 'ethers';
 import { ChainName } from '@abacus-network/sdk';
-import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
+import { /*KEY_ROLES,*/ KEY_ROLE_ENUM } from '../agents';
 import { execCmd, include } from '../utils/utils';
 import { AgentKey, isValidatorKey, identifier } from './agent';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { AgentConfig } from '../config';
+import { getAllKeys } from './index';
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {
@@ -34,36 +35,28 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentGCPKey extends AgentKey {
+export class AgentGCPKey<Networks extends ChainName> extends AgentKey<Networks> {
   constructor(
-    public readonly environment: string,
-    public readonly role: string,
-    public readonly chainName: string,
-    public readonly suffix?: string | number,
+    agentConfig: AgentConfig<Networks>,
+    role: KEY_ROLE_ENUM,
+    chainName?: Networks,
+    suffix?: Networks | number,
     private remoteKey: RemoteKey = { fetched: false },
   ) {
-    super();
-    if (
-      (role === KEY_ROLE_ENUM.Validator || role === KEY_ROLE_ENUM.Relayer) &&
-      suffix === undefined
-    ) {
-      throw new Error(`Expected suffix for ${role} key`);
-    }
+    super(
+      agentConfig,
+      role,
+      chainName,
+      suffix,
+    );
   }
 
-  static async createIfNotExists(
-    environment: string,
-    role: string,
-    chainName: string,
-    suffix?: string | number,
-  ) {
-    const key = new AgentGCPKey(environment, role, chainName, suffix);
+  async createIfNotExists() {
     try {
-      await key.fetch();
+      await this.fetch();
     } catch (err) {
-      await key.create();
+      await this.create();
     }
-    return key;
   }
 
   serializeAsAddress() {
@@ -157,78 +150,59 @@ export class AgentGCPKey extends AgentKey {
 }
 
 export async function deleteAgentGCPKeys(
-  environment: string,
-  chainNames: string[],
+  _environment: string,
+  _chainNames: string[],
 ) {
-  await Promise.all(
-    KEY_ROLES.map(async (role) => {
-      if (isValidatorKey(role)) {
-        await Promise.all(
-          chainNames.map((chainName) => {
-            const key = new AgentGCPKey(environment, role, chainName);
-            return key.delete();
-          }),
-        );
-      } else {
-        const key = new AgentGCPKey(environment, role, 'any');
-        await key.delete();
-      }
-    }),
-  );
-  await execCmd(
-    `gcloud secrets delete ${addressesIdentifier(environment)} --quiet`,
-  );
+  // await Promise.all(
+  //   KEY_ROLES.map(async (role) => {
+  //     if (isValidatorKey(role)) {
+  //       await Promise.all(
+  //         chainNames.map((chainName) => {
+  //           const key = new AgentGCPKey(environment, role, chainName);
+  //           return key.delete();
+  //         }),
+  //       );
+  //     } else {
+  //       const key = new AgentGCPKey(environment, role, 'any');
+  //       await key.delete();
+  //     }
+  //   }),
+  // );
+  // await execCmd(
+  //   `gcloud secrets delete ${addressesIdentifier(environment)} --quiet`,
+  // );
 }
 
-export async function createAgentGCPKeysIfNotExists(
-  environment: string,
-  chainNames: string[],
-  validatorCount: number,
+export async function createAgentKeysIfNotExists<Networks extends ChainName>(
+  agentConfig: AgentConfig<Networks>
 ) {
-  const keys: AgentGCPKey[] = await Promise.all(
-    KEY_ROLES.flatMap((role) => {
-      if (role === KEY_ROLE_ENUM.Validator) {
-        // For each chainName, create validatorCount keys
-        return chainNames.flatMap((chainName) =>
-          [...Array(validatorCount).keys()].map((index) =>
-            AgentGCPKey.createIfNotExists(environment, role, chainName, index),
-          ),
-        );
-      } else if (role === KEY_ROLE_ENUM.Relayer) {
-        return chainNames
-          .flatMap((chainName) =>
-            chainNames
-              .filter((c) => c !== chainName)
-              .map((remote) => AgentGCPKey.createIfNotExists(environment, role, chainName, remote))
-          );
-      } else {
-        return chainNames
-          .flatMap((chainName) => AgentGCPKey.createIfNotExists(environment, role, chainName));
-      }
-    }),
+  const keys = getAllKeys(agentConfig);
+
+  await Promise.all(
+    keys.map((key) => key.createIfNotExists())
   );
 
   await persistAddresses(
-    environment,
-    keys.map((_) => _.serializeAsAddress()),
+    agentConfig.environment,
+    keys.map((key) => key.serializeAsAddress()),
   );
 }
 
 export async function rotateGCPKey(
-  environment: string,
-  role: string,
-  chainName: string,
+  _environment: string,
+  _role: string,
+  _chainName: string,
 ) {
-  const key = new AgentGCPKey(environment, role, chainName);
-  await key.update();
-  const keyIdentifier = key.identifier;
-  const addresses = await fetchGCPKeyAddresses(environment);
-  const filteredAddresses = addresses.filter((_) => {
-    return _.identifier !== keyIdentifier;
-  });
+  // const key = new AgentGCPKey(environment, role, chainName);
+  // await key.update();
+  // const keyIdentifier = key.identifier;
+  // const addresses = await fetchGCPKeyAddresses(environment);
+  // const filteredAddresses = addresses.filter((_) => {
+  //   return _.identifier !== keyIdentifier;
+  // });
 
-  filteredAddresses.push(key.serializeAsAddress());
-  await persistAddresses(environment, filteredAddresses);
+  // filteredAddresses.push(key.serializeAsAddress());
+  // await persistAddresses(environment, filteredAddresses);
 }
 
 async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
@@ -239,47 +213,48 @@ async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
 
 // This function returns all the GCP keys for a given outbox chain in a dictionary where the key is the identifier
 export async function fetchAgentGCPKeys<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
-  chainName: Networks,
-  validatorCount: number,
-): Promise<Record<string, AgentGCPKey>> {
-  const environment = agentConfig.environment;
-  const secrets = await Promise.all(
-    KEY_ROLES.map(async (role) => {
-      if (role === KEY_ROLE_ENUM.Validator) {
-        return Promise.all(
-          [...Array(validatorCount).keys()].map(async (index) => {
-            const key = new AgentGCPKey(environment, role, chainName, index);
-            await key.fetch();
-            return [key.identifier, key];
-          }),
-        );
-      } else if (role === KEY_ROLE_ENUM.Relayer) {
-        return Promise.all(
-          agentConfig
-            .domainNames
-            .filter((d) => d !== chainName)
-            .map(async (remote) => {
-              const key = new AgentGCPKey(environment, role, chainName, remote);
-              await key.fetch();
-              return [key.identifier, key];
-            })
-        );
-      } else {
-        const key = new AgentGCPKey(environment, role, chainName);
-        await key.fetch();
-        return [[key.identifier, key]];
-      }
-    }),
-  );
+  _agentConfig: AgentConfig<Networks>,
+  _chainName: Networks,
+  _validatorCount: number,
+): Promise<Record<string, AgentGCPKey<Networks>>> {
+  // const environment = agentConfig.environment;
+  // const secrets = await Promise.all(
+  //   KEY_ROLES.map(async (role) => {
+  //     if (role === KEY_ROLE_ENUM.Validator) {
+  //       return Promise.all(
+  //         [...Array(validatorCount).keys()].map(async (index) => {
+  //           const key = new AgentGCPKey(environment, role, chainName, index);
+  //           await key.fetch();
+  //           return [key.identifier, key];
+  //         }),
+  //       );
+  //     } else if (role === KEY_ROLE_ENUM.Relayer) {
+  //       return Promise.all(
+  //         agentConfig
+  //           .domainNames
+  //           .filter((d) => d !== chainName)
+  //           .map(async (remote) => {
+  //             const key = new AgentGCPKey(environment, role, chainName, remote);
+  //             await key.fetch();
+  //             return [key.identifier, key];
+  //           })
+  //       );
+  //     } else {
+  //       const key = new AgentGCPKey(environment, role, chainName);
+  //       await key.fetch();
+  //       return [[key.identifier, key]];
+  //     }
+  //   }),
+  // );
 
-  return Object.fromEntries(secrets.flat(1));
+  // return Object.fromEntries(secrets.flat(1));
+  return {};
 }
 
-async function fetchGCPKeyAddresses(environment: string) {
-  const addresses = await fetchGCPSecret(addressesIdentifier(environment));
-  return addresses as KeyAsAddress[];
-}
+// async function fetchGCPKeyAddresses(environment: string) {
+//   const addresses = await fetchGCPSecret(addressesIdentifier(environment));
+//   return addresses as KeyAsAddress[];
+// }
 
 function addressesIdentifier(environment: string) {
   return `abacus-${environment}-key-addresses`;

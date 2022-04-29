@@ -7,7 +7,7 @@ import { ensure0x, execCmd, strip0x } from '../utils/utils';
 import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
 import { AgentAwsKey } from './aws/key';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
-import { identifier } from './agent';
+import { AgentKey, identifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 
 export enum KEY_ROLE_ENUM {
@@ -27,6 +27,47 @@ export const KEY_ROLES = [
   KEY_ROLE_ENUM.Bank,
   KEY_ROLE_ENUM.Kathy,
 ];
+
+export function getAllKeys<Networks extends ChainName>(agentConfig: AgentConfig<Networks>): Array<AgentKey<Networks>> {
+  const getKey = (
+    agentConfig_: AgentConfig<Networks>,
+    role: KEY_ROLE_ENUM,
+    chainName?: Networks,
+    suffix?: Networks | number,
+  ): AgentKey<Networks> => {
+    if (agentConfig.aws) {
+      return new AgentAwsKey(
+        agentConfig_,
+        role,
+        chainName,
+        suffix,
+      )
+    } else {
+      return new AgentGCPKey(
+        agentConfig_,
+        role,
+        chainName,
+        suffix,
+      );
+    }
+  }
+
+  return KEY_ROLES.flatMap((role) => {
+    if (role === KEY_ROLE_ENUM.Validator) {
+      // For each chainName, create validatorCount keys
+      return agentConfig.domainNames.flatMap((chainName) =>
+        [...Array(agentConfig.validatorSets[chainName].validators.length).keys()].map((index) =>
+          getKey(agentConfig, role, chainName, index),
+        ),
+      );
+    } else if (role === KEY_ROLE_ENUM.Relayer) {
+      return agentConfig.domainNames
+          .map((chainName) => getKey(agentConfig, role, chainName));
+    } else {
+      return [getKey(agentConfig, role)];
+    }
+  });
+}
 
 async function helmValuesForChain<Networks extends ChainName>(
   chainName: Networks,
@@ -188,8 +229,8 @@ export async function getAgentEnvVars<Networks extends ChainName>(
       role === KEY_ROLE_ENUM.Relayer ||
       role === KEY_ROLE_ENUM.Kathy
     ) {
-      chainNames.forEach((name) => {
-        const key = new AgentAwsKey(agentConfig, name, role);
+      chainNames.forEach((chainName) => {
+        const key = new AgentAwsKey(agentConfig, role, chainName);
         envVars = envVars.concat(
           configEnvVars(key.keyConfig, 'BASE', 'SIGNERS_'),
         );
@@ -286,6 +327,7 @@ export async function getSecretDeployerKey(
   environment: string,
   chainName: string,
 ) {
+  // @ts-ignore
   const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chainName);
   await key.fetch();
   return key.privateKey;

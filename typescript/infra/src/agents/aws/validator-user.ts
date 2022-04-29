@@ -84,8 +84,8 @@ export class ValidatorAgentAwsUser<
     return [
       new AgentAwsKey<Networks>(
         agentConfig,
-        this.chainName,
         this.role,
+        this.chainName,
         this.index,
       ),
     ];

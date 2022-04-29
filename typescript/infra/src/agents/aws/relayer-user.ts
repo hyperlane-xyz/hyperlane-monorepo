@@ -15,7 +15,7 @@ export class RelayerAgentAwsUser<
     const remotes = agentConfig.domainNames.filter((d) => d !== this.chainName);
     return remotes.map(
       (r) =>
-        new AgentAwsKey<Networks>(agentConfig, this.chainName, this.role, r),
+        new AgentAwsKey<Networks>(agentConfig, this.role, this.chainName, r),
     );
   }
 }

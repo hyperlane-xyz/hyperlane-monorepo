@@ -29,29 +29,26 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
-  private environment: string;
+export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> {
   private client: KMSClient | undefined;
   private region: string;
   public remoteKey: RemoteKey = { fetched: false };
 
   constructor(
     agentConfig: AgentConfig<Networks>,
-    public readonly chainName: Networks,
-    public readonly role: KEY_ROLE_ENUM,
-    public readonly suffix?: Networks | number,
+    role: KEY_ROLE_ENUM,
+    chainName?: Networks,
+    suffix?: Networks | number,
   ) {
-    super();
+    super(
+      agentConfig,
+      role,
+      chainName,
+      suffix,
+    );
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }
-    if (
-      (role === KEY_ROLE_ENUM.Validator || role === KEY_ROLE_ENUM.Relayer) &&
-      suffix === undefined
-    ) {
-      throw new Error(`Expected suffix for ${role} key`);
-    }
-    this.environment = agentConfig.environment;
     this.region = agentConfig.aws.region;
   }
 
