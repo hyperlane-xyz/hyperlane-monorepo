@@ -1,5 +1,5 @@
 import { ChainName } from '@abacus-network/sdk';
-import { KEY_ROLE_ENUM } from '../agents';
+import { KEY_ROLE_ENUM } from './roles';
 import { AgentConfig } from '../config/agent';
 
 export abstract class AgentKey<Networks extends ChainName> {
@@ -12,12 +12,6 @@ export abstract class AgentKey<Networks extends ChainName> {
     public readonly suffix?: Networks | number,
   ) {
     this.environment = agentConfig.environment;
-    if (
-      (role === KEY_ROLE_ENUM.Validator || role === KEY_ROLE_ENUM.Relayer) &&
-      suffix === undefined
-    ) {
-      throw new Error(`Expected suffix for ${role} key`);
-    }
   }
 
   abstract get identifier(): string;
@@ -57,6 +51,6 @@ export function identifier(
     case KEY_ROLE_ENUM.Relayer:
       return `abacus-${environment}-key-${chainName}-${role}`;
     default:
-      return `abacus-${environment}-key`;
+      return `abacus-${environment}-key-${role}`;
   }
 }

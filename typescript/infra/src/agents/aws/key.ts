@@ -1,7 +1,8 @@
 import { ChainName } from '@abacus-network/sdk';
-import { KEY_ROLE_ENUM } from '..';
+import { KEY_ROLE_ENUM } from '../roles';
 import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import {
+  AliasListEntry,
   CreateAliasCommand,
   CreateKeyCommand,
   DeleteAliasCommand,
@@ -10,6 +11,7 @@ import {
   KeyUsageType,
   KMSClient,
   ListAliasesCommand,
+  ListAliasesCommandOutput,
   OriginType,
   PutKeyPolicyCommand,
   UpdateAliasCommand,
@@ -101,6 +103,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
       // It can take a moment for the change to propagate
       await sleep(1000);
     }
+    await this.fetch();
   }
 
   async delete() {
@@ -145,10 +148,27 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
   // Gets the Key's ID if it exists, undefined otherwise
   async getId() {
     const client = await this.getClient();
-    const listAliasResponse = await client.send(
-      new ListAliasesCommand({ Limit: 100 }),
-    );
-    const match = listAliasResponse.Aliases!.find(
+    let aliases: AliasListEntry[] = [];
+    let marker: string | undefined = undefined;
+    while (true) {
+      const listAliasResponse: ListAliasesCommandOutput = await client.send(
+        new ListAliasesCommand({
+          Limit: 100,
+          Marker: marker,
+        })
+      );
+      if (!listAliasResponse.Aliases || listAliasResponse.Aliases.length === 0) {
+        break;
+      }
+      aliases = aliases.concat(listAliasResponse.Aliases);
+      if (listAliasResponse.NextMarker) {
+        marker = listAliasResponse.NextMarker;
+      } else {
+        break;
+      }
+    }
+    
+    const match = aliases.find(
       (_) => _.AliasName === this.identifier,
     );
     return match?.TargetKeyId;
@@ -159,7 +179,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
   }
 
   /**
-   * Creates the new key but doesn't acutally rotate it
+   * Creates the new key but doesn't actually rotate it
    * @returns The address of the new key
    */
   async update() {
@@ -177,6 +197,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
     const client = await this.getClient();
 
     // Get the key IDs
+    // TODO handle cases when there are > 100 keys
     const listAliasResponse = await client.send(
       new ListAliasesCommand({ Limit: 100 }),
     );
@@ -226,7 +247,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
 
   private requireFetched() {
     if (!this.remoteKey.fetched) {
-      throw new Error("Can't persist without address");
+      throw new Error('Key not fetched');
     }
   }
 
@@ -275,21 +296,9 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
 
   private async fetchAddressFromAws(keyId?: string) {
     const client = await this.getClient();
-    const alias = this.identifier;
 
     if (!keyId) {
-      const listAliasResponse = await client.send(
-        new ListAliasesCommand({ Limit: 100 }),
-      );
-
-      const match = listAliasResponse.Aliases!.find(
-        (_) => _.AliasName === alias,
-      );
-
-      if (!match || !match.TargetKeyId) {
-        throw new Error(`Couldn't find key ${this.identifier}`);
-      }
-      keyId = match.TargetKeyId;
+      keyId = await this.getId();
     }
 
     const publicKeyResponse = await client.send(

@@ -6,7 +6,7 @@ import {
   RelayerAgentAwsUser,
   ValidatorAgentAwsUser,
 } from '../agents/aws';
-import { KEY_ROLE_ENUM } from '../agents';
+import { KEY_ROLE_ENUM } from '../agents/roles';
 
 // Allows a "default" config to be specified and any per-network overrides.
 interface ChainOverridableConfig<Networks extends ChainName, T> {

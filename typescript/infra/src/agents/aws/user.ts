@@ -5,7 +5,7 @@ import {
   CreateUserCommand,
   ListUsersCommand,
 } from '@aws-sdk/client-iam';
-import { KEY_ROLE_ENUM } from '../../agents';
+import { KEY_ROLE_ENUM } from '../roles';
 import { AgentConfig } from '../../config';
 import {
   fetchGCPSecret,

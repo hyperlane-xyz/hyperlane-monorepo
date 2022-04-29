@@ -1,11 +1,11 @@
 import { Wallet } from 'ethers';
 import { ChainName } from '@abacus-network/sdk';
-import { /*KEY_ROLES,*/ KEY_ROLE_ENUM } from '../agents';
+import { KEY_ROLE_ENUM } from './roles';
 import { execCmd, include } from '../utils/utils';
 import { AgentKey, isValidatorKey, identifier } from './agent';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { AgentConfig } from '../config';
-import { getKey, getAllKeys } from './index';
+import { getKey, getAllKeys } from './key-utils';
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {
@@ -168,7 +168,9 @@ export async function createAgentKeysIfNotExists<Networks extends ChainName>(
   const keys = getAllKeys(agentConfig);
 
   await Promise.all(
-    keys.map((key) => key.createIfNotExists())
+    keys.map(async (key) => {
+      return key.createIfNotExists();
+    })
   );
 
   await persistAddresses(
