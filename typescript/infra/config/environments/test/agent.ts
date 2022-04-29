@@ -2,6 +2,8 @@ import { AgentConfig } from '../../../src/config';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
 import { validators } from './validators';
 
+const domainNames = Object.keys(validators);
+
 export const agent: AgentConfig<keyof typeof validators> = {
   environment: ENVIRONMENTS_ENUM.Test,
   namespace: ENVIRONMENTS_ENUM.Test,
@@ -10,6 +12,7 @@ export const agent: AgentConfig<keyof typeof validators> = {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
   },
+  domainNames,
   validatorSets: validators,
   validator: {
     default: {

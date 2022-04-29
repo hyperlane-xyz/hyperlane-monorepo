@@ -1,11 +1,12 @@
 import { ChainName } from '@abacus-network/sdk';
 import { rm, writeFile } from 'fs/promises';
 import { AgentConfig } from '../config';
-import { ChainAgentConfig } from '../config/agent';
+import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
-import { AgentAwsKey } from './aws';
+import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
+import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey, fetchAgentGCPKeys, memoryKeyIdentifier } from './gcp';
 
 export enum KEY_ROLE_ENUM {
@@ -31,19 +32,7 @@ async function helmValuesForChain<Networks extends ChainName>(
   agentConfig: AgentConfig<Networks>,
   chainNames: Networks[],
 ) {
-  // Credentials are only needed if AWS keys are needed -- otherwise, the
-  // key is pulled from GCP Secret Manager by the helm chart
-  const credentials = (role: KEY_ROLE_ENUM) => {
-    if (agentConfig.aws) {
-      const key = new AgentAwsKey(agentConfig, role, chainName);
-      return key.credentialsAsHelmValue;
-    }
-    return undefined;
-  };
-
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
-
-  const kathyConfig = chainAgentConfig.kathyConfig;
 
   return {
     image: {
@@ -66,34 +55,25 @@ async function helmValuesForChain<Networks extends ChainName>(
         }),
       validator: {
         enabled: true,
-        signer: {
-          ...credentials(KEY_ROLE_ENUM.Validator),
-        },
         configs: await chainAgentConfig.validatorConfigs(),
       },
       relayer: {
         enabled: true,
-        signers: chainNames.map((name) => ({
-          name,
-          ...credentials(KEY_ROLE_ENUM.Relayer),
-        })),
+        aws: await chainAgentConfig.relayerRequiresAwsCredentials(),
+        signers: chainAgentConfig.relayerSigners,
         config: chainAgentConfig.relayerConfig,
       },
       checkpointer: {
         enabled: true,
-        signers: chainNames.map((name) => ({
-          name,
-          ...credentials(KEY_ROLE_ENUM.Checkpointer),
-        })),
+        aws: chainAgentConfig.checkpointerRequiresAwsCredentials,
+        signers: await chainAgentConfig.checkpointerSigners(),
         config: chainAgentConfig.checkpointerConfig,
       },
       kathy: {
-        signers: chainNames.map((name) => ({
-          name,
-          ...credentials(KEY_ROLE_ENUM.Kathy),
-        })),
-        enabled: kathyConfig !== undefined,
-        config: kathyConfig,
+        enabled: chainAgentConfig.kathyEnabled,
+        aws: chainAgentConfig.kathyRequiresAwsCredentials,
+        signers: await chainAgentConfig.kathySigners(),
+        config: chainAgentConfig.kathyConfig,
       },
     },
   };
@@ -139,7 +119,8 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     }-db`,
   );
 
-  try {
+  // GCP keys
+  if (!agentConfig.aws) {
     const gcpKeys = await fetchAgentGCPKeys(
       agentConfig.environment,
       outboxChainName,
@@ -165,52 +146,59 @@ export async function getAgentEnvVars<Networks extends ChainName>(
         `OPT_VALIDATOR_VALIDATOR_TYPE=hexKey`,
       );
     }
-  } catch (error) {
-    // This happens if you don't have a result type
-    if ((error as any).toString().includes('Panic')) {
-      throw error;
+  } else {
+    // AWS keys
+
+    let user: AgentAwsUser<Networks>;
+
+    if (role === KEY_ROLE_ENUM.Validator) {
+      const checkpointSyncer =
+        agentConfig.validatorSets[outboxChainName].validators[index!]
+          .checkpointSyncer;
+      if (checkpointSyncer.type !== CheckpointSyncerType.S3) {
+        throw Error(
+          'Expected S3 checkpoint syncer for validator with AWS keys',
+        );
+      }
+      user = new ValidatorAgentAwsUser(
+        agentConfig.environment,
+        outboxChainName,
+        index!,
+        checkpointSyncer.region,
+        checkpointSyncer.bucket,
+      );
+    } else {
+      user = new AgentAwsUser(
+        agentConfig.environment,
+        outboxChainName,
+        role,
+        agentConfig.aws!.region,
+      );
     }
 
-    // Keys are in AWS
-    const awsKeys = await getSecretAwsCredentials(agentConfig);
+    const accessKeys = await user.getAccessKeys();
 
-    envVars.push(`AWS_ACCESS_KEY_ID=${awsKeys.accessKeyId}`);
-    envVars.push(`AWS_SECRET_ACCESS_KEY=${awsKeys.secretAccessKey}`);
+    envVars.push(`AWS_ACCESS_KEY_ID=${accessKeys.accessKeyId}`);
+    envVars.push(`AWS_SECRET_ACCESS_KEY=${accessKeys.secretAccessKey}`);
 
     // Only checkpointer and relayer need to sign txs
-    if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
+    if (
+      role === KEY_ROLE_ENUM.Checkpointer ||
+      role === KEY_ROLE_ENUM.Relayer ||
+      role === KEY_ROLE_ENUM.Kathy
+    ) {
       chainNames.forEach((name) => {
-        const key = new AgentAwsKey(agentConfig, role, name);
-        envVars.push(`OPT_BASE_SIGNERS_${name.toUpperCase()}_TYPE=aws`);
-        envVars.push(
-          `OPT_BASE_SIGNERS_${name.toUpperCase()}_ID=${
-            key.credentialsAsHelmValue.aws.keyId
-          }`,
-        );
-        envVars.push(
-          `OPT_BASE_SIGNERS_${name.toUpperCase()}_REGION=${
-            key.credentialsAsHelmValue.aws.region
-          }`,
+        const key = new AgentAwsKey(agentConfig, name, role);
+        envVars = envVars.concat(
+          configEnvVars(key.keyConfig, 'BASE', 'SIGNERS_'),
         );
       });
-    }
-
-    // Validator attestation key
-    if (role === KEY_ROLE_ENUM.Validator) {
-      const key = new AgentAwsKey(agentConfig, role, outboxChainName);
-      envVars.push(`OPT_BASE_VALIDATOR_TYPE=aws`);
-      envVars.push(
-        `OPT_BASE_VALIDATOR_ID=${key.credentialsAsHelmValue.aws.keyId}`,
-      );
-      envVars.push(
-        `OPT_BASE_VALIDATOR_REGION=${key.credentialsAsHelmValue.aws.region}`,
-      );
     }
   }
 
   switch (role) {
     case KEY_ROLE_ENUM.Validator:
-      envVars.concat(
+      envVars = envVars.concat(
         configEnvVars(
           valueDict.abacus.validator.configs[index!],
           KEY_ROLE_ENUM.Validator,
@@ -218,12 +206,12 @@ export async function getAgentEnvVars<Networks extends ChainName>(
       );
       break;
     case KEY_ROLE_ENUM.Relayer:
-      envVars.concat(
+      envVars = envVars.concat(
         configEnvVars(valueDict.abacus.relayer.config, KEY_ROLE_ENUM.Relayer),
       );
       break;
     case KEY_ROLE_ENUM.Checkpointer:
-      envVars.concat(
+      envVars = envVars.concat(
         configEnvVars(
           valueDict.abacus.checkpointer.config,
           KEY_ROLE_ENUM.Checkpointer,
@@ -232,7 +220,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
       break;
     case KEY_ROLE_ENUM.Kathy:
       if (valueDict.abacus.kathy.config) {
-        envVars.concat(
+        envVars = envVars.concat(
           configEnvVars(valueDict.abacus.kathy.config, KEY_ROLE_ENUM.Kathy),
         );
       }

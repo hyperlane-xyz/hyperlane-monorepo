@@ -57,14 +57,7 @@ spec:
         env:
 {{- include "abacus-agent.config-env-vars" (dict "config" .Values.abacus.relayer.config "agent_name" "relayer") | indent 10 }}
           {{- range .Values.abacus.relayer.signers }}
-          {{- if (hasKey . "aws") }}
-          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_TYPE
-            value: "aws"
-          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_ID
-            value: {{ .aws.keyId }}
-          - name: OPT_BASE_SIGNERS_{{ .name | upper }}_REGION
-            value: {{ .aws.region }}
-          {{- end }}
+{{- include "abacus-agent.config-env-vars" (dict "config" .keyConfig "agent_name" "base" "key_name_prefix" (printf "SIGNERS_%s_" (.name | upper))) | indent 10 }}
           {{- end }}
           {{- if .Values.abacus.tracing.uri }}
           - name: OPT_BASE_TRACING_JAEGER_NAME

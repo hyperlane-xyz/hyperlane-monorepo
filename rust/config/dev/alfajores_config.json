@@ -11,14 +11,14 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x0bA30c539f67027797209B314afE7A0390F536ab",
-        "validatorManager": "0x73B075e931B7dA89E00422Dbc8205369211C40e2"
+        "inbox": "0x125379056774C4246d016b2C58c6fbb80ab8829b",
+        "validatorManager": "0x63C950170534907d40B77ecF61bd07980B51f2a4"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xdCCA08dC4ec34d58f69415b0C7C8e0042779c559"
+      "outbox": "0x71f37188d27788ea86E12557edbc9b07E5BDdf03"
     },
     "domain": "1000",
     "name": "alfajores",
