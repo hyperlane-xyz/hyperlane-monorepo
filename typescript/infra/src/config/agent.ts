@@ -308,7 +308,9 @@ export class ChainAgentConfig<Networks extends ChainName> {
         if (this.awsKeys) {
           const keys = await awsUser.createKeysIfNotExists(this.agentConfig);
           if (keys.length !== 1) {
-            throw Error(`Expected exactly one validator key for user ${awsUser.userName}`);
+            throw Error(
+              `Expected exactly one validator key for user ${awsUser.userName}`,
+            );
           }
           validator = keys[0].keyConfig;
         }
@@ -404,9 +406,9 @@ export class ChainAgentConfig<Networks extends ChainName> {
     }
     return [
       {
-      name: this.chainName,
-      keyConfig: this.keyConfig(KEY_ROLE_ENUM.Kathy),
-      }
+        name: this.chainName,
+        keyConfig: this.keyConfig(KEY_ROLE_ENUM.Kathy),
+      },
     ];
   }
 
@@ -433,7 +435,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
       {
         name: this.chainName,
         keyConfig: this.keyConfig(KEY_ROLE_ENUM.Kathy),
-      }
+      },
     ];
   }
 

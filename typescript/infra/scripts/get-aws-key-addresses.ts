@@ -20,10 +20,14 @@ async function main() {
               ...Array(
                 agentConfig.validatorSets[chainName].validators.length,
               ).keys(),
-            ].flatMap((index) => getAddresses(agentConfig, role, chainName, index)),
+            ].flatMap((index) =>
+              getAddresses(agentConfig, role, chainName, index),
+            ),
           );
         case KEY_ROLE_ENUM.Relayer:
-          return domainNames.flatMap((chainName) => getAddresses(agentConfig, role, chainName));
+          return domainNames.flatMap((chainName) =>
+            getAddresses(agentConfig, role, chainName),
+          );
         default:
           // Chain name doesnt matter for other keys
           return getAddresses(agentConfig, role, domainNames[0]);
@@ -85,7 +89,7 @@ async function getAddresses(
         alias: key.identifier,
         address,
       };
-    })
+    }),
   );
 }
 

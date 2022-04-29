@@ -25,8 +25,8 @@ export const agent: AgentConfig<TestnetNetworks> = {
       optimismkovan: {
         interval: 5,
         reorgPeriod: 2,
-      }
-    }
+      },
+    },
   },
   relayer: {
     default: {

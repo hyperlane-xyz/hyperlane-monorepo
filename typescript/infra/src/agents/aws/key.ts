@@ -45,7 +45,10 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }
-    if ((role === KEY_ROLE_ENUM.Validator || role === KEY_ROLE_ENUM.Relayer) && suffix === undefined) {
+    if (
+      (role === KEY_ROLE_ENUM.Validator || role === KEY_ROLE_ENUM.Relayer) &&
+      suffix === undefined
+    ) {
       throw new Error(`Expected suffix for ${role} key`);
     }
     this.environment = agentConfig.environment;

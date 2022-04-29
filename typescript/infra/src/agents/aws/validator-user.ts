@@ -87,7 +87,7 @@ export class ValidatorAgentAwsUser<
         this.chainName,
         this.role,
         this.index,
-      )
+      ),
     ];
   }
 

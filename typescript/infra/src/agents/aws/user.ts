@@ -100,9 +100,7 @@ export class AgentAwsUser<Networks extends ChainName> {
   }
 
   keys(agentConfig: AgentConfig<Networks>): Array<AgentAwsKey<Networks>> {
-    return [
-      new AgentAwsKey<Networks>(agentConfig, this.chainName, this.role),
-    ];
+    return [new AgentAwsKey<Networks>(agentConfig, this.chainName, this.role)];
   }
 
   createKeysIfNotExists(agentConfig: AgentConfig<Networks>) {
@@ -112,7 +110,7 @@ export class AgentAwsUser<Networks extends ChainName> {
         await k.createIfNotExists();
         await k.putKeyPolicy(this.arn);
         return k;
-      })
+      }),
     );
   }
 
