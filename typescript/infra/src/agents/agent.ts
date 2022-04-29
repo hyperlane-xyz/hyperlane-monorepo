@@ -26,6 +26,7 @@ export abstract class AgentKey<Networks extends ChainName> {
   abstract fetch(): Promise<void>;
 
   abstract createIfNotExists(): Promise<void>;
+  abstract delete(): Promise<void>;
 
   serializeAsAddress() {
     return {

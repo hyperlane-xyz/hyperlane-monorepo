@@ -149,28 +149,16 @@ export class AgentGCPKey<Networks extends ChainName> extends AgentKey<Networks> 
   }
 }
 
-export async function deleteAgentGCPKeys(
-  _environment: string,
-  _chainNames: string[],
+export async function deleteAgentKeys<Networks extends ChainName>(
+  agentConfig: AgentConfig<Networks>
 ) {
-  // await Promise.all(
-  //   KEY_ROLES.map(async (role) => {
-  //     if (isValidatorKey(role)) {
-  //       await Promise.all(
-  //         chainNames.map((chainName) => {
-  //           const key = new AgentGCPKey(environment, role, chainName);
-  //           return key.delete();
-  //         }),
-  //       );
-  //     } else {
-  //       const key = new AgentGCPKey(environment, role, 'any');
-  //       await key.delete();
-  //     }
-  //   }),
-  // );
-  // await execCmd(
-  //   `gcloud secrets delete ${addressesIdentifier(environment)} --quiet`,
-  // );
+  const keys = getAllKeys(agentConfig);
+  await Promise.all(
+    keys.map((key) => key.delete())
+  );
+  await execCmd(
+    `gcloud secrets delete ${addressesIdentifier(agentConfig.environment)} --quiet`,
+  );
 }
 
 export async function createAgentKeysIfNotExists<Networks extends ChainName>(

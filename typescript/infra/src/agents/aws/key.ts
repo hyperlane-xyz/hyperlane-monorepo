@@ -103,6 +103,10 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
     }
   }
 
+  async delete() {
+    throw Error('Not implemented yet');
+  }
+
   // Allows the `userArn` to use the key
   async putKeyPolicy(userArn: string) {
     const client = await this.getClient();
