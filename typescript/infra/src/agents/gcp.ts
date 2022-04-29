@@ -5,7 +5,7 @@ import { execCmd, include } from '../utils/utils';
 import { AgentKey, isValidatorKey, identifier } from './agent';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { AgentConfig } from '../config';
-import { getAllKeys } from './index';
+import { getKey, getAllKeys } from './index';
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {
@@ -105,6 +105,7 @@ export class AgentGCPKey<Networks extends ChainName> extends AgentKey<Networks> 
 
   async update() {
     this.remoteKey = await this._create(true);
+    return this.address;
   }
 
   async delete() {
@@ -176,21 +177,21 @@ export async function createAgentKeysIfNotExists<Networks extends ChainName>(
   );
 }
 
-export async function rotateGCPKey(
-  _environment: string,
-  _role: string,
-  _chainName: string,
+export async function rotateKey<Networks extends ChainName>(
+  agentConfig: AgentConfig<Networks>,
+  role: KEY_ROLE_ENUM,
+  chainName: Networks,
 ) {
-  // const key = new AgentGCPKey(environment, role, chainName);
-  // await key.update();
-  // const keyIdentifier = key.identifier;
-  // const addresses = await fetchGCPKeyAddresses(environment);
-  // const filteredAddresses = addresses.filter((_) => {
-  //   return _.identifier !== keyIdentifier;
-  // });
+  const key = getKey(agentConfig, role, chainName);
+  await key.update();
+  const keyIdentifier = key.identifier;
+  const addresses = await fetchGCPKeyAddresses(agentConfig.environment);
+  const filteredAddresses = addresses.filter((_) => {
+    return _.identifier !== keyIdentifier;
+  });
 
-  // filteredAddresses.push(key.serializeAsAddress());
-  // await persistAddresses(environment, filteredAddresses);
+  filteredAddresses.push(key.serializeAsAddress());
+  await persistAddresses(agentConfig.environment, filteredAddresses);
 }
 
 async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
@@ -239,10 +240,10 @@ export async function fetchAgentGCPKeys<Networks extends ChainName>(
   return {};
 }
 
-// async function fetchGCPKeyAddresses(environment: string) {
-//   const addresses = await fetchGCPSecret(addressesIdentifier(environment));
-//   return addresses as KeyAsAddress[];
-// }
+async function fetchGCPKeyAddresses(environment: string) {
+  const addresses = await fetchGCPSecret(addressesIdentifier(environment));
+  return addresses as KeyAsAddress[];
+}
 
 function addressesIdentifier(environment: string) {
   return `abacus-${environment}-key-addresses`;

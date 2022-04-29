@@ -28,30 +28,30 @@ export const KEY_ROLES = [
   KEY_ROLE_ENUM.Kathy,
 ];
 
-export function getAllKeys<Networks extends ChainName>(agentConfig: AgentConfig<Networks>): Array<AgentKey<Networks>> {
-  const getKey = (
-    agentConfig_: AgentConfig<Networks>,
-    role: KEY_ROLE_ENUM,
-    chainName?: Networks,
-    suffix?: Networks | number,
-  ): AgentKey<Networks> => {
-    if (agentConfig.aws) {
-      return new AgentAwsKey(
-        agentConfig_,
-        role,
-        chainName,
-        suffix,
-      )
-    } else {
-      return new AgentGCPKey(
-        agentConfig_,
-        role,
-        chainName,
-        suffix,
-      );
-    }
+export function getKey<Networks extends ChainName>(
+  agentConfig: AgentConfig<Networks>,
+  role: KEY_ROLE_ENUM,
+  chainName?: Networks,
+  suffix?: Networks | number,
+): AgentKey<Networks> {
+  if (agentConfig.aws) {
+    return new AgentAwsKey(
+      agentConfig,
+      role,
+      chainName,
+      suffix,
+    )
+  } else {
+    return new AgentGCPKey(
+      agentConfig,
+      role,
+      chainName,
+      suffix,
+    );
   }
+}
 
+export function getAllKeys<Networks extends ChainName>(agentConfig: AgentConfig<Networks>): Array<AgentKey<Networks>> {
   return KEY_ROLES.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
       // For each chainName, create validatorCount keys

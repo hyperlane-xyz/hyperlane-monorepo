@@ -27,6 +27,8 @@ export abstract class AgentKey<Networks extends ChainName> {
 
   abstract createIfNotExists(): Promise<void>;
   abstract delete(): Promise<void>;
+  // Returns new address
+  abstract update(): Promise<string>;
 
   serializeAsAddress() {
     return {
@@ -46,10 +48,15 @@ export function identifier(
   chainName?: string,
   suffix?: number | string,
 ) {
-  const base = chainName !== undefined ?
-    `abacus-${environment}-key-${chainName}-${role}` :
-    `abacus-${environment}-key-${role}`;
-  return suffix !== undefined
-    ? `${base}-${suffix}`
-    : base;
+  switch(role) {
+    case KEY_ROLE_ENUM.Validator:
+      if (suffix === undefined) {
+        throw Error('Expected suffix for validator key');
+      }
+      return `abacus-${environment}-key-${chainName}-${role}-${suffix}`;
+    case KEY_ROLE_ENUM.Relayer:
+      return `abacus-${environment}-key-${chainName}-${role}`;
+    default:
+      return `abacus-${environment}-key`;
+  }
 }
