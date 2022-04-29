@@ -26,6 +26,9 @@ export enum Chains {
   ethereum,
   avalanche,
   polygon,
+  test1,
+  test2,
+  test3,
 }
 export type ChainName = keyof typeof Chains;
 export type CompleteChainMap<Value> = Record<ChainName, Value>;
@@ -36,9 +39,11 @@ export type ChainMap<Networks extends ChainName, Value> = Record<
 
 // TODO: remove
 export const AllChains = Object.keys(Chains) as ChainName[];
-export const ChainIdToName: { [id: number]: ChainName } = Object.fromEntries(
-  AllChains.map((chain) => [domains[chain].id, chain]),
-);
+export const DomainIdToChainName: { [id: number]: ChainName } =
+  Object.fromEntries(AllChains.map((chain) => [domains[chain].id, chain]));
+export const ChainNameToDomainId = Object.fromEntries(
+  AllChains.map((chain) => [chain, domains[chain].id]),
+) as CompleteChainMap<number>;
 export type NameOrDomain = ChainName | number;
 
 export type Remotes<

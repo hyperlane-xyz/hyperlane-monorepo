@@ -7,39 +7,35 @@ import {
   MultiProvider,
   ParsedMessage,
 } from '../..';
+import { domains } from '../../src/domains';
 import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
 
 describe('InterchainGasCalculator', () => {
-  const originDomain = 1;
-  const destinationDomain = 2;
+  const provider = new MockProvider();
+  const multiProvider = new MultiProvider({
+    test1: { provider },
+    test2: { provider },
+  });
+  const core = new AbacusCore(testAddresses, multiProvider);
+  const originDomain = domains.test1.id;
+  const destinationDomain = domains.test2.id;
 
-  let core: AbacusCore;
-  let provider: MockProvider;
-  let multiProvider: MultiProvider;
   let tokenPriceGetter: MockTokenPriceGetter;
   let calculator: InterchainGasCalculator;
 
-  before(() => {
-    provider = new MockProvider();
-
-    multiProvider = new MultiProvider({
-      test1: provider,
-      test2: provider,
-    } as any);
-
-    core = new AbacusCore(testAddresses as any, multiProvider);
-
+  beforeEach(() => {
     tokenPriceGetter = new MockTokenPriceGetter();
     // Origin domain token
     tokenPriceGetter.setTokenPrice(originDomain, 10);
     // Destination domain token
     tokenPriceGetter.setTokenPrice(destinationDomain, 5);
-  });
-
-  beforeEach(() => {
-    calculator = new InterchainGasCalculator(multiProvider, core, {
-      tokenPriceGetter,
-    });
+    calculator = new InterchainGasCalculator(
+      multiProvider as any, // TODO: fix types
+      core as any,
+      {
+        tokenPriceGetter,
+      },
+    );
   });
 
   afterEach(() => {

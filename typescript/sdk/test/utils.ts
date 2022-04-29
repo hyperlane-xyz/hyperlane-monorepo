@@ -1,24 +1,26 @@
 import { ethers, FixedNumber } from 'ethers';
-import { NameOrDomain } from '../src';
+import { CoreContractAddresses, NameOrDomain } from '../src';
+import { resolveId } from '../src/core/message';
 
 const ZERO_ADDRESS = ethers.constants.AddressZero;
 
-export const testAddresses = {
+export type testNetworks = 'test1' | 'test2';
+export const testAddresses: {
+  [local in testNetworks]: CoreContractAddresses<testNetworks, local>;
+} = {
   test1: {
     upgradeBeaconController: ZERO_ADDRESS,
     abacusConnectionManager: ZERO_ADDRESS,
     interchainGasPaymaster: ZERO_ADDRESS,
-    outboxValidatorManager: ZERO_ADDRESS,
-    inboxValidatorManagers: {
-      test2: ZERO_ADDRESS,
-    },
     outbox: {
+      validatorManager: ZERO_ADDRESS,
       proxy: ZERO_ADDRESS,
       implementation: ZERO_ADDRESS,
       beacon: ZERO_ADDRESS,
     },
     inboxes: {
       test2: {
+        validatorManager: ZERO_ADDRESS,
         proxy: ZERO_ADDRESS,
         implementation: ZERO_ADDRESS,
         beacon: ZERO_ADDRESS,
@@ -29,17 +31,15 @@ export const testAddresses = {
     upgradeBeaconController: ZERO_ADDRESS,
     abacusConnectionManager: ZERO_ADDRESS,
     interchainGasPaymaster: ZERO_ADDRESS,
-    outboxValidatorManager: ZERO_ADDRESS,
-    inboxValidatorManagers: {
-      test1: ZERO_ADDRESS,
-    },
     outbox: {
+      validatorManager: ZERO_ADDRESS,
       proxy: ZERO_ADDRESS,
       implementation: ZERO_ADDRESS,
       beacon: ZERO_ADDRESS,
     },
     inboxes: {
       test1: {
+        validatorManager: ZERO_ADDRESS,
         proxy: ZERO_ADDRESS,
         implementation: ZERO_ADDRESS,
         beacon: ZERO_ADDRESS,
@@ -95,7 +95,8 @@ export class MockTokenPriceGetter {
   }
 
   getNativeTokenUsdPrice(domain: NameOrDomain): Promise<FixedNumber> {
-    const price = this.tokenPrices[domain as number];
+    const id = resolveId(domain);
+    const price = this.tokenPrices[id];
     if (price) {
       return Promise.resolve(price);
     }

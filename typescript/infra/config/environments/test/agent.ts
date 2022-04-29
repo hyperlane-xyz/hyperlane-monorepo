@@ -2,9 +2,10 @@ import { AgentConfig } from '../../../src/config';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
 import { validators } from './validators';
 
-const domainNames = Object.keys(validators);
+type networks = keyof typeof validators;
+const domainNames = Object.keys(validators) as networks[];
 
-export const agent: AgentConfig<keyof typeof validators> = {
+export const agent: AgentConfig<networks> = {
   environment: ENVIRONMENTS_ENUM.Test,
   namespace: ENVIRONMENTS_ENUM.Test,
   runEnv: ENVIRONMENTS_ENUM.Test,

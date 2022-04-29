@@ -1,5 +1,5 @@
 import { ethers } from 'ethers';
-import { ChainName, ChainMap } from './types';
+import { ChainMap, ChainName } from './types';
 import { MultiGeneric } from './utils';
 
 interface IDomainConnection {
@@ -57,9 +57,7 @@ export class DomainConnection {
 export class MultiProvider<
   Networks extends ChainName = ChainName,
 > extends MultiGeneric<DomainConnection, Networks> {
-  constructor(
-    networks: ChainMap<Networks, IDomainConnection> | Networks[],
-  ) {
+  constructor(networks: ChainMap<Networks, IDomainConnection> | Networks[]) {
     const params = Array.isArray(networks)
       ? networks.map((v) => [v, {}])
       : (Object.entries(networks) as [Networks, IDomainConnection][]);

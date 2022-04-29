@@ -6,7 +6,7 @@ import {
   ChainName,
   domains,
   MailboxAddresses,
-  utils
+  utils,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { expect } from 'chai';
@@ -201,32 +201,21 @@ export class AbacusCoreChecker<
     expect(upgradeBeacons.reduce(identical)).to.not.be.false;
   }
 
-  async checkAbacusConnectionManager(domain: types.Domain): Promise<void> {
-    const contracts = this.app.getContracts(domain);
-    for (const remote of this.app.remoteDomainNumbers(domain)) {
-      // inbox is enrolled in abacusConnectionManager
-      const enrolledInboxes =
-        await contracts.abacusConnectionManager.getInboxes(remote);
-      expect(enrolledInboxes).to.eql([
-        this.app.mustGetInbox(remote, domain).address,
-      ]);
-    }
-    // Outbox is set on abacusConnectionManager
-    const outbox = await contracts.abacusConnectionManager.outbox();
-    expect(outbox).to.equal(contracts.outbox.address);
-  }
-
-    const outbox = await coreContracts.abacusConnectionManager.outbox();
-    expect(outbox).to.equal(coreContracts.outbox.outbox.address);
-
+  async checkAbacusConnectionManager(network: Networks): Promise<void> {
+    const coreContracts = this.app.getContracts(network);
     await utils.promiseObjAll(
       utils.objMap(coreContracts.inboxes, async (remote, inbox) => {
-        const domain = domains[remote as ChainName].id;
-        const enrolledInbox =
-          await coreContracts.abacusConnectionManager.domainToInbox(domain);
-        expect(enrolledInbox).to.equal(inbox.inbox.address);
+        const remoteDomain = domains[remote as ChainName].id;
+        // inbox is enrolled in abacusConnectionManager
+        const enrolledInboxes =
+          await coreContracts.abacusConnectionManager.getInboxes(remoteDomain);
+        expect(enrolledInboxes).to.equal([inbox.inbox.address]);
       }),
     );
+
+    // Outbox is set on abacusConnectionManager
+    const outbox = await coreContracts.abacusConnectionManager.outbox();
+    expect(outbox).to.equal(coreContracts.outbox.outbox.address);
   }
 
   async checkProxiedContracts(network: Networks): Promise<void> {

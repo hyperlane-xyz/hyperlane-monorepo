@@ -1,11 +1,11 @@
 import { GovernanceRouter } from '@abacus-network/apps';
-import { Call, domains } from '@abacus-network/sdk';
+import { Call } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import { GovernanceContracts } from '.';
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
-import { ChainMap, ChainName } from '../types';
+import { ChainMap, ChainName, ChainNameToDomainId } from '../types';
 import { objMap, promiseObjAll } from '../utils';
 import { GovernanceAddresses } from './contracts';
 import { environments } from './environments';
@@ -74,7 +74,7 @@ export class AbacusGovernance<
           return governorRouter.populateTransaction.call(calls);
         } else {
           return governorRouter.populateTransaction.callRemote(
-            domains[network].id,
+            ChainNameToDomainId[network],
             calls,
           );
         }

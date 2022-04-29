@@ -6,6 +6,7 @@ import {
   MultiProvider,
   utils as sdkUtils,
 } from '@abacus-network/sdk';
+import { AllChains } from '@abacus-network/sdk/dist/types';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import path from 'path';
@@ -22,6 +23,7 @@ describe('core', async () => {
 
   let owners: ChainMap<networks, string>;
   before(async () => {
+    console.log(AllChains);
     const [signer, owner] = await ethers.getSigners();
     multiProvider = utils.initHardhatMultiProvider(environment, signer);
     deployer = new AbacusCoreDeployer(multiProvider, environment.core);

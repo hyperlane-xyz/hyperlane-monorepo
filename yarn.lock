@@ -67,6 +67,20 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@abacus-network/apps@npm:^0.0.1":
+  version: 0.0.1
+  resolution: "@abacus-network/apps@npm:0.0.1"
+  dependencies:
+    "@abacus-network/core": ^0.0.3
+    "@abacus-network/hardhat": ^0.0.8
+    "@abacus-network/utils": ^0.0.7
+    "@openzeppelin/contracts": ~3.4.2
+    "@openzeppelin/contracts-upgradeable": ~3.4.2
+    "@summa-tx/memview-sol": ^2.0.0
+  checksum: 7ba0d4f158e43dc3f57e5808b38813313a049e75a9ffd104be93125499c2f3b6e9ac5ec9037560504d3e528ff317ed78b8715dc1254c6b468f23fef7a7b87521
+  languageName: node
+  linkType: hard
+
 "@abacus-network/contract-metrics@workspace:typescript/contract-metrics":
   version: 0.0.0-use.local
   resolution: "@abacus-network/contract-metrics@workspace:typescript/contract-metrics"
@@ -127,19 +141,34 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/deploy@0.0.7, @abacus-network/deploy@workspace:typescript/deploy":
+"@abacus-network/core@npm:^0.0.3":
+  version: 0.0.3
+  resolution: "@abacus-network/core@npm:0.0.3"
+  dependencies:
+    "@abacus-network/utils": ^0.0.7
+    "@openzeppelin/contracts": ^3.4.2
+    "@openzeppelin/contracts-upgradeable": ~3.4.2
+    "@summa-tx/memview-sol": ^2.0.0
+    ts-generator: ^0.1.1
+  checksum: 7b001bd1c40ac521ae35cfddb6f4f36463a627480b864d43db90005499f3aa2387c913b9cb928f3915f5e848b743d3029896fcce885a29e2540fb68c4438c098
+  languageName: node
+  linkType: hard
+
+"@abacus-network/deploy@0.0.8, @abacus-network/deploy@workspace:typescript/deploy":
   version: 0.0.0-use.local
   resolution: "@abacus-network/deploy@workspace:typescript/deploy"
   dependencies:
     "@abacus-network/core": ^0.0.6
-    "@abacus-network/sdk": ^0.0.4
+    "@abacus-network/sdk": ^0.0.5
     "@typechain/ethers-v5": ~7.0.0
     "@types/node": ^16.9.1
+    "@types/yargs": ^17.0.10
     axios: ^0.21.3
     ethers: ^5.4.7
     prettier: ^2.3.1
     ts-node: ^10.1.0
     typescript: ^4.3.2
+    yargs: ^17.4.1
   languageName: unknown
   linkType: soft
 
@@ -162,14 +191,34 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@abacus-network/hardhat@npm:^0.0.8":
+  version: 0.0.8
+  resolution: "@abacus-network/hardhat@npm:0.0.8"
+  dependencies:
+    "@abacus-network/core": ^0.0.3
+    "@abacus-network/utils": ^0.0.7
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@typechain/hardhat": ^2.0.1
+    ethereum-waffle: ^3.2.2
+    ethers: ^5.4.7
+    hardhat: ^2.8.4
+    prettier: ^2.3.1
+    ts-node: ^10.1.0
+    typechain: ^5.0.0
+    typescript: ^4.3.2
+  checksum: 24f46b719583a95380a5310e921bbb53764d879c1197a0c56536c7cd4607eba6cffc045f83bda00900280be16b10a639e86e4ec6a07fb518d42c676e2d024244
+  languageName: node
+  linkType: hard
+
 "@abacus-network/infra@workspace:typescript/infra":
   version: 0.0.0-use.local
   resolution: "@abacus-network/infra@workspace:typescript/infra"
   dependencies:
     "@abacus-network/apps": 0.0.2
     "@abacus-network/core": 0.0.6
-    "@abacus-network/deploy": 0.0.7
-    "@abacus-network/sdk": 0.0.4
+    "@abacus-network/deploy": 0.0.8
+    "@abacus-network/sdk": 0.0.5
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -206,7 +255,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@0.0.4, @abacus-network/sdk@^0.0.4, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@0.0.5, @abacus-network/sdk@^0.0.5, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
@@ -230,6 +279,21 @@ __metadata:
     typescript: ^4.4.3
   languageName: unknown
   linkType: soft
+
+"@abacus-network/sdk@npm:0.0.4":
+  version: 0.0.4
+  resolution: "@abacus-network/sdk@npm:0.0.4"
+  dependencies:
+    "@abacus-network/apps": ^0.0.1
+    "@abacus-network/core": ^0.0.3
+    "@abacus-network/utils": ^0.0.7
+    "@ethersproject/bignumber": ^5.5.0
+    "@ethersproject/bytes": ^5.5.0
+    celo-ethers-provider: 0.0.0
+    ethers: ^5.4.7
+  checksum: 0afb181e842a3f082359a61d5aed866928a8296e3de5cf2bf05c41e1010854fd8b978e58c40707a32f2b4677154a9ff7e11a88aabee6a431e05da5d951b7f24a
+  languageName: node
+  linkType: hard
 
 "@abacus-network/utils@^0.0.8, @abacus-network/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
@@ -3750,7 +3814,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/yargs@npm:^17.0.8":
+"@types/yargs@npm:^17.0.10, @types/yargs@npm:^17.0.8":
   version: 17.0.10
   resolution: "@types/yargs@npm:17.0.10"
   dependencies:
@@ -18455,7 +18519,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yargs@npm:^17.3.1":
+"yargs@npm:^17.3.1, yargs@npm:^17.4.1":
   version: 17.4.1
   resolution: "yargs@npm:17.4.1"
   dependencies:

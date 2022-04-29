@@ -1,6 +1,11 @@
 import { utils } from '@abacus-network/deploy';
-import { AbacusGovernance } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import {
+  AbacusGovernance,
+  ChainMap,
+  GovernanceAddresses,
+  MultiProvider,
+  utils as sdkUtils,
+} from '@abacus-network/sdk';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import path from 'path';
@@ -11,47 +16,49 @@ import {
 } from '../src/governance';
 
 describe('governance', async () => {
-  const deployer = new AbacusGovernanceDeployer();
-  const owners: Record<types.Domain, types.Address> = {};
+  type networks = keyof typeof environment.transactionConfigs;
+  let multiProvider: MultiProvider<networks>;
+  let deployer: AbacusGovernanceDeployer<networks>;
+  let owners: ChainMap<networks, string>;
+  let addresses: ChainMap<networks, GovernanceAddresses>;
   const governanceConfig = environment.governance;
 
   before(async () => {
     const [signer] = await ethers.getSigners();
-    utils.registerHardhatEnvironment(deployer, environment, signer);
+    multiProvider = utils.initHardhatMultiProvider(environment, signer);
+    deployer = new AbacusGovernanceDeployer(multiProvider, governanceConfig);
 
-    deployer.domainNumbers.map((domain) => {
-      const name = deployer.mustResolveDomainName(domain);
-      const addresses = governanceConfig.addresses[name];
-      if (!addresses) throw new Error('could not find addresses');
-      const owner = addresses.governor;
-      owners[domain] = owner ? owner : ethers.constants.AddressZero;
-    });
+    owners = sdkUtils.objMap(
+      governanceConfig.addresses,
+      (_, a) => a.governor ?? ethers.constants.AddressZero,
+    );
 
     // abacusConnectionManager can be set to anything for these tests.
     if (!governanceConfig.abacusConnectionManager) {
-      governanceConfig.abacusConnectionManager = {};
-      deployer.domainNames.map((name) => {
-        governanceConfig.abacusConnectionManager![name] = signer.address;
-      });
+      governanceConfig.abacusConnectionManager = sdkUtils.objMap(
+        governanceConfig.addresses,
+        () => signer.address,
+      );
     }
   });
 
   it('deploys', async () => {
-    await deployer.deploy(governanceConfig);
+    addresses = await deployer.deploy();
   });
 
   it('writes', async () => {
     const base = './test/outputs/governance';
     deployer.writeVerification(path.join(base, 'verification'));
-    deployer.writeContracts(path.join(base, 'contracts.ts'));
+    deployer.writeContracts(addresses, path.join(base, 'contracts.ts'));
   });
 
   it('checks', async () => {
-    const governance = new AbacusGovernance(deployer.addressesRecord as any); // TODO: fix types
-    const [signer] = await ethers.getSigners();
-    utils.registerHardhatEnvironment(governance, environment, signer);
-
-    const checker = new AbacusGovernanceChecker(governance, governanceConfig);
-    await checker.check(owners as any); // TODO: fix types
+    const governance = new AbacusGovernance(addresses, multiProvider);
+    const checker = new AbacusGovernanceChecker(
+      multiProvider,
+      governance,
+      governanceConfig,
+    );
+    await checker.check(owners);
   });
 });

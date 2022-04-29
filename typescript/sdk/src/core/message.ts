@@ -4,10 +4,14 @@ import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { keccak256 } from 'ethers/lib/utils';
 import { AbacusCore } from '.';
-import { domains } from '../domains';
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { MultiProvider } from '../provider';
-import { ChainIdToName, ChainName, NameOrDomain } from '../types';
+import {
+  ChainName,
+  ChainNameToDomainId,
+  DomainIdToChainName,
+  NameOrDomain,
+} from '../types';
 import { delay } from '../utils';
 import {
   AnnotatedCheckpoint,
@@ -31,10 +35,14 @@ export type ParsedMessage = {
 };
 
 export const resolveDomain = (nameOrDomain: NameOrDomain): ChainName =>
-  typeof nameOrDomain === 'number' ? ChainIdToName[nameOrDomain] : nameOrDomain;
+  typeof nameOrDomain === 'number'
+    ? DomainIdToChainName[nameOrDomain]
+    : nameOrDomain;
 
 export const resolveId = (nameOrDomain: NameOrDomain): number =>
-  typeof nameOrDomain === 'string' ? domains[nameOrDomain].id : nameOrDomain;
+  typeof nameOrDomain === 'string'
+    ? ChainNameToDomainId[nameOrDomain]
+    : nameOrDomain;
 
 export const resolveNetworks = (message: ParsedMessage) => {
   return {

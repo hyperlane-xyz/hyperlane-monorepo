@@ -1,4 +1,4 @@
-import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
+import { ChainMap, ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { KEY_ROLE_ENUM } from '../agents';
 import {
@@ -11,7 +11,7 @@ import { DeployEnvironment } from './environment';
 // Allows a "default" config to be specified and any per-network overrides.
 interface ChainOverridableConfig<Networks extends ChainName, T> {
   default: T;
-  chainOverrides?: Partial<ChainSubsetMap<Networks, T>>;
+  chainOverrides?: Partial<ChainMap<Networks, T>>;
 }
 
 // Returns the default config with any overriden values specified for the provided chain.
