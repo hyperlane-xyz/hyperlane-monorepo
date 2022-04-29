@@ -31,7 +31,9 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> {
+export class AgentAwsKey<
+  Networks extends ChainName,
+> extends AgentKey<Networks> {
   private client: KMSClient | undefined;
   private region: string;
   public remoteKey: RemoteKey = { fetched: false };
@@ -42,12 +44,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
     chainName?: Networks,
     suffix?: Networks | number,
   ) {
-    super(
-      agentConfig,
-      role,
-      chainName,
-      suffix,
-    );
+    super(agentConfig, role, chainName, suffix);
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }
@@ -155,9 +152,12 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
         new ListAliasesCommand({
           Limit: 100,
           Marker: marker,
-        })
+        }),
       );
-      if (!listAliasResponse.Aliases || listAliasResponse.Aliases.length === 0) {
+      if (
+        !listAliasResponse.Aliases ||
+        listAliasResponse.Aliases.length === 0
+      ) {
         break;
       }
       aliases = aliases.concat(listAliasResponse.Aliases);
@@ -167,10 +167,8 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey<Networks> 
         break;
       }
     }
-    
-    const match = aliases.find(
-      (_) => _.AliasName === this.identifier,
-    );
+
+    const match = aliases.find((_) => _.AliasName === this.identifier);
     return match?.TargetKeyId;
   }
 

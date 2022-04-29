@@ -42,7 +42,7 @@ export function identifier(
   chainName?: string,
   suffix?: number | string,
 ) {
-  switch(role) {
+  switch (role) {
     case KEY_ROLE_ENUM.Validator:
       if (suffix === undefined) {
         throw Error('Expected suffix for validator key');

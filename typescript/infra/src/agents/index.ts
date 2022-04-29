@@ -123,7 +123,9 @@ export async function getAgentEnvVars<Networks extends ChainName>(
       });
     } else if (role === KEY_ROLE_ENUM.Validator) {
       const privateKey =
-        gcpKeys[identifier(agentConfig.environment, role, outboxChainName, index)].privateKey;
+        gcpKeys[
+          identifier(agentConfig.environment, role, outboxChainName, index)
+        ].privateKey;
 
       envVars.push(
         `OPT_VALIDATOR_VALIDATOR_KEY=${strip0x(privateKey)}`,

@@ -35,7 +35,9 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentGCPKey<Networks extends ChainName> extends AgentKey<Networks> {
+export class AgentGCPKey<
+  Networks extends ChainName,
+> extends AgentKey<Networks> {
   constructor(
     agentConfig: AgentConfig<Networks>,
     role: KEY_ROLE_ENUM,
@@ -43,12 +45,7 @@ export class AgentGCPKey<Networks extends ChainName> extends AgentKey<Networks> 
     suffix?: Networks | number,
     private remoteKey: RemoteKey = { fetched: false },
   ) {
-    super(
-      agentConfig,
-      role,
-      chainName,
-      suffix,
-    );
+    super(agentConfig, role, chainName, suffix);
   }
 
   async createIfNotExists() {
@@ -151,26 +148,26 @@ export class AgentGCPKey<Networks extends ChainName> extends AgentKey<Networks> 
 }
 
 export async function deleteAgentKeys<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>
+  agentConfig: AgentConfig<Networks>,
 ) {
   const keys = getAllKeys(agentConfig);
-  await Promise.all(
-    keys.map((key) => key.delete())
-  );
+  await Promise.all(keys.map((key) => key.delete()));
   await execCmd(
-    `gcloud secrets delete ${addressesIdentifier(agentConfig.environment)} --quiet`,
+    `gcloud secrets delete ${addressesIdentifier(
+      agentConfig.environment,
+    )} --quiet`,
   );
 }
 
 export async function createAgentKeysIfNotExists<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>
+  agentConfig: AgentConfig<Networks>,
 ) {
   const keys = getAllKeys(agentConfig);
 
   await Promise.all(
     keys.map(async (key) => {
       return key.createIfNotExists();
-    })
+    }),
   );
 
   await persistAddresses(

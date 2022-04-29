@@ -17,8 +17,8 @@ async function main() {
       return {
         identifier: key.identifier,
         address,
-      }
-    })
+      };
+    }),
   );
 
   console.log('Keys:', JSON.stringify(keyInfos, null, 2));
