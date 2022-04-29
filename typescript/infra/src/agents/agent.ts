@@ -15,9 +15,9 @@ export function identifier(
   environment: string,
   role: string,
   chainName: string,
-  index: number | undefined,
+  suffix: number | string | undefined,
 ) {
-  return isValidatorKey(role)
-    ? `abacus-${environment}-key-${chainName}-${role}-${index}`
-    : `abacus-${environment}-key-${role}`;
+  return suffix !== undefined
+    ? `abacus-${environment}-key-${chainName}-${role}-${suffix}`
+    : `abacus-${environment}-key-${chainName}-${role}`;
 }

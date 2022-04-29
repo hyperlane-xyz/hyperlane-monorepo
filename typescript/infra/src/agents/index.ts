@@ -61,11 +61,11 @@ async function helmValuesForChain<Networks extends ChainName>(
       relayer: {
         enabled: true,
         aws: await chainAgentConfig.relayerRequiresAwsCredentials(),
-        signers: chainAgentConfig.relayerSigners,
+        signers: await chainAgentConfig.relayerSigners(),
         config: chainAgentConfig.relayerConfig,
       },
       checkpointer: {
-        enabled: true,
+        enabled: chainAgentConfig.checkpointerEnabled,
         aws: chainAgentConfig.checkpointerRequiresAwsCredentials,
         signers: await chainAgentConfig.checkpointerSigners(),
         config: chainAgentConfig.checkpointerConfig,
@@ -212,12 +212,14 @@ export async function getAgentEnvVars<Networks extends ChainName>(
       );
       break;
     case KEY_ROLE_ENUM.Checkpointer:
-      envVars = envVars.concat(
-        configEnvVars(
-          valueDict.abacus.checkpointer.config,
-          KEY_ROLE_ENUM.Checkpointer,
-        ),
-      );
+      if (valueDict.abacus.checkpointer.config) {
+        envVars = envVars.concat(
+          configEnvVars(
+            valueDict.abacus.checkpointer.config,
+            KEY_ROLE_ENUM.Checkpointer,
+          ),
+        );
+      }
       break;
     case KEY_ROLE_ENUM.Kathy:
       if (valueDict.abacus.kathy.config) {

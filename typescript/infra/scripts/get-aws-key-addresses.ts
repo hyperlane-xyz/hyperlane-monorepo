@@ -1,10 +1,10 @@
 import { KEY_ROLE_ENUM, KEY_ROLES } from '../src/agents';
-import { isValidatorKey } from '../src/agents/agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from '../src/agents/aws';
 import { AgentConfig } from '../src/config';
 import { getAgentConfig, getEnvironment, getDomainNames } from './utils';
 import { CheckpointSyncerType } from '../src/config/agent';
 import { ChainName } from '@abacus-network/sdk';
+import { RelayerAgentAwsUser } from '../src/agents/aws/relayer-user';
 
 async function main() {
   const environment = await getEnvironment();
@@ -13,25 +13,27 @@ async function main() {
 
   const keyInfos = await Promise.all(
     KEY_ROLES.flatMap((role) => {
-      if (isValidatorKey(role)) {
-        // For each chainName, create validatorCount keys
-        return domainNames.flatMap((chainName) =>
-          [
-            ...Array(
-              agentConfig.validatorSets[chainName].validators.length,
-            ).keys(),
-          ].map((index) => getAddress(agentConfig, role, chainName, index)),
-        );
-      } else {
-        // Chain name doesnt matter for non attestation keys
-        return [getAddress(agentConfig, role, domainNames[0])];
+      switch (role) {
+        case KEY_ROLE_ENUM.Validator:
+          return domainNames.flatMap((chainName) =>
+            [
+              ...Array(
+                agentConfig.validatorSets[chainName].validators.length,
+              ).keys(),
+            ].flatMap((index) => getAddresses(agentConfig, role, chainName, index)),
+          );
+        case KEY_ROLE_ENUM.Relayer:
+          return domainNames.flatMap((chainName) => getAddresses(agentConfig, role, chainName));
+        default:
+          // Chain name doesnt matter for other keys
+          return getAddresses(agentConfig, role, domainNames[0]);
       }
     }),
   );
   console.log('Keys:', JSON.stringify(keyInfos, null, 2));
 }
 
-async function getAddress(
+async function getAddresses(
   agentConfig: AgentConfig<any>,
   role: KEY_ROLE_ENUM,
   chain: ChainName,
@@ -55,6 +57,12 @@ async function getAddress(
       checkpointSyncer.region,
       checkpointSyncer.bucket,
     );
+  } else if (role === KEY_ROLE_ENUM.Relayer) {
+    user = new RelayerAgentAwsUser(
+      agentConfig.environment,
+      chain,
+      agentConfig.aws!.region,
+    );
   } else {
     user = new AgentAwsUser(
       agentConfig.environment,
@@ -63,18 +71,22 @@ async function getAddress(
       agentConfig.aws!.region,
     );
   }
-  const key = user.key(agentConfig);
-  let address = '';
-  try {
-    await key.fetch();
-    address = key.address;
-  } catch (err) {
-    console.error(`Error getting key ${key.identifier}`, err);
-  }
-  return {
-    alias: key.identifier,
-    address,
-  };
+  const keys = user.keys(agentConfig);
+  return Promise.all(
+    keys.map(async (key) => {
+      let address = '';
+      try {
+        await key.fetch();
+        address = key.address;
+      } catch (err) {
+        // ignore error
+      }
+      return {
+        alias: key.identifier,
+        address,
+      };
+    })
+  );
 }
 
 main().catch(console.error);

@@ -39,14 +39,14 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
     agentConfig: AgentConfig<Networks>,
     public readonly chainName: Networks,
     public readonly role: KEY_ROLE_ENUM,
-    public readonly index?: number,
+    public readonly suffix?: Networks | number,
   ) {
     super();
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }
-    if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
-      throw new Error('Expected index for validator key');
+    if ((role === KEY_ROLE_ENUM.Validator || role === KEY_ROLE_ENUM.Relayer) && suffix === undefined) {
+      throw new Error(`Expected suffix for ${role} key`);
     }
     this.environment = agentConfig.environment;
     this.region = agentConfig.aws.region;
@@ -67,7 +67,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
       this.environment,
       this.role,
       this.chainName,
-      this.index,
+      this.suffix,
     )}`;
   }
 

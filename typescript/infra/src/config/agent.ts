@@ -4,6 +4,7 @@ import { DeployEnvironment } from './environment';
 import {
   AgentAwsKey,
   AgentAwsUser,
+  RelayerAgentAwsUser,
   ValidatorAgentAwsUser,
 } from '../agents/aws';
 import { KEY_ROLE_ENUM } from '../agents';
@@ -208,7 +209,7 @@ export interface AgentConfig<Networks extends ChainName> {
   validatorSets: ChainValidatorSets<Networks>;
   validator: ChainValidatorConfigs<Networks>;
   relayer: ChainRelayerConfigs<Networks>;
-  checkpointer: ChainCheckpointerConfigs<Networks>;
+  checkpointer?: ChainCheckpointerConfigs<Networks>;
   kathy?: ChainKathyConfigs<Networks>;
 }
 
@@ -305,10 +306,11 @@ export class ChainAgentConfig<Networks extends ChainName> {
           type: KeyType.Hex,
         };
         if (this.awsKeys) {
-          const key = awsUser.key(this.agentConfig);
-          await key.createIfNotExists();
-          await key.putKeyPolicy(awsUser.arn);
-          validator = key.keyConfig;
+          const keys = await awsUser.createKeysIfNotExists(this.agentConfig);
+          if (keys.length !== 1) {
+            throw Error(`Expected exactly one validator key for user ${awsUser.userName}`);
+          }
+          validator = keys[0].keyConfig;
         }
 
         return {
@@ -336,26 +338,36 @@ export class ChainAgentConfig<Networks extends ChainName> {
       this.agentConfig.aws?.region ?? firstS3Syncer?.region;
 
     if (awsRegion !== undefined) {
-      const awsUser = new AgentAwsUser(
+      const awsUser = new RelayerAgentAwsUser(
         this.agentConfig.environment,
         this.chainName,
-        KEY_ROLE_ENUM.Relayer,
         awsRegion,
       );
       await awsUser.createIfNotExists();
       // If we're using AWS keys, ensure the key is created and the user can use it
       if (this.awsKeys) {
-        const key = awsUser.key(this.agentConfig);
-        await key.createIfNotExists();
-        await key.putKeyPolicy(awsUser.arn);
+        await awsUser.createKeysIfNotExists(this.agentConfig);
       }
       return true;
     }
     return false;
   }
 
-  get relayerSigners() {
-    return this.signers(KEY_ROLE_ENUM.Relayer);
+  async relayerSigners() {
+    if (!this.awsKeys) {
+      return this.signers(KEY_ROLE_ENUM.Relayer);
+    }
+    const awsUser = new RelayerAgentAwsUser(
+      this.agentConfig.environment,
+      this.chainName,
+      this.agentConfig.aws!.region,
+    );
+    await awsUser.createIfNotExists();
+    const keys = await awsUser.createKeysIfNotExists(this.agentConfig);
+    return keys.map((key) => ({
+      name: key.suffix!,
+      keyConfig: key.keyConfig,
+    }));
   }
 
   get relayerConfig(): RelayerConfig {
@@ -381,36 +393,33 @@ export class ChainAgentConfig<Networks extends ChainName> {
     };
   }
 
-  // Gets signers for a provided role. If AWS keys are used, the corresponding
-  // key and users are created if necessary.
-  async getAndPrepareSigners(role: KEY_ROLE_ENUM) {
-    if (this.awsKeys) {
-      const awsUser = new AgentAwsUser(
-        this.agentConfig.environment,
-        this.chainName,
-        role,
-        this.agentConfig.aws!.region,
-      );
-      await awsUser.createIfNotExists();
-      const key = awsUser.key(this.agentConfig);
-      await key.createIfNotExists();
-      await key.putKeyPolicy(awsUser.arn);
-    }
-    return this.signers(role);
+  get checkpointerEnabled() {
+    return this.agentConfig.checkpointer !== undefined;
   }
 
   // Gets signer info, creating them if necessary
   checkpointerSigners() {
-    return this.getAndPrepareSigners(KEY_ROLE_ENUM.Checkpointer);
+    if (!this.checkpointerEnabled) {
+      return [];
+    }
+    return [
+      {
+      name: this.chainName,
+      keyConfig: this.keyConfig(KEY_ROLE_ENUM.Kathy),
+      }
+    ];
   }
 
   get checkpointerRequiresAwsCredentials() {
     return this.awsKeys;
   }
 
-  get checkpointerConfig(): CheckpointerConfig {
+  get checkpointerConfig(): CheckpointerConfig | undefined {
+    if (!this.checkpointerEnabled) {
+      return undefined;
+    }
     return getChainOverriddenConfig(
-      this.agentConfig.checkpointer,
+      this.agentConfig.checkpointer!,
       this.chainName,
     );
   }
@@ -420,7 +429,12 @@ export class ChainAgentConfig<Networks extends ChainName> {
     if (!this.kathyEnabled) {
       return [];
     }
-    return this.getAndPrepareSigners(KEY_ROLE_ENUM.Kathy);
+    return [
+      {
+        name: this.chainName,
+        keyConfig: this.keyConfig(KEY_ROLE_ENUM.Kathy),
+      }
+    ];
   }
 
   get kathyRequiresAwsCredentials() {

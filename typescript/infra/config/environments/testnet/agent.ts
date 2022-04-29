@@ -36,12 +36,6 @@ export const agent: AgentConfig<TestnetNetworks> = {
       relayerMessageProcessing: true,
     },
   },
-  checkpointer: {
-    default: {
-      pollingInterval: 5,
-      creationLatency: 10,
-    },
-  },
   // kathy: {
   //   default: {
   //     interval: 30,
