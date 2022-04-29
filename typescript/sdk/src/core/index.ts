@@ -18,4 +18,7 @@ export {
   MessageStatus,
   ParsedMessage,
   parseMessage,
+  resolveDomain,
+  resolveId,
+  resolveNetworks,
 } from './message';

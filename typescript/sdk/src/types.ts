@@ -13,22 +13,22 @@ export interface Pagination {
 /**
  * Enumeration of Abacus supported chains
  */
-export enum Chains {
-  alfajores,
-  mumbai,
-  kovan,
-  goerli,
-  fuji,
-  rinkarby,
-  rinkeby,
-  ropsten,
-  celo,
-  ethereum,
-  avalanche,
-  polygon,
-  test1,
-  test2,
-  test3,
+export enum Chains { // must be string type to be used with Object.keys
+  alfajores = 'alfajores',
+  mumbai = 'mumbai',
+  kovan = 'kovan',
+  goerli = 'goerli',
+  fuji = 'fuji',
+  rinkarby = 'rinkarby',
+  rinkeby = 'rinkeby',
+  ropsten = 'ropsten',
+  celo = 'celo',
+  ethereum = 'ethereum',
+  avalanche = 'avalanche',
+  polygon = 'polygon',
+  test1 = 'test1',
+  test2 = 'test2',
+  test3 = 'test3',
 }
 export type ChainName = keyof typeof Chains;
 export type CompleteChainMap<Value> = Record<ChainName, Value>;
@@ -39,8 +39,9 @@ export type ChainMap<Networks extends ChainName, Value> = Record<
 
 // TODO: remove
 export const AllChains = Object.keys(Chains) as ChainName[];
-export const DomainIdToChainName: { [id: number]: ChainName } =
-  Object.fromEntries(AllChains.map((chain) => [domains[chain].id, chain]));
+export const DomainIdToChainName = Object.fromEntries(
+  AllChains.map((chain) => [domains[chain].id, chain]),
+);
 export const ChainNameToDomainId = Object.fromEntries(
   AllChains.map((chain) => [chain, domains[chain].id]),
 ) as CompleteChainMap<number>;

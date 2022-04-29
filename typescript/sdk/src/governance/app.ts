@@ -1,8 +1,8 @@
 import { GovernanceRouter } from '@abacus-network/apps';
-import { Call } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import { GovernanceContracts } from '.';
+import { Call } from '..';
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
 import { ChainMap, ChainName, ChainNameToDomainId } from '../types';

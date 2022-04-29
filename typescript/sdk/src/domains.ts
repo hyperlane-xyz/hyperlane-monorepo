@@ -69,6 +69,18 @@ export const ropsten: Domain = {
   id: 3,
 };
 
+const testDomains = {
+  test1: {
+    id: -1,
+  },
+  test2: {
+    id: -2,
+  },
+  test3: {
+    id: -3,
+  },
+};
+
 export const domains: CompleteChainMap<Domain> = {
   celo,
   ethereum,
@@ -82,13 +94,5 @@ export const domains: CompleteChainMap<Domain> = {
   rinkarby,
   ropsten,
   kovan,
-  test1: {
-    id: -1,
-  },
-  test2: {
-    id: -2,
-  },
-  test3: {
-    id: -3,
-  },
+  ...testDomains,
 };
