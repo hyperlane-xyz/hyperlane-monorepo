@@ -119,10 +119,17 @@ impl CheckpointRelayer {
             );
 
             self.prover_sync.update_from_batch(&batch)?;
-            self.inbox_contracts
+            match self.inbox_contracts
                 .validator_manager
                 .submit_checkpoint(&latest_signed_checkpoint)
-                .await?;
+                .await {
+                    Ok(_) => (),
+                    Err(error) => {
+                        // Ignore errors as to not fail the process and just retry after some sleep
+                        sleep(Duration::from_secs(self.submission_latency)).await;
+                        return Ok(onchain_checkpoint_index)
+                    }
+                }
 
             self.inbox_checkpoint_gauge
                 .set(latest_signed_checkpoint.checkpoint.index as i64);
