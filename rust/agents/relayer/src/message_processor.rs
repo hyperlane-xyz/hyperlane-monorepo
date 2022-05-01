@@ -76,7 +76,7 @@ impl MessageProcessor {
         }
     }
 
-    #[instrument(ret, err, skip(self), level = "debug")]
+    #[instrument(ret, err, skip(self), level = "info")]
     async fn try_processing_message(
         &mut self,
         message_leaf_index: u32,
