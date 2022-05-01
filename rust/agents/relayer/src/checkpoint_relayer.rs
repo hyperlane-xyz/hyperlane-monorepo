@@ -124,7 +124,7 @@ impl CheckpointRelayer {
                 .submit_checkpoint(&latest_signed_checkpoint)
                 .await {
                     Ok(_) => (),
-                    Err(error) => {
+                    Err(_) => {
                         // Ignore errors as to not fail the process and just retry after some sleep
                         sleep(Duration::from_secs(self.submission_latency)).await;
                         return Ok(onchain_checkpoint_index)
