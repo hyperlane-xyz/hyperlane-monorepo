@@ -1,5 +1,5 @@
-import { ethers } from "ethers";
-import { types } from "@abacus-network/utils";
+import { ethers } from 'ethers';
+import { types } from '@abacus-network/utils';
 import {
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
@@ -11,9 +11,9 @@ import {
   UpgradeBeaconController__factory,
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
-} from "@abacus-network/core";
-import { TestDeploy } from "./TestDeploy";
-import { addressToBytes32 } from "@abacus-network/utils/dist/src/utils";
+} from '@abacus-network/core';
+import { TestDeploy } from './TestDeploy';
+import { addressToBytes32 } from '@abacus-network/utils/dist/src/utils';
 
 export type TestAbacusConfig = {
   signer: Record<types.Domain, ethers.Signer>;
@@ -50,7 +50,7 @@ export class TestAbacusDeploy extends TestDeploy<
     const signer = this.config.signer[domain];
 
     const upgradeBeaconControllerFactory = new UpgradeBeaconController__factory(
-      signer
+      signer,
     );
     const upgradeBeaconController =
       await upgradeBeaconControllerFactory.deploy();
@@ -64,18 +64,18 @@ export class TestAbacusDeploy extends TestDeploy<
     await outbox.initialize(upgradeBeaconController.address);
 
     const abacusConnectionManagerFactory = new AbacusConnectionManager__factory(
-      signer
+      signer,
     );
     const abacusConnectionManager =
       await abacusConnectionManagerFactory.deploy();
     await abacusConnectionManager.setOutbox(outbox.address);
 
     const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(
-      signer
+      signer,
     );
     const interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
     await abacusConnectionManager.setInterchainGasPaymaster(
-      interchainGasPaymaster.address
+      interchainGasPaymaster.address,
     );
 
     const inboxFactory = new TestInbox__factory(signer);
@@ -93,7 +93,7 @@ export class TestAbacusDeploy extends TestDeploy<
         remote,
         upgradeBeaconController.address,
         ethers.constants.HashZero,
-        0
+        0,
       );
       await abacusConnectionManager.enrollInbox(remote, inbox.address);
       inboxes[remote] = inbox;
@@ -104,7 +104,7 @@ export class TestAbacusDeploy extends TestDeploy<
     await outbox.dispatch(
       remotes.find((_) => _ !== domain)!,
       addressToBytes32(ethers.constants.AddressZero),
-      "0x"
+      '0x',
     );
     return {
       outbox,
@@ -164,7 +164,7 @@ export class TestAbacusDeploy extends TestDeploy<
   }
 
   async processOutboundMessages(
-    origin: types.Domain
+    origin: types.Domain,
   ): Promise<Map<types.Domain, ethers.providers.TransactionResponse[]>> {
     const responses: Map<types.Domain, ethers.providers.TransactionResponse[]> =
       new Map();
@@ -182,7 +182,7 @@ export class TestAbacusDeploy extends TestDeploy<
 
       const destination = dispatch.args.destination;
       if (destination === origin)
-        throw new Error("Dispatched message to local domain");
+        throw new Error('Dispatched message to local domain');
       const inbox = this.inbox(origin, destination);
       const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
@@ -201,7 +201,7 @@ export class TestAbacusDeploy extends TestDeploy<
 
         const response = await inbox.testProcess(
           dispatch.args.message,
-          dispatch.args.leafIndex.toNumber()
+          dispatch.args.leafIndex.toNumber(),
         );
         let destinationResponses = responses.get(destination) || [];
         destinationResponses.push(response);
