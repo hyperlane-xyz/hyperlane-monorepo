@@ -59,12 +59,22 @@ export class MultiGeneric<Value, Networks extends ChainName = ChainName> {
 
   protected get = (network: Networks) => this.domainMap[network];
 
-  protected entries = () =>
-    Object.entries(this.domainMap) as Array<[Networks, Value]>;
-
-  protected values = (): Array<Value> => Object.values(this.domainMap);
-
   networks = () => Object.keys(this.domainMap) as Networks[];
+
+  apply(fn: (n: Networks, dc: Value) => void) {
+    for (const network of this.networks()) {
+      fn(network, this.domainMap[network]);
+    }
+  }
+
+  map<Output>(fn: (n: Networks, dc: Value) => Output) {
+    let entries: [Networks, Output][] = [];
+    const networks = this.networks();
+    for (const network of networks) {
+      entries.push([network, fn(network, this.domainMap[network])]);
+    }
+    return Object.fromEntries(entries) as Record<Networks, Output>;
+  }
 
   remotes = <Name extends Networks>(name: Name) =>
     this.networks().filter((key) => key !== name) as Remotes<Networks, Name>[];
@@ -109,7 +119,9 @@ type PromiseValues<TO> = {
 };
 
 // promiseObjectAll :: {k: Promise a} -> Promise {k: a}
-export const promiseObjAll = <T = Record<any, any>>(object: PromiseValues<T>): Promise<T> => {
+export const promiseObjAll = <T = Record<any, any>>(
+  object: PromiseValues<T>,
+): Promise<T> => {
   const promiseList = Object.entries(object).map(([name, promise]) =>
     (promise as Promise<any>).then((result) => [name, result]),
   );

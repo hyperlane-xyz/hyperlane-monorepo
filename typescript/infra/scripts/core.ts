@@ -15,7 +15,10 @@ async function main() {
   const config = await getCoreEnvironmentConfig(environment);
   const multiProvider = utils.initHardhatMultiProvider(config, signer);
 
-  const deployer = new AbacusCoreDeployer(multiProvider, config.core);
+  const deployer = new AbacusCoreDeployer(
+    multiProvider,
+    config.core.validatorManagers,
+  );
   const addresses = await deployer.deploy();
 
   deployer.writeContracts(addresses, getCoreContractsSdkFilepath(environment));

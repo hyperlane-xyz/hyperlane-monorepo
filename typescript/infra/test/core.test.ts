@@ -6,7 +6,6 @@ import {
   MultiProvider,
   utils as sdkUtils,
 } from '@abacus-network/sdk';
-import { AllChains } from '@abacus-network/sdk/dist/types';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import path from 'path';
@@ -23,17 +22,21 @@ describe('core', async () => {
 
   let owners: ChainMap<networks, string>;
   before(async () => {
-    console.log(AllChains);
     const [signer, owner] = await ethers.getSigners();
     multiProvider = utils.initHardhatMultiProvider(environment, signer);
-    deployer = new AbacusCoreDeployer(multiProvider, environment.core);
+    deployer = new AbacusCoreDeployer(
+      multiProvider,
+      environment.core.validatorManagers,
+    );
     owners = sdkUtils.objMap(
       environment.transactionConfigs,
       () => owner.address,
     );
   });
 
-  it('deploys', async () => {
+  // normal function necessary https://stackoverflow.com/questions/23492043/change-default-timeout-for-mocha
+  it('deploys', async function () {
+    this.timeout(1000000);
     addresses = await deployer.deploy(); // TODO: return AbacusApp from AbacusDeployer.deploy()
   });
 

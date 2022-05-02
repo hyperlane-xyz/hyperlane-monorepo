@@ -28,11 +28,17 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
 
   async deploy() {
     this.verificationInputs = utils.objMap(this.configMap, () => []);
-    await this.multiProvider.ready();
-    const addressMap = utils.objMap(this.configMap, (network, config) =>
-      this.deployContracts(network, config),
-    );
-    return utils.promiseObjAll<Record<Networks, A>>(addressMap);
+    const networks = Object.keys(this.configMap) as Networks[];
+    const entries: [Networks, A][] = [];
+    for (const network of networks) {
+      console.log(`Deploying to ${network}...`);
+      const result = await this.deployContracts(
+        network,
+        this.configMap[network],
+      );
+      entries.push([network, result]);
+    }
+    return Object.fromEntries(entries) as Record<Networks, A>;
   }
 
   async deployContract<F extends ethers.ContractFactory>(
@@ -41,8 +47,14 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
     factory: F,
     args: Parameters<F['deploy']>,
   ): Promise<ReturnType<F['deploy']>> {
+    // console.log(
+    //   `new ${contractName}(${formatFunctionArguments(
+    //     factory.interface.deploy,
+    //     args,
+    //   )})`,
+    // );
     const domainConnection = this.multiProvider.getDomainConnection(network);
-    const contract = await factory.deploy(args, domainConnection.overrides);
+    const contract = await factory.deploy(...args, domainConnection.overrides);
     await contract.deployTransaction.wait(domainConnection.confirmations);
     const verificationInput = getContractVerificationInput(
       contractName,

@@ -1,4 +1,4 @@
-import { ChainName, ChainMap } from '@abacus-network/sdk';
+import { ChainMap, ChainName } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
 
 export interface CheckerViolation {

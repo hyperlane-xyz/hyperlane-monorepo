@@ -8,8 +8,14 @@ import { metrics } from './metrics';
 
 const coreConfig = {
   alfajores: configs.alfajores,
-  kovan: configs.kovan,
-  mumbai: configs.mumbai,
+  kovan: {
+    ...configs.kovan,
+    confirmations: 1,
+  },
+  mumbai: {
+    ...configs.mumbai,
+    confirmations: 1,
+  },
   fuji: configs.fuji,
 };
 

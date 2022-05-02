@@ -4,7 +4,6 @@ import { AbacusCore, ChainName } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
-import { ethers } from 'hardhat';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import {
@@ -63,10 +62,10 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
     'environment',
     'The name of the environment from which to read configs',
   )
-  .setAction(async (args: any) => {
+  .setAction(async (args: any, hre: HardhatRuntimeEnvironment) => {
     const environment = args.environment;
     const environmentConfig = await getCoreEnvironmentConfig(environment);
-    const [signer] = await ethers.getSigners();
+    const [signer] = await hre.ethers.getSigners();
     const multiProvider = deployUtils.initHardhatMultiProvider(
       environmentConfig,
       signer,
@@ -74,7 +73,7 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
 
     const deployer = new AbacusCoreDeployer(
       multiProvider,
-      environmentConfig.core,
+      environmentConfig.core.validatorManagers,
     );
     const addresses = await deployer.deploy();
 

@@ -1,7 +1,7 @@
 import {
   AbacusCore,
-  ChainName,
   ChainMap,
+  ChainName,
   MultiProvider,
   utils
 } from '@abacus-network/sdk';
@@ -56,16 +56,16 @@ export const registerTransactionConfigs = <Networks extends ChainName>(
   multiProvider: MultiProvider<Networks>,
   txConfigMap: ChainMap<Networks, TransactionConfig>,
 ) => {
-  utils.objMap(txConfigMap, (network, txConfig) => {
-    const domainConnection = multiProvider.getDomainConnection(network);
-    domainConnection.registerOverrides(fixOverrides(txConfig));
+  multiProvider.apply((network, dc) => {
+    const txConfig = txConfigMap[network];
+    dc.registerOverrides(fixOverrides(txConfig));
     if (txConfig.confirmations) {
-      domainConnection.registerConfirmations(txConfig.confirmations);
+      dc.registerConfirmations(txConfig.confirmations);
     }
     if (txConfig.signer) {
-      domainConnection.registerSigner(txConfig.signer);
+      dc.registerSigner(txConfig.signer);
     }
-  });
+  })
 };
 
 export const registerEnvironment = <Networks extends ChainName>(
@@ -86,14 +86,17 @@ export const registerSigners = <Networks extends ChainName>(
 export const registerSigner = <Networks extends ChainName>(
   multiProvider: MultiProvider<Networks>,
   signer: ethers.Signer,
-) => multiProvider.getAll().map((dc) => dc.registerSigner(signer));
+) => multiProvider.apply((_, dc) => dc.registerSigner(signer));
 
 export const initHardhatMultiProvider = <Networks extends ChainName>(
   environment: EnvironmentConfig<Networks>,
   signer: ethers.Signer,
 ) => {
-  const networks = Object.keys(environment.transactionConfigs) as Networks[];
-  const multiProvider = new MultiProvider(networks);
+  const provider = ethers.getDefaultProvider();
+  const networkProviders = utils.objMap(environment.transactionConfigs, () => ({
+    provider
+  }))
+  const multiProvider = new MultiProvider(networkProviders);
   registerTransactionConfigs(multiProvider, environment.transactionConfigs);
   registerSigner(multiProvider, signer);
   return multiProvider;
@@ -120,6 +123,8 @@ export const getHardhatSigner = (): ethers.Signer => {
   return new NonceManager(wallet);
 };
 
-export const registerHardhatSigner = <Networks extends ChainName>(multiProvider: MultiProvider<Networks>) => {
+export const registerHardhatSigner = <Networks extends ChainName>(
+  multiProvider: MultiProvider<Networks>,
+) => {
   registerSigner(multiProvider, getHardhatSigner());
 };

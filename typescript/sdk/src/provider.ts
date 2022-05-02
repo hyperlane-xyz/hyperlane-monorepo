@@ -70,13 +70,7 @@ export class MultiProvider<
   getDomainConnection(network: Networks) {
     return this.get(network);
   }
-  getChains(chains: Networks[]) {
-    return this.entries().filter(([chain]) => chains.includes(chain));
-  }
-  getAll() {
-    return this.values();
-  }
   ready() {
-    return Promise.all(this.values().map((dc) => dc.provider!.ready));
+    // TODO: return Promise.all(this.values().map((dc) => dc.provider!.ready));
   }
 }

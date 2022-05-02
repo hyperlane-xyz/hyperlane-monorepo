@@ -28,29 +28,18 @@ import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import path from 'path';
 import { DeployEnvironment, RustConfig } from '../config';
-import { CoreConfig } from './types';
+import { ValidatorManagerConfig } from './types';
 
 export class AbacusCoreDeployer<
   Networks extends ChainName,
 > extends AbacusAppDeployer<
   Networks,
-  CoreConfig<Networks>,
+  ValidatorManagerConfig,
   CoreContractAddresses<Networks, any>
 > {
-  constructor(
-    multiProvider: MultiProvider<Networks>,
-    config: CoreConfig<Networks>,
-  ) {
-    const networks = Object.keys(config) as Networks[];
-    const crossConfigMap = Object.fromEntries(
-      networks.map((network) => [network, config]),
-    ) as ChainMap<Networks, CoreConfig<Networks>>;
-    super(multiProvider, crossConfigMap);
-  }
-
   async deployContracts<Local extends Networks>(
     network: Local,
-    config: CoreConfig<Networks>,
+    config: ValidatorManagerConfig,
   ): Promise<CoreContractAddresses<Networks, Local>> {
     const dc = this.multiProvider.getDomainConnection(network);
     const signer = dc.signer!;
@@ -61,7 +50,7 @@ export class AbacusCoreDeployer<
       [],
     );
 
-    const outboxValidatorManagerConfig = config.validatorManagers[network];
+    const outboxValidatorManagerConfig = config;
     const domain = domains[network].id;
     const outboxValidatorManager = await this.deployContract(
       network,
@@ -105,23 +94,19 @@ export class AbacusCoreDeployer<
       dc.overrides,
     );
 
-    const remotes = Object.keys(config.validatorManagers).filter(
+    const remotes = Object.keys(this.configMap).filter(
       (k) => k !== network,
     ) as Remotes<Networks, Local>[];
 
     const deployValidatorManager = async (
       remote: Remotes<Networks, Local>,
     ): Promise<InboxValidatorManager> => {
-      const validatorManagerConfig = config.validatorManagers[remote];
+      const remoteConfig = this.configMap[remote];
       return this.deployContract(
         network,
         'InboxValidatorManager',
         new InboxValidatorManager__factory(signer),
-        [
-          remote,
-          validatorManagerConfig.validators,
-          validatorManagerConfig.threshold,
-        ],
+        [domains[remote].id, remoteConfig.validators, remoteConfig.threshold],
       );
     };
 
@@ -134,7 +119,7 @@ export class AbacusCoreDeployer<
       [domain],
       upgradeBeaconController.address,
       [
-        firstRemote,
+        domains[firstRemote].id,
         firstValidatorManager.address,
         ethers.constants.HashZero,
         0,
@@ -163,7 +148,12 @@ export class AbacusCoreDeployer<
           network,
           'Inbox',
           firstInbox,
-          [remote, validatorManager.address, ethers.constants.HashZero, 0],
+          [
+            domains[remote].id,
+            validatorManager.address,
+            ethers.constants.HashZero,
+            0,
+          ],
         );
 
         return [remote, getMailbox(validatorManager, inbox)];

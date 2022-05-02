@@ -1,4 +1,4 @@
-import { ChainName, ChainMap } from '@abacus-network/sdk';
+import { ChainMap, ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 export type ValidatorManagerConfig = {
