@@ -19,8 +19,9 @@ const rpcs: Rpc[] = [
   { chain: 'polygon', rpc: config.polygonRpc },
 ];
 
-const core = new AbacusCore(coreAddresses);
-const governance = new AbacusGovernance(governanceAddresses);
+const environment = config.environment;
+const core = new AbacusCore(coreAddresses[environment]);
+const governance = new AbacusGovernance(governanceAddresses[environment]);
 
 rpcs.map((rpc) => {
   core.registerRpcProvider(rpc.chain, rpc.rpc);
