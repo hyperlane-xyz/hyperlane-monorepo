@@ -17,7 +17,10 @@ type EthersFactory<C> = (
   address: types.Address, // TODO: generic on ProxiedAddress for proxy utilities
   connection: Connection,
 ) => C;
-export type Factories<A extends AbacusContractAddresses> = Record<keyof A, EthersFactory<any>>;
+export type Factories<A extends AbacusContractAddresses> = Record<
+  keyof A,
+  EthersFactory<any>
+>;
 
 export interface IAbacusContracts<Addresses, Contracts> {
   readonly addresses: Addresses;

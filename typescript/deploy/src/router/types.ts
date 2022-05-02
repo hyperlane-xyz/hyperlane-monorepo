@@ -11,4 +11,6 @@ export interface Router {
   owner(): Promise<types.Address>;
 }
 
-export type RouterConfig<Networks extends ChainName> = { abacusConnectionManager?: ChainMap<Networks, types.Address>; };
+export type RouterConfig<Networks extends ChainName> = {
+  abacusConnectionManager?: ChainMap<Networks, types.Address>;
+};

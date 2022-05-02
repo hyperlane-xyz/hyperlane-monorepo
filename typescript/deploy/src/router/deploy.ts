@@ -1,6 +1,6 @@
 import {
   AbacusConnectionManager,
-  AbacusConnectionManager__factory
+  AbacusConnectionManager__factory,
 } from '@abacus-network/core';
 import {
   AbacusCore,
@@ -9,7 +9,7 @@ import {
   domains,
   MultiProvider,
   RouterAddresses,
-  utils as sdkUtils
+  utils as sdkUtils,
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 import { AbacusAppDeployer } from '../deploy';

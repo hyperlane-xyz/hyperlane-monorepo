@@ -12,7 +12,7 @@ import {
   OutboxValidatorManager__factory,
   Outbox__factory,
   UpgradeBeaconController,
-  UpgradeBeaconController__factory
+  UpgradeBeaconController__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 import { IAbacusContracts } from '../contracts';
@@ -21,7 +21,7 @@ import {
   Connection,
   ProxiedAddress,
   RemoteChainMap,
-  Remotes
+  Remotes,
 } from '../types';
 import { objMap } from '../utils';
 

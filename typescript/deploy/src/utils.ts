@@ -3,7 +3,7 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  utils
+  utils,
 } from '@abacus-network/sdk';
 import { NonceManager } from '@ethersproject/experimental';
 import { ethers } from 'ethers';
@@ -65,7 +65,7 @@ export const registerTransactionConfigs = <Networks extends ChainName>(
     if (txConfig.signer) {
       dc.registerSigner(txConfig.signer);
     }
-  })
+  });
 };
 
 export const registerEnvironment = <Networks extends ChainName>(
@@ -90,12 +90,12 @@ export const registerSigner = <Networks extends ChainName>(
 
 export const initHardhatMultiProvider = <Networks extends ChainName>(
   environment: EnvironmentConfig<Networks>,
-  signer: ethers.Signer
+  signer: ethers.Signer,
 ) => {
   const networkProviders = utils.objMap(environment.transactionConfigs, () => ({
     provider: signer.provider!,
-    signer
-  }))
+    signer,
+  }));
   const multiProvider = new MultiProvider(networkProviders);
   registerTransactionConfigs(multiProvider, environment.transactionConfigs);
   return multiProvider;

@@ -1,9 +1,4 @@
-import {
-  AbacusApp,
-  ChainName,
-  ChainMap,
-  domains
-} from '@abacus-network/sdk';
+import { AbacusApp, ChainName, ChainMap, domains } from '@abacus-network/sdk';
 import { types, utils } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { AbacusAppChecker, Ownable } from '../check';

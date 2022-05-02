@@ -4,7 +4,7 @@ import { ChainName, Remotes } from '../types';
 import {
   CoreContractAddresses,
   CoreContracts,
-  CoreContractSchema
+  CoreContractSchema,
 } from './contracts';
 import { environments } from './environments';
 
