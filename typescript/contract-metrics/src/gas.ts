@@ -3,7 +3,7 @@
 //import { ethereum } from '@abacus-network/sdk/dist/abacus/domains/mainnet';
 import { BigNumber, ethers } from 'ethers';
 import moment from 'moment';
-import { plot, Plot } from 'nodeplotlib';
+import { Plot, plot } from 'nodeplotlib';
 
 type AnyMap = { [key: string]: any };
 type TxMap = { [key: string]: ethers.providers.TransactionResponse[] };

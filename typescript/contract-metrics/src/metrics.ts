@@ -1,6 +1,6 @@
-import { collectDefaultMetrics, Gauge, register } from 'prom-client';
-import express, { Response } from 'express';
 import Logger from 'bunyan';
+import express, { Response } from 'express';
+import { Gauge, collectDefaultMetrics, register } from 'prom-client';
 
 export class MetricCollector {
   private numDispatchedGauge: Gauge<string>;

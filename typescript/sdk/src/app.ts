@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
-import { MultiProvider } from './provider';
+
 import { AbacusAppContracts } from './contracts';
+import { MultiProvider } from './provider';
 import { NameOrDomain } from './types';
 
 /**

@@ -1,6 +1,7 @@
-import { types, utils } from "@abacus-network/utils";
-import { TestDeploy } from "./TestDeploy";
-import { TestAbacusDeploy } from "./TestAbacusDeploy";
+import { types, utils } from '@abacus-network/utils';
+
+import { TestAbacusDeploy } from './TestAbacusDeploy';
+import { TestDeploy } from './TestDeploy';
 
 export interface Router {
   address: types.Address;
@@ -16,7 +17,7 @@ export abstract class TestRouterDeploy<T, V> extends TestDeploy<T, V> {
       for (const remote of this.remotes(local)) {
         await this.router(local).enrollRemoteRouter(
           remote,
-          utils.addressToBytes32(this.router(remote).address)
+          utils.addressToBytes32(this.router(remote).address),
         );
       }
     }
@@ -24,7 +25,7 @@ export abstract class TestRouterDeploy<T, V> extends TestDeploy<T, V> {
 
   abstract deployInstance(
     domain: types.Domain,
-    abacus: TestAbacusDeploy
+    abacus: TestAbacusDeploy,
   ): Promise<T>;
   abstract router(domain: types.Domain): Router;
 }

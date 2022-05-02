@@ -1,7 +1,8 @@
-import { ethers } from 'hardhat';
-import { expect } from 'chai';
-import { types, utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+
+import { types, utils } from '@abacus-network/utils';
 
 import { TestOutbox, TestOutbox__factory } from '../types';
 

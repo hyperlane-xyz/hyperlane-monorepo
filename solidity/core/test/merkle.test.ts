@@ -1,5 +1,6 @@
-import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { ethers } from 'hardhat';
+
 import { types } from '@abacus-network/utils';
 
 import { TestMerkle, TestMerkle__factory } from '../types';

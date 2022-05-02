@@ -1,5 +1,6 @@
-import { AbacusGovernance, ChainName } from '@abacus-network/sdk';
 import { GovernanceRouter } from '@abacus-network/apps';
+import { AbacusGovernance, ChainName } from '@abacus-network/sdk';
+
 import config from '../config';
 
 export async function monitorGovernance(

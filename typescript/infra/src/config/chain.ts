@@ -1,7 +1,9 @@
-import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-import { ChainName } from '@abacus-network/sdk';
 import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
+import { ethers } from 'ethers';
+
+import { ChainName } from '@abacus-network/sdk';
+
 import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
 
 export async function fetchSigner(

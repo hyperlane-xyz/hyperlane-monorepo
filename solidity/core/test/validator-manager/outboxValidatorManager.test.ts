@@ -1,14 +1,16 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import { types, utils, Validator } from '@abacus-network/utils';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+
+import { Validator, types, utils } from '@abacus-network/utils';
 
 import {
   Outbox,
-  Outbox__factory,
   OutboxValidatorManager,
   OutboxValidatorManager__factory,
+  Outbox__factory,
 } from '../../types';
+
 import { signCheckpoint } from './utils';
 
 const OUTBOX_DOMAIN = 1234;

@@ -1,6 +1,7 @@
 import { AbacusCore, AbacusMessage, ChainName } from '@abacus-network/sdk';
-import { core } from './registerContext';
+
 import { printStatus } from './print';
+import { core } from './registerContext';
 
 const input: TraceInput[] = [
   {

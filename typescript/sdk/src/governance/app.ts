@@ -4,8 +4,8 @@ import { AbacusApp } from '../app';
 import { domains } from '../domains';
 import { ChainName } from '../types';
 
-import { GovernanceContracts, GovernanceContractAddresses } from './contracts';
-import { Call, normalizeCall, associateCalls } from './utils';
+import { GovernanceContractAddresses, GovernanceContracts } from './contracts';
+import { Call, associateCalls, normalizeCall } from './utils';
 
 export type Governor = {
   domain: number;

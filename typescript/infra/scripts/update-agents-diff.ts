@@ -1,6 +1,7 @@
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
-import { getAgentConfig, getEnvironment, getDomainNames } from './utils';
+
+import { getAgentConfig, getDomainNames, getEnvironment } from './utils';
 
 async function deploy() {
   const environment = await getEnvironment();

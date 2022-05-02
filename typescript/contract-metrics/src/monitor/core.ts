@@ -1,7 +1,9 @@
-import { AbacusCore, ChainName, getEvents } from '@abacus-network/sdk';
 import Logger from 'bunyan';
-import { logMonitorMetrics, writeUnprocessedMessages } from '../print';
+
+import { AbacusCore, ChainName, getEvents } from '@abacus-network/sdk';
+
 import config from '../config';
+import { logMonitorMetrics, writeUnprocessedMessages } from '../print';
 
 export async function monitorCore(
   core: AbacusCore,

@@ -1,12 +1,14 @@
-import { types } from '@abacus-network/utils';
 import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
-import { DeployEnvironment } from './environment';
+import { types } from '@abacus-network/utils';
+
+import { KEY_ROLE_ENUM } from '../agents';
 import {
   AgentAwsKey,
   AgentAwsUser,
   ValidatorAgentAwsUser,
 } from '../agents/aws';
-import { KEY_ROLE_ENUM } from '../agents';
+
+import { DeployEnvironment } from './environment';
 
 // Allows a "default" config to be specified and any per-network overrides.
 interface ChainOverridableConfig<Networks extends ChainName, T> {

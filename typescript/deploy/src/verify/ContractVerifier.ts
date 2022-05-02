@@ -1,6 +1,7 @@
 import axios from 'axios';
-import { types } from '@abacus-network/utils';
+
 import { ChainName } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
 
 import { ContractVerificationInput, VerificationInput } from './types';
 

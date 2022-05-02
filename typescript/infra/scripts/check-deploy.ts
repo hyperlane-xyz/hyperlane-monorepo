@@ -1,11 +1,15 @@
 import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
+
 import {
   AbacusCore,
   AbacusGovernance,
   coreAddresses,
   governanceAddresses,
 } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
+
+import { AbacusCoreChecker } from '../src/core';
+import { AbacusGovernanceChecker } from '../src/governance';
 
 import {
   getCoreConfig,
@@ -13,8 +17,6 @@ import {
   getGovernanceConfig,
   registerMultiProvider,
 } from './utils';
-import { AbacusCoreChecker } from '../src/core';
-import { AbacusGovernanceChecker } from '../src/governance';
 
 async function check() {
   const environment = await getEnvironment();
