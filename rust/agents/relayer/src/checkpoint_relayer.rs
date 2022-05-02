@@ -185,7 +185,10 @@ impl CheckpointRelayer {
             onchain_checkpoint_index + 1
         };
 
-        info!(onchain_checkpoint_index=onchain_checkpoint_index, "Starting CheckpointRelayer");
+        info!(
+            onchain_checkpoint_index = onchain_checkpoint_index,
+            "Starting CheckpointRelayer"
+        );
 
         loop {
             sleep(Duration::from_secs(self.polling_interval)).await;
