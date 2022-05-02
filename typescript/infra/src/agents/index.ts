@@ -176,7 +176,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
       chainNames.forEach((chainName) => {
         const key = new AgentAwsKey(agentConfig, role, chainName);
         envVars = envVars.concat(
-          configEnvVars(key.keyConfig, 'BASE', `SIGNERS_${chainName.toUpperCase()}_`),
+          configEnvVars(key.keyConfig, 'BASE', `SIGNERS_${outboxChainName.toUpperCase()}_`),
         );
       });
     }
