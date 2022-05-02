@@ -134,7 +134,7 @@ impl ProveCommand {
         let provider = self
             .rpc
             .as_ref()
-            .map(|rpc| Provider::<Http>::try_from(rpc))
+            .map(Provider::<Http>::try_from)
             .transpose()?
             .unwrap_or_else(|| rpc::fetch_rpc_connection(destination).unwrap());
 
