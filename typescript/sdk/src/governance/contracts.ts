@@ -14,11 +14,16 @@ export const governanceFactories = {
   router: GovernanceRouter__factory.connect,
 };
 
+export type GovernanceFactories = typeof governanceFactories;
+
 export class GovernanceContracts extends AbacusContracts<
   GovernanceAddresses,
-  typeof governanceFactories
+  GovernanceFactories
 > {
-  factories = () => governanceFactories;
+  // necessary for factories be defined in the constructor
+  factories() {
+    return governanceFactories;
+  }
   calls: Call[] = [];
 
   push = (call: Call) => this.calls.push(normalizeCall(call));

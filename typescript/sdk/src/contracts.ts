@@ -1,7 +1,7 @@
 import { Router__factory } from '@abacus-network/apps';
 import {
   AbacusConnectionManager__factory,
-  UpgradeBeaconController__factory
+  UpgradeBeaconController__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 import { Contract } from 'ethers';

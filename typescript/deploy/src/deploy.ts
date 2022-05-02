@@ -12,6 +12,7 @@ import {
   ContractVerificationInput,
   getContractVerificationInput,
 } from './verify';
+import { formatFunctionArguments } from './verify/utils';
 
 // TODO: Make AppDeployer generic on AbacusApp and return instance from deploy()
 export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
@@ -47,12 +48,12 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
     factory: F,
     args: Parameters<F['deploy']>,
   ): Promise<ReturnType<F['deploy']>> {
-    // console.log(
-    //   `new ${contractName}(${formatFunctionArguments(
-    //     factory.interface.deploy,
-    //     args,
-    //   )})`,
-    // );
+    console.log(
+      `new ${contractName}(${formatFunctionArguments(
+        factory.interface.deploy,
+        args,
+      )})`,
+    );
     const domainConnection = this.multiProvider.getDomainConnection(network);
     const contract = await factory.deploy(...args, domainConnection.overrides);
     await contract.deployTransaction.wait(domainConnection.confirmations);

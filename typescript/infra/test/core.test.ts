@@ -34,9 +34,7 @@ describe('core', async () => {
     );
   });
 
-  // normal function necessary https://stackoverflow.com/questions/23492043/change-default-timeout-for-mocha
-  it('deploys', async function () {
-    this.timeout(1000000);
+  it('deploys', async () => {
     addresses = await deployer.deploy(); // TODO: return AbacusApp from AbacusDeployer.deploy()
   });
 
