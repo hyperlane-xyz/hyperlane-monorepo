@@ -90,15 +90,14 @@ export const registerSigner = <Networks extends ChainName>(
 
 export const initHardhatMultiProvider = <Networks extends ChainName>(
   environment: EnvironmentConfig<Networks>,
-  signer: ethers.Signer,
+  signer: ethers.Signer
 ) => {
-  const provider = ethers.getDefaultProvider();
   const networkProviders = utils.objMap(environment.transactionConfigs, () => ({
-    provider
+    provider: signer.provider!,
+    signer
   }))
   const multiProvider = new MultiProvider(networkProviders);
   registerTransactionConfigs(multiProvider, environment.transactionConfigs);
-  registerSigner(multiProvider, signer);
   return multiProvider;
 };
 

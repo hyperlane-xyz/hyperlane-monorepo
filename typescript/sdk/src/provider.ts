@@ -3,14 +3,14 @@ import { ChainMap, ChainName } from './types';
 import { MultiGeneric } from './utils';
 
 interface IDomainConnection {
-  provider?: ethers.providers.BaseProvider;
+  provider?: ethers.providers.Provider;
   signer?: ethers.Signer;
   overrides?: ethers.Overrides;
   confirmations?: number;
 }
 
 export class DomainConnection {
-  provider?: ethers.providers.BaseProvider;
+  provider?: ethers.providers.Provider;
   signer?: ethers.Signer;
   overrides: ethers.Overrides;
   confirmations: number;
@@ -28,7 +28,7 @@ export class DomainConnection {
   registerConfirmations = (confirmations: number) =>
     (this.confirmations = confirmations);
 
-  registerProvider(provider: ethers.providers.BaseProvider) {
+  registerProvider(provider: ethers.providers.Provider) {
     if (this.signer) {
       this.signer.connect(provider);
     }
