@@ -7,16 +7,9 @@ import { infra } from './infra';
 import { metrics } from './metrics';
 
 const coreConfig = {
-  alfajores: configs.alfajores,
-  kovan: {
-    ...configs.kovan,
-    confirmations: 1,
-  },
-  mumbai: {
-    ...configs.mumbai,
-    confirmations: 1,
-  },
-  fuji: configs.fuji,
+  test1: configs.test1,
+  test2: configs.test2,
+  test3: configs.test3,
 };
 
 type corenet = keyof typeof coreConfig;

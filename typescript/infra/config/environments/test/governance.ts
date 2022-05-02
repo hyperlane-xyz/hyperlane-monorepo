@@ -1,17 +1,14 @@
 import { GovernanceConfig } from '../../../src/governance';
 
 const addresses = {
-  alfajores: {
+  test1: {
     recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
     governor: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
   },
-  kovan: {
+  test2: {
     recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
   },
-  mumbai: {
-    recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
-  },
-  fuji: {
+  test3: {
     recoveryManager: '0x4FbBB2b0820CF0cF027BbB58DC7F7f760BC0c57e',
   },
 };
