@@ -209,7 +209,7 @@ export class AbacusCoreChecker<
         // inbox is enrolled in abacusConnectionManager
         const enrolledInboxes =
           await coreContracts.abacusConnectionManager.getInboxes(remoteDomain);
-        expect(enrolledInboxes).to.equal([inbox.inbox.address]);
+        expect(enrolledInboxes).to.deep.equal([inbox.inbox.address]);
       }),
     );
 
