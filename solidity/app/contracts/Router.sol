@@ -137,14 +137,14 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      * @param _gasPayment The amount of native tokens to pay the Interchain Gas
      * Paymaster to process the dispatched message.
      */
-    function _payForGas(uint256 _leafIndex, uint256 _gasPayment) internal {
+    function _payGasFor(uint256 _leafIndex, uint256 _gasPayment) internal {
         _interchainGasPaymaster().payGasFor{value: _gasPayment}(_leafIndex);
     }
 
     /**
      * @notice Calls #checkpoint on the Outbox
      */
-    function _checkpointOnOutbox() internal {
+    function _checkpoint() internal {
         _outbox().checkpoint();
     }
 
@@ -153,6 +153,8 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      * to the enrolled router on _destination as specified on the ACM, 2) pay
      * for message processing on the destination chain and 3) checkpoint the
      * message on the Outbox
+     * @dev Implementation is not using the other convenience methods like payGasFor
+     * or _dispatchToRemoteRouter to avoid SLOADs and save gas
      * @param _destination The domain of the chain to which to send the message.
      * @param _msg The message to dispatch.
      * @param _gasPayment The amount of native tokens to pay the Interchain Gas

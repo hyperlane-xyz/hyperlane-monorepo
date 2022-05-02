@@ -95,7 +95,7 @@ task('kathy', 'Dispatches random abacus messages')
       const remote = randomElement(core.remoteDomainNumbers(local));
       const outbox = core.mustGetContracts(local).outbox;
       // Send a batch of messages to the remote domain to test
-      // the checkpointer/relayer submitting only greedily
+      // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
         await outbox.dispatch(
           remote,

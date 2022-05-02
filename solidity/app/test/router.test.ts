@@ -143,7 +143,7 @@ describe('Router', async () => {
         await expect(router.comboDispatch(destination, '0x', 0, false));
       });
 
-      it('triggers an InterchainGasPayment', async () => {
+      it('triggers an InterchainGasPayment when specified', async () => {
         const testInterchainGasPayment = 1234;
         await expect(
           router.comboDispatch(
@@ -156,12 +156,23 @@ describe('Router', async () => {
         ).to.emit(interchainGasPaymaster, 'GasPayment');
       });
 
+      it('does not trigger an InterchainGasPayment when not specified', async () => {
+        await expect(router.comboDispatch(destination, '0x', 0, false)).to.not.emit(interchainGasPaymaster, 'GasPayment');
+      })
+
       it('checkpoints when specified', async () => {
         await expect(router.comboDispatch(destination, '0x', 0, true)).to.emit(
           outbox,
           'Checkpoint',
         );
       });
+
+      it('does not checkpoint when not specified', async () => {
+        await expect(router.comboDispatch(destination, '0x', 0, false)).to.not.emit(
+          outbox,
+          'Checkpoint',
+        );
+      })
     });
 
     describe('without a remote router enrolled', () => {
