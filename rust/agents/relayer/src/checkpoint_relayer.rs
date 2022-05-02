@@ -119,17 +119,20 @@ impl CheckpointRelayer {
             );
 
             self.prover_sync.update_from_batch(&batch)?;
-            match self.inbox_contracts
+            match self
+                .inbox_contracts
                 .validator_manager
                 .submit_checkpoint(&latest_signed_checkpoint)
-                .await {
-                    Ok(_) => (),
-                    Err(_) => {
-                        // Ignore errors as to not fail the process and just retry after some sleep
-                        sleep(Duration::from_secs(self.submission_latency)).await;
-                        return Ok(onchain_checkpoint_index)
-                    }
+                .await
+            {
+                Ok(_) => (),
+                Err(err) => {
+                    error!(checkpoint=?latest_signed_checkpoint, err=?err, "Checkpoint could not be submitted on-chain");
+                    // Ignore errors as to not fail the process and just retry after some sleep
+                    sleep(Duration::from_secs(self.submission_latency)).await;
+                    return Ok(onchain_checkpoint_index);
                 }
+            }
 
             self.inbox_checkpoint_gauge
                 .set(latest_signed_checkpoint.checkpoint.index as i64);
@@ -170,64 +173,68 @@ impl CheckpointRelayer {
         }
     }
 
-    pub(crate) fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("CheckpointRelayer");
-        tokio::spawn(async move {
-            let latest_inbox_checkpoint =
-                self.inbox_contracts.inbox.latest_checkpoint(None).await?;
-            let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
-            self.inbox_checkpoint_gauge
-                .set(onchain_checkpoint_index as i64);
-            let mut next_inbox_leaf_index = if onchain_checkpoint_index == 0 {
-                0
-            } else {
-                onchain_checkpoint_index + 1
-            };
-            loop {
-                sleep(Duration::from_secs(self.polling_interval)).await;
+    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.name()), level = "info")]
+    async fn main_loop(mut self) -> Result<()> {
+        let latest_inbox_checkpoint = self.inbox_contracts.inbox.latest_checkpoint(None).await?;
+        let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
+        self.inbox_checkpoint_gauge
+            .set(onchain_checkpoint_index as i64);
+        let mut next_inbox_leaf_index = if onchain_checkpoint_index == 0 {
+            0
+        } else {
+            onchain_checkpoint_index + 1
+        };
 
-                if let Some(signed_checkpoint_index) =
-                    self.multisig_checkpoint_syncer.latest_index().await?
+        info!(onchain_checkpoint_index=onchain_checkpoint_index, "Starting CheckpointRelayer");
+
+        loop {
+            sleep(Duration::from_secs(self.polling_interval)).await;
+
+            if let Some(signed_checkpoint_index) =
+                self.multisig_checkpoint_syncer.latest_index().await?
+            {
+                self.signed_checkpoint_gauge
+                    .set(signed_checkpoint_index as i64);
+                if signed_checkpoint_index <= onchain_checkpoint_index {
+                    debug!(
+                        onchain = onchain_checkpoint_index,
+                        signed = signed_checkpoint_index,
+                        "Signed checkpoint matches known checkpoint on-chain, continue"
+                    );
+                    continue;
+                }
+
+                match self
+                    .get_messages_between(next_inbox_leaf_index, signed_checkpoint_index)
+                    .await?
                 {
-                    self.signed_checkpoint_gauge
-                        .set(signed_checkpoint_index as i64);
-                    if signed_checkpoint_index <= onchain_checkpoint_index {
-                        debug!(
-                            onchain = onchain_checkpoint_index,
-                            signed = signed_checkpoint_index,
-                            "Signed checkpoint matches known checkpoint on-chain, continue"
-                        );
-                        continue;
+                    None => debug!("Couldn't fetch the relevant messages, retry this range"),
+                    Some(messages) if messages.is_empty() => {
+                        next_inbox_leaf_index = signed_checkpoint_index + 1;
+                        debug!("New checkpoint does not include messages for inbox")
                     }
+                    Some(messages) => {
+                        next_inbox_leaf_index = signed_checkpoint_index + 1;
+                        debug!(
+                            len = messages.len(),
+                            "Signed checkpoint allows for processing of new messages"
+                        );
 
-                    match self
-                        .get_messages_between(next_inbox_leaf_index, signed_checkpoint_index)
-                        .await?
-                    {
-                        None => debug!("Couldn't fetch the relevant messages, retry this range"),
-                        Some(messages) if messages.is_empty() => {
-                            next_inbox_leaf_index = signed_checkpoint_index + 1;
-                            debug!("New checkpoint does not include messages for inbox")
-                        }
-                        Some(messages) => {
-                            next_inbox_leaf_index = signed_checkpoint_index + 1;
-                            debug!(
-                                len = messages.len(),
-                                "Signed checkpoint allows for processing of new messages"
-                            );
-
-                            onchain_checkpoint_index = self
-                                .submit_checkpoint_and_messages(
-                                    onchain_checkpoint_index,
-                                    signed_checkpoint_index,
-                                    messages,
-                                )
-                                .await?;
-                        }
+                        onchain_checkpoint_index = self
+                            .submit_checkpoint_and_messages(
+                                onchain_checkpoint_index,
+                                signed_checkpoint_index,
+                                messages,
+                            )
+                            .await?;
                     }
                 }
             }
-        })
-        .instrument(span)
+        }
+    }
+
+    pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
+        let span = info_span!("CheckpointRelayer");
+        tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 }
