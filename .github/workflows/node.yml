@@ -52,7 +52,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        run: ./build.sh
+        run: yarn build
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -65,13 +65,7 @@ jobs:
           key: ${{ runner.os }}-yarn-cache3-${{ hashFiles('./yarn.lock') }}
 
       - name: prettier
-        run: |
-          ./lint-prettier.sh
-          CHANGES=$(git status -s)
-          if [[ ! -z $CHANGES ]]; then
-            echo "Changes found: $CHANGES"
-            exit 1
-          fi
+        run: yarn prettier
 
   test-ts:
     runs-on: ubuntu-latest
