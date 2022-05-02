@@ -71,13 +71,13 @@ export const ropsten: Domain = {
 
 const testDomains = {
   test1: {
-    id: -1,
+    id: 13371,
   },
   test2: {
-    id: -2,
+    id: 13372,
   },
   test3: {
-    id: -3,
+    id: 13373,
   },
 };
 

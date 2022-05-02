@@ -52,6 +52,21 @@ export const ropsten: TransactionConfig = {
   },
 };
 
+export const test1: TransactionConfig = {
+  confirmations: 1,
+  overrides: {},
+};
+
+export const test2: TransactionConfig = {
+  confirmations: 1,
+  overrides: {},
+};
+
+export const test3: TransactionConfig = {
+  confirmations: 1,
+  overrides: {},
+};
+
 const _configs = {
   alfajores,
   fuji,
@@ -61,6 +76,9 @@ const _configs = {
   rinkarby,
   rinkeby,
   ropsten,
+  test1,
+  test2,
+  test3
 };
 
 export const configs: ChainMap<keyof typeof _configs, TransactionConfig> =
