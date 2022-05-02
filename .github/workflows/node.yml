@@ -54,7 +54,7 @@ jobs:
       - name: build
         run: yarn build
 
-  lint-prettier:
+  yarn-prettier:
     runs-on: ubuntu-latest
     needs: [yarn-install]
     steps:
@@ -65,7 +65,13 @@ jobs:
           key: ${{ runner.os }}-yarn-cache3-${{ hashFiles('./yarn.lock') }}
 
       - name: prettier
-        run: yarn prettier
+        run: |
+          yarn prettier
+          CHANGES=$(git status -s)
+          if [[ ! -z $CHANGES ]]; then
+            echo "Changes found: $CHANGES"
+            exit 1
+          fi
 
   test-ts:
     runs-on: ubuntu-latest
