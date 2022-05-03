@@ -1,3 +1,7 @@
+import '@nomiclabs/hardhat-waffle';
+import { ethers } from 'hardhat';
+import path from 'path';
+
 import { utils } from '@abacus-network/deploy';
 import {
   AbacusGovernance,
@@ -6,9 +10,7 @@ import {
   MultiProvider,
   utils as sdkUtils,
 } from '@abacus-network/sdk';
-import '@nomiclabs/hardhat-waffle';
-import { ethers } from 'hardhat';
-import path from 'path';
+
 import { environment } from '../config/environments/test';
 import {
   AbacusGovernanceChecker,

@@ -1,6 +1,7 @@
 import { types } from '@abacus-network/utils';
-import { ethers } from 'ethers';
+
 import { canonizeId } from '../utils';
+import { ethers } from 'ethers';
 
 export interface Call {
   to: types.Address;

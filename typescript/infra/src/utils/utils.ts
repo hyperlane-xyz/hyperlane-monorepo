@@ -1,9 +1,9 @@
-import { exec } from 'child_process';
-import fs from 'fs';
-import path from 'path';
 // @ts-ignore
 import * as asn1 from 'asn1.js';
+import { exec } from 'child_process';
 import { ethers } from 'ethers';
+import fs from 'fs';
+import path from 'path';
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));

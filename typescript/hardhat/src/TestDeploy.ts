@@ -1,4 +1,4 @@
-import { types } from "@abacus-network/utils";
+import { types } from '@abacus-network/utils';
 
 export class TestDeploy<T, V> {
   public readonly config: V;

@@ -1,6 +1,7 @@
 import { types } from '@abacus-network/utils';
-import { ethers } from 'ethers';
+
 import { domains } from './domains';
+import { ethers } from 'ethers';
 
 /**
  * RPC Pagination information for Polygon

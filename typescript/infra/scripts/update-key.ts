@@ -1,6 +1,6 @@
 import {
-  getEnvironment,
   getCoreEnvironmentConfig,
+  getEnvironment,
   getKeyRoleAndChainArgs,
 } from './utils';
 

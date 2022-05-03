@@ -1,3 +1,5 @@
+import { expect } from 'chai';
+
 import {
   AbacusApp,
   ChainName,
@@ -5,7 +7,7 @@ import {
   ProxiedAddress,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import { expect } from 'chai';
+
 import { CheckerViolation } from './config';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 

@@ -1,6 +1,9 @@
-import { utils } from '@abacus-network/deploy';
 import { ethers } from 'hardhat';
+
+import { utils } from '@abacus-network/deploy';
+
 import { AbacusCoreDeployer } from '../src/core';
+
 import {
   getCoreContractsSdkFilepath,
   getCoreEnvironmentConfig,

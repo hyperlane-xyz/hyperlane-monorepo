@@ -1,6 +1,6 @@
 import { GovernanceRouter } from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
-import { ethers } from 'ethers';
+
 import { GovernanceContracts } from '.';
 import { Call } from '..';
 import { AbacusApp } from '../app';
@@ -9,9 +9,15 @@ import { ChainMap, ChainName, ChainNameToDomainId } from '../types';
 import { objMap, promiseObjAll } from '../utils';
 import { GovernanceAddresses } from './contracts';
 import { environments } from './environments';
+import { ethers } from 'ethers';
 
 type Environments = typeof environments;
 type EnvironmentName = keyof Environments;
+
+export type Governor = {
+  domain: number;
+  identifier: string;
+};
 
 export class AbacusGovernance<
   Networks extends ChainName = ChainName,

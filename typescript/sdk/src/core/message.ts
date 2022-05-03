@@ -1,9 +1,11 @@
-import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+import { AbacusCore } from '.';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { keccak256 } from 'ethers/lib/utils';
-import { AbacusCore } from '.';
+
+import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { MultiProvider } from '../provider';
 import {
@@ -13,6 +15,7 @@ import {
   NameOrDomain,
 } from '../types';
 import { delay } from '../utils';
+
 import {
   AnnotatedCheckpoint,
   AnnotatedDispatch,

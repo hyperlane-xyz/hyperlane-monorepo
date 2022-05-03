@@ -1,9 +1,11 @@
+import { Result } from '@ethersproject/abi';
+import { TransactionReceipt } from '@ethersproject/abstract-provider';
+
 import {
   TypedEvent,
   TypedEventFilter,
 } from '@abacus-network/core/dist/commons';
-import { Result } from '@ethersproject/abi';
-import { TransactionReceipt } from '@ethersproject/abstract-provider';
+
 import { domains } from './domains';
 import { MultiProvider } from './provider';
 import { ChainName } from './types';

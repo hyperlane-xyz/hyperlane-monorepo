@@ -1,6 +1,8 @@
 import { ChainName } from '@abacus-network/sdk';
+
 import { runKeymasterHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
+
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {

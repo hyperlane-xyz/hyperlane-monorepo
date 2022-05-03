@@ -1,6 +1,8 @@
 import { ChainName } from '@abacus-network/sdk';
+
 import { runContractMetricsHelmCommand } from '../src/contract-metrics';
 import { HelmCommand } from '../src/utils/helm';
+
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {

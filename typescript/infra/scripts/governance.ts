@@ -1,8 +1,11 @@
+import { ethers } from 'hardhat';
+
 import { utils } from '@abacus-network/deploy';
 import { AbacusCore, utils as sdkUtils } from '@abacus-network/sdk';
-import { ethers } from 'hardhat';
+
 import { AbacusCoreDeployer } from '../src/core';
 import { AbacusGovernanceDeployer } from '../src/governance';
+
 import {
   getCoreEnvironmentConfig,
   getEnvironment,

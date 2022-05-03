@@ -1,8 +1,10 @@
+import { expect } from 'chai';
+import { ethers } from 'ethers';
+
 import { AbacusRouterChecker, Ownable } from '@abacus-network/deploy';
 import { AbacusGovernance, ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import { expect } from 'chai';
-import { ethers } from 'ethers';
+
 import { GovernanceConfig } from './types';
 
 export class AbacusGovernanceChecker<

@@ -1,24 +1,19 @@
 {
   "name": "@abacus-network/monorepo",
   "scripts": {
-    "build": "./build.sh",
-    "prettier": "./lint-prettier.sh"
+    "build": "yarn workspaces foreach --parallel --topological run build",
+    "prettier": "yarn workspaces foreach --parallel run prettier"
   },
   "workspaces": [
-    "typescript/utils",
-    "solidity/core",
-    "typescript/hardhat",
-    "solidity/app",
-    "solidity/apps",
-    "typescript/sdk",
-    "typescript/contract-metrics",
-    "typescript/deploy",
-    "typescript/infra"
+    "solidity/*",
+    "typescript/*"
   ],
   "private": true,
   "version": "0.0.0",
   "packageManager": "yarn@3.2.0",
   "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^3.2.0",
+    "prettier": "^2.2.1",
     "typescript": "^4.3.5"
   }
 }

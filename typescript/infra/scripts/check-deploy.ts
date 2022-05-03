@@ -1,8 +1,11 @@
+import { ethers } from 'hardhat';
+
 import { utils } from '@abacus-network/deploy';
 import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
-import { ethers } from 'hardhat';
+
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusGovernanceChecker } from '../src/governance';
+
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {

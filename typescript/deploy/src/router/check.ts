@@ -1,7 +1,10 @@
-import { AbacusApp, ChainName, ChainMap, domains } from '@abacus-network/sdk';
-import { types, utils } from '@abacus-network/utils';
 import { expect } from 'chai';
+
+import { AbacusApp, ChainMap, ChainName, domains } from '@abacus-network/sdk';
+import { types, utils } from '@abacus-network/utils';
+
 import { AbacusAppChecker, Ownable } from '../check';
+
 import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterChecker<

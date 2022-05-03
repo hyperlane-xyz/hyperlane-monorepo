@@ -4,15 +4,17 @@ import {
 } from '@abacus-network/core';
 import {
   AbacusCore,
-  ChainName,
   ChainMap,
-  domains,
+  ChainName,
   MultiProvider,
   RouterAddresses,
+  domains,
   utils as sdkUtils,
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
+
 import { AbacusAppDeployer } from '../deploy';
+
 import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<

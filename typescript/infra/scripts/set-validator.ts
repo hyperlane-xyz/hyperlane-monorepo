@@ -1,7 +1,10 @@
+import { ethers } from 'hardhat';
+
 import { initHardhatMultiProvider } from '@abacus-network/deploy/dist/src/utils';
 import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
-import { ethers } from 'hardhat';
+
 import { AbacusCoreGovernor, CoreViolationType } from '../src/core';
+
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {

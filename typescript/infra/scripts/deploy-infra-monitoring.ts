@@ -2,6 +2,8 @@ import { runPrometheusHelmCommand } from '../src/infrastructure/monitoring/prome
 import { HelmCommand } from '../src/utils/helm';
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
+import { getEnvironment, getInfrastructureConfig } from './utils';
+
 async function main() {
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);

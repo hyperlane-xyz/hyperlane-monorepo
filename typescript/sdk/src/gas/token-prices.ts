@@ -1,4 +1,5 @@
 import { FixedNumber } from 'ethers';
+
 import { NameOrDomain } from '../types';
 
 export interface TokenPriceGetter {

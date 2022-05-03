@@ -1,6 +1,6 @@
-import { ethers } from 'ethers';
 import { ChainMap, ChainName } from './types';
 import { MultiGeneric } from './utils';
+import { ethers } from 'ethers';
 
 interface IDomainConnection {
   provider?: ethers.providers.Provider;

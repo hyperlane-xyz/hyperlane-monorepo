@@ -1,3 +1,6 @@
+import { expect } from 'chai';
+import { PopulatedTransaction } from 'ethers';
+
 import { MultisigValidatorManager__factory } from '@abacus-network/core';
 import {
   CheckerViolation,
@@ -11,8 +14,7 @@ import {
   ChainName,
   MultiProvider,
 } from '@abacus-network/sdk';
-import { expect } from 'chai';
-import { PopulatedTransaction } from 'ethers';
+
 import {
   AbacusCoreChecker,
   CoreViolationType,

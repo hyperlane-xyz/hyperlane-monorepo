@@ -1,6 +1,6 @@
 import { ContractsBuilder, IAbacusContracts } from './contracts';
 import { MultiProvider } from './provider';
-import { ChainName, ChainMap, Connection } from './types';
+import { ChainMap, ChainName, Connection } from './types';
 import { MultiGeneric, objMap } from './utils';
 
 export class AbacusApp<

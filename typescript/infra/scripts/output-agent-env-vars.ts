@@ -1,6 +1,8 @@
 import { ChainName } from '@abacus-network/sdk';
-import { writeFile } from 'fs/promises';
+
 import { getAgentEnvVars } from '../src/agents';
+import { writeFile } from 'fs/promises';
+
 import {
   getCoreEnvironmentConfig,
   getEnvironment,

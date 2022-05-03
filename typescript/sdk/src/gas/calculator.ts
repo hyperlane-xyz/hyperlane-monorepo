@@ -1,13 +1,15 @@
-import { utils } from '@abacus-network/utils';
-import { BigNumber, ethers, FixedNumber } from 'ethers';
 import {
   AbacusCore,
-  domains,
   MultiProvider,
   ParsedMessage,
+  domains,
   resolveDomain,
   resolveNetworks,
 } from '..';
+import { BigNumber, FixedNumber, ethers } from 'ethers';
+
+import { utils } from '@abacus-network/utils';
+
 import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
 import { convertDecimalValue, mulBigAndFixed } from './utils';
 

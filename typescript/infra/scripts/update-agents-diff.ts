@@ -1,6 +1,8 @@
 import { ChainName } from '@abacus-network/sdk';
+
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
+
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function deploy() {

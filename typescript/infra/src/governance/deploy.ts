@@ -1,15 +1,17 @@
+import { ethers } from 'ethers';
+
 import { GovernanceRouter__factory } from '@abacus-network/apps';
 import { UpgradeBeaconController__factory } from '@abacus-network/core';
 import { AbacusRouterDeployer } from '@abacus-network/deploy';
 import {
   AbacusCore,
-  ChainName,
   ChainMap,
+  ChainName,
   GovernanceAddresses,
   MultiProvider,
   utils,
 } from '@abacus-network/sdk';
-import { ethers } from 'ethers';
+
 import { GovernanceConfig } from './types';
 
 export class AbacusGovernanceDeployer<

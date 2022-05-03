@@ -1,6 +1,7 @@
+import { BigNumber } from 'ethers';
+
 import { TransactionConfig } from '@abacus-network/deploy';
 import { ChainMap } from '@abacus-network/sdk';
-import { BigNumber } from 'ethers';
 
 export const alfajores: TransactionConfig = {
   confirmations: 1,
@@ -78,7 +79,7 @@ const _configs = {
   ropsten,
   test1,
   test2,
-  test3
+  test3,
 };
 
 export const configs: ChainMap<keyof typeof _configs, TransactionConfig> =

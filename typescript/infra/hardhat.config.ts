@@ -1,11 +1,13 @@
-import { BadRandomRecipient__factory } from '@abacus-network/core';
-import { utils as deployUtils } from '@abacus-network/deploy';
-import { AbacusCore, ChainName } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
+
+import { BadRandomRecipient__factory } from '@abacus-network/core';
+import { utils as deployUtils } from '@abacus-network/deploy';
+import { AbacusCore, ChainName } from '@abacus-network/sdk';
+import { utils } from '@abacus-network/utils';
+
 import {
   getCoreContractsSdkFilepath,
   getCoreEnvironmentConfig,
