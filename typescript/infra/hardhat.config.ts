@@ -1,7 +1,7 @@
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
+import { ethers } from 'hardhat';
 import { task } from 'hardhat/config';
-import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { BadRandomRecipient__factory } from '@abacus-network/core';
 import { utils as deployUtils } from '@abacus-network/deploy';
@@ -64,10 +64,10 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
     'environment',
     'The name of the environment from which to read configs',
   )
-  .setAction(async (args: any, hre: HardhatRuntimeEnvironment) => {
+  .setAction(async (args: any) => {
     const environment = args.environment;
     const environmentConfig = await getCoreEnvironmentConfig(environment);
-    const [signer] = await hre.ethers.getSigners();
+    const [signer] = await ethers.getSigners();
     const multiProvider = deployUtils.initHardhatMultiProvider(
       environmentConfig,
       signer,
@@ -97,9 +97,9 @@ task('kathy', 'Dispatches random abacus messages')
     'environment',
     'The name of the environment from which to read configs',
   )
-  .setAction(async (args, hre: HardhatRuntimeEnvironment) => {
+  .setAction(async (args) => {
     const environmentConfig = await getCoreEnvironmentConfig(args.environment);
-    const [signer] = await hre.ethers.getSigners();
+    const [signer] = await ethers.getSigners();
     const multiProvider = deployUtils.initHardhatMultiProvider(
       environmentConfig,
       signer,
