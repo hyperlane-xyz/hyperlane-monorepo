@@ -2,6 +2,7 @@ import { ChainName } from '@abacus-network/sdk';
 
 import { AgentConfig } from '../config';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
+import { ENVIRONMENTS_ENUM } from '../config/environment';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
@@ -271,17 +272,16 @@ export async function getSecretAwsCredentials<Networks extends ChainName>(
 }
 
 export async function getSecretRpcEndpoint(
-  environment: string,
+  environment: ENVIRONMENTS_ENUM,
   chainName: ChainName,
 ) {
   return fetchGCPSecret(`${environment}-rpc-endpoint-${chainName}`, false);
 }
 
 export async function getSecretDeployerKey(
-  environment: string,
-  chainName: string,
+  environment: ENVIRONMENTS_ENUM,
+  chainName: ChainName,
 ) {
-  // @ts-ignore
   const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chainName);
   await key.fetch();
   return key.privateKey;

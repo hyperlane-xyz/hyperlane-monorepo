@@ -23,7 +23,7 @@ export function getKey<Networks extends ChainName>(
   if (agentConfig.aws) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
-    return new AgentGCPKey(agentConfig, role, chainName, index);
+    return new AgentGCPKey(agentConfig.environment, role, chainName, index);
   }
 }
 

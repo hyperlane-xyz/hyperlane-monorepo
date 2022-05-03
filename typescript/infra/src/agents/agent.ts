@@ -1,20 +1,14 @@
 import { ChainName } from '@abacus-network/sdk';
 
-import { AgentConfig } from '../config/agent';
-
 import { KEY_ROLE_ENUM } from './roles';
 
 export abstract class AgentKey<Networks extends ChainName> {
-  environment: string;
-
   constructor(
-    agentConfig: AgentConfig<Networks>,
+    public environment: string,
     public readonly role: KEY_ROLE_ENUM,
     public readonly chainName?: Networks,
     public readonly index?: number,
-  ) {
-    this.environment = agentConfig.environment;
-  }
+  ) {}
 
   abstract get identifier(): string;
   abstract get address(): string;

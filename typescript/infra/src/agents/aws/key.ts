@@ -46,7 +46,7 @@ export class AgentAwsKey<
     chainName?: Networks,
     index?: number,
   ) {
-    super(agentConfig, role, chainName, index);
+    super(agentConfig.environment, role, chainName, index);
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }
