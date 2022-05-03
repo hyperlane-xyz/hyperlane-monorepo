@@ -1,10 +1,12 @@
+import { Contract } from 'ethers';
+
 import { Router__factory } from '@abacus-network/apps';
 import {
   AbacusConnectionManager__factory,
   UpgradeBeaconController__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
-import { Contract } from 'ethers';
+
 import { Connection, ProxiedAddress } from './types';
 
 // address types generated from AbacusDeployer deployContract or deployProxiedContract

@@ -1,15 +1,17 @@
+import { GovernanceContracts } from '.';
+import { Call } from '..';
+import { ethers } from 'ethers';
+
 import { GovernanceRouter } from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 
-import { GovernanceContracts } from '.';
-import { Call } from '..';
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
 import { ChainMap, ChainName, ChainNameToDomainId } from '../types';
 import { objMap, promiseObjAll } from '../utils';
+
 import { GovernanceAddresses } from './contracts';
 import { environments } from './environments';
-import { ethers } from 'ethers';
 
 type Environments = typeof environments;
 type EnvironmentName = keyof Environments;

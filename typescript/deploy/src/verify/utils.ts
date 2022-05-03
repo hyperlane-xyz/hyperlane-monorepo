@@ -1,5 +1,6 @@
 import { Fragment } from '@ethersproject/abi';
 import { ethers } from 'ethers';
+
 import { ContractVerificationInput } from './types';
 
 export function formatFunctionArguments(fragment: Fragment, args: any[]) {

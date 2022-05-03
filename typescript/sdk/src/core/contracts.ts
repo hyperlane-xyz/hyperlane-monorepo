@@ -15,6 +15,7 @@ import {
   UpgradeBeaconController__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
+
 import { IAbacusContracts } from '../contracts';
 import {
   ChainName,

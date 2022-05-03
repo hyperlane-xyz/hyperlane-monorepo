@@ -1,11 +1,13 @@
+import { Call } from '..';
+
 import { GovernanceRouter__factory } from '@abacus-network/apps';
 
-import { Call } from '..';
 import {
   AbacusContracts,
   RouterAddresses,
   routerFactories,
 } from '../contracts';
+
 import { normalizeCall } from './utils';
 
 export type GovernanceAddresses = RouterAddresses;

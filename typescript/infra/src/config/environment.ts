@@ -1,8 +1,11 @@
+import { ContractMetricsConfig } from '.';
+
 import { EnvironmentConfig } from '@abacus-network/deploy';
 import { ChainName } from '@abacus-network/sdk';
-import { ContractMetricsConfig } from '.';
+
 import { CoreConfig } from '../core';
 import { GovernanceConfig } from '../governance';
+
 import { AgentConfig } from './agent';
 import { InfrastructureConfig } from './infrastructure';
 

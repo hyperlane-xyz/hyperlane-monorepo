@@ -1,3 +1,7 @@
+import { NonceManager } from '@ethersproject/experimental';
+import { ethers } from 'ethers';
+import yargs from 'yargs';
+
 import {
   AbacusCore,
   ChainMap,
@@ -5,9 +9,7 @@ import {
   MultiProvider,
   utils,
 } from '@abacus-network/sdk';
-import { NonceManager } from '@ethersproject/experimental';
-import { ethers } from 'ethers';
-import yargs from 'yargs';
+
 import { EnvironmentConfig, TransactionConfig } from './config';
 import { RouterConfig } from './router';
 
