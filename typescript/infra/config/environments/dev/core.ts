@@ -1,4 +1,8 @@
-export const core = {
+import { CoreConfig } from '../../../src/core';
+
+import { DevNetworks } from './domains';
+
+export const core: CoreConfig<DevNetworks> = {
   validatorManagers: {
     alfajores: {
       validators: [
