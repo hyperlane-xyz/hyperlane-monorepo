@@ -14,7 +14,7 @@ on:
 env:
   CARGO_TERM_COLOR: always
   RUST_BACKTRACE: full
-  RUSTC_WRAPPER: ccache
+  RUSTC_WRAPPER: sccache
 
 defaults:
   run:
@@ -27,6 +27,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          max-size: 2G
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -44,6 +47,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          max-size: 2G
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
@@ -61,6 +67,9 @@ jobs:
     steps:
       - uses: actions/checkout@v2
       - uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          variant: sccache
+          max-size: 2G
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
