@@ -1,4 +1,4 @@
-import { createAgentKeysIfNotExists } from '../src/agents/gcp';
+import { createAgentKeysIfNotExists } from '../src/agents/key-utils';
 
 import { getAgentConfig, getEnvironment } from './utils';
 

@@ -1,4 +1,4 @@
-import { deleteAgentKeys } from '../src/agents/gcp';
+import { deleteAgentKeys } from '../src/agents/key-utils';
 
 import { getAgentConfig, getEnvironment } from './utils';
 

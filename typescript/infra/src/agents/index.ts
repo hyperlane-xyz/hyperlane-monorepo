@@ -10,7 +10,8 @@ import { rm, writeFile } from 'fs/promises';
 import { keyIdentifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 import { AgentAwsKey } from './aws/key';
-import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
+import { AgentGCPKey } from './gcp';
+import { fetchKeysForChain } from './key-utils';
 import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
 
 async function helmValuesForChain<Networks extends ChainName>(
@@ -107,11 +108,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
 
   // GCP keys
   if (!agentConfig.aws) {
-    const gcpKeys = await fetchAgentGCPKeys(
-      agentConfig,
-      outboxChainName,
-      agentConfig.validatorSets[outboxChainName].validators.length,
-    );
+    const gcpKeys = await fetchKeysForChain(agentConfig, outboxChainName);
 
     // Only checkpointer and relayer need to sign txs
     if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
@@ -353,11 +350,7 @@ export async function runKeymasterHelmCommand<Networks extends ChainName>(
 ) {
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
   const chainName = chainNames[0];
-  const gcpKeys = await fetchAgentGCPKeys(
-    agentConfig,
-    chainName,
-    agentConfig.validatorSets[chainName].validators.length,
-  );
+  const gcpKeys = await fetchKeysForChain(agentConfig, chainName);
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
     networks: Object.fromEntries(

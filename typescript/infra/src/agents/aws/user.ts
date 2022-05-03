@@ -108,10 +108,10 @@ export class AgentAwsUser<Networks extends ChainName> {
   }
 
   async createKeyIfNotExists(agentConfig: AgentConfig<Networks>) {
-    const keys = this.key(agentConfig);
-    await keys.createIfNotExists();
-    await keys.putKeyPolicy(this.arn);
-    return keys;
+    const key = this.key(agentConfig);
+    await key.createIfNotExists();
+    await key.putKeyPolicy(this.arn);
+    return key;
   }
 
   get awsTags() {
