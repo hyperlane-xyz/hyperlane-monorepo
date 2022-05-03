@@ -7,8 +7,8 @@ import {
 
 import { ChainName } from '@abacus-network/sdk';
 
-import { KEY_ROLE_ENUM } from '../../agents';
 import { AgentConfig } from '../../config';
+import { KEY_ROLE_ENUM } from '../roles';
 
 import { AgentAwsKey } from './key';
 import { AgentAwsUser } from './user';
@@ -86,8 +86,8 @@ export class ValidatorAgentAwsUser<
   key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
     return new AgentAwsKey<Networks>(
       agentConfig,
-      this.chainName,
       this.role,
+      this.chainName,
       this.index,
     );
   }

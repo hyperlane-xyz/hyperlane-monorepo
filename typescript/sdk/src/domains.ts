@@ -1,5 +1,9 @@
 import { ChainName, Domain } from './types';
 
+// IDs can be generated in many ways-- for example, in JS:
+// > Array.from('celo').map((c, i) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')
+// '63656c6f'
+
 /**
  * Mainnets
  */
@@ -81,6 +85,26 @@ export const ropsten: Domain = {
   id: 3,
 };
 
+export const bsctestnet: Domain = {
+  name: 'bsctestnet',
+  id: 0x62732d74, // b'bs-t' interpreted as an int
+};
+
+export const arbitrumrinkeby: Domain = {
+  name: 'arbitrumrinkeby',
+  id: 0x61722d72, // b'ar-r' interpreted as an int
+};
+
+export const optimismkovan: Domain = {
+  name: 'optimismkovan',
+  id: 0x6f702d6b, // b'op-k' interpreted as an int
+};
+
+export const auroratestnet: Domain = {
+  name: 'auroratestnet',
+  id: 0x61752d74, // b'au-t' interpreted as an int
+};
+
 /**
  * Test
  */
@@ -112,6 +136,10 @@ export const domains: Record<ChainName, Domain> = {
   rinkarby,
   ropsten,
   kovan,
+  bsctestnet,
+  arbitrumrinkeby,
+  optimismkovan,
+  auroratestnet,
   test1,
   test2,
   test3,

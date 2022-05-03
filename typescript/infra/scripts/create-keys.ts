@@ -1,17 +1,12 @@
-import { createAgentGCPKeys } from '../src/agents/gcp';
+import { createAgentKeysIfNotExists } from '../src/agents/key-utils';
 
-import { getArgs, getDomainNames, getEnvironment } from './utils';
+import { getAgentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const domainNames = await getDomainNames(environment);
+  const agentConfig = await getAgentConfig(environment);
 
-  const { v: validatorCount } = await getArgs()
-    .alias('v', 'validatorCount')
-    .number('v')
-    .demandOption('v').argv;
-
-  return createAgentGCPKeys(environment, domainNames, validatorCount);
+  return createAgentKeysIfNotExists(agentConfig);
 }
 
 main().then(console.log).catch(console.error);

@@ -80,6 +80,11 @@ impl Kathy {
 
                         let guard = outbox_lock.lock().await;
                         outbox.dispatch(&message).await?;
+
+                        let count = outbox.count().await?;
+                        if count > 1 {
+                            outbox.create_checkpoint().await?;
+                        }
                         drop(guard);
                     }
                     _ => {

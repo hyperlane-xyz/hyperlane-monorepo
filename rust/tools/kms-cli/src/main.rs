@@ -145,7 +145,7 @@ async fn _send_tx(signer: &AwsSigner<'_>, opts: &Opts) -> Result<()> {
         SubCommands::Info(_) => unreachable!(),
     };
 
-    let provider = Provider::<Http>::try_from(tx.rpc.as_ref())?;
+    let provider = Provider::<Http>::try_from(tx.rpc.clone())?;
 
     let tx_req = prep_tx_request(tx);
 
