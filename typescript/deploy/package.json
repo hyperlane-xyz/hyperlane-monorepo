@@ -21,6 +21,7 @@
   "dependencies": {
     "@abacus-network/core": "^0.0.6",
     "@abacus-network/sdk": "^0.0.5",
+    "@abacus-network/utils": "^0.0.8",
     "@types/node": "^16.9.1",
     "@types/yargs": "^17.0.10",
     "axios": "^0.21.3",

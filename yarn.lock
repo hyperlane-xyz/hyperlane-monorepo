@@ -102,6 +102,7 @@ __metadata:
   dependencies:
     "@abacus-network/core": ^0.0.6
     "@abacus-network/sdk": ^0.0.5
+    "@abacus-network/utils": ^0.0.8
     "@typechain/ethers-v5": ~7.0.0
     "@types/node": ^16.9.1
     "@types/yargs": ^17.0.10
