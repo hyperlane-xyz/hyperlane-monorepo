@@ -1,6 +1,6 @@
 import { AgentConfig } from '../../../src/config';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
-import { domainNames } from './domains';
+
 import { validators } from './validators';
 
 type networks = keyof typeof validators;

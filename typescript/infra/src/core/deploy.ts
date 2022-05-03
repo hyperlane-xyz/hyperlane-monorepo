@@ -17,6 +17,15 @@ import {
   ChainMap,
   ChainName,
   CoreContractAddresses,
+  CoreContracts,
+  DomainConnection,
+  InboxContracts,
+  MailboxAddresses,
+  MultiProvider,
+  RemoteChainMap,
+  Remotes,
+  domains,
+  utils as sdkUtils,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
