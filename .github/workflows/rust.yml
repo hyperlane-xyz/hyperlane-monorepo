@@ -2,7 +2,7 @@ name: rust
 
 on:
   push:
-    branches: [main]
+    branches: [ main, mattie/rust-pipeline-speedup ]
   pull_request:
     paths:
       - 'rust/**'
@@ -10,54 +10,44 @@ on:
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
-env:
-  CARGO_TERM_COLOR: always
-
 jobs:
-  build-rs:
-    runs-on: ubuntu-latest
-
+  tests:
+    name: ${{ matrix.op.name }} ${{ matrix.os }} ${{ matrix.rust }}
+    runs-on: ${{ matrix.version }}
+    strategy:
+      matrix:
+        os: [ ubuntu-latest ]
+        rust: [ stable ]
+        op:
+          - name: Lint
+            run: |
+              cargo fmt -- --check
+              cargo clippy -- -D warnings
+          - name: Check
+            run: cargo check --all-features --all-targets
+          - name: Test
+            run: cargo test --verbose
+    env:
+      RUST_BACKTRACE: full
+      RUSTC_WRAPPER: sccache
+      CARGO_TERM_COLOR: always
+      SCCACHE_CACHE_SIZE: 2G
+    defaults:
+      run:
+        working-directory: ./rust
     steps:
       - uses: actions/checkout@v2
+      - uses: hendrikmuhs/ccache-action@v1.2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: stable
+          toolchain: ${{ matrix.rust }}
+          profile: minimal
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-
-      - name: Build
-        run: cd rust && cargo build --verbose
-
-  test-rs:
-    runs-on: ubuntu-latest
-    needs: [build-rs]
-
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: ./rust
-
-      - name: Run tests
-        run: cd rust && cargo test --verbose
-
-  lint-rs:
-    runs-on: ubuntu-latest
-    needs: [build-rs]
-
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-      - uses: Swatinem/rust-cache@v1
-        with:
-          working-directory: ./rust
-      - name: Rustfmt
-        run: cd rust && cargo fmt -- --check
-      - name: Clippy
-        run: cd rust && cargo clippy -- -D warnings
+#      - run: sccache --start-server
+      - name: ${{ matrix.op.name }}
+        run: ${{ matrix.op.run }}
+      - run: sccache --show-stats
+#      - run: sccache --stop-server || true
