@@ -18,10 +18,10 @@ import {
 } from '../src/governance';
 
 describe('governance', async () => {
-  type networks = keyof typeof environment.transactionConfigs;
-  let multiProvider: MultiProvider<networks>;
-  let deployer: AbacusGovernanceDeployer<networks>;
-  let addresses: ChainMap<networks, GovernanceAddresses>;
+  type Networks = keyof typeof environment.transactionConfigs;
+  let multiProvider: MultiProvider<Networks>;
+  let deployer: AbacusGovernanceDeployer<Networks>;
+  let addresses: ChainMap<Networks, GovernanceAddresses>;
   const governanceConfig = environment.governance;
 
   before(async () => {
