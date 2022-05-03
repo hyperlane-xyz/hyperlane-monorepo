@@ -13,7 +13,7 @@ on:
 jobs:
   tests:
     name: ${{ matrix.op.name }} ${{ matrix.os }} ${{ matrix.rust }}
-    runs-on: ${{ matrix.version }}
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
         os: [ ubuntu-latest ]
