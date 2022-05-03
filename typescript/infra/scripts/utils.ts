@@ -1,4 +1,3 @@
-import { ethers } from 'ethers';
 import path from 'path';
 
 import { TransactionConfig, utils } from '@abacus-network/deploy';
@@ -6,6 +5,7 @@ import {
   AllChains,
   ChainMap,
   ChainName,
+  IDomainConnection,
   MultiProvider,
 } from '@abacus-network/sdk';
 
@@ -27,36 +27,23 @@ export async function getCoreEnvironmentConfig(
   return (await import(moduleName(environment))).environment;
 }
 
-export async function getMultiProvider(
-  environment: DeployEnvironment,
-): Promise<MultiProvider<any>> {
-  return (await import(moduleName(environment))).getMultiProvider();
-}
-
-export async function getMultiProviderRemote<Networks extends ChainName>(
+export async function getMultiProviderFromGCP<Networks extends ChainName>(
   domainNames: Networks[],
   configs: ChainMap<Networks, TransactionConfig>,
   environment: DeployEnvironment,
 ): Promise<MultiProvider<Networks>> {
-  const connections: ChainMap<
-    ChainName,
-    {
-      provider?: ethers.providers.Provider;
-      signer?: ethers.Signer;
-      overrides?: ethers.Overrides;
-      confirmations?: number;
-    }
-  > = Object.fromEntries(
-    await Promise.all(
-      domainNames.map(async (domain) => {
-        const overrides = configs[domain].overrides;
-        const confirmations = configs[domain].confirmations;
-        const provider = await fetchProvider(environment, domain);
-        const signer = await fetchSigner(environment, domain, provider);
-        return [domain, { provider, signer, overrides, confirmations }];
-      }),
-    ),
-  );
+  const connections: ChainMap<ChainName, IDomainConnection> =
+    Object.fromEntries(
+      await Promise.all(
+        domainNames.map(async (domain) => {
+          const overrides = configs[domain].overrides;
+          const confirmations = configs[domain].confirmations;
+          const provider = await fetchProvider(environment, domain);
+          const signer = await fetchSigner(environment, domain, provider);
+          return [domain, { provider, signer, overrides, confirmations }];
+        }),
+      ),
+    );
   const multiProvider = new MultiProvider<Networks>(connections);
   return multiProvider;
 }

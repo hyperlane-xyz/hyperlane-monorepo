@@ -8,13 +8,12 @@ import {
   getEnvironment,
   getGovernanceContractsSdkFilepath,
   getGovernanceVerificationDirectory,
-  getMultiProvider,
 } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);
-  const multiProvider = await getMultiProvider(environment);
+  const multiProvider = await config.getMultiProvider();
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
 
   const deployer = new AbacusGovernanceDeployer(

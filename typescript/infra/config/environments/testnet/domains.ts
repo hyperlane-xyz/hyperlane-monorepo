@@ -1,4 +1,4 @@
-import { getMultiProviderRemote } from '../../../scripts/utils';
+import { getMultiProviderFromGCP } from '../../../scripts/utils';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
 import { configs } from '../../networks/testnets';
 
@@ -24,4 +24,4 @@ export const domainNames: TestnetNetworks[] = [
 ];
 
 export const getMultiProvider = () =>
-  getMultiProviderRemote(domainNames, configs, ENVIRONMENTS_ENUM.Testnet);
+  getMultiProviderFromGCP(domainNames, configs, ENVIRONMENTS_ENUM.Testnet);

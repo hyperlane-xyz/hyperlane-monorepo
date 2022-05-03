@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { ChainMap, ChainName } from './types';
 import { MultiGeneric } from './utils';
 
-interface IDomainConnection {
+export interface IDomainConnection {
   provider?: ethers.providers.Provider;
   signer?: ethers.Signer;
   overrides?: ethers.Overrides;

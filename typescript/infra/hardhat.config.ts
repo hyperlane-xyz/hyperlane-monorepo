@@ -103,7 +103,7 @@ task('kathy', 'Dispatches random abacus messages')
   .setAction(async (args, hre: HardhatRuntimeEnvironment) => {
     const environmentConfig = await getCoreEnvironmentConfig(args.environment);
     const [signer] = await hre.ethers.getSigners();
-    const multiProvider = await environmentConfig.getMultiProvider()
+    const multiProvider = await environmentConfig.getMultiProvider();
     const core = AbacusCore.fromEnvironment(args.environment, multiProvider);
 
     const randomElement = (list: any[]) =>
