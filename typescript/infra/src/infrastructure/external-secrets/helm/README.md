@@ -30,4 +30,3 @@ The [documentation](https://external-secrets.io/v0.4.4/) is the best source. In 
 
 The general idea is there are `SecretStore`s (or `ClusterSecretStore`s, which are the cluster-wide version), that specify how the cluster can authenticate with the external secret provider. `ExternalSecret`s can then be specified in "application" infrastructure, which allow developers to specify a template for a Secret that will be created using the secret values from the external provider (& using the credentials from the SecretStore).
 
-A good example of this in action is `contract-metrics`, which uses an `ExternalSecret` to get RPC endpoints from GCP Secret Manager, and specifies a template for a `Secret` that is used by a deployment.
