@@ -1,7 +1,7 @@
 import { ContractMetricsConfig } from '.';
 
 import { EnvironmentConfig } from '@abacus-network/deploy';
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName, MultiProvider } from '@abacus-network/sdk';
 
 import { CoreConfig } from '../core';
 import { GovernanceConfig } from '../governance';
@@ -16,6 +16,7 @@ export type CoreEnvironmentConfig<Networks extends ChainName> =
     governance: GovernanceConfig<Networks>;
     metrics: ContractMetricsConfig;
     infra: InfrastructureConfig;
+    getMultiProvider: () => Promise<MultiProvider<Networks>>;
   };
 
 export enum ENVIRONMENTS_ENUM {

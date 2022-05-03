@@ -1,10 +1,17 @@
+import { ethers } from 'ethers';
 import path from 'path';
 
-import { utils } from '@abacus-network/deploy';
-import { AllChains } from '@abacus-network/sdk';
+import { TransactionConfig, utils } from '@abacus-network/deploy';
+import {
+  AllChains,
+  ChainMap,
+  ChainName,
+  MultiProvider,
+} from '@abacus-network/sdk';
 
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
+import { fetchProvider, fetchSigner } from '../src/config/chain';
 
 export function getEnvironment(): Promise<DeployEnvironment> {
   return utils.getEnvironment() as Promise<DeployEnvironment>;
@@ -18,6 +25,40 @@ export async function getCoreEnvironmentConfig(
   environment: DeployEnvironment,
 ): Promise<CoreEnvironmentConfig<any>> {
   return (await import(moduleName(environment))).environment;
+}
+
+export async function getMultiProvider(
+  environment: DeployEnvironment,
+): Promise<MultiProvider<any>> {
+  return (await import(moduleName(environment))).getMultiProvider();
+}
+
+export async function getMultiProviderRemote<Networks extends ChainName>(
+  domainNames: Networks[],
+  configs: ChainMap<Networks, TransactionConfig>,
+  environment: DeployEnvironment,
+): Promise<MultiProvider<Networks>> {
+  const connections: ChainMap<
+    ChainName,
+    {
+      provider?: ethers.providers.Provider;
+      signer?: ethers.Signer;
+      overrides?: ethers.Overrides;
+      confirmations?: number;
+    }
+  > = Object.fromEntries(
+    await Promise.all(
+      domainNames.map(async (domain) => {
+        const overrides = configs[domain].overrides;
+        const confirmations = configs[domain].confirmations;
+        const provider = await fetchProvider(environment, domain);
+        const signer = await fetchSigner(environment, domain, provider);
+        return [domain, { provider, signer, overrides, confirmations }];
+      }),
+    ),
+  );
+  const multiProvider = new MultiProvider<Networks>(connections);
+  return multiProvider;
 }
 
 function getContractsSdkFilepath(mod: string, environment: DeployEnvironment) {

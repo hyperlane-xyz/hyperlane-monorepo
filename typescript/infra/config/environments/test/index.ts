@@ -1,3 +1,7 @@
+import { ethers } from 'hardhat';
+
+import { initHardhatMultiProvider } from '@abacus-network/deploy/dist/src/utils';
+
 import { CoreEnvironmentConfig } from '../../../src/config';
 import { configs } from '../../networks/testnets';
 
@@ -15,7 +19,6 @@ const coreConfig = {
 
 type corenet = keyof typeof coreConfig;
 
-// TODO: fix type inference
 export const environment: CoreEnvironmentConfig<corenet> = {
   transactionConfigs: coreConfig,
   agent,
@@ -23,4 +26,8 @@ export const environment: CoreEnvironmentConfig<corenet> = {
   governance,
   metrics,
   infra,
+  getMultiProvider: async () => {
+    const [signer] = await ethers.getSigners();
+    return initHardhatMultiProvider({ transactionConfigs: coreConfig }, signer);
+  },
 };
