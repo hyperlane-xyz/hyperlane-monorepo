@@ -52,7 +52,7 @@ function identifier(
       }
       return `${prefix}${chainName}-${role}`;
     default:
-      return `${prefix}-${role}`;
+      return `${prefix}${role}`;
   }
 }
 
