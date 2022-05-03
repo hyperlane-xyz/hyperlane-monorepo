@@ -11,12 +11,12 @@ export function getKey<Networks extends ChainName>(
   agentConfig: AgentConfig<Networks>,
   role: KEY_ROLE_ENUM,
   chainName?: Networks,
-  suffix?: Networks | number,
+  index?: number,
 ): AgentKey<Networks> {
   if (agentConfig.aws) {
-    return new AgentAwsKey(agentConfig, role, chainName, suffix);
+    return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
-    return new AgentGCPKey(agentConfig, role, chainName, suffix);
+    return new AgentGCPKey(agentConfig, role, chainName, index);
   }
 }
 

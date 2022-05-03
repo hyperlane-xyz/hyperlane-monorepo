@@ -13,11 +13,7 @@ export class RelayerAgentAwsUser<
     super(environment, chainName, KEY_ROLE_ENUM.Relayer, region);
   }
 
-  keys(agentConfig: AgentConfig<Networks>): Array<AgentAwsKey<Networks>> {
-    const remotes = agentConfig.domainNames.filter((d) => d !== this.chainName);
-    return remotes.map(
-      (r) =>
-        new AgentAwsKey<Networks>(agentConfig, this.role, this.chainName, r),
-    );
+  key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
+    return new AgentAwsKey<Networks>(agentConfig, this.role, this.chainName);
   }
 }

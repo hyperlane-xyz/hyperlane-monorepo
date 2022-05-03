@@ -45,10 +45,10 @@ export class AgentGCPKey<
     agentConfig: AgentConfig<Networks>,
     role: KEY_ROLE_ENUM,
     chainName?: Networks,
-    suffix?: Networks | number,
+    index?: number,
     private remoteKey: RemoteKey = { fetched: false },
   ) {
-    super(agentConfig, role, chainName, suffix);
+    super(agentConfig, role, chainName, index);
   }
 
   async createIfNotExists() {
@@ -73,7 +73,7 @@ export class AgentGCPKey<
   }
 
   get identifier() {
-    return identifier(this.environment, this.role, this.chainName, this.suffix);
+    return identifier(this.environment, this.role, this.chainName, this.index);
   }
 
   get privateKey() {
@@ -137,7 +137,7 @@ export class AgentGCPKey<
         role: this.role,
         ...include(this.isValidatorKey, {
           chain: this.chainName,
-          index: this.suffix,
+          index: this.index,
         }),
       },
     );

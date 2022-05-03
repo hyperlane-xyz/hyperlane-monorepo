@@ -11,7 +11,7 @@ export abstract class AgentKey<Networks extends ChainName> {
     agentConfig: AgentConfig<Networks>,
     public readonly role: KEY_ROLE_ENUM,
     public readonly chainName?: Networks,
-    public readonly suffix?: Networks | number,
+    public readonly index?: number,
   ) {
     this.environment = agentConfig.environment;
   }
@@ -42,15 +42,18 @@ export function identifier(
   environment: string,
   role: string,
   chainName?: string,
-  suffix?: number | string,
+  index?: number,
 ) {
   switch (role) {
     case KEY_ROLE_ENUM.Validator:
-      if (suffix === undefined) {
-        throw Error('Expected suffix for validator key');
+      if (index === undefined) {
+        throw Error('Expected index for validator key');
       }
-      return `abacus-${environment}-key-${chainName}-${role}-${suffix}`;
+      return `abacus-${environment}-key-${chainName}-${role}-${index}`;
     case KEY_ROLE_ENUM.Relayer:
+      if (chainName === undefined) {
+        throw Error('Expected chainName for relayer key');
+      }
       return `abacus-${environment}-key-${chainName}-${role}`;
     default:
       return `abacus-${environment}-key-${role}`;

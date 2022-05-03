@@ -102,19 +102,15 @@ export class AgentAwsUser<Networks extends ChainName> {
     );
   }
 
-  keys(agentConfig: AgentConfig<Networks>): Array<AgentAwsKey<Networks>> {
-    return [new AgentAwsKey<Networks>(agentConfig, this.role, this.chainName)];
+  key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
+    return new AgentAwsKey<Networks>(agentConfig, this.role, this.chainName);
   }
 
-  createKeysIfNotExists(agentConfig: AgentConfig<Networks>) {
-    const keys = this.keys(agentConfig);
-    return Promise.all(
-      keys.map(async (k) => {
-        await k.createIfNotExists();
-        await k.putKeyPolicy(this.arn);
-        return k;
-      }),
-    );
+  async createKeyIfNotExists(agentConfig: AgentConfig<Networks>) {
+    const keys = this.key(agentConfig);
+    await keys.createIfNotExists();
+    await keys.putKeyPolicy(this.arn);
+    return keys;
   }
 
   get awsTags() {

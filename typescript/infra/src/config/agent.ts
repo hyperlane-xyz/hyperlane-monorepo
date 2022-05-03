@@ -307,13 +307,8 @@ export class ChainAgentConfig<Networks extends ChainName> {
           type: KeyType.Hex,
         };
         if (this.awsKeys) {
-          const keys = await awsUser.createKeysIfNotExists(this.agentConfig);
-          if (keys.length !== 1) {
-            throw Error(
-              `Expected exactly one validator key for user ${awsUser.userName}`,
-            );
-          }
-          validator = keys[0].keyConfig;
+          const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+          validator = key.keyConfig;
         }
 
         return {
@@ -349,7 +344,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
       await awsUser.createIfNotExists();
       // If we're using AWS keys, ensure the key is created and the user can use it
       if (this.awsKeys) {
-        await awsUser.createKeysIfNotExists(this.agentConfig);
+        await awsUser.createKeyIfNotExists(this.agentConfig);
       }
       return true;
     }
@@ -366,9 +361,9 @@ export class ChainAgentConfig<Networks extends ChainName> {
       this.agentConfig.aws!.region,
     );
     await awsUser.createIfNotExists();
-    const keys = await awsUser.createKeysIfNotExists(this.agentConfig);
-    return keys.map((key) => ({
-      name: key.suffix!,
+    const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+    return this.agentConfig.domainNames.map((name) => ({
+      name,
       keyConfig: key.keyConfig,
     }));
   }
@@ -400,7 +395,6 @@ export class ChainAgentConfig<Networks extends ChainName> {
     return this.agentConfig.checkpointer !== undefined;
   }
 
-  // Gets signer info, creating them if necessary
   checkpointerSigners() {
     if (!this.checkpointerEnabled) {
       return [];

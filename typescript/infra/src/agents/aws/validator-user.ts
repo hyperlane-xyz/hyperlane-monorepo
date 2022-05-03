@@ -83,15 +83,13 @@ export class ValidatorAgentAwsUser<
     await this.adminS3Client.send(cmd);
   }
 
-  keys(agentConfig: AgentConfig<Networks>): Array<AgentAwsKey<Networks>> {
-    return [
-      new AgentAwsKey<Networks>(
-        agentConfig,
-        this.role,
-        this.chainName,
-        this.index,
-      ),
-    ];
+  key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
+    return new AgentAwsKey<Networks>(
+      agentConfig,
+      this.role,
+      this.chainName,
+      this.index,
+    );
   }
 
   get tags(): Record<string, string> {
