@@ -24,15 +24,15 @@ jobs:
             run: |
               cargo fmt -- --check
               cargo clippy -- -D warnings
+            components: rustfmt, clippy
           - name: Check
             run: cargo check --all-features --all-targets
           - name: Test
             run: cargo test --verbose
     env:
       RUST_BACKTRACE: full
-      RUSTC_WRAPPER: sccache
+      RUSTC_WRAPPER: ccache
       CARGO_TERM_COLOR: always
-      SCCACHE_CACHE_SIZE: 2G
     defaults:
       run:
         working-directory: ./rust
@@ -42,11 +42,13 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: ${{ matrix.rust }}
+          profile: minimal
+          components: ${{ matrix.op.components }}
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-      - run: sccache --start-server
+#      - run: sccache --start-server
       - name: ${{ matrix.op.name }}
         run: ${{ matrix.op.run }}
-      - run: sccache --show-stats
-      - run: sccache --stop-server || true
+      - run: ccache --show-stats
+#      - run: sccache --stop-server || true
