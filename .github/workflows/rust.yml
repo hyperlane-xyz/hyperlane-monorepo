@@ -2,53 +2,72 @@ name: rust
 
 on:
   push:
-    branches: [ main, mattie/rust-pipeline-speedup ]
+    branches: [main, mattie/rust-pipeline-speedup]
   pull_request:
     paths:
       - 'rust/**'
-      - '.github/workflows/rust.yml'
+      - .github/workflows/rust.yml
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+defaults:
+  run:
+    working-directory: ./rust
+
 jobs:
-  tests:
-    name: ${{ matrix.op.name }} ${{ matrix.os }} ${{ matrix.rust }}
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ ubuntu-latest ]
-        rust: [ stable ]
-        op:
-          - name: Lint
-            run: |
-              cargo fmt -- --check
-              cargo clippy -- -D warnings
-            components: rustfmt, clippy
-          - name: Check
-            run: cargo check --all-features --all-targets
-          - name: Test
-            run: cargo test --verbose
-    env:
-      RUST_BACKTRACE: full
-      RUSTC_WRAPPER: ccache
-      CARGO_TERM_COLOR: always
-    defaults:
-      run:
-        working-directory: ./rust
+  build-rs:
+    runs-on: ubuntu-latest
+
     steps:
       - uses: actions/checkout@v2
-      - uses: hendrikmuhs/ccache-action@v1.2
       - uses: actions-rs/toolchain@v1
         with:
-          toolchain: ${{ matrix.rust }}
+          toolchain: stable
           profile: minimal
-          components: ${{ matrix.op.components }}
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-#      - run: sccache --start-server
-      - name: ${{ matrix.op.name }}
-        run: ${{ matrix.op.run }}
-      - run: ccache --show-stats
-#      - run: sccache --stop-server || true
+      - name: Build
+        run: cargo build --verbose
+
+  test-rs:
+    runs-on: ubuntu-latest
+    needs: [build-rs]
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+      - uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: ./rust
+      - name: Run tests
+        run: cargo test --verbose
+
+  lint-rs:
+    runs-on: ubuntu-latest
+    needs: [build-rs]
+
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v1
+        with:
+          working-directory: ./rust
+      - name: Rustfmt
+        run: cargo fmt -- --check
+      - name: Check
+        run: cargo check --all-features --all-targets --verbose
+      - name: Clippy
+        run: cargo clippy -- -D warnings
