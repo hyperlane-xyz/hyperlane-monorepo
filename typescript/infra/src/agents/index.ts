@@ -7,7 +7,7 @@ import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
 import { rm, writeFile } from 'fs/promises';
 
-import { identifier } from './agent';
+import { keyIdentifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
@@ -126,7 +126,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     } else if (role === KEY_ROLE_ENUM.Validator) {
       const privateKey =
         gcpKeys[
-          identifier(agentConfig.environment, role, outboxChainName, index)
+          keyIdentifier(agentConfig.environment, role, outboxChainName, index)
         ].privateKey;
 
       envVars.push(

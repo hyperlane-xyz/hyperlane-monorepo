@@ -6,7 +6,7 @@ import { AgentConfig } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd, include } from '../utils/utils';
 
-import { AgentKey, identifier, isValidatorKey } from './agent';
+import { AgentKey, isValidatorKey, keyIdentifier } from './agent';
 import { getAllKeys, getKey } from './key-utils';
 import { KEY_ROLE_ENUM } from './roles';
 
@@ -73,7 +73,12 @@ export class AgentGCPKey<
   }
 
   get identifier() {
-    return identifier(this.environment, this.role, this.chainName, this.index);
+    return keyIdentifier(
+      this.environment,
+      this.role,
+      this.chainName,
+      this.index,
+    );
   }
 
   get privateKey() {

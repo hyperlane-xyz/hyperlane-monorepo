@@ -18,7 +18,7 @@ import { ChainName } from '@abacus-network/sdk';
 
 import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import { getEthereumAddress, sleep } from '../../utils/utils';
-import { identifier } from '../agent';
+import { keyIdentifier } from '../agent';
 import { AgentKey } from '../agent';
 import { KEY_ROLE_ENUM } from '../roles';
 
@@ -64,7 +64,7 @@ export class AgentAwsKey<
   }
 
   get identifier() {
-    return `alias/${identifier(
+    return `alias/${keyIdentifier(
       this.environment,
       this.role,
       this.chainName,

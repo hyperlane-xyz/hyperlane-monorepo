@@ -38,24 +38,44 @@ export function isValidatorKey(role: string) {
   return role === KEY_ROLE_ENUM.Validator;
 }
 
-export function identifier(
+function identifier(
+  isKey: boolean,
   environment: string,
   role: string,
-  chainName?: string,
+  chainName?: ChainName,
   index?: number,
 ) {
+  const prefix = `abacus-${environment}-${isKey ? 'key-' : ''}`;
   switch (role) {
     case KEY_ROLE_ENUM.Validator:
       if (index === undefined) {
         throw Error('Expected index for validator key');
       }
-      return `abacus-${environment}-key-${chainName}-${role}-${index}`;
+      return `${prefix}${chainName}-${role}-${index}`;
     case KEY_ROLE_ENUM.Relayer:
       if (chainName === undefined) {
         throw Error('Expected chainName for relayer key');
       }
-      return `abacus-${environment}-key-${chainName}-${role}`;
+      return `${prefix}${chainName}-${role}`;
     default:
-      return `abacus-${environment}-key-${role}`;
+      return `${prefix}-${role}`;
   }
+}
+
+export function keyIdentifier(
+  environment: string,
+  role: string,
+  chainName?: ChainName,
+  index?: number,
+) {
+  return identifier(true, environment, role, chainName, index);
+}
+
+export function userIdentifier(
+  environment: string,
+  role: string,
+  chainName?: ChainName,
+  index?: number,
+) {
+  return identifier(false, environment, role, chainName, index);
 }
