@@ -6,7 +6,6 @@ import { core } from './core';
 import { getMultiProvider } from './domains';
 import { governance } from './governance';
 import { infrastructure } from './infrastructure';
-import { metrics } from './metrics';
 
 const coreConfig = {
   alfajores: configs.alfajores,
@@ -20,7 +19,6 @@ export const environment: CoreEnvironmentConfig<corenet> = {
   agent,
   core,
   governance,
-  metrics,
   infra: infrastructure,
   getMultiProvider,
 };

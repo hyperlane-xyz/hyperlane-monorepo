@@ -9,7 +9,6 @@ import { agent } from './agent';
 import { core } from './core';
 import { governance } from './governance';
 import { infra } from './infra';
-import { metrics } from './metrics';
 
 const coreConfig = {
   test1: configs.test1,
@@ -24,7 +23,6 @@ export const environment: CoreEnvironmentConfig<corenet> = {
   agent,
   core,
   governance,
-  metrics,
   infra,
   getMultiProvider: async () => {
     const [signer] = await ethers.getSigners();
