@@ -139,12 +139,12 @@ export class AbacusCoreDeployer<
 
     type RemoteMailboxEntry = [Remotes<Networks, Local>, MailboxAddresses];
 
-    const firstRemoteMailbox: RemoteMailboxEntry = [
+    const firstInboxAddresses: RemoteMailboxEntry = [
       firstRemote,
       getMailbox(firstValidatorManager, firstInbox),
     ];
 
-    const trailingRemoteMailboxes = await Promise.all(
+    const trailingInboxAddresses = await Promise.all(
       trailingRemotes.map(async (remote): Promise<RemoteMailboxEntry> => {
         const validatorManager = await deployValidatorManager(remote);
         const inbox = await this.duplicateProxiedContract(
@@ -163,10 +163,10 @@ export class AbacusCoreDeployer<
       }),
     );
 
-    const remoteMailboxes = [firstRemoteMailbox, ...trailingRemoteMailboxes];
+    const inboxAddresses = [firstInboxAddresses, ...trailingInboxAddresses];
 
     await Promise.all(
-      remoteMailboxes.map(([remote, mailbox]) =>
+      inboxAddresses.map(([remote, mailbox]) =>
         abacusConnectionManager.enrollInbox(domains[remote].id, mailbox.proxy),
       ),
     );
@@ -176,7 +176,7 @@ export class AbacusCoreDeployer<
       abacusConnectionManager: abacusConnectionManager.address,
       interchainGasPaymaster: interchainGasPaymaster.address,
       outbox: getMailbox(outboxValidatorManager, outbox),
-      inboxes: Object.fromEntries(remoteMailboxes) as RemoteChainMap<
+      inboxes: Object.fromEntries(inboxAddresses) as RemoteChainMap<
         Networks,
         Local,
         MailboxAddresses
