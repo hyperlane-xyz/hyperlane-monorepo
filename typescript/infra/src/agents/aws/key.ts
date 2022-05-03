@@ -146,30 +146,7 @@ export class AgentAwsKey<
 
   // Gets the Key's ID if it exists, undefined otherwise
   async getId() {
-    const client = await this.getClient();
-    let aliases: AliasListEntry[] = [];
-    let marker: string | undefined = undefined;
-    while (true) {
-      const listAliasResponse: ListAliasesCommandOutput = await client.send(
-        new ListAliasesCommand({
-          Limit: 100,
-          Marker: marker,
-        }),
-      );
-      if (
-        !listAliasResponse.Aliases ||
-        listAliasResponse.Aliases.length === 0
-      ) {
-        break;
-      }
-      aliases = aliases.concat(listAliasResponse.Aliases);
-      if (listAliasResponse.NextMarker) {
-        marker = listAliasResponse.NextMarker;
-      } else {
-        break;
-      }
-    }
-
+    const aliases = await this.getAliases();
     const match = aliases.find((_) => _.AliasName === this.identifier);
     return match?.TargetKeyId;
   }
@@ -198,18 +175,10 @@ export class AgentAwsKey<
 
     // Get the key IDs
     // TODO handle cases when there are > 100 keys
-    const listAliasResponse = await client.send(
-      new ListAliasesCommand({ Limit: 100 }),
-    );
-    const canonicalMatch = listAliasResponse.Aliases!.find(
-      (_) => _.AliasName === canonicalAlias,
-    );
-    const newMatch = listAliasResponse.Aliases!.find(
-      (_) => _.AliasName === newAlias,
-    );
-    const oldMatch = listAliasResponse.Aliases!.find(
-      (_) => _.AliasName === oldAlias,
-    );
+    const aliases = await this.getAliases();
+    const canonicalMatch = aliases.find((_) => _.AliasName === canonicalAlias);
+    const newMatch = aliases.find((_) => _.AliasName === newAlias);
+    const oldMatch = aliases.find((_) => _.AliasName === oldAlias);
     if (!canonicalMatch || !newMatch) {
       throw new Error(
         `Attempted to rotate keys but one of them does not exist. Old: ${canonicalMatch}, New: ${newMatch}`,
@@ -306,5 +275,34 @@ export class AgentAwsKey<
     );
 
     return getEthereumAddress(Buffer.from(publicKeyResponse.PublicKey!));
+  }
+
+  private async getAliases(): Promise<AliasListEntry[]> {
+    const client = await this.getClient();
+    let aliases: AliasListEntry[] = [];
+    let marker: string | undefined = undefined;
+    // List will output a max of 100 at a time, so we need to use marker
+    // to fetch all of them.
+    while (true) {
+      const listAliasResponse: ListAliasesCommandOutput = await client.send(
+        new ListAliasesCommand({
+          Limit: 100,
+          Marker: marker,
+        }),
+      );
+      if (
+        !listAliasResponse.Aliases ||
+        listAliasResponse.Aliases.length === 0
+      ) {
+        break;
+      }
+      aliases = aliases.concat(listAliasResponse.Aliases);
+      if (listAliasResponse.NextMarker) {
+        marker = listAliasResponse.NextMarker;
+      } else {
+        break;
+      }
+    }
+    return aliases;
   }
 }

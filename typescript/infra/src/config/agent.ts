@@ -3,7 +3,7 @@ import { types } from '@abacus-network/utils';
 
 import {
   AgentAwsKey,
-  RelayerAgentAwsUser,
+  AgentAwsUser,
   ValidatorAgentAwsUser,
 } from '../agents/aws';
 import { KEY_ROLE_ENUM } from '../agents/roles';
@@ -336,9 +336,10 @@ export class ChainAgentConfig<Networks extends ChainName> {
       this.agentConfig.aws?.region ?? firstS3Syncer?.region;
 
     if (awsRegion !== undefined) {
-      const awsUser = new RelayerAgentAwsUser(
+      const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
         this.chainName,
+        KEY_ROLE_ENUM.Relayer,
         awsRegion,
       );
       await awsUser.createIfNotExists();
@@ -355,9 +356,10 @@ export class ChainAgentConfig<Networks extends ChainName> {
     if (!this.awsKeys) {
       return this.signers(KEY_ROLE_ENUM.Relayer);
     }
-    const awsUser = new RelayerAgentAwsUser(
+    const awsUser = new AgentAwsUser(
       this.agentConfig.environment,
       this.chainName,
+      KEY_ROLE_ENUM.Relayer,
       this.agentConfig.aws!.region,
     );
     await awsUser.createIfNotExists();
