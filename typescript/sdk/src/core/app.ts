@@ -26,7 +26,7 @@ export class AbacusCore<
 
   static fromEnvironment(
     name: EnvironmentName,
-    multiProvider: MultiProvider<keyof Environments[typeof name]>,
+    multiProvider: MultiProvider<any>,
   ) {
     return new AbacusCore(environments[name], multiProvider);
   }
