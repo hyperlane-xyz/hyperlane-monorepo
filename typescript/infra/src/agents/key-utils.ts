@@ -106,7 +106,7 @@ async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
 export async function fetchKeysForChain<Networks extends ChainName>(
   agentConfig: AgentConfig<Networks>,
   chainName: Networks,
-): Promise<Record<string, AgentGCPKey<Networks>>> {
+): Promise<Record<string, AgentKey<Networks>>> {
   // Get all keys for the chainName. Include keys where chainName is undefined,
   // which are keys that are not chain-specific but should still be included
   const keys = await Promise.all(

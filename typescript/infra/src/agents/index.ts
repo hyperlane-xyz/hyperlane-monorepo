@@ -108,7 +108,10 @@ export async function getAgentEnvVars<Networks extends ChainName>(
 
   // GCP keys
   if (!agentConfig.aws) {
-    const gcpKeys = await fetchKeysForChain(agentConfig, outboxChainName);
+    const gcpKeys = (await fetchKeysForChain(
+      agentConfig,
+      outboxChainName,
+    )) as Record<string, AgentGCPKey<Networks>>;
 
     // Only checkpointer and relayer need to sign txs
     if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
@@ -350,7 +353,10 @@ export async function runKeymasterHelmCommand<Networks extends ChainName>(
 ) {
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
   const chainName = chainNames[0];
-  const gcpKeys = await fetchKeysForChain(agentConfig, chainName);
+  const gcpKeys = (await fetchKeysForChain(agentConfig, chainName)) as Record<
+    string,
+    AgentGCPKey<Networks>
+  >;
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {
     networks: Object.fromEntries(
