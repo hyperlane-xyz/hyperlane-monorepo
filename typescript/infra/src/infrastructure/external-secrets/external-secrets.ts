@@ -7,9 +7,9 @@ import {
   grantServiceAccountRoleIfNotExists,
 } from '../../utils/gcloud';
 import {
+  HelmCommand,
   addHelmRepoIfRequired,
   getDeployableHelmChartName,
-  HelmCommand,
   helmifyValues,
 } from '../../utils/helm';
 import { execCmd } from '../../utils/utils';

@@ -1,14 +1,14 @@
-import { rm, writeFile } from 'fs/promises';
 import { ChainName } from '@abacus-network/sdk';
 import { AgentConfig } from '../config';
+import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
-import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
-import { AgentAwsKey } from './aws/key';
-import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
+
 import { identifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
+import { AgentAwsKey } from './aws/key';
+import { AgentGCPKey, fetchAgentGCPKeys } from './gcp';
 import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
 
 async function helmValuesForChain<Networks extends ChainName>(

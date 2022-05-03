@@ -1,7 +1,9 @@
-import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-import { MultiProvider } from '@abacus-network/sdk';
+import { ethers } from 'ethers';
+
 import { registerDomains } from '@abacus-network/deploy';
+import { MultiProvider } from '@abacus-network/sdk';
+
 import { configs } from '../../networks/testnets';
 
 export type TestNetworks = 'alfajores' | 'kovan' | 'mumbai' | 'fuji';

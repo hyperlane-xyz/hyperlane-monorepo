@@ -1,11 +1,13 @@
 import { Wallet } from 'ethers';
 import { ChainName } from '@abacus-network/sdk';
-import { KEY_ROLE_ENUM } from './roles';
-import { execCmd, include } from '../utils/utils';
-import { AgentKey, isValidatorKey, identifier } from './agent';
-import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
+
 import { AgentConfig } from '../config';
+import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
+import { execCmd, include } from '../utils/utils';
+
+import { AgentKey, isValidatorKey, identifier } from './agent';
 import { getKey, getAllKeys } from './key-utils';
+import { KEY_ROLE_ENUM } from './roles';
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {

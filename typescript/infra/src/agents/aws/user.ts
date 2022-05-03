@@ -1,8 +1,7 @@
-import { ChainName } from '@abacus-network/sdk';
 import {
-  IAMClient,
   CreateAccessKeyCommand,
   CreateUserCommand,
+  IAMClient,
   ListUsersCommand,
 } from '@aws-sdk/client-iam';
 import { KEY_ROLE_ENUM } from '../roles';
@@ -12,6 +11,7 @@ import {
   gcpSecretExists,
   setGCPSecret,
 } from '../../utils/gcloud';
+
 import { AgentAwsKey } from './key';
 
 export class AgentAwsUser<Networks extends ChainName> {

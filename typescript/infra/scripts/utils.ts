@@ -1,5 +1,7 @@
 import path from 'path';
 import yargs from 'yargs';
+
+import { RouterConfig } from '@abacus-network/deploy';
 import {
   ALL_CHAIN_NAMES,
   AbacusCore,
@@ -7,14 +9,13 @@ import {
   MultiProvider,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import { RouterConfig } from '@abacus-network/deploy';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import {
   ALL_ENVIRONMENTS,
   AgentConfig,
+  ContractMetricsConfig,
   DeployEnvironment,
   InfrastructureConfig,
-  ContractMetricsConfig,
 } from '../src/config';
 import { CoreConfig } from '../src/core';
 import { GovernanceConfig } from '../src/governance';

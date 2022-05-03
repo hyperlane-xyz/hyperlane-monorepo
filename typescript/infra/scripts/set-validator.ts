@@ -4,8 +4,10 @@ import {
   coreAddresses,
   governanceAddresses,
 } from '@abacus-network/sdk';
-import { getCoreConfig, getEnvironment, registerMultiProvider } from './utils';
+
 import { AbacusCoreGovernor, CoreViolationType } from '../src/core';
+
+import { getCoreConfig, getEnvironment, registerMultiProvider } from './utils';
 
 async function main() {
   const environment = await getEnvironment();

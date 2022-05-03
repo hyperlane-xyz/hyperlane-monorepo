@@ -1,7 +1,7 @@
 import {
-  getKeyRoleAndChainArgs,
   getAgentConfig,
   getEnvironment,
+  getKeyRoleAndChainArgs,
 } from './utils';
 
 async function rotateKey() {

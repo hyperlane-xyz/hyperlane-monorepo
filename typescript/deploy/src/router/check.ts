@@ -1,6 +1,8 @@
 import { expect } from 'chai';
-import { utils, types } from '@abacus-network/utils';
+
 import { AbacusApp } from '@abacus-network/sdk';
+import { types, utils } from '@abacus-network/utils';
+
 import { AbacusAppChecker } from '../check';
 
 import { Router, RouterConfig } from './types';

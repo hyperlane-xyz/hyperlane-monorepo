@@ -1,12 +1,12 @@
-import { ChainName } from '@abacus-network/sdk';
 import {
-  S3Client,
   CreateBucketCommand,
   ListBucketsCommand,
   PutBucketPolicyCommand,
+  S3Client,
 } from '@aws-sdk/client-s3';
 import { KEY_ROLE_ENUM } from '../roles';
 import { AgentConfig } from '../../config';
+
 import { AgentAwsKey } from './key';
 import { AgentAwsUser } from './user';
 

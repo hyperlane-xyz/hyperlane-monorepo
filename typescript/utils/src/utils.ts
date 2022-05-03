@@ -1,5 +1,6 @@
 import { assert } from 'chai';
 import { ethers } from 'ethers';
+
 import { Address, Domain, HexString } from './types';
 
 /*

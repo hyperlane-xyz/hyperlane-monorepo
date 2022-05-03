@@ -1,6 +1,8 @@
-import * as dotenv from 'dotenv';
 import Logger from 'bunyan';
+import * as dotenv from 'dotenv';
+
 import { ChainName } from '@abacus-network/sdk';
+
 import { MetricCollector } from './metrics';
 
 dotenv.config({ path: process.env.CONFIG_PATH ?? '.env' });

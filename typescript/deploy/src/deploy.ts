@@ -1,14 +1,15 @@
-import path from 'path';
-import fs from 'fs';
 import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
-import { ChainName, NameOrDomain, MultiProvider } from '@abacus-network/sdk';
+import fs from 'fs';
+import path from 'path';
+
 import {
   UpgradeBeacon,
-  UpgradeBeacon__factory,
   UpgradeBeaconProxy,
   UpgradeBeaconProxy__factory,
+  UpgradeBeacon__factory,
 } from '@abacus-network/core';
+import { ChainName, MultiProvider, NameOrDomain } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
 
 import { ProxiedContract } from './proxy';
 import { VerificationInput, getContractVerificationInput } from './verify';

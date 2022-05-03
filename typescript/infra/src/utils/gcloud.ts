@@ -1,5 +1,7 @@
 import fs from 'fs';
+
 import { rm, writeFile } from 'fs/promises';
+
 import { execCmd, execCmdAndParseJson } from './utils';
 
 interface IamCondition {

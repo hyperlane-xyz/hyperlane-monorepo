@@ -1,5 +1,6 @@
-import { MultiProvider } from '@abacus-network/sdk';
 import { registerDomains } from '@abacus-network/deploy';
+import { MultiProvider } from '@abacus-network/sdk';
+
 import { fetchSigner } from '../../../src/config/chain';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
 import { configs } from '../../networks/testnets';

@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
-import { utils, types } from '@abacus-network/utils';
+
+import { types, utils } from '@abacus-network/utils';
 
 export class Validator {
   localDomain: types.Domain;

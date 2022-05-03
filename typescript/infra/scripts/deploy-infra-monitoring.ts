@@ -1,6 +1,7 @@
-import { getInfrastructureConfig, getEnvironment } from './utils';
 import { runPrometheusHelmCommand } from '../src/infrastructure/monitoring/prometheus';
 import { HelmCommand } from '../src/utils/helm';
+
+import { getEnvironment, getInfrastructureConfig } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
