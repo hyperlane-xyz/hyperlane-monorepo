@@ -3,7 +3,7 @@ import path from 'path';
 import { utils } from '@abacus-network/deploy';
 import { ChainName, Chains } from '@abacus-network/sdk';
 
-import { KEY_ROLE_ENUM } from '../src/agents';
+import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
 
 export function getEnvironment(): Promise<DeployEnvironment> {

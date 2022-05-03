@@ -68,6 +68,26 @@ export const test3: TransactionConfig = {
   overrides: {},
 };
 
+export const bsctestnet: TransactionConfig = {
+  confirmations: 3,
+  overrides: {},
+};
+
+export const arbitrumrinkeby: TransactionConfig = {
+  confirmations: 3,
+  overrides: {},
+};
+
+export const optimismkovan: TransactionConfig = {
+  confirmations: 3,
+  overrides: {},
+};
+
+export const auroratestnet: TransactionConfig = {
+  confirmations: 3,
+  overrides: {},
+};
+
 const _configs = {
   alfajores,
   fuji,
@@ -80,6 +100,10 @@ const _configs = {
   test1,
   test2,
   test3,
+  bsctestnet,
+  arbitrumrinkeby,
+  optimismkovan,
+  auroratestnet,
 };
 
 export const configs: ChainMap<keyof typeof _configs, TransactionConfig> =

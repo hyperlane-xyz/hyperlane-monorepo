@@ -8,20 +8,25 @@ import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 async function deploy() {
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);
-  const domains = Object.keys(config.transactionConfigs) as ChainName[];
+  const domainNames = Object.keys(config.transactionConfigs) as ChainName[];
 
-  // We intentionally do not Promise.all here to avoid race conditions that could result
-  // in attempting to create a user or key multiple times. This was found to happen in
-  // situations where agents for different domains would share the same AWS user or
-  // AWS KMS key.
-  for (const name of domains) {
-    await runAgentHelmCommand(
-      HelmCommand.InstallOrUpgrade,
-      config.agent,
-      name,
-      domains,
-    );
-  }
+  // Note the create-keys script should be ran prior to running this script.
+  // At the moment, `runAgentHelmCommand` has the side effect of creating keys / users
+  // if they do not exist. It's possible for a race condition to occur where creation of
+  // a key / user that is used by multiple deployments (like Kathy or the Checkpointer,
+  // whose keys / users are not chain-specific) will be attempted multiple times.
+  // While this function still has these side effects, the workaround is to just
+  // run the create-keys script first.
+  await Promise.all(
+    domainNames.map((name) =>
+      runAgentHelmCommand(
+        HelmCommand.InstallOrUpgrade,
+        config.agent,
+        name,
+        domainNames,
+      ),
+    ),
+  );
 }
 
 deploy().then(console.log).catch(console.error);

@@ -1,10 +1,11 @@
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
 import { ChainName, Remotes } from '../types';
+
 import {
   CoreContractAddresses,
-  CoreContracts,
   CoreContractSchema,
+  CoreContracts,
 } from './contracts';
 import { environments } from './environments';
 

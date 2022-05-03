@@ -1,7 +1,7 @@
 import { types } from '@abacus-network/utils';
-
-import { domains } from './domains';
 import { ethers } from 'ethers';
+import { domains } from './domains';
+
 
 /**
  * RPC Pagination information for Polygon
@@ -27,6 +27,10 @@ export enum Chains { // must be string type to be used with Object.keys
   ethereum = 'ethereum',
   avalanche = 'avalanche',
   polygon = 'polygon',
+  bsctestnet = 'bsctestnet,',
+  arbitrumrinkeby = 'arbitrumrinkeby,',
+  optimismkovan = 'optimismkovan,',
+  auroratestnet = 'auroratestnet,',
   test1 = 'test1',
   test2 = 'test2',
   test3 = 'test3',

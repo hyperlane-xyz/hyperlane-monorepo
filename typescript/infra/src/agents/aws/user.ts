@@ -7,13 +7,14 @@ import {
 
 import { ChainName } from '@abacus-network/sdk';
 
-import { KEY_ROLE_ENUM } from '../../agents';
 import { AgentConfig } from '../../config';
 import {
   fetchGCPSecret,
   gcpSecretExists,
   setGCPSecret,
 } from '../../utils/gcloud';
+import { userIdentifier } from '../agent';
+import { KEY_ROLE_ENUM } from '../roles';
 
 import { AgentAwsKey } from './key';
 
@@ -103,7 +104,14 @@ export class AgentAwsUser<Networks extends ChainName> {
   }
 
   key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
-    return new AgentAwsKey<Networks>(agentConfig, this.chainName, this.role);
+    return new AgentAwsKey<Networks>(agentConfig, this.role, this.chainName);
+  }
+
+  async createKeyIfNotExists(agentConfig: AgentConfig<Networks>) {
+    const key = this.key(agentConfig);
+    await key.createIfNotExists();
+    await key.putKeyPolicy(this.arn);
+    return key;
   }
 
   get awsTags() {
@@ -123,7 +131,7 @@ export class AgentAwsUser<Networks extends ChainName> {
   }
 
   get userName() {
-    return `abacus-${this.environment}-${this.role}`;
+    return userIdentifier(this.environment, this.role, this.chainName);
   }
 
   get accessKeyIdSecretName() {

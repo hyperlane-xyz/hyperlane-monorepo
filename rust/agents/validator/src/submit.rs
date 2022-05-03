@@ -37,6 +37,8 @@ impl ValidatorSubmitter {
         let reorg_period = Some(self.reorg_period);
         tokio::spawn(async move {
             let mut current_index = self.checkpoint_syncer.latest_index().await?.unwrap_or_default();
+
+            info!(current_index=current_index, "Starting Validator");
             loop {
                 sleep(Duration::from_secs(self.interval)).await;
 
