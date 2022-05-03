@@ -22,7 +22,7 @@ async function main() {
     }),
   );
 
-  console.log('Keys:', JSON.stringify(keyInfos, null, 2));
+  console.log(JSON.stringify(keyInfos, null, 2));
 }
 
 main().catch(console.error);
