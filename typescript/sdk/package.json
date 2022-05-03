@@ -9,7 +9,7 @@
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./src",
     "prepublishOnly": "npm run build",
-    "test": "mocha './test/**/*.test.ts'"
+    "test": "mocha --config .mocharc.json './test/**/*.test.ts'"
   },
   "license": "MIT OR Apache-2.0",
   "devDependencies": {
