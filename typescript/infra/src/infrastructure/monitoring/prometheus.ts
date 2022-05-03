@@ -1,9 +1,9 @@
 import { InfrastructureConfig } from '../../config/infrastructure';
 import { fetchGCPSecret } from '../../utils/gcloud';
 import {
+  HelmCommand,
   addHelmRepoIfRequired,
   getDeployableHelmChartName,
-  HelmCommand,
   helmifyValues,
 } from '../../utils/helm';
 import { execCmd } from '../../utils/utils';

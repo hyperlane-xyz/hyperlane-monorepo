@@ -1,6 +1,7 @@
 import { BigNumber } from 'ethers';
-import { ChainName } from '@abacus-network/sdk';
+
 import { TransactionConfig } from '@abacus-network/deploy';
+import { ChainName } from '@abacus-network/sdk';
 
 export const celo: TransactionConfig = {
   overrides: {},

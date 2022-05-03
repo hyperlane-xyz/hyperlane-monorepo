@@ -1,28 +1,31 @@
-import path from 'path';
 import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
+import path from 'path';
+
+import {
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
+  Inbox,
+  InboxValidatorManager,
+  InboxValidatorManager__factory,
+  Inbox__factory,
+  InterchainGasPaymaster__factory,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
+  Outbox__factory,
+  UpgradeBeaconController,
+  UpgradeBeaconController__factory,
+} from '@abacus-network/core';
+import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainName,
   CoreContractAddresses,
   ProxiedAddress,
 } from '@abacus-network/sdk';
-import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
-import {
-  UpgradeBeaconController,
-  AbacusConnectionManager,
-  InboxValidatorManager,
-  InboxValidatorManager__factory,
-  OutboxValidatorManager,
-  OutboxValidatorManager__factory,
-  Inbox,
-  UpgradeBeaconController__factory,
-  AbacusConnectionManager__factory,
-  Outbox__factory,
-  Inbox__factory,
-  InterchainGasPaymaster__factory,
-} from '@abacus-network/core';
+import { types } from '@abacus-network/utils';
+
 import { DeployEnvironment, RustConfig } from '../config';
+
 import { CoreConfig, ValidatorManagerConfig } from './types';
 
 export class AbacusCoreDeployer extends AbacusAppDeployer<

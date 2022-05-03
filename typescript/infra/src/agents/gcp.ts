@@ -1,8 +1,10 @@
 import { Wallet } from 'ethers';
+
 import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents';
-import { execCmd, include } from '../utils/utils';
-import { AgentKey, isValidatorKey, identifier } from './agent';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
+import { execCmd, include } from '../utils/utils';
+
+import { AgentKey, identifier, isValidatorKey } from './agent';
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {

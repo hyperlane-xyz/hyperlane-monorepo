@@ -3,12 +3,12 @@ import { expect } from 'chai';
 
 import {
   MysteryMathV1,
-  MysteryMathV2,
   MysteryMathV1__factory,
-  UpgradeBeaconController,
+  MysteryMathV2,
   UpgradeBeacon,
-  UpgradeBeacon__factory,
+  UpgradeBeaconController,
   UpgradeBeaconProxy__factory,
+  UpgradeBeacon__factory,
 } from '../../types';
 
 export type MysteryMathUpgrade = {

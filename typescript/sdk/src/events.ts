@@ -1,12 +1,13 @@
-import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { Result } from '@ethersproject/abi';
+import { TransactionReceipt } from '@ethersproject/abstract-provider';
+
 import {
   TypedEvent,
   TypedEventFilter,
 } from '@abacus-network/core/dist/commons';
 
-import { NameOrDomain, Domain } from './types';
 import { MultiProvider } from './provider';
+import { Domain, NameOrDomain } from './types';
 
 export class Annotated<U extends Result, T extends TypedEvent<U>> {
   readonly domain: number;

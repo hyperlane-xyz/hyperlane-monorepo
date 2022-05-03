@@ -1,16 +1,18 @@
-import path from 'path';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
-import { types } from '@abacus-network/utils';
+import path from 'path';
+
 import { AbacusGovernance } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
+
 import {
-  AbacusGovernanceDeployer,
-  AbacusGovernanceChecker,
-} from '../src/governance';
-import {
-  registerMultiProviderTest,
   governance as governanceConfig,
+  registerMultiProviderTest,
 } from '../config/environments/test';
+import {
+  AbacusGovernanceChecker,
+  AbacusGovernanceDeployer,
+} from '../src/governance';
 
 describe('governance', async () => {
   const deployer = new AbacusGovernanceDeployer();

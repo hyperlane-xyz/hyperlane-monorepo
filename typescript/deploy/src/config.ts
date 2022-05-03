@@ -1,5 +1,6 @@
 import { ethers } from 'ethers';
-import { ChainName, domains, MultiProvider } from '@abacus-network/sdk';
+
+import { ChainName, MultiProvider, domains } from '@abacus-network/sdk';
 
 export interface CheckerViolation {
   domain: number;

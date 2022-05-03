@@ -52,7 +52,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        run: ./build.sh
+        run: yarn build
 
   lint-prettier:
     runs-on: ubuntu-latest
@@ -66,7 +66,7 @@ jobs:
 
       - name: prettier
         run: |
-          ./lint-prettier.sh
+          yarn prettier
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"

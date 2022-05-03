@@ -14,5 +14,8 @@
         "explicitTypes": "always"
       }
     }
-  ]
+  ],
+  "importOrder": ["^@abacus-network/(.*)$", "^../(.*)$", "^./(.*)$"],
+  "importOrderSeparation": true,
+  "importOrderSortSpecifiers": true
 }

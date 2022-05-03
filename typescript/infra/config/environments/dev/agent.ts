@@ -1,5 +1,6 @@
 import { AgentConfig } from '../../../src/config';
 import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
+
 import { DevNetworks, domainNames } from './domains';
 import { validators } from './validators';
 

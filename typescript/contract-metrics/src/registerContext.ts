@@ -5,6 +5,7 @@ import {
   coreAddresses,
   governanceAddresses,
 } from '@abacus-network/sdk';
+
 import config from './config';
 
 // register local

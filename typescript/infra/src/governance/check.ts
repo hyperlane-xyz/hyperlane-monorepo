@@ -1,9 +1,10 @@
-import { ethers } from 'ethers';
 import { expect } from 'chai';
+import { ethers } from 'ethers';
+
 import { GovernanceRouter } from '@abacus-network/apps';
-import { types } from '@abacus-network/utils';
-import { AbacusGovernance } from '@abacus-network/sdk';
 import { AbacusRouterChecker } from '@abacus-network/deploy';
+import { AbacusGovernance } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
 
 import { GovernanceConfig } from './types';
 

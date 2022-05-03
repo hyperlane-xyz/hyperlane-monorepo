@@ -1,10 +1,13 @@
 import { expect } from 'chai';
-import { Call, AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+import { PopulatedTransaction } from 'ethers';
+
+import { MultisigValidatorManager__factory } from '@abacus-network/core';
 import {
   CheckerViolation,
   ProxyViolationType,
   UpgradeBeaconViolation,
 } from '@abacus-network/deploy';
+import { AbacusCore, AbacusGovernance, Call } from '@abacus-network/sdk';
 
 import {
   AbacusCoreChecker,
@@ -13,8 +16,6 @@ import {
   ValidatorViolationType,
 } from './check';
 import { CoreConfig } from './types';
-import { MultisigValidatorManager__factory } from '@abacus-network/core';
-import { PopulatedTransaction } from 'ethers';
 
 interface DomainedCall {
   domain: number;

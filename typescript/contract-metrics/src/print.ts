@@ -1,11 +1,13 @@
+import Logger from 'bunyan';
+import fs from 'fs';
+
 import {
-  AnnotatedLifecycleEvent,
   AbacusStatus,
+  AnnotatedLifecycleEvent,
   MessageStatus,
   MultiProvider,
 } from '@abacus-network/sdk';
-import Logger from 'bunyan';
-import fs from 'fs';
+
 import config from './config';
 
 export function blockExplorerURL(

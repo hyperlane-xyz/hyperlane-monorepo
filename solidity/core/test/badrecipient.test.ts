@@ -1,6 +1,8 @@
-import { utils } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
+
+import { utils } from '@abacus-network/utils';
+
 import { BadRandomRecipient__factory } from '../types';
 
 describe('BadRecipient', () => {

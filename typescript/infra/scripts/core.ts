@@ -1,12 +1,13 @@
+import { AbacusCoreDeployer } from '../src/core';
+
 import {
-  getEnvironment,
   getCoreConfig,
   getCoreContractsSdkFilepath,
   getCoreRustDirectory,
   getCoreVerificationDirectory,
+  getEnvironment,
   registerMultiProvider,
 } from './utils';
-import { AbacusCoreDeployer } from '../src/core';
 
 async function main() {
   const environment = await getEnvironment();

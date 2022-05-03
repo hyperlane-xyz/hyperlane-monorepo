@@ -1,6 +1,6 @@
-import { types } from '@abacus-network/utils';
-import { ChainName } from '@abacus-network/sdk';
 import { RouterConfig } from '@abacus-network/deploy';
+import { ChainName } from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
 
 export type GovernanceConfigAddresses = {
   recoveryManager: types.Address;

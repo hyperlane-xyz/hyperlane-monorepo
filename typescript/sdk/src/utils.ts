@@ -1,4 +1,4 @@
-import { arrayify, BytesLike, hexlify } from '@ethersproject/bytes';
+import { BytesLike, arrayify, hexlify } from '@ethersproject/bytes';
 import { ethers } from 'ethers';
 
 export type Address = string;

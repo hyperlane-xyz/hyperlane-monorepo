@@ -1,8 +1,9 @@
 import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
-import { TestAbacusDeploy, TestRouterDeploy } from '@abacus-network/hardhat';
 
-import { GovernanceRouter__factory, GovernanceRouter } from '../../../types';
+import { TestAbacusDeploy, TestRouterDeploy } from '@abacus-network/hardhat';
+import { types } from '@abacus-network/utils';
+
+import { GovernanceRouter, GovernanceRouter__factory } from '../../../types';
 
 export type Governor = {
   domain: types.Domain;
