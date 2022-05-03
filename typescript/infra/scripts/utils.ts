@@ -1,7 +1,7 @@
 import path from 'path';
 
 import { utils } from '@abacus-network/deploy';
-import { ChainName, Chains } from '@abacus-network/sdk';
+import { AllChains } from '@abacus-network/sdk';
 
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
@@ -69,7 +69,7 @@ export function getKeyRoleAndChainArgs() {
     .require('r')
     .alias('c', 'chain')
     .describe('c', 'chain name')
-    .choices('c', Object.values(Chains) as ChainName[])
+    .choices('c', AllChains)
     .require('c')
     .alias('i', 'index')
     .describe('i', 'index of role')
