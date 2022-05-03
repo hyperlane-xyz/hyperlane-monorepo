@@ -21,7 +21,6 @@ describe('governance', async () => {
   type networks = keyof typeof environment.transactionConfigs;
   let multiProvider: MultiProvider<networks>;
   let deployer: AbacusGovernanceDeployer<networks>;
-  let owners: ChainMap<networks, string>;
   let addresses: ChainMap<networks, GovernanceAddresses>;
   const governanceConfig = environment.governance;
 
@@ -29,11 +28,6 @@ describe('governance', async () => {
     const [signer] = await ethers.getSigners();
     multiProvider = utils.initHardhatMultiProvider(environment, signer);
     deployer = new AbacusGovernanceDeployer(multiProvider, governanceConfig);
-
-    owners = sdkUtils.objMap(
-      governanceConfig.addresses,
-      (_, a) => a.governor ?? ethers.constants.AddressZero,
-    );
 
     // abacusConnectionManager can be set to anything for these tests.
     if (!governanceConfig.abacusConnectionManager) {
@@ -55,6 +49,10 @@ describe('governance', async () => {
   });
 
   it('checks', async () => {
+    const owners = sdkUtils.objMap(
+      governanceConfig.addresses,
+      (_, a) => a.governor ?? ethers.constants.AddressZero,
+    );
     const governance = new AbacusGovernance(addresses, multiProvider);
     const checker = new AbacusGovernanceChecker(
       multiProvider,
