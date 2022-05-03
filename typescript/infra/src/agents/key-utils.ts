@@ -1,8 +1,10 @@
 import { ChainName } from '@abacus-network/sdk';
+
 import { AgentConfig } from '../config';
-import { AgentGCPKey } from './gcp';
-import { AgentAwsKey } from './aws/key';
+
 import { AgentKey } from './agent';
+import { AgentAwsKey } from './aws/key';
+import { AgentGCPKey } from './gcp';
 import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
 
 export function getKey<Networks extends ChainName>(

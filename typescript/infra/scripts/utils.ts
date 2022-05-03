@@ -9,6 +9,7 @@ import {
   MultiProvider,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
+
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import {
   ALL_ENVIRONMENTS,

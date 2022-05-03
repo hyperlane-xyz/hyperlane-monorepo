@@ -1,9 +1,11 @@
 import { ChainName } from '@abacus-network/sdk';
+
 import { AgentConfig } from '../config';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
+import { rm, writeFile } from 'fs/promises';
 
 import { identifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
@@ -176,7 +178,11 @@ export async function getAgentEnvVars<Networks extends ChainName>(
       chainNames.forEach((chainName) => {
         const key = new AgentAwsKey(agentConfig, role, chainName);
         envVars = envVars.concat(
-          configEnvVars(key.keyConfig, 'BASE', `SIGNERS_${outboxChainName.toUpperCase()}_`),
+          configEnvVars(
+            key.keyConfig,
+            'BASE',
+            `SIGNERS_${outboxChainName.toUpperCase()}_`,
+          ),
         );
       });
     }
@@ -232,7 +238,11 @@ function configEnvVars(
     if (typeof value === 'object') {
       envVars = [
         ...envVars,
-        ...configEnvVars(value, role, `${key_name_prefix}${key.toUpperCase()}_`),
+        ...configEnvVars(
+          value,
+          role,
+          `${key_name_prefix}${key.toUpperCase()}_`,
+        ),
       ];
     } else {
       envVars.push(

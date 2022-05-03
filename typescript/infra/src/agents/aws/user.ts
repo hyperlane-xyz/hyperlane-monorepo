@@ -4,13 +4,16 @@ import {
   IAMClient,
   ListUsersCommand,
 } from '@aws-sdk/client-iam';
-import { KEY_ROLE_ENUM } from '../roles';
+
+import { ChainName } from '@abacus-network/sdk';
+
 import { AgentConfig } from '../../config';
 import {
   fetchGCPSecret,
   gcpSecretExists,
   setGCPSecret,
 } from '../../utils/gcloud';
+import { KEY_ROLE_ENUM } from '../roles';
 
 import { AgentAwsKey } from './key';
 

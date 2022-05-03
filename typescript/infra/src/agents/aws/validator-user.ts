@@ -4,8 +4,11 @@ import {
   PutBucketPolicyCommand,
   S3Client,
 } from '@aws-sdk/client-s3';
-import { KEY_ROLE_ENUM } from '../roles';
+
+import { ChainName } from '@abacus-network/sdk';
+
 import { AgentConfig } from '../../config';
+import { KEY_ROLE_ENUM } from '../roles';
 
 import { AgentAwsKey } from './key';
 import { AgentAwsUser } from './user';

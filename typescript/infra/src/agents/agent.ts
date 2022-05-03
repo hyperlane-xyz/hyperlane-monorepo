@@ -1,6 +1,8 @@
 import { ChainName } from '@abacus-network/sdk';
-import { KEY_ROLE_ENUM } from './roles';
+
 import { AgentConfig } from '../config/agent';
+
+import { KEY_ROLE_ENUM } from './roles';
 
 export abstract class AgentKey<Networks extends ChainName> {
   environment: string;

@@ -1,6 +1,8 @@
 import { ChainName } from '@abacus-network/sdk';
-import { KEY_ROLE_ENUM } from '../roles';
+
 import { AgentConfig } from '../../config';
+import { KEY_ROLE_ENUM } from '../roles';
+
 import { AgentAwsKey } from './key';
 import { AgentAwsUser } from './user';
 

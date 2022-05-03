@@ -1,4 +1,5 @@
 import { deleteAgentKeys } from '../src/agents/gcp';
+
 import { getAgentConfig, getEnvironment } from './utils';
 
 async function main() {
