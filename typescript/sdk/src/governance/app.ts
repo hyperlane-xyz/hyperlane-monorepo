@@ -1,15 +1,12 @@
-import { GovernanceContracts } from '.';
-import { Call } from '..';
-import { ethers } from 'ethers';
-
 import { GovernanceRouter } from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
-
+import { ethers } from 'ethers';
+import { GovernanceContracts } from '.';
+import { Call } from '..';
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
 import { ChainMap, ChainName, ChainNameToDomainId } from '../types';
 import { objMap, promiseObjAll } from '../utils';
-
 import { GovernanceAddresses } from './contracts';
 import { environments } from './environments';
 
@@ -33,7 +30,7 @@ export class AbacusGovernance<
 
   static fromEnvironment(
     name: EnvironmentName,
-    multiProvider: MultiProvider<keyof Environments[typeof name]>,
+    multiProvider: MultiProvider<any>,
   ) {
     return new AbacusGovernance(environments[name], multiProvider);
   }
