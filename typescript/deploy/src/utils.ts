@@ -1,4 +1,3 @@
-import { NonceManager } from '@ethersproject/experimental';
 import { ethers } from 'ethers';
 import yargs from 'yargs';
 
@@ -101,31 +100,4 @@ export const initHardhatMultiProvider = <Networks extends ChainName>(
   const multiProvider = new MultiProvider(networkProviders);
   registerTransactionConfigs(multiProvider, environment.transactionConfigs);
   return multiProvider;
-};
-
-export const getTestConnectionManagers = <N extends ChainName>(
-  multiProvider: MultiProvider<N>,
-): RouterConfig<N> => {
-  const entries = multiProvider
-    .networks()
-    .map((network) => [network, ethers.constants.AddressZero]);
-  return { abacusConnectionManager: Object.fromEntries(entries) };
-};
-
-export const getHardhatSigner = (): ethers.Signer => {
-  // Hardhat account 0
-  const key =
-    '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-  const provider = new ethers.providers.JsonRpcProvider(
-    'http://localhost:8545',
-  );
-
-  const wallet = new ethers.Wallet(key, provider);
-  return new NonceManager(wallet);
-};
-
-export const registerHardhatSigner = <Networks extends ChainName>(
-  multiProvider: MultiProvider<Networks>,
-) => {
-  registerSigner(multiProvider, getHardhatSigner());
 };
