@@ -1,6 +1,3 @@
-import { ethers } from 'hardhat';
-
-import { initHardhatMultiProvider } from '@abacus-network/deploy/dist/src/utils';
 import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
 
 import { AbacusCoreChecker } from '../src/core';
@@ -12,8 +9,7 @@ async function check() {
   const environment = await getEnvironment();
 
   const config = await getCoreEnvironmentConfig(environment);
-  const [signer] = await ethers.getSigners();
-  const multiProvider = initHardhatMultiProvider(config, signer);
+  const multiProvider = await config.getMultiProvider();
 
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
 

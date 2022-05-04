@@ -1,6 +1,3 @@
-import { ethers } from 'hardhat';
-
-import { initHardhatMultiProvider } from '@abacus-network/deploy/dist/src/utils';
 import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
 
 import { AbacusCoreGovernor, CoreViolationType } from '../src/core';
@@ -8,10 +5,9 @@ import { AbacusCoreGovernor, CoreViolationType } from '../src/core';
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
-  const [signer] = await ethers.getSigners();
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);
-  const multiProvider = initHardhatMultiProvider(config, signer);
+  const multiProvider = await config.getMultiProvider();
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
   if (environment !== 'test') {
     throw new Error(`No governanace addresses for ${environment} in SDK`);
