@@ -36,7 +36,12 @@ export async function getMultiProviderFromGCP<Networks extends ChainName>(
     objMap(configs, async (domain, config) => {
       const provider = await fetchProvider(environment, domain);
       const signer = await fetchSigner(environment, domain, provider);
-      return [domain, { provider, signer, ...config }];
+      return {
+        provider,
+        signer,
+        overrides: config.overrides,
+        confirmations: config.confirmations,
+      };
     }),
   );
   return new MultiProvider(connections);
