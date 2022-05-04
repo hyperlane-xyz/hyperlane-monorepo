@@ -1,9 +1,12 @@
-import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
-import { utils } from '@abacus-network/utils';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { abacus, ethers } from 'hardhat';
+
+import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
+import { utils } from '@abacus-network/utils';
+
 import { GovernanceRouter, TestSet, TestSet__factory } from '../../types';
+
 import { GovernanceConfig, GovernanceDeploy } from './lib/GovernanceDeploy';
 import { formatCall, increaseTimestampBy } from './lib/utils';
 
@@ -153,9 +156,10 @@ describe('GovernanceRouter', async () => {
 
     it('calls Outbox#checkpoint when setting a remote governor', async () => {
       const newGovernor = governor.address;
-      await expect(
-        router.setGovernorRemote(remoteDomain, newGovernor),
-      ).to.emit(outbox, 'Checkpoint');
+      await expect(router.setGovernorRemote(remoteDomain, newGovernor)).to.emit(
+        outbox,
+        'Checkpoint',
+      );
     });
 
     it('governor can set remote abacusConnectionManager', async () => {
@@ -185,7 +189,6 @@ describe('GovernanceRouter', async () => {
         .to.emit(interchainGasPaymaster, 'GasPayment')
         .withArgs(leafIndex, testInterchainGasPayment);
     });
-
 
     it('calls Outbox#checkpoint when setting a remote abacusConnectionManager', async () => {
       await expect(

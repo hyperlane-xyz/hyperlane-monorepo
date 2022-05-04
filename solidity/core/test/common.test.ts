@@ -1,8 +1,8 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { ethers } from 'hardhat';
 
-import { TestCommon__factory, TestCommon } from '../types';
+import { TestCommon, TestCommon__factory } from '../types';
 
 const localDomain = 1000;
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';

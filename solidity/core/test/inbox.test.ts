@@ -1,7 +1,10 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { ethers } from 'hardhat';
 import { expect } from 'chai';
+import { ethers } from 'hardhat';
+
 import { types, utils } from '@abacus-network/utils';
+import { MessageStatus } from '@abacus-network/utils/dist/src/types';
+
 import {
   BadRecipient1__factory,
   BadRecipient3__factory,
@@ -14,7 +17,6 @@ import {
   TestValidatorManager,
   TestValidatorManager__factory,
 } from '../types';
-import { MessageStatus } from '@abacus-network/utils/dist/src/types';
 
 const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json');
 const messageWithProof = require('../../../vectors/messageWithProof.json');

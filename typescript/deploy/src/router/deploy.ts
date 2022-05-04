@@ -1,10 +1,12 @@
-import { types, utils } from '@abacus-network/utils';
-import { AbacusCore } from '@abacus-network/sdk';
 import {
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
 } from '@abacus-network/core';
+import { AbacusCore } from '@abacus-network/sdk';
+import { types, utils } from '@abacus-network/utils';
+
 import { AbacusAppDeployer } from '../deploy';
+
 import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<

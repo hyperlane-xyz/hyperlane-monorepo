@@ -1,10 +1,11 @@
-import { ethers } from 'hardhat';
-import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+
 import {
-  Outbox__factory,
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
+  Outbox__factory,
 } from '@abacus-network/core';
 
 import {

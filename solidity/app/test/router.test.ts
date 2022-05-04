@@ -1,13 +1,13 @@
-import { ethers } from 'hardhat';
-import { expect } from 'chai';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+
 import {
-  Outbox__factory,
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
-  Outbox,
-  InterchainGasPaymaster__factory,
   InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
+  Outbox,
 } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
@@ -157,8 +157,10 @@ describe('Router', async () => {
       });
 
       it('does not trigger an InterchainGasPayment when not specified', async () => {
-        await expect(router.comboDispatch(destination, '0x', 0, false)).to.not.emit(interchainGasPaymaster, 'GasPayment');
-      })
+        await expect(
+          router.comboDispatch(destination, '0x', 0, false),
+        ).to.not.emit(interchainGasPaymaster, 'GasPayment');
+      });
 
       it('checkpoints when specified', async () => {
         await expect(router.comboDispatch(destination, '0x', 0, true)).to.emit(
@@ -168,11 +170,10 @@ describe('Router', async () => {
       });
 
       it('does not checkpoint when not specified', async () => {
-        await expect(router.comboDispatch(destination, '0x', 0, false)).to.not.emit(
-          outbox,
-          'Checkpoint',
-        );
-      })
+        await expect(
+          router.comboDispatch(destination, '0x', 0, false),
+        ).to.not.emit(outbox, 'Checkpoint');
+      });
     });
 
     describe('without a remote router enrolled', () => {

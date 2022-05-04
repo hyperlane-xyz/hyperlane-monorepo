@@ -1,12 +1,15 @@
-import { ChainName } from '@abacus-network/sdk';
 import {
-  S3Client,
   CreateBucketCommand,
   ListBucketsCommand,
   PutBucketPolicyCommand,
+  S3Client,
 } from '@aws-sdk/client-s3';
-import { KEY_ROLE_ENUM } from '../../agents';
+
+import { ChainName } from '@abacus-network/sdk';
+
 import { AgentConfig } from '../../config';
+import { KEY_ROLE_ENUM } from '../roles';
+
 import { AgentAwsKey } from './key';
 import { AgentAwsUser } from './user';
 
@@ -83,8 +86,8 @@ export class ValidatorAgentAwsUser<
   key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
     return new AgentAwsKey<Networks>(
       agentConfig,
-      this.chainName,
       this.role,
+      this.chainName,
       this.index,
     );
   }

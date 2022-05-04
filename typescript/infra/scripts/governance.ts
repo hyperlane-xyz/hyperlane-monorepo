@@ -1,4 +1,8 @@
 import { AbacusCore, coreAddresses } from '@abacus-network/sdk';
+
+import { AbacusCoreDeployer } from '../src/core';
+import { AbacusGovernanceDeployer } from '../src/governance';
+
 import {
   getEnvironment,
   getGovernanceConfig,
@@ -6,8 +10,6 @@ import {
   getGovernanceVerificationDirectory,
   registerMultiProvider,
 } from './utils';
-import { AbacusCoreDeployer } from '../src/core';
-import { AbacusGovernanceDeployer } from '../src/governance';
 
 async function main() {
   const environment = await getEnvironment();

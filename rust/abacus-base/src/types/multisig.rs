@@ -5,6 +5,7 @@ use ethers::prelude::Address;
 use ethers::types::H256;
 
 use color_eyre::Result;
+use tracing::{debug, instrument};
 
 use crate::{CheckpointSyncer, CheckpointSyncers};
 
@@ -28,6 +29,7 @@ impl MultisigCheckpointSyncer {
 
     /// Fetches a MultisigSignedCheckpoint if there is a quorum.
     /// Returns Ok(None) if there is no quorum.
+    #[instrument(err, skip(self))]
     pub async fn fetch_checkpoint(&self, index: u32) -> Result<Option<MultisigSignedCheckpoint>> {
         // Keeps track of signed validator checkpoints for a particular root.
         // In practice, it's likely that validators will all sign the same root for a
@@ -73,9 +75,9 @@ impl MultisigCheckpointSyncer {
                 // If we've hit a quorum, create a MultisigSignedCheckpoint
                 if signature_count >= self.threshold {
                     if let Some(signed_checkpoints) = signed_checkpoints_per_root.get(&root) {
-                        return Ok(Some(MultisigSignedCheckpoint::try_from(
-                            signed_checkpoints,
-                        )?));
+                        let checkpoint = MultisigSignedCheckpoint::try_from(signed_checkpoints)?;
+                        debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
+                        return Ok(Some(checkpoint));
                     }
                 }
             }
@@ -92,6 +94,7 @@ impl MultisigCheckpointSyncer {
     /// Note it's possible for both strategies for finding the latest index to not find a quorum.
     /// A more robust implementation should be considered in the future that indexes historical
     /// checkpoint indices.
+    #[instrument(err, skip(self))]
     pub async fn latest_index(&self) -> Result<Option<u32>> {
         // Get the latest_index from each validator's checkpoint syncer.
         let mut latest_indices = Vec::with_capacity(self.checkpoint_syncers.len());
@@ -101,9 +104,12 @@ impl MultisigCheckpointSyncer {
                 latest_indices.push(index);
             }
         }
+        debug!(latest_indices=?latest_indices, "Fetched latest indices from checkpoint syncers");
+
         if latest_indices.is_empty() {
             return Ok(None);
         }
+
         // Sort in descending order to iterate through higher indices first.
         latest_indices.sort_by(|a, b| b.cmp(a));
 

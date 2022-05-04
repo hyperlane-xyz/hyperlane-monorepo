@@ -1,22 +1,26 @@
-import { ChainName } from '@abacus-network/sdk';
-import { KEY_ROLE_ENUM } from '..';
-import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import {
+  AliasListEntry,
   CreateAliasCommand,
   CreateKeyCommand,
   DeleteAliasCommand,
   GetPublicKeyCommand,
+  KMSClient,
   KeySpec,
   KeyUsageType,
-  KMSClient,
   ListAliasesCommand,
+  ListAliasesCommandOutput,
   OriginType,
   PutKeyPolicyCommand,
   UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
-import { identifier } from '../agent';
+
+import { ChainName } from '@abacus-network/sdk';
+
+import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import { getEthereumAddress, sleep } from '../../utils/utils';
+import { keyIdentifier } from '../agent';
 import { AgentKey } from '../agent';
+import { KEY_ROLE_ENUM } from '../roles';
 
 interface UnfetchedKey {
   fetched: false;
@@ -29,26 +33,23 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
-  private environment: string;
+export class AgentAwsKey<
+  Networks extends ChainName,
+> extends AgentKey<Networks> {
   private client: KMSClient | undefined;
   private region: string;
   public remoteKey: RemoteKey = { fetched: false };
 
   constructor(
     agentConfig: AgentConfig<Networks>,
-    public readonly chainName: Networks,
-    public readonly role: KEY_ROLE_ENUM,
-    public readonly index?: number,
+    role: KEY_ROLE_ENUM,
+    chainName?: Networks,
+    index?: number,
   ) {
-    super();
+    super(agentConfig.environment, role, chainName, index);
     if (!agentConfig.aws) {
       throw new Error('Not configured as AWS');
     }
-    if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
-      throw new Error('Expected index for validator key');
-    }
-    this.environment = agentConfig.environment;
     this.region = agentConfig.aws.region;
   }
 
@@ -63,7 +64,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
   }
 
   get identifier() {
-    return `alias/${identifier(
+    return `alias/${keyIdentifier(
       this.environment,
       this.role,
       this.chainName,
@@ -101,6 +102,11 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
       // It can take a moment for the change to propagate
       await sleep(1000);
     }
+    await this.fetch();
+  }
+
+  async delete() {
+    throw Error('Not implemented yet');
   }
 
   // Allows the `userArn` to use the key
@@ -140,13 +146,8 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
 
   // Gets the Key's ID if it exists, undefined otherwise
   async getId() {
-    const client = await this.getClient();
-    const listAliasResponse = await client.send(
-      new ListAliasesCommand({ Limit: 100 }),
-    );
-    const match = listAliasResponse.Aliases!.find(
-      (_) => _.AliasName === this.identifier,
-    );
+    const aliases = await this.getAliases();
+    const match = aliases.find((_) => _.AliasName === this.identifier);
     return match?.TargetKeyId;
   }
 
@@ -155,7 +156,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
   }
 
   /**
-   * Creates the new key but doesn't acutally rotate it
+   * Creates the new key but doesn't actually rotate it
    * @returns The address of the new key
    */
   async update() {
@@ -173,18 +174,11 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
     const client = await this.getClient();
 
     // Get the key IDs
-    const listAliasResponse = await client.send(
-      new ListAliasesCommand({ Limit: 100 }),
-    );
-    const canonicalMatch = listAliasResponse.Aliases!.find(
-      (_) => _.AliasName === canonicalAlias,
-    );
-    const newMatch = listAliasResponse.Aliases!.find(
-      (_) => _.AliasName === newAlias,
-    );
-    const oldMatch = listAliasResponse.Aliases!.find(
-      (_) => _.AliasName === oldAlias,
-    );
+    // TODO handle cases when there are > 100 keys
+    const aliases = await this.getAliases();
+    const canonicalMatch = aliases.find((_) => _.AliasName === canonicalAlias);
+    const newMatch = aliases.find((_) => _.AliasName === newAlias);
+    const oldMatch = aliases.find((_) => _.AliasName === oldAlias);
     if (!canonicalMatch || !newMatch) {
       throw new Error(
         `Attempted to rotate keys but one of them does not exist. Old: ${canonicalMatch}, New: ${newMatch}`,
@@ -222,7 +216,7 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
 
   private requireFetched() {
     if (!this.remoteKey.fetched) {
-      throw new Error("Can't persist without address");
+      throw new Error('Key not fetched');
     }
   }
 
@@ -271,21 +265,9 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
 
   private async fetchAddressFromAws(keyId?: string) {
     const client = await this.getClient();
-    const alias = this.identifier;
 
     if (!keyId) {
-      const listAliasResponse = await client.send(
-        new ListAliasesCommand({ Limit: 100 }),
-      );
-
-      const match = listAliasResponse.Aliases!.find(
-        (_) => _.AliasName === alias,
-      );
-
-      if (!match || !match.TargetKeyId) {
-        throw new Error('Couldnt find key');
-      }
-      keyId = match.TargetKeyId;
+      keyId = await this.getId();
     }
 
     const publicKeyResponse = await client.send(
@@ -293,5 +275,34 @@ export class AgentAwsKey<Networks extends ChainName> extends AgentKey {
     );
 
     return getEthereumAddress(Buffer.from(publicKeyResponse.PublicKey!));
+  }
+
+  private async getAliases(): Promise<AliasListEntry[]> {
+    const client = await this.getClient();
+    let aliases: AliasListEntry[] = [];
+    let marker: string | undefined = undefined;
+    // List will output a max of 100 at a time, so we need to use marker
+    // to fetch all of them.
+    while (true) {
+      const listAliasResponse: ListAliasesCommandOutput = await client.send(
+        new ListAliasesCommand({
+          Limit: 100,
+          Marker: marker,
+        }),
+      );
+      if (
+        !listAliasResponse.Aliases ||
+        listAliasResponse.Aliases.length === 0
+      ) {
+        break;
+      }
+      aliases = aliases.concat(listAliasResponse.Aliases);
+      if (listAliasResponse.NextMarker) {
+        marker = listAliasResponse.NextMarker;
+      } else {
+        break;
+      }
+    }
+    return aliases;
   }
 }

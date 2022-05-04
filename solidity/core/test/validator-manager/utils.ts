@@ -1,4 +1,4 @@
-import { types, Validator } from '@abacus-network/utils';
+import { Validator, types } from '@abacus-network/utils';
 
 // Signs a checkpoint with the provided validators and returns
 // the signatures sorted by validator addresses in ascending order

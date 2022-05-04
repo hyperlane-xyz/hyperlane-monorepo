@@ -1,9 +1,9 @@
 import { InfrastructureConfig } from '../../config/infrastructure';
 import { fetchGCPSecret } from '../../utils/gcloud';
 import {
+  HelmCommand,
   addHelmRepoIfRequired,
   getDeployableHelmChartName,
-  HelmCommand,
   helmifyValues,
 } from '../../utils/helm';
 import { execCmd } from '../../utils/utils';
@@ -94,6 +94,6 @@ async function getPrometheusConfig(
 // Fetches a secret from GCP Secret Manager. The secret is expected to
 // be JSON with the shape of `PrometheusSecrets`.
 async function fetchPrometheusSecrets(): Promise<PrometheusSecrets> {
-  const secrets = await fetchGCPSecret('optics-prometheus-remote_write_config');
+  const secrets = await fetchGCPSecret('abacus-prometheus-remote_write_config');
   return secrets as PrometheusSecrets;
 }

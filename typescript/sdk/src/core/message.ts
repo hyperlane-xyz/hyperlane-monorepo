@@ -1,6 +1,7 @@
+import { AbacusCore } from '.';
+import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
-import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { keccak256 } from 'ethers/lib/utils';
 
 import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
@@ -9,7 +10,6 @@ import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { NameOrDomain } from '../types';
 import { delay } from '../utils';
 
-import { AbacusCore } from '.';
 import {
   AnnotatedCheckpoint,
   AnnotatedDispatch,

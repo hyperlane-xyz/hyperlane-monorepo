@@ -1,21 +1,22 @@
-import '@nomiclabs/hardhat-waffle';
 import '@nomiclabs/hardhat-etherscan';
+import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
-import { BadRandomRecipient__factory } from '@abacus-network/core';
-import { coreAddresses, AbacusCore } from '@abacus-network/sdk';
-import { utils, types } from '@abacus-network/utils';
 
-import { AbacusCoreDeployer } from './src/core';
-import { AbacusContractVerifier } from './src/verify';
-import { sleep } from './src/utils/utils';
+import { BadRandomRecipient__factory } from '@abacus-network/core';
+import { AbacusCore, coreAddresses } from '@abacus-network/sdk';
+import { types, utils } from '@abacus-network/utils';
+
 import {
-  getCoreVerificationDirectory,
+  getCoreConfig,
   getCoreContractsSdkFilepath,
   getCoreRustDirectory,
+  getCoreVerificationDirectory,
   registerMultiProvider,
-  getCoreConfig,
 } from './scripts/utils';
+import { AbacusCoreDeployer } from './src/core';
+import { sleep } from './src/utils/utils';
+import { AbacusContractVerifier } from './src/verify';
 
 const domainSummary = async (core: AbacusCore, domain: types.Domain) => {
   const contracts = core.mustGetContracts(domain);

@@ -1,23 +1,75 @@
-import { KEY_ROLE_ENUM } from '../agents';
+import { ChainName } from '@abacus-network/sdk';
 
-export abstract class AgentKey {
+import { KEY_ROLE_ENUM } from './roles';
+
+export abstract class AgentKey<Networks extends ChainName> {
+  constructor(
+    public environment: string,
+    public readonly role: KEY_ROLE_ENUM,
+    public readonly chainName?: Networks,
+    public readonly index?: number,
+  ) {}
+
   abstract get identifier(): string;
   abstract get address(): string;
 
   abstract fetch(): Promise<void>;
+
+  abstract createIfNotExists(): Promise<void>;
+  abstract delete(): Promise<void>;
+  // Returns new address
+  abstract update(): Promise<string>;
+
+  serializeAsAddress() {
+    return {
+      identifier: this.identifier,
+      address: this.address,
+    };
+  }
 }
 
 export function isValidatorKey(role: string) {
   return role === KEY_ROLE_ENUM.Validator;
 }
 
-export function identifier(
+function identifier(
+  isKey: boolean,
   environment: string,
   role: string,
-  chainName: string,
-  index: number | undefined,
+  chainName?: ChainName,
+  index?: number,
 ) {
-  return isValidatorKey(role)
-    ? `abacus-${environment}-key-${chainName}-${role}-${index}`
-    : `abacus-${environment}-key-${role}`;
+  const prefix = `abacus-${environment}-${isKey ? 'key-' : ''}`;
+  switch (role) {
+    case KEY_ROLE_ENUM.Validator:
+      if (index === undefined) {
+        throw Error('Expected index for validator key');
+      }
+      return `${prefix}${chainName}-${role}-${index}`;
+    case KEY_ROLE_ENUM.Relayer:
+      if (chainName === undefined) {
+        throw Error('Expected chainName for relayer key');
+      }
+      return `${prefix}${chainName}-${role}`;
+    default:
+      return `${prefix}${role}`;
+  }
+}
+
+export function keyIdentifier(
+  environment: string,
+  role: string,
+  chainName?: ChainName,
+  index?: number,
+) {
+  return identifier(true, environment, role, chainName, index);
+}
+
+export function userIdentifier(
+  environment: string,
+  role: string,
+  chainName?: ChainName,
+  index?: number,
+) {
+  return identifier(false, environment, role, chainName, index);
 }

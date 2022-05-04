@@ -1,12 +1,16 @@
-import { ethers } from 'ethers';
 import { NonceManager } from '@ethersproject/experimental';
-import { ChainName } from '@abacus-network/sdk';
 import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
+import { ethers } from 'ethers';
+
+import { ChainName } from '@abacus-network/sdk';
+
 import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
 
-export async function fetchSigner(
-  environment: string,
-  chainName: ChainName,
+import { ENVIRONMENTS_ENUM } from './environment';
+
+export async function fetchSigner<Networks extends ChainName>(
+  environment: ENVIRONMENTS_ENUM,
+  chainName: Networks,
 ): Promise<ethers.Signer> {
   const rpc = await getSecretRpcEndpoint(environment, chainName);
   const key = await getSecretDeployerKey(environment, chainName);

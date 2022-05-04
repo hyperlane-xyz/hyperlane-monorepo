@@ -1,4 +1,5 @@
 import { ethers } from 'ethers';
+
 import { types } from '@abacus-network/utils';
 
 /**
@@ -25,6 +26,10 @@ export enum Chains {
   ethereum,
   avalanche,
   polygon,
+  bsctestnet,
+  arbitrumrinkeby,
+  optimismkovan,
+  auroratestnet,
   test1,
   test2,
   test3,

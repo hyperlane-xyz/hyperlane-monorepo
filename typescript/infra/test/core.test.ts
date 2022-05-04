@@ -1,14 +1,16 @@
-import path from 'path';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
-import { types } from '@abacus-network/utils';
+import path from 'path';
+
 import { AbacusCore } from '@abacus-network/sdk';
-import { AbacusCoreDeployer, AbacusCoreChecker } from '../src/core';
+import { types } from '@abacus-network/utils';
+
 import {
   core as coreConfig,
   registerMultiProviderTest,
 } from '../config/environments/test';
 import { ENVIRONMENTS_ENUM } from '../src/config/environment';
+import { AbacusCoreChecker, AbacusCoreDeployer } from '../src/core';
 
 describe('core', async () => {
   const deployer = new AbacusCoreDeployer();

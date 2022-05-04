@@ -1,13 +1,13 @@
 import {
+  GovernanceRouter,
+  GovernanceRouter__factory,
+} from '@abacus-network/apps';
+import {
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
 } from '@abacus-network/core';
-import {
-  GovernanceRouter,
-  GovernanceRouter__factory,
-} from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 
 import { AbacusAppContracts } from '../contracts';

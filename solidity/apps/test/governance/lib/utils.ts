@@ -1,5 +1,6 @@
-import { types, utils } from '@abacus-network/utils';
 import { ethers } from 'ethers';
+
+import { types, utils } from '@abacus-network/utils';
 
 export enum GovernanceMessage {
   CALL = 1,

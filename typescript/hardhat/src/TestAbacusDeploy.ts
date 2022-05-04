@@ -1,6 +1,8 @@
 import { ethers } from 'ethers';
 import { types } from '@abacus-network/utils';
 import {
+  AbacusConnectionManager,
+  AbacusConnectionManager__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
   Outbox,
@@ -9,8 +11,6 @@ import {
   TestInbox__factory,
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
-  AbacusConnectionManager,
-  AbacusConnectionManager__factory,
 } from '@abacus-network/core';
 import { TestDeploy } from './TestDeploy';
 import { addressToBytes32 } from '@abacus-network/utils/dist/src/utils';

@@ -1,17 +1,17 @@
-import { ethers } from 'hardhat';
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ContractTransaction } from 'ethers';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { ethers } from 'hardhat';
 
 import {
-  InterchainGasPaymaster,
-  InterchainGasPaymaster__factory,
-  TestOutbox,
-  TestOutbox__factory,
-  TestInbox,
-  TestInbox__factory,
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
+  TestInbox,
+  TestInbox__factory,
+  TestOutbox,
+  TestOutbox__factory,
 } from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';

@@ -1,6 +1,7 @@
 use core::str::FromStr;
 use ethers::types::Address;
 use std::collections::HashMap;
+use tracing::instrument;
 
 use abacus_core::SignedCheckpoint;
 use async_trait::async_trait;
@@ -77,6 +78,7 @@ pub enum CheckpointSyncers {
 
 #[async_trait]
 impl CheckpointSyncer for CheckpointSyncers {
+    #[instrument(err, skip(self), level = "debug")]
     /// Read the highest index of this Syncer
     async fn latest_index(&self) -> Result<Option<u32>> {
         match self {
@@ -84,6 +86,8 @@ impl CheckpointSyncer for CheckpointSyncers {
             CheckpointSyncers::S3(syncer) => syncer.latest_index().await,
         }
     }
+
+    #[instrument(err, skip(self))]
     /// Attempt to fetch the signed checkpoint at this index
     async fn fetch_checkpoint(&self, index: u32) -> Result<Option<SignedCheckpoint>> {
         match self {
@@ -91,6 +95,8 @@ impl CheckpointSyncer for CheckpointSyncers {
             CheckpointSyncers::S3(syncer) => syncer.fetch_checkpoint(index).await,
         }
     }
+
+    #[instrument(err, skip(self))]
     /// Write the signed checkpoint to this syncer
     async fn write_checkpoint(&self, signed_checkpoint: SignedCheckpoint) -> Result<()> {
         match self {

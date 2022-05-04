@@ -1,18 +1,18 @@
 import {
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
-  UpgradeBeaconController,
-  UpgradeBeaconController__factory,
-  OutboxValidatorManager,
-  OutboxValidatorManager__factory,
+  Inbox,
   InboxValidatorManager,
   InboxValidatorManager__factory,
-  Outbox,
-  Outbox__factory,
-  Inbox,
   Inbox__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
+  Outbox,
+  OutboxValidatorManager,
+  OutboxValidatorManager__factory,
+  Outbox__factory,
+  UpgradeBeaconController,
+  UpgradeBeaconController__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 

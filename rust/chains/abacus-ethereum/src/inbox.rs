@@ -233,7 +233,7 @@ where
         Ok(self.contract.remote_domain().call().await?)
     }
 
-    #[tracing::instrument(err)]
+    #[tracing::instrument(err, skip(proof))]
     async fn process(
         &self,
         message: &AbacusMessage,

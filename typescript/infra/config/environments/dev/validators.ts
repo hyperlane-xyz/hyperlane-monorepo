@@ -1,9 +1,11 @@
 import { ChainName } from '@abacus-network/sdk';
-import { DevNetworks } from './domains';
+
 import {
-  CheckpointSyncerType,
   ChainValidatorSets,
+  CheckpointSyncerType,
 } from '../../../src/config/agent';
+
+import { DevNetworks } from './domains';
 
 const s3BucketRegion = 'us-east-1';
 
