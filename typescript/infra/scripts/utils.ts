@@ -1,10 +1,18 @@
 import path from 'path';
 
-import { utils } from '@abacus-network/deploy';
-import { AllChains } from '@abacus-network/sdk';
+import { TransactionConfig, utils } from '@abacus-network/deploy';
+import {
+  AllChains,
+  ChainMap,
+  ChainName,
+  IDomainConnection,
+  MultiProvider,
+} from '@abacus-network/sdk';
+import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
+import { fetchProvider, fetchSigner } from '../src/config/chain';
 
 export function getEnvironment(): Promise<DeployEnvironment> {
   return utils.getEnvironment() as Promise<DeployEnvironment>;
@@ -18,6 +26,25 @@ export async function getCoreEnvironmentConfig(
   environment: DeployEnvironment,
 ): Promise<CoreEnvironmentConfig<any>> {
   return (await import(moduleName(environment))).environment;
+}
+
+export async function getMultiProviderFromGCP<Networks extends ChainName>(
+  configs: ChainMap<Networks, TransactionConfig>,
+  environment: DeployEnvironment,
+): Promise<MultiProvider<Networks>> {
+  const connections = await promiseObjAll<Record<Networks, IDomainConnection>>(
+    objMap(configs, async (domain, config) => {
+      const provider = await fetchProvider(environment, domain);
+      const signer = await fetchSigner(environment, domain, provider);
+      return {
+        provider,
+        signer,
+        overrides: config.overrides,
+        confirmations: config.confirmations,
+      };
+    }),
+  );
+  return new MultiProvider(connections);
 }
 
 function getContractsSdkFilepath(mod: string, environment: DeployEnvironment) {

@@ -45,7 +45,7 @@ export {
   GovernanceContracts,
   governanceEnvironments,
 } from './governance';
-export { DomainConnection, MultiProvider } from './provider';
+export { IDomainConnection, DomainConnection, MultiProvider } from './provider';
 export {
   AllChains,
   ChainMap,

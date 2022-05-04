@@ -1,7 +1,3 @@
-import { ethers } from 'hardhat';
-
-import { utils } from '@abacus-network/deploy';
-
 import { AbacusCoreDeployer } from '../src/core';
 
 import {
@@ -13,15 +9,14 @@ import {
 } from './utils';
 
 async function main() {
-  const [signer] = await ethers.getSigners();
   const environment = await getEnvironment();
   const config = await getCoreEnvironmentConfig(environment);
-  const multiProvider = utils.initHardhatMultiProvider(config, signer);
-
+  const multiProvider = await config.getMultiProvider();
   const deployer = new AbacusCoreDeployer(
     multiProvider,
     config.core.validatorManagers,
   );
+  return;
   const addresses = await deployer.deploy();
 
   deployer.writeContracts(addresses, getCoreContractsSdkFilepath(environment));

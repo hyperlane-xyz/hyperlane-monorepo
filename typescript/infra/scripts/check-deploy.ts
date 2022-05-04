@@ -1,7 +1,8 @@
-import { ethers } from 'hardhat';
-
-import { utils } from '@abacus-network/deploy';
-import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  AbacusGovernance,
+  MultiProvider,
+} from '@abacus-network/sdk';
 
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusGovernanceChecker } from '../src/governance';
@@ -10,13 +11,9 @@ import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {
   const environment = await getEnvironment();
-  if (environment !== 'test') {
-    throw new Error(`Do not have addresses for ${environment} in SDK`);
-  }
 
   const config = await getCoreEnvironmentConfig(environment);
-  const [signer] = await ethers.getSigners();
-  const multiProvider = utils.initHardhatMultiProvider(config, signer);
+  const multiProvider = new MultiProvider(['kovan']);
 
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
   const governance = AbacusGovernance.fromEnvironment(

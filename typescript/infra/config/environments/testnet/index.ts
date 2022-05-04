@@ -1,5 +1,30 @@
-export { agent } from './agent';
-export { core } from './core';
-export { domainNames, registerMultiProvider } from './domains';
-export { governance } from './governance';
-export { infrastructure } from './infrastructure';
+import { CoreEnvironmentConfig } from '../../../src/config';
+import { configs } from '../../networks/testnets';
+
+import { agent } from './agent';
+import { core } from './core';
+import { getMultiProvider } from './domains';
+import { governance } from './governance';
+import { infrastructure } from './infrastructure';
+
+const coreConfig = {
+  alfajores: configs.alfajores,
+  kovan: configs.kovan,
+  fuji: configs.fuji,
+  mumbai: configs.mumbai,
+  bsctestnet: configs.kovan,
+  arbitrumrinkeby: configs.arbitrumrinkeby,
+  auroratestnet: configs.auroratestnet,
+  optimismkovan: configs.optimismkovan,
+};
+
+type corenet = keyof typeof coreConfig;
+
+export const environment: CoreEnvironmentConfig<corenet> = {
+  transactionConfigs: coreConfig,
+  agent,
+  core,
+  governance,
+  infra: infrastructure,
+  getMultiProvider,
+};
