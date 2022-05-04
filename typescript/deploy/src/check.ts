@@ -16,16 +16,20 @@ export interface Ownable {
 }
 
 export abstract class AbacusAppChecker<
-  N extends ChainName,
-  A extends AbacusApp<any, N>,
-  C,
+  Networks extends ChainName,
+  App extends AbacusApp<any, Networks>,
+  Config,
 > {
-  readonly multiProvider: MultiProvider<N>;
-  readonly app: A;
-  readonly config: C;
+  readonly multiProvider: MultiProvider<Networks>;
+  readonly app: App;
+  readonly config: Config;
   readonly violations: CheckerViolation[];
 
-  constructor(multiProvider: MultiProvider<N>, app: A, config: C) {
+  constructor(
+    multiProvider: MultiProvider<Networks>,
+    app: App,
+    config: Config,
+  ) {
     this.multiProvider = multiProvider;
     this.app = app;
     this.violations = [];
@@ -39,7 +43,7 @@ export abstract class AbacusAppChecker<
   }
 
   async checkUpgradeBeacon(
-    network: N,
+    network: Networks,
     name: string,
     proxiedAddress: ProxiedAddress,
   ) {
