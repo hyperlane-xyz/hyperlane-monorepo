@@ -1,5 +1,4 @@
-import { ethers } from 'ethers';
-import { types } from '@abacus-network/utils';
+import { TestDeploy } from './TestDeploy';
 import {
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
@@ -12,8 +11,9 @@ import {
   UpgradeBeaconController,
   UpgradeBeaconController__factory,
 } from '@abacus-network/core';
-import { TestDeploy } from './TestDeploy';
+import { types } from '@abacus-network/utils';
 import { addressToBytes32 } from '@abacus-network/utils/dist/src/utils';
+import { ethers } from 'ethers';
 
 export type TestAbacusConfig = {
   signer: Record<types.Domain, ethers.Signer>;

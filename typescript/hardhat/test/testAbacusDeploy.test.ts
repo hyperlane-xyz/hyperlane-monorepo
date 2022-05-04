@@ -1,10 +1,8 @@
-import { ethers } from 'hardhat';
-import { expect } from 'chai';
-
+import { TestAbacusDeploy } from '..';
 import { TestRecipient__factory } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
-
-import { TestAbacusDeploy } from '..';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
