@@ -36,6 +36,14 @@ export abstract class AbacusAppChecker<
     this.config = config;
   }
 
+  abstract checkDomain(network: Networks): Promise<void>;
+
+  async check() {
+    return Promise.all(
+      this.app.networks().map((network) => this.checkDomain(network)),
+    );
+  }
+
   addViolation(violation: CheckerViolation) {
     if (!this.isDuplicateViolation(violation)) {
       this.violations.push(violation);
@@ -59,7 +67,7 @@ export abstract class AbacusAppChecker<
     }
   }
 
-  async checkOwnership(
+  static async checkOwnership(
     owner: types.Address,
     ownables: Ownable[],
   ): Promise<void> {

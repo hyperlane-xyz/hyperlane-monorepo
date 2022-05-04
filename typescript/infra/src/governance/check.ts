@@ -1,8 +1,14 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { AbacusRouterChecker, Ownable } from '@abacus-network/deploy';
-import { AbacusGovernance, ChainName } from '@abacus-network/sdk';
+import { AbacusRouterChecker } from '@abacus-network/deploy';
+import {
+  AbacusGovernance,
+  ChainMap,
+  ChainName,
+  MultiProvider,
+  utils,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 import { GovernanceConfig } from './types';
@@ -12,13 +18,32 @@ export class AbacusGovernanceChecker<
 > extends AbacusRouterChecker<
   Networks,
   AbacusGovernance<Networks>,
-  GovernanceConfig<Networks>
+  GovernanceConfig<Networks> & {
+    owners: ChainMap<Networks, types.Address>;
+  }
 > {
-  async checkDomainAddresses(
-    network: Networks,
-    owner: types.Address,
-  ): Promise<void> {
-    await super.checkDomain(network, owner);
+  constructor(
+    multiProvider: MultiProvider<Networks>,
+    app: AbacusGovernance<Networks>,
+    config: GovernanceConfig<Networks>,
+  ) {
+    const owners = utils.objMap(
+      config.addresses,
+      (_, a) => a.governor ?? ethers.constants.AddressZero,
+    );
+    super(multiProvider, app, { ...config, owners });
+  }
+
+  async checkOwnership(network: Networks): Promise<void> {
+    const contracts = this.app.getContracts(network);
+    const routerOwner = await contracts.router.owner();
+    const ubcOwner = await contracts.upgradeBeaconController.owner();
+    expect(routerOwner).to.equal(this.config.owners[network]);
+    expect(ubcOwner).to.equal(contracts.router.address);
+  }
+
+  async checkDomain(network: Networks): Promise<void> {
+    await super.checkDomain(network);
     await this.checkProxiedContracts(network);
     await this.checkRecoveryManager(network);
   }
@@ -33,24 +58,10 @@ export class AbacusGovernanceChecker<
     );
   }
 
-  async checkDomainOwnership(network: Networks): Promise<void> {
-    const contracts = this.app.getContracts(network);
-    await this.checkOwnership(contracts.router.address, this.ownables(network));
-
-    // Router should be owned by governor, or null address if not configured.
-    const actual = await contracts.router.governor();
-    const addresses = this.config.addresses[network];
-    if (addresses.governor) {
-      expect(actual).to.equal(addresses.governor);
-    } else {
-      expect(actual).to.equal(ethers.constants.AddressZero);
-    }
-  }
-
-  ownables(network: Networks): Ownable[] {
-    const contracts = this.app.getContracts(network);
-    return super.ownables(network).concat(contracts.upgradeBeaconController);
-  }
+  // ownables(network: Networks): Ownable[] {
+  //   const contracts = this.app.getContracts(network);
+  //   return super.ownables(network).concat(contracts.upgradeBeaconController);
+  // }
 
   async checkRecoveryManager(network: Networks): Promise<void> {
     const actual = await this.mustGetRouter(network).recoveryManager();

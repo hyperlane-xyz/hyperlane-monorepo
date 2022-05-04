@@ -49,16 +49,12 @@ describe('governance', async () => {
   });
 
   it('checks', async () => {
-    const owners = sdkUtils.objMap(
-      governanceConfig.addresses,
-      (_, a) => a.governor ?? ethers.constants.AddressZero,
-    );
     const governance = new AbacusGovernance(addresses, multiProvider);
     const checker = new AbacusGovernanceChecker(
       multiProvider,
       governance,
       governanceConfig,
     );
-    await checker.check(owners);
+    await checker.check();
   });
 });

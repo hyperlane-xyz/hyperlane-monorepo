@@ -8,36 +8,33 @@ import { AbacusAppChecker, Ownable } from '../check';
 import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterChecker<
-  N extends ChainName,
-  A extends AbacusApp<any, N>,
-  C extends RouterConfig<N>,
-> extends AbacusAppChecker<N, A, C> {
-  abstract mustGetRouter(network: N): Router; // TODO: implement on AbacusRouterApp
+  Networks extends ChainName,
+  App extends AbacusApp<any, Networks>,
+  Config extends RouterConfig<Networks> & {
+    owners: ChainMap<Networks, types.Address>;
+  },
+> extends AbacusAppChecker<Networks, App, Config> {
+  abstract mustGetRouter(network: Networks): Router; // TODO: implement on AbacusRouterApp
 
-  async check(owners: ChainMap<N, types.Address> | types.Address) {
-    const networks = this.app.networks();
-    return Promise.all(
-      networks.map((network) => {
-        let owner: types.Address =
-          typeof owners === 'string' ? owners : owners[network];
-        this.checkDomain(network, owner);
-      }),
-    );
+  checkOwnership(network: Networks) {
+    const owner = this.config.owners[network];
+    const ownables = this.ownables(network);
+    return AbacusAppChecker.checkOwnership(owner, ownables);
   }
 
-  async checkDomain(network: N, owner: types.Address): Promise<void> {
+  async checkDomain(network: Networks): Promise<void> {
     await this.checkEnrolledRouters(network);
-    await this.checkOwnership(owner, this.ownables(network));
+    await this.checkOwnership(network);
     await this.checkAbacusConnectionManager(network);
   }
 
-  async checkEnrolledRouters(network: N): Promise<void> {
+  async checkEnrolledRouters(network: Networks): Promise<void> {
     const router = this.mustGetRouter(network);
 
     await Promise.all(
       this.app.remotes(network).map(async (remoteNetwork) => {
         const remoteRouter = this.mustGetRouter(remoteNetwork);
-        const remoteChainId = domains[remoteNetwork as N].id; // TODO: remove cast
+        const remoteChainId = domains[remoteNetwork as Networks].id; // TODO: remove cast
         expect(await router.routers(remoteChainId)).to.equal(
           utils.addressToBytes32(remoteRouter.address),
         );
@@ -45,7 +42,7 @@ export abstract class AbacusRouterChecker<
     );
   }
 
-  ownables(network: N): Ownable[] {
+  ownables(network: Networks): Ownable[] {
     const ownables: Ownable[] = [this.mustGetRouter(network)];
     // If the config specifies that an abacusConnectionManager should have been deployed,
     // it should be owned by the owner.
@@ -59,7 +56,7 @@ export abstract class AbacusRouterChecker<
     return ownables;
   }
 
-  async checkAbacusConnectionManager(network: N): Promise<void> {
+  async checkAbacusConnectionManager(network: Networks): Promise<void> {
     if (
       this.config.abacusConnectionManager &&
       this.config.abacusConnectionManager[network] === undefined

@@ -23,18 +23,20 @@ async function check() {
     multiProvider,
   );
 
-  const governor = await governance.governor();
-
   const governanceChecker = new AbacusGovernanceChecker(
     multiProvider,
     governance,
     config.governance,
   );
-  await governanceChecker.check(governor);
+  await governanceChecker.check();
   governanceChecker.expectEmpty();
 
-  const coreChecker = new AbacusCoreChecker(multiProvider, core, config.core);
-  await coreChecker.checkOwners(governance.routerAddresses());
+  const owners = governance.routerAddresses();
+  const coreChecker = new AbacusCoreChecker(multiProvider, core, {
+    ...config.core,
+    owners,
+  });
+  await coreChecker.check();
   coreChecker.expectEmpty();
 }
 

@@ -39,18 +39,20 @@ export class AbacusCoreGovernor<
     governance: AbacusGovernance<Networks>,
     config: CoreConfig<Networks>,
   ) {
-    super(multiProvider, app, config);
+    const owners = governance.routerAddresses();
+    super(multiProvider, app, { ...config, owners });
     this.governance = governance;
   }
 
-  async check(): Promise<void> {
-    super.checkOwners(this.governance.routerAddresses());
+  async check(): Promise<void[]> {
+    await super.check();
     const txs = await Promise.all(
       this.violations.map((v) => this.handleViolation(v)),
     );
     txs.map((call) =>
       this.governance.pushCall(call.network as Networks, call.call),
     );
+    return [];
   }
 
   handleViolation(v: CheckerViolation): Promise<DomainedCall> {

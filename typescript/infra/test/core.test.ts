@@ -57,11 +57,10 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const checker = new AbacusCoreChecker(
-      multiProvider,
-      core,
-      environment.core,
-    );
-    await checker.checkOwners(owners);
+    const checker = new AbacusCoreChecker(multiProvider, core, {
+      ...environment.core,
+      owners,
+    });
+    await checker.check();
   });
 });

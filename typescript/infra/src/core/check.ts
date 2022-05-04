@@ -44,18 +44,12 @@ export class AbacusCoreChecker<
 > extends AbacusAppChecker<
   Networks,
   AbacusCore<Networks>,
-  CoreConfig<Networks>
-> {
-  async checkOwners(owners: ChainMap<Networks, types.Address>) {
-    return Promise.all(
-      this.app
-        .networks()
-        .map((network) => this.checkDomain(network, owners[network])),
-    );
+  CoreConfig<Networks> & {
+    owners: ChainMap<Networks, types.Address>;
   }
-
-  async checkDomain(network: Networks, owner: types.Address): Promise<void> {
-    await this.checkDomainOwnership(network, owner);
+> {
+  async checkDomain(network: Networks): Promise<void> {
+    await this.checkDomainOwnership(network);
     await this.checkProxiedContracts(network);
     await this.checkOutbox(network);
     await this.checkInboxes(network);
@@ -63,10 +57,8 @@ export class AbacusCoreChecker<
     await this.checkValidatorManagers(network);
   }
 
-  async checkDomainOwnership(
-    network: Networks,
-    owner: types.Address,
-  ): Promise<void> {
+  async checkDomainOwnership(network: Networks): Promise<void> {
+    const owner = this.config.owners[network];
     const contracts = this.app.getContracts(network);
     const ownables = [
       contracts.abacusConnectionManager,
@@ -77,7 +69,7 @@ export class AbacusCoreChecker<
         .map((inbox: any) => [inbox.inbox, inbox.validatorManager])
         .flat(),
     ];
-    return this.checkOwnership(owner, ownables);
+    return AbacusAppChecker.checkOwnership(owner, ownables);
   }
 
   async checkOutbox(network: Networks): Promise<void> {
