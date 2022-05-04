@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { ContractTransaction } from 'ethers';
 import { ethers } from 'hardhat';
 
 import {
@@ -8,6 +9,7 @@ import {
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
   Outbox,
+  Outbox__factory,
 } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
@@ -16,6 +18,7 @@ import { TestRouter, TestRouter__factory } from '../types';
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 const origin = 1;
 const destination = 2;
+const destinationWithoutRouter = 3;
 const message = '0xdeadbeef';
 
 describe('Router', async () => {
@@ -86,29 +89,7 @@ describe('Router', async () => {
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
   });
 
-  it('dispatches message to enrolled remote router', async () => {
-    const outboxFactory = new Outbox__factory(signer);
-    const outbox = await outboxFactory.deploy(origin);
-    await connectionManager.setOutbox(outbox.address);
-
-    const remote = nonOwner.address;
-    await router.enrollRemoteRouter(
-      destination,
-      utils.addressToBytes32(remote),
-    );
-    await expect(router.dispatchToRemoteRouter(destination, message)).to.emit(
-      outbox,
-      'Dispatch',
-    );
-  });
-
-  it('reverts when dispatching message to unenrolled remote router', async () => {
-    await expect(
-      router.dispatchToRemoteRouter(destination, message),
-    ).to.be.revertedWith('!router');
-  });
-
-  describe('#comboDispatch', () => {
+  describe('dispatch functions', () => {
     let outbox: Outbox;
     let interchainGasPaymaster: InterchainGasPaymaster;
     beforeEach(async () => {
@@ -121,6 +102,7 @@ describe('Router', async () => {
         '0x',
       );
       await connectionManager.setOutbox(outbox.address);
+
       const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(
         signer,
       );
@@ -128,60 +110,100 @@ describe('Router', async () => {
       await connectionManager.setInterchainGasPaymaster(
         interchainGasPaymaster.address,
       );
+
+      // Enroll a remote router on the destination domain.
+      // The address is arbitrary because no messages will actually be processed.
+      await router.enrollRemoteRouter(
+        destination,
+        utils.addressToBytes32(nonOwner.address),
+      );
     });
 
-    describe('with a remote router enrolled', () => {
-      beforeEach(async () => {
-        const remote = nonOwner.address;
-        await router.enrollRemoteRouter(
-          destination,
-          utils.addressToBytes32(remote),
+    // Helper for testing different variatuions of dispatch functions
+    const runDispatchFunctionTests = async (
+      dispatchFunction: (destination: number) => Promise<ContractTransaction>,
+      expectCheckpoint: boolean,
+      expectGasPayment: boolean,
+    ) => {
+      const expectAssertion = (
+        assertion: Chai.Assertion,
+        expected: boolean,
+      ) => {
+        return expected ? assertion : assertion.not;
+      };
+
+      it('dispatches a message', async () => {
+        await expect(dispatchFunction(destination)).to.emit(outbox, 'Dispatch');
+      });
+
+      it(`${
+        expectGasPayment ? 'pays' : 'does not pay'
+      } interchain gas`, async () => {
+        const assertion = expectAssertion(
+          expect(dispatchFunction(destination)).to,
+          expectGasPayment,
         );
+        await assertion.emit(interchainGasPaymaster, 'GasPayment');
       });
 
-      it('can call comboDispatch', async () => {
-        await expect(router.comboDispatch(destination, '0x', 0, false));
+      it(`${
+        expectCheckpoint ? 'creates' : 'does not create'
+      } a checkpoint`, async () => {
+        const assertion = expectAssertion(
+          expect(dispatchFunction(destination)).to,
+          expectCheckpoint,
+        );
+        await assertion.emit(outbox, 'Checkpoint');
       });
 
-      it('triggers an InterchainGasPayment when specified', async () => {
-        const testInterchainGasPayment = 1234;
+      it('reverts when dispatching a message to an unenrolled remote router', async () => {
         await expect(
-          router.comboDispatch(
-            destination,
+          dispatchFunction(destinationWithoutRouter),
+        ).to.be.revertedWith('!router');
+      });
+    };
+
+    describe('#dispatch', () => {
+      runDispatchFunctionTests(
+        (dest) => router.dispatch(dest, '0x'),
+        false,
+        false,
+      );
+    });
+
+    describe('#dispatchAndCheckpoint', () => {
+      runDispatchFunctionTests(
+        (dest) => router.dispatchAndCheckpoint(dest, '0x'),
+        true,
+        false,
+      );
+    });
+
+    describe('#dispatchWithGas', () => {
+      const testInterchainGasPayment = 1234;
+      runDispatchFunctionTests(
+        (dest) =>
+          router.dispatchWithGas(dest, '0x', testInterchainGasPayment, {
+            value: testInterchainGasPayment,
+          }),
+        false,
+        true,
+      );
+    });
+
+    describe('#dispatchWithGasAndCheckpoint', () => {
+      const testInterchainGasPayment = 1234;
+      runDispatchFunctionTests(
+        (dest) =>
+          router.dispatchWithGasAndCheckpoint(
+            dest,
             '0x',
             testInterchainGasPayment,
-            false,
             { value: testInterchainGasPayment },
           ),
-        ).to.emit(interchainGasPaymaster, 'GasPayment');
-      });
-
-      it('does not trigger an InterchainGasPayment when not specified', async () => {
-        await expect(
-          router.comboDispatch(destination, '0x', 0, false),
-        ).to.not.emit(interchainGasPaymaster, 'GasPayment');
-      });
-
-      it('checkpoints when specified', async () => {
-        await expect(router.comboDispatch(destination, '0x', 0, true)).to.emit(
-          outbox,
-          'Checkpoint',
-        );
-      });
-
-      it('does not checkpoint when not specified', async () => {
-        await expect(
-          router.comboDispatch(destination, '0x', 0, false),
-        ).to.not.emit(outbox, 'Checkpoint');
-      });
-    });
-
-    describe('without a remote router enrolled', () => {
-      it('reverts', async () => {
-        await expect(
-          router.comboDispatch(destination, '0x', 0, true),
-        ).to.revertedWith('!router');
-      });
+        true,
+        true,
+      );
     });
   });
 });

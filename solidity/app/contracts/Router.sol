@@ -4,6 +4,7 @@ pragma solidity >=0.6.11;
 // ============ Internal Imports ============
 import {AbacusConnectionClient} from "./AbacusConnectionClient.sol";
 import {IAbacusConnectionManager} from "@abacus-network/core/interfaces/IAbacusConnectionManager.sol";
+import {IInterchainGasPaymaster} from "@abacus-network/core/interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
 import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
 
@@ -122,30 +123,34 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      * @param _destination The domain of the chain to which to send the message
      * @param _msg The message to dispatch
      */
-    function _dispatchToRemoteRouter(uint32 _destination, bytes memory _msg)
+    function _dispatch(uint32 _destination, bytes memory _msg)
         internal
         returns (uint256)
     {
-        // ensure that destination chain has enrolled router
-        bytes32 _router = _mustHaveRemoteRouter(_destination);
-        return _outbox().dispatch(_destination, _router, _msg);
+        return _dispatch(_outbox(), _destination, _msg);
     }
 
-    /**
-     * @notice Pay for message processing on the destination
-     * @param _leafIndex The leaf index of the message to pay processing for
-     * @param _gasPayment The amount of native tokens to pay the Interchain Gas
-     * Paymaster to process the dispatched message.
-     */
-    function _payGasFor(uint256 _leafIndex, uint256 _gasPayment) internal {
-        _interchainGasPaymaster().payGasFor{value: _gasPayment}(_leafIndex);
+    function _dispatchAndCheckpoint(uint32 _destination, bytes memory _msg)
+        internal
+    {
+        IOutbox _outbox = _outbox();
+        _dispatch(_outbox, _destination, _msg);
+        _outbox.checkpoint();
     }
 
-    /**
-     * @notice Calls #checkpoint on the Outbox
-     */
-    function _checkpoint() internal {
-        _outbox().checkpoint();
+    function _dispatchWithGas(
+        uint32 _destination,
+        bytes memory _msg,
+        uint256 _gasPayment
+    ) internal {
+        IAbacusConnectionManager _abacusConnectionManager = abacusConnectionManager;
+        _dispatchWithGas(
+            _abacusConnectionManager.outbox(),
+            _abacusConnectionManager.interchainGasPaymaster(),
+            _destination,
+            _msg,
+            _gasPayment
+        );
     }
 
     /**
@@ -159,25 +164,46 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      * @param _msg The message to dispatch.
      * @param _gasPayment The amount of native tokens to pay the Interchain Gas
      * Paymaster to process the dispatched message.
-     * @param _shouldCheckpoint Whether checkpoint should be called on the Outbox
      */
-    function _comboDispatch(
+    function _dispatchWithGasAndCheckpoint(
         uint32 _destination,
         bytes memory _msg,
-        uint256 _gasPayment,
-        bool _shouldCheckpoint
+        uint256 _gasPayment
     ) internal {
         IAbacusConnectionManager _abacusConnectionManager = abacusConnectionManager;
-        IOutbox _outboxVar = _abacusConnectionManager.outbox();
+        IOutbox _outbox = _abacusConnectionManager.outbox();
+        _dispatchWithGas(
+            _outbox,
+            _abacusConnectionManager.interchainGasPaymaster(),
+            _destination,
+            _msg,
+            _gasPayment
+        );
+        _outbox.checkpoint();
+    }
+
+    // ============ Private functions ============
+
+    function _dispatch(
+        IOutbox _outbox,
+        uint32 _destination,
+        bytes memory _msg
+    ) private returns (uint256) {
+        // ensure that destination chain has enrolled router
         bytes32 _router = _mustHaveRemoteRouter(_destination);
-        uint256 leafIndex = _outboxVar.dispatch(_destination, _router, _msg);
+        return _outbox.dispatch(_destination, _router, _msg);
+    }
+
+    function _dispatchWithGas(
+        IOutbox _outbox,
+        IInterchainGasPaymaster _interchainGasPaymaster,
+        uint32 _destination,
+        bytes memory _msg,
+        uint256 _gasPayment
+    ) private {
+        uint256 _leafIndex = _dispatch(_outbox, _destination, _msg);
         if (_gasPayment > 0) {
-            _abacusConnectionManager.interchainGasPaymaster().payGasFor{
-                value: _gasPayment
-            }(leafIndex);
-        }
-        if (_shouldCheckpoint) {
-            _outboxVar.checkpoint();
+            _interchainGasPaymaster.payGasFor{value: _gasPayment}(_leafIndex);
         }
     }
 }
