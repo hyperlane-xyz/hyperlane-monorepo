@@ -27,26 +27,6 @@ describe('InterchainGasCalculator', () => {
     core.registerProvider('test1', provider);
     core.registerProvider('test2', provider);
 
-    const getValidatorManangerStub = sinon.stub(
-      core,
-      'mustGetInboxValidatorManager',
-    );
-    getValidatorManangerStub.callsFake(
-      (src: NameOrDomain, dest: NameOrDomain) => {
-        // Get the "real" return value of mustGetInboxValidatorManager.
-        // Ethers contracts are frozen using Object.freeze, so we make a copy
-        // of the object so we can stub `threshold`.
-        const validatorManager = Object.assign(
-          {},
-          getValidatorManangerStub.wrappedMethod.bind(core)(src, dest),
-        );
-        sinon
-          .stub(validatorManager, 'threshold')
-          .returns(Promise.resolve(BigNumber.from('2')));
-        return validatorManager;
-      },
-    );
-
     tokenPriceGetter = new MockTokenPriceGetter();
     // Origin domain token
     tokenPriceGetter.setTokenPrice(originDomain, 10);
@@ -63,6 +43,7 @@ describe('InterchainGasCalculator', () => {
   });
 
   afterEach(() => {
+    sinon.restore();
     provider.clearMethodResolveValues();
   });
 
@@ -199,6 +180,51 @@ describe('InterchainGasCalculator', () => {
       expect(
         (await calculator.suggestedGasPrice(destinationDomain)).toNumber(),
       ).to.equal(gasPrice);
+    });
+  });
+
+  describe('checkpointRelayGas', () => {
+    let threshold: number;
+
+    // Mock the return value of InboxValidatorManager.threshold
+    // to return `threshold`. Because the mocking involves a closure,
+    // changing `threshold` will change the return value of InboxValidatorManager.threshold.
+    before(() => {
+      const getValidatorManangerStub = sinon.stub(
+        core,
+        'mustGetInboxValidatorManager',
+      );
+      getValidatorManangerStub.callsFake(
+        (src: NameOrDomain, dest: NameOrDomain) => {
+          // Get the "real" return value of mustGetInboxValidatorManager.
+          // Ethers contracts are frozen using Object.freeze, so we make a copy
+          // of the object so we can stub `threshold`.
+          const validatorManager = Object.assign(
+            {},
+            getValidatorManangerStub.wrappedMethod.bind(core)(src, dest),
+          );
+          sinon
+            .stub(validatorManager, 'threshold')
+            .returns(Promise.resolve(BigNumber.from(threshold)));
+          return validatorManager;
+        },
+      );
+    });
+
+    it('scales the gas cost with the quorum threshold', async () => {
+      threshold = 2;
+      const gasWithThresholdLow = await calculator.checkpointRelayGas(
+        originDomain,
+        destinationDomain,
+      );
+
+      threshold = 3;
+      const gasWithThresholdHigh = await calculator.checkpointRelayGas(
+        originDomain,
+        destinationDomain,
+      );
+
+      expect(gasWithThresholdHigh.gt(gasWithThresholdLow)).to.be.true;
     });
   });
 });
