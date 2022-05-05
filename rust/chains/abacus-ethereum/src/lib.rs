@@ -27,6 +27,10 @@ mod inbox;
 #[cfg(not(doctest))]
 mod validator_manager;
 
+/// Retrying Provider
+mod retrying;
+pub use retrying::{RetryingProvider, RetryingProviderError};
+
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase")]
