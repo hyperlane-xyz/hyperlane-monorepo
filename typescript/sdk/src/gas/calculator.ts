@@ -294,9 +294,8 @@ export class InterchainGasCalculator {
 
   /**
    * @returns A generous estimation of the gas consumption of all prove and process
-   * operations in Inbox.sol, excluding:
-   * 1. Intrinsic gas.
-   * 2. Any gas consumed within a `handle` function when processing a message once called.
+   * operations within Inbox.sol, including intrinsic gas. Does not include any gas
+   * consumed within a message's recipient `handle` function.
    */
   get inboxProcessOverheadGas(): BigNumber {
     // This does not consider that different domains can possibly have different gas costs.
@@ -306,8 +305,8 @@ export class InterchainGasCalculator {
     // This number was arrived at by estimating the proving and processing of a message
     // whose body was small and whose recipient contract included only an empty fallback
     // function. The estimated gas cost was 86777, which included the intrinsic cost.
-    // 100,000 is chosen as a generous buffer for safety.
-    return BigNumber.from(100_000);
+    // 130,000 is chosen as a generous buffer for safety.
+    return BigNumber.from(130_000);
   }
 
   /**
