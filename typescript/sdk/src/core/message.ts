@@ -1,21 +1,18 @@
-import { AbacusCore } from '.';
+import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { BigNumber } from '@ethersproject/bignumber';
 import { arrayify, hexlify } from '@ethersproject/bytes';
 import { keccak256 } from 'ethers/lib/utils';
-
-import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
-
+import { AbacusCore } from '.';
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { MultiProvider } from '../provider';
 import {
   ChainName,
   ChainNameToDomainId,
   DomainIdToChainName,
-  NameOrDomain,
+  NameOrDomain
 } from '../types';
 import { delay } from '../utils';
-
 import {
   AnnotatedCheckpoint,
   AnnotatedDispatch,
@@ -26,8 +23,11 @@ import {
   DispatchEvent,
   DispatchTypes,
   ProcessArgs,
-  ProcessTypes,
+  ProcessTypes
 } from './events';
+
+
+
 
 export type ParsedMessage = {
   origin: number;
@@ -121,7 +121,7 @@ export class AbacusMessage {
 
     const messageNetworks = resolveNetworks(this.message);
     const mailboxes = core.getMailboxPair(
-      messageNetworks.origin as never, // TODO: Fix never type
+      messageNetworks.origin as never, // TODO: Fix never type that results from Exclude<T, T>
       messageNetworks.destination,
     );
 
