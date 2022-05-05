@@ -68,12 +68,12 @@ export class InterchainGasCalculator {
   }
 
   /**
-   * Calculates the estimated payment given an amount of gas the message's
-   * recipient `handle` function is expected to use denominated in the native
+   * Given an amount of gas the message's recipient `handle` function is expected
+   * to use, calculates the estimated payment denominated in the native
    * token of the origin chain. Considers the exchange rate between the native
    * tokens of the origin and destination chains, the suggested gas price on
    * the destination chain, gas costs incurred by a relayer when submitting a signed
-   * checkpoint to the destination chain, and the overhead gas cost of processing
+   * checkpoint to the destination chain, and the overhead gas cost in Inbox of processing
    * a message. Applies the multiplier `paymentEstimateMultiplier`.
    * @param originDomain The domain of the origin chain.
    * @param destinationDomain The domain of the destination chain.
