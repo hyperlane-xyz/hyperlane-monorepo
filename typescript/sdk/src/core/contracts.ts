@@ -26,9 +26,9 @@ import {
 } from '../types';
 import { objMap } from '../utils';
 
-export type MailboxAddresses = ProxiedAddress & {
-  validatorManager: types.Address;
-};
+type InboxAddress = ProxiedAddress
+type OutboxAddress = ProxiedAddress
+export type MailboxAddresses = (InboxAddress | OutboxAddress) & { validatorManager: types.Address }
 
 export type CoreContractAddresses<N extends ChainName, L extends N> = {
   upgradeBeaconController: types.Address;
