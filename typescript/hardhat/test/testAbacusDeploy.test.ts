@@ -36,14 +36,14 @@ describe('TestAbacusDeploy', async () => {
     ).to.emit(remoteOutbox, 'Dispatch');
   });
 
-  describe('without having called checkpoint', () => {
+  describe('without a created checkpoint', () => {
     it('does not process outbound messages', async () => {
       const responses = await abacus.processOutboundMessages(localDomain);
       expect(responses.get(remoteDomain)).to.be.undefined;
     });
   });
 
-  describe('with an explicit checkpoint', () => {
+  describe('with a checkpoint', () => {
     beforeEach(async () => {
       const localOutbox = abacus.outbox(localDomain);
       const remoteOutbox = abacus.outbox(remoteDomain);

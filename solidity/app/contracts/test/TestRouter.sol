@@ -30,13 +30,6 @@ contract TestRouter is Router {
         return _mustHaveRemoteRouter(_domain);
     }
 
-    function dispatchToRemoteRouter(uint32 _destination, bytes calldata _msg)
-        external
-        returns (uint256)
-    {
-        return _dispatch(_destination, _msg);
-    }
-
     function dispatch(uint32 _destination, bytes memory _msg) external {
         _dispatch(_destination, _msg);
     }

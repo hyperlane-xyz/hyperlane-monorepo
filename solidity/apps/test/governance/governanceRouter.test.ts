@@ -125,7 +125,7 @@ describe('GovernanceRouter', async () => {
         .withArgs(leafIndex, testInterchainGasPayment);
     });
 
-    it('calls Outbox#checkpoint for remote calls', async () => {
+    it('creates a checkpoint for remote calls', async () => {
       const value = 13;
       const call = formatCall(testSet, 'set', [value]);
       await expect(await router.callRemote(domains[1], [call])).to.emit(
@@ -154,7 +154,7 @@ describe('GovernanceRouter', async () => {
         .withArgs(leafIndex, testInterchainGasPayment);
     });
 
-    it('calls Outbox#checkpoint when setting a remote governor', async () => {
+    it('creates a checkpoint when setting a remote governor', async () => {
       const newGovernor = governor.address;
       await expect(router.setGovernorRemote(remoteDomain, newGovernor)).to.emit(
         outbox,
@@ -190,7 +190,7 @@ describe('GovernanceRouter', async () => {
         .withArgs(leafIndex, testInterchainGasPayment);
     });
 
-    it('calls Outbox#checkpoint when setting a remote abacusConnectionManager', async () => {
+    it('creates a checkpoint when setting a remote abacusConnectionManager', async () => {
       await expect(
         router.setAbacusConnectionManagerRemote(
           remoteDomain,
@@ -225,7 +225,7 @@ describe('GovernanceRouter', async () => {
         .withArgs(leafIndex, testInterchainGasPayment);
     });
 
-    it('calls Outbox#checkpoint when enrolling a remote router', async () => {
+    it('creates a checkpoint when enrolling a remote router', async () => {
       const newRouter = utils.addressToBytes32(router.address);
       await expect(
         router.enrollRemoteRouterRemote(remoteDomain, testDomain, newRouter),

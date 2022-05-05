@@ -119,12 +119,16 @@ describe('Router', async () => {
       );
     });
 
-    // Helper for testing different variatuions of dispatch functions
+    // Helper for testing different variations of dispatch functions
     const runDispatchFunctionTests = async (
-      dispatchFunction: (destination: number) => Promise<ContractTransaction>,
+      dispatchFunction: (
+        destination: number,
+        interchainGasPayment?: number,
+      ) => Promise<ContractTransaction>,
       expectCheckpoint: boolean,
       expectGasPayment: boolean,
     ) => {
+      // Allows a Chai Assertion to be programmatically negated
       const expectAssertion = (
         assertion: Chai.Assertion,
         expected: boolean,
@@ -139,11 +143,15 @@ describe('Router', async () => {
       it(`${
         expectGasPayment ? 'pays' : 'does not pay'
       } interchain gas`, async () => {
+        const testInterchainGasPayment = 1234;
+        const leafIndex = await outbox.count();
         const assertion = expectAssertion(
-          expect(dispatchFunction(destination)).to,
+          expect(dispatchFunction(destination, testInterchainGasPayment)).to,
           expectGasPayment,
         );
-        await assertion.emit(interchainGasPaymaster, 'GasPayment');
+        await assertion
+          .emit(interchainGasPaymaster, 'GasPayment')
+          .withArgs(leafIndex, testInterchainGasPayment);
       });
 
       it(`${
@@ -180,11 +188,10 @@ describe('Router', async () => {
     });
 
     describe('#dispatchWithGas', () => {
-      const testInterchainGasPayment = 1234;
       runDispatchFunctionTests(
-        (dest) =>
-          router.dispatchWithGas(dest, '0x', testInterchainGasPayment, {
-            value: testInterchainGasPayment,
+        (dest, interchainGasPayment = 0) =>
+          router.dispatchWithGas(dest, '0x', interchainGasPayment, {
+            value: interchainGasPayment,
           }),
         false,
         true,
@@ -192,14 +199,13 @@ describe('Router', async () => {
     });
 
     describe('#dispatchWithGasAndCheckpoint', () => {
-      const testInterchainGasPayment = 1234;
       runDispatchFunctionTests(
-        (dest) =>
+        (dest, interchainGasPayment = 0) =>
           router.dispatchWithGasAndCheckpoint(
             dest,
             '0x',
-            testInterchainGasPayment,
-            { value: testInterchainGasPayment },
+            interchainGasPayment,
+            { value: interchainGasPayment },
           ),
         true,
         true,
