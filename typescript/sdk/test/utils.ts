@@ -1,4 +1,5 @@
-import { ethers, FixedNumber } from 'ethers';
+import { FixedNumber, ethers } from 'ethers';
+
 import { NameOrDomain } from '../src';
 
 const ZERO_ADDRESS = ethers.constants.AddressZero;

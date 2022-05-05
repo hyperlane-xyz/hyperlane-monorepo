@@ -7,7 +7,7 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src",
+    "prettier": "prettier --write ./src ./test",
     "prepublishOnly": "npm run build",
     "test": "mocha --config .mocharc.json './test/**/*.test.ts'"
   },
