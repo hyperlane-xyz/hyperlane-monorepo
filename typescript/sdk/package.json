@@ -23,6 +23,7 @@
     "fs": "0.0.1-security",
     "mocha": "^9.2.2",
     "prettier": "^2.4.1",
+    "sinon": "^13.0.2",
     "typescript": "^4.4.3"
   },
   "dependencies": {
