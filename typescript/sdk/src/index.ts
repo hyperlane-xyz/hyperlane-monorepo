@@ -60,4 +60,4 @@ export {
   RemoteChainMap,
   Remotes,
 } from './types';
-export { utils } from './utils';
+export { utils, objMap, objMapEntries, promiseObjAll } from './utils';

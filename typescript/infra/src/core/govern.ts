@@ -14,7 +14,7 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  utils,
+  objMap,
 } from '@abacus-network/sdk';
 
 import {
@@ -42,7 +42,7 @@ export class AbacusCoreGovernor<
     config: ChainMap<Networks, CoreConfig>,
   ) {
     const owners = governance.routerAddresses();
-    const joinedConfigMap = utils.objMap(config, (network, coreConfig) => {
+    const joinedConfigMap = objMap(config, (network, coreConfig) => {
       return {
         ...coreConfig,
         owner: owners[network],

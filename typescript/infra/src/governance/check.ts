@@ -7,7 +7,7 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  utils,
+  objMap,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
@@ -27,7 +27,7 @@ export class AbacusGovernanceChecker<
     app: AbacusGovernance<Networks>,
     configMap: ChainMap<Networks, GovernanceConfig>,
   ) {
-    const joinedConfig = utils.objMap(configMap, (_, config) => ({
+    const joinedConfig = objMap(configMap, (_, config) => ({
       ...config,
       owner: config.governor ?? ethers.constants.AddressZero,
     }));

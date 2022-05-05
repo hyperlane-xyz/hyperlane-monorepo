@@ -25,7 +25,8 @@ import {
   RemoteChainMap,
   Remotes,
   domains,
-  utils as sdkUtils,
+  objMap,
+  promiseObjAll,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
@@ -191,7 +192,7 @@ export class AbacusCoreDeployer<
       ReturnType<AbacusCoreDeployer<Networks>['deploy']>
     >,
   ) {
-    sdkUtils.objMap(this.configMap, (network) => {
+    objMap(this.configMap, (network) => {
       const filepath = path.join(directory, `${network}_config.json`);
       const addresses = networkAddresses[network];
 
@@ -248,8 +249,8 @@ export class AbacusCoreDeployer<
     owners: ChainMap<CoreNetworks, types.Address>,
     multiProvider: MultiProvider<CoreNetworks>,
   ) {
-    return sdkUtils.promiseObjAll(
-      sdkUtils.objMap(core.contractsMap, async (network, coreContracts) => {
+    return promiseObjAll(
+      objMap(core.contractsMap, async (network, coreContracts) => {
         const owner = owners[network];
         const domainConnection = multiProvider.getDomainConnection(network);
         return AbacusCoreDeployer.transferOwnershipOfDomain(

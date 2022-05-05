@@ -7,8 +7,7 @@ import {
   ChainMap,
   CoreContractAddresses,
   MultiProvider,
-  utils as sdkUtils,
-  utils,
+  objMap,
 } from '@abacus-network/sdk';
 
 import { TestNetworks } from '../config/environments/test/domains';
@@ -34,7 +33,7 @@ describe('core', async () => {
     coreConfig = config.core;
     deployer = new AbacusCoreDeployer(multiProvider, coreConfig);
     const [, owner] = await ethers.getSigners();
-    owners = sdkUtils.objMap(config.transactionConfigs, () => owner.address);
+    owners = objMap(config.transactionConfigs, () => owner.address);
   });
 
   it('deploys', async () => {
@@ -54,7 +53,7 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const joinedConfig = utils.objMap(coreConfig, (network, config) => ({
+    const joinedConfig = objMap(coreConfig, (network, config) => ({
       ...config,
       owner: owners[network],
     }));

@@ -10,6 +10,8 @@ import {
   RouterAddresses,
   domains,
   utils as sdkUtils,
+  promiseObjAll,
+  objMap,
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
@@ -39,8 +41,8 @@ export abstract class AbacusRouterDeployer<
     const deploymentOutput = await super.deploy();
 
     // Make all routers aware of eachother.
-    await sdkUtils.promiseObjAll(
-      sdkUtils.objMap(deploymentOutput, async (local, addresses) => {
+    await promiseObjAll(
+      objMap(deploymentOutput, async (local, addresses) => {
         const localRouter = this.mustGetRouter(local, addresses);
         for (const remote of this.multiProvider.remotes(local)) {
           const remoteRouter = this.mustGetRouter(

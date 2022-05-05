@@ -6,7 +6,7 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  utils,
+  objMap,
 } from '@abacus-network/sdk';
 
 import { EnvironmentConfig, TransactionConfig } from './config';
@@ -27,7 +27,7 @@ export async function getEnvironment(): Promise<string> {
 export function getRouterConfig<N extends ChainName>(
   core: AbacusCore<N>,
 ): ChainMap<N, RouterConfig> {
-  return utils.objMap(core.contractsMap, (_, coreContacts) => ({
+  return objMap(core.contractsMap, (_, coreContacts) => ({
     abacusConnectionManager:
       coreContacts.contracts.abacusConnectionManager.address,
   }));
@@ -70,7 +70,7 @@ export const registerSigners = <Networks extends ChainName>(
   multiProvider: MultiProvider,
   signers: ChainMap<Networks, ethers.Signer>,
 ) =>
-  utils.objMap(signers, (network, signer) =>
+  objMap(signers, (network, signer) =>
     multiProvider.getDomainConnection(network).registerSigner(signer),
   );
 
@@ -83,7 +83,7 @@ export const initHardhatMultiProvider = <Networks extends ChainName>(
   environmentConfig: EnvironmentConfig<Networks>,
   signer: ethers.Signer,
 ): MultiProvider<Networks> => {
-  const networkProviders = utils.objMap(environmentConfig, () => ({
+  const networkProviders = objMap(environmentConfig, () => ({
     provider: signer.provider!,
     signer,
   }));

@@ -8,6 +8,8 @@ import {
   MailboxAddresses,
   domains,
   utils,
+  objMap,
+  promiseObjAll,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
@@ -95,8 +97,8 @@ export class AbacusCoreChecker<
       network,
       coreContracts.outbox.validatorManager,
     );
-    return utils.promiseObjAll(
-      utils.objMap(coreContracts.inboxes, (remote, inbox) =>
+    return promiseObjAll(
+      objMap(coreContracts.inboxes, (remote, inbox) =>
         this.checkValidatorManager(network, remote, inbox.validatorManager),
       ),
     );
@@ -177,8 +179,8 @@ export class AbacusCoreChecker<
 
     // Check that all inboxes on this domain are pointed to the right validator
     // manager.
-    await utils.promiseObjAll(
-      utils.objMap(coreContracts.inboxes, async (_, inbox) => {
+    await promiseObjAll(
+      objMap(coreContracts.inboxes, async (_, inbox) => {
         const expected = inbox.validatorManager.address;
         const actual = await inbox.inbox.validatorManager();
         expect(actual).to.equal(expected);
@@ -198,8 +200,8 @@ export class AbacusCoreChecker<
 
   async checkAbacusConnectionManager(network: Networks): Promise<void> {
     const coreContracts = this.app.getContracts(network);
-    await utils.promiseObjAll(
-      utils.objMap(coreContracts.inboxes, async (remote, inbox) => {
+    await promiseObjAll(
+      objMap(coreContracts.inboxes, async (remote, inbox) => {
         const remoteDomain = domains[remote as ChainName].id;
         // inbox is enrolled in abacusConnectionManager
         const enrolledInboxes =
@@ -217,8 +219,8 @@ export class AbacusCoreChecker<
     // Outbox upgrade setup contracts are defined
     const addresses = this.app.getAddresses(network);
     await this.checkUpgradeBeacon(network, 'Outbox', addresses.outbox);
-    await utils.promiseObjAll(
-      utils.objMap(addresses.inboxes, (network, inbox) =>
+    await promiseObjAll(
+      objMap(addresses.inboxes, (network, inbox) =>
         this.checkUpgradeBeacon(network, 'Inbox', inbox),
       ),
     );

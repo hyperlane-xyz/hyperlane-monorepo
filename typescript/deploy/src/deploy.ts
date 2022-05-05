@@ -6,7 +6,7 @@ import {
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
-import { ChainMap, ChainName, MultiProvider, utils } from '@abacus-network/sdk';
+import { ChainMap, ChainName, MultiProvider, objMap, utils } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 import { ProxiedContract } from './proxy';
@@ -23,13 +23,13 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
     protected readonly multiProvider: MultiProvider<Networks>,
     protected readonly configMap: ChainMap<Networks, C>,
   ) {
-    this.verificationInputs = utils.objMap(configMap, () => []);
+    this.verificationInputs = objMap(configMap, () => []);
   }
 
   abstract deployContracts(network: Networks, config: C): Promise<A>;
 
   async deploy() {
-    this.verificationInputs = utils.objMap(this.configMap, () => []);
+    this.verificationInputs = objMap(this.configMap, () => []);
     const networks = Object.keys(this.configMap) as Networks[];
     const entries: [Networks, A][] = [];
     for (const network of networks) {
@@ -155,7 +155,7 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
   }
 
   writeVerification(directory: string) {
-    utils.objMap(this.verificationInputs, (network, input) => {
+    objMap(this.verificationInputs, (network, input) => {
       AbacusAppDeployer.writeJson(
         path.join(directory, `${network}.json`),
         input,

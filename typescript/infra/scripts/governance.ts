@@ -1,4 +1,4 @@
-import { AbacusCore, utils as sdkUtils } from '@abacus-network/sdk';
+import { AbacusCore, objMap } from '@abacus-network/sdk';
 
 import { AbacusCoreDeployer } from '../src/core';
 import { AbacusGovernanceDeployer } from '../src/governance';
@@ -28,7 +28,7 @@ async function main() {
   );
   deployer.writeVerification(getGovernanceVerificationDirectory(environment));
 
-  const owners = sdkUtils.objMap(addresses, (_, r) => r.router.proxy);
+  const owners = objMap(addresses, (_, r) => r.router.proxy);
   await AbacusCoreDeployer.transferOwnership(core, owners, multiProvider);
 }
 

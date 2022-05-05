@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { GovernanceRouter__factory } from '@abacus-network/apps';
 import { UpgradeBeaconController__factory } from '@abacus-network/core';
 import { AbacusRouterDeployer } from '@abacus-network/deploy';
-import { ChainName, GovernanceAddresses, utils } from '@abacus-network/sdk';
+import { ChainName, GovernanceAddresses, objMap, promiseObjAll } from '@abacus-network/sdk';
 
 import { GovernanceConfig } from './types';
 
@@ -63,8 +63,8 @@ export class AbacusGovernanceDeployer<
     const deploymentOutput = await super.deploy();
 
     // Transfer ownership of routers to governor and recovery manager.
-    await utils.promiseObjAll(
-      utils.objMap(deploymentOutput, async (local, addresses) => {
+    await promiseObjAll(
+      objMap(deploymentOutput, async (local, addresses) => {
         const router = this.mustGetRouter(local, addresses);
         const config = this.configMap[local];
         await router.transferOwnership(config.recoveryManager);
