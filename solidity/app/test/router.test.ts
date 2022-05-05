@@ -23,6 +23,7 @@ const message = '0xdeadbeef';
 
 describe('Router', async () => {
   let router: TestRouter,
+    outbox: Outbox,
     connectionManager: AbacusConnectionManager,
     signer: SignerWithAddress,
     nonOwner: SignerWithAddress;
@@ -36,6 +37,16 @@ describe('Router', async () => {
       signer,
     );
     connectionManager = await connectionManagerFactory.deploy();
+
+    const outboxFactory = new Outbox__factory(signer);
+    outbox = await outboxFactory.deploy(origin);
+    // dispatch dummy message
+    await outbox.dispatch(
+      destination,
+      utils.addressToBytes32(outbox.address),
+      '0x',
+    );
+    await connectionManager.setOutbox(outbox.address);
 
     const routerFactory = new TestRouter__factory(signer);
     router = await routerFactory.deploy();
@@ -90,19 +101,8 @@ describe('Router', async () => {
   });
 
   describe('dispatch functions', () => {
-    let outbox: Outbox;
     let interchainGasPaymaster: InterchainGasPaymaster;
     beforeEach(async () => {
-      const outboxFactory = new Outbox__factory(signer);
-      outbox = await outboxFactory.deploy(origin);
-      // dispatch dummy message
-      await outbox.dispatch(
-        destination,
-        utils.addressToBytes32(outbox.address),
-        '0x',
-      );
-      await connectionManager.setOutbox(outbox.address);
-
       const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(
         signer,
       );
@@ -210,6 +210,18 @@ describe('Router', async () => {
         true,
         true,
       );
+    });
+  });
+
+  describe('#checkpoint', () => {
+    it('creates a checkpoint', async () => {
+      // dispatch dummy message
+      await outbox.dispatch(
+        destination,
+        utils.addressToBytes32(outbox.address),
+        '0x',
+      );
+      await expect(router.checkpoint()).to.emit(outbox, 'Checkpoint');
     });
   });
 });

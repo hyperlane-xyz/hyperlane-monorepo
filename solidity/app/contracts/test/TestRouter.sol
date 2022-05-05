@@ -55,4 +55,8 @@ contract TestRouter is Router {
     ) external payable {
         _dispatchWithGasAndCheckpoint(_destination, _msg, _gasPayment);
     }
+
+    function checkpoint() external {
+        _checkpoint();
+    }
 }

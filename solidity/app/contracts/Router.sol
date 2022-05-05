@@ -201,6 +201,16 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         _outbox.checkpoint();
     }
 
+    /**
+     * @notice Creates a checkpoint on the local router's Outbox.
+     * @dev If dispatching a single message and immediately checkpointing,
+     * `_dispatchAndCheckpoint` or `_dispatchWithGasAndCheckpoint` should be preferred,
+     * as they will consume less gas than calling `_dispatch` and this function.
+     */
+    function _checkpoint() internal {
+        _outbox().checkpoint();
+    }
+
     // ============ Private functions ============
 
     /**
