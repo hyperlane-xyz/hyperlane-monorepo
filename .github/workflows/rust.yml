@@ -6,12 +6,18 @@ on:
   pull_request:
     paths:
       - 'rust/**'
+      - .github/workflows/rust.yml
 
   # Allows you to run this workflow manually from the Actions tab
   workflow_dispatch:
 
 env:
   CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+defaults:
+  run:
+    working-directory: ./rust
 
 jobs:
   build-rs:
@@ -22,12 +28,12 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          profile: minimal
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-
       - name: Build
-        run: cd rust && cargo build --verbose
+        run: cargo build --verbose
 
   test-rs:
     runs-on: ubuntu-latest
@@ -38,12 +44,12 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          profile: minimal
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-
       - name: Run tests
-        run: cd rust && cargo test --verbose
+        run: cargo test --verbose
 
   lint-rs:
     runs-on: ubuntu-latest
@@ -54,10 +60,14 @@ jobs:
       - uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
+          profile: minimal
+          components: rustfmt, clippy
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
       - name: Rustfmt
-        run: cd rust && cargo fmt -- --check
+        run: cargo fmt -- --check
+      - name: Check
+        run: cargo check --all-features --all-targets --verbose
       - name: Clippy
-        run: cd rust && cargo clippy -- -D warnings
+        run: cargo clippy -- -D warnings
