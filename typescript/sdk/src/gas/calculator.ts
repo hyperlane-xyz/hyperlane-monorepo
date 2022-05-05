@@ -227,7 +227,7 @@ export class InterchainGasCalculator {
    * 1. The estimated gas consumption of a direct call to the `handle`
    *    function of the recipient address using the correct parameters and
    *    setting the `from` address of the transaction to the address of the inbox.
-   * 2. A buffer to account for inaccuracies in the above estimations.
+   * 2. A buffer to account for inaccuracies in the above estimation.
    * @param message The message to estimate recipient `handle` gas usage for.
    * @returns The estimated gas required by the message's recipient handle function
    * on the destination chain.
@@ -255,8 +255,9 @@ export class InterchainGasCalculator {
     });
 
     // Subtract intrinsic gas, which is included in directHandleCallGas.
-    // Note in the intrinsic gas will always be higher than this.intrinsicGas
-    // due to calldata costs, but that's desired because it results in a generous estimate here.
+    // Note the "real" intrinsic gas will always be higher than this.intrinsicGas
+    // due to calldata costs, but this is desired because it results in a generous
+    // final estimate.
     return directHandleCallGas
       .add(this.messageGasEstimateBuffer)
       .sub(this.intrinsicGas);
@@ -277,7 +278,7 @@ export class InterchainGasCalculator {
     // number of signatures. Note this does not consider differences in intrinsic gas for
     // different chains.
     // Derived by observing the amount of gas consumed for a quorum of 1 (~86800 gas),
-    // subtracting a the scaling gas per signature, and rounding up for safety.
+    // subtracting the scaling gas per signature, and rounding up for safety.
     const baseGasAmount = 80_000;
     // Really observed to be about 8350, but rounding up for safety.
     const gasPerSignature = 9_000;

@@ -55,15 +55,13 @@ describe('InterchainGasCalculator', () => {
       provider.setMethodResolveValue('getGasPrice', BigNumber.from(10));
 
       // Stub the checkpoint relay gas cost
-      const checkpointRelayGas = BigNumber.from(100_000);
       sinon
         .stub(calculator, 'checkpointRelayGas')
-        .returns(Promise.resolve(checkpointRelayGas));
+        .returns(Promise.resolve(BigNumber.from(100_000)));
       // Stub the inbox process overhead gas
-      const inboxProcessOverheadGas = BigNumber.from(100_000);
       sinon
         .stub(calculator, 'inboxProcessOverheadGas')
-        .returns(inboxProcessOverheadGas);
+        .returns(BigNumber.from(100_000));
 
       const estimatedPayment =
         await calculator.estimatePaymentForHandleGasAmount(
@@ -90,15 +88,13 @@ describe('InterchainGasCalculator', () => {
         .stub(calculator, 'suggestedGasPrice')
         .returns(Promise.resolve(BigNumber.from(10)));
       // Stub the checkpoint relay gas cost
-      const checkpointRelayGas = BigNumber.from(100_000);
       sinon
         .stub(calculator, 'checkpointRelayGas')
-        .returns(Promise.resolve(checkpointRelayGas));
+        .returns(Promise.resolve(BigNumber.from(100_000)));
       // Stub the inbox process overhead gas
-      const inboxProcessOverheadGas = BigNumber.from(100_000);
       sinon
         .stub(calculator, 'inboxProcessOverheadGas')
-        .returns(inboxProcessOverheadGas);
+        .returns(BigNumber.from(100_000));
 
       const zeroAddressBytes32 = utils.addressToBytes32(
         ethers.constants.AddressZero,
