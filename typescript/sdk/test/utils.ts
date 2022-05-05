@@ -1,52 +1,6 @@
 import { ethers, FixedNumber } from 'ethers';
-import { CoreContractAddresses, NameOrDomain } from '../src';
+import { NameOrDomain } from '../src';
 import { resolveId } from '../src/core/message';
-
-const ZERO_ADDRESS = ethers.constants.AddressZero;
-
-export type testNetworks = 'test1' | 'test2';
-export const testAddresses: {
-  [local in testNetworks]: CoreContractAddresses<testNetworks, local>;
-} = {
-  test1: {
-    upgradeBeaconController: ZERO_ADDRESS,
-    abacusConnectionManager: ZERO_ADDRESS,
-    interchainGasPaymaster: ZERO_ADDRESS,
-    outbox: {
-      validatorManager: ZERO_ADDRESS,
-      proxy: ZERO_ADDRESS,
-      implementation: ZERO_ADDRESS,
-      beacon: ZERO_ADDRESS,
-    },
-    inboxes: {
-      test2: {
-        validatorManager: ZERO_ADDRESS,
-        proxy: ZERO_ADDRESS,
-        implementation: ZERO_ADDRESS,
-        beacon: ZERO_ADDRESS,
-      },
-    },
-  },
-  test2: {
-    upgradeBeaconController: ZERO_ADDRESS,
-    abacusConnectionManager: ZERO_ADDRESS,
-    interchainGasPaymaster: ZERO_ADDRESS,
-    outbox: {
-      validatorManager: ZERO_ADDRESS,
-      proxy: ZERO_ADDRESS,
-      implementation: ZERO_ADDRESS,
-      beacon: ZERO_ADDRESS,
-    },
-    inboxes: {
-      test1: {
-        validatorManager: ZERO_ADDRESS,
-        proxy: ZERO_ADDRESS,
-        implementation: ZERO_ADDRESS,
-        beacon: ZERO_ADDRESS,
-      },
-    },
-  },
-};
 
 const MOCK_NETWORK = {
   name: 'MockNetwork',

@@ -1,21 +1,21 @@
-import '@nomiclabs/hardhat-waffle';
-import path from 'path';
-
 import {
   AbacusCore,
   AbacusGovernance,
   ChainMap,
   GovernanceAddresses,
-  MultiProvider,
+  MultiProvider
 } from '@abacus-network/sdk';
-
+import '@nomiclabs/hardhat-waffle';
+import path from 'path';
 import { TestNetworks } from '../config/environments/test/domains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
 import {
   AbacusGovernanceChecker,
   AbacusGovernanceDeployer,
-  GovernanceConfig,
+  GovernanceConfig
 } from '../src/governance';
+
+
 
 describe('governance', async () => {
   const environment = 'test';

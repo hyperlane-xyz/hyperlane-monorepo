@@ -5,18 +5,19 @@ import {
   AbacusCore,
   InterchainGasCalculator,
   MultiProvider,
-  ParsedMessage,
+  ParsedMessage
 } from '../..';
 import { domains } from '../../src/domains';
-import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
+import { MockProvider, MockTokenPriceGetter } from '../utils';
 
 describe('InterchainGasCalculator', () => {
   const provider = new MockProvider();
   const multiProvider = new MultiProvider({
     test1: { provider },
     test2: { provider },
+    test3: { provider }
   });
-  const core = new AbacusCore(testAddresses, multiProvider);
+  const core = AbacusCore.fromEnvironment('test', multiProvider);
   const originDomain = domains.test1.id;
   const destinationDomain = domains.test2.id;
 
