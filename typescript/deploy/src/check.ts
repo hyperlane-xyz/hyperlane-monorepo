@@ -1,15 +1,16 @@
-import { expect } from 'chai';
-
 import {
   AbacusApp,
+  ChainMap,
   ChainName,
   MultiProvider,
-  ProxiedAddress,
+  ProxiedAddress
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-
+import { expect } from 'chai';
 import { CheckerViolation } from './config';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
+
+
 
 export interface Ownable {
   owner(): Promise<types.Address>;
@@ -22,18 +23,18 @@ export abstract class AbacusAppChecker<
 > {
   readonly multiProvider: MultiProvider<Networks>;
   readonly app: App;
-  readonly config: Config;
+  readonly configMap: ChainMap<Networks, Config>;
   readonly violations: CheckerViolation[];
 
   constructor(
     multiProvider: MultiProvider<Networks>,
     app: App,
-    config: Config,
+    configMap: ChainMap<Networks, Config>,
   ) {
     this.multiProvider = multiProvider;
     this.app = app;
     this.violations = [];
-    this.config = config;
+    this.configMap = configMap;
   }
 
   abstract checkDomain(network: Networks): Promise<void>;

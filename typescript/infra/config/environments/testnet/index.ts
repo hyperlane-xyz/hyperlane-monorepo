@@ -1,30 +1,16 @@
+import { getMultiProviderFromGCP } from '../../../scripts/utils';
 import { CoreEnvironmentConfig } from '../../../src/config';
-import { configs } from '../../networks/testnets';
-
 import { agent } from './agent';
 import { core } from './core';
-import { getMultiProvider } from './domains';
+import { testnetConfigs, TestnetNetworks } from './domains';
 import { governance } from './governance';
 import { infrastructure } from './infrastructure';
 
-const coreConfig = {
-  alfajores: configs.alfajores,
-  kovan: configs.kovan,
-  fuji: configs.fuji,
-  mumbai: configs.mumbai,
-  bsctestnet: configs.kovan,
-  arbitrumrinkeby: configs.arbitrumrinkeby,
-  auroratestnet: configs.auroratestnet,
-  optimismkovan: configs.optimismkovan,
-};
-
-type corenet = keyof typeof coreConfig;
-
-export const environment: CoreEnvironmentConfig<corenet> = {
-  transactionConfigs: coreConfig,
+export const environment: CoreEnvironmentConfig<TestnetNetworks> = {
+  transactionConfigs: testnetConfigs,
+  getMultiProvider: () => getMultiProviderFromGCP(testnetConfigs, 'testnet'),
   agent,
   core,
   governance,
   infra: infrastructure,
-  getMultiProvider,
 };

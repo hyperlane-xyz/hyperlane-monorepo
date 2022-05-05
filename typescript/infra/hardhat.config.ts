@@ -1,22 +1,22 @@
-import '@nomiclabs/hardhat-etherscan';
-import '@nomiclabs/hardhat-waffle';
-import { task } from 'hardhat/config';
-import { HardhatRuntimeEnvironment } from 'hardhat/types';
-
 import { BadRandomRecipient__factory } from '@abacus-network/core';
 import { utils as deployUtils } from '@abacus-network/deploy';
 import { AbacusCore, ChainName } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
-
+import '@nomiclabs/hardhat-etherscan';
+import '@nomiclabs/hardhat-waffle';
+import { task } from 'hardhat/config';
+import { HardhatRuntimeEnvironment } from 'hardhat/types';
 import {
   getCoreContractsSdkFilepath,
   getCoreEnvironmentConfig,
   getCoreRustDirectory,
-  getCoreVerificationDirectory,
+  getCoreVerificationDirectory
 } from './scripts/utils';
 import { AbacusCoreDeployer } from './src/core';
 import { sleep } from './src/utils/utils';
 import { AbacusContractVerifier } from './src/verify';
+
+
 
 const domainSummary = async <Networks extends ChainName>(
   core: AbacusCore<Networks>,
@@ -60,25 +60,23 @@ const domainSummary = async <Networks extends ChainName>(
 };
 
 task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
-  .addParam(
-    'environment',
-    'The name of the environment from which to read configs',
-  )
   // If we import ethers from hardhat, we get error HH9 with included note.
   // You probably tried to import the "hardhat" module from your config or a file imported from it.
   // This is not possible, as Hardhat can't be initialized while its config is being defined.
-  .setAction(async (args: any, hre: HardhatRuntimeEnvironment) => {
-    const environment = args.environment;
-    const environmentConfig = await getCoreEnvironmentConfig(environment);
+  .setAction(async (_: any, hre: HardhatRuntimeEnvironment) => {
+    const environment = 'test';
+    const config = getCoreEnvironmentConfig(environment);
+
+    // TODO: replace with config.getMultiProvider()
     const [signer] = await hre.ethers.getSigners();
     const multiProvider = deployUtils.initHardhatMultiProvider(
-      environmentConfig,
+      config.transactionConfigs,
       signer,
     );
 
     const deployer = new AbacusCoreDeployer(
       multiProvider,
-      environmentConfig.core.validatorManagers,
+      config.core.validatorManagers,
     );
     const addresses = await deployer.deploy();
 
@@ -96,15 +94,15 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
   });
 
 task('kathy', 'Dispatches random abacus messages')
-  .addParam(
-    'environment',
-    'The name of the environment from which to read configs',
-  )
-  .setAction(async (args, hre: HardhatRuntimeEnvironment) => {
-    const environmentConfig = await getCoreEnvironmentConfig(args.environment);
+  .setAction(async (_, hre: HardhatRuntimeEnvironment) => {
+    const environment = 'test';
+    const config = getCoreEnvironmentConfig(environment);
     const [signer] = await hre.ethers.getSigners();
-    const multiProvider = await environmentConfig.getMultiProvider();
-    const core = AbacusCore.fromEnvironment(args.environment, multiProvider);
+    const multiProvider = deployUtils.initHardhatMultiProvider(
+      config.transactionConfigs,
+      signer,
+    );
+    const core = AbacusCore.fromEnvironment(environment, multiProvider);
 
     const randomElement = (list: any[]) =>
       list[Math.floor(Math.random() * list.length)];

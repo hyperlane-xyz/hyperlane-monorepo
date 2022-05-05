@@ -1,18 +1,16 @@
 import { AbacusCore, utils as sdkUtils } from '@abacus-network/sdk';
-
 import { AbacusCoreDeployer } from '../src/core';
 import { AbacusGovernanceDeployer } from '../src/governance';
-
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
   getGovernanceContractsSdkFilepath,
-  getGovernanceVerificationDirectory,
+  getGovernanceVerificationDirectory
 } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const config = await getCoreEnvironmentConfig(environment);
+  const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
 

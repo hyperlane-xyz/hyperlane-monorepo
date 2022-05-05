@@ -200,7 +200,7 @@ export interface DockerConfig {
 }
 
 export interface AgentConfig<Networks extends ChainName> {
-  environment: DeployEnvironment;
+  environment: string;
   namespace: string;
   runEnv: string;
   docker: DockerConfig;

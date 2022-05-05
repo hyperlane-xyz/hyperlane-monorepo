@@ -1,13 +1,12 @@
-import { ChainName } from '@abacus-network/sdk';
-
-import { getAgentEnvVars } from '../src/agents';
 import { writeFile } from 'fs/promises';
-
+import { getAgentEnvVars } from '../src/agents';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
-  getKeyRoleAndChainArgs,
+  getKeyRoleAndChainArgs
 } from './utils';
+
+
 
 async function main() {
   const argv = await getKeyRoleAndChainArgs()
@@ -17,13 +16,11 @@ async function main() {
     .require('f').argv;
 
   const environment = await getEnvironment();
-  const config = await getCoreEnvironmentConfig(environment);
-  const domains = Object.keys(config.transactionConfigs) as ChainName[];
+  const config = getCoreEnvironmentConfig(environment);
   const envVars = await getAgentEnvVars(
     argv.c,
     argv.r,
     config.agent,
-    domains,
     argv.i,
   );
 

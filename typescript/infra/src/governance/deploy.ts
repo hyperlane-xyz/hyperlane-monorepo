@@ -1,41 +1,25 @@
-import { ethers } from 'ethers';
-
 import { GovernanceRouter__factory } from '@abacus-network/apps';
 import { UpgradeBeaconController__factory } from '@abacus-network/core';
 import { AbacusRouterDeployer } from '@abacus-network/deploy';
 import {
-  AbacusCore,
-  ChainMap,
   ChainName,
-  GovernanceAddresses,
-  MultiProvider,
-  utils,
+  GovernanceAddresses, utils
 } from '@abacus-network/sdk';
-
+import { ethers } from 'ethers';
 import { GovernanceConfig } from './types';
+
+
 
 export class AbacusGovernanceDeployer<
   Networks extends ChainName,
 > extends AbacusRouterDeployer<
   Networks,
-  GovernanceConfig<Networks>,
+  GovernanceConfig,
   GovernanceAddresses
 > {
-  constructor(
-    multiProvider: MultiProvider<Networks>,
-    config: GovernanceConfig<Networks>,
-    core?: AbacusCore<Networks>,
-  ) {
-    const networks = Object.keys(config.addresses) as Networks[];
-    const crossConfigMap = Object.fromEntries(
-      networks.map((network) => [network, config]),
-    ) as ChainMap<Networks, GovernanceConfig<Networks>>;
-    super(multiProvider, crossConfigMap, core);
-  }
-
   async deployContracts(
     network: Networks,
-    config: GovernanceConfig<Networks>,
+    config: GovernanceConfig,
   ): Promise<GovernanceAddresses> {
     const dc = this.multiProvider.getDomainConnection(network);
     const signer = dc.signer!;
@@ -85,7 +69,7 @@ export class AbacusGovernanceDeployer<
     await utils.promiseObjAll<Record<Networks, void>>(
       utils.objMap(deploymentOutput, async (local, addresses) => {
         const router = this.mustGetRouter(local, addresses);
-        const config = this.configMap[local].addresses[local]; // TODO: check if this is correct
+        const config = this.configMap[local];
         await router.transferOwnership(config.recoveryManager);
         await router.setGovernor(
           config.governor ?? ethers.constants.AddressZero,

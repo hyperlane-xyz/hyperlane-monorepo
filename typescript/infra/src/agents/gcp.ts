@@ -1,13 +1,12 @@
-import { Wallet } from 'ethers';
-
 import { ChainName } from '@abacus-network/sdk';
-
-import { ENVIRONMENTS_ENUM } from '../config/environment';
+import { Wallet } from 'ethers';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd, include } from '../utils/utils';
-
 import { AgentKey, isValidatorKey, keyIdentifier } from './agent';
 import { KEY_ROLE_ENUM } from './roles';
+
+
+
 
 // This is the type for how the keys are persisted in GCP
 export interface SecretManagerPersistedKeys {
@@ -32,13 +31,11 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentGCPKey<
-  Networks extends ChainName,
-> extends AgentKey<Networks> {
+export class AgentGCPKey extends AgentKey {
   constructor(
-    environment: ENVIRONMENTS_ENUM,
+    environment: string,
     role: KEY_ROLE_ENUM,
-    chainName?: Networks,
+    chainName?: ChainName,
     index?: number,
     private remoteKey: RemoteKey = { fetched: false },
   ) {

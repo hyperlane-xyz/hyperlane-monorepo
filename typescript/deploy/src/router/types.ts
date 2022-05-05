@@ -1,4 +1,3 @@
-import { ChainMap, ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 export interface Router {
@@ -11,6 +10,6 @@ export interface Router {
   owner(): Promise<types.Address>;
 }
 
-export type RouterConfig<Networks extends ChainName> = {
-  abacusConnectionManager?: ChainMap<Networks, types.Address>;
+export type RouterConfig = {
+  abacusConnectionManager?: types.Address;
 };

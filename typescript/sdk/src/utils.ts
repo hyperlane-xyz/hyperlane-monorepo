@@ -1,7 +1,7 @@
-import { BytesLike, arrayify, hexlify } from '@ethersproject/bytes';
+import { arrayify, BytesLike, hexlify } from '@ethersproject/bytes';
 import { ethers } from 'ethers';
-
 import { ChainMap, ChainName, Remotes } from './types';
+
 
 export type Address = string;
 
@@ -98,19 +98,19 @@ export function inferChainMap<M>(map: M) {
     : never;
 }
 
-export function objMapEntries<N extends ChainName, I = any, O = any>(
-  obj: ChainMap<N, I>,
-  func: (k: N, _: I) => O,
-): [N, O][] {
-  return Object.entries<I>(obj).map(([k, v]) => [k as N, func(k as N, v)]);
+export function objMapEntries<K extends string, I = any, O = any>(
+  obj: Record<K, I>,
+  func: (k: K, _: I) => O,
+): [K, O][] {
+  return Object.entries<I>(obj).map(([k, v]) => [k as K, func(k as K, v)]);
 }
 
-export function objMap<N extends ChainName, I = any, O = any>(
-  obj: Record<N, I>,
-  func: (k: N, _: I) => O,
+export function objMap<K extends string, I = any, O = any>(
+  obj: Record<K, I>,
+  func: (k: K, _: I) => O,
 ) {
-  return Object.fromEntries<O>(objMapEntries<N, I, O>(obj, func)) as Record<
-    N,
+  return Object.fromEntries<O>(objMapEntries<K, I, O>(obj, func)) as Record<
+    K,
     O
   >;
 }

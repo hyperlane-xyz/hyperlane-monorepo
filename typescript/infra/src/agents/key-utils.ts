@@ -1,13 +1,13 @@
 import { ChainName } from '@abacus-network/sdk';
-
 import { AgentConfig } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
-
 import { AgentKey } from './agent';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
+
+
 
 interface KeyAsAddress {
   identifier: string;
@@ -19,7 +19,7 @@ export function getKey<Networks extends ChainName>(
   role: KEY_ROLE_ENUM,
   chainName?: Networks,
   index?: number,
-): AgentKey<Networks> {
+): AgentKey {
   if (agentConfig.aws) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
@@ -27,9 +27,9 @@ export function getKey<Networks extends ChainName>(
   }
 }
 
-export function getAllKeys<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
-): Array<AgentKey<Networks>> {
+export function getAllKeys(
+  agentConfig: AgentConfig<any>,
+): Array<AgentKey> {
   return KEY_ROLES.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
       // For each chainName, create validatorCount keys
@@ -50,8 +50,8 @@ export function getAllKeys<Networks extends ChainName>(
   });
 }
 
-export async function deleteAgentKeys<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
+export async function deleteAgentKeys(
+  agentConfig: AgentConfig<any>,
 ) {
   const keys = getAllKeys(agentConfig);
   await Promise.all(keys.map((key) => key.delete()));
@@ -62,8 +62,8 @@ export async function deleteAgentKeys<Networks extends ChainName>(
   );
 }
 
-export async function createAgentKeysIfNotExists<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
+export async function createAgentKeysIfNotExists(
+  agentConfig: AgentConfig<any>,
 ) {
   const keys = getAllKeys(agentConfig);
 
@@ -106,7 +106,7 @@ async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
 export async function fetchKeysForChain<Networks extends ChainName>(
   agentConfig: AgentConfig<Networks>,
   chainName: Networks,
-): Promise<Record<string, AgentKey<Networks>>> {
+): Promise<Record<string, AgentKey>> {
   // Get all keys for the chainName. Include keys where chainName is undefined,
   // which are keys that are not chain-specific but should still be included
   const keys = await Promise.all(

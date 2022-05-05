@@ -1,39 +1,45 @@
-import path from 'path';
-
 import { TransactionConfig, utils } from '@abacus-network/deploy';
 import {
   AllChains,
-  ChainMap,
-  ChainName,
-  IDomainConnection,
-  MultiProvider,
+  ChainMap, ChainName, IDomainConnection,
+  MultiProvider
 } from '@abacus-network/sdk';
 import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
-
+import path from 'path';
+import { environments } from '../config/environments';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
-import { CoreEnvironmentConfig, DeployEnvironment } from '../src/config';
+import { DeployEnvironment } from '../src/config';
 import { fetchProvider, fetchSigner } from '../src/config/chain';
+import { EnvironmentNames } from '../src/config/environment';
 
-export function getEnvironment(): Promise<DeployEnvironment> {
-  return utils.getEnvironment() as Promise<DeployEnvironment>;
+
+export function assertEnvironment(env: string): DeployEnvironment {
+  if (EnvironmentNames.includes(env)) {
+    return env as DeployEnvironment;
+  }
+  throw new Error(`Invalid environment ${env}, must be one of ${EnvironmentNames}`);
 }
 
-export function moduleName(environment: DeployEnvironment) {
-  return `../config/environments/${environment}`;
+export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
+  env: Env,
+) {
+  return environments[env] as any; // TODO: make indexed union compatible
 }
 
-export async function getCoreEnvironmentConfig(
-  environment: DeployEnvironment,
-): Promise<CoreEnvironmentConfig<any>> {
-  return (await import(moduleName(environment))).environment;
+export async function getEnvironment() {
+  return assertEnvironment(await utils.getEnvironment());
+}
+
+export async function getEnvironmentConfig() {
+  return getCoreEnvironmentConfig(await getEnvironment());
 }
 
 export async function getMultiProviderFromGCP<Networks extends ChainName>(
-  configs: ChainMap<Networks, TransactionConfig>,
+  txConfigs: ChainMap<Networks, TransactionConfig>,
   environment: DeployEnvironment,
-): Promise<MultiProvider<Networks>> {
+) {
   const connections = await promiseObjAll<Record<Networks, IDomainConnection>>(
-    objMap(configs, async (domain, config) => {
+    objMap(txConfigs, async (domain, config) => {
       const provider = await fetchProvider(environment, domain);
       const signer = await fetchSigner(environment, domain, provider);
       return {
@@ -44,7 +50,7 @@ export async function getMultiProviderFromGCP<Networks extends ChainName>(
       };
     }),
   );
-  return new MultiProvider(connections);
+  return new MultiProvider<Networks>(connections);
 }
 
 function getContractsSdkFilepath(mod: string, environment: DeployEnvironment) {

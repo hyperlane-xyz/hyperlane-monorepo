@@ -1,27 +1,29 @@
-import { expect } from 'chai';
-import { PopulatedTransaction } from 'ethers';
-
 import { MultisigValidatorManager__factory } from '@abacus-network/core';
 import {
   CheckerViolation,
   ProxyViolationType,
-  UpgradeBeaconViolation,
+  UpgradeBeaconViolation
 } from '@abacus-network/deploy';
 import {
   AbacusCore,
   AbacusGovernance,
   Call,
+  ChainMap,
   ChainName,
   MultiProvider,
+  utils
 } from '@abacus-network/sdk';
-
+import { expect } from 'chai';
+import { PopulatedTransaction } from 'ethers';
 import {
   AbacusCoreChecker,
   CoreViolationType,
   ValidatorViolation,
-  ValidatorViolationType,
+  ValidatorViolationType
 } from './check';
 import { CoreConfig } from './types';
+
+
 
 interface DomainedCall {
   network: ChainName;
@@ -37,10 +39,16 @@ export class AbacusCoreGovernor<
     multiProvider: MultiProvider<Networks>,
     app: AbacusCore<Networks>,
     governance: AbacusGovernance<Networks>,
-    config: CoreConfig<Networks>,
+    config: ChainMap<Networks, CoreConfig>,
   ) {
     const owners = governance.routerAddresses();
-    super(multiProvider, app, { ...config, owners });
+    const joinedConfigMap = utils.objMap(config, (network, coreConfig) => {
+      return {
+        ...coreConfig,
+        owner: owners[network]
+      };
+    })
+    super(multiProvider, app, joinedConfigMap);
     this.governance = governance;
   }
 

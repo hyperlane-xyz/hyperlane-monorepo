@@ -1,31 +1,21 @@
-import { ethers } from 'hardhat';
-
-import { initHardhatMultiProvider } from '@abacus-network/deploy/dist/src/utils';
-
+import { utils } from '@abacus-network/deploy';
 import { CoreEnvironmentConfig } from '../../../src/config';
-import { configs } from '../../networks/testnets';
-
 import { agent } from './agent';
 import { core } from './core';
+import { testConfigs, TestNetworks } from './domains';
 import { governance } from './governance';
 import { infra } from './infra';
 
-const coreConfig = {
-  test1: configs.test1,
-  test2: configs.test2,
-  test3: configs.test3,
-};
-
-type corenet = keyof typeof coreConfig;
-
-export const environment: CoreEnvironmentConfig<corenet> = {
-  transactionConfigs: coreConfig,
+export const environment: CoreEnvironmentConfig<TestNetworks> = {
+  transactionConfigs: testConfigs,
   agent,
   core,
   governance,
   infra,
+  // NOTE: Does not work from hardhat.config.ts
   getMultiProvider: async () => {
-    const [signer] = await ethers.getSigners();
-    return initHardhatMultiProvider({ transactionConfigs: coreConfig }, signer);
+    const hre = await import('hardhat');
+    const [signer] = await hre.ethers.getSigners();
+    return utils.initHardhatMultiProvider(testConfigs, signer);
   },
 };

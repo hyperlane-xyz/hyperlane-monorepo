@@ -1,20 +1,15 @@
-import { expect } from 'chai';
-
 import { MultisigValidatorManager } from '@abacus-network/core';
 import { AbacusAppChecker, CheckerViolation } from '@abacus-network/deploy';
 import {
-  AbacusCore,
-  ChainMap,
-  ChainName,
-  MailboxAddresses,
-  domains,
-  utils,
+  AbacusCore, ChainName, domains, MailboxAddresses, utils
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-
+import { expect } from 'chai';
 import { setDifference } from '../utils/utils';
-
 import { CoreConfig } from './types';
+
+
+
 
 export enum CoreViolationType {
   ValidatorManager = 'ValidatorManager',
@@ -44,8 +39,8 @@ export class AbacusCoreChecker<
 > extends AbacusAppChecker<
   Networks,
   AbacusCore<Networks>,
-  CoreConfig<Networks> & {
-    owners: ChainMap<Networks, types.Address>;
+  CoreConfig & {
+    owner: types.Address
   }
 > {
   async checkDomain(network: Networks): Promise<void> {
@@ -58,7 +53,7 @@ export class AbacusCoreChecker<
   }
 
   async checkDomainOwnership(network: Networks): Promise<void> {
-    const owner = this.config.owners[network];
+    const config = this.configMap[network];
     const contracts = this.app.getContracts(network);
     const ownables = [
       contracts.abacusConnectionManager,
@@ -69,7 +64,7 @@ export class AbacusCoreChecker<
         .map((inbox: any) => [inbox.inbox, inbox.validatorManager])
         .flat(),
     ];
-    return AbacusAppChecker.checkOwnership(owner, ownables);
+    return AbacusAppChecker.checkOwnership(config.owner, ownables);
   }
 
   async checkOutbox(network: Networks): Promise<void> {
@@ -112,7 +107,8 @@ export class AbacusCoreChecker<
     remote: Networks,
     validatorManager: MultisigValidatorManager,
   ): Promise<void> {
-    const validatorManagerConfig = this.config.validatorManagers[remote];
+    const config = this.configMap[remote];
+    const validatorManagerConfig = config.validatorManager;
     const expectedValidators = validatorManagerConfig.validators;
     const actualValidators = await validatorManager.validators();
 

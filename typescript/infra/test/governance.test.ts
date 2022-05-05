@@ -1,41 +1,37 @@
-import '@nomiclabs/hardhat-waffle';
-import { ethers } from 'hardhat';
-import path from 'path';
-
-import { utils } from '@abacus-network/deploy';
 import {
+  AbacusCore,
   AbacusGovernance,
   ChainMap,
   GovernanceAddresses,
-  MultiProvider,
-  utils as sdkUtils,
+  MultiProvider
 } from '@abacus-network/sdk';
-
-import { environment } from '../config/environments/test';
+import '@nomiclabs/hardhat-waffle';
+import path from 'path';
+import { TestNetworks } from '../config/environments/test/domains';
+import { getCoreEnvironmentConfig } from '../scripts/utils';
 import {
   AbacusGovernanceChecker,
   AbacusGovernanceDeployer,
+  GovernanceConfig
 } from '../src/governance';
 
+
+
 describe('governance', async () => {
-  type Networks = keyof typeof environment.transactionConfigs;
-  let multiProvider: MultiProvider<Networks>;
-  let deployer: AbacusGovernanceDeployer<Networks>;
-  let addresses: ChainMap<Networks, GovernanceAddresses>;
-  const governanceConfig = environment.governance;
+  const environment = 'test';
+
+  let multiProvider: MultiProvider<TestNetworks>;
+  let deployer: AbacusGovernanceDeployer<TestNetworks>;
+  let addresses: ChainMap<TestNetworks, GovernanceAddresses>;
+  let governanceConfig: ChainMap<TestNetworks, GovernanceConfig>;
 
   before(async () => {
-    const [signer] = await ethers.getSigners();
-    multiProvider = utils.initHardhatMultiProvider(environment, signer);
-    deployer = new AbacusGovernanceDeployer(multiProvider, governanceConfig);
+    const config = getCoreEnvironmentConfig(environment);
+    console.log(governanceConfig);
+    multiProvider = await config.getMultiProvider();
 
-    // abacusConnectionManager can be set to anything for these tests.
-    if (!governanceConfig.abacusConnectionManager) {
-      governanceConfig.abacusConnectionManager = sdkUtils.objMap(
-        governanceConfig.addresses,
-        () => signer.address,
-      );
-    }
+    const core = AbacusCore.fromEnvironment(environment, multiProvider);
+    deployer = new AbacusGovernanceDeployer(multiProvider, governanceConfig, core);
   });
 
   it('deploys', async () => {

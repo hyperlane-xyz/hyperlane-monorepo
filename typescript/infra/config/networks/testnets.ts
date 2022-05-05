@@ -1,7 +1,7 @@
-import { BigNumber } from 'ethers';
-
 import { TransactionConfig } from '@abacus-network/deploy';
 import { ChainMap } from '@abacus-network/sdk';
+import { BigNumber } from 'ethers';
+
 
 export const alfajores: TransactionConfig = {
   confirmations: 1,

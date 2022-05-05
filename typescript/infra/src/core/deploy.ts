@@ -25,7 +25,7 @@ import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import path from 'path';
 import { DeployEnvironment, RustConfig } from '../config';
-import { ValidatorManagerConfig } from './types';
+import { CoreConfig } from './types';
 
 
 
@@ -34,12 +34,12 @@ export class AbacusCoreDeployer<
   Networks extends ChainName,
 > extends AbacusAppDeployer<
   Networks,
-  ValidatorManagerConfig,
+  CoreConfig,
   CoreContractAddresses<Networks, any>
 > {
   async deployContracts<Local extends Networks>(
     network: Local,
-    config: ValidatorManagerConfig,
+    config: CoreConfig,
   ): Promise<CoreContractAddresses<Networks, Local>> {
     const dc = this.multiProvider.getDomainConnection(network);
     const signer = dc.signer!;
@@ -50,7 +50,7 @@ export class AbacusCoreDeployer<
       [],
     );
 
-    const outboxValidatorManagerConfig = config;
+    const outboxValidatorManagerConfig = config.validatorManager;
     const domain = domains[network].id;
     const outboxValidatorManager = await this.deployContract(
       network,
@@ -101,7 +101,7 @@ export class AbacusCoreDeployer<
     const deployValidatorManager = async (
       remote: Remotes<Networks, Local>,
     ): Promise<InboxValidatorManager> => {
-      const remoteConfig = this.configMap[remote];
+      const remoteConfig = this.configMap[remote].validatorManager;
       return this.deployContract(
         network,
         'InboxValidatorManager',

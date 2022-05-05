@@ -1,16 +1,14 @@
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
 import { ChainName, Remotes } from '../types';
-
 import {
-  CoreContractAddresses,
-  CoreContractSchema,
-  CoreContracts,
+  CoreContractAddresses, CoreContracts, CoreContractSchema
 } from './contracts';
 import { environments } from './environments';
 
-type Environments = typeof environments;
-type EnvironmentName = keyof Environments;
+export const CoreEnvironments = Object.keys(environments);
+export type CoreEnvironment = keyof typeof environments;
+export type CoreEnvironmentNetworks<E extends CoreEnvironment> = Extract<keyof (typeof environments)[E], ChainName>;
 
 export class AbacusCore<
   Networks extends ChainName = ChainName,
@@ -24,9 +22,9 @@ export class AbacusCore<
     super(CoreContracts, networkAddresses, multiProvider);
   }
 
-  static fromEnvironment(
-    name: EnvironmentName,
-    multiProvider: MultiProvider<any>,
+  static fromEnvironment<E extends CoreEnvironment>(
+    name: E,
+    multiProvider: MultiProvider<any>, // TODO: fix networks
   ) {
     return new AbacusCore(environments[name], multiProvider);
   }

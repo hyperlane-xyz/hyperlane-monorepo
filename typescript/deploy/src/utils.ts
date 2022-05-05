@@ -1,16 +1,16 @@
-import { ethers } from 'ethers';
-import yargs from 'yargs';
-
 import {
   AbacusCore,
   ChainMap,
   ChainName,
   MultiProvider,
-  utils,
+  utils
 } from '@abacus-network/sdk';
-
+import { ethers } from 'ethers';
+import yargs from 'yargs';
 import { EnvironmentConfig, TransactionConfig } from './config';
 import { RouterConfig } from './router';
+
+
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
@@ -26,14 +26,12 @@ export async function getEnvironment(): Promise<string> {
 
 export function getRouterConfig<N extends ChainName>(
   core: AbacusCore<N>,
-): RouterConfig<N> {
-  return {
-    abacusConnectionManager: utils.objMap(
+): ChainMap<N, RouterConfig> {
+  return utils.objMap(
       core.contractsMap,
       (_, coreContacts) =>
-        coreContacts.contracts.abacusConnectionManager.address,
-    ),
-  };
+      ({abacusConnectionManager: coreContacts.contracts.abacusConnectionManager.address })
+  );
 }
 
 // this is currently a kludge to account for ethers issues
@@ -53,12 +51,12 @@ function fixOverrides(config: TransactionConfig): ethers.Overrides {
   }
 }
 
-export const registerTransactionConfigs = <Networks extends ChainName>(
+export const registerEnvironment = <Networks extends ChainName>(
   multiProvider: MultiProvider<Networks>,
-  txConfigMap: ChainMap<Networks, TransactionConfig>,
+  environmentConfig: EnvironmentConfig<Networks>
 ) => {
   multiProvider.apply((network, dc) => {
-    const txConfig = txConfigMap[network];
+    const txConfig = environmentConfig[network];
     dc.registerOverrides(fixOverrides(txConfig));
     if (txConfig.confirmations) {
       dc.registerConfirmations(txConfig.confirmations);
@@ -67,13 +65,6 @@ export const registerTransactionConfigs = <Networks extends ChainName>(
       dc.registerSigner(txConfig.signer);
     }
   });
-};
-
-export const registerEnvironment = <Networks extends ChainName>(
-  multiProvider: MultiProvider<Networks>,
-  environment: EnvironmentConfig<Networks>,
-) => {
-  registerTransactionConfigs(multiProvider, environment.transactionConfigs);
 };
 
 export const registerSigners = <Networks extends ChainName>(
@@ -90,14 +81,14 @@ export const registerSigner = <Networks extends ChainName>(
 ) => multiProvider.apply((_, dc) => dc.registerSigner(signer));
 
 export const initHardhatMultiProvider = <Networks extends ChainName>(
-  environment: EnvironmentConfig<Networks>,
+  environmentConfig: EnvironmentConfig<Networks>,
   signer: ethers.Signer,
-) => {
-  const networkProviders = utils.objMap(environment.transactionConfigs, () => ({
+): MultiProvider<Networks> => {
+  const networkProviders = utils.objMap(environmentConfig, () => ({
     provider: signer.provider!,
     signer,
   }));
   const multiProvider = new MultiProvider(networkProviders);
-  registerTransactionConfigs(multiProvider, environment.transactionConfigs);
+  registerEnvironment(multiProvider, environmentConfig);
   return multiProvider;
 };

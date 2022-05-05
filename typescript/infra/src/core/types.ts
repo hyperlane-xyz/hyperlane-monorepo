@@ -1,4 +1,3 @@
-import { ChainMap, ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 export type ValidatorManagerConfig = {
@@ -6,6 +5,6 @@ export type ValidatorManagerConfig = {
   threshold: number;
 };
 
-export type CoreConfig<Networks extends ChainName> = {
-  validatorManagers: ChainMap<Networks, ValidatorManagerConfig>;
+export type CoreConfig = {
+  validatorManager: ValidatorManagerConfig
 };

@@ -1,25 +1,22 @@
 import {
   AbacusConnectionManager,
-  AbacusConnectionManager__factory,
+  AbacusConnectionManager__factory
 } from '@abacus-network/core';
 import {
   AbacusCore,
   ChainMap,
-  ChainName,
-  MultiProvider,
-  RouterAddresses,
-  domains,
-  utils as sdkUtils,
+  ChainName, domains, MultiProvider,
+  RouterAddresses, utils as sdkUtils
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
-
 import { AbacusAppDeployer } from '../deploy';
-
 import { Router, RouterConfig } from './types';
+
+
 
 export abstract class AbacusRouterDeployer<
   N extends ChainName,
-  C extends RouterConfig<N>,
+  C extends RouterConfig,
   A extends RouterAddresses,
 > extends AbacusAppDeployer<N, C, A> {
   protected core?: AbacusCore<N>;
@@ -48,7 +45,7 @@ export abstract class AbacusRouterDeployer<
             deploymentOutput[remote],
           );
           await localRouter.enrollRemoteRouter(
-            domains[remote as N].id,
+            domains[remote].id,
             utils.addressToBytes32(remoteRouter.address),
           );
         }
@@ -66,7 +63,7 @@ export abstract class AbacusRouterDeployer<
     const config = this.configMap[network];
     if (config.abacusConnectionManager) {
       return AbacusConnectionManager__factory.connect(
-        config.abacusConnectionManager[network],
+        config.abacusConnectionManager,
         signer,
       );
     }
@@ -87,7 +84,7 @@ export abstract class AbacusRouterDeployer<
     );
     for (const remote of this.core.remotes(network)) {
       await abacusConnectionManager.enrollInbox(
-        remote,
+        domains[remote].id,
         localCore.inboxes[remote].inbox.address,
         overrides,
       );
