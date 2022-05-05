@@ -63,7 +63,7 @@ export class AbacusGovernanceDeployer<
     const deploymentOutput = await super.deploy();
 
     // Transfer ownership of routers to governor and recovery manager.
-    await utils.promiseObjAll<Record<Networks, void>>(
+    await utils.promiseObjAll(
       utils.objMap(deploymentOutput, async (local, addresses) => {
         const router = this.mustGetRouter(local, addresses);
         const config = this.configMap[local];

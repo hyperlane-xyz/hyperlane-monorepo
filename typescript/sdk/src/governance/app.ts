@@ -2,7 +2,6 @@ import { GovernanceContracts } from '.';
 import { Call } from '..';
 import { ethers } from 'ethers';
 
-import { GovernanceRouter } from '@abacus-network/apps';
 import { types } from '@abacus-network/utils';
 
 import { AbacusApp } from '../app';
@@ -59,13 +58,10 @@ export class AbacusGovernance<
     network: Networks;
     address: types.Address;
   }> => {
-    for (const [network, router] of Object.entries<GovernanceRouter>(
-      this.routers(),
-    )) {
-      const address = await router.governor();
-      if (address !== ethers.constants.AddressZero) {
-        return { network: network as Networks, address };
-      }
+    const governors = await promiseObjAll(objMap(this.routers(), (network, router) => router.governor()))
+    const match = Object.entries(governors).find(([_, governor]) => governor !== ethers.constants.AddressZero) as [Networks, types.Address] | undefined
+    if (match) {
+      return { network: match[0], address: match[1] }
     }
     throw new Error('No governor found');
   };
@@ -74,9 +70,7 @@ export class AbacusGovernance<
     const governor = await this.governor();
     const governorRouter = this.routers()[governor.network];
 
-    const networkTransactions = await promiseObjAll<
-      Record<Networks, ethers.PopulatedTransaction>
-    >(
+    const networkTransactions = await promiseObjAll(
       objMap(this.networkCalls(), (network, calls) => {
         if (network === governor.network) {
           return governorRouter.populateTransaction.call(calls);

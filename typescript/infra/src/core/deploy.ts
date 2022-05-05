@@ -248,7 +248,7 @@ export class AbacusCoreDeployer<
     owners: ChainMap<CoreNetworks, types.Address>,
     multiProvider: MultiProvider<CoreNetworks>,
   ) {
-    return sdkUtils.promiseObjAll<Record<any, any>>(
+    return sdkUtils.promiseObjAll(
       sdkUtils.objMap(core.contractsMap, async (network, coreContracts) => {
         const owner = owners[network];
         const domainConnection = multiProvider.getDomainConnection(network);

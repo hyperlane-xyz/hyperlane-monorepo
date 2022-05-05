@@ -115,16 +115,12 @@ export function objMap<K extends string, I = any, O = any>(
   >;
 }
 
-type PromiseValues<TO> = {
-  [TK in keyof TO]: Promise<TO[TK]>;
-};
-
 // promiseObjectAll :: {k: Promise a} -> Promise {k: a}
-export const promiseObjAll = <T = Record<any, any>>(
-  object: PromiseValues<T>,
-): Promise<T> => {
+export const promiseObjAll = <K extends string, V>(
+  object: { [key in K]: Promise<V> },
+): Promise<Record<K, V>> => {
   const promiseList = Object.entries(object).map(([name, promise]) =>
-    (promise as Promise<any>).then((result) => [name, result]),
+    (promise as Promise<V>).then((result) => [name, result]),
   );
   return Promise.all(promiseList).then(Object.fromEntries);
 };

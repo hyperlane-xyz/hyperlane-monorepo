@@ -95,7 +95,7 @@ export class AbacusCoreChecker<
       network,
       coreContracts.outbox.validatorManager,
     );
-    return utils.promiseObjAll<Record<any, void>>(
+    return utils.promiseObjAll(
       utils.objMap(coreContracts.inboxes, (remote, inbox) =>
         this.checkValidatorManager(network, remote, inbox.validatorManager),
       ),
