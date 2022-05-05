@@ -232,7 +232,9 @@ export class InterchainGasCalculator {
    * @returns The estimated gas required by the message's recipient handle function
    * on the destination chain.
    */
-  async estimateHandleGasForMessage(message: ParsedMessage): Promise<BigNumber> {
+  async estimateHandleGasForMessage(
+    message: ParsedMessage,
+  ): Promise<BigNumber> {
     const provider = this.core.mustGetProvider(message.destination);
     const inbox = this.core.mustGetInbox(message.origin, message.destination);
 
@@ -266,7 +268,10 @@ export class InterchainGasCalculator {
    * @returns An estimated gas amount a relayer will spend when submitting a signed
    * checkpoint to the destination domain.
    */
-  async checkpointRelayGas(originDomain: number, destinationDomain: number): Promise<BigNumber> {
+  async checkpointRelayGas(
+    originDomain: number,
+    destinationDomain: number,
+  ): Promise<BigNumber> {
     // The gas used if the quorum threshold of a signed checkpoint is zero.
     // Includes intrinsic gas and all other gas that does not scale with the
     // number of signatures. Note this does not consider differences in intrinsic gas for
@@ -277,11 +282,13 @@ export class InterchainGasCalculator {
     // Really observed to be about 8350, but rounding up for safety.
     const gasPerSignature = 9_000;
 
-    const validatorManager = this.core.mustGetInboxValidatorManager(originDomain, destinationDomain);
+    const validatorManager = this.core.mustGetInboxValidatorManager(
+      originDomain,
+      destinationDomain,
+    );
     const threshold = await validatorManager.threshold();
 
-    return threshold.mul(gasPerSignature)
-      .add(baseGasAmount);
+    return threshold.mul(gasPerSignature).add(baseGasAmount);
   }
 
   /**
