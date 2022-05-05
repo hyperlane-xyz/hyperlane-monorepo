@@ -1,7 +1,7 @@
 import { AgentConfig } from '../../../src/config';
-import { domainNames, TestNetworks } from './domains';
-import { validators } from './validators';
 
+import { TestNetworks, domainNames } from './domains';
+import { validators } from './validators';
 
 export const agent: AgentConfig<TestNetworks> = {
   environment: 'test',

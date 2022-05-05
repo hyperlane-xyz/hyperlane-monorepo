@@ -1,14 +1,20 @@
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
 import { ChainName, Remotes } from '../types';
+
 import {
-  CoreContractAddresses, CoreContracts, CoreContractSchema
+  CoreContractAddresses,
+  CoreContractSchema,
+  CoreContracts,
 } from './contracts';
 import { environments } from './environments';
 
 export const CoreEnvironments = Object.keys(environments);
 export type CoreEnvironment = keyof typeof environments;
-export type CoreEnvironmentNetworks<E extends CoreEnvironment> = Extract<keyof (typeof environments)[E], ChainName>;
+export type CoreEnvironmentNetworks<E extends CoreEnvironment> = Extract<
+  keyof typeof environments[E],
+  ChainName
+>;
 
 export class AbacusCore<
   Networks extends ChainName = ChainName,

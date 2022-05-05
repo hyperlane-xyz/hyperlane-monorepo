@@ -1,6 +1,8 @@
 import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusGovernanceChecker } from '../src/governance';
+
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {

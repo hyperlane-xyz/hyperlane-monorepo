@@ -1,9 +1,12 @@
-import { ChainName } from '@abacus-network/sdk';
 import { Provider } from '@ethersproject/abstract-provider';
 import { NonceManager } from '@ethersproject/experimental';
 import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
 import { ethers } from 'ethers';
+
+import { ChainName } from '@abacus-network/sdk';
+
 import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
+
 import { DeployEnvironment } from './environment';
 
 export async function fetchProvider(

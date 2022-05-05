@@ -1,3 +1,6 @@
+import { ethers } from 'ethers';
+import path from 'path';
+
 import {
   AbacusConnectionManager__factory,
   InboxValidatorManager,
@@ -6,7 +9,7 @@ import {
   InterchainGasPaymaster__factory,
   OutboxValidatorManager__factory,
   Outbox__factory,
-  UpgradeBeaconController__factory
+  UpgradeBeaconController__factory,
 } from '@abacus-network/core';
 import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
@@ -15,20 +18,20 @@ import {
   ChainName,
   CoreContractAddresses,
   CoreContracts,
-  DomainConnection, domains, InboxContracts,
+  DomainConnection,
+  InboxContracts,
   MailboxAddresses,
   MultiProvider,
   RemoteChainMap,
-  Remotes, utils as sdkUtils
+  Remotes,
+  domains,
+  utils as sdkUtils,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import { ethers } from 'ethers';
-import path from 'path';
+
 import { DeployEnvironment, RustConfig } from '../config';
+
 import { CoreConfig } from './types';
-
-
-
 
 export class AbacusCoreDeployer<
   Networks extends ChainName,

@@ -3,7 +3,7 @@ import { environment as test } from './test';
 import { environment as testnet } from './testnet';
 
 export const environments = {
-    testnet,
-    dev,
-    test
-}
+  testnet,
+  dev,
+  test,
+};

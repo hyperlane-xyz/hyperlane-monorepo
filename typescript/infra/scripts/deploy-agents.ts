@@ -1,7 +1,7 @@
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
-import { getEnvironmentConfig } from './utils';
 
+import { getEnvironmentConfig } from './utils';
 
 async function deploy() {
   const config = await getEnvironmentConfig();
@@ -15,11 +15,7 @@ async function deploy() {
   // run the create-keys script first.
   await Promise.all(
     config.agent.domainNames.map((name: any) =>
-      runAgentHelmCommand(
-        HelmCommand.InstallOrUpgrade,
-        config.agent,
-        name,
-      ),
+      runAgentHelmCommand(HelmCommand.InstallOrUpgrade, config.agent, name),
     ),
   );
 }

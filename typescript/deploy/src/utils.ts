@@ -1,16 +1,16 @@
+import { ethers } from 'ethers';
+import yargs from 'yargs';
+
 import {
   AbacusCore,
   ChainMap,
   ChainName,
   MultiProvider,
-  utils
+  utils,
 } from '@abacus-network/sdk';
-import { ethers } from 'ethers';
-import yargs from 'yargs';
+
 import { EnvironmentConfig, TransactionConfig } from './config';
 import { RouterConfig } from './router';
-
-
 
 export function getArgs() {
   return yargs(process.argv.slice(2))
@@ -27,11 +27,10 @@ export async function getEnvironment(): Promise<string> {
 export function getRouterConfig<N extends ChainName>(
   core: AbacusCore<N>,
 ): ChainMap<N, RouterConfig> {
-  return utils.objMap(
-      core.contractsMap,
-      (_, coreContacts) =>
-      ({abacusConnectionManager: coreContacts.contracts.abacusConnectionManager.address })
-  );
+  return utils.objMap(core.contractsMap, (_, coreContacts) => ({
+    abacusConnectionManager:
+      coreContacts.contracts.abacusConnectionManager.address,
+  }));
 }
 
 // this is currently a kludge to account for ethers issues
@@ -53,7 +52,7 @@ function fixOverrides(config: TransactionConfig): ethers.Overrides {
 
 export const registerEnvironment = <Networks extends ChainName>(
   multiProvider: MultiProvider<Networks>,
-  environmentConfig: EnvironmentConfig<Networks>
+  environmentConfig: EnvironmentConfig<Networks>,
 ) => {
   multiProvider.apply((network, dc) => {
     const txConfig = environmentConfig[network];

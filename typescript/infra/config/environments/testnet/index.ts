@@ -1,8 +1,9 @@
 import { getMultiProviderFromGCP } from '../../../scripts/utils';
 import { CoreEnvironmentConfig } from '../../../src/config';
+
 import { agent } from './agent';
 import { core } from './core';
-import { testnetConfigs, TestnetNetworks } from './domains';
+import { TestnetNetworks, testnetConfigs } from './domains';
 import { governance } from './governance';
 import { infrastructure } from './infrastructure';
 

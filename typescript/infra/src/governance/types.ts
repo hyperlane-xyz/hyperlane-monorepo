@@ -6,6 +6,5 @@ export type GovernanceConfigAddresses = {
   governor?: types.Address;
 };
 
-export type GovernanceConfig =
-  RouterConfig &
-    GovernanceConfigAddresses & { recoveryTimelock: number }
+export type GovernanceConfig = RouterConfig &
+  GovernanceConfigAddresses & { recoveryTimelock: number };

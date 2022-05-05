@@ -1,23 +1,28 @@
+import path from 'path';
+
 import { TransactionConfig, utils } from '@abacus-network/deploy';
 import {
   AllChains,
-  ChainMap, ChainName, IDomainConnection,
-  MultiProvider
+  ChainMap,
+  ChainName,
+  IDomainConnection,
+  MultiProvider,
 } from '@abacus-network/sdk';
 import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
-import path from 'path';
+
 import { environments } from '../config/environments';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { DeployEnvironment } from '../src/config';
 import { fetchProvider, fetchSigner } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
 
-
 export function assertEnvironment(env: string): DeployEnvironment {
   if (EnvironmentNames.includes(env)) {
     return env as DeployEnvironment;
   }
-  throw new Error(`Invalid environment ${env}, must be one of ${EnvironmentNames}`);
+  throw new Error(
+    `Invalid environment ${env}, must be one of ${EnvironmentNames}`,
+  );
 }
 
 export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(

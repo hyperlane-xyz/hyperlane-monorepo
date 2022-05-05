@@ -6,5 +6,5 @@ export type ValidatorManagerConfig = {
 };
 
 export type CoreConfig = {
-  validatorManager: ValidatorManagerConfig
+  validatorManager: ValidatorManagerConfig;
 };

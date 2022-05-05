@@ -1,10 +1,11 @@
 import { ChainMap } from '@abacus-network/sdk';
+
 import { GovernanceConfig } from '../../../src/governance';
 
 const defaultGovernanceConfig: GovernanceConfig = {
   recoveryManager: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
   recoveryTimelock: 180,
-}
+};
 
 const addresses = {
   alfajores: {
@@ -21,4 +22,4 @@ const addresses = {
 };
 
 export const governance: ChainMap<keyof typeof addresses, GovernanceConfig> =
-  addresses
+  addresses;

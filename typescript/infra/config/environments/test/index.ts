@@ -1,8 +1,10 @@
 import { utils } from '@abacus-network/deploy';
+
 import { CoreEnvironmentConfig } from '../../../src/config';
+
 import { agent } from './agent';
 import { core } from './core';
-import { testConfigs, TestNetworks } from './domains';
+import { TestNetworks, testConfigs } from './domains';
 import { governance } from './governance';
 import { infra } from './infra';
 

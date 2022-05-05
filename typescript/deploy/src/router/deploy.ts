@@ -1,18 +1,21 @@
 import {
   AbacusConnectionManager,
-  AbacusConnectionManager__factory
+  AbacusConnectionManager__factory,
 } from '@abacus-network/core';
 import {
   AbacusCore,
   ChainMap,
-  ChainName, domains, MultiProvider,
-  RouterAddresses, utils as sdkUtils
+  ChainName,
+  MultiProvider,
+  RouterAddresses,
+  domains,
+  utils as sdkUtils,
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
+
 import { AbacusAppDeployer } from '../deploy';
+
 import { Router, RouterConfig } from './types';
-
-
 
 export abstract class AbacusRouterDeployer<
   N extends ChainName,

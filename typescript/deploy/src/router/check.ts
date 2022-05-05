@@ -1,11 +1,11 @@
+import { expect } from 'chai';
+
 import { AbacusApp, ChainName, domains } from '@abacus-network/sdk';
 import { types, utils } from '@abacus-network/utils';
-import { expect } from 'chai';
+
 import { AbacusAppChecker, Ownable } from '../check';
+
 import { Router, RouterConfig } from './types';
-
-
-
 
 export abstract class AbacusRouterChecker<
   Networks extends ChainName,

@@ -1,16 +1,16 @@
+import { expect } from 'chai';
+
 import {
   AbacusApp,
   ChainMap,
   ChainName,
   MultiProvider,
-  ProxiedAddress
+  ProxiedAddress,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import { expect } from 'chai';
+
 import { CheckerViolation } from './config';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
-
-
 
 export interface Ownable {
   owner(): Promise<types.Address>;

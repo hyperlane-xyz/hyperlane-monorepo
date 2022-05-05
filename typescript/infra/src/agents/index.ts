@@ -1,10 +1,12 @@
 import { ChainName } from '@abacus-network/sdk';
-import { rm, writeFile } from 'fs/promises';
+
 import { AgentConfig, DeployEnvironment } from '../config';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
+import { rm, writeFile } from 'fs/promises';
+
 import { keyIdentifier } from './agent';
 import { AgentAwsUser, ValidatorAgentAwsUser } from './aws';
 import { AgentAwsKey } from './aws/key';
@@ -74,10 +76,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     throw Error('Expected index for validator role');
   }
 
-  const valueDict = await helmValuesForChain(
-    outboxChainName,
-    agentConfig,
-  );
+  const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   let envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
   envVars.push(
@@ -317,10 +316,7 @@ export async function runAgentHelmCommand<Networks extends ChainName>(
   agentConfig: AgentConfig<Networks>,
   outboxChainName: Networks,
 ) {
-  const valueDict = await helmValuesForChain(
-    outboxChainName,
-    agentConfig,
-  );
+  const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   const values = helmifyValues(valueDict);
 
   const extraPipe =

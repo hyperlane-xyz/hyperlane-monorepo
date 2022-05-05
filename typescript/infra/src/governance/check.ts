@@ -1,15 +1,17 @@
-import { AbacusRouterChecker } from '@abacus-network/deploy';
-import {
-  AbacusGovernance, ChainMap, ChainName,
-  MultiProvider,
-  utils
-} from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { ethers } from 'ethers';
+
+import { AbacusRouterChecker } from '@abacus-network/deploy';
+import {
+  AbacusGovernance,
+  ChainMap,
+  ChainName,
+  MultiProvider,
+  utils,
+} from '@abacus-network/sdk';
+import { types } from '@abacus-network/utils';
+
 import { GovernanceConfig } from './types';
-
-
 
 export class AbacusGovernanceChecker<
   Networks extends ChainName,
@@ -17,7 +19,7 @@ export class AbacusGovernanceChecker<
   Networks,
   AbacusGovernance<Networks>,
   GovernanceConfig & {
-    owner: types.Address
+    owner: types.Address;
   }
 > {
   constructor(
@@ -25,10 +27,10 @@ export class AbacusGovernanceChecker<
     app: AbacusGovernance<Networks>,
     configMap: ChainMap<Networks, GovernanceConfig>,
   ) {
-    const joinedConfig = utils.objMap(
-      configMap,
-      (_, config) => ({ ...config, owner: config.governor ?? ethers.constants.AddressZero })
-    );
+    const joinedConfig = utils.objMap(configMap, (_, config) => ({
+      ...config,
+      owner: config.governor ?? ethers.constants.AddressZero,
+    }));
     super(multiProvider, app, joinedConfig);
   }
 

@@ -1,27 +1,30 @@
+import '@nomiclabs/hardhat-waffle';
+import { ethers } from 'hardhat';
+import path from 'path';
+
 import {
   AbacusCore,
   ChainMap,
   CoreContractAddresses,
   MultiProvider,
   utils as sdkUtils,
-  utils
+  utils,
 } from '@abacus-network/sdk';
-import '@nomiclabs/hardhat-waffle';
-import { ethers } from 'hardhat';
-import path from 'path';
+
 import { TestNetworks } from '../config/environments/test/domains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
 import { AbacusCoreChecker, AbacusCoreDeployer, CoreConfig } from '../src/core';
 
-
-
 describe('core', async () => {
   const environment = 'test';
-  
+
   let multiProvider: MultiProvider<TestNetworks>;
   let deployer: AbacusCoreDeployer<TestNetworks>;
   let core: AbacusCore<TestNetworks>;
-  let addresses: ChainMap<TestNetworks, CoreContractAddresses<TestNetworks, any>>;
+  let addresses: ChainMap<
+    TestNetworks,
+    CoreContractAddresses<TestNetworks, any>
+  >;
   let coreConfig: ChainMap<TestNetworks, CoreConfig>;
 
   let owners: ChainMap<TestNetworks, string>;
@@ -29,16 +32,9 @@ describe('core', async () => {
     const config = getCoreEnvironmentConfig(environment);
     multiProvider = await config.getMultiProvider();
     coreConfig = config.core;
-    deployer = new AbacusCoreDeployer(
-      multiProvider,
-      coreConfig,
-      );
+    deployer = new AbacusCoreDeployer(multiProvider, coreConfig);
     const [, owner] = await ethers.getSigners();
-    owners = sdkUtils.objMap(
-      config.transactionConfigs,
-      () => owner.address,
-    );
-    
+    owners = sdkUtils.objMap(config.transactionConfigs, () => owner.address);
   });
 
   it('deploys', async () => {
@@ -49,11 +45,7 @@ describe('core', async () => {
     const base = './test/outputs/core';
     deployer.writeVerification(path.join(base, 'verification'));
     deployer.writeContracts(addresses, path.join(base, 'contracts.ts'));
-    deployer.writeRustConfigs(
-      environment,
-      path.join(base, 'rust'),
-      addresses,
-    );
+    deployer.writeRustConfigs(environment, path.join(base, 'rust'), addresses);
   });
 
   it('transfers ownership', async () => {
@@ -62,10 +54,10 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const joinedConfig = utils.objMap(
-      coreConfig,
-      (network, config) => ({ ...config, owner: owners[network] })
-    );
+    const joinedConfig = utils.objMap(coreConfig, (network, config) => ({
+      ...config,
+      owner: owners[network],
+    }));
     const checker = new AbacusCoreChecker(multiProvider, core, joinedConfig);
     await checker.check();
   });

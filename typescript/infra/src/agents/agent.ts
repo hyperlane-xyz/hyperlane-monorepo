@@ -1,6 +1,6 @@
 import { ChainName } from '@abacus-network/sdk';
-import { KEY_ROLE_ENUM } from './roles';
 
+import { KEY_ROLE_ENUM } from './roles';
 
 export abstract class AgentKey {
   constructor(

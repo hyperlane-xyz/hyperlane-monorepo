@@ -1,22 +1,22 @@
-import { BadRandomRecipient__factory } from '@abacus-network/core';
-import { utils as deployUtils } from '@abacus-network/deploy';
-import { AbacusCore, ChainName } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
 import '@nomiclabs/hardhat-etherscan';
 import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
+
+import { BadRandomRecipient__factory } from '@abacus-network/core';
+import { utils as deployUtils } from '@abacus-network/deploy';
+import { AbacusCore, ChainName } from '@abacus-network/sdk';
+import { utils } from '@abacus-network/utils';
+
 import {
   getCoreContractsSdkFilepath,
   getCoreEnvironmentConfig,
   getCoreRustDirectory,
-  getCoreVerificationDirectory
+  getCoreVerificationDirectory,
 } from './scripts/utils';
 import { AbacusCoreDeployer } from './src/core';
 import { sleep } from './src/utils/utils';
 import { AbacusContractVerifier } from './src/verify';
-
-
 
 const domainSummary = async <Networks extends ChainName>(
   core: AbacusCore<Networks>,
@@ -93,8 +93,8 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
     );
   });
 
-task('kathy', 'Dispatches random abacus messages')
-  .setAction(async (_, hre: HardhatRuntimeEnvironment) => {
+task('kathy', 'Dispatches random abacus messages').setAction(
+  async (_, hre: HardhatRuntimeEnvironment) => {
     const environment = 'test';
     const config = getCoreEnvironmentConfig(environment);
     const [signer] = await hre.ethers.getSigners();
@@ -135,7 +135,8 @@ task('kathy', 'Dispatches random abacus messages')
         await sleep(5000);
       }
     }
-  });
+  },
+);
 
 const etherscanKey = process.env.ETHERSCAN_API_KEY;
 task('verify-deploy', 'Verifies abacus deploy sourcecode')

@@ -1,6 +1,6 @@
 import { createAgentKeysIfNotExists } from '../src/agents/key-utils';
-import { getEnvironmentConfig } from './utils';
 
+import { getEnvironmentConfig } from './utils';
 
 async function main() {
   const config = await getEnvironmentConfig();

@@ -1,10 +1,11 @@
 import { ChainName } from '@abacus-network/sdk';
+
 import {
   ChainValidatorSets,
-  CheckpointSyncerType
+  CheckpointSyncerType,
 } from '../../../src/config/agent';
-import { TestNetworks } from './domains';
 
+import { TestNetworks } from './domains';
 
 const localStoragePath = (chainName: ChainName) =>
   `/tmp/abacus-test-${chainName}-validator`;

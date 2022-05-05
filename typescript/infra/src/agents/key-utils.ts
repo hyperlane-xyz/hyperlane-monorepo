@@ -1,13 +1,13 @@
 import { ChainName } from '@abacus-network/sdk';
+
 import { AgentConfig } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
+
 import { AgentKey } from './agent';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
 import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
-
-
 
 interface KeyAsAddress {
   identifier: string;
@@ -27,9 +27,7 @@ export function getKey<Networks extends ChainName>(
   }
 }
 
-export function getAllKeys(
-  agentConfig: AgentConfig<any>,
-): Array<AgentKey> {
+export function getAllKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
   return KEY_ROLES.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
       // For each chainName, create validatorCount keys
@@ -50,9 +48,7 @@ export function getAllKeys(
   });
 }
 
-export async function deleteAgentKeys(
-  agentConfig: AgentConfig<any>,
-) {
+export async function deleteAgentKeys(agentConfig: AgentConfig<any>) {
   const keys = getAllKeys(agentConfig);
   await Promise.all(keys.map((key) => key.delete()));
   await execCmd(

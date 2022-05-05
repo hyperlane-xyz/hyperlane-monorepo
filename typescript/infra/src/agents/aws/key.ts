@@ -1,22 +1,25 @@
-import { ChainName } from '@abacus-network/sdk';
 import {
   AliasListEntry,
   CreateAliasCommand,
   CreateKeyCommand,
   DeleteAliasCommand,
-  GetPublicKeyCommand, KeySpec,
-  KeyUsageType, KMSClient, ListAliasesCommand,
+  GetPublicKeyCommand,
+  KMSClient,
+  KeySpec,
+  KeyUsageType,
+  ListAliasesCommand,
   ListAliasesCommandOutput,
   OriginType,
   PutKeyPolicyCommand,
-  UpdateAliasCommand
+  UpdateAliasCommand,
 } from '@aws-sdk/client-kms';
+
+import { ChainName } from '@abacus-network/sdk';
+
 import { AgentConfig, AwsKeyConfig, KeyType } from '../../config/agent';
 import { getEthereumAddress, sleep } from '../../utils/utils';
 import { AgentKey, keyIdentifier } from '../agent';
 import { KEY_ROLE_ENUM } from '../roles';
-
-
 
 interface UnfetchedKey {
   fetched: false;
