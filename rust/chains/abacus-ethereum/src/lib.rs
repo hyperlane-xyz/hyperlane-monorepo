@@ -9,7 +9,6 @@ use color_eyre::eyre::Result;
 use ethers::providers::Middleware;
 use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
 use num::Num;
-use std::convert::TryFrom;
 use std::sync::Arc;
 
 #[macro_use]
