@@ -57,7 +57,7 @@ export class DomainConnection {
 
 export class MultiProvider<
   Networks extends ChainName = ChainName,
-> extends MultiGeneric<DomainConnection, Networks> {
+> extends MultiGeneric<Networks, DomainConnection> {
   constructor(networks: ChainMap<Networks, IDomainConnection> | Networks[]) {
     const params = Array.isArray(networks)
       ? networks.map((v) => [v, {}])

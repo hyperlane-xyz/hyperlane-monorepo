@@ -55,7 +55,7 @@ export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export class MultiGeneric<Value, Networks extends ChainName = ChainName> {
+export class MultiGeneric<Networks extends ChainName, Value> {
   constructor(protected readonly domainMap: ChainMap<Networks, Value>) {}
 
   protected get = (network: Networks) => this.domainMap[network];
@@ -84,7 +84,7 @@ export class MultiGeneric<Value, Networks extends ChainName = ChainName> {
     network: New,
     value: Value,
   ) =>
-    new MultiGeneric<Value, New & Networks>({
+    new MultiGeneric<New & Networks, Value>({
       ...this.domainMap,
       [network]: value,
     });

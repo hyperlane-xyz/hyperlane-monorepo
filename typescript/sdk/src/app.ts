@@ -6,7 +6,7 @@ import { MultiGeneric, objMap } from './utils';
 export class AbacusApp<
   Contracts extends IAbacusContracts<any, any>,
   Networks extends ChainName = ChainName,
-> extends MultiGeneric<Contracts, Networks> {
+> extends MultiGeneric<Networks, Contracts> {
   constructor(
     builder: ContractsBuilder<any, Contracts>,
     networkAddresses: ChainMap<Networks, any>,
