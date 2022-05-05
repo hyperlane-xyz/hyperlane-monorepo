@@ -65,31 +65,27 @@ Commits (and tags) for this repo require [signature verification](https://docs.g
 
 ### Workspaces
 
-This monorepo uses [NPM Workspaces](https://docs.npmjs.com/cli/v7/using-npm/workspaces/). Installing dependencies, building, testing, and running prettier for all packages can be done from the root directory of the repository.
+This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). Installing dependencies, building, testing, and running prettier for all packages can be done from the root directory of the repository.
 
 - Installing dependencies
 
   ```bash
-  npm install
+  yarn install
   ```
 
 - Building
 
   ```bash
-  npm run build
-  ```
-
-- Testing
-
-  ```bash
-  npm run test
+  yarn build
   ```
 
 - Running prettier
 
   ```bash
-  npm run prettier
+  yarn prettier
   ```
+
+If you are using [VSCode](https://code.visualstudio.com/), you can launch the [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) with `code mono.code-workspace`, install the recommended workspace extensions, and use the editor settings.
 
 ### Rust
 

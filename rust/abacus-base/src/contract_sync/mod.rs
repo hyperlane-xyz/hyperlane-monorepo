@@ -588,10 +588,10 @@ mod test {
     #[tokio::test]
     async fn handles_missing_rpc_messages() {
         test_utils::run_test_db(|db| async move {
-            let first_root = H256::from([0; 32]);
-            let second_root = H256::from([1; 32]);
-            let third_root = H256::from([2; 32]);
-            let fourth_root = H256::from([2; 32]);
+            // let first_root = H256::from([0; 32]);
+            // let second_root = H256::from([1; 32]);
+            // let third_root = H256::from([2; 32]);
+            // let fourth_root = H256::from([2; 32]);
 
             let mut message_vec = vec![];
             AbacusMessage {
