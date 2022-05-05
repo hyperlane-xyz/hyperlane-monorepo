@@ -29,9 +29,9 @@ describe('governance', async () => {
     const config = getCoreEnvironmentConfig(environment);
     governanceConfig = config.governance;
     multiProvider = await config.getMultiProvider();
-    console.log(governanceConfig);
 
     const core = AbacusCore.fromEnvironment(environment, multiProvider);
+    console.log(core);
     deployer = new AbacusGovernanceDeployer(multiProvider, governanceConfig, core);
   });
 
