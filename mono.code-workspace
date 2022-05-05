@@ -1,0 +1,43 @@
+{
+  "settings": {
+    "editor.formatOnSave": true,
+    "editor.formatOnSaveMode": "modifications", // only formats git changes
+    "editor.defaultFormatter": "esbenp.prettier-vscode",
+    "prettier.configPath": ".prettierrc",
+    "workbench.editor.labelFormat": "medium",
+    "npm.packageManager": "yarn",
+    "npm.enableRunFromFolder": true,
+    "npm.scriptExplorerAction": "run",
+    "npm.fetchOnlinePackageInfo": true,
+    "scm.diffDecorationsGutterPattern": {
+      "added": true
+    },
+  },
+  "folders": [
+    {
+      "path": "./typescript"
+    },
+    {
+      "path": "./solidity"
+    },
+    {
+      "path": "./rust"
+    }
+  ],
+  "extensions": {
+    // See https://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.
+    // Extension identifier format: ${publisher}.${name}. Example: vscode.csharp
+
+    // List of extensions which should be recommended for users of this workspace.
+    "recommendations": [
+      "GitHub.copilot-nightly",
+      "GitHub.vscode-pull-request-github",
+      "eamodio.gitlens",
+      "bierner.github-markdown-preview",
+      "ms-vsliveshare.vsliveshare-pack",
+      "esbenp.prettier-vscode"
+    ],
+    // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
+    "unwantedRecommendations": []
+  }
+}
