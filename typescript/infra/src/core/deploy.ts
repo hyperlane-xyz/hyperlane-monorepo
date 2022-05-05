@@ -1,6 +1,3 @@
-import { ethers } from 'ethers';
-import path from 'path';
-
 import {
   AbacusConnectionManager__factory,
   InboxValidatorManager,
@@ -9,7 +6,7 @@ import {
   InterchainGasPaymaster__factory,
   OutboxValidatorManager__factory,
   Outbox__factory,
-  UpgradeBeaconController__factory,
+  UpgradeBeaconController__factory
 } from '@abacus-network/core';
 import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
@@ -18,20 +15,20 @@ import {
   ChainName,
   CoreContractAddresses,
   CoreContracts,
-  DomainConnection,
-  InboxContracts,
+  DomainConnection, domains, InboxContracts,
   MailboxAddresses,
   MultiProvider,
   RemoteChainMap,
-  Remotes,
-  domains,
-  utils as sdkUtils,
+  Remotes, utils as sdkUtils
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-
+import { ethers } from 'ethers';
+import path from 'path';
 import { DeployEnvironment, RustConfig } from '../config';
-
 import { ValidatorManagerConfig } from './types';
+
+
+
 
 export class AbacusCoreDeployer<
   Networks extends ChainName,
@@ -208,7 +205,7 @@ export class AbacusCoreDeployer<
         },
       };
 
-      const rustConfig: RustConfig = {
+      const rustConfig: RustConfig<Networks> = {
         environment,
         signers: {},
         inboxes: {},
@@ -224,7 +221,7 @@ export class AbacusCoreDeployer<
         const inboxAddresses = addresses.inboxes[remote];
 
         const inbox = {
-          domain: domains[remote as ChainName].id.toString(),
+          domain: domains[remote].id.toString(),
           name: remote,
           rpcStyle: 'ethereum',
           connection: {
@@ -237,7 +234,7 @@ export class AbacusCoreDeployer<
           },
         };
 
-        rustConfig.inboxes[remote as Networks] = inbox;
+        rustConfig.inboxes[remote] = inbox;
       });
       AbacusAppDeployer.writeJson(filepath, rustConfig);
     });
