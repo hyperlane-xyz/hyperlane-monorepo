@@ -71,7 +71,8 @@ export class MultiProvider<
   getDomainConnection(network: Networks) {
     return this.get(network);
   }
-  ready() {
-    // TODO: return Promise.all(this.values().map((dc) => dc.provider!.ready));
-  }
+  // This doesn't work on hardhat providers so we skip for now
+  // ready() {
+  //   return Promise.all(this.values().map((dc) => dc.provider!.ready));
+  // }
 }
