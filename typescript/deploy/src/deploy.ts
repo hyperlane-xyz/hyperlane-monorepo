@@ -6,7 +6,7 @@ import {
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
-import { ChainMap, ChainName, MultiProvider, objMap, utils } from '@abacus-network/sdk';
+import { ChainMap, ChainName, MultiProvider, objMap } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 import { ProxiedContract } from './proxy';

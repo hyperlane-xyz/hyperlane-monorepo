@@ -7,7 +7,6 @@ import {
   ChainName,
   MailboxAddresses,
   domains,
-  utils,
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';

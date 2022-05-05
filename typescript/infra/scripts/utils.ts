@@ -5,7 +5,6 @@ import {
   AllChains,
   ChainMap,
   ChainName,
-  IDomainConnection,
   MultiProvider,
 } from '@abacus-network/sdk';
 import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
