@@ -187,7 +187,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         bytes memory _msg,
         uint256 _gasPayment
     ) internal {
-        // Gets the abacusConnectionManager and Outbox once to avoid multiple storage reads
+        // Gets the abacusConnectionManager and outbox once to avoid multiple storage reads
         // and calls.
         IAbacusConnectionManager _abacusConnectionManager = abacusConnectionManager;
         IOutbox _outbox = _abacusConnectionManager.outbox();
