@@ -2,6 +2,8 @@ import { ethers } from 'ethers';
 
 import { types } from '@abacus-network/utils';
 
+import { domains } from './domains';
+
 /**
  * RPC Pagination information for Polygon
  */
@@ -13,76 +15,61 @@ export interface Pagination {
 /**
  * Enumeration of Abacus supported chains
  */
-export enum Chains {
-  alfajores,
-  mumbai,
-  kovan,
-  goerli,
-  fuji,
-  rinkarby,
-  rinkeby,
-  ropsten,
-  celo,
-  ethereum,
-  avalanche,
-  polygon,
-  bsctestnet,
-  arbitrumrinkeby,
-  optimismkovan,
-  auroratestnet,
-  test1,
-  test2,
-  test3,
+export enum Chains { // must be string type to be used with Object.keys
+  alfajores = 'alfajores',
+  mumbai = 'mumbai',
+  kovan = 'kovan',
+  goerli = 'goerli',
+  fuji = 'fuji',
+  rinkarby = 'rinkarby',
+  rinkeby = 'rinkeby',
+  ropsten = 'ropsten',
+  celo = 'celo',
+  ethereum = 'ethereum',
+  avalanche = 'avalanche',
+  polygon = 'polygon',
+  bsctestnet = 'bsctestnet',
+  arbitrumrinkeby = 'arbitrumrinkeby',
+  optimismkovan = 'optimismkovan',
+  auroratestnet = 'auroratestnet',
+  test1 = 'test1',
+  test2 = 'test2',
+  test3 = 'test3',
 }
 export type ChainName = keyof typeof Chains;
-export type ChainMap<Value> = Record<ChainName, Value>;
-export type ChainSubsetMap<Networks extends ChainName, Value> = Record<
+export type CompleteChainMap<Value> = Record<ChainName, Value>;
+export type ChainMap<Networks extends ChainName, Value> = Record<
   Networks,
   Value
 >;
+
+export const AllChains = Object.keys(Chains) as ChainName[];
+export const DomainIdToChainName = Object.fromEntries(
+  AllChains.map((chain) => [domains[chain].id, chain]),
+);
+export const ChainNameToDomainId = Object.fromEntries(
+  AllChains.map((chain) => [chain, domains[chain].id]),
+) as CompleteChainMap<number>;
+export type NameOrDomain = ChainName | number;
+
 export type Remotes<
   Networks extends ChainName,
   Local extends Networks,
 > = Exclude<Networks, Local>;
-export type RemoteChainSubsetMap<
+export type RemoteChainMap<
   Networks extends ChainName,
   Local extends Networks,
   Value,
 > = Record<Remotes<Networks, Local>, Value>;
 
 /**
- * The names of Abacus supported chains
- */
-const ALL_MAINNET_NAMES = ['celo', 'ethereum', 'avalanche', 'polygon'] as const;
-
-const ALL_TESTNET_NAMES = [
-  'alfajores',
-  'mumbai',
-  'kovan',
-  'goerli',
-  'fuji',
-  'rinkarby',
-  'rinkeby',
-  'ropsten',
-] as const;
-
-const ALL_TEST_NAMES = ['test1', 'test2', 'test3'] as const;
-
-export const ALL_CHAIN_NAMES = [
-  ...ALL_MAINNET_NAMES,
-  ...ALL_TESTNET_NAMES,
-  ...ALL_TEST_NAMES,
-];
-
-/**
  * A Domain (and its characteristics)
  */
-export interface Domain {
+export type Domain = {
   id: number;
-  name: ChainName;
   nativeTokenDecimals?: number;
   paginate?: Pagination;
-}
+};
 
 export type Connection = ethers.providers.Provider | ethers.Signer;
 
@@ -91,5 +78,3 @@ export type ProxiedAddress = {
   implementation: types.Address;
   beacon: types.Address;
 };
-
-export type NameOrDomain = ChainName | number;

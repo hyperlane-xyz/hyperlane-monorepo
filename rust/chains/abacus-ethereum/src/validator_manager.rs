@@ -33,8 +33,11 @@ where
     M: ethers::providers::Middleware,
 {
     contract: Arc<EthereumInboxValidatorManagerInternal<M>>,
+    #[allow(unused)]
     domain: u32,
+    #[allow(unused)]
     name: String,
+    #[allow(unused)]
     provider: Arc<M>,
     inbox_address: Address,
 }

@@ -1,42 +1,47 @@
 import { ethers } from 'ethers';
 
-import {
-  GovernanceRouter,
-  GovernanceRouter__factory,
-} from '@abacus-network/apps';
+import { GovernanceRouter__factory } from '@abacus-network/apps';
 import { UpgradeBeaconController__factory } from '@abacus-network/core';
 import { AbacusRouterDeployer } from '@abacus-network/deploy';
-import { GovernanceContractAddresses } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import {
+  ChainName,
+  GovernanceAddresses,
+  objMap,
+  promiseObjAll,
+} from '@abacus-network/sdk';
 
 import { GovernanceConfig } from './types';
 
-export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
-  GovernanceContractAddresses,
-  GovernanceConfig
+export class AbacusGovernanceDeployer<
+  Networks extends ChainName,
+> extends AbacusRouterDeployer<
+  Networks,
+  GovernanceConfig,
+  GovernanceAddresses
 > {
   async deployContracts(
-    domain: types.Domain,
+    network: Networks,
     config: GovernanceConfig,
-  ): Promise<GovernanceContractAddresses> {
-    const signer = this.mustGetSigner(domain);
-    const overrides = this.getOverrides(domain);
+  ): Promise<GovernanceAddresses> {
+    const dc = this.multiProvider.getDomainConnection(network);
+    const signer = dc.signer!;
 
     const abacusConnectionManager =
-      await this.deployConnectionManagerIfNotConfigured(domain, config);
+      await this.deployConnectionManagerIfNotConfigured(network);
 
     const upgradeBeaconController = await this.deployContract(
-      domain,
+      network,
       'UpgradeBeaconController',
       new UpgradeBeaconController__factory(signer),
+      [],
     );
 
     const router = await this.deployProxiedContract(
-      domain,
+      network,
       'GovernanceRouter',
       new GovernanceRouter__factory(signer),
-      upgradeBeaconController.address,
       [config.recoveryTimelock],
+      upgradeBeaconController.address,
       [abacusConnectionManager.address],
     );
 
@@ -44,10 +49,13 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
     if (abacusConnectionManager.deployTransaction) {
       await abacusConnectionManager.transferOwnership(
         router.address,
-        overrides,
+        dc.overrides,
       );
     }
-    await upgradeBeaconController.transferOwnership(router.address, overrides);
+    await upgradeBeaconController.transferOwnership(
+      router.address,
+      dc.overrides,
+    );
 
     return {
       router: router.addresses,
@@ -56,28 +64,28 @@ export class AbacusGovernanceDeployer extends AbacusRouterDeployer<
     };
   }
 
-  async deploy(config: GovernanceConfig) {
-    await super.deploy(config);
+  async deploy() {
+    const deploymentOutput = await super.deploy();
 
     // Transfer ownership of routers to governor and recovery manager.
-    for (const local of this.domainNumbers) {
-      const router = this.mustGetRouter(local);
-      const name = this.mustResolveDomainName(local);
-      const addresses = config.addresses[name];
-      if (!addresses) throw new Error('could not find addresses');
-      await router.transferOwnership(addresses.recoveryManager);
-      if (addresses.governor !== undefined) {
-        await router.setGovernor(addresses.governor);
-      } else {
-        await router.setGovernor(ethers.constants.AddressZero);
-      }
-    }
+    await promiseObjAll(
+      objMap(deploymentOutput, async (local, addresses) => {
+        const router = this.mustGetRouter(local, addresses);
+        const config = this.configMap[local];
+        await router.transferOwnership(config.recoveryManager);
+        await router.setGovernor(
+          config.governor ?? ethers.constants.AddressZero,
+        );
+      }),
+    );
+
+    return deploymentOutput;
   }
 
-  mustGetRouter(domain: number): GovernanceRouter {
+  mustGetRouter(network: Networks, addresses: GovernanceAddresses) {
     return GovernanceRouter__factory.connect(
-      this.mustGetAddresses(domain).router.proxy,
-      this.mustGetSigner(domain),
+      addresses.router.proxy,
+      this.multiProvider.getDomainConnection(network).signer!,
     );
   }
 }

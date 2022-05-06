@@ -1,5 +1,4 @@
 import { RouterConfig } from '@abacus-network/deploy';
-import { ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 export type GovernanceConfigAddresses = {
@@ -7,7 +6,5 @@ export type GovernanceConfigAddresses = {
   governor?: types.Address;
 };
 
-export type GovernanceConfig = RouterConfig & {
-  recoveryTimelock: number;
-  addresses: Partial<Record<ChainName, GovernanceConfigAddresses>>;
-};
+export type GovernanceConfig = RouterConfig &
+  GovernanceConfigAddresses & { recoveryTimelock: number };

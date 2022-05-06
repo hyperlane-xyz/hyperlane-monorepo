@@ -33,18 +33,6 @@ export function serializeCall(call: Call): string {
   );
 }
 
-export function associateCalls(
-  _calls: Map<number, Call[]>,
-): [number[], Call[][]] {
-  const domains = [];
-  const calls = [];
-  for (const [key, value] of _calls) {
-    domains.push(key);
-    calls.push(value);
-  }
-  return [domains, calls];
-}
-
 export function normalizeCall(partial: Partial<Call>): Readonly<Call> {
   const to = ethers.utils.hexlify(canonizeId(partial.to!));
   const data = partial.data ?? '0x';

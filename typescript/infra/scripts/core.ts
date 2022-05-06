@@ -1,25 +1,31 @@
 import { AbacusCoreDeployer } from '../src/core';
 
 import {
-  getCoreConfig,
   getCoreContractsSdkFilepath,
+  getCoreEnvironmentConfig,
   getCoreRustDirectory,
   getCoreVerificationDirectory,
   getEnvironment,
-  registerMultiProvider,
 } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const deployer = new AbacusCoreDeployer();
-  await registerMultiProvider(deployer, environment);
+  const config = getCoreEnvironmentConfig(environment) as any;
+  const multiProvider = await config.getMultiProvider();
+  const deployer = new AbacusCoreDeployer(
+    multiProvider,
+    config.core.validatorManagers,
+  );
 
-  const config = await getCoreConfig(environment);
-  await deployer.deploy(config);
+  const addresses = await deployer.deploy();
 
-  deployer.writeContracts(getCoreContractsSdkFilepath(environment));
+  deployer.writeContracts(addresses, getCoreContractsSdkFilepath(environment));
   deployer.writeVerification(getCoreVerificationDirectory(environment));
-  deployer.writeRustConfigs(environment, getCoreRustDirectory(environment));
+  deployer.writeRustConfigs(
+    environment,
+    getCoreRustDirectory(environment),
+    addresses,
+  );
 }
 
 main().then(console.log).catch(console.error);

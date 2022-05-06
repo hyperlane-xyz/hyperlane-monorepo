@@ -1,43 +1,35 @@
-import {
-  GovernanceRouter,
-  GovernanceRouter__factory,
-} from '@abacus-network/apps';
-import {
-  AbacusConnectionManager,
-  AbacusConnectionManager__factory,
-  UpgradeBeaconController,
-  UpgradeBeaconController__factory,
-} from '@abacus-network/core';
-import { types } from '@abacus-network/utils';
+import { Call } from '..';
 
-import { AbacusAppContracts } from '../contracts';
-import { ProxiedAddress } from '../types';
+import { GovernanceRouter__factory } from '@abacus-network/apps';
 
-export type GovernanceContractAddresses = {
-  upgradeBeaconController: types.Address;
-  abacusConnectionManager: types.Address;
-  router: ProxiedAddress;
+import {
+  AbacusContracts,
+  RouterAddresses,
+  routerFactories,
+} from '../contracts';
+
+import { normalizeCall } from './utils';
+
+export type GovernanceAddresses = RouterAddresses;
+
+export const governanceFactories = {
+  ...routerFactories,
+  router: GovernanceRouter__factory.connect,
 };
 
-export class GovernanceContracts extends AbacusAppContracts<GovernanceContractAddresses> {
-  get router(): GovernanceRouter {
-    return GovernanceRouter__factory.connect(
-      this.addresses.router.proxy,
-      this.connection,
-    );
-  }
+export type GovernanceFactories = typeof governanceFactories;
 
-  get upgradeBeaconController(): UpgradeBeaconController {
-    return UpgradeBeaconController__factory.connect(
-      this.addresses.upgradeBeaconController,
-      this.connection,
-    );
+export class GovernanceContracts extends AbacusContracts<
+  GovernanceAddresses,
+  GovernanceFactories
+> {
+  // necessary for factories be defined in the constructor
+  factories() {
+    return governanceFactories;
   }
+  calls: Call[] = [];
 
-  get abacusConnectionManager(): AbacusConnectionManager {
-    return AbacusConnectionManager__factory.connect(
-      this.addresses.abacusConnectionManager,
-      this.connection,
-    );
-  }
+  push = (call: Call) => this.calls.push(normalizeCall(call));
+  router = this.contracts.router;
+  governor = () => this.router.governor();
 }
