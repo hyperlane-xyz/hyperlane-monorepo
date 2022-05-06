@@ -1,7 +1,6 @@
-import { types, utils } from '@abacus-network/utils';
-
 import { TestAbacusDeploy } from './TestAbacusDeploy';
 import { TestDeploy } from './TestDeploy';
+import { types, utils } from '@abacus-network/utils';
 
 export interface Router {
   address: types.Address;
