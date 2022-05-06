@@ -2,7 +2,7 @@
 
 ## Overview
 
-Abacus is a interchain messaging protocol. It handles passing generalized messages
+Abacus is an interchain messaging protocol. It handles passing generalized messages
 between blockchains cheaply, enabling genuine interchain applications. Inspired by IBC,
 Abacus creates channels between chains. In that respect, Abacus is a network between blockchains,
 and then passes messages between applications over these channels. Channels can be used 
@@ -114,18 +114,10 @@ cd rust
 ./release.sh <image_tag>
 ```
 
-# What is Abacus?
-
-Abacus is a protocol that enables interchain applications by passing messages, any raw bytes, 
-between smart contract blockchains. It does so without bearing the expensive costs involved
-with header verification. Notably, Abacus has economies of scale in messaging costs, and
-brings a new security model to the fore in its Proof of Stake combined with our very own;
-Sovereign Consensus.
-
 
 ## Key Points
 
-System sketch:
+System outline:
 
 1. An "outbox" contract on a source chain receives messages from applications and commits messages in a merkle tree
 2. Staking "validators" attest to the commitment via "checkpoints"
@@ -142,7 +134,7 @@ While this guarantee may be weaker than header verification in its own right, wh
 ## Summary
 
 Abacus is a protocol for interchain communication. The protocol's goal is to use generalized messaging between smart contract blockchains to enable interchain applications. 
-Abacus creates a succinct piece of state, a 32 byte hash, that is updated regularly. This enables the protocol to have economies of scale with respect to messaging frequency.
+To enable this capability Abacus creates a succinct piece of state, a 32 byte hash, that is updated regularly. This enables the protocol to have economies of scale with respect to messaging frequency.
 This hash is effectively a merkle tree containing a set of interchain messages sent by a collection of applications on a source chain via an Outbox. The root of the merkle tree can be relayed to any number of destination chains via an Inbox. 
 
 
