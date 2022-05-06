@@ -8,7 +8,7 @@
   },
   "prepublish": "npm run build",
   "name": "@abacus-network/deploy",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Abacus deploy tools",
   "main": "dist/src/index.js",
   "types": "dist/src/index.d.ts",
@@ -20,8 +20,11 @@
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@abacus-network/core": "^0.0.6",
-    "@abacus-network/sdk": "^0.0.4",
+    "@abacus-network/sdk": "^0.0.5",
+    "@abacus-network/utils": "^0.0.8",
     "@types/node": "^16.9.1",
-    "axios": "^0.21.3"
+    "@types/yargs": "^17.0.10",
+    "axios": "^0.21.3",
+    "yargs": "^17.4.1"
   }
 }

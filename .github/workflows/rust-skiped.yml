@@ -1,3 +1,4 @@
+# This is here to satisfy the PR requirements when no rust changes occur.
 name: rust
 
 on:

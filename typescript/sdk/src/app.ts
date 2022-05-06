@@ -1,91 +1,44 @@
-import { ethers } from 'ethers';
-
-import { AbacusAppContracts } from './contracts';
+import { ContractsBuilder, IAbacusContracts } from './contracts';
 import { MultiProvider } from './provider';
-import { NameOrDomain } from './types';
+import { ChainMap, ChainName, Connection } from './types';
+import { MultiGeneric, objMap } from './utils';
 
-/**
- * Abstract class for interacting with collections of contracts on multiple
- * chains.
- */
-export abstract class AbacusApp<
-  T,
-  V extends AbacusAppContracts<T>,
-> extends MultiProvider {
-  protected contracts: Map<number, V>;
-
-  constructor() {
-    super();
-    this.contracts = new Map();
+export class AbacusApp<
+  Contracts extends IAbacusContracts<any, any>,
+  Networks extends ChainName = ChainName,
+> extends MultiGeneric<Networks, Contracts> {
+  constructor(
+    builder: ContractsBuilder<any, Contracts>,
+    networkAddresses: ChainMap<Networks, any>,
+    multiProvider: MultiProvider<Networks>,
+  ) {
+    super(
+      objMap(
+        networkAddresses,
+        (network, addresses) =>
+          new builder(
+            addresses,
+            multiProvider.getDomainConnection(network).getConnection()!,
+          ),
+      ),
+    );
   }
 
-  getContracts(nameOrDomain: NameOrDomain): V | undefined {
-    return this.getFromMap(nameOrDomain, this.contracts);
+  public contractsMap = this.domainMap;
+
+  getContracts(
+    network: Networks,
+  ): Contracts extends IAbacusContracts<any, infer C> ? C : never {
+    return this.get(network).contracts;
   }
 
-  mustGetContracts(nameOrDomain: NameOrDomain): V {
-    return this.mustGetFromMap(nameOrDomain, this.contracts, 'Contracts');
+  getAddresses(
+    network: Networks,
+  ): Contracts extends IAbacusContracts<infer A, any> ? A : never {
+    return this.get(network).addresses;
   }
 
-  /**
-   * Ensure that the contracts on a given domain are connected to the
-   * currently-registered signer or provider.
-   *
-   * @param domain the domain to reconnect
-   */
-  private reconnect(domain: number) {
-    const connection = this.getConnection(domain);
-    if (!connection) {
-      throw new Error(`Reconnect failed: no connection for ${domain}`);
-    }
-    this.mustGetContracts(domain).connect(connection);
-  }
-
-  /**
-   * Register an ethers Provider for a specified domain.
-   *
-   * @param nameOrDomain A domain name or number.
-   * @param provider An ethers Provider to be used by requests to that domain.
-   */
-  registerProvider(
-    nameOrDomain: NameOrDomain,
-    provider: ethers.providers.Provider,
-  ): void {
-    const domain = this.resolveDomain(nameOrDomain);
-    super.registerProvider(domain, provider);
-    this.reconnect(domain);
-  }
-
-  /**
-   * Register an ethers Signer for a specified domain.
-   *
-   * @param nameOrDomain A domain name or number.
-   * @param signer An ethers Signer to be used by requests to that domain.
-   */
-  registerSigner(nameOrDomain: NameOrDomain, signer: ethers.Signer): void {
-    const domain = this.resolveDomain(nameOrDomain);
-    super.registerSigner(domain, signer);
-    this.reconnect(domain);
-  }
-
-  /**
-   * Remove the registered ethers Signer from a domain. This function will
-   * attempt to preserve any Provider that was previously connected to this
-   * domain.
-   *
-   * @param nameOrDomain A domain name or number.
-   */
-  unregisterSigner(nameOrDomain: NameOrDomain): void {
-    const domain = this.resolveDomain(nameOrDomain);
-    super.unregisterSigner(domain);
-    this.reconnect(domain);
-  }
-
-  /**
-   * Clear all signers from all registered domains.
-   */
-  clearSigners(): void {
-    super.clearSigners();
-    this.domainNumbers.forEach((domain) => this.reconnect(domain));
+  reconnect(network: Networks, connection: Connection) {
+    this.get(network).reconnect(connection);
   }
 }

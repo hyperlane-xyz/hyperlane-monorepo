@@ -1,53 +1,7 @@
 import { FixedNumber, ethers } from 'ethers';
 
 import { NameOrDomain } from '../src';
-
-const ZERO_ADDRESS = ethers.constants.AddressZero;
-
-export const testAddresses = {
-  test1: {
-    upgradeBeaconController: ZERO_ADDRESS,
-    abacusConnectionManager: ZERO_ADDRESS,
-    interchainGasPaymaster: ZERO_ADDRESS,
-    outboxValidatorManager: ZERO_ADDRESS,
-    inboxValidatorManagers: {
-      test2: ZERO_ADDRESS,
-    },
-    outbox: {
-      proxy: ZERO_ADDRESS,
-      implementation: ZERO_ADDRESS,
-      beacon: ZERO_ADDRESS,
-    },
-    inboxes: {
-      test2: {
-        proxy: ZERO_ADDRESS,
-        implementation: ZERO_ADDRESS,
-        beacon: ZERO_ADDRESS,
-      },
-    },
-  },
-  test2: {
-    upgradeBeaconController: ZERO_ADDRESS,
-    abacusConnectionManager: ZERO_ADDRESS,
-    interchainGasPaymaster: ZERO_ADDRESS,
-    outboxValidatorManager: ZERO_ADDRESS,
-    inboxValidatorManagers: {
-      test1: ZERO_ADDRESS,
-    },
-    outbox: {
-      proxy: ZERO_ADDRESS,
-      implementation: ZERO_ADDRESS,
-      beacon: ZERO_ADDRESS,
-    },
-    inboxes: {
-      test1: {
-        proxy: ZERO_ADDRESS,
-        implementation: ZERO_ADDRESS,
-        beacon: ZERO_ADDRESS,
-      },
-    },
-  },
-};
+import { resolveId } from '../src/core/message';
 
 const MOCK_NETWORK = {
   name: 'MockNetwork',
@@ -96,7 +50,8 @@ export class MockTokenPriceGetter {
   }
 
   getNativeTokenUsdPrice(domain: NameOrDomain): Promise<FixedNumber> {
-    const price = this.tokenPrices[domain as number];
+    const id = resolveId(domain);
+    const price = this.tokenPrices[id];
     if (price) {
       return Promise.resolve(price);
     }

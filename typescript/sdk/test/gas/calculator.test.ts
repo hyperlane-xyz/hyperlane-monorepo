@@ -1,45 +1,45 @@
-import { expect } from 'chai';
-import { BigNumber, ethers } from 'ethers';
-import sinon from 'sinon';
-
 import { utils } from '@abacus-network/utils';
-
+import { expect } from 'chai';
+import { BigNumber, ethers, FixedNumber } from 'ethers';
+import sinon from 'sinon';
 import {
   AbacusCore,
   InterchainGasCalculator,
-  NameOrDomain,
-  ParsedMessage,
+  MultiProvider,
+  ParsedMessage
 } from '../..';
-import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
+import { domains } from '../../src/domains';
+import { MockProvider, MockTokenPriceGetter } from '../utils';
 
 describe('InterchainGasCalculator', () => {
-  const originDomain = 1;
-  const destinationDomain = 2;
+  const provider = new MockProvider();
+  const multiProvider = new MultiProvider({
+    test1: { provider },
+    test2: { provider },
+    test3: { provider }
+  });
+  const core = AbacusCore.fromEnvironment('test', multiProvider);
+  const originDomain = domains.test1.id;
+  const destinationDomain = domains.test2.id;
 
-  let core: AbacusCore;
-  let provider: MockProvider;
   let tokenPriceGetter: MockTokenPriceGetter;
   let calculator: InterchainGasCalculator;
 
-  before(() => {
-    core = new AbacusCore(testAddresses);
-    provider = new MockProvider();
-    core.registerProvider('test1', provider);
-    core.registerProvider('test2', provider);
-
+  beforeEach(() => {
     tokenPriceGetter = new MockTokenPriceGetter();
     // Origin domain token
     tokenPriceGetter.setTokenPrice(originDomain, 10);
     // Destination domain token
     tokenPriceGetter.setTokenPrice(destinationDomain, 5);
-  });
-
-  beforeEach(() => {
-    calculator = new InterchainGasCalculator(core, {
-      tokenPriceGetter,
-      // A multiplier of 1 makes testing easier to reason about
-      paymentEstimateMultiplier: '1',
-    });
+    calculator = new InterchainGasCalculator(
+      multiProvider as any, // TODO: fix types
+      core as any,
+      {
+        tokenPriceGetter,
+        // A multiplier of 1 makes testing easier to reason about
+        paymentEstimateMultiplier: '1',
+      },
+    );
   });
 
   afterEach(() => {

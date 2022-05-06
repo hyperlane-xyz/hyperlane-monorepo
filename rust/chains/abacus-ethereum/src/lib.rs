@@ -9,7 +9,6 @@ use color_eyre::eyre::Result;
 use ethers::providers::Middleware;
 use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
 use num::Num;
-use std::convert::TryFrom;
 use std::sync::Arc;
 
 #[macro_use]
@@ -26,6 +25,10 @@ mod inbox;
 /// InboxValidatorManager abi
 #[cfg(not(doctest))]
 mod validator_manager;
+
+/// Retrying Provider
+mod retrying;
+pub use retrying::{RetryingProvider, RetryingProviderError};
 
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]

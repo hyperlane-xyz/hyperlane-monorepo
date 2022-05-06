@@ -2,7 +2,6 @@ import { Wallet } from 'ethers';
 
 import { ChainName } from '@abacus-network/sdk';
 
-import { ENVIRONMENTS_ENUM } from '../config/environment';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd, include } from '../utils/utils';
 
@@ -32,13 +31,11 @@ interface FetchedKey {
 
 type RemoteKey = UnfetchedKey | FetchedKey;
 
-export class AgentGCPKey<
-  Networks extends ChainName,
-> extends AgentKey<Networks> {
+export class AgentGCPKey extends AgentKey {
   constructor(
-    environment: ENVIRONMENTS_ENUM,
+    environment: string,
     role: KEY_ROLE_ENUM,
-    chainName?: Networks,
+    chainName?: ChainName,
     index?: number,
     private remoteKey: RemoteKey = { fetched: false },
   ) {
