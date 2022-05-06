@@ -2,23 +2,35 @@
 
 ## Overview
 
-Abacus is a cross-chain communication system. It handles passing raw buffers
-between blockchains cheaply, and with minimal fuss. Like IBC and other
-cross-chain communication systems, Abacus creates channels between chains, and
-then passes its messages over the channel. Once a channel is established, any
-application on the chain can use it to send messages to any other chain.
+Abacus is a interchain messaging protocol. It handles passing generalized messages
+between blockchains cheaply, enabling genuine interchain applications. Inspired by IBC,
+Abacus creates channels between chains. In that respect, Abacus is a network between blockchains,
+and then passes messages between applications over these channels. Channels can be used 
+by numerous applications on any source or destination chain. Abacus is implemented wholly in
+smart contracts, and thus can be implemented in any turing complete smart contract chain.
 
-Compared to IBC and PoS light client based cross-chain communication, Abacus
-has weaker security guarantees. However, Abacus may be implemented on any smart
-contract chain, with no bespoke light client engineering. Because it does not run
-a light client, Abacus does not spend extra gas verifying remote chain block headers.
+Unfortunately, while Abacus might feel like magic, it isn't actually magic. Something's got to give.
+When contrasted against IBC and other communication protocols based on PoS light clients, 
+Abacus does have weaker security guarantees. It trades off generalizability, economies of scale
+and ease of implementation against securuity guarantees. That said, Abacus augments 
+it's PoS security model with what we call Sovereign Consensus, which allows 
+any Abacus application to define arbitrary rules which are a pre-condition
+for messages being processed. You can read more about Sovereign Consensus [here](https://docs.useabacus.network/abacus-docs/protocol/security/sovereign-consensus)
 
-In other words, Abacus is designed to prioritize:
+Other than its unique security model, Abacus is different from IBC and other 
+interchain communication protocols in a major way; Abacus may be implemented on any smart
+contract platform without a need for light client engineering. Since it does not run
+a light client, Abacus doesn't need to spend extra gas verifying block headers,
+a major efficiency gain for such a system. 
 
-- Cost: No header verification or state management.
-- Speed of implementation: Requires only simple smart contracts, no complex
-  cryptography.
-- Ease of use: Simple interface for maintaining application connections.
+
+Said succintly, Abacus was built to prioritize:
+
+- Simplicity: A simple interface for establishing and maintaining connection between applications.
+- Speed of implementation: Can be impelemented on any smart contract chain, PoS + SC security model for lower latency.
+- Cost: No header verification or state management. Economies of scale in messaging overhead.
+
+
 
 You can read more about Abacus' architecture in the [documentation](https://docs.useabacus.network/).
 
@@ -104,47 +116,44 @@ cd rust
 
 # What is Abacus?
 
-We present Abacus — a system for sending messages between consensus systems
-without paying header validation costs by creating the illusion of cross-chain
-communication. Similar to an atomic swap, Abacus uses non-global protocol
-validation to simulate cross-chain communication. Abacus can carry arbitrary
-messages (raw byte vectors), uses a single-producer multi-consumer model, and
-has protocol overhead sublinear in the number of messages being sent.
+Abacus is a protocol that enables interchain applications by passing messages, any raw bytes, 
+between smart contract blockchains. It does so without bearing the expensive costs involved
+with header verification. Notably, Abacus has economies of scale in messaging costs, and
+brings a new security model to the fore in its Proof of Stake combined with our very own;
+Sovereign Consensus.
+
 
 ## Key Points
 
 System sketch:
 
-1. An "outbox" chain commits messages in a merkle tree
-2. Bonded "validators" attest to the commitment via "checkpoints"
-3. Attested checkpoints are relayed to any number of "inbox" chains
+1. An "outbox" contract on a source chain receives messages from applications and commits messages in a merkle tree
+2. Staking "validators" attest to the commitment via "checkpoints"
+3. Attested checkpoints are relayed to any number of "inbox" contract on any number of destination chains
+4. Messages are processed, not before they are checked against the Sovereign Consensus rules of destination applications.
 
 As a result, one of the following is always true:
 
 1. All inboxes have a valid commitment to messages from the outbox chain
 2. Misbehaving validators can be slashed on the outbox chain
 
-This guarantee, although weaker than header-chain validation, is still likely
-acceptable for most applications.
+While this guarantee may be weaker than header verification in its own right, when augmented with Sovereign Consensus we believe it is more than sufficient for even the most high stakes applications.
 
 ## Summary
 
-Abacus is a new strategy for simulating cross-chain communication without
-validating headers. The goal is to create a single short piece of state (a
-32-byte hash) that can be updated regularly. This hash represents a merkle tree
-containing a set of cross-chain messages being sent by a single chain (the
-"outbox" chain for the Abacus system). Contracts on the outbox chain can submit
-messages, which are put into a merkle tree (the "message tree"). The message
-tree's root may be transferred to any number of "inbox" chains.
+Abacus is a protocol for interchain communication. The protocol's goal is to use generalized messaging between smart contract blockchains to enable interchain applications. 
+Abacus creates a succinct piece of state, a 32 byte hash, that is updated regularly. This enables the protocol to have economies of scale with respect to messaging frequency.
+This hash is effectively a merkle tree containing a set of interchain messages sent by a collection of applications on a source chain via an Outbox. The root of the merkle tree can be relayed to any number of destination chains via an Inbox. 
 
-The outbox chain designates validators. A validator places a bond ensuring
-her good behavior. She is responsible for producing signed attestations of the
-new message tree root. These attestations are relayed to inbox chains.
+
+The outbox chain designates validators. A validator places a bond as stake ensuring
+their good behavior. They are responsible for producing signed attestations of the
+new message tree root. These attestations are relayed to inboxes on destination chains.
 
 The inbox accepts a checkpoint attestation signed by validators. Because this root
-contains a commitment of all messages sent by the outbox chain, these messages
+contains a commitment of all messages sent by the source chain outbox, these messages
 can be proven (using the inbox's root) and then dispatched to contracts on the
-inbox chain.
+destination chain inbox.
 
 ## Deploy Procedure
 
