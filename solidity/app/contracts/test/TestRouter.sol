@@ -30,18 +30,33 @@ contract TestRouter is Router {
         return _mustHaveRemoteRouter(_domain);
     }
 
-    function dispatchToRemoteRouter(uint32 _destination, bytes calldata _msg)
-        external
-        returns (uint256)
-    {
-        return _dispatchToRemoteRouter(_destination, _msg);
+    function dispatch(uint32 _destination, bytes memory _msg) external {
+        _dispatch(_destination, _msg);
     }
 
-    function dispatchToRemoteRouterWithGas(
+    function dispatchWithGas(
         uint32 _destination,
-        bytes calldata _msg,
+        bytes memory _msg,
         uint256 _gasPayment
-    ) external {
-        return _dispatchToRemoteRouterWithGas(_destination, _msg, _gasPayment);
+    ) external payable {
+        _dispatchWithGas(_destination, _msg, _gasPayment);
+    }
+
+    function dispatchAndCheckpoint(uint32 _destination, bytes memory _msg)
+        external
+    {
+        _dispatchAndCheckpoint(_destination, _msg);
+    }
+
+    function dispatchWithGasAndCheckpoint(
+        uint32 _destination,
+        bytes memory _msg,
+        uint256 _gasPayment
+    ) external payable {
+        _dispatchWithGasAndCheckpoint(_destination, _msg, _gasPayment);
+    }
+
+    function checkpoint() external {
+        _checkpoint();
     }
 }
