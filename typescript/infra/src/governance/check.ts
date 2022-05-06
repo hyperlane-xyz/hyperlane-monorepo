@@ -34,11 +34,11 @@ export class AbacusGovernanceChecker<
     super(multiProvider, app, joinedConfig);
   }
 
-  // Governance contracts are not all owned by the same address to enable local and global governance
+  // GovernanceRouter's owner is 0x0 on all chains except the governing chain as setup in the constructor
   async checkOwnership(network: Networks): Promise<void> {
     const contracts = this.app.getContracts(network);
 
-    // check router is owned by global governor
+    // check router's owner with the config
     const routerOwner = await contracts.router.owner();
     expect(routerOwner).to.equal(this.configMap[network].owner);
 

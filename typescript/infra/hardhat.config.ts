@@ -69,7 +69,7 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
 
     // TODO: replace with config.getMultiProvider()
     const [signer] = await hre.ethers.getSigners();
-    const multiProvider = deployUtils.initHardhatMultiProvider(
+    const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
       config.transactionConfigs,
       signer,
     );
@@ -98,7 +98,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
     const environment = 'test';
     const config = getCoreEnvironmentConfig(environment);
     const [signer] = await hre.ethers.getSigners();
-    const multiProvider = deployUtils.initHardhatMultiProvider(
+    const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
       config.transactionConfigs,
       signer,
     );

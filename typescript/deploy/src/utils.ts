@@ -79,7 +79,7 @@ export const registerSigner = <Networks extends ChainName>(
   signer: ethers.Signer,
 ) => multiProvider.apply((_, dc) => dc.registerSigner(signer));
 
-export const initHardhatMultiProvider = <Networks extends ChainName>(
+export const getMultiProviderFromConfigAndSigner = <Networks extends ChainName>(
   environmentConfig: EnvironmentConfig<Networks>,
   signer: ethers.Signer,
 ): MultiProvider<Networks> => {

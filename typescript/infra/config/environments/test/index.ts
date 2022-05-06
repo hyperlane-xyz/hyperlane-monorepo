@@ -18,6 +18,6 @@ export const environment: CoreEnvironmentConfig<TestNetworks> = {
   getMultiProvider: async () => {
     const hre = await import('hardhat');
     const [signer] = await hre.ethers.getSigners();
-    return utils.initHardhatMultiProvider(testConfigs, signer);
+    return utils.getMultiProviderFromConfigAndSigner(testConfigs, signer);
   },
 };

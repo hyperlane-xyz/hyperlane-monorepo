@@ -19,18 +19,18 @@ import { AbacusAppDeployer } from '../deploy';
 import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
-  N extends ChainName,
-  C extends RouterConfig,
-  A extends RouterAddresses,
-> extends AbacusAppDeployer<N, C, A> {
-  protected core?: AbacusCore<N>;
+  Networks extends ChainName,
+  Config extends RouterConfig,
+  Addresses extends RouterAddresses,
+> extends AbacusAppDeployer<Networks, Config, Addresses> {
+  protected core?: AbacusCore<Networks>;
 
-  abstract mustGetRouter(network: N, addresses: A): Router;
+  abstract mustGetRouter(network: Networks, addresses: Addresses): Router;
 
   constructor(
-    multiProvider: MultiProvider<N>,
-    configMap: ChainMap<N, C>,
-    core?: AbacusCore<N>,
+    multiProvider: MultiProvider<Networks>,
+    configMap: ChainMap<Networks, Config>,
+    core?: AbacusCore<Networks>,
   ) {
     super(multiProvider, configMap);
     this.core = core;
@@ -60,7 +60,7 @@ export abstract class AbacusRouterDeployer<
   }
 
   async deployConnectionManagerIfNotConfigured(
-    network: N,
+    network: Networks,
   ): Promise<AbacusConnectionManager> {
     const dc = this.multiProvider.getDomainConnection(network);
     const signer = dc.signer!;
