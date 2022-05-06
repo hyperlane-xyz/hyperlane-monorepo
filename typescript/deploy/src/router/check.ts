@@ -1,72 +1,65 @@
 import { expect } from 'chai';
 
-import { AbacusApp } from '@abacus-network/sdk';
+import { AbacusApp, ChainName, domains } from '@abacus-network/sdk';
 import { types, utils } from '@abacus-network/utils';
 
-import { AbacusAppChecker } from '../check';
+import { AbacusAppChecker, Ownable } from '../check';
 
 import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterChecker<
-  A extends AbacusApp<any, any>,
-  C extends RouterConfig,
-> extends AbacusAppChecker<A, C> {
-  abstract mustGetRouter(domain: types.Domain): Router;
+  Networks extends ChainName,
+  App extends AbacusApp<any, Networks>,
+  Config extends RouterConfig & {
+    owner: types.Address;
+  },
+> extends AbacusAppChecker<Networks, App, Config> {
+  abstract mustGetRouter(network: Networks): Router; // TODO: implement on AbacusRouterApp
 
-  async check(
-    owners: Partial<Record<types.Domain, types.Address>>,
-  ): Promise<void> {
-    await Promise.all(
-      this.app.domainNumbers.map((domain: types.Domain) => {
-        const owner = owners[domain];
-        if (!owner) throw new Error('owner not found');
-        return this.checkDomain(domain, owner);
-      }),
-    );
+  checkOwnership(network: Networks) {
+    const owner = this.configMap[network].owner;
+    const ownables = this.ownables(network);
+    return AbacusAppChecker.checkOwnership(owner, ownables);
   }
 
-  async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
-    await this.checkEnrolledRouters(domain);
-    await this.checkOwnership(domain, owner);
-    await this.checkAbacusConnectionManager(domain);
+  async checkDomain(network: Networks): Promise<void> {
+    await this.checkEnrolledRouters(network);
+    await this.checkOwnership(network);
+    await this.checkAbacusConnectionManager(network);
   }
 
-  async checkEnrolledRouters(domain: types.Domain): Promise<void> {
-    const router = this.mustGetRouter(domain);
+  async checkEnrolledRouters(network: Networks): Promise<void> {
+    const router = this.mustGetRouter(network);
+
     await Promise.all(
-      this.app.remoteDomainNumbers(domain).map(async (remote) => {
-        const remoteRouter = await this.mustGetRouter(remote);
-        expect(await router.routers(remote)).to.equal(
+      this.app.remotes(network).map(async (remoteNetwork) => {
+        const remoteRouter = this.mustGetRouter(remoteNetwork);
+        const remoteChainId = domains[remoteNetwork].id;
+        expect(await router.routers(remoteChainId)).to.equal(
           utils.addressToBytes32(remoteRouter.address),
         );
       }),
     );
   }
 
-  async checkOwnership(
-    domain: types.Domain,
-    owner: types.Address,
-  ): Promise<void> {
-    const contracts = this.app.mustGetContracts(domain);
-    const owners = await Promise.all([
-      contracts.upgradeBeaconController.owner(),
-      this.mustGetRouter(domain).owner(),
-    ]);
-    // If the config specifies that a abacusConnectionManager should have been deployed,
+  ownables(network: Networks): Ownable[] {
+    const ownables: Ownable[] = [this.mustGetRouter(network)];
+    const config = this.configMap[network];
+    // If the config specifies that an abacusConnectionManager should have been deployed,
     // it should be owned by the owner.
-    if (!this.config.abacusConnectionManager) {
-      owners.push(contracts.abacusConnectionManager.owner());
+    if (config.abacusConnectionManager) {
+      const contracts: any = this.app.getContracts(network);
+      ownables.push(contracts.abacusConnectionManager);
     }
-    (await Promise.all(owners)).map((_) => expect(_).to.equal(owner));
+    return ownables;
   }
 
-  async checkAbacusConnectionManager(domain: types.Domain): Promise<void> {
-    if (this.config.abacusConnectionManager === undefined) return;
-    const actual = await this.mustGetRouter(domain).abacusConnectionManager();
-    const expected =
-      this.config.abacusConnectionManager[
-        this.app.mustResolveDomainName(domain)
-      ];
-    expect(actual).to.equal(expected);
+  async checkAbacusConnectionManager(network: Networks): Promise<void> {
+    const config = this.configMap[network];
+    if (!config.abacusConnectionManager) {
+      return;
+    }
+    const actual = await this.mustGetRouter(network).abacusConnectionManager();
+    expect(actual).to.equal(config.abacusConnectionManager);
   }
 }

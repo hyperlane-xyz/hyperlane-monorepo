@@ -1,4 +1,4 @@
-import { ChainName, ChainSubsetMap } from '@abacus-network/sdk';
+import { ChainMap, ChainName, RemoteChainMap } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 import {
@@ -13,7 +13,7 @@ import { DeployEnvironment } from './environment';
 // Allows a "default" config to be specified and any per-network overrides.
 interface ChainOverridableConfig<Networks extends ChainName, T> {
   default: T;
-  chainOverrides?: Partial<ChainSubsetMap<Networks, T>>;
+  chainOverrides?: Partial<ChainMap<Networks, T>>;
 }
 
 // Returns the default config with any overriden values specified for the provided chain.
@@ -76,7 +76,7 @@ interface Validator {
 }
 
 // Validator sets for each network
-export type ChainValidatorSets<Networks extends ChainName> = ChainSubsetMap<
+export type ChainValidatorSets<Networks extends ChainName> = ChainMap<
   Networks,
   ValidatorSet
 >;
@@ -200,7 +200,7 @@ export interface DockerConfig {
 }
 
 export interface AgentConfig<Networks extends ChainName> {
-  environment: DeployEnvironment;
+  environment: string;
   namespace: string;
   runEnv: string;
   docker: DockerConfig;
@@ -241,10 +241,10 @@ export type InboxAddresses = {
   validatorManager: types.Address;
 };
 
-export type RustConfig = {
+export type RustConfig<Networks extends ChainName> = {
   environment: DeployEnvironment;
-  signers: Partial<Record<ChainName, RustSigner>>;
-  inboxes: Partial<Record<ChainName, RustContractBlock<InboxAddresses>>>;
+  signers: Partial<ChainMap<Networks, RustSigner>>;
+  inboxes: RemoteChainMap<Networks, any, RustContractBlock<InboxAddresses>>;
   outbox: RustContractBlock<OutboxAddresses>;
   tracing: {
     level: string;

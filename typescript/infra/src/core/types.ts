@@ -1,4 +1,3 @@
-import { ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 export type ValidatorManagerConfig = {
@@ -7,5 +6,5 @@ export type ValidatorManagerConfig = {
 };
 
 export type CoreConfig = {
-  validatorManagers: Partial<Record<ChainName, ValidatorManagerConfig>>;
+  validatorManager: ValidatorManagerConfig;
 };

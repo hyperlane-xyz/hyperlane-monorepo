@@ -1,13 +1,9 @@
-import { CoreContractAddresses } from '../';
-import { ChainName } from '../../';
-
+import { addresses as dev } from './dev';
 import { addresses as test } from './test';
 import { addresses as testnet } from './testnet';
 
-export const addresses: Record<
-  any,
-  Partial<Record<ChainName, CoreContractAddresses>>
-> = {
+export const environments = {
   test,
+  dev,
   testnet,
 };

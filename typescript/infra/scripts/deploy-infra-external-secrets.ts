@@ -1,14 +1,14 @@
 import { runExternalSecretsHelmCommand } from '../src/infrastructure/external-secrets/external-secrets';
 import { HelmCommand } from '../src/utils/helm';
 
-import { getEnvironment, getInfrastructureConfig } from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const infraConfig = await getInfrastructureConfig(environment);
+  const config = await getCoreEnvironmentConfig(environment);
   return runExternalSecretsHelmCommand(
     HelmCommand.InstallOrUpgrade,
-    infraConfig,
+    config.infra,
     environment,
   );
 }

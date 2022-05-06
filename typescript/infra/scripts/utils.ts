@@ -1,106 +1,60 @@
 import path from 'path';
-import yargs from 'yargs';
 
-import { RouterConfig } from '@abacus-network/deploy';
+import { TransactionConfig, utils } from '@abacus-network/deploy';
 import {
-  ALL_CHAIN_NAMES,
-  AbacusCore,
+  AllChains,
+  ChainMap,
   ChainName,
   MultiProvider,
 } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 
+import { environments } from '../config/environments';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
-import {
-  ALL_ENVIRONMENTS,
-  AgentConfig,
-  ContractMetricsConfig,
-  DeployEnvironment,
-  InfrastructureConfig,
-} from '../src/config';
-import { CoreConfig } from '../src/core';
-import { GovernanceConfig } from '../src/governance';
+import { DeployEnvironment } from '../src/config';
+import { fetchProvider, fetchSigner } from '../src/config/chain';
+import { EnvironmentNames } from '../src/config/environment';
 
-export function getArgs() {
-  return yargs(process.argv.slice(2))
-    .alias('e', 'env')
-    .describe('e', 'deploy environment')
-    .choices('e', ALL_ENVIRONMENTS)
-    .require('e')
-    .help('h')
-    .alias('h', 'help');
-}
-
-async function importModule(moduleName: string): Promise<any> {
-  const importedModule = await import(moduleName);
-  return importedModule;
-}
-
-function moduleName(environment: DeployEnvironment) {
-  return `../config/environments/${environment}`;
-}
-
-export async function registerMultiProvider(
-  multiProvider: MultiProvider,
-  environment: DeployEnvironment,
-): Promise<void> {
-  return (await importModule(moduleName(environment))).registerMultiProvider(
-    multiProvider,
+export function assertEnvironment(env: string): DeployEnvironment {
+  if (EnvironmentNames.includes(env)) {
+    return env as DeployEnvironment;
+  }
+  throw new Error(
+    `Invalid environment ${env}, must be one of ${EnvironmentNames}`,
   );
 }
 
-export async function getDomainNames(
-  environment: DeployEnvironment,
-): Promise<ChainName[]> {
-  return (await importModule(moduleName(environment))).domainNames;
+export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
+  env: Env,
+) {
+  return environments[env] as any; // TODO: make indexed union compatible
 }
 
-export async function getCoreConfig(
-  environment: DeployEnvironment,
-): Promise<CoreConfig> {
-  return (await importModule(moduleName(environment))).core;
+export async function getEnvironment() {
+  return assertEnvironment(await utils.getEnvironment());
 }
 
-export async function getRouterConfig(
-  environment: DeployEnvironment,
-  core: AbacusCore,
-): Promise<RouterConfig> {
-  const abacusConnectionManager: Record<string, types.Address> = {};
-  core.domainNames.map((name) => {
-    const contracts = core.mustGetContracts(name);
-    abacusConnectionManager[name] = contracts.abacusConnectionManager.address;
-  });
-  return { abacusConnectionManager };
+export async function getEnvironmentConfig() {
+  return getCoreEnvironmentConfig(await getEnvironment());
 }
 
-export async function getGovernanceConfig(
+export async function getMultiProviderFromGCP<Networks extends ChainName>(
+  txConfigs: ChainMap<Networks, TransactionConfig>,
   environment: DeployEnvironment,
-  core: AbacusCore,
-): Promise<GovernanceConfig> {
-  const partial = (await importModule(moduleName(environment))).governance;
-  return { ...partial, ...(await getRouterConfig(environment, core)) };
-}
-
-export async function getInfrastructureConfig(
-  environment: DeployEnvironment,
-): Promise<InfrastructureConfig> {
-  return (await importModule(moduleName(environment))).infrastructure;
-}
-
-export async function getAgentConfig<Networks extends ChainName>(
-  environment: DeployEnvironment,
-): Promise<AgentConfig<Networks>> {
-  return (await importModule(moduleName(environment))).agent;
-}
-
-export async function getContractMetricsConfig(
-  environment: DeployEnvironment,
-): Promise<ContractMetricsConfig> {
-  return (await importModule(moduleName(environment))).metrics;
-}
-
-export async function getEnvironment(): Promise<DeployEnvironment> {
-  return (await getArgs().argv).e;
+) {
+  const connections = await promiseObjAll(
+    objMap(txConfigs, async (domain, config) => {
+      const provider = await fetchProvider(environment, domain);
+      const signer = await fetchSigner(environment, domain, provider);
+      return {
+        provider,
+        signer,
+        overrides: config.overrides,
+        confirmations: config.confirmations,
+      };
+    }),
+  );
+  return new MultiProvider<Networks>(connections);
 }
 
 function getContractsSdkFilepath(mod: string, environment: DeployEnvironment) {
@@ -144,15 +98,15 @@ export function getGovernanceVerificationDirectory(
 }
 
 export function getKeyRoleAndChainArgs() {
-  const args = getArgs();
-  return args
+  return utils
+    .getArgs()
     .alias('r', 'role')
     .describe('r', 'key role')
     .choices('r', Object.values(KEY_ROLE_ENUM))
     .require('r')
     .alias('c', 'chain')
     .describe('c', 'chain name')
-    .choices('c', ALL_CHAIN_NAMES)
+    .choices('c', AllChains)
     .require('c')
     .alias('i', 'index')
     .describe('i', 'index of role')

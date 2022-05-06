@@ -1,22 +1,26 @@
+import { ChainMap } from '@abacus-network/sdk';
+
 import { CoreConfig } from '../../../src/core';
 
-export const core: CoreConfig = {
-  validatorManagers: {
-    // Hardhat accounts 1-4
-    alfajores: {
+import { TestNetworks } from './domains';
+
+export const core: ChainMap<TestNetworks, CoreConfig> = {
+  // Hardhat accounts 1-4
+  test1: {
+    validatorManager: {
       validators: ['0x70997970c51812dc3a010c7d01b50e0d17dc79c8'],
       threshold: 1,
     },
-    fuji: {
+  },
+  test2: {
+    validatorManager: {
       validators: ['0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc'],
       threshold: 1,
     },
-    kovan: {
+  },
+  test3: {
+    validatorManager: {
       validators: ['0x90f79bf6eb2c4f870365e785982e1f101e93b906'],
-      threshold: 1,
-    },
-    mumbai: {
-      validators: ['0x15d34aaf54267db7d7c367839aaf71a00a2c6a65'],
       threshold: 1,
     },
   },

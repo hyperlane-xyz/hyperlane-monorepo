@@ -103,8 +103,8 @@ export class AgentAwsUser<Networks extends ChainName> {
     );
   }
 
-  key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
-    return new AgentAwsKey<Networks>(agentConfig, this.role, this.chainName);
+  key(agentConfig: AgentConfig<any>): AgentAwsKey {
+    return new AgentAwsKey(agentConfig, this.role, this.chainName);
   }
 
   async createKeyIfNotExists(agentConfig: AgentConfig<Networks>) {

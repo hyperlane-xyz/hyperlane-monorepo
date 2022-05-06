@@ -1,30 +1,35 @@
-import { AbacusCore, coreAddresses } from '@abacus-network/sdk';
+import { AbacusCore, objMap } from '@abacus-network/sdk';
 
 import { AbacusCoreDeployer } from '../src/core';
 import { AbacusGovernanceDeployer } from '../src/governance';
 
 import {
+  getCoreEnvironmentConfig,
   getEnvironment,
-  getGovernanceConfig,
   getGovernanceContractsSdkFilepath,
   getGovernanceVerificationDirectory,
-  registerMultiProvider,
 } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const core = new AbacusCore(coreAddresses[environment]);
-  registerMultiProvider(core, environment);
+  const config = getCoreEnvironmentConfig(environment);
+  const multiProvider = await config.getMultiProvider();
+  const core = AbacusCore.fromEnvironment(environment, multiProvider);
 
-  const config = await getGovernanceConfig(environment, core);
-  const deployer = new AbacusGovernanceDeployer();
-  await registerMultiProvider(deployer, environment);
-  await deployer.deploy(config);
-  deployer.writeContracts(getGovernanceContractsSdkFilepath(environment));
+  const deployer = new AbacusGovernanceDeployer(
+    multiProvider,
+    config.governance,
+    core,
+  );
+  const addresses = await deployer.deploy();
+  deployer.writeContracts(
+    addresses,
+    getGovernanceContractsSdkFilepath(environment),
+  );
   deployer.writeVerification(getGovernanceVerificationDirectory(environment));
 
-  const owners = deployer.routerAddresses;
-  await AbacusCoreDeployer.transferOwnership(core, owners);
+  const owners = objMap(addresses, (_, r) => r.router.proxy);
+  await AbacusCoreDeployer.transferOwnership(core, owners, multiProvider);
 }
 
 main().then(console.log).catch(console.error);

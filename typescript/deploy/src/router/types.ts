@@ -1,4 +1,3 @@
-import { ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 export interface Router {
@@ -12,5 +11,5 @@ export interface Router {
 }
 
 export type RouterConfig = {
-  abacusConnectionManager?: Partial<Record<ChainName, types.Address>>;
+  abacusConnectionManager?: types.Address;
 };
