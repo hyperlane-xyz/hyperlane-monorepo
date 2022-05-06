@@ -5,7 +5,7 @@ import { getEnvironmentConfig } from './utils';
 
 async function deploy() {
   const config = await getEnvironmentConfig();
-  
+
   const currentKubeContext = await getCurrentKubernetesContext();
   if (!currentKubeContext.endsWith(`-${config.agent.runEnv}`)) {
     console.error(`Attempting to deploy ${config.agent.runEnv} to ${currentKubeContext}`);
