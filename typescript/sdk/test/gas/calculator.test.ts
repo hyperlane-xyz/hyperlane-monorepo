@@ -52,16 +52,19 @@ describe('InterchainGasCalculator', () => {
       const handleGas = BigNumber.from(100_000);
 
       // Set destination gas price to 10 wei
-      provider.setMethodResolveValue('getGasPrice', BigNumber.from(10));
+      const gasPrice = 10;
+      provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
 
       // Stub the checkpoint relay gas cost
+      const checkpointRelayGas = 100_000;
       sinon
         .stub(calculator, 'checkpointRelayGas')
-        .returns(Promise.resolve(BigNumber.from(100_000)));
+        .returns(Promise.resolve(BigNumber.from(checkpointRelayGas)));
       // Stub the inbox process overhead gas
+      const inboxProcessOverheadGas = 100_000;
       sinon
         .stub(calculator, 'inboxProcessOverheadGas')
-        .returns(BigNumber.from(100_000));
+        .returns(BigNumber.from(inboxProcessOverheadGas));
 
       const estimatedPayment =
         await calculator.estimatePaymentForHandleGasAmount(
@@ -79,22 +82,25 @@ describe('InterchainGasCalculator', () => {
   describe('estimatePaymentForMessage', () => {
     it('estimates origin token payment from a specified message', async () => {
       // Set the estimated handle gas
-      const estimateHandleGas = 100_000;
+      const estimatedHandleGas = 100_000;
       sinon
         .stub(calculator, 'estimateHandleGasForMessage')
-        .returns(Promise.resolve(BigNumber.from(estimateHandleGas)));
+        .returns(Promise.resolve(BigNumber.from(estimatedHandleGas)));
       // Set destination gas price to 10 wei
+      const suggestedGasPrice = 10;
       sinon
         .stub(calculator, 'suggestedGasPrice')
-        .returns(Promise.resolve(BigNumber.from(10)));
+        .returns(Promise.resolve(BigNumber.from(suggestedGasPrice)));
       // Stub the checkpoint relay gas cost
+      const checkpointRelayGas = 100_000;
       sinon
         .stub(calculator, 'checkpointRelayGas')
-        .returns(Promise.resolve(BigNumber.from(100_000)));
+        .returns(Promise.resolve(BigNumber.from(checkpointRelayGas)));
       // Stub the inbox process overhead gas
+      const inboxProcessOverheadGas = 100_000;
       sinon
         .stub(calculator, 'inboxProcessOverheadGas')
-        .returns(BigNumber.from(100_000));
+        .returns(BigNumber.from(inboxProcessOverheadGas));
 
       const zeroAddressBytes32 = utils.addressToBytes32(
         ethers.constants.AddressZero,

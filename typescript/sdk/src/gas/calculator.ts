@@ -21,6 +21,34 @@ import { convertDecimalValue, mulBigAndFixed } from './utils';
 // If a domain doesn't specify how many decimals their native token has, 18 is used.
 const DEFAULT_TOKEN_DECIMALS = 18;
 
+// A generous estimation of the overhead gas amount when processing a message. This
+// includes intrinsic gas, the merkle proof, making the external call to the recipient
+// handle function, but does not account for any gas consumed by the handle function.
+// This number was arrived at by estimating the proving and processing of a message
+// whose body was small and whose recipient contract included only an empty fallback
+// function. The estimated gas cost was 86777, which included the intrinsic cost.
+// 130,000 is chosen as a generous buffer for safety. The large buffer is mostly to do
+// with flexibility in message sizes, where large messages can cost more due to tx calldata,
+// hashing, and calling to the recipient handle function.
+const INBOX_PROCESS_OVERHEAD_GAS = 130_000;
+
+// Intrinsic gas for a transaction. Does not consider calldata costs or differences in
+// intrinsic gas or different networks.
+const BASE_INTRINSIC_GAS = 21_000;
+
+// The gas used if the quorum threshold of a signed checkpoint is zero.
+// Includes intrinsic gas and all other gas that does not scale with the
+// number of signatures. Note this does not consider differences in intrinsic gas for
+// different chains.
+// Derived by observing the amount of gas consumed for a quorum of 1 (~86800 gas),
+// subtracting the gas used per signature, and rounding up for safety.
+const BASE_CHECKPOINT_RELAY_GAS = 80_000;
+
+// The amount of gas used for each signature when a signed checkpoint
+// is submitted for verification.
+// Really observed to be about 8350, but rounding up for safety.
+const CHECKPOINT_RELAY_GAS_PER_SIGNATURE = 9_000;
+
 export interface InterchainGasCalculatorConfig {
   /**
    * A multiplier applied to the estimated origin token payment amount.
@@ -93,8 +121,9 @@ export class InterchainGasCalculator {
       originDomain,
       destinationDomain,
     );
+    const inboxProcessOverheadGas = await this.inboxProcessOverheadGas();
     const totalDestinationGas = checkpointRelayGas
-      .add(this.inboxProcessOverheadGas)
+      .add(inboxProcessOverheadGas)
       .add(destinationHandleGas);
     const destinationCostWei = totalDestinationGas.mul(destinationGasPrice);
 
@@ -256,8 +285,8 @@ export class InterchainGasCalculator {
 
     // Subtract intrinsic gas, which is included in directHandleCallGas.
     // Note the "real" intrinsic gas will always be higher than this.intrinsicGas
-    // due to calldata costs, but this is desired because it results in a generous
-    // final estimate.
+    // due to calldata costs, but this is desired because subtracting the lower bound
+    // this.intrinsicGas will result in a more generous final estimate.
     return directHandleCallGas
       .add(this.messageGasEstimateBuffer)
       .sub(this.intrinsicGas);
@@ -273,40 +302,31 @@ export class InterchainGasCalculator {
     originDomain: number,
     destinationDomain: number,
   ): Promise<BigNumber> {
-    // The gas used if the quorum threshold of a signed checkpoint is zero.
-    // Includes intrinsic gas and all other gas that does not scale with the
-    // number of signatures. Note this does not consider differences in intrinsic gas for
-    // different chains.
-    // Derived by observing the amount of gas consumed for a quorum of 1 (~86800 gas),
-    // subtracting the scaling gas per signature, and rounding up for safety.
-    const baseGasAmount = 80_000;
-    // Really observed to be about 8350, but rounding up for safety.
-    const gasPerSignature = 9_000;
-
     const validatorManager = this.core.mustGetInboxValidatorManager(
       originDomain,
       destinationDomain,
     );
     const threshold = await validatorManager.threshold();
 
-    return threshold.mul(gasPerSignature).add(baseGasAmount);
+    return threshold
+      .mul(CHECKPOINT_RELAY_GAS_PER_SIGNATURE)
+      .add(BASE_CHECKPOINT_RELAY_GAS);
   }
 
   /**
    * @returns A generous estimation of the gas consumption of all prove and process
    * operations within Inbox.sol, including intrinsic gas. Does not include any gas
    * consumed within a message's recipient `handle` function.
+   * Returns a Promise because we expect this to eventually include async logic to
+   * estimate sovereign consensus costs, and we'd like to keep the interface consistent.
    */
-  get inboxProcessOverheadGas(): BigNumber {
+  inboxProcessOverheadGas(): Promise<BigNumber> {
     // This does not consider that different domains can possibly have different gas costs.
     // Consider this being configurable for each domain, or investigate ways to estimate
     // this over RPC.
-    //
-    // This number was arrived at by estimating the proving and processing of a message
-    // whose body was small and whose recipient contract included only an empty fallback
-    // function. The estimated gas cost was 86777, which included the intrinsic cost.
-    // 130,000 is chosen as a generous buffer for safety.
-    return BigNumber.from(130_000);
+    // Also does not consider gas usage that may scale with message size, e.g. calldata
+    // costs.
+    return Promise.resolve(BigNumber.from(INBOX_PROCESS_OVERHEAD_GAS));
   }
 
   /**
@@ -314,6 +334,6 @@ export class InterchainGasCalculator {
    * costs or potentially different intrinsic gas costs for different chains.
    */
   get intrinsicGas(): BigNumber {
-    return BigNumber.from(21_000);
+    return BigNumber.from(BASE_INTRINSIC_GAS);
   }
 }
