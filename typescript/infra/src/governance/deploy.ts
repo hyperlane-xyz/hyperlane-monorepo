@@ -3,7 +3,12 @@ import { ethers } from 'ethers';
 import { GovernanceRouter__factory } from '@abacus-network/apps';
 import { UpgradeBeaconController__factory } from '@abacus-network/core';
 import { AbacusRouterDeployer } from '@abacus-network/deploy';
-import { ChainName, GovernanceAddresses, objMap, promiseObjAll } from '@abacus-network/sdk';
+import {
+  ChainName,
+  GovernanceAddresses,
+  objMap,
+  promiseObjAll,
+} from '@abacus-network/sdk';
 
 import { GovernanceConfig } from './types';
 

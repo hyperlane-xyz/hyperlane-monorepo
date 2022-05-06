@@ -58,10 +58,14 @@ export class AbacusGovernance<
     network: Networks;
     address: types.Address;
   }> => {
-    const governors = await promiseObjAll(objMap(this.routers(), (network, router) => router.governor()))
-    const match = Object.entries(governors).find(([_, governor]) => governor !== ethers.constants.AddressZero) as [Networks, types.Address] | undefined
+    const governors = await promiseObjAll(
+      objMap(this.routers(), (network, router) => router.governor()),
+    );
+    const match = Object.entries(governors).find(
+      ([_, governor]) => governor !== ethers.constants.AddressZero,
+    ) as [Networks, types.Address] | undefined;
     if (match) {
-      return { network: match[0], address: match[1] }
+      return { network: match[0], address: match[1] };
     }
     throw new Error('No governor found');
   };

@@ -9,9 +9,8 @@ import {
   MultiProvider,
   RouterAddresses,
   domains,
-  utils as sdkUtils,
-  promiseObjAll,
   objMap,
+  promiseObjAll,
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
