@@ -1,4 +1,7 @@
-import { getCurrentKubernetesContext, runAgentHelmCommand } from '../src/agents';
+import {
+  getCurrentKubernetesContext,
+  runAgentHelmCommand,
+} from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
 import { getEnvironmentConfig } from './utils';
@@ -8,7 +11,9 @@ async function deploy() {
 
   const currentKubeContext = await getCurrentKubernetesContext();
   if (!currentKubeContext.endsWith(`-${config.agent.runEnv}`)) {
-    console.error(`Attempting to deploy ${config.agent.runEnv} to ${currentKubeContext}`);
+    console.error(
+      `Attempting to deploy ${config.agent.runEnv} to ${currentKubeContext}`,
+    );
     process.exit(1);
   }
 
