@@ -122,7 +122,7 @@ describe('Router', async () => {
     // Helper for testing different variations of dispatch functions
     const runDispatchFunctionTests = async (
       dispatchFunction: (
-        destination: number,
+        destinationDomain: number,
         interchainGasPayment?: number,
       ) => Promise<ContractTransaction>,
       expectCheckpoint: boolean,
@@ -173,7 +173,7 @@ describe('Router', async () => {
 
     describe('#dispatch', () => {
       runDispatchFunctionTests(
-        (dest) => router.dispatch(dest, '0x'),
+        (destinationDomain) => router.dispatch(destinationDomain, '0x'),
         false,
         false,
       );
@@ -181,7 +181,8 @@ describe('Router', async () => {
 
     describe('#dispatchAndCheckpoint', () => {
       runDispatchFunctionTests(
-        (dest) => router.dispatchAndCheckpoint(dest, '0x'),
+        (destinationDomain) =>
+          router.dispatchAndCheckpoint(destinationDomain, '0x'),
         true,
         false,
       );
@@ -189,10 +190,15 @@ describe('Router', async () => {
 
     describe('#dispatchWithGas', () => {
       runDispatchFunctionTests(
-        (dest, interchainGasPayment = 0) =>
-          router.dispatchWithGas(dest, '0x', interchainGasPayment, {
-            value: interchainGasPayment,
-          }),
+        (destinationDomain, interchainGasPayment = 0) =>
+          router.dispatchWithGas(
+            destinationDomain,
+            '0x',
+            interchainGasPayment,
+            {
+              value: interchainGasPayment,
+            },
+          ),
         false,
         true,
       );
@@ -200,9 +206,9 @@ describe('Router', async () => {
 
     describe('#dispatchWithGasAndCheckpoint', () => {
       runDispatchFunctionTests(
-        (dest, interchainGasPayment = 0) =>
+        (destinationDomain, interchainGasPayment = 0) =>
           router.dispatchWithGasAndCheckpoint(
-            dest,
+            destinationDomain,
             '0x',
             interchainGasPayment,
             { value: interchainGasPayment },
