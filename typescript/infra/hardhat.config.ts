@@ -119,13 +119,14 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       const coreContracts = core.getContracts(local);
       const outbox = coreContracts.outbox.outbox;
       // Send a batch of messages to the remote domain to test
-      // the checkpointer/relayer submitting only greedily
+      // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
         await outbox.dispatch(
           remote,
           utils.addressToBytes32(recipient.address),
           '0x1234',
         );
+        await outbox.checkpoint();
         console.log(
           `send to ${recipient.address} on ${remote} at index ${
             (await outbox.count()).toNumber() - 1
