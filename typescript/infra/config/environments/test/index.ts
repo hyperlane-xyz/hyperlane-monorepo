@@ -17,7 +17,7 @@ export const environment: CoreEnvironmentConfig<TestNetworks> = {
   // NOTE: Does not work from hardhat.config.ts
   getMultiProvider: async () => {
     const hre = await import('hardhat');
-    await import('@nomiclabs/hardhat-ethers')
+    await import('@nomiclabs/hardhat-ethers');
     const [signer] = await hre.ethers.getSigners();
     return utils.getMultiProviderFromConfigAndSigner(testConfigs, signer);
   },
