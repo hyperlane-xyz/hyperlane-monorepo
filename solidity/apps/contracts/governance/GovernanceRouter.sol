@@ -195,7 +195,7 @@ contract GovernanceRouter is Version0, Router {
         GovernanceMessage.Call[] calldata _calls
     ) external payable onlyGovernor onlyNotInRecovery {
         bytes memory _msg = GovernanceMessage.formatCalls(_calls);
-        _dispatchToRemoteRouterWithGas(_destination, _msg, msg.value);
+        _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
     }
 
     /**
@@ -214,7 +214,7 @@ contract GovernanceRouter is Version0, Router {
             _domain,
             _router
         );
-        _dispatchToRemoteRouterWithGas(_destination, _msg, msg.value);
+        _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
     }
 
     /**
@@ -230,7 +230,7 @@ contract GovernanceRouter is Version0, Router {
         bytes memory _msg = GovernanceMessage.formatSetAbacusConnectionManager(
             TypeCasts.addressToBytes32(_abacusConnectionManager)
         );
-        _dispatchToRemoteRouterWithGas(_destination, _msg, msg.value);
+        _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
     }
 
     /**
@@ -248,7 +248,7 @@ contract GovernanceRouter is Version0, Router {
         bytes memory _msg = GovernanceMessage.formatSetGovernor(
             TypeCasts.addressToBytes32(_governor)
         );
-        _dispatchToRemoteRouterWithGas(_destination, _msg, msg.value);
+        _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
     }
 
     // ============ Public Functions ============
