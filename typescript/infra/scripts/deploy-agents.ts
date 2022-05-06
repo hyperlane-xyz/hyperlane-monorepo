@@ -1,10 +1,16 @@
-import { runAgentHelmCommand } from '../src/agents';
+import { getCurrentKubernetesContext, runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
 import { getEnvironmentConfig } from './utils';
 
 async function deploy() {
   const config = await getEnvironmentConfig();
+  
+  const currentKubeContext = await getCurrentKubernetesContext();
+  if (!currentKubeContext.endsWith(`-${config.agent.runEnv}`)) {
+    console.error(`Attempting to deploy ${config.agent.runEnv} to ${currentKubeContext}`);
+    process.exit(1);
+  }
 
   // Note the create-keys script should be ran prior to running this script.
   // At the moment, `runAgentHelmCommand` has the side effect of creating keys / users
