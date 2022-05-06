@@ -1,19 +1,24 @@
 import { utils } from '@abacus-network/utils';
 import { expect } from 'chai';
-import { BigNumber, ethers, FixedNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import sinon from 'sinon';
 import {
   AbacusCore,
   InterchainGasCalculator,
   MultiProvider,
-  ParsedMessage
+  ParsedMessage,
 } from '../..';
 import { domains } from '../../src/domains';
 import { MockProvider, MockTokenPriceGetter } from '../utils';
 
 describe('InterchainGasCalculator', () => {
   const provider = new MockProvider();
-  const multiProvider = new MultiProvider({
+  // TODO: fix types to not require the <any> here.
+  // This is because InterchainGasCalculator isn't very strongly typed,
+  // which is because ParsedMessage isn't very strongly typed. This results
+  // in InterchainGasCalculator expecting a multiprovider with providers for
+  // every network.
+  const multiProvider = new MultiProvider<any>({
     test1: { provider },
     test2: { provider },
     test3: { provider }
@@ -32,8 +37,8 @@ describe('InterchainGasCalculator', () => {
     // Destination domain token
     tokenPriceGetter.setTokenPrice(destinationDomain, 5);
     calculator = new InterchainGasCalculator(
-      multiProvider as any, // TODO: fix types
-      core as any,
+      multiProvider,
+      core,
       {
         tokenPriceGetter,
         // A multiplier of 1 makes testing easier to reason about
@@ -64,7 +69,7 @@ describe('InterchainGasCalculator', () => {
       const inboxProcessOverheadGas = 100_000;
       sinon
         .stub(calculator, 'inboxProcessOverheadGas')
-        .returns(BigNumber.from(inboxProcessOverheadGas));
+        .returns(Promise.resolve(BigNumber.from(inboxProcessOverheadGas)));
 
       const estimatedPayment =
         await calculator.estimatePaymentForHandleGasAmount(
@@ -100,7 +105,7 @@ describe('InterchainGasCalculator', () => {
       const inboxProcessOverheadGas = 100_000;
       sinon
         .stub(calculator, 'inboxProcessOverheadGas')
-        .returns(BigNumber.from(inboxProcessOverheadGas));
+        .returns(Promise.resolve(BigNumber.from(inboxProcessOverheadGas)));
 
       const zeroAddressBytes32 = utils.addressToBytes32(
         ethers.constants.AddressZero,
@@ -174,7 +179,7 @@ describe('InterchainGasCalculator', () => {
     });
   });
 
-  describe('suggestedGasPrice', () => {
+  describe.only('suggestedGasPrice', () => {
     it('gets the gas price from the provider', async () => {
       const gasPrice = 1000;
       provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
@@ -187,30 +192,41 @@ describe('InterchainGasCalculator', () => {
 
   describe('checkpointRelayGas', () => {
     let threshold: number;
-
     // Mock the return value of InboxValidatorManager.threshold
     // to return `threshold`. Because the mocking involves a closure,
     // changing `threshold` will change the return value of InboxValidatorManager.threshold.
     before(() => {
-      const getValidatorManangerStub = sinon.stub(
-        core,
-        'mustGetInboxValidatorManager',
-      );
-      getValidatorManangerStub.callsFake(
-        (src: NameOrDomain, dest: NameOrDomain) => {
-          // Get the "real" return value of mustGetInboxValidatorManager.
-          // Ethers contracts are frozen using Object.freeze, so we make a copy
-          // of the object so we can stub `threshold`.
-          const validatorManager = Object.assign(
-            {},
-            getValidatorManangerStub.wrappedMethod.bind(core)(src, dest),
-          );
-          sinon
-            .stub(validatorManager, 'threshold')
-            .returns(Promise.resolve(BigNumber.from(threshold)));
-          return validatorManager;
-        },
-      );
+      console.log('threshold', threshold);
+      // // const contracts = Object.assign({}, core.getContracts(resolveDomain(destinationDomain)));
+      // const getContractsStub = sinon.stub(
+      //   core,
+      //   'getContracts',
+      // );
+      // getContractsStub.callsFake(
+      //   <Networks extends ChainName>(domain: Networks) => {
+      //     // Get the "real" return value of mustGetInboxValidatorManager.
+      //     // Ethers contracts are frozen using Object.freeze, so we make a copy
+      //     // of the object so we can stub `threshold`.
+      //     const contracts: CoreContractSchema<any, Networks> = getContractsStub.wrappedMethod.bind(core)(domain);
+
+      //     // console.log('validatorManager', contracts.inboxes[
+      //     //   resolveDomain(originDomain)
+      //     // ].validatorManager);
+
+      //     const validatorManager = Object.assign({}, contracts.inboxes[
+      //       resolveDomain(originDomain)
+      //     ].validatorManager);
+
+      //     sinon
+      //       .stub(validatorManager, 'threshold')
+      //       .returns(Promise.resolve(BigNumber.from(threshold)));
+
+      //     contracts.inboxes[
+      //       resolveDomain(originDomain)
+      //     ].validatorManager = validatorManager;
+      //     return contracts;
+      //   },
+      // );
     });
 
     it('scales the gas cost with the quorum threshold', async () => {

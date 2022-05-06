@@ -319,12 +319,14 @@ export class InterchainGasCalculator {
    * checkpoint to the destination domain.
    */
   async checkpointRelayGas(
-    _originDomain: number,
-    _destinationDomain: number,
+    originDomain: number,
+    destinationDomain: number,
   ): Promise<BigNumber> {
     const inboxValidatorManager = this.core.getContracts(
-      'alfajores',
-    ).inboxes['kovan'].validatorManager;
+      resolveDomain(destinationDomain) as never,
+    ).inboxes[
+      resolveDomain(originDomain)
+    ].validatorManager;
     const threshold = await inboxValidatorManager.threshold();
 
     return threshold
