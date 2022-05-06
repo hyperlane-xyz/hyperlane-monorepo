@@ -1,20 +1,48 @@
 import { expect } from 'chai';
 
-import { AbacusApp, ProxiedAddress } from '@abacus-network/sdk';
+import {
+  AbacusApp,
+  ChainMap,
+  ChainName,
+  MultiProvider,
+  ProxiedAddress,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 import { CheckerViolation } from './config';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 
-export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
-  readonly app: A;
-  readonly config: C;
+export interface Ownable {
+  owner(): Promise<types.Address>;
+}
+
+export abstract class AbacusAppChecker<
+  Networks extends ChainName,
+  App extends AbacusApp<any, Networks>,
+  Config,
+> {
+  readonly multiProvider: MultiProvider<Networks>;
+  readonly app: App;
+  readonly configMap: ChainMap<Networks, Config>;
   readonly violations: CheckerViolation[];
 
-  constructor(app: A, config: C) {
+  constructor(
+    multiProvider: MultiProvider<Networks>,
+    app: App,
+    configMap: ChainMap<Networks, Config>,
+  ) {
+    this.multiProvider = multiProvider;
     this.app = app;
-    this.config = config;
     this.violations = [];
+    this.configMap = configMap;
+  }
+
+  abstract checkDomain(network: Networks): Promise<void>;
+
+  async check() {
+    return Promise.all(
+      this.app.networks().map((network) => this.checkDomain(network)),
+    );
   }
 
   addViolation(violation: CheckerViolation) {
@@ -24,27 +52,35 @@ export abstract class AbacusAppChecker<A extends AbacusApp<any, any>, C> {
   }
 
   async checkUpgradeBeacon(
-    domain: types.Domain,
+    network: Networks,
     name: string,
     proxiedAddress: ProxiedAddress,
   ) {
-    const provider = await this.app.mustGetProvider(domain);
+    const dc = this.multiProvider.getDomainConnection(network);
     const implementation = await upgradeBeaconImplementation(
-      provider,
+      dc.provider!,
       proxiedAddress.beacon,
     );
     if (implementation !== proxiedAddress.implementation) {
       this.addViolation(
-        upgradeBeaconViolation(domain, name, proxiedAddress, implementation),
+        upgradeBeaconViolation(network, name, proxiedAddress, implementation),
       );
     }
+  }
+
+  static async checkOwnership(
+    owner: types.Address,
+    ownables: Ownable[],
+  ): Promise<void> {
+    const owners = await Promise.all(ownables.map((o) => o.owner()));
+    owners.map((_) => expect(_).to.equal(owner));
   }
 
   isDuplicateViolation(violation: CheckerViolation) {
     const duplicates = this.violations.filter(
       (v) =>
         violation.type === v.type &&
-        violation.domain === v.domain &&
+        violation.network === v.network &&
         violation.actual === v.actual &&
         violation.expected === v.expected,
     );

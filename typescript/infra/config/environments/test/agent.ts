@@ -1,13 +1,12 @@
 import { AgentConfig } from '../../../src/config';
-import { ENVIRONMENTS_ENUM } from '../../../src/config/environment';
 
 import { TestNetworks, domainNames } from './domains';
 import { validators } from './validators';
 
 export const agent: AgentConfig<TestNetworks> = {
-  environment: ENVIRONMENTS_ENUM.Test,
-  namespace: ENVIRONMENTS_ENUM.Test,
-  runEnv: ENVIRONMENTS_ENUM.Test,
+  environment: 'test',
+  namespace: 'test',
+  runEnv: 'test',
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',

@@ -1,8 +1,7 @@
 import { ChainName } from '@abacus-network/sdk';
 
-import { AgentConfig } from '../config';
+import { AgentConfig, DeployEnvironment } from '../config';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
-import { ENVIRONMENTS_ENUM } from '../config/environment';
 import { fetchGCPSecret } from '../utils/gcloud';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { ensure0x, execCmd, strip0x } from '../utils/utils';
@@ -18,7 +17,6 @@ import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
 async function helmValuesForChain<Networks extends ChainName>(
   chainName: Networks,
   agentConfig: AgentConfig<Networks>,
-  chainNames: Networks[],
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
 
@@ -34,7 +32,7 @@ async function helmValuesForChain<Networks extends ChainName>(
         name: chainName,
       },
       aws: !!agentConfig.aws,
-      inboxChains: chainNames
+      inboxChains: agentConfig.domainNames
         .filter((name) => name !== chainName)
         .map((remoteChainName) => {
           return {
@@ -71,20 +69,16 @@ export async function getAgentEnvVars<Networks extends ChainName>(
   outboxChainName: Networks,
   role: KEY_ROLE_ENUM,
   agentConfig: AgentConfig<Networks>,
-  chainNames: Networks[],
   index?: number,
 ) {
+  const chainNames = agentConfig.domainNames;
   if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
     throw Error('Expected index for validator role');
   }
 
-  const valueDict = await helmValuesForChain(
-    outboxChainName,
-    agentConfig,
-    chainNames,
-  );
+  const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   let envVars: string[] = [];
-  const rpcEndpoints = await getSecretRpcEndpoints(agentConfig, chainNames);
+  const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
   envVars.push(
     `OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
   );
@@ -112,7 +106,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
     const gcpKeys = (await fetchKeysForChain(
       agentConfig,
       outboxChainName,
-    )) as Record<string, AgentGCPKey<Networks>>;
+    )) as Record<string, AgentGCPKey>;
 
     // Only checkpointer and relayer need to sign txs
     if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
@@ -272,14 +266,14 @@ export async function getSecretAwsCredentials<Networks extends ChainName>(
 }
 
 export async function getSecretRpcEndpoint(
-  environment: ENVIRONMENTS_ENUM,
+  environment: string,
   chainName: ChainName,
 ) {
   return fetchGCPSecret(`${environment}-rpc-endpoint-${chainName}`, false);
 }
 
 export async function getSecretDeployerKey(
-  environment: ENVIRONMENTS_ENUM,
+  environment: DeployEnvironment,
   chainName: ChainName,
 ) {
   const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chainName);
@@ -289,11 +283,10 @@ export async function getSecretDeployerKey(
 
 async function getSecretRpcEndpoints<Networks extends ChainName>(
   agentConfig: AgentConfig<Networks>,
-  chainNames: ChainName[],
 ) {
   const environment = agentConfig.runEnv;
   return getSecretForEachChain(
-    chainNames,
+    agentConfig.domainNames,
     (name: ChainName) => `${environment}-rpc-endpoint-${name}`,
     false,
   );
@@ -322,13 +315,8 @@ export async function runAgentHelmCommand<Networks extends ChainName>(
   action: HelmCommand,
   agentConfig: AgentConfig<Networks>,
   outboxChainName: Networks,
-  chainNames: Networks[],
 ) {
-  const valueDict = await helmValuesForChain(
-    outboxChainName,
-    agentConfig,
-    chainNames,
-  );
+  const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   const values = helmifyValues(valueDict);
 
   const extraPipe =
@@ -346,16 +334,16 @@ export async function runAgentHelmCommand<Networks extends ChainName>(
   );
 }
 
-export async function runKeymasterHelmCommand<Networks extends ChainName>(
+export async function runKeymasterHelmCommand(
   action: HelmCommand,
-  agentConfig: AgentConfig<Networks>,
-  chainNames: Networks[],
+  agentConfig: AgentConfig<any>,
 ) {
+  const chainNames = agentConfig.domainNames;
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
   const chainName = chainNames[0];
   const gcpKeys = (await fetchKeysForChain(agentConfig, chainName)) as Record<
     string,
-    AgentGCPKey<Networks>
+    AgentGCPKey
   >;
   const bankKey = gcpKeys[KEY_ROLE_ENUM.Bank];
   const config = {

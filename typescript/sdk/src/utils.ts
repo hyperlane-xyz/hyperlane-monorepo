@@ -1,6 +1,8 @@
 import { BytesLike, arrayify, hexlify } from '@ethersproject/bytes';
 import { ethers } from 'ethers';
 
+import { ChainMap, ChainName, Remotes } from './types';
+
 export type Address = string;
 
 /**
@@ -53,7 +55,79 @@ export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export class MultiGeneric<Networks extends ChainName, Value> {
+  constructor(protected readonly domainMap: ChainMap<Networks, Value>) {}
+
+  protected get = (network: Networks) => this.domainMap[network];
+
+  networks = () => Object.keys(this.domainMap) as Networks[];
+
+  apply(fn: (n: Networks, dc: Value) => void) {
+    for (const network of this.networks()) {
+      fn(network, this.domainMap[network]);
+    }
+  }
+
+  map<Output>(fn: (n: Networks, dc: Value) => Output) {
+    let entries: [Networks, Output][] = [];
+    const networks = this.networks();
+    for (const network of networks) {
+      entries.push([network, fn(network, this.domainMap[network])]);
+    }
+    return Object.fromEntries(entries) as Record<Networks, Output>;
+  }
+
+  remotes = <Name extends Networks>(name: Name) =>
+    this.networks().filter((key) => key !== name) as Remotes<Networks, Name>[];
+
+  extendWithDomain = <New extends Remotes<ChainName, Networks>>(
+    network: New,
+    value: Value,
+  ) =>
+    new MultiGeneric<New & Networks, Value>({
+      ...this.domainMap,
+      [network]: value,
+    });
+
+  knownDomain = (network: ChainName) => network in this.domainMap;
+}
+
+export function inferChainMap<M>(map: M) {
+  return map as M extends ChainMap<infer Networks, infer Value>
+    ? Record<Networks, Value>
+    : never;
+}
+
+export function objMapEntries<K extends string, I = any, O = any>(
+  obj: Record<K, I>,
+  func: (k: K, _: I) => O,
+): [K, O][] {
+  return Object.entries<I>(obj).map(([k, v]) => [k as K, func(k as K, v)]);
+}
+
+export function objMap<K extends string, I = any, O = any>(
+  obj: Record<K, I>,
+  func: (k: K, _: I) => O,
+) {
+  return Object.fromEntries<O>(objMapEntries<K, I, O>(obj, func)) as Record<
+    K,
+    O
+  >;
+}
+
+// promiseObjectAll :: {k: Promise a} -> Promise {k: a}
+export const promiseObjAll = <K extends string, V>(object: {
+  [key in K]: Promise<V>;
+}): Promise<Record<K, V>> => {
+  const promiseList = Object.entries(object).map(([name, promise]) =>
+    (promise as Promise<V>).then((result) => [name, result]),
+  );
+  return Promise.all(promiseList).then(Object.fromEntries);
+};
+
 export const utils = {
+  objMap,
+  promiseObjAll,
   canonizeId,
   evmId,
   delay,

@@ -1,7 +1,7 @@
 import { BigNumber } from 'ethers';
 
 import { TransactionConfig } from '@abacus-network/deploy';
-import { ChainName } from '@abacus-network/sdk';
+import { ChainMap } from '@abacus-network/sdk';
 
 export const alfajores: TransactionConfig = {
   confirmations: 1,
@@ -53,6 +53,21 @@ export const ropsten: TransactionConfig = {
   },
 };
 
+export const test1: TransactionConfig = {
+  confirmations: 1,
+  overrides: {},
+};
+
+export const test2: TransactionConfig = {
+  confirmations: 1,
+  overrides: {},
+};
+
+export const test3: TransactionConfig = {
+  confirmations: 1,
+  overrides: {},
+};
+
 export const bsctestnet: TransactionConfig = {
   confirmations: 3,
   overrides: {},
@@ -73,7 +88,7 @@ export const auroratestnet: TransactionConfig = {
   overrides: {},
 };
 
-export const configs: Partial<Record<ChainName, TransactionConfig>> = {
+const _configs = {
   alfajores,
   fuji,
   goerli,
@@ -82,8 +97,14 @@ export const configs: Partial<Record<ChainName, TransactionConfig>> = {
   rinkarby,
   rinkeby,
   ropsten,
+  test1,
+  test2,
+  test3,
   bsctestnet,
   arbitrumrinkeby,
   optimismkovan,
   auroratestnet,
 };
+
+export const configs: ChainMap<keyof typeof _configs, TransactionConfig> =
+  _configs;

@@ -1,6 +1,14 @@
+import { Fragment } from '@ethersproject/abi';
 import { ethers } from 'ethers';
 
 import { ContractVerificationInput } from './types';
+
+export function formatFunctionArguments(fragment: Fragment, args: any[]) {
+  const params = Object.fromEntries(
+    fragment.inputs.map((input, index) => [input.name, args[index]]),
+  );
+  return JSON.stringify(params, null, 2);
+}
 
 function getConstructorArguments(
   contract: ethers.Contract,
@@ -25,7 +33,7 @@ export function getContractVerificationInput(
   name: string,
   contract: ethers.Contract,
   bytecode: string,
-  isProxy?: boolean,
+  isProxy: boolean = name.endsWith('Proxy'),
 ): ContractVerificationInput {
   return {
     name,

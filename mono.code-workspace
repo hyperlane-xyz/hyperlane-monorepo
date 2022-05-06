@@ -12,6 +12,7 @@
     "scm.diffDecorationsGutterPattern": {
       "added": true
     },
+    "npm.autoDetect": "on",
   },
   "folders": [
     {

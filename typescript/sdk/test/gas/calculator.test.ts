@@ -1,37 +1,42 @@
+import { utils } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { BigNumber, ethers, FixedNumber } from 'ethers';
-
-import { utils } from '@abacus-network/utils';
-
-import { AbacusCore, InterchainGasCalculator, ParsedMessage } from '../..';
-import { MockProvider, MockTokenPriceGetter, testAddresses } from '../utils';
+import {
+  AbacusCore,
+  InterchainGasCalculator,
+  MultiProvider,
+  ParsedMessage
+} from '../..';
+import { domains } from '../../src/domains';
+import { MockProvider, MockTokenPriceGetter } from '../utils';
 
 describe('InterchainGasCalculator', () => {
-  const originDomain = 1;
-  const destinationDomain = 2;
+  const provider = new MockProvider();
+  const multiProvider = new MultiProvider({
+    test1: { provider },
+    test2: { provider },
+    test3: { provider }
+  });
+  const core = AbacusCore.fromEnvironment('test', multiProvider);
+  const originDomain = domains.test1.id;
+  const destinationDomain = domains.test2.id;
 
-  let core: AbacusCore;
-  let provider: MockProvider;
   let tokenPriceGetter: MockTokenPriceGetter;
   let calculator: InterchainGasCalculator;
 
-  before(() => {
-    core = new AbacusCore(testAddresses);
-    provider = new MockProvider();
-    core.registerProvider('test1', provider);
-    core.registerProvider('test2', provider);
-
+  beforeEach(() => {
     tokenPriceGetter = new MockTokenPriceGetter();
     // Origin domain token
     tokenPriceGetter.setTokenPrice(originDomain, 10);
     // Destination domain token
     tokenPriceGetter.setTokenPrice(destinationDomain, 5);
-  });
-
-  beforeEach(() => {
-    calculator = new InterchainGasCalculator(core, {
-      tokenPriceGetter,
-    });
+    calculator = new InterchainGasCalculator(
+      multiProvider as any, // TODO: fix types
+      core as any,
+      {
+        tokenPriceGetter,
+      },
+    );
   });
 
   afterEach(() => {
@@ -63,13 +68,16 @@ describe('InterchainGasCalculator', () => {
     it('estimates origin token payment from a specified message', async () => {
       // Set the estimated destination gas
       const estimatedDestinationGas = 100_000;
-      calculator.estimateGasForMessage = () => Promise.resolve(BigNumber.from(estimatedDestinationGas));
+      calculator.estimateGasForMessage = () =>
+        Promise.resolve(BigNumber.from(estimatedDestinationGas));
       // Set destination gas price to 10 wei
       calculator.suggestedGasPrice = (_) => Promise.resolve(BigNumber.from(10));
       // Set paymentEstimateMultiplier to 1 just to test easily
       calculator.paymentEstimateMultiplier = FixedNumber.from(1);
 
-      const zeroAddressBytes32 = utils.addressToBytes32(ethers.constants.AddressZero);
+      const zeroAddressBytes32 = utils.addressToBytes32(
+        ethers.constants.AddressZero,
+      );
       const message: ParsedMessage = {
         origin: originDomain,
         sender: zeroAddressBytes32,
@@ -78,7 +86,9 @@ describe('InterchainGasCalculator', () => {
         body: '0x12345678',
       };
 
-      const estimatedPayment = await calculator.estimatePaymentForMessage(message);
+      const estimatedPayment = await calculator.estimatePaymentForMessage(
+        message,
+      );
 
       // 100_000 dest gas * 10 gas price * ($5 per origin token / $10 per origin token)
       expect(estimatedPayment.toNumber()).to.equal(500_000);
@@ -93,7 +103,7 @@ describe('InterchainGasCalculator', () => {
         originDomain,
         destinationWei,
       );
-      
+
       expect(originWei.toNumber()).to.equal(500);
     });
 
@@ -131,7 +141,7 @@ describe('InterchainGasCalculator', () => {
       );
 
       expect(originWei.toNumber()).to.equal(5);
-    })
+    });
   });
 
   describe('suggestedGasPrice', () => {
@@ -140,7 +150,7 @@ describe('InterchainGasCalculator', () => {
       provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
 
       expect(
-        (await calculator.suggestedGasPrice(destinationDomain)).toNumber()
+        (await calculator.suggestedGasPrice(destinationDomain)).toNumber(),
       ).to.equal(gasPrice);
     });
   });

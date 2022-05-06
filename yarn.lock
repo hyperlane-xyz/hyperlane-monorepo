@@ -96,19 +96,22 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/deploy@0.0.7, @abacus-network/deploy@workspace:typescript/deploy":
+"@abacus-network/deploy@0.0.8, @abacus-network/deploy@workspace:typescript/deploy":
   version: 0.0.0-use.local
   resolution: "@abacus-network/deploy@workspace:typescript/deploy"
   dependencies:
     "@abacus-network/core": ^0.0.6
-    "@abacus-network/sdk": ^0.0.4
+    "@abacus-network/sdk": ^0.0.5
+    "@abacus-network/utils": ^0.0.8
     "@typechain/ethers-v5": ~7.0.0
     "@types/node": ^16.9.1
+    "@types/yargs": ^17.0.10
     axios: ^0.21.3
     ethers: ^5.4.7
     prettier: ^2.3.1
     ts-node: ^10.1.0
     typescript: ^4.3.2
+    yargs: ^17.4.1
   languageName: unknown
   linkType: soft
 
@@ -137,8 +140,8 @@ __metadata:
   dependencies:
     "@abacus-network/apps": 0.0.2
     "@abacus-network/core": 0.0.6
-    "@abacus-network/deploy": 0.0.7
-    "@abacus-network/sdk": 0.0.4
+    "@abacus-network/deploy": 0.0.8
+    "@abacus-network/sdk": 0.0.5
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -177,7 +180,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@0.0.4, @abacus-network/sdk@^0.0.4, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@0.0.5, @abacus-network/sdk@^0.0.5, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
@@ -3660,7 +3663,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/yargs@npm:^17.0.8":
+"@types/yargs@npm:^17.0.10, @types/yargs@npm:^17.0.8":
   version: 17.0.10
   resolution: "@types/yargs@npm:17.0.10"
   dependencies:
@@ -16162,7 +16165,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yargs@npm:^17.3.1":
+"yargs@npm:^17.3.1, yargs@npm:^17.4.1":
   version: 17.4.1
   resolution: "yargs@npm:17.4.1"
   dependencies:
