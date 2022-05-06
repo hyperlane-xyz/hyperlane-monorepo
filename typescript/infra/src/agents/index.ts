@@ -398,13 +398,12 @@ export async function runKeymasterHelmCommand(
   return;
 }
 
-
 export async function getCurrentKubernetesContext(): Promise<string> {
-   const [stdout] = await execCmd(
-      `kubectl config current-context`,
-      { encoding: 'utf8' },
-      false,
-      false,
+  const [stdout] = await execCmd(
+    `kubectl config current-context`,
+    { encoding: 'utf8' },
+    false,
+    false,
   );
   return stdout.trimEnd();
 }
