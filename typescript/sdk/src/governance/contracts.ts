@@ -1,6 +1,8 @@
 import { Call } from '..';
 
 import { GovernanceRouter__factory } from '@abacus-network/apps';
+import { UpgradeBeaconController__factory } from '@abacus-network/core';
+import { types } from '@abacus-network/utils';
 
 import {
   AbacusContracts,
@@ -9,11 +11,9 @@ import {
 } from '../contracts';
 
 import { normalizeCall } from './utils';
-import { types } from '@abacus-network/utils';
-import { UpgradeBeaconController__factory } from '@abacus-network/core';
 
 export type GovernanceAddresses = RouterAddresses & {
-  upgradeBeaconController: types.Address
+  upgradeBeaconController: types.Address;
 };
 
 export const governanceFactories = {

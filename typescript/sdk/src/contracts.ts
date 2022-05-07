@@ -1,9 +1,7 @@
 import { Contract } from 'ethers';
 
 import { Router__factory } from '@abacus-network/apps';
-import {
-  AbacusConnectionManager__factory,
-} from '@abacus-network/core';
+import { AbacusConnectionManager__factory } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 
 import { Connection, ProxiedAddress } from './types';
