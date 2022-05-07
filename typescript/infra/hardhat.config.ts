@@ -74,10 +74,7 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
       signer,
     );
 
-    const deployer = new AbacusCoreDeployer(
-      multiProvider,
-      config.core,
-    );
+    const deployer = new AbacusCoreDeployer(multiProvider, config.core);
     const addresses = await deployer.deploy();
 
     // Write configs
