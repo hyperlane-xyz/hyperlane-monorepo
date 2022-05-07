@@ -74,15 +74,5 @@ export const core: ChainMap<TestnetNetworks, CoreConfig> = {
       ],
       threshold: 2,
     },
-  },
-  auroratestnet: {
-    validatorManager: {
-      validators: [
-        '0x3dd10f59ec2f18441eb0a3feca489e6d74752260',
-        '0x10ac12f07488ea10371071fccc6a7a1e2733fe35',
-        '0xdf0154233855528a114b4bd640a3fde2020c3b3b',
-      ],
-      threshold: 2,
-    },
-  },
+  }
 };

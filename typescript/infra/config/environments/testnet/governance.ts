@@ -18,7 +18,6 @@ const addresses = {
   bsctestnet: defaultGovernanceConfig,
   arbitrumrinkeby: defaultGovernanceConfig,
   optimismkovan: defaultGovernanceConfig,
-  auroratestnet: defaultGovernanceConfig,
 };
 
 export const governance: ChainMap<keyof typeof addresses, GovernanceConfig> =
