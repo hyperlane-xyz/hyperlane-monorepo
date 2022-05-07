@@ -70,7 +70,7 @@ export abstract class AbacusContracts<
 
 export type RouterAddresses = {
   abacusConnectionManager: types.Address;
-  router: ProxiedAddress;
+  router: types.Address;
 };
 
 export const routerFactories: Factories<RouterAddresses> = {

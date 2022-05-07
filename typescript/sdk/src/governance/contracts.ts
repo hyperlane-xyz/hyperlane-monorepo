@@ -6,13 +6,16 @@ import { types } from '@abacus-network/utils';
 
 import {
   AbacusContracts,
-  RouterAddresses,
   routerFactories,
 } from '../contracts';
 
 import { normalizeCall } from './utils';
+import { ProxiedAddress } from '../types';
 
-export type GovernanceAddresses = RouterAddresses & {
+export type GovernanceAddresses = {
+  // Basically copy RouterAddresses
+  abacusConnectionManager: types.Address,
+  router: ProxiedAddress
   upgradeBeaconController: types.Address;
 };
 
