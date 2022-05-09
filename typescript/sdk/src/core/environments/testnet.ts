@@ -46,12 +46,6 @@ export const addresses = {
         implementation: '0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C',
         beacon: '0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9',
       },
-      auroratestnet: {
-        validatorManager: '0xa3AB7E6cE24E6293bD5320A53329Ef2f4DE73fCA',
-        proxy: '0xc76E477437065093D353b7d56c81ff54D167B0Ab',
-        implementation: '0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C',
-        beacon: '0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9',
-      },
     },
   },
   kovan: {
@@ -98,12 +92,6 @@ export const addresses = {
       optimismkovan: {
         validatorManager: '0x433f7d6d0cB9eb8FF2902Ad01C1BEd6C09934a33',
         proxy: '0x75f3E2a4f424401195A5E176246Ecc9f7e7680ff',
-        implementation: '0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450',
-        beacon: '0x5CBf4e70448Ed46c2616b04e9ebc72D29FF0cfA9',
-      },
-      auroratestnet: {
-        validatorManager: '0x1b33611fCc073aB0737011d5512EF673Bff74962',
-        proxy: '0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C',
         implementation: '0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450',
         beacon: '0x5CBf4e70448Ed46c2616b04e9ebc72D29FF0cfA9',
       },
@@ -157,12 +145,6 @@ export const addresses = {
         implementation: '0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450',
         beacon: '0x5CBf4e70448Ed46c2616b04e9ebc72D29FF0cfA9',
       },
-      auroratestnet: {
-        validatorManager: '0x1b33611fCc073aB0737011d5512EF673Bff74962',
-        proxy: '0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C',
-        implementation: '0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450',
-        beacon: '0x5CBf4e70448Ed46c2616b04e9ebc72D29FF0cfA9',
-      },
     },
   },
   mumbai: {
@@ -209,12 +191,6 @@ export const addresses = {
       optimismkovan: {
         validatorManager: '0x58483b754Abb1E8947BE63d6b95DF75b8249543A',
         proxy: '0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7',
-        implementation: '0x7d498740A4572f2B5c6b0A1Ba9d1d9DbE207e89E',
-        beacon: '0x7FE7EA170cf08A25C2ff315814D96D93C311E692',
-      },
-      auroratestnet: {
-        validatorManager: '0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE',
-        proxy: '0x07009DA2249c388aD0f416a235AfE90D784e1aAc',
         implementation: '0x7d498740A4572f2B5c6b0A1Ba9d1d9DbE207e89E',
         beacon: '0x7FE7EA170cf08A25C2ff315814D96D93C311E692',
       },
@@ -267,12 +243,6 @@ export const addresses = {
         implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
         beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
       },
-      auroratestnet: {
-        validatorManager: '0x527768930D889662Fe7ACF64294871e86e4C2381',
-        proxy: '0x5d56B8a669F50193b54319442c6EEE5edD662381',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
     },
   },
   arbitrumrinkeby: {
@@ -322,12 +292,6 @@ export const addresses = {
         implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
         beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
       },
-      auroratestnet: {
-        validatorManager: '0x527768930D889662Fe7ACF64294871e86e4C2381',
-        proxy: '0x5d56B8a669F50193b54319442c6EEE5edD662381',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
     },
   },
   optimismkovan: {
@@ -374,67 +338,6 @@ export const addresses = {
       arbitrumrinkeby: {
         validatorManager: '0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8',
         proxy: '0x7914A3349107A7295Bbf2374db5A973d73D1b324',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
-      auroratestnet: {
-        validatorManager: '0x527768930D889662Fe7ACF64294871e86e4C2381',
-        proxy: '0x5d56B8a669F50193b54319442c6EEE5edD662381',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
-    },
-  },
-  auroratestnet: {
-    upgradeBeaconController: '0x6E7b29CB2A7617405B4d30C6f84bBD51b4Bb4be8',
-    abacusConnectionManager: '0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2',
-    interchainGasPaymaster: '0x44b764045BfDC68517e10e783E69B376cef196B2',
-    outbox: {
-      validatorManager: '0xfc6e546510dC9d76057F1f76633FCFfC188CB213',
-      proxy: '0x16B710b86CAd07E6F1C531861a16F5feC29dba37',
-      implementation: '0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7',
-      beacon: '0xeb6f11189197223c656807a83B0DD374f9A6dF44',
-    },
-    inboxes: {
-      alfajores: {
-        validatorManager: '0x589C201a07c26b4725A4A829d772f24423da480B',
-        proxy: '0xB08d78F439e55D02C398519eef61606A5926245F',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
-      kovan: {
-        validatorManager: '0x833Dad7FF66884389D5F0cEcba446ffaa7d2837e',
-        proxy: '0xD3d062a5dcBA85ae863618d4c264d2358300c283',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
-      fuji: {
-        validatorManager: '0x7d498740A4572f2B5c6b0A1Ba9d1d9DbE207e89E',
-        proxy: '0x7FE7EA170cf08A25C2ff315814D96D93C311E692',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
-      mumbai: {
-        validatorManager: '0xF7F0DaB0BECE4498dAc7eb616e288809D4499371',
-        proxy: '0xfc8d0D2E15A36f1A3F3aE3Cb127B706c1f23Aadc',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
-      bsctestnet: {
-        validatorManager: '0xd785272D240B07719e417622cbd2cfA0E584d1bd',
-        proxy: '0x666a24F62f7A97BA33c151776Eb3D9441a059eB8',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
-      arbitrumrinkeby: {
-        validatorManager: '0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8',
-        proxy: '0x7914A3349107A7295Bbf2374db5A973d73D1b324',
-        implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
-        beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      },
-      optimismkovan: {
-        validatorManager: '0x527768930D889662Fe7ACF64294871e86e4C2381',
-        proxy: '0x5d56B8a669F50193b54319442c6EEE5edD662381',
         implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
         beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
       },
