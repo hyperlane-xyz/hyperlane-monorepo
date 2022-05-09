@@ -74,5 +74,5 @@ export const core: ChainMap<TestnetNetworks, CoreConfig> = {
       ],
       threshold: 2,
     },
-  }
+  },
 };

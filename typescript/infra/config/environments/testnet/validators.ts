@@ -215,5 +215,5 @@ export const validators: ChainValidatorSets<TestnetNetworks> = {
         },
       },
     ],
-  }
+  },
 };
