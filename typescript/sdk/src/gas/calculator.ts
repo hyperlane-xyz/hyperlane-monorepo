@@ -28,6 +28,34 @@ import { convertDecimalValue, mulBigAndFixed } from './utils';
 // If a domain doesn't specify how many decimals their native token has, 18 is used.
 const DEFAULT_TOKEN_DECIMALS = 18;
 
+// A generous estimation of the overhead gas amount when processing a message. This
+// includes intrinsic gas, the merkle proof, making the external call to the recipient
+// handle function, but does not account for any gas consumed by the handle function.
+// This number was arrived at by estimating the proving and processing of a message
+// whose body was small and whose recipient contract included only an empty fallback
+// function. The estimated gas cost was 86777, which included the intrinsic cost.
+// 130,000 is chosen as a generous buffer for safety. The large buffer is mostly to do
+// with flexibility in message sizes, where large messages can cost more due to tx calldata,
+// hashing, and calling to the recipient handle function.
+const INBOX_PROCESS_OVERHEAD_GAS = 130_000;
+
+// Intrinsic gas for a transaction. Does not consider calldata costs or differences in
+// intrinsic gas or different networks.
+const BASE_INTRINSIC_GAS = 21_000;
+
+// The gas used if the quorum threshold of a signed checkpoint is zero.
+// Includes intrinsic gas and all other gas that does not scale with the
+// number of signatures. Note this does not consider differences in intrinsic gas for
+// different chains.
+// Derived by observing the amount of gas consumed for a quorum of 1 (~86800 gas),
+// subtracting the gas used per signature, and rounding up for safety.
+const BASE_CHECKPOINT_RELAY_GAS = 80_000;
+
+// The amount of gas used for each signature when a signed checkpoint
+// is submitted for verification.
+// Really observed to be about 8350, but rounding up for safety.
+const CHECKPOINT_RELAY_GAS_PER_SIGNATURE = 9_000;
+
 export interface InterchainGasCalculatorConfig {
   /**
    * A multiplier applied to the estimated origin token payment amount.
@@ -81,24 +109,36 @@ export class InterchainGasCalculator {
   }
 
   /**
-   * Calculates the estimated payment for an amount of gas on the destination chain,
-   * denominated in the native token of the origin chain. Considers the exchange
-   * rate between the native tokens of the origin and destination chains, and the
-   * suggested gas price on the destination chain. Applies the multiplier
-   * `paymentEstimateMultiplier`.
+   * Given an amount of gas the message's recipient `handle` function is expected
+   * to use, calculates the estimated payment denominated in the native
+   * token of the origin chain. Considers the exchange rate between the native
+   * tokens of the origin and destination chains, the suggested gas price on
+   * the destination chain, gas costs incurred by a relayer when submitting a signed
+   * checkpoint to the destination chain, and the overhead gas cost in Inbox of processing
+   * a message. Applies the multiplier `paymentEstimateMultiplier`.
    * @param originDomain The domain of the origin chain.
    * @param destinationDomain The domain of the destination chain.
-   * @param destinationGas The amount of gas to pay for on the destination chain.
+   * @param destinationHandleGas The amount of gas the recipient `handle` function
+   * is estimated to use.
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
-  async estimatePaymentForGasAmount(
+  async estimatePaymentForHandleGasAmount(
     originDomain: number,
     destinationDomain: number,
-    destinationGas: BigNumber,
+    destinationHandleGas: BigNumber,
   ): Promise<BigNumber> {
     const destinationGasPrice = await this.suggestedGasPrice(destinationDomain);
-    const destinationCostWei = destinationGas.mul(destinationGasPrice);
+
+    const checkpointRelayGas = await this.checkpointRelayGas(
+      originDomain,
+      destinationDomain,
+    );
+    const inboxProcessOverheadGas = await this.inboxProcessOverheadGas();
+    const totalDestinationGas = checkpointRelayGas
+      .add(inboxProcessOverheadGas)
+      .add(destinationHandleGas);
+    const destinationCostWei = totalDestinationGas.mul(destinationGasPrice);
 
     // Convert from destination domain native tokens to origin domain native tokens.
     const originCostWei = await this.convertBetweenNativeTokens(
@@ -117,16 +157,17 @@ export class InterchainGasCalculator {
 
   /**
    * Calculates the estimated payment to process the message on its destination chain,
-   * denominated in the native token of the origin chain. The destination gas is
-   * determined by estimating the gas to process the provided message, which is then used
-   * to calculate the payment using {@link estimatePaymentForGasAmount}.
+   * denominated in the native token of the origin chain. The gas used by the message's
+   * recipient handler function is estimated in an eth_estimateGas call to the
+   * destination chain, and is then used to calculate the payment using
+   * {@link estimatePaymentForHandleGasAmount}.
    * @param message The parsed message to estimate payment for.
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
   async estimatePaymentForMessage(message: ParsedMessage) {
-    const destinationGas = await this.estimateGasForMessage(message);
-    return this.estimatePaymentForGasAmount(
+    const destinationGas = await this.estimateHandleGasForMessage(message);
+    return this.estimatePaymentForHandleGasAmount(
       message.origin,
       message.destination,
       destinationGas,
@@ -222,19 +263,22 @@ export class InterchainGasCalculator {
   }
 
   /**
-   * Estimates the amount of gas required to process a message on its destination chain.
-   * This does not assume the Inbox of the destination domain has a checkpoint that
-   * the message is included in. Therefore, we estimate the gas by summing:
-   * 1. The intrinsic gas cost of a transaction on the destination chain.
-   * 2. Any gas costs imposed by operations in the Inbox, including proving
-   *    the message and logic surrounding the processing of a message.
-   * 3. The estimated gas consumption of a direct call to the `handle`
+   * Estimates the amount of gas used by message's recipient `handle` function
+   * on its destination chain. This does not assume the Inbox of the destination
+   * domain has a checkpoint that the message is included in, and does not
+   * consider intrinsic gas or any "overhead" gas incurred by Inbox.process.
+   * The estimated gas returned is the sum of:
+   * 1. The estimated gas consumption of a direct call to the `handle`
    *    function of the recipient address using the correct parameters and
    *    setting the `from` address of the transaction to the address of the inbox.
-   * 4. A buffer to account for inaccuracies in the above estimations.
-   * @returns The estimated gas required to process the message on the destination chain.
+   * 2. A buffer to account for inaccuracies in the above estimation.
+   * @param message The message to estimate recipient `handle` gas usage for.
+   * @returns The estimated gas required by the message's recipient handle function
+   * on the destination chain.
    */
-  async estimateGasForMessage(message: ParsedMessage): Promise<BigNumber> {
+  async estimateHandleGasForMessage(
+    message: ParsedMessage,
+  ): Promise<BigNumber> {
     const provider = this.multiProvider.getDomainConnection(
       resolveDomain(message.destination),
     ).provider!;
@@ -250,7 +294,7 @@ export class InterchainGasCalculator {
     ]);
     // Estimates a direct call to the `handle` function of the recipient
     // with the `from` address set to the inbox.
-    // This includes intrinsic gas, so no need to add it
+    // This includes intrinsic gas.
     const directHandleCallGas = await provider.estimateGas({
       to: utils.bytes32ToAddress(message.recipient),
       from: inbox.address,
@@ -261,27 +305,56 @@ export class InterchainGasCalculator {
       ]),
     });
 
-    // directHandleCallGas includes the intrinsic gas
+    // Subtract intrinsic gas, which is included in directHandleCallGas.
+    // Note the "real" intrinsic gas will always be higher than this.intrinsicGas
+    // due to calldata costs, but this is desired because subtracting the lower bound
+    // this.intrinsicGas will result in a more generous final estimate.
     return directHandleCallGas
-      .add(this.inboxProvingAndProcessingGas)
-      .add(this.messageGasEstimateBuffer);
+      .add(this.messageGasEstimateBuffer)
+      .sub(this.intrinsicGas);
+  }
+
+  /**
+   * @param originDomain The domain of the origin chain.
+   * @param destinationDomain The domain of the destination chain.
+   * @returns An estimated gas amount a relayer will spend when submitting a signed
+   * checkpoint to the destination domain.
+   */
+  async checkpointRelayGas(
+    originDomain: number,
+    destinationDomain: number,
+  ): Promise<BigNumber> {
+    const inboxValidatorManager = this.core.getContracts(
+      resolveDomain(destinationDomain) as never,
+    ).inboxes[resolveDomain(originDomain)].validatorManager;
+    const threshold = await inboxValidatorManager.threshold();
+
+    return threshold
+      .mul(CHECKPOINT_RELAY_GAS_PER_SIGNATURE)
+      .add(BASE_CHECKPOINT_RELAY_GAS);
   }
 
   /**
    * @returns A generous estimation of the gas consumption of all prove and process
-   * operations in Inbox.sol, excluding:
-   * 1. Intrinsic gas.
-   * 2. Any gas consumed within a `handle` function when processing a message once called.
+   * operations within Inbox.sol, including intrinsic gas. Does not include any gas
+   * consumed within a message's recipient `handle` function.
+   * Returns a Promise because we expect this to eventually include async logic to
+   * estimate sovereign consensus costs, and we'd like to keep the interface consistent.
    */
-  get inboxProvingAndProcessingGas() {
+  inboxProcessOverheadGas(): Promise<BigNumber> {
     // This does not consider that different domains can possibly have different gas costs.
     // Consider this being configurable for each domain, or investigate ways to estimate
     // this over RPC.
-    //
-    // This number was arrived at by estimating the proving and processing of a message
-    // whose recipient contract included only an empty fallback function. The estimated
-    // gas cost was ~100,000 which includes the intrinsic cost, but 150,000 is chosen as
-    // a generous buffer.
-    return 150_000;
+    // Also does not consider gas usage that may scale with message size, e.g. calldata
+    // costs.
+    return Promise.resolve(BigNumber.from(INBOX_PROCESS_OVERHEAD_GAS));
+  }
+
+  /**
+   * @returns The intrinsic gas of a basic transaction. Note this does not consider calldata
+   * costs or potentially different intrinsic gas costs for different chains.
+   */
+  get intrinsicGas(): BigNumber {
+    return BigNumber.from(BASE_INTRINSIC_GAS);
   }
 }

@@ -79,19 +79,6 @@
         "inbox": "0x7914A3349107A7295Bbf2374db5A973d73D1b324",
         "validatorManager": "0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8"
       }
-    },
-    "auroratestnet": {
-      "domain": "1635069300",
-      "name": "auroratestnet",
-      "rpcStyle": "ethereum",
-      "connection": {
-        "type": "http",
-        "url": ""
-      },
-      "addresses": {
-        "inbox": "0x7914A3349107A7295Bbf2374db5A973d73D1b324",
-        "validatorManager": "0x598facE78a4302f11E3de0bee1894Da0b2Cb71F8"
-      }
     }
   },
   "outbox": {

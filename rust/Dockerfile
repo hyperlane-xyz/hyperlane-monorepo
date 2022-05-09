@@ -21,35 +21,36 @@ COPY Cargo.toml .
 COPY Cargo.lock .
 
 # Build binaries
-RUN --mount=id=cargo,type=cache,target=/usr/src/target \
-  --mount=id=cargo-home-registry,type=cache,target=/usr/local/cargo/registry \
-  --mount=id=cargo-home-git,type=cache,target=/usr/local/cargo/git \
-    cargo build --release
+RUN \
+  --mount=id=cargo,type=cache,sharing=locked,target=/usr/src/target \
+  --mount=id=cargo-home-registry,type=cache,sharing=locked,target=/usr/local/cargo/registry \
+  --mount=id=cargo-home-git,type=cache,sharing=locked,target=/usr/local/cargo/git \
+    cargo build --release && \
+    mkdir -p /release && \
+    cp /usr/src/target/release/validator /release && \
+    cp /usr/src/target/release/relayer /release && \
+    cp /usr/src/target/release/checkpointer /release && \
+    cp /usr/src/target/release/kathy /release && \
+    cp /usr/src/target/release/kms-cli /release && \
+    cp /usr/src/target/release/abacus-cli /release
 
-# Copy artifacts out of volume
-WORKDIR /release 
-RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/validator .
-RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/relayer .
-RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/checkpointer .
-RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/kathy .
-RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/kms-cli .
-RUN --mount=id=cargo,type=cache,target=/usr/src/target  cp /usr/src/target/release/abacus-cli .
-
-# 2: Copy the binaries to release image
+## 2: Copy the binaries to release image
 FROM ubuntu:20.04
 RUN apt-get update && \
-    apt-get install -y libssl-dev \
-    ca-certificates
+    apt-get install -y \
+        libssl-dev \
+        ca-certificates \
+        tini && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
-COPY --from=builder /release/validator .
-COPY --from=builder /release/relayer .
-COPY --from=builder /release/checkpointer .
-COPY --from=builder /release/kathy .
-COPY --from=builder /release/kms-cli .
-COPY --from=builder /release/abacus-cli .
 COPY config ./config
-RUN chmod 777 /app
-RUN mkdir /usr/share/abacus/ && chmod 1000 /usr/share/abacus
+COPY --from=builder /release/* .
+
+RUN chmod 777 /app &&  \
+    mkdir /usr/share/abacus/ && \
+    chmod 1000 /usr/share/abacus
+
 USER 1000
+ENTRYPOINT ["tini", "--"]
 CMD ["./validator"]
