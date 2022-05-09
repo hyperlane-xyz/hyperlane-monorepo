@@ -14,6 +14,11 @@ import {
 } from '../..';
 import { MockProvider, MockTokenPriceGetter } from '../utils';
 
+const HANDLE_GAS = 100_000;
+const SUGGESTED_GAS_PRICE = 10;
+const CHECKPOINT_RELAY_GAS = 100_000;
+const INBOX_PROCESS_OVERHEAD_GAS = 100_000;
+
 describe('InterchainGasCalculator', () => {
   const provider = new MockProvider();
   // TODO: fix types to not require the <any> here.
@@ -53,28 +58,26 @@ describe('InterchainGasCalculator', () => {
 
   describe('estimatePaymentForHandleGasAmount', () => {
     it('estimates origin token payment from a specified destination gas amount', async () => {
-      const handleGas = BigNumber.from(100_000);
-
       // Set destination gas price to 10 wei
-      const gasPrice = 10;
-      provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
+      provider.setMethodResolveValue(
+        'getGasPrice',
+        BigNumber.from(SUGGESTED_GAS_PRICE),
+      );
 
       // Stub the checkpoint relay gas cost
-      const checkpointRelayGas = 100_000;
       sinon
         .stub(calculator, 'checkpointRelayGas')
-        .returns(Promise.resolve(BigNumber.from(checkpointRelayGas)));
+        .returns(Promise.resolve(BigNumber.from(CHECKPOINT_RELAY_GAS)));
       // Stub the inbox process overhead gas
-      const inboxProcessOverheadGas = 100_000;
       sinon
         .stub(calculator, 'inboxProcessOverheadGas')
-        .returns(Promise.resolve(BigNumber.from(inboxProcessOverheadGas)));
+        .returns(Promise.resolve(BigNumber.from(INBOX_PROCESS_OVERHEAD_GAS)));
 
       const estimatedPayment =
         await calculator.estimatePaymentForHandleGasAmount(
           originDomain,
           destinationDomain,
-          handleGas,
+          BigNumber.from(HANDLE_GAS),
         );
 
       // (100_000 dest handler gas + 100_000 checkpoint relay gas + 100_000 process overhead gas)
@@ -86,25 +89,21 @@ describe('InterchainGasCalculator', () => {
   describe('estimatePaymentForMessage', () => {
     it('estimates origin token payment from a specified message', async () => {
       // Set the estimated handle gas
-      const estimatedHandleGas = 100_000;
       sinon
         .stub(calculator, 'estimateHandleGasForMessage')
-        .returns(Promise.resolve(BigNumber.from(estimatedHandleGas)));
+        .returns(Promise.resolve(BigNumber.from(HANDLE_GAS)));
       // Set destination gas price to 10 wei
-      const suggestedGasPrice = 10;
       sinon
         .stub(calculator, 'suggestedGasPrice')
-        .returns(Promise.resolve(BigNumber.from(suggestedGasPrice)));
+        .returns(Promise.resolve(BigNumber.from(SUGGESTED_GAS_PRICE)));
       // Stub the checkpoint relay gas cost
-      const checkpointRelayGas = 100_000;
       sinon
         .stub(calculator, 'checkpointRelayGas')
-        .returns(Promise.resolve(BigNumber.from(checkpointRelayGas)));
+        .returns(Promise.resolve(BigNumber.from(CHECKPOINT_RELAY_GAS)));
       // Stub the inbox process overhead gas
-      const inboxProcessOverheadGas = 100_000;
       sinon
         .stub(calculator, 'inboxProcessOverheadGas')
-        .returns(Promise.resolve(BigNumber.from(inboxProcessOverheadGas)));
+        .returns(Promise.resolve(BigNumber.from(INBOX_PROCESS_OVERHEAD_GAS)));
 
       const zeroAddressBytes32 = utils.addressToBytes32(
         ethers.constants.AddressZero,
@@ -128,8 +127,9 @@ describe('InterchainGasCalculator', () => {
   });
 
   describe('convertBetweenNativeTokens', () => {
+    const destinationWei = BigNumber.from('1000');
+
     it('converts using the USD value of origin and destination native tokens', async () => {
-      const destinationWei = BigNumber.from('1000');
       const originWei = await calculator.convertBetweenNativeTokens(
         destinationDomain,
         originDomain,
@@ -147,7 +147,6 @@ describe('InterchainGasCalculator', () => {
         return 18;
       };
 
-      const destinationWei = BigNumber.from('1000');
       const originWei = await calculator.convertBetweenNativeTokens(
         destinationDomain,
         originDomain,
@@ -167,7 +166,6 @@ describe('InterchainGasCalculator', () => {
           return 18;
         });
 
-      const destinationWei = BigNumber.from('1000');
       const originWei = await calculator.convertBetweenNativeTokens(
         destinationDomain,
         originDomain,
@@ -180,12 +178,14 @@ describe('InterchainGasCalculator', () => {
 
   describe('suggestedGasPrice', () => {
     it('gets the gas price from the provider', async () => {
-      const gasPrice = 1000;
-      provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
+      provider.setMethodResolveValue(
+        'getGasPrice',
+        BigNumber.from(SUGGESTED_GAS_PRICE),
+      );
 
       expect(
         (await calculator.suggestedGasPrice(destinationDomain)).toNumber(),
-      ).to.equal(gasPrice);
+      ).to.equal(SUGGESTED_GAS_PRICE);
     });
   });
 
