@@ -12,7 +12,7 @@ async function deploy() {
   const currentKubeContext = await getCurrentKubernetesContext();
   if (!currentKubeContext.endsWith(`-${config.agent.runEnv}`)) {
     console.error(
-      `Attempting to deploy ${config.agent.runEnv} to ${currentKubeContext}`,
+      `Cowardly refusing to deploy ${config.agent.runEnv} to ${currentKubeContext}; are you sure you have the right k8s context active?`,
     );
     process.exit(1);
   }

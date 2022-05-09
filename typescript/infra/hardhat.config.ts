@@ -5,7 +5,11 @@ import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { BadRandomRecipient__factory } from '@abacus-network/core';
 import { utils as deployUtils } from '@abacus-network/deploy';
-import { AbacusCore, ChainName } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  ChainName,
+  ChainNameToDomainId,
+} from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
 import {
@@ -101,7 +105,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
     );
     const core = AbacusCore.fromEnvironment(environment, multiProvider);
 
-    const randomElement = (list: any[]) =>
+    const randomElement = <T>(list: T[]) =>
       list[Math.floor(Math.random() * list.length)];
 
     // Deploy a recipient
@@ -112,18 +116,21 @@ task('kathy', 'Dispatches random abacus messages').setAction(
     // Generate artificial traffic
     while (true) {
       const local = core.networks()[0];
-      const remote = randomElement(core.remotes(local));
+      const remote: ChainName = randomElement(core.remotes(local));
+      const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
       const outbox = coreContracts.outbox.outbox;
       // Send a batch of messages to the remote domain to test
       // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
         await outbox.dispatch(
-          remote,
+          remoteId,
           utils.addressToBytes32(recipient.address),
           '0x1234',
         );
-        await outbox.checkpoint();
+        if ((await outbox.count()).gt(1)) {
+          await outbox.checkpoint();
+        }
         console.log(
           `send to ${recipient.address} on ${remote} at index ${
             (await outbox.count()).toNumber() - 1

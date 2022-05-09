@@ -1,0 +1,49 @@
+{
+  "environment": "test",
+  "signers": {},
+  "inboxes": {
+    "test1": {
+      "domain": "13371",
+      "name": "test1",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x67d269191c92Caf3cD7723F116c85e6E9bf55933",
+        "validatorManager": "0x7a2088a1bFc9d81c55368AE168C2C02570cB814F"
+      }
+    },
+    "test3": {
+      "domain": "13373",
+      "name": "test3",
+      "rpcStyle": "ethereum",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690",
+        "validatorManager": "0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E"
+      }
+    }
+  },
+  "outbox": {
+    "addresses": {
+      "outbox": "0x59b670e9fA9D0A427751Af201D676719a970857b"
+    },
+    "domain": "13372",
+    "name": "test2",
+    "rpcStyle": "ethereum",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path"
+}

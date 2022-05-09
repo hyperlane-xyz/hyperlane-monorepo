@@ -4,8 +4,6 @@
 
 - install `rustup`
   - [link here](https://rustup.rs/)
-- setup pre-commit hooks: `cp ../pre-commit.sh ../.git/hooks/pre-commit`
-  - Note: To bypass pre-commit hooks, pass `--no-verify` after commit message
 
 Note: You should be running >= version `1.60.0` of the rustc compiler, you can see that version with this command and should see similar output:
 
@@ -101,6 +99,7 @@ We use the tokio async runtime environment. Please see the docs
   - interfaces to the ethereum contracts
 - `agents`
   - each of the off-chain agents implemented thus far
+
 ### High-level guide to building an agent
 
 - `cargo new $AGENT_NAME`
@@ -122,3 +121,5 @@ We use the tokio async runtime environment. Please see the docs
 - make a `config` folder and a toml file
   - Make sure to include your own settings from above
 
+### Running Locally
+See the guide [here](./running-locally.md) to run the agents locally.

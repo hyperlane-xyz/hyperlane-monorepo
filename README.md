@@ -92,6 +92,9 @@ If you are using [VSCode](https://code.visualstudio.com/), you can launch the [m
 - install [`rustup`](https://rustup.rs)
 - see `rust/README.md`
 
+### Running Agents Locally
+See [this guide](rust/running-locally.md) for how to run the agents locally and perform a full end-to-end test.
+
 #### Building Agent Images
 
 There exists a docker build for the agent binaries. These docker images are used for deploying the agents in a production environment.
