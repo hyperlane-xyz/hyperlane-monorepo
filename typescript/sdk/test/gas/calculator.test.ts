@@ -1,13 +1,17 @@
-import { utils } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { BigNumber, ethers } from 'ethers';
 import sinon from 'sinon';
+
+import { utils } from '@abacus-network/utils';
+
 import {
   AbacusCore,
   InterchainGasCalculator,
   MultiProvider,
   ParsedMessage,
+  resolveDomain,
 } from '../..';
+import { CoreContractSchema } from '../../src/core/contracts';
 import { domains } from '../../src/domains';
 import { MockProvider, MockTokenPriceGetter } from '../utils';
 
@@ -21,7 +25,7 @@ describe('InterchainGasCalculator', () => {
   const multiProvider = new MultiProvider<any>({
     test1: { provider },
     test2: { provider },
-    test3: { provider }
+    test3: { provider },
   });
   const core = AbacusCore.fromEnvironment('test', multiProvider);
   const originDomain = domains.test1.id;
@@ -36,15 +40,11 @@ describe('InterchainGasCalculator', () => {
     tokenPriceGetter.setTokenPrice(originDomain, 10);
     // Destination domain token
     tokenPriceGetter.setTokenPrice(destinationDomain, 5);
-    calculator = new InterchainGasCalculator(
-      multiProvider,
-      core,
-      {
-        tokenPriceGetter,
-        // A multiplier of 1 makes testing easier to reason about
-        paymentEstimateMultiplier: '1',
-      },
-    );
+    calculator = new InterchainGasCalculator(multiProvider, core, {
+      tokenPriceGetter,
+      // A multiplier of 1 makes testing easier to reason about
+      paymentEstimateMultiplier: '1',
+    });
   });
 
   afterEach(() => {
@@ -179,7 +179,7 @@ describe('InterchainGasCalculator', () => {
     });
   });
 
-  describe.only('suggestedGasPrice', () => {
+  describe('suggestedGasPrice', () => {
     it('gets the gas price from the provider', async () => {
       const gasPrice = 1000;
       provider.setMethodResolveValue('getGasPrice', BigNumber.from(gasPrice));
@@ -196,37 +196,34 @@ describe('InterchainGasCalculator', () => {
     // to return `threshold`. Because the mocking involves a closure,
     // changing `threshold` will change the return value of InboxValidatorManager.threshold.
     before(() => {
-      console.log('threshold', threshold);
-      // // const contracts = Object.assign({}, core.getContracts(resolveDomain(destinationDomain)));
-      // const getContractsStub = sinon.stub(
-      //   core,
-      //   'getContracts',
-      // );
-      // getContractsStub.callsFake(
-      //   <Networks extends ChainName>(domain: Networks) => {
-      //     // Get the "real" return value of mustGetInboxValidatorManager.
-      //     // Ethers contracts are frozen using Object.freeze, so we make a copy
-      //     // of the object so we can stub `threshold`.
-      //     const contracts: CoreContractSchema<any, Networks> = getContractsStub.wrappedMethod.bind(core)(domain);
+      const getContractsStub = sinon.stub(core, 'getContracts');
+      let thresholdStub: sinon.SinonStub | undefined;
+      getContractsStub.callsFake((domain) => {
+        // Get the "real" return value of getContracts.
+        const contracts: CoreContractSchema<never, never> =
+          getContractsStub.wrappedMethod.bind(core)(domain as never);
 
-      //     // console.log('validatorManager', contracts.inboxes[
-      //     //   resolveDomain(originDomain)
-      //     // ].validatorManager);
+        // Ethers contracts are frozen using Object.freeze, so we make a copy
+        // of the object so we can stub `threshold`.
+        const validatorManager = Object.assign(
+          {},
+          // @ts-ignore - TODO more strongly type InterchainGasCalculator
+          contracts.inboxes[resolveDomain(originDomain)].validatorManager,
+        );
 
-      //     const validatorManager = Object.assign({}, contracts.inboxes[
-      //       resolveDomain(originDomain)
-      //     ].validatorManager);
+        // Because we are stubbing vaidatorManager.threshold when core.getContracts gets called,
+        // we must ensure we don't try to stub more than once or sinon will complain.
+        if (!thresholdStub) {
+          thresholdStub = sinon
+            .stub(validatorManager, 'threshold')
+            .callsFake(() => Promise.resolve(BigNumber.from(threshold)));
 
-      //     sinon
-      //       .stub(validatorManager, 'threshold')
-      //       .returns(Promise.resolve(BigNumber.from(threshold)));
-
-      //     contracts.inboxes[
-      //       resolveDomain(originDomain)
-      //     ].validatorManager = validatorManager;
-      //     return contracts;
-      //   },
-      // );
+          // @ts-ignore - TODO more strongly type InterchainGasCalculator
+          contracts.inboxes[resolveDomain(originDomain)].validatorManager =
+            validatorManager;
+        }
+        return contracts;
+      });
     });
 
     it('scales the gas cost with the quorum threshold', async () => {

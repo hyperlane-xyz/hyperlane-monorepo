@@ -276,7 +276,9 @@ export class InterchainGasCalculator {
    * @returns The estimated gas required by the message's recipient handle function
    * on the destination chain.
    */
-  async estimateHandleGasForMessage(message: ParsedMessage): Promise<BigNumber> {
+  async estimateHandleGasForMessage(
+    message: ParsedMessage,
+  ): Promise<BigNumber> {
     const provider = this.multiProvider.getDomainConnection(
       resolveDomain(message.destination),
     ).provider!;
@@ -324,9 +326,7 @@ export class InterchainGasCalculator {
   ): Promise<BigNumber> {
     const inboxValidatorManager = this.core.getContracts(
       resolveDomain(destinationDomain) as never,
-    ).inboxes[
-      resolveDomain(originDomain)
-    ].validatorManager;
+    ).inboxes[resolveDomain(originDomain)].validatorManager;
     const threshold = await inboxValidatorManager.threshold();
 
     return threshold
