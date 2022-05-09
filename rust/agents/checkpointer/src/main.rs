@@ -4,18 +4,22 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-mod checkpointer;
-mod settings;
-mod submit;
-
-use color_eyre::Result;
+use eyre::Result;
 
 use abacus_base::Agent;
 
 use crate::{checkpointer::Checkpointer, settings::CheckpointerSettings as Settings};
 
+mod checkpointer;
+mod settings;
+mod submit;
+
 async fn _main() -> Result<()> {
+    #[cfg(feature = "oneline-outputs")]
+    oneline_eyre::install()?;
+    #[cfg(not(feature = "oneline-outputs"))]
     color_eyre::install()?;
+
     let settings = Settings::new()?;
 
     let agent = Checkpointer::from_settings(settings).await?;

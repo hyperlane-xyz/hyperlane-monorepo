@@ -7,6 +7,12 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+use eyre::Result;
+
+use abacus_base::Agent;
+
+use crate::{relayer::Relayer, settings::RelayerSettings as Settings};
+
 mod checkpoint_relayer;
 mod merkle_tree_builder;
 mod message_processor;
@@ -14,14 +20,12 @@ mod prover;
 mod relayer;
 mod settings;
 
-use color_eyre::Result;
-
-use abacus_base::Agent;
-
-use crate::{relayer::Relayer, settings::RelayerSettings as Settings};
-
 async fn _main() -> Result<()> {
+    #[cfg(feature = "oneline-outputs")]
+    oneline_eyre::install()?;
+    #[cfg(not(feature = "oneline-outputs"))]
     color_eyre::install()?;
+
     let settings = Settings::new()?;
 
     let agent = Relayer::from_settings(settings).await?;

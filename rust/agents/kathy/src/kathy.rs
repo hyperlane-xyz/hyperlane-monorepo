@@ -1,16 +1,14 @@
 use std::{sync::Arc, time::Duration};
 
-use color_eyre::{eyre::WrapErr, Result};
-
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
-use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
-use tracing::instrument::Instrumented;
-use tracing::{info, Instrument};
-
 use ethers::core::types::H256;
+use eyre::{Result, WrapErr};
+use rand::{Rng, thread_rng};
+use rand::distributions::Alphanumeric;
+use tokio::{sync::Mutex, task::JoinHandle, time::sleep};
+use tracing::{info, Instrument};
+use tracing::instrument::Instrumented;
 
-use abacus_base::{decl_agent, AbacusAgentCore, Agent, CachingInbox};
+use abacus_base::{AbacusAgentCore, Agent, CachingInbox, decl_agent};
 use abacus_core::{AbacusCommon, Message, Outbox};
 
 use crate::settings::KathySettings as Settings;
@@ -96,7 +94,7 @@ impl Kathy {
                 sleep(duration).await;
             }
         })
-        .in_current_span()
+            .in_current_span()
     }
 
     fn wrap_inbox_run(

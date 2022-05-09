@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use color_eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use crate::{settings::ValidatorSettings as Settings, submit::ValidatorSubmitter};
 use abacus_base::{AbacusAgentCore, Agent, CheckpointSyncers};
 use abacus_core::Signers;
+use eyre::Result;
+
+use crate::{settings::ValidatorSettings as Settings, submit::ValidatorSubmitter};
 
 /// An validator agent
 #[derive(Debug)]
@@ -51,8 +52,8 @@ impl Agent for Validator {
     type Settings = Settings;
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         let signer = settings.validator.try_into_signer().await?;
         let reorg_period = settings.reorgperiod.parse().expect("invalid uint");

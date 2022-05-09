@@ -1,10 +1,11 @@
 use async_trait::async_trait;
-use color_eyre::Result;
+use eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use crate::{settings::CheckpointerSettings as Settings, submit::CheckpointSubmitter};
 use abacus_base::{AbacusAgentCore, Agent};
+
+use crate::{settings::CheckpointerSettings as Settings, submit::CheckpointSubmitter};
 
 /// A checkpointer agent
 #[derive(Debug)]
@@ -40,8 +41,8 @@ impl Agent for Checkpointer {
     type Settings = Settings;
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
-    where
-        Self: Sized,
+        where
+            Self: Sized,
     {
         let polling_interval = settings
             .pollinginterval

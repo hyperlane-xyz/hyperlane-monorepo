@@ -1,12 +1,13 @@
 use std::sync::Arc;
+use std::time::Duration;
+
+use tokio::{task::JoinHandle, time::sleep};
+use tracing::{info, info_span, Instrument, instrument::Instrumented};
 
 use abacus_base::{CachingOutbox, CheckpointSyncer, CheckpointSyncers};
 use abacus_core::{AbacusCommon, Signers};
-use std::time::Duration;
+use eyre::Result;
 
-use color_eyre::Result;
-use tokio::{task::JoinHandle, time::sleep};
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
 pub(crate) struct ValidatorSubmitter {
     interval: u64,
     reorg_period: u64,
@@ -55,6 +56,6 @@ impl ValidatorSubmitter {
                 }
             }
         })
-        .instrument(span)
+            .instrument(span)
     }
 }

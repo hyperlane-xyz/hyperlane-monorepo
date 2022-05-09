@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-color-eyre = "0.5.11"
+color-eyre = "0.6"
 ethers = { git = "https://github.com/gakonst/ethers-rs", branch = "master" }
 ethers-signers = { git = "https://github.com/gakonst/ethers-rs", branch = "master", features = ["aws"] }
 hex = "0.4.3"

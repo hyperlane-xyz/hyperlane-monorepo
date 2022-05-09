@@ -1,11 +1,12 @@
 use std::time::Duration;
 
-use abacus_base::{InboxContracts, MultisigCheckpointSyncer, Outboxes};
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxValidatorManager};
-use color_eyre::Result;
+use eyre::Result;
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::{debug, error, info, info_span, instrument, Instrument, instrument::Instrumented};
+
+use abacus_base::{InboxContracts, MultisigCheckpointSyncer, Outboxes};
+use abacus_core::{AbacusCommon, CommittedMessage, db::AbacusDB, Inbox, InboxValidatorManager};
 
 use crate::merkle_tree_builder::{MerkleTreeBuilder, MessageBatch};
 
@@ -98,7 +99,7 @@ impl CheckpointRelayer {
     }
 
     // Returns the newest "current" checkpoint index
-    #[instrument(ret, err, skip(self, messages), fields(messages=messages.len()))]
+    #[instrument(ret, err, skip(self, messages), fields(messages = messages.len()))]
     async fn submit_checkpoint_and_messages(
         &mut self,
         onchain_checkpoint_index: u32,
@@ -173,7 +174,7 @@ impl CheckpointRelayer {
         }
     }
 
-    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.name()), level = "info")]
+    #[instrument(ret, err, skip(self), fields(inbox_name = self.inbox_contracts.inbox.name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         let latest_inbox_checkpoint = self.inbox_contracts.inbox.latest_checkpoint(None).await?;
         let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
@@ -194,7 +195,7 @@ impl CheckpointRelayer {
             sleep(Duration::from_secs(self.polling_interval)).await;
 
             if let Some(signed_checkpoint_index) =
-                self.multisig_checkpoint_syncer.latest_index().await?
+            self.multisig_checkpoint_syncer.latest_index().await?
             {
                 self.signed_checkpoint_gauge
                     .set(signed_checkpoint_index as i64);
