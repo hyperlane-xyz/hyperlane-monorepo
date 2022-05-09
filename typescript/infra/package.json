@@ -20,8 +20,8 @@
     "test": "hardhat test",
     "check": "tsc --noEmit",
     "node": "hardhat node",
-    "abacus": "hardhat abacus --environment test",
-    "kathy": "hardhat kathy --environment test --network localhost",
+    "abacus": "hardhat abacus --network localhost",
+    "kathy": "hardhat kathy --network localhost",
     "prettier": "prettier --write *.ts ./src ./config ./scripts ./test"
   },
   "license": "MIT OR Apache-2.0",
