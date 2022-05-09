@@ -41,8 +41,8 @@ impl Agent for Checkpointer {
     type Settings = Settings;
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         let polling_interval = settings
             .pollinginterval

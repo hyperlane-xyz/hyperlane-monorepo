@@ -7,8 +7,8 @@ use abacus_core::{
 use abacus_ethereum::EthereumOutbox;
 use abacus_test::mocks::MockOutboxContract;
 use async_trait::async_trait;
-use color_eyre::eyre::Result;
 use ethers::core::types::H256;
+use eyre::Result;
 use futures_util::future::select_all;
 use std::str::FromStr;
 use std::sync::Arc;

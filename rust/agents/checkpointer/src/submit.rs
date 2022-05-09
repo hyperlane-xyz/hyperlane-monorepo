@@ -2,7 +2,7 @@ use std::{sync::Arc, time::Duration};
 
 use eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, info, info_span, Instrument, instrument::Instrumented};
+use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::CachingOutbox;
 use abacus_core::{AbacusCommon, Checkpoint, Outbox};
@@ -60,6 +60,6 @@ impl CheckpointSubmitter {
                 }
             }
         })
-            .instrument(span)
+        .instrument(span)
     }
 }

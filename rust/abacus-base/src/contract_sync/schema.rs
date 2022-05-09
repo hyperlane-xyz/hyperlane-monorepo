@@ -1,6 +1,6 @@
 use abacus_core::db::AbacusDB;
 use abacus_core::db::DbError;
-use color_eyre::Result;
+use eyre::Result;
 
 static MESSAGES_LAST_BLOCK_END: &str = "messages_last_inspected";
 

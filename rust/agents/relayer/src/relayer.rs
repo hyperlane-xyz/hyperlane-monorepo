@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use tokio::task::JoinHandle;
-use tracing::{Instrument, instrument::Instrumented};
+use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_base::{
     AbacusAgentCore, Agent, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
@@ -60,8 +60,8 @@ impl Agent for Relayer {
     type Settings = Settings;
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
-        where
-            Self: Sized,
+    where
+        Self: Sized,
     {
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer

@@ -6,8 +6,8 @@ use tracing::{debug, error, instrument};
 
 use abacus_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
-    ChainCommunicationError,
-    Checkpoint, CommittedMessage, db::{AbacusDB, DbError},
+    db::{AbacusDB, DbError},
+    ChainCommunicationError, Checkpoint, CommittedMessage,
 };
 
 use crate::prover::{Prover, ProverError};

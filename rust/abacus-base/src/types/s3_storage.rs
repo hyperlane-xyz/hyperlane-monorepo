@@ -2,7 +2,7 @@ use std::fmt;
 
 use abacus_core::SignedCheckpoint;
 use async_trait::async_trait;
-use color_eyre::{eyre::bail, Result};
+use eyre::{bail, Result};
 use futures_util::TryStreamExt;
 use rusoto_core::{credential::EnvironmentProvider, HttpClient, Region, RusotoError};
 use rusoto_s3::{GetObjectError, GetObjectRequest, PutObjectRequest, S3Client, S3};

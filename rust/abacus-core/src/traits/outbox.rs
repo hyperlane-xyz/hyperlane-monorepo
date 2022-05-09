@@ -5,8 +5,8 @@ use crate::{
     AbacusCommon, CommittedMessage, Message, RawCommittedMessage, State,
 };
 use async_trait::async_trait;
-use color_eyre::Result;
 use ethers::core::types::H256;
+use eyre::Result;
 
 /// Interface for the Outbox chain contract. Allows abstraction over different
 /// chains

@@ -3,10 +3,10 @@ use std::time::Duration;
 use eyre::Result;
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{debug, error, info, info_span, instrument, Instrument, instrument::Instrumented};
+use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
 use abacus_base::{InboxContracts, MultisigCheckpointSyncer, Outboxes};
-use abacus_core::{AbacusCommon, CommittedMessage, db::AbacusDB, Inbox, InboxValidatorManager};
+use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxValidatorManager};
 
 use crate::merkle_tree_builder::{MerkleTreeBuilder, MessageBatch};
 
@@ -195,7 +195,7 @@ impl CheckpointRelayer {
             sleep(Duration::from_secs(self.polling_interval)).await;
 
             if let Some(signed_checkpoint_index) =
-            self.multisig_checkpoint_syncer.latest_index().await?
+                self.multisig_checkpoint_syncer.latest_index().await?
             {
                 self.signed_checkpoint_gauge
                     .set(signed_checkpoint_index as i64);

@@ -1,6 +1,6 @@
 //! Useful metrics that all agents should track.
 
-use color_eyre::Result;
+use eyre::Result;
 use prometheus::{
     Encoder, HistogramOpts, HistogramVec, IntCounterVec, IntGaugeVec, Opts, Registry,
 };

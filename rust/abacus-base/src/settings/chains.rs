@@ -1,4 +1,4 @@
-use color_eyre::Report;
+use eyre::Report;
 use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};

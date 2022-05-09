@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{info, info_span, Instrument, instrument::Instrumented};
+use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{CachingOutbox, CheckpointSyncer, CheckpointSyncers};
 use abacus_core::{AbacusCommon, Signers};
