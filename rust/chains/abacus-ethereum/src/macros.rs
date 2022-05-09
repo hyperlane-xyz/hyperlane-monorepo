@@ -102,7 +102,7 @@ macro_rules! boxed_trait {
     }};
     ($name:ident, $abi:ident, $trait:ident, $($n:ident:$t:ty),*)  => {
         #[doc = "Cast a contract locator to a live contract handle"]
-        pub async fn $name(conn: Connection, locator: &ContractLocator, signer: Option<Signers>, $($n:$t),*) -> color_eyre::Result<Box<dyn $trait>> {
+        pub async fn $name(conn: Connection, locator: &ContractLocator, signer: Option<Signers>, $($n:$t),*) -> eyre::Result<Box<dyn $trait>> {
             let b: Box<dyn $trait> = match conn {
                 Connection::Http { url } => {
                     boxed_trait!(@http url, $abi, signer, locator, $($n),*)

@@ -4,9 +4,9 @@
 use abacus_core::*;
 use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
 use async_trait::async_trait;
-use color_eyre::Result;
 use ethers::contract::abigen;
 use ethers::core::types::H256;
+use eyre::Result;
 use std::{error::Error as StdError, sync::Arc};
 use tracing::instrument;
 

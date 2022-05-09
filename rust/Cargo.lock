@@ -97,10 +97,10 @@ version = "0.1.0"
 dependencies = [
  "abacus-core",
  "async-trait",
- "color-eyre",
  "ethers",
  "ethers-contract",
  "ethers-signers",
+ "eyre",
  "hex",
  "num",
  "rocksdb",
@@ -118,8 +118,8 @@ version = "0.1.0"
 dependencies = [
  "abacus-core",
  "async-trait",
- "color-eyre",
  "ethers",
+ "eyre",
  "futures-util",
  "mockall",
  "rand 0.8.5",
