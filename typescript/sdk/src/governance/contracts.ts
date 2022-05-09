@@ -1,19 +1,24 @@
 import { Call } from '..';
 
 import { GovernanceRouter__factory } from '@abacus-network/apps';
+import { UpgradeBeaconController__factory } from '@abacus-network/core';
+import { types } from '@abacus-network/utils';
 
-import {
-  AbacusContracts,
-  RouterAddresses,
-  routerFactories,
-} from '../contracts';
+import { AbacusContracts, routerFactories } from '../contracts';
+import { ProxiedAddress } from '../types';
 
 import { normalizeCall } from './utils';
 
-export type GovernanceAddresses = RouterAddresses;
+export type GovernanceAddresses = {
+  // Basically copy RouterAddresses
+  abacusConnectionManager: types.Address;
+  router: ProxiedAddress;
+  upgradeBeaconController: types.Address;
+};
 
 export const governanceFactories = {
   ...routerFactories,
+  upgradeBeaconController: UpgradeBeaconController__factory.connect,
   router: GovernanceRouter__factory.connect,
 };
 

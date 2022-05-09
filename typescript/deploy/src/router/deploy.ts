@@ -7,7 +7,6 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  RouterAddresses,
   domains,
   objMap,
   promiseObjAll,
@@ -21,7 +20,7 @@ import { Router, RouterConfig } from './types';
 export abstract class AbacusRouterDeployer<
   Networks extends ChainName,
   Config extends RouterConfig,
-  Addresses extends RouterAddresses,
+  Addresses,
 > extends AbacusAppDeployer<Networks, Config, Addresses> {
   protected core?: AbacusCore<Networks>;
 
