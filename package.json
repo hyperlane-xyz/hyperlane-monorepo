@@ -1,30 +1,39 @@
 {
-  "name": "@abacus-network/template",
-  "version": "0.0.0",
+  "name": "@abacus-network/yo",
+  "version": "0.0.3",
   "license": "MIT OR Apache-2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "directories": {
     "test": "test"
   },
+  "files": [
+    "src",
+    "dist"
+  ],
   "scripts": {
-    "build:contracts": "hardhat compile && hardhat typechain",
-    "build:sdk": "tsc",
-    "build": "npm run build:contracts && npm run build:sdk",
-    "test:contracts": "hardhat test",
+    "build:sol": "hardhat compile && hardhat typechain",
+    "build:ts": "tsc",
+    "build": "npm run build:sol && npm run build:ts",
+    "test:contracts": "hardhat test test/yo.test.ts",
     "test:sdk": "",
-    "test": "npm run test:contracts && npm run test:sdk",
-    "prettier": "prettier --write ./contracts ./test",
+    "test:deploy": "hardhat test test/deploy.test.ts",
+    "test": "npm run test:contracts && npm run test:sdk && npm run test:deploy",
+    "prettier": "prettier --write ./contracts ./src ./test",
     "coverage": "hardhat coverage"
   },
   "dependencies": {
-    "@abacus-network/app": "^0.0.2",
+    "@abacus-network/app": "^0.1.1-alpha3",
+    "@abacus-network/sdk": "^0.1.1-alpha3",
     "@ethersproject/bignumber": "^5.5.0",
     "@ethersproject/bytes": "^5.5.0",
+    "@ethersproject/experimental": "^5.6.0",
+    "@openzeppelin/contracts-upgradeable": "~4.5.0",
     "ethers": "^5.4.7"
   },
   "devDependencies": {
-    "@abacus-network/hardhat": "^0.0.17",
+    "@abacus-network/deploy": "^0.1.1-alpha3",
+    "@abacus-network/hardhat": "^0.1.1-alpha3",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typechain/ethers-v5": "~7.0.0",
@@ -39,8 +48,9 @@
     "solhint": "^3.3.2",
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.14",
-    "ts-node": "^10.1.0",
+    "ts-node": "^10.7.0",
     "typechain": "^5.0.0",
     "typescript": "^4.3.5"
-  }
+  },
+  "packageManager": "yarn@3.2.0"
 }

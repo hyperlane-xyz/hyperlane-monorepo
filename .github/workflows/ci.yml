@@ -18,13 +18,13 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: .//node_modules
-          key: ${{ runner.os }}-npm-cache-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
-      - name: npm-install
+      - name: yarn-install
         # Check out the lockfile from main, reinstall, and then
         # verify the lockfile matches what was committed.
         run: |
-            npm install
+            yarn install
             CHANGES=$(git status -s)
             if [[ ! -z $CHANGES ]]; then
               echo "Changes found: $CHANGES"
@@ -38,11 +38,11 @@ jobs:
     steps:
       - uses: actions/checkout@v2
 
-      - name: npm-cache
+      - name: yarn-cache
         uses: actions/cache@v2
         with:
           path: .//node_modules
-          key: ${{ runner.os }}-npm-cache-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: build-cache
         uses: actions/cache@v2
@@ -51,7 +51,7 @@ jobs:
           key: ${{ github.sha }}
 
       - name: build
-        run: npm run build
+        run: yarn run build
 
   prettier:
     runs-on: ubuntu-latest
@@ -61,11 +61,11 @@ jobs:
       - uses: actions/cache@v2
         with:
           path: .//node_modules
-          key: ${{ runner.os }}-npm-cache-${{ hashFiles('./package-lock.json') }}
+          key: ${{ runner.os }}-yarn-cache-${{ hashFiles('./yarn.lock') }}
 
       - name: prettier
         run: |
-          npm run prettier
+          yarn run prettier
           CHANGES=$(git status -s)
           if [[ ! -z $CHANGES ]]; then
             echo "Changes found: $CHANGES"
@@ -83,4 +83,4 @@ jobs:
           key: ${{ github.sha }}
 
       - name: test
-        run: npm run test
+        run: yarn run test
