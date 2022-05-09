@@ -4,6 +4,7 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 
 import { YoDeploy } from './YoDeploy';
 import { Yo } from '../src/types';
+import { BigNumber } from 'ethers';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
@@ -37,6 +38,15 @@ describe('Yo', async () => {
     expect(await router.sent()).to.equal(1);
     expect(await router.sentTo(remoteDomain)).to.equal(1);
     expect(await router.received()).to.equal(0);
+  });
+
+  it('pays interchain gas', async () => {
+    const gasPayment = BigNumber.from('1000');
+    await expect(
+      router.yoRemote(remoteDomain, {
+        value: gasPayment,
+      }),
+    ).to.emit(abacus.interchainGasPaymaster(localDomain), 'GasPayment');
   });
 
   it('handles a yo', async () => {

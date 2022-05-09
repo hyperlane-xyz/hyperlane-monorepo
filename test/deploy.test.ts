@@ -9,8 +9,10 @@ import { configs } from '../src/deploy/networks';
 import { AbacusCore } from '@abacus-network/sdk';
 
 describe('deploy', async () => {
-  let deployer: YoDeployer<'test1' | 'test2' | 'test3'>;
-  let addresses: Record<'test1' | 'test2' | 'test3', YoAddresses>;
+  type TestNetworks = 'test1' | 'test2' | 'test3';
+  let deployer: YoDeployer<TestNetworks>;
+  let addresses: Record<TestNetworks, YoAddresses>;
+  let core: AbacusCore<TestNetworks>;
 
   before(async () => {
     const transactionConfigs = {
@@ -23,7 +25,7 @@ describe('deploy', async () => {
       transactionConfigs,
       signer,
     );
-    const core = AbacusCore.fromEnvironment('test', multiProvider);
+    core = AbacusCore.fromEnvironment('test', multiProvider);
     deployer = new YoDeployer(multiProvider, { owner: signer.address }, core);
   });
 
@@ -48,7 +50,11 @@ describe('deploy', async () => {
       transactionConfigs,
       signer,
     );
-    const app = new YoApp(addresses, multiProvider);
+    const app = YoApp.fromNetworkAddresses<TestNetworks>(
+      addresses,
+      multiProvider,
+      core,
+    );
     const checker = new YoChecker(multiProvider, app, {
       test1: { owner: signer.address },
       test2: { owner: signer.address },

@@ -1,7 +1,6 @@
 import { utils } from '@abacus-network/deploy';
 import { ethers } from 'hardhat';
 import { YoApp } from '../../sdk';
-import { environments } from '../../sdk/environments';
 import { YoChecker } from '../check';
 import { testConfigs } from '../networks';
 
@@ -12,7 +11,7 @@ async function check() {
     signer,
   );
 
-  const app = new YoApp(environments.test, multiProvider);
+  const app = YoApp.fromEnvironment('test', multiProvider);
   const yoChecker = new YoChecker(multiProvider, app, {
     test1: { owner: signer.address },
     test2: { owner: signer.address },
