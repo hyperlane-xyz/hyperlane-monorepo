@@ -9,10 +9,9 @@ import {
   InterchainGasCalculator,
   MultiProvider,
   ParsedMessage,
+  domains,
   resolveDomain,
 } from '../..';
-import { CoreContractSchema } from '../../src/core/contracts';
-import { domains } from '../../src/domains';
 import { MockProvider, MockTokenPriceGetter } from '../utils';
 
 describe('InterchainGasCalculator', () => {
@@ -200,8 +199,7 @@ describe('InterchainGasCalculator', () => {
       let thresholdStub: sinon.SinonStub | undefined;
       getContractsStub.callsFake((domain) => {
         // Get the "real" return value of getContracts.
-        const contracts: CoreContractSchema<never, never> =
-          getContractsStub.wrappedMethod.bind(core)(domain as never);
+        const contracts = getContractsStub.wrappedMethod.bind(core)(domain);
 
         // Ethers contracts are frozen using Object.freeze, so we make a copy
         // of the object so we can stub `threshold`.
