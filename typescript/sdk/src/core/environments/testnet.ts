@@ -45,7 +45,7 @@ export const addresses = {
         proxy: '0x628BC518ED1e0E8C6cbcD574EbA0ee29e7F6943E',
         implementation: '0x6c13643B3927C57DB92c790E4E3E7Ee81e13f78C',
         beacon: '0x20c44b1E3BeaDA1e9826CFd48BeEDABeE9871cE9',
-      }
+      },
     },
   },
   kovan: {
@@ -94,7 +94,7 @@ export const addresses = {
         proxy: '0x75f3E2a4f424401195A5E176246Ecc9f7e7680ff',
         implementation: '0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450',
         beacon: '0x5CBf4e70448Ed46c2616b04e9ebc72D29FF0cfA9',
-      }
+      },
     },
   },
   fuji: {
@@ -144,7 +144,7 @@ export const addresses = {
         proxy: '0x75f3E2a4f424401195A5E176246Ecc9f7e7680ff',
         implementation: '0xeC7eb4196Bd601DEa7585A744FbFB4CF11278450',
         beacon: '0x5CBf4e70448Ed46c2616b04e9ebc72D29FF0cfA9',
-      }
+      },
     },
   },
   mumbai: {
@@ -193,7 +193,7 @@ export const addresses = {
         proxy: '0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7',
         implementation: '0x7d498740A4572f2B5c6b0A1Ba9d1d9DbE207e89E',
         beacon: '0x7FE7EA170cf08A25C2ff315814D96D93C311E692',
-      }
+      },
     },
   },
   bsctestnet: {
@@ -242,7 +242,7 @@ export const addresses = {
         proxy: '0x7914A3349107A7295Bbf2374db5A973d73D1b324',
         implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
         beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      }
+      },
     },
   },
   arbitrumrinkeby: {
@@ -291,7 +291,7 @@ export const addresses = {
         proxy: '0x7914A3349107A7295Bbf2374db5A973d73D1b324',
         implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
         beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      }
+      },
     },
   },
   optimismkovan: {
@@ -340,7 +340,7 @@ export const addresses = {
         proxy: '0x7914A3349107A7295Bbf2374db5A973d73D1b324',
         implementation: '0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD',
         beacon: '0x33dB966328Ea213b0f76eF96CA368AB37779F065',
-      }
+      },
     },
   },
 };
