@@ -8,7 +8,6 @@ export const testnetConfigs = {
   bsctestnet: configs.bsctestnet,
   arbitrumrinkeby: configs.arbitrumrinkeby,
   optimismkovan: configs.optimismkovan,
-  auroratestnet: configs.auroratestnet,
 };
 
 export type TestnetNetworks = keyof typeof testnetConfigs;

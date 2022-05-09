@@ -1,10 +1,7 @@
 import { Contract } from 'ethers';
 
 import { Router__factory } from '@abacus-network/apps';
-import {
-  AbacusConnectionManager__factory,
-  UpgradeBeaconController__factory,
-} from '@abacus-network/core';
+import { AbacusConnectionManager__factory } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 
 import { Connection, ProxiedAddress } from './types';
@@ -72,13 +69,11 @@ export abstract class AbacusContracts<
 }
 
 export type RouterAddresses = {
-  upgradeBeaconController: types.Address;
   abacusConnectionManager: types.Address;
-  router: ProxiedAddress;
+  router: types.Address;
 };
 
 export const routerFactories: Factories<RouterAddresses> = {
   router: Router__factory.connect,
   abacusConnectionManager: AbacusConnectionManager__factory.connect,
-  upgradeBeaconController: UpgradeBeaconController__factory.connect,
 };
