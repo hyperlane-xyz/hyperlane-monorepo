@@ -93,7 +93,7 @@ If you are using [VSCode](https://code.visualstudio.com/), you can launch the [m
 - see `rust/README.md`
 
 ### Running Agents Locally
-See [this guide](./running-locally.md) for how to run the agents locally and perform a full end-to-end test.
+See [this guide](rust/running-locally.md) for how to run the agents locally and perform a full end-to-end test.
 
 #### Building Agent Images
 
