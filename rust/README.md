@@ -101,6 +101,7 @@ We use the tokio async runtime environment. Please see the docs
   - interfaces to the ethereum contracts
 - `agents`
   - each of the off-chain agents implemented thus far
+
 ### High-level guide to building an agent
 
 - `cargo new $AGENT_NAME`
