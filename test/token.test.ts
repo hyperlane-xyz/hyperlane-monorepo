@@ -3,6 +3,7 @@ import { expect } from 'chai';
 import { abacus, ethers } from 'hardhat';
 import { AbcToken } from '../types';
 import { TokenConfig, TokenDeploy } from './TokenDeploy';
+import { Outbox, InterchainGasPaymaster } from '@abacus-network/core';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
@@ -14,7 +15,10 @@ describe('AbcToken', async () => {
     recipient: SignerWithAddress,
     router: AbcToken,
     remote: AbcToken,
+    outbox: Outbox,
+    interchainGasPaymaster: InterchainGasPaymaster,
     token: TokenDeploy;
+  const testInterchainGasPayment = 123456789;
 
   before(async () => {
     [owner, recipient] = await ethers.getSigners();
@@ -32,6 +36,8 @@ describe('AbcToken', async () => {
     await token.deploy(abacus);
     router = token.router(localDomain);
     remote = token.router(remoteDomain);
+    outbox = abacus.outbox(localDomain);
+    interchainGasPaymaster = abacus.interchainGasPaymaster(localDomain);
   });
 
   const expectBalance = async (
@@ -77,6 +83,17 @@ describe('AbcToken', async () => {
     await expectBalance(router, owner, totalSupply - amount);
     await expectBalance(remote, recipient, amount);
     await expectBalance(remote, owner, totalSupply);
+  });
+
+  it('allows interchain gas payment for remote transfers', async () => {
+    const leafIndex = await outbox.count();
+    await expect(
+      router.transferRemote(remoteDomain, recipient.address, amount, {
+        value: testInterchainGasPayment,
+      }),
+    )
+      .to.emit(interchainGasPaymaster, 'GasPayment')
+      .withArgs(leafIndex, testInterchainGasPayment);
   });
 
   it('should emit TransferRemote events', async () => {

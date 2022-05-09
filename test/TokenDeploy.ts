@@ -18,7 +18,7 @@ export class TokenDeploy extends TestRouterDeploy<AbcToken, TokenConfig> {
     const tokenFactory = new AbcToken__factory(this.config.signer);
     const token = await tokenFactory.deploy();
     await token.initialize(
-      abacus.xAppConnectionManager(domain).address,
+      abacus.abacusConnectionManager(domain).address,
       this.config.totalSupply,
       this.config.name,
       this.config.symbol,
