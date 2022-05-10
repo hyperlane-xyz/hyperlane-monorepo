@@ -27,4 +27,4 @@ abacus-core = {path = "../../abacus-core"}
 
 [features]
 default = ["color-eyre"]
-oneline-outputs = ["abacus-base/oneline-eyre"]
+oneline-errors = ["abacus-base/oneline-eyre"]

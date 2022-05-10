@@ -31,4 +31,4 @@ prometheus = "0.12"
 
 [features]
 default = ["color-eyre"]
-oneline-outputs = ["abacus-base/oneline-eyre"]
+oneline-errors = ["abacus-base/oneline-eyre"]

@@ -30,4 +30,4 @@ abacus-test = { path = "../../abacus-test" }
 
 [features]
 default = ["color-eyre"]
-oneline-outputs = ["abacus-base/oneline-eyre"]
+oneline-errors = ["abacus-base/oneline-eyre"]

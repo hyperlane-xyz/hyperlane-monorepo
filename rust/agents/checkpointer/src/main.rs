@@ -15,9 +15,9 @@ mod settings;
 mod submit;
 
 async fn _main() -> Result<()> {
-    #[cfg(feature = "oneline-outputs")]
+    #[cfg(feature = "oneline-errors")]
     abacus_base::oneline_eyre::install()?;
-    #[cfg(not(feature = "oneline-outputs"))]
+    #[cfg(not(feature = "oneline-errors"))]
     color_eyre::install()?;
 
     let settings = Settings::new()?;
