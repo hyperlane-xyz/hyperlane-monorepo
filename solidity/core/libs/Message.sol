@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import "@summa-tx/memview-sol/contracts/TypedMemView.sol";
-
 import {TypeCasts} from "./TypeCasts.sol";
 
 /**
@@ -11,12 +9,6 @@ import {TypeCasts} from "./TypeCasts.sol";
  * @notice Library for formatted messages used by Outbox and Replica.
  **/
 library Message {
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-
-    // Number of bytes in formatted message before `body` field
-    uint256 internal constant PREFIX_LENGTH = 72;
-
     /**
      * @notice Returns formatted (packed) message with provided fields
      * @param _originDomain Domain of home chain
@@ -77,27 +69,44 @@ library Message {
     }
 
     /// @notice Returns message's origin field
-    function origin(bytes29 _message) internal pure returns (uint32) {
-        return uint32(_message.indexUint(0, 4));
+    function origin(bytes calldata _message) internal pure returns (uint32) {
+        return uint32(bytes4(_message[0:4]));
     }
 
     /// @notice Returns message's sender field
-    function sender(bytes29 _message) internal pure returns (bytes32) {
-        return _message.index(4, 32);
+    function sender(bytes calldata _message) internal pure returns (bytes32) {
+        return bytes32(_message[4:36]);
     }
 
     /// @notice Returns message's destination field
-    function destination(bytes29 _message) internal pure returns (uint32) {
-        return uint32(_message.indexUint(36, 4));
+    function destination(bytes calldata _message)
+        internal
+        pure
+        returns (uint32)
+    {
+        return uint32(bytes4(_message[36:40]));
     }
 
     /// @notice Returns message's recipient field as bytes32
-    function recipient(bytes29 _message) internal pure returns (bytes32) {
-        return _message.index(40, 32);
+    function recipient(bytes calldata _message)
+        internal
+        pure
+        returns (bytes32)
+    {
+        return bytes32(_message[40:72]);
+    }
+
+    /// @notice Returns message's body field
+    function body(bytes calldata _message)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return _message[72:];
     }
 
     /// @notice Returns message's recipient field as an address
-    function recipientAddress(bytes29 _message)
+    function recipientAddress(bytes calldata _message)
         internal
         pure
         returns (address)
@@ -105,14 +114,9 @@ library Message {
         return TypeCasts.bytes32ToAddress(recipient(_message));
     }
 
-    /// @notice Returns message's body field as bytes29 (refer to TypedMemView library for details on bytes29 type)
-    function body(bytes29 _message) internal pure returns (bytes29) {
-        return _message.slice(PREFIX_LENGTH, _message.len() - PREFIX_LENGTH, 0);
-    }
-
-    function leaf(bytes29 _message, uint256 _leafIndex)
+    function leaf(bytes calldata _message, uint256 _leafIndex)
         internal
-        view
+        pure
         returns (bytes32)
     {
         return
@@ -121,7 +125,7 @@ library Message {
                 sender(_message),
                 destination(_message),
                 recipient(_message),
-                TypedMemView.clone(body(_message)),
+                body(_message),
                 _leafIndex
             );
     }
