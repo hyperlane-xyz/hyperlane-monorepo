@@ -23,7 +23,6 @@ rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
 abacus-core = { path = "../../abacus-core" }
 abacus-base = { path = "../../abacus-base" }
 abacus-ethereum = { path = "../../chains/abacus-ethereum" }
-paste = "1.0.5"
 
 [dev-dependencies]
 tokio-test = "0.4.0"

@@ -24,7 +24,6 @@ rand = "0.8.3"
 
 abacus-base = {path = "../../abacus-base"}
 abacus-core = {path = "../../abacus-core"}
-paste = "1.0.5"
 
 [features]
 default = ["color-eyre"]

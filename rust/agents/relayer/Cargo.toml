@@ -21,7 +21,6 @@ tracing-subscriber = "0.3"
 
 abacus-core = { path = "../../abacus-core" }
 abacus-base = { path = "../../abacus-base" }
-paste = "1.0.5"
 
 prometheus = "0.12"
 

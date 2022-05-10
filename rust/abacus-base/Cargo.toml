@@ -25,7 +25,7 @@ mockall = "0.10.2"
 abacus-core = { path = "../abacus-core" }
 abacus-ethereum = { path = "../chains/abacus-ethereum"}
 abacus-test = { path = "../abacus-test" }
-paste = "1.0.5"
+paste = "1.0"
 tracing-error = "0.2"
 
 prometheus = "0.12"
