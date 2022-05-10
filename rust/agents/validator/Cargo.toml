@@ -7,8 +7,8 @@ edition = "2021"
 [dependencies]
 tokio = { version = "1.0.1", features = ["rt", "macros"] }
 config = "0.10"
-serde = "1.0.120"
-serde_json = { version = "1.0.61", default-features = false }
+serde = "1.0"
+serde_json = { version = "1.0", default-features = false }
 ethers = { git = "https://github.com/gakonst/ethers-rs", branch = "master" }
 thiserror = { version = "1.0.22", default-features = false }
 async-trait = { version = "0.1.42", default-features = false }

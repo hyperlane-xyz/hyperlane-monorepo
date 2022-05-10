@@ -8,8 +8,8 @@ edition = "2021"
 
 [dependencies]
 # Main block
-serde = "1.0.120"
-serde_json = { version = "1.0.61", default-features = false }
+serde = "1.0"
+serde_json = { version = "1.0", default-features = false }
 ethers = {git = "https://github.com/gakonst/ethers-rs", branch = "master", features = ["abigen"]}
 ethers-signers = {git = "https://github.com/gakonst/ethers-rs", branch = "master", features = ["aws"]}
 ethers-contract = { git = "https://github.com/gakonst/ethers-rs", branch = "master", features=["legacy"] }
