@@ -15,7 +15,7 @@ ethers-signers = {git = "https://github.com/gakonst/ethers-rs", branch = "master
 ethers-contract = { git = "https://github.com/gakonst/ethers-rs", branch = "master", features=["legacy"] }
 async-trait = { version = "0.1.42", default-features = false }
 thiserror = { version = "1.0.22", default-features = false }
-tracing = "0.1.22"
+tracing = "0.1"
 eyre = "0.6"
 num = "0.4"
 
@@ -23,4 +23,4 @@ abacus-core = { path = "../../abacus-core" }
 tokio = "1.7.1"
 hex = "0.4.3"
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
-tracing-futures = "0.2.5"
+tracing-futures = "0.2"

@@ -18,4 +18,4 @@ rand = "0.8.3"
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
 
 abacus-core = { path = "../abacus-core" }
-tracing = "0.1.26"
+tracing = "0.1"

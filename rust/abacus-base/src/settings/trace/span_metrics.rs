@@ -22,7 +22,7 @@ impl<S> Layer<S> for TimeSpanLifetime
 where
     S: Subscriber + for<'a> LookupSpan<'a>,
 {
-    fn new_span(&self, _: &span::Attributes<'_>, id: &span::Id, ctx: Context<'_, S>) {
+    fn on_new_span(&self, _: &span::Attributes<'_>, id: &span::Id, ctx: Context<'_, S>) {
         match ctx.span(id) {
             Some(span) => span.extensions_mut().insert(SpanTiming {
                 start: Instant::now(),

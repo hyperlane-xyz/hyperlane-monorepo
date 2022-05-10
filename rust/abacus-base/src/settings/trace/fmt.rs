@@ -102,17 +102,17 @@ where
         }
     }
 
-    fn new_span(
+    fn on_new_span(
         &self,
         attrs: &span::Attributes<'_>,
         id: &span::Id,
         ctx: tracing_subscriber::layer::Context<'_, S>,
     ) {
         match self {
-            LogOutputLayer::Full(inner) => inner.new_span(attrs, id, ctx),
-            LogOutputLayer::Pretty(inner) => inner.new_span(attrs, id, ctx),
-            LogOutputLayer::Compact(inner) => inner.new_span(attrs, id, ctx),
-            LogOutputLayer::Json(inner) => inner.new_span(attrs, id, ctx),
+            LogOutputLayer::Full(inner) => inner.on_new_span(attrs, id, ctx),
+            LogOutputLayer::Pretty(inner) => inner.on_new_span(attrs, id, ctx),
+            LogOutputLayer::Compact(inner) => inner.on_new_span(attrs, id, ctx),
+            LogOutputLayer::Json(inner) => inner.on_new_span(attrs, id, ctx),
         }
     }
 
