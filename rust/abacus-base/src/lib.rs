@@ -47,3 +47,6 @@ pub use types::*;
 
 mod validator_manager;
 pub use validator_manager::*;
+
+#[cfg(feature = "oneline-eyre")]
+pub mod oneline_eyre;

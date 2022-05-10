@@ -1,6 +1,7 @@
 ## Setup
 Example configuration files
 
+<!--
 `rust/local.checkpointer.env`
 ```shell
 OPT_BASE_OUTBOX_CONNECTION_URL=http://localhost:8545
@@ -21,8 +22,8 @@ OPT_BASE_SIGNERS_TEST3_KEY=701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2
 OPT_BASE_SIGNERS_TEST3_TYPE=hexKey
 OPT_CHECKPOINTER_POLLINGINTERVAL=5
 OPT_CHECKPOINTER_CREATIONLATENCY=5
-
 ```
+-->
 
 `rust/local.relayer.env`
 ```shell
@@ -84,8 +85,8 @@ yarn abacus
 ```
 
 In `rust` then start the agents (you will need one shell for each)
+<!-- env $(xargs <local.checkpointer.env) cargo run --bin checkpointer -->
 ```shell
-env $(xargs <local.checkpointer.env) cargo run --bin checkpointer
 env $(xargs <local.relayer.env) cargo run --bin relayer
 env $(xargs <local.validator.env) cargo run --bin validator
 ```

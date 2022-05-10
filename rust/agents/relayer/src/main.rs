@@ -22,7 +22,7 @@ mod settings;
 
 async fn _main() -> Result<()> {
     #[cfg(feature = "oneline-outputs")]
-    oneline_eyre::install()?;
+    abacus_base::oneline_eyre::install()?;
     #[cfg(not(feature = "oneline-outputs"))]
     color_eyre::install()?;
 

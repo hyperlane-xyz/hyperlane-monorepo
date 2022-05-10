@@ -625,7 +625,6 @@ dependencies = [
  "eyre",
  "futures-util",
  "log",
- "oneline-eyre",
  "paste",
  "prometheus",
  "rocksdb",
@@ -2058,7 +2057,6 @@ dependencies = [
  "eyre",
  "futures-util",
  "log",
- "oneline-eyre",
  "paste",
  "rand 0.8.5",
  "serde 1.0.130",
@@ -2543,15 +2541,6 @@ name = "once_cell"
 version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "87f3e037eac156d1775da914196f0f37741a274155e34a0b7e427c35d2a2ecb9"
-
-[[package]]
-name = "oneline-eyre"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "862f17a1e689c0ce8ca158ea48e776c5101c5d14fdfbed3e01c15f89604c3097"
-dependencies = [
- "eyre",
-]
 
 [[package]]
 name = "opaque-debug"
@@ -3261,7 +3250,6 @@ dependencies = [
  "eyre",
  "futures-util",
  "log",
- "oneline-eyre",
  "paste",
  "prometheus",
  "serde 1.0.130",
@@ -4550,7 +4538,6 @@ dependencies = [
  "eyre",
  "futures-util",
  "log",
- "oneline-eyre",
  "paste",
  "prometheus",
  "rocksdb",
