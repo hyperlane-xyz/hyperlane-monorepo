@@ -8,8 +8,6 @@ import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInbox} from "../interfaces/IInbox.sol";
-// ============ External Imports ============
-import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
 /**
  * @title Inbox
@@ -21,8 +19,6 @@ contract Inbox is IInbox, Version0, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
     using Message for bytes29;
 
     // ============ Enums ============
