@@ -7,7 +7,7 @@ use std::{
 
 use abacus_base::{CachingInbox, Outboxes};
 use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, MessageStatus};
-use color_eyre::{eyre::bail, Result};
+use eyre::{bail, Result};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{
