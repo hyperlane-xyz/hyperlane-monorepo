@@ -20,7 +20,7 @@ eyre = "0.6"
 num = "0.4"
 
 abacus-core = { path = "../../abacus-core" }
-tokio = "1.7.1"
+tokio = "1"
 hex = "0.4.3"
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
 tracing-futures = "0.2"
