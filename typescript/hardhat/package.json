@@ -1,7 +1,7 @@
 {
   "prepublish": "npm run build",
   "name": "@abacus-network/hardhat",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Abacus hardhat tools",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -16,8 +16,8 @@
     "test": "test"
   },
   "dependencies": {
-    "@abacus-network/core": "^0.1.0",
-    "@abacus-network/utils": "^0.1.0",
+    "@abacus-network/core": "^0.1.1",
+    "@abacus-network/utils": "^0.1.1",
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
     "@typechain/hardhat": "^2.0.1",
