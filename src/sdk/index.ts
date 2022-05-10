@@ -1,2 +1,2 @@
-export { YoApp } from './app';
-export { YoAddresses, YoContracts } from './contracts';
+export { HelloWorldApp } from './app';
+export { HelloWorldAddresses, HelloWorldContracts } from './contracts';

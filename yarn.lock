@@ -79,34 +79,9 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@abacus-network/sdk@npm:^0.1.1-alpha3":
-  version: 0.1.1-alpha3
-  resolution: "@abacus-network/sdk@npm:0.1.1-alpha3"
-  dependencies:
-    "@abacus-network/apps": ^0.1.1-alpha3
-    "@abacus-network/core": ^0.1.1-alpha3
-    "@abacus-network/utils": ^0.1.1-alpha3
-    "@ethersproject/bignumber": ^5.5.0
-    "@ethersproject/bytes": ^5.5.0
-    celo-ethers-provider: 0.0.0
-    ethers: ^5.4.7
-  checksum: 08b7aa9e61d188074a0a84980b97b71c870f70ec495329d07a0b6380a7ecd952b5f529cabc94843c378079c100d6d442c2a1ede3531edc6c837406c73b4ab9f6
-  languageName: node
-  linkType: hard
-
-"@abacus-network/utils@npm:^0.1.1-alpha3":
-  version: 0.1.1-alpha3
-  resolution: "@abacus-network/utils@npm:0.1.1-alpha3"
-  dependencies:
-    chai: ^4.3.0
-    ethers: ^5.4.7
-  checksum: 78e9edab0a3f632c7c30e8e38954ea567970d40d482589670279b59398a932f8984265a1b197d1eaa8edb7c080663a7601b920694999665047b11740a4f3ec69
-  languageName: node
-  linkType: hard
-
-"@abacus-network/yo@workspace:.":
+"@abacus-network/helloworld@workspace:.":
   version: 0.0.0-use.local
-  resolution: "@abacus-network/yo@workspace:."
+  resolution: "@abacus-network/helloworld@workspace:."
   dependencies:
     "@abacus-network/app": ^0.1.1-alpha3
     "@abacus-network/deploy": ^0.1.1-alpha3
@@ -136,6 +111,31 @@ __metadata:
     typescript: ^4.3.5
   languageName: unknown
   linkType: soft
+
+"@abacus-network/sdk@npm:^0.1.1-alpha3":
+  version: 0.1.1-alpha3
+  resolution: "@abacus-network/sdk@npm:0.1.1-alpha3"
+  dependencies:
+    "@abacus-network/apps": ^0.1.1-alpha3
+    "@abacus-network/core": ^0.1.1-alpha3
+    "@abacus-network/utils": ^0.1.1-alpha3
+    "@ethersproject/bignumber": ^5.5.0
+    "@ethersproject/bytes": ^5.5.0
+    celo-ethers-provider: 0.0.0
+    ethers: ^5.4.7
+  checksum: 08b7aa9e61d188074a0a84980b97b71c870f70ec495329d07a0b6380a7ecd952b5f529cabc94843c378079c100d6d442c2a1ede3531edc6c837406c73b4ab9f6
+  languageName: node
+  linkType: hard
+
+"@abacus-network/utils@npm:^0.1.1-alpha3":
+  version: 0.1.1-alpha3
+  resolution: "@abacus-network/utils@npm:0.1.1-alpha3"
+  dependencies:
+    chai: ^4.3.0
+    ethers: ^5.4.7
+  checksum: 78e9edab0a3f632c7c30e8e38954ea567970d40d482589670279b59398a932f8984265a1b197d1eaa8edb7c080663a7601b920694999665047b11740a4f3ec69
+  languageName: node
+  linkType: hard
 
 "@babel/code-frame@npm:7.12.11":
   version: 7.12.11

@@ -1,6 +1,6 @@
 [
   {
-    "name": "Yo",
+    "name": "HelloWorld",
     "address": "0xCace1b78160AE76398F486c8a18044da0d66d86D",
     "constructorArguments": ["0x610178dA211FEF7D417bC0e6FeD39F05609AD788"],
     "isProxy": false

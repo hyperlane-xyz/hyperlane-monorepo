@@ -3,15 +3,15 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { utils } from '@abacus-network/deploy';
 
-import { YoAddresses, YoApp } from '../src';
-import { YoChecker, YoDeployer } from '../src/deploy';
+import { HelloWorldAddresses, HelloWorldApp } from '../src';
+import { HelloWorldChecker, HelloWorldDeployer } from '../src/deploy';
 import { configs } from '../src/deploy/networks';
 import { AbacusCore } from '@abacus-network/sdk';
 
 describe('deploy', async () => {
   type TestNetworks = 'test1' | 'test2' | 'test3';
-  let deployer: YoDeployer<TestNetworks>;
-  let addresses: Record<TestNetworks, YoAddresses>;
+  let deployer: HelloWorldDeployer<TestNetworks>;
+  let addresses: Record<TestNetworks, HelloWorldAddresses>;
   let core: AbacusCore<TestNetworks>;
 
   before(async () => {
@@ -26,7 +26,11 @@ describe('deploy', async () => {
       signer,
     );
     core = AbacusCore.fromEnvironment('test', multiProvider);
-    deployer = new YoDeployer(multiProvider, { owner: signer.address }, core);
+    deployer = new HelloWorldDeployer(
+      multiProvider,
+      { owner: signer.address },
+      core,
+    );
   });
 
   it('deploys', async () => {
@@ -50,12 +54,12 @@ describe('deploy', async () => {
       transactionConfigs,
       signer,
     );
-    const app = YoApp.fromNetworkAddresses<TestNetworks>(
+    const app = HelloWorldApp.fromNetworkAddresses<TestNetworks>(
       addresses,
       multiProvider,
       core,
     );
-    const checker = new YoChecker(multiProvider, app, {
+    const checker = new HelloWorldChecker(multiProvider, app, {
       test1: { owner: signer.address },
       test2: { owner: signer.address },
       test3: { owner: signer.address },

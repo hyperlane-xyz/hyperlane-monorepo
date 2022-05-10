@@ -1,2 +1,2 @@
-export { YoDeployer } from './deploy';
-export { YoChecker } from './check';
+export { HelloWorldDeployer } from './deploy';
+export { HelloWorldChecker } from './check';

@@ -1,6 +1,6 @@
 {
-  "name": "@abacus-network/yo",
-  "version": "0.0.3",
+  "name": "@abacus-network/helloworld",
+  "version": "0.0.1",
   "license": "MIT OR Apache-2.0",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -15,7 +15,7 @@
     "build:sol": "hardhat compile && hardhat typechain",
     "build:ts": "tsc",
     "build": "npm run build:sol && npm run build:ts",
-    "test:contracts": "hardhat test test/yo.test.ts",
+    "test:contracts": "hardhat test test/helloworld.test.ts",
     "test:sdk": "",
     "test:deploy": "hardhat test test/deploy.test.ts",
     "test": "npm run test:contracts && npm run test:sdk && npm run test:deploy",

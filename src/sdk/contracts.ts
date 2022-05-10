@@ -3,20 +3,23 @@ import {
   RouterAddresses,
   routerFactories,
 } from '@abacus-network/sdk';
-import { Yo__factory } from '../types';
+import { HelloWorld__factory } from '../types';
 
-export type YoAddresses = RouterAddresses;
+export type HelloWorldAddresses = RouterAddresses;
 
-export const yoFactories = {
+export const helloWorldFactories = {
   ...routerFactories,
-  router: Yo__factory.connect,
+  router: HelloWorld__factory.connect,
 };
 
-export type YoFactories = typeof yoFactories;
+export type HelloWorldFactories = typeof helloWorldFactories;
 
-export class YoContracts extends AbacusContracts<YoAddresses, YoFactories> {
+export class HelloWorldContracts extends AbacusContracts<
+  HelloWorldAddresses,
+  HelloWorldFactories
+> {
   // necessary for factories be defined in the constructor
   factories() {
-    return yoFactories;
+    return helloWorldFactories;
   }
 }

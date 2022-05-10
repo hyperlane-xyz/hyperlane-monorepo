@@ -5,36 +5,40 @@ import {
   ChainMap,
   MultiProvider,
 } from '@abacus-network/sdk';
-import { YoAddresses } from '../sdk/contracts';
-import { YoConfig } from '../sdk/types';
-import { Yo__factory } from '../types';
+import { HelloWorldAddresses } from '../sdk/contracts';
+import { HelloWorldConfig } from '../sdk/types';
+import { HelloWorld__factory } from '../types';
 
-export class YoDeployer<
+export class HelloWorldDeployer<
   Networks extends ChainName,
-> extends AbacusRouterDeployer<Networks, YoConfig, YoAddresses> {
+> extends AbacusRouterDeployer<
+  Networks,
+  HelloWorldConfig,
+  HelloWorldAddresses
+> {
   constructor(
     multiProvider: MultiProvider<Networks>,
-    config: YoConfig,
+    config: HelloWorldConfig,
     core: AbacusCore<Networks>,
   ) {
     const networks = multiProvider.networks();
     const crossConfigMap = Object.fromEntries(
       networks.map((network) => [network, config]),
-    ) as ChainMap<Networks, YoConfig>;
+    ) as ChainMap<Networks, HelloWorldConfig>;
     super(multiProvider, crossConfigMap, core);
   }
 
   async deployContracts(
     network: Networks,
-    config: YoConfig,
-  ): Promise<YoAddresses> {
+    config: HelloWorldConfig,
+  ): Promise<HelloWorldAddresses> {
     const dc = this.multiProvider.getDomainConnection(network);
     const signer = dc.signer!;
 
     const router = await this.deployContract(
       network,
-      'Yo',
-      new Yo__factory(signer),
+      'HelloWorld',
+      new HelloWorld__factory(signer),
       [],
     );
 
@@ -49,8 +53,8 @@ export class YoDeployer<
     };
   }
 
-  mustGetRouter(network: Networks, addresses: YoAddresses) {
-    return Yo__factory.connect(
+  mustGetRouter(network: Networks, addresses: HelloWorldAddresses) {
+    return HelloWorld__factory.connect(
       addresses.router,
       this.multiProvider.getDomainConnection(network).signer!,
     );

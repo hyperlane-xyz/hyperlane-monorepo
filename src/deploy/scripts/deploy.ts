@@ -3,7 +3,7 @@ import { AbacusCore } from '@abacus-network/sdk';
 import '@nomiclabs/hardhat-ethers';
 import { ethers } from 'hardhat';
 import path from 'path';
-import { YoDeployer } from '..';
+import { HelloWorldDeployer } from '..';
 import { testConfigs } from '../networks';
 
 async function main() {
@@ -15,7 +15,7 @@ async function main() {
   );
   const core = AbacusCore.fromEnvironment('test', multiProvider);
 
-  const deployer = new YoDeployer(
+  const deployer = new HelloWorldDeployer(
     multiProvider,
     { owner: signer.address },
     core,

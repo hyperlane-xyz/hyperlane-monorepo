@@ -8,26 +8,25 @@ import {
   MultiProvider,
 } from '@abacus-network/sdk';
 import { BigNumber, ethers } from 'ethers';
-import { YoAddresses, YoContracts } from './contracts';
+import { HelloWorldAddresses, HelloWorldContracts } from './contracts';
 import { environments } from './environments';
 
 type Environments = typeof environments;
 type EnvironmentName = keyof Environments;
 
-export class YoApp<Networks extends ChainName = ChainName> extends AbacusApp<
-  YoContracts,
-  Networks
-> {
+export class HelloWorldApp<
+  Networks extends ChainName = ChainName,
+> extends AbacusApp<HelloWorldContracts, Networks> {
   constructor(
-    networkAddresses: ChainMap<Networks, YoAddresses>,
+    networkAddresses: ChainMap<Networks, HelloWorldAddresses>,
     multiProvider: MultiProvider<Networks>,
     private interchainGasCalculator: InterchainGasCalculator,
   ) {
-    super(YoContracts, networkAddresses, multiProvider);
+    super(HelloWorldContracts, networkAddresses, multiProvider);
   }
 
   static fromNetworkAddresses<Networks extends ChainName = ChainName>(
-    networkAddresses: ChainMap<Networks, YoAddresses>,
+    networkAddresses: ChainMap<Networks, HelloWorldAddresses>,
     multiProvider: MultiProvider<Networks>,
     core: AbacusCore<Networks>,
   ) {
@@ -37,7 +36,11 @@ export class YoApp<Networks extends ChainName = ChainName> extends AbacusApp<
       multiProvider as MultiProvider<any>,
       core as AbacusCore<any>,
     );
-    return new YoApp(networkAddresses, multiProvider, interchainGasCalculator);
+    return new HelloWorldApp(
+      networkAddresses,
+      multiProvider,
+      interchainGasCalculator,
+    );
   }
 
   static fromEnvironment(
@@ -45,12 +48,17 @@ export class YoApp<Networks extends ChainName = ChainName> extends AbacusApp<
     multiProvider: MultiProvider<keyof Environments[typeof name]>,
   ) {
     const core = AbacusCore.fromEnvironment(name, multiProvider);
-    return YoApp.fromNetworkAddresses(environments[name], multiProvider, core);
+    return HelloWorldApp.fromNetworkAddresses(
+      environments[name],
+      multiProvider,
+      core,
+    );
   }
 
-  async yoRemote(
+  async sendHelloWorld(
     from: Networks,
     to: Networks,
+    message: string,
   ): Promise<ethers.ContractReceipt> {
     const router = this.getContracts(from).router;
 
@@ -61,9 +69,10 @@ export class YoApp<Networks extends ChainName = ChainName> extends AbacusApp<
       await this.interchainGasCalculator.estimatePaymentForHandleGasAmount(
         fromDomain,
         toDomain,
-        BigNumber.from('10000'),
+        // Actual gas costs depend on the size of the message
+        BigNumber.from('100000'),
       );
-    const tx = await router.yoRemote(toDomain, {
+    const tx = await router.sendHelloWorld(toDomain, message, {
       value: interchainGasPayment,
     });
     return tx.wait();

@@ -1,5 +1,5 @@
 import { RouterConfig } from '@abacus-network/deploy';
 
-export type YoConfig = RouterConfig & {
+export type HelloWorldConfig = RouterConfig & {
   owner: string;
 };

@@ -1,7 +1,7 @@
 import { configs } from '../networks';
-import { YoConfig } from './index';
+import { HelloWorldConfig } from './index';
 
-export const environment: YoConfig = {
+export const environment: HelloWorldConfig = {
   ...configs,
   config: {},
 };
