@@ -42,7 +42,9 @@ where
 {
     contract: Arc<EthereumInboxInternal<M>>,
     provider: Arc<M>,
+    #[allow(unused)]
     from_height: u32,
+    #[allow(unused)]
     chunk_size: u32,
 }
 

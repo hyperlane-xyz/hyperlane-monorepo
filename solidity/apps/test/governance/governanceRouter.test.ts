@@ -26,6 +26,7 @@ describe('GovernanceRouter', async () => {
     governance: GovernanceDeploy;
   let outbox: Outbox;
   let interchainGasPaymaster: InterchainGasPaymaster;
+  const testInterchainGasPayment = 123456789;
 
   before(async () => {
     [governor, recoveryManager] = await ethers.getSigners();
@@ -111,12 +112,54 @@ describe('GovernanceRouter', async () => {
       expect(await testSet.get()).to.equal(value);
     });
 
+    it('allows interchain gas payment for remote calls', async () => {
+      const leafIndex = await outbox.count();
+      const value = 13;
+      const call = formatCall(testSet, 'set', [value]);
+      await expect(
+        await router.callRemote(domains[1], [call], {
+          value: testInterchainGasPayment,
+        }),
+      )
+        .to.emit(interchainGasPaymaster, 'GasPayment')
+        .withArgs(leafIndex, testInterchainGasPayment);
+    });
+
+    it('creates a checkpoint for remote calls', async () => {
+      const value = 13;
+      const call = formatCall(testSet, 'set', [value]);
+      await expect(await router.callRemote(domains[1], [call])).to.emit(
+        outbox,
+        'Checkpoint',
+      );
+    });
+
     it('governor can set remote governor', async () => {
       const newGovernor = governor.address;
       expect(await remote.governor()).to.not.equal(newGovernor);
       await router.setGovernorRemote(remoteDomain, newGovernor);
       await abacus.processMessages();
       expect(await remote.governor()).to.equal(newGovernor);
+    });
+
+    it('allows interchain gas payment when setting a remote governor', async () => {
+      const newGovernor = governor.address;
+      const leafIndex = await outbox.count();
+      await expect(
+        router.setGovernorRemote(remoteDomain, newGovernor, {
+          value: testInterchainGasPayment,
+        }),
+      )
+        .to.emit(interchainGasPaymaster, 'GasPayment')
+        .withArgs(leafIndex, testInterchainGasPayment);
+    });
+
+    it('creates a checkpoint when setting a remote governor', async () => {
+      const newGovernor = governor.address;
+      await expect(router.setGovernorRemote(remoteDomain, newGovernor)).to.emit(
+        outbox,
+        'Checkpoint',
+      );
     });
 
     it('governor can set remote abacusConnectionManager', async () => {
@@ -134,6 +177,28 @@ describe('GovernanceRouter', async () => {
       );
     });
 
+    it('allows interchain gas payment when setting a remote abacusConnectionManager', async () => {
+      const leafIndex = await outbox.count();
+      await expect(
+        router.setAbacusConnectionManagerRemote(
+          remoteDomain,
+          ethers.constants.AddressZero,
+          { value: testInterchainGasPayment },
+        ),
+      )
+        .to.emit(interchainGasPaymaster, 'GasPayment')
+        .withArgs(leafIndex, testInterchainGasPayment);
+    });
+
+    it('creates a checkpoint when setting a remote abacusConnectionManager', async () => {
+      await expect(
+        router.setAbacusConnectionManagerRemote(
+          remoteDomain,
+          ethers.constants.AddressZero,
+        ),
+      ).to.emit(outbox, 'Checkpoint');
+    });
+
     it('governor can enroll remote remote router', async () => {
       expect(await remote.routers(testDomain)).to.equal(
         ethers.constants.HashZero,
@@ -146,6 +211,25 @@ describe('GovernanceRouter', async () => {
       );
       await abacus.processMessages();
       expect(await remote.routers(testDomain)).to.equal(newRouter);
+    });
+
+    it('allows interchain gas payment when enrolling a remote router', async () => {
+      const leafIndex = await outbox.count();
+      const newRouter = utils.addressToBytes32(router.address);
+      await expect(
+        router.enrollRemoteRouterRemote(remoteDomain, testDomain, newRouter, {
+          value: testInterchainGasPayment,
+        }),
+      )
+        .to.emit(interchainGasPaymaster, 'GasPayment')
+        .withArgs(leafIndex, testInterchainGasPayment);
+    });
+
+    it('creates a checkpoint when enrolling a remote router', async () => {
+      const newRouter = utils.addressToBytes32(router.address);
+      await expect(
+        router.enrollRemoteRouterRemote(remoteDomain, testDomain, newRouter),
+      ).to.emit(outbox, 'Checkpoint');
     });
 
     it('governor cannot initiate recovery', async () => {
@@ -426,58 +510,6 @@ describe('GovernanceRouter', async () => {
       await expect(router.connect(governor).exitRecovery()).to.be.revertedWith(
         '!recoveryManager',
       );
-    });
-  });
-
-  describe('interchain gas payments for dispatched messages', async () => {
-    const testInterchainGasPayment = 123456789;
-
-    it('allows interchain gas payment for remote calls', async () => {
-      const leafIndex = await outbox.count();
-      const call = formatCall(testSet, 'set', [13]);
-      await expect(
-        await router.callRemote(domains[1], [call], {
-          value: testInterchainGasPayment,
-        }),
-      )
-        .to.emit(interchainGasPaymaster, 'GasPayment')
-        .withArgs(leafIndex, testInterchainGasPayment);
-    });
-
-    it('allows interchain gas payment when setting a remote governor', async () => {
-      const leafIndex = await outbox.count();
-      await expect(
-        router.setGovernorRemote(remoteDomain, governor.address, {
-          value: testInterchainGasPayment,
-        }),
-      )
-        .to.emit(interchainGasPaymaster, 'GasPayment')
-        .withArgs(leafIndex, testInterchainGasPayment);
-    });
-
-    it('allows interchain gas payment when setting a remote abacusConnectionManager', async () => {
-      const leafIndex = await outbox.count();
-      await expect(
-        router.setAbacusConnectionManagerRemote(
-          remoteDomain,
-          ethers.constants.AddressZero,
-          { value: testInterchainGasPayment },
-        ),
-      )
-        .to.emit(interchainGasPaymaster, 'GasPayment')
-        .withArgs(leafIndex, testInterchainGasPayment);
-    });
-
-    it('allows interchain gas payment when enrolling a remote router', async () => {
-      const leafIndex = await outbox.count();
-      const newRouter = utils.addressToBytes32(router.address);
-      await expect(
-        router.enrollRemoteRouterRemote(remoteDomain, testDomain, newRouter, {
-          value: testInterchainGasPayment,
-        }),
-      )
-        .to.emit(interchainGasPaymaster, 'GasPayment')
-        .withArgs(leafIndex, testInterchainGasPayment);
     });
   });
 });
