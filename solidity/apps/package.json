@@ -29,7 +29,7 @@
   },
   "scripts": {
     "prettier": "prettier --write ./contracts ./test",
-    "build": "hardhat compile && hardhat typechain && tsc && npm run copy-types",
+    "build": "tree node_modules/@openzeppelin && hardhat compile && hardhat typechain && tsc && npm run copy-types",
     "copy-types": "cp types/*.d.ts dist/",
     "coverage": "hardhat coverage",
     "test": "hardhat test"
