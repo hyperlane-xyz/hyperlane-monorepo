@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Version0} from "./Version0.sol";
@@ -19,7 +19,7 @@ contract Inbox is IInbox, Version0, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
-    using Message for bytes29;
+    using Message for bytes;
 
     // ============ Enums ============
 
@@ -140,14 +140,13 @@ contract Inbox is IInbox, Version0, Common {
      * @param _messageHash keccak256 hash of the message
      */
     function _process(bytes calldata _message, bytes32 _messageHash) internal {
-        bytes29 _m = _message.ref(0);
         // ensure message was meant for this domain
-        require(_m.destination() == localDomain, "!destination");
+        require(_message.destination() == localDomain, "!destination");
 
         // update message status as processed
         messages[_messageHash] = MessageStatus.Processed;
-        IMessageRecipient _recipient = IMessageRecipient(_m.recipientAddress());
-        _recipient.handle(_m.origin(), _m.sender(), _m.body().clone());
+        IMessageRecipient _recipient = IMessageRecipient(_message.recipientAddress());
+        _recipient.handle(_message.origin(), _message.sender(), _message.body());
         // emit process results
         emit Process(_messageHash);
     }
