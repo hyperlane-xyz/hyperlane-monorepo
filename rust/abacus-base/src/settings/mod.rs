@@ -46,9 +46,9 @@ use abacus_core::{
     AbacusCommon, ContractLocator, Signers,
 };
 use abacus_ethereum::{make_inbox_indexer, make_outbox_indexer};
-use color_eyre::{eyre::bail, Report};
 use config::{Config, ConfigError, Environment, File};
 use ethers::prelude::AwsSigner;
+use eyre::{bail, Report};
 use rusoto_core::{credential::EnvironmentProvider, HttpClient};
 use rusoto_kms::KmsClient;
 use serde::Deserialize;

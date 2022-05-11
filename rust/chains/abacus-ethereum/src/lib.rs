@@ -5,9 +5,9 @@
 #![warn(unused_extern_crates)]
 
 use abacus_core::*;
-use color_eyre::eyre::Result;
 use ethers::providers::Middleware;
 use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
+use eyre::Result;
 use num::Num;
 use std::sync::Arc;
 

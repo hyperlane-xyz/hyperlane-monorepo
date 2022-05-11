@@ -1,11 +1,11 @@
 use std::{sync::Arc, time::Duration};
 
-use abacus_base::CachingOutbox;
-use abacus_core::{AbacusCommon, Checkpoint, Outbox};
-
-use color_eyre::Result;
+use eyre::Result;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
+
+use abacus_base::CachingOutbox;
+use abacus_core::{AbacusCommon, Checkpoint, Outbox};
 
 pub(crate) struct CheckpointSubmitter {
     outbox: Arc<CachingOutbox>,

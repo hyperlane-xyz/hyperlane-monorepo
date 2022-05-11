@@ -7,12 +7,12 @@ mod outbox;
 mod validator_manager;
 
 use async_trait::async_trait;
-use color_eyre::Result;
 use ethers::{
     contract::ContractError,
     core::types::{TransactionReceipt, H256},
     providers::{Middleware, ProviderError},
 };
+use eyre::Result;
 use std::error::Error as StdError;
 
 use crate::{db::DbError, utils::domain_hash, AbacusError, Checkpoint};

@@ -3,8 +3,8 @@ use crate::{
     accumulator::merkle::Proof, traits::RawCommittedMessage, AbacusMessage, CommittedMessage,
     Decode,
 };
-use color_eyre::Result;
 use ethers::core::types::H256;
+use eyre::Result;
 use tokio::time::sleep;
 use tracing::{debug, info};
 

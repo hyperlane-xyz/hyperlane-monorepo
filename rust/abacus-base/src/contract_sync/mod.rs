@@ -64,9 +64,7 @@ where
     I: AbacusCommonIndexer + 'static,
 {
     /// TODO: Not implemented
-    pub fn sync_checkpoints(
-        &self,
-    ) -> Instrumented<tokio::task::JoinHandle<color_eyre::Result<()>>> {
+    pub fn sync_checkpoints(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
         let span = info_span!("MessageContractSync");
 
         tokio::spawn(async move {
@@ -83,9 +81,7 @@ where
     I: OutboxIndexer + 'static,
 {
     /// Sync outbox messages
-    pub fn sync_outbox_messages(
-        &self,
-    ) -> Instrumented<tokio::task::JoinHandle<color_eyre::Result<()>>> {
+    pub fn sync_outbox_messages(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
         let span = info_span!("MessageContractSync");
 
         let db = self.db.clone();

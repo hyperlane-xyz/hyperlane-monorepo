@@ -4,7 +4,7 @@ use abacus_core::{MultisigSignedCheckpoint, SignedCheckpointWithSigner};
 use ethers::prelude::Address;
 use ethers::types::H256;
 
-use color_eyre::Result;
+use eyre::Result;
 use tracing::{debug, instrument};
 
 use crate::{CheckpointSyncer, CheckpointSyncers};

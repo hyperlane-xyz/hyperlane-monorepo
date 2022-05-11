@@ -1,6 +1,6 @@
 use crate::db::{DbError, DB};
 use crate::{Decode, Encode};
-use color_eyre::Result;
+use eyre::Result;
 
 /// DB handle for storing data tied to a specific type/entity.
 ///

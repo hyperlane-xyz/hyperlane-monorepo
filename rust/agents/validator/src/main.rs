@@ -4,18 +4,21 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
+use abacus_base::Agent;
+use eyre::Result;
+
+use crate::{settings::ValidatorSettings as Settings, validator::Validator};
+
 mod settings;
 mod submit;
 mod validator;
 
-use color_eyre::Result;
-
-use abacus_base::Agent;
-
-use crate::{settings::ValidatorSettings as Settings, validator::Validator};
-
 async fn _main() -> Result<()> {
+    #[cfg(feature = "oneline-errors")]
+    abacus_base::oneline_eyre::install()?;
+    #[cfg(not(feature = "oneline-errors"))]
     color_eyre::install()?;
+
     let settings = Settings::new()?;
 
     let agent = Validator::from_settings(settings).await?;
