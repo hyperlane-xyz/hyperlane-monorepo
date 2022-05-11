@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
+import {MessageFingerprint} from "../../libs/Message.sol";
 
 contract TestRecipient is IMessageRecipient {
     bool public processed = false;
@@ -12,9 +13,8 @@ contract TestRecipient is IMessageRecipient {
     }
 
     function handle(
-        uint32,
-        bytes32,
-        bytes memory
+        MessageFingerprint calldata,
+        bytes calldata
     ) external pure override {} // solhint-disable-line no-empty-blocks
 
     function receiveString(string calldata _str)

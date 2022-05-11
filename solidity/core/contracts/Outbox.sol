@@ -5,7 +5,7 @@ pragma solidity >=0.8.0;
 import {Version0} from "./Version0.sol";
 import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
-import {Message} from "../libs/Message.sol";
+import {Message, MessageType, MessageHeader} from "../libs/Message.sol";
 import {MerkleTreeManager} from "./Merkle.sol";
 import {IOutbox} from "../interfaces/IOutbox.sol";
 
@@ -23,6 +23,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
+    using Message for MessageHeader;
 
     // ============ Constants ============
 
@@ -61,13 +62,11 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
      * @param leafIndex Index of message's leaf in merkle tree
      * @param destination Destination domain
-     * @param message Raw bytes of message
      */
     event Dispatch(
         bytes32 indexed messageHash,
         uint256 indexed leafIndex,
-        uint32 indexed destination,
-        bytes message
+        uint32 indexed destination
     );
 
     event Fail();
@@ -99,34 +98,27 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      * @notice Dispatch the message it to the destination domain & recipient
      * @dev Format the message, insert its hash into Merkle tree,
      * and emit `Dispatch` event with message information.
-     * @param _destinationDomain Domain of destination chain
-     * @param _recipientAddress Address of recipient on destination chain as bytes32
-     * @param _messageBody Raw bytes content of message
+     * @param _header Message header describing the destination domain and recipient
+     * @param _body Raw bytes content of message
      * @return The leaf index of the dispatched message's hash in the Merkle tree.
      */
     function dispatch(
-        uint32 _destinationDomain,
-        bytes32 _recipientAddress,
-        bytes memory _messageBody
+        MessageHeader calldata _header,
+        bytes calldata _body
     ) external override notFailed returns (uint256) {
-        require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
-        // The leaf has not been inserted yet at this point1
+        require(_body.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
+        // The leaf has not been inserted yet at this point
         uint256 _leafIndex = count();
-        // format the message into packed bytes
-        bytes memory _message = Message.formatMessage(
+
+        bytes32 _messageHash = _header.messageHash(
+            _leafIndex,
             localDomain,
-            bytes32(uint256(uint160(msg.sender))),
-            _destinationDomain,
-            _recipientAddress,
-            _messageBody
-        );
-        // insert the hashed message into the Merkle tree
-        bytes32 _messageHash = keccak256(
-            abi.encodePacked(_message, _leafIndex)
+            _body
         );
         tree.insert(_messageHash);
+
         // Emit Dispatch event with message information
-        emit Dispatch(_messageHash, _leafIndex, _destinationDomain, _message);
+        emit Dispatch(_messageHash, _leafIndex, _header.destination);
         return _leafIndex;
     }
 

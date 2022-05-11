@@ -2,12 +2,12 @@
 pragma solidity >=0.6.11;
 
 import {ICommon} from "./ICommon.sol";
+import {MessageHeader} from "../libs/Message.sol";
 
 interface IOutbox is ICommon {
     function dispatch(
-        uint32 _destinationDomain,
-        bytes32 _recipientAddress,
-        bytes calldata _messageBody
+        MessageHeader calldata _header,
+        bytes calldata _body
     ) external returns (uint256);
 
     function checkpoint() external;

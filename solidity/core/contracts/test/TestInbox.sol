@@ -4,7 +4,7 @@ pragma solidity >=0.8.0;
 import "../Inbox.sol";
 
 contract TestInbox is Inbox {
-    using Message for bytes32;
+    using Message for MessageType;
 
     constructor(uint32 _localDomain) Inbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
@@ -20,9 +20,8 @@ contract TestInbox is Inbox {
         return MerkleLib.branchRoot(leaf, proof, index);
     }
 
-    function testProcess(bytes calldata _message, uint256 leafIndex) external {
-        bytes32 _messageHash = keccak256(abi.encodePacked(_message, leafIndex));
-        _process(_message, _messageHash);
+    function testProcess(uint256 leafIndex, MessageType calldata _message) external {
+        _process(_message.leaf(leafIndex), _message);
     }
 
     function setMessageStatus(bytes32 _leaf, MessageStatus status) external {

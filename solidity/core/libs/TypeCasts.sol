@@ -31,4 +31,12 @@ library TypeCasts {
     function bytes32ToAddress(bytes32 _buf) internal pure returns (address) {
         return address(uint160(uint256(_buf)));
     }
+
+    function addressToBytes28(address _addr) internal pure returns (bytes28) {
+        return bytes28(uint224(uint160(_addr)));
+    }
+
+    function bytes28ToAddress(bytes28 _buf) internal pure returns (address) {
+        return address(uint160(uint224(_buf)));
+    }
 }

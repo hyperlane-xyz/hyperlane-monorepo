@@ -5,7 +5,7 @@ pragma solidity >=0.8.0;
 import {Version0} from "./Version0.sol";
 import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
-import {Message} from "../libs/Message.sol";
+import {Message, MessageHeader, MessageType} from "../libs/Message.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInbox} from "../interfaces/IInbox.sol";
 
@@ -19,7 +19,8 @@ contract Inbox is IInbox, Version0, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
-    using Message for bytes;
+    using Message for MessageHeader;
+    using Message for MessageType;
 
     // ============ Enums ============
 
@@ -98,21 +99,21 @@ contract Inbox is IInbox, Version0, Common {
      * @dev Reverts if verification of the message fails.
      * @dev Includes the eventual function signature for Sovereign Consensus,
      * but comments out the name to suppress compiler warning
-     * @param _message Formatted message (refer to Common.sol Message library)
      * @param _proof Merkle proof of inclusion for message's leaf
      * @param _index Index of leaf in outbox's merkle tree
+     * @param _message Formatted message (refer to Common.sol Message library)
      */
     function process(
-        bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _index,
+        MessageType calldata _message, // do this last to avoid unnecessary padding in calldata
         bytes calldata /* _sovereignData */
     ) external override {
         // check re-entrancy guard
         require(entered == 1, "!reentrant");
         entered = 0;
 
-        bytes32 _messageHash = keccak256(abi.encodePacked(_message, _index));
+        bytes32 _messageHash = _message.leaf(_index);
         // ensure that message has not been processed
         require(
             messages[_messageHash] == MessageStatus.None,
@@ -126,7 +127,7 @@ contract Inbox is IInbox, Version0, Common {
         );
         // ensure that the root has been checkpointed
         require(checkpoints[_calculatedRoot] > 0, "!checkpointed root");
-        _process(_message, _messageHash);
+        _process(_messageHash, _message);
         // reset re-entrancy guard
         entered = 1;
     }
@@ -136,23 +137,17 @@ contract Inbox is IInbox, Version0, Common {
     /**
      * @notice Marks a message as processed and calls handle on the recipient
      * @dev Internal function that can be called by contracts like TestInbox
-     * @param _message Formatted message (refer to Common.sol Message library)
      * @param _messageHash keccak256 hash of the message
+     * @param _message Formatted message (refer to Message.sol library)
      */
-    function _process(bytes calldata _message, bytes32 _messageHash) internal {
+    function _process(bytes32 _messageHash, MessageType calldata _message) internal {
         // ensure message was meant for this domain
-        require(_message.destination() == localDomain, "!destination");
+        require(_message.header.destination == localDomain, "!destination");
 
         // update message status as processed
         messages[_messageHash] = MessageStatus.Processed;
-        IMessageRecipient _recipient = IMessageRecipient(
-            _message.recipientAddress()
-        );
-        _recipient.handle(
-            _message.origin(),
-            _message.sender(),
-            _message.body()
-        );
+        
+        IMessageRecipient(_message.header.recipientAddress()).handle(_message.fingerprint, _message.body);
         // emit process results
         emit Process(_messageHash);
     }

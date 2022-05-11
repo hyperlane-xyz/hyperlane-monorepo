@@ -1,7 +1,26 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.8.0;
+pragma solidity >=0.6.11;
 
 import {TypeCasts} from "./TypeCasts.sol";
+
+// if body is 0 bytes, message is only 1 word long
+struct MessageFingerprint {
+    bytes28 sender;
+    uint32 origin;
+}
+
+// 1 word long
+struct MessageHeader {
+    bytes28 recipient;
+    uint32 destination;
+}
+
+// if body is 0 bytes, message is only 2 words long
+struct MessageType {
+    MessageHeader header;
+    MessageFingerprint fingerprint;
+    bytes body;  // do this last to avoid unnecessary padding
+}
 
 /**
  * @title Message Library
@@ -9,124 +28,61 @@ import {TypeCasts} from "./TypeCasts.sol";
  * @notice Library for formatted messages used by Outbox and Replica.
  **/
 library Message {
-    /**
-     * @notice Returns formatted (packed) message with provided fields
-     * @param _originDomain Domain of home chain
-     * @param _sender Address of sender as bytes32
-     * @param _destinationDomain Domain of destination chain
-     * @param _recipient Address of recipient on destination chain as bytes32
-     * @param _messageBody Raw bytes of message body
-     * @return Formatted message
-     **/
-    function formatMessage(
-        uint32 _originDomain,
-        bytes32 _sender,
-        uint32 _destinationDomain,
-        bytes32 _recipient,
-        bytes memory _messageBody
-    ) internal pure returns (bytes memory) {
-        return
-            abi.encodePacked(
-                _originDomain,
-                _sender,
-                _destinationDomain,
-                _recipient,
-                _messageBody
-            );
-    }
-
-    /**
-     * @notice Returns leaf of formatted message with provided fields.
-     * @param _origin Domain of home chain
-     * @param _sender Address of sender as bytes32
-     * @param _destination Domain of destination chain
-     * @param _recipient Address of recipient on destination chain as bytes32
-     * @param _body Raw bytes of message body
-     * @param _leafIndex Index of the message in the tree
-     * @return Leaf (hash) of formatted message
-     **/
-    function messageHash(
-        uint32 _origin,
-        bytes32 _sender,
-        uint32 _destination,
-        bytes32 _recipient,
-        bytes memory _body,
-        uint256 _leafIndex
-    ) internal pure returns (bytes32) {
+    function messageHash(MessageType calldata _message, uint256 _leafIndex)
+        internal
+        pure
+        returns (bytes32)
+    {
         return
             keccak256(
                 abi.encodePacked(
-                    formatMessage(
-                        _origin,
-                        _sender,
-                        _destination,
-                        _recipient,
-                        _body
-                    ),
-                    _leafIndex
+                    _leafIndex,
+                    _message.header.recipient,
+                    _message.header.destination,
+                    _message.fingerprint.sender,
+                    _message.fingerprint.origin,
+                    _message.body // do this last to avoid unnecessary padding
                 )
             );
     }
 
-    /// @notice Returns message's origin field
-    function origin(bytes calldata _message) internal pure returns (uint32) {
-        return uint32(bytes4(_message[0:4]));
+    function messageHash(MessageHeader calldata _header, uint256 _leafIndex, uint32 origin, bytes calldata body) internal view returns (bytes32) {
+        return 
+            keccak256(
+                abi.encodePacked(
+                    _leafIndex,
+                    _header.recipient,
+                    _header.destination,
+                    TypeCasts.addressToBytes28(msg.sender),
+                    origin,
+                    body
+                )
+            );
     }
 
-    /// @notice Returns message's sender field
-    function sender(bytes calldata _message) internal pure returns (bytes32) {
-        return bytes32(_message[4:36]);
-    }
-
-    /// @notice Returns message's destination field
-    function destination(bytes calldata _message)
-        internal
-        pure
-        returns (uint32)
-    {
-        return uint32(bytes4(_message[36:40]));
-    }
-
-    /// @notice Returns message's recipient field as bytes32
-    function recipient(bytes calldata _message)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return bytes32(_message[40:72]);
-    }
-
-    /// @notice Returns message's body field
-    function body(bytes calldata _message)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return _message[72:];
-    }
-
-    /// @notice Returns message's recipient field as an address
-    function recipientAddress(bytes calldata _message)
+    /// @notice Returns message recipient field as an address
+    function senderAddress(MessageFingerprint calldata _content)
         internal
         pure
         returns (address)
     {
-        return TypeCasts.bytes32ToAddress(recipient(_message));
+        return TypeCasts.bytes28ToAddress(_content.sender);
     }
 
-    function leaf(bytes calldata _message, uint256 _leafIndex)
+    /// @notice Returns message recipient field as an address
+    function recipientAddress(MessageHeader calldata _message)
+        internal
+        pure
+        returns (address)
+    {
+        return TypeCasts.bytes28ToAddress(_message.recipient);
+    }
+
+    function leaf(MessageType calldata _message, uint256 _leafIndex)
         internal
         pure
         returns (bytes32)
     {
-        return
-            messageHash(
-                origin(_message),
-                sender(_message),
-                destination(_message),
-                recipient(_message),
-                body(_message),
-                _leafIndex
-            );
+        return messageHash(_message, _leafIndex);
     }
 }
