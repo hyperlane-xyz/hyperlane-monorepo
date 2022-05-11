@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.0;
 
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
 
@@ -14,7 +14,7 @@ contract TestRecipient is IMessageRecipient {
     function handle(
         uint32,
         bytes32,
-        bytes memory
+        bytes calldata
     ) external pure override {} // solhint-disable-line no-empty-blocks
 
     function receiveString(string calldata _str)
