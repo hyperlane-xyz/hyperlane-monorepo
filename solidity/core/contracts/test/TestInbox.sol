@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.0;
 
 import "../Inbox.sol";
 
@@ -29,19 +29,16 @@ contract TestInbox is Inbox {
         messages[_leaf] = status;
     }
 
-    function getRevertMsg(bytes memory _res)
+    function getRevertMsg(bytes calldata _res)
         internal
-        view
+        pure
         returns (string memory)
     {
         // If the _res length is less than 68, then the transaction failed
         // silently (without a revert message)
         if (_res.length < 68) return "Transaction reverted silently";
 
-        // Remove the selector which is the first 4 bytes
-        bytes memory _revertData = _res[4:];
-
-        // All that remains is the revert string
-        return abi.decode(_revertData, (string));
+        // Remove the selector (first 4 bytes) and decode revert string
+        return abi.decode(_res[4:], (string));
     }
 }
