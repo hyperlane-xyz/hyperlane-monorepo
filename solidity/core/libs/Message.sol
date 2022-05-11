@@ -9,8 +9,11 @@ import {TypeCasts} from "./TypeCasts.sol";
  * @notice Library for formatted messages used by Outbox and Replica.
  **/
 library Message {
+    using TypeCasts for bytes32;
+
     /**
      * @notice Returns formatted (packed) message with provided fields
+     * @dev This function should only be used in memory message construction.
      * @param _originDomain Domain of home chain
      * @param _sender Address of sender as bytes32
      * @param _destinationDomain Domain of destination chain
@@ -23,7 +26,7 @@ library Message {
         bytes32 _sender,
         uint32 _destinationDomain,
         bytes32 _recipient,
-        bytes memory _messageBody
+        bytes calldata _messageBody
     ) internal pure returns (bytes memory) {
         return
             abi.encodePacked(
@@ -50,68 +53,20 @@ library Message {
         bytes32 _sender,
         uint32 _destination,
         bytes32 _recipient,
-        bytes memory _body,
+        bytes calldata _body,
         uint256 _leafIndex
     ) internal pure returns (bytes32) {
         return
             keccak256(
                 abi.encodePacked(
-                    formatMessage(
-                        _origin,
-                        _sender,
-                        _destination,
-                        _recipient,
-                        _body
-                    ),
+                    _origin,
+                    _sender,
+                    _destination,
+                    _recipient,
+                    _body,
                     _leafIndex
                 )
             );
-    }
-
-    /// @notice Returns message's origin field
-    function origin(bytes calldata _message) internal pure returns (uint32) {
-        return uint32(bytes4(_message[0:4]));
-    }
-
-    /// @notice Returns message's sender field
-    function sender(bytes calldata _message) internal pure returns (bytes32) {
-        return bytes32(_message[4:36]);
-    }
-
-    /// @notice Returns message's destination field
-    function destination(bytes calldata _message)
-        internal
-        pure
-        returns (uint32)
-    {
-        return uint32(bytes4(_message[36:40]));
-    }
-
-    /// @notice Returns message's recipient field as bytes32
-    function recipient(bytes calldata _message)
-        internal
-        pure
-        returns (bytes32)
-    {
-        return bytes32(_message[40:72]);
-    }
-
-    /// @notice Returns message's body field
-    function body(bytes calldata _message)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return _message[72:];
-    }
-
-    /// @notice Returns message's recipient field as an address
-    function recipientAddress(bytes calldata _message)
-        internal
-        pure
-        returns (address)
-    {
-        return TypeCasts.bytes32ToAddress(recipient(_message));
     }
 
     function leaf(bytes calldata _message, uint256 _leafIndex)
@@ -119,14 +74,53 @@ library Message {
         pure
         returns (bytes32)
     {
-        return
-            messageHash(
-                origin(_message),
-                sender(_message),
-                destination(_message),
-                recipient(_message),
-                body(_message),
-                _leafIndex
-            );
+        return keccak256(abi.encodePacked(_message, _leafIndex));
+    }
+
+    function destructure(bytes calldata _message)
+        internal
+        pure
+        returns (
+            uint32 origin,
+            bytes32 sender,
+            uint32 destination,
+            bytes32 recipient,
+            bytes calldata body
+        )
+    {
+        return (
+            uint32(bytes4(_message[0:4])),
+            bytes32(_message[4:36]),
+            uint32(bytes4(_message[36:40])),
+            bytes32(_message[40:72]),
+            bytes(_message[72:])
+        );
+    }
+
+    function destructureAddresses(bytes calldata _message)
+        internal
+        pure
+        returns (
+            uint32,
+            address,
+            uint32,
+            address,
+            bytes calldata
+        )
+    {
+        (
+            uint32 _origin,
+            bytes32 _sender,
+            uint32 destination,
+            bytes32 _recipient,
+            bytes calldata body
+        ) = destructure(_message);
+        return (
+            _origin,
+            _sender.toAddress(),
+            destination,
+            _recipient.toAddress(),
+            body
+        );
     }
 }

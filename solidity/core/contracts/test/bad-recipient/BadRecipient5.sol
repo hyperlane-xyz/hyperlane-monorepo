@@ -7,7 +7,7 @@ contract BadRecipient5 is IMessageRecipient {
     function handle(
         uint32,
         bytes32,
-        bytes memory
+        bytes calldata
     ) external pure override {
         require(false, "no can do");
     }

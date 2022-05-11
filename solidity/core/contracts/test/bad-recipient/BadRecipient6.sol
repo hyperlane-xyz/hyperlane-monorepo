@@ -7,7 +7,7 @@ contract BadRecipient6 is IMessageRecipient {
     function handle(
         uint32,
         bytes32,
-        bytes memory
+        bytes calldata
     ) external pure override {
         require(false); // solhint-disable-line reason-string
     }

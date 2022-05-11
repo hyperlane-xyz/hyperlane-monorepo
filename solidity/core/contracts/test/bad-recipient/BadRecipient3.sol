@@ -7,7 +7,7 @@ contract BadRecipient3 is IMessageRecipient {
     function handle(
         uint32,
         bytes32,
-        bytes memory
+        bytes calldata
     ) external pure override {
         assembly {
             mstore(0, 0xabcdef)

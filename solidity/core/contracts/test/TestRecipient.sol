@@ -14,7 +14,7 @@ contract TestRecipient is IMessageRecipient {
     function handle(
         uint32,
         bytes32,
-        bytes memory
+        bytes calldata
     ) external pure override {} // solhint-disable-line no-empty-blocks
 
     function receiveString(string calldata _str)

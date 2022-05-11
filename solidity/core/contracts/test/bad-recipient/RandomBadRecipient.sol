@@ -9,7 +9,7 @@ contract BadRandomRecipient is IMessageRecipient {
     function handle(
         uint32,
         bytes32,
-        bytes memory
+        bytes calldata
     ) external override {
         bool isBlockHashEven = uint256(blockhash(block.number - 1)) % 2 == 0;
         require(isBlockHashEven, "block hash is odd");
