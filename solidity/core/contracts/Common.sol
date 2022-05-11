@@ -70,7 +70,6 @@ abstract contract Common is ICommon, OwnableUpgradeable {
 
     function __Common_initialize(address _validatorManager)
         internal
-        initializer
     {
         // initialize owner
         __Ownable_init();
