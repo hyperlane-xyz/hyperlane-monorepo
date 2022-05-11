@@ -28,6 +28,12 @@ struct MessageType {
  * @notice Library for formatted messages used by Outbox and Replica.
  **/
 library Message {
+    /**
+     * @notice Returns leaf of formatted message with provided fields.
+     * @param _message Message to serialize to bytes
+     * @param _leafIndex Address of sender as bytes32
+     * @return Leaf (hash) of formatted message
+     **/
     function messageHash(MessageType calldata _message, uint256 _leafIndex)
         internal
         pure
@@ -61,21 +67,39 @@ library Message {
     }
 
     /// @notice Returns message recipient field as an address
-    function senderAddress(MessageFingerprint calldata _content)
+    function senderAddress(MessageFingerprint calldata _fingerprint)
         internal
         pure
         returns (address)
     {
-        return TypeCasts.bytes28ToAddress(_content.sender);
+        return TypeCasts.bytes28ToAddress(_fingerprint.sender);
     }
 
     /// @notice Returns message recipient field as an address
-    function recipientAddress(MessageHeader calldata _message)
+    function senderAddress(MessageType calldata _message)
         internal
         pure
         returns (address)
     {
-        return TypeCasts.bytes28ToAddress(_message.recipient);
+        return senderAddress(_message.fingerprint);
+    }
+
+    /// @notice Returns message recipient field as an address
+    function recipientAddress(MessageHeader calldata _header)
+        internal
+        pure
+        returns (address)
+    {
+        return TypeCasts.bytes28ToAddress(_header.recipient);
+    }
+
+    /// @notice Returns message recipient field as an address
+    function recipientAddress(MessageType calldata _message)
+        internal
+        pure
+        returns (address)
+    {
+        return recipientAddress(_message.header);
     }
 
     function leaf(MessageType calldata _message, uint256 _leafIndex)

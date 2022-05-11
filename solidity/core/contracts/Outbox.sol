@@ -66,7 +66,8 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     event Dispatch(
         bytes32 indexed messageHash,
         uint256 indexed leafIndex,
-        uint32 indexed destination
+        uint32 indexed destination,
+        bytes message
     );
 
     event Fail();
@@ -118,7 +119,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         tree.insert(_messageHash);
 
         // Emit Dispatch event with message information
-        emit Dispatch(_messageHash, _leafIndex, _header.destination);
+        emit Dispatch(_messageHash, _leafIndex, _header.destination, _body);
         return _leafIndex;
     }
 
