@@ -14,7 +14,7 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const deployer = new AbacusCoreDeployer(
     multiProvider,
-    config.core.validatorManagers,
+    config.core,
   );
 
   const addresses = await deployer.deploy();

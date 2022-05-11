@@ -41,12 +41,29 @@ export class AbacusCoreDeployer<
   CoreConfig,
   CoreContractAddresses<Networks, any>
 > {
+
+  // Tracks the block number per network from which contract deployment started
+  startingBlockNumbers: ChainMap<Networks, number | undefined>;
+
+  constructor(
+    multiProvider: MultiProvider<Networks>,
+    configMap: ChainMap<Networks, CoreConfig>,
+  ) {
+    super(multiProvider, configMap)
+    this.startingBlockNumbers = objMap(configMap, () => undefined)
+  }
+
   async deployContracts<Local extends Networks>(
     network: Local,
     config: CoreConfig,
   ): Promise<CoreContractAddresses<Networks, Local>> {
     const dc = this.multiProvider.getDomainConnection(network);
+    const provider = dc.provider!;
     const signer = dc.signer!;
+
+    const startingBlockNumber = await provider.getBlockNumber();
+    this.startingBlockNumbers[network] = startingBlockNumber
+
     const upgradeBeaconController = await this.deployContract(
       network,
       'UpgradeBeaconController',
@@ -220,6 +237,12 @@ export class AbacusCoreDeployer<
         },
         db: 'db_path',
       };
+
+      const startingBlockNumber = this.startingBlockNumbers[network];
+
+      if (startingBlockNumber) {
+        rustConfig.index = { from: startingBlockNumber.toString() }
+      }
 
       this.multiProvider.remotes(network).forEach((remote) => {
         const inboxAddresses = addresses.inboxes[remote];
