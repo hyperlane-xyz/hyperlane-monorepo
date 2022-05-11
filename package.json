@@ -1,7 +1,7 @@
 {
   "name": "@abacus-network/monorepo",
   "scripts": {
-    "build": "tree node_modules && yarn workspaces foreach --parallel --topological run build",
+    "build": "yarn workspaces foreach --parallel --topological run build",
     "prettier": "yarn workspaces foreach --parallel run prettier"
   },
   "workspaces": [
