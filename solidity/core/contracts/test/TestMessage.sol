@@ -6,7 +6,11 @@ import {Message} from "../../libs/Message.sol";
 contract TestMessage {
     using Message for bytes;
 
-    function body(bytes calldata _message) external pure returns (bytes memory) {
+    function body(bytes calldata _message)
+        external
+        pure
+        returns (bytes memory)
+    {
         return _message.body();
     }
 
@@ -18,11 +22,19 @@ contract TestMessage {
         return _message.sender();
     }
 
-    function destination(bytes calldata _message) external pure returns (uint32) {
+    function destination(bytes calldata _message)
+        external
+        pure
+        returns (uint32)
+    {
         return _message.destination();
     }
 
-    function recipient(bytes calldata _message) external pure returns (bytes32) {
+    function recipient(bytes calldata _message)
+        external
+        pure
+        returns (bytes32)
+    {
         return _message.recipient();
     }
 
