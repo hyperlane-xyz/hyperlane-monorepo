@@ -29,7 +29,7 @@
   },
   "scripts": {
     "prettier": "prettier --write ./contracts ./test",
-    "build": "tree node_modules/@openzeppelin && hardhat compile && hardhat typechain && tsc && npm run copy-types",
+    "build": "tree ./node_modules && hardhat compile && hardhat typechain && tsc && npm run copy-types",
     "copy-types": "cp types/*.d.ts dist/",
     "coverage": "hardhat coverage",
     "test": "hardhat test"
@@ -37,7 +37,7 @@
   "license": "MIT OR Apache-2.0",
   "dependencies": {
     "@abacus-network/app": "^0.1.1",
-    "@abacus-network/core": "^0.1.1",
+    "@abacus-network/core": "^0.1.2",
     "@abacus-network/hardhat": "^0.1.1",
     "@abacus-network/utils": "^0.1.1",
     "@openzeppelin/contracts": "~3.4.2",
