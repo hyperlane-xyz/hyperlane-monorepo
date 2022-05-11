@@ -145,8 +145,14 @@ contract Inbox is IInbox, Version0, Common {
 
         // update message status as processed
         messages[_messageHash] = MessageStatus.Processed;
-        IMessageRecipient _recipient = IMessageRecipient(_message.recipientAddress());
-        _recipient.handle(_message.origin(), _message.sender(), _message.body());
+        IMessageRecipient _recipient = IMessageRecipient(
+            _message.recipientAddress()
+        );
+        _recipient.handle(
+            _message.origin(),
+            _message.sender(),
+            _message.body()
+        );
         // emit process results
         emit Process(_messageHash);
     }
