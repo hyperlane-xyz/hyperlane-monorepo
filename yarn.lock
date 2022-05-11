@@ -93,6 +93,7 @@ __metadata:
     ts-generator: ^0.1.1
     ts-node: ^10.1.0
     typechain: ^5.0.0
+    typescript: ^4.3.5
   languageName: unknown
   linkType: soft
 
