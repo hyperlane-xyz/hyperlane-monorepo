@@ -1,15 +1,14 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Version0} from "./Version0.sol";
 import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInbox} from "../interfaces/IInbox.sol";
-// ============ External Imports ============
-import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
 /**
  * @title Inbox
@@ -21,9 +20,8 @@ contract Inbox is IInbox, Version0, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-    using Message for bytes29;
+    using Message for bytes;
+    using TypeCasts for bytes32;
 
     // ============ Enums ============
 
@@ -116,7 +114,7 @@ contract Inbox is IInbox, Version0, Common {
         require(entered == 1, "!reentrant");
         entered = 0;
 
-        bytes32 _messageHash = keccak256(abi.encodePacked(_message, _index));
+        bytes32 _messageHash = _message.leaf(_index);
         // ensure that message has not been processed
         require(
             messages[_messageHash] == MessageStatus.None,
@@ -144,14 +142,25 @@ contract Inbox is IInbox, Version0, Common {
      * @param _messageHash keccak256 hash of the message
      */
     function _process(bytes calldata _message, bytes32 _messageHash) internal {
-        bytes29 _m = _message.ref(0);
+        (
+            uint32 origin,
+            bytes32 sender,
+            uint32 destination,
+            bytes32 recipient,
+            bytes calldata body
+        ) = _message.destructure();
+
         // ensure message was meant for this domain
-        require(_m.destination() == localDomain, "!destination");
+        require(destination == localDomain, "!destination");
 
         // update message status as processed
         messages[_messageHash] = MessageStatus.Processed;
-        IMessageRecipient _recipient = IMessageRecipient(_m.recipientAddress());
-        _recipient.handle(_m.origin(), _m.sender(), _m.body().clone());
+
+        IMessageRecipient(recipient.bytes32ToAddress()).handle(
+            origin,
+            sender,
+            body
+        );
         // emit process results
         emit Process(_messageHash);
     }

@@ -2,46 +2,63 @@
 pragma solidity >=0.6.11;
 
 import {Message} from "../../libs/Message.sol";
-import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
 contract TestMessage {
-    using Message for bytes29;
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
+    using Message for bytes;
 
-    function body(bytes memory _message) external view returns (bytes memory) {
-        return _message.ref(0).body().clone();
-    }
-
-    function origin(bytes memory _message) external pure returns (uint32) {
-        return _message.ref(0).origin();
-    }
-
-    function sender(bytes memory _message) external pure returns (bytes32) {
-        return _message.ref(0).sender();
-    }
-
-    function destination(bytes memory _message) external pure returns (uint32) {
-        return _message.ref(0).destination();
-    }
-
-    function recipient(bytes memory _message) external pure returns (bytes32) {
-        return _message.ref(0).recipient();
-    }
-
-    function recipientAddress(bytes memory _message)
+    function body(bytes calldata _message)
         external
         pure
-        returns (address)
+        returns (bytes calldata _body)
     {
-        return _message.ref(0).recipientAddress();
+        (, , , , _body) = _message.destructure();
     }
 
-    function leaf(bytes memory _message, uint256 _leafIndex)
+    function origin(bytes calldata _message)
         external
-        view
+        pure
+        returns (uint32 _origin)
+    {
+        (_origin, , , , ) = _message.destructure();
+    }
+
+    function sender(bytes calldata _message)
+        external
+        pure
+        returns (bytes32 _sender)
+    {
+        (, _sender, , , ) = _message.destructure();
+    }
+
+    function destination(bytes calldata _message)
+        external
+        pure
+        returns (uint32 _destination)
+    {
+        (, , _destination, , ) = _message.destructure();
+    }
+
+    function recipient(bytes calldata _message)
+        external
+        pure
+        returns (bytes32 _recipient)
+    {
+        (, , , _recipient, ) = _message.destructure();
+    }
+
+    function recipientAddress(bytes calldata _message)
+        external
+        pure
+        returns (address _recipient)
+    {
+        (, , , _recipient, ) = _message.destructureAddresses();
+    }
+
+    function leaf(bytes calldata _message, uint256 _leafIndex)
+        external
+        pure
         returns (bytes32)
     {
-        return _message.ref(0).leaf(_leafIndex);
+        return _message.leaf(_leafIndex);
     }
 }

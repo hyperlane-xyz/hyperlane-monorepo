@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Version0} from "./Version0.sol";
 import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MerkleTreeManager} from "./Merkle.sol";
 import {IOutbox} from "../interfaces/IOutbox.sol";
 
@@ -23,6 +24,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
+    using TypeCasts for address;
 
     // ============ Constants ============
 
@@ -107,7 +109,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     function dispatch(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
-        bytes memory _messageBody
+        bytes calldata _messageBody
     ) external override notFailed returns (uint256) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
         // The leaf has not been inserted yet at this point1
@@ -115,7 +117,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         // format the message into packed bytes
         bytes memory _message = Message.formatMessage(
             localDomain,
-            bytes32(uint256(uint160(msg.sender))),
+            msg.sender.addressToBytes32(),
             _destinationDomain,
             _recipientAddress,
             _messageBody
