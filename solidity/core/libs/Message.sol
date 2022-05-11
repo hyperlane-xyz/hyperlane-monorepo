@@ -40,35 +40,11 @@ library Message {
 
     /**
      * @notice Returns leaf of formatted message with provided fields.
-     * @param _origin Domain of home chain
-     * @param _sender Address of sender as bytes32
-     * @param _destination Domain of destination chain
-     * @param _recipient Address of recipient on destination chain as bytes32
-     * @param _body Raw bytes of message body
+     * @dev hash of abi packed message and leaf index.
+     * @param _message Raw bytes of message contents.
      * @param _leafIndex Index of the message in the tree
      * @return Leaf (hash) of formatted message
-     **/
-    function messageHash(
-        uint32 _origin,
-        bytes32 _sender,
-        uint32 _destination,
-        bytes32 _recipient,
-        bytes calldata _body,
-        uint256 _leafIndex
-    ) internal pure returns (bytes32) {
-        return
-            keccak256(
-                abi.encodePacked(
-                    _origin,
-                    _sender,
-                    _destination,
-                    _recipient,
-                    _body,
-                    _leafIndex
-                )
-            );
-    }
-
+     */
     function leaf(bytes calldata _message, uint256 _leafIndex)
         internal
         pure
@@ -77,6 +53,16 @@ library Message {
         return keccak256(abi.encodePacked(_message, _leafIndex));
     }
 
+    /**
+     * @notice Decode raw message bytes into structured message fields.
+     * @dev Efficiently slices calldata into structured message fields.
+     * @param _message Raw bytes of message contents.
+     * @return origin Domain of home chain
+     * @return sender Address of sender as bytes32
+     * @return destination Domain of destination chain
+     * @return recipient Address of recipient on destination chain as bytes32
+     * @return body Raw bytes of message body
+     */
     function destructure(bytes calldata _message)
         internal
         pure
@@ -97,6 +83,16 @@ library Message {
         );
     }
 
+    /**
+     * @notice Decode raw message bytes into structured message fields.
+     * @dev Efficiently slices calldata into structured message fields.
+     * @param _message Raw bytes of message contents.
+     * @return origin Domain of home chain
+     * @return sender Address of sender as address (bytes20)
+     * @return destination Domain of destination chain
+     * @return recipient Address of recipient on destination chain as address (bytes20)
+     * @return body Raw bytes of message body
+     */
     function destructureAddresses(bytes calldata _message)
         internal
         pure
