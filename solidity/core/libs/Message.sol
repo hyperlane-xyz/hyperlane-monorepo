@@ -117,9 +117,9 @@ library Message {
         ) = destructure(_message);
         return (
             _origin,
-            _sender.toAddress(),
+            _sender.bytes32ToAddress(),
             destination,
-            _recipient.toAddress(),
+            _recipient.bytes32ToAddress(),
             body
         );
     }

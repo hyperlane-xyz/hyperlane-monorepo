@@ -117,7 +117,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         // format the message into packed bytes
         bytes memory _message = Message.formatMessage(
             localDomain,
-            msg.sender.toBytes32(),
+            msg.sender.addressToBytes32(),
             _destinationDomain,
             _recipientAddress,
             _messageBody
