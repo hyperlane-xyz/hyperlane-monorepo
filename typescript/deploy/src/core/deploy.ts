@@ -8,7 +8,7 @@ import {
   InterchainGasPaymaster__factory,
   OutboxValidatorManager__factory,
   Outbox__factory,
-  UpgradeBeaconController__factory,
+  UpgradeBeaconController__factory
 } from '@abacus-network/core';
 import {
   AbacusCore,
@@ -16,15 +16,11 @@ import {
   ChainName,
   CoreContractAddresses,
   CoreContracts,
-  DomainConnection,
-  InboxContracts,
+  DomainConnection, domains, InboxContracts,
   MailboxAddresses,
-  MultiProvider,
-  RemoteChainMap,
-  Remotes,
-  domains,
-  objMap,
-  promiseObjAll,
+  MultiProvider, objMap,
+  promiseObjAll, RemoteChainMap,
+  Remotes
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 

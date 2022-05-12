@@ -10,7 +10,7 @@ import {
   MultiProvider,
   objMap
 } from '@abacus-network/sdk';
-import '@nomiclabs/hardhat-waffle';
+
 import { TestNetworks } from '../config/environments/test/domains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
 import { AbacusCoreChecker } from '../src/core';

@@ -1,12 +1,12 @@
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
+
 import {
   getCoreContractsSdkFilepath,
   getCoreEnvironmentConfig,
   getCoreRustDirectory,
   getCoreVerificationDirectory,
-  getEnvironment
+  getEnvironment,
 } from './utils';
-
 
 async function main() {
   const environment = await getEnvironment();

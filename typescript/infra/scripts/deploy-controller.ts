@@ -10,8 +10,6 @@ import {
   getEnvironment
 } from './utils';
 
-
-
 async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
