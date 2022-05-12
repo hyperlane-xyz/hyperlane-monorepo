@@ -1,20 +1,21 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use abacus_core::{accumulator::merkle::Proof, MessageStatus, *};
-use abacus_core::{
-    AbacusCommon, AbacusCommonIndexer, AbacusMessage, ChainCommunicationError, Checkpoint,
-    CheckpointMeta, CheckpointWithMeta, ContractLocator, Inbox, TxOutcome,
-};
+use std::{error::Error as StdError, sync::Arc};
+
 use async_trait::async_trait;
 use ethers::contract::abigen;
 use ethers::core::types::{H256, U256};
 use eyre::Result;
 use tracing::instrument;
 
-use std::{error::Error as StdError, sync::Arc};
+use abacus_core::{accumulator::merkle::Proof, MessageStatus, *};
+use abacus_core::{
+    AbacusCommon, AbacusCommonIndexer, AbacusMessage, ChainCommunicationError, Checkpoint,
+    CheckpointMeta, CheckpointWithMeta, ContractLocator, Inbox, TxOutcome,
+};
 
-use crate::report_tx;
+use crate::report_tx::report_tx;
 
 abigen!(
     EthereumInboxInternal,
@@ -256,7 +257,7 @@ where
         );
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
-        Ok(report_tx!(gassed).into())
+        Ok(report_tx(gassed).await?.into())
     }
 
     #[tracing::instrument(err)]

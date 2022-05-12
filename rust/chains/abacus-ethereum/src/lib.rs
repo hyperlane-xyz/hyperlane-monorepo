@@ -4,12 +4,20 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use abacus_core::*;
+use std::sync::Arc;
+
 use ethers::providers::Middleware;
 use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
 use eyre::Result;
 use num::Num;
-use std::sync::Arc;
+
+use abacus_core::*;
+pub use retrying::{RetryingProvider, RetryingProviderError};
+
+#[cfg(not(doctest))]
+pub use crate::{inbox::*, outbox::*, validator_manager::*};
+
+mod report_tx;
 
 #[macro_use]
 mod macros;
@@ -28,7 +36,6 @@ mod validator_manager;
 
 /// Retrying Provider
 mod retrying;
-pub use retrying::{RetryingProvider, RetryingProviderError};
 
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -53,9 +60,6 @@ impl Default for Connection {
         }
     }
 }
-
-#[cfg(not(doctest))]
-pub use crate::{inbox::*, outbox::*, validator_manager::*};
 
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
