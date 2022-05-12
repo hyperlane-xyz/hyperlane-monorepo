@@ -12,10 +12,7 @@ async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment) as any;
   const multiProvider = await config.getMultiProvider();
-  const deployer = new AbacusCoreDeployer(
-    multiProvider,
-    config.core,
-  );
+  const deployer = new AbacusCoreDeployer(multiProvider, config.core);
 
   const addresses = await deployer.deploy();
 
