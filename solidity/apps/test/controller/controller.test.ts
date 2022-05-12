@@ -156,10 +156,9 @@ describe('ControllerRouter', async () => {
 
     it('creates a checkpoint when setting a remote controller', async () => {
       const newController = controller.address;
-      await expect(router.setControllerRemote(remoteDomain, newController)).to.emit(
-        outbox,
-        'Checkpoint',
-      );
+      await expect(
+        router.setControllerRemote(remoteDomain, newController),
+      ).to.emit(outbox, 'Checkpoint');
     });
 
     it('controller can set remote abacusConnectionManager', async () => {
@@ -507,9 +506,9 @@ describe('ControllerRouter', async () => {
     });
 
     it('controller cannot exit recovery', async () => {
-      await expect(router.connect(controller).exitRecovery()).to.be.revertedWith(
-        '!recoveryManager',
-      );
+      await expect(
+        router.connect(controller).exitRecovery(),
+      ).to.be.revertedWith('!recoveryManager');
     });
   });
 });

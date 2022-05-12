@@ -1,7 +1,7 @@
 import { AbacusCore, ControllerApp } from '@abacus-network/sdk';
 
-import { AbacusCoreChecker } from '../src/core';
 import { ControllerChecker } from '../src/controller';
+import { AbacusCoreChecker } from '../src/core';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
@@ -17,10 +17,7 @@ async function check() {
   }
 
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
-  const controller = ControllerApp.fromEnvironment(
-    environment,
-    multiProvider,
-  );
+  const controller = ControllerApp.fromEnvironment(environment, multiProvider);
 
   const controllerChecker = new ControllerChecker(
     multiProvider,

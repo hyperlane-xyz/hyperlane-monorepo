@@ -3,9 +3,9 @@ import { ethers } from 'ethers';
 
 import { AbacusRouterChecker } from '@abacus-network/deploy';
 import {
-  ControllerApp,
   ChainMap,
   ChainName,
+  ControllerApp,
   MultiProvider,
   objMap,
 } from '@abacus-network/sdk';

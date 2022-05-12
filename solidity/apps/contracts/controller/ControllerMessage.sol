@@ -258,7 +258,11 @@ library ControllerMessage {
         return TypedMemView.nullView();
     }
 
-    function mustBeSetController(bytes29 _view) internal pure returns (bytes29) {
+    function mustBeSetController(bytes29 _view)
+        internal
+        pure
+        returns (bytes29)
+    {
         return tryAsSetController(_view).assertValid();
     }
 

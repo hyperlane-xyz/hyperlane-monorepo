@@ -3,9 +3,9 @@ import path from 'path';
 
 import {
   AbacusCore,
-  ControllerApp,
   ChainMap,
   ControllerAddresses,
+  ControllerApp,
   MultiProvider,
 } from '@abacus-network/sdk';
 
@@ -13,8 +13,8 @@ import { TestNetworks } from '../config/environments/test/domains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
 import {
   ControllerChecker,
-  ControllerDeployer,
   ControllerConfig,
+  ControllerDeployer,
 } from '../src/controller';
 
 describe('controller', async () => {
@@ -32,11 +32,7 @@ describe('controller', async () => {
 
     const core = AbacusCore.fromEnvironment(environment, multiProvider);
     console.log(core);
-    deployer = new ControllerDeployer(
-      multiProvider,
-      controllerConfig,
-      core,
-    );
+    deployer = new ControllerDeployer(multiProvider, controllerConfig, core);
   });
 
   it('deploys', async () => {
@@ -54,7 +50,7 @@ describe('controller', async () => {
     const checker = new ControllerChecker(
       multiProvider,
       controller,
-      controllerConfig
+      controllerConfig,
     );
     await checker.check();
   });

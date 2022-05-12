@@ -3,9 +3,9 @@ import { utils } from '@abacus-network/deploy';
 import { CoreEnvironmentConfig } from '../../../src/config';
 
 import { agent } from './agent';
+import { controller } from './controller';
 import { core } from './core';
 import { TestNetworks, testConfigs } from './domains';
-import { controller } from './controller';
 import { infra } from './infra';
 
 export const environment: CoreEnvironmentConfig<TestNetworks> = {

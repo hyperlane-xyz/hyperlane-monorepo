@@ -1,13 +1,13 @@
 import { AbacusCore, objMap } from '@abacus-network/sdk';
 
-import { AbacusCoreDeployer } from '../src/core';
 import { ControllerDeployer } from '../src/controller';
+import { AbacusCoreDeployer } from '../src/core';
 
 import {
-  getCoreEnvironmentConfig,
-  getEnvironment,
   getControllerContractsSdkFilepath,
   getControllerVerificationDirectory,
+  getCoreEnvironmentConfig,
+  getEnvironment,
 } from './utils';
 
 async function main() {
