@@ -21,7 +21,6 @@ tracing-futures = "0.2"
 tracing-subscriber = { version = "0.3", features = ["json"] }
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
 mockall = "0.10.2"
-const_format = "0.2"
 
 abacus-core = { path = "../abacus-core" }
 abacus-ethereum = { path = "../chains/abacus-ethereum"}

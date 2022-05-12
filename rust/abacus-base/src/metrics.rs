@@ -1,6 +1,7 @@
 //! Useful metrics that all agents should track.
 
 use std::collections::HashMap;
+use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -8,7 +9,7 @@ use eyre::Result;
 use prometheus::{
     histogram_opts, labels, opts, register_histogram_vec_with_registry,
     register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, Encoder,
-    HistogramVec, IntCounterVec, IntGaugeVec, Opts, Registry,
+    HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::task::JoinHandle;
 
@@ -20,15 +21,19 @@ const PROCESS_HISTOGRAM_BUCKETS: &[f64] = &[
 
 /// Macro to prefix a string with the namespace.
 macro_rules! namespaced {
-    ($name:literal) => {
-        const_format::concatcp!(NAMESPACE, "_", $name)
+    ($name:expr) => {
+        format!("{NAMESPACE}_{}", $name)
     };
 }
 
-#[derive(Debug)]
 /// Metrics for a particular domain
 pub struct CoreMetrics {
+    /// Metrics registry for adding new metrics and gathering reports
+    registry: Registry,
+    const_labels: HashMap<String, String>,
+    listen_port: Option<u16>,
     agent_name: String,
+
     transactions: IntCounterVec,
     wallet_balance: IntGaugeVec,
     rpc_latencies: HistogramVec,
@@ -36,9 +41,6 @@ pub struct CoreMetrics {
     span_events: IntCounterVec,
     last_known_message_leaf_index: IntGaugeVec,
     retry_queue_length: IntGaugeVec,
-    listen_port: Option<u16>,
-    /// Metrics registry for adding new metrics and gathering reports
-    registry: Registry,
 }
 
 impl CoreMetrics {
@@ -52,22 +54,20 @@ impl CoreMetrics {
         listen_port: Option<u16>,
         registry: Registry,
     ) -> prometheus::Result<CoreMetrics> {
-        let labels = labels! {
-            namespaced!("baselib_version") => env!("CARGO_PKG_VERSION"),
-            "agent" => for_agent,
+        let const_labels: HashMap<String, String> = labels! {
+            namespaced!("baselib_version") => env!("CARGO_PKG_VERSION").into(),
+            "agent".into() => for_agent.into(),
         };
-        let owned_labels = || {
-            labels
-                .iter()
-                .map(|(&k, &v)| (k.into(), v.into()))
-                .collect::<HashMap<String, String>>()
-        };
+        let const_labels_ref = const_labels
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect::<HashMap<_, _>>();
 
         let transactions = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("transactions_total"),
                 "Number of transactions sent by this agent since boot",
-                labels
+                const_labels_ref
             ),
             &["chain", "wallet"],
             registry
@@ -77,7 +77,7 @@ impl CoreMetrics {
             opts!(
                 namespaced!("wallet_balance_total"),
                 "Balance of the smart contract wallet",
-                labels
+                const_labels_ref
             ),
             &["chain", "wallet"],
             registry
@@ -88,7 +88,7 @@ impl CoreMetrics {
                 namespaced!("rpc_duration_seconds"),
                 "Duration from dispatch to receipt-of-response for RPC calls",
                 NETWORK_HISTOGRAM_BUCKETS.into(),
-                owned_labels()
+                const_labels.clone()
             ),
             &["chain", "method"],
             registry
@@ -99,7 +99,7 @@ impl CoreMetrics {
                 namespaced!("span_duration_seconds"),
                 "Duration from tracing span creation to span destruction",
                 PROCESS_HISTOGRAM_BUCKETS.into(),
-                owned_labels()
+                const_labels.clone()
             ),
             &["span_name", "span_target"],
             registry
@@ -111,7 +111,7 @@ impl CoreMetrics {
             opts!(
                 namespaced!("span_events_total"),
                 "Number of span events (logs and time metrics) emitted by level",
-                labels
+                const_labels_ref
             ),
             &["event_level"],
             registry
@@ -129,7 +129,7 @@ impl CoreMetrics {
             opts!(
                 namespaced!("last_known_message_leaf_index"),
                 "Last known message leaf index",
-                labels
+                const_labels_ref
             ),
             &["phase", "origin", "remote"],
             registry
@@ -139,7 +139,7 @@ impl CoreMetrics {
             opts!(
                 namespaced!("processor_retry_queue"),
                 "Retry queue length of MessageProcessor",
-                labels
+                const_labels_ref
             ),
             &["origin", "remote"],
             registry
@@ -149,6 +149,7 @@ impl CoreMetrics {
             agent_name: for_agent.into(),
             registry,
             listen_port,
+            const_labels,
 
             transactions,
             wallet_balance,
@@ -160,45 +161,52 @@ impl CoreMetrics {
         })
     }
 
-    /// Register an int gauge.
-    ///
-    /// If this metric is per-inbox, use `new_inbox_int_gauge`
+    /// Create and register a new int gauge.
     pub fn new_int_gauge(
         &self,
         metric_name: &str,
         help: &str,
         labels: &[&str],
     ) -> Result<IntGaugeVec> {
-        let gauge = IntGaugeVec::new(
-            Opts::new(metric_name, help)
-                .namespace("abacus")
-                .const_label("VERSION", env!("CARGO_PKG_VERSION")),
+        Ok(register_int_gauge_vec_with_registry!(
+            opts!(namespaced!(metric_name), help, self.const_labels_str()),
             labels,
-        )?;
-        self.registry.register(Box::new(gauge.clone()))?;
-
-        Ok(gauge)
+            self.registry
+        )?)
     }
 
-    /// Register an int counter.
-    ///
-    /// If this metric is per-inbox, use `new_inbox_int_counter`
+    /// Create and register a new int counter.
     pub fn new_int_counter(
         &self,
         metric_name: &str,
         help: &str,
         labels: &[&str],
     ) -> Result<IntCounterVec> {
-        let counter = IntCounterVec::new(
-            Opts::new(metric_name, help)
-                .namespace("abacus")
-                .const_label("VERSION", env!("CARGO_PKG_VERSION")),
+        Ok(register_int_counter_vec_with_registry!(
+            opts!(namespaced!(metric_name), help, self.const_labels_str()),
             labels,
-        )?;
+            self.registry
+        )?)
+    }
 
-        self.registry.register(Box::new(counter.clone()))?;
-
-        Ok(counter)
+    /// Create and register a new histogram.
+    pub fn new_histogram(
+        &self,
+        metric_name: &str,
+        help: &str,
+        labels: &[&str],
+        buckets: Vec<f64>,
+    ) -> Result<HistogramVec> {
+        Ok(register_histogram_vec_with_registry!(
+            histogram_opts!(
+                namespaced!(metric_name),
+                help,
+                buckets,
+                self.const_labels.clone()
+            ),
+            labels,
+            self.registry
+        )?)
     }
 
     /// Call with the new balance when gas is spent.
@@ -260,7 +268,7 @@ impl CoreMetrics {
     /// Run an HTTP server serving OpenMetrics format reports on `/metrics`
     ///
     /// This is compatible with Prometheus, which ought to be configured to scrape me!
-    pub fn run_http_server(self: Arc<CoreMetrics>) -> JoinHandle<()> {
+    pub fn run_http_server(self: Arc<Self>) -> JoinHandle<()> {
         use warp::Filter;
         if let Some(port) = self.listen_port {
             tracing::info!(port, "starting prometheus server on 0.0.0.0:{port}");
@@ -291,5 +299,22 @@ impl CoreMetrics {
             tracing::info!("not starting prometheus server");
             tokio::spawn(std::future::ready(()))
         }
+    }
+
+    fn const_labels_str(&self) -> HashMap<&str, &str> {
+        self.const_labels
+            .iter()
+            .map(|(k, v)| (k.as_str(), v.as_str()))
+            .collect()
+    }
+}
+
+impl Debug for CoreMetrics {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "CoreMetrics {{ agent_name: {}, listen_port: {:?} }}",
+            self.agent_name, self.listen_port
+        )
     }
 }
