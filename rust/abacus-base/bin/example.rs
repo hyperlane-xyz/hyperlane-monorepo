@@ -9,10 +9,7 @@ where
 {
     // Instantiate an agent
     let oa = OA::from_settings(settings).await?;
-    oa.as_ref()
-        .settings
-        .tracing
-        .start_tracing(oa.metrics().span_duration())?;
+    oa.as_ref().settings.tracing.start_tracing(&oa.metrics())?;
 
     // Run the agent
     oa.run_all(vec![]).await?

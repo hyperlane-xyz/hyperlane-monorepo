@@ -8,7 +8,7 @@ use eyre::Result;
 
 use abacus_base::Agent;
 
-use crate::{checkpointer::Checkpointer, settings::CheckpointerSettings as Settings};
+use crate::checkpointer::Checkpointer;
 
 mod checkpointer;
 mod settings;
@@ -20,7 +20,7 @@ async fn _main() -> Result<()> {
     #[cfg(not(feature = "oneline-errors"))]
     color_eyre::install()?;
 
-    let settings = Settings::new()?;
+    let settings = settings::CheckpointerSettings::new()?;
 
     let agent = Checkpointer::from_settings(settings).await?;
 
@@ -28,7 +28,7 @@ async fn _main() -> Result<()> {
         .as_ref()
         .settings
         .tracing
-        .start_tracing(agent.metrics().span_duration())?;
+        .start_tracing(&agent.metrics())?;
     let _ = agent.metrics().run_http_server();
 
     agent.run().await??;

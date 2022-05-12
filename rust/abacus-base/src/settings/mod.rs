@@ -37,8 +37,8 @@
 //!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
 
 use crate::{
-    AbacusAgentCore, AbacusCommonIndexers, CachingInbox, CachingOutbox, InboxContracts,
-    InboxValidatorManagers, OutboxIndexers,
+    AbacusAgentCore, AbacusCommonIndexers, CachingInbox, CachingOutbox, CoreMetrics,
+    InboxContracts, InboxValidatorManagers, OutboxIndexers,
 };
 use abacus_core::{
     db::{AbacusDB, DB},
@@ -331,12 +331,12 @@ impl Settings {
 
     /// Try to generate an agent core for a named agent
     pub async fn try_into_abacus_core(&self, name: &str) -> Result<AbacusAgentCore, Report> {
-        let metrics = Arc::new(crate::metrics::CoreMetrics::new(
+        let metrics = Arc::new(CoreMetrics::new(
             name,
             self.metrics
                 .as_ref()
                 .map(|v| v.parse::<u16>().expect("metrics port must be u16")),
-            Arc::new(prometheus::Registry::new()),
+            prometheus::Registry::new(),
         )?);
 
         let db = DB::from_path(&self.db)?;
