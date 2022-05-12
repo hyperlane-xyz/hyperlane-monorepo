@@ -4,8 +4,8 @@ use abacus_core::{
 };
 use abacus_test::mocks::inbox::MockInboxContract;
 use async_trait::async_trait;
-use color_eyre::eyre::Result;
 use ethers::core::types::H256;
+use eyre::Result;
 
 use abacus_ethereum::EthereumInbox;
 use std::str::FromStr;

@@ -8,7 +8,7 @@
 //! other entities can retrieve this chain-specific info.
 
 use async_trait::async_trait;
-use color_eyre::Result;
+use eyre::Result;
 
 use crate::{CheckpointWithMeta, RawCommittedMessage};
 

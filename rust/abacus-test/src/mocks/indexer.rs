@@ -1,7 +1,7 @@
 #![allow(non_snake_case)]
 
 use async_trait::async_trait;
-use color_eyre::Result;
+use eyre::Result;
 use mockall::*;
 
 use abacus_core::{AbacusCommonIndexer, OutboxIndexer, *};

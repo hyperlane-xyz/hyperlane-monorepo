@@ -1,8 +1,8 @@
 use std::convert::TryFrom;
 
 use crate::{AbacusError, AbacusMessage, Decode, Encode};
-use color_eyre::Result;
 use ethers::core::types::H256;
+use eyre::Result;
 use sha3::{Digest, Keccak256};
 
 /// A Stamped message that has been committed at some leaf index

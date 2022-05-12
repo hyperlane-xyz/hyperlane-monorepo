@@ -74,8 +74,8 @@ __metadata:
     "@abacus-network/utils": ^0.1.1
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
-    "@openzeppelin/contracts": ^3.4.2
-    "@openzeppelin/contracts-upgradeable": ~3.4.2
+    "@openzeppelin/contracts": ^4.6.0
+    "@openzeppelin/contracts-upgradeable": ^4.6.0
     "@summa-tx/memview-sol": ^2.0.0
     "@typechain/ethers-v5": ~7.0.0
     "@typechain/hardhat": ^2.0.1
@@ -93,6 +93,7 @@ __metadata:
     ts-generator: ^0.1.1
     ts-node: ^10.1.0
     typechain: ^5.0.0
+    typescript: ^4.3.5
   languageName: unknown
   linkType: soft
 
@@ -3064,6 +3065,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@openzeppelin/contracts-upgradeable@npm:^4.6.0":
+  version: 4.6.0
+  resolution: "@openzeppelin/contracts-upgradeable@npm:4.6.0"
+  checksum: f9802c9cccf31bd475412ba5d862ed15eed5352302c30b29c38f84aed2dcfe0d957687935a72068f3d44292a4a55b0ff26cd018b2e14a47f16f74f087009aa29
+  languageName: node
+  linkType: hard
+
 "@openzeppelin/contracts-upgradeable@npm:~3.4.2":
   version: 3.4.2
   resolution: "@openzeppelin/contracts-upgradeable@npm:3.4.2"
@@ -3071,7 +3079,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts@npm:^3.4.2, @openzeppelin/contracts@npm:~3.4.2":
+"@openzeppelin/contracts@npm:^4.6.0":
+  version: 4.6.0
+  resolution: "@openzeppelin/contracts@npm:4.6.0"
+  checksum: 1de06211b279d7aef2bb9abbdd58eb80c71256f7e888a10855ea23bb06ef8723b22fb550d06af60247dfbd7f0f23de9821732012d7541a823339070a8442d1db
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/contracts@npm:~3.4.2":
   version: 3.4.2
   resolution: "@openzeppelin/contracts@npm:3.4.2"
   checksum: 0c90f029fe50a49643588e4c8670dae3bbf31795133a6ddce9bdcbc258486332700bb732287baabf7bf807f39182fe8ea2ffa19aa5caf359b1b9c0f083280748

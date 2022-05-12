@@ -1,7 +1,7 @@
 use abacus_core::SignedCheckpoint;
 
 use async_trait::async_trait;
-use color_eyre::Result;
+use eyre::Result;
 
 use crate::traits::CheckpointSyncer;
 

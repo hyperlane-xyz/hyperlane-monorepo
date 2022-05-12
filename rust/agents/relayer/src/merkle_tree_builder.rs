@@ -1,14 +1,16 @@
-use crate::prover::{Prover, ProverError};
+use std::fmt::Display;
+
+use ethers::core::types::H256;
+use eyre::Result;
+use tracing::{debug, error, instrument};
+
 use abacus_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     db::{AbacusDB, DbError},
     ChainCommunicationError, Checkpoint, CommittedMessage,
 };
-use color_eyre::eyre::Result;
-use ethers::core::types::H256;
-use std::fmt::Display;
 
-use tracing::{debug, error, instrument};
+use crate::prover::{Prover, ProverError};
 
 #[derive(Debug)]
 /// Struct to update prover

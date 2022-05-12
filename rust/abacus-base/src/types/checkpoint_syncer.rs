@@ -5,8 +5,7 @@ use tracing::instrument;
 
 use abacus_core::SignedCheckpoint;
 use async_trait::async_trait;
-use color_eyre::Report;
-use color_eyre::Result;
+use eyre::{Report, Result};
 
 use crate::S3Storage;
 use crate::{CheckpointSyncer, LocalStorage, MultisigCheckpointSyncer};

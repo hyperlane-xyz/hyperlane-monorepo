@@ -1,7 +1,7 @@
 use abacus_core::{AbacusCommonIndexer, CheckpointWithMeta, OutboxIndexer, RawCommittedMessage};
 use abacus_test::mocks::indexer::MockAbacusIndexer;
 use async_trait::async_trait;
-use color_eyre::Result;
+use eyre::Result;
 
 /// Outbox/Inbox CommonIndexer type
 #[derive(Debug)]

@@ -1,20 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import "@summa-tx/memview-sol/contracts/TypedMemView.sol";
-
 library TypeCasts {
-    using TypedMemView for bytes;
-    using TypedMemView for bytes29;
-
-    function coerceBytes32(string memory _s)
-        internal
-        pure
-        returns (bytes32 _b)
-    {
-        _b = bytes(_s).ref(0).index(0, uint8(bytes(_s).length));
-    }
-
     // treat it as a null-terminated string of max 32 bytes
     function coerceString(bytes32 _buf)
         internal

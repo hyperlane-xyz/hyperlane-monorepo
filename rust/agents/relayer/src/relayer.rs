@@ -1,13 +1,12 @@
-use abacus_core::AbacusCommon;
 use async_trait::async_trait;
-use color_eyre::{eyre::Context, Result};
-
+use eyre::{Context, Result};
 use tokio::task::JoinHandle;
 use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_base::{
     AbacusAgentCore, Agent, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
+use abacus_core::AbacusCommon;
 
 use crate::{
     checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,

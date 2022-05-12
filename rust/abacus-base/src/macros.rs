@@ -43,6 +43,10 @@ macro_rules! decl_agent {
     };
 }
 
+/// Export this so they don't need to import paste.
+#[doc(hidden)]
+pub use paste;
+
 #[macro_export]
 /// Declare a new settings block
 ///
@@ -70,7 +74,7 @@ macro_rules! decl_settings {
             $($(#[$tags:meta])* $prop:ident: $type:ty,)*
         }
     ) => {
-        paste::paste! {
+        abacus_base::paste::paste! {
             #[derive(Debug, serde::Deserialize)]
             #[serde(rename_all = "camelCase")]
             #[doc = "Settings for `" $name]
