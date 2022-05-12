@@ -1,20 +1,20 @@
-import { AbacusCoreDeployer, CoreConfig } from "@abacus-network/deploy";
+import '@nomiclabs/hardhat-waffle';
+import { ethers } from 'hardhat';
+import path from 'path';
+
+import { AbacusCoreDeployer, CoreConfig } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainMap,
   CoreContractAddresses,
   MultiProvider,
-  objMap
+  objMap,
 } from '@abacus-network/sdk';
-import '@nomiclabs/hardhat-waffle';
-import { ethers } from 'hardhat';
-import path from 'path';
+
 import { TestNetworks } from '../config/environments/test/domains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
 import { AbacusCoreChecker } from '../src/core';
-import { AbacusCoreInfraDeployer } from "../src/core/deploy";
-
-
+import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 
 describe('core', async () => {
   const environment = 'test';

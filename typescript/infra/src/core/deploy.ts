@@ -1,7 +1,9 @@
-import { AbacusAppDeployer, AbacusCoreDeployer } from "@abacus-network/deploy";
-import { ChainName, domains, objMap } from "@abacus-network/sdk";
-import path from "path";
-import { DeployEnvironment, RustConfig } from "../config";
+import path from 'path';
+
+import { AbacusAppDeployer, AbacusCoreDeployer } from '@abacus-network/deploy';
+import { ChainName, domains, objMap } from '@abacus-network/sdk';
+
+import { DeployEnvironment, RustConfig } from '../config';
 
 export class AbacusCoreInfraDeployer<
   Networks extends ChainName,

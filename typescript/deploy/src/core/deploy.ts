@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import {
   AbacusConnectionManager__factory,
   InboxValidatorManager,
@@ -5,7 +7,8 @@ import {
   Inbox__factory,
   InterchainGasPaymaster__factory,
   OutboxValidatorManager__factory,
-  Outbox__factory, UpgradeBeaconController__factory
+  Outbox__factory,
+  UpgradeBeaconController__factory,
 } from '@abacus-network/core';
 import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
@@ -13,14 +16,18 @@ import {
   ChainMap,
   ChainName,
   CoreContractAddresses,
-  CoreContracts, DomainConnection, domains, InboxContracts,
+  CoreContracts,
+  DomainConnection,
+  InboxContracts,
   MailboxAddresses,
-  MultiProvider, objMap,
-  promiseObjAll, RemoteChainMap,
-  Remotes
+  MultiProvider,
+  RemoteChainMap,
+  Remotes,
+  domains,
+  objMap,
+  promiseObjAll,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import { ethers } from 'ethers';
 
 export type ValidatorManagerConfig = {
   validators: Array<types.Address>;
@@ -31,7 +38,7 @@ export type CoreConfig = {
   validatorManager: ValidatorManagerConfig;
 };
 
-type FactoryBuilder = (signer: ethers.Signer) => ethers.ContractFactory
+type FactoryBuilder = (signer: ethers.Signer) => ethers.ContractFactory;
 
 export class AbacusCoreDeployer<
   Networks extends ChainName,
@@ -40,9 +47,11 @@ export class AbacusCoreDeployer<
   CoreConfig,
   CoreContractAddresses<Networks, any>
 > {
-  inboxFactoryBuilder: FactoryBuilder = (signer: ethers.Signer) => new Inbox__factory(signer);
-  outboxFactoryBuilder: FactoryBuilder = (signer: ethers.Signer) => new Outbox__factory(signer);
-  
+  inboxFactoryBuilder: FactoryBuilder = (signer: ethers.Signer) =>
+    new Inbox__factory(signer);
+  outboxFactoryBuilder: FactoryBuilder = (signer: ethers.Signer) =>
+    new Outbox__factory(signer);
+
   startingBlockNumbers: ChainMap<Networks, number | undefined>;
 
   constructor(
@@ -59,7 +68,7 @@ export class AbacusCoreDeployer<
   ): Promise<CoreContractAddresses<Networks, Local>> {
     const dc = this.multiProvider.getDomainConnection(network);
     const signer = dc.signer!;
-    
+
     const provider = dc.provider!;
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[network] = startingBlockNumber;
