@@ -7,8 +7,10 @@ import {
   getControllerContractsSdkFilepath,
   getControllerVerificationDirectory,
   getCoreEnvironmentConfig,
-  getEnvironment,
+  getEnvironment
 } from './utils';
+
+
 
 async function main() {
   const environment = await getEnvironment();

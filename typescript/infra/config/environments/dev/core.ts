@@ -1,6 +1,5 @@
 import { CoreConfig } from '@abacus-network/deploy';
 import { ChainMap } from '@abacus-network/sdk';
-
 import { DevNetworks } from './domains';
 
 export const core: ChainMap<DevNetworks, CoreConfig> = {

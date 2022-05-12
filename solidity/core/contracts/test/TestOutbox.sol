@@ -5,8 +5,6 @@ pragma solidity >=0.8.0;
 import "../Outbox.sol";
 
 contract TestOutbox is Outbox {
-    constructor(uint32 _localDomain) Outbox(_localDomain) {} // solhint-disable-line no-empty-blocks
-
     function destinationAndNonce(uint32 _destination, uint32 _nonce)
         external
         pure

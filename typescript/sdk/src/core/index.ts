@@ -4,13 +4,13 @@ export {
   CoreContracts,
   coreFactories,
   InboxContracts,
-  MailboxAddresses,
+  MailboxAddresses
 } from './contracts';
 export { environments as coreEnvironments } from './environments';
 export {
   AbacusLifecyleEvent,
   AnnotatedDispatch,
-  AnnotatedLifecycleEvent,
+  AnnotatedLifecycleEvent
 } from './events';
 export {
   AbacusMessage,
@@ -19,5 +19,6 @@ export {
   parseMessage,
   resolveDomain,
   resolveId,
-  resolveNetworks,
+  resolveNetworks
 } from './message';
+
