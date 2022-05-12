@@ -1,14 +1,14 @@
+import { AbacusCoreDeployer } from '@abacus-network/deploy';
 import { AbacusCore, objMap } from '@abacus-network/sdk';
-
-import { AbacusCoreDeployer } from '../src/core';
 import { AbacusGovernanceDeployer } from '../src/governance';
-
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
   getGovernanceContractsSdkFilepath,
-  getGovernanceVerificationDirectory,
+  getGovernanceVerificationDirectory
 } from './utils';
+
+
 
 async function main() {
   const environment = await getEnvironment();

@@ -1,11 +1,9 @@
-import { expect } from 'chai';
-import { PopulatedTransaction } from 'ethers';
-
 import { MultisigValidatorManager__factory } from '@abacus-network/core';
 import {
   CheckerViolation,
+  CoreConfig,
   ProxyViolationType,
-  UpgradeBeaconViolation,
+  UpgradeBeaconViolation
 } from '@abacus-network/deploy';
 import {
   AbacusCore,
@@ -14,16 +12,17 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  objMap,
+  objMap
 } from '@abacus-network/sdk';
-
+import { expect } from 'chai';
+import { PopulatedTransaction } from 'ethers';
 import {
   AbacusCoreChecker,
   CoreViolationType,
   ValidatorViolation,
-  ValidatorViolationType,
+  ValidatorViolationType
 } from './check';
-import { CoreConfig } from './types';
+
 
 interface DomainedCall {
   network: ChainName;

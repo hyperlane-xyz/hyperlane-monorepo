@@ -1,24 +1,26 @@
-import '@nomiclabs/hardhat-waffle';
-import { ethers } from 'hardhat';
-import path from 'path';
-
+import { AbacusCoreDeployer, CoreConfig } from "@abacus-network/deploy";
 import {
   AbacusCore,
   ChainMap,
   CoreContractAddresses,
   MultiProvider,
-  objMap,
+  objMap
 } from '@abacus-network/sdk';
-
+import '@nomiclabs/hardhat-waffle';
+import { ethers } from 'hardhat';
+import path from 'path';
 import { TestNetworks } from '../config/environments/test/domains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
-import { AbacusCoreChecker, AbacusCoreDeployer, CoreConfig } from '../src/core';
+import { AbacusCoreChecker } from '../src/core';
+import { AbacusCoreInfraDeployer } from "../src/core/deploy";
+
+
 
 describe('core', async () => {
   const environment = 'test';
 
   let multiProvider: MultiProvider<TestNetworks>;
-  let deployer: AbacusCoreDeployer<TestNetworks>;
+  let deployer: AbacusCoreInfraDeployer<TestNetworks>;
   let core: AbacusCore<TestNetworks>;
   let addresses: ChainMap<
     TestNetworks,
@@ -31,7 +33,7 @@ describe('core', async () => {
     const config = getCoreEnvironmentConfig(environment);
     multiProvider = await config.getMultiProvider();
     coreConfig = config.core;
-    deployer = new AbacusCoreDeployer(multiProvider, coreConfig);
+    deployer = new AbacusCoreInfraDeployer(multiProvider, coreConfig);
     const [, owner] = await ethers.getSigners();
     owners = objMap(config.transactionConfigs, () => owner.address);
   });

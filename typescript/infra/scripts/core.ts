@@ -1,18 +1,21 @@
-import { AbacusCoreDeployer } from '../src/core';
-
+import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 import {
   getCoreContractsSdkFilepath,
   getCoreEnvironmentConfig,
   getCoreRustDirectory,
   getCoreVerificationDirectory,
-  getEnvironment,
+  getEnvironment
 } from './utils';
+
 
 async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment) as any;
   const multiProvider = await config.getMultiProvider();
-  const deployer = new AbacusCoreDeployer(multiProvider, config.core);
+  const deployer = new AbacusCoreInfraDeployer(
+    multiProvider,
+    config.core.validatorManagers,
+  );
 
   const addresses = await deployer.deploy();
 

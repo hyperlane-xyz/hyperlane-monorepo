@@ -1,8 +1,8 @@
+import { CoreConfig } from '@abacus-network/deploy';
 import { ChainMap } from '@abacus-network/sdk';
-
-import { CoreConfig } from '../../../src/core';
-
 import { TestNetworks } from './domains';
+
+
 
 export const core: ChainMap<TestNetworks, CoreConfig> = {
   // Hardhat accounts 1-4

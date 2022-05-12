@@ -1,20 +1,15 @@
-import { expect } from 'chai';
-
 import { MultisigValidatorManager } from '@abacus-network/core';
-import { AbacusAppChecker, CheckerViolation } from '@abacus-network/deploy';
+import { AbacusAppChecker, CheckerViolation, CoreConfig } from '@abacus-network/deploy';
 import {
   AbacusCore,
-  ChainName,
-  MailboxAddresses,
-  domains,
-  objMap,
-  promiseObjAll,
+  ChainName, domains, MailboxAddresses, objMap,
+  promiseObjAll
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-
+import { expect } from 'chai';
 import { setDifference } from '../utils/utils';
 
-import { CoreConfig } from './types';
+
 
 export enum CoreViolationType {
   ValidatorManager = 'ValidatorManager',

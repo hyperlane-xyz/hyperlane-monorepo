@@ -1,12 +1,11 @@
-import { EnvironmentConfig } from '@abacus-network/deploy';
+import { CoreConfig, EnvironmentConfig } from '@abacus-network/deploy';
 import { ChainMap, ChainName, MultiProvider } from '@abacus-network/sdk';
-
 import { environments } from '../../config/environments';
-import { CoreConfig } from '../core';
 import { GovernanceConfig } from '../governance';
-
 import { AgentConfig } from './agent';
 import { InfrastructureConfig } from './infrastructure';
+
+
 
 export const EnvironmentNames = Object.keys(environments);
 export type DeployEnvironment = keyof typeof environments;
