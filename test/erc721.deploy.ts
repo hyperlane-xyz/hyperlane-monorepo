@@ -1,32 +1,37 @@
 import { TestAbacusDeploy, TestRouterDeploy } from '@abacus-network/hardhat';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
-import { AbcToken, AbcToken__factory } from '../types';
+import { AbcERC721, AbcERC721__factory } from '../types';
 
 export type TokenConfig = {
   signer: ethers.Signer;
   name: string;
   symbol: string;
-  totalSupply: ethers.BigNumberish;
+  mintAmount: ethers.BigNumberish;
 };
 
-export class TokenDeploy extends TestRouterDeploy<AbcToken, TokenConfig> {
+type ConfigMap = {
+  [domain: number]: TokenConfig;
+};
+
+export class AbcERC721Deploy extends TestRouterDeploy<AbcERC721, ConfigMap> {
   async deployInstance(
     domain: types.Domain,
     abacus: TestAbacusDeploy,
-  ): Promise<AbcToken> {
-    const tokenFactory = new AbcToken__factory(this.config.signer);
+  ): Promise<AbcERC721> {
+    const localConfig = this.config[domain];
+    const tokenFactory = new AbcERC721__factory(localConfig.signer);
     const token = await tokenFactory.deploy();
     await token.initialize(
       abacus.abacusConnectionManager(domain).address,
-      this.config.totalSupply,
-      this.config.name,
-      this.config.symbol,
+      localConfig.mintAmount,
+      localConfig.name,
+      localConfig.symbol,
     );
     return token;
   }
 
-  router(domain: types.Domain): AbcToken {
+  router(domain: types.Domain) {
     return this.instances[domain];
   }
 }
