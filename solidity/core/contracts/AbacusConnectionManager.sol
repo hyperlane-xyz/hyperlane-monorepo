@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.0;
 pragma abicoder v2;
 
 // ============ Internal Imports ============
@@ -9,8 +9,7 @@ import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.s
 
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
-import {EnumerableSet} from "@openzeppelin/contracts/utils/EnumerableSet.sol";
+import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 /**
  * @title AbacusConnectionManager
@@ -19,7 +18,6 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/EnumerableSet.sol";
  * domains.
  */
 contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
-    using SafeMath for uint256;
     using EnumerableSet for EnumerableSet.AddressSet;
 
     // ============ Public Storage ============
@@ -129,7 +127,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
         ];
         uint256 length = _inboxes.length();
         address[] memory ret = new address[](length);
-        for (uint256 i = 0; i < length; i = i.add(1)) {
+        for (uint256 i = 0; i < length; i += 1) {
             ret[i] = _inboxes.at(i);
         }
         return ret;
