@@ -5,14 +5,14 @@ import { CoreEnvironmentConfig } from '../../../src/config';
 import { agent } from './agent';
 import { core } from './core';
 import { TestNetworks, testConfigs } from './domains';
-import { governance } from './governance';
+import { controller } from './controller';
 import { infra } from './infra';
 
 export const environment: CoreEnvironmentConfig<TestNetworks> = {
   transactionConfigs: testConfigs,
   agent,
   core,
-  governance,
+  controller,
   infra,
   // NOTE: Does not work from hardhat.config.ts
   getMultiProvider: async () => {

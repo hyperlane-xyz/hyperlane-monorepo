@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 
 import { AbacusRouterChecker } from '@abacus-network/deploy';
 import {
-  AbacusGovernance,
+  ControllerApp,
   ChainMap,
   ChainName,
   MultiProvider,
@@ -11,30 +11,30 @@ import {
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-import { GovernanceConfig } from './types';
+import { ControllerConfig } from './types';
 
-export class AbacusGovernanceChecker<
+export class ControllerChecker<
   Networks extends ChainName,
 > extends AbacusRouterChecker<
   Networks,
-  AbacusGovernance<Networks>,
-  GovernanceConfig & {
+  ControllerApp<Networks>,
+  ControllerConfig & {
     owner: types.Address;
   }
 > {
   constructor(
     multiProvider: MultiProvider<any>,
-    app: AbacusGovernance<Networks>,
-    configMap: ChainMap<Networks, GovernanceConfig>,
+    app: ControllerApp<Networks>,
+    configMap: ChainMap<Networks, ControllerConfig>,
   ) {
     const joinedConfig = objMap(configMap, (_, config) => ({
       ...config,
-      owner: config.governor ?? ethers.constants.AddressZero,
+      owner: config.controller ?? ethers.constants.AddressZero,
     }));
     super(multiProvider, app, joinedConfig);
   }
 
-  // GovernanceRouter's owner is 0x0 on all chains except the governing chain as setup in the constructor
+  // ControllerRouter's owner is 0x0 on all chains except the controlling chain as setup in the constructor
   async checkOwnership(network: Networks): Promise<void> {
     const contracts = this.app.getContracts(network);
 
@@ -58,7 +58,7 @@ export class AbacusGovernanceChecker<
     // Outbox upgrade setup contracts are defined
     await this.checkUpgradeBeacon(
       network,
-      'GovernanceRouter',
+      'ControllerRouter',
       addresses.router,
     );
   }
