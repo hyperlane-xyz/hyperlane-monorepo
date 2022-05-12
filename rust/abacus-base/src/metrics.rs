@@ -69,7 +69,7 @@ impl CoreMetrics {
                 "Number of transactions sent by this agent since boot",
                 const_labels_ref
             ),
-            &["chain", "wallet"],
+            &["txn_status", "chain", "wallet"],
             registry
         )?;
 
@@ -209,6 +209,37 @@ impl CoreMetrics {
         )?)
     }
 
+    /// Call if a new transaction has been dispatched.
+    pub fn transaction_dispatched(&self, chain: &str, address: ethers::types::Address) {
+        self.transactions
+            .with_label_values(&[
+                "dispatched",
+                chain,
+                &format!("{address:x}"),
+                &self.agent_name,
+            ])
+            .inc()
+    }
+
+    /// Call once a transaction has been completed
+    pub fn transaction_completed(&self, chain: &str, address: ethers::types::Address) {
+        self.transactions
+            .with_label_values(&[
+                "completed",
+                chain,
+                &format!("{address:x}"),
+                &self.agent_name,
+            ])
+            .inc()
+    }
+
+    /// Call if a transaction has failed.
+    pub fn transaction_failed(&self, chain: &str, address: ethers::types::Address) {
+        self.transactions
+            .with_label_values(&["failed", chain, &format!("{address:x}"), &self.agent_name])
+            .inc()
+    }
+
     /// Call with the new balance when gas is spent.
     pub fn wallet_balance_changed(
         &self,
@@ -217,7 +248,7 @@ impl CoreMetrics {
         current_balance: ethers::types::U256,
     ) {
         self.wallet_balance
-            .with_label_values(&[chain, &format!("{:x}", address), &self.agent_name])
+            .with_label_values(&[chain, &format!("{address:x}"), &self.agent_name])
             .set(current_balance.as_u64() as i64) // XXX: truncated data
     }
 
