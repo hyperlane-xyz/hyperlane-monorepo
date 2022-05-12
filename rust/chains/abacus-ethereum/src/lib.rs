@@ -30,6 +30,9 @@ mod outbox;
 #[cfg(not(doctest))]
 mod inbox;
 
+mod metrics;
+pub use metrics::*;
+
 /// InboxValidatorManager abi
 #[cfg(not(doctest))]
 mod validator_manager;
@@ -73,14 +76,16 @@ boxed_trait!(
     EthereumOutboxIndexer,
     OutboxIndexer,
     from_height: u32,
-    chunk_size: u32
+    chunk_size: u32,
+    metrics: Arc<dyn MetricsSubscriber>
 );
 boxed_trait!(
     make_inbox_indexer,
     EthereumInboxIndexer,
     AbacusCommonIndexer,
     from_height: u32,
-    chunk_size: u32
+    chunk_size: u32,
+    metrics: Arc<dyn MetricsSubscriber>
 );
 boxed_trait!(make_outbox, EthereumOutbox, Outbox,);
 boxed_trait!(make_inbox, EthereumInbox, Inbox,);
@@ -93,7 +98,7 @@ boxed_trait!(
 
 #[async_trait::async_trait]
 impl abacus_core::Chain for Chain {
-    async fn query_balance(&self, addr: abacus_core::Address) -> Result<abacus_core::Balance> {
+    async fn query_balance(&self, addr: abacus_core::Address) -> Result<Balance> {
         let balance = format!(
             "{:x}",
             self.ethers
@@ -104,7 +109,7 @@ impl abacus_core::Chain for Chain {
                 .await?
         );
 
-        Ok(abacus_core::Balance(num::BigInt::from_str_radix(
+        Ok(Balance(num::BigInt::from_str_radix(
             &balance, 16,
         )?))
     }

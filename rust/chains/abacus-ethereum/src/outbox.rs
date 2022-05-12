@@ -13,6 +13,7 @@ use abacus_core::*;
 use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
 
 use crate::report_tx::report_tx;
+use crate::MetricsSubscriber;
 
 abigen!(
     EthereumOutboxInternal,
@@ -40,6 +41,7 @@ where
     from_height: u32,
     #[allow(unused)]
     chunk_size: u32,
+    metrics: Arc<dyn MetricsSubscriber>,
 }
 
 impl<M> EthereumOutboxIndexer<M>
@@ -56,12 +58,14 @@ where
         }: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
+        metrics: Arc<dyn MetricsSubscriber>,
     ) -> Self {
         Self {
             contract: Arc::new(EthereumOutboxInternal::new(address, provider.clone())),
             provider,
             from_height,
             chunk_size,
+            metrics,
         }
     }
 }

@@ -53,7 +53,7 @@ impl CoreMetrics {
         for_agent: &str,
         listen_port: Option<u16>,
         registry: Registry,
-    ) -> prometheus::Result<CoreMetrics> {
+    ) -> prometheus::Result<Self> {
         let const_labels: HashMap<String, String> = labels! {
             namespaced!("baselib_version") => env!("CARGO_PKG_VERSION").into(),
             "agent".into() => for_agent.into(),
@@ -209,37 +209,6 @@ impl CoreMetrics {
         )?)
     }
 
-    /// Call if a new transaction has been dispatched.
-    pub fn transaction_dispatched(&self, chain: &str, address: ethers::types::Address) {
-        self.transactions
-            .with_label_values(&[
-                "dispatched",
-                chain,
-                &format!("{address:x}"),
-                &self.agent_name,
-            ])
-            .inc()
-    }
-
-    /// Call once a transaction has been completed
-    pub fn transaction_completed(&self, chain: &str, address: ethers::types::Address) {
-        self.transactions
-            .with_label_values(&[
-                "completed",
-                chain,
-                &format!("{address:x}"),
-                &self.agent_name,
-            ])
-            .inc()
-    }
-
-    /// Call if a transaction has failed.
-    pub fn transaction_failed(&self, chain: &str, address: ethers::types::Address) {
-        self.transactions
-            .with_label_values(&["failed", chain, &format!("{address:x}"), &self.agent_name])
-            .inc()
-    }
-
     /// Call with the new balance when gas is spent.
     pub fn wallet_balance_changed(
         &self,
@@ -337,6 +306,36 @@ impl CoreMetrics {
             .iter()
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect()
+    }
+}
+
+impl abacus_ethereum::MetricsSubscriber for CoreMetrics {
+    fn transaction_dispatched(&self, chain: &str, address: ethers::types::Address) {
+        self.transactions
+            .with_label_values(&[
+                "dispatched",
+                chain,
+                &format!("{address:x}"),
+                &self.agent_name,
+            ])
+            .inc()
+    }
+
+    fn transaction_completed(&self, chain: &str, address: ethers::types::Address) {
+        self.transactions
+            .with_label_values(&[
+                "completed",
+                chain,
+                &format!("{address:x}"),
+                &self.agent_name,
+            ])
+            .inc()
+    }
+
+    fn transaction_failed(&self, chain: &str, address: ethers::types::Address) {
+        self.transactions
+            .with_label_values(&["failed", chain, &format!("{address:x}"), &self.agent_name])
+            .inc()
     }
 }
 
