@@ -1,22 +1,22 @@
+import { ethers } from 'ethers';
+
 import {
   UpgradeBeaconProxy__factory,
-  UpgradeBeacon__factory
+  UpgradeBeacon__factory,
 } from '@abacus-network/core';
 import {
   ChainMap,
   ChainName,
   MultiProvider,
-  objMap
+  objMap,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-import { ethers } from 'ethers';
+
 import { ProxiedContract } from './proxy';
 import {
   ContractVerificationInput,
-  getContractVerificationInput
+  getContractVerificationInput,
 } from './verify';
-
-
 
 // TODO: Make AppDeployer generic on AbacusApp and return instance from deploy()
 export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
@@ -50,7 +50,7 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
         break;
       }
     }
-    return Object.fromEntries(this.networkResults);
+    return Object.fromEntries(this.networkResults) as Record<Networks, A>;
   }
 
   async deployContract<F extends ethers.ContractFactory>(
