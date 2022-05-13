@@ -1,5 +1,3 @@
-//! Useful metrics that all agents should track.
-
 use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
@@ -7,18 +5,19 @@ use std::time::Duration;
 
 use eyre::Result;
 use prometheus::{
-    histogram_opts, labels, opts, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, Encoder,
-    HistogramVec, IntCounterVec, IntGaugeVec, Registry,
+    Encoder, histogram_opts, HistogramVec, IntCounterVec,
+    IntGaugeVec, labels, opts,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, Registry,
 };
 use tokio::task::JoinHandle;
+use abacus_core::Address;
 
-const NAMESPACE: &str = "abacus";
+use super::NAMESPACE;
+
 const NETWORK_HISTOGRAM_BUCKETS: &[f64] = &[0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.];
 const PROCESS_HISTOGRAM_BUCKETS: &[f64] = &[
     0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.,
 ];
-
 /// Macro to prefix a string with the namespace.
 macro_rules! namespaced {
     ($name:expr) => {
@@ -63,13 +62,17 @@ impl CoreMetrics {
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect::<HashMap<_, _>>();
 
+        /// - `address_from` is the source address/wallet
+        /// - `address_to` is the destination address/wallet
+        /// - `txn_status` is one of `dispatched`, `completed`, or `failed`.
+        /// - `chain` is the chain name (or ID if the name is unknown) of the chain the txn occured on
         let transactions = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("transactions_total"),
                 "Number of transactions sent by this agent since boot",
                 const_labels_ref
             ),
-            &["txn_status", "chain", "wallet"],
+            &["txn_status", "chain", "address_from", "address_to"],
             registry
         )?;
 
@@ -209,6 +212,34 @@ impl CoreMetrics {
         )?)
     }
 
+    pub fn transaction_dispatched(&self, chain: &str, from: Address, to: Address) {
+        self.transactions
+            .with_label_values(&[
+                "dispatched",
+                chain,
+                &format!("{address:x}"),
+                &self.agent_name,
+            ])
+            .inc()
+    }
+
+    pub fn transaction_completed(&self, chain: &str, from: Address, to: Address) {
+        self.transactions
+            .with_label_values(&[
+                "completed",
+                chain,
+                &format!("{address:x}"),
+                &self.agent_name,
+            ])
+            .inc()
+    }
+
+    pub fn transaction_failed(&self, chain: &str, address: ethers::types::Address) {
+        self.transactions
+            .with_label_values(&["failed", chain, &format!("{address:x}"), &self.agent_name])
+            .inc()
+    }
+
     /// Call with the new balance when gas is spent.
     pub fn wallet_balance_changed(
         &self,
@@ -292,8 +323,8 @@ impl CoreMetrics {
                             )
                         })),
                 )
-                .run(([0, 0, 0, 0], port))
-                .await;
+                    .run(([0, 0, 0, 0], port))
+                    .await;
             })
         } else {
             tracing::info!("not starting prometheus server");
@@ -306,36 +337,6 @@ impl CoreMetrics {
             .iter()
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect()
-    }
-}
-
-impl abacus_ethereum::MetricsSubscriber for CoreMetrics {
-    fn transaction_dispatched(&self, chain: &str, address: ethers::types::Address) {
-        self.transactions
-            .with_label_values(&[
-                "dispatched",
-                chain,
-                &format!("{address:x}"),
-                &self.agent_name,
-            ])
-            .inc()
-    }
-
-    fn transaction_completed(&self, chain: &str, address: ethers::types::Address) {
-        self.transactions
-            .with_label_values(&[
-                "completed",
-                chain,
-                &format!("{address:x}"),
-                &self.agent_name,
-            ])
-            .inc()
-    }
-
-    fn transaction_failed(&self, chain: &str, address: ethers::types::Address) {
-        self.transactions
-            .with_label_values(&["failed", chain, &format!("{address:x}"), &self.agent_name])
-            .inc()
     }
 }
 

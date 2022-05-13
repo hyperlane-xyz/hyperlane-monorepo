@@ -13,5 +13,6 @@ members = [
     "agents/relayer",
     "tools/kms-cli",
     "tools/abacus-cli",
-    "tools/balance-exporter"
+    "tools/balance-exporter",
+    "ethers-prometheus"
 ]

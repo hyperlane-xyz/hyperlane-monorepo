@@ -7,8 +7,6 @@ use tracing::{error, info};
 
 use abacus_core::ChainCommunicationError;
 
-use crate::Middleware;
-
 /// Dispatches a transaction, logs the tx id, and returns the result
 pub(crate) async fn report_tx<M, D>(
     tx: ContractCall<M, D>,

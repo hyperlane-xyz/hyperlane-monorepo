@@ -14,7 +14,6 @@ use abacus_core::{
     AbacusCommon, AbacusCommonIndexer, AbacusMessage, ChainCommunicationError, Checkpoint,
     CheckpointMeta, CheckpointWithMeta, ContractLocator, Inbox, TxOutcome,
 };
-use crate::MetricsSubscriber;
 
 use crate::report_tx::report_tx;
 

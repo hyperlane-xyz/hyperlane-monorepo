@@ -1,0 +1,15 @@
+[package]
+name = "ethers-prometheus"
+version = "0.1.0"
+authors = ["Mattie Conover <mattie@useabaucus.network>"]
+edition = "2021"
+
+[dependencies]
+prometheus = "0.13"
+ethers = { git = "https://github.com/gakonst/ethers-rs", branch = "master" }
+derive_builder = "0.11"
+async-trait = "0.1"
+serde_json = "1.0"
+futures = "0.3"
+parking_lot = "0.12"
+maplit = "1.0"

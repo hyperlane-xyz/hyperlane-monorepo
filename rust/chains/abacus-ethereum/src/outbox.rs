@@ -13,7 +13,6 @@ use abacus_core::*;
 use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
 
 use crate::report_tx::report_tx;
-use crate::MetricsSubscriber;
 
 abigen!(
     EthereumOutboxInternal,

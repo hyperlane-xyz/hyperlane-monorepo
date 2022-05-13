@@ -5,8 +5,6 @@
 #![warn(unused_extern_crates)]
 
 use std::sync::Arc;
-
-use ethers::providers::Middleware;
 use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
 use eyre::Result;
 use num::Num;
@@ -29,9 +27,6 @@ mod outbox;
 /// Inbox abi
 #[cfg(not(doctest))]
 mod inbox;
-
-mod metrics;
-pub use metrics::*;
 
 /// InboxValidatorManager abi
 #[cfg(not(doctest))]
