@@ -11,7 +11,7 @@ export interface CheckerViolation {
 }
 
 export type TransactionConfig = {
-  overrides: ethers.Overrides;
+  overrides?: ethers.Overrides;
   supports1559?: boolean;
   // The number of confirmations considered reorg safe
   confirmations?: number;

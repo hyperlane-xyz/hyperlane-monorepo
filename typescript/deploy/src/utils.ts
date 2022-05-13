@@ -37,15 +37,15 @@ export function getRouterConfig<N extends ChainName>(
 function fixOverrides(config: TransactionConfig): ethers.Overrides {
   if (config.supports1559) {
     return {
-      maxFeePerGas: config.overrides.maxFeePerGas,
-      maxPriorityFeePerGas: config.overrides.maxPriorityFeePerGas,
-      gasLimit: config.overrides.gasLimit,
+      maxFeePerGas: config.overrides?.maxFeePerGas,
+      maxPriorityFeePerGas: config.overrides?.maxPriorityFeePerGas,
+      gasLimit: config.overrides?.gasLimit,
     };
   } else {
     return {
       type: 0,
-      gasPrice: config.overrides.gasPrice,
-      gasLimit: config.overrides.gasLimit,
+      gasPrice: config.overrides?.gasPrice,
+      gasLimit: config.overrides?.gasLimit,
     };
   }
 }

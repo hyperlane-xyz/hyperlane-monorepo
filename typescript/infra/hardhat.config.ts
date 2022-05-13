@@ -18,7 +18,7 @@ import {
   getCoreRustDirectory,
   getCoreVerificationDirectory,
 } from './scripts/utils';
-import { AbacusCoreDeployer } from './src/core';
+import { AbacusCoreInfraDeployer } from './src/core/deploy';
 import { sleep } from './src/utils/utils';
 import { AbacusContractVerifier } from './src/verify';
 
@@ -78,7 +78,7 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
       signer,
     );
 
-    const deployer = new AbacusCoreDeployer(multiProvider, config.core);
+    const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
     const addresses = await deployer.deploy();
 
     // Write configs

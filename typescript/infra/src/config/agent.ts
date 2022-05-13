@@ -243,6 +243,7 @@ export type InboxAddresses = {
 
 export type RustConfig<Networks extends ChainName> = {
   environment: DeployEnvironment;
+  index?: { from: string };
   signers: Partial<ChainMap<Networks, RustSigner>>;
   inboxes: RemoteChainMap<Networks, any, RustContractBlock<InboxAddresses>>;
   outbox: RustContractBlock<OutboxAddresses>;
