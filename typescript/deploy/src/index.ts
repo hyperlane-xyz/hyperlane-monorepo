@@ -4,6 +4,11 @@ export {
   EnvironmentConfig,
   TransactionConfig,
 } from './config';
+export {
+  AbacusCoreDeployer,
+  CoreConfig,
+  ValidatorManagerConfig,
+} from './core/deploy';
 export { AbacusAppDeployer } from './deploy';
 export {
   ProxiedContract,
