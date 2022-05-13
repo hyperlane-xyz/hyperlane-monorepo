@@ -6,6 +6,8 @@ import "../Inbox.sol";
 contract TestInbox is Inbox {
     using Message for bytes32;
 
+    constructor(uint32 _localDomain) Inbox(_localDomain) {} // solhint-disable-line no-empty-blocks
+
     function setCheckpoint(bytes32 _root, uint256 _index) external {
         checkpoints[_root] = _index;
     }
