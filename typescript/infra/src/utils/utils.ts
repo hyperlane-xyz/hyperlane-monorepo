@@ -1,3 +1,4 @@
+import { ChainMap, ChainName } from '@abacus-network/sdk';
 // @ts-ignore
 import * as asn1 from 'asn1.js';
 import { exec } from 'child_process';
@@ -156,6 +157,14 @@ export function writeJSON(directory: string, filename: string, obj: any) {
     path.join(directory, filename),
     JSON.stringify(obj, null, 2),
   );
+}
+
+export function writeContracts<Networks extends ChainName>(addresses: ChainMap<Networks, any>, directory: string) {
+  writeJSON(directory, 'addresses.json', addresses);
+}
+
+export function writeVerification<Networks extends ChainName>(verification: ChainMap<Networks, any>, directory: string) {
+  writeJSON(directory, 'verification.json', verification);
 }
 
 // Returns a \ b

@@ -1,9 +1,9 @@
-import path from 'path';
-
-import { AbacusAppDeployer, AbacusCoreDeployer } from '@abacus-network/deploy';
-import { ChainName, domains, objMap } from '@abacus-network/sdk';
-
+import { AbacusCoreDeployer } from '@abacus-network/deploy';
+import { ChainMap, ChainName, CoreContractAddresses, domains, objMap } from '@abacus-network/sdk';
 import { DeployEnvironment, RustConfig } from '../config';
+import { writeContracts, writeJSON, writeVerification } from '../utils/utils';
+
+
 
 export class AbacusCoreInfraDeployer<
   Networks extends ChainName,
@@ -16,7 +16,6 @@ export class AbacusCoreInfraDeployer<
     >,
   ) {
     objMap(this.configMap, (network) => {
-      const filepath = path.join(directory, `${network}_config.json`);
       const addresses = networkAddresses[network];
 
       const outbox = {
@@ -69,7 +68,15 @@ export class AbacusCoreInfraDeployer<
 
         rustConfig.inboxes[remote] = inbox;
       });
-      AbacusAppDeployer.writeJson(filepath, rustConfig);
+      writeJSON(directory, `${network}_config.json`, rustConfig);
     });
+  }
+
+  writeContracts(addresses: ChainMap<Networks, CoreContractAddresses<Networks, any>>, filepath: string): void {
+    writeContracts(addresses, filepath);
+  }
+
+  writeVerification(directory: string): void {
+    writeVerification(this.verificationInputs, directory);
   }
 }

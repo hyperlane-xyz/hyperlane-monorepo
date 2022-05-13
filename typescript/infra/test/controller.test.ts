@@ -1,20 +1,17 @@
-import '@nomiclabs/hardhat-waffle';
-import path from 'path';
-
 import {
   AbacusCore,
   ChainMap,
   ControllerAddresses,
   ControllerApp,
-  MultiProvider,
+  MultiProvider
 } from '@abacus-network/sdk';
-
+import '@nomiclabs/hardhat-waffle';
 import { TestNetworks } from '../config/environments/test/domains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
 import {
   ControllerChecker,
   ControllerConfig,
-  ControllerDeployer,
+  ControllerDeployer
 } from '../src/controller';
 
 describe('controller', async () => {
@@ -41,8 +38,8 @@ describe('controller', async () => {
 
   it('writes', async () => {
     const base = './test/outputs/controller';
-    deployer.writeVerification(path.join(base, 'verification'));
-    deployer.writeContracts(addresses, path.join(base, 'contracts.ts'));
+    writeVerification(deployer.verificationInputs, base);
+    writeContracts(addresses, base);
   });
 
   it('checks', async () => {
