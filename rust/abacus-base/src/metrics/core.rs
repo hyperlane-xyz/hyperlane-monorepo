@@ -3,14 +3,14 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::Duration;
 
+use abacus_core::Address;
 use eyre::Result;
 use prometheus::{
-    Encoder, histogram_opts, HistogramVec, IntCounterVec,
-    IntGaugeVec, labels, opts,
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, Registry,
+    histogram_opts, labels, opts, register_histogram_vec_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, Encoder,
+    HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::task::JoinHandle;
-use abacus_core::Address;
 
 use super::NAMESPACE;
 
@@ -323,8 +323,8 @@ impl CoreMetrics {
                             )
                         })),
                 )
-                    .run(([0, 0, 0, 0], port))
-                    .await;
+                .run(([0, 0, 0, 0], port))
+                .await;
             })
         } else {
             tracing::info!("not starting prometheus server");

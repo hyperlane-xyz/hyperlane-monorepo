@@ -47,7 +47,7 @@ where
     from_height: u32,
     #[allow(unused)]
     chunk_size: u32,
-    metrics: Arc<dyn MetricsSubscriber>
+    metrics: Arc<dyn MetricsSubscriber>,
 }
 
 impl<M> EthereumInboxIndexer<M>
@@ -64,14 +64,14 @@ where
         }: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
-        metrics: Arc<dyn MetricsSubscriber>
+        metrics: Arc<dyn MetricsSubscriber>,
     ) -> Self {
         Self {
             contract: Arc::new(EthereumInboxInternal::new(address, provider.clone())),
             provider,
             from_height,
             chunk_size,
-            metrics
+            metrics,
         }
     }
 }

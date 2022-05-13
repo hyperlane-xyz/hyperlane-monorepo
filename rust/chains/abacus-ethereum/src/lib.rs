@@ -4,10 +4,10 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use std::sync::Arc;
 use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
 use eyre::Result;
 use num::Num;
+use std::sync::Arc;
 
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
@@ -104,8 +104,6 @@ impl abacus_core::Chain for Chain {
                 .await?
         );
 
-        Ok(Balance(num::BigInt::from_str_radix(
-            &balance, 16,
-        )?))
+        Ok(Balance(num::BigInt::from_str_radix(&balance, 16)?))
     }
 }

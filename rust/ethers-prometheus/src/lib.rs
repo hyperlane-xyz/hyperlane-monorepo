@@ -3,7 +3,7 @@
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::sync::Arc;
@@ -11,19 +11,18 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
+pub use error::PrometheusMiddlewareError;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
-use parking_lot::{RawRwLock, RwLock};
-use parking_lot::lock_api::RwLockReadGuard;
-use prometheus::{CounterVec, GaugeVec, HistogramVec, IntCounterVec};
-pub use error::PrometheusMiddlewareError;
 use maplit::hashmap;
+use parking_lot::RwLock;
+use prometheus::{CounterVec, GaugeVec, HistogramVec, IntCounterVec};
 
 mod erc20;
 mod error;
 
 /// Convert a u256 scaled integer value into the corresponding f64 value.
-const fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
+fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
     ((value.0[0] as f64)
         + (value.0[1] as f64) * (2u64.pow(64) as f64)
         + (value.0[2] as f64) * (2u64.pow(128) as f64)
@@ -168,7 +167,11 @@ impl<M: Middleware> PrometheusMiddleware<M> {
         }
     }
 
-    async fn update_wallet_balances(inner: Arc<M>, data: &InnerData, wallet_balance_metric: GaugeVec) {
+    async fn update_wallet_balances(
+        inner: Arc<M>,
+        data: &InnerData,
+        wallet_balance_metric: GaugeVec,
+    ) {
         let chain = metrics_chain_name(inner.get_chainid().await.map(|id| id.as_u64()).ok());
         for (wallet_addr, wallet_info) in data.wallets.iter() {
             let wallet_addr_str = wallet_addr.to_string();
@@ -177,17 +180,17 @@ impl<M: Middleware> PrometheusMiddleware<M> {
                 // Okay, so Ether is not a token, but whatever, close enough.
                 wallet_balance_metric
                     .with(&hashmap! {
-                                "chain" => chain.as_str(),
-                                "wallet_address" => wallet_addr_str.as_str(),
-                                "wallet_name" => wallet_name,
-                                "token_address" => "none",
-                                "token_symbol" => "ETH",
-                                "token_name" => "Ether"
-                            })
+                        "chain" => chain.as_str(),
+                        "wallet_address" => wallet_addr_str.as_str(),
+                        "wallet_name" => wallet_name,
+                        "token_address" => "none",
+                        "token_symbol" => "ETH",
+                        "token_name" => "Ether"
+                    })
                     .set(u256_as_scaled_f64(balance, 18))
             }
             for (token_addr, token_data) in data.tokens.iter() {
-
+                todo!()
             }
         }
     }
