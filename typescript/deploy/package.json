@@ -1,7 +1,6 @@
 {
   "devDependencies": {
     "@typechain/ethers-v5": "~7.0.0",
-    "ethers": "^5.4.7",
     "prettier": "^2.3.1",
     "ts-node": "^10.1.0",
     "typescript": "^4.3.2"
@@ -23,8 +22,7 @@
     "@abacus-network/sdk": "^0.1.1",
     "@abacus-network/utils": "^0.1.1",
     "@types/node": "^16.9.1",
-    "@types/yargs": "^17.0.10",
     "axios": "^0.21.3",
-    "yargs": "^17.4.1"
+    "ethers": "^5.4.7"
   }
 }

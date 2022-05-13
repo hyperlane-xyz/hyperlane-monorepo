@@ -1,7 +1,3 @@
-import { ethers } from 'ethers';
-import fs from 'fs';
-import path from 'path';
-
 import {
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
@@ -13,7 +9,7 @@ import {
   objMap,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
-
+import { ethers } from 'ethers';
 import { ProxiedContract } from './proxy';
 import {
   ContractVerificationInput,
@@ -145,40 +141,5 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
       },
     );
     return newProxiedContract;
-  }
-
-  writeOutput(directory: string, addresses: ChainMap<Networks, A>) {
-    this.writeContracts(addresses, path.join(directory, 'addresses.ts'));
-    this.writeVerification(path.join(directory, 'verification'));
-  }
-
-  writeContracts(addresses: ChainMap<Networks, A>, filepath: string) {
-    const contents = `export const addresses = ${AbacusAppDeployer.stringify(
-      addresses,
-    )}`;
-    AbacusAppDeployer.write(filepath, contents);
-  }
-
-  writeVerification(directory: string) {
-    objMap(this.verificationInputs, (network, input) => {
-      AbacusAppDeployer.writeJson(
-        path.join(directory, `${network}.json`),
-        input,
-      );
-    });
-  }
-
-  static stringify(obj: Object) {
-    return JSON.stringify(obj, null, 2);
-  }
-
-  static write(filepath: string, contents: string) {
-    const dir = path.dirname(filepath);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(filepath, contents);
-  }
-
-  static writeJson(filepath: string, obj: Object) {
-    AbacusAppDeployer.write(filepath, AbacusAppDeployer.stringify(obj));
   }
 }
