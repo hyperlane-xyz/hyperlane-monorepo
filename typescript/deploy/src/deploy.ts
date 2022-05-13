@@ -1,47 +1,56 @@
 import {
   UpgradeBeaconProxy__factory,
-  UpgradeBeacon__factory,
+  UpgradeBeacon__factory
 } from '@abacus-network/core';
 import {
   ChainMap,
   ChainName,
   MultiProvider,
-  objMap,
+  objMap
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import { ProxiedContract } from './proxy';
 import {
   ContractVerificationInput,
-  getContractVerificationInput,
+  getContractVerificationInput
 } from './verify';
+
+
 
 // TODO: Make AppDeployer generic on AbacusApp and return instance from deploy()
 export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
   verificationInputs: ChainMap<Networks, ContractVerificationInput[]>;
+  private networkSequence: Networks[];
+  private networkResults: [Networks, A][];
 
   constructor(
     protected readonly multiProvider: MultiProvider<Networks>,
     protected readonly configMap: ChainMap<Networks, C>,
   ) {
-    this.verificationInputs = objMap(configMap, () => []);
+    this.verificationInputs = objMap(this.configMap, () => []);
+    this.networkSequence = Object.keys(this.configMap) as Networks[];
+    this.networkResults = [];
   }
 
   abstract deployContracts(network: Networks, config: C): Promise<A>;
 
   async deploy() {
-    this.verificationInputs = objMap(this.configMap, () => []);
-    const networks = Object.keys(this.configMap) as Networks[];
-    const entries: [Networks, A][] = [];
-    for (const network of networks) {
+    while (this.networkResults.length < this.networkSequence.length) {
+      let network = this.networkSequence[this.networkResults.length];
       console.log(`Deploying to ${network}...`);
-      const result = await this.deployContracts(
-        network,
-        this.configMap[network],
-      );
-      entries.push([network, result]);
+      try {
+        const result = await this.deployContracts(
+          network,
+          this.configMap[network],
+        );
+        this.networkResults.push([network, result]);
+      } catch (error) {
+        console.error(`Failed to deploy to ${network}: ${error}`);
+        break;
+      }
     }
-    return Object.fromEntries(entries) as Record<Networks, A>;
+    return Object.fromEntries(this.networkResults);
   }
 
   async deployContract<F extends ethers.ContractFactory>(
