@@ -3,40 +3,36 @@ import path from 'path';
 
 import {
   AbacusCore,
-  AbacusGovernance,
   ChainMap,
-  GovernanceAddresses,
+  ControllerAddresses,
+  ControllerApp,
   MultiProvider,
 } from '@abacus-network/sdk';
 
 import { TestNetworks } from '../config/environments/test/domains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
 import {
-  AbacusGovernanceChecker,
-  AbacusGovernanceDeployer,
-  GovernanceConfig,
-} from '../src/governance';
+  ControllerChecker,
+  ControllerConfig,
+  ControllerDeployer,
+} from '../src/controller';
 
-describe('governance', async () => {
+describe('controller', async () => {
   const environment = 'test';
 
   let multiProvider: MultiProvider<TestNetworks>;
-  let deployer: AbacusGovernanceDeployer<TestNetworks>;
-  let addresses: ChainMap<TestNetworks, GovernanceAddresses>;
-  let governanceConfig: ChainMap<TestNetworks, GovernanceConfig>;
+  let deployer: ControllerDeployer<TestNetworks>;
+  let addresses: ChainMap<TestNetworks, ControllerAddresses>;
+  let controllerConfig: ChainMap<TestNetworks, ControllerConfig>;
 
   before(async () => {
     const config = getCoreEnvironmentConfig(environment);
-    governanceConfig = config.governance;
+    controllerConfig = config.controller;
     multiProvider = await config.getMultiProvider();
 
     const core = AbacusCore.fromEnvironment(environment, multiProvider);
     console.log(core);
-    deployer = new AbacusGovernanceDeployer(
-      multiProvider,
-      governanceConfig,
-      core,
-    );
+    deployer = new ControllerDeployer(multiProvider, controllerConfig, core);
   });
 
   it('deploys', async () => {
@@ -44,17 +40,17 @@ describe('governance', async () => {
   });
 
   it('writes', async () => {
-    const base = './test/outputs/governance';
+    const base = './test/outputs/controller';
     deployer.writeVerification(path.join(base, 'verification'));
     deployer.writeContracts(addresses, path.join(base, 'contracts.ts'));
   });
 
   it('checks', async () => {
-    const governance = new AbacusGovernance(addresses, multiProvider);
-    const checker = new AbacusGovernanceChecker(
+    const controller = new ControllerApp(addresses, multiProvider);
+    const checker = new ControllerChecker(
       multiProvider,
-      governance,
-      governanceConfig,
+      controller,
+      controllerConfig,
     );
     await checker.check();
   });

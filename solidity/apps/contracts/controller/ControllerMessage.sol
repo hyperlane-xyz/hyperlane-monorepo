@@ -5,7 +5,7 @@ pragma experimental ABIEncoderV2;
 // ============ External Imports ============
 import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 
-library GovernanceMessage {
+library ControllerMessage {
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
 
@@ -18,7 +18,7 @@ library GovernanceMessage {
     enum Types {
         Invalid, // 0
         Call, // 1
-        SetGovernor, // 2
+        SetController, // 2
         EnrollRemoteRouter, // 3
         Data, // 4
         SetAbacusConnectionManager // 5
@@ -68,14 +68,14 @@ library GovernanceMessage {
         _msg = TypedMemView.join(_encodedCalls);
     }
 
-    function formatSetGovernor(bytes32 _governor)
+    function formatSetController(bytes32 _controller)
         internal
         view
         returns (bytes memory _msg)
     {
         _msg = TypedMemView.clone(
-            mustBeSetGovernor(
-                abi.encodePacked(Types.SetGovernor, _governor).ref(0)
+            mustBeSetController(
+                abi.encodePacked(Types.SetController, _controller).ref(0)
             )
         );
     }
@@ -183,8 +183,8 @@ library GovernanceMessage {
         return _view.index(5, 32);
     }
 
-    // Types.SetGovernor
-    function governor(bytes29 _view) internal pure returns (bytes32) {
+    // Types.SetController
+    function controller(bytes29 _view) internal pure returns (bytes32) {
         return _view.index(1, 32);
     }
 
@@ -232,34 +232,38 @@ library GovernanceMessage {
     }
 
     /*
-        Message Type: SET GOVERNOR
-        struct SetGovernor {
+        Message Type: SET CONTROLLER
+        struct SetController {
             identifier, // message ID -- 1 byte
-            addr        // address of new governor -- 32 bytes
+            addr        // address of new controller -- 32 bytes
         }
     */
 
-    function isValidSetGovernor(bytes29 _view) internal pure returns (bool) {
+    function isValidSetController(bytes29 _view) internal pure returns (bool) {
         return
-            identifier(_view) == uint8(Types.SetGovernor) &&
+            identifier(_view) == uint8(Types.SetController) &&
             _view.len() == SET_ADDRESS_LEN;
     }
 
-    function isSetGovernor(bytes29 _view) internal pure returns (bool) {
+    function isSetController(bytes29 _view) internal pure returns (bool) {
         return
-            isValidSetGovernor(_view) &&
-            messageType(_view) == Types.SetGovernor;
+            isValidSetController(_view) &&
+            messageType(_view) == Types.SetController;
     }
 
-    function tryAsSetGovernor(bytes29 _view) internal pure returns (bytes29) {
-        if (isValidSetGovernor(_view)) {
-            return _view.castTo(uint40(Types.SetGovernor));
+    function tryAsSetController(bytes29 _view) internal pure returns (bytes29) {
+        if (isValidSetController(_view)) {
+            return _view.castTo(uint40(Types.SetController));
         }
         return TypedMemView.nullView();
     }
 
-    function mustBeSetGovernor(bytes29 _view) internal pure returns (bytes29) {
-        return tryAsSetGovernor(_view).assertValid();
+    function mustBeSetController(bytes29 _view)
+        internal
+        pure
+        returns (bytes29)
+    {
+        return tryAsSetController(_view).assertValid();
     }
 
     /*

@@ -65,10 +65,10 @@ export function getCoreContractsSdkFilepath(environment: DeployEnvironment) {
   return getContractsSdkFilepath('core', environment);
 }
 
-export function getGovernanceContractsSdkFilepath(
+export function getControllerContractsSdkFilepath(
   environment: DeployEnvironment,
 ) {
-  return getContractsSdkFilepath('governance', environment);
+  return getContractsSdkFilepath('controller', environment);
 }
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
@@ -87,14 +87,14 @@ export function getCoreRustDirectory(environment: DeployEnvironment) {
   return path.join(getCoreDirectory(environment), 'rust');
 }
 
-export function getGovernanceDirectory(environment: DeployEnvironment) {
-  return path.join(getEnvironmentDirectory(environment), 'governance');
+export function getControllerDirectory(environment: DeployEnvironment) {
+  return path.join(getEnvironmentDirectory(environment), 'controller');
 }
 
-export function getGovernanceVerificationDirectory(
+export function getControllerVerificationDirectory(
   environment: DeployEnvironment,
 ) {
-  return path.join(getGovernanceDirectory(environment), 'verification');
+  return path.join(getControllerDirectory(environment), 'verification');
 }
 
 export function getKeyRoleAndChainArgs() {

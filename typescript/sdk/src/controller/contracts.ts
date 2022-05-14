@@ -1,6 +1,6 @@
 import { Call } from '..';
 
-import { GovernanceRouter__factory } from '@abacus-network/apps';
+import { ControllerRouter__factory } from '@abacus-network/apps';
 import { UpgradeBeaconController__factory } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 
@@ -9,32 +9,32 @@ import { ProxiedAddress } from '../types';
 
 import { normalizeCall } from './utils';
 
-export type GovernanceAddresses = {
+export type ControllerAddresses = {
   // Basically copy RouterAddresses
   abacusConnectionManager: types.Address;
   router: ProxiedAddress;
   upgradeBeaconController: types.Address;
 };
 
-export const governanceFactories = {
+export const controllerFactories = {
   ...routerFactories,
   upgradeBeaconController: UpgradeBeaconController__factory.connect,
-  router: GovernanceRouter__factory.connect,
+  router: ControllerRouter__factory.connect,
 };
 
-export type GovernanceFactories = typeof governanceFactories;
+export type ControllerFactories = typeof controllerFactories;
 
-export class GovernanceContracts extends AbacusContracts<
-  GovernanceAddresses,
-  GovernanceFactories
+export class ControllerContracts extends AbacusContracts<
+  ControllerAddresses,
+  ControllerFactories
 > {
   // necessary for factories be defined in the constructor
   factories() {
-    return governanceFactories;
+    return controllerFactories;
   }
   calls: Call[] = [];
 
   push = (call: Call) => this.calls.push(normalizeCall(call));
   router = this.contracts.router;
-  governor = () => this.router.governor();
+  controller = () => this.router.controller();
 }

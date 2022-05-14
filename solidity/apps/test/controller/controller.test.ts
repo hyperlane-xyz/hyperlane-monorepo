@@ -5,9 +5,9 @@ import { abacus, ethers } from 'hardhat';
 import { InterchainGasPaymaster, Outbox } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
-import { GovernanceRouter, TestSet, TestSet__factory } from '../../types';
+import { ControllerRouter, TestSet, TestSet__factory } from '../../types';
 
-import { GovernanceConfig, GovernanceDeploy } from './lib/GovernanceDeploy';
+import { ControllerConfig, ControllerDeploy } from './lib/ControllerDeploy';
 import { formatCall, increaseTimestampBy } from './lib/utils';
 
 const recoveryTimelock = 60 * 60 * 24 * 7;
@@ -17,39 +17,39 @@ const testDomain = 3000;
 const domains = [localDomain, remoteDomain];
 const ONLY_OWNER_REVERT_MESSAGE = 'Ownable: caller is not the owner';
 
-describe('GovernanceRouter', async () => {
-  let governor: SignerWithAddress,
+describe('ControllerRouter', async () => {
+  let controller: SignerWithAddress,
     recoveryManager: SignerWithAddress,
-    router: GovernanceRouter,
-    remote: GovernanceRouter,
+    router: ControllerRouter,
+    remote: ControllerRouter,
     testSet: TestSet,
-    governance: GovernanceDeploy;
+    controllerDeploy: ControllerDeploy;
   let outbox: Outbox;
   let interchainGasPaymaster: InterchainGasPaymaster;
   const testInterchainGasPayment = 123456789;
 
   before(async () => {
-    [governor, recoveryManager] = await ethers.getSigners();
+    [controller, recoveryManager] = await ethers.getSigners();
 
-    const testSetFactory = new TestSet__factory(governor);
+    const testSetFactory = new TestSet__factory(controller);
     testSet = await testSetFactory.deploy();
   });
 
   beforeEach(async () => {
-    const config: GovernanceConfig = {
-      signer: governor,
+    const config: ControllerConfig = {
+      signer: controller,
       timelock: recoveryTimelock,
       recoveryManager: recoveryManager.address,
-      governor: {
+      controller: {
         domain: localDomain,
-        address: governor.address,
+        address: controller.address,
       },
     };
-    await abacus.deploy(domains, governor);
-    governance = new GovernanceDeploy(config);
-    await governance.deploy(abacus);
-    router = governance.router(localDomain);
-    remote = governance.router(remoteDomain);
+    await abacus.deploy(domains, controller);
+    controllerDeploy = new ControllerDeploy(config);
+    await controllerDeploy.deploy(abacus);
+    router = controllerDeploy.router(localDomain);
+    remote = controllerDeploy.router(remoteDomain);
     outbox = abacus.outbox(localDomain);
     interchainGasPaymaster = abacus.interchainGasPaymaster(localDomain);
   });
@@ -61,31 +61,31 @@ describe('GovernanceRouter', async () => {
   });
 
   describe('when not in recovery mode', async () => {
-    it('governor is the owner', async () => {
-      expect(await router.owner()).to.equal(governor.address);
+    it('controller is the owner', async () => {
+      expect(await router.owner()).to.equal(controller.address);
     });
 
-    it('governor can set local recovery manager', async () => {
+    it('controller can set local recovery manager', async () => {
       expect(await router.recoveryManager()).to.equal(recoveryManager.address);
       await router.transferOwnership(router.address);
       expect(await router.recoveryManager()).to.equal(router.address);
       expect(await router.recoveryActiveAt()).to.equal(0);
     });
 
-    it('governor can make local calls', async () => {
+    it('controller can make local calls', async () => {
       const value = 12;
       const call = formatCall(testSet, 'set', [value]);
       await router.call([call]);
       expect(await testSet.get()).to.equal(value);
     });
 
-    it('governor can set local governor', async () => {
-      expect(await router.governor()).to.equal(governor.address);
-      await router.setGovernor(ethers.constants.AddressZero);
-      expect(await router.governor()).to.equal(ethers.constants.AddressZero);
+    it('controller can set local controller', async () => {
+      expect(await router.controller()).to.equal(controller.address);
+      await router.setController(ethers.constants.AddressZero);
+      expect(await router.controller()).to.equal(ethers.constants.AddressZero);
     });
 
-    it('governor can set local abacusConnectionManager', async () => {
+    it('controller can set local abacusConnectionManager', async () => {
       expect(await router.abacusConnectionManager()).to.equal(
         abacus.abacusConnectionManager(localDomain).address,
       );
@@ -95,7 +95,7 @@ describe('GovernanceRouter', async () => {
       );
     });
 
-    it('governor can enroll local remote router', async () => {
+    it('controller can enroll local remote router', async () => {
       expect(await router.routers(testDomain)).to.equal(
         ethers.constants.HashZero,
       );
@@ -104,7 +104,7 @@ describe('GovernanceRouter', async () => {
       expect(await router.routers(testDomain)).to.equal(newRouter);
     });
 
-    it('governor can make remote calls', async () => {
+    it('controller can make remote calls', async () => {
       const value = 13;
       const call = formatCall(testSet, 'set', [value]);
       await router.callRemote(domains[1], [call]);
@@ -134,19 +134,19 @@ describe('GovernanceRouter', async () => {
       );
     });
 
-    it('governor can set remote governor', async () => {
-      const newGovernor = governor.address;
-      expect(await remote.governor()).to.not.equal(newGovernor);
-      await router.setGovernorRemote(remoteDomain, newGovernor);
+    it('controller can set remote controller', async () => {
+      const newController = controller.address;
+      expect(await remote.controller()).to.not.equal(newController);
+      await router.setControllerRemote(remoteDomain, newController);
       await abacus.processMessages();
-      expect(await remote.governor()).to.equal(newGovernor);
+      expect(await remote.controller()).to.equal(newController);
     });
 
-    it('allows interchain gas payment when setting a remote governor', async () => {
-      const newGovernor = governor.address;
+    it('allows interchain gas payment when setting a remote controller', async () => {
+      const newController = controller.address;
       const leafIndex = await outbox.count();
       await expect(
-        router.setGovernorRemote(remoteDomain, newGovernor, {
+        router.setControllerRemote(remoteDomain, newController, {
           value: testInterchainGasPayment,
         }),
       )
@@ -154,15 +154,14 @@ describe('GovernanceRouter', async () => {
         .withArgs(leafIndex, testInterchainGasPayment);
     });
 
-    it('creates a checkpoint when setting a remote governor', async () => {
-      const newGovernor = governor.address;
-      await expect(router.setGovernorRemote(remoteDomain, newGovernor)).to.emit(
-        outbox,
-        'Checkpoint',
-      );
+    it('creates a checkpoint when setting a remote controller', async () => {
+      const newController = controller.address;
+      await expect(
+        router.setControllerRemote(remoteDomain, newController),
+      ).to.emit(outbox, 'Checkpoint');
     });
 
-    it('governor can set remote abacusConnectionManager', async () => {
+    it('controller can set remote abacusConnectionManager', async () => {
       const newConnectionManager = ethers.constants.AddressZero;
       expect(await remote.abacusConnectionManager()).to.not.equal(
         newConnectionManager,
@@ -199,7 +198,7 @@ describe('GovernanceRouter', async () => {
       ).to.emit(outbox, 'Checkpoint');
     });
 
-    it('governor can enroll remote remote router', async () => {
+    it('controller can enroll remote remote router', async () => {
       expect(await remote.routers(testDomain)).to.equal(
         ethers.constants.HashZero,
       );
@@ -232,13 +231,13 @@ describe('GovernanceRouter', async () => {
       ).to.emit(outbox, 'Checkpoint');
     });
 
-    it('governor cannot initiate recovery', async () => {
+    it('controller cannot initiate recovery', async () => {
       await expect(router.initiateRecoveryTimelock()).to.be.revertedWith(
         '!recoveryManager',
       );
     });
 
-    it('governor cannot exit recovery', async () => {
+    it('controller cannot exit recovery', async () => {
       await expect(router.exitRecovery()).to.be.revertedWith('!recovery');
     });
 
@@ -257,11 +256,11 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
-    it('recovery manager cannot set local governor', async () => {
+    it('recovery manager cannot set local controller', async () => {
       await expect(
         router
           .connect(recoveryManager)
-          .setGovernor(ethers.constants.AddressZero),
+          .setController(ethers.constants.AddressZero),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
@@ -289,15 +288,15 @@ describe('GovernanceRouter', async () => {
       const call = formatCall(testSet, 'set', [value]);
       await expect(
         router.connect(recoveryManager).callRemote(domains[1], [call]),
-      ).to.be.revertedWith('!governor');
+      ).to.be.revertedWith('!controller');
     });
 
-    it('recovery manager cannot set remote governor', async () => {
+    it('recovery manager cannot set remote controller', async () => {
       await expect(
         router
           .connect(recoveryManager)
-          .setGovernorRemote(remoteDomain, router.address),
-      ).to.be.revertedWith('!governor');
+          .setControllerRemote(remoteDomain, router.address),
+      ).to.be.revertedWith('!controller');
     });
 
     it('recovery manager cannot set remote abacusConnectionManager', async () => {
@@ -305,7 +304,7 @@ describe('GovernanceRouter', async () => {
         router
           .connect(recoveryManager)
           .setAbacusConnectionManagerRemote(remoteDomain, router.address),
-      ).to.be.revertedWith('!governor');
+      ).to.be.revertedWith('!controller');
     });
 
     it('recovery manager cannot enroll remote remote router', async () => {
@@ -317,7 +316,7 @@ describe('GovernanceRouter', async () => {
             testDomain,
             utils.addressToBytes32(router.address),
           ),
-      ).to.be.revertedWith('!governor');
+      ).to.be.revertedWith('!controller');
     });
 
     it('recovery manager can initiate recovery', async () => {
@@ -361,10 +360,10 @@ describe('GovernanceRouter', async () => {
       expect(await testSet.get()).to.equal(value);
     });
 
-    it('recovery manager can set local governor', async () => {
-      expect(await router.governor()).to.equal(governor.address);
-      await router.setGovernor(ethers.constants.AddressZero);
-      expect(await router.governor()).to.equal(ethers.constants.AddressZero);
+    it('recovery manager can set local controller', async () => {
+      expect(await router.controller()).to.equal(controller.address);
+      await router.setController(ethers.constants.AddressZero);
+      expect(await router.controller()).to.equal(ethers.constants.AddressZero);
     });
 
     it('recovery manager can set local abacusConnectionManager', async () => {
@@ -390,20 +389,20 @@ describe('GovernanceRouter', async () => {
       const value = 13;
       const call = formatCall(testSet, 'set', [value]);
       await expect(router.callRemote(domains[1], [call])).to.be.revertedWith(
-        '!governor',
+        '!controller',
       );
     });
 
-    it('recovery manager cannot set remote governor', async () => {
+    it('recovery manager cannot set remote controller', async () => {
       await expect(
-        router.setGovernorRemote(remoteDomain, router.address),
-      ).to.be.revertedWith('!governor');
+        router.setControllerRemote(remoteDomain, router.address),
+      ).to.be.revertedWith('!controller');
     });
 
     it('recovery manager cannot set remote abacusConnectionManager', async () => {
       await expect(
         router.setAbacusConnectionManagerRemote(remoteDomain, router.address),
-      ).to.be.revertedWith('!governor');
+      ).to.be.revertedWith('!controller');
     });
 
     it('recovery manager cannot enroll remote remote router', async () => {
@@ -413,7 +412,7 @@ describe('GovernanceRouter', async () => {
           testDomain,
           utils.addressToBytes32(router.address),
         ),
-      ).to.be.revertedWith('!governor');
+      ).to.be.revertedWith('!controller');
     });
 
     it('recovery manager cannot initiate recovery', async () => {
@@ -427,36 +426,36 @@ describe('GovernanceRouter', async () => {
       expect(await router.inRecovery()).to.be.false;
     });
 
-    it('governor cannot make local calls', async () => {
+    it('controller cannot make local calls', async () => {
       const value = 12;
       const call = formatCall(testSet, 'set', [value]);
-      await expect(router.connect(governor).call([call])).to.be.revertedWith(
+      await expect(router.connect(controller).call([call])).to.be.revertedWith(
         ONLY_OWNER_REVERT_MESSAGE,
       );
     });
 
-    it('governor cannot set local governor', async () => {
+    it('controller cannot set local controller', async () => {
       await expect(
-        router.connect(governor).setGovernor(ethers.constants.AddressZero),
+        router.connect(controller).setController(ethers.constants.AddressZero),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
-    it('governor cannot set local recovery manager', async () => {
+    it('controller cannot set local recovery manager', async () => {
       await expect(
-        router.connect(governor).transferOwnership(router.address),
+        router.connect(controller).transferOwnership(router.address),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
-    it('governor cannot set local abacusConnectionManager', async () => {
+    it('controller cannot set local abacusConnectionManager', async () => {
       await expect(
-        router.connect(governor).setAbacusConnectionManager(router.address),
+        router.connect(controller).setAbacusConnectionManager(router.address),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
-    it('governor cannot enroll local remote router', async () => {
+    it('controller cannot enroll local remote router', async () => {
       await expect(
         router
-          .connect(governor)
+          .connect(controller)
           .enrollRemoteRouter(
             testDomain,
             utils.addressToBytes32(router.address),
@@ -464,34 +463,34 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MESSAGE);
     });
 
-    it('governor cannot make remote calls', async () => {
+    it('controller cannot make remote calls', async () => {
       const value = 13;
       const call = formatCall(testSet, 'set', [value]);
       await expect(
-        router.connect(governor).callRemote(domains[1], [call]),
+        router.connect(controller).callRemote(domains[1], [call]),
       ).to.be.revertedWith('recovery');
     });
 
-    it('governor cannot set remote governor', async () => {
+    it('controller cannot set remote controller', async () => {
       await expect(
         router
-          .connect(governor)
-          .setGovernorRemote(remoteDomain, router.address),
+          .connect(controller)
+          .setControllerRemote(remoteDomain, router.address),
       ).to.be.revertedWith('recovery');
     });
 
-    it('governor cannot set remote abacusConnectionManager', async () => {
+    it('controller cannot set remote abacusConnectionManager', async () => {
       await expect(
         router
-          .connect(governor)
+          .connect(controller)
           .setAbacusConnectionManagerRemote(remoteDomain, router.address),
       ).to.be.revertedWith('recovery');
     });
 
-    it('governor cannot enroll remote remote router', async () => {
+    it('controller cannot enroll remote remote router', async () => {
       await expect(
         router
-          .connect(governor)
+          .connect(controller)
           .enrollRemoteRouterRemote(
             remoteDomain,
             testDomain,
@@ -500,16 +499,16 @@ describe('GovernanceRouter', async () => {
       ).to.be.revertedWith('recovery');
     });
 
-    it('governor cannot initiate recovery', async () => {
+    it('controller cannot initiate recovery', async () => {
       await expect(
-        router.connect(governor).initiateRecoveryTimelock(),
+        router.connect(controller).initiateRecoveryTimelock(),
       ).to.be.revertedWith('recovery');
     });
 
-    it('governor cannot exit recovery', async () => {
-      await expect(router.connect(governor).exitRecovery()).to.be.revertedWith(
-        '!recoveryManager',
-      );
+    it('controller cannot exit recovery', async () => {
+      await expect(
+        router.connect(controller).exitRecovery(),
+      ).to.be.revertedWith('!recoveryManager');
     });
   });
 });

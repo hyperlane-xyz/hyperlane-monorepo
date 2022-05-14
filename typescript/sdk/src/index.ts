@@ -39,12 +39,12 @@ export {
   TokenPriceGetter,
 } from './gas';
 export {
-  AbacusGovernance,
+  ControllerApp,
   Call,
-  GovernanceAddresses,
-  GovernanceContracts,
-  governanceEnvironments,
-} from './governance';
+  ControllerAddresses,
+  ControllerContracts,
+  controllerEnvironments,
+} from './controller';
 export { DomainConnection, IDomainConnection, MultiProvider } from './provider';
 export {
   AllChains,

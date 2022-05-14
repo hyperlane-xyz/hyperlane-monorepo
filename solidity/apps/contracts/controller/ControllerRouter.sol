@@ -3,7 +3,7 @@ pragma solidity >=0.6.11;
 pragma experimental ABIEncoderV2;
 
 // ============ Internal Imports ============
-import {GovernanceMessage} from "./GovernanceMessage.sol";
+import {ControllerMessage} from "./ControllerMessage.sol";
 // ============ External Imports ============
 import {Router} from "@abacus-network/app/contracts/Router.sol";
 import {Version0} from "@abacus-network/core/contracts/Version0.sol";
@@ -14,19 +14,19 @@ import {TypedMemView} from "@summa-tx/memview-sol/contracts/TypedMemView.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
- * @dev GovernanceRouter has two modes of operation, normal and recovery.
- * During normal mode, `owner()` returns the `governor`, giving it permission
+ * @dev ControllerRouter has two modes of operation, normal and recovery.
+ * During normal mode, `owner()` returns the `controller`, giving it permission
  * to call `onlyOwner` functions.
  * During recovery mode, `owner()` returns the `_owner`, giving it permission
  * to call `onlyOwner` functions.
  */
-contract GovernanceRouter is Version0, Router {
+contract ControllerRouter is Version0, Router {
     // ============ Libraries ============
 
     using SafeMath for uint256;
     using TypedMemView for bytes;
     using TypedMemView for bytes29;
-    using GovernanceMessage for bytes29;
+    using ControllerMessage for bytes29;
 
     // ============ Immutables ============
 
@@ -37,9 +37,9 @@ contract GovernanceRouter is Version0, Router {
 
     // timestamp when recovery timelock expires; 0 if timelock has not been initiated
     uint256 public recoveryActiveAt;
-    // the local entity empowered to call governance functions during normal
+    // the local entity empowered to call permissioned functions during normal
     // operation, typically set to 0x0 on all chains but one
-    address public governor;
+    address public controller;
 
     // ============ Upgrade Gap ============
 
@@ -49,10 +49,10 @@ contract GovernanceRouter is Version0, Router {
     // ============ Events ============
 
     /**
-     * @notice Emitted when the Governor role is set
-     * @param governor the address of the new Governor
+     * @notice Emitted when the controller role is set
+     * @param controller the address of the new controller
      */
-    event SetGovernor(address indexed governor);
+    event SetController(address indexed controller);
 
     /**
      * @notice Emitted when recovery state is initiated by the Owner
@@ -69,7 +69,7 @@ contract GovernanceRouter is Version0, Router {
 
     // ============ Modifiers ============
 
-    modifier typeAssert(bytes29 _view, GovernanceMessage.Types _type) {
+    modifier typeAssert(bytes29 _view, ControllerMessage.Types _type) {
         _view.assertType(uint40(_type));
         _;
     }
@@ -84,8 +84,8 @@ contract GovernanceRouter is Version0, Router {
         _;
     }
 
-    modifier onlyGovernor() {
-        require(msg.sender == governor, "!governor");
+    modifier onlyController() {
+        require(msg.sender == controller, "!controller");
         _;
     }
 
@@ -104,17 +104,17 @@ contract GovernanceRouter is Version0, Router {
 
     function initialize(address _abacusConnectionManager) public initializer {
         __Router_initialize(_abacusConnectionManager);
-        governor = msg.sender;
+        controller = msg.sender;
     }
 
     // ============ External Functions ============
 
     /**
      * @notice Handle Abacus messages
-     * For all non-Governor chains to handle messages
-     * sent from the Governor chain via Abacus.
-     * Governor chain should never receive messages,
-     * because non-Governor chains are not able to send them
+     * For all non-controlling chains to handle messages
+     * sent from the controlling chain via Abacus.
+     * Controlling chain should never receive messages,
+     * because non-controlling chains are not able to send them
      * @param _message The message
      */
     function _handle(
@@ -125,8 +125,8 @@ contract GovernanceRouter is Version0, Router {
         bytes29 _msg = _message.ref(0);
         if (_msg.isValidCall()) {
             _handleCall(_msg.tryAsCall());
-        } else if (_msg.isValidSetGovernor()) {
-            _handleSetGovernor(_msg.tryAsSetGovernor());
+        } else if (_msg.isValidSetController()) {
+            _handleSetController(_msg.tryAsSetController());
         } else if (_msg.isValidEnrollRemoteRouter()) {
             _handleEnrollRemoteRouter(_msg.tryAsEnrollRemoteRouter());
         } else if (_msg.isValidSetAbacusConnectionManager()) {
@@ -144,18 +144,18 @@ contract GovernanceRouter is Version0, Router {
      * @notice Make local calls.
      * @param _calls The calls
      */
-    function call(GovernanceMessage.Call[] calldata _calls) external onlyOwner {
+    function call(ControllerMessage.Call[] calldata _calls) external onlyOwner {
         for (uint256 i = 0; i < _calls.length; i++) {
             _makeCall(_calls[i]);
         }
     }
 
     /**
-     * @notice Sets the governor of the router.
-     * @param _governor The address of the new governor
+     * @notice Sets the controller of the router.
+     * @param _controller The address of the new controller
      */
-    function setGovernor(address _governor) external onlyOwner {
-        _setGovernor(_governor);
+    function setController(address _controller) external onlyOwner {
+        _setController(_controller);
     }
 
     /**
@@ -185,16 +185,16 @@ contract GovernanceRouter is Version0, Router {
     // ============ External Remote Functions ============
 
     /**
-     * @notice Dispatch calls on a remote chain via the remote GovernanceRouter.
+     * @notice Dispatch calls on a remote chain via the remote ControllerRouter.
      * Any value paid to this function is used to pay for message processing on the remote chain.
      * @param _destination The domain of the remote chain
      * @param _calls The calls
      */
     function callRemote(
         uint32 _destination,
-        GovernanceMessage.Call[] calldata _calls
-    ) external payable onlyGovernor onlyNotInRecovery {
-        bytes memory _msg = GovernanceMessage.formatCalls(_calls);
+        ControllerMessage.Call[] calldata _calls
+    ) external payable onlyController onlyNotInRecovery {
+        bytes memory _msg = ControllerMessage.formatCalls(_calls);
         _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
     }
 
@@ -209,8 +209,8 @@ contract GovernanceRouter is Version0, Router {
         uint32 _destination,
         uint32 _domain,
         bytes32 _router
-    ) external payable onlyGovernor onlyNotInRecovery {
-        bytes memory _msg = GovernanceMessage.formatEnrollRemoteRouter(
+    ) external payable onlyController onlyNotInRecovery {
+        bytes memory _msg = ControllerMessage.formatEnrollRemoteRouter(
             _domain,
             _router
         );
@@ -226,27 +226,27 @@ contract GovernanceRouter is Version0, Router {
     function setAbacusConnectionManagerRemote(
         uint32 _destination,
         address _abacusConnectionManager
-    ) external payable onlyGovernor onlyNotInRecovery {
-        bytes memory _msg = GovernanceMessage.formatSetAbacusConnectionManager(
+    ) external payable onlyController onlyNotInRecovery {
+        bytes memory _msg = ControllerMessage.formatSetAbacusConnectionManager(
             TypeCasts.addressToBytes32(_abacusConnectionManager)
         );
         _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
     }
 
     /**
-     * @notice Sets the governor of a remote router. Any value paid to this
+     * @notice Sets the controller of a remote router. Any value paid to this
      * function is used to pay for message processing on the remote chain.
-     * @param _destination The domain of router on which to set the governor
-     * @param _governor The address of the new governor
+     * @param _destination The domain of router on which to set the controller
+     * @param _controller The address of the new controller
      */
-    function setGovernorRemote(uint32 _destination, address _governor)
+    function setControllerRemote(uint32 _destination, address _controller)
         external
         payable
-        onlyGovernor
+        onlyController
         onlyNotInRecovery
     {
-        bytes memory _msg = GovernanceMessage.formatSetGovernor(
-            TypeCasts.addressToBytes32(_governor)
+        bytes memory _msg = ControllerMessage.formatSetController(
+            TypeCasts.addressToBytes32(_controller)
         );
         _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
     }
@@ -255,7 +255,7 @@ contract GovernanceRouter is Version0, Router {
 
     /**
      * @notice Transfers the recovery manager to a new address.
-     * @dev Callable by the governor when not in recovery mode or the
+     * @dev Callable by the controller when not in recovery mode or the
      * recoveryManager at any time.
      * @param _recoveryManager The address of the new recovery manager
      */
@@ -278,10 +278,10 @@ contract GovernanceRouter is Version0, Router {
 
     /**
      * @notice Returns the address of the current owner.
-     * @dev When not in recovery mode, the governor owns the contract.
+     * @dev When not in recovery mode, the controller owns the contract.
      */
     function owner() public view virtual override returns (address) {
-        return inRecovery() ? recoveryManager() : governor;
+        return inRecovery() ? recoveryManager() : controller;
     }
 
     /**
@@ -313,24 +313,24 @@ contract GovernanceRouter is Version0, Router {
      */
     function _handleCall(bytes29 _msg)
         internal
-        typeAssert(_msg, GovernanceMessage.Types.Call)
+        typeAssert(_msg, ControllerMessage.Types.Call)
     {
-        GovernanceMessage.Call[] memory _calls = _msg.getCalls();
+        ControllerMessage.Call[] memory _calls = _msg.getCalls();
         for (uint256 i = 0; i < _calls.length; i++) {
             _makeCall(_calls[i]);
         }
     }
 
     /**
-     * @notice Handle message transferring governorship to a new Governor
+     * @notice Handle message transferring control to a new Controller
      * @param _msg The message
      */
-    function _handleSetGovernor(bytes29 _msg)
+    function _handleSetController(bytes29 _msg)
         internal
-        typeAssert(_msg, GovernanceMessage.Types.SetGovernor)
+        typeAssert(_msg, ControllerMessage.Types.SetController)
     {
-        address _governor = TypeCasts.bytes32ToAddress(_msg.governor());
-        _setGovernor(_governor);
+        address _controller = TypeCasts.bytes32ToAddress(_msg.controller());
+        _setController(_controller);
     }
 
     /**
@@ -339,7 +339,7 @@ contract GovernanceRouter is Version0, Router {
      */
     function _handleEnrollRemoteRouter(bytes29 _msg)
         internal
-        typeAssert(_msg, GovernanceMessage.Types.EnrollRemoteRouter)
+        typeAssert(_msg, ControllerMessage.Types.EnrollRemoteRouter)
     {
         uint32 _domain = _msg.domain();
         bytes32 _router = _msg.router();
@@ -352,7 +352,7 @@ contract GovernanceRouter is Version0, Router {
      */
     function _handleSetAbacusConnectionManager(bytes29 _msg)
         internal
-        typeAssert(_msg, GovernanceMessage.Types.SetAbacusConnectionManager)
+        typeAssert(_msg, ControllerMessage.Types.SetAbacusConnectionManager)
     {
         address _abacusConnectionManager = TypeCasts.bytes32ToAddress(
             _msg.abacusConnectionManager()
@@ -365,7 +365,7 @@ contract GovernanceRouter is Version0, Router {
      * @param _call The call
      * @return _ret
      */
-    function _makeCall(GovernanceMessage.Call memory _call)
+    function _makeCall(ControllerMessage.Call memory _call)
         internal
         returns (bytes memory _ret)
     {
@@ -378,11 +378,11 @@ contract GovernanceRouter is Version0, Router {
     }
 
     /**
-     * @notice Set the governor.
-     * @param _governor The address of the new governor
+     * @notice Set the controller.
+     * @param _controller The address of the new controller
      */
-    function _setGovernor(address _governor) internal {
-        governor = _governor;
-        emit SetGovernor(_governor);
+    function _setController(address _controller) internal {
+        controller = _controller;
+        emit SetController(_controller);
     }
 }

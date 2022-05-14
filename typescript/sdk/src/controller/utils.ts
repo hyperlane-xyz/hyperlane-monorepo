@@ -15,7 +15,7 @@ export function byteLength(bytesLike: ethers.utils.BytesLike): number {
 }
 
 /**
- * Serialize a call to its packed Abacus governance representation
+ * Serialize a call to its packed ControllerMessage representation
  * @param call The function call to serialize
  * @returns The serialized function call, as a '0x'-prepended hex string
  */

@@ -1,13 +1,13 @@
 import { AbacusCoreDeployer } from '@abacus-network/deploy';
 import { AbacusCore, objMap } from '@abacus-network/sdk';
 
-import { AbacusGovernanceDeployer } from '../src/governance';
+import { ControllerDeployer } from '../src/controller';
 
 import {
+  getControllerContractsSdkFilepath,
+  getControllerVerificationDirectory,
   getCoreEnvironmentConfig,
   getEnvironment,
-  getGovernanceContractsSdkFilepath,
-  getGovernanceVerificationDirectory,
 } from './utils';
 
 async function main() {
@@ -16,17 +16,17 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
 
-  const deployer = new AbacusGovernanceDeployer(
+  const deployer = new ControllerDeployer(
     multiProvider,
-    config.governance,
+    config.controller,
     core,
   );
   const addresses = await deployer.deploy();
   deployer.writeContracts(
     addresses,
-    getGovernanceContractsSdkFilepath(environment),
+    getControllerContractsSdkFilepath(environment),
   );
-  deployer.writeVerification(getGovernanceVerificationDirectory(environment));
+  deployer.writeVerification(getControllerVerificationDirectory(environment));
 
   const owners = objMap(addresses, (_, r) => r.router.proxy);
   await AbacusCoreDeployer.transferOwnership(core, owners, multiProvider);
