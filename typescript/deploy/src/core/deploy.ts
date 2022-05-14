@@ -10,7 +10,6 @@ import {
   Outbox__factory,
   UpgradeBeaconController__factory,
 } from '@abacus-network/core';
-import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainMap,
@@ -28,6 +27,9 @@ import {
   promiseObjAll,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
+
+import { AbacusAppDeployer } from '../deploy';
+import { ProxiedContract } from '../proxy';
 
 export type ValidatorManagerConfig = {
   validators: Array<types.Address>;
