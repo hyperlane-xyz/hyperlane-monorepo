@@ -10,10 +10,10 @@ import {
 } from '@abacus-network/deploy';
 import {
   AbacusCore,
-  AbacusGovernance,
   Call,
   ChainMap,
   ChainName,
+  ControllerApp,
   MultiProvider,
   objMap,
 } from '@abacus-network/sdk';
@@ -30,18 +30,18 @@ interface DomainedCall {
   call: Call;
 }
 
-export class AbacusCoreGovernor<
+export class AbacusCoreControllerChecker<
   Networks extends ChainName,
 > extends AbacusCoreChecker<Networks> {
-  readonly governance: AbacusGovernance<Networks>;
+  readonly controllerApp: ControllerApp<Networks>;
 
   constructor(
     multiProvider: MultiProvider<Networks>,
     app: AbacusCore<Networks>,
-    governance: AbacusGovernance<Networks>,
+    controllerApp: ControllerApp<Networks>,
     config: ChainMap<Networks, CoreConfig>,
   ) {
-    const owners = governance.routerAddresses();
+    const owners = controllerApp.routerAddresses();
     const joinedConfigMap = objMap(config, (network, coreConfig) => {
       return {
         ...coreConfig,
@@ -49,7 +49,7 @@ export class AbacusCoreGovernor<
       };
     });
     super(multiProvider, app, joinedConfigMap);
-    this.governance = governance;
+    this.controllerApp = controllerApp;
   }
 
   async check(): Promise<void[]> {
@@ -58,7 +58,7 @@ export class AbacusCoreGovernor<
       this.violations.map((v) => this.handleViolation(v)),
     );
     txs.map((call) =>
-      this.governance.pushCall(call.network as Networks, call.call),
+      this.controllerApp.pushCall(call.network as Networks, call.call),
     );
     return [];
   }
@@ -136,7 +136,7 @@ export class AbacusCoreGovernor<
   expectCalls(networks: Networks[], count: number[]) {
     expect(networks).to.have.lengthOf(count.length);
     networks.forEach((network, i) => {
-      expect(this.governance.getCalls(network)).to.have.lengthOf(count[i]);
+      expect(this.controllerApp.getCalls(network)).to.have.lengthOf(count[i]);
     });
   }
 }

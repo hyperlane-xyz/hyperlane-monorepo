@@ -1,4 +1,4 @@
-import { GovernanceContracts } from '.';
+import { ControllerContracts } from '.';
 import { Call } from '..';
 import { ethers } from 'ethers';
 
@@ -9,32 +9,32 @@ import { MultiProvider } from '../provider';
 import { ChainMap, ChainName, ChainNameToDomainId } from '../types';
 import { objMap, promiseObjAll } from '../utils';
 
-import { GovernanceAddresses } from './contracts';
+import { ControllerAddresses } from './contracts';
 import { environments } from './environments';
 
 type Environments = typeof environments;
 type EnvironmentName = keyof Environments;
 
-export type Governor = {
+export type Controller = {
   domain: number;
   identifier: string;
 };
 
-export class AbacusGovernance<
+export class ControllerApp<
   Networks extends ChainName = ChainName,
-> extends AbacusApp<GovernanceContracts, Networks> {
+> extends AbacusApp<ControllerContracts, Networks> {
   constructor(
-    networkAddresses: ChainMap<Networks, GovernanceAddresses>,
+    networkAddresses: ChainMap<Networks, ControllerAddresses>,
     multiProvider: MultiProvider<Networks>,
   ) {
-    super(GovernanceContracts, networkAddresses, multiProvider);
+    super(ControllerContracts, networkAddresses, multiProvider);
   }
 
   static fromEnvironment(
     name: EnvironmentName,
     multiProvider: MultiProvider<any>,
   ) {
-    return new AbacusGovernance(environments[name], multiProvider);
+    return new ControllerApp(environments[name], multiProvider);
   }
 
   pushCall(network: Networks, call: Call) {
@@ -54,32 +54,32 @@ export class AbacusGovernance<
 
   routerAddresses = () => objMap(this.routers(), (_, r) => r.address);
 
-  governor = async (): Promise<{
+  controller = async (): Promise<{
     network: Networks;
     address: types.Address;
   }> => {
-    const governors = await promiseObjAll(
-      objMap(this.routers(), (network, router) => router.governor()),
+    const controllers = await promiseObjAll(
+      objMap(this.routers(), (network, router) => router.controller()),
     );
-    const match = Object.entries(governors).find(
-      ([_, governor]) => governor !== ethers.constants.AddressZero,
+    const match = Object.entries(controllers).find(
+      ([_, controller]) => controller !== ethers.constants.AddressZero,
     ) as [Networks, types.Address] | undefined;
     if (match) {
       return { network: match[0], address: match[1] };
     }
-    throw new Error('No governor found');
+    throw new Error('No controller found');
   };
 
   build = async (): Promise<ethers.PopulatedTransaction[]> => {
-    const governor = await this.governor();
-    const governorRouter = this.routers()[governor.network];
+    const controller = await this.controller();
+    const controllerRouter = this.routers()[controller.network];
 
     const networkTransactions = await promiseObjAll(
       objMap(this.networkCalls(), (network, calls) => {
-        if (network === governor.network) {
-          return governorRouter.populateTransaction.call(calls);
+        if (network === controller.network) {
+          return controllerRouter.populateTransaction.call(calls);
         } else {
-          return governorRouter.populateTransaction.callRemote(
+          return controllerRouter.populateTransaction.callRemote(
             ChainNameToDomainId[network],
             calls,
           );
@@ -90,12 +90,12 @@ export class AbacusGovernance<
   };
 
   execute = async (signer: ethers.Signer) => {
-    const governor = await this.governor();
+    const controller = await this.controller();
 
     const signerAddress = await signer.getAddress();
-    if (signerAddress !== governor.address) {
+    if (signerAddress !== controller.address) {
       throw new Error(
-        `Signer ${signerAddress} is not the governor ${governor.address}`,
+        `Signer ${signerAddress} is not the controller ${controller.address}`,
       );
     }
 
@@ -113,10 +113,10 @@ export class AbacusGovernance<
     provider: ethers.providers.Provider,
   ): Promise<ethers.BigNumber[]> => {
     const transactions = await this.build();
-    const governor = await this.governor();
+    const controller = await this.controller();
     return Promise.all(
       transactions.map(
-        (tx) => provider.estimateGas({ ...tx, from: governor.address }), // Estimate gas as the governor
+        (tx) => provider.estimateGas({ ...tx, from: controller.address }), // Estimate gas as the controller
       ),
     );
   };
