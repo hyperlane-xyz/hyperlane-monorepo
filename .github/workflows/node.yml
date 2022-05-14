@@ -24,6 +24,7 @@ jobs:
         # Check out the lockfile from main, reinstall, and then
         # verify the lockfile matches what was committed.
         run: |
+            rm -rf node_modules/@abacus-network
             yarn install
             CHANGES=$(git status -s)
             if [[ ! -z $CHANGES ]]; then
