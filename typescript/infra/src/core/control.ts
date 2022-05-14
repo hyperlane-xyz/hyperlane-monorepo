@@ -4,6 +4,7 @@ import { PopulatedTransaction } from 'ethers';
 import { MultisigValidatorManager__factory } from '@abacus-network/core';
 import {
   CheckerViolation,
+  CoreConfig,
   ProxyViolationType,
   UpgradeBeaconViolation,
 } from '@abacus-network/deploy';
@@ -23,7 +24,6 @@ import {
   ValidatorViolation,
   ValidatorViolationType,
 } from './check';
-import { CoreConfig } from './types';
 
 interface DomainedCall {
   network: ChainName;

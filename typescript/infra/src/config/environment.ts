@@ -1,9 +1,8 @@
-import { EnvironmentConfig } from '@abacus-network/deploy';
+import { CoreConfig, EnvironmentConfig } from '@abacus-network/deploy';
 import { ChainMap, ChainName, MultiProvider } from '@abacus-network/sdk';
 
 import { environments } from '../../config/environments';
 import { ControllerConfig } from '../controller';
-import { CoreConfig } from '../core';
 
 import { AgentConfig } from './agent';
 import { InfrastructureConfig } from './infrastructure';

@@ -1,7 +1,7 @@
+import { AbacusCoreDeployer } from '@abacus-network/deploy';
 import { AbacusCore, objMap } from '@abacus-network/sdk';
 
 import { ControllerDeployer } from '../src/controller';
-import { AbacusCoreDeployer } from '../src/core';
 
 import {
   getControllerContractsSdkFilepath,
