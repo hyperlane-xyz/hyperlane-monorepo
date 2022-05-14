@@ -29,7 +29,7 @@ import {
   ProcessTypes,
 } from './events';
 
-export type ParsedMessage = {
+type ParsedMessage = {
   origin: number;
   sender: string;
   destination: number;
