@@ -43,6 +43,8 @@ export type ChainMap<Networks extends ChainName, Value> = Record<
   Value
 >;
 
+export type TestChainNames = 'test1' | 'test2' | 'test3';
+
 export const AllChains = Object.keys(Chains) as ChainName[];
 export const DomainIdToChainName = Object.fromEntries(
   AllChains.map((chain) => [domains[chain].id, chain]),
@@ -56,6 +58,7 @@ export type Remotes<
   Networks extends ChainName,
   Local extends Networks,
 > = Exclude<Networks, Local>;
+
 export type RemoteChainMap<
   Networks extends ChainName,
   Local extends Networks,

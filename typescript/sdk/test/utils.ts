@@ -1,7 +1,7 @@
 import { FixedNumber, ethers } from 'ethers';
 
-import { NameOrDomain } from '../src';
-import { resolveId } from '../src/core/message';
+import { ChainName } from '../dist';
+import { ChainMap } from '../src';
 
 const MOCK_NETWORK = {
   name: 'MockNetwork',
@@ -42,23 +42,23 @@ export class MockProvider extends ethers.providers.BaseProvider {
 }
 
 // A mock TokenPriceGetter intended to be used by tests when mocking token prices
-export class MockTokenPriceGetter {
-  private tokenPrices: { [domain: number]: FixedNumber };
+export class MockTokenPriceGetter<Networks extends ChainName> {
+  private tokenPrices: Partial<ChainMap<Networks, FixedNumber>>;
 
   constructor() {
     this.tokenPrices = {};
   }
 
-  getNativeTokenUsdPrice(domain: NameOrDomain): Promise<FixedNumber> {
-    const id = resolveId(domain);
-    const price = this.tokenPrices[id];
+  getNativeTokenUsdPrice(chain: Networks): Promise<FixedNumber> {
+    const price = this.tokenPrices[chain];
     if (price) {
-      return Promise.resolve(price);
+      // TS compiler somehow can't deduce the check above
+      return Promise.resolve(price as FixedNumber);
     }
-    throw Error(`No price for domain ${domain}`);
+    throw Error(`No price for chain ${chain}`);
   }
 
-  setTokenPrice(domain: number, price: string | number) {
-    this.tokenPrices[domain] = FixedNumber.from(price);
+  setTokenPrice(chain: Networks, price: string | number) {
+    this.tokenPrices[chain] = FixedNumber.from(price);
   }
 }
