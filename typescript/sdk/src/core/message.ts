@@ -29,6 +29,7 @@ import {
   ProcessTypes,
 } from './events';
 
+// I didn't want to override the existing ParsedMessage in message.ts as that would include having to type AbacusMessage and more and it's not clear to me that we will keep those.
 type ParsedMessage = {
   origin: number;
   sender: string;

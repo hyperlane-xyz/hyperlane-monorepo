@@ -44,9 +44,9 @@ describe('InterchainGasCalculator', () => {
 
   beforeEach(() => {
     tokenPriceGetter = new MockTokenPriceGetter();
-    // Origin domain token
+    // Origin token
     tokenPriceGetter.setTokenPrice(origin, 10);
-    // Destination domain token
+    // Destination token
     tokenPriceGetter.setTokenPrice(destination, 5);
     calculator = new InterchainGasCalculator(multiProvider, core, {
       tokenPriceGetter,
@@ -144,8 +144,8 @@ describe('InterchainGasCalculator', () => {
     });
 
     it('considers when the origin token decimals > the destination token decimals', async () => {
-      calculator.nativeTokenDecimals = (domain: TestChainNames) => {
-        if (domain === origin) {
+      calculator.nativeTokenDecimals = (chain: TestChainNames) => {
+        if (chain === origin) {
           return 20;
         }
         return 18;
@@ -163,8 +163,8 @@ describe('InterchainGasCalculator', () => {
     it('considers when the origin token decimals < the destination token decimals', async () => {
       sinon
         .stub(calculator, 'nativeTokenDecimals')
-        .callsFake((domain: TestChainNames) => {
-          if (domain === origin) {
+        .callsFake((chain: TestChainNames) => {
+          if (chain === origin) {
             return 16;
           }
           return 18;
@@ -201,16 +201,15 @@ describe('InterchainGasCalculator', () => {
     before(() => {
       const getContractsStub = sinon.stub(core, 'getContracts');
       let thresholdStub: sinon.SinonStub | undefined;
-      getContractsStub.callsFake((domain) => {
+      getContractsStub.callsFake((chain) => {
         // Get the "real" return value of getContracts.
-        const contracts = getContractsStub.wrappedMethod.bind(core)(domain);
+        const contracts = getContractsStub.wrappedMethod.bind(core)(chain);
 
         // Ethers contracts are frozen using Object.freeze, so we make a copy
         // of the object so we can stub `threshold`.
         const validatorManager = Object.assign(
           {},
-          // @ts-ignore - TODO more strongly type InterchainGasCalculator
-          contracts.inboxes[resolveDomain(origin)].validatorManager,
+          contracts.inboxes[origin].validatorManager,
         );
 
         // Because we are stubbing vaidatorManager.threshold when core.getContracts gets called,
@@ -220,9 +219,7 @@ describe('InterchainGasCalculator', () => {
             .stub(validatorManager, 'threshold')
             .callsFake(() => Promise.resolve(BigNumber.from(threshold)));
 
-          // @ts-ignore - TODO more strongly type InterchainGasCalculator
-          contracts.inboxes[resolveDomain(origin)].validatorManager =
-            validatorManager;
+          contracts.inboxes[origin].validatorManager = validatorManager;
         }
         return contracts;
       });
