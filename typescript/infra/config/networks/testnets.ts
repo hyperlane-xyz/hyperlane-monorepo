@@ -4,10 +4,7 @@ import { TransactionConfig } from '@abacus-network/deploy';
 import { chainConnectionConfigs } from '@abacus-network/sdk';
 import { ChainMap } from '@abacus-network/sdk';
 
-
-const {
-  kovan,
-} = chainConnectionConfigs;
+const { kovan } = chainConnectionConfigs;
 
 export const overriddenKovan: TransactionConfig = {
   ...kovan,
