@@ -154,7 +154,7 @@ export class AbacusMessage {
     const messages: AbacusMessage[] = [];
     const outbox = new Outbox__factory().interface;
     const network = resolveDomain(nameOrDomain);
-    const provider = multiProvider.getDomainConnection(network).provider!;
+    const provider = multiProvider.getChainConnection(network).provider!;
 
     for (const log of receipt.logs) {
       try {
@@ -227,7 +227,7 @@ export class AbacusMessage {
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AbacusMessage[]> {
-    const provider = multiProvider.getDomainConnection(
+    const provider = multiProvider.getChainConnection(
       resolveDomain(nameOrDomain),
     ).provider!;
     const receipt = await provider.getTransactionReceipt(transactionHash);
@@ -258,7 +258,7 @@ export class AbacusMessage {
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AbacusMessage> {
-    const provider = multiProvider.getDomainConnection(
+    const provider = multiProvider.getChainConnection(
       resolveDomain(nameOrDomain),
     ).provider!;
     const receipt = await provider.getTransactionReceipt(transactionHash);

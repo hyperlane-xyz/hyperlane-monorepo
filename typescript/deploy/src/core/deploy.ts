@@ -16,7 +16,7 @@ import {
   ChainName,
   CoreContractAddresses,
   CoreContracts,
-  DomainConnection,
+  ChainConnection,
   InboxContracts,
   MailboxAddresses,
   MultiProvider,
@@ -68,7 +68,7 @@ export class AbacusCoreDeployer<
     network: Local,
     config: CoreConfig,
   ): Promise<CoreContractAddresses<Networks, Local>> {
-    const dc = this.multiProvider.getDomainConnection(network);
+    const dc = this.multiProvider.getChainConnection(network);
     const signer = dc.signer!;
 
     const provider = dc.provider!;
@@ -221,11 +221,11 @@ export class AbacusCoreDeployer<
     return promiseObjAll(
       objMap(core.contractsMap, async (network, coreContracts) => {
         const owner = owners[network];
-        const domainConnection = multiProvider.getDomainConnection(network);
+        const chainConnection = multiProvider.getChainConnection(network);
         return AbacusCoreDeployer.transferOwnershipOfDomain(
           coreContracts,
           owner,
-          domainConnection,
+          chainConnection,
         );
       }),
     );
@@ -237,19 +237,19 @@ export class AbacusCoreDeployer<
   >(
     core: CoreContracts<CoreNetworks, Local>,
     owner: types.Address,
-    domainConnection: DomainConnection,
+    chainConnection: ChainConnection,
   ): Promise<ethers.ContractReceipt> {
     await core.contracts.outbox.validatorManager.transferOwnership(
       owner,
-      domainConnection.overrides,
+      chainConnection.overrides,
     );
     await core.contracts.abacusConnectionManager.transferOwnership(
       owner,
-      domainConnection.overrides,
+      chainConnection.overrides,
     );
     await core.contracts.upgradeBeaconController.transferOwnership(
       owner,
-      domainConnection.overrides,
+      chainConnection.overrides,
     );
     const inboxContracts: InboxContracts[] = Object.values(
       core.contracts.inboxes,
@@ -258,16 +258,16 @@ export class AbacusCoreDeployer<
       inboxContracts.map(async (inbox) => {
         await inbox.validatorManager.transferOwnership(
           owner,
-          domainConnection.overrides,
+          chainConnection.overrides,
         );
-        await inbox.inbox.transferOwnership(owner, domainConnection.overrides);
+        await inbox.inbox.transferOwnership(owner, chainConnection.overrides);
       }),
     );
 
     const tx = await core.contracts.outbox.outbox.transferOwnership(
       owner,
-      domainConnection.overrides,
+      chainConnection.overrides,
     );
-    return tx.wait(domainConnection.confirmations);
+    return tx.wait(chainConnection.confirmations);
   }
 }

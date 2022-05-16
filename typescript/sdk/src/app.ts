@@ -18,7 +18,7 @@ export class AbacusApp<
         (network, addresses) =>
           new builder(
             addresses,
-            multiProvider.getDomainConnection(network).getConnection()!,
+            multiProvider.getChainConnection(network).getConnection()!,
           ),
       ),
     );

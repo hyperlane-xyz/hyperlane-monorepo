@@ -71,7 +71,7 @@ export const registerSigners = <Networks extends ChainName>(
   signers: ChainMap<Networks, ethers.Signer>,
 ) =>
   objMap(signers, (network, signer) =>
-    multiProvider.getDomainConnection(network).registerSigner(signer),
+    multiProvider.getChainConnection(network).registerSigner(signer),
   );
 
 export const registerSigner = <Networks extends ChainName>(

@@ -45,7 +45,7 @@ export {
   ControllerContracts,
   controllerEnvironments,
 } from './controller';
-export { DomainConnection, IDomainConnection, MultiProvider } from './provider';
+export { ChainConnection, IChainConnection, MultiProvider } from './provider';
 export {
   AllChains,
   ChainMap,

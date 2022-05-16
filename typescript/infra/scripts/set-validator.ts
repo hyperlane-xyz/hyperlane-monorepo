@@ -37,7 +37,7 @@ async function main() {
 
   // Change to `batch.execute` in order to run.
   const controllerActor = await controllerApp.controller();
-  const provider = multiProvider.getDomainConnection(controllerActor.network)
+  const provider = multiProvider.getChainConnection(controllerActor.network)
     .provider!;
   const receipts = await checker.controllerApp.estimateGas(provider);
   console.log(receipts);
