@@ -1,14 +1,10 @@
-import {
-  AbacusCore,
-  MultiProvider,
-  ParsedMessage,
-  domains,
-  resolveDomain,
-  resolveNetworks,
-} from '..';
+import { AbacusCore, MultiProvider, domains } from '..';
 import { BigNumber, FixedNumber, ethers } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
+
+import { InboxContracts } from '../core/contracts';
+import { ChainName, RemoteChainMap, Remotes } from '../types';
 
 import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
 import { convertDecimalValue, mulBigAndFixed } from './utils';
@@ -77,12 +73,23 @@ export interface InterchainGasCalculatorConfig {
   tokenPriceGetter?: TokenPriceGetter;
 }
 
+export type ParsedMessage<
+  Networks extends ChainName,
+  Destination extends Networks,
+> = {
+  origin: Exclude<Networks, Destination>;
+  sender: string;
+  destination: Destination;
+  recipient: string;
+  body: string;
+};
+
 /**
  * Calculates interchain gas payments.
  */
-export class InterchainGasCalculator {
-  core: AbacusCore;
-  multiProvider: MultiProvider;
+export class InterchainGasCalculator<Networks extends ChainName> {
+  core: AbacusCore<Networks>;
+  multiProvider: MultiProvider<Networks>;
 
   tokenPriceGetter: TokenPriceGetter;
 
@@ -90,8 +97,8 @@ export class InterchainGasCalculator {
   messageGasEstimateBuffer: ethers.BigNumber;
 
   constructor(
-    multiProvider: MultiProvider,
-    core: AbacusCore,
+    multiProvider: MultiProvider<Networks>,
+    core: AbacusCore<Networks>,
     config?: InterchainGasCalculatorConfig,
   ) {
     this.multiProvider = multiProvider;
@@ -116,23 +123,23 @@ export class InterchainGasCalculator {
    * the destination chain, gas costs incurred by a relayer when submitting a signed
    * checkpoint to the destination chain, and the overhead gas cost in Inbox of processing
    * a message. Applies the multiplier `paymentEstimateMultiplier`.
-   * @param originDomain The domain of the origin chain.
-   * @param destinationDomain The domain of the destination chain.
+   * @param origin The name of the origin chain.
+   * @param destination The name of the destination chain.
    * @param destinationHandleGas The amount of gas the recipient `handle` function
    * is estimated to use.
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
-  async estimatePaymentForHandleGasAmount(
-    originDomain: number,
-    destinationDomain: number,
+  async estimatePaymentForHandleGasAmount<Destination extends Networks>(
+    origin: Exclude<Networks, Destination>,
+    destination: Destination,
     destinationHandleGas: BigNumber,
   ): Promise<BigNumber> {
-    const destinationGasPrice = await this.suggestedGasPrice(destinationDomain);
+    const destinationGasPrice = await this.suggestedGasPrice(destination);
 
     const checkpointRelayGas = await this.checkpointRelayGas(
-      originDomain,
-      destinationDomain,
+      origin,
+      destination,
     );
     const inboxProcessOverheadGas = await this.inboxProcessOverheadGas();
     const totalDestinationGas = checkpointRelayGas
@@ -142,8 +149,8 @@ export class InterchainGasCalculator {
 
     // Convert from destination domain native tokens to origin domain native tokens.
     const originCostWei = await this.convertBetweenNativeTokens(
-      destinationDomain,
-      originDomain,
+      destination,
+      origin,
       destinationCostWei,
     );
 
@@ -165,7 +172,9 @@ export class InterchainGasCalculator {
    * @returns An estimated amount of origin chain tokens to cover gas costs of the
    * message on the destination chain.
    */
-  async estimatePaymentForMessage(message: ParsedMessage) {
+  async estimatePaymentForMessage<Destination extends Networks>(
+    message: ParsedMessage<Networks, Destination>,
+  ) {
     const destinationGas = await this.estimateHandleGasForMessage(message);
     return this.estimatePaymentForHandleGasAmount(
       message.origin,
@@ -176,23 +185,23 @@ export class InterchainGasCalculator {
 
   /**
    * Using the exchange rates provided by tokenPriceGetter, returns the amount of
-   * `toDomain` native tokens equivalent in value to the provided `fromAmount` of
-   * `fromDomain` native tokens. Accounts for differences in the decimals of the tokens.
-   * @param fromDomain The domain whose native token is being converted from.
-   * @param toDomain The domain whose native token is being converted into.
-   * @param fromAmount The amount of `fromDomain` native tokens to convert from.
-   * @returns The amount of `toDomain` native tokens whose value is equivalent to
-   * `fromAmount` of `fromDomain` native tokens.
+   * `toChain` native tokens equivalent in value to the provided `fromAmount` of
+   * `fromChain` native tokens. Accounts for differences in the decimals of the tokens.
+   * @param fromChain The domain whose native token is being converted from.
+   * @param toChain The domain whose native token is being converted into.
+   * @param fromAmount The amount of `fromChain` native tokens to convert from.
+   * @returns The amount of `toChain` native tokens whose value is equivalent to
+   * `fromAmount` of `fromChain` native tokens.
    */
   async convertBetweenNativeTokens(
-    fromDomain: number,
-    toDomain: number,
+    fromChain: Networks,
+    toChain: Networks,
     fromAmount: BigNumber,
   ): Promise<BigNumber> {
     // A FixedNumber that doesn't care what the decimals of the from/to
     // tokens are -- it is just the amount of whole from tokens that a single
     // whole to token is equivalent in value to.
-    const exchangeRate = await this.getExchangeRate(toDomain, fromDomain);
+    const exchangeRate = await this.getExchangeRate(toChain, fromChain);
 
     // Apply the exchange rate to the amount. This does not yet account for differences in
     // decimals between the two tokens.
@@ -205,27 +214,27 @@ export class InterchainGasCalculator {
     // Converts exchangeRateProduct to having the correct number of decimals.
     return convertDecimalValue(
       exchangeRateProduct,
-      this.nativeTokenDecimals(fromDomain),
-      this.nativeTokenDecimals(toDomain),
+      this.nativeTokenDecimals(fromChain),
+      this.nativeTokenDecimals(toChain),
     );
   }
 
   /**
-   * @param baseDomain The domain whose native token is the base asset.
-   * @param quoteDomain The domain whose native token is the quote asset.
-   * @returns The exchange rate of the native tokens of the baseDomain and the quoteDomain.
+   * @param baseChain The domain whose native token is the base asset.
+   * @param quoteChain The domain whose native token is the quote asset.
+   * @returns The exchange rate of the native tokens of the baseChain and the quoteChain.
    * I.e. the number of whole quote tokens a single whole base token is equivalent
    * in value to.
    */
   async getExchangeRate(
-    baseDomain: number,
-    quoteDomain: number,
+    baseChain: Networks,
+    quoteChain: Networks,
   ): Promise<FixedNumber> {
     const baseUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
-      baseDomain,
+      baseChain,
     );
     const quoteUsd = await this.tokenPriceGetter.getNativeTokenUsdPrice(
-      quoteDomain,
+      quoteChain,
     );
 
     // This operation is called "unsafe" because of the unintuitive rounding that
@@ -240,26 +249,22 @@ export class InterchainGasCalculator {
 
   /**
    * Gets a suggested gas price for a domain.
-   * @param domain The domain of the chain to estimate gas prices for.
+   * @param chainName The name of the chain to get the gas price for
    * @returns The suggested gas price in wei on the destination chain.
    */
-  async suggestedGasPrice(domain: number): Promise<BigNumber> {
-    const provider = this.multiProvider.getChainConnection(
-      resolveDomain(domain),
-    ).provider!;
+  async suggestedGasPrice(chainName: Networks): Promise<BigNumber> {
+    const provider =
+      this.multiProvider.getChainConnection(chainName).provider!;
     return provider.getGasPrice();
   }
 
   /**
-   * Gets the number of decimals of the provided domain's native token.
-   * @param domain The domain.
-   * @returns The number of decimals of `domain`'s native token.
+   * Gets the number of decimals of the provided chain's native token.
+   * @param chain The chain.
+   * @returns The number of decimals of `chain`'s native token.
    */
-  nativeTokenDecimals(domain: number) {
-    return (
-      domains[resolveDomain(domain)].nativeTokenDecimals ??
-      DEFAULT_TOKEN_DECIMALS
-    );
+  nativeTokenDecimals(chain: Networks) {
+    return domains[chain].nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
   }
 
   /**
@@ -276,17 +281,15 @@ export class InterchainGasCalculator {
    * @returns The estimated gas required by the message's recipient handle function
    * on the destination chain.
    */
-  async estimateHandleGasForMessage(
-    message: ParsedMessage,
+  async estimateHandleGasForMessage<Local extends Networks>(
+    message: ParsedMessage<Networks, Local>,
   ): Promise<BigNumber> {
-    const provider = this.multiProvider.getChainConnection(
-      resolveDomain(message.destination),
-    ).provider!;
+    const provider = this.multiProvider.getChainConnection(message.destination)
+      .provider!;
 
-    const messageNetworks = resolveNetworks(message);
-    const { inbox } = this.core.getMailboxPair(
-      messageNetworks.origin as never,
-      messageNetworks.destination,
+    const { inbox } = this.core.getMailboxPair<Local>(
+      message.origin,
+      message.destination,
     );
 
     const handlerInterface = new ethers.utils.Interface([
@@ -315,18 +318,18 @@ export class InterchainGasCalculator {
   }
 
   /**
-   * @param originDomain The domain of the origin chain.
-   * @param destinationDomain The domain of the destination chain.
+   * @param origin The name of the origin chain.
+   * @param destination The name of the destination chain.
    * @returns An estimated gas amount a relayer will spend when submitting a signed
    * checkpoint to the destination domain.
    */
-  async checkpointRelayGas(
-    originDomain: number,
-    destinationDomain: number,
+  async checkpointRelayGas<Destination extends Networks>(
+    origin: Remotes<Networks, Destination>,
+    destination: Destination,
   ): Promise<BigNumber> {
-    const inboxValidatorManager = this.core.getContracts(
-      resolveDomain(destinationDomain) as never,
-    ).inboxes[resolveDomain(originDomain)].validatorManager;
+    const inboxes: RemoteChainMap<Networks, Destination, InboxContracts> =
+      this.core.getContracts(destination).inboxes;
+    const inboxValidatorManager = inboxes[origin].validatorManager;
     const threshold = await inboxValidatorManager.threshold();
 
     return threshold

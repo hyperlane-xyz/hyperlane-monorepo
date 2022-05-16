@@ -20,7 +20,6 @@ export {
   InboxContracts,
   MailboxAddresses,
   MessageStatus,
-  ParsedMessage,
   parseMessage,
   resolveDomain,
   resolveId,
