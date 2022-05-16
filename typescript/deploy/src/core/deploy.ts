@@ -12,11 +12,11 @@ import {
 } from '@abacus-network/core';
 import {
   AbacusCore,
+  ChainConnection,
   ChainMap,
   ChainName,
   CoreContractAddresses,
   CoreContracts,
-  ChainConnection,
   InboxContracts,
   MailboxAddresses,
   MultiProvider,
