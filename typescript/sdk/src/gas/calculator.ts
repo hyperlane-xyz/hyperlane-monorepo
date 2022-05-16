@@ -253,8 +253,7 @@ export class InterchainGasCalculator<Networks extends ChainName> {
    * @returns The suggested gas price in wei on the destination chain.
    */
   async suggestedGasPrice(chainName: Networks): Promise<BigNumber> {
-    const provider =
-      this.multiProvider.getChainConnection(chainName).provider!;
+    const provider = this.multiProvider.getChainConnection(chainName).provider!;
     return provider.getGasPrice();
   }
 
