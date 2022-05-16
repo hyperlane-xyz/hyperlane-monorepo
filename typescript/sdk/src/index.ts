@@ -60,3 +60,4 @@ export {
   Remotes,
 } from './types';
 export { utils, objMap, objMapEntries, promiseObjAll } from './utils';
+export { chainConnectionConfigs, addSignerToConnection } from './chains';
