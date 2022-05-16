@@ -1,7 +1,6 @@
 import { FixedNumber, ethers } from 'ethers';
 
-import { ChainName } from '../dist';
-import { ChainMap } from '../src';
+import { ChainMap, ChainName } from '../src';
 
 const MOCK_NETWORK = {
   name: 'MockNetwork',

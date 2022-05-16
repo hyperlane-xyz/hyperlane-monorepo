@@ -9,7 +9,6 @@ import {
   Chains,
   InterchainGasCalculator,
   MultiProvider,
-  resolveDomain,
 } from '../..';
 import { ParsedMessage } from '../../src/gas/calculator';
 import { TestChainNames } from '../../src/types';
@@ -209,6 +208,7 @@ describe('InterchainGasCalculator', () => {
         // of the object so we can stub `threshold`.
         const validatorManager = Object.assign(
           {},
+          // @ts-ignore Typescript has trouble properly typing the stubbed getContracts
           contracts.inboxes[origin].validatorManager,
         );
 
@@ -219,6 +219,7 @@ describe('InterchainGasCalculator', () => {
             .stub(validatorManager, 'threshold')
             .callsFake(() => Promise.resolve(BigNumber.from(threshold)));
 
+          // @ts-ignore Typescript has trouble properly typing the stubbed getContracts
           contracts.inboxes[origin].validatorManager = validatorManager;
         }
         return contracts;
