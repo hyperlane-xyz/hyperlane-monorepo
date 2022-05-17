@@ -13,7 +13,7 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
-use log::{debug, error, trace, warn};
+use log::{debug, trace, warn};
 use maplit::hashmap;
 use parking_lot::RwLock;
 use prometheus::{CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
@@ -54,6 +54,32 @@ impl Default for TokenInfo {
 pub struct WalletInfo {
     pub name: Option<String>,
 }
+
+pub const BLOCK_HEIGHT_LABELS: &[&str] = &["chain"];
+pub const GAS_PRICE_GWEI_LABELS: &[&str] = &["chain"];
+pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] = &[
+    "chain",
+    "contract_name",
+    "contract_address",
+    "contract_function_name",
+    "contract_function_address",
+];
+pub const CONTRACT_SEND_DURATION_SECONDS_LABELS: &[&str] = &["chain", "address_from"];
+pub const TRANSACTION_SEND_DURATION_SECONDS_LABELS: &[&str] = &["chain", "address_from"];
+pub const TRANSACTION_SEND_TOTAL_LABELS: &[&str] =
+    &["chain", "address_from", "address_to", "txn_status"];
+pub const TRANSACTION_SEND_ETH_TOTAL_LABELS: &[&str] =
+    &["chain", "address_from", "address_to", "txn_status"];
+pub const TRANSACTION_SEND_GAS_ETH_TOTAL_LABELS: &[&str] = &["chain", "address_from", "address_to"];
+pub const WALLET_BALANCE_LABELS: &[&str] = &[
+    "chain",
+    "wallet_address",
+    "wallet_name",
+    "token_address",
+    "token_name",
+    "token_symbol",
+    "token_name",
+];
 
 #[derive(Clone, Builder)]
 pub struct Metrics {
@@ -120,6 +146,9 @@ struct InnerData {
     wallets: HashMap<Address, WalletInfo>,
 }
 
+/// An ethers-rs middleware that inturments calls with prometheus metrics. To make this is flexible
+/// as possible, the metric vecs need to be created and named externally, they should follow the
+/// naming convention here and must include the described labels.
 pub struct PrometheusMiddleware<M> {
     inner: Arc<M>,
     metrics: Metrics,
@@ -148,10 +177,12 @@ impl<M> PrometheusMiddleware<M> {
         }
     }
 
+    /// Start tracking metrics for a new token.
     pub fn track_new_token(&self, addr: Address, info: TokenInfo) {
         self.track_new_tokens([(addr, info)]);
     }
 
+    /// Start tacking metrics for new tokens.
     pub fn track_new_tokens(&self, iter: impl IntoIterator<Item = (Address, TokenInfo)>) {
         let mut data = self.data.write();
         for (addr, info) in iter {
@@ -159,10 +190,12 @@ impl<M> PrometheusMiddleware<M> {
         }
     }
 
+    /// Start tracking metrics for a new wallet.
     pub fn track_new_wallet(&self, addr: Address, info: WalletInfo) {
         self.track_new_wallets([(addr, info)])
     }
 
+    /// Start tracking metrics for new wallets.
     pub fn track_new_wallets(&self, iter: impl IntoIterator<Item = (Address, WalletInfo)>) {
         let mut data = self.data.write();
         for (addr, info) in iter {
@@ -189,8 +222,7 @@ impl<M: Middleware> PrometheusMiddleware<M> {
             debug!("Updating metrics for chain ({chain})");
 
             if block_height.is_some() || gas_price_gwei.is_some() {
-                Self::update_block_details(&*client, &*data, &chain, block_height, gas_price_gwei)
-                    .await;
+                Self::update_block_details(&*client, &chain, block_height, gas_price_gwei).await;
             }
             if let Some(wallet_balance) = wallet_balance {
                 Self::update_wallet_balances(client.clone(), &*data, &chain, wallet_balance).await;
@@ -202,7 +234,6 @@ impl<M: Middleware> PrometheusMiddleware<M> {
 
     async fn update_block_details(
         client: &M,
-        data: &InnerData,
         chain: &str,
         block_height: Option<IntGaugeVec>,
         gas_price_gwei: Option<GaugeVec>,
@@ -261,9 +292,8 @@ impl<M: Middleware> PrometheusMiddleware<M> {
                 },
                 Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for Ether; {e}")
             }
-            for (token_addr, token_data) in data.tokens.iter() {
+            for (token_addr, token) in data.tokens.iter() {
                 let token_addr_str = token_addr.to_string();
-                let token = data.tokens.get(token_addr).cloned().unwrap_or_default();
                 let balance = match Erc20::new(*token_addr, client.clone())
                     .balance_of(*wallet_addr)
                     .call()
@@ -293,7 +323,7 @@ impl<M: Middleware> PrometheusMiddleware<M> {
 
 impl<M: Middleware> Debug for PrometheusMiddleware<M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
+        write!(f, "PrometheusMiddleware({:?})", self.inner)
     }
 }
 
@@ -307,15 +337,6 @@ pub fn metrics_chain_name(chain_id: Option<u64>) -> String {
         }
     } else {
         "unknown".into()
-    }
-}
-
-pub fn metrics_address(addr: Option<Address>) -> String {
-    if let Some(addr) = addr {
-        // TODO: does this format as Hex?
-        format!("{addr}")
-    } else {
-        "none".into()
     }
 }
 
