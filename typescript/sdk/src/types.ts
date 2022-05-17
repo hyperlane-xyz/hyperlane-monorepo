@@ -35,8 +35,8 @@ export enum Chains { // must be string type to be used with Object.keys
 }
 export type ChainName = keyof typeof Chains;
 export type CompleteChainMap<Value> = Record<ChainName, Value>;
-export type ChainMap<Networks extends ChainName, Value> = Record<
-  Networks,
+export type ChainMap<Chain extends ChainName, Value> = Record<
+  Chain,
   Value
 >;
 
@@ -52,15 +52,15 @@ export const ChainNameToDomainId = Object.fromEntries(
 export type NameOrDomain = ChainName | number;
 
 export type Remotes<
-  Networks extends ChainName,
-  Local extends Networks,
-> = Exclude<Networks, Local>;
+  Chain extends ChainName,
+  LocalChain extends Chain,
+> = Exclude<Chain, LocalChain>;
 
 export type RemoteChainMap<
-  Networks extends ChainName,
-  Local extends Networks,
+  Chain extends ChainName,
+  LocalChain extends Chain,
   Value,
-> = Record<Remotes<Networks, Local>, Value>;
+> = Record<Remotes<Chain, LocalChain>, Value>;
 
 /**
  * A Domain (and its characteristics)

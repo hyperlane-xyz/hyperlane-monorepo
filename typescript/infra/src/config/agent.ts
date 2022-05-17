@@ -10,16 +10,16 @@ import { KEY_ROLE_ENUM } from '../agents/roles';
 
 import { DeployEnvironment } from './environment';
 
-// Allows a "default" config to be specified and any per-network overrides.
-interface ChainOverridableConfig<Networks extends ChainName, T> {
+// Allows a "default" config to be specified and any per-chain overrides.
+interface ChainOverridableConfig<Chain extends ChainName, T> {
   default: T;
-  chainOverrides?: Partial<ChainMap<Networks, T>>;
+  chainOverrides?: Partial<ChainMap<Chain, T>>;
 }
 
 // Returns the default config with any overriden values specified for the provided chain.
-export function getChainOverriddenConfig<Networks extends ChainName, T>(
-  overridableConfig: ChainOverridableConfig<Networks, T>,
-  chain: Networks,
+export function getChainOverriddenConfig<Chain extends ChainName, T>(
+  overridableConfig: ChainOverridableConfig<Chain, T>,
+  chain: Chain,
 ): T {
   return {
     ...overridableConfig.default,
@@ -75,9 +75,9 @@ interface Validator {
   checkpointSyncer: CheckpointSyncerConfig;
 }
 
-// Validator sets for each network
-export type ChainValidatorSets<Networks extends ChainName> = ChainMap<
-  Networks,
+// Validator sets for each chain
+export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
+  Chain,
   ValidatorSet
 >;
 
@@ -98,8 +98,8 @@ interface BaseRelayerConfig {
 }
 
 // Per-chain relayer agent configs
-type ChainRelayerConfigs<Networks extends ChainName> = ChainOverridableConfig<
-  Networks,
+type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
+  Chain,
   BaseRelayerConfig
 >;
 
@@ -121,8 +121,8 @@ interface BaseValidatorConfig {
 }
 
 // Per-chain validator agent configs
-type ChainValidatorConfigs<Networks extends ChainName> = ChainOverridableConfig<
-  Networks,
+type ChainValidatorConfigs<Chain extends ChainName> = ChainOverridableConfig<
+  Chain,
   BaseValidatorConfig
 >;
 
@@ -145,8 +145,8 @@ interface CheckpointerConfig {
 }
 
 // Per-chain checkpointer agent configs
-type ChainCheckpointerConfigs<Networks extends ChainName> =
-  ChainOverridableConfig<Networks, CheckpointerConfig>;
+type ChainCheckpointerConfigs<Chain extends ChainName> =
+  ChainOverridableConfig<Chain, CheckpointerConfig>;
 
 // ===============================
 // =====     Kathy Agent     =====
@@ -159,8 +159,8 @@ interface KathyConfig {
 }
 
 // Per-chain kathy agent configs
-type ChainKathyConfigs<Networks extends ChainName> = ChainOverridableConfig<
-  Networks,
+type ChainKathyConfigs<Chain extends ChainName> = ChainOverridableConfig<
+  Chain,
   KathyConfig
 >;
 
@@ -199,19 +199,19 @@ export interface DockerConfig {
   tag: string;
 }
 
-export interface AgentConfig<Networks extends ChainName> {
+export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
   runEnv: string;
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
-  chainNames: Networks[];
-  validatorSets: ChainValidatorSets<Networks>;
-  validator: ChainValidatorConfigs<Networks>;
-  relayer: ChainRelayerConfigs<Networks>;
-  checkpointer?: ChainCheckpointerConfigs<Networks>;
-  kathy?: ChainKathyConfigs<Networks>;
+  chainNames: Chain[];
+  validatorSets: ChainValidatorSets<Chain>;
+  validator: ChainValidatorConfigs<Chain>;
+  relayer: ChainRelayerConfigs<Chain>;
+  checkpointer?: ChainCheckpointerConfigs<Chain>;
+  kathy?: ChainKathyConfigs<Chain>;
 }
 
 export type RustSigner = {
@@ -241,11 +241,11 @@ export type InboxAddresses = {
   validatorManager: types.Address;
 };
 
-export type RustConfig<Networks extends ChainName> = {
+export type RustConfig<Chain extends ChainName> = {
   environment: DeployEnvironment;
   index?: { from: string };
-  signers: Partial<ChainMap<Networks, RustSigner>>;
-  inboxes: RemoteChainMap<Networks, any, RustContractBlock<InboxAddresses>>;
+  signers: Partial<ChainMap<Chain, RustSigner>>;
+  inboxes: RemoteChainMap<Chain, any, RustContractBlock<InboxAddresses>>;
   outbox: RustContractBlock<OutboxAddresses>;
   tracing: {
     level: string;
@@ -255,10 +255,10 @@ export type RustConfig<Networks extends ChainName> = {
 };
 
 // Helper to get chain-specific agent configurations
-export class ChainAgentConfig<Networks extends ChainName> {
+export class ChainAgentConfig<Chain extends ChainName> {
   constructor(
-    public readonly agentConfig: AgentConfig<Networks>,
-    public readonly chainName: Networks,
+    public readonly agentConfig: AgentConfig<Chain>,
+    public readonly chainName: Chain,
   ) {}
 
   // Credentials are only needed if AWS keys are needed -- otherwise, the

@@ -14,9 +14,9 @@ import { AgentGCPKey } from './gcp';
 import { fetchKeysForChain } from './key-utils';
 import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
 
-async function helmValuesForChain<Networks extends ChainName>(
-  chainName: Networks,
-  agentConfig: AgentConfig<Networks>,
+async function helmValuesForChain<Chain extends ChainName>(
+  chainName: Chain,
+  agentConfig: AgentConfig<Chain>,
 ) {
   const chainAgentConfig = new ChainAgentConfig(agentConfig, chainName);
 
@@ -65,10 +65,10 @@ async function helmValuesForChain<Networks extends ChainName>(
   };
 }
 
-export async function getAgentEnvVars<Networks extends ChainName>(
-  outboxChainName: Networks,
+export async function getAgentEnvVars<Chain extends ChainName>(
+  outboxChainName: Chain,
   role: KEY_ROLE_ENUM,
-  agentConfig: AgentConfig<Networks>,
+  agentConfig: AgentConfig<Chain>,
   index?: number,
 ) {
   const chainNames = agentConfig.chainNames;
@@ -132,7 +132,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
   } else {
     // AWS keys
 
-    let user: AgentAwsUser<Networks>;
+    let user: AgentAwsUser<Chain>;
 
     if (role === KEY_ROLE_ENUM.Validator) {
       const checkpointSyncer =
@@ -250,8 +250,8 @@ function configEnvVars(
   return envVars;
 }
 
-export async function getSecretAwsCredentials<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
+export async function getSecretAwsCredentials<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
 ) {
   return {
     accessKeyId: await fetchGCPSecret(
@@ -281,8 +281,8 @@ export async function getSecretDeployerKey(
   return key.privateKey;
 }
 
-async function getSecretRpcEndpoints<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
+async function getSecretRpcEndpoints<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
 ) {
   const environment = agentConfig.runEnv;
   return getSecretForEachChain(
@@ -311,10 +311,10 @@ async function getSecretForEachChain(
   );
 }
 
-export async function runAgentHelmCommand<Networks extends ChainName>(
+export async function runAgentHelmCommand<Chain extends ChainName>(
   action: HelmCommand,
-  agentConfig: AgentConfig<Networks>,
-  outboxChainName: Networks,
+  agentConfig: AgentConfig<Chain>,
+  outboxChainName: Chain,
 ) {
   const valueDict = await helmValuesForChain(outboxChainName, agentConfig);
   const values = helmifyValues(valueDict);

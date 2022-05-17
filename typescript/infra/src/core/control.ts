@@ -26,26 +26,26 @@ import {
 } from './check';
 
 interface CallWithTarget {
-  network: ChainName;
+  chain: ChainName;
   call: Call;
 }
 
 export class AbacusCoreControllerChecker<
-  Networks extends ChainName,
-> extends AbacusCoreChecker<Networks> {
-  readonly controllerApp: ControllerApp<Networks>;
+  Chain extends ChainName,
+> extends AbacusCoreChecker<Chain> {
+  readonly controllerApp: ControllerApp<Chain>;
 
   constructor(
-    multiProvider: MultiProvider<Networks>,
-    app: AbacusCore<Networks>,
-    controllerApp: ControllerApp<Networks>,
-    config: ChainMap<Networks, CoreConfig>,
+    multiProvider: MultiProvider<Chain>,
+    app: AbacusCore<Chain>,
+    controllerApp: ControllerApp<Chain>,
+    config: ChainMap<Chain, CoreConfig>,
   ) {
     const owners = controllerApp.routerAddresses();
-    const joinedConfigMap = objMap(config, (network, coreConfig) => {
+    const joinedConfigMap = objMap(config, (chain, coreConfig) => {
       return {
         ...coreConfig,
-        owner: owners[network],
+        owner: owners[chain],
       };
     });
     super(multiProvider, app, joinedConfigMap);
@@ -58,7 +58,7 @@ export class AbacusCoreControllerChecker<
       this.violations.map((v) => this.handleViolation(v)),
     );
     txs.map((call) =>
-      this.controllerApp.pushCall(call.network as Networks, call.call),
+      this.controllerApp.pushCall(call.chain as Chain, call.call),
     );
     return [];
   }
@@ -77,9 +77,9 @@ export class AbacusCoreControllerChecker<
   async handleUpgradeBeaconViolation(
     violation: UpgradeBeaconViolation,
   ): Promise<CallWithTarget> {
-    const network = violation.network;
+    const chain = violation.chain;
     const ubc = this.app.getContracts(
-      network as Networks,
+      chain as Chain,
     ).upgradeBeaconController;
     if (ubc === undefined) throw new Error('Undefined ubc');
     const tx = await ubc.populateTransaction.upgrade(
@@ -87,14 +87,14 @@ export class AbacusCoreControllerChecker<
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
-    return { network, call: tx as Call };
+    return { chain, call: tx as Call };
   }
 
   async handleValidatorViolation(
     violation: ValidatorViolation,
   ): Promise<CallWithTarget> {
     const dc = this.multiProvider.getChainConnection(
-      violation.network as Networks,
+      violation.chain as Chain,
     );
     const provider = dc.provider!;
 
@@ -130,13 +130,13 @@ export class AbacusCoreControllerChecker<
     }
 
     if (tx.to === undefined) throw new Error('undefined tx.to');
-    return { network: violation.network, call: tx as Call };
+    return { chain: violation.chain, call: tx as Call };
   }
 
-  expectCalls(networks: Networks[], count: number[]) {
-    expect(networks).to.have.lengthOf(count.length);
-    networks.forEach((network, i) => {
-      expect(this.controllerApp.getCalls(network)).to.have.lengthOf(count[i]);
+  expectCalls(chains: Chain[], count: number[]) {
+    expect(chains).to.have.lengthOf(count.length);
+    chains.forEach((chain, i) => {
+      expect(this.controllerApp.getCalls(chain)).to.have.lengthOf(count[i]);
     });
   }
 }

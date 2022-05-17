@@ -21,13 +21,13 @@ export type Controller = {
 };
 
 export class ControllerApp<
-  Networks extends ChainName = ChainName,
-> extends AbacusApp<ControllerContracts, Networks> {
+  Chain extends ChainName = ChainName,
+> extends AbacusApp<ControllerContracts, Chain> {
   constructor(
-    networkAddresses: ChainMap<Networks, ControllerAddresses>,
-    multiProvider: MultiProvider<Networks>,
+    addresses: ChainMap<Chain, ControllerAddresses>,
+    multiProvider: MultiProvider<Chain>,
   ) {
-    super(ControllerContracts, networkAddresses, multiProvider);
+    super(ControllerContracts, addresses, multiProvider);
   }
 
   static fromEnvironment(
@@ -37,56 +37,56 @@ export class ControllerApp<
     return new ControllerApp(environments[name], multiProvider);
   }
 
-  pushCall(network: Networks, call: Call) {
-    this.get(network).push(call);
+  pushCall(chain: Chain, call: Call) {
+    this.get(chain).push(call);
   }
 
-  getCalls(network: Networks) {
-    return this.get(network).calls;
+  getCalls(chain: Chain) {
+    return this.get(chain).calls;
   }
 
-  networkCalls = () =>
+  chainCalls = () =>
     Object.fromEntries(
-      this.networks().map((network) => [network, this.getCalls(network)]),
-    ) as ChainMap<Networks, Call[]>;
+      this.chainNames().map((chain) => [chain, this.getCalls(chain)]),
+    ) as ChainMap<Chain, Call[]>;
 
   routers = () => objMap(this.contractsMap, (_, d) => d.contracts.router);
 
   routerAddresses = () => objMap(this.routers(), (_, r) => r.address);
 
   controller = async (): Promise<{
-    network: Networks;
+    chain: Chain;
     address: types.Address;
   }> => {
     const controllers = await promiseObjAll(
-      objMap(this.routers(), (network, router) => router.controller()),
+      objMap(this.routers(), (_chain, router) => router.controller()),
     );
     const match = Object.entries(controllers).find(
       ([_, controller]) => controller !== ethers.constants.AddressZero,
-    ) as [Networks, types.Address] | undefined;
+    ) as [Chain, types.Address] | undefined;
     if (match) {
-      return { network: match[0], address: match[1] };
+      return { chain: match[0], address: match[1] };
     }
     throw new Error('No controller found');
   };
 
   build = async (): Promise<ethers.PopulatedTransaction[]> => {
     const controller = await this.controller();
-    const controllerRouter = this.routers()[controller.network];
+    const controllerRouter = this.routers()[controller.chain];
 
-    const networkTransactions = await promiseObjAll(
-      objMap(this.networkCalls(), (network, calls) => {
-        if (network === controller.network) {
+    const chainTransactions = await promiseObjAll(
+      objMap(this.chainCalls(), (chain, calls) => {
+        if (chain === controller.chain) {
           return controllerRouter.populateTransaction.call(calls);
         } else {
           return controllerRouter.populateTransaction.callRemote(
-            ChainNameToDomainId[network],
+            ChainNameToDomainId[chain],
             calls,
           );
         }
       }),
     );
-    return Object.values(networkTransactions);
+    return Object.values(chainTransactions);
   };
 
   execute = async (signer: ethers.Signer) => {

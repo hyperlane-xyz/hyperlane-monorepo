@@ -41,14 +41,14 @@ export class MockProvider extends ethers.providers.BaseProvider {
 }
 
 // A mock TokenPriceGetter intended to be used by tests when mocking token prices
-export class MockTokenPriceGetter<Networks extends ChainName> {
-  private tokenPrices: Partial<ChainMap<Networks, FixedNumber>>;
+export class MockTokenPriceGetter<Chain extends ChainName> {
+  private tokenPrices: Partial<ChainMap<Chain, FixedNumber>>;
 
   constructor() {
     this.tokenPrices = {};
   }
 
-  getNativeTokenUsdPrice(chain: Networks): Promise<FixedNumber> {
+  getNativeTokenUsdPrice(chain: Chain): Promise<FixedNumber> {
     const price = this.tokenPrices[chain];
     if (price) {
       // TS compiler somehow can't deduce the check above
@@ -57,7 +57,7 @@ export class MockTokenPriceGetter<Networks extends ChainName> {
     throw Error(`No price for chain ${chain}`);
   }
 
-  setTokenPrice(chain: Networks, price: string | number) {
+  setTokenPrice(chain: Chain, price: string | number) {
     this.tokenPrices[chain] = FixedNumber.from(price);
   }
 }

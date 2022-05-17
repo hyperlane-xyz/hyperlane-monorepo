@@ -38,8 +38,8 @@ export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
 }
 
-export async function getMultiProviderFromGCP<Networks extends ChainName>(
-  txConfigs: ChainMap<Networks, TransactionConfig>,
+export async function getMultiProviderFromGCP<Chain extends ChainName>(
+  txConfigs: ChainMap<Chain, TransactionConfig>,
   environment: DeployEnvironment,
 ) {
   const connections = await promiseObjAll(
@@ -54,7 +54,7 @@ export async function getMultiProviderFromGCP<Networks extends ChainName>(
       };
     }),
   );
-  return new MultiProvider<Networks>(connections);
+  return new MultiProvider<Chain>(connections);
 }
 
 function getContractsSdkFilepath(mod: string, environment: DeployEnvironment) {
