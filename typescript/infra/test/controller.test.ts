@@ -13,6 +13,7 @@ import {
   ControllerConfig,
   ControllerDeployer
 } from '../src/controller';
+import { writeContracts, writeVerification } from '../src/utils/utils';
 
 describe('controller', async () => {
   const environment = 'test';

@@ -4,19 +4,12 @@ import { MultisigValidatorManager } from '@abacus-network/core';
 import {
   AbacusAppChecker,
   CheckerViolation,
-<<<<<<< HEAD
   CoreConfig
-=======
-  CoreConfig,
->>>>>>> 0ff16255 (Fix lint)
 } from '@abacus-network/deploy';
 import {
   AbacusCore,
-  ChainName,
-  MailboxAddresses,
-  domains,
-  objMap,
-  promiseObjAll,
+  ChainName, domains, MailboxAddresses, objMap,
+  promiseObjAll
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 

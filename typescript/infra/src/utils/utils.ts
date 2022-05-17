@@ -153,6 +153,9 @@ export function warn(text: string, padded: boolean = false) {
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
   fs.writeFileSync(
     path.join(directory, filename),
     JSON.stringify(obj, null, 2),
