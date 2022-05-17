@@ -37,11 +37,11 @@ export abstract class AbacusAppChecker<
     this.configMap = configMap;
   }
 
-  abstract checkDomain(network: Networks): Promise<void>;
+  abstract checkChain(network: Networks): Promise<void>;
 
   async check() {
     return Promise.all(
-      this.app.networks().map((network) => this.checkDomain(network)),
+      this.app.networks().map((network) => this.checkChain(network)),
     );
   }
 

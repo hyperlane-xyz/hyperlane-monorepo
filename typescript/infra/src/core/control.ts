@@ -25,7 +25,7 @@ import {
   ValidatorViolationType,
 } from './check';
 
-interface DomainedCall {
+interface CallWithTarget {
   network: ChainName;
   call: Call;
 }
@@ -63,7 +63,7 @@ export class AbacusCoreControllerChecker<
     return [];
   }
 
-  handleViolation(v: CheckerViolation): Promise<DomainedCall> {
+  handleViolation(v: CheckerViolation): Promise<CallWithTarget> {
     switch (v.type) {
       case ProxyViolationType.UpgradeBeacon:
         return this.handleUpgradeBeaconViolation(v as UpgradeBeaconViolation);
@@ -76,7 +76,7 @@ export class AbacusCoreControllerChecker<
 
   async handleUpgradeBeaconViolation(
     violation: UpgradeBeaconViolation,
-  ): Promise<DomainedCall> {
+  ): Promise<CallWithTarget> {
     const network = violation.network;
     const ubc = this.app.getContracts(
       network as Networks,
@@ -92,7 +92,7 @@ export class AbacusCoreControllerChecker<
 
   async handleValidatorViolation(
     violation: ValidatorViolation,
-  ): Promise<DomainedCall> {
+  ): Promise<CallWithTarget> {
     const dc = this.multiProvider.getChainConnection(
       violation.network as Networks,
     );

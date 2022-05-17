@@ -10,7 +10,7 @@ import {
   AbacusCore,
   ChainName,
   MailboxAddresses,
-  domains,
+  chainMetadata,
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';
@@ -50,7 +50,7 @@ export class AbacusCoreChecker<
     owner: types.Address;
   }
 > {
-  async checkDomain(network: Networks): Promise<void> {
+  async checkChain(network: Networks): Promise<void> {
     await this.checkDomainOwnership(network);
     await this.checkProxiedContracts(network);
     await this.checkOutbox(network);
@@ -90,7 +90,7 @@ export class AbacusCoreChecker<
   }
 
   // Checks validator sets of the OutboxValidatorManager and all
-  // InboxValidatorManagers on the domain.
+  // InboxValidatorManagers on the chain.
   async checkValidatorManagers(network: Networks) {
     const coreContracts = this.app.getContracts(network);
     await this.checkValidatorManager(
@@ -178,7 +178,7 @@ export class AbacusCoreChecker<
   async checkInboxes(network: Networks): Promise<void> {
     const coreContracts = this.app.getContracts(network);
 
-    // Check that all inboxes on this domain are pointed to the right validator
+    // Check that all inboxes on this chain are pointed to the right validator
     // manager.
     await promiseObjAll(
       objMap(coreContracts.inboxes, async (_, inbox) => {
@@ -188,7 +188,7 @@ export class AbacusCoreChecker<
       }),
     );
 
-    // Check that all inboxes on this domain share the same implementation and
+    // Check that all inboxes on this chain share the same implementation and
     // UpgradeBeacon.
     const coreAddresses = this.app.getAddresses(network);
     const inboxes: MailboxAddresses[] = Object.values(coreAddresses.inboxes);
@@ -203,7 +203,7 @@ export class AbacusCoreChecker<
     const coreContracts = this.app.getContracts(network);
     await promiseObjAll(
       objMap(coreContracts.inboxes, async (remote, inbox) => {
-        const remoteDomain = domains[remote as ChainName].id;
+        const remoteDomain = chainMetadata[remote].id;
         // inbox is enrolled in abacusConnectionManager
         const enrolledInboxes =
           await coreContracts.abacusConnectionManager.getInboxes(remoteDomain);

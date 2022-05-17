@@ -56,15 +56,15 @@ export function delay(ms: number): Promise<void> {
 }
 
 export class MultiGeneric<Networks extends ChainName, Value> {
-  constructor(protected readonly domainMap: ChainMap<Networks, Value>) {}
+  constructor(protected readonly chainMap: ChainMap<Networks, Value>) {}
 
-  protected get = (network: Networks) => this.domainMap[network];
+  protected get = (network: Networks) => this.chainMap[network];
 
-  networks = () => Object.keys(this.domainMap) as Networks[];
+  networks = () => Object.keys(this.chainMap) as Networks[];
 
   apply(fn: (n: Networks, dc: Value) => void) {
     for (const network of this.networks()) {
-      fn(network, this.domainMap[network]);
+      fn(network, this.chainMap[network]);
     }
   }
 
@@ -72,7 +72,7 @@ export class MultiGeneric<Networks extends ChainName, Value> {
     let entries: [Networks, Output][] = [];
     const networks = this.networks();
     for (const network of networks) {
-      entries.push([network, fn(network, this.domainMap[network])]);
+      entries.push([network, fn(network, this.chainMap[network])]);
     }
     return Object.fromEntries(entries) as Record<Networks, Output>;
   }
@@ -80,16 +80,16 @@ export class MultiGeneric<Networks extends ChainName, Value> {
   remotes = <Name extends Networks>(name: Name) =>
     this.networks().filter((key) => key !== name) as Remotes<Networks, Name>[];
 
-  extendWithDomain = <New extends Remotes<ChainName, Networks>>(
-    network: New,
+  extendWithChain = <New extends Remotes<ChainName, Networks>>(
+    chain: New,
     value: Value,
   ) =>
     new MultiGeneric<New & Networks, Value>({
-      ...this.domainMap,
-      [network]: value,
+      ...this.chainMap,
+      [chain]: value,
     });
 
-  knownDomain = (network: ChainName) => network in this.domainMap;
+  knownChain = (network: ChainName) => network in this.chainMap;
 }
 
 export function inferChainMap<M>(map: M) {

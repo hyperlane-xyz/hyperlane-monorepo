@@ -24,7 +24,7 @@ export class AbacusApp<
     );
   }
 
-  public contractsMap = this.domainMap;
+  public contractsMap = this.chainMap;
 
   getContracts(
     network: Networks,

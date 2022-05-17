@@ -9,7 +9,7 @@ import {
   MultiProvider,
 } from '@abacus-network/sdk';
 
-import { TestNetworks } from '../config/environments/test/domains';
+import { TestChains } from '../config/environments/test/chains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
 import {
   ControllerChecker,
@@ -20,10 +20,10 @@ import {
 describe('controller', async () => {
   const environment = 'test';
 
-  let multiProvider: MultiProvider<TestNetworks>;
-  let deployer: ControllerDeployer<TestNetworks>;
-  let addresses: ChainMap<TestNetworks, ControllerAddresses>;
-  let controllerConfig: ChainMap<TestNetworks, ControllerConfig>;
+  let multiProvider: MultiProvider<TestChains>;
+  let deployer: ControllerDeployer<TestChains>;
+  let addresses: ChainMap<TestChains, ControllerAddresses>;
+  let controllerConfig: ChainMap<TestChains, ControllerConfig>;
 
   before(async () => {
     const config = getCoreEnvironmentConfig(environment);

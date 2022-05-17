@@ -11,7 +11,7 @@ import {
   objMap,
 } from '@abacus-network/sdk';
 
-import { TestNetworks } from '../config/environments/test/domains';
+import { TestChains } from '../config/environments/test/chains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
@@ -19,16 +19,13 @@ import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 describe('core', async () => {
   const environment = 'test';
 
-  let multiProvider: MultiProvider<TestNetworks>;
-  let deployer: AbacusCoreInfraDeployer<TestNetworks>;
-  let core: AbacusCore<TestNetworks>;
-  let addresses: ChainMap<
-    TestNetworks,
-    CoreContractAddresses<TestNetworks, any>
-  >;
-  let coreConfig: ChainMap<TestNetworks, CoreConfig>;
+  let multiProvider: MultiProvider<TestChains>;
+  let deployer: AbacusCoreInfraDeployer<TestChains>;
+  let core: AbacusCore<TestChains>;
+  let addresses: ChainMap<TestChains, CoreContractAddresses<TestChains, any>>;
+  let coreConfig: ChainMap<TestChains, CoreConfig>;
 
-  let owners: ChainMap<TestNetworks, string>;
+  let owners: ChainMap<TestChains, string>;
   before(async () => {
     const config = getCoreEnvironmentConfig(environment);
     multiProvider = await config.getMultiProvider();

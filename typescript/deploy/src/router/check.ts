@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { AbacusApp, ChainName, domains } from '@abacus-network/sdk';
+import { AbacusApp, ChainName, chainMetadata } from '@abacus-network/sdk';
 import { types, utils } from '@abacus-network/utils';
 
 import { AbacusAppChecker, Ownable } from '../check';
@@ -22,7 +22,7 @@ export abstract class AbacusRouterChecker<
     return AbacusAppChecker.checkOwnership(owner, ownables);
   }
 
-  async checkDomain(network: Networks): Promise<void> {
+  async checkChain(network: Networks): Promise<void> {
     await this.checkEnrolledRouters(network);
     await this.checkOwnership(network);
     await this.checkAbacusConnectionManager(network);
@@ -34,7 +34,7 @@ export abstract class AbacusRouterChecker<
     await Promise.all(
       this.app.remotes(network).map(async (remoteNetwork) => {
         const remoteRouter = this.mustGetRouter(remoteNetwork);
-        const remoteChainId = domains[remoteNetwork].id;
+        const remoteChainId = chainMetadata[remoteNetwork].id;
         expect(await router.routers(remoteChainId)).to.equal(
           utils.addressToBytes32(remoteRouter.address),
         );

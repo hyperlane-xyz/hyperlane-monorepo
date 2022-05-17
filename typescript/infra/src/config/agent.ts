@@ -206,7 +206,7 @@ export interface AgentConfig<Networks extends ChainName> {
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
-  domainNames: Networks[];
+  chainNames: Networks[];
   validatorSets: ChainValidatorSets<Networks>;
   validator: ChainValidatorConfigs<Networks>;
   relayer: ChainRelayerConfigs<Networks>;
@@ -274,7 +274,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
   }
 
   signers(role: KEY_ROLE_ENUM) {
-    return this.agentConfig.domainNames.map((name) => ({
+    return this.agentConfig.chainNames.map((name) => ({
       name,
       keyConfig: this.keyConfig(role),
     }));
@@ -365,7 +365,7 @@ export class ChainAgentConfig<Networks extends ChainName> {
     );
     await awsUser.createIfNotExists();
     const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-    return this.agentConfig.domainNames.map((name) => ({
+    return this.agentConfig.chainNames.map((name) => ({
       name,
       keyConfig: key.keyConfig,
     }));

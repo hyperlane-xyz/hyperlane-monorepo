@@ -1,7 +1,7 @@
 import path from 'path';
 
 import { AbacusAppDeployer, AbacusCoreDeployer } from '@abacus-network/deploy';
-import { ChainName, domains, objMap } from '@abacus-network/sdk';
+import { ChainName, chainMetadata, objMap } from '@abacus-network/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
 
@@ -23,7 +23,7 @@ export class AbacusCoreInfraDeployer<
         addresses: {
           outbox: addresses.outbox.proxy,
         },
-        domain: domains[network].id.toString(),
+        domain: chainMetadata[network].id.toString(),
         name: network,
         rpcStyle: 'ethereum',
         connection: {
@@ -54,7 +54,7 @@ export class AbacusCoreInfraDeployer<
         const inboxAddresses = addresses.inboxes[remote];
 
         const inbox = {
-          domain: domains[remote].id.toString(),
+          domain: chainMetadata[remote].id.toString(),
           name: remote,
           rpcStyle: 'ethereum',
           connection: {

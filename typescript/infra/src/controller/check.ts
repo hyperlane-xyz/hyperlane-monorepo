@@ -47,8 +47,8 @@ export class ControllerChecker<
     expect(ubcOwner).to.equal(contracts.router.address);
   }
 
-  async checkDomain(network: Networks): Promise<void> {
-    await super.checkDomain(network);
+  async checkChain(network: Networks): Promise<void> {
+    await super.checkChain(network);
     await this.checkProxiedContracts(network);
     await this.checkRecoveryManager(network);
   }

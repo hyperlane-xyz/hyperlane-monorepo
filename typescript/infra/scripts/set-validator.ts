@@ -24,12 +24,12 @@ async function main() {
     config.core,
   );
   await checker.check();
-  // Sanity check: for each domain, expect one validator violation.
+  // Sanity check: for each chain, expect one validator violation.
   checker.expectViolations(
     [CoreViolationType.Validator],
     [core.networks().length],
   );
-  // Sanity check: for each domain, expect one call to set the validator.
+  // Sanity check: for each chain, expect one call to set the validator.
   checker.expectCalls(
     core.networks(),
     new Array(core.networks().length).fill(1),

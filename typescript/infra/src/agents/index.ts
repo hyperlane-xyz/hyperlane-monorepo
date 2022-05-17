@@ -32,7 +32,7 @@ async function helmValuesForChain<Networks extends ChainName>(
         name: chainName,
       },
       aws: !!agentConfig.aws,
-      inboxChains: agentConfig.domainNames
+      inboxChains: agentConfig.chainNames
         .filter((name) => name !== chainName)
         .map((remoteChainName) => {
           return {
@@ -71,7 +71,7 @@ export async function getAgentEnvVars<Networks extends ChainName>(
   agentConfig: AgentConfig<Networks>,
   index?: number,
 ) {
-  const chainNames = agentConfig.domainNames;
+  const chainNames = agentConfig.chainNames;
   if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
     throw Error('Expected index for validator role');
   }
@@ -286,7 +286,7 @@ async function getSecretRpcEndpoints<Networks extends ChainName>(
 ) {
   const environment = agentConfig.runEnv;
   return getSecretForEachChain(
-    agentConfig.domainNames,
+    agentConfig.chainNames,
     (name: ChainName) => `${environment}-rpc-endpoint-${name}`,
     false,
   );
@@ -338,7 +338,7 @@ export async function runKeymasterHelmCommand(
   action: HelmCommand,
   agentConfig: AgentConfig<any>,
 ) {
-  const chainNames = agentConfig.domainNames;
+  const chainNames = agentConfig.chainNames;
   // It's ok to use pick an arbitrary chain here since we are only grabbing the signers
   const chainName = chainNames[0];
   const gcpKeys = (await fetchKeysForChain(agentConfig, chainName)) as Record<

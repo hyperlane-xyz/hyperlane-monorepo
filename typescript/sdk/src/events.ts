@@ -6,7 +6,7 @@ import {
   TypedEventFilter,
 } from '@abacus-network/core/dist/commons';
 
-import { domains } from './domains';
+import { chainMetadata } from './chain-metadata';
 import { MultiProvider } from './provider';
 import { ChainName } from './types';
 
@@ -96,7 +96,7 @@ export async function queryAnnotatedEvents<T extends Result, U>(
     startBlock,
     endBlock,
   );
-  return Annotated.fromEvents(domains[network].id, events);
+  return Annotated.fromEvents(chainMetadata[network].id, events);
 }
 
 export async function findAnnotatedSingleEvent<T extends Result, U>(
@@ -113,7 +113,7 @@ export async function findAnnotatedSingleEvent<T extends Result, U>(
     filter,
     startBlock,
   );
-  return Annotated.fromEvents(domains[network].id, events);
+  return Annotated.fromEvents(chainMetadata[network].id, events);
 }
 
 export async function getEvents<T extends Result, U>(
@@ -124,7 +124,7 @@ export async function getEvents<T extends Result, U>(
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = domains[network];
+  const domain = chainMetadata[network];
   if (domain.paginate) {
     return getPaginatedEvents(
       multiprovider,
@@ -145,7 +145,7 @@ export async function findEvent<T extends Result, U>(
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = domains[network];
+  const domain = chainMetadata[network];
   if (domain.paginate) {
     return findFromPaginatedEvents(
       multiprovider,
@@ -166,7 +166,7 @@ async function getPaginatedEvents<T extends Result, U>(
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = domains[network];
+  const domain = chainMetadata[network];
   if (!domain.paginate) {
     throw new Error('Domain need not be paginated');
   }
@@ -213,7 +213,7 @@ async function findFromPaginatedEvents<T extends Result, U>(
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = domains[network];
+  const domain = chainMetadata[network];
   if (!domain.paginate) {
     throw new Error('Domain need not be paginated');
   }

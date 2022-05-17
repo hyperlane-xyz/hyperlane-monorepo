@@ -22,7 +22,7 @@ import {
   MultiProvider,
   RemoteChainMap,
   Remotes,
-  domains,
+  chainMetadata,
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';
@@ -83,7 +83,7 @@ export class AbacusCoreDeployer<
     );
 
     const outboxValidatorManagerConfig = config.validatorManager;
-    const domain = domains[network].id;
+    const domain = chainMetadata[network].id;
     const outboxValidatorManager = await this.deployContract(
       network,
       'OutboxValidatorManager',
@@ -138,7 +138,11 @@ export class AbacusCoreDeployer<
         network,
         'InboxValidatorManager',
         new InboxValidatorManager__factory(signer),
-        [domains[remote].id, remoteConfig.validators, remoteConfig.threshold],
+        [
+          chainMetadata[remote].id,
+          remoteConfig.validators,
+          remoteConfig.threshold,
+        ],
       );
     };
 
@@ -151,7 +155,7 @@ export class AbacusCoreDeployer<
       [domain],
       upgradeBeaconController.address,
       [
-        domains[firstRemote].id,
+        chainMetadata[firstRemote].id,
         firstValidatorManager.address,
         ethers.constants.HashZero,
         0,
@@ -181,7 +185,7 @@ export class AbacusCoreDeployer<
           'Inbox',
           firstInbox,
           [
-            domains[remote].id,
+            chainMetadata[remote].id,
             validatorManager.address,
             ethers.constants.HashZero,
             0,
@@ -196,7 +200,10 @@ export class AbacusCoreDeployer<
 
     await Promise.all(
       inboxAddresses.map(([remote, mailbox]) =>
-        abacusConnectionManager.enrollInbox(domains[remote].id, mailbox.proxy),
+        abacusConnectionManager.enrollInbox(
+          chainMetadata[remote].id,
+          mailbox.proxy,
+        ),
       ),
     );
 
@@ -222,7 +229,7 @@ export class AbacusCoreDeployer<
       objMap(core.contractsMap, async (network, coreContracts) => {
         const owner = owners[network];
         const chainConnection = multiProvider.getChainConnection(network);
-        return AbacusCoreDeployer.transferOwnershipOfDomain(
+        return AbacusCoreDeployer.transferOwnershipOfChain(
           coreContracts,
           owner,
           chainConnection,
@@ -231,7 +238,7 @@ export class AbacusCoreDeployer<
     );
   }
 
-  static async transferOwnershipOfDomain<
+  static async transferOwnershipOfChain<
     CoreNetworks extends ChainName,
     Local extends CoreNetworks,
   >(

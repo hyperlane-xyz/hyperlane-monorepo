@@ -22,7 +22,7 @@ import { AbacusCoreInfraDeployer } from './src/core/deploy';
 import { sleep } from './src/utils/utils';
 import { AbacusContractVerifier } from './src/verify';
 
-const domainSummary = async <Networks extends ChainName>(
+const chainSummary = async <Networks extends ChainName>(
   core: AbacusCore<Networks>,
   network: Networks,
 ) => {
@@ -120,7 +120,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
       const outbox = coreContracts.outbox.outbox;
-      // Send a batch of messages to the remote domain to test
+      // Send a batch of messages to the destination chain to test
       // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
         await outbox.dispatch(
@@ -136,7 +136,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
             (await outbox.count()).toNumber() - 1
           }`,
         );
-        console.log(await domainSummary(core, local));
+        console.log(await chainSummary(core, local));
         await sleep(5000);
       }
     }

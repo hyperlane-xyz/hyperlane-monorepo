@@ -43,9 +43,9 @@ export async function getMultiProviderFromGCP<Networks extends ChainName>(
   environment: DeployEnvironment,
 ) {
   const connections = await promiseObjAll(
-    objMap(txConfigs, async (domain, config) => {
-      const provider = await fetchProvider(environment, domain);
-      const signer = await fetchSigner(environment, domain, provider);
+    objMap(txConfigs, async (chain, config) => {
+      const provider = await fetchProvider(environment, chain);
+      const signer = await fetchSigner(environment, chain, provider);
       return {
         provider,
         signer,

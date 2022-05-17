@@ -7,7 +7,7 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  domains,
+  chainMetadata,
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';
@@ -48,7 +48,7 @@ export abstract class AbacusRouterDeployer<
             deploymentOutput[remote],
           );
           await localRouter.enrollRemoteRouter(
-            domains[remote].id,
+            chainMetadata[remote].id,
             utils.addressToBytes32(remoteRouter.address),
           );
         }
@@ -87,7 +87,7 @@ export abstract class AbacusRouterDeployer<
     );
     for (const remote of this.core.remotes(network)) {
       await abacusConnectionManager.enrollInbox(
-        domains[remote].id,
+        chainMetadata[remote].id,
         localCore.inboxes[remote].inbox.address,
         overrides,
       );

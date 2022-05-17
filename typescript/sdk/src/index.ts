@@ -25,7 +25,7 @@ export {
   resolveId,
   resolveNetworks,
 } from './core';
-export { domains } from './domains';
+export { chainMetadata } from './chain-metadata';
 export {
   Annotated,
   getEvents,
