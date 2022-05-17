@@ -1,9 +1,9 @@
+import { hardhatMultiProvider, TestCoreApp, TestCoreDeploy } from '../dist';
 import { TestRecipient__factory } from '@abacus-network/core';
 import { domains } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import { hardhatMultiProvider, TestCoreApp, TestCoreDeploy } from '../dist';
 
 const localChain = 'test1';
 const localDomain = domains[localChain].id;
@@ -64,13 +64,9 @@ describe('TestCoreDeploy', async () => {
     it('processes outbound messages for two domains', async () => {
       const localResponses = await abacus.processOutboundMessages(localChain);
       expect(localResponses.get(remoteChain)!.length).to.equal(1);
-      const [, localIndex] = await abacus
-        .outbox(localChain)
-        .latestCheckpoint();
+      const [, localIndex] = await abacus.outbox(localChain).latestCheckpoint();
       expect(localIndex).to.equal(1);
-      const remoteResponses = await abacus.processOutboundMessages(
-        remoteChain,
-      );
+      const remoteResponses = await abacus.processOutboundMessages(remoteChain);
       expect(remoteResponses.get(localChain)!.length).to.equal(1);
       const [, remoteIndex] = await abacus
         .outbox(remoteChain)
@@ -82,9 +78,7 @@ describe('TestCoreDeploy', async () => {
       const responses = await abacus.processMessages();
       expect(responses.get(localChain)!.get(remoteChain)!.length).to.equal(1);
       expect(responses.get(remoteChain)!.get(localChain)!.length).to.equal(1);
-      const [, localIndex] = await abacus
-        .outbox(localChain)
-        .latestCheckpoint();
+      const [, localIndex] = await abacus.outbox(localChain).latestCheckpoint();
       expect(localIndex).to.equal(1);
       const [, remoteIndex] = await abacus
         .outbox(remoteChain)
