@@ -1,22 +1,54 @@
-import { AbacusCore, DomainIdToChainName, domains, Remotes } from "@abacus-network/sdk";
+import { TestInbox, TestInbox__factory, TestOutbox, TestOutbox__factory } from "@abacus-network/core";
+import { AbacusCore, CoreContractAddresses, DomainIdToChainName, domains, MultiProvider, objMap, Remotes } from "@abacus-network/sdk";
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 import { TestNetworks } from './types';
 
 export class TestCoreApp extends AbacusCore<TestNetworks> {
-  async processMessages() {
-    const responses: Map<
-      TestNetworks,
-      Map<TestNetworks, ethers.providers.TransactionResponse[]>
-    > = new Map();
+  private testContracts: {
+    [local in TestNetworks]: {
+      outbox: TestOutbox
+      inboxes: {
+        [remote in Remotes<TestNetworks, local>]: TestInbox
+      }
+    }
+  }
+
+  constructor(
+    networkAddresses: {
+      [local in TestNetworks]: CoreContractAddresses<TestNetworks, local>;
+    },
+    multiProvider: MultiProvider<TestNetworks>,
+  ) {
+    super(networkAddresses, multiProvider);
+    this.testContracts = objMap(networkAddresses, (local, addresses) => {
+      const connection = multiProvider.getChainConnection(local).signer || multiProvider.getChainConnection(local).provider;
+      const outbox = addresses.outbox;
+      return {
+        outbox: TestOutbox__factory.connect(outbox.proxy, connection!),
+        inboxes: objMap(addresses.inboxes as any, (_, inbox) =>
+          TestInbox__factory.connect(inbox.proxy, connection!))
+      };
+    });
+  }
+
+  outbox(local: TestNetworks) {
+    return this.testContracts[local].outbox;
+  }
+
+  inbox<Local extends TestNetworks>(destination: Local, origin: Remotes<TestNetworks, Local>) {
+    return this.testContracts[destination].inboxes[origin];
+  }
+
+  async processMessages(): Promise<Map<TestNetworks, Map<TestNetworks, ethers.providers.TransactionResponse[]>>> {
+    const responses = new Map();
     for (const origin of this.networks()) {
       const outbound = await this.processOutboundMessages(origin);
-      responses.set(origin, new Map());
-      this.networks().forEach((destination) => {
-        responses
-          .get(origin)!
-          .set(destination, outbound.get(destination) ?? []);
-      });
+      const originResponses = new Map();
+      this.remotes(origin).forEach((destination) => 
+        originResponses.set(destination, outbound.get(destination))
+      );
+      responses.set(origin, originResponses);
     }
     return responses;
   }
@@ -24,10 +56,8 @@ export class TestCoreApp extends AbacusCore<TestNetworks> {
   async processOutboundMessages<Local extends TestNetworks>(
     origin: Local,
   ) {
-    const responses: Map<TestNetworks, ethers.providers.TransactionResponse[]> =
-      new Map();
-    const originContracts = this.getContracts(origin);
-    const outbox = originContracts.outbox.outbox;
+    const responses = new Map();
+    const outbox = this.outbox(origin);
     const [root, index] = await outbox.latestCheckpoint();
 
     // Find all unprocessed messages dispatched on the outbox since the previous checkpoint.
@@ -44,7 +74,7 @@ export class TestCoreApp extends AbacusCore<TestNetworks> {
         throw new Error('Dispatched message to local domain');
       }
       const destinationNetwork = DomainIdToChainName[destination] as Remotes<TestNetworks, Local>;
-      const inbox = originContracts.inboxes[destinationNetwork].inbox;
+      const inbox = this.inbox(destinationNetwork, origin as any);
       const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
         if (dispatch.args.leafIndex.toNumber() == 0) {
