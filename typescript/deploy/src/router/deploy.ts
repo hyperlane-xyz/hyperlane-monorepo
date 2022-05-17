@@ -61,7 +61,7 @@ export abstract class AbacusRouterDeployer<
   async deployConnectionManagerIfNotConfigured(
     network: Networks,
   ): Promise<AbacusConnectionManager> {
-    const dc = this.multiProvider.getDomainConnection(network);
+    const dc = this.multiProvider.getChainConnection(network);
     const signer = dc.signer!;
     const config = this.configMap[network];
     if (config.abacusConnectionManager) {

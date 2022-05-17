@@ -23,7 +23,7 @@ export class ControllerDeployer<
     network: Networks,
     config: ControllerConfig,
   ): Promise<ControllerAddresses> {
-    const dc = this.multiProvider.getDomainConnection(network);
+    const dc = this.multiProvider.getChainConnection(network);
     const signer = dc.signer!;
 
     const abacusConnectionManager =
@@ -85,7 +85,7 @@ export class ControllerDeployer<
   mustGetRouter(network: Networks, addresses: ControllerAddresses) {
     return ControllerRouter__factory.connect(
       addresses.router.proxy,
-      this.multiProvider.getDomainConnection(network).signer!,
+      this.multiProvider.getChainConnection(network).signer!,
     );
   }
 }

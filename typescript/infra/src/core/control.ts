@@ -93,7 +93,7 @@ export class AbacusCoreControllerChecker<
   async handleValidatorViolation(
     violation: ValidatorViolation,
   ): Promise<DomainedCall> {
-    const dc = this.multiProvider.getDomainConnection(
+    const dc = this.multiProvider.getChainConnection(
       violation.network as Networks,
     );
     const provider = dc.provider!;

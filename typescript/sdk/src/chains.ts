@@ -1,10 +1,10 @@
 import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
 import { ethers } from 'ethers';
 
-import { IDomainConnection } from './provider';
+import { IChainConnection } from './provider';
 import { ChainMap, ChainName } from './types';
 
-export const alfajores: IDomainConnection = {
+export const alfajores: IChainConnection = {
   provider: new StaticCeloJsonRpcProvider(
     'https://alfajores-forno.celo.org',
     44787,
@@ -12,7 +12,7 @@ export const alfajores: IDomainConnection = {
   confirmations: 1,
 };
 
-export const fuji: IDomainConnection = {
+export const fuji: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://api.avax-test.network/ext/bc/C/rpc',
     43113,
@@ -20,7 +20,7 @@ export const fuji: IDomainConnection = {
   confirmations: 1,
 };
 
-export const kovan: IDomainConnection = {
+export const kovan: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://kovan.poa.network',
     42,
@@ -28,7 +28,7 @@ export const kovan: IDomainConnection = {
   confirmations: 1,
 };
 
-export const mumbai: IDomainConnection = {
+export const mumbai: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://rpc-mumbai.maticvigil.com',
     80001,
@@ -36,7 +36,7 @@ export const mumbai: IDomainConnection = {
   confirmations: 30,
 };
 
-export const bsctestnet: IDomainConnection = {
+export const bsctestnet: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://data-seed-prebsc-1-s3.binance.org:8545',
     97,
@@ -44,7 +44,7 @@ export const bsctestnet: IDomainConnection = {
   confirmations: 1,
 };
 
-export const arbitrumrinkeby: IDomainConnection = {
+export const arbitrumrinkeby: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://rinkeby.arbitrum.io/rpc',
     421611,
@@ -52,7 +52,7 @@ export const arbitrumrinkeby: IDomainConnection = {
   confirmations: 1,
 };
 
-export const optimismkovan: IDomainConnection = {
+export const optimismkovan: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://kovan.optimism.io',
     69,
@@ -60,7 +60,7 @@ export const optimismkovan: IDomainConnection = {
   confirmations: 1,
 };
 
-export const test1: IDomainConnection = {
+export const test1: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'http://localhost:8545',
     31337,
@@ -68,7 +68,7 @@ export const test1: IDomainConnection = {
   confirmations: 1,
 };
 
-export const test2: IDomainConnection = {
+export const test2: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'http://localhost:8545',
     31337,
@@ -76,7 +76,7 @@ export const test2: IDomainConnection = {
   confirmations: 1,
 };
 
-export const test3: IDomainConnection = {
+export const test3: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'http://localhost:8545',
     31337,
@@ -99,12 +99,12 @@ const _configs = {
 
 export const addSignerToConnection =
   <Networks extends ChainName>(signer: ethers.Signer) =>
-  (_chain: Networks, connection: IDomainConnection) => ({
+  (_chain: Networks, connection: IChainConnection) => ({
     ...connection,
     signer,
   });
 
 export const chainConnectionConfigs: ChainMap<
   keyof typeof _configs,
-  IDomainConnection
+  IChainConnection
 > = _configs;

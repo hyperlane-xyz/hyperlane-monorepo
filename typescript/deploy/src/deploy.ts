@@ -54,9 +54,9 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
     factory: F,
     args: Parameters<F['deploy']>,
   ): Promise<ReturnType<F['deploy']>> {
-    const domainConnection = this.multiProvider.getDomainConnection(network);
-    const contract = await factory.deploy(...args, domainConnection.overrides);
-    await contract.deployTransaction.wait(domainConnection.confirmations);
+    const chainConnection = this.multiProvider.getChainConnection(network);
+    const contract = await factory.deploy(...args, chainConnection.overrides);
+    await contract.deployTransaction.wait(chainConnection.confirmations);
     const verificationInput = getContractVerificationInput(
       contractName,
       contract,
@@ -81,8 +81,8 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
     ubcAddress: types.Address,
     initArgs: Parameters<C['initialize']>,
   ) {
-    const domainConnection = this.multiProvider.getDomainConnection(network);
-    const signer = domainConnection.signer;
+    const chainConnection = this.multiProvider.getChainConnection(network);
+    const signer = chainConnection.signer;
     const implementation = await this.deployContract(
       network,
       `${contractName} Implementation`,
@@ -125,7 +125,7 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
     proxy: ProxiedContract<C>,
     initArgs: Parameters<C['initialize']>,
   ) {
-    const domainConnection = this.multiProvider.getDomainConnection(network);
+    const chainConnection = this.multiProvider.getChainConnection(network);
     const initData = proxy.contract.interface.encodeFunctionData(
       'initialize',
       initArgs,
@@ -133,7 +133,7 @@ export abstract class AbacusAppDeployer<Networks extends ChainName, C, A> {
     const newProxy = await this.deployContract(
       network,
       `${contractName} Proxy`,
-      new UpgradeBeaconProxy__factory(domainConnection.signer!),
+      new UpgradeBeaconProxy__factory(chainConnection.signer!),
       [proxy.addresses.beacon, initData],
     );
 
