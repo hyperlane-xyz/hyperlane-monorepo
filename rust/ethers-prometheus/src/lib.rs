@@ -158,6 +158,42 @@ pub struct PrometheusMiddleware<M> {
     // allow_contract_calls: bool,
 }
 
+#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
+#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
+impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
+    type Error = PrometheusMiddlewareError<M::Error>;
+    type Provider = M::Provider;
+    type Inner = M;
+
+    fn inner(&self) -> &Self::Inner {
+        &self.inner
+    }
+
+    async fn send_transaction<T: Into<TypedTransaction> + Send + Sync>(
+        &self,
+        tx: T,
+        block: Option<BlockId>,
+    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
+        let tx: TypedTransaction = tx.into();
+        let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
+        let addr_from = tx
+            .from()
+            .map(|v| v.to_string())
+            .unwrap_or_else(|| "none".into());
+
+        // self.transaction_dispatched();
+        Ok(self.inner.send_transaction(tx, block).await?)
+    }
+
+    async fn call(
+        &self,
+        tx: &TypedTransaction,
+        block: Option<BlockId>,
+    ) -> Result<Bytes, Self::Error> {
+        todo!()
+    }
+}
+
 impl<M> PrometheusMiddleware<M> {
     /// Create a new prometheus middleware instance.
     /// - `inner`: The wrapped middleware.
@@ -337,41 +373,5 @@ pub fn metrics_chain_name(chain_id: Option<u64>) -> String {
         }
     } else {
         "unknown".into()
-    }
-}
-
-#[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
-#[cfg_attr(not(target_arch = "wasm32"), async_trait)]
-impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
-    type Error = PrometheusMiddlewareError<M::Error>;
-    type Provider = M::Provider;
-    type Inner = M;
-
-    fn inner(&self) -> &Self::Inner {
-        &self.inner
-    }
-
-    async fn send_transaction<T: Into<TypedTransaction> + Send + Sync>(
-        &self,
-        tx: T,
-        block: Option<BlockId>,
-    ) -> Result<PendingTransaction<'_, Self::Provider>, Self::Error> {
-        let tx: TypedTransaction = tx.into();
-        let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
-        let addr_from = tx
-            .from()
-            .map(|v| v.to_string())
-            .unwrap_or_else(|| "none".into());
-
-        // self.transaction_dispatched();
-        Ok(self.inner.send_transaction(tx, block).await?)
-    }
-
-    async fn call(
-        &self,
-        tx: &TypedTransaction,
-        block: Option<BlockId>,
-    ) -> Result<Bytes, Self::Error> {
-        todo!()
     }
 }
