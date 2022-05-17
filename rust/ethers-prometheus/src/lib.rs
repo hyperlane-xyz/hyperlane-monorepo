@@ -11,12 +11,15 @@ use std::time::Duration;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
-pub use error::PrometheusMiddlewareError;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
+use log::{debug, error, trace, warn};
 use maplit::hashmap;
 use parking_lot::RwLock;
-use prometheus::{CounterVec, GaugeVec, HistogramVec, IntCounterVec};
+use prometheus::{CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
+
+use erc20::Erc20;
+pub use error::PrometheusMiddlewareError;
 
 mod erc20;
 mod error;
@@ -27,14 +30,25 @@ fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
         + (value.0[1] as f64) * (2u64.pow(64) as f64)
         + (value.0[2] as f64) * (2u64.pow(128) as f64)
         + (value.0[3] as f64) * (2u64.pow(192) as f64))
-        / 10u64.pow(decimals as u32) as f64
+        / (10u64.pow(decimals as u32) as f64)
 }
 
 /// Some basic information about a token.
+#[derive(Clone)]
 pub struct TokenInfo {
     pub name: String,
     pub symbol: String,
     pub decimals: u8,
+}
+
+impl Default for TokenInfo {
+    fn default() -> Self {
+        Self {
+            name: "Unknown".into(),
+            symbol: "".into(),
+            decimals: 18,
+        }
+    }
 }
 
 pub struct WalletInfo {
@@ -43,12 +57,21 @@ pub struct WalletInfo {
 
 #[derive(Clone, Builder)]
 pub struct Metrics {
+    /// Tracks the current block height of the chain.
+    /// - `chain`: the chain name (or ID if the name is unknown) of the chain the block number refers to.
+    block_height: Option<IntGaugeVec>,
+
+    /// Tracks the current gas price of the chain. Uses the base_fee_per_gas if available or else
+    /// the median of the transactions.
+    /// - `chain`: the chain name (or ID if the name is unknown) of the chain the gas price refers to.
+    gas_price_gwei: Option<GaugeVec>,
+
     /// Contract call durations by contract and function.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred on.
-    /// - `contract`: contract address.
     /// - `contract_name`: contract name.
-    /// - `contract_function`: address of the contract function.
+    /// - `contract_address`: contract address.
     /// - `contract_function_name`: name of the contract function being called.
+    /// - `contract_function_address`: address of the contract function.
     contract_call_duration_seconds: Option<HistogramVec>,
 
     /// Time taken to complete transactions.
@@ -154,43 +177,115 @@ impl<M: Middleware> PrometheusMiddleware<M> {
     pub fn update(&self, interval: Duration) -> impl Future<Output = ()> {
         // all metrics are Arcs internally so just clone the ones we want to report for.
         let wallet_balance = self.metrics.wallet_balance.clone();
+        let block_height = self.metrics.block_height.clone();
+        let gas_price_gwei = self.metrics.gas_price_gwei.clone();
+
         let data_ref = self.data.clone();
-        let inner = self.inner.clone();
+        let client = self.inner.clone();
 
         async move {
             let data = data_ref.read();
+            let chain = metrics_chain_name(client.get_chainid().await.map(|id| id.as_u64()).ok());
+            debug!("Updating metrics for chain ({chain})");
+
+            if block_height.is_some() || gas_price_gwei.is_some() {
+                Self::update_block_details(&*client, &*data, &chain, block_height, gas_price_gwei)
+                    .await;
+            }
             if let Some(wallet_balance) = wallet_balance {
-                Self::update_wallet_balances(inner, &*data, wallet_balance).await;
+                Self::update_wallet_balances(client.clone(), &*data, &chain, wallet_balance).await;
             }
 
             // more metrics to come...
         }
     }
 
-    async fn update_wallet_balances(
-        inner: Arc<M>,
+    async fn update_block_details(
+        client: &M,
         data: &InnerData,
+        chain: &str,
+        block_height: Option<IntGaugeVec>,
+        gas_price_gwei: Option<GaugeVec>,
+    ) {
+        let current_block = if let Ok(Some(b)) = client.get_block(BlockNumber::Latest).await {
+            b
+        } else {
+            return;
+        };
+
+        if let Some(block_height) = block_height {
+            let height = current_block
+                .number
+                .expect("Block number should always be Some for included blocks.")
+                .as_u64() as i64;
+            trace!("Block height for chain {chain} is {height}");
+            block_height
+                .with(&hashmap! { "chain" => chain })
+                .set(height);
+        }
+        if let Some(gas_price_gwei) = gas_price_gwei {
+            let gas = if let Some(london_fee) = current_block.base_fee_per_gas {
+                u256_as_scaled_f64(london_fee, 18) * 1e9
+            } else {
+                todo!("Pre-london gas calculation is not currently supported.")
+            };
+            trace!("Gas price for chain {chain} is {gas:.1}gwei");
+            gas_price_gwei.with(&hashmap! { "chain" => chain }).set(gas);
+        }
+    }
+
+    async fn update_wallet_balances(
+        client: Arc<M>,
+        data: &InnerData,
+        chain: &str,
         wallet_balance_metric: GaugeVec,
     ) {
-        let chain = metrics_chain_name(inner.get_chainid().await.map(|id| id.as_u64()).ok());
         for (wallet_addr, wallet_info) in data.wallets.iter() {
             let wallet_addr_str = wallet_addr.to_string();
             let wallet_name = wallet_info.name.as_deref().unwrap_or("none");
-            if let Ok(balance) = inner.get_balance(*wallet_addr, None).await {
-                // Okay, so Ether is not a token, but whatever, close enough.
-                wallet_balance_metric
-                    .with(&hashmap! {
-                        "chain" => chain.as_str(),
+
+            match client.get_balance(*wallet_addr, None).await {
+                Ok(balance) => {
+                    // Okay, so Ether is not a token, but whatever, close enough.
+                    let balance = u256_as_scaled_f64(balance, 18);
+                    trace!("Wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance is {balance}ETH");
+                    wallet_balance_metric
+                        .with(&hashmap! {
+                        "chain" => chain,
                         "wallet_address" => wallet_addr_str.as_str(),
                         "wallet_name" => wallet_name,
                         "token_address" => "none",
                         "token_symbol" => "ETH",
                         "token_name" => "Ether"
-                    })
-                    .set(u256_as_scaled_f64(balance, 18))
+                    }).set(balance)
+                },
+                Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for Ether; {e}")
             }
             for (token_addr, token_data) in data.tokens.iter() {
-                todo!()
+                let token_addr_str = token_addr.to_string();
+                let token = data.tokens.get(token_addr).cloned().unwrap_or_default();
+                let balance = match Erc20::new(*token_addr, client.clone())
+                    .balance_of(*wallet_addr)
+                    .call()
+                    .await
+                {
+                    Ok(b) => u256_as_scaled_f64(b, token.decimals),
+                    Err(e) => {
+                        warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for {name}; {e}", name=token.name);
+                        continue;
+                    }
+                };
+                trace!("Wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance is {balance}{}", token.symbol);
+                wallet_balance_metric
+                    .with(&hashmap! {
+                        "chain" => chain,
+                        "wallet_address" => wallet_addr_str.as_str(),
+                        "wallet_name" => wallet_name,
+                        "token_address" => token_addr_str.as_str(),
+                        "token_symbol" => token.symbol.as_str(),
+                        "token_name" => token.symbol.as_str()
+                    })
+                    .set(balance);
             }
         }
     }
