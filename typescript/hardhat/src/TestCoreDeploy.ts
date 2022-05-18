@@ -1,14 +1,14 @@
+import { TestCoreApp } from './TestCoreApp';
 import { TestInbox__factory, TestOutbox__factory } from '@abacus-network/core';
 import { AbacusCoreDeployer, CoreConfig } from '@abacus-network/deploy';
 import {
   CoreContractAddresses,
   domains,
   MultiProvider,
-  TestChainNames
+  TestChainNames,
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 import { ethers } from 'ethers';
-import { TestCoreApp } from './TestCoreApp';
 
 // dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
 const testValidatorManagerConfig: CoreConfig = {

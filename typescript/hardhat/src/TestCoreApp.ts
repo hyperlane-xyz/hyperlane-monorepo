@@ -2,7 +2,7 @@ import {
   TestInbox,
   TestInbox__factory,
   TestOutbox,
-  TestOutbox__factory
+  TestOutbox__factory,
 } from '@abacus-network/core';
 import {
   AbacusCore,
@@ -10,8 +10,9 @@ import {
   DomainIdToChainName,
   domains,
   MultiProvider,
-  objMap, Remotes,
-  TestChainNames
+  objMap,
+  Remotes,
+  TestChainNames,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
@@ -26,7 +27,10 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
 
   constructor(
     chainAddresses: {
-      [LocalChain in TestChainNames]: CoreContractAddresses<TestChainNames, LocalChain>;
+      [LocalChain in TestChainNames]: CoreContractAddresses<
+        TestChainNames,
+        LocalChain
+      >;
     },
     multiProvider: MultiProvider<TestChainNames>,
   ) {
@@ -35,7 +39,10 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
       const chainConnection = multiProvider.getChainConnection(local);
       const connection = chainConnection.signer || chainConnection.provider;
       return {
-        outbox: TestOutbox__factory.connect(addresses.outbox.proxy, connection!),
+        outbox: TestOutbox__factory.connect(
+          addresses.outbox.proxy,
+          connection!,
+        ),
         inboxes: objMap(addresses.inboxes as any, (_, inbox) =>
           TestInbox__factory.connect(inbox.proxy, connection!),
         ) as any,
@@ -55,7 +62,10 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
   }
 
   async processMessages(): Promise<
-    Map<TestChainNames, Map<TestChainNames, ethers.providers.TransactionResponse[]>>
+    Map<
+      TestChainNames,
+      Map<TestChainNames, ethers.providers.TransactionResponse[]>
+    >
   > {
     const responses = new Map();
     for (const origin of this.networks()) {
