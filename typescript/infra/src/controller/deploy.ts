@@ -14,11 +14,7 @@ import { ControllerConfig } from './types';
 
 export class ControllerDeployer<
   Chain extends ChainName,
-> extends AbacusRouterDeployer<
-  Chain,
-  ControllerConfig,
-  ControllerAddresses
-> {
+> extends AbacusRouterDeployer<Chain, ControllerConfig, ControllerAddresses> {
   async deployContracts(
     chain: Chain,
     config: ControllerConfig,

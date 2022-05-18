@@ -145,8 +145,10 @@ interface CheckpointerConfig {
 }
 
 // Per-chain checkpointer agent configs
-type ChainCheckpointerConfigs<Chain extends ChainName> =
-  ChainOverridableConfig<Chain, CheckpointerConfig>;
+type ChainCheckpointerConfigs<Chain extends ChainName> = ChainOverridableConfig<
+  Chain,
+  CheckpointerConfig
+>;
 
 // ===============================
 // =====     Kathy Agent     =====

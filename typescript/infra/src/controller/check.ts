@@ -56,11 +56,7 @@ export class ControllerChecker<
   async checkProxiedContracts(chain: Chain): Promise<void> {
     const addresses = this.app.getAddresses(chain);
     // Outbox upgrade setup contracts are defined
-    await this.checkUpgradeBeacon(
-      chain,
-      'ControllerRouter',
-      addresses.router,
-    );
+    await this.checkUpgradeBeacon(chain, 'ControllerRouter', addresses.router);
   }
 
   async checkRecoveryManager(chain: Chain): Promise<void> {

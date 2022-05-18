@@ -39,10 +39,7 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
     const entries: [Chain, A][] = [];
     for (const chain of chains) {
       console.log(`Deploying to ${chain}...`);
-      const result = await this.deployContracts(
-        chain,
-        this.configMap[chain],
-      );
+      const result = await this.deployContracts(chain, this.configMap[chain]);
       entries.push([chain, result]);
     }
     return Object.fromEntries(entries) as Record<Chain, A>;
@@ -161,10 +158,7 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
 
   writeVerification(directory: string) {
     objMap(this.verificationInputs, (chain, input) => {
-      AbacusAppDeployer.writeJson(
-        path.join(directory, `${chain}.json`),
-        input,
-      );
+      AbacusAppDeployer.writeJson(path.join(directory, `${chain}.json`), input);
     });
   }
 

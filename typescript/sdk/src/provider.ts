@@ -58,7 +58,9 @@ export class ChainConnection {
 export class MultiProvider<
   Chain extends ChainName = ChainName,
 > extends MultiGeneric<Chain, ChainConnection> {
-  constructor(chainConnectionConfigs: ChainMap<Chain, IChainConnection> | Chain[]) {
+  constructor(
+    chainConnectionConfigs: ChainMap<Chain, IChainConnection> | Chain[],
+  ) {
     const params = Array.isArray(chainConnectionConfigs)
       ? chainConnectionConfigs.map((v) => [v, {}])
       : (Object.entries(chainConnectionConfigs) as [Chain, IChainConnection][]);
