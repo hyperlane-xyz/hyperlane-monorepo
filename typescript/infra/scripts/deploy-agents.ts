@@ -25,7 +25,7 @@ async function deploy() {
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
   await Promise.all(
-    config.agent.domainNames.map((name: any) =>
+    config.agent.chainNames.map((name: any) =>
       runAgentHelmCommand(HelmCommand.InstallOrUpgrade, config.agent, name),
     ),
   );

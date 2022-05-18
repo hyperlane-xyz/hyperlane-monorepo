@@ -4,15 +4,16 @@ import { PopulatedTransaction } from 'ethers';
 import { MultisigValidatorManager__factory } from '@abacus-network/core';
 import {
   CheckerViolation,
+  CoreConfig,
   ProxyViolationType,
   UpgradeBeaconViolation,
 } from '@abacus-network/deploy';
 import {
   AbacusCore,
-  AbacusGovernance,
   Call,
   ChainMap,
   ChainName,
+  ControllerApp,
   MultiProvider,
   objMap,
 } from '@abacus-network/sdk';
@@ -23,33 +24,32 @@ import {
   ValidatorViolation,
   ValidatorViolationType,
 } from './check';
-import { CoreConfig } from './types';
 
-interface DomainedCall {
-  network: ChainName;
+interface CallWithTarget {
+  chain: ChainName;
   call: Call;
 }
 
-export class AbacusCoreGovernor<
-  Networks extends ChainName,
-> extends AbacusCoreChecker<Networks> {
-  readonly governance: AbacusGovernance<Networks>;
+export class AbacusCoreControllerChecker<
+  Chain extends ChainName,
+> extends AbacusCoreChecker<Chain> {
+  readonly controllerApp: ControllerApp<Chain>;
 
   constructor(
-    multiProvider: MultiProvider<Networks>,
-    app: AbacusCore<Networks>,
-    governance: AbacusGovernance<Networks>,
-    config: ChainMap<Networks, CoreConfig>,
+    multiProvider: MultiProvider<Chain>,
+    app: AbacusCore<Chain>,
+    controllerApp: ControllerApp<Chain>,
+    config: ChainMap<Chain, CoreConfig>,
   ) {
-    const owners = governance.routerAddresses();
-    const joinedConfigMap = objMap(config, (network, coreConfig) => {
+    const owners = controllerApp.routerAddresses();
+    const joinedConfigMap = objMap(config, (chain, coreConfig) => {
       return {
         ...coreConfig,
-        owner: owners[network],
+        owner: owners[chain],
       };
     });
     super(multiProvider, app, joinedConfigMap);
-    this.governance = governance;
+    this.controllerApp = controllerApp;
   }
 
   async check(): Promise<void[]> {
@@ -58,12 +58,12 @@ export class AbacusCoreGovernor<
       this.violations.map((v) => this.handleViolation(v)),
     );
     txs.map((call) =>
-      this.governance.pushCall(call.network as Networks, call.call),
+      this.controllerApp.pushCall(call.chain as Chain, call.call),
     );
     return [];
   }
 
-  handleViolation(v: CheckerViolation): Promise<DomainedCall> {
+  handleViolation(v: CheckerViolation): Promise<CallWithTarget> {
     switch (v.type) {
       case ProxyViolationType.UpgradeBeacon:
         return this.handleUpgradeBeaconViolation(v as UpgradeBeaconViolation);
@@ -76,26 +76,22 @@ export class AbacusCoreGovernor<
 
   async handleUpgradeBeaconViolation(
     violation: UpgradeBeaconViolation,
-  ): Promise<DomainedCall> {
-    const network = violation.network;
-    const ubc = this.app.getContracts(
-      network as Networks,
-    ).upgradeBeaconController;
+  ): Promise<CallWithTarget> {
+    const chain = violation.chain;
+    const ubc = this.app.getContracts(chain as Chain).upgradeBeaconController;
     if (ubc === undefined) throw new Error('Undefined ubc');
     const tx = await ubc.populateTransaction.upgrade(
       violation.data.proxiedAddress.beacon,
       violation.expected,
     );
     if (tx.to === undefined) throw new Error('undefined tx.to');
-    return { network, call: tx as Call };
+    return { chain, call: tx as Call };
   }
 
   async handleValidatorViolation(
     violation: ValidatorViolation,
-  ): Promise<DomainedCall> {
-    const dc = this.multiProvider.getDomainConnection(
-      violation.network as Networks,
-    );
+  ): Promise<CallWithTarget> {
+    const dc = this.multiProvider.getChainConnection(violation.chain as Chain);
     const provider = dc.provider!;
 
     const validatorManager = MultisigValidatorManager__factory.connect(
@@ -130,13 +126,13 @@ export class AbacusCoreGovernor<
     }
 
     if (tx.to === undefined) throw new Error('undefined tx.to');
-    return { network: violation.network, call: tx as Call };
+    return { chain: violation.chain, call: tx as Call };
   }
 
-  expectCalls(networks: Networks[], count: number[]) {
-    expect(networks).to.have.lengthOf(count.length);
-    networks.forEach((network, i) => {
-      expect(this.governance.getCalls(network)).to.have.lengthOf(count[i]);
+  expectCalls(chains: Chain[], count: number[]) {
+    expect(chains).to.have.lengthOf(count.length);
+    chains.forEach((chain, i) => {
+      expect(this.controllerApp.getCalls(chain)).to.have.lengthOf(count[i]);
     });
   }
 }

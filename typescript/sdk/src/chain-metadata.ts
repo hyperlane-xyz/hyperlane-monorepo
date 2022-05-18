@@ -1,4 +1,4 @@
-import { CompleteChainMap, Domain } from './types';
+import { ChainMetadata, CompleteChainMap } from './types';
 
 // IDs can be generated in many ways-- for example, in JS:
 // > Array.from('celo').map((c, i) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')
@@ -7,15 +7,15 @@ import { CompleteChainMap, Domain } from './types';
 /**
  * Mainnets
  */
-export const celo: Domain = {
+export const celo: ChainMetadata = {
   id: 0x63656c6f, // b'celo' interpreted as an int
 };
 
-export const ethereum: Domain = {
+export const ethereum: ChainMetadata = {
   id: 0x657468, // b'eth' interpreted as an int
 };
 
-export const avalanche: Domain = {
+export const avalanche: ChainMetadata = {
   id: 0x61766178, // b'avax' interpreted as an int
   paginate: {
     // Needs to be low to avoid RPC timeouts
@@ -24,7 +24,7 @@ export const avalanche: Domain = {
   },
 };
 
-export const polygon: Domain = {
+export const polygon: ChainMetadata = {
   id: 0x706f6c79, // b'poly' interpreted as an int
   paginate: {
     // Needs to be low to avoid RPC timeouts
@@ -36,23 +36,23 @@ export const polygon: Domain = {
 /**
  * Testnets
  */
-export const alfajores: Domain = {
+export const alfajores: ChainMetadata = {
   id: 1000,
 };
 
-export const fuji: Domain = {
+export const fuji: ChainMetadata = {
   id: 43113,
 };
 
-export const goerli: Domain = {
+export const goerli: ChainMetadata = {
   id: 5,
 };
 
-export const kovan: Domain = {
+export const kovan: ChainMetadata = {
   id: 3000,
 };
 
-export const mumbai: Domain = {
+export const mumbai: ChainMetadata = {
   id: 80001,
   paginate: {
     // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
@@ -61,19 +61,7 @@ export const mumbai: Domain = {
   },
 };
 
-export const rinkarby: Domain = {
-  id: 4000,
-};
-
-export const rinkeby: Domain = {
-  id: 2000,
-};
-
-export const ropsten: Domain = {
-  id: 3,
-};
-
-const testDomains = {
+const testChains = {
   test1: {
     id: 13371,
   },
@@ -85,23 +73,23 @@ const testDomains = {
   },
 };
 
-export const bsctestnet: Domain = {
+export const bsctestnet: ChainMetadata = {
   id: 0x62732d74, // b'bs-t' interpreted as an int
 };
 
-export const arbitrumrinkeby: Domain = {
+export const arbitrumrinkeby: ChainMetadata = {
   id: 0x61722d72, // b'ar-r' interpreted as an int
 };
 
-export const optimismkovan: Domain = {
+export const optimismkovan: ChainMetadata = {
   id: 0x6f702d6b, // b'op-k' interpreted as an int
 };
 
-export const auroratestnet: Domain = {
+export const auroratestnet: ChainMetadata = {
   id: 0x61752d74, // b'au-t' interpreted as an int
 };
 
-export const domains: CompleteChainMap<Domain> = {
+export const chainMetadata: CompleteChainMap<ChainMetadata> = {
   celo,
   ethereum,
   avalanche,
@@ -110,13 +98,10 @@ export const domains: CompleteChainMap<Domain> = {
   fuji,
   goerli,
   mumbai,
-  rinkeby,
-  rinkarby,
-  ropsten,
   kovan,
   bsctestnet,
   arbitrumrinkeby,
   optimismkovan,
   auroratestnet,
-  ...testDomains,
+  ...testChains,
 };

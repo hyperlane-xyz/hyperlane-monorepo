@@ -3,31 +3,31 @@ import { ethers } from 'ethers';
 import { TestAbacusDeploy, TestRouterDeploy } from '@abacus-network/hardhat';
 import { types } from '@abacus-network/utils';
 
-import { GovernanceRouter, GovernanceRouter__factory } from '../../../types';
+import { ControllerRouter, ControllerRouter__factory } from '../../../types';
 
-export type Governor = {
+export type ControllingEntity = {
   domain: types.Domain;
   address: types.Address;
 };
 
-export type GovernanceConfig = {
+export type ControllerConfig = {
   signer: ethers.Signer;
   timelock: number;
-  governor: Governor;
+  controller: ControllingEntity;
   recoveryManager: types.Address;
 };
 
-export class GovernanceDeploy extends TestRouterDeploy<
-  GovernanceRouter,
-  GovernanceConfig
+export class ControllerDeploy extends TestRouterDeploy<
+  ControllerRouter,
+  ControllerConfig
 > {
   async deploy(abacus: TestAbacusDeploy) {
     await super.deploy(abacus);
     for (const domain of this.domains) {
-      if (domain == this.config.governor.domain) {
-        await this.router(domain).setGovernor(this.config.governor.address);
+      if (domain == this.config.controller.domain) {
+        await this.router(domain).setController(this.config.controller.address);
       } else {
-        await this.router(domain).setGovernor(ethers.constants.AddressZero);
+        await this.router(domain).setController(ethers.constants.AddressZero);
       }
     }
   }
@@ -35,15 +35,15 @@ export class GovernanceDeploy extends TestRouterDeploy<
   async deployInstance(
     domain: types.Domain,
     abacus: TestAbacusDeploy,
-  ): Promise<GovernanceRouter> {
-    const routerFactory = new GovernanceRouter__factory(this.config.signer);
+  ): Promise<ControllerRouter> {
+    const routerFactory = new ControllerRouter__factory(this.config.signer);
     const router = await routerFactory.deploy(this.config.timelock);
     await router.initialize(abacus.abacusConnectionManager(domain).address);
     await router.transferOwnership(this.config.recoveryManager);
     return router;
   }
 
-  router(domain: types.Domain): GovernanceRouter {
+  router(domain: types.Domain): ControllerRouter {
     return this.instances[domain];
   }
 }

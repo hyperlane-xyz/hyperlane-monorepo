@@ -5,40 +5,40 @@ import { MultiGeneric, objMap } from './utils';
 
 export class AbacusApp<
   Contracts extends IAbacusContracts<any, any>,
-  Networks extends ChainName = ChainName,
-> extends MultiGeneric<Networks, Contracts> {
+  Chain extends ChainName = ChainName,
+> extends MultiGeneric<Chain, Contracts> {
   constructor(
     builder: ContractsBuilder<any, Contracts>,
-    networkAddresses: ChainMap<Networks, any>,
-    multiProvider: MultiProvider<Networks>,
+    contractAddresses: ChainMap<Chain, any>,
+    multiProvider: MultiProvider<Chain>,
   ) {
     super(
       objMap(
-        networkAddresses,
-        (network, addresses) =>
+        contractAddresses,
+        (chain, addresses) =>
           new builder(
             addresses,
-            multiProvider.getDomainConnection(network).getConnection()!,
+            multiProvider.getChainConnection(chain).getConnection()!,
           ),
       ),
     );
   }
 
-  public contractsMap = this.domainMap;
+  public contractsMap = this.chainMap;
 
   getContracts(
-    network: Networks,
+    chain: Chain,
   ): Contracts extends IAbacusContracts<any, infer C> ? C : never {
-    return this.get(network).contracts;
+    return this.get(chain).contracts;
   }
 
   getAddresses(
-    network: Networks,
+    chain: Chain,
   ): Contracts extends IAbacusContracts<infer A, any> ? A : never {
-    return this.get(network).addresses;
+    return this.get(chain).addresses;
   }
 
-  reconnect(network: Networks, connection: Connection) {
-    this.get(network).reconnect(connection);
+  reconnect(chain: Chain, connection: Connection) {
+    this.get(chain).reconnect(connection);
   }
 }

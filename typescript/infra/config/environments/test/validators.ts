@@ -5,12 +5,12 @@ import {
   CheckpointSyncerType,
 } from '../../../src/config/agent';
 
-import { TestNetworks } from './domains';
+import { TestChains } from './chains';
 
 const localStoragePath = (chainName: ChainName) =>
   `/tmp/abacus-test-${chainName}-validator`;
 
-export const validators: ChainValidatorSets<TestNetworks> = {
+export const validators: ChainValidatorSets<TestChains> = {
   test1: {
     threshold: 1,
     validators: [

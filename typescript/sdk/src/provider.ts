@@ -3,20 +3,20 @@ import { ethers } from 'ethers';
 import { ChainMap, ChainName } from './types';
 import { MultiGeneric } from './utils';
 
-export interface IDomainConnection {
+export interface IChainConnection {
   provider?: ethers.providers.Provider;
   signer?: ethers.Signer;
   overrides?: ethers.Overrides;
   confirmations?: number;
 }
 
-export class DomainConnection {
+export class ChainConnection {
   provider?: ethers.providers.Provider;
   signer?: ethers.Signer;
   overrides: ethers.Overrides;
   confirmations: number;
 
-  constructor(dc: IDomainConnection = {}) {
+  constructor(dc: IChainConnection = {}) {
     this.provider = dc.provider;
     this.signer = dc.signer;
     this.overrides = dc.overrides ?? {};
@@ -56,20 +56,22 @@ export class DomainConnection {
 }
 
 export class MultiProvider<
-  Networks extends ChainName = ChainName,
-> extends MultiGeneric<Networks, DomainConnection> {
-  constructor(networks: ChainMap<Networks, IDomainConnection> | Networks[]) {
-    const params = Array.isArray(networks)
-      ? networks.map((v) => [v, {}])
-      : (Object.entries(networks) as [Networks, IDomainConnection][]);
-    const providerEntries = params.map(([network, v]) => [
-      network,
-      new DomainConnection(v),
+  Chain extends ChainName = ChainName,
+> extends MultiGeneric<Chain, ChainConnection> {
+  constructor(
+    chainConnectionConfigs: ChainMap<Chain, IChainConnection> | Chain[],
+  ) {
+    const params = Array.isArray(chainConnectionConfigs)
+      ? chainConnectionConfigs.map((v) => [v, {}])
+      : (Object.entries(chainConnectionConfigs) as [Chain, IChainConnection][]);
+    const providerEntries = params.map(([chain, v]) => [
+      chain,
+      new ChainConnection(v),
     ]);
     super(Object.fromEntries(providerEntries));
   }
-  getDomainConnection(network: Networks) {
-    return this.get(network);
+  getChainConnection(chain: Chain) {
+    return this.get(chain);
   }
   // This doesn't work on hardhat providers so we skip for now
   // ready() {

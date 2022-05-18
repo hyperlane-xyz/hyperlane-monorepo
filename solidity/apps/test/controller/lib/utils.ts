@@ -2,17 +2,17 @@ import { ethers } from 'ethers';
 
 import { types, utils } from '@abacus-network/utils';
 
-export enum GovernanceMessage {
+export enum ControllerMessage {
   CALL = 1,
-  SETGOVERNOR = 2,
+  SETCONTROLLER = 2,
   ENROLLREMOTEROUTER = 3,
   SETXAPPCONNECTIONMANAGER = 5,
 }
 
-export function formatSetGovernor(address: types.Address): string {
+export function formatSetController(address: types.Address): string {
   return ethers.utils.solidityPack(
     ['bytes1', 'bytes32'],
-    [GovernanceMessage.SETGOVERNOR, utils.addressToBytes32(address)],
+    [ControllerMessage.SETCONTROLLER, utils.addressToBytes32(address)],
   );
 }
 
@@ -22,7 +22,7 @@ export function formatSetAbacusConnectionManager(
   return ethers.utils.solidityPack(
     ['bytes1', 'bytes32'],
     [
-      GovernanceMessage.SETXAPPCONNECTIONMANAGER,
+      ControllerMessage.SETXAPPCONNECTIONMANAGER,
       utils.addressToBytes32(address),
     ],
   );
@@ -35,7 +35,7 @@ export function formatEnrollRemoteRouter(
   return ethers.utils.solidityPack(
     ['bytes1', 'uint32', 'bytes32'],
     [
-      GovernanceMessage.ENROLLREMOTEROUTER,
+      ControllerMessage.ENROLLREMOTEROUTER,
       domain,
       utils.addressToBytes32(address),
     ],
@@ -65,7 +65,7 @@ export function formatCalls(callsData: types.CallData[]): string {
 
   return ethers.utils.solidityPack(
     ['bytes1', 'bytes1', 'bytes'],
-    [GovernanceMessage.CALL, numCalls, callBody],
+    [ControllerMessage.CALL, numCalls, callBody],
   );
 }
 

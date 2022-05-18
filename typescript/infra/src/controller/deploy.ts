@@ -1,45 +1,41 @@
 import { ethers } from 'ethers';
 
-import { GovernanceRouter__factory } from '@abacus-network/apps';
+import { ControllerRouter__factory } from '@abacus-network/apps';
 import { UpgradeBeaconController__factory } from '@abacus-network/core';
 import { AbacusRouterDeployer } from '@abacus-network/deploy';
 import {
   ChainName,
-  GovernanceAddresses,
+  ControllerAddresses,
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';
 
-import { GovernanceConfig } from './types';
+import { ControllerConfig } from './types';
 
-export class AbacusGovernanceDeployer<
-  Networks extends ChainName,
-> extends AbacusRouterDeployer<
-  Networks,
-  GovernanceConfig,
-  GovernanceAddresses
-> {
+export class ControllerDeployer<
+  Chain extends ChainName,
+> extends AbacusRouterDeployer<Chain, ControllerConfig, ControllerAddresses> {
   async deployContracts(
-    network: Networks,
-    config: GovernanceConfig,
-  ): Promise<GovernanceAddresses> {
-    const dc = this.multiProvider.getDomainConnection(network);
+    chain: Chain,
+    config: ControllerConfig,
+  ): Promise<ControllerAddresses> {
+    const dc = this.multiProvider.getChainConnection(chain);
     const signer = dc.signer!;
 
     const abacusConnectionManager =
-      await this.deployConnectionManagerIfNotConfigured(network);
+      await this.deployConnectionManagerIfNotConfigured(chain);
 
     const upgradeBeaconController = await this.deployContract(
-      network,
+      chain,
       'UpgradeBeaconController',
       new UpgradeBeaconController__factory(signer),
       [],
     );
 
     const router = await this.deployProxiedContract(
-      network,
-      'GovernanceRouter',
-      new GovernanceRouter__factory(signer),
+      chain,
+      'ControllerRouter',
+      new ControllerRouter__factory(signer),
       [config.recoveryTimelock],
       upgradeBeaconController.address,
       [abacusConnectionManager.address],
@@ -73,8 +69,8 @@ export class AbacusGovernanceDeployer<
         const router = this.mustGetRouter(local, addresses);
         const config = this.configMap[local];
         await router.transferOwnership(config.recoveryManager);
-        await router.setGovernor(
-          config.governor ?? ethers.constants.AddressZero,
+        await router.setController(
+          config.controller ?? ethers.constants.AddressZero,
         );
       }),
     );
@@ -82,10 +78,10 @@ export class AbacusGovernanceDeployer<
     return deploymentOutput;
   }
 
-  mustGetRouter(network: Networks, addresses: GovernanceAddresses) {
-    return GovernanceRouter__factory.connect(
+  mustGetRouter(chain: Chain, addresses: ControllerAddresses) {
+    return ControllerRouter__factory.connect(
       addresses.router.proxy,
-      this.multiProvider.getDomainConnection(network).signer!,
+      this.multiProvider.getChainConnection(chain).signer!,
     );
   }
 }

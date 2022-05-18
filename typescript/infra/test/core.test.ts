@@ -2,6 +2,7 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import path from 'path';
 
+import { AbacusCoreDeployer, CoreConfig } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainMap,
@@ -10,28 +11,26 @@ import {
   objMap,
 } from '@abacus-network/sdk';
 
-import { TestNetworks } from '../config/environments/test/domains';
+import { TestChains } from '../config/environments/test/chains';
 import { getCoreEnvironmentConfig } from '../scripts/utils';
-import { AbacusCoreChecker, AbacusCoreDeployer, CoreConfig } from '../src/core';
+import { AbacusCoreChecker } from '../src/core';
+import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 
 describe('core', async () => {
   const environment = 'test';
 
-  let multiProvider: MultiProvider<TestNetworks>;
-  let deployer: AbacusCoreDeployer<TestNetworks>;
-  let core: AbacusCore<TestNetworks>;
-  let addresses: ChainMap<
-    TestNetworks,
-    CoreContractAddresses<TestNetworks, any>
-  >;
-  let coreConfig: ChainMap<TestNetworks, CoreConfig>;
+  let multiProvider: MultiProvider<TestChains>;
+  let deployer: AbacusCoreInfraDeployer<TestChains>;
+  let core: AbacusCore<TestChains>;
+  let addresses: ChainMap<TestChains, CoreContractAddresses<TestChains, any>>;
+  let coreConfig: ChainMap<TestChains, CoreConfig>;
 
-  let owners: ChainMap<TestNetworks, string>;
+  let owners: ChainMap<TestChains, string>;
   before(async () => {
     const config = getCoreEnvironmentConfig(environment);
     multiProvider = await config.getMultiProvider();
     coreConfig = config.core;
-    deployer = new AbacusCoreDeployer(multiProvider, coreConfig);
+    deployer = new AbacusCoreInfraDeployer(multiProvider, coreConfig);
     const [, owner] = await ethers.getSigners();
     owners = objMap(config.transactionConfigs, () => owner.address);
   });
@@ -53,9 +52,9 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const joinedConfig = objMap(coreConfig, (network, config) => ({
+    const joinedConfig = objMap(coreConfig, (chain, config) => ({
       ...config,
-      owner: owners[network],
+      owner: owners[chain],
     }));
     const checker = new AbacusCoreChecker(multiProvider, core, joinedConfig);
     await checker.check();

@@ -1,10 +1,9 @@
+import { CoreConfig } from '@abacus-network/deploy';
 import { ChainMap } from '@abacus-network/sdk';
 
-import { CoreConfig } from '../../../src/core';
+import { TestnetChains } from './chains';
 
-import { TestnetNetworks } from './domains';
-
-export const core: ChainMap<TestnetNetworks, CoreConfig> = {
+export const core: ChainMap<TestnetChains, CoreConfig> = {
   alfajores: {
     validatorManager: {
       validators: [

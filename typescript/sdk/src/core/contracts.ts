@@ -45,14 +45,17 @@ export type InboxContracts = {
   validatorManager: InboxValidatorManager;
 };
 
-export type CoreContractSchema<N extends ChainName, L extends N> = {
+export type CoreContractSchema<
+  Networks extends ChainName,
+  Local extends Networks,
+> = {
   abacusConnectionManager: AbacusConnectionManager;
   upgradeBeaconController: UpgradeBeaconController;
   outbox: {
     outbox: Outbox;
     validatorManager: OutboxValidatorManager;
   };
-  inboxes: RemoteChainMap<N, L, InboxContracts>;
+  inboxes: RemoteChainMap<Networks, Local, InboxContracts>;
   interchainGasPaymaster: InterchainGasPaymaster;
 };
 

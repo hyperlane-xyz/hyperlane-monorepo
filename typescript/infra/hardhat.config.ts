@@ -18,29 +18,28 @@ import {
   getCoreRustDirectory,
   getCoreVerificationDirectory,
 } from './scripts/utils';
-import { AbacusCoreDeployer } from './src/core';
+import { AbacusCoreInfraDeployer } from './src/core/deploy';
 import { sleep } from './src/utils/utils';
 import { AbacusContractVerifier } from './src/verify';
 
-const domainSummary = async <Networks extends ChainName>(
-  core: AbacusCore<Networks>,
-  network: Networks,
+const chainSummary = async <Chain extends ChainName>(
+  core: AbacusCore<Chain>,
+  chain: Chain,
 ) => {
-  const coreContracts = core.getContracts(network);
+  const coreContracts = core.getContracts(chain);
   const outbox = coreContracts.outbox.outbox;
   const [outboxCheckpointRoot, outboxCheckpointIndex] =
     await outbox.latestCheckpoint();
   const count = (await outbox.tree()).toNumber();
 
-  const inboxSummary = async (remote: Networks) => {
-    const inbox =
-      coreContracts.inboxes[remote as Exclude<Networks, Networks>].inbox;
+  const inboxSummary = async (remote: Chain) => {
+    const inbox = coreContracts.inboxes[remote as Exclude<Chain, Chain>].inbox;
     const [inboxCheckpointRoot, inboxCheckpointIndex] =
       await inbox.latestCheckpoint();
     const processFilter = inbox.filters.Process();
     const processes = await inbox.queryFilter(processFilter);
     return {
-      network: remote,
+      chain: remote,
       processed: processes.length,
       root: inboxCheckpointRoot,
       index: inboxCheckpointIndex.toNumber(),
@@ -48,7 +47,7 @@ const domainSummary = async <Networks extends ChainName>(
   };
 
   const summary = {
-    network,
+    chain,
     outbox: {
       count,
       checkpoint: {
@@ -57,7 +56,7 @@ const domainSummary = async <Networks extends ChainName>(
       },
     },
     inboxes: await Promise.all(
-      core.remotes(network).map((remote) => inboxSummary(remote)),
+      core.remoteChains(chain).map((remote) => inboxSummary(remote)),
     ),
   };
   return summary;
@@ -78,7 +77,7 @@ task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
       signer,
     );
 
-    const deployer = new AbacusCoreDeployer(multiProvider, config.core);
+    const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
     const addresses = await deployer.deploy();
 
     // Write configs
@@ -115,12 +114,12 @@ task('kathy', 'Dispatches random abacus messages').setAction(
 
     // Generate artificial traffic
     while (true) {
-      const local = core.networks()[0];
-      const remote: ChainName = randomElement(core.remotes(local));
+      const local = core.chains()[0];
+      const remote: ChainName = randomElement(core.remoteChains(local));
       const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
       const outbox = coreContracts.outbox.outbox;
-      // Send a batch of messages to the remote domain to test
+      // Send a batch of messages to the destination chain to test
       // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
         await outbox.dispatch(
@@ -136,7 +135,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
             (await outbox.count()).toNumber() - 1
           }`,
         );
-        console.log(await domainSummary(core, local));
+        console.log(await chainSummary(core, local));
         await sleep(5000);
       }
     }
