@@ -19,18 +19,18 @@ declare module 'hardhat/types/runtime' {
   }
 }
 
-export function hardhatMultiProvider(ethers: HardhatRuntimeEnvironment['ethers'], signer?: ethers.Signer): MultiProvider<TestNetworks> {
+export function hardhatMultiProvider(hardhatEthers: HardhatRuntimeEnvironment['ethers'], signer?: ethers.Signer): MultiProvider<TestNetworks> {
   return new MultiProvider<TestNetworks>({
     test1: {
-      provider: ethers.provider,
+      provider: hardhatEthers.provider,
       signer
     },
     test2: {
-      provider: ethers.provider,
+      provider: hardhatEthers.provider,
       signer
     },
     test3: {
-      provider: ethers.provider,
+      provider: hardhatEthers.provider,
       signer
     }
   })

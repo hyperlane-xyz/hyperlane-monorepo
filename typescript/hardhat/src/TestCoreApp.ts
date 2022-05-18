@@ -1,9 +1,8 @@
-import { TestNetworks } from './types';
 import {
   TestInbox,
   TestInbox__factory,
   TestOutbox,
-  TestOutbox__factory,
+  TestOutbox__factory
 } from '@abacus-network/core';
 import {
   AbacusCore,
@@ -11,56 +10,52 @@ import {
   DomainIdToChainName,
   domains,
   MultiProvider,
-  objMap,
-  Remotes,
+  objMap, Remotes,
+  TestChainNames
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 
-export class TestCoreApp extends AbacusCore<TestNetworks> {
+export class TestCoreApp extends AbacusCore<TestChainNames> {
   private testContracts: {
-    [local in TestNetworks]: {
+    [LocalChain in TestChainNames]: {
       outbox: TestOutbox;
-      inboxes: {
-        [remote in Remotes<TestNetworks, local>]: TestInbox;
-      };
+      inboxes: Record<Remotes<TestChainNames, LocalChain>, TestInbox>;
     };
   };
 
   constructor(
-    networkAddresses: {
-      [local in TestNetworks]: CoreContractAddresses<TestNetworks, local>;
+    chainAddresses: {
+      [LocalChain in TestChainNames]: CoreContractAddresses<TestChainNames, LocalChain>;
     },
-    multiProvider: MultiProvider<TestNetworks>,
+    multiProvider: MultiProvider<TestChainNames>,
   ) {
-    super(networkAddresses, multiProvider);
-    this.testContracts = objMap(networkAddresses, (local, addresses) => {
-      const connection =
-        multiProvider.getChainConnection(local).signer ||
-        multiProvider.getChainConnection(local).provider;
-      const outbox = addresses.outbox;
+    super(chainAddresses, multiProvider);
+    this.testContracts = objMap(chainAddresses, (local, addresses) => {
+      const chainConnection = multiProvider.getChainConnection(local);
+      const connection = chainConnection.signer || chainConnection.provider;
       return {
-        outbox: TestOutbox__factory.connect(outbox.proxy, connection!),
+        outbox: TestOutbox__factory.connect(addresses.outbox.proxy, connection!),
         inboxes: objMap(addresses.inboxes as any, (_, inbox) =>
           TestInbox__factory.connect(inbox.proxy, connection!),
-        ),
+        ) as any,
       };
     });
   }
 
-  outbox(local: TestNetworks) {
+  outbox(local: TestChainNames) {
     return this.testContracts[local].outbox;
   }
 
-  inbox<Local extends TestNetworks>(
-    destination: Local,
-    origin: Remotes<TestNetworks, Local>,
+  inbox<LocalChain extends TestChainNames>(
+    destination: LocalChain,
+    origin: Remotes<TestChainNames, LocalChain>,
   ) {
     return this.testContracts[destination].inboxes[origin];
   }
 
   async processMessages(): Promise<
-    Map<TestNetworks, Map<TestNetworks, ethers.providers.TransactionResponse[]>>
+    Map<TestChainNames, Map<TestChainNames, ethers.providers.TransactionResponse[]>>
   > {
     const responses = new Map();
     for (const origin of this.networks()) {
@@ -74,7 +69,7 @@ export class TestCoreApp extends AbacusCore<TestNetworks> {
     return responses;
   }
 
-  async processOutboundMessages<Local extends TestNetworks>(origin: Local) {
+  async processOutboundMessages<Local extends TestChainNames>(origin: Local) {
     const responses = new Map();
     const outbox = this.outbox(origin);
     const [root, index] = await outbox.latestCheckpoint();
@@ -92,11 +87,11 @@ export class TestCoreApp extends AbacusCore<TestNetworks> {
       if (destination === domains[origin].id) {
         throw new Error('Dispatched message to local domain');
       }
-      const destinationNetwork = DomainIdToChainName[destination] as Remotes<
-        TestNetworks,
+      const destinationChain = DomainIdToChainName[destination] as Remotes<
+        TestChainNames,
         Local
       >;
-      const inbox = this.inbox(destinationNetwork, origin as any);
+      const inbox = this.inbox(destinationChain, origin as any);
       const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
         if (dispatch.args.leafIndex.toNumber() == 0) {
@@ -116,9 +111,9 @@ export class TestCoreApp extends AbacusCore<TestNetworks> {
           dispatch.args.message,
           dispatch.args.leafIndex.toNumber(),
         );
-        let destinationResponses = responses.get(destinationNetwork) || [];
+        let destinationResponses = responses.get(destinationChain) || [];
         destinationResponses.push(response);
-        responses.set(destinationNetwork, destinationResponses);
+        responses.set(destinationChain, destinationResponses);
       }
     }
     return responses;
