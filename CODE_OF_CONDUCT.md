@@ -6,7 +6,7 @@ Thus we believe it is necessary to ensure those rare cases that devolve into har
 
 To achieve our goal a Code of Conduct (CoC) is useful in defining what are acceptable and unacceptable behavior. Most importantly, we belive the CoC can promote the high standards that have been set for the project.
 
-This CoC will apply to any member of the Abacus Network project's community including but not limited to - developers, participants in meetings both electronically and in person, conferences, or any other project functions. It is important to note that this code is a complement, not a replacement, to legal rights and obligations pertaining to any particular situation.
+This CoC applies to all members of the Abacus Network's community including, but not limited to - developers, participants in meetings both electronically and in person, conferences, or any other project functions. It is important to note that this code is a complement, not a replacement, to legal rights and obligations pertaining to any particular situation.
 
 **Code**
 1. Never harass or bully anyone. Not verbally, not physically, not sexually. Harassment will not be tolerated.
