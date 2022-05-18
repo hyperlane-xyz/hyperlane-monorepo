@@ -7,9 +7,9 @@ use abacus_core::{
     CheckpointMeta, CheckpointWithMeta, ContractLocator, Inbox, TxOutcome,
 };
 use async_trait::async_trait;
-use color_eyre::Result;
 use ethers::contract::abigen;
 use ethers::core::types::{H256, U256};
+use eyre::Result;
 use tracing::instrument;
 
 use std::{error::Error as StdError, sync::Arc};
@@ -42,7 +42,9 @@ where
 {
     contract: Arc<EthereumInboxInternal<M>>,
     provider: Arc<M>,
+    #[allow(unused)]
     from_height: u32,
+    #[allow(unused)]
     chunk_size: u32,
 }
 

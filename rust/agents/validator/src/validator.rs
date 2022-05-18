@@ -1,13 +1,14 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use color_eyre::Result;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
-use crate::{settings::ValidatorSettings as Settings, submit::ValidatorSubmitter};
 use abacus_base::{AbacusAgentCore, Agent, CheckpointSyncers};
 use abacus_core::Signers;
+use eyre::Result;
+
+use crate::{settings::ValidatorSettings as Settings, submit::ValidatorSubmitter};
 
 /// An validator agent
 #[derive(Debug)]

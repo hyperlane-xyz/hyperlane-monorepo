@@ -14,12 +14,12 @@ interface KeyAsAddress {
   address: string;
 }
 
-export function getKey<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
+export function getKey<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
   role: KEY_ROLE_ENUM,
-  chainName?: Networks,
+  chainName?: Chain,
   index?: number,
-): AgentKey<Networks> {
+): AgentKey {
   if (agentConfig.aws) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
@@ -27,13 +27,11 @@ export function getKey<Networks extends ChainName>(
   }
 }
 
-export function getAllKeys<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
-): Array<AgentKey<Networks>> {
+export function getAllKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
   return KEY_ROLES.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
       // For each chainName, create validatorCount keys
-      return agentConfig.domainNames.flatMap((chainName) =>
+      return agentConfig.chainNames.flatMap((chainName) =>
         [
           ...Array(
             agentConfig.validatorSets[chainName].validators.length,
@@ -41,7 +39,7 @@ export function getAllKeys<Networks extends ChainName>(
         ].map((index) => getKey(agentConfig, role, chainName, index)),
       );
     } else if (role === KEY_ROLE_ENUM.Relayer) {
-      return agentConfig.domainNames.map((chainName) =>
+      return agentConfig.chainNames.map((chainName) =>
         getKey(agentConfig, role, chainName),
       );
     } else {
@@ -50,9 +48,7 @@ export function getAllKeys<Networks extends ChainName>(
   });
 }
 
-export async function deleteAgentKeys<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
-) {
+export async function deleteAgentKeys(agentConfig: AgentConfig<any>) {
   const keys = getAllKeys(agentConfig);
   await Promise.all(keys.map((key) => key.delete()));
   await execCmd(
@@ -62,8 +58,8 @@ export async function deleteAgentKeys<Networks extends ChainName>(
   );
 }
 
-export async function createAgentKeysIfNotExists<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
+export async function createAgentKeysIfNotExists(
+  agentConfig: AgentConfig<any>,
 ) {
   const keys = getAllKeys(agentConfig);
 
@@ -79,10 +75,10 @@ export async function createAgentKeysIfNotExists<Networks extends ChainName>(
   );
 }
 
-export async function rotateKey<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
+export async function rotateKey<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
   role: KEY_ROLE_ENUM,
-  chainName: Networks,
+  chainName: Chain,
 ) {
   const key = getKey(agentConfig, role, chainName);
   await key.update();
@@ -103,10 +99,10 @@ async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
 }
 
 // This function returns all keys for a given outbox chain in a dictionary where the key is the identifier
-export async function fetchKeysForChain<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
-  chainName: Networks,
-): Promise<Record<string, AgentKey<Networks>>> {
+export async function fetchKeysForChain<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
+  chainName: Chain,
+): Promise<Record<string, AgentKey>> {
   // Get all keys for the chainName. Include keys where chainName is undefined,
   // which are keys that are not chain-specific but should still be included
   const keys = await Promise.all(

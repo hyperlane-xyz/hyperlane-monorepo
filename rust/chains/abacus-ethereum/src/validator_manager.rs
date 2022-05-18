@@ -4,9 +4,9 @@
 use abacus_core::{ChainCommunicationError, ContractLocator, TxOutcome};
 use abacus_core::{InboxValidatorManager, MultisigSignedCheckpoint};
 use async_trait::async_trait;
-use color_eyre::Result;
 use ethers::contract::abigen;
 use ethers::core::types::Address;
+use eyre::Result;
 
 use std::sync::Arc;
 
@@ -33,8 +33,11 @@ where
     M: ethers::providers::Middleware,
 {
     contract: Arc<EthereumInboxValidatorManagerInternal<M>>,
+    #[allow(unused)]
     domain: u32,
+    #[allow(unused)]
     name: String,
+    #[allow(unused)]
     provider: Arc<M>,
     inbox_address: Address,
 }

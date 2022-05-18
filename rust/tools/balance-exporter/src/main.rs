@@ -63,24 +63,24 @@ async fn main() -> color_eyre::Result<()> {
     setup_panic!();
     color_eyre::install()?;
 
-    let args = clap::app_from_crate!()
+    let args = clap::command!()
         .arg(
             Arg::new("polling-interval")
                 .validator(|s| {
                     str::parse::<u64>(s).map_err(|_| anyhow!("polling interval must be u64!"))
                 })
-                .about("Minimum number of seconds to wait between poll attempts")
+                .help("Minimum number of seconds to wait between poll attempts")
                 .default_value("120"),
         )
         .arg(
             Arg::new("stdin")
-                .about("Read configuration JSON from stdin")
+                .help("Read configuration JSON from stdin")
                 .required_unless_present("file"),
         )
         .arg(
             Arg::new("file")
                 .takes_value(true)
-                .about("Path to configuration JSON file"),
+                .help("Path to configuration JSON file"),
         )
         .get_matches();
 

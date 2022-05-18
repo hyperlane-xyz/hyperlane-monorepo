@@ -3,190 +3,163 @@ import fs from 'fs';
 import path from 'path';
 
 import {
-  UpgradeBeacon,
-  UpgradeBeaconProxy,
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
-import { ChainName, MultiProvider, NameOrDomain } from '@abacus-network/sdk';
+import {
+  ChainMap,
+  ChainName,
+  MultiProvider,
+  objMap,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 import { ProxiedContract } from './proxy';
-import { VerificationInput, getContractVerificationInput } from './verify';
+import {
+  ContractVerificationInput,
+  getContractVerificationInput,
+} from './verify';
 
-export abstract class AbacusAppDeployer<T, C> extends MultiProvider {
-  protected addresses: Map<number, T>;
-  protected verification: Map<number, VerificationInput>;
+// TODO: Make AppDeployer generic on AbacusApp and return instance from deploy()
+export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
+  verificationInputs: ChainMap<Chain, ContractVerificationInput[]>;
 
-  constructor() {
-    super();
-    this.addresses = new Map();
-    this.verification = new Map();
+  constructor(
+    protected readonly multiProvider: MultiProvider<Chain>,
+    protected readonly configMap: ChainMap<Chain, C>,
+  ) {
+    this.verificationInputs = objMap(configMap, () => []);
   }
 
-  getAddresses(nameOrDomain: NameOrDomain): T | undefined {
-    return this.getFromMap(nameOrDomain, this.addresses);
-  }
+  abstract deployContracts(chain: Chain, config: C): Promise<A>;
 
-  mustGetAddresses(nameOrDomain: NameOrDomain): T {
-    return this.mustGetFromMap(nameOrDomain, this.addresses, 'Addresses');
-  }
-
-  getVerification(nameOrDomain: NameOrDomain): VerificationInput | undefined {
-    return this.getFromMap(nameOrDomain, this.verification);
-  }
-
-  mustGetVerification(nameOrDomain: NameOrDomain): VerificationInput {
-    return this.mustGetFromMap(nameOrDomain, this.verification, 'Verification');
-  }
-
-  get addressesRecord(): Partial<Record<ChainName, T>> {
-    const addresses: Partial<Record<ChainName, T>> = {};
-    this.domainNumbers.map((domain) => {
-      addresses[this.mustResolveDomainName(domain)] =
-        this.mustGetAddresses(domain);
-    });
-    return addresses;
-  }
-
-  addVerificationInput(nameOrDomain: NameOrDomain, input: VerificationInput) {
-    const domain = this.resolveDomain(nameOrDomain);
-    const verification = this.verification.get(domain) || [];
-    this.verification.set(domain, verification.concat(input));
-  }
-
-  abstract deployContracts(domain: types.Domain, config: C): Promise<T>;
-
-  async deploy(config: C) {
-    await this.ready();
-    for (const domain of this.domainNumbers) {
-      if (this.addresses.has(domain)) throw new Error('cannot deploy twice');
-      this.addresses.set(domain, await this.deployContracts(domain, config));
+  async deploy() {
+    this.verificationInputs = objMap(this.configMap, () => []);
+    const chains = Object.keys(this.configMap) as Chain[];
+    const entries: [Chain, A][] = [];
+    for (const chain of chains) {
+      console.log(`Deploying to ${chain}...`);
+      const result = await this.deployContracts(chain, this.configMap[chain]);
+      entries.push([chain, result]);
     }
+    return Object.fromEntries(entries) as Record<Chain, A>;
   }
 
-  async deployContract<L extends ethers.Contract>(
-    nameOrDomain: NameOrDomain,
+  async deployContract<F extends ethers.ContractFactory>(
+    chain: Chain,
     contractName: string,
-    factory: ethers.ContractFactory,
-    ...args: any[]
-  ): Promise<L> {
-    const overrides = this.getOverrides(nameOrDomain);
-    const contract = (await factory.deploy(...args, overrides)) as L;
-    await contract.deployTransaction.wait(this.getConfirmations(nameOrDomain));
-    this.addVerificationInput(nameOrDomain, [
-      getContractVerificationInput(
-        contractName,
-        contract,
-        factory.bytecode,
-        contractName.includes(' Proxy'),
-      ),
-    ]);
+    factory: F,
+    args: Parameters<F['deploy']>,
+  ): Promise<ReturnType<F['deploy']>> {
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const contract = await factory.deploy(...args, chainConnection.overrides);
+    await contract.deployTransaction.wait(chainConnection.confirmations);
+    const verificationInput = getContractVerificationInput(
+      contractName,
+      contract,
+      factory.bytecode,
+    );
+    this.verificationInputs[chain].push(verificationInput);
     return contract;
   }
 
   /**
    * Deploys the UpgradeBeacon, Implementation and Proxy for a given contract
    *
-   * @param T - The contract
    */
-  async deployProxiedContract<L extends ethers.Contract>(
-    nameOrDomain: NameOrDomain,
+  async deployProxiedContract<
+    F extends ethers.ContractFactory,
+    C extends ethers.Contract = Awaited<ReturnType<F['deploy']>>,
+  >(
+    chain: Chain,
     contractName: string,
-    factory: ethers.ContractFactory,
+    factory: F,
+    deployArgs: Parameters<F['deploy']>,
     ubcAddress: types.Address,
-    deployArgs: any[],
-    initArgs: any[],
-  ): Promise<ProxiedContract<L>> {
-    const signer = this.mustGetSigner(nameOrDomain);
-    const implementation: L = await this.deployContract(
-      nameOrDomain,
+    initArgs: Parameters<C['initialize']>,
+  ) {
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const signer = chainConnection.signer;
+    const implementation = await this.deployContract(
+      chain,
       `${contractName} Implementation`,
       factory,
-      ...deployArgs,
+      deployArgs,
     );
-    const beacon: UpgradeBeacon = await this.deployContract(
-      nameOrDomain,
+    const beacon = await this.deployContract(
+      chain,
       `${contractName} UpgradeBeacon`,
       new UpgradeBeacon__factory(signer),
-      implementation.address,
-      ubcAddress,
+      [implementation.address, ubcAddress],
     );
 
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
-    const proxy: UpgradeBeaconProxy = await this.deployContract(
-      nameOrDomain,
+    const proxy = await this.deployContract(
+      chain,
       `${contractName} Proxy`,
       new UpgradeBeaconProxy__factory(signer),
-      beacon.address,
-      initData,
+      [beacon.address, initData],
     );
-    // proxy wait(x) implies implementation and beacon wait(>=x)
-    // due to nonce ordering
-    await proxy.deployTransaction.wait(this.getConfirmations(nameOrDomain));
-    return new ProxiedContract(factory.attach(proxy.address) as L, {
+
+    const proxiedContract = new ProxiedContract(factory.attach(proxy.address), {
       proxy: proxy.address,
       implementation: implementation.address,
       beacon: beacon.address,
     });
+    return proxiedContract;
   }
 
   /**
    * Sets up a new proxy with the same beacon and implementation
    *
-   * @param T - The contract
    */
-  async duplicateProxiedContract<L extends ethers.Contract>(
-    nameOrDomain: NameOrDomain,
+  async duplicateProxiedContract<C extends ethers.Contract>(
+    chain: Chain,
     contractName: string,
-    contract: ProxiedContract<L>,
-    initArgs: any[],
-  ): Promise<ProxiedContract<L>> {
-    const initData = contract.contract.interface.encodeFunctionData(
+    proxy: ProxiedContract<C>,
+    initArgs: Parameters<C['initialize']>,
+  ) {
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const initData = proxy.contract.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
-    const proxy: UpgradeBeaconProxy = await this.deployContract(
-      nameOrDomain,
+    const newProxy = await this.deployContract(
+      chain,
       `${contractName} Proxy`,
-      new UpgradeBeaconProxy__factory(this.mustGetSigner(nameOrDomain)),
-      contract.addresses.beacon,
-      initData,
+      new UpgradeBeaconProxy__factory(chainConnection.signer!),
+      [proxy.addresses.beacon, initData],
     );
 
-    return new ProxiedContract(contract.contract.attach(proxy.address) as L, {
-      ...contract.addresses,
-      proxy: proxy.address,
-    });
-  }
-
-  async ready(): Promise<void> {
-    await Promise.all(
-      this.domainNumbers.map(
-        (domain) =>
-          (this.mustGetProvider(domain) as ethers.providers.JsonRpcProvider)
-            .ready,
-      ),
+    const newProxiedContract = new ProxiedContract(
+      proxy.contract.attach(newProxy.address),
+      {
+        ...proxy.addresses,
+        proxy: newProxy.address,
+      },
     );
+    return newProxiedContract;
   }
 
-  writeContracts(filepath: string) {
+  writeOutput(directory: string, addresses: ChainMap<Chain, A>) {
+    this.writeContracts(addresses, path.join(directory, 'addresses.ts'));
+    this.writeVerification(path.join(directory, 'verification'));
+  }
+
+  writeContracts(addresses: ChainMap<Chain, A>, filepath: string) {
     const contents = `export const addresses = ${AbacusAppDeployer.stringify(
-      this.addressesRecord,
+      addresses,
     )}`;
     AbacusAppDeployer.write(filepath, contents);
   }
 
   writeVerification(directory: string) {
-    for (const name of this.domainNames) {
-      AbacusAppDeployer.writeJson(
-        path.join(directory, `${name}.json`),
-        this.mustGetVerification(name),
-      );
-    }
+    objMap(this.verificationInputs, (chain, input) => {
+      AbacusAppDeployer.writeJson(path.join(directory, `${chain}.json`), input);
+    });
   }
 
   static stringify(obj: Object) {

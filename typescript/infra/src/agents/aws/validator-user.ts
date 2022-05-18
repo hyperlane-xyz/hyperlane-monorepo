@@ -14,13 +14,13 @@ import { AgentAwsKey } from './key';
 import { AgentAwsUser } from './user';
 
 export class ValidatorAgentAwsUser<
-  Networks extends ChainName,
-> extends AgentAwsUser<Networks> {
+  Chain extends ChainName,
+> extends AgentAwsUser<Chain> {
   private adminS3Client: S3Client;
 
   constructor(
     environment: string,
-    chainName: Networks,
+    chainName: Chain,
     public readonly index: number,
     region: string,
     public readonly bucket: string,
@@ -83,13 +83,8 @@ export class ValidatorAgentAwsUser<
     await this.adminS3Client.send(cmd);
   }
 
-  key(agentConfig: AgentConfig<Networks>): AgentAwsKey<Networks> {
-    return new AgentAwsKey<Networks>(
-      agentConfig,
-      this.role,
-      this.chainName,
-      this.index,
-    );
+  key(agentConfig: AgentConfig<Chain>): AgentAwsKey {
+    return new AgentAwsKey(agentConfig, this.role, this.chainName, this.index);
   }
 
   get tags(): Record<string, string> {

@@ -1,15 +1,25 @@
-export { AbacusAppDeployer } from './deploy';
+export { AbacusAppChecker, Ownable } from './check';
 export {
-  AbacusRouterDeployer,
-  AbacusRouterChecker,
-  Router,
-  RouterConfig,
-} from './router';
-export { ContractVerifier, VerificationInput } from './verify';
-export { AbacusAppChecker } from './check';
+  CheckerViolation,
+  EnvironmentConfig,
+  TransactionConfig,
+} from './config';
+export {
+  AbacusCoreDeployer,
+  CoreConfig,
+  ValidatorManagerConfig,
+} from './core/deploy';
+export { AbacusAppDeployer } from './deploy';
 export {
   ProxiedContract,
   ProxyViolationType,
   UpgradeBeaconViolation,
 } from './proxy';
-export { CheckerViolation, TransactionConfig, registerDomains } from './config';
+export {
+  AbacusRouterChecker,
+  AbacusRouterDeployer,
+  Router,
+  RouterConfig,
+} from './router';
+export * as utils from './utils';
+export { ContractVerifier, VerificationInput } from './verify';

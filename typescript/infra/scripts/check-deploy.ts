@@ -1,50 +1,38 @@
-import { ethers } from 'ethers';
+import { AbacusCore, ControllerApp } from '@abacus-network/sdk';
 
-import {
-  AbacusCore,
-  AbacusGovernance,
-  coreAddresses,
-  governanceAddresses,
-} from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
-
+import { ControllerChecker } from '../src/controller';
 import { AbacusCoreChecker } from '../src/core';
-import { AbacusGovernanceChecker } from '../src/governance';
 
-import {
-  getCoreConfig,
-  getEnvironment,
-  getGovernanceConfig,
-  registerMultiProvider,
-} from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function check() {
   const environment = await getEnvironment();
-  const core = new AbacusCore(coreAddresses[environment]);
-  const governance = new AbacusGovernance(governanceAddresses[environment]);
-  registerMultiProvider(core, environment);
-  registerMultiProvider(governance, environment);
+  const config = getCoreEnvironmentConfig(environment);
+  const multiProvider = await config.getMultiProvider();
 
-  const governanceConfig = await getGovernanceConfig(environment, core);
-  const governors: Record<types.Domain, types.Address> = {};
-  governance.domainNumbers.map((domain) => {
-    const addresses =
-      governanceConfig.addresses[governance.mustResolveDomainName(domain)];
-    if (!addresses) throw new Error('could not find addresses');
-    governors[domain] = addresses.governor
-      ? addresses.governor
-      : ethers.constants.AddressZero;
-  });
-  const governanceChecker = new AbacusGovernanceChecker(
-    governance,
-    governanceConfig,
+  if (environment !== 'test') {
+    throw new Error(
+      `Do not have controller addresses for ${environment} in SDK`,
+    );
+  }
+
+  const core = AbacusCore.fromEnvironment(environment, multiProvider);
+  const controller = ControllerApp.fromEnvironment(environment, multiProvider);
+
+  const controllerChecker = new ControllerChecker(
+    multiProvider,
+    controller,
+    config.controller,
   );
-  await governanceChecker.check(governors);
-  governanceChecker.expectEmpty();
+  await controllerChecker.check();
+  controllerChecker.expectEmpty();
 
-  const coreConfig = await getCoreConfig(environment);
-  const coreChecker = new AbacusCoreChecker(core, coreConfig);
-  await coreChecker.check(governance.routerAddresses);
+  const owners = controller.routerAddresses();
+  const coreChecker = new AbacusCoreChecker(multiProvider, core, {
+    ...config.core,
+    owners,
+  } as any);
+  await coreChecker.check();
   coreChecker.expectEmpty();
 }
 

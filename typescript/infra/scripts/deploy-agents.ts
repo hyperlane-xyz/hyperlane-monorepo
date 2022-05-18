@@ -1,12 +1,21 @@
-import { runAgentHelmCommand } from '../src/agents';
+import {
+  getCurrentKubernetesContext,
+  runAgentHelmCommand,
+} from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
-import { getAgentConfig, getDomainNames, getEnvironment } from './utils';
+import { getEnvironmentConfig } from './utils';
 
 async function deploy() {
-  const environment = await getEnvironment();
-  const agentConfig = await getAgentConfig(environment);
-  const domainNames = await getDomainNames(environment);
+  const config = await getEnvironmentConfig();
+
+  const currentKubeContext = await getCurrentKubernetesContext();
+  if (!currentKubeContext.endsWith(`-${config.agent.runEnv}`)) {
+    console.error(
+      `Cowardly refusing to deploy ${config.agent.runEnv} to ${currentKubeContext}; are you sure you have the right k8s context active?`,
+    );
+    process.exit(1);
+  }
 
   // Note the create-keys script should be ran prior to running this script.
   // At the moment, `runAgentHelmCommand` has the side effect of creating keys / users
@@ -16,13 +25,8 @@ async function deploy() {
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
   await Promise.all(
-    domainNames.map((name) =>
-      runAgentHelmCommand(
-        HelmCommand.InstallOrUpgrade,
-        agentConfig,
-        name,
-        domainNames,
-      ),
+    config.agent.chainNames.map((name: any) =>
+      runAgentHelmCommand(HelmCommand.InstallOrUpgrade, config.agent, name),
     ),
   );
 }

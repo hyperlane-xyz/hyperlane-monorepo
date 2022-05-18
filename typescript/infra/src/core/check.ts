@@ -1,13 +1,22 @@
 import { expect } from 'chai';
 
 import { MultisigValidatorManager } from '@abacus-network/core';
-import { AbacusAppChecker, CheckerViolation } from '@abacus-network/deploy';
-import { AbacusCore } from '@abacus-network/sdk';
+import {
+  AbacusAppChecker,
+  CheckerViolation,
+  CoreConfig,
+} from '@abacus-network/deploy';
+import {
+  AbacusCore,
+  ChainName,
+  MailboxAddresses,
+  chainMetadata,
+  objMap,
+  promiseObjAll,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 import { setDifference } from '../utils/utils';
-
-import { CoreConfig } from './types';
 
 export enum CoreViolationType {
   ValidatorManager = 'ValidatorManager',
@@ -32,61 +41,46 @@ export interface ValidatorViolation extends CheckerViolation {
   };
 }
 
-export class AbacusCoreChecker extends AbacusAppChecker<
-  AbacusCore,
-  CoreConfig
+export class AbacusCoreChecker<
+  Chain extends ChainName,
+> extends AbacusAppChecker<
+  Chain,
+  AbacusCore<Chain>,
+  CoreConfig & {
+    owner: types.Address;
+  }
 > {
-  async check(
-    owners: Partial<Record<types.Domain, types.Address>>,
-  ): Promise<void> {
-    await Promise.all(
-      this.app.domainNumbers.map((domain: types.Domain) => {
-        const owner = owners[domain];
-        if (!owner) throw new Error('owner not found');
-        return this.checkDomain(domain, owner);
-      }),
-    );
+  async checkChain(chain: Chain): Promise<void> {
+    await this.checkDomainOwnership(chain);
+    await this.checkProxiedContracts(chain);
+    await this.checkOutbox(chain);
+    await this.checkInboxes(chain);
+    await this.checkAbacusConnectionManager(chain);
+    await this.checkValidatorManagers(chain);
   }
 
-  async checkDomain(domain: types.Domain, owner: types.Address): Promise<void> {
-    await this.checkOwnership(domain, owner);
-    await this.checkProxiedContracts(domain);
-    await this.checkOutbox(domain);
-    await this.checkInboxes(domain);
-    await this.checkAbacusConnectionManager(domain);
-    await this.checkValidatorManagers(domain);
-  }
-
-  async checkOwnership(
-    domain: types.Domain,
-    owner: types.Address,
-  ): Promise<void> {
-    const contracts = this.app.mustGetContracts(domain);
-    const owners = [
-      contracts.abacusConnectionManager.owner(),
-      contracts.upgradeBeaconController.owner(),
-      contracts.outbox.owner(),
-      contracts.outboxValidatorManager.owner(),
+  async checkDomainOwnership(chain: Chain): Promise<void> {
+    const config = this.configMap[chain];
+    const contracts = this.app.getContracts(chain);
+    const ownables = [
+      contracts.abacusConnectionManager,
+      contracts.upgradeBeaconController,
+      contracts.outbox.outbox,
+      contracts.outbox.validatorManager,
+      ...Object.values(contracts.inboxes)
+        .map((inbox: any) => [inbox.inbox, inbox.validatorManager])
+        .flat(),
     ];
-    this.app.remoteDomainNumbers(domain).map((remote) => {
-      owners.push(this.app.mustGetInbox(remote, domain).owner());
-      owners.push(
-        this.app.mustGetInboxValidatorManager(remote, domain).owner(),
-      );
-    });
-    const actual = await Promise.all(owners);
-    actual.map((_) => expect(_).to.equal(owner));
+    return AbacusAppChecker.checkOwnership(config.owner, ownables);
   }
 
-  async checkOutbox(domain: types.Domain): Promise<void> {
-    const contracts = this.app.mustGetContracts(domain);
-    const outbox = contracts.outbox;
-    // validatorManager is set on Outbox
-    const actualManager = await outbox.validatorManager();
-    const expectedManager = contracts.outboxValidatorManager.address;
+  async checkOutbox(chain: Chain): Promise<void> {
+    const contracts = this.app.getContracts(chain);
+    const actualManager = await contracts.outbox.outbox.validatorManager();
+    const expectedManager = contracts.outbox.validatorManager.address;
     if (actualManager !== expectedManager) {
       const violation: ValidatorManagerViolation = {
-        domain,
+        chain,
         type: CoreViolationType.ValidatorManager,
         actual: actualManager,
         expected: expectedManager,
@@ -96,25 +90,19 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   }
 
   // Checks validator sets of the OutboxValidatorManager and all
-  // InboxValidatorManagers on the domain.
-  async checkValidatorManagers(domain: types.Domain): Promise<void> {
-    const promises = this.app.domainNumbers.map((outboxDomain: number) => {
-      let validatorManager: MultisigValidatorManager;
-      // Check the OutboxValidatorManager
-      if (domain === outboxDomain) {
-        validatorManager =
-          this.app.mustGetContracts(domain).outboxValidatorManager;
-      } else {
-        // Check an InboxValidatorManager
-        validatorManager = this.app.mustGetInboxValidatorManager(
-          outboxDomain,
-          domain,
-        );
-      }
-      return this.checkValidatorManager(domain, outboxDomain, validatorManager);
-    });
-
-    await Promise.all(promises);
+  // InboxValidatorManagers on the chain.
+  async checkValidatorManagers(chain: Chain) {
+    const coreContracts = this.app.getContracts(chain);
+    await this.checkValidatorManager(
+      chain,
+      chain,
+      coreContracts.outbox.validatorManager,
+    );
+    return promiseObjAll(
+      objMap(coreContracts.inboxes, (remote, inbox) =>
+        this.checkValidatorManager(chain, remote, inbox.validatorManager),
+      ),
+    );
   }
 
   // Checks the validator set for a MultisigValidatorManager on the localDomain that tracks
@@ -122,20 +110,14 @@ export class AbacusCoreChecker extends AbacusAppChecker<
   // If localDomain == outboxDomain, this checks the OutboxValidatorManager, otherwise
   // it checks an InboxValidatorManager.
   async checkValidatorManager(
-    localDomain: types.Domain,
-    outboxDomain: types.Domain,
+    local: Chain,
+    remote: Chain,
     validatorManager: MultisigValidatorManager,
   ): Promise<void> {
-    const outboxDomainName = this.app.mustResolveDomainName(outboxDomain);
-    const validatorManagerConfig =
-      this.config.validatorManagers[outboxDomainName];
-    expect(validatorManagerConfig).to.not.be.undefined;
-
-    const expectedValidators = validatorManagerConfig?.validators;
-    expect(expectedValidators).to.not.be.undefined;
-
+    const config = this.configMap[remote];
+    const validatorManagerConfig = config.validatorManager;
+    const expectedValidators = validatorManagerConfig.validators;
     const actualValidators = await validatorManager.validators();
-    expect(actualValidators).to.not.be.undefined;
 
     const expectedSet = new Set<string>(expectedValidators);
     const actualSet = new Set<string>(actualValidators);
@@ -146,7 +128,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     // Validators that should be enrolled
     for (const validatorToEnroll of toEnroll) {
       const violation: ValidatorViolation = {
-        domain: localDomain,
+        chain: local,
         type: CoreViolationType.Validator,
         actual: undefined,
         expected: validatorToEnroll,
@@ -161,7 +143,7 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     // Validators that should be unenrolled
     for (const validatorToUnenroll of toUnenroll) {
       const violation: ValidatorViolation = {
-        domain: localDomain,
+        chain: local,
         type: CoreViolationType.Validator,
         actual: validatorToUnenroll,
         expected: undefined,
@@ -173,14 +155,14 @@ export class AbacusCoreChecker extends AbacusAppChecker<
       this.addViolation(violation);
     }
 
-    const expectedThreshold = validatorManagerConfig?.threshold;
+    const expectedThreshold = validatorManagerConfig.threshold;
     expect(expectedThreshold).to.not.be.undefined;
 
     const actualThreshold = await validatorManager.threshold();
 
     if (expectedThreshold !== actualThreshold.toNumber()) {
       const violation: ValidatorViolation = {
-        domain: localDomain,
+        chain: local,
         type: CoreViolationType.Validator,
         actual: actualThreshold,
         expected: expectedThreshold,
@@ -193,26 +175,23 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     }
   }
 
-  async checkInboxes(domain: types.Domain): Promise<void> {
-    // Check that all inboxes on this domain are pointed to the right validator
-    // manager.
-    const contracts = this.app.mustGetContracts(domain);
+  async checkInboxes(chain: Chain): Promise<void> {
+    const coreContracts = this.app.getContracts(chain);
 
-    await Promise.all(
-      this.app.remoteDomainNumbers(domain).map(async (remote) => {
-        const expectedValidatorManager = this.app.mustGetInboxValidatorManager(
-          remote,
-          domain,
-        );
-        expect(
-          await this.app.mustGetInbox(remote, domain).validatorManager(),
-        ).to.equal(expectedValidatorManager.address);
+    // Check that all inboxes on this chain are pointed to the right validator
+    // manager.
+    await promiseObjAll(
+      objMap(coreContracts.inboxes, async (_, inbox) => {
+        const expected = inbox.validatorManager.address;
+        const actual = await inbox.inbox.validatorManager();
+        expect(actual).to.equal(expected);
       }),
     );
 
-    // Check that all inboxes on this domain share the same implementation and
+    // Check that all inboxes on this chain share the same implementation and
     // UpgradeBeacon.
-    const inboxes = Object.values(contracts.addresses.inboxes);
+    const coreAddresses = this.app.getAddresses(chain);
+    const inboxes: MailboxAddresses[] = Object.values(coreAddresses.inboxes);
     const implementations = inboxes.map((r) => r.implementation);
     const identical = (a: any, b: any) => (a === b ? a : false);
     const upgradeBeacons = inboxes.map((r) => r.beacon);
@@ -220,31 +199,31 @@ export class AbacusCoreChecker extends AbacusAppChecker<
     expect(upgradeBeacons.reduce(identical)).to.not.be.false;
   }
 
-  async checkAbacusConnectionManager(domain: types.Domain): Promise<void> {
-    const contracts = this.app.mustGetContracts(domain);
-    for (const remote of this.app.remoteDomainNumbers(domain)) {
-      // inbox is enrolled in abacusConnectionManager
-      const enrolledInboxes =
-        await contracts.abacusConnectionManager.getInboxes(remote);
-      expect(enrolledInboxes).to.eql([
-        this.app.mustGetInbox(remote, domain).address,
-      ]);
-    }
+  async checkAbacusConnectionManager(chain: Chain): Promise<void> {
+    const coreContracts = this.app.getContracts(chain);
+    await promiseObjAll(
+      objMap(coreContracts.inboxes, async (remote, inbox) => {
+        const remoteDomain = chainMetadata[remote].id;
+        // inbox is enrolled in abacusConnectionManager
+        const enrolledInboxes =
+          await coreContracts.abacusConnectionManager.getInboxes(remoteDomain);
+        expect(enrolledInboxes).to.deep.equal([inbox.inbox.address]);
+      }),
+    );
+
     // Outbox is set on abacusConnectionManager
-    const outbox = await contracts.abacusConnectionManager.outbox();
-    expect(outbox).to.equal(contracts.outbox.address);
+    const outbox = await coreContracts.abacusConnectionManager.outbox();
+    expect(outbox).to.equal(coreContracts.outbox.outbox.address);
   }
 
-  async checkProxiedContracts(domain: types.Domain): Promise<void> {
-    const addresses = this.app.mustGetContracts(domain).addresses;
+  async checkProxiedContracts(chain: Chain): Promise<void> {
     // Outbox upgrade setup contracts are defined
-    await this.checkUpgradeBeacon(domain, 'Outbox', addresses.outbox);
-
-    const inboxes = Object.values(addresses.inboxes);
-    await Promise.all(
-      inboxes.map((inbox) => {
-        return this.checkUpgradeBeacon(domain, 'Inbox', inbox);
-      }),
+    const addresses = this.app.getAddresses(chain);
+    await this.checkUpgradeBeacon(chain, 'Outbox', addresses.outbox);
+    await promiseObjAll(
+      objMap(addresses.inboxes, (chain, inbox) =>
+        this.checkUpgradeBeacon(chain, 'Inbox', inbox),
+      ),
     );
   }
 }

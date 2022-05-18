@@ -1,52 +1,6 @@
-import { ethers, FixedNumber } from 'ethers';
-import { NameOrDomain } from '../src';
+import { FixedNumber, ethers } from 'ethers';
 
-const ZERO_ADDRESS = ethers.constants.AddressZero;
-
-export const testAddresses = {
-  test1: {
-    upgradeBeaconController: ZERO_ADDRESS,
-    abacusConnectionManager: ZERO_ADDRESS,
-    interchainGasPaymaster: ZERO_ADDRESS,
-    outboxValidatorManager: ZERO_ADDRESS,
-    inboxValidatorManagers: {
-      test2: ZERO_ADDRESS,
-    },
-    outbox: {
-      proxy: ZERO_ADDRESS,
-      implementation: ZERO_ADDRESS,
-      beacon: ZERO_ADDRESS,
-    },
-    inboxes: {
-      test2: {
-        proxy: ZERO_ADDRESS,
-        implementation: ZERO_ADDRESS,
-        beacon: ZERO_ADDRESS,
-      },
-    },
-  },
-  test2: {
-    upgradeBeaconController: ZERO_ADDRESS,
-    abacusConnectionManager: ZERO_ADDRESS,
-    interchainGasPaymaster: ZERO_ADDRESS,
-    outboxValidatorManager: ZERO_ADDRESS,
-    inboxValidatorManagers: {
-      test1: ZERO_ADDRESS,
-    },
-    outbox: {
-      proxy: ZERO_ADDRESS,
-      implementation: ZERO_ADDRESS,
-      beacon: ZERO_ADDRESS,
-    },
-    inboxes: {
-      test1: {
-        proxy: ZERO_ADDRESS,
-        implementation: ZERO_ADDRESS,
-        beacon: ZERO_ADDRESS,
-      },
-    },
-  },
-};
+import { ChainMap, ChainName } from '../src';
 
 const MOCK_NETWORK = {
   name: 'MockNetwork',
@@ -87,22 +41,23 @@ export class MockProvider extends ethers.providers.BaseProvider {
 }
 
 // A mock TokenPriceGetter intended to be used by tests when mocking token prices
-export class MockTokenPriceGetter {
-  private tokenPrices: { [domain: number]: FixedNumber };
+export class MockTokenPriceGetter<Chain extends ChainName> {
+  private tokenPrices: Partial<ChainMap<Chain, FixedNumber>>;
 
   constructor() {
     this.tokenPrices = {};
   }
 
-  getNativeTokenUsdPrice(domain: NameOrDomain): Promise<FixedNumber> {
-    const price = this.tokenPrices[domain as number];
+  getNativeTokenUsdPrice(chain: Chain): Promise<FixedNumber> {
+    const price = this.tokenPrices[chain];
     if (price) {
-      return Promise.resolve(price);
+      // TS compiler somehow can't deduce the check above
+      return Promise.resolve(price as FixedNumber);
     }
-    throw Error(`No price for domain ${domain}`);
+    throw Error(`No price for chain ${chain}`);
   }
 
-  setTokenPrice(domain: number, price: string | number) {
-    this.tokenPrices[domain] = FixedNumber.from(price);
+  setTokenPrice(chain: Chain, price: string | number) {
+    this.tokenPrices[chain] = FixedNumber.from(price);
   }
 }

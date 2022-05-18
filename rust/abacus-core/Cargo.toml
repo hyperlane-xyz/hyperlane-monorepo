@@ -15,19 +15,19 @@ sha3 = "0.9.1"
 lazy_static = "*"
 thiserror = "*"
 async-trait = { version = "0.1.42", default-features = false }
-tokio = { version = "1.0.1", features = ["rt", "macros"] }
-tracing = "0.1.22"
-tracing-futures = "0.2.4"
+tokio = { version = "1", features = ["rt", "macros"] }
+tracing = "0.1"
+tracing-futures = "0.2"
 serde = {version = "1.0", features = ["derive"]}
 serde_json = {version = "1.0"}
-color-eyre = "0.5.0"
+eyre = "0.6"
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
-prometheus = "0.12.0"
 bytes = { version = "1", features = ["serde"]}
 num = {version="0", features=["serde"]}
 
 [dev-dependencies]
-tokio = {version = "1.0.1", features = ["rt", "time"]}
+tokio = {version = "1", features = ["rt", "time"]}
+color-eyre = "0.6"
 
 [features]
 output = []

@@ -1,4 +1,4 @@
-use color_eyre::Result;
+use eyre::Result;
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::{filter::LevelFilter, prelude::*};
 

@@ -4,16 +4,14 @@
 
 - install `rustup`
   - [link here](https://rustup.rs/)
-- setup pre-commit hooks: `cp ../pre-commit.sh ../.git/hooks/pre-commit`
-  - Note: To bypass pre-commit hooks, pass `--no-verify` after commit message
 
-Note: You should be running >= version `1.52.1` of the rustc compiler, you can see that version with this command and should see similar output:
+Note: You should be running >= version `1.60.0` of the rustc compiler, you can see that version with this command and should see similar output:
 
 ```
 $ rustup --version
-rustup 1.24.2 (755e2b07e 2021-05-12)
+rustup 1.24.3 (ce5817a94 2021-05-31)
 info: This is the version for the rustup toolchain manager, not the rustc compiler.
-info: The currently active `rustc` version is `rustc 1.52.1 (9bc8c42bb 2021-05-09)`
+info: The currently active `rustc` version is `rustc 1.60.0 (7737e0b5c 2022-04-04)`
 ```
 
 ### Useful cargo commands
@@ -59,7 +57,7 @@ Some agent sketches:
 
 - `updater`
   - Needs only a connection to the home chain
-  - Signs upate attestations and submits them to the home chain
+  - Signs update attestations and submits them to the home chain
 - `watcher`
   - Observe the home chain
   - Observe as many replicas as possible
@@ -101,6 +99,7 @@ We use the tokio async runtime environment. Please see the docs
   - interfaces to the ethereum contracts
 - `agents`
   - each of the off-chain agents implemented thus far
+
 ### High-level guide to building an agent
 
 - `cargo new $AGENT_NAME`
@@ -122,3 +121,5 @@ We use the tokio async runtime environment. Please see the docs
 - make a `config` folder and a toml file
   - Make sure to include your own settings from above
 
+### Running Locally
+See the guide [here](./running-locally.md) to run the agents locally.

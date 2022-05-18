@@ -4,9 +4,9 @@
 use abacus_core::*;
 use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
 use async_trait::async_trait;
-use color_eyre::Result;
 use ethers::contract::abigen;
 use ethers::core::types::H256;
+use eyre::Result;
 use std::{error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
@@ -34,7 +34,9 @@ where
 {
     contract: Arc<EthereumOutboxInternal<M>>,
     provider: Arc<M>,
+    #[allow(unused)]
     from_height: u32,
+    #[allow(unused)]
     chunk_size: u32,
 }
 

@@ -1,9 +1,8 @@
 import { TestAbacusDeploy } from '..';
-import { expect } from 'chai';
-import { ethers } from 'hardhat';
-
 import { TestRecipient__factory } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
 
 const localDomain = 1000;
 const remoteDomain = 2000;
@@ -37,35 +36,57 @@ describe('TestAbacusDeploy', async () => {
     ).to.emit(remoteOutbox, 'Dispatch');
   });
 
-  it('processes outbound messages for a single domain', async () => {
-    const responses = await abacus.processOutboundMessages(localDomain);
-    expect(responses.get(remoteDomain)!.length).to.equal(1);
-    const [_, index] = await abacus.outbox(localDomain).latestCheckpoint();
-    expect(index).to.equal(1);
+  describe('without a created checkpoint', () => {
+    it('does not process outbound messages', async () => {
+      const responses = await abacus.processOutboundMessages(localDomain);
+      expect(responses.get(remoteDomain)).to.be.undefined;
+    });
   });
 
-  it('processes outbound messages for two domains', async () => {
-    const localResponses = await abacus.processOutboundMessages(localDomain);
-    expect(localResponses.get(remoteDomain)!.length).to.equal(1);
-    const [, localIndex] = await abacus.outbox(localDomain).latestCheckpoint();
-    expect(localIndex).to.equal(1);
-    const remoteResponses = await abacus.processOutboundMessages(remoteDomain);
-    expect(remoteResponses.get(localDomain)!.length).to.equal(1);
-    const [, remoteIndex] = await abacus
-      .outbox(remoteDomain)
-      .latestCheckpoint();
-    expect(remoteIndex).to.equal(1);
-  });
+  describe('with a checkpoint', () => {
+    beforeEach(async () => {
+      const localOutbox = abacus.outbox(localDomain);
+      const remoteOutbox = abacus.outbox(remoteDomain);
+      await localOutbox.checkpoint();
+      await remoteOutbox.checkpoint();
+    });
 
-  it('processes all messages', async () => {
-    const responses = await abacus.processMessages();
-    expect(responses.get(localDomain)!.get(remoteDomain)!.length).to.equal(1);
-    expect(responses.get(remoteDomain)!.get(localDomain)!.length).to.equal(1);
-    const [, localIndex] = await abacus.outbox(localDomain).latestCheckpoint();
-    expect(localIndex).to.equal(1);
-    const [, remoteIndex] = await abacus
-      .outbox(remoteDomain)
-      .latestCheckpoint();
-    expect(remoteIndex).to.equal(1);
+    it('processes outbound messages for a single domain', async () => {
+      const responses = await abacus.processOutboundMessages(localDomain);
+      expect(responses.get(remoteDomain)!.length).to.equal(1);
+      const [_, index] = await abacus.outbox(localDomain).latestCheckpoint();
+      expect(index).to.equal(1);
+    });
+
+    it('processes outbound messages for two domains', async () => {
+      const localResponses = await abacus.processOutboundMessages(localDomain);
+      expect(localResponses.get(remoteDomain)!.length).to.equal(1);
+      const [, localIndex] = await abacus
+        .outbox(localDomain)
+        .latestCheckpoint();
+      expect(localIndex).to.equal(1);
+      const remoteResponses = await abacus.processOutboundMessages(
+        remoteDomain,
+      );
+      expect(remoteResponses.get(localDomain)!.length).to.equal(1);
+      const [, remoteIndex] = await abacus
+        .outbox(remoteDomain)
+        .latestCheckpoint();
+      expect(remoteIndex).to.equal(1);
+    });
+
+    it('processes all messages', async () => {
+      const responses = await abacus.processMessages();
+      expect(responses.get(localDomain)!.get(remoteDomain)!.length).to.equal(1);
+      expect(responses.get(remoteDomain)!.get(localDomain)!.length).to.equal(1);
+      const [, localIndex] = await abacus
+        .outbox(localDomain)
+        .latestCheckpoint();
+      expect(localIndex).to.equal(1);
+      const [, remoteIndex] = await abacus
+        .outbox(remoteDomain)
+        .latestCheckpoint();
+      expect(remoteIndex).to.equal(1);
+    });
   });
 });

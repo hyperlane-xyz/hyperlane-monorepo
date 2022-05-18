@@ -5,14 +5,14 @@ import {
   CheckpointSyncerType,
 } from '../../../src/config/agent';
 
-import { TestnetNetworks } from './domains';
+import { TestnetChains } from './chains';
 
 const s3BucketRegion = 'us-east-1';
 
 const s3BucketName = (chainName: ChainName, index: number) =>
   `abacus-testnet-${chainName}-validator-${index}`;
 
-export const validators: ChainValidatorSets<TestnetNetworks> = {
+export const validators: ChainValidatorSets<TestnetChains> = {
   alfajores: {
     threshold: 2,
     validators: [
@@ -211,35 +211,6 @@ export const validators: ChainValidatorSets<TestnetNetworks> = {
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
           bucket: s3BucketName('optimismkovan', 2),
-          region: s3BucketRegion,
-        },
-      },
-    ],
-  },
-  auroratestnet: {
-    threshold: 2,
-    validators: [
-      {
-        address: '0x3dd10f59ec2f18441eb0a3feca489e6d74752260',
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('auroratestnet', 0),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0x10ac12f07488ea10371071fccc6a7a1e2733fe35',
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('auroratestnet', 1),
-          region: s3BucketRegion,
-        },
-      },
-      {
-        address: '0xdf0154233855528a114b4bd640a3fde2020c3b3b',
-        checkpointSyncer: {
-          type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('auroratestnet', 2),
           region: s3BucketRegion,
         },
       },

@@ -1,178 +1,28 @@
-import { ethers } from 'ethers';
 import path from 'path';
 
-import {
-  AbacusConnectionManager,
-  AbacusConnectionManager__factory,
-  Inbox,
-  InboxValidatorManager,
-  InboxValidatorManager__factory,
-  Inbox__factory,
-  InterchainGasPaymaster__factory,
-  OutboxValidatorManager,
-  OutboxValidatorManager__factory,
-  Outbox__factory,
-  UpgradeBeaconController,
-  UpgradeBeaconController__factory,
-} from '@abacus-network/core';
-import { AbacusAppDeployer, ProxiedContract } from '@abacus-network/deploy';
-import {
-  AbacusCore,
-  ChainName,
-  CoreContractAddresses,
-  ProxiedAddress,
-} from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import { AbacusAppDeployer, AbacusCoreDeployer } from '@abacus-network/deploy';
+import { ChainName, chainMetadata, objMap } from '@abacus-network/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
 
-import { CoreConfig, ValidatorManagerConfig } from './types';
-
-export class AbacusCoreDeployer extends AbacusAppDeployer<
-  CoreContractAddresses,
-  CoreConfig
-> {
-  async deployContracts(
-    domain: types.Domain,
-    config: CoreConfig,
-  ): Promise<CoreContractAddresses> {
-    const overrides = this.getOverrides(domain);
-    const signer = this.mustGetSigner(domain);
-    const upgradeBeaconController: UpgradeBeaconController =
-      await this.deployContract(
-        domain,
-        'UpgradeBeaconController',
-        new UpgradeBeaconController__factory(signer),
-      );
-
-    const outboxValidatorManagerConfig = this.validatorManagerConfig(
-      config,
-      domain,
-    );
-    const outboxValidatorManager: OutboxValidatorManager =
-      await this.deployContract(
-        domain,
-        'OutboxValidatorManager',
-        new OutboxValidatorManager__factory(signer),
-        domain,
-        outboxValidatorManagerConfig.validators,
-        outboxValidatorManagerConfig.threshold,
-      );
-
-    const outbox = await this.deployProxiedContract(
-      domain,
-      'Outbox',
-      new Outbox__factory(signer),
-      upgradeBeaconController.address,
-      [domain],
-      [outboxValidatorManager.address],
-    );
-
-    const interchainGasPaymaster = await this.deployContract(
-      domain,
-      'InterchainGasPaymaster',
-      new InterchainGasPaymaster__factory(signer),
-    );
-
-    const abacusConnectionManager: AbacusConnectionManager =
-      await this.deployContract(
-        domain,
-        'AbacusConnectionManager',
-        new AbacusConnectionManager__factory(signer),
-      );
-    await abacusConnectionManager.setOutbox(outbox.address, overrides);
-    await abacusConnectionManager.setInterchainGasPaymaster(
-      interchainGasPaymaster.address,
-      overrides,
-    );
-
-    const inboxValidatorManagers: Record<types.Domain, InboxValidatorManager> =
-      {};
-    const inboxValidatorManagerAddresses: Partial<
-      Record<ChainName, types.Address>
-    > = {};
-
-    const inboxes: Record<types.Domain, ProxiedContract<Inbox>> = {};
-    const inboxAddresses: Partial<Record<ChainName, ProxiedAddress>> = {};
-    const remotes = this.remoteDomainNumbers(domain);
-    for (let i = 0; i < remotes.length; i++) {
-      const remote = remotes[i];
-      const remoteName = this.mustResolveDomainName(remote);
-
-      const validatorManagerConfig = this.validatorManagerConfig(
-        config,
-        remote,
-      );
-      const inboxValidatorManager: InboxValidatorManager =
-        await this.deployContract(
-          domain,
-          'InboxValidatorManager',
-          new InboxValidatorManager__factory(signer),
-          remote,
-          validatorManagerConfig.validators,
-          validatorManagerConfig.threshold,
-        );
-      inboxValidatorManagers[remote] = inboxValidatorManager;
-      inboxValidatorManagerAddresses[remoteName] =
-        inboxValidatorManager.address;
-
-      const initArgs = [
-        remote,
-        inboxValidatorManager.address,
-        ethers.constants.HashZero,
-        0,
-      ];
-      if (i === 0) {
-        inboxes[remote] = await this.deployProxiedContract(
-          domain,
-          'Inbox',
-          new Inbox__factory(signer),
-          upgradeBeaconController.address,
-          [domain],
-          initArgs,
-        );
-      } else {
-        inboxes[remote] = await this.duplicateProxiedContract(
-          domain,
-          'Inbox',
-          inboxes[remotes[0]],
-          initArgs,
-        );
-      }
-      inboxAddresses[this.mustResolveDomainName(remote)] =
-        inboxes[remote].addresses;
-
-      await abacusConnectionManager.enrollInbox(
-        remote,
-        inboxes[remote].address,
-        overrides,
-      );
-    }
-
-    const addresses = {
-      upgradeBeaconController: upgradeBeaconController.address,
-      abacusConnectionManager: abacusConnectionManager.address,
-      interchainGasPaymaster: interchainGasPaymaster.address,
-      outboxValidatorManager: outboxValidatorManager.address,
-      inboxValidatorManagers: inboxValidatorManagerAddresses,
-      outbox: outbox.addresses,
-      inboxes: inboxAddresses,
-    };
-    return addresses;
-  }
-
-  writeRustConfigs(environment: DeployEnvironment, directory: string) {
-    for (const domain of this.domainNumbers) {
-      const name = this.mustResolveDomainName(domain);
-      const filepath = path.join(directory, `${name}_config.json`);
-      const addresses = this.mustGetAddresses(domain);
+export class AbacusCoreInfraDeployer<
+  Chain extends ChainName,
+> extends AbacusCoreDeployer<Chain> {
+  writeRustConfigs(
+    environment: DeployEnvironment,
+    directory: string,
+    contractAddresses: Awaited<ReturnType<AbacusCoreDeployer<Chain>['deploy']>>,
+  ) {
+    objMap(this.configMap, (chain) => {
+      const filepath = path.join(directory, `${chain}_config.json`);
+      const addresses = contractAddresses[chain];
 
       const outbox = {
         addresses: {
           outbox: addresses.outbox.proxy,
         },
-        domain: domain.toString(),
-        name,
+        domain: chainMetadata[chain].id.toString(),
+        name: chain,
         rpcStyle: 'ethereum',
         connection: {
           type: 'http',
@@ -180,7 +30,7 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         },
       };
 
-      const rustConfig: RustConfig = {
+      const rustConfig: RustConfig<Chain> = {
         environment,
         signers: {},
         inboxes: {},
@@ -192,83 +42,32 @@ export class AbacusCoreDeployer extends AbacusAppDeployer<
         db: 'db_path',
       };
 
-      for (const remote of this.remoteDomainNumbers(domain)) {
-        const remoteName = this.mustResolveDomainName(remote);
-        const remoteAddresses = this.mustGetAddresses(remote);
-        const inboxAddress = remoteAddresses.inboxes[name];
-        if (!inboxAddress)
-          throw new Error(`No inbox for ${domain} on ${remote}`);
+      const startingBlockNumber = this.startingBlockNumbers[chain];
 
-        const inboxValidatorManagerAddress =
-          remoteAddresses.inboxValidatorManagers[name];
-        if (!inboxValidatorManagerAddress) {
-          throw new Error(
-            `No inbox validator manager for ${domain} on ${remote}`,
-          );
-        }
+      if (startingBlockNumber) {
+        rustConfig.index = { from: startingBlockNumber.toString() };
+      }
+
+      this.multiProvider.remoteChains(chain).forEach((remote) => {
+        const inboxAddresses = addresses.inboxes[remote];
 
         const inbox = {
-          domain: remote.toString(),
-          name: remoteName,
+          domain: chainMetadata[remote].id.toString(),
+          name: remote,
           rpcStyle: 'ethereum',
           connection: {
             type: 'http',
             url: '',
           },
           addresses: {
-            inbox: inboxAddress.proxy,
-            validatorManager: inboxValidatorManagerAddress,
+            inbox: inboxAddresses.proxy,
+            validatorManager: inboxAddresses.validatorManager,
           },
         };
 
-        rustConfig.inboxes[remoteName] = inbox;
-      }
+        rustConfig.inboxes[remote] = inbox;
+      });
       AbacusAppDeployer.writeJson(filepath, rustConfig);
-    }
-  }
-
-  static async transferOwnership(
-    core: AbacusCore,
-    owners: Record<types.Domain, types.Address>,
-  ) {
-    for (const domain of core.domainNumbers) {
-      const owner = owners[domain];
-      if (!owner) throw new Error(`Missing owner for ${domain}`);
-      await AbacusCoreDeployer.transferOwnershipOfDomain(core, domain, owner);
-    }
-  }
-
-  static async transferOwnershipOfDomain(
-    core: AbacusCore,
-    domain: types.Domain,
-    owner: types.Address,
-  ): Promise<ethers.ContractReceipt> {
-    const contracts = core.mustGetContracts(domain);
-    const overrides = core.getOverrides(domain);
-    await contracts.outboxValidatorManager.transferOwnership(owner, overrides);
-    await contracts.abacusConnectionManager.transferOwnership(owner, overrides);
-    await contracts.upgradeBeaconController.transferOwnership(owner, overrides);
-    for (const chain of Object.keys(
-      contracts.addresses.inboxes,
-    ) as ChainName[]) {
-      await contracts
-        .inboxValidatorManager(chain)
-        .transferOwnership(owner, overrides);
-      await contracts.inbox(chain).transferOwnership(owner, overrides);
-    }
-    const tx = await contracts.outbox.transferOwnership(owner, overrides);
-    return tx.wait(core.getConfirmations(domain));
-  }
-
-  validatorManagerConfig(
-    config: CoreConfig,
-    domain: types.Domain,
-  ): ValidatorManagerConfig {
-    const domainName = this.mustResolveDomainName(domain);
-    const validatorManagerConfig = config.validatorManagers[domainName];
-    if (!validatorManagerConfig) {
-      throw new Error(`No validator manager config for ${domainName}`);
-    }
-    return validatorManagerConfig;
+    });
   }
 }

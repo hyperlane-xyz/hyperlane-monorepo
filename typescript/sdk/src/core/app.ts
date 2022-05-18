@@ -1,37 +1,61 @@
-import { Inbox, InboxValidatorManager } from '@abacus-network/core';
-
 import { AbacusApp } from '../app';
-import { domains } from '../domains';
-import { ChainName, NameOrDomain } from '../types';
+import { MultiProvider } from '../provider';
+import { ChainName, Remotes } from '../types';
 
-import { CoreContractAddresses, CoreContracts } from './contracts';
-
-export class AbacusCore extends AbacusApp<
+import {
   CoreContractAddresses,
-  CoreContracts
+  CoreContractSchema,
+  CoreContracts,
+} from './contracts';
+import { environments } from './environments';
+
+export const CoreEnvironments = Object.keys(environments);
+export type CoreEnvironment = keyof typeof environments;
+export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
+  keyof typeof environments[E],
+  ChainName
+>;
+
+export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
+  CoreContracts<Chain>,
+  Chain
 > {
-  constructor(addresses: Partial<Record<ChainName, CoreContractAddresses>>) {
-    super();
-    const chains = Object.keys(addresses) as ChainName[];
-    chains.map((chain) => {
-      this.registerDomain(domains[chain]);
-      const domain = this.resolveDomain(chain);
-      this.contracts.set(domain, new CoreContracts(addresses[chain]!));
-    });
+  constructor(
+    addresses: {
+      [local in Chain]: CoreContractAddresses<Chain, local>;
+    },
+    multiProvider: MultiProvider<Chain>,
+  ) {
+    super(CoreContracts, addresses, multiProvider);
   }
 
-  mustGetInbox(src: NameOrDomain, dest: NameOrDomain): Inbox {
-    const contracts = this.mustGetContracts(dest);
-    const srcName = this.mustGetDomain(src).name;
-    return contracts.inbox(srcName);
+  static fromEnvironment<E extends CoreEnvironment>(
+    name: E,
+    multiProvider: MultiProvider<any>, // TODO: fix networks
+  ) {
+    return new AbacusCore(environments[name], multiProvider);
   }
 
-  mustGetInboxValidatorManager(
-    src: NameOrDomain,
-    dest: NameOrDomain,
-  ): InboxValidatorManager {
-    const contracts = this.mustGetContracts(dest);
-    const srcName = this.mustGetDomain(src).name;
-    return contracts.inboxValidatorManager(srcName);
+  // override type to be derived from chain key
+  getContracts<Local extends Chain>(
+    chain: Local,
+  ): CoreContractSchema<Chain, Local> {
+    return super.getContracts(chain) as any;
+  }
+
+  // override type to be derived from chain key
+  getAddresses<Local extends Chain>(
+    chain: Local,
+  ): CoreContractAddresses<Chain, Local> {
+    return super.getAddresses(chain) as any;
+  }
+
+  getMailboxPair<Local extends Chain>(
+    origin: Remotes<Chain, Local>,
+    destination: Local,
+  ) {
+    const outbox = this.getContracts(origin).outbox.outbox;
+    const inbox = this.getContracts(destination).inboxes[origin].inbox;
+    return { outbox, inbox };
   }
 }

@@ -1,38 +1,42 @@
-import {
-  AbacusCore,
-  AbacusGovernance,
-  coreAddresses,
-  governanceAddresses,
-} from '@abacus-network/sdk';
+import { AbacusCore, ControllerApp } from '@abacus-network/sdk';
 
-import { AbacusCoreGovernor, CoreViolationType } from '../src/core';
+import { AbacusCoreControllerChecker, CoreViolationType } from '../src/core';
 
-import { getCoreConfig, getEnvironment, registerMultiProvider } from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const core = new AbacusCore(coreAddresses[environment]);
-  const governance = new AbacusGovernance(governanceAddresses[environment]);
-  registerMultiProvider(core, environment);
-  registerMultiProvider(governance, environment);
+  const config = await getCoreEnvironmentConfig(environment);
+  const multiProvider = await config.getMultiProvider();
+  const core = AbacusCore.fromEnvironment(environment, multiProvider);
+  if (environment !== 'test') {
+    throw new Error(`No governanace addresses for ${environment} in SDK`);
+  }
+  const controllerApp = ControllerApp.fromEnvironment(
+    environment,
+    multiProvider,
+  );
 
-  const config = await getCoreConfig(environment);
-  const governor = new AbacusCoreGovernor(core, config, governance);
-  await governor.check();
-  // Sanity check: for each domain, expect one validator violation.
-  governor.expectViolations(
+  const checker = new AbacusCoreControllerChecker(
+    multiProvider,
+    core,
+    controllerApp,
+    config.core,
+  );
+  await checker.check();
+  // Sanity check: for each chain, expect one validator violation.
+  checker.expectViolations(
     [CoreViolationType.Validator],
-    [core.domainNumbers.length],
+    [core.chains().length],
   );
-  // Sanity check: for each domain, expect one call to set the validator.
-  governor.expectCalls(
-    core.domainNumbers,
-    new Array(core.domainNumbers.length).fill(1),
-  );
+  // Sanity check: for each chain, expect one call to set the validator.
+  checker.expectCalls(core.chains(), new Array(core.chains().length).fill(1));
 
-  const governorDomain = (await governance.governor()).domain;
   // Change to `batch.execute` in order to run.
-  const receipts = await governor.governance.estimateGas(governorDomain);
+  const controllerActor = await controllerApp.controller();
+  const provider = multiProvider.getChainConnection(controllerActor.chain)
+    .provider!;
+  const receipts = await checker.controllerApp.estimateGas(provider);
   console.log(receipts);
 }
 main().then(console.log).catch(console.error);

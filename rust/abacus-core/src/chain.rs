@@ -1,6 +1,6 @@
 #![allow(missing_docs)]
 
-use color_eyre::eyre::Result;
+use eyre::Result;
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Deserialize, Serialize)]

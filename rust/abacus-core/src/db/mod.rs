@@ -1,4 +1,4 @@
-use color_eyre::eyre::WrapErr;
+use eyre::WrapErr;
 use rocksdb::{DBIterator, Options, DB as Rocks};
 use std::{path::Path, sync::Arc};
 use tracing::info;
@@ -42,7 +42,7 @@ type Result<T> = std::result::Result<T, DbError>;
 impl DB {
     /// Opens db at `db_path` and creates if missing
     #[tracing::instrument(err)]
-    pub fn from_path(db_path: &str) -> color_eyre::Result<DB> {
+    pub fn from_path(db_path: &str) -> eyre::Result<DB> {
         // Canonicalize ensures existence, so we have to do that, then extend
         let mut path = Path::new(".").canonicalize()?;
         path.extend(&[db_path]);

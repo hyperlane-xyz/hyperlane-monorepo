@@ -5,12 +5,12 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@^0.0.3, @abacus-network/app@workspace:solidity/app":
+"@abacus-network/app@^0.1.1, @abacus-network/app@workspace:solidity/app":
   version: 0.0.0-use.local
   resolution: "@abacus-network/app@workspace:solidity/app"
   dependencies:
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/utils": ^0.0.8
+    "@abacus-network/core": ^0.1.1
+    "@abacus-network/utils": ^0.1.1
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts-upgradeable": ^4.5.0
@@ -34,14 +34,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/apps@0.0.2, @abacus-network/apps@^0.0.2, @abacus-network/apps@workspace:solidity/apps":
+"@abacus-network/apps@^0.1.1, @abacus-network/apps@workspace:solidity/apps":
   version: 0.0.0-use.local
   resolution: "@abacus-network/apps@workspace:solidity/apps"
   dependencies:
-    "@abacus-network/app": ^0.0.3
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/hardhat": ^0.0.18
-    "@abacus-network/utils": ^0.0.8
+    "@abacus-network/app": ^0.1.1
+    "@abacus-network/core": ^0.1.1
+    "@abacus-network/hardhat": ^0.1.1
+    "@abacus-network/utils": ^0.1.1
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts": ~3.4.2
@@ -67,15 +67,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/core@0.0.6, @abacus-network/core@^0.0.6, @abacus-network/core@workspace:solidity/core":
+"@abacus-network/core@^0.1.1, @abacus-network/core@workspace:solidity/core":
   version: 0.0.0-use.local
   resolution: "@abacus-network/core@workspace:solidity/core"
   dependencies:
-    "@abacus-network/utils": ^0.0.8
+    "@abacus-network/utils": ^0.1.1
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
-    "@openzeppelin/contracts": ^3.4.2
-    "@openzeppelin/contracts-upgradeable": ~3.4.2
+    "@openzeppelin/contracts": ^4.6.0
+    "@openzeppelin/contracts-upgradeable": ^4.6.0
     "@summa-tx/memview-sol": ^2.0.0
     "@typechain/ethers-v5": ~7.0.0
     "@typechain/hardhat": ^2.0.1
@@ -93,31 +93,35 @@ __metadata:
     ts-generator: ^0.1.1
     ts-node: ^10.1.0
     typechain: ^5.0.0
+    typescript: ^4.3.5
   languageName: unknown
   linkType: soft
 
-"@abacus-network/deploy@0.0.7, @abacus-network/deploy@workspace:typescript/deploy":
+"@abacus-network/deploy@^0.1.1, @abacus-network/deploy@workspace:typescript/deploy":
   version: 0.0.0-use.local
   resolution: "@abacus-network/deploy@workspace:typescript/deploy"
   dependencies:
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/sdk": ^0.0.4
+    "@abacus-network/core": ^0.1.1
+    "@abacus-network/sdk": ^0.1.1
+    "@abacus-network/utils": ^0.1.1
     "@typechain/ethers-v5": ~7.0.0
     "@types/node": ^16.9.1
+    "@types/yargs": ^17.0.10
     axios: ^0.21.3
     ethers: ^5.4.7
     prettier: ^2.3.1
     ts-node: ^10.1.0
     typescript: ^4.3.2
+    yargs: ^17.4.1
   languageName: unknown
   linkType: soft
 
-"@abacus-network/hardhat@^0.0.18, @abacus-network/hardhat@workspace:typescript/hardhat":
+"@abacus-network/hardhat@^0.1.1, @abacus-network/hardhat@workspace:typescript/hardhat":
   version: 0.0.0-use.local
   resolution: "@abacus-network/hardhat@workspace:typescript/hardhat"
   dependencies:
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/utils": ^0.0.7
+    "@abacus-network/core": ^0.1.1
+    "@abacus-network/utils": ^0.1.1
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@typechain/hardhat": ^2.0.1
@@ -135,10 +139,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/infra@workspace:typescript/infra"
   dependencies:
-    "@abacus-network/apps": 0.0.2
-    "@abacus-network/core": 0.0.6
-    "@abacus-network/deploy": 0.0.7
-    "@abacus-network/sdk": 0.0.4
+    "@abacus-network/apps": ^0.1.1
+    "@abacus-network/core": ^0.1.1
+    "@abacus-network/deploy": ^0.1.1
+    "@abacus-network/sdk": ^0.1.1
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -177,19 +181,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@0.0.4, @abacus-network/sdk@^0.0.4, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@^0.1.1, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
-    "@abacus-network/apps": ^0.0.2
-    "@abacus-network/core": ^0.0.6
-    "@abacus-network/utils": ^0.0.8
+    "@abacus-network/apps": ^0.1.1
+    "@abacus-network/core": ^0.1.1
+    "@abacus-network/utils": ^0.1.1
     "@ethersproject/bignumber": ^5.5.0
     "@ethersproject/bytes": ^5.5.0
     "@types/node": ^16.9.1
     "@typescript-eslint/eslint-plugin": ^4.33.0
     "@typescript-eslint/parser": ^4.33.0
-    celo-ethers-provider: 0.0.0
+    celo-ethers-provider: ^0.0.0
     chai: ^4.3.6
     dotenv: ^10.0.0
     eslint: ^7.32.0
@@ -198,11 +202,12 @@ __metadata:
     fs: 0.0.1-security
     mocha: ^9.2.2
     prettier: ^2.4.1
+    sinon: ^13.0.2
     typescript: ^4.4.3
   languageName: unknown
   linkType: soft
 
-"@abacus-network/utils@^0.0.8, @abacus-network/utils@workspace:typescript/utils":
+"@abacus-network/utils@^0.1.1, @abacus-network/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@abacus-network/utils@workspace:typescript/utils"
   dependencies:
@@ -211,16 +216,6 @@ __metadata:
     prettier: ^2.2.1
   languageName: unknown
   linkType: soft
-
-"@abacus-network/utils@npm:^0.0.7":
-  version: 0.0.7
-  resolution: "@abacus-network/utils@npm:0.0.7"
-  dependencies:
-    chai: ^4.3.0
-    ethers: ^5.4.7
-  checksum: 6842f47506dfc21c3836d2ce90ccdfd85c18e8006b0501a3025c46f9f9d74538baa727b2e78be2652a18efa0e991a52d0a053a033aa5ed85b246c7fc5e668405
-  languageName: node
-  linkType: hard
 
 "@aws-crypto/crc32@npm:2.0.0":
   version: 2.0.0
@@ -3070,6 +3065,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@openzeppelin/contracts-upgradeable@npm:^4.6.0":
+  version: 4.6.0
+  resolution: "@openzeppelin/contracts-upgradeable@npm:4.6.0"
+  checksum: f9802c9cccf31bd475412ba5d862ed15eed5352302c30b29c38f84aed2dcfe0d957687935a72068f3d44292a4a55b0ff26cd018b2e14a47f16f74f087009aa29
+  languageName: node
+  linkType: hard
+
 "@openzeppelin/contracts-upgradeable@npm:~3.4.2":
   version: 3.4.2
   resolution: "@openzeppelin/contracts-upgradeable@npm:3.4.2"
@@ -3077,7 +3079,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts@npm:^3.4.2, @openzeppelin/contracts@npm:~3.4.2":
+"@openzeppelin/contracts@npm:^4.6.0":
+  version: 4.6.0
+  resolution: "@openzeppelin/contracts@npm:4.6.0"
+  checksum: 1de06211b279d7aef2bb9abbdd58eb80c71256f7e888a10855ea23bb06ef8723b22fb550d06af60247dfbd7f0f23de9821732012d7541a823339070a8442d1db
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/contracts@npm:~3.4.2":
   version: 3.4.2
   resolution: "@openzeppelin/contracts@npm:3.4.2"
   checksum: 0c90f029fe50a49643588e4c8670dae3bbf31795133a6ddce9bdcbc258486332700bb732287baabf7bf807f39182fe8ea2ffa19aa5caf359b1b9c0f083280748
@@ -3243,6 +3252,42 @@ __metadata:
   version: 0.14.0
   resolution: "@sindresorhus/is@npm:0.14.0"
   checksum: 971e0441dd44ba3909b467219a5e242da0fc584048db5324cfb8048148fa8dcc9d44d71e3948972c4f6121d24e5da402ef191420d1266a95f713bb6d6e59c98a
+  languageName: node
+  linkType: hard
+
+"@sinonjs/commons@npm:^1.6.0, @sinonjs/commons@npm:^1.7.0, @sinonjs/commons@npm:^1.8.3":
+  version: 1.8.3
+  resolution: "@sinonjs/commons@npm:1.8.3"
+  dependencies:
+    type-detect: 4.0.8
+  checksum: 6159726db5ce6bf9f2297f8427f7ca5b3dff45b31e5cee23496f1fa6ef0bb4eab878b23fb2c5e6446381f6a66aba4968ef2fc255c1180d753d4b8c271636a2e5
+  languageName: node
+  linkType: hard
+
+"@sinonjs/fake-timers@npm:>=5, @sinonjs/fake-timers@npm:^9.1.2":
+  version: 9.1.2
+  resolution: "@sinonjs/fake-timers@npm:9.1.2"
+  dependencies:
+    "@sinonjs/commons": ^1.7.0
+  checksum: 7d3aef54e17c1073101cb64d953157c19d62a40e261a30923fa1ee337b049c5f29cc47b1f0c477880f42b5659848ba9ab897607ac8ea4acd5c30ddcfac57fca6
+  languageName: node
+  linkType: hard
+
+"@sinonjs/samsam@npm:^6.1.1":
+  version: 6.1.1
+  resolution: "@sinonjs/samsam@npm:6.1.1"
+  dependencies:
+    "@sinonjs/commons": ^1.6.0
+    lodash.get: ^4.4.2
+    type-detect: ^4.0.8
+  checksum: a09b0914bf573f0da82bd03c64ba413df81a7c173818dc3f0a90c2652240ac835ef583f4d52f0b215e626633c91a4095c255e0669f6ead97241319f34f05e7fc
+  languageName: node
+  linkType: hard
+
+"@sinonjs/text-encoding@npm:^0.7.1":
+  version: 0.7.1
+  resolution: "@sinonjs/text-encoding@npm:0.7.1"
+  checksum: 130de0bb568c5f8a611ec21d1a4e3f80ab0c5ec333010f49cfc1adc5cba6d8808699c8a587a46b0f0b016a1f4c1389bc96141e773e8460fcbb441875b2e91ba7
   languageName: node
   linkType: hard
 
@@ -3660,7 +3705,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@types/yargs@npm:^17.0.8":
+"@types/yargs@npm:^17.0.10, @types/yargs@npm:^17.0.8":
   version: 17.0.10
   resolution: "@types/yargs@npm:17.0.10"
   dependencies:
@@ -5580,7 +5625,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"celo-ethers-provider@npm:0.0.0, celo-ethers-provider@npm:^0.0.0":
+"celo-ethers-provider@npm:^0.0.0":
   version: 0.0.0
   resolution: "celo-ethers-provider@npm:0.0.0"
   dependencies:
@@ -6522,7 +6567,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"diff@npm:5.0.0":
+"diff@npm:5.0.0, diff@npm:^5.0.0":
   version: 5.0.0
   resolution: "diff@npm:5.0.0"
   checksum: f19fe29284b633afdb2725c2a8bb7d25761ea54d321d8e67987ac851c5294be4afeab532bd84531e02583a3fe7f4014aa314a3eda84f5590e7a9e6b371ef3b46
@@ -10171,6 +10216,13 @@ __metadata:
   languageName: node
   linkType: hard
 
+"just-extend@npm:^4.0.2":
+  version: 4.2.1
+  resolution: "just-extend@npm:4.2.1"
+  checksum: ff9fdede240fad313efeeeb68a660b942e5586d99c0058064c78884894a2690dc09bba44c994ad4e077e45d913fef01a9240c14a72c657b53687ac58de53b39c
+  languageName: node
+  linkType: hard
+
 "keccak@npm:3.0.1":
   version: 3.0.1
   resolution: "keccak@npm:3.0.1"
@@ -10574,6 +10626,13 @@ __metadata:
   version: 4.2.0
   resolution: "lodash.assign@npm:4.2.0"
   checksum: 75bbc6733c9f577c448031b4051f990f068802708891f94be9d4c2faffd6a9ec67a2c49671dafc908a068d35687765464853282842b4560b662e6c903d11cc90
+  languageName: node
+  linkType: hard
+
+"lodash.get@npm:^4.4.2":
+  version: 4.4.2
+  resolution: "lodash.get@npm:4.4.2"
+  checksum: e403047ddb03181c9d0e92df9556570e2b67e0f0a930fcbbbd779370972368f5568e914f913e93f3b08f6d492abc71e14d4e9b7a18916c31fa04bd2306efe545
   languageName: node
   linkType: hard
 
@@ -11449,6 +11508,19 @@ __metadata:
   languageName: node
   linkType: hard
 
+"nise@npm:^5.1.1":
+  version: 5.1.1
+  resolution: "nise@npm:5.1.1"
+  dependencies:
+    "@sinonjs/commons": ^1.8.3
+    "@sinonjs/fake-timers": ">=5"
+    "@sinonjs/text-encoding": ^0.7.1
+    just-extend: ^4.0.2
+    path-to-regexp: ^1.7.0
+  checksum: d8be29e84a014743c9a10f428fac86f294ac5f92bed1f606fe9b551e935f494d8e0ce1af8a12673c6014010ec7f771f2d48aa5c8e116f223eb4f40c5e1ab44b3
+  languageName: node
+  linkType: hard
+
 "node-addon-api@npm:^2.0.0":
   version: 2.0.2
   resolution: "node-addon-api@npm:2.0.2"
@@ -12135,6 +12207,15 @@ __metadata:
   version: 0.1.7
   resolution: "path-to-regexp@npm:0.1.7"
   checksum: 69a14ea24db543e8b0f4353305c5eac6907917031340e5a8b37df688e52accd09e3cebfe1660b70d76b6bd89152f52183f28c74813dbf454ba1a01c82a38abce
+  languageName: node
+  linkType: hard
+
+"path-to-regexp@npm:^1.7.0":
+  version: 1.8.0
+  resolution: "path-to-regexp@npm:1.8.0"
+  dependencies:
+    isarray: 0.0.1
+  checksum: 709f6f083c0552514ef4780cb2e7e4cf49b0cc89a97439f2b7cc69a608982b7690fb5d1720a7473a59806508fc2dae0be751ba49f495ecf89fd8fbc62abccbcd
   languageName: node
   linkType: hard
 
@@ -13500,6 +13581,20 @@ __metadata:
   languageName: node
   linkType: hard
 
+"sinon@npm:^13.0.2":
+  version: 13.0.2
+  resolution: "sinon@npm:13.0.2"
+  dependencies:
+    "@sinonjs/commons": ^1.8.3
+    "@sinonjs/fake-timers": ^9.1.2
+    "@sinonjs/samsam": ^6.1.1
+    diff: ^5.0.0
+    nise: ^5.1.1
+    supports-color: ^7.2.0
+  checksum: 237f21c8c4a8b31574c71b1b9f4c0f74a63dde5c0e86bd116effa4ce63c52467bd45fb4034a8fa32656a7919d9b19fc7b108ca9e1e6e3144f3735da96dad2877
+  languageName: node
+  linkType: hard
+
 "slash@npm:^1.0.0":
   version: 1.0.0
   resolution: "slash@npm:1.0.0"
@@ -14146,7 +14241,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"supports-color@npm:^7.1.0":
+"supports-color@npm:^7.1.0, supports-color@npm:^7.2.0":
   version: 7.2.0
   resolution: "supports-color@npm:7.2.0"
   dependencies:
@@ -14626,7 +14721,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"type-detect@npm:^4.0.0, type-detect@npm:^4.0.5":
+"type-detect@npm:4.0.8, type-detect@npm:^4.0.0, type-detect@npm:^4.0.5, type-detect@npm:^4.0.8":
   version: 4.0.8
   resolution: "type-detect@npm:4.0.8"
   checksum: 62b5628bff67c0eb0b66afa371bd73e230399a8d2ad30d852716efcc4656a7516904570cd8631a49a3ce57c10225adf5d0cbdcb47f6b0255fe6557c453925a15
@@ -16162,7 +16257,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"yargs@npm:^17.3.1":
+"yargs@npm:^17.3.1, yargs@npm:^17.4.1":
   version: 17.4.1
   resolution: "yargs@npm:17.4.1"
   dependencies:

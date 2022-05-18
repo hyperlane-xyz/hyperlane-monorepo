@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {ICommon} from "../interfaces/ICommon.sol";
@@ -68,10 +68,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
 
     // ============ Initializer ============
 
-    function __Common_initialize(address _validatorManager)
-        internal
-        initializer
-    {
+    function __Common_initialize(address _validatorManager) internal {
         // initialize owner
         __Ownable_init();
         _setValidatorManager(_validatorManager);

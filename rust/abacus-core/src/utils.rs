@@ -1,7 +1,7 @@
 use std::str::FromStr;
 
-use color_eyre::{eyre::bail, Report};
 use ethers::core::types::H256;
+use eyre::{bail, Report};
 use sha3::{Digest, Keccak256};
 
 /// Strips the '0x' prefix off of hex string so it can be deserialized.
