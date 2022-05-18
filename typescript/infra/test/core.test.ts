@@ -52,9 +52,9 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const joinedConfig = objMap(coreConfig, (network, config) => ({
+    const joinedConfig = objMap(coreConfig, (chain, config) => ({
       ...config,
-      owner: owners[network],
+      owner: owners[chain],
     }));
     const checker = new AbacusCoreChecker(multiProvider, core, joinedConfig);
     await checker.check();

@@ -18,18 +18,18 @@ import { AbacusAppDeployer } from '../deploy';
 import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
-  Networks extends ChainName,
+  Chain extends ChainName,
   Config extends RouterConfig,
   Addresses,
-> extends AbacusAppDeployer<Networks, Config, Addresses> {
-  protected core?: AbacusCore<Networks>;
+> extends AbacusAppDeployer<Chain, Config, Addresses> {
+  protected core?: AbacusCore<Chain>;
 
-  abstract mustGetRouter(network: Networks, addresses: Addresses): Router;
+  abstract mustGetRouter(chain: Chain, addresses: Addresses): Router;
 
   constructor(
-    multiProvider: MultiProvider<Networks>,
-    configMap: ChainMap<Networks, Config>,
-    core?: AbacusCore<Networks>,
+    multiProvider: MultiProvider<Chain>,
+    configMap: ChainMap<Chain, Config>,
+    core?: AbacusCore<Chain>,
   ) {
     super(multiProvider, configMap);
     this.core = core;
@@ -42,7 +42,7 @@ export abstract class AbacusRouterDeployer<
     await promiseObjAll(
       objMap(deploymentOutput, async (local, addresses) => {
         const localRouter = this.mustGetRouter(local, addresses);
-        for (const remote of this.multiProvider.remotes(local)) {
+        for (const remote of this.multiProvider.remoteChains(local)) {
           const remoteRouter = this.mustGetRouter(
             remote,
             deploymentOutput[remote],
@@ -59,11 +59,11 @@ export abstract class AbacusRouterDeployer<
   }
 
   async deployConnectionManagerIfNotConfigured(
-    network: Networks,
+    chain: Chain,
   ): Promise<AbacusConnectionManager> {
-    const dc = this.multiProvider.getChainConnection(network);
+    const dc = this.multiProvider.getChainConnection(chain);
     const signer = dc.signer!;
-    const config = this.configMap[network];
+    const config = this.configMap[chain];
     if (config.abacusConnectionManager) {
       return AbacusConnectionManager__factory.connect(
         config.abacusConnectionManager,
@@ -72,7 +72,7 @@ export abstract class AbacusRouterDeployer<
     }
 
     const abacusConnectionManager = await this.deployContract(
-      network,
+      chain,
       'AbacusConnectionManager',
       new AbacusConnectionManager__factory(signer),
       [],
@@ -80,12 +80,12 @@ export abstract class AbacusRouterDeployer<
     const overrides = dc.overrides;
     if (!this.core)
       throw new Error('must set core or configure abacusConnectionManager');
-    const localCore = this.core.getContracts(network);
+    const localCore = this.core.getContracts(chain);
     await abacusConnectionManager.setOutbox(
       localCore.outbox.outbox.address,
       overrides,
     );
-    for (const remote of this.core.remotes(network)) {
+    for (const remote of this.core.remoteChains(chain)) {
       await abacusConnectionManager.enrollInbox(
         chainMetadata[remote].id,
         localCore.inboxes[remote].inbox.address,

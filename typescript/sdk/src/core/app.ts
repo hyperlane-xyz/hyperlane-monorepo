@@ -11,21 +11,21 @@ import { environments } from './environments';
 
 export const CoreEnvironments = Object.keys(environments);
 export type CoreEnvironment = keyof typeof environments;
-export type CoreEnvironmentNetworks<E extends CoreEnvironment> = Extract<
+export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
   keyof typeof environments[E],
   ChainName
 >;
 
 export class AbacusCore<
-  Networks extends ChainName = ChainName,
-> extends AbacusApp<CoreContracts<Networks>, Networks> {
+  Chain extends ChainName = ChainName,
+> extends AbacusApp<CoreContracts<Chain>, Chain> {
   constructor(
-    networkAddresses: {
-      [local in Networks]: CoreContractAddresses<Networks, local>;
+    addresses: {
+      [local in Chain]: CoreContractAddresses<Chain, local>;
     },
-    multiProvider: MultiProvider<Networks>,
+    multiProvider: MultiProvider<Chain>,
   ) {
-    super(CoreContracts, networkAddresses, multiProvider);
+    super(CoreContracts, addresses, multiProvider);
   }
 
   static fromEnvironment<E extends CoreEnvironment>(
@@ -35,22 +35,22 @@ export class AbacusCore<
     return new AbacusCore(environments[name], multiProvider);
   }
 
-  // override type to be derived from network key
-  getContracts<Local extends Networks>(
-    network: Local,
-  ): CoreContractSchema<Networks, Local> {
-    return super.getContracts(network) as any;
+  // override type to be derived from chain key
+  getContracts<Local extends Chain>(
+    chain: Local,
+  ): CoreContractSchema<Chain, Local> {
+    return super.getContracts(chain) as any;
   }
 
-  // override type to be derived from network key
-  getAddresses<Local extends Networks>(
-    network: Local,
-  ): CoreContractAddresses<Networks, Local> {
-    return super.getAddresses(network) as any;
+  // override type to be derived from chain key
+  getAddresses<Local extends Chain>(
+    chain: Local,
+  ): CoreContractAddresses<Chain, Local> {
+    return super.getAddresses(chain) as any;
   }
 
-  getMailboxPair<Local extends Networks>(
-    origin: Remotes<Networks, Local>,
+  getMailboxPair<Local extends Chain>(
+    origin: Remotes<Chain, Local>,
     destination: Local,
   ) {
     const outbox = this.getContracts(origin).outbox.outbox;

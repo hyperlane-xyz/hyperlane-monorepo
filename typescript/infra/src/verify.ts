@@ -25,7 +25,7 @@ export class AbacusContractVerifier extends ContractVerifier {
     );
   }
 
-  get networks(): ChainName[] {
+  get chainNames(): ChainName[] {
     const filenames = fs
       .readdirSync(this.verificationDir, { withFileTypes: true })
       .map((dirEntry: fs.Dirent) => dirEntry.name);
@@ -33,12 +33,12 @@ export class AbacusContractVerifier extends ContractVerifier {
     return filenames.map((name) => name.split('.')[0] as ChainName);
   }
 
-  getVerificationInput(network: ChainName): VerificationInput {
-    const filename = `${network}.json`;
+  getVerificationInput(chain: ChainName): VerificationInput {
+    const filename = `${chain}.json`;
     const filepath = path.join(this.verificationDir, filename);
     if (!fs.existsSync(filepath)) {
       throw new Error(
-        `No ${filename} files found for ${network} at ${this.verificationDir}`,
+        `No ${filename} files found for ${chain} at ${this.verificationDir}`,
       );
     }
 

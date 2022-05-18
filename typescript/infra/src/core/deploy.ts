@@ -6,25 +6,25 @@ import { ChainName, chainMetadata, objMap } from '@abacus-network/sdk';
 import { DeployEnvironment, RustConfig } from '../config';
 
 export class AbacusCoreInfraDeployer<
-  Networks extends ChainName,
-> extends AbacusCoreDeployer<Networks> {
+  Chain extends ChainName,
+> extends AbacusCoreDeployer<Chain> {
   writeRustConfigs(
     environment: DeployEnvironment,
     directory: string,
-    networkAddresses: Awaited<
-      ReturnType<AbacusCoreDeployer<Networks>['deploy']>
+    contractAddresses: Awaited<
+      ReturnType<AbacusCoreDeployer<Chain>['deploy']>
     >,
   ) {
-    objMap(this.configMap, (network) => {
-      const filepath = path.join(directory, `${network}_config.json`);
-      const addresses = networkAddresses[network];
+    objMap(this.configMap, (chain) => {
+      const filepath = path.join(directory, `${chain}_config.json`);
+      const addresses = contractAddresses[chain];
 
       const outbox = {
         addresses: {
           outbox: addresses.outbox.proxy,
         },
-        domain: chainMetadata[network].id.toString(),
-        name: network,
+        domain: chainMetadata[chain].id.toString(),
+        name: chain,
         rpcStyle: 'ethereum',
         connection: {
           type: 'http',
@@ -32,7 +32,7 @@ export class AbacusCoreInfraDeployer<
         },
       };
 
-      const rustConfig: RustConfig<Networks> = {
+      const rustConfig: RustConfig<Chain> = {
         environment,
         signers: {},
         inboxes: {},
@@ -44,13 +44,13 @@ export class AbacusCoreInfraDeployer<
         db: 'db_path',
       };
 
-      const startingBlockNumber = this.startingBlockNumbers[network];
+      const startingBlockNumber = this.startingBlockNumbers[chain];
 
       if (startingBlockNumber) {
         rustConfig.index = { from: startingBlockNumber.toString() };
       }
 
-      this.multiProvider.remotes(network).forEach((remote) => {
+      this.multiProvider.remoteChains(chain).forEach((remote) => {
         const inboxAddresses = addresses.inboxes[remote];
 
         const inbox = {

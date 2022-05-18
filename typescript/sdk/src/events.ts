@@ -82,7 +82,7 @@ export interface TSContract<T extends Result, U> {
 
 export async function queryAnnotatedEvents<T extends Result, U>(
   multiprovider: MultiProvider<any>,
-  network: ChainName,
+  chain: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
@@ -90,45 +90,45 @@ export async function queryAnnotatedEvents<T extends Result, U>(
 ): Promise<Array<Annotated<T, TypedEvent<T & U>>>> {
   const events = await getEvents(
     multiprovider,
-    network,
+    chain,
     contract,
     filter,
     startBlock,
     endBlock,
   );
-  return Annotated.fromEvents(chainMetadata[network].id, events);
+  return Annotated.fromEvents(chainMetadata[chain].id, events);
 }
 
 export async function findAnnotatedSingleEvent<T extends Result, U>(
   multiprovider: MultiProvider<any>,
-  network: ChainName,
+  chain: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
 ): Promise<Array<Annotated<T, TypedEvent<T & U>>>> {
   const events = await findEvent(
     multiprovider,
-    network,
+    chain,
     contract,
     filter,
     startBlock,
   );
-  return Annotated.fromEvents(chainMetadata[network].id, events);
+  return Annotated.fromEvents(chainMetadata[chain].id, events);
 }
 
 export async function getEvents<T extends Result, U>(
   multiprovider: MultiProvider<any>,
-  network: ChainName,
+  chain: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = chainMetadata[network];
+  const domain = chainMetadata[chain];
   if (domain.paginate) {
     return getPaginatedEvents(
       multiprovider,
-      network,
+      chain,
       contract,
       filter,
       startBlock,
@@ -140,16 +140,16 @@ export async function getEvents<T extends Result, U>(
 
 export async function findEvent<T extends Result, U>(
   multiprovider: MultiProvider<any>,
-  network: ChainName,
+  chain: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = chainMetadata[network];
+  const domain = chainMetadata[chain];
   if (domain.paginate) {
     return findFromPaginatedEvents(
       multiprovider,
-      network,
+      chain,
       contract,
       filter,
       startBlock,
@@ -160,13 +160,13 @@ export async function findEvent<T extends Result, U>(
 
 async function getPaginatedEvents<T extends Result, U>(
   multiprovider: MultiProvider<any>,
-  network: ChainName,
+  chain: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = chainMetadata[network];
+  const domain = chainMetadata[chain];
   if (!domain.paginate) {
     throw new Error('Domain need not be paginated');
   }
@@ -179,7 +179,7 @@ async function getPaginatedEvents<T extends Result, U>(
   // or current block number
   let lastBlock;
   if (!endBlock) {
-    const provider = multiprovider.getChainConnection(network).provider!;
+    const provider = multiprovider.getChainConnection(chain).provider!;
     lastBlock = await provider.getBlockNumber();
   } else {
     lastBlock = endBlock;
@@ -207,13 +207,13 @@ async function getPaginatedEvents<T extends Result, U>(
 
 async function findFromPaginatedEvents<T extends Result, U>(
   multiprovider: MultiProvider<any>,
-  network: ChainName,
+  chain: ChainName,
   contract: TSContract<T, U>,
   filter: TypedEventFilter<T, U>,
   startBlock?: number,
   endBlock?: number,
 ): Promise<Array<TypedEvent<T & U>>> {
-  const domain = chainMetadata[network];
+  const domain = chainMetadata[chain];
   if (!domain.paginate) {
     throw new Error('Domain need not be paginated');
   }
@@ -226,7 +226,7 @@ async function findFromPaginatedEvents<T extends Result, U>(
   // or current block number
   let lastBlock;
   if (!endBlock) {
-    const provider = multiprovider.getChainConnection(network).provider!;
+    const provider = multiprovider.getChainConnection(chain).provider!;
     lastBlock = await provider.getBlockNumber();
   } else {
     lastBlock = endBlock;

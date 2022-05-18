@@ -55,46 +55,46 @@ export function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export class MultiGeneric<Networks extends ChainName, Value> {
-  constructor(protected readonly chainMap: ChainMap<Networks, Value>) {}
+export class MultiGeneric<Chain extends ChainName, Value> {
+  constructor(protected readonly chainMap: ChainMap<Chain, Value>) {}
 
-  protected get = (network: Networks) => this.chainMap[network];
+  protected get = (chain: Chain) => this.chainMap[chain];
 
-  networks = () => Object.keys(this.chainMap) as Networks[];
+  chains = () => Object.keys(this.chainMap) as Chain[];
 
-  apply(fn: (n: Networks, dc: Value) => void) {
-    for (const network of this.networks()) {
-      fn(network, this.chainMap[network]);
+  apply(fn: (n: Chain, dc: Value) => void) {
+    for (const chain of this.chains()) {
+      fn(chain, this.chainMap[chain]);
     }
   }
 
-  map<Output>(fn: (n: Networks, dc: Value) => Output) {
-    let entries: [Networks, Output][] = [];
-    const networks = this.networks();
-    for (const network of networks) {
-      entries.push([network, fn(network, this.chainMap[network])]);
+  map<Output>(fn: (n: Chain, dc: Value) => Output) {
+    let entries: [Chain, Output][] = [];
+    const chains = this.chains();
+    for (const chain of chains) {
+      entries.push([chain, fn(chain, this.chainMap[chain])]);
     }
-    return Object.fromEntries(entries) as Record<Networks, Output>;
+    return Object.fromEntries(entries) as Record<Chain, Output>;
   }
 
-  remotes = <Name extends Networks>(name: Name) =>
-    this.networks().filter((key) => key !== name) as Remotes<Networks, Name>[];
+  remoteChains = <LocalChain extends Chain>(name: LocalChain) =>
+    this.chains().filter((key) => key !== name) as Remotes<Chain, LocalChain>[];
 
-  extendWithChain = <New extends Remotes<ChainName, Networks>>(
+  extendWithChain = <New extends Remotes<ChainName, Chain>>(
     chain: New,
     value: Value,
   ) =>
-    new MultiGeneric<New & Networks, Value>({
+    new MultiGeneric<New & Chain, Value>({
       ...this.chainMap,
       [chain]: value,
     });
 
-  knownChain = (network: ChainName) => network in this.chainMap;
+  knownChain = (chain: ChainName) => chain in this.chainMap;
 }
 
 export function inferChainMap<M>(map: M) {
-  return map as M extends ChainMap<infer Networks, infer Value>
-    ? Record<Networks, Value>
+  return map as M extends ChainMap<infer Chain, infer Value>
+    ? Record<Chain, Value>
     : never;
 }
 

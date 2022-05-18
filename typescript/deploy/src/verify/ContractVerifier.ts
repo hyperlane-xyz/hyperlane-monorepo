@@ -17,49 +17,49 @@ const etherscanChains = [
 export abstract class ContractVerifier {
   constructor(public readonly key: string) {}
 
-  abstract networks: ChainName[];
-  abstract getVerificationInput(network: ChainName): VerificationInput;
+  abstract chainNames: ChainName[];
+  abstract getVerificationInput(chain: ChainName): VerificationInput;
 
-  static etherscanLink(network: ChainName, address: types.Address) {
-    if (network === 'polygon') {
+  static etherscanLink(chain: ChainName, address: types.Address) {
+    if (chain === 'polygon') {
       return `https://polygonscan.com/address/${address}`;
     }
 
-    const prefix = network === 'ethereum' ? '' : `${network}.`;
+    const prefix = chain === 'ethereum' ? '' : `${chain}.`;
     return `https://${prefix}etherscan.io/address/${address}`;
   }
 
   async verify(hre: any) {
-    let network = hre.network.name;
+    let chain = hre.network.name;
 
-    if (network === 'mainnet') {
-      network = 'ethereum';
+    if (chain === 'mainnet') {
+      chain = 'ethereum';
     }
 
     const envError = (network: string) =>
       `pass --network tag to hardhat task (current network=${network})`;
 
     // assert that network from .env is supported by Etherscan
-    if (!etherscanChains.includes(network)) {
+    if (!etherscanChains.includes(chain)) {
       throw new Error(
-        `Network not supported by Etherscan; ${envError(network)}`,
+        `Network not supported by Etherscan; ${envError(chain)}`,
       );
     }
 
     // get the JSON verification inputs for the given network
     // from the latest contract deploy; throw if not found
-    const verificationInputs = this.getVerificationInput(network);
+    const verificationInputs = this.getVerificationInput(chain);
 
     // loop through each verification input for each contract in the file
     for (const verificationInput of verificationInputs) {
       // attempt to verify contract on etherscan
       // (await one-by-one so that Etherscan doesn't rate limit)
-      await this.verifyContract(network, verificationInput, hre);
+      await this.verifyContract(chain, verificationInput, hre);
     }
   }
 
   async verifyContract(
-    network: ChainName,
+    chain: ChainName,
     input: ContractVerificationInput,
     hre: any,
   ) {
@@ -67,10 +67,10 @@ export abstract class ContractVerifier {
       console.log(
         `   Attempt to verify ${
           input.name
-        }   -  ${ContractVerifier.etherscanLink(network, input.address)}`,
+        }   -  ${ContractVerifier.etherscanLink(chain, input.address)}`,
       );
       await hre.run('verify:verify', {
-        network,
+        chain,
         address: input.address,
         constructorArguments: input.constructorArguments,
       });
@@ -78,7 +78,7 @@ export abstract class ContractVerifier {
 
       if (input.isProxy) {
         console.log(`   Attempt to verify as proxy`);
-        await this.verifyProxy(network, input.address);
+        await this.verifyProxy(chain, input.address);
         console.log(`   SUCCESS submitting proxy verification`);
       }
     } catch (e) {
@@ -88,10 +88,10 @@ export abstract class ContractVerifier {
     console.log('\n\n'); // add space after each attempt
   }
 
-  async verifyProxy(network: ChainName, address: types.Address) {
-    const suffix = network === 'ethereum' ? '' : `-${network}`;
+  async verifyProxy(chain: ChainName, address: types.Address) {
+    const suffix = chain === 'ethereum' ? '' : `-${chain}`;
 
-    console.log(`   Submit ${address} for proxy verification on ${network}`);
+    console.log(`   Submit ${address} for proxy verification on ${chain}`);
     // Submit contract for verification
     const verifyResponse = await axios.post(
       `https://api${suffix}.etherscan.io/api`,
