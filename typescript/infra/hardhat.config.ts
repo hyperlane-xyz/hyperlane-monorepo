@@ -33,8 +33,7 @@ const chainSummary = async <Chain extends ChainName>(
   const count = (await outbox.tree()).toNumber();
 
   const inboxSummary = async (remote: Chain) => {
-    const inbox =
-      coreContracts.inboxes[remote as Exclude<Chain, Chain>].inbox;
+    const inbox = coreContracts.inboxes[remote as Exclude<Chain, Chain>].inbox;
     const [inboxCheckpointRoot, inboxCheckpointIndex] =
       await inbox.latestCheckpoint();
     const processFilter = inbox.filters.Process();

@@ -30,10 +30,7 @@ async function main() {
     [core.chains().length],
   );
   // Sanity check: for each chain, expect one call to set the validator.
-  checker.expectCalls(
-    core.chains(),
-    new Array(core.chains().length).fill(1),
-  );
+  checker.expectCalls(core.chains(), new Array(core.chains().length).fill(1));
 
   // Change to `batch.execute` in order to run.
   const controllerActor = await controllerApp.controller();

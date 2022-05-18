@@ -16,9 +16,10 @@ export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
   ChainName
 >;
 
-export class AbacusCore<
-  Chain extends ChainName = ChainName,
-> extends AbacusApp<CoreContracts<Chain>, Chain> {
+export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
+  CoreContracts<Chain>,
+  Chain
+> {
   constructor(
     addresses: {
       [local in Chain]: CoreContractAddresses<Chain, local>;

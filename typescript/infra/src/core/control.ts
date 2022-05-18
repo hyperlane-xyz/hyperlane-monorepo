@@ -78,9 +78,7 @@ export class AbacusCoreControllerChecker<
     violation: UpgradeBeaconViolation,
   ): Promise<CallWithTarget> {
     const chain = violation.chain;
-    const ubc = this.app.getContracts(
-      chain as Chain,
-    ).upgradeBeaconController;
+    const ubc = this.app.getContracts(chain as Chain).upgradeBeaconController;
     if (ubc === undefined) throw new Error('Undefined ubc');
     const tx = await ubc.populateTransaction.upgrade(
       violation.data.proxiedAddress.beacon,
@@ -93,9 +91,7 @@ export class AbacusCoreControllerChecker<
   async handleValidatorViolation(
     violation: ValidatorViolation,
   ): Promise<CallWithTarget> {
-    const dc = this.multiProvider.getChainConnection(
-      violation.chain as Chain,
-    );
+    const dc = this.multiProvider.getChainConnection(violation.chain as Chain);
     const provider = dc.provider!;
 
     const validatorManager = MultisigValidatorManager__factory.connect(

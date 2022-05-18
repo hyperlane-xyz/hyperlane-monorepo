@@ -11,9 +11,7 @@ export class AbacusCoreInfraDeployer<
   writeRustConfigs(
     environment: DeployEnvironment,
     directory: string,
-    contractAddresses: Awaited<
-      ReturnType<AbacusCoreDeployer<Chain>['deploy']>
-    >,
+    contractAddresses: Awaited<ReturnType<AbacusCoreDeployer<Chain>['deploy']>>,
   ) {
     objMap(this.configMap, (chain) => {
       const filepath = path.join(directory, `${chain}_config.json`);

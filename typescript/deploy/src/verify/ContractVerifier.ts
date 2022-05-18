@@ -41,9 +41,7 @@ export abstract class ContractVerifier {
 
     // assert that network from .env is supported by Etherscan
     if (!etherscanChains.includes(chain)) {
-      throw new Error(
-        `Network not supported by Etherscan; ${envError(chain)}`,
-      );
+      throw new Error(`Network not supported by Etherscan; ${envError(chain)}`);
     }
 
     // get the JSON verification inputs for the given network
