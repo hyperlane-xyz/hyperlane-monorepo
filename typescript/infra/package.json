@@ -20,7 +20,7 @@
     "test": "hardhat test",
     "check": "tsc --noEmit",
     "node": "hardhat node",
-    "abacus": "hardhat abacus --network localhost",
+    "abacus": "ts-node scripts/core.ts -e test",
     "kathy": "hardhat kathy --network localhost",
     "prettier": "prettier --write *.ts ./src ./config ./scripts ./test"
   },
