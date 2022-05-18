@@ -50,7 +50,7 @@ export class AbacusCoreInfraDeployer<
         rustConfig.index = { from: startingBlockNumber.toString() };
       }
 
-      this.multiProvider.remotes(chain).forEach((remote) => {
+      this.multiProvider.remoteChains(chain).forEach((remote) => {
         const inboxAddresses = addresses.inboxes[remote];
 
         const inbox = {

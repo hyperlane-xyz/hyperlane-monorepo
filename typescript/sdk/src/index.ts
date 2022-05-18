@@ -56,7 +56,7 @@ export {
   DomainIdToChainName,
   NameOrDomain,
   ProxiedAddress,
-  LocalChain as RemoteChainMap,
+  RemoteChainMap,
   Remotes,
 } from './types';
 export { utils, objMap, objMapEntries, promiseObjAll } from './utils';

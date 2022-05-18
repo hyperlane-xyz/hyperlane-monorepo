@@ -41,7 +41,7 @@ export abstract class AbacusAppChecker<
 
   async check() {
     return Promise.all(
-      this.app.chainNames().map((chain) => this.checkChain(chain)),
+      this.app.chains().map((chain) => this.checkChain(chain)),
     );
   }
 

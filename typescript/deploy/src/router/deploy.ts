@@ -42,7 +42,7 @@ export abstract class AbacusRouterDeployer<
     await promiseObjAll(
       objMap(deploymentOutput, async (local, addresses) => {
         const localRouter = this.mustGetRouter(local, addresses);
-        for (const remote of this.multiProvider.remotes(local)) {
+        for (const remote of this.multiProvider.remoteChains(local)) {
           const remoteRouter = this.mustGetRouter(
             remote,
             deploymentOutput[remote],
@@ -85,7 +85,7 @@ export abstract class AbacusRouterDeployer<
       localCore.outbox.outbox.address,
       overrides,
     );
-    for (const remote of this.core.remotes(chain)) {
+    for (const remote of this.core.remoteChains(chain)) {
       await abacusConnectionManager.enrollInbox(
         chainMetadata[remote].id,
         localCore.inboxes[remote].inbox.address,

@@ -32,7 +32,7 @@ export abstract class AbacusRouterChecker<
     const router = this.mustGetRouter(chain);
 
     await Promise.all(
-      this.app.remotes(chain).map(async (remoteNetwork) => {
+      this.app.remoteChains(chain).map(async (remoteNetwork) => {
         const remoteRouter = this.mustGetRouter(remoteNetwork);
         const remoteChainId = chainMetadata[remoteNetwork].id;
         expect(await router.routers(remoteChainId)).to.equal(

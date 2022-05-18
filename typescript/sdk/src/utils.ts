@@ -60,25 +60,25 @@ export class MultiGeneric<Chain extends ChainName, Value> {
 
   protected get = (chain: Chain) => this.chainMap[chain];
 
-  chainNames = () => Object.keys(this.chainMap) as Chain[];
+  chains = () => Object.keys(this.chainMap) as Chain[];
 
   apply(fn: (n: Chain, dc: Value) => void) {
-    for (const chain of this.chainNames()) {
+    for (const chain of this.chains()) {
       fn(chain, this.chainMap[chain]);
     }
   }
 
   map<Output>(fn: (n: Chain, dc: Value) => Output) {
     let entries: [Chain, Output][] = [];
-    const chains = this.chainNames();
+    const chains = this.chains();
     for (const chain of chains) {
       entries.push([chain, fn(chain, this.chainMap[chain])]);
     }
     return Object.fromEntries(entries) as Record<Chain, Output>;
   }
 
-  remotes = <Name extends Chain>(name: Name) =>
-    this.chainNames().filter((key) => key !== name) as Remotes<Chain, Name>[];
+  remoteChains = <LocalChain extends Chain>(name: LocalChain) =>
+    this.chains().filter((key) => key !== name) as Remotes<Chain, LocalChain>[];
 
   extendWithChain = <New extends Remotes<ChainName, Chain>>(
     chain: New,

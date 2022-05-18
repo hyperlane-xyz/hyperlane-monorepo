@@ -47,7 +47,7 @@ export class ControllerApp<
 
   chainCalls = () =>
     Object.fromEntries(
-      this.chainNames().map((chain) => [chain, this.getCalls(chain)]),
+      this.chains().map((chain) => [chain, this.getCalls(chain)]),
     ) as ChainMap<Chain, Call[]>;
 
   routers = () => objMap(this.contractsMap, (_, d) => d.contracts.router);

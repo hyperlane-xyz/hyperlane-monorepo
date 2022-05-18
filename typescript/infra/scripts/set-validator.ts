@@ -27,12 +27,12 @@ async function main() {
   // Sanity check: for each chain, expect one validator violation.
   checker.expectViolations(
     [CoreViolationType.Validator],
-    [core.chainNames().length],
+    [core.chains().length],
   );
   // Sanity check: for each chain, expect one call to set the validator.
   checker.expectCalls(
-    core.chainNames(),
-    new Array(core.chainNames().length).fill(1),
+    core.chains(),
+    new Array(core.chains().length).fill(1),
   );
 
   // Change to `batch.execute` in order to run.

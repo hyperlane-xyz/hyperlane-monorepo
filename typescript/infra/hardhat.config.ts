@@ -57,7 +57,7 @@ const chainSummary = async <Chain extends ChainName>(
       },
     },
     inboxes: await Promise.all(
-      core.remotes(chain).map((remote) => inboxSummary(remote)),
+      core.remoteChains(chain).map((remote) => inboxSummary(remote)),
     ),
   };
   return summary;
@@ -115,8 +115,8 @@ task('kathy', 'Dispatches random abacus messages').setAction(
 
     // Generate artificial traffic
     while (true) {
-      const local = core.chainNames()[0];
-      const remote: ChainName = randomElement(core.remotes(local));
+      const local = core.chains()[0];
+      const remote: ChainName = randomElement(core.remoteChains(local));
       const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
       const outbox = coreContracts.outbox.outbox;
