@@ -1,5 +1,5 @@
 Abacus is a decentralized project to enable developers to create shared state blockchain applications. 
-Abacus is maintained as an open source and open community project where a diverse array of participants come to work together bringing forth their unique experience. In that process it is inevitable that contributors and supporters alike will experience differences in location, language, nationality, professional and overall life experience.
+Our goal is to create an environment where a diverse array of participants come to work together bringing forth their unique experience. In that process it is inevitable that contributors and supporters alike will experience differences in location, language, nationality, professional and overall life experience.
 It is only natural that in such an environment of open and diverse participation disagreements and misunderstandings will happen. More often than not these can be easily resolved informally, however there will be edge cases where behavior can cross the line.
 Our goal is to create an environment that is welcoming to all contributors, and fosters a robust community built on collaboration and experimentation. 
 Thus we believe it is necessary to ensure those rare cases that devolve into harassing, intimidating, or otherwise disruptive behavior are mitigated and understood to be unacceptable by the community.
