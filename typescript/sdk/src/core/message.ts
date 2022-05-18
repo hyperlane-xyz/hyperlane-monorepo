@@ -154,8 +154,8 @@ export class AbacusMessage {
   ): AbacusMessage[] {
     const messages: AbacusMessage[] = [];
     const outbox = new Outbox__factory().interface;
-    const network = resolveDomain(nameOrDomain);
-    const provider = multiProvider.getChainConnection(network).provider!;
+    const chain = resolveDomain(nameOrDomain);
+    const provider = multiProvider.getChainConnection(chain).provider!;
 
     for (const log of receipt.logs) {
       try {

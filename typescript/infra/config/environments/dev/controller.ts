@@ -2,7 +2,7 @@ import { ChainMap } from '@abacus-network/sdk';
 
 import { ControllerConfig } from '../../../src/controller';
 
-import { DevNetworks } from './domains';
+import { DevChains } from './chains';
 
 const defaultControllerConfig = {
   recoveryManager: '0x3909CFACD7a568634716CbCE635F76b9Cf37364B',
@@ -17,4 +17,4 @@ const addresses = {
   kovan: defaultControllerConfig,
 };
 
-export const controller: ChainMap<DevNetworks, ControllerConfig> = addresses;
+export const controller: ChainMap<DevChains, ControllerConfig> = addresses;

@@ -1,9 +1,9 @@
 import { CoreConfig } from '@abacus-network/deploy';
 import { ChainMap } from '@abacus-network/sdk';
 
-import { TestNetworks } from './domains';
+import { TestChains } from './chains';
 
-export const core: ChainMap<TestNetworks, CoreConfig> = {
+export const core: ChainMap<TestChains, CoreConfig> = {
   // Hardhat accounts 1-4
   test1: {
     validatorManager: {

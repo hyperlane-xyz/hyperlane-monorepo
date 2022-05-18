@@ -13,31 +13,27 @@ import {
 import { ControllerConfig } from './types';
 
 export class ControllerDeployer<
-  Networks extends ChainName,
-> extends AbacusRouterDeployer<
-  Networks,
-  ControllerConfig,
-  ControllerAddresses
-> {
+  Chain extends ChainName,
+> extends AbacusRouterDeployer<Chain, ControllerConfig, ControllerAddresses> {
   async deployContracts(
-    network: Networks,
+    chain: Chain,
     config: ControllerConfig,
   ): Promise<ControllerAddresses> {
-    const dc = this.multiProvider.getChainConnection(network);
+    const dc = this.multiProvider.getChainConnection(chain);
     const signer = dc.signer!;
 
     const abacusConnectionManager =
-      await this.deployConnectionManagerIfNotConfigured(network);
+      await this.deployConnectionManagerIfNotConfigured(chain);
 
     const upgradeBeaconController = await this.deployContract(
-      network,
+      chain,
       'UpgradeBeaconController',
       new UpgradeBeaconController__factory(signer),
       [],
     );
 
     const router = await this.deployProxiedContract(
-      network,
+      chain,
       'ControllerRouter',
       new ControllerRouter__factory(signer),
       [config.recoveryTimelock],
@@ -82,10 +78,10 @@ export class ControllerDeployer<
     return deploymentOutput;
   }
 
-  mustGetRouter(network: Networks, addresses: ControllerAddresses) {
+  mustGetRouter(chain: Chain, addresses: ControllerAddresses) {
     return ControllerRouter__factory.connect(
       addresses.router.proxy,
-      this.multiProvider.getChainConnection(network).signer!,
+      this.multiProvider.getChainConnection(chain).signer!,
     );
   }
 }

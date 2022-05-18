@@ -24,20 +24,17 @@ async function main() {
     config.core,
   );
   await checker.check();
-  // Sanity check: for each domain, expect one validator violation.
+  // Sanity check: for each chain, expect one validator violation.
   checker.expectViolations(
     [CoreViolationType.Validator],
-    [core.networks().length],
+    [core.chains().length],
   );
-  // Sanity check: for each domain, expect one call to set the validator.
-  checker.expectCalls(
-    core.networks(),
-    new Array(core.networks().length).fill(1),
-  );
+  // Sanity check: for each chain, expect one call to set the validator.
+  checker.expectCalls(core.chains(), new Array(core.chains().length).fill(1));
 
   // Change to `batch.execute` in order to run.
   const controllerActor = await controllerApp.controller();
-  const provider = multiProvider.getChainConnection(controllerActor.network)
+  const provider = multiProvider.getChainConnection(controllerActor.chain)
     .provider!;
   const receipts = await checker.controllerApp.estimateGas(provider);
   console.log(receipts);

@@ -38,14 +38,14 @@ export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
 }
 
-export async function getMultiProviderFromGCP<Networks extends ChainName>(
-  txConfigs: ChainMap<Networks, TransactionConfig>,
+export async function getMultiProviderFromGCP<Chain extends ChainName>(
+  txConfigs: ChainMap<Chain, TransactionConfig>,
   environment: DeployEnvironment,
 ) {
   const connections = await promiseObjAll(
-    objMap(txConfigs, async (domain, config) => {
-      const provider = await fetchProvider(environment, domain);
-      const signer = await fetchSigner(environment, domain, provider);
+    objMap(txConfigs, async (chain, config) => {
+      const provider = await fetchProvider(environment, chain);
+      const signer = await fetchSigner(environment, chain, provider);
       return {
         provider,
         signer,
@@ -54,7 +54,7 @@ export async function getMultiProviderFromGCP<Networks extends ChainName>(
       };
     }),
   );
-  return new MultiProvider<Networks>(connections);
+  return new MultiProvider<Chain>(connections);
 }
 
 function getContractsSdkFilepath(mod: string, environment: DeployEnvironment) {
