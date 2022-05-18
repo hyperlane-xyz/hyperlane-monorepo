@@ -25,7 +25,7 @@ describe('InterchainGasCalculator', () => {
   // This is because InterchainGasCalculator isn't very strongly typed,
   // which is because ParsedMessage isn't very strongly typed. This results
   // in InterchainGasCalculator expecting a multiprovider with providers for
-  // every network.
+  // every chain.
   const multiProvider = new MultiProvider({
     test1: { provider },
     test2: { provider },

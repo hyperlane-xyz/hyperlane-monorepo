@@ -98,8 +98,8 @@ const _configs = {
 };
 
 export const addSignerToConnection =
-  <Networks extends ChainName>(signer: ethers.Signer) =>
-  (_chain: Networks, connection: IChainConnection) => ({
+  <Chain extends ChainName>(signer: ethers.Signer) =>
+  (_chain: Chain, connection: IChainConnection) => ({
     ...connection,
     signer,
   });

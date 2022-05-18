@@ -1,9 +1,9 @@
 import { AgentConfig } from '../../../src/config';
 
-import { TestnetNetworks, domainNames } from './domains';
+import { TestnetChains, chainNames } from './chains';
 import { validators } from './validators';
 
-export const agent: AgentConfig<TestnetNetworks> = {
+export const agent: AgentConfig<TestnetChains> = {
   environment: 'testnet',
   namespace: 'testnet',
   runEnv: 'testnet',
@@ -14,7 +14,7 @@ export const agent: AgentConfig<TestnetNetworks> = {
   aws: {
     region: 'us-east-1',
   },
-  domainNames,
+  chainNames: chainNames,
   validatorSets: validators,
   validator: {
     default: {

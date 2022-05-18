@@ -1,9 +1,9 @@
 import { AgentConfig } from '../../../src/config';
 
-import { DevNetworks, domainNames } from './domains';
+import { DevChains, chainNames } from './chains';
 import { validators } from './validators';
 
-export const agent: AgentConfig<DevNetworks> = {
+export const agent: AgentConfig<DevChains> = {
   environment: 'dev',
   namespace: 'dev',
   runEnv: 'dev',
@@ -11,7 +11,7 @@ export const agent: AgentConfig<DevNetworks> = {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-3c312d7',
   },
-  domainNames,
+  chainNames,
   validatorSets: validators,
   validator: {
     default: {
