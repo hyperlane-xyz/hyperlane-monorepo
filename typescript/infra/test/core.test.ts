@@ -3,6 +3,7 @@ import { ethers } from 'hardhat';
 import path from 'path';
 
 import { AbacusCoreDeployer, CoreConfig } from '@abacus-network/deploy';
+import { getMultiProviderFromConfigAndSigner } from '@abacus-network/deploy/dist/src/utils';
 import {
   AbacusCore,
   ChainMap,
@@ -11,8 +12,8 @@ import {
   objMap,
 } from '@abacus-network/sdk';
 
+import { environment as testConfig } from '../config/environments/test';
 import { TestChains } from '../config/environments/test/chains';
-import { getCoreEnvironmentConfig } from '../scripts/utils';
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 
@@ -27,12 +28,15 @@ describe('core', async () => {
 
   let owners: ChainMap<TestChains, string>;
   before(async () => {
-    const config = getCoreEnvironmentConfig(environment);
-    multiProvider = await config.getMultiProvider();
-    coreConfig = config.core;
+    const [signer, owner] = await ethers.getSigners();
+    // This is kind of awkward and really these tests shouldn't live here
+    multiProvider = getMultiProviderFromConfigAndSigner(
+      testConfig.transactionConfigs,
+      signer,
+    );
+    coreConfig = testConfig.core;
     deployer = new AbacusCoreInfraDeployer(multiProvider, coreConfig);
-    const [, owner] = await ethers.getSigners();
-    owners = objMap(config.transactionConfigs, () => owner.address);
+    owners = objMap(testConfig.transactionConfigs, () => owner.address);
   });
 
   it('deploys', async () => {
