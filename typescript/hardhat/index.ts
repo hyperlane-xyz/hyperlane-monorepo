@@ -9,9 +9,6 @@ import { HardhatRuntimeEnvironment } from "hardhat/types";
 import "hardhat/types/runtime";
 import { TestCoreDeploy } from './src/TestCoreDeploy';
 
-export { TestCoreApp } from './src/TestCoreApp';
-export { TestCoreDeploy } from './src/TestCoreDeploy';
-
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
     abacus: TestCoreDeploy;
