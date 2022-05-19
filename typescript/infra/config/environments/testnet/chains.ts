@@ -1,13 +1,8 @@
-import { configs } from '../../networks/testnets';
+import { chainConnectionConfigs } from '@abacus-network/sdk';
 
 export const testnetConfigs = {
-  alfajores: configs.alfajores,
-  kovan: configs.kovan,
-  fuji: configs.fuji,
-  mumbai: configs.mumbai,
-  bsctestnet: configs.bsctestnet,
-  arbitrumrinkeby: configs.arbitrumrinkeby,
-  optimismkovan: configs.optimismkovan,
+  alfajores: chainConnectionConfigs.alfajores,
+  kovan: chainConnectionConfigs.kovan,
 };
 
 export type TestnetChains = keyof typeof testnetConfigs;
