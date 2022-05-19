@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use async_trait::async_trait;
 use derive_builder::Builder;
@@ -16,7 +16,7 @@ use ethers::types::transaction::eip2718::TypedTransaction;
 use log::{debug, trace, warn};
 use maplit::hashmap;
 use parking_lot::RwLock;
-use prometheus::{CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
+use prometheus::{GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
 
 use erc20::Erc20;
 pub use error::PrometheusMiddlewareError;
@@ -36,8 +36,11 @@ fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
 /// Some basic information about a token.
 #[derive(Clone)]
 pub struct TokenInfo {
+    /// Full name of the token. E.g. Ether.
     pub name: String,
+    /// Token symbol. E.g. ETH.
     pub symbol: String,
+    /// Number of
     pub decimals: u8,
 }
 
@@ -51,30 +54,30 @@ impl Default for TokenInfo {
     }
 }
 
+/// Some basic information about a wallet.
 pub struct WalletInfo {
+    /// A human-friendly name for the wallet. This should be a short string like "relayer".
     pub name: Option<String>,
 }
 
+/// Some basic information about a contract.
 pub struct ContractInfo {
+    /// A human-friendly name for the contract. This should be a short string like "inbox".
     pub name: Option<String>,
 }
 
+/// Expected label names for the `block_height metric`.
 pub const BLOCK_HEIGHT_LABELS: &[&str] = &["chain"];
+/// Expected label names for the `gas_price_gwei` metric.
 pub const GAS_PRICE_GWEI_LABELS: &[&str] = &["chain"];
-pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] = &[
-    "chain",
-    "contract_name",
-    "contract_address",
-    "contract_function_name",
-    "contract_function_address",
-];
-pub const CONTRACT_SEND_DURATION_SECONDS_LABELS: &[&str] = &["chain", "address_from"];
+/// Expected label names for the `contract_call_duration_seconds` metric.
+pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] =
+    &["chain", "contract_name", "contract_address"];
+/// Expected label names for the `transaction_send_duration_seconds` metric.
 pub const TRANSACTION_SEND_DURATION_SECONDS_LABELS: &[&str] = &["chain", "address_from"];
-pub const TRANSACTION_SEND_TOTAL_LABELS: &[&str] =
-    &["chain", "address_from", "address_to", "txn_status"];
-pub const TRANSACTION_SEND_ETH_TOTAL_LABELS: &[&str] =
-    &["chain", "address_from", "address_to", "txn_status"];
-pub const TRANSACTION_SEND_GAS_ETH_TOTAL_LABELS: &[&str] = &["chain", "address_from", "address_to"];
+/// Expected label names for the `transaction_send_total` metric.
+pub const TRANSACTION_SEND_TOTAL_LABELS: &[&str] = &["chain", "address_from", "address_to"];
+/// Expected label names for the `wallet_balance` metric.
 pub const WALLET_BALANCE_LABELS: &[&str] = &[
     "chain",
     "wallet_address",
@@ -85,26 +88,31 @@ pub const WALLET_BALANCE_LABELS: &[&str] = &[
     "token_name",
 ];
 
+/// Container for all the relevant middleware metrics
 #[derive(Clone, Builder)]
 pub struct Metrics {
     /// Tracks the current block height of the chain.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain the block number refers to.
+    #[builder(setter(into, strip_option), default)]
     block_height: Option<IntGaugeVec>,
 
     /// Tracks the current gas price of the chain. Uses the base_fee_per_gas if available or else
     /// the median of the transactions.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain the gas price refers to.
+    #[builder(setter(into, strip_option), default)]
     gas_price_gwei: Option<GaugeVec>,
 
     /// Contract call durations by contract.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred on.
     /// - `contract_name`: contract name.
     /// - `contract_address`: contract address.
+    #[builder(setter(into, strip_option), default)]
     contract_call_duration_seconds: Option<HistogramVec>,
 
     /// Time taken to submit the transaction (not counting time for it to be included).
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred on.
     /// - `address_from`: source address of the transaction.
+    #[builder(setter(into, strip_option), default)]
     transaction_send_duration_seconds: Option<HistogramVec>,
 
     /// Number of transactions sent.
@@ -304,7 +312,7 @@ impl<M> PrometheusMiddleware<M> {
 impl<M: Middleware> PrometheusMiddleware<M> {
     /// Update gauges. You should submit this on a schedule to your runtime to be collected once
     /// on a regular interval that ideally aligns with the prometheus scrape interval.
-    pub fn update(&self, interval: Duration) -> impl Future<Output = ()> {
+    pub fn update(&self) -> impl Future<Output = ()> {
         // all metrics are Arcs internally so just clone the ones we want to report for.
         let wallet_balance = self.metrics.wallet_balance.clone();
         let block_height = self.metrics.block_height.clone();
