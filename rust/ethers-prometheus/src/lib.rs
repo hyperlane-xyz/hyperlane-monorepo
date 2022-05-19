@@ -55,6 +55,10 @@ pub struct WalletInfo {
     pub name: Option<String>,
 }
 
+pub struct ContractInfo {
+    pub name: Option<String>,
+}
+
 pub const BLOCK_HEIGHT_LABELS: &[&str] = &["chain"];
 pub const GAS_PRICE_GWEI_LABELS: &[&str] = &["chain"];
 pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] = &[
@@ -92,12 +96,10 @@ pub struct Metrics {
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain the gas price refers to.
     gas_price_gwei: Option<GaugeVec>,
 
-    /// Contract call durations by contract and function.
+    /// Contract call durations by contract.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred on.
     /// - `contract_name`: contract name.
     /// - `contract_address`: contract address.
-    /// - `contract_function_name`: name of the contract function being called.
-    /// - `contract_function_address`: address of the contract function.
     contract_call_duration_seconds: Option<HistogramVec>,
 
     /// Time taken to submit the transaction (not counting time for it to be included).
@@ -118,7 +120,6 @@ pub struct Metrics {
     // /// - `address_to`: destination address of the transaction.
     // #[builder(setter(into, strip_option), default)]
     // transaction_send_gas_eth_total: Option<CounterVec>,
-
     /// Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the
     /// `wallets` set.
     /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred on.
@@ -134,6 +135,7 @@ pub struct Metrics {
 struct InnerData {
     tokens: HashMap<Address, TokenInfo>,
     wallets: HashMap<Address, WalletInfo>,
+    contracts: HashMap<Address, ContractInfo>,
 }
 
 /// An ethers-rs middleware that inturments calls with prometheus metrics. To make this is flexible
@@ -176,7 +178,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
             .to()
             .map(|v| match v {
                 NameOrAddress::Name(v) => v.clone(),
-                NameOrAddress::Address(v) => v.to_string()
+                NameOrAddress::Address(v) => v.to_string(),
             })
             .unwrap_or_else(|| "none".into());
 
@@ -186,7 +188,8 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                 "address_from" => addr_from.as_str(),
                 "address_to" => addr_to.as_str(),
                 "txn_status" => "dispatched"
-            }).inc()
+            })
+            .inc()
         }
 
         let result = self.inner.send_transaction(tx, block).await;
@@ -196,7 +199,8 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
             m.with(&hashmap! {
                 "chain" => chain_name.as_str(),
                 "address_from" => addr_from.as_str(),
-            }).observe(duration);
+            })
+            .observe(duration);
         }
         if let Some(m) = &self.metrics.transaction_send_total {
             m.with(&hashmap! {
@@ -204,7 +208,8 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                 "address_from" => addr_from.as_str(),
                 "address_to" => addr_to.as_str(),
                 "txn_status" => if result.is_ok() { "completed" } else { "failed" }
-            }).inc()
+            })
+            .inc()
         }
 
         Ok(result?)
@@ -215,7 +220,33 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         tx: &TypedTransaction,
         block: Option<BlockId>,
     ) -> Result<Bytes, Self::Error> {
-        todo!()
+        let start = Instant::now();
+        let result = self.inner.call(tx, block).await;
+
+        if let Some(m) = &self.metrics.contract_call_duration_seconds {
+            let data = self.data.read();
+            let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
+            let (contract_addr, contract_name) = tx
+                .to()
+                .and_then(|addr| match addr {
+                    NameOrAddress::Name(n) => Some((n.clone(), n.clone())),
+                    NameOrAddress::Address(a) => data
+                        .contracts
+                        .get(a)
+                        .and_then(|c| c.name.clone())
+                        .map(|n| (a.to_string(), n)),
+                })
+                .unwrap_or_else(|| ("".into(), "unknown".into()));
+
+            m.with(&hashmap! {
+                "chain" => chain_name.as_str(),
+                "contract_name" => contract_name.as_str(),
+                "contract_address" => contract_addr.as_str()
+            })
+            .observe((Instant::now() - start).as_secs_f64())
+        }
+
+        Ok(result?)
     }
 }
 
@@ -230,11 +261,16 @@ impl<M> PrometheusMiddleware<M> {
         metrics: Metrics,
         tokens: HashMap<Address, TokenInfo>,
         wallets: HashMap<Address, WalletInfo>,
+        contracts: HashMap<Address, ContractInfo>,
     ) -> Self {
         Self {
             inner: Arc::new(inner),
             metrics,
-            data: Arc::new(RwLock::new(InnerData { tokens, wallets })),
+            data: Arc::new(RwLock::new(InnerData {
+                tokens,
+                wallets,
+                contracts,
+            })),
         }
     }
 
