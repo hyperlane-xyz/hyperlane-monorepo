@@ -1,11 +1,11 @@
+import { hardhatMultiProvider } from '../index';
+import { TestCoreApp } from '../src/TestCoreApp';
+import { TestCoreDeploy } from '../src/TestCoreDeploy';
 import { TestRecipient__factory } from '@abacus-network/core';
 import { chainMetadata } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import { hardhatMultiProvider } from '../index';
-import { TestCoreApp } from '../src/TestCoreApp';
-import { TestCoreDeploy } from '../src/TestCoreDeploy';
 
 const localChain = 'test1';
 const localDomain = chainMetadata[localChain].id;
