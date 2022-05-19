@@ -56,20 +56,22 @@ export class ChainConnection {
 }
 
 export class MultiProvider<
-  Networks extends ChainName = ChainName,
-> extends MultiGeneric<Networks, ChainConnection> {
-  constructor(networks: ChainMap<Networks, IChainConnection> | Networks[]) {
-    const params = Array.isArray(networks)
-      ? networks.map((v) => [v, {}])
-      : (Object.entries(networks) as [Networks, IChainConnection][]);
-    const providerEntries = params.map(([network, v]) => [
-      network,
+  Chain extends ChainName = ChainName,
+> extends MultiGeneric<Chain, ChainConnection> {
+  constructor(
+    chainConnectionConfigs: ChainMap<Chain, IChainConnection> | Chain[],
+  ) {
+    const params = Array.isArray(chainConnectionConfigs)
+      ? chainConnectionConfigs.map((v) => [v, {}])
+      : (Object.entries(chainConnectionConfigs) as [Chain, IChainConnection][]);
+    const providerEntries = params.map(([chain, v]) => [
+      chain,
       new ChainConnection(v),
     ]);
     super(Object.fromEntries(providerEntries));
   }
-  getChainConnection(network: Networks) {
-    return this.get(network);
+  getChainConnection(chain: Chain) {
+    return this.get(chain);
   }
   // This doesn't work on hardhat providers so we skip for now
   // ready() {

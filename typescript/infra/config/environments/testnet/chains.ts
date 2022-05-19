@@ -10,5 +10,5 @@ export const testnetConfigs = {
   optimismkovan: configs.optimismkovan,
 };
 
-export type TestnetNetworks = keyof typeof testnetConfigs;
-export const domainNames = Object.keys(testnetConfigs) as TestnetNetworks[];
+export type TestnetChains = keyof typeof testnetConfigs;
+export const chainNames = Object.keys(testnetConfigs) as TestnetChains[];

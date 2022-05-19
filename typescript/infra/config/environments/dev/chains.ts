@@ -5,5 +5,5 @@ export const devConfigs = {
   kovan: configs.kovan,
 };
 
-export type DevNetworks = keyof typeof devConfigs;
-export const domainNames = Object.keys(devConfigs) as DevNetworks[];
+export type DevChains = keyof typeof devConfigs;
+export const chainNames = Object.keys(devConfigs) as DevChains[];

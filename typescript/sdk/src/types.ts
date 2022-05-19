@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import { types } from '@abacus-network/utils';
 
-import { domains } from './domains';
+import { chainMetadata } from './chain-metadata';
 
 /**
  * RPC Pagination information for Polygon
@@ -21,9 +21,6 @@ export enum Chains { // must be string type to be used with Object.keys
   kovan = 'kovan',
   goerli = 'goerli',
   fuji = 'fuji',
-  rinkarby = 'rinkarby',
-  rinkeby = 'rinkeby',
-  ropsten = 'ropsten',
   celo = 'celo',
   ethereum = 'ethereum',
   avalanche = 'avalanche',
@@ -38,37 +35,34 @@ export enum Chains { // must be string type to be used with Object.keys
 }
 export type ChainName = keyof typeof Chains;
 export type CompleteChainMap<Value> = Record<ChainName, Value>;
-export type ChainMap<Networks extends ChainName, Value> = Record<
-  Networks,
-  Value
->;
+export type ChainMap<Chain extends ChainName, Value> = Record<Chain, Value>;
 
 export type TestChainNames = 'test1' | 'test2' | 'test3';
 
 export const AllChains = Object.keys(Chains) as ChainName[];
 export const DomainIdToChainName = Object.fromEntries(
-  AllChains.map((chain) => [domains[chain].id, chain]),
+  AllChains.map((chain) => [chainMetadata[chain].id, chain]),
 );
 export const ChainNameToDomainId = Object.fromEntries(
-  AllChains.map((chain) => [chain, domains[chain].id]),
+  AllChains.map((chain) => [chain, chainMetadata[chain].id]),
 ) as CompleteChainMap<number>;
 export type NameOrDomain = ChainName | number;
 
 export type Remotes<
-  Networks extends ChainName,
-  Local extends Networks,
-> = Exclude<Networks, Local>;
+  Chain extends ChainName,
+  LocalChain extends Chain,
+> = Exclude<Chain, LocalChain>;
 
 export type RemoteChainMap<
-  Networks extends ChainName,
-  Local extends Networks,
+  Chain extends ChainName,
+  LocalChain extends Chain,
   Value,
-> = Record<Remotes<Networks, Local>, Value>;
+> = Record<Remotes<Chain, LocalChain>, Value>;
 
 /**
  * A Domain (and its characteristics)
  */
-export type Domain = {
+export type ChainMetadata = {
   id: number;
   nativeTokenDecimals?: number;
   paginate?: Pagination;

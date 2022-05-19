@@ -9,16 +9,16 @@ import { InfrastructureConfig } from './infrastructure';
 
 export const EnvironmentNames = Object.keys(environments);
 export type DeployEnvironment = keyof typeof environments;
-export type EnvironmentNetworks<E extends DeployEnvironment> = Extract<
+export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   keyof typeof environments[E],
   ChainName
 >;
 
-export type CoreEnvironmentConfig<Networks extends ChainName> = {
-  transactionConfigs: EnvironmentConfig<Networks>;
-  agent: AgentConfig<Networks>;
-  core: ChainMap<Networks, CoreConfig>;
-  controller: ChainMap<Networks, ControllerConfig>;
+export type CoreEnvironmentConfig<Chain extends ChainName> = {
+  transactionConfigs: EnvironmentConfig<Chain>;
+  agent: AgentConfig<Chain>;
+  core: ChainMap<Chain, CoreConfig>;
+  controller: ChainMap<Chain, ControllerConfig>;
   infra: InfrastructureConfig;
-  getMultiProvider: () => Promise<MultiProvider<Networks>>;
+  getMultiProvider: () => Promise<MultiProvider<Chain>>;
 };

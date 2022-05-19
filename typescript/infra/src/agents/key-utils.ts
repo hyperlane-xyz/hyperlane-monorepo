@@ -14,10 +14,10 @@ interface KeyAsAddress {
   address: string;
 }
 
-export function getKey<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
+export function getKey<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
   role: KEY_ROLE_ENUM,
-  chainName?: Networks,
+  chainName?: Chain,
   index?: number,
 ): AgentKey {
   if (agentConfig.aws) {
@@ -31,7 +31,7 @@ export function getAllKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
   return KEY_ROLES.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
       // For each chainName, create validatorCount keys
-      return agentConfig.domainNames.flatMap((chainName) =>
+      return agentConfig.chainNames.flatMap((chainName) =>
         [
           ...Array(
             agentConfig.validatorSets[chainName].validators.length,
@@ -39,7 +39,7 @@ export function getAllKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
         ].map((index) => getKey(agentConfig, role, chainName, index)),
       );
     } else if (role === KEY_ROLE_ENUM.Relayer) {
-      return agentConfig.domainNames.map((chainName) =>
+      return agentConfig.chainNames.map((chainName) =>
         getKey(agentConfig, role, chainName),
       );
     } else {
@@ -75,10 +75,10 @@ export async function createAgentKeysIfNotExists(
   );
 }
 
-export async function rotateKey<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
+export async function rotateKey<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
   role: KEY_ROLE_ENUM,
-  chainName: Networks,
+  chainName: Chain,
 ) {
   const key = getKey(agentConfig, role, chainName);
   await key.update();
@@ -99,9 +99,9 @@ async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
 }
 
 // This function returns all keys for a given outbox chain in a dictionary where the key is the identifier
-export async function fetchKeysForChain<Networks extends ChainName>(
-  agentConfig: AgentConfig<Networks>,
-  chainName: Networks,
+export async function fetchKeysForChain<Chain extends ChainName>(
+  agentConfig: AgentConfig<Chain>,
+  chainName: Chain,
 ): Promise<Record<string, AgentKey>> {
   // Get all keys for the chainName. Include keys where chainName is undefined,
   // which are keys that are not chain-specific but should still be included

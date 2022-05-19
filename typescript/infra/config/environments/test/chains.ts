@@ -6,5 +6,5 @@ export const testConfigs = {
   test3: configs.test3,
 };
 
-export type TestNetworks = keyof typeof testConfigs;
-export const domainNames = Object.keys(testConfigs) as TestNetworks[];
+export type TestChains = keyof typeof testConfigs;
+export const chainNames = Object.keys(testConfigs) as TestChains[];

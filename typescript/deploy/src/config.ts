@@ -3,7 +3,7 @@ import { ethers } from 'ethers';
 import { ChainMap, ChainName } from '@abacus-network/sdk';
 
 export interface CheckerViolation {
-  network: ChainName;
+  chain: ChainName;
   type: string;
   expected: any;
   actual: any;
@@ -16,9 +16,10 @@ export type TransactionConfig = {
   // The number of confirmations considered reorg safe
   confirmations?: number;
   signer?: ethers.Signer;
+  provider?: ethers.providers.Provider;
 };
 
-export type EnvironmentConfig<Networks extends ChainName> = ChainMap<
-  Networks,
+export type EnvironmentConfig<Chain extends ChainName> = ChainMap<
+  Chain,
   TransactionConfig
 >;

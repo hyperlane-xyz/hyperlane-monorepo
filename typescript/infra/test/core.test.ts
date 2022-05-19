@@ -3,6 +3,7 @@ import { ethers } from 'hardhat';
 import path from 'path';
 
 import { AbacusCoreDeployer, CoreConfig } from '@abacus-network/deploy';
+import { getMultiProviderFromConfigAndSigner } from '@abacus-network/deploy/dist/src/utils';
 import {
   AbacusCore,
   ChainMap,
@@ -11,31 +12,31 @@ import {
   objMap,
 } from '@abacus-network/sdk';
 
-import { TestNetworks } from '../config/environments/test/domains';
-import { getCoreEnvironmentConfig } from '../scripts/utils';
+import { environment as testConfig } from '../config/environments/test';
+import { TestChains } from '../config/environments/test/chains';
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 
 describe('core', async () => {
   const environment = 'test';
 
-  let multiProvider: MultiProvider<TestNetworks>;
-  let deployer: AbacusCoreInfraDeployer<TestNetworks>;
-  let core: AbacusCore<TestNetworks>;
-  let addresses: ChainMap<
-    TestNetworks,
-    CoreContractAddresses<TestNetworks, any>
-  >;
-  let coreConfig: ChainMap<TestNetworks, CoreConfig>;
+  let multiProvider: MultiProvider<TestChains>;
+  let deployer: AbacusCoreInfraDeployer<TestChains>;
+  let core: AbacusCore<TestChains>;
+  let addresses: ChainMap<TestChains, CoreContractAddresses<TestChains, any>>;
+  let coreConfig: ChainMap<TestChains, CoreConfig>;
 
-  let owners: ChainMap<TestNetworks, string>;
+  let owners: ChainMap<TestChains, string>;
   before(async () => {
-    const config = getCoreEnvironmentConfig(environment);
-    multiProvider = await config.getMultiProvider();
-    coreConfig = config.core;
+    const [signer, owner] = await ethers.getSigners();
+    // This is kind of awkward and really these tests shouldn't live here
+    multiProvider = getMultiProviderFromConfigAndSigner(
+      testConfig.transactionConfigs,
+      signer,
+    );
+    coreConfig = testConfig.core;
     deployer = new AbacusCoreInfraDeployer(multiProvider, coreConfig);
-    const [, owner] = await ethers.getSigners();
-    owners = objMap(config.transactionConfigs, () => owner.address);
+    owners = objMap(testConfig.transactionConfigs, () => owner.address);
   });
 
   it('deploys', async () => {
@@ -55,9 +56,9 @@ describe('core', async () => {
   });
 
   it('checks', async () => {
-    const joinedConfig = objMap(coreConfig, (network, config) => ({
+    const joinedConfig = objMap(coreConfig, (chain, config) => ({
       ...config,
-      owner: owners[network],
+      owner: owners[chain],
     }));
     const checker = new AbacusCoreChecker(multiProvider, core, joinedConfig);
     await checker.check();

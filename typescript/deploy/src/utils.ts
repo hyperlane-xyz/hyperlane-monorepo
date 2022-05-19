@@ -50,12 +50,12 @@ function fixOverrides(config: TransactionConfig): ethers.Overrides {
   }
 }
 
-export const registerEnvironment = <Networks extends ChainName>(
-  multiProvider: MultiProvider<Networks>,
-  environmentConfig: EnvironmentConfig<Networks>,
+export const registerEnvironment = <Chain extends ChainName>(
+  multiProvider: MultiProvider<Chain>,
+  environmentConfig: EnvironmentConfig<Chain>,
 ) => {
-  multiProvider.apply((network, dc) => {
-    const txConfig = environmentConfig[network];
+  multiProvider.apply((chain, dc) => {
+    const txConfig = environmentConfig[chain];
     dc.registerOverrides(fixOverrides(txConfig));
     if (txConfig.confirmations) {
       dc.registerConfirmations(txConfig.confirmations);
@@ -66,28 +66,28 @@ export const registerEnvironment = <Networks extends ChainName>(
   });
 };
 
-export const registerSigners = <Networks extends ChainName>(
+export const registerSigners = <Chain extends ChainName>(
   multiProvider: MultiProvider,
-  signers: ChainMap<Networks, ethers.Signer>,
+  signers: ChainMap<Chain, ethers.Signer>,
 ) =>
-  objMap(signers, (network, signer) =>
-    multiProvider.getChainConnection(network).registerSigner(signer),
+  objMap(signers, (chain, signer) =>
+    multiProvider.getChainConnection(chain).registerSigner(signer),
   );
 
-export const registerSigner = <Networks extends ChainName>(
-  multiProvider: MultiProvider<Networks>,
+export const registerSigner = <Chain extends ChainName>(
+  multiProvider: MultiProvider<Chain>,
   signer: ethers.Signer,
 ) => multiProvider.apply((_, dc) => dc.registerSigner(signer));
 
-export const getMultiProviderFromConfigAndSigner = <Networks extends ChainName>(
-  environmentConfig: EnvironmentConfig<Networks>,
+export const getMultiProviderFromConfigAndSigner = <Chain extends ChainName>(
+  environmentConfig: EnvironmentConfig<Chain>,
   signer: ethers.Signer,
-): MultiProvider<Networks> => {
-  const networkProviders = objMap(environmentConfig, () => ({
+): MultiProvider<Chain> => {
+  const chainProviders = objMap(environmentConfig, () => ({
     provider: signer.provider!,
     signer,
   }));
-  const multiProvider = new MultiProvider(networkProviders);
+  const multiProvider = new MultiProvider(chainProviders);
   registerEnvironment(multiProvider, environmentConfig);
   return multiProvider;
 };

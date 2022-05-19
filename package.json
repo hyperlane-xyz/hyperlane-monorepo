@@ -2,7 +2,8 @@
   "name": "@abacus-network/monorepo",
   "scripts": {
     "build": "yarn workspaces foreach --parallel --topological run build",
-    "prettier": "yarn workspaces foreach --parallel run prettier"
+    "prettier": "yarn workspaces foreach --parallel run prettier",
+    "postinstall": "husky install"
   },
   "workspaces": [
     "solidity/*",
@@ -13,6 +14,7 @@
   "packageManager": "yarn@3.2.0",
   "devDependencies": {
     "@trivago/prettier-plugin-sort-imports": "^3.2.0",
+    "husky": "^8.0.0",
     "prettier": "^2.2.1",
     "typescript": "^4.3.5"
   }
