@@ -17,7 +17,7 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 #[cfg(not(doctest))]
 pub use crate::{inbox::*, outbox::*, validator_manager::*};
 
-mod report_tx;
+mod tx;
 
 #[macro_use]
 mod macros;

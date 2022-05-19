@@ -12,7 +12,7 @@ use tracing::instrument;
 use abacus_core::*;
 use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
 
-use crate::report_tx::report_tx;
+use crate::tx::report_tx;
 
 abigen!(
     EthereumOutboxInternal,

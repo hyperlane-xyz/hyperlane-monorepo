@@ -15,7 +15,7 @@ use abacus_core::{
     CheckpointMeta, CheckpointWithMeta, ContractLocator, Inbox, TxOutcome,
 };
 
-use crate::report_tx::report_tx;
+use crate::tx::report_tx;
 
 abigen!(
     EthereumInboxInternal,

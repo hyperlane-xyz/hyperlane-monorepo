@@ -11,7 +11,7 @@ use eyre::Result;
 use abacus_core::{ChainCommunicationError, ContractLocator, TxOutcome};
 use abacus_core::{InboxValidatorManager, MultisigSignedCheckpoint};
 
-use crate::report_tx::report_tx;
+use crate::tx::report_tx;
 
 abigen!(
     EthereumInboxValidatorManagerInternal,
