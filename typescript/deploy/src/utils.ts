@@ -5,7 +5,6 @@ import {
   AbacusCore,
   ChainMap,
   ChainName,
-  IChainConnection,
   MultiProvider,
   objMap,
 } from '@abacus-network/sdk';
