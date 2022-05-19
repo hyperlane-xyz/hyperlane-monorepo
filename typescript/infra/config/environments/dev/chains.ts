@@ -1,8 +1,8 @@
-import { configs } from '../../networks/testnets';
+import { chainConnectionConfigs } from '@abacus-network/sdk';
 
 export const devConfigs = {
-  alfajores: configs.alfajores,
-  kovan: configs.kovan,
+  alfajores: chainConnectionConfigs.alfajores,
+  kovan: chainConnectionConfigs.kovan,
 };
 
 export type DevChains = keyof typeof devConfigs;
