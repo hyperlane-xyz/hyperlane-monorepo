@@ -16,6 +16,7 @@ export type TransactionConfig = {
   // The number of confirmations considered reorg safe
   confirmations?: number;
   signer?: ethers.Signer;
+  provider?: ethers.providers.Provider;
 };
 
 export type EnvironmentConfig<Chain extends ChainName> = ChainMap<

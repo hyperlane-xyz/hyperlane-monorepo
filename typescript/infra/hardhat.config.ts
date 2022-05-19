@@ -12,13 +12,7 @@ import {
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
-import {
-  getCoreContractsSdkFilepath,
-  getCoreEnvironmentConfig,
-  getCoreRustDirectory,
-  getCoreVerificationDirectory,
-} from './scripts/utils';
-import { AbacusCoreInfraDeployer } from './src/core/deploy';
+import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
 import { AbacusContractVerifier } from './src/verify';
 
@@ -61,37 +55,6 @@ const chainSummary = async <Chain extends ChainName>(
   };
   return summary;
 };
-
-task('abacus', 'Deploys abacus on top of an already running Hardhat Network')
-  // If we import ethers from hardhat, we get error HH9 with included note.
-  // You probably tried to import the "hardhat" module from your config or a file imported from it.
-  // This is not possible, as Hardhat can't be initialized while its config is being defined.
-  .setAction(async (_: any, hre: HardhatRuntimeEnvironment) => {
-    const environment = 'test';
-    const config = getCoreEnvironmentConfig(environment);
-
-    // TODO: replace with config.getMultiProvider()
-    const [signer] = await hre.ethers.getSigners();
-    const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
-      config.transactionConfigs,
-      signer,
-    );
-
-    const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
-    const addresses = await deployer.deploy();
-
-    // Write configs
-    deployer.writeVerification(getCoreVerificationDirectory(environment));
-    deployer.writeRustConfigs(
-      environment,
-      getCoreRustDirectory(environment),
-      addresses,
-    );
-    deployer.writeContracts(
-      addresses,
-      getCoreContractsSdkFilepath(environment),
-    );
-  });
 
 task('kathy', 'Dispatches random abacus messages').setAction(
   async (_, hre: HardhatRuntimeEnvironment) => {
