@@ -1,4 +1,4 @@
-import { MultiProvider } from "@abacus-network/sdk";
+import { MultiProvider, TestChainNames } from "@abacus-network/sdk";
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from "ethers";
 import { extendEnvironment } from 'hardhat/config';
@@ -8,7 +8,6 @@ import { HardhatRuntimeEnvironment } from "hardhat/types";
 
 import "hardhat/types/runtime";
 import { TestCoreDeploy } from './src/TestCoreDeploy';
-import { TestNetworks } from './src/types';
 
 export { TestCoreApp } from './src/TestCoreApp';
 export { TestCoreDeploy } from './src/TestCoreDeploy';
@@ -19,8 +18,8 @@ declare module 'hardhat/types/runtime' {
   }
 }
 
-export function hardhatMultiProvider(hardhatEthers: HardhatRuntimeEnvironment['ethers'], signer?: ethers.Signer): MultiProvider<TestNetworks> {
-  return new MultiProvider<TestNetworks>({
+export function hardhatMultiProvider(hardhatEthers: HardhatRuntimeEnvironment['ethers'], signer?: ethers.Signer): MultiProvider<TestChainNames> {
+  return new MultiProvider<TestChainNames>({
     test1: {
       provider: hardhatEthers.provider,
       signer

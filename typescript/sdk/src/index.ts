@@ -9,6 +9,13 @@ export {
   routerFactories,
 } from './contracts';
 export {
+  Call,
+  ControllerAddresses,
+  ControllerApp,
+  ControllerContracts,
+  controllerEnvironments,
+} from './controller';
+export {
   AbacusCore,
   AbacusLifecyleEvent,
   AbacusMessage,
@@ -52,5 +59,6 @@ export {
   ProxiedAddress,
   RemoteChainMap,
   Remotes,
+  TestChainNames,
 } from './types';
 export { objMap, objMapEntries, promiseObjAll, utils } from './utils';

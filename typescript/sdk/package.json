@@ -5,7 +5,7 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r ./src/controller/lib ./dist/controller",
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./src ./test",
     "prepublishOnly": "npm run build",

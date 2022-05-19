@@ -2,8 +2,8 @@ import { TestCoreApp } from './TestCoreApp';
 import { TestInbox__factory, TestOutbox__factory } from '@abacus-network/core';
 import { AbacusCoreDeployer, CoreConfig } from '@abacus-network/deploy';
 import {
+  chainMetadata,
   CoreContractAddresses,
-  domains,
   MultiProvider,
   TestChainNames,
 } from '@abacus-network/sdk';
@@ -42,11 +42,11 @@ export class TestCoreDeploy extends AbacusCoreDeployer<TestChainNames> {
     const outbox = this.outboxFactoryBuilder(signer).attach(
       addresses.outbox.proxy,
     );
-    const remote = this.multiProvider.remotes(local)[0];
+    const remote = this.multiProvider.remoteChains(local)[0];
 
     // dispatch a dummy event to allow a consumer to checkpoint/process a single message
     await outbox.dispatch(
-      domains[remote].id,
+      chainMetadata[remote].id,
       utils.addressToBytes32(ethers.constants.AddressZero),
       '0x',
     );

@@ -6,9 +6,9 @@ import {
 } from '@abacus-network/core';
 import {
   AbacusCore,
+  chainMetadata,
   CoreContractAddresses,
   DomainIdToChainName,
-  domains,
   MultiProvider,
   objMap,
   Remotes,
@@ -68,10 +68,10 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
     >
   > {
     const responses = new Map();
-    for (const origin of this.networks()) {
+    for (const origin of this.chains()) {
       const outbound = await this.processOutboundMessages(origin);
       const originResponses = new Map();
-      this.remotes(origin).forEach((destination) =>
+      this.remoteChains(origin).forEach((destination) =>
         originResponses.set(destination, outbound.get(destination)),
       );
       responses.set(origin, originResponses);
@@ -94,7 +94,7 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
       }
 
       const destination = dispatch.args.destination;
-      if (destination === domains[origin].id) {
+      if (destination === chainMetadata[origin].id) {
         throw new Error('Dispatched message to local domain');
       }
       const destinationChain = DomainIdToChainName[destination] as Remotes<
