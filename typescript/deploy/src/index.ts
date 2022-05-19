@@ -1,9 +1,5 @@
 export { AbacusAppChecker, Ownable } from './check';
-export {
-  CheckerViolation,
-  EnvironmentConfig,
-  TransactionConfig,
-} from './config';
+export { CheckerViolation, EnvironmentConfig } from './config';
 export {
   AbacusCoreDeployer,
   CoreConfig,
