@@ -23,33 +23,6 @@ export class ChainConnection {
     this.confirmations = dc.confirmations ?? 0;
   }
 
-  registerOverrides = (overrides: ethers.Overrides) =>
-    (this.overrides = overrides);
-
-  registerConfirmations = (confirmations: number) =>
-    (this.confirmations = confirmations);
-
-  registerProvider(provider: ethers.providers.Provider) {
-    if (this.signer) {
-      this.signer.connect(provider);
-    }
-    this.provider = provider;
-  }
-
-  registerRpcURL(url: string) {
-    this.registerProvider(new ethers.providers.JsonRpcProvider(url));
-  }
-
-  registerSigner(signer: ethers.Signer) {
-    if (this.provider) {
-      signer.connect(this.provider);
-    }
-    this.signer = signer;
-  }
-
-  registerWalletSigner = (privatekey: string) =>
-    this.registerSigner(new ethers.Wallet(privatekey));
-
   getConnection = () => this.signer ?? this.provider;
 
   getAddress = () => this.signer?.getAddress();
