@@ -1,3 +1,4 @@
+import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
@@ -20,25 +21,33 @@ import {
   getContractVerificationInput,
 } from './verify';
 
+export interface DeployerOptions {
+  logger?: Debugger;
+}
+
 // TODO: Make AppDeployer generic on AbacusApp and return instance from deploy()
 export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
   verificationInputs: ChainMap<Chain, ContractVerificationInput[]>;
+  protected logger: Debugger;
 
   constructor(
     protected readonly multiProvider: MultiProvider<Chain>,
     protected readonly configMap: ChainMap<Chain, C>,
+    protected readonly options?: DeployerOptions,
   ) {
     this.verificationInputs = objMap(configMap, () => []);
+    this.logger = options?.logger || debug('abacus:AppDeployer');
   }
 
   abstract deployContracts(chain: Chain, config: C): Promise<A>;
 
   async deploy() {
+    this.logger('Start Deploy');
     this.verificationInputs = objMap(this.configMap, () => []);
-    const chains = Object.keys(this.configMap) as Chain[];
+    const chains = this.multiProvider.chains();
     const entries: [Chain, A][] = [];
     for (const chain of chains) {
-      console.log(`Deploying to ${chain}...`);
+      this.logger(`Deploying to ${chain}...`);
       const result = await this.deployContracts(chain, this.configMap[chain]);
       entries.push([chain, result]);
     }
@@ -51,6 +60,7 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
     factory: F,
     args: Parameters<F['deploy']>,
   ): Promise<ReturnType<F['deploy']>> {
+    this.logger(`Deploy ${contractName} on ${chain}`);
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const contract = await factory.deploy(...args, chainConnection.overrides);
     await contract.deployTransaction.wait(chainConnection.confirmations);

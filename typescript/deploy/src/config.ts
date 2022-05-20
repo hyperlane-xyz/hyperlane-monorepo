@@ -1,6 +1,4 @@
-import { ethers } from 'ethers';
-
-import { ChainMap, ChainName } from '@abacus-network/sdk';
+import { ChainMap, ChainName, IChainConnection } from '@abacus-network/sdk';
 
 export interface CheckerViolation {
   chain: ChainName;
@@ -10,16 +8,7 @@ export interface CheckerViolation {
   data?: any;
 }
 
-export type TransactionConfig = {
-  overrides?: ethers.Overrides;
-  supports1559?: boolean;
-  // The number of confirmations considered reorg safe
-  confirmations?: number;
-  signer?: ethers.Signer;
-  provider?: ethers.providers.Provider;
-};
-
 export type EnvironmentConfig<Chain extends ChainName> = ChainMap<
   Chain,
-  TransactionConfig
+  IChainConnection
 >;

@@ -1,3 +1,5 @@
+import { debug } from 'debug';
+
 import {
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
@@ -13,7 +15,7 @@ import {
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
-import { AbacusAppDeployer } from '../deploy';
+import { AbacusAppDeployer, DeployerOptions } from '../deploy';
 
 import { Router, RouterConfig } from './types';
 
@@ -30,14 +32,17 @@ export abstract class AbacusRouterDeployer<
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, Config>,
     core?: AbacusCore<Chain>,
+    options?: DeployerOptions,
   ) {
-    super(multiProvider, configMap);
+    const logger = options?.logger || debug('abacus:RouterDeployer');
+    super(multiProvider, configMap, { ...options, logger });
     this.core = core;
   }
 
   async deploy() {
     const deploymentOutput = await super.deploy();
 
+    this.logger(`Enroll Routers with each other`);
     // Make all routers aware of eachother.
     await promiseObjAll(
       objMap(deploymentOutput, async (local, addresses) => {
@@ -47,6 +52,7 @@ export abstract class AbacusRouterDeployer<
             remote,
             deploymentOutput[remote],
           );
+          this.logger(`Enroll ${remote}'s router on ${local}`);
           await localRouter.enrollRemoteRouter(
             chainMetadata[remote].id,
             utils.addressToBytes32(remoteRouter.address),

@@ -1,16 +1,18 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use abacus_core::*;
-use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
+use std::{error::Error as StdError, sync::Arc};
+
 use async_trait::async_trait;
 use ethers::contract::abigen;
 use ethers::core::types::H256;
 use eyre::Result;
-use std::{error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
-use crate::report_tx;
+use abacus_core::*;
+use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
+
+use crate::tx::report_tx;
 
 abigen!(
     EthereumOutboxInternal,
@@ -257,7 +259,7 @@ where
             message.body.clone().into(),
         );
 
-        Ok(report_tx!(tx).into())
+        Ok(report_tx(tx).await?.into())
     }
 
     #[tracing::instrument(err, skip(self))]
@@ -279,6 +281,6 @@ where
     async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
         let tx = self.contract.checkpoint();
 
-        Ok(report_tx!(tx).into())
+        Ok(report_tx(tx).await?.into())
     }
 }
