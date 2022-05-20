@@ -72,9 +72,9 @@ pub async fn make_outbox_indexer(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: OutboxIndexerParams,
+    params: OutboxIndexerParams,
 ) -> Result<Box<dyn OutboxIndexer>> {
-    build_trait(conn, locator, signer, args).await
+    build_trait(conn, locator, signer, params).await
 }
 
 /// Cast a contract locator to a live contract handle
@@ -82,9 +82,9 @@ pub async fn make_inbox_indexer(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: InboxIndexerParams,
+    params: InboxIndexerParams,
 ) -> Result<Box<dyn AbacusCommonIndexer>> {
-    build_trait(conn, locator, signer, args).await
+    build_trait(conn, locator, signer, params).await
 }
 
 /// Cast a contract locator to a live contract handle
@@ -92,9 +92,9 @@ pub async fn make_outbox(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: OutboxParams,
+    params: OutboxParams,
 ) -> Result<Box<dyn Outbox>> {
-    build_trait(conn, locator, signer, args).await
+    build_trait(conn, locator, signer, params).await
 }
 
 /// Cast a contract locator to a live contract handle
@@ -102,9 +102,9 @@ pub async fn make_inbox(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: InboxArgs,
+    params: InboxParams,
 ) -> Result<Box<dyn Inbox>> {
-    build_trait(conn, locator, signer, args).await
+    build_trait(conn, locator, signer, params).await
 }
 
 /// Cast a contract locator to a live contract handle
@@ -112,9 +112,9 @@ pub async fn make_inbox_validator_manager(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: InboxValidatorManagerArgs,
+    params: InboxValidatorManagerParams,
 ) -> Result<Box<dyn InboxValidatorManager>> {
-    build_trait(conn, locator, signer, args).await
+    build_trait(conn, locator, signer, params).await
 }
 
 #[async_trait::async_trait]

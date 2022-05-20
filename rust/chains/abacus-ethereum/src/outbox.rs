@@ -9,10 +9,13 @@ use ethers::prelude::*;
 use eyre::Result;
 use tracing::instrument;
 
-use crate::trait_builder::MakeableWithProvider;
-use abacus_core::*;
-use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
+use abacus_core::{
+    AbacusCommon, AbacusCommonIndexer, ChainCommunicationError, Checkpoint, CheckpointMeta,
+    CheckpointWithMeta, ContractLocator, Message, Outbox, OutboxIndexer, RawCommittedMessage,
+    State, TxOutcome,
+};
 
+use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
 
 abigen!(

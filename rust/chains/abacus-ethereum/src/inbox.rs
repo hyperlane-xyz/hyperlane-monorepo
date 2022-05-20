@@ -9,13 +9,13 @@ use ethers::prelude::*;
 use eyre::Result;
 use tracing::instrument;
 
-use crate::trait_builder::MakeableWithProvider;
-use abacus_core::{accumulator::merkle::Proof, MessageStatus, *};
 use abacus_core::{
-    AbacusCommon, AbacusCommonIndexer, AbacusMessage, ChainCommunicationError, Checkpoint,
-    CheckpointMeta, CheckpointWithMeta, ContractLocator, Inbox, TxOutcome,
+    accumulator::merkle::Proof, AbacusCommon, AbacusCommonIndexer, AbacusMessage,
+    ChainCommunicationError, Checkpoint, CheckpointMeta, CheckpointWithMeta, ContractLocator,
+    Encode, Inbox, MessageStatus, TxOutcome,
 };
 
+use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
 
 abigen!(
@@ -146,9 +146,9 @@ where
     }
 }
 
-pub struct InboxArgs {}
+pub struct InboxParams {}
 
-impl MakeableWithProvider for InboxArgs {
+impl MakeableWithProvider for InboxParams {
     type Output = Box<dyn Inbox>;
 
     fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
