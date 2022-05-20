@@ -1,7 +1,7 @@
 import { AbacusCoreDeployer } from '@abacus-network/deploy';
-import { AbacusCore, objMap } from '@abacus-network/sdk';
+import { AbacusCore, ChainMap, objMap } from '@abacus-network/sdk';
 
-import { ControllerDeployer } from '../src/controller';
+import { ControllerConfig, ControllerDeployer } from '../src/controller';
 
 import {
   getControllerContractsSdkFilepath,
@@ -15,12 +15,10 @@ async function main() {
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
+  const controllerConfig: ChainMap<any, ControllerConfig> =
+    core.extendWithConnectionManagers(config.controller);
 
-  const deployer = new ControllerDeployer(
-    multiProvider,
-    config.controller,
-    core,
-  );
+  const deployer = new ControllerDeployer(multiProvider, controllerConfig);
   const addresses = await deployer.deploy();
   deployer.writeContracts(
     addresses,

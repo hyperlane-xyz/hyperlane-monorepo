@@ -26,16 +26,18 @@ describe('controller', async () => {
   let controllerConfig: ChainMap<TestChains, ControllerConfig>;
 
   before(async () => {
-    controllerConfig = config.controller;
     const [signer] = await ethers.getSigners();
     // This is kind of awkward and really these tests shouldn't live here
     multiProvider = getMultiProviderFromConfigAndSigner(
       config.transactionConfigs,
       signer,
     );
-    const core = AbacusCore.fromEnvironment('test', multiProvider);
-    console.log(core);
-    deployer = new ControllerDeployer(multiProvider, controllerConfig, core);
+    const core: AbacusCore<TestChains> = AbacusCore.fromEnvironment(
+      'test',
+      multiProvider,
+    );
+    controllerConfig = core.extendWithConnectionManagers(config.controller);
+    deployer = new ControllerDeployer(multiProvider, controllerConfig);
   });
 
   it('deploys', async () => {

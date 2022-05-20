@@ -2,7 +2,10 @@ import { ChainMap } from '@abacus-network/sdk';
 
 import { ControllerConfig } from '../../../src/controller';
 
-const defaultControllerConfig: ControllerConfig = {
+const defaultControllerConfig: Omit<
+  ControllerConfig,
+  'abacusConnectionManager'
+> = {
   recoveryManager: '0xfaD1C94469700833717Fa8a3017278BC1cA8031C',
   recoveryTimelock: 180,
 };
@@ -20,5 +23,7 @@ const addresses = {
   optimismkovan: defaultControllerConfig,
 };
 
-export const controller: ChainMap<keyof typeof addresses, ControllerConfig> =
-  addresses;
+export const controller: ChainMap<
+  keyof typeof addresses,
+  Omit<ControllerConfig, 'abacusConnectionManager'>
+> = addresses;

@@ -17,4 +17,7 @@ const addresses = {
   kovan: defaultControllerConfig,
 };
 
-export const controller: ChainMap<DevChains, ControllerConfig> = addresses;
+export const controller: ChainMap<
+  DevChains,
+  Omit<ControllerConfig, 'abacusConnectionManager'>
+> = addresses;

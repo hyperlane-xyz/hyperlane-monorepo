@@ -22,9 +22,6 @@ export class ControllerDeployer<
     const dc = this.multiProvider.getChainConnection(chain);
     const signer = dc.signer!;
 
-    const abacusConnectionManager =
-      await this.deployConnectionManagerIfNotConfigured(chain);
-
     const upgradeBeaconController = await this.deployContract(
       chain,
       'UpgradeBeaconController',
@@ -38,16 +35,9 @@ export class ControllerDeployer<
       new ControllerRouter__factory(signer),
       [config.recoveryTimelock],
       upgradeBeaconController.address,
-      [abacusConnectionManager.address],
+      [config.abacusConnectionManager],
     );
 
-    // Only transfer ownership if a new ACM was deployed.
-    if (abacusConnectionManager.deployTransaction) {
-      await abacusConnectionManager.transferOwnership(
-        router.address,
-        dc.overrides,
-      );
-    }
     await upgradeBeaconController.transferOwnership(
       router.address,
       dc.overrides,
@@ -56,7 +46,7 @@ export class ControllerDeployer<
     return {
       router: router.addresses,
       upgradeBeaconController: upgradeBeaconController.address,
-      abacusConnectionManager: abacusConnectionManager.address,
+      abacusConnectionManager: config.abacusConnectionManager,
     };
   }
 
