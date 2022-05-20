@@ -10,10 +10,9 @@ use num::Num;
 
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
-pub use trait_builder::MakeableWithProvider;
 
 #[cfg(not(doctest))]
-pub use crate::{inbox::*, outbox::*, validator_manager::*};
+pub use crate::{inbox::*, outbox::*, trait_builder::*, validator_manager::*};
 
 #[cfg(not(doctest))]
 mod tx;
