@@ -75,16 +75,15 @@ where
     /// Create new EthereumInboxIndexer
     pub fn new(
         provider: Arc<M>,
-        ContractLocator {
-            name: _,
-            domain: _,
-            address,
-        }: &ContractLocator,
+        locator: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
     ) -> Self {
         Self {
-            contract: Arc::new(EthereumInboxInternal::new(address, provider.clone())),
+            contract: Arc::new(EthereumInboxInternal::new(
+                &locator.address,
+                provider.clone(),
+            )),
             provider,
             from_height,
             chunk_size,

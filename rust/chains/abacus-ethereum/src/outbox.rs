@@ -68,16 +68,15 @@ where
     /// Create new EthereumOutboxIndexer
     pub fn new(
         provider: Arc<M>,
-        ContractLocator {
-            name: _,
-            domain: _,
-            address,
-        }: &ContractLocator,
+        locator: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
     ) -> Self {
         Self {
-            contract: Arc::new(EthereumOutboxInternal::new(address, provider.clone())),
+            contract: Arc::new(EthereumOutboxInternal::new(
+                &locator.address,
+                provider.clone(),
+            )),
             provider,
             from_height,
             chunk_size,
@@ -195,18 +194,14 @@ where
 {
     /// Create a reference to a outbox at a specific Ethereum address on some
     /// chain
-    pub fn new(
-        provider: Arc<M>,
-        ContractLocator {
-            name,
-            domain,
-            address,
-        }: &ContractLocator,
-    ) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumOutboxInternal::new(address, provider.clone())),
-            domain: *domain,
-            name: name.to_owned(),
+            contract: Arc::new(EthereumOutboxInternal::new(
+                &locator.address,
+                provider.clone(),
+            )),
+            domain: locator.domain,
+            name: locator.name.to_owned(),
             provider,
         }
     }

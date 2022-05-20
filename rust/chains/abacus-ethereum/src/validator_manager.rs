@@ -66,22 +66,14 @@ where
 {
     /// Create a reference to a inbox at a specific Ethereum address on some
     /// chain
-    pub fn new(
-        provider: Arc<M>,
-        ContractLocator {
-            name,
-            domain,
-            address,
-        }: &ContractLocator,
-        inbox_address: Address,
-    ) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, inbox_address: Address) -> Self {
         Self {
             contract: Arc::new(EthereumInboxValidatorManagerInternal::new(
-                address,
+                &locator.address,
                 provider.clone(),
             )),
-            domain: *domain,
-            name: name.to_owned(),
+            domain: locator.domain,
+            name: locator.name.to_owned(),
             provider,
             inbox_address,
         }
