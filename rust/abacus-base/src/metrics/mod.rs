@@ -3,4 +3,4 @@
 pub const NAMESPACE: &str = "abacus";
 
 mod core;
-pub use core::*;
+pub use self::core::*;

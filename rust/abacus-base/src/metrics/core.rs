@@ -62,10 +62,10 @@ impl CoreMetrics {
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect::<HashMap<_, _>>();
 
-        /// - `address_from` is the source address/wallet
-        /// - `address_to` is the destination address/wallet
-        /// - `txn_status` is one of `dispatched`, `completed`, or `failed`.
-        /// - `chain` is the chain name (or ID if the name is unknown) of the chain the txn occured on
+        // - `address_from` is the source address/wallet
+        // - `address_to` is the destination address/wallet
+        // - `txn_status` is one of `dispatched`, `completed`, or `failed`.
+        // - `chain` is the chain name (or ID if the name is unknown) of the chain the txn occurred on
         let transactions = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("transactions_total"),
@@ -217,8 +217,9 @@ impl CoreMetrics {
             .with_label_values(&[
                 "dispatched",
                 chain,
-                &format!("{address:x}"),
-                &self.agent_name,
+                &format!("{:x}", from.0),
+                &format!("{:x}", to.0),
+                &self.agent_name, // TODO: this does not seem to line up with the actual labels
             ])
             .inc()
     }
@@ -228,7 +229,8 @@ impl CoreMetrics {
             .with_label_values(&[
                 "completed",
                 chain,
-                &format!("{address:x}"),
+                &format!("{:x}", from.0),
+                &format!("{:x}", to.0),
                 &self.agent_name,
             ])
             .inc()

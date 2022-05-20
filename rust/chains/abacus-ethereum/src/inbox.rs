@@ -16,7 +16,7 @@ use abacus_core::{
 };
 
 use crate::trait_builder::MakeableWithProvider;
-use crate::tx::report_tx::report_tx;
+use crate::tx::report_tx;
 
 abigen!(
     EthereumInboxInternal,
@@ -70,7 +70,6 @@ where
     from_height: u32,
     #[allow(unused)]
     chunk_size: u32,
-    metrics: Arc<dyn MetricsSubscriber>,
 }
 
 impl<M> EthereumInboxIndexer<M>
@@ -83,7 +82,6 @@ where
         locator: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
-        metrics: Arc<dyn MetricsSubscriber>,
     ) -> Self {
         Self {
             contract: Arc::new(EthereumInboxInternal::new(
@@ -93,7 +91,6 @@ where
             provider,
             from_height,
             chunk_size,
-            metrics,
         }
     }
 }

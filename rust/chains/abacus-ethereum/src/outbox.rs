@@ -1,11 +1,11 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::{error::Error as StdError, sync::Arc};
 use async_trait::async_trait;
 use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
+use std::{error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
 use abacus_core::{
@@ -65,7 +65,6 @@ where
     from_height: u32,
     #[allow(unused)]
     chunk_size: u32,
-    metrics: Arc<dyn MetricsSubscriber>,
 }
 
 impl<M> EthereumOutboxIndexer<M>
@@ -78,7 +77,6 @@ where
         locator: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
-        metrics: Arc<dyn MetricsSubscriber>,
     ) -> Self {
         Self {
             contract: Arc::new(EthereumOutboxInternal::new(
@@ -88,7 +86,6 @@ where
             provider,
             from_height,
             chunk_size,
-            metrics,
         }
     }
 }
