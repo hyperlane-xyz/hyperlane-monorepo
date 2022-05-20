@@ -5,12 +5,13 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::contract::abigen;
-use ethers::core::types::Address;
+use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{ChainCommunicationError, ContractLocator, TxOutcome};
 use abacus_core::{InboxValidatorManager, MultisigSignedCheckpoint};
 
+use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
 
 abigen!(
@@ -20,7 +21,7 @@ abigen!(
 
 impl<M> std::fmt::Display for EthereumInboxValidatorManagerInternal<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
@@ -31,7 +32,7 @@ where
 #[derive(Debug)]
 pub struct EthereumInboxValidatorManager<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     contract: Arc<EthereumInboxValidatorManagerInternal<M>>,
     #[allow(unused)]
@@ -43,9 +44,26 @@ where
     inbox_address: Address,
 }
 
+pub struct EthereumInboxValidatorManagerArgs<'a> {
+    pub locator: &'a ContractLocator,
+    pub inbox_address: Address,
+}
+
+impl<'a> MakeableWithProvider for EthereumInboxValidatorManagerArgs<'a> {
+    type Output = Box<dyn InboxValidatorManager>;
+
+    fn make<M: Middleware + 'static>(self, provider: M) -> Self::Output {
+        Box::new(EthereumInboxValidatorManager::new(
+            Arc::new(provider),
+            self.locator,
+            self.inbox_address,
+        ))
+    }
+}
+
 impl<M> EthereumInboxValidatorManager<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     /// Create a reference to a inbox at a specific Ethereum address on some
     /// chain
@@ -74,7 +92,7 @@ where
 #[async_trait]
 impl<M> InboxValidatorManager for EthereumInboxValidatorManager<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     #[tracing::instrument(err, skip(self))]
     async fn submit_checkpoint(

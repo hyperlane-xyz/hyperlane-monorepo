@@ -6,21 +6,23 @@
 
 use std::sync::Arc;
 
-use ethers::providers::Middleware;
-use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
+use ethers::prelude::*;
+use ethers::types::Address;
 use eyre::Result;
 use num::Num;
 
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
+use crate::trait_builder::build_trait;
 #[cfg(not(doctest))]
 pub use crate::{inbox::*, outbox::*, validator_manager::*};
 
+#[cfg(not(doctest))]
 mod tx;
 
-#[macro_use]
-mod macros;
+#[cfg(not(doctest))]
+mod trait_builder;
 
 /// Outbox abi
 #[cfg(not(doctest))]
@@ -68,28 +70,46 @@ pub struct Chain {
     ethers: ethers::providers::Provider<ethers::providers::Http>,
 }
 
-boxed_trait!(
-    make_outbox_indexer,
-    EthereumOutboxIndexer,
-    OutboxIndexer,
-    from_height: u32,
-    chunk_size: u32
-);
-boxed_trait!(
-    make_inbox_indexer,
-    EthereumInboxIndexer,
-    AbacusCommonIndexer,
-    from_height: u32,
-    chunk_size: u32
-);
-boxed_trait!(make_outbox, EthereumOutbox, Outbox,);
-boxed_trait!(make_inbox, EthereumInbox, Inbox,);
-boxed_trait!(
-    make_inbox_validator_manager,
-    EthereumInboxValidatorManager,
-    InboxValidatorManager,
-    inbox_address: Address
-);
+/// Cast a contract locator to a live contract handle
+pub async fn make_outbox_indexer<'a>(
+    conn: Connection,
+    signer: Option<Signers>,
+    args: EthereumOutboxIndexerParams<'a>,
+) -> Result<Box<dyn OutboxIndexer>> {
+    build_trait(conn, args, signer).await
+}
+
+pub async fn make_inbox_indexer<'a>(
+    conn: Connection,
+    signer: Option<Signers>,
+    args: EthereumInboxIndexerParams<'a>,
+) -> Result<Box<dyn AbacusCommonIndexer>> {
+    build_trait(conn, args, signer).await
+}
+
+pub async fn make_outbox<'a>(
+    conn: Connection,
+    signer: Option<Signers>,
+    args: EthereumOutboxParams<'a>,
+) -> Result<Box<dyn Outbox>> {
+    build_trait(conn, args, signer).await
+}
+
+pub async fn make_inbox<'a>(
+    conn: Connection,
+    signer: Option<Signers>,
+    args: EthereumInboxArgs<'a>,
+) -> Result<Box<dyn Inbox>> {
+    build_trait(conn, args, signer).await
+}
+
+pub async fn make_inbox_validator_manager<'a>(
+    conn: Connection,
+    signer: Option<Signers>,
+    args: EthereumInboxValidatorManagerArgs<'a>
+) -> Result<Box<dyn InboxValidatorManager>> {
+    build_trait(conn, args, signer).await
+}
 
 #[async_trait::async_trait]
 impl abacus_core::Chain for Chain {
