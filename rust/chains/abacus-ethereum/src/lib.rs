@@ -77,7 +77,7 @@ pub async fn make_outbox_indexer(
     build_trait(conn, locator, signer, args).await
 }
 
-// Cast a contract locator to a live contract handle
+/// Cast a contract locator to a live contract handle
 pub async fn make_inbox_indexer(
     conn: Connection,
     locator: &ContractLocator,
@@ -87,7 +87,7 @@ pub async fn make_inbox_indexer(
     build_trait(conn, locator, signer, args).await
 }
 
-// Cast a contract locator to a live contract handle
+/// Cast a contract locator to a live contract handle
 pub async fn make_outbox(
     conn: Connection,
     locator: &ContractLocator,
@@ -97,7 +97,7 @@ pub async fn make_outbox(
     build_trait(conn, locator, signer, args).await
 }
 
-// Cast a contract locator to a live contract handle
+/// Cast a contract locator to a live contract handle
 pub async fn make_inbox(
     conn: Connection,
     locator: &ContractLocator,
@@ -107,7 +107,7 @@ pub async fn make_inbox(
     build_trait(conn, locator, signer, args).await
 }
 
-// Cast a contract locator to a live contract handle
+/// Cast a contract locator to a live contract handle
 pub async fn make_inbox_validator_manager(
     conn: Connection,
     locator: &ContractLocator,
