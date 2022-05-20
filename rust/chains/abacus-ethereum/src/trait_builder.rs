@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use ethers::prelude::*;
 
-use abacus_core::Signers;
+use abacus_core::{ContractLocator, Signers};
 
 use crate::Connection;
 
@@ -23,13 +23,14 @@ async fn make_signing_provider<M: Middleware>(
 pub(crate) trait MakeableWithProvider {
     type Output;
 
-    fn make<M: Middleware + 'static>(self, provider: M) -> Self::Output;
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output;
 }
 
 pub(super) async fn build_trait<M: MakeableWithProvider>(
     conn: Connection,
-    builder: M,
+    locator: &ContractLocator,
     signer: Option<Signers>,
+    builder: M,
 ) -> eyre::Result<M::Output> {
     Ok(match conn {
         Connection::Http { url } => {
@@ -38,9 +39,9 @@ pub(super) async fn build_trait<M: MakeableWithProvider>(
 
             if let Some(signer) = signer {
                 let signing_provider = make_signing_provider(provider, signer).await?;
-                builder.make(signing_provider)
+                builder.make(signing_provider, locator)
             } else {
-                builder.make(provider)
+                builder.make(provider, locator)
             }
         }
         Connection::Ws { url } => {
@@ -49,9 +50,9 @@ pub(super) async fn build_trait<M: MakeableWithProvider>(
 
             if let Some(signer) = signer {
                 let signing_provider = make_signing_provider(provider, signer).await?;
-                builder.make(signing_provider)
+                builder.make(signing_provider, locator)
             } else {
-                builder.make(provider)
+                builder.make(provider, locator)
             }
         }
     })

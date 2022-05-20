@@ -50,19 +50,18 @@ where
     chunk_size: u32,
 }
 
-pub struct EthereumInboxIndexerParams<'a> {
-    pub locator: &'a ContractLocator,
+pub struct EthereumInboxIndexerParams {
     pub from_height: u32,
     pub chunk_size: u32,
 }
 
-impl<'a> MakeableWithProvider for EthereumInboxIndexerParams<'a> {
+impl MakeableWithProvider for EthereumInboxIndexerParams {
     type Output = Box<dyn AbacusCommonIndexer>;
 
-    fn make<M: Middleware + 'static>(self, provider: M) -> Self::Output {
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
         Box::new(EthereumInboxIndexer::new(
             Arc::new(provider),
-            self.locator,
+            locator,
             self.from_height,
             self.chunk_size,
         ))
@@ -160,15 +159,14 @@ where
     provider: Arc<M>,
 }
 
-pub struct EthereumInboxArgs<'a> {
-    pub locator: &'a ContractLocator,
+pub struct EthereumInboxArgs {
 }
 
-impl<'a> MakeableWithProvider for EthereumInboxArgs<'a> {
+impl MakeableWithProvider for EthereumInboxArgs {
     type Output = Box<dyn Inbox>;
 
-    fn make<M: Middleware + 'static>(self, provider: M) -> Self::Output {
-        Box::new(EthereumInbox::new(Arc::new(provider), self.locator))
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+        Box::new(EthereumInbox::new(Arc::new(provider), locator))
     }
 }
 

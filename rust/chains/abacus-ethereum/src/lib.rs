@@ -4,10 +4,7 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use std::sync::Arc;
-
 use ethers::prelude::*;
-use ethers::types::Address;
 use eyre::Result;
 use num::Num;
 
@@ -67,48 +64,57 @@ impl Default for Connection {
 /// A live connection to an ethereum-compatible chain.
 pub struct Chain {
     creation_metadata: Connection,
-    ethers: ethers::providers::Provider<ethers::providers::Http>,
+    ethers: Provider<Http>,
 }
 
 /// Cast a contract locator to a live contract handle
-pub async fn make_outbox_indexer<'a>(
+pub async fn make_outbox_indexer(
     conn: Connection,
+    locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumOutboxIndexerParams<'a>,
+    args: EthereumOutboxIndexerParams,
 ) -> Result<Box<dyn OutboxIndexer>> {
-    build_trait(conn, args, signer).await
+    build_trait(conn, locator, signer, args).await
 }
 
-pub async fn make_inbox_indexer<'a>(
+// Cast a contract locator to a live contract handle
+pub async fn make_inbox_indexer(
     conn: Connection,
+    locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumInboxIndexerParams<'a>,
+    args: EthereumInboxIndexerParams,
 ) -> Result<Box<dyn AbacusCommonIndexer>> {
-    build_trait(conn, args, signer).await
+    build_trait(conn, locator, signer, args).await
 }
 
-pub async fn make_outbox<'a>(
+// Cast a contract locator to a live contract handle
+pub async fn make_outbox(
     conn: Connection,
+    locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumOutboxParams<'a>,
+    args: EthereumOutboxParams,
 ) -> Result<Box<dyn Outbox>> {
-    build_trait(conn, args, signer).await
+    build_trait(conn, locator, signer, args).await
 }
 
-pub async fn make_inbox<'a>(
+// Cast a contract locator to a live contract handle
+pub async fn make_inbox(
     conn: Connection,
+    locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumInboxArgs<'a>,
+    args: EthereumInboxArgs,
 ) -> Result<Box<dyn Inbox>> {
-    build_trait(conn, args, signer).await
+    build_trait(conn, locator, signer, args).await
 }
 
-pub async fn make_inbox_validator_manager<'a>(
+// Cast a contract locator to a live contract handle
+pub async fn make_inbox_validator_manager(
     conn: Connection,
+    locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumInboxValidatorManagerArgs<'a>
+    args: EthereumInboxValidatorManagerArgs,
 ) -> Result<Box<dyn InboxValidatorManager>> {
-    build_trait(conn, args, signer).await
+    build_trait(conn, locator, signer, args).await
 }
 
 #[async_trait::async_trait]

@@ -44,18 +44,17 @@ where
     inbox_address: Address,
 }
 
-pub struct EthereumInboxValidatorManagerArgs<'a> {
-    pub locator: &'a ContractLocator,
+pub struct EthereumInboxValidatorManagerArgs {
     pub inbox_address: Address,
 }
 
-impl<'a> MakeableWithProvider for EthereumInboxValidatorManagerArgs<'a> {
+impl MakeableWithProvider for EthereumInboxValidatorManagerArgs {
     type Output = Box<dyn InboxValidatorManager>;
 
-    fn make<M: Middleware + 'static>(self, provider: M) -> Self::Output {
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
         Box::new(EthereumInboxValidatorManager::new(
             Arc::new(provider),
-            self.locator,
+            locator,
             self.inbox_address,
         ))
     }

@@ -9,9 +9,9 @@ use ethers::prelude::*;
 use eyre::Result;
 use tracing::instrument;
 
+use crate::trait_builder::MakeableWithProvider;
 use abacus_core::*;
 use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
-use crate::trait_builder::MakeableWithProvider;
 
 use crate::tx::report_tx;
 
@@ -43,19 +43,18 @@ where
     chunk_size: u32,
 }
 
-pub struct EthereumOutboxIndexerParams<'a> {
-    pub locator: &'a ContractLocator,
+pub struct EthereumOutboxIndexerParams {
     pub from_height: u32,
     pub chunk_size: u32,
 }
 
-impl<'a> MakeableWithProvider for EthereumOutboxIndexerParams<'a> {
+impl MakeableWithProvider for EthereumOutboxIndexerParams {
     type Output = Box<dyn OutboxIndexer>;
 
-    fn make<M: Middleware + 'static>(self, provider: M) -> Self::Output {
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
         Box::new(EthereumOutboxIndexer::new(
             Arc::new(provider),
-            self.locator,
+            locator,
             self.from_height,
             self.chunk_size,
         ))
@@ -180,16 +179,13 @@ where
     provider: Arc<M>,
 }
 
-pub struct EthereumOutboxParams<'a> {
-    pub locator: &'a ContractLocator
-}
+pub struct EthereumOutboxParams {}
 
-impl
-<'a> MakeableWithProvider for EthereumOutboxParams<'a> {
+impl MakeableWithProvider for EthereumOutboxParams {
     type Output = Box<dyn Outbox>;
 
-    fn make<M: Middleware + 'static>(self, provider: M) -> Self::Output {
-        Box::new(EthereumOutbox::new(Arc::new(provider), self.locator))
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+        Box::new(EthereumOutbox::new(Arc::new(provider), locator))
     }
 }
 
