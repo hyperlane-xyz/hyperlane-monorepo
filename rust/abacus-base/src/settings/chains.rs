@@ -3,8 +3,8 @@ use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};
 use abacus_ethereum::{
-    make_inbox, make_inbox_validator_manager, make_outbox, Connection, InboxParams,
-    InboxValidatorManagerParams, OutboxParams,
+    make_inbox, make_inbox_validator_manager, make_outbox, Connection, InboxConfig,
+    InboxValidatorManagerConfig, OutboxConfig,
 };
 
 use crate::{
@@ -81,7 +81,7 @@ impl ChainSetup<OutboxAddresses> {
                             .into(),
                     },
                     signer,
-                    OutboxParams {},
+                    OutboxConfig {},
                 )
                 .await?,
             )
@@ -107,7 +107,7 @@ impl ChainSetup<InboxAddresses> {
                             .into(),
                     },
                     signer,
-                    InboxParams {},
+                    InboxConfig {},
                 )
                 .await?,
             )
@@ -136,7 +136,7 @@ impl ChainSetup<InboxAddresses> {
                             .into(),
                     },
                     signer,
-                    InboxValidatorManagerParams { inbox_address },
+                    InboxValidatorManagerConfig { inbox_address },
                 )
                 .await?,
             )

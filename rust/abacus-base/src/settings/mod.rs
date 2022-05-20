@@ -53,7 +53,7 @@ use abacus_core::{
     AbacusCommon, ContractLocator, Signers,
 };
 use abacus_ethereum::{
-    make_inbox_indexer, make_outbox_indexer, InboxIndexerParams, OutboxIndexerParams,
+    make_inbox_indexer, make_outbox_indexer, InboxIndexerConfig, OutboxIndexerConfig,
 };
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
 
@@ -294,7 +294,7 @@ impl Settings {
                             .into(),
                     },
                     signer,
-                    OutboxIndexerParams {
+                    OutboxIndexerConfig {
                         from_height: self.index.from(),
                         chunk_size: self.index.chunk_size(),
                     },
@@ -325,7 +325,7 @@ impl Settings {
                             .into(),
                     },
                     signer,
-                    InboxIndexerParams {
+                    InboxIndexerConfig {
                         from_height: self.index.from(),
                         chunk_size: self.index.chunk_size(),
                     },

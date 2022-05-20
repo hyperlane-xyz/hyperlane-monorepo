@@ -11,7 +11,7 @@ use num::Num;
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
-use crate::trait_builder::build_trait;
+use crate::trait_builder::MakeableWithProvider;
 #[cfg(not(doctest))]
 pub use crate::{inbox::*, outbox::*, validator_manager::*};
 
@@ -72,9 +72,9 @@ pub async fn make_outbox_indexer(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    params: OutboxIndexerParams,
+    builder: &OutboxIndexerConfig,
 ) -> Result<Box<dyn OutboxIndexer>> {
-    build_trait(conn, locator, signer, params).await
+    builder.make_with_connection(conn, locator, signer).await
 }
 
 /// Cast a contract locator to a live contract handle
@@ -82,9 +82,9 @@ pub async fn make_inbox_indexer(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    params: InboxIndexerParams,
+    builder: &InboxIndexerConfig,
 ) -> Result<Box<dyn AbacusCommonIndexer>> {
-    build_trait(conn, locator, signer, params).await
+    builder.make_with_connection(conn, locator, signer).await
 }
 
 /// Cast a contract locator to a live contract handle
@@ -92,9 +92,9 @@ pub async fn make_outbox(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    params: OutboxParams,
+    builder: &OutboxConfig,
 ) -> Result<Box<dyn Outbox>> {
-    build_trait(conn, locator, signer, params).await
+    builder.make_with_connection(conn, locator, signer).await
 }
 
 /// Cast a contract locator to a live contract handle
@@ -102,9 +102,9 @@ pub async fn make_inbox(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    params: InboxParams,
+    builder: &InboxConfig,
 ) -> Result<Box<dyn Inbox>> {
-    build_trait(conn, locator, signer, params).await
+    builder.make_with_connection(conn, locator, signer).await
 }
 
 /// Cast a contract locator to a live contract handle
@@ -112,14 +112,14 @@ pub async fn make_inbox_validator_manager(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    params: InboxValidatorManagerParams,
+    builder: &InboxValidatorManagerConfig,
 ) -> Result<Box<dyn InboxValidatorManager>> {
-    build_trait(conn, locator, signer, params).await
+    builder.make_with_connection(conn, locator, signer).await
 }
 
 #[async_trait::async_trait]
 impl abacus_core::Chain for Chain {
-    async fn query_balance(&self, addr: abacus_core::Address) -> Result<abacus_core::Balance> {
+    async fn query_balance(&self, addr: abacus_core::Address) -> Result<Balance> {
         let balance = format!(
             "{:x}",
             self.ethers
@@ -130,8 +130,6 @@ impl abacus_core::Chain for Chain {
                 .await?
         );
 
-        Ok(abacus_core::Balance(num::BigInt::from_str_radix(
-            &balance, 16,
-        )?))
+        Ok(Balance(num::BigInt::from_str_radix(&balance, 16)?))
     }
 }

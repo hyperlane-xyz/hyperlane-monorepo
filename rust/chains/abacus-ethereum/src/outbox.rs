@@ -32,15 +32,19 @@ where
     }
 }
 
-pub struct OutboxIndexerParams {
+pub struct OutboxIndexerConfig {
     pub from_height: u32,
     pub chunk_size: u32,
 }
 
-impl MakeableWithProvider for OutboxIndexerParams {
+impl MakeableWithProvider for OutboxIndexerConfig {
     type Output = Box<dyn OutboxIndexer>;
 
-    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+    fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
         Box::new(EthereumOutboxIndexer::new(
             Arc::new(provider),
             locator,
@@ -169,12 +173,16 @@ where
     }
 }
 
-pub struct OutboxParams {}
+pub struct OutboxConfig {}
 
-impl MakeableWithProvider for OutboxParams {
+impl MakeableWithProvider for OutboxConfig {
     type Output = Box<dyn Outbox>;
 
-    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+    fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
         Box::new(EthereumOutbox::new(Arc::new(provider), locator))
     }
 }

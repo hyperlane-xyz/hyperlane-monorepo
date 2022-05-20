@@ -28,14 +28,18 @@ where
     }
 }
 
-pub struct InboxValidatorManagerParams {
+pub struct InboxValidatorManagerConfig {
     pub inbox_address: Address,
 }
 
-impl MakeableWithProvider for InboxValidatorManagerParams {
+impl MakeableWithProvider for InboxValidatorManagerConfig {
     type Output = Box<dyn InboxValidatorManager>;
 
-    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+    fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
         Box::new(EthereumInboxValidatorManager::new(
             Arc::new(provider),
             locator,
