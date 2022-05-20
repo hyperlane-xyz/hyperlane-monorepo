@@ -2,15 +2,6 @@
 
 ## Overview
 
-Abacus is an interchain messaging protocol that allows applications to communicate between blockchains.
-
-Developers can use Abacus to share state between blockchains, allowing them to build interchain applications that live natively across multiple chains.
-
-To read more about interchain applications, how the protocol works, and how to integrate with Abacus, please see the documentation. 
-
-You can read more about Abacus' architecture in the [documentation](https://docs.useabacus.network/).
-
-
 Abacus is an interchain messaging protocol. It handles passing generalized messages
 between blockchains cheaply, enabling genuine interchain applications. Inspired by IBC,
 Abacus creates channels between chains. In that respect, Abacus is a network between blockchains,
@@ -41,6 +32,7 @@ Said succintly, Abacus was built to prioritize:
 
 
 
+You can read more about Abacus' architecture in the [documentation](https://docs.useabacus.network/).
 
 ## Integrating with Abacus
 
