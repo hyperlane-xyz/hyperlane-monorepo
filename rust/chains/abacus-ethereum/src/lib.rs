@@ -72,7 +72,7 @@ pub async fn make_outbox_indexer(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumOutboxIndexerParams,
+    args: OutboxIndexerParams,
 ) -> Result<Box<dyn OutboxIndexer>> {
     build_trait(conn, locator, signer, args).await
 }
@@ -82,7 +82,7 @@ pub async fn make_inbox_indexer(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumInboxIndexerParams,
+    args: InboxIndexerParams,
 ) -> Result<Box<dyn AbacusCommonIndexer>> {
     build_trait(conn, locator, signer, args).await
 }
@@ -92,7 +92,7 @@ pub async fn make_outbox(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumOutboxParams,
+    args: OutboxParams,
 ) -> Result<Box<dyn Outbox>> {
     build_trait(conn, locator, signer, args).await
 }
@@ -102,7 +102,7 @@ pub async fn make_inbox(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumInboxArgs,
+    args: InboxArgs,
 ) -> Result<Box<dyn Inbox>> {
     build_trait(conn, locator, signer, args).await
 }
@@ -112,7 +112,7 @@ pub async fn make_inbox_validator_manager(
     conn: Connection,
     locator: &ContractLocator,
     signer: Option<Signers>,
-    args: EthereumInboxValidatorManagerArgs,
+    args: InboxValidatorManagerArgs,
 ) -> Result<Box<dyn InboxValidatorManager>> {
     build_trait(conn, locator, signer, args).await
 }

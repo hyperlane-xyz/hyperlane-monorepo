@@ -29,6 +29,24 @@ where
     }
 }
 
+pub struct OutboxIndexerParams {
+    pub from_height: u32,
+    pub chunk_size: u32,
+}
+
+impl MakeableWithProvider for OutboxIndexerParams {
+    type Output = Box<dyn OutboxIndexer>;
+
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+        Box::new(EthereumOutboxIndexer::new(
+            Arc::new(provider),
+            locator,
+            self.from_height,
+            self.chunk_size,
+        ))
+    }
+}
+
 #[derive(Debug)]
 /// Struct that retrieves event data for an Ethereum outbox
 pub struct EthereumOutboxIndexer<M>
@@ -41,24 +59,6 @@ where
     from_height: u32,
     #[allow(unused)]
     chunk_size: u32,
-}
-
-pub struct EthereumOutboxIndexerParams {
-    pub from_height: u32,
-    pub chunk_size: u32,
-}
-
-impl MakeableWithProvider for EthereumOutboxIndexerParams {
-    type Output = Box<dyn OutboxIndexer>;
-
-    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
-        Box::new(EthereumOutboxIndexer::new(
-            Arc::new(provider),
-            locator,
-            self.from_height,
-            self.chunk_size,
-        ))
-    }
 }
 
 impl<M> EthereumOutboxIndexer<M>
@@ -167,6 +167,16 @@ where
     }
 }
 
+pub struct OutboxParams {}
+
+impl MakeableWithProvider for OutboxParams {
+    type Output = Box<dyn Outbox>;
+
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+        Box::new(EthereumOutbox::new(Arc::new(provider), locator))
+    }
+}
+
 /// A reference to an Outbox contract on some Ethereum chain
 #[derive(Debug)]
 pub struct EthereumOutbox<M>
@@ -177,16 +187,6 @@ where
     domain: u32,
     name: String,
     provider: Arc<M>,
-}
-
-pub struct EthereumOutboxParams {}
-
-impl MakeableWithProvider for EthereumOutboxParams {
-    type Output = Box<dyn Outbox>;
-
-    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
-        Box::new(EthereumOutbox::new(Arc::new(provider), locator))
-    }
 }
 
 impl<M> EthereumOutbox<M>

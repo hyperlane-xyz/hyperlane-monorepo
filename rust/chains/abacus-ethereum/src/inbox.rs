@@ -36,6 +36,24 @@ where
     }
 }
 
+pub struct InboxIndexerParams {
+    pub from_height: u32,
+    pub chunk_size: u32,
+}
+
+impl MakeableWithProvider for InboxIndexerParams {
+    type Output = Box<dyn AbacusCommonIndexer>;
+
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+        Box::new(EthereumInboxIndexer::new(
+            Arc::new(provider),
+            locator,
+            self.from_height,
+            self.chunk_size,
+        ))
+    }
+}
+
 #[derive(Debug)]
 /// Struct that retrieves indexes event data for Ethereum inbox
 pub struct EthereumInboxIndexer<M>
@@ -48,24 +66,6 @@ where
     from_height: u32,
     #[allow(unused)]
     chunk_size: u32,
-}
-
-pub struct EthereumInboxIndexerParams {
-    pub from_height: u32,
-    pub chunk_size: u32,
-}
-
-impl MakeableWithProvider for EthereumInboxIndexerParams {
-    type Output = Box<dyn AbacusCommonIndexer>;
-
-    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
-        Box::new(EthereumInboxIndexer::new(
-            Arc::new(provider),
-            locator,
-            self.from_height,
-            self.chunk_size,
-        ))
-    }
 }
 
 impl<M> EthereumInboxIndexer<M>
@@ -147,6 +147,16 @@ where
     }
 }
 
+pub struct InboxArgs {}
+
+impl MakeableWithProvider for InboxArgs {
+    type Output = Box<dyn Inbox>;
+
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+        Box::new(EthereumInbox::new(Arc::new(provider), locator))
+    }
+}
+
 /// A struct that provides access to an Ethereum inbox contract
 #[derive(Debug)]
 pub struct EthereumInbox<M>
@@ -157,17 +167,6 @@ where
     domain: u32,
     name: String,
     provider: Arc<M>,
-}
-
-pub struct EthereumInboxArgs {
-}
-
-impl MakeableWithProvider for EthereumInboxArgs {
-    type Output = Box<dyn Inbox>;
-
-    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
-        Box::new(EthereumInbox::new(Arc::new(provider), locator))
-    }
 }
 
 impl<M> EthereumInbox<M>

@@ -28,6 +28,22 @@ where
     }
 }
 
+pub struct InboxValidatorManagerArgs {
+    pub inbox_address: Address,
+}
+
+impl MakeableWithProvider for InboxValidatorManagerArgs {
+    type Output = Box<dyn InboxValidatorManager>;
+
+    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
+        Box::new(EthereumInboxValidatorManager::new(
+            Arc::new(provider),
+            locator,
+            self.inbox_address,
+        ))
+    }
+}
+
 /// A struct that provides access to an Ethereum InboxValidatorManager contract
 #[derive(Debug)]
 pub struct EthereumInboxValidatorManager<M>
@@ -42,22 +58,6 @@ where
     #[allow(unused)]
     provider: Arc<M>,
     inbox_address: Address,
-}
-
-pub struct EthereumInboxValidatorManagerArgs {
-    pub inbox_address: Address,
-}
-
-impl MakeableWithProvider for EthereumInboxValidatorManagerArgs {
-    type Output = Box<dyn InboxValidatorManager>;
-
-    fn make<M: Middleware + 'static>(self, provider: M, locator: &ContractLocator) -> Self::Output {
-        Box::new(EthereumInboxValidatorManager::new(
-            Arc::new(provider),
-            locator,
-            self.inbox_address,
-        ))
-    }
 }
 
 impl<M> EthereumInboxValidatorManager<M>
