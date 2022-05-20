@@ -1,10 +1,11 @@
 import path from 'path';
 
-import { TransactionConfig, utils } from '@abacus-network/deploy';
+import { utils } from '@abacus-network/deploy';
 import {
   AllChains,
   ChainMap,
   ChainName,
+  IChainConnection,
   MultiProvider,
 } from '@abacus-network/sdk';
 import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
@@ -39,7 +40,7 @@ export async function getEnvironmentConfig() {
 }
 
 export async function getMultiProviderFromGCP<Chain extends ChainName>(
-  txConfigs: ChainMap<Chain, TransactionConfig>,
+  txConfigs: ChainMap<Chain, IChainConnection>,
   environment: DeployEnvironment,
 ) {
   const connections = await promiseObjAll(
