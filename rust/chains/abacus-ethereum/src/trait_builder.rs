@@ -9,9 +9,11 @@ use crate::Connection;
 
 /// A trait for dynamic trait creation with provider initialization.
 #[async_trait]
-pub(crate) trait MakeableWithProvider {
+pub trait MakeableWithProvider {
+    /// The type that will be created.
     type Output;
 
+    /// Construct a new instance of the associated trait using a connection config.
     async fn make_with_connection(
         &self,
         conn: Connection,
@@ -44,6 +46,7 @@ pub(crate) trait MakeableWithProvider {
         })
     }
 
+    /// Construct a new instance of the associated trait using a provider.
     fn make_with_provider<M: Middleware + 'static>(
         &self,
         provider: M,

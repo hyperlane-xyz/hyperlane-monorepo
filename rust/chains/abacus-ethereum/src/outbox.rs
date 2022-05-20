@@ -32,12 +32,12 @@ where
     }
 }
 
-pub struct OutboxIndexerConfig {
+pub struct OutboxIndexerBuilder {
     pub from_height: u32,
     pub chunk_size: u32,
 }
 
-impl MakeableWithProvider for OutboxIndexerConfig {
+impl MakeableWithProvider for OutboxIndexerBuilder {
     type Output = Box<dyn OutboxIndexer>;
 
     fn make_with_provider<M: Middleware + 'static>(
@@ -173,9 +173,9 @@ where
     }
 }
 
-pub struct OutboxConfig {}
+pub struct OutboxBuilder {}
 
-impl MakeableWithProvider for OutboxConfig {
+impl MakeableWithProvider for OutboxBuilder {
     type Output = Box<dyn Outbox>;
 
     fn make_with_provider<M: Middleware + 'static>(

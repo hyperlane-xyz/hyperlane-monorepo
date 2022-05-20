@@ -10,20 +10,20 @@ use num::Num;
 
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
+pub use trait_builder::MakeableWithProvider;
 
-use crate::trait_builder::MakeableWithProvider;
 #[cfg(not(doctest))]
 pub use crate::{inbox::*, outbox::*, validator_manager::*};
 
 #[cfg(not(doctest))]
 mod tx;
 
-#[cfg(not(doctest))]
-mod trait_builder;
-
 /// Outbox abi
 #[cfg(not(doctest))]
 mod outbox;
+
+#[cfg(not(doctest))]
+mod trait_builder;
 
 /// Inbox abi
 #[cfg(not(doctest))]
@@ -65,56 +65,6 @@ impl Default for Connection {
 pub struct Chain {
     creation_metadata: Connection,
     ethers: Provider<Http>,
-}
-
-/// Cast a contract locator to a live contract handle
-pub async fn make_outbox_indexer(
-    conn: Connection,
-    locator: &ContractLocator,
-    signer: Option<Signers>,
-    builder: &OutboxIndexerConfig,
-) -> Result<Box<dyn OutboxIndexer>> {
-    builder.make_with_connection(conn, locator, signer).await
-}
-
-/// Cast a contract locator to a live contract handle
-pub async fn make_inbox_indexer(
-    conn: Connection,
-    locator: &ContractLocator,
-    signer: Option<Signers>,
-    builder: &InboxIndexerConfig,
-) -> Result<Box<dyn AbacusCommonIndexer>> {
-    builder.make_with_connection(conn, locator, signer).await
-}
-
-/// Cast a contract locator to a live contract handle
-pub async fn make_outbox(
-    conn: Connection,
-    locator: &ContractLocator,
-    signer: Option<Signers>,
-    builder: &OutboxConfig,
-) -> Result<Box<dyn Outbox>> {
-    builder.make_with_connection(conn, locator, signer).await
-}
-
-/// Cast a contract locator to a live contract handle
-pub async fn make_inbox(
-    conn: Connection,
-    locator: &ContractLocator,
-    signer: Option<Signers>,
-    builder: &InboxConfig,
-) -> Result<Box<dyn Inbox>> {
-    builder.make_with_connection(conn, locator, signer).await
-}
-
-/// Cast a contract locator to a live contract handle
-pub async fn make_inbox_validator_manager(
-    conn: Connection,
-    locator: &ContractLocator,
-    signer: Option<Signers>,
-    builder: &InboxValidatorManagerConfig,
-) -> Result<Box<dyn InboxValidatorManager>> {
-    builder.make_with_connection(conn, locator, signer).await
 }
 
 #[async_trait::async_trait]

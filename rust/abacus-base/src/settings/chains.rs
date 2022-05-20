@@ -3,8 +3,7 @@ use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};
 use abacus_ethereum::{
-    make_inbox, make_inbox_validator_manager, make_outbox, Connection, InboxConfig,
-    InboxValidatorManagerConfig, OutboxConfig,
+    Connection, InboxBuilder, InboxValidatorManagerBuilder, MakeableWithProvider, OutboxBuilder,
 };
 
 use crate::{
@@ -69,21 +68,21 @@ impl ChainSetup<OutboxAddresses> {
     pub async fn try_into_outbox(&self, signer: Option<Signers>) -> Result<Outboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(OutboxVariants::Ethereum(
-                make_outbox(
-                    conf.clone(),
-                    &ContractLocator {
-                        name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .outbox
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    OutboxConfig {},
-                )
-                .await?,
+                OutboxBuilder {}
+                    .make_with_connection(
+                        conf.clone(),
+                        &ContractLocator {
+                            name: self.name.clone(),
+                            domain: self.domain.parse().expect("invalid uint"),
+                            address: self
+                                .addresses
+                                .outbox
+                                .parse::<ethers::types::Address>()?
+                                .into(),
+                        },
+                        signer,
+                    )
+                    .await?,
             )
             .into()),
         }
@@ -95,21 +94,21 @@ impl ChainSetup<InboxAddresses> {
     pub async fn try_into_inbox(&self, signer: Option<Signers>) -> Result<Inboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
-                make_inbox(
-                    conf.clone(),
-                    &ContractLocator {
-                        name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .inbox
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    InboxConfig {},
-                )
-                .await?,
+                InboxBuilder {}
+                    .make_with_connection(
+                        conf.clone(),
+                        &ContractLocator {
+                            name: self.name.clone(),
+                            domain: self.domain.parse().expect("invalid uint"),
+                            address: self
+                                .addresses
+                                .inbox
+                                .parse::<ethers::types::Address>()?
+                                .into(),
+                        },
+                        signer,
+                    )
+                    .await?,
             )
             .into()),
         }
@@ -124,21 +123,21 @@ impl ChainSetup<InboxAddresses> {
         let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerVariants::Ethereum(
-                make_inbox_validator_manager(
-                    conf.clone(),
-                    &ContractLocator {
-                        name: self.name.clone(),
-                        domain: self.domain.parse().expect("invalid uint"),
-                        address: self
-                            .addresses
-                            .validator_manager
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    InboxValidatorManagerConfig { inbox_address },
-                )
-                .await?,
+                InboxValidatorManagerBuilder { inbox_address }
+                    .make_with_connection(
+                        conf.clone(),
+                        &ContractLocator {
+                            name: self.name.clone(),
+                            domain: self.domain.parse().expect("invalid uint"),
+                            address: self
+                                .addresses
+                                .validator_manager
+                                .parse::<ethers::types::Address>()?
+                                .into(),
+                        },
+                        signer,
+                    )
+                    .await?,
             )
             .into()),
         }

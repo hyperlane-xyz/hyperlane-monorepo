@@ -36,12 +36,12 @@ where
     }
 }
 
-pub struct InboxIndexerConfig {
+pub struct InboxIndexerBuilder {
     pub from_height: u32,
     pub chunk_size: u32,
 }
 
-impl MakeableWithProvider for InboxIndexerConfig {
+impl MakeableWithProvider for InboxIndexerBuilder {
     type Output = Box<dyn AbacusCommonIndexer>;
 
     fn make_with_provider<M: Middleware + 'static>(
@@ -150,9 +150,9 @@ where
     }
 }
 
-pub struct InboxConfig {}
+pub struct InboxBuilder {}
 
-impl MakeableWithProvider for InboxConfig {
+impl MakeableWithProvider for InboxBuilder {
     type Output = Box<dyn Inbox>;
 
     fn make_with_provider<M: Middleware + 'static>(

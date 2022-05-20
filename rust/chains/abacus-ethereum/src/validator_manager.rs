@@ -28,11 +28,11 @@ where
     }
 }
 
-pub struct InboxValidatorManagerConfig {
+pub struct InboxValidatorManagerBuilder {
     pub inbox_address: Address,
 }
 
-impl MakeableWithProvider for InboxValidatorManagerConfig {
+impl MakeableWithProvider for InboxValidatorManagerBuilder {
     type Output = Box<dyn InboxValidatorManager>;
 
     fn make_with_provider<M: Middleware + 'static>(
