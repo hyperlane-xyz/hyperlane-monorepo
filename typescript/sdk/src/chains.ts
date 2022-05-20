@@ -4,6 +4,35 @@ import { ethers } from 'ethers';
 import { IChainConnection } from './provider';
 import { ChainMap, ChainName } from './types';
 
+export const ethereum: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://mainnet-nethermind.blockscout.com',
+    1,
+  ),
+  confirmations: 7,
+};
+
+export const celo: IChainConnection = {
+  provider: new StaticCeloJsonRpcProvider('https://forno.celo.org', 42220),
+  confirmations: 1,
+};
+
+export const polygon: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://rpc-mainnet.matic.quiknode.pro',
+    137,
+  ),
+  confirmations: 200,
+};
+
+export const avalanche: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://api.avax.network/ext/bc/C/rpc',
+    43114,
+  ),
+  confirmations: 1,
+};
+
 export const alfajores: IChainConnection = {
   provider: new StaticCeloJsonRpcProvider(
     'https://alfajores-forno.celo.org',
@@ -85,6 +114,10 @@ export const test3: IChainConnection = {
 };
 
 const _configs = {
+  ethereum,
+  celo,
+  polygon,
+  avalanche,
   alfajores,
   fuji,
   kovan,

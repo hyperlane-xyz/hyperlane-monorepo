@@ -1,16 +1,17 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use abacus_core::{ChainCommunicationError, ContractLocator, TxOutcome};
-use abacus_core::{InboxValidatorManager, MultisigSignedCheckpoint};
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use ethers::contract::abigen;
 use ethers::core::types::Address;
 use eyre::Result;
 
-use std::sync::Arc;
+use abacus_core::{ChainCommunicationError, ContractLocator, TxOutcome};
+use abacus_core::{InboxValidatorManager, MultisigSignedCheckpoint};
 
-use crate::report_tx;
+use crate::tx::report_tx;
 
 abigen!(
     EthereumInboxValidatorManagerInternal,
@@ -91,6 +92,6 @@ where
                 .collect(),
         );
 
-        Ok(report_tx!(tx).into())
+        Ok(report_tx(tx).await?.into())
     }
 }

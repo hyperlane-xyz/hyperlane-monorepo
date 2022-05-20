@@ -1,9 +1,9 @@
-import { configs } from '../../networks/testnets';
+import { chainConnectionConfigs } from '@abacus-network/sdk';
 
 export const testConfigs = {
-  test1: configs.test1,
-  test2: configs.test2,
-  test3: configs.test3,
+  test1: chainConnectionConfigs.test1,
+  test2: chainConnectionConfigs.test2,
+  test3: chainConnectionConfigs.test3,
 };
 
 export type TestChains = keyof typeof testConfigs;
