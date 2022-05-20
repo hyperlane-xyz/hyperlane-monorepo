@@ -29,7 +29,8 @@ import {
   ProcessTypes,
 } from './events';
 
-export type ParsedMessage = {
+// I didn't want to override the existing ParsedMessage in message.ts as that would include having to type AbacusMessage and more and it's not clear to me that we will keep those.
+type ParsedMessage = {
   origin: number;
   sender: string;
   destination: number;
@@ -153,8 +154,8 @@ export class AbacusMessage {
   ): AbacusMessage[] {
     const messages: AbacusMessage[] = [];
     const outbox = new Outbox__factory().interface;
-    const network = resolveDomain(nameOrDomain);
-    const provider = multiProvider.getDomainConnection(network).provider!;
+    const chain = resolveDomain(nameOrDomain);
+    const provider = multiProvider.getChainConnection(chain).provider!;
 
     for (const log of receipt.logs) {
       try {
@@ -227,7 +228,7 @@ export class AbacusMessage {
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AbacusMessage[]> {
-    const provider = multiProvider.getDomainConnection(
+    const provider = multiProvider.getChainConnection(
       resolveDomain(nameOrDomain),
     ).provider!;
     const receipt = await provider.getTransactionReceipt(transactionHash);
@@ -258,7 +259,7 @@ export class AbacusMessage {
     nameOrDomain: NameOrDomain,
     transactionHash: string,
   ): Promise<AbacusMessage> {
-    const provider = multiProvider.getDomainConnection(
+    const provider = multiProvider.getChainConnection(
       resolveDomain(nameOrDomain),
     ).provider!;
     const receipt = await provider.getTransactionReceipt(transactionHash);

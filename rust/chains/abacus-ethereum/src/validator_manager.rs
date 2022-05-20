@@ -5,13 +5,16 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use ethers::contract::abigen;
-use ethers::core::types::Address;
+use ethers::prelude::*;
 use eyre::Result;
 
-use abacus_core::{ChainCommunicationError, ContractLocator, TxOutcome};
-use abacus_core::{InboxValidatorManager, MultisigSignedCheckpoint};
+use abacus_core::{
+    ChainCommunicationError, ContractLocator, InboxValidatorManager, MultisigSignedCheckpoint,
+    TxOutcome,
+};
 
-use crate::report_tx::report_tx;
+use crate::trait_builder::MakeableWithProvider;
+use crate::tx::report_tx;
 
 abigen!(
     EthereumInboxValidatorManagerInternal,
@@ -20,10 +23,30 @@ abigen!(
 
 impl<M> std::fmt::Display for EthereumInboxValidatorManagerInternal<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+pub struct InboxValidatorManagerBuilder {
+    pub inbox_address: Address,
+}
+
+impl MakeableWithProvider for InboxValidatorManagerBuilder {
+    type Output = Box<dyn InboxValidatorManager>;
+
+    fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumInboxValidatorManager::new(
+            Arc::new(provider),
+            locator,
+            self.inbox_address,
+        ))
     }
 }
 
@@ -31,7 +54,7 @@ where
 #[derive(Debug)]
 pub struct EthereumInboxValidatorManager<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     contract: Arc<EthereumInboxValidatorManagerInternal<M>>,
     #[allow(unused)]
@@ -45,26 +68,18 @@ where
 
 impl<M> EthereumInboxValidatorManager<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     /// Create a reference to a inbox at a specific Ethereum address on some
     /// chain
-    pub fn new(
-        provider: Arc<M>,
-        ContractLocator {
-            name,
-            domain,
-            address,
-        }: &ContractLocator,
-        inbox_address: Address,
-    ) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator, inbox_address: Address) -> Self {
         Self {
             contract: Arc::new(EthereumInboxValidatorManagerInternal::new(
-                address,
+                &locator.address,
                 provider.clone(),
             )),
-            domain: *domain,
-            name: name.to_owned(),
+            domain: locator.domain,
+            name: locator.name.to_owned(),
             provider,
             inbox_address,
         }
@@ -74,7 +89,7 @@ where
 #[async_trait]
 impl<M> InboxValidatorManager for EthereumInboxValidatorManager<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     #[tracing::instrument(err, skip(self))]
     async fn submit_checkpoint(

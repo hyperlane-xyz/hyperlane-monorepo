@@ -6,12 +6,12 @@ import { utils } from '@abacus-network/utils';
 
 import {
   AbacusCore,
+  Chains,
   InterchainGasCalculator,
   MultiProvider,
-  ParsedMessage,
-  domains,
-  resolveDomain,
 } from '../..';
+import { ParsedMessage } from '../../src/gas/calculator';
+import { TestChainNames } from '../../src/types';
 import { MockProvider, MockTokenPriceGetter } from '../utils';
 
 const HANDLE_GAS = 100_000;
@@ -25,25 +25,28 @@ describe('InterchainGasCalculator', () => {
   // This is because InterchainGasCalculator isn't very strongly typed,
   // which is because ParsedMessage isn't very strongly typed. This results
   // in InterchainGasCalculator expecting a multiprovider with providers for
-  // every network.
-  const multiProvider = new MultiProvider<any>({
+  // every chain.
+  const multiProvider = new MultiProvider({
     test1: { provider },
     test2: { provider },
     test3: { provider },
   });
-  const core = AbacusCore.fromEnvironment('test', multiProvider);
-  const originDomain = domains.test1.id;
-  const destinationDomain = domains.test2.id;
+  const core = AbacusCore.fromEnvironment(
+    'test',
+    multiProvider,
+  ) as AbacusCore<TestChainNames>;
+  const origin = Chains.test1;
+  const destination = Chains.test2;
 
-  let tokenPriceGetter: MockTokenPriceGetter;
-  let calculator: InterchainGasCalculator;
+  let tokenPriceGetter: MockTokenPriceGetter<TestChainNames>;
+  let calculator: InterchainGasCalculator<TestChainNames>;
 
   beforeEach(() => {
     tokenPriceGetter = new MockTokenPriceGetter();
-    // Origin domain token
-    tokenPriceGetter.setTokenPrice(originDomain, 10);
-    // Destination domain token
-    tokenPriceGetter.setTokenPrice(destinationDomain, 5);
+    // Origin token
+    tokenPriceGetter.setTokenPrice(origin, 10);
+    // Destination token
+    tokenPriceGetter.setTokenPrice(destination, 5);
     calculator = new InterchainGasCalculator(multiProvider, core, {
       tokenPriceGetter,
       // A multiplier of 1 makes testing easier to reason about
@@ -75,8 +78,8 @@ describe('InterchainGasCalculator', () => {
 
       const estimatedPayment =
         await calculator.estimatePaymentForHandleGasAmount(
-          originDomain,
-          destinationDomain,
+          origin,
+          destination,
           BigNumber.from(HANDLE_GAS),
         );
 
@@ -108,10 +111,10 @@ describe('InterchainGasCalculator', () => {
       const zeroAddressBytes32 = utils.addressToBytes32(
         ethers.constants.AddressZero,
       );
-      const message: ParsedMessage = {
-        origin: originDomain,
+      const message: ParsedMessage<TestChainNames, Chains.test2> = {
+        origin: origin,
         sender: zeroAddressBytes32,
-        destination: destinationDomain,
+        destination: destination,
         recipient: zeroAddressBytes32,
         body: '0x12345678',
       };
@@ -131,8 +134,8 @@ describe('InterchainGasCalculator', () => {
 
     it('converts using the USD value of origin and destination native tokens', async () => {
       const originWei = await calculator.convertBetweenNativeTokens(
-        destinationDomain,
-        originDomain,
+        destination,
+        origin,
         destinationWei,
       );
 
@@ -140,16 +143,16 @@ describe('InterchainGasCalculator', () => {
     });
 
     it('considers when the origin token decimals > the destination token decimals', async () => {
-      calculator.nativeTokenDecimals = (domain: number) => {
-        if (domain === originDomain) {
+      calculator.nativeTokenDecimals = (chain: TestChainNames) => {
+        if (chain === origin) {
           return 20;
         }
         return 18;
       };
 
       const originWei = await calculator.convertBetweenNativeTokens(
-        destinationDomain,
-        originDomain,
+        destination,
+        origin,
         destinationWei,
       );
 
@@ -159,16 +162,16 @@ describe('InterchainGasCalculator', () => {
     it('considers when the origin token decimals < the destination token decimals', async () => {
       sinon
         .stub(calculator, 'nativeTokenDecimals')
-        .callsFake((domain: number) => {
-          if (domain === originDomain) {
+        .callsFake((chain: TestChainNames) => {
+          if (chain === origin) {
             return 16;
           }
           return 18;
         });
 
       const originWei = await calculator.convertBetweenNativeTokens(
-        destinationDomain,
-        originDomain,
+        destination,
+        origin,
         destinationWei,
       );
 
@@ -184,7 +187,7 @@ describe('InterchainGasCalculator', () => {
       );
 
       expect(
-        (await calculator.suggestedGasPrice(destinationDomain)).toNumber(),
+        (await calculator.suggestedGasPrice(destination)).toNumber(),
       ).to.equal(SUGGESTED_GAS_PRICE);
     });
   });
@@ -197,16 +200,16 @@ describe('InterchainGasCalculator', () => {
     before(() => {
       const getContractsStub = sinon.stub(core, 'getContracts');
       let thresholdStub: sinon.SinonStub | undefined;
-      getContractsStub.callsFake((domain) => {
+      getContractsStub.callsFake((chain) => {
         // Get the "real" return value of getContracts.
-        const contracts = getContractsStub.wrappedMethod.bind(core)(domain);
+        const contracts = getContractsStub.wrappedMethod.bind(core)(chain);
 
         // Ethers contracts are frozen using Object.freeze, so we make a copy
         // of the object so we can stub `threshold`.
         const validatorManager = Object.assign(
           {},
-          // @ts-ignore - TODO more strongly type InterchainGasCalculator
-          contracts.inboxes[resolveDomain(originDomain)].validatorManager,
+          // @ts-ignore Typescript has trouble properly typing the stubbed getContracts
+          contracts.inboxes[origin].validatorManager,
         );
 
         // Because we are stubbing vaidatorManager.threshold when core.getContracts gets called,
@@ -216,9 +219,8 @@ describe('InterchainGasCalculator', () => {
             .stub(validatorManager, 'threshold')
             .callsFake(() => Promise.resolve(BigNumber.from(threshold)));
 
-          // @ts-ignore - TODO more strongly type InterchainGasCalculator
-          contracts.inboxes[resolveDomain(originDomain)].validatorManager =
-            validatorManager;
+          // @ts-ignore Typescript has trouble properly typing the stubbed getContracts
+          contracts.inboxes[origin].validatorManager = validatorManager;
         }
         return contracts;
       });
@@ -227,14 +229,14 @@ describe('InterchainGasCalculator', () => {
     it('scales the gas cost with the quorum threshold', async () => {
       threshold = 2;
       const gasWithThresholdLow = await calculator.checkpointRelayGas(
-        originDomain,
-        destinationDomain,
+        origin,
+        destination,
       );
 
       threshold = 3;
       const gasWithThresholdHigh = await calculator.checkpointRelayGas(
-        originDomain,
-        destinationDomain,
+        origin,
+        destination,
       );
 
       expect(gasWithThresholdHigh.gt(gasWithThresholdLow)).to.be.true;

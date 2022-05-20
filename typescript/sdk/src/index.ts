@@ -20,13 +20,12 @@ export {
   InboxContracts,
   MailboxAddresses,
   MessageStatus,
-  ParsedMessage,
   parseMessage,
   resolveDomain,
   resolveId,
   resolveNetworks,
 } from './core';
-export { domains } from './domains';
+export { chainMetadata } from './chain-metadata';
 export {
   Annotated,
   getEvents,
@@ -39,13 +38,13 @@ export {
   TokenPriceGetter,
 } from './gas';
 export {
-  AbacusGovernance,
+  ControllerApp,
   Call,
-  GovernanceAddresses,
-  GovernanceContracts,
-  governanceEnvironments,
-} from './governance';
-export { DomainConnection, IDomainConnection, MultiProvider } from './provider';
+  ControllerAddresses,
+  ControllerContracts,
+  controllerEnvironments,
+} from './controller';
+export { ChainConnection, IChainConnection, MultiProvider } from './provider';
 export {
   AllChains,
   ChainMap,
@@ -61,3 +60,4 @@ export {
   Remotes,
 } from './types';
 export { utils, objMap, objMapEntries, promiseObjAll } from './utils';
+export { chainConnectionConfigs, addSignerToConnection } from './chains';

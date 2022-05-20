@@ -4,25 +4,27 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
+use ethers::prelude::*;
 use eyre::Result;
 use num::Num;
-use std::sync::Arc;
 
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
+pub use crate::{inbox::*, outbox::*, trait_builder::*, validator_manager::*};
+#[cfg(not(doctest))]
 pub use crate::{inbox::*, outbox::*, validator_manager::*};
 
-mod report_tx;
-
-#[macro_use]
-mod macros;
+#[cfg(not(doctest))]
+mod tx;
 
 /// Outbox abi
 #[cfg(not(doctest))]
 mod outbox;
+
+#[cfg(not(doctest))]
+mod trait_builder;
 
 /// Inbox abi
 #[cfg(not(doctest))]
@@ -63,33 +65,8 @@ impl Default for Connection {
 /// A live connection to an ethereum-compatible chain.
 pub struct Chain {
     creation_metadata: Connection,
-    ethers: ethers::providers::Provider<ethers::providers::Http>,
+    ethers: Provider<Http>,
 }
-
-boxed_trait!(
-    make_outbox_indexer,
-    EthereumOutboxIndexer,
-    OutboxIndexer,
-    from_height: u32,
-    chunk_size: u32,
-    metrics: Arc<dyn MetricsSubscriber>
-);
-boxed_trait!(
-    make_inbox_indexer,
-    EthereumInboxIndexer,
-    AbacusCommonIndexer,
-    from_height: u32,
-    chunk_size: u32,
-    metrics: Arc<dyn MetricsSubscriber>
-);
-boxed_trait!(make_outbox, EthereumOutbox, Outbox,);
-boxed_trait!(make_inbox, EthereumInbox, Inbox,);
-boxed_trait!(
-    make_inbox_validator_manager,
-    EthereumInboxValidatorManager,
-    InboxValidatorManager,
-    inbox_address: Address
-);
 
 #[async_trait::async_trait]
 impl abacus_core::Chain for Chain {

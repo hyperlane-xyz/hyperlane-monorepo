@@ -2,17 +2,20 @@
 #![allow(missing_docs)]
 
 use std::{error::Error as StdError, sync::Arc};
-
 use async_trait::async_trait;
 use ethers::contract::abigen;
-use ethers::core::types::H256;
+use ethers::prelude::*;
 use eyre::Result;
 use tracing::instrument;
 
-use abacus_core::*;
-use abacus_core::{ChainCommunicationError, Message, RawCommittedMessage, TxOutcome};
+use abacus_core::{
+    AbacusCommon, AbacusCommonIndexer, ChainCommunicationError, Checkpoint, CheckpointMeta,
+    CheckpointWithMeta, ContractLocator, Message, Outbox, OutboxIndexer, RawCommittedMessage,
+    State, TxOutcome,
+};
 
-use crate::report_tx::report_tx;
+use crate::trait_builder::MakeableWithProvider;
+use crate::tx::report_tx;
 
 abigen!(
     EthereumOutboxInternal,
@@ -21,10 +24,32 @@ abigen!(
 
 impl<M> std::fmt::Display for EthereumOutboxInternal<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+pub struct OutboxIndexerBuilder {
+    pub from_height: u32,
+    pub chunk_size: u32,
+}
+
+impl MakeableWithProvider for OutboxIndexerBuilder {
+    type Output = Box<dyn OutboxIndexer>;
+
+    fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumOutboxIndexer::new(
+            Arc::new(provider),
+            locator,
+            self.from_height,
+            self.chunk_size,
+        ))
     }
 }
 
@@ -32,7 +57,7 @@ where
 /// Struct that retrieves event data for an Ethereum outbox
 pub struct EthereumOutboxIndexer<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     contract: Arc<EthereumOutboxInternal<M>>,
     provider: Arc<M>,
@@ -45,22 +70,21 @@ where
 
 impl<M> EthereumOutboxIndexer<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     /// Create new EthereumOutboxIndexer
     pub fn new(
         provider: Arc<M>,
-        ContractLocator {
-            name: _,
-            domain: _,
-            address,
-        }: &ContractLocator,
+        locator: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
         metrics: Arc<dyn MetricsSubscriber>,
     ) -> Self {
         Self {
-            contract: Arc::new(EthereumOutboxInternal::new(address, provider.clone())),
+            contract: Arc::new(EthereumOutboxInternal::new(
+                &locator.address,
+                provider.clone(),
+            )),
             provider,
             from_height,
             chunk_size,
@@ -72,7 +96,7 @@ where
 #[async_trait]
 impl<M> AbacusCommonIndexer for EthereumOutboxIndexer<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
     async fn get_block_number(&self) -> Result<u32> {
@@ -127,7 +151,7 @@ where
 #[async_trait]
 impl<M> OutboxIndexer for EthereumOutboxIndexer<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
     async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {
@@ -151,11 +175,25 @@ where
     }
 }
 
+pub struct OutboxBuilder {}
+
+impl MakeableWithProvider for OutboxBuilder {
+    type Output = Box<dyn Outbox>;
+
+    fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumOutbox::new(Arc::new(provider), locator))
+    }
+}
+
 /// A reference to an Outbox contract on some Ethereum chain
 #[derive(Debug)]
 pub struct EthereumOutbox<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     contract: Arc<EthereumOutboxInternal<M>>,
     domain: u32,
@@ -165,22 +203,18 @@ where
 
 impl<M> EthereumOutbox<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     /// Create a reference to a outbox at a specific Ethereum address on some
     /// chain
-    pub fn new(
-        provider: Arc<M>,
-        ContractLocator {
-            name,
-            domain,
-            address,
-        }: &ContractLocator,
-    ) -> Self {
+    pub fn new(provider: Arc<M>, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumOutboxInternal::new(address, provider.clone())),
-            domain: *domain,
-            name: name.to_owned(),
+            contract: Arc::new(EthereumOutboxInternal::new(
+                &locator.address,
+                provider.clone(),
+            )),
+            domain: locator.domain,
+            name: locator.name.to_owned(),
             provider,
         }
     }
@@ -189,7 +223,7 @@ where
 #[async_trait]
 impl<M> AbacusCommon for EthereumOutbox<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     fn local_domain(&self) -> u32 {
         self.domain
@@ -252,7 +286,7 @@ where
 #[async_trait]
 impl<M> Outbox for EthereumOutbox<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     #[tracing::instrument(err, skip(self))]
     async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError> {

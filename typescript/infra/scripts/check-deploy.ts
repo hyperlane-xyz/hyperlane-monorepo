@@ -1,7 +1,7 @@
-import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+import { AbacusCore, ControllerApp } from '@abacus-network/sdk';
 
+import { ControllerChecker } from '../src/controller';
 import { AbacusCoreChecker } from '../src/core';
-import { AbacusGovernanceChecker } from '../src/governance';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
@@ -12,25 +12,22 @@ async function check() {
 
   if (environment !== 'test') {
     throw new Error(
-      `Do not have governance addresses for ${environment} in SDK`,
+      `Do not have controller addresses for ${environment} in SDK`,
     );
   }
 
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
-  const governance = AbacusGovernance.fromEnvironment(
-    environment,
-    multiProvider,
-  );
+  const controller = ControllerApp.fromEnvironment(environment, multiProvider);
 
-  const governanceChecker = new AbacusGovernanceChecker(
+  const controllerChecker = new ControllerChecker(
     multiProvider,
-    governance,
-    config.governance,
+    controller,
+    config.controller,
   );
-  await governanceChecker.check();
-  governanceChecker.expectEmpty();
+  await controllerChecker.check();
+  controllerChecker.expectEmpty();
 
-  const owners = governance.routerAddresses();
+  const owners = controller.routerAddresses();
   const coreChecker = new AbacusCoreChecker(multiProvider, core, {
     ...config.core,
     owners,

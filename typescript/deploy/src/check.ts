@@ -17,19 +17,19 @@ export interface Ownable {
 }
 
 export abstract class AbacusAppChecker<
-  Networks extends ChainName,
-  App extends AbacusApp<any, Networks>,
+  Chain extends ChainName,
+  App extends AbacusApp<any, Chain>,
   Config,
 > {
-  readonly multiProvider: MultiProvider<Networks>;
+  readonly multiProvider: MultiProvider<Chain>;
   readonly app: App;
-  readonly configMap: ChainMap<Networks, Config>;
+  readonly configMap: ChainMap<Chain, Config>;
   readonly violations: CheckerViolation[];
 
   constructor(
-    multiProvider: MultiProvider<Networks>,
+    multiProvider: MultiProvider<Chain>,
     app: App,
-    configMap: ChainMap<Networks, Config>,
+    configMap: ChainMap<Chain, Config>,
   ) {
     this.multiProvider = multiProvider;
     this.app = app;
@@ -37,11 +37,11 @@ export abstract class AbacusAppChecker<
     this.configMap = configMap;
   }
 
-  abstract checkDomain(network: Networks): Promise<void>;
+  abstract checkChain(chain: Chain): Promise<void>;
 
   async check() {
     return Promise.all(
-      this.app.networks().map((network) => this.checkDomain(network)),
+      this.app.chains().map((chain) => this.checkChain(chain)),
     );
   }
 
@@ -52,18 +52,18 @@ export abstract class AbacusAppChecker<
   }
 
   async checkUpgradeBeacon(
-    network: Networks,
+    chain: Chain,
     name: string,
     proxiedAddress: ProxiedAddress,
   ) {
-    const dc = this.multiProvider.getDomainConnection(network);
+    const dc = this.multiProvider.getChainConnection(chain);
     const implementation = await upgradeBeaconImplementation(
       dc.provider!,
       proxiedAddress.beacon,
     );
     if (implementation !== proxiedAddress.implementation) {
       this.addViolation(
-        upgradeBeaconViolation(network, name, proxiedAddress, implementation),
+        upgradeBeaconViolation(chain, name, proxiedAddress, implementation),
       );
     }
   }
@@ -80,7 +80,7 @@ export abstract class AbacusAppChecker<
     const duplicates = this.violations.filter(
       (v) =>
         violation.type === v.type &&
-        violation.network === v.network &&
+        violation.chain === v.chain &&
         violation.actual === v.actual &&
         violation.expected === v.expected,
     );

@@ -2,23 +2,23 @@ import { CoreConfig, EnvironmentConfig } from '@abacus-network/deploy';
 import { ChainMap, ChainName, MultiProvider } from '@abacus-network/sdk';
 
 import { environments } from '../../config/environments';
-import { GovernanceConfig } from '../governance';
+import { ControllerConfig } from '../controller';
 
 import { AgentConfig } from './agent';
 import { InfrastructureConfig } from './infrastructure';
 
 export const EnvironmentNames = Object.keys(environments);
 export type DeployEnvironment = keyof typeof environments;
-export type EnvironmentNetworks<E extends DeployEnvironment> = Extract<
+export type EnvironmentChain<E extends DeployEnvironment> = Extract<
   keyof typeof environments[E],
   ChainName
 >;
 
-export type CoreEnvironmentConfig<Networks extends ChainName> = {
-  transactionConfigs: EnvironmentConfig<Networks>;
-  agent: AgentConfig<Networks>;
-  core: ChainMap<Networks, CoreConfig>;
-  governance: ChainMap<Networks, GovernanceConfig>;
+export type CoreEnvironmentConfig<Chain extends ChainName> = {
+  transactionConfigs: EnvironmentConfig<Chain>;
+  agent: AgentConfig<Chain>;
+  core: ChainMap<Chain, CoreConfig>;
+  controller: ChainMap<Chain, ControllerConfig>;
   infra: InfrastructureConfig;
-  getMultiProvider: () => Promise<MultiProvider<Networks>>;
+  getMultiProvider: () => Promise<MultiProvider<Chain>>;
 };

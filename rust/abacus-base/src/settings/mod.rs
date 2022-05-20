@@ -52,7 +52,7 @@ use abacus_core::{
     utils::HexString,
     AbacusCommon, ContractLocator, Signers,
 };
-use abacus_ethereum::{make_inbox_indexer, make_outbox_indexer, MetricsSubscriber};
+use abacus_ethereum::{InboxIndexerBuilder, MakeableWithProvider, OutboxIndexerBuilder};
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
 
 use crate::settings::trace::TracingConfig;
@@ -290,7 +290,11 @@ impl Settings {
 
         match &self.outbox.chain {
             ChainConf::Ethereum(conn) => Ok(OutboxIndexers::Ethereum(
-                make_outbox_indexer(
+                OutboxIndexerBuilder {
+                    from_height: self.index.from(),
+                    chunk_size: self.index.chunk_size(),
+                }
+                .make_with_connection(
                     conn.clone(),
                     &ContractLocator {
                         name: self.outbox.name.clone(),
@@ -303,9 +307,6 @@ impl Settings {
                             .into(),
                     },
                     signer,
-                    self.index.from(),
-                    self.index.chunk_size(),
-                    metrics,
                 )
                 .await?,
             )),
@@ -322,7 +323,11 @@ impl Settings {
 
         match &setup.chain {
             ChainConf::Ethereum(conn) => Ok(AbacusCommonIndexers::Ethereum(
-                make_inbox_indexer(
+                InboxIndexerBuilder {
+                    from_height: self.index.from(),
+                    chunk_size: self.index.chunk_size(),
+                }
+                .make_with_connection(
                     conn.clone(),
                     &ContractLocator {
                         name: setup.name.clone(),
@@ -334,9 +339,6 @@ impl Settings {
                             .into(),
                     },
                     signer,
-                    self.index.from(),
-                    self.index.chunk_size(),
-                    metrics,
                 )
                 .await?,
             )),

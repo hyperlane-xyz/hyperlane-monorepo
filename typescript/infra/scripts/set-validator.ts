@@ -1,6 +1,6 @@
-import { AbacusCore, AbacusGovernance } from '@abacus-network/sdk';
+import { AbacusCore, ControllerApp } from '@abacus-network/sdk';
 
-import { AbacusCoreGovernor, CoreViolationType } from '../src/core';
+import { AbacusCoreControllerChecker, CoreViolationType } from '../src/core';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
@@ -12,34 +12,31 @@ async function main() {
   if (environment !== 'test') {
     throw new Error(`No governanace addresses for ${environment} in SDK`);
   }
-  const governance = AbacusGovernance.fromEnvironment(
+  const controllerApp = ControllerApp.fromEnvironment(
     environment,
     multiProvider,
   );
 
-  const governor = new AbacusCoreGovernor(
+  const checker = new AbacusCoreControllerChecker(
     multiProvider,
     core,
-    governance,
+    controllerApp,
     config.core,
   );
-  await governor.check();
-  // Sanity check: for each domain, expect one validator violation.
-  governor.expectViolations(
+  await checker.check();
+  // Sanity check: for each chain, expect one validator violation.
+  checker.expectViolations(
     [CoreViolationType.Validator],
-    [core.networks().length],
+    [core.chains().length],
   );
-  // Sanity check: for each domain, expect one call to set the validator.
-  governor.expectCalls(
-    core.networks(),
-    new Array(core.networks().length).fill(1),
-  );
+  // Sanity check: for each chain, expect one call to set the validator.
+  checker.expectCalls(core.chains(), new Array(core.chains().length).fill(1));
 
   // Change to `batch.execute` in order to run.
-  const governorActor = await governance.governor();
-  const provider = multiProvider.getDomainConnection(governorActor.network)
+  const controllerActor = await controllerApp.controller();
+  const provider = multiProvider.getChainConnection(controllerActor.chain)
     .provider!;
-  const receipts = await governor.governance.estimateGas(provider);
+  const receipts = await checker.controllerApp.estimateGas(provider);
   console.log(receipts);
 }
 main().then(console.log).catch(console.error);

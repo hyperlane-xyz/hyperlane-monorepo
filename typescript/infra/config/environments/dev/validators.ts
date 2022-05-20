@@ -5,14 +5,14 @@ import {
   CheckpointSyncerType,
 } from '../../../src/config/agent';
 
-import { DevNetworks } from './domains';
+import { DevChains } from './chains';
 
 const s3BucketRegion = 'us-east-1';
 
 const s3BucketName = (chainName: ChainName, index: number) =>
   `abacus-dev-${chainName}-validator-${index}`;
 
-export const validators: ChainValidatorSets<DevNetworks> = {
+export const validators: ChainValidatorSets<DevChains> = {
   alfajores: {
     threshold: 2,
     validators: [
