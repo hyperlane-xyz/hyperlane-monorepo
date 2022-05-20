@@ -1,6 +1,8 @@
 import '@nomiclabs/hardhat-waffle';
+import { ethers } from 'hardhat';
 import path from 'path';
 
+import { getMultiProviderFromConfigAndSigner } from '@abacus-network/deploy/dist/src/utils';
 import {
   AbacusCore,
   ChainMap,
@@ -9,8 +11,8 @@ import {
   MultiProvider,
 } from '@abacus-network/sdk';
 
+import { environment as config } from '../config/environments/test';
 import { TestChains } from '../config/environments/test/chains';
-import { getCoreEnvironmentConfig } from '../scripts/utils';
 import {
   ControllerChecker,
   ControllerConfig,
@@ -18,19 +20,20 @@ import {
 } from '../src/controller';
 
 describe('controller', async () => {
-  const environment = 'test';
-
   let multiProvider: MultiProvider<TestChains>;
   let deployer: ControllerDeployer<TestChains>;
   let addresses: ChainMap<TestChains, ControllerAddresses>;
   let controllerConfig: ChainMap<TestChains, ControllerConfig>;
 
   before(async () => {
-    const config = getCoreEnvironmentConfig(environment);
     controllerConfig = config.controller;
-    multiProvider = await config.getMultiProvider();
-
-    const core = AbacusCore.fromEnvironment(environment, multiProvider);
+    const [signer] = await ethers.getSigners();
+    // This is kind of awkward and really these tests shouldn't live here
+    multiProvider = getMultiProviderFromConfigAndSigner(
+      config.transactionConfigs,
+      signer,
+    );
+    const core = AbacusCore.fromEnvironment('test', multiProvider);
     console.log(core);
     deployer = new ControllerDeployer(multiProvider, controllerConfig, core);
   });
