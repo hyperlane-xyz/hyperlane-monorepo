@@ -61,10 +61,10 @@ contract Inbox is IInbox, Version0, Common {
 
     // ============ Initializer ============
 
-    function initialize(
-        uint32 _remoteDomain,
-        address _validatorManager
-    ) public initializer {
+    function initialize(uint32 _remoteDomain, address _validatorManager)
+        public
+        initializer
+    {
         __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
@@ -92,16 +92,19 @@ contract Inbox is IInbox, Version0, Common {
         require(entered == 1, "!reentrant");
         entered = 0;
 
-        bytes32 _messageHash = _message.hash(_commitment);
-        // ensure that message has not been processed
-        require(
-            messages[_messageHash] == MessageStatus.None,
-            "!MessageStatus.None"
-        );
         // ensure the provided message and base commitment result in _commitment, which
         // was signed by the validator set.
-        require(keccak256(abi.encodePacked(_baseCommitment, _messageHash)) == _commitment, "!commitment");
-        _process(_message, _messageHash);
+        require(
+            keccak256(abi.encodePacked(_baseCommitment, _message)) ==
+                _commitment,
+            "!commitment"
+        );
+        // ensure that message has not been processed
+        require(
+            messages[_commitment] == MessageStatus.None,
+            "!MessageStatus.None"
+        );
+        _process(_message, _commitment);
         // reset re-entrancy guard
         entered = 1;
     }
@@ -112,9 +115,8 @@ contract Inbox is IInbox, Version0, Common {
      * @notice Marks a message as processed and calls handle on the recipient
      * @dev Internal function that can be called by contracts like TestInbox
      * @param _message Formatted message (refer to Common.sol Message library)
-     * @param _messageHash keccak256 hash of the message
      */
-    function _process(bytes calldata _message, bytes32 _messageHash) internal {
+    function _process(bytes calldata _message, bytes32 _commitment) internal {
         (
             uint32 origin,
             bytes32 sender,
@@ -127,7 +129,7 @@ contract Inbox is IInbox, Version0, Common {
         require(destination == localDomain, "!destination");
 
         // update message status as processed
-        messages[_messageHash] = MessageStatus.Processed;
+        messages[_commitment] = MessageStatus.Processed;
 
         IMessageRecipient(recipient.bytes32ToAddress()).handle(
             origin,
@@ -135,6 +137,6 @@ contract Inbox is IInbox, Version0, Common {
             body
         );
         // emit process results
-        emit Process(_messageHash);
+        emit Process(_commitment);
     }
 }

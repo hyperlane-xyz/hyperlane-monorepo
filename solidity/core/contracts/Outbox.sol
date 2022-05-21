@@ -61,7 +61,7 @@ contract Outbox is IOutbox, Version0, Common {
     // process(bytes32 start, bytes message, bytes signature)
     // Can we use an RSA accumulator instead?
 
-    bytes32 commitment;
+    bytes32 public commitment;
     mapping(bytes32 => bool) commitments;
 
     // gap for upgrade safety
@@ -71,12 +71,10 @@ contract Outbox is IOutbox, Version0, Common {
 
     /**
      * @notice Emitted when a new message is dispatched via Abacus
-     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
      * @param destination Destination domain
      * @param message Raw bytes of message
      */
     event Dispatch(
-        bytes32 indexed messageHash,
         bytes32 indexed commitment,
         uint32 indexed destination,
         bytes message
@@ -130,17 +128,21 @@ contract Outbox is IOutbox, Version0, Common {
             _recipientAddress,
             _messageBody
         );
-        // Do we need to include the leaf or something? Otherwise we can't have duplicate messages
-        bytes32 _messageHash = keccak256(abi.encodePacked(_message, commitment));
-        commitment = keccak256(abi.encodePacked(commitment, _messageHash));
+
+        commitment = keccak256(abi.encodePacked(commitment, _message));
         commitments[commitment] = true;
 
         // Emit Dispatch event with message information
-        emit Dispatch(_messageHash, commitment, _destinationDomain, _message);
-        return _messageHash;
+        emit Dispatch(commitment, _destinationDomain, _message);
+        return commitment;
     }
 
-    function isCommitment(bytes32 _commitment) external view override returns (bool) {
+    function isCommitment(bytes32 _commitment)
+        external
+        view
+        override
+        returns (bool)
+    {
         return commitments[_commitment];
     }
 

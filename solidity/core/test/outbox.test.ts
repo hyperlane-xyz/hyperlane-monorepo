@@ -67,15 +67,18 @@ describe('Outbox', async () => {
         recipient.address,
         message,
       );
-      const leafIndex = await outbox.tree();
-      const hash = utils.messageHash(abacusMessage, leafIndex.toNumber());
+      const commitment = await outbox.commitment();
+      const hash = ethers.utils.solidityKeccak256(
+        ['bytes32', 'bytes'],
+        [commitment, abacusMessage],
+      );
 
       return {
         message,
         destDomain,
         abacusMessage,
         hash,
-        leafIndex,
+        commitment,
       };
     };
 
@@ -91,10 +94,11 @@ describe('Outbox', async () => {
     });
 
     it('Dispatches a message', async () => {
-      const { message, destDomain, abacusMessage, hash, leafIndex } =
+      const { message, destDomain, abacusMessage, hash } =
         await testMessageValues();
 
       // Send message with signer address as msg.sender
+      console.log(message);
       await expect(
         outbox
           .connect(signer)
@@ -105,13 +109,13 @@ describe('Outbox', async () => {
           ),
       )
         .to.emit(outbox, 'Dispatch')
-        .withArgs(hash, leafIndex, destDomain, abacusMessage);
+        .withArgs(hash, destDomain, abacusMessage);
     });
 
-    it('Returns the leaf index of the dispatched message', async () => {
-      const { message, leafIndex } = await testMessageValues();
+    it('Returns the messsage hash of the dispatched message', async () => {
+      const { message, hash } = await testMessageValues();
 
-      const dispatchLeafIndex = await outbox
+      const actual = await outbox
         .connect(signer)
         .callStatic.dispatch(
           destDomain,
@@ -119,36 +123,8 @@ describe('Outbox', async () => {
           message,
         );
 
-      expect(dispatchLeafIndex).equals(leafIndex);
+      expect(actual).equals(hash);
     });
-  });
-
-  it('Checkpoints the latest root', async () => {
-    const message = ethers.utils.formatBytes32String('message');
-    const count = 2;
-    for (let i = 0; i < count; i++) {
-      await outbox.dispatch(
-        destDomain,
-        utils.addressToBytes32(recipient.address),
-        message,
-      );
-    }
-    await outbox.checkpoint();
-    const [root, index] = await outbox.latestCheckpoint();
-    expect(root).to.not.equal(ethers.constants.HashZero);
-    expect(index).to.equal(count - 1);
-
-    expect(await outbox.isCheckpoint(root, index)).to.be.true;
-  });
-
-  it('does not allow a checkpoint of index 0', async () => {
-    const message = ethers.utils.formatBytes32String('message');
-    await outbox.dispatch(
-      destDomain,
-      utils.addressToBytes32(recipient.address),
-      message,
-    );
-    await expect(outbox.checkpoint()).to.be.revertedWith('!count');
   });
 
   it('Correctly calculates destinationAndNonce', async () => {

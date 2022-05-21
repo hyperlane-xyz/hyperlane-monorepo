@@ -137,10 +137,11 @@ abstract contract MultisigValidatorManager is Ownable {
      * @return TRUE iff `_signatures` constitute a quorum of validator signatures over
      * the checkpoint.
      */
-    function isQuorum(
-        bytes32 _commitment,
-        bytes[] calldata _signatures
-    ) public view returns (bool) {
+    function isQuorum(bytes32 _commitment, bytes[] calldata _signatures)
+        public
+        view
+        returns (bool)
+    {
         uint256 _numSignatures = _signatures.length;
         // If there are fewer signatures provided than the required quorum threshold,
         // this is not a quorum.
@@ -196,9 +197,7 @@ abstract contract MultisigValidatorManager is Ownable {
         bytes32 _commitment,
         bytes calldata _signature
     ) internal view returns (address) {
-        bytes32 _digest = keccak256(
-            abi.encodePacked(domainHash, _commitment)
-        );
+        bytes32 _digest = keccak256(abi.encodePacked(domainHash, _commitment));
         return ECDSA.recover(ECDSA.toEthSignedMessageHash(_digest), _signature);
     }
 
