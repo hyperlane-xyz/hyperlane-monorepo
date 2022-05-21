@@ -12,8 +12,8 @@ RUN apt-get update && \
 # Add workspace to workdir 
 COPY agents ./agents
 COPY chains ./chains
-COPY tools ./tools
 COPY abacus-base ./abacus-base 
+COPY abacus-cli ./abacus-cli
 COPY abacus-core ./abacus-core
 COPY abacus-test ./abacus-test
 
