@@ -19,7 +19,6 @@ import {IInbox} from "../interfaces/IInbox.sol";
 contract Inbox is IInbox, Version0, Common {
     // ============ Libraries ============
 
-    using MerkleLib for MerkleLib.Tree;
     using Message for bytes;
     using TypeCasts for bytes32;
 
@@ -64,35 +63,14 @@ contract Inbox is IInbox, Version0, Common {
 
     function initialize(
         uint32 _remoteDomain,
-        address _validatorManager,
-        bytes32 _checkpointedRoot,
-        uint256 _checkpointedIndex
+        address _validatorManager
     ) public initializer {
         __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
-        _checkpoint(_checkpointedRoot, _checkpointedIndex);
     }
 
     // ============ External Functions ============
-
-    /**
-     * @notice Checkpoints the provided root and index.
-     * @dev Called by the validator manager, which is responsible for verifying a
-     * quorum of validator signatures on the checkpoint.
-     * @dev Reverts if checkpoints's index is not greater than our latest index.
-     * @param _root Checkpoint's merkle root.
-     * @param _index Checkpoint's index.
-     */
-    function checkpoint(bytes32 _root, uint256 _index)
-        external
-        override
-        onlyValidatorManager
-    {
-        // Ensure that the checkpoint is more recent than the latest we've seen.
-        require(_index > checkpoints[checkpointedRoot], "old checkpoint");
-        _checkpoint(_root, _index);
-    }
 
     /**
      * @notice Attempts to process the provided formatted `message`. Performs
@@ -101,33 +79,28 @@ contract Inbox is IInbox, Version0, Common {
      * @dev Includes the eventual function signature for Sovereign Consensus,
      * but comments out the name to suppress compiler warning
      * @param _message Formatted message (refer to Common.sol Message library)
-     * @param _proof Merkle proof of inclusion for message's leaf
-     * @param _index Index of leaf in outbox's merkle tree
      */
+    // _process(bytes32 start, bytes32[] digests, bytes signature, bytes message)
+    // process(bytes32 start, bytes message, bytes signature)
     function process(
         bytes calldata _message,
-        bytes32[32] calldata _proof,
-        uint256 _index,
+        bytes32 _baseCommitment,
+        bytes32 _commitment,
         bytes calldata /* _sovereignData */
     ) external override {
         // check re-entrancy guard
         require(entered == 1, "!reentrant");
         entered = 0;
 
-        bytes32 _messageHash = _message.leaf(_index);
+        bytes32 _messageHash = _message.hash(_commitment);
         // ensure that message has not been processed
         require(
             messages[_messageHash] == MessageStatus.None,
             "!MessageStatus.None"
         );
-        // calculate the expected root based on the proof
-        bytes32 _calculatedRoot = MerkleLib.branchRoot(
-            _messageHash,
-            _proof,
-            _index
-        );
-        // ensure that the root has been checkpointed
-        require(checkpoints[_calculatedRoot] > 0, "!checkpointed root");
+        // ensure the provided message and base commitment result in _commitment, which
+        // was signed by the validator set.
+        require(keccak256(abi.encodePacked(_baseCommitment, _messageHash)) == _commitment, "!commitment");
         _process(_message, _messageHash);
         // reset re-entrancy guard
         entered = 1;

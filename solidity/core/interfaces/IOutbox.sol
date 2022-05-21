@@ -4,18 +4,13 @@ pragma solidity >=0.6.11;
 import {ICommon} from "./ICommon.sol";
 
 interface IOutbox is ICommon {
+    function isCommitment(bytes32) external view returns (bool);
+
     function dispatch(
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes calldata _messageBody
-    ) external returns (uint256);
-
-    function checkpoint() external;
-
-    function isCheckpoint(
-        bytes32 _root,
-        uint256 _index
-    ) external returns (bool);
+    ) external returns (bytes32);
 
     function fail() external;
 }

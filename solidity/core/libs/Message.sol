@@ -42,15 +42,13 @@ library Message {
      * @notice Returns leaf of formatted message with provided fields.
      * @dev hash of abi packed message and leaf index.
      * @param _message Raw bytes of message contents.
-     * @param _leafIndex Index of the message in the tree
-     * @return Leaf (hash) of formatted message
      */
-    function leaf(bytes calldata _message, uint256 _leafIndex)
+    function hash(bytes calldata _message, bytes32 _commitment)
         internal
         pure
         returns (bytes32)
     {
-        return keccak256(abi.encodePacked(_message, _leafIndex));
+        return keccak256(abi.encodePacked(_message, _commitment));
     }
 
     /**

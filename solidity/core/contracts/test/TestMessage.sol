@@ -54,11 +54,11 @@ contract TestMessage {
         (, , , _recipient, ) = _message.destructureAddresses();
     }
 
-    function leaf(bytes calldata _message, uint256 _leafIndex)
+    function hash(bytes calldata _message, bytes32 _commitment)
         external
         pure
         returns (bytes32)
     {
-        return _message.leaf(_leafIndex);
+        return _message.hash(_commitment);
     }
 }

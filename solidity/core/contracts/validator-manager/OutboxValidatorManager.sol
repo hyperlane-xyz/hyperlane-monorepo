@@ -18,15 +18,12 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @notice Emitted when proof of an improper checkpoint is submitted.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
-     * @param root Root of the improper checkpoint.
-     * @param index Index of the improper checkpoint.
      * @param signatures A quorum of signatures on the improper checkpoint.
      * May include non-validator signatures.
      */
-    event ImproperCheckpoint(
+    event ImproperCommitment(
         address indexed outbox,
-        bytes32 root,
-        uint256 index,
+        bytes32 commitment,
         bytes[] signatures
     );
 
@@ -54,20 +51,17 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @dev Improper checkpoints signed by individual validators are not handled to prevent
      * a single byzantine validator from failing the Outbox.
      * @param _outbox The outbox.
-     * @param _root The merkle root of the checkpoint.
-     * @param _index The index of the checkpoint.
      * @param _signatures Signatures over the checkpoint to be checked for a validator
      * quorum. Must be sorted in ascending order by signer address.
      */
-    function improperCheckpoint(
+    function improperCommitment(
         IOutbox _outbox,
-        bytes32 _root,
-        uint256 _index,
+        bytes32 _commitment,
         bytes[] calldata _signatures
     ) external {
-        require(isQuorum(_root, _index, _signatures), "!quorum");
-        require(!_outbox.isCheckpoint(_root, _index), "!improper checkpoint");
+        require(isQuorum(_commitment, _signatures), "!quorum");
+        require(!_outbox.isCommitment(_commitment), "!improper commitment");
         _outbox.fail();
-        emit ImproperCheckpoint(address(_outbox), _root, _index, _signatures);
+        emit ImproperCommitment(address(_outbox), _commitment, _signatures);
     }
 }

@@ -8,11 +8,4 @@ import {IInbox} from "../../interfaces/IInbox.sol";
  * to be a contract.
  */
 contract TestValidatorManager {
-    function checkpoint(
-        IInbox _inbox,
-        bytes32 _root,
-        uint256 _index
-    ) external {
-        _inbox.checkpoint(_root, _index);
-    }
 }

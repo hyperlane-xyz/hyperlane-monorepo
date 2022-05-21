@@ -20,10 +20,9 @@ import {IOutbox} from "../interfaces/IOutbox.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
+contract Outbox is IOutbox, Version0, Common {
     // ============ Libraries ============
 
-    using MerkleLib for MerkleLib.Tree;
     using TypeCasts for address;
 
     // ============ Constants ============
@@ -53,21 +52,32 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
 
     // ============ Upgrade Gap ============
 
+    // What do we actually want to store here? What are validators signing?
+    // If keep a cumulative hash, and I have H_a = H(a), H_b = H(b, H_a), H_c = H(c, H_b)
+    // If I have a signature on H_c, how do I use that to process b?
+    // I provide H_a, [b], and signature
+    // i.e. start, messages, signature, message index
+    // _process(bytes32 start, bytes32[] digests, bytes signature, bytes message)
+    // process(bytes32 start, bytes message, bytes signature)
+    // Can we use an RSA accumulator instead?
+
+    bytes32 commitment;
+    mapping(bytes32 => bool) commitments;
+
     // gap for upgrade safety
-    uint256[49] private __GAP;
+    uint256[48] private __GAP;
 
     // ============ Events ============
 
     /**
      * @notice Emitted when a new message is dispatched via Abacus
      * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
-     * @param leafIndex Index of message's leaf in merkle tree
      * @param destination Destination domain
      * @param message Raw bytes of message
      */
     event Dispatch(
         bytes32 indexed messageHash,
-        uint256 indexed leafIndex,
+        bytes32 indexed commitment,
         uint32 indexed destination,
         bytes message
     );
@@ -110,10 +120,8 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         uint32 _destinationDomain,
         bytes32 _recipientAddress,
         bytes calldata _messageBody
-    ) external override notFailed returns (uint256) {
+    ) external override notFailed returns (bytes32) {
         require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
-        // The leaf has not been inserted yet at this point1
-        uint256 _leafIndex = count();
         // format the message into packed bytes
         bytes memory _message = Message.formatMessage(
             localDomain,
@@ -122,29 +130,18 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
             _recipientAddress,
             _messageBody
         );
-        // insert the hashed message into the Merkle tree
-        bytes32 _messageHash = keccak256(
-            abi.encodePacked(_message, _leafIndex)
-        );
-        tree.insert(_messageHash);
+        // Do we need to include the leaf or something? Otherwise we can't have duplicate messages
+        bytes32 _messageHash = keccak256(abi.encodePacked(_message, commitment));
+        commitment = keccak256(abi.encodePacked(commitment, _messageHash));
+        commitments[commitment] = true;
+
         // Emit Dispatch event with message information
-        emit Dispatch(_messageHash, _leafIndex, _destinationDomain, _message);
-        return _leafIndex;
+        emit Dispatch(_messageHash, commitment, _destinationDomain, _message);
+        return _messageHash;
     }
 
-    /**
-     * @notice Checkpoints the latest root and index.
-     * Validators are expected to sign this checkpoint so that it can be
-     * relayed to the Inbox contracts. Checkpoints for a single message (i.e.
-     * count = 1) are disallowed since they make checkpoint tracking more
-     * difficult.
-     * @dev emits Checkpoint event
-     */
-    function checkpoint() external override notFailed {
-        uint256 count = count();
-        require(count > 1, "!count");
-        bytes32 root = root();
-        _checkpoint(root, count - 1);
+    function isCommitment(bytes32 _commitment) external view override returns (bool) {
+        return commitments[_commitment];
     }
 
     /**
@@ -156,25 +153,6 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         state = States.Failed;
         emit Fail();
     }
-
-    /**
-     * @notice Returns whether the provided root and index are a known
-     * checkpoint.
-     * @param _root The merkle root.
-     * @param _index The index.
-     * @return TRUE iff `_root` and `_index` are a known checkpoint.
-     */
-    function isCheckpoint(bytes32 _root, uint256 _index)
-        external
-        view
-        override
-        returns (bool)
-    {
-        // Checkpoints are zero-indexed, but checkpoints of index 0 are disallowed
-        return _index > 0 && checkpoints[_root] == _index;
-    }
-
-    // ============ Internal Functions  ============
 
     /**
      * @notice Internal utility function that combines

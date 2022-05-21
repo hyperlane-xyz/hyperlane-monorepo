@@ -132,16 +132,13 @@ abstract contract MultisigValidatorManager is Ownable {
      * @dev Reverts if `_signatures` is not sorted in ascending order by the signer
      * address, which is required for duplicate detection.
      * @dev Does not revert if a signature's signer is not in the validator set.
-     * @param _root The merkle root of the checkpoint.
-     * @param _index The index of the checkpoint.
      * @param _signatures Signatures over the checkpoint to be checked for a validator
      * quorum. Must be sorted in ascending order by signer address.
      * @return TRUE iff `_signatures` constitute a quorum of validator signatures over
      * the checkpoint.
      */
     function isQuorum(
-        bytes32 _root,
-        uint256 _index,
+        bytes32 _commitment,
         bytes[] calldata _signatures
     ) public view returns (bool) {
         uint256 _numSignatures = _signatures.length;
@@ -156,9 +153,8 @@ abstract contract MultisigValidatorManager is Ownable {
         address _previousSigner = address(0);
         uint256 _validatorSignatureCount = 0;
         for (uint256 i = 0; i < _numSignatures; i++) {
-            address _signer = _recoverCheckpointSigner(
-                _root,
-                _index,
+            address _signer = _recoverCommitmentSigner(
+                _commitment,
                 _signatures[i]
             );
             // Revert if the signer violates the required sort order.
@@ -193,18 +189,15 @@ abstract contract MultisigValidatorManager is Ownable {
 
     /**
      * @notice Recovers the signer from a signature of a checkpoint.
-     * @param _root The checkpoint's merkle root.
-     * @param _index The checkpoint's index.
      * @param _signature Signature on the the checkpoint.
      * @return The signer of the checkpoint signature.
      **/
-    function _recoverCheckpointSigner(
-        bytes32 _root,
-        uint256 _index,
+    function _recoverCommitmentSigner(
+        bytes32 _commitment,
         bytes calldata _signature
     ) internal view returns (address) {
         bytes32 _digest = keccak256(
-            abi.encodePacked(domainHash, _root, _index)
+            abi.encodePacked(domainHash, _commitment)
         );
         return ECDSA.recover(ECDSA.toEthSignedMessageHash(_digest), _signature);
     }

@@ -4,17 +4,12 @@ pragma solidity >=0.6.11;
 import {ICommon} from "./ICommon.sol";
 
 interface IInbox is ICommon {
-    function checkpoint(
-        bytes32 _root,
-        uint256 _index
-    ) external;
-
     function remoteDomain() external returns (uint32);
 
     function process(
         bytes calldata _message,
-        bytes32[32] calldata _proof,
-        uint256 _index,
+        bytes32 _baseCommitment,
+        bytes32 _commitment,
         bytes calldata _sovereignData
     ) external;
 }
