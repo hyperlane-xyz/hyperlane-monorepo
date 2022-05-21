@@ -55,7 +55,7 @@ pub use paste;
 ///
 /// Please note that integers must be specified as `String` in order to allow
 /// them to be configured via env var. They must then be parsed in the
-/// [`AbacusAgent::from_settings`](crate::agent::AbacusAgent::from_settings)
+/// [`Agent::from_settings`](crate::agent::Agent::from_settings)
 /// method.
 ///
 /// ### Usage
