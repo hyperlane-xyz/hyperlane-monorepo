@@ -62,19 +62,22 @@ We use the tokio async runtime environment. Please see the docs
 
 ### Repo layout
 
-- `abacus-core`
-  - contains implementations of core primitives
-  - this includes
-    - traits (interfaces) for the on-chain contracts
-    - model implementations of the contracts in rust
-    - merkle tree implementations (for provers)
 - `abacus-base`
+  - lowest dependency abacus utilities
   - contains shared utilities for building off-chain agents
   - this includes
     - trait implementations for different chains
     - shared configuration file formats
     - basic setup for an off-chain agent
+- `abacus-core`
+  - depends on abacus-base
+  - contains implementations of core primitives
+  - this includes
+    - traits (interfaces) for the on-chain contracts
+    - model implementations of the contracts in rust
+    - merkle tree implementations (for provers)
 - `chains/abacus-ethereum`
+  - depends on abacus-core (and transitively abacus-base)
   - interfaces to the ethereum contracts
 - `agents`
   - each of the off-chain agents implemented thus far
