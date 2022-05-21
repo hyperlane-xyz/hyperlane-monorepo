@@ -1,4 +1,4 @@
-import { AbacusCoreDeployer } from '@abacus-network/deploy';
+import { AbacusCoreDeployer, RouterConfig } from '@abacus-network/deploy';
 import { AbacusCore, ChainMap, objMap } from '@abacus-network/sdk';
 
 import { ControllerConfig, ControllerDeployer } from '../src/controller';
@@ -15,7 +15,7 @@ async function main() {
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
-  const controllerConfig: ChainMap<any, ControllerConfig> =
+  const controllerConfig: ChainMap<any, ControllerConfig & RouterConfig> =
     core.extendWithConnectionManagers(config.controller);
 
   const deployer = new ControllerDeployer(multiProvider, controllerConfig);

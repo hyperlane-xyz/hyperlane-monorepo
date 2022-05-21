@@ -16,14 +16,14 @@ import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
-  Config extends RouterConfig,
+  Config,
   Addresses,
-> extends AbacusAppDeployer<Chain, Config, Addresses> {
+> extends AbacusAppDeployer<Chain, Config & RouterConfig, Addresses> {
   abstract mustGetRouter(chain: Chain, addresses: Addresses): Router;
 
   constructor(
     multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, Config>,
+    configMap: ChainMap<Chain, Config & RouterConfig>,
     options?: DeployerOptions,
   ) {
     const logger = options?.logger || debug('abacus:RouterDeployer');
