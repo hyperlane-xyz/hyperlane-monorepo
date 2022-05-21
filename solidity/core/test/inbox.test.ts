@@ -42,13 +42,54 @@ describe('Inbox', async () => {
     // Random 32 bytes
     const baseCommitment =
       '0xc62bbe990c8ecd7f1771bb353a516fb486fecf3b5987ecebc4d064d3586e2711';
+    const messageHash = ethers.utils.solidityKeccak256(['bytes'], [message]);
     const commitment = ethers.utils.solidityKeccak256(
-      ['bytes32', 'bytes'],
-      [baseCommitment, message],
+      ['bytes32', 'bytes32'],
+      [baseCommitment, messageHash],
     );
 
     await inbox.process(message, baseCommitment, commitment, '0x');
     expect(await inbox.messages(commitment)).to.eql(MessageStatus.PROCESSED);
+  });
+
+  it('Processes a valid message in the presence of attempted censorship', async () => {
+    const signers = await ethers.getSigners();
+    const recipientF = new TestRecipient__factory(signers[signers.length - 1]);
+    const recipient = await recipientF.deploy();
+    await recipient.deployTransaction.wait();
+    const iterations = 10000;
+    // Random 32 bytes
+    const baseCommitment =
+      '0xc62bbe990c8ecd7f1771bb353a516fb486fecf3b5987ecebc4d064d3586e2711';
+    const message =
+      '0x000003e8000000000000000000000000f39fd6e51aad88f6f4ce6ab8827279cfffb9226600000bb800000000000000000000000073511669fd4de447fed18bb79bafeac93ab7f31f1234';
+    const messageHash = ethers.utils.solidityKeccak256(['bytes'], [message]);
+    const messageCommitment = ethers.utils.solidityKeccak256(
+      ['bytes32', 'bytes32'],
+      [baseCommitment, messageHash],
+    );
+    let acc = messageCommitment;
+    const messageHashes = [messageHash];
+    for (let i = 0; i < iterations; i++) {
+      acc = ethers.utils.solidityKeccak256(
+        ['bytes32', 'bytes32'],
+        [acc, messageHash],
+      );
+      messageHashes.push(messageHash);
+    }
+
+    await inbox.processInefficient(
+      message,
+      baseCommitment,
+      acc,
+      messageHashes,
+      0,
+      '0x',
+    );
+
+    expect(await inbox.messages(messageCommitment)).to.eql(
+      MessageStatus.PROCESSED,
+    );
   });
 
   it('Rejects an already-processed message', async () => {
@@ -57,9 +98,10 @@ describe('Inbox', async () => {
     // Random 32 bytes
     const baseCommitment =
       '0xc62bbe990c8ecd7f1771bb353a516fb486fecf3b5987ecebc4d064d3586e2711';
+    const messageHash = ethers.utils.solidityKeccak256(['bytes'], [message]);
     const commitment = ethers.utils.solidityKeccak256(
-      ['bytes32', 'bytes'],
-      [baseCommitment, message],
+      ['bytes32', 'bytes32'],
+      [baseCommitment, messageHash],
     );
 
     // Set message status as MessageStatus.Processed

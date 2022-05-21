@@ -67,18 +67,23 @@ describe('Outbox', async () => {
         recipient.address,
         message,
       );
-      const commitment = await outbox.commitment();
-      const hash = ethers.utils.solidityKeccak256(
-        ['bytes32', 'bytes'],
-        [commitment, abacusMessage],
+      const baseCommitment = await outbox.commitment();
+      const messageHash = ethers.utils.solidityKeccak256(
+        ['bytes'],
+        [abacusMessage],
+      );
+      const commitment = ethers.utils.solidityKeccak256(
+        ['bytes32', 'bytes32'],
+        [baseCommitment, messageHash],
       );
 
       return {
         message,
         destDomain,
         abacusMessage,
-        hash,
+        baseCommitment,
         commitment,
+        messageHash,
       };
     };
 
@@ -94,7 +99,7 @@ describe('Outbox', async () => {
     });
 
     it('Dispatches a message', async () => {
-      const { message, destDomain, abacusMessage, hash } =
+      const { message, destDomain, abacusMessage, commitment, messageHash } =
         await testMessageValues();
 
       // Send message with signer address as msg.sender
@@ -109,11 +114,11 @@ describe('Outbox', async () => {
           ),
       )
         .to.emit(outbox, 'Dispatch')
-        .withArgs(hash, destDomain, abacusMessage);
+        .withArgs(messageHash, commitment, destDomain, abacusMessage);
     });
 
     it('Returns the messsage hash of the dispatched message', async () => {
-      const { message, hash } = await testMessageValues();
+      const { message, messageHash } = await testMessageValues();
 
       const actual = await outbox
         .connect(signer)
@@ -123,7 +128,7 @@ describe('Outbox', async () => {
           message,
         );
 
-      expect(actual).equals(hash);
+      expect(actual).equals(messageHash);
     });
   });
 

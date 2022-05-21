@@ -75,6 +75,7 @@ contract Outbox is IOutbox, Version0, Common {
      * @param message Raw bytes of message
      */
     event Dispatch(
+        bytes32 indexed messageHash,
         bytes32 indexed commitment,
         uint32 indexed destination,
         bytes message
@@ -129,12 +130,14 @@ contract Outbox is IOutbox, Version0, Common {
             _messageBody
         );
 
-        commitment = keccak256(abi.encodePacked(commitment, _message));
+        bytes32 _messageHash = keccak256(_message);
+
+        commitment = keccak256(abi.encodePacked(commitment, _messageHash));
         commitments[commitment] = true;
 
         // Emit Dispatch event with message information
-        emit Dispatch(commitment, _destinationDomain, _message);
-        return commitment;
+        emit Dispatch(_messageHash, commitment, _destinationDomain, _message);
+        return _messageHash;
     }
 
     function isCommitment(bytes32 _commitment)

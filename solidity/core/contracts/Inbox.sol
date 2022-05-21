@@ -72,30 +72,68 @@ contract Inbox is IInbox, Version0, Common {
 
     // ============ External Functions ============
 
-    /**
-     * @notice Attempts to process the provided formatted `message`. Performs
-     * verification against root of the proof
-     * @dev Reverts if verification of the message fails.
-     * @dev Includes the eventual function signature for Sovereign Consensus,
-     * but comments out the name to suppress compiler warning
-     * @param _message Formatted message (refer to Common.sol Message library)
-     */
     // _process(bytes32 start, bytes32[] digests, bytes signature, bytes message)
-    // process(bytes32 start, bytes message, bytes signature)
-    function process(
+    function processInefficient(
         bytes calldata _message,
         bytes32 _baseCommitment,
         bytes32 _commitment,
+        bytes32[] calldata _messageHashes,
+        uint256 _index,
         bytes calldata /* _sovereignData */
-    ) external override {
+    ) external {
         // check re-entrancy guard
         require(entered == 1, "!reentrant");
         entered = 0;
 
+        bytes32 _messageHash = keccak256(_message);
+        require(_messageHashes[_index] == _messageHash, "!msgHash");
+        bytes32 acc = _baseCommitment;
+        bytes32 _messageCommitment;
+        for (uint256 i = 0; i < _messageHashes.length; i++) {
+            acc = keccak256(abi.encodePacked(acc, _messageHashes[i]));
+            // We need to find the commitment to the message so that we can
+            // prevent replays. Alternatively, we could encode a nonce in the message
+            // for uniqueness.
+            if (i == _index) {
+                _messageCommitment = acc;
+            }
+        }
+        require(acc == _commitment, "!_commitment"); 
+
+        // ensure that message has not been processed
+        require(
+            messages[_messageCommitment] == MessageStatus.None,
+            "!MessageStatus.None"
+        );
+        _process(_message, _messageCommitment);
+        // reset re-entrancy guard
+        entered = 1;
+    }
+    /**
+    * @notice Attempts to process the provided formatted `message`. Performs
+    * verification against root of the proof
+    * @dev Reverts if verification of the message fails.
+    * @dev Includes the eventual function signature for Sovereign Consensus,
+    * but comments out the name to suppress compiler warning
+    * @param _message Formatted message (refer to Common.sol Message library)
+    */
+// _process(bytes32 start, bytes32[] digests, bytes signature, bytes message)
+// process(bytes32 start, bytes message, bytes signature)
+function process(
+    bytes calldata _message,
+    bytes32 _baseCommitment,
+    bytes32 _commitment,
+    bytes calldata /* _sovereignData */
+) external override {
+    // check re-entrancy guard
+    require(entered == 1, "!reentrant");
+    entered = 0;
+
         // ensure the provided message and base commitment result in _commitment, which
         // was signed by the validator set.
+        bytes32 _messageHash = keccak256(_message);
         require(
-            keccak256(abi.encodePacked(_baseCommitment, _message)) ==
+            keccak256(abi.encodePacked(_baseCommitment, _messageHash)) ==
                 _commitment,
             "!commitment"
         );
