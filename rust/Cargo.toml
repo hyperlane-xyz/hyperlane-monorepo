@@ -11,5 +11,4 @@ members = [
     "agents/validator",
     "agents/relayer",
     "tools/abacus-cli",
-    "tools/balance-exporter"
 ]
