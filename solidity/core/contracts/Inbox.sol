@@ -98,7 +98,7 @@ contract Inbox is IInbox, Version0, Common {
                 _messageCommitment = acc;
             }
         }
-        require(acc == _commitment, "!_commitment"); 
+        require(acc == _commitment, "!_commitment");
 
         // ensure that message has not been processed
         require(
@@ -109,25 +109,26 @@ contract Inbox is IInbox, Version0, Common {
         // reset re-entrancy guard
         entered = 1;
     }
+
     /**
-    * @notice Attempts to process the provided formatted `message`. Performs
-    * verification against root of the proof
-    * @dev Reverts if verification of the message fails.
-    * @dev Includes the eventual function signature for Sovereign Consensus,
-    * but comments out the name to suppress compiler warning
-    * @param _message Formatted message (refer to Common.sol Message library)
-    */
-// _process(bytes32 start, bytes32[] digests, bytes signature, bytes message)
-// process(bytes32 start, bytes message, bytes signature)
-function process(
-    bytes calldata _message,
-    bytes32 _baseCommitment,
-    bytes32 _commitment,
-    bytes calldata /* _sovereignData */
-) external override {
-    // check re-entrancy guard
-    require(entered == 1, "!reentrant");
-    entered = 0;
+     * @notice Attempts to process the provided formatted `message`. Performs
+     * verification against root of the proof
+     * @dev Reverts if verification of the message fails.
+     * @dev Includes the eventual function signature for Sovereign Consensus,
+     * but comments out the name to suppress compiler warning
+     * @param _message Formatted message (refer to Common.sol Message library)
+     */
+    // _process(bytes32 start, bytes32[] digests, bytes signature, bytes message)
+    // process(bytes32 start, bytes message, bytes signature)
+    function process(
+        bytes calldata _message,
+        bytes32 _baseCommitment,
+        bytes32 _commitment,
+        bytes calldata /* _sovereignData */
+    ) external override {
+        // check re-entrancy guard
+        require(entered == 1, "!reentrant");
+        entered = 0;
 
         // ensure the provided message and base commitment result in _commitment, which
         // was signed by the validator set.
