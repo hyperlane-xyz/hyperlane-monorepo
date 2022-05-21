@@ -50,7 +50,7 @@ pub struct Tx {
     /// The recipient/contract address
     #[clap(short, long)]
     to: Address,
-    /// The chain_id. see https://chainlist.org
+    /// The chain_id. see <https://chainlist.org>
     #[clap(short, long)]
     chain_id: Option<u64>,
 
