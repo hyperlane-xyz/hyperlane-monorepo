@@ -29,7 +29,6 @@ RUN \
     mkdir -p /release && \
     cp /usr/src/target/release/validator /release && \
     cp /usr/src/target/release/relayer /release && \
-    cp /usr/src/target/release/checkpointer /release && \
     cp /usr/src/target/release/kathy /release && \
     cp /usr/src/target/release/kms-cli /release && \
     cp /usr/src/target/release/abacus-cli /release

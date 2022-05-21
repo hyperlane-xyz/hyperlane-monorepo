@@ -8,7 +8,6 @@ members = [
     "abacus-test",
     "chains/abacus-ethereum",
     "agents/kathy",
-    "agents/checkpointer",
     "agents/validator",
     "agents/relayer",
     "tools/kms-cli",
