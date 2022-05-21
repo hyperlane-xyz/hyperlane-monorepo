@@ -10,7 +10,6 @@ members = [
     "agents/kathy",
     "agents/validator",
     "agents/relayer",
-    "tools/kms-cli",
     "tools/abacus-cli",
     "tools/balance-exporter"
 ]
