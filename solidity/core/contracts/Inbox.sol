@@ -149,7 +149,7 @@ contract Inbox is IInbox, Version0, Common {
     }
 
     /**
-     * @notice Returns the latest checkpoint for the Validators to sign.
+     * @notice Returns the latest checkpoint stored by the Inbox.
      * @return root Latest checkpointed root
      * @return index Latest checkpointed index
      */

@@ -141,4 +141,20 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         state = States.Failed;
         emit Fail();
     }
+
+    /**
+     * @notice Returns the latest checkpoint for the validators to sign.
+     * @dev Will revert if the tree is empty due to underflow on `index`.
+     * @return root Root of the current merkle tree.
+     * @return index The index of the latest leaf in the tree.
+     */
+    function latestCheckpoint()
+        external
+        view
+        override
+        returns (bytes32 root, uint256 index)
+    {
+        root = root();
+        index = count() - 1;
+    }
 }
