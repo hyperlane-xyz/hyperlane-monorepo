@@ -61,10 +61,34 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @param _index The index of the disputed leaf.
      * @return True iff fraud was proved.
      */
-    function verifyFraudProof(IOutbox _outbox, bytes32 _fraudulentRoot, bytes32 _fraudulentLeaf, bytes32[32] calldata _fraudulentProof, bytes32 _actualLeaf, bytes32[32] calldata _actualProof, uint256 _index) public view returns (bool) {
+    function verifyFraudProof(
+        IOutbox _outbox,
+        bytes32 _fraudulentRoot,
+        bytes32 _fraudulentLeaf,
+        bytes32[32] calldata _fraudulentProof,
+        bytes32 _actualLeaf,
+        bytes32[32] calldata _actualProof,
+        uint256 _index
+    ) public view returns (bool) {
         require(_fraudulentLeaf != _actualLeaf, "leaves match");
-        require(_outbox.verifyMerkleProof(_fraudulentRoot, _fraudulentLeaf, _fraudulentProof, _index), "!fraud proof");
-        require(_outbox.verifyMerkleProof(_outbox.root(), _actualLeaf, _actualProof, _index), "!actual proof");
+        require(
+            _outbox.verifyMerkleProof(
+                _fraudulentRoot,
+                _fraudulentLeaf,
+                _fraudulentProof,
+                _index
+            ),
+            "!fraud proof"
+        );
+        require(
+            _outbox.verifyMerkleProof(
+                _outbox.root(),
+                _actualLeaf,
+                _actualProof,
+                _index
+            ),
+            "!actual proof"
+        );
         return true;
     }
 
@@ -95,9 +119,28 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         bytes32[32] calldata _actualProof,
         uint256 _index
     ) external {
-        require(isQuorum(_checkpointRoot, _checkpointIndex, _checkpointSignatures), "!quorum");
-        require(verifyFraudProof(_outbox, _checkpointRoot, _fraudulentLeaf, _fraudulentProof, _actualLeaf, _actualProof, _index), "!fraud");
+        require(
+            isQuorum(_checkpointRoot, _checkpointIndex, _checkpointSignatures),
+            "!quorum"
+        );
+        require(
+            verifyFraudProof(
+                _outbox,
+                _checkpointRoot,
+                _fraudulentLeaf,
+                _fraudulentProof,
+                _actualLeaf,
+                _actualProof,
+                _index
+            ),
+            "!fraud"
+        );
         _outbox.fail();
-        emit ImproperCheckpoint(address(_outbox), _checkpointRoot, _checkpointIndex, _checkpointSignatures);
+        emit ImproperCheckpoint(
+            address(_outbox),
+            _checkpointRoot,
+            _checkpointIndex,
+            _checkpointSignatures
+        );
     }
 }

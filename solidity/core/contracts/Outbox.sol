@@ -150,11 +150,21 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      * @param _index Index of leaf in the merkle tree
      * @return Whether or not verification of the proof succeeded
      */
-    function verifyMerkleProof(bytes32 _root, bytes32 _leaf, bytes32[32] calldata _proof, uint256 _index) external pure returns (bool) {
+    function verifyMerkleProof(
+        bytes32 _root,
+        bytes32 _leaf,
+        bytes32[32] calldata _proof,
+        uint256 _index
+    ) external pure returns (bool) {
         return (MerkleLib.branchRoot(_leaf, _proof, _index) == _root);
     }
 
-    function root() public view override(IOutbox, MerkleTreeManager) returns (bytes32) {
+    function root()
+        public
+        view
+        override(IOutbox, MerkleTreeManager)
+        returns (bytes32)
+    {
         return MerkleTreeManager.root();
     }
 
