@@ -118,7 +118,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
 
     /**
      * @notice Dispatches a message to an enrolled router via the local router's Outbox.
-     * @notice Does not pay interchain gas or create a checkpoint.
+     * @notice Does not pay interchain gas.
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _destinationDomain The domain of the chain to which to send the message.
      * @param _msg The message to dispatch.
@@ -132,26 +132,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
 
     /**
      * @notice Dispatches a message to an enrolled router via the local router's Outbox
-     * and creates a checkpoint.
-     * @dev Does not pay interchain gas.
-     * @dev Reverts if there is no enrolled router for _destinationDomain.
-     * @param _destinationDomain The domain of the chain to which to send the message.
-     * @param _msg The message to dispatch.
-     */
-    function _dispatchAndCheckpoint(
-        uint32 _destinationDomain,
-        bytes memory _msg
-    ) internal {
-        // Gets the outbox once to avoid multiple storage reads and calls.
-        IOutbox _outbox = _outbox();
-        _dispatch(_outbox, _destinationDomain, _msg);
-        _outbox.checkpoint();
-    }
-
-    /**
-     * @notice Dispatches a message to an enrolled router via the local router's Outbox
      * and pays interchain gas for the dispatched message.
-     * @dev Does not create a checkpoint on the Outbox.
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _destinationDomain The domain of the chain to which to send the message.
      * @param _msg The message to dispatch.
@@ -174,49 +155,11 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         );
     }
 
-    /**
-     * @notice Dispatches a message to an enrolled router via the local router's Outbox,
-     * pays interchain gas for the dispatched message, and creates a checkpoint.
-     * @dev Reverts if there is no enrolled router for _destinationDomain.
-     * @param _destinationDomain The domain of the chain to which to send the message.
-     * @param _msg The message to dispatch.
-     * @param _gasPayment The amount of native tokens to pay the Interchain Gas
-     * Paymaster to process the dispatched message.
-     */
-    function _dispatchWithGasAndCheckpoint(
-        uint32 _destinationDomain,
-        bytes memory _msg,
-        uint256 _gasPayment
-    ) internal {
-        // Gets the abacusConnectionManager and outbox once to avoid multiple storage reads
-        // and calls.
-        IAbacusConnectionManager _abacusConnectionManager = abacusConnectionManager;
-        IOutbox _outbox = _abacusConnectionManager.outbox();
-        _dispatchWithGas(
-            _outbox,
-            _abacusConnectionManager.interchainGasPaymaster(),
-            _destinationDomain,
-            _msg,
-            _gasPayment
-        );
-        _outbox.checkpoint();
-    }
-
-    /**
-     * @notice Creates a checkpoint on the local router's Outbox.
-     * @dev If dispatching a single message and immediately checkpointing,
-     * `_dispatchAndCheckpoint` or `_dispatchWithGasAndCheckpoint` should be preferred,
-     * as they will consume less gas than calling `_dispatch` and this function.
-     */
-    function _checkpoint() internal {
-        _outbox().checkpoint();
-    }
-
     // ============ Private functions ============
 
     /**
      * @notice Dispatches a message to an enrolled router via the provided Outbox.
-     * @dev Does not pay interchain gas or create a checkpoint.
+     * @dev Does not pay interchain gas.
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _outbox The outbox contract to dispatch the message through.
      * @param _destinationDomain The domain of the chain to which to send the message.
@@ -235,7 +178,6 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     /**
      * @notice Dispatches a message to an enrolled router via the provided Outbox
      * and pays interchain gas for the dispatched message via the provided InterchainGasPaymaster.
-     * @dev Does not create a checkpoint.
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _outbox The outbox contract to dispatch the message through.
      * @param _interchainGasPaymaster The InterchainGasPaymaster contract to pay for interchain gas.
