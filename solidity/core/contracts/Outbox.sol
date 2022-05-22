@@ -133,21 +133,6 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     }
 
     /**
-     * @notice Checkpoints the latest root and index.
-     * Validators are expected to sign this checkpoint so that it can be
-     * relayed to the Inbox contracts. Checkpoints for a single message (i.e.
-     * count = 1) are disallowed since they make checkpoint tracking more
-     * difficult.
-     * @dev emits Checkpoint event
-     */
-    function checkpoint() external override notFailed {
-        uint256 count = count();
-        require(count > 1, "!count");
-        bytes32 root = root();
-        _checkpoint(root, count - 1);
-    }
-
-    /**
      * @notice Set contract state to FAILED.
      * @dev Called by the validator manager when fraud is proven.
      */
@@ -155,40 +140,5 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         // set contract to FAILED
         state = States.Failed;
         emit Fail();
-    }
-
-    /**
-     * @notice Returns whether the provided root and index are a known
-     * checkpoint.
-     * @param _root The merkle root.
-     * @param _index The index.
-     * @return TRUE iff `_root` and `_index` are a known checkpoint.
-     */
-    function isCheckpoint(bytes32 _root, uint256 _index)
-        external
-        view
-        override
-        returns (bool)
-    {
-        // Checkpoints are zero-indexed, but checkpoints of index 0 are disallowed
-        return _index > 0 && checkpoints[_root] == _index;
-    }
-
-    // ============ Internal Functions  ============
-
-    /**
-     * @notice Internal utility function that combines
-     * `_destination` and `_nonce`.
-     * @dev Both destination and nonce should be less than 2^32 - 1
-     * @param _destination Domain of destination chain
-     * @param _nonce Current nonce for given destination chain
-     * @return Returns (`_destination` << 32) & `_nonce`
-     */
-    function _destinationAndNonce(uint32 _destination, uint32 _nonce)
-        internal
-        pure
-        returns (uint64)
-    {
-        return (uint64(_destination) << 32) | _nonce;
     }
 }
