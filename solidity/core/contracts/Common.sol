@@ -20,29 +20,15 @@ abstract contract Common is ICommon, OwnableUpgradeable {
 
     // ============ Public Variables ============
 
-    // Checkpoints of root => leaf index
-    // Checkpoints of index 0 have to be disallowed as the existence of such
-    // a checkpoint cannot be distinguished from their non-existence
-    mapping(bytes32 => uint256) public checkpoints;
-    // The latest checkpointed root
-    bytes32 public checkpointedRoot;
     // Address of the validator manager contract.
     address public validatorManager;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[47] private __GAP;
+    uint256[49] private __GAP;
 
     // ============ Events ============
-
-    /**
-     * @notice Emitted when a root is checkpointed on Outbox or a signed
-     * checkpoint is relayed to a Inbox.
-     * @param root Merkle root
-     * @param index Leaf index
-     */
-    event Checkpoint(bytes32 indexed root, uint256 indexed index);
 
     /**
      * @notice Emitted when the validator manager contract is changed
@@ -90,21 +76,6 @@ abstract contract Common is ICommon, OwnableUpgradeable {
         _setValidatorManager(_validatorManager);
     }
 
-    /**
-     * @notice Returns the latest checkpoint for the Validators to sign.
-     * @return root Latest checkpointed root
-     * @return index Latest checkpointed index
-     */
-    function latestCheckpoint()
-        external
-        view
-        override
-        returns (bytes32 root, uint256 index)
-    {
-        root = checkpointedRoot;
-        index = checkpoints[root];
-    }
-
     // ============ Internal Functions ============
 
     /**
@@ -118,16 +89,5 @@ abstract contract Common is ICommon, OwnableUpgradeable {
         );
         validatorManager = _validatorManager;
         emit NewValidatorManager(_validatorManager);
-    }
-
-    /**
-     * @notice Store the provided checkpoint.
-     * @param _root The merkle root
-     * @param _index The leaf index of the latest message in the merkle tree.
-     */
-    function _checkpoint(bytes32 _root, uint256 _index) internal {
-        checkpoints[_root] = _index;
-        checkpointedRoot = _root;
-        emit Checkpoint(_root, _index);
     }
 }
