@@ -11,4 +11,6 @@ interface IOutbox is ICommon {
     ) external returns (uint256);
 
     function fail() external;
+    function root() external view returns (bytes32);
+    function verifyMerkleProof(bytes32 _root, bytes32 _leaf, bytes32[32] calldata _proof, uint256 _index) external pure returns (bool);
 }

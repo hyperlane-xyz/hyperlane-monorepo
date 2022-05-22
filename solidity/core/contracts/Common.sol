@@ -90,8 +90,4 @@ abstract contract Common is ICommon, OwnableUpgradeable {
         validatorManager = _validatorManager;
         emit NewValidatorManager(_validatorManager);
     }
-
-    function latestCheckpoint()
-        external
-        view returns (bytes32 root, uint256 index);
 }

@@ -143,6 +143,22 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     }
 
     /**
+     * @notice Verifies an inclusion proof of `_leaf`, returning a boolean.
+     * @param _root The merkle root against which inclusion is proved
+     * @param _leaf The leaf to verify inclusion of
+     * @param _proof Merkle proof of inclusion for `_leaf`
+     * @param _index Index of leaf in the merkle tree
+     * @return Whether or not verification of the proof succeeded
+     */
+    function verifyMerkleProof(bytes32 _root, bytes32 _leaf, bytes32[32] calldata _proof, uint256 _index) external pure returns (bool) {
+        return (MerkleLib.branchRoot(_leaf, _proof, _index) == _root);
+    }
+
+    function root() public view override(IOutbox, MerkleTreeManager) returns (bytes32) {
+        return MerkleTreeManager.root();
+    }
+
+    /**
      * @notice Returns the latest checkpoint for the validators to sign.
      * @dev Will revert if the tree is empty due to underflow on `index`.
      * @return root Root of the current merkle tree.
@@ -152,9 +168,8 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         external
         view
         override
-        returns (bytes32 root, uint256 index)
+        returns (bytes32, uint256)
     {
-        root = root();
-        index = count() - 1;
+        return (root(), count() - 1);
     }
 }
