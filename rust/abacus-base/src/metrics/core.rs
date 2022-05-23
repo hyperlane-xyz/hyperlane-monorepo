@@ -6,16 +6,17 @@ use std::time::Duration;
 use abacus_core::Address;
 use eyre::Result;
 use prometheus::{
-    histogram_opts, labels, opts, register_histogram_vec_with_registry,
-    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, Encoder,
-    HistogramVec, IntCounterVec, IntGaugeVec, Registry,
+    histogram_opts, labels, opts, register_gauge_vec_with_registry,
+    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
+    register_int_gauge_vec_with_registry, Encoder, GaugeVec, HistogramVec, IntCounterVec,
+    IntGaugeVec, Registry,
 };
 use tokio::task::JoinHandle;
 
 use super::NAMESPACE;
 
-const NETWORK_HISTOGRAM_BUCKETS: &[f64] = &[0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.];
-const PROCESS_HISTOGRAM_BUCKETS: &[f64] = &[
+pub const NETWORK_HISTOGRAM_BUCKETS: &[f64] = &[0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.];
+pub const PROCESS_HISTOGRAM_BUCKETS: &[f64] = &[
     0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.,
 ];
 /// Macro to prefix a string with the namespace.
@@ -172,6 +173,14 @@ impl CoreMetrics {
         labels: &[&str],
     ) -> Result<IntGaugeVec> {
         Ok(register_int_gauge_vec_with_registry!(
+            opts!(namespaced!(metric_name), help, self.const_labels_str()),
+            labels,
+            self.registry
+        )?)
+    }
+
+    pub fn new_gauge(&self, metric_name: &str, help: &str, labels: &[&str]) -> Result<GaugeVec> {
+        Ok(register_gauge_vec_with_registry!(
             opts!(namespaced!(metric_name), help, self.const_labels_str()),
             labels,
             self.registry

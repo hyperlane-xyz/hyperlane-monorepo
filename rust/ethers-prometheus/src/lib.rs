@@ -35,6 +35,8 @@ fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
 
 /// Some basic information about a token.
 #[derive(Clone)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct TokenInfo {
     /// Full name of the token. E.g. Ether.
     pub name: String,
@@ -55,28 +57,48 @@ impl Default for TokenInfo {
 }
 
 /// Some basic information about a wallet.
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct WalletInfo {
     /// A human-friendly name for the wallet. This should be a short string like "relayer".
     pub name: Option<String>,
 }
 
 /// Some basic information about a contract.
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct ContractInfo {
     /// A human-friendly name for the contract. This should be a short string like "inbox".
     pub name: Option<String>,
 }
 
-/// Expected label names for the `block_height metric`.
+/// Expected label names for the `block_height` metric.
 pub const BLOCK_HEIGHT_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const BLOCK_HEIGHT_HELP: &str = "Tracks the current block height of the chain";
+
 /// Expected label names for the `gas_price_gwei` metric.
 pub const GAS_PRICE_GWEI_LABELS: &[&str] = &["chain"];
+/// Help string for the metric.
+pub const GAS_PRICE_GEWI_HELP: &str = "Tracks the current gas price of the chain";
+
 /// Expected label names for the `contract_call_duration_seconds` metric.
 pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] =
     &["chain", "contract_name", "contract_address"];
+/// Help string for the metric.
+pub const CONTRACT_CALL_DURATION_SECONDS_HELP: &str = "Contract call durations by contract";
+
 /// Expected label names for the `transaction_send_duration_seconds` metric.
 pub const TRANSACTION_SEND_DURATION_SECONDS_LABELS: &[&str] = &["chain", "address_from"];
+/// Help string for the metric.
+pub const TRANSACTION_SEND_DURATION_SECONDS_HELP: &str =
+    "Time taken to submit the transaction (not counting time for it to be included)";
+
 /// Expected label names for the `transaction_send_total` metric.
 pub const TRANSACTION_SEND_TOTAL_LABELS: &[&str] = &["chain", "address_from", "address_to"];
+/// Help string for the metric.
+pub const TRANSACTION_SEND_TOTAL_HELP: &str = "Number of transactions sent";
+
 /// Expected label names for the `wallet_balance` metric.
 pub const WALLET_BALANCE_LABELS: &[&str] = &[
     "chain",
@@ -87,6 +109,8 @@ pub const WALLET_BALANCE_LABELS: &[&str] = &[
     "token_symbol",
     "token_name",
 ];
+/// Help string for the metric.
+pub const WALLET_BALANCE_HELP: &str = "Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set";
 
 /// Container for all the relevant middleware metrics
 #[derive(Clone, Builder)]
@@ -140,22 +164,28 @@ pub struct Metrics {
     wallet_balance: Option<GaugeVec>,
 }
 
-struct InnerData {
-    tokens: HashMap<Address, TokenInfo>,
-    wallets: HashMap<Address, WalletInfo>,
-    contracts: HashMap<Address, ContractInfo>,
-}
-
 /// An ethers-rs middleware that inturments calls with prometheus metrics. To make this is flexible
 /// as possible, the metric vecs need to be created and named externally, they should follow the
 /// naming convention here and must include the described labels.
 pub struct PrometheusMiddleware<M> {
     inner: Arc<M>,
     metrics: Metrics,
-    data: Arc<RwLock<InnerData>>,
+    data: Arc<RwLock<PrometheusMiddlewareConf>>,
     // /// Allow looking up data for metrics recording by making contract calls. Results will be cached
     // /// to prevent unnecessary lookups.
     // allow_contract_calls: bool,
+}
+
+#[derive(Default)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
+pub struct PrometheusMiddlewareConf {
+    /// The tokens to track and identifying info
+    pub tokens: HashMap<Address, TokenInfo>,
+    /// The wallets to track and identifying info
+    pub wallets: HashMap<Address, WalletInfo>,
+    /// Contract info for more useful metrics
+    pub contracts: HashMap<Address, ContractInfo>,
 }
 
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
@@ -264,21 +294,11 @@ impl<M> PrometheusMiddleware<M> {
     /// - `metrics`: Metrics objects we will report to.
     /// - `tokens`: Tokens to watch the balances of.
     /// - `wallets`: Wallets to watch the balances of.
-    pub fn new(
-        inner: M,
-        metrics: Metrics,
-        tokens: HashMap<Address, TokenInfo>,
-        wallets: HashMap<Address, WalletInfo>,
-        contracts: HashMap<Address, ContractInfo>,
-    ) -> Self {
+    pub fn new(inner: M, metrics: Metrics, conf: PrometheusMiddlewareConf) -> Self {
         Self {
             inner: Arc::new(inner),
             metrics,
-            data: Arc::new(RwLock::new(InnerData {
-                tokens,
-                wallets,
-                contracts,
-            })),
+            data: Arc::new(RwLock::new(conf)),
         }
     }
 
@@ -372,7 +392,7 @@ impl<M: Middleware> PrometheusMiddleware<M> {
 
     async fn update_wallet_balances(
         client: Arc<M>,
-        data: &InnerData,
+        data: &PrometheusMiddlewareConf,
         chain: &str,
         wallet_balance_metric: GaugeVec,
     ) {
