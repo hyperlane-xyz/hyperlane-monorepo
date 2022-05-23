@@ -5,6 +5,7 @@ set -u
 set +x
 
 finish () {
+  rm -rf "${CHECKPOINTS_DIR?}" "${ROCKS_DB_DIR?}"
   kill -- -$$
 }
 trap finish SIGINT SIGTERM EXIT
@@ -20,6 +21,11 @@ VALIDATOR_STDOUT_LOG="${LOG_DIR?}/validator.stdout.log"
 VALIDATOR_STDERR_LOG="${LOG_DIR?}/validator.stderr.log"
 KATHY_LOG="${LOG_DIR?}/kathy.stdout.log"
 
+CHECKPOINTS_DIR=$(mktemp -d /tmp/abacus.agents.validator_sigs.XXXXXX)
+ROCKS_DB_DIR=$(mktemp -d /tmp/abacus.agents.db.XXXXXX)
+RELAYER_DB="${ROCKS_DB_DIR?}/relayer"
+VALIDATOR_DB="${ROCKS_DB_DIR?}/validator"
+
 function relayer {(
   export OPT_BASE_OUTBOX_CONNECTION_URL=http://localhost:8545
   export OPT_BASE_INBOXES_TEST2_CONNECTION_URL=http://localhost:8545
@@ -30,7 +36,7 @@ function relayer {(
   export OPT_BASE_METRICS=9092
   export OPT_BASE_TRACING_FMT=pretty
   export OPT_BASE_TRACING_LEVEL=info
-  export OPT_BASE_DB=/tmp/local-relayer-test1-db
+  export OPT_BASE_DB="${RELAYER_DB?}"
   export OPT_BASE_SIGNERS_TEST1_KEY=8166f546bab6da521a8369cab06c5d2b9e46670292d85c875ee9ec20e84ffb61
   export OPT_BASE_SIGNERS_TEST1_TYPE=hexKey
   export OPT_BASE_SIGNERS_TEST2_KEY=f214f2b2cd398c806f84e317254e0f0b801d0643303237d97a22a48e01628897
@@ -43,7 +49,7 @@ function relayer {(
   export OPT_RELAYER_RELAYERMESSAGEPROCESSING=false
   export OPT_RELAYER_MULTISIGCHECKPOINTSYNCER_THRESHOLD=1
   export OPT_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_TYPE=localStorage
-  export OPT_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH=/tmp/validatorsignatures
+  export OPT_RELAYER_MULTISIGCHECKPOINTSYNCER_CHECKPOINTSYNCERS_0x70997970c51812dc3a010c7d01b50e0d17dc79c8_PATH="${CHECKPOINTS_DIR?}"
 
   RUST_BACKTRACE=full cargo run --bin relayer
 )}
@@ -58,20 +64,24 @@ function validator {(
   export OPT_BASE_METRICS=9091
   export OPT_BASE_TRACING_FMT=pretty
   export OPT_BASE_TRACING_LEVEL=info
-  export OPT_BASE_DB=/tmp/local-validator-test1-db
+  export OPT_BASE_DB="${VALIDATOR_DB?}"
   export OPT_BASE_VALIDATOR_KEY=59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d
   export OPT_BASE_VALIDATOR_TYPE=hexKey
   export OPT_VALIDATOR_REORGPERIOD=0
   export OPT_VALIDATOR_INTERVAL=5
   export OPT_VALIDATOR_CHECKPOINTSYNCER_THRESHOLD=1
   export OPT_VALIDATOR_CHECKPOINTSYNCER_TYPE=localStorage
-  export OPT_VALIDATOR_CHECKPOINTSYNCER_PATH=/tmp/validatorsignatures
+  export OPT_VALIDATOR_CHECKPOINTSYNCER_PATH="${CHECKPOINTS_DIR?}"
 
   RUST_BACKTRACE=full cargo run --bin validator
 )}
 
 mkdir -p ${LOG_DIR?}
 echo "Logs in ${LOG_DIR?}"
+
+mkdir -p ${CHECKPOINTS_DIR?} ${RELAYER_DB?} ${VALIDATOR_DB?}
+echo "Relayer DB in ${RELAYER_DB?}"
+echo "Validator DB in ${VALIDATOR_DB?}"
 
 echo "Building typescript..."
 (cd ../typescript/infra && yarn install) > ${BUILD_LOG?}
