@@ -164,7 +164,7 @@ pub struct Metrics {
     wallet_balance: Option<GaugeVec>,
 }
 
-/// An ethers-rs middleware that inturments calls with prometheus metrics. To make this is flexible
+/// An ethers-rs middleware that instruments calls with prometheus metrics. To make this is flexible
 /// as possible, the metric vecs need to be created and named externally, they should follow the
 /// naming convention here and must include the described labels.
 pub struct PrometheusMiddleware<M> {
@@ -176,6 +176,7 @@ pub struct PrometheusMiddleware<M> {
     // allow_contract_calls: bool,
 }
 
+/// Configuration for the prometheus middleware. This can be loaded via serde.
 #[derive(Default)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
