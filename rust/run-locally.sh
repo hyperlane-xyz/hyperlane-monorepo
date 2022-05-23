@@ -80,6 +80,7 @@ mkdir -p ${LOG_DIR?}
 echo "Logs in ${LOG_DIR?}"
 
 mkdir -p ${CHECKPOINTS_DIR?} ${RELAYER_DB?} ${VALIDATOR_DB?}
+echo "Signed checkpoints in ${CHECKPOINTS_DIR?}"
 echo "Relayer DB in ${RELAYER_DB?}"
 echo "Validator DB in ${VALIDATOR_DB?}"
 
@@ -111,6 +112,13 @@ echo "Ctrl+C to end execution..."
 echo "Spawning Kathy to send Abacus message traffic..."
 (cd ../typescript/infra && yarn kathy) > ${KATHY_LOG?} &
 tail -f ${KATHY_LOG?} | grep "send"
+
+# Emit any ERROR logs found in an agent's stdout
+# or the presence of anything at all in stderr.
+(tail -f "${RELAYER_STDOUT_LOG?}" | grep ERROR) &
+(tail -f "${VALIDATOR_STDOUT_LOG?}" | grep ERROR) &
+(tail -f "${RELAYER_STDERR_LOG?}") &
+(tail -f "${VALIDATOR_STDERR_LOG?}") &
 
 wait
 
