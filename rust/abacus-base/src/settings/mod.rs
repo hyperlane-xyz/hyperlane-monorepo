@@ -54,6 +54,7 @@ use abacus_core::{
 };
 use abacus_ethereum::{InboxIndexerBuilder, MakeableWithProvider, OutboxIndexerBuilder};
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
+use ethers_prometheus::{PrometheusMiddlewareConf, ProviderMetrics};
 
 use crate::settings::trace::TracingConfig;
 use crate::{
@@ -215,6 +216,10 @@ impl Settings {
         self.signers.get(name)?.try_into_signer().await.ok()
     }
 
+    fn get_metric_conf(&self) -> Option<(ProviderMetrics, PrometheusMiddlewareConf)> {
+        todo!()
+    }
+
     /// Try to get a map of inbox name -> inbox contracts
     pub async fn try_inbox_contracts(
         &self,
@@ -276,7 +281,7 @@ impl Settings {
     /// Try to get an indexer object for a outbox
     pub async fn try_outbox_indexer(&self) -> Result<OutboxIndexers, Report> {
         let signer = self.get_signer(&self.outbox.name).await;
-
+        let metrics = self.get_metric_conf();
         match &self.outbox.chain {
             ChainConf::Ethereum(conn) => Ok(OutboxIndexers::Ethereum(
                 OutboxIndexerBuilder {
@@ -296,6 +301,7 @@ impl Settings {
                             .into(),
                     },
                     signer,
+                    metrics,
                 )
                 .await?,
             )),

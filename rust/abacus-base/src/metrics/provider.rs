@@ -14,7 +14,7 @@ pub fn wrap<M: Middleware>(
 ) -> Result<PrometheusMiddleware<M>> {
     Ok(PrometheusMiddleware::new(
         provider,
-        MetricsBuilder::default()
+        ProviderMetricsBuilder::default()
             .block_height(metrics.new_int_gauge(
                 "block_height",
                 BLOCK_HEIGHT_HELP,
