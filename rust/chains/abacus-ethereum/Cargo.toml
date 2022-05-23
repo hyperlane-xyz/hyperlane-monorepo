@@ -18,9 +18,10 @@ thiserror = { version = "1.0.22", default-features = false }
 tracing = "0.1"
 eyre = "0.6"
 num = "0.4"
-
-abacus-core = { path = "../../abacus-core" }
 tokio = "1"
 hex = "0.4.3"
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
 tracing-futures = "0.2"
+
+abacus-core = { path = "../../abacus-core" }
+ethers-prometheus = { path = "../../ethers-prometheus" }

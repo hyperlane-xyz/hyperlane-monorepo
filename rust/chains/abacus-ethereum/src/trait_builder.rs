@@ -1,11 +1,10 @@
-use std::sync::Arc;
-
 use async_trait::async_trait;
 use ethers::prelude::*;
 
 use abacus_core::{ContractLocator, Signers};
+use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, ProviderMetrics};
 
-use crate::Connection;
+use crate::{Connection, RetryingProvider};
 
 /// A trait for dynamic trait creation with provider initialization.
 #[async_trait]
@@ -14,44 +13,69 @@ pub trait MakeableWithProvider {
     type Output;
 
     /// Construct a new instance of the associated trait using a connection config.
+    /// This is the first step and will wrap the provider with metrics and a signer as needed.
     async fn make_with_connection(
         &self,
         conn: Connection,
         locator: &ContractLocator,
         signer: Option<Signers>,
+        metrics: Option<(ProviderMetrics, PrometheusMiddlewareConf)>,
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
             Connection::Http { url } => {
-                let provider: crate::RetryingProvider<Http> = url.parse()?;
-                let provider = Arc::new(Provider::new(provider));
-
-                if let Some(signer) = signer {
-                    let signing_provider = make_signing_provider(provider, signer).await?;
-                    self.make_with_provider(signing_provider, locator)
-                } else {
-                    self.make_with_provider(provider, locator)
-                }
+                let http = url.parse::<RetryingProvider<Http>>()?;
+                self.wrap_with_metrics(http, locator, signer, metrics)
+                    .await?
             }
             Connection::Ws { url } => {
                 let ws = Ws::connect(url).await?;
-                let provider = Arc::new(Provider::new(ws));
-
-                if let Some(signer) = signer {
-                    let signing_provider = make_signing_provider(provider, signer).await?;
-                    self.make_with_provider(signing_provider, locator)
-                } else {
-                    self.make_with_provider(provider, locator)
-                }
+                self.wrap_with_metrics(ws, locator, signer, metrics).await?
             }
         })
     }
 
-    /// Construct a new instance of the associated trait using a provider.
-    fn make_with_provider<M: Middleware + 'static>(
+    /// Wrap the provider creation with metrics if provided; this is the second step
+    async fn wrap_with_metrics<P>(
+        &self,
+        client: P,
+        locator: &ContractLocator,
+        signer: Option<Signers>,
+        metrics: Option<(ProviderMetrics, PrometheusMiddlewareConf)>,
+    ) -> eyre::Result<Self::Output>
+    where
+        P: JsonRpcClient + 'static,
+    {
+        let provider = Provider::new(client);
+        Ok(if let Some(metrics) = metrics {
+            let provider = PrometheusMiddleware::new(provider, metrics.0, metrics.1);
+            self.wrap_with_signer(provider, locator, signer).await?
+        } else {
+            self.wrap_with_signer(provider, locator, signer).await?
+        })
+    }
+
+    /// Wrap the provider creation with a signing provider if signers were provided; this is the third step.
+    async fn wrap_with_signer<M>(
         &self,
         provider: M,
         locator: &ContractLocator,
-    ) -> Self::Output;
+        signer: Option<Signers>,
+    ) -> eyre::Result<Self::Output>
+    where
+        M: Middleware + 'static,
+    {
+        Ok(if let Some(signer) = signer {
+            let signing_provider = make_signing_provider(provider, signer).await?;
+            self.make_with_provider(signing_provider, locator)
+        } else {
+            self.make_with_provider(provider, locator)
+        })
+    }
+
+    /// Construct a new instance of the associated trait using a provider.
+    fn make_with_provider<M>(&self, provider: M, locator: &ContractLocator) -> Self::Output
+    where
+        M: Middleware + 'static;
 }
 
 async fn make_signing_provider<M: Middleware>(
