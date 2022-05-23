@@ -11,7 +11,7 @@ finish () {
 trap finish SIGINT SIGTERM EXIT
 
 
-DATE_STR="$(date "+%Y%m%d_%Hh%Mm%Ss")"
+DATE_STR=$(date "+%s")
 LOG_DIR="/tmp/logs/abacus-agents/${DATE_STR?}"
 BUILD_LOG="${LOG_DIR?}/build.log"
 HARDHAT_LOG="${LOG_DIR?}/hardhat.stdout.log"
@@ -111,7 +111,7 @@ echo "Ctrl+C to end execution..."
 
 echo "Spawning Kathy to send Abacus message traffic..."
 (cd ../typescript/infra && yarn kathy) > ${KATHY_LOG?} &
-tail -f ${KATHY_LOG?} | grep "send"
+(tail -f ${KATHY_LOG?} | grep "send") &
 
 # Emit any ERROR logs found in an agent's stdout
 # or the presence of anything at all in stderr.
