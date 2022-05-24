@@ -1,14 +1,14 @@
 import {
   TestInbox,
   TestInbox__factory,
-  TestOutbox__factory
+  TestOutbox__factory,
 } from '@abacus-network/core';
 import {
   AbacusCore,
   chainMetadata,
   DomainIdToChainName,
   objMap,
-  TestChainNames
+  TestChainNames,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';

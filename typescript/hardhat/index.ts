@@ -1,12 +1,7 @@
-import { MultiProvider, TestChainNames } from "@abacus-network/sdk";
+import { MultiProvider, TestChainNames } from '@abacus-network/sdk';
 import '@nomiclabs/hardhat-waffle';
-import { ethers } from "ethers";
-import { extendEnvironment } from 'hardhat/config';
-import { lazyObject } from "hardhat/plugins";
-import { HardhatRuntimeEnvironment } from "hardhat/types";
-
-
-import "hardhat/types/runtime";
+import { ethers } from 'ethers';
+import 'hardhat/types/runtime';
 import { TestCoreDeploy } from './src/TestCoreDeploy';
 
 declare module 'hardhat/types/runtime' {
@@ -15,24 +10,28 @@ declare module 'hardhat/types/runtime' {
   }
 }
 
-export function hardhatMultiProvider(hardhatEthers: HardhatRuntimeEnvironment['ethers'], signer?: ethers.Signer): MultiProvider<TestChainNames> {
+export function hardhatMultiProvider(
+  signer: ethers.Signer,
+): MultiProvider<TestChainNames> {
   return new MultiProvider<TestChainNames>({
     test1: {
-      provider: hardhatEthers.provider,
-      signer
+      provider: signer.provider!,
+      signer,
     },
     test2: {
-      provider: hardhatEthers.provider,
-      signer
+      provider: signer.provider!,
+      signer,
     },
     test3: {
-      provider: hardhatEthers.provider,
-      signer
-    }
-  })
+      provider: signer.provider!,
+      signer,
+    },
+  });
 }
 
 // HardhatRuntimeEnvironment
-extendEnvironment((hre) => {
-  hre.abacus = lazyObject(() => new TestCoreDeploy(hardhatMultiProvider(hre.ethers)));
-});
+// extendEnvironment((hre) => {
+//   hre.abacus = lazyObject(
+//     () => new TestCoreDeploy(hardhatMultiProvider(hre.ethers)),
+//   );
+// });
