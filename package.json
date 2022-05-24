@@ -3,6 +3,7 @@
   "scripts": {
     "build": "yarn workspaces foreach --parallel --topological run build",
     "prettier": "yarn workspaces foreach --parallel run prettier",
+    "test": "yarn workspaces foreach --parallel --topological run test",
     "postinstall": "husky install"
   },
   "workspaces": [

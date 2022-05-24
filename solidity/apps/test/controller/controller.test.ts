@@ -125,15 +125,6 @@ describe('ControllerRouter', async () => {
         .withArgs(leafIndex, testInterchainGasPayment);
     });
 
-    it('creates a checkpoint for remote calls', async () => {
-      const value = 13;
-      const call = formatCall(testSet, 'set', [value]);
-      await expect(await router.callRemote(domains[1], [call])).to.emit(
-        outbox,
-        'Checkpoint',
-      );
-    });
-
     it('controller can set remote controller', async () => {
       const newController = controller.address;
       expect(await remote.controller()).to.not.equal(newController);
@@ -152,13 +143,6 @@ describe('ControllerRouter', async () => {
       )
         .to.emit(interchainGasPaymaster, 'GasPayment')
         .withArgs(leafIndex, testInterchainGasPayment);
-    });
-
-    it('creates a checkpoint when setting a remote controller', async () => {
-      const newController = controller.address;
-      await expect(
-        router.setControllerRemote(remoteDomain, newController),
-      ).to.emit(outbox, 'Checkpoint');
     });
 
     it('controller can set remote abacusConnectionManager', async () => {
@@ -189,15 +173,6 @@ describe('ControllerRouter', async () => {
         .withArgs(leafIndex, testInterchainGasPayment);
     });
 
-    it('creates a checkpoint when setting a remote abacusConnectionManager', async () => {
-      await expect(
-        router.setAbacusConnectionManagerRemote(
-          remoteDomain,
-          ethers.constants.AddressZero,
-        ),
-      ).to.emit(outbox, 'Checkpoint');
-    });
-
     it('controller can enroll remote remote router', async () => {
       expect(await remote.routers(testDomain)).to.equal(
         ethers.constants.HashZero,
@@ -222,13 +197,6 @@ describe('ControllerRouter', async () => {
       )
         .to.emit(interchainGasPaymaster, 'GasPayment')
         .withArgs(leafIndex, testInterchainGasPayment);
-    });
-
-    it('creates a checkpoint when enrolling a remote router', async () => {
-      const newRouter = utils.addressToBytes32(router.address);
-      await expect(
-        router.enrollRemoteRouterRemote(remoteDomain, testDomain, newRouter),
-      ).to.emit(outbox, 'Checkpoint');
     });
 
     it('controller cannot initiate recovery', async () => {
