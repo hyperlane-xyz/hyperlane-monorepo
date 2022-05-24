@@ -3,8 +3,11 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::Duration;
 
+use crate::metrics::provider::create_provider_metrics;
 use abacus_core::Address;
+use ethers_prometheus::ProviderMetrics;
 use eyre::Result;
+use once_cell::sync::OnceCell;
 use prometheus::{
     histogram_opts, labels, opts, register_gauge_vec_with_registry,
     register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
@@ -15,7 +18,9 @@ use tokio::task::JoinHandle;
 
 use super::NAMESPACE;
 
+/// Recommended default histogram buckets for network communication.
 pub const NETWORK_HISTOGRAM_BUCKETS: &[f64] = &[0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.];
+/// Recommended default histogram buckets for internal process logic.
 pub const PROCESS_HISTOGRAM_BUCKETS: &[f64] = &[
     0.0001, 0.0005, 0.001, 0.005, 0.01, 0.05, 0.1, 0.5, 1., 5., 10.,
 ];
@@ -41,6 +46,9 @@ pub struct CoreMetrics {
     span_events: IntCounterVec,
     last_known_message_leaf_index: IntGaugeVec,
     retry_queue_length: IntGaugeVec,
+
+    /// Set of provider-specific metrics. These only need to get created once.
+    provider_metrics: OnceCell<ProviderMetrics>,
 }
 
 impl CoreMetrics {
@@ -162,7 +170,17 @@ impl CoreMetrics {
             span_events,
             last_known_message_leaf_index,
             retry_queue_length,
+            provider_metrics: OnceCell::new(),
         })
+    }
+
+    /// Create the provider metrics attached to this core metrics instance.
+    pub fn provider_metrics(&self) -> ProviderMetrics {
+        self.provider_metrics
+            .get_or_init(|| {
+                create_provider_metrics(self).expect("Failed to create provider metrics!")
+            })
+            .clone()
     }
 
     /// Create and register a new int gauge.

@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use eyre::Report;
 use serde::Deserialize;
 
@@ -7,10 +8,7 @@ use abacus_ethereum::{
 };
 use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf, ProviderMetrics};
 
-use crate::{
-    InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes, OutboxVariants,
-    Outboxes,
-};
+use crate::{InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes, OutboxVariants, Outboxes, CoreMetrics};
 
 /// A connection to _some_ blockchain.
 ///
@@ -73,7 +71,7 @@ impl ChainSetup<OutboxAddresses> {
     pub async fn try_into_outbox(
         &self,
         signer: Option<Signers>,
-        metrics: Option<ProviderMetrics>,
+        metrics: &CoreMetrics,
     ) -> Result<Outboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(OutboxVariants::Ethereum(
@@ -90,7 +88,7 @@ impl ChainSetup<OutboxAddresses> {
                                 .into(),
                         },
                         signer,
-                        metrics.map(|m| (m, self.metrics_conf())),
+                        Some((metrics.provider_metrics(), self.metrics_conf())),
                     )
                     .await?,
             )
@@ -115,7 +113,7 @@ impl ChainSetup<InboxAddresses> {
     pub async fn try_into_inbox(
         &self,
         signer: Option<Signers>,
-        metrics: Option<ProviderMetrics>,
+        metrics: &CoreMetrics,
     ) -> Result<Inboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
@@ -132,7 +130,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
-                        metrics.map(|m| (m, self.metrics_conf.clone())),
+                        Some((metrics.provider_metrics(), self.metrics_conf.clone())),
                     )
                     .await?,
             )
@@ -144,7 +142,7 @@ impl ChainSetup<InboxAddresses> {
     pub async fn try_into_inbox_validator_manager(
         &self,
         signer: Option<Signers>,
-        metrics: Option<ProviderMetrics>,
+        metrics: &CoreMetrics,
     ) -> Result<InboxValidatorManagers, Report> {
         let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
         match &self.chain {
@@ -162,7 +160,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
-                        metrics.map(|m| (m, self.metrics_conf.clone())),
+                        Some((metrics.provider_metrics(), self.metrics_conf.clone())),
                     )
                     .await?,
             )

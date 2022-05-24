@@ -54,7 +54,7 @@ use abacus_core::{
 };
 use abacus_ethereum::{InboxIndexerBuilder, MakeableWithProvider, OutboxIndexerBuilder};
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
-use ethers_prometheus::{PrometheusMiddlewareConf, ProviderMetrics};
+use ethers_prometheus::{ProviderMetrics};
 
 use crate::settings::trace::TracingConfig;
 use crate::{
@@ -220,7 +220,7 @@ impl Settings {
     pub async fn try_inbox_contracts(
         &self,
         db: DB,
-        provider_metrics: Option<ProviderMetrics>,
+        metrics: &CoreMetrics,
     ) -> Result<HashMap<String, InboxContracts>, Report> {
         let mut result = HashMap::new();
         for (k, v) in self.inboxes.iter().filter(|(_, v)| v.disabled.is_none()) {
@@ -231,12 +231,8 @@ impl Settings {
                     v.name
                 );
             }
-            let caching_inbox = self
-                .try_caching_inbox(v, db.clone(), provider_metrics.clone())
-                .await?;
-            let validator_manager = self
-                .try_inbox_validator_manager(v, provider_metrics.clone())
-                .await?;
+            let caching_inbox = self.try_caching_inbox(v, db.clone(), metrics).await?;
+            let validator_manager = self.try_inbox_validator_manager(v, metrics).await?;
             result.insert(
                 v.name.clone(),
                 InboxContracts {
@@ -253,16 +249,11 @@ impl Settings {
         &self,
         chain_setup: &ChainSetup<InboxAddresses>,
         db: DB,
-        provider_metrics: Option<ProviderMetrics>,
+        metrics: &CoreMetrics,
     ) -> Result<CachingInbox, Report> {
         let signer = self.get_signer(&chain_setup.name).await;
-        let inbox = chain_setup
-            .try_into_inbox(signer, provider_metrics.clone())
-            .await?;
-        let indexer = Arc::new(
-            self.try_inbox_indexer(chain_setup, provider_metrics)
-                .await?,
-        );
+        let inbox = chain_setup.try_into_inbox(signer, metrics).await?;
+        let indexer = Arc::new(self.try_inbox_indexer(chain_setup, metrics).await?);
         let abacus_db = AbacusDB::new(inbox.name(), db);
         Ok(CachingInbox::new(inbox, abacus_db, indexer))
     }
@@ -271,12 +262,12 @@ impl Settings {
     async fn try_inbox_validator_manager(
         &self,
         chain_setup: &ChainSetup<InboxAddresses>,
-        metrics_provider: Option<ProviderMetrics>,
+        metrics: &CoreMetrics,
     ) -> Result<InboxValidatorManagers, Report> {
         let signer = self.get_signer(&chain_setup.name).await;
 
         chain_setup
-            .try_into_inbox_validator_manager(signer, metrics_provider)
+            .try_into_inbox_validator_manager(signer, metrics)
             .await
     }
 
@@ -284,14 +275,11 @@ impl Settings {
     pub async fn try_caching_outbox(
         &self,
         db: DB,
-        provider_metrics: Option<ProviderMetrics>,
+        metrics: &CoreMetrics,
     ) -> Result<CachingOutbox, Report> {
         let signer = self.get_signer(&self.outbox.name).await;
-        let outbox = self
-            .outbox
-            .try_into_outbox(signer, provider_metrics.clone())
-            .await?;
-        let indexer = Arc::new(self.try_outbox_indexer(provider_metrics).await?);
+        let outbox = self.outbox.try_into_outbox(signer, metrics).await?;
+        let indexer = Arc::new(self.try_outbox_indexer(metrics).await?);
         let abacus_db = AbacusDB::new(outbox.name(), db);
         Ok(CachingOutbox::new(outbox, abacus_db, indexer))
     }
@@ -299,10 +287,10 @@ impl Settings {
     /// Try to get an indexer object for a outbox
     pub async fn try_outbox_indexer(
         &self,
-        provider_metrics: Option<ProviderMetrics>,
+        metrics: &CoreMetrics,
     ) -> Result<OutboxIndexers, Report> {
         let signer = self.get_signer(&self.outbox.name).await;
-        let metrics = provider_metrics.map(|m| (m, self.outbox.metrics_conf()));
+        let metrics = Some((metrics.provider_metrics(), self.outbox.metrics_conf()));
         match &self.outbox.chain {
             ChainConf::Ethereum(conn) => Ok(OutboxIndexers::Ethereum(
                 OutboxIndexerBuilder {
@@ -333,10 +321,10 @@ impl Settings {
     pub async fn try_inbox_indexer(
         &self,
         setup: &ChainSetup<InboxAddresses>,
-        provider_metrics: Option<ProviderMetrics>,
+        metrics: &CoreMetrics,
     ) -> Result<AbacusCommonIndexers, Report> {
         let signer = self.get_signer(&setup.name).await;
-        let metrics = provider_metrics.map(|m| (m, setup.metrics_conf()));
+        let metrics = Some((metrics.provider_metrics(), setup.metrics_conf()));
 
         match &setup.chain {
             ChainConf::Ethereum(conn) => Ok(AbacusCommonIndexers::Ethereum(
@@ -364,11 +352,7 @@ impl Settings {
     }
 
     /// Try to generate an agent core for a named agent
-    pub async fn try_into_abacus_core(
-        &self,
-        name: &str,
-        provider_metrics: Option<ProviderMetrics>,
-    ) -> Result<AbacusAgentCore, Report> {
+    pub async fn try_into_abacus_core(&self, name: &str) -> Result<AbacusAgentCore, Report> {
         let metrics = Arc::new(CoreMetrics::new(
             name,
             self.metrics
@@ -378,13 +362,8 @@ impl Settings {
         )?);
 
         let db = DB::from_path(&self.db)?;
-        let outbox = Arc::new(
-            self.try_caching_outbox(db.clone(), provider_metrics.clone())
-                .await?,
-        );
-        let inbox_contracts = self
-            .try_inbox_contracts(db.clone(), provider_metrics)
-            .await?;
+        let outbox = Arc::new(self.try_caching_outbox(db.clone(), &metrics).await?);
+        let inbox_contracts = self.try_inbox_contracts(db.clone(), &metrics).await?;
 
         Ok(AbacusAgentCore {
             outbox,
