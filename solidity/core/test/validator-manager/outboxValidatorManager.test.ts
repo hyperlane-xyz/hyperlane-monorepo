@@ -22,13 +22,15 @@ describe('OutboxValidatorManager', () => {
     outbox: TestOutbox,
     signer: SignerWithAddress,
     validator0: Validator,
-    validator1: Validator;
+    validator1: Validator,
+    messageHashes: any[];
 
   before(async () => {
     const signers = await ethers.getSigners();
     signer = signers[0];
     validator0 = await Validator.fromSigner(signers[1], OUTBOX_DOMAIN);
     validator1 = await Validator.fromSigner(signers[2], OUTBOX_DOMAIN);
+    messageHashes = [];
   });
 
   beforeEach(async () => {
@@ -46,9 +48,22 @@ describe('OutboxValidatorManager', () => {
     // Proving a checkpoint fraudulent requires a cache entry, and the Outbox
     // will only write to the cache when leaf index is > 0.
     const recipient = utils.addressToBytes32(validator0.address);
-    const numMessages = 391;
+    const numMessages = 12;
     for (let i = 0; i < numMessages; i++) {
-      await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
+      const message = ethers.utils.formatBytes32String('message');
+
+      const abacusMessage = utils.formatMessage(
+        OUTBOX_DOMAIN,
+        signer.address,
+        INBOX_DOMAIN,
+        recipient,
+        message,
+      );
+      const leafIndex = await outbox.tree();
+      messageHashes.push(
+        utils.messageHash(abacusMessage, leafIndex.toNumber()),
+      );
+      await outbox.dispatch(INBOX_DOMAIN, recipient, message);
     }
   });
 
@@ -115,7 +130,33 @@ describe('OutboxValidatorManager', () => {
   });
 
   describe.only('#fraudulentCheckpoint', async () => {
-    it('returns a valid merkle proof', async () => {
+    it('accepts a valid fraud proof if signed by quourm', async () => {
+      // push messages A, B, C to an outbox, get proof for C
+      // cache root
+      // deploy another outbox, push messages X, Y, Z, get proof for Z
+      // have validators sign fraudulent root, prove fraud
+    });
+
+    it('reverts if a valid fraud proof if not signed by quorum', async () => {
+      // push messages A, B, C to an outbox, get proof for C
+      // cache root
+      // deploy another outbox, push messages X, Y, Z, get proof for Z
+      // have one validator sign fraudulent root, assert failure
+    });
+
+    it('reverts if the actual root is not cached', async () => {
+      // push messages A, B, C to an outbox, get proof for C
+      // deploy another outbox, push messages X, Y, Z, get proof for Z
+      // have one validator sign fraudulent root, assert failure
+    });
+
+    it('reverts if using an out-of-date cache', async () => {
+      // push messages A, B, C to an outbox, get proof for C
+      // deploy another outbox, push messages X, Y, Z, get proof for Z
+      // have one validator sign fraudulent root, assert failure
+    });
+
+    it.only('returns a valid merkle proof', async () => {
       // This proof lets me prove that there is a zero-element in the tree..
 
       const proof = await outbox.proof();
@@ -125,14 +166,10 @@ describe('OutboxValidatorManager', () => {
       //const recipient = utils.addressToBytes32(validator0.address);
       //await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
       const branch = await outbox.branch();
-
-      console.log(count, root, branch, proof);
-      // Problem is that the item is not necessarily the item...
-      const branchRoot = await outbox.branchRoot(
-        branch[0],
-        proof,
-        count.sub(1),
-      );
+      // Aha! Item is not branch[0]...
+      const item = messageHashes[messageHashes.length - 1];
+      console.log(count, root, branch, proof, item);
+      const branchRoot = await outbox.branchRoot(item, proof, count.sub(1));
       expect(root).to.equal(branchRoot);
     });
   });
