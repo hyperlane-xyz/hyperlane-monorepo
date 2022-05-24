@@ -42,33 +42,41 @@ describe('OutboxValidatorManager', () => {
     const outboxFactory = new Outbox__factory(signer);
     outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
     await outbox.initialize(validatorManager.address);
+    // Dispatch two messages so that we can test fraudulent checkpoints.
+    // Proving a checkpoint fraudulent requires a cache entry, and the Outbox
+    // will only write to the cache when leaf index is > 0.
+    const recipient = utils.addressToBytes32(validator0.address);
+    await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
+    await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
   });
 
-  describe('#improperCheckpoint', () => {
+  describe('#invalidCheckpoint', () => {
+    // An invalid checkpoint is one that has index greater than the latest index
+    // in the Outbox.
+    const index = 2;
     const root = ethers.utils.formatBytes32String('test root');
-    const index = 1;
 
-    it('accepts an improper checkpoint if there is a quorum', async () => {
+    it('accepts an invalid checkpoint if it has been signed by a quorum of validators', async () => {
       const signatures = await signCheckpoint(
         root,
         index,
-        [validator0, validator1], // 2/2 signers, making a quorum
+        [validator0, validator1], // 2/2 signers is a quorum
       );
 
       await expect(
-        validatorManager.improperCheckpoint(
+        validatorManager.invalidCheckpoint(
           outbox.address,
           root,
           index,
           signatures,
         ),
       )
-        .to.emit(validatorManager, 'ImproperCheckpoint')
+        .to.emit(validatorManager, 'InvalidCheckpoint')
         .withArgs(outbox.address, root, index, signatures);
       expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
     });
 
-    it('reverts if there is not a quorum', async () => {
+    it('reverts if an invalid checkpoint has not been signed a quorum of validators', async () => {
       const signatures = await signCheckpoint(
         root,
         index,
@@ -76,7 +84,7 @@ describe('OutboxValidatorManager', () => {
       );
 
       await expect(
-        validatorManager.improperCheckpoint(
+        validatorManager.invalidCheckpoint(
           outbox.address,
           root,
           index,
@@ -85,36 +93,25 @@ describe('OutboxValidatorManager', () => {
       ).to.be.revertedWith('!quorum');
     });
 
-    it('reverts if the checkpoint is not improper', async () => {
-      const message = `0x${Buffer.alloc(10).toString('hex')}`;
-      // Send two messages to allow checkpointing
-      await outbox.dispatch(
-        INBOX_DOMAIN,
-        utils.addressToBytes32(signer.address),
-        message,
-      );
-      await outbox.dispatch(
-        INBOX_DOMAIN,
-        utils.addressToBytes32(signer.address),
-        message,
-      );
-      await outbox.checkpoint();
-      const [root, index] = await outbox.latestCheckpoint();
-
+    it('reverts if a valid checkpoint has been signed by a quorum of validators', async () => {
+      const validIndex = 1;
       const signatures = await signCheckpoint(
         root,
-        index.toNumber(),
-        [validator0, validator1], // 2/2 signers, making a quorum
+        validIndex,
+        [validator0, validator1], // 2/2 signers is a quorum
       );
 
       await expect(
-        validatorManager.improperCheckpoint(
+        validatorManager.invalidCheckpoint(
           outbox.address,
           root,
-          index,
+          validIndex,
           signatures,
         ),
-      ).to.be.revertedWith('!improper');
+      ).to.be.revertedWith('!invalid');
     });
   });
+
+  // TODO
+  describe('#fraudulentCheckpoint', () => {});
 });

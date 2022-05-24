@@ -86,8 +86,9 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         bytes[] calldata _signatures
     ) external returns (bool) {
         require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
-        uint256 _latestIndex = _outbox.count() - 1;
-        require(_signedIndex > _latestIndex, "!invalid");
+        // Checkpoints are invalid if the Outbox does not have a message
+        // in the checkpoint's leaf index.
+        require(_signedIndex + 1 > _outbox.count(), "!invalid");
         _outbox.fail();
         emit InvalidCheckpoint(
             address(_outbox),

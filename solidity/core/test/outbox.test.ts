@@ -4,13 +4,15 @@ import { ethers } from 'hardhat';
 
 import { types, utils } from '@abacus-network/utils';
 
-import { Outbox, Outbox__factory } from '../types';
+import { TestOutbox, TestOutbox__factory } from '../types';
 
 const localDomain = 1000;
 const destDomain = 2000;
 
 describe('Outbox', async () => {
-  let outbox: Outbox, signer: SignerWithAddress, recipient: SignerWithAddress;
+  let outbox: TestOutbox,
+    signer: SignerWithAddress,
+    recipient: SignerWithAddress;
 
   before(async () => {
     [signer, recipient] = await ethers.getSigners();
@@ -18,7 +20,7 @@ describe('Outbox', async () => {
 
   beforeEach(async () => {
     // redeploy the outbox before each test run
-    const outboxFactory = new Outbox__factory(signer);
+    const outboxFactory = new TestOutbox__factory(signer);
     outbox = await outboxFactory.deploy(localDomain);
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.
@@ -32,7 +34,7 @@ describe('Outbox', async () => {
   });
 
   it('ValidatorManager can fail', async () => {
-    await outbox.setValidatorManager(signer.address);
+    await outbox.testSetValidatorManager(signer.address);
     await outbox.fail();
     expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
 
@@ -117,5 +119,31 @@ describe('Outbox', async () => {
 
       expect(dispatchLeafIndex).equals(leafIndex);
     });
+  });
+
+  it('Caches a checkpoint', async () => {
+    const message = ethers.utils.formatBytes32String('message');
+    const count = 2;
+    for (let i = 0; i < count; i++) {
+      await outbox.dispatch(
+        destDomain,
+        utils.addressToBytes32(recipient.address),
+        message,
+      );
+    }
+    await outbox.cacheCheckpoint();
+    const root = await outbox.latestCachedRoot();
+    expect(root).to.not.equal(ethers.constants.HashZero);
+    expect(await outbox.cachedCheckpoints(root)).to.equal(count - 1);
+  });
+
+  it('does not allow caching a checkpoint with index 0', async () => {
+    const message = ethers.utils.formatBytes32String('message');
+    await outbox.dispatch(
+      destDomain,
+      utils.addressToBytes32(recipient.address),
+      message,
+    );
+    await expect(outbox.cacheCheckpoint()).to.be.revertedWith('!count');
   });
 });
