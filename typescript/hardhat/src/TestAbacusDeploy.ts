@@ -169,17 +169,11 @@ export class TestAbacusDeploy extends TestDeploy<
     const responses: Map<types.Domain, ethers.providers.TransactionResponse[]> =
       new Map();
     const outbox = this.outbox(origin);
-    const [root, index] = await outbox.latestCheckpoint();
 
-    // Find all unprocessed messages dispatched on the outbox since the previous checkpoint.
+    // Find all unprocessed messages dispatched on the Outbox and attempt to process them.
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
-      if (dispatch.args.leafIndex > index) {
-        // Message has not been checkpointed on the outbox
-        break;
-      }
-
       const destination = dispatch.args.destination;
       if (destination === origin)
         throw new Error('Dispatched message to local domain');
@@ -189,14 +183,6 @@ export class TestAbacusDeploy extends TestDeploy<
         if (dispatch.args.leafIndex.toNumber() == 0) {
           // disregard the dummy message
           continue;
-        }
-
-        const [, inboxCheckpointIndex] = await inbox.latestCheckpoint();
-        if (
-          inboxCheckpointIndex < dispatch.args.leafIndex &&
-          inboxCheckpointIndex < index
-        ) {
-          await inbox.setCheckpoint(root, index);
         }
 
         const response = await inbox.testProcess(

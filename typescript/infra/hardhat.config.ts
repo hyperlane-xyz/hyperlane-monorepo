@@ -29,7 +29,7 @@ const chainSummary = async <Chain extends ChainName>(
   const inboxSummary = async (remote: Chain) => {
     const inbox = coreContracts.inboxes[remote as Exclude<Chain, Chain>].inbox;
     const [inboxCheckpointRoot, inboxCheckpointIndex] =
-      await inbox.latestCheckpoint();
+      await inbox.latestCachedCheckpoint();
     const processFilter = inbox.filters.Process();
     const processes = await inbox.queryFilter(processFilter);
     return {
@@ -90,9 +90,6 @@ task('kathy', 'Dispatches random abacus messages').setAction(
           utils.addressToBytes32(recipient.address),
           '0x1234',
         );
-        if ((await outbox.count()).gt(1)) {
-          await outbox.checkpoint();
-        }
         console.log(
           `send to ${recipient.address} on ${remote} at index ${
             (await outbox.count()).toNumber() - 1

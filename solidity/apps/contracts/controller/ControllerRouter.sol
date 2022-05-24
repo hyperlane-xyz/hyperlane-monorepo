@@ -195,7 +195,7 @@ contract ControllerRouter is Version0, Router {
         ControllerMessage.Call[] calldata _calls
     ) external payable onlyController onlyNotInRecovery {
         bytes memory _msg = ControllerMessage.formatCalls(_calls);
-        _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
+        _dispatchWithGas(_destination, _msg, msg.value);
     }
 
     /**
@@ -214,7 +214,7 @@ contract ControllerRouter is Version0, Router {
             _domain,
             _router
         );
-        _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
+        _dispatchWithGas(_destination, _msg, msg.value);
     }
 
     /**
@@ -230,7 +230,7 @@ contract ControllerRouter is Version0, Router {
         bytes memory _msg = ControllerMessage.formatSetAbacusConnectionManager(
             TypeCasts.addressToBytes32(_abacusConnectionManager)
         );
-        _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
+        _dispatchWithGas(_destination, _msg, msg.value);
     }
 
     /**
@@ -248,7 +248,7 @@ contract ControllerRouter is Version0, Router {
         bytes memory _msg = ControllerMessage.formatSetController(
             TypeCasts.addressToBytes32(_controller)
         );
-        _dispatchWithGasAndCheckpoint(_destination, _msg, msg.value);
+        _dispatchWithGas(_destination, _msg, msg.value);
     }
 
     // ============ Public Functions ============
