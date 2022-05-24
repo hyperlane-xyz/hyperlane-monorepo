@@ -5,10 +5,10 @@ import { ethers } from 'hardhat';
 import { Validator, types, utils } from '@abacus-network/utils';
 
 import {
-  Outbox,
   OutboxValidatorManager,
   OutboxValidatorManager__factory,
-  Outbox__factory,
+  TestOutbox,
+  TestOutbox__factory,
 } from '../../types';
 
 import { signCheckpoint } from './utils';
@@ -19,7 +19,7 @@ const QUORUM_THRESHOLD = 2;
 
 describe('OutboxValidatorManager', () => {
   let validatorManager: OutboxValidatorManager,
-    outbox: Outbox,
+    outbox: TestOutbox,
     signer: SignerWithAddress,
     validator0: Validator,
     validator1: Validator;
@@ -39,13 +39,14 @@ describe('OutboxValidatorManager', () => {
       QUORUM_THRESHOLD,
     );
 
-    const outboxFactory = new Outbox__factory(signer);
+    const outboxFactory = new TestOutbox__factory(signer);
     outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
     await outbox.initialize(validatorManager.address);
     // Dispatch two messages so that we can test fraudulent checkpoints.
     // Proving a checkpoint fraudulent requires a cache entry, and the Outbox
     // will only write to the cache when leaf index is > 0.
     const recipient = utils.addressToBytes32(validator0.address);
+    await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
     await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
     await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
   });
@@ -112,6 +113,26 @@ describe('OutboxValidatorManager', () => {
     });
   });
 
-  // TODO
-  describe('#fraudulentCheckpoint', () => {});
+  describe.only('#fraudulentCheckpoint', async () => {
+    it('returns a valid merkle proof', async () => {
+      // This proof lets me prove that there is a zero-element in the tree..
+
+      const proof = await outbox.proof();
+      const root = await outbox.root();
+      const count = await outbox.count();
+
+      //const recipient = utils.addressToBytes32(validator0.address);
+      //await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
+      const branch = await outbox.branch();
+
+      console.log(count, root, branch, proof);
+      // Problem is that the item is not necessarily the item...
+      const branchRoot = await outbox.branchRoot(
+        branch[0],
+        proof,
+        count.sub(1),
+      );
+      expect(root).to.equal(branchRoot);
+    });
+  });
 });
