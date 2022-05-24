@@ -1,11 +1,13 @@
+use std::default::Default;
 use std::{path::PathBuf, time::Duration};
 
-use abacus_base::ChainSetup;
 use clap::Arg;
 use color_eyre::eyre::anyhow;
 use futures::StreamExt;
 use human_panic::setup_panic;
 use tokio::time::Instant;
+
+use abacus_base::ChainSetup;
 
 #[derive(serde::Deserialize, Debug)]
 struct Contract(String);
@@ -151,6 +153,7 @@ async fn mainnet_works() {
                 }),
                 addresses: Contract("0xcEc158A719d11005Bd9339865965bed938BEafA3".into()),
                 disabled: None,
+                metrics_conf: Default::default(),
             }],
         },
         Duration::from_secs(120),

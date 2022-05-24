@@ -34,7 +34,7 @@ fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
 }
 
 /// Some basic information about a token.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct TokenInfo {
@@ -57,6 +57,7 @@ impl Default for TokenInfo {
 }
 
 /// Some basic information about a wallet.
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct WalletInfo {
@@ -65,6 +66,7 @@ pub struct WalletInfo {
 }
 
 /// Some basic information about a contract.
+#[derive(Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct ContractInfo {
@@ -112,7 +114,7 @@ pub const WALLET_BALANCE_LABELS: &[&str] = &[
 /// Help string for the metric.
 pub const WALLET_BALANCE_HELP: &str = "Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set";
 
-/// Container for all the relevant middleware metrics
+/// Container for all the relevant middleware metrics.
 #[derive(Clone, Builder)]
 pub struct ProviderMetrics {
     /// Tracks the current block height of the chain.
@@ -177,7 +179,7 @@ pub struct PrometheusMiddleware<M> {
 }
 
 /// Configuration for the prometheus middleware. This can be loaded via serde.
-#[derive(Default)]
+#[derive(Default, Clone, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct PrometheusMiddlewareConf {

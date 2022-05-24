@@ -5,6 +5,7 @@ use abacus_core::{ContractLocator, Signers};
 use abacus_ethereum::{
     Connection, InboxBuilder, InboxValidatorManagerBuilder, MakeableWithProvider, OutboxBuilder,
 };
+use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf, ProviderMetrics};
 
 use crate::{
     InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes, OutboxVariants,
@@ -61,11 +62,19 @@ pub struct ChainSetup<T> {
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,
+    /// Configure chain-specific metrics information. This will automatically add all contract
+    /// addresses but will not override any set explicitly.
+    /// Use `metrics_conf()` to get the metrics.
+    pub metrics_conf: PrometheusMiddlewareConf,
 }
 
 impl ChainSetup<OutboxAddresses> {
     /// Try to convert the chain setting into a Outbox contract
-    pub async fn try_into_outbox(&self, signer: Option<Signers>) -> Result<Outboxes, Report> {
+    pub async fn try_into_outbox(
+        &self,
+        signer: Option<Signers>,
+        metrics: Option<ProviderMetrics>,
+    ) -> Result<Outboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(OutboxVariants::Ethereum(
                 OutboxBuilder {}
@@ -81,17 +90,33 @@ impl ChainSetup<OutboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        metrics.map(|m| (m, self.metrics_conf())),
                     )
                     .await?,
             )
             .into()),
         }
     }
+
+    /// Get a clone of the metrics conf with correctly configured contract information.
+    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
+        let mut cfg = self.metrics_conf.clone();
+        if let Ok(addr) = self.addresses.outbox.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("outbox".into()),
+            });
+        }
+        cfg
+    }
 }
 
 impl ChainSetup<InboxAddresses> {
     /// Try to convert the chain setting into an inbox contract
-    pub async fn try_into_inbox(&self, signer: Option<Signers>) -> Result<Inboxes, Report> {
+    pub async fn try_into_inbox(
+        &self,
+        signer: Option<Signers>,
+        metrics: Option<ProviderMetrics>,
+    ) -> Result<Inboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
                 InboxBuilder {}
@@ -107,6 +132,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        metrics.map(|m| (m, self.metrics_conf.clone())),
                     )
                     .await?,
             )
@@ -118,7 +144,7 @@ impl ChainSetup<InboxAddresses> {
     pub async fn try_into_inbox_validator_manager(
         &self,
         signer: Option<Signers>,
-        // inbox_address: Address,
+        metrics: Option<ProviderMetrics>,
     ) -> Result<InboxValidatorManagers, Report> {
         let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
         match &self.chain {
@@ -136,10 +162,27 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        metrics.map(|m| (m, self.metrics_conf.clone())),
                     )
                     .await?,
             )
             .into()),
         }
+    }
+
+    /// Get a clone of the metrics conf with correctly configured contract information.
+    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
+        let mut cfg = self.metrics_conf.clone();
+        if let Ok(addr) = self.addresses.inbox.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("inbox".into()),
+            });
+        }
+        if let Ok(addr) = self.addresses.validator_manager.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("validator_manager".into()),
+            });
+        }
+        cfg
     }
 }
