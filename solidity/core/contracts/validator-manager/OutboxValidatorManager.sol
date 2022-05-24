@@ -119,6 +119,7 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      */
     function fraudulentCheckpoint(
         IOutbox _outbox,
+        bytes32 _signedRoot,
         uint256 _signedIndex,
         bytes[] calldata _signatures,
         bytes32 _fraudulentLeaf,
@@ -128,12 +129,13 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         uint256 _leafIndex
     ) external returns (bool) {
         // Check the signed checkpoint commits to _fraudulentLeaf at _leafIndex.
-        bytes32 _signedRoot = MerkleLib.branchRoot(
+        require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
+        bytes32 _fraudulentRoot = MerkleLib.branchRoot(
             _fraudulentLeaf,
             _fraudulentProof,
             _leafIndex
         );
-        require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
+        require(_fraudulentRoot == _signedRoot, "!roots");
 
         // Check the cached checkpoint commits to _actualLeaf at _leafIndex.
         bytes32 _cachedRoot = MerkleLib.branchRoot(
@@ -146,7 +148,7 @@ contract OutboxValidatorManager is MultisigValidatorManager {
 
         // Check that the signed and cached checkpoints commit to different
         // leaves at the same leaf index.
-        require(_fraudulentLeaf != _actualLeaf, "!fraudulent");
+        require(_fraudulentLeaf != _actualLeaf, "!leaves");
 
         // Fail the Outbox.
         _outbox.fail();

@@ -22,15 +22,13 @@ describe('OutboxValidatorManager', () => {
     outbox: TestOutbox,
     signer: SignerWithAddress,
     validator0: Validator,
-    validator1: Validator,
-    messageHashes: any[];
+    validator1: Validator;
 
   before(async () => {
     const signers = await ethers.getSigners();
     signer = signers[0];
     validator0 = await Validator.fromSigner(signers[1], OUTBOX_DOMAIN);
     validator1 = await Validator.fromSigner(signers[2], OUTBOX_DOMAIN);
-    messageHashes = [];
   });
 
   beforeEach(async () => {
@@ -44,33 +42,12 @@ describe('OutboxValidatorManager', () => {
     const outboxFactory = new TestOutbox__factory(signer);
     outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
     await outbox.initialize(validatorManager.address);
-    // Dispatch two messages so that we can test fraudulent checkpoints.
-    // Proving a checkpoint fraudulent requires a cache entry, and the Outbox
-    // will only write to the cache when leaf index is > 0.
-    const recipient = utils.addressToBytes32(validator0.address);
-    const numMessages = 12;
-    for (let i = 0; i < numMessages; i++) {
-      const message = ethers.utils.formatBytes32String('message');
-
-      const abacusMessage = utils.formatMessage(
-        OUTBOX_DOMAIN,
-        signer.address,
-        INBOX_DOMAIN,
-        recipient,
-        message,
-      );
-      const leafIndex = await outbox.tree();
-      messageHashes.push(
-        utils.messageHash(abacusMessage, leafIndex.toNumber()),
-      );
-      await outbox.dispatch(INBOX_DOMAIN, recipient, message);
-    }
   });
 
   describe('#invalidCheckpoint', () => {
     // An invalid checkpoint is one that has index greater than the latest index
     // in the Outbox.
-    const index = 2;
+    const index = 0;
     const root = ethers.utils.formatBytes32String('test root');
 
     it('accepts an invalid checkpoint if it has been signed by a quorum of validators', async () => {
@@ -129,12 +106,84 @@ describe('OutboxValidatorManager', () => {
     });
   });
 
-  describe.only('#fraudulentCheckpoint', async () => {
-    it('accepts a valid fraud proof if signed by quourm', async () => {
-      // push messages A, B, C to an outbox, get proof for C
-      // cache root
-      // deploy another outbox, push messages X, Y, Z, get proof for Z
-      // have validators sign fraudulent root, prove fraud
+  describe('#fraudulentCheckpoint', async () => {
+    let actualRoot: any,
+      actualLeaf: any,
+      actualProof: any[32],
+      fraudulentRoot: any,
+      fraudulentLeaf: any,
+      fraudulentProof: any[32];
+
+    beforeEach(async () => {
+      const outboxFactory = new TestOutbox__factory(signer);
+      const fraudulentOutbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
+      await fraudulentOutbox.initialize(validatorManager.address);
+
+      const disputedIndex = 18;
+      const actualMessage = ethers.utils.formatBytes32String('message');
+      const fraudulentMessage = ethers.utils.formatBytes32String('fraud');
+      const recipient = utils.addressToBytes32(validator0.address);
+      const destination = INBOX_DOMAIN;
+
+      for (let i = 0; i < disputedIndex; i++) {
+        await outbox.dispatch(destination, recipient, actualMessage);
+        await fraudulentOutbox.dispatch(destination, recipient, actualMessage);
+      }
+      await outbox.dispatch(destination, recipient, actualMessage);
+      await fraudulentOutbox.dispatch(
+        destination,
+        recipient,
+        fraudulentMessage,
+      );
+
+      const formattedActualMessage = utils.formatMessage(
+        OUTBOX_DOMAIN,
+        signer.address,
+        destination,
+        recipient,
+        actualMessage,
+      );
+
+      actualRoot = await outbox.root();
+      console.log(actualRoot);
+      actualLeaf = utils.messageHash(formattedActualMessage, disputedIndex);
+      actualProof = await outbox.proof();
+
+      const formattedFraudulentMessage = utils.formatMessage(
+        OUTBOX_DOMAIN,
+        signer.address,
+        destination,
+        recipient,
+        fraudulentMessage,
+      );
+      fraudulentRoot = await fraudulentOutbox.root();
+      fraudulentLeaf = utils.messageHash(
+        formattedFraudulentMessage,
+        disputedIndex,
+      );
+      fraudulentProof = await fraudulentOutbox.proof();
+    });
+
+    it.only('accepts a valid fraud proof if signed by quourm', async () => {
+      await outbox.cacheCheckpoint();
+      const signedIndex = 18;
+      const signatures = await signCheckpoint(
+        fraudulentRoot,
+        signedIndex,
+        [validator0, validator1], // 2/2 signers is a quorum
+      );
+
+      await validatorManager.fraudulentCheckpoint(
+        outbox.address,
+        fraudulentRoot,
+        signedIndex,
+        signatures,
+        fraudulentLeaf,
+        fraudulentProof,
+        actualLeaf,
+        actualProof,
+        signedIndex,
+      );
     });
 
     it('reverts if a valid fraud proof if not signed by quorum', async () => {
@@ -157,6 +206,7 @@ describe('OutboxValidatorManager', () => {
     });
 
     it.only('returns a valid merkle proof', async () => {
+      /*
       // This proof lets me prove that there is a zero-element in the tree..
 
       const proof = await outbox.proof();
@@ -171,6 +221,7 @@ describe('OutboxValidatorManager', () => {
       console.log(count, root, branch, proof, item);
       const branchRoot = await outbox.branchRoot(item, proof, count.sub(1));
       expect(root).to.equal(branchRoot);
+      */
     });
   });
 });
