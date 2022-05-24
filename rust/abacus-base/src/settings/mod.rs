@@ -54,7 +54,6 @@ use abacus_core::{
 };
 use abacus_ethereum::{InboxIndexerBuilder, MakeableWithProvider, OutboxIndexerBuilder};
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
-use ethers_prometheus::{ProviderMetrics};
 
 use crate::settings::trace::TracingConfig;
 use crate::{

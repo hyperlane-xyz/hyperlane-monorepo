@@ -4,7 +4,6 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use crate::metrics::provider::create_provider_metrics;
-use abacus_core::Address;
 use ethers_prometheus::ProviderMetrics;
 use eyre::Result;
 use once_cell::sync::OnceCell;
@@ -39,8 +38,6 @@ pub struct CoreMetrics {
     listen_port: Option<u16>,
     agent_name: String,
 
-    transactions: IntCounterVec,
-    wallet_balance: IntGaugeVec,
     rpc_latencies: HistogramVec,
     span_durations: HistogramVec,
     span_events: IntCounterVec,
@@ -70,30 +67,6 @@ impl CoreMetrics {
             .iter()
             .map(|(k, v)| (k.as_str(), v.as_str()))
             .collect::<HashMap<_, _>>();
-
-        // - `address_from` is the source address/wallet
-        // - `address_to` is the destination address/wallet
-        // - `txn_status` is one of `dispatched`, `completed`, or `failed`.
-        // - `chain` is the chain name (or ID if the name is unknown) of the chain the txn occurred on
-        let transactions = register_int_counter_vec_with_registry!(
-            opts!(
-                namespaced!("transactions_total"),
-                "Number of transactions sent by this agent since boot",
-                const_labels_ref
-            ),
-            &["txn_status", "chain", "address_from", "address_to"],
-            registry
-        )?;
-
-        let wallet_balance = register_int_gauge_vec_with_registry!(
-            opts!(
-                namespaced!("wallet_balance_total"),
-                "Balance of the smart contract wallet",
-                const_labels_ref
-            ),
-            &["chain", "wallet"],
-            registry
-        )?;
 
         let rpc_latencies = register_histogram_vec_with_registry!(
             histogram_opts!(
@@ -163,13 +136,12 @@ impl CoreMetrics {
             listen_port,
             const_labels,
 
-            transactions,
-            wallet_balance,
             rpc_latencies,
             span_durations,
             span_events,
             last_known_message_leaf_index,
             retry_queue_length,
+
             provider_metrics: OnceCell::new(),
         })
     }
@@ -197,6 +169,7 @@ impl CoreMetrics {
         )?)
     }
 
+    /// Create and register a new gauge.
     pub fn new_gauge(&self, metric_name: &str, help: &str, labels: &[&str]) -> Result<GaugeVec> {
         Ok(register_gauge_vec_with_registry!(
             opts!(namespaced!(metric_name), help, self.const_labels_str()),
@@ -237,48 +210,6 @@ impl CoreMetrics {
             labels,
             self.registry
         )?)
-    }
-
-    pub fn transaction_dispatched(&self, chain: &str, from: Address, to: Address) {
-        self.transactions
-            .with_label_values(&[
-                "dispatched",
-                chain,
-                &format!("{:x}", from.0),
-                &format!("{:x}", to.0),
-                &self.agent_name, // TODO: this does not seem to line up with the actual labels
-            ])
-            .inc()
-    }
-
-    pub fn transaction_completed(&self, chain: &str, from: Address, to: Address) {
-        self.transactions
-            .with_label_values(&[
-                "completed",
-                chain,
-                &format!("{:x}", from.0),
-                &format!("{:x}", to.0),
-                &self.agent_name,
-            ])
-            .inc()
-    }
-
-    pub fn transaction_failed(&self, chain: &str, address: ethers::types::Address) {
-        self.transactions
-            .with_label_values(&["failed", chain, &format!("{address:x}"), &self.agent_name])
-            .inc()
-    }
-
-    /// Call with the new balance when gas is spent.
-    pub fn wallet_balance_changed(
-        &self,
-        chain: &str,
-        address: ethers::types::Address,
-        current_balance: ethers::types::U256,
-    ) {
-        self.wallet_balance
-            .with_label_values(&[chain, &format!("{address:x}"), &self.agent_name])
-            .set(current_balance.as_u64() as i64) // XXX: truncated data
     }
 
     /// Call with RPC duration after it is complete

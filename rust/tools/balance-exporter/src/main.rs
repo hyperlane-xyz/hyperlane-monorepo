@@ -1,4 +1,3 @@
-use std::default::Default;
 use std::{path::PathBuf, time::Duration};
 
 use clap::Arg;

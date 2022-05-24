@@ -1,4 +1,3 @@
-use std::sync::Arc;
 use eyre::Report;
 use serde::Deserialize;
 
@@ -6,7 +5,7 @@ use abacus_core::{ContractLocator, Signers};
 use abacus_ethereum::{
     Connection, InboxBuilder, InboxValidatorManagerBuilder, MakeableWithProvider, OutboxBuilder,
 };
-use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf, ProviderMetrics};
+use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf};
 
 use crate::{InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes, OutboxVariants, Outboxes, CoreMetrics};
 
