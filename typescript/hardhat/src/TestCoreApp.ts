@@ -1,14 +1,14 @@
 import {
   TestInbox,
   TestInbox__factory,
-  TestOutbox__factory,
+  TestOutbox__factory
 } from '@abacus-network/core';
 import {
   AbacusCore,
   chainMetadata,
   DomainIdToChainName,
   objMap,
-  TestChainNames,
+  TestChainNames
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
@@ -57,17 +57,10 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
     const responses = new Map();
     const contracts = this.getContracts(origin);
     const outbox = contracts.outbox.outbox;
-    const [root, index] = await outbox.latestCheckpoint();
 
-    // Find all unprocessed messages dispatched on the outbox since the previous checkpoint.
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
-      if (dispatch.args.leafIndex > index) {
-        // Message has not been checkpointed on the outbox
-        break;
-      }
-
       const destination = dispatch.args.destination;
       if (destination === chainMetadata[origin].id) {
         throw new Error('Dispatched message to local domain');
@@ -81,14 +74,6 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
         if (dispatch.args.leafIndex.toNumber() == 0) {
           // disregard the dummy message
           continue;
-        }
-
-        const [, inboxCheckpointIndex] = await inbox.latestCheckpoint();
-        if (
-          inboxCheckpointIndex < dispatch.args.leafIndex &&
-          inboxCheckpointIndex < index
-        ) {
-          await inbox.setCheckpoint(root, index);
         }
 
         const response = await inbox.testProcess(
