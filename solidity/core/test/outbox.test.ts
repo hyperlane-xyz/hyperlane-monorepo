@@ -4,17 +4,13 @@ import { ethers } from 'hardhat';
 
 import { types, utils } from '@abacus-network/utils';
 
-import { TestOutbox, TestOutbox__factory } from '../types';
-
-const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');
+import { Outbox, Outbox__factory } from '../types';
 
 const localDomain = 1000;
 const destDomain = 2000;
 
 describe('Outbox', async () => {
-  let outbox: TestOutbox,
-    signer: SignerWithAddress,
-    recipient: SignerWithAddress;
+  let outbox: Outbox, signer: SignerWithAddress, recipient: SignerWithAddress;
 
   before(async () => {
     [signer, recipient] = await ethers.getSigners();
@@ -22,7 +18,7 @@ describe('Outbox', async () => {
 
   beforeEach(async () => {
     // redeploy the outbox before each test run
-    const outboxFactory = new TestOutbox__factory(signer);
+    const outboxFactory = new Outbox__factory(signer);
     outbox = await outboxFactory.deploy(localDomain);
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.
@@ -36,7 +32,7 @@ describe('Outbox', async () => {
   });
 
   it('ValidatorManager can fail', async () => {
-    await outbox.testSetValidatorManager(signer.address);
+    await outbox.setValidatorManager(signer.address);
     await outbox.fail();
     expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
 
@@ -121,44 +117,5 @@ describe('Outbox', async () => {
 
       expect(dispatchLeafIndex).equals(leafIndex);
     });
-  });
-
-  it('Checkpoints the latest root', async () => {
-    const message = ethers.utils.formatBytes32String('message');
-    const count = 2;
-    for (let i = 0; i < count; i++) {
-      await outbox.dispatch(
-        destDomain,
-        utils.addressToBytes32(recipient.address),
-        message,
-      );
-    }
-    await outbox.checkpoint();
-    const [root, index] = await outbox.latestCheckpoint();
-    expect(root).to.not.equal(ethers.constants.HashZero);
-    expect(index).to.equal(count - 1);
-
-    expect(await outbox.isCheckpoint(root, index)).to.be.true;
-  });
-
-  it('does not allow a checkpoint of index 0', async () => {
-    const message = ethers.utils.formatBytes32String('message');
-    await outbox.dispatch(
-      destDomain,
-      utils.addressToBytes32(recipient.address),
-      message,
-    );
-    await expect(outbox.checkpoint()).to.be.revertedWith('!count');
-  });
-
-  it('Correctly calculates destinationAndNonce', async () => {
-    for (let testCase of destinationNonceTestCases) {
-      let { destination, nonce, expectedDestinationAndNonce } = testCase;
-      const solidityDestinationAndNonce = await outbox.destinationAndNonce(
-        destination,
-        nonce,
-      );
-      expect(solidityDestinationAndNonce).to.equal(expectedDestinationAndNonce);
-    }
   });
 });

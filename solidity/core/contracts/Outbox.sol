@@ -133,6 +133,18 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     }
 
     /**
+     * @notice Caches the current merkle root and index.
+     * Caching checkpoints with index == 0 are disallowed.
+     * @dev emits Checkpoint event
+     */
+    function cacheCheckpoint() external override notFailed {
+        uint256 _count = count();
+        require(_count > 1, "!count");
+        bytes32 _root = root();
+        _cacheCheckpoint(_root, _count - 1);
+    }
+
+    /**
      * @notice Set contract state to FAILED.
      * @dev Called by the validator manager when fraud is proven.
      */
@@ -142,44 +154,16 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         emit Fail();
     }
 
-    /**
-     * @notice Verifies an inclusion proof of `_leaf`, returning a boolean.
-     * @param _root The merkle root against which inclusion is proved
-     * @param _leaf The leaf to verify inclusion of
-     * @param _proof Merkle proof of inclusion for `_leaf`
-     * @param _index Index of leaf in the merkle tree
-     * @return Whether or not verification of the proof succeeded
-     */
-    function verifyMerkleProof(
-        bytes32 _root,
-        bytes32 _leaf,
-        bytes32[32] calldata _proof,
-        uint256 _index
-    ) external pure returns (bool) {
-        return (MerkleLib.branchRoot(_leaf, _proof, _index) == _root);
+    function latestCheckpoint() external view returns (bytes32, uint256) {
+        return (root(), count());
     }
 
-    function root()
+    function count()
         public
         view
         override(IOutbox, MerkleTreeManager)
-        returns (bytes32)
+        returns (uint256)
     {
-        return MerkleTreeManager.root();
-    }
-
-    /**
-     * @notice Returns the latest checkpoint for the validators to sign.
-     * @dev Will revert if the tree is empty due to underflow on `index`.
-     * @return root Root of the current merkle tree.
-     * @return index The index of the latest leaf in the tree.
-     */
-    function latestCheckpoint()
-        external
-        view
-        override
-        returns (bytes32, uint256)
-    {
-        return (root(), count() - 1);
+        return MerkleTreeManager.count();
     }
 }

@@ -9,13 +9,4 @@ contract TestCommon is Common {
     function initialize(address _validatorManager) external initializer {
         __Common_initialize(_validatorManager);
     }
-
-    function latestCheckpoint()
-        external
-        pure
-        override
-        returns (bytes32, uint256)
-    {
-        return (0x0, 0);
-    }
 }

@@ -42,27 +42,12 @@ contract Inbox is IInbox, Version0, Common {
     // Mapping of message leaves to MessageStatus
     mapping(bytes32 => MessageStatus) public messages;
 
-    // Checkpoints of root => leaf index
-    // Checkpoints of index 0 have to be disallowed as the existence of such
-    // a checkpoint cannot be distinguished from their non-existence
-    mapping(bytes32 => uint256) public checkpoints;
-    // The latest checkpointed root
-    bytes32 public checkpointedRoot;
-
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[45] private __GAP;
+    uint256[47] private __GAP;
 
     // ============ Events ============
-
-    /**
-     * @notice Emitted when a root is checkpointed on Outbox or a signed
-     * checkpoint is relayed to a Inbox.
-     * @param root Merkle root
-     * @param index Leaf index
-     */
-    event Checkpoint(bytes32 indexed root, uint256 indexed index);
 
     /**
      * @notice Emitted when message is processed
@@ -80,33 +65,33 @@ contract Inbox is IInbox, Version0, Common {
     function initialize(
         uint32 _remoteDomain,
         address _validatorManager,
-        bytes32 _checkpointedRoot,
-        uint256 _checkpointedIndex
+        bytes32 _root,
+        uint256 _index
     ) public initializer {
         __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
-        _checkpoint(_checkpointedRoot, _checkpointedIndex);
+        _cacheCheckpoint(_root, _index);
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Checkpoints the provided root and index.
+     * @notice Caches the provided merkle root and index.
      * @dev Called by the validator manager, which is responsible for verifying a
      * quorum of validator signatures on the checkpoint.
-     * @dev Reverts if checkpoints's index is not greater than our latest index.
+     * @dev Reverts if the checkpoint's index is not greater than the index of the latest checkpoint in the cache.
      * @param _root Checkpoint's merkle root.
      * @param _index Checkpoint's index.
      */
-    function checkpoint(bytes32 _root, uint256 _index)
+    function cacheCheckpoint(bytes32 _root, uint256 _index)
         external
         override
         onlyValidatorManager
     {
-        // Ensure that the checkpoint is more recent than the latest we've seen.
-        require(_index > checkpoints[checkpointedRoot], "old checkpoint");
-        _checkpoint(_root, _index);
+        // Ensure that the checkpoint is newer than the latest we've cached.
+        require(_index > cachedCheckpoints[latestCachedRoot], "!newer");
+        _cacheCheckpoint(_root, _index);
     }
 
     /**
@@ -141,26 +126,11 @@ contract Inbox is IInbox, Version0, Common {
             _proof,
             _index
         );
-        // ensure that the root has been checkpointed
-        require(checkpoints[_calculatedRoot] > 0, "!checkpointed root");
+        // ensure that the root has been cached
+        require(cachedCheckpoints[_calculatedRoot] > 0, "!cached root");
         _process(_message, _messageHash);
         // reset re-entrancy guard
         entered = 1;
-    }
-
-    /**
-     * @notice Returns the latest checkpoint stored by the Inbox.
-     * @return root Latest checkpointed root
-     * @return index Latest checkpointed index
-     */
-    function latestCheckpoint()
-        external
-        view
-        override
-        returns (bytes32 root, uint256 index)
-    {
-        root = checkpointedRoot;
-        index = checkpoints[root];
     }
 
     // ============ Internal Functions ============
@@ -193,16 +163,5 @@ contract Inbox is IInbox, Version0, Common {
         );
         // emit process results
         emit Process(_messageHash);
-    }
-
-    /**
-     * @notice Store the provided checkpoint.
-     * @param _root The merkle root
-     * @param _index The leaf index of the latest message in the merkle tree.
-     */
-    function _checkpoint(bytes32 _root, uint256 _index) internal {
-        checkpoints[_root] = _index;
-        checkpointedRoot = _root;
-        emit Checkpoint(_root, _index);
     }
 }
