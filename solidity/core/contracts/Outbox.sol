@@ -134,14 +134,10 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
 
     /**
      * @notice Caches the current merkle root and index.
-     * Caching checkpoints with index == 0 are disallowed.
      * @dev emits Checkpoint event
      */
     function cacheCheckpoint() external override notFailed {
-        uint256 _count = count();
-        require(_count > 1, "!count");
-        bytes32 _root = root();
-        _cacheCheckpoint(_root, _count - 1);
+        _cacheCheckpoint(root(), count() - 1);
     }
 
     /**

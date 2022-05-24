@@ -54,6 +54,14 @@ describe('Common', async () => {
     const [actualRoot, actualIndex] = await common.latestCachedCheckpoint();
     expect(actualRoot).to.equal(root);
     expect(actualIndex).to.equal(index);
-    // expect(await common.latestCachedCheckpoint()).to.deep.equal([root, index]);
+  });
+
+  it('Reverts when caching a checkpoint with index zero', async () => {
+    const root =
+      '0x9c7a007113f829cfd019a91e4ca5e7f6760589fd6bc7925c877f6971ffee1647';
+    const index = 0;
+    await expect(common.cacheCheckpoint(root, index)).to.be.revertedWith(
+      '!index',
+    );
   });
 });

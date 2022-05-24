@@ -143,7 +143,7 @@ describe('Inbox', async () => {
 
     expect(
       inbox.process(message, newProof as types.BytesArray, index, '0x'),
-    ).to.be.revertedWith('!checkpointed root');
+    ).to.be.revertedWith('!cache');
     expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.NONE);
   });
 

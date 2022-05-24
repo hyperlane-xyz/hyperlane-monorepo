@@ -9,7 +9,7 @@ import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
 
 /**
  * @title OutboxValidatorManager
- * @notice Verifies if an invalid or fraudulent checkpoint has been signed by a quorum of
+ * @notice Verifies if an invalid, premature, or fraudulent checkpoint has been signed by a quorum of
  * validators and reports it to an Outbox.
  */
 contract OutboxValidatorManager is MultisigValidatorManager {
@@ -25,6 +25,22 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * May include non-validator signatures.
      */
     event InvalidCheckpoint(
+        address indexed outbox,
+        bytes32 root,
+        uint256 index,
+        bytes[] signatures
+    );
+
+    /**
+     * @notice Emitted when proof of a premature checkpoint is submitted.
+     * @dev Observers of this event should filter by the outbox address.
+     * @param outbox The outbox.
+     * @param root Root of the premature checkpoint.
+     * @param index Index of the premature checkpoint.
+     * @param signatures A quorum of signatures on the premature checkpoint.
+     * May include non-validator signatures.
+     */
+    event PrematureCheckpoint(
         address indexed outbox,
         bytes32 root,
         uint256 index,
@@ -68,8 +84,8 @@ contract OutboxValidatorManager is MultisigValidatorManager {
     /**
      * @notice Determines if a quorum of validators have signed an invalid checkpoint,
      * failing the Outbox if so.
-     * An invalid checkpoint is one in which the index is greater than the latest leaf
-     * index in the Outbox's merkle tree.
+     * A checkpoint is invalid if it commits to anything other than contiguous non-empty leaves
+     * from leaf index zero to the leaf index of the checkpoint.
      * @dev Invalid checkpoints signed by individual validators are not handled to prevent
      * a single byzantine validator from failing the Outbox.
      * @param _outbox The outbox.
@@ -77,18 +93,34 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @param _signedIndex The index of the signed checkpoint.
      * @param _signatures Signatures over the checkpoint to be checked for a validator
      * quorum. Must be sorted in ascending order by signer address.
-     * @return True iff fraud was proved.
+     * @param _invalidLeaf The differing element in the fraudulent tree.
+     * @param _invalidProof Proof of inclusion of `_fraudulentLeaf`.
+     * @param _invalidIndex The index of the disputed leaf.
+     * @return True iff invalidity was proved.
      */
     function invalidCheckpoint(
         IOutbox _outbox,
         bytes32 _signedRoot,
         uint256 _signedIndex,
-        bytes[] calldata _signatures
+        bytes[] calldata _signatures,
+        bytes32 _invalidLeaf,
+        bytes32[32] calldata _invalidProof,
+        uint256 _invalidIndex
     ) external returns (bool) {
         require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
-        // Checkpoints are invalid if the Outbox does not have a message
-        // in the checkpoint's leaf index.
-        require(_signedIndex + 1 > _outbox.count(), "!invalid");
+
+        bytes32 _invalidRoot = MerkleLib.branchRoot(
+            _invalidLeaf,
+            _invalidProof,
+            _invalidIndex
+        );
+        require(_invalidRoot == _signedRoot, "!root");
+
+        bool _invalidIfNonEmptyLeaf = _invalidIndex > _signedIndex;
+        bool _nonEmptyLeaf = _invalidLeaf != 0;
+        require(_invalidIfNonEmptyLeaf == _nonEmptyLeaf, "!invalid");
+
+        // Fail the Outbox.
         _outbox.fail();
         emit InvalidCheckpoint(
             address(_outbox),
@@ -100,13 +132,48 @@ contract OutboxValidatorManager is MultisigValidatorManager {
     }
 
     /**
+     * @notice Determines if a quorum of validators have signed a premature checkpoint,
+     * failing the Outbox if so.
+     * A checkpoint is premature if it commits to more messages than are present in the
+     * Outbox's merkle tree.
+     * @dev Premature checkpoints signed by individual validators are not handled to prevent
+     * a single byzantine validator from failing the Outbox.
+     * @param _outbox The outbox.
+     * @param _signedRoot The root of the signed checkpoint.
+     * @param _signedIndex The index of the signed checkpoint.
+     * @param _signatures Signatures over the checkpoint to be checked for a validator
+     * quorum. Must be sorted in ascending order by signer address.
+     * @return True iff prematurity was proved.
+     */
+    function prematureCheckpoint(
+        IOutbox _outbox,
+        bytes32 _signedRoot,
+        uint256 _signedIndex,
+        bytes[] calldata _signatures
+    ) external returns (bool) {
+        require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
+        // Checkpoints are premature if the checkpoint commits to more messages
+        // than the Outbox has in its merkle tree.
+        require(_signedIndex + 1 > _outbox.count(), "!premature");
+        _outbox.fail();
+        emit PrematureCheckpoint(
+            address(_outbox),
+            _signedRoot,
+            _signedIndex,
+            _signatures
+        );
+        return true;
+    }
+
+    /**
      * @notice Determines if a quorum of validators have signed a fraudulent checkpoint,
      * failing the Outbox if so.
-     * If the Outbox's merkle root commits to message M at leaf index J, a fraudulent checkpoint
-     * commits to M' != M at leaf index J.
+     * A checkpoint is fraudulent if it commits to a message that is different
+     * than the message committed to by the Outbox at the same leaf index.
      * @dev Fraudulent checkpoints signed by individual validators are not handled to prevent
      * a single byzantine validator from failing the Outbox.
      * @param _outbox The outbox.
+     * @param _signedRoot The root of the signed checkpoint.
      * @param _signedIndex The index of the signed checkpoint.
      * @param _signatures Signatures over the checkpoint to be checked for a validator
      * quorum. Must be sorted in ascending order by signer address.
@@ -135,7 +202,8 @@ contract OutboxValidatorManager is MultisigValidatorManager {
             _fraudulentProof,
             _leafIndex
         );
-        require(_fraudulentRoot == _signedRoot, "!roots");
+        require(_fraudulentRoot == _signedRoot, "!root");
+        require(_signedIndex >= _leafIndex, "!index");
 
         // Check the cached checkpoint commits to _actualLeaf at _leafIndex.
         bytes32 _cachedRoot = MerkleLib.branchRoot(
@@ -144,11 +212,11 @@ contract OutboxValidatorManager is MultisigValidatorManager {
             _leafIndex
         );
         uint256 _cachedIndex = _outbox.cachedCheckpoints(_cachedRoot);
-        require(_cachedIndex >= _signedIndex, "!cache");
+        require(_cachedIndex > 0 && _cachedIndex >= _leafIndex, "!cache");
 
         // Check that the signed and cached checkpoints commit to different
         // leaves at the same leaf index.
-        require(_fraudulentLeaf != _actualLeaf, "!leaves");
+        require(_fraudulentLeaf != _actualLeaf, "!leaf");
 
         // Fail the Outbox.
         _outbox.fail();

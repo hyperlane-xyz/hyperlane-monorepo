@@ -144,6 +144,6 @@ describe('Outbox', async () => {
       utils.addressToBytes32(recipient.address),
       message,
     );
-    await expect(outbox.cacheCheckpoint()).to.be.revertedWith('!count');
+    await expect(outbox.cacheCheckpoint()).to.be.revertedWith('!index');
   });
 });

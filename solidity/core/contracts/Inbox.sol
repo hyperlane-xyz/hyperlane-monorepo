@@ -71,7 +71,9 @@ contract Inbox is IInbox, Version0, Common {
         __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
-        _cacheCheckpoint(_root, _index);
+        if (_index > 0) {
+            _cacheCheckpoint(_root, _index);
+        }
     }
 
     // ============ External Functions ============
@@ -127,7 +129,7 @@ contract Inbox is IInbox, Version0, Common {
             _index
         );
         // ensure that the root has been cached
-        require(cachedCheckpoints[_calculatedRoot] > 0, "!cached root");
+        require(cachedCheckpoints[_calculatedRoot] > 0, "!cache");
         _process(_message, _messageHash);
         // reset re-entrancy guard
         entered = 1;

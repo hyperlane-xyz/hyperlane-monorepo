@@ -18,12 +18,56 @@ const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;
 const QUORUM_THRESHOLD = 2;
 
+interface MerkleProof {
+  root: string;
+  proof: BytesArray;
+  leaf: string;
+  index: number;
+}
+
 describe('OutboxValidatorManager', () => {
   let validatorManager: OutboxValidatorManager,
     outbox: TestOutbox,
+    helperOutbox: TestOutbox,
     signer: SignerWithAddress,
     validator0: Validator,
     validator1: Validator;
+
+  const dispatchMessage = async (outbox: TestOutbox, message: string) => {
+    const recipient = utils.addressToBytes32(validator0.address);
+    const destination = INBOX_DOMAIN;
+    await outbox.dispatch(
+      destination,
+      recipient,
+      ethers.utils.formatBytes32String(message),
+    );
+  };
+
+  const getProofForDispatchedMessage = async (
+    outbox: TestOutbox,
+    message: string,
+  ) => {
+    const destination = INBOX_DOMAIN;
+    const recipient = validator0.address;
+    await dispatchMessage(outbox, message);
+    const formattedMessage = utils.formatMessage(
+      OUTBOX_DOMAIN,
+      signer.address,
+      destination,
+      recipient,
+      ethers.utils.formatBytes32String(message),
+    );
+    const count = await outbox.count();
+    const leaf = utils.messageHash(formattedMessage, count.sub(1).toNumber());
+    const root = await outbox.root();
+    const proof = await outbox.proof();
+    return {
+      root,
+      proof,
+      leaf,
+      index: count.sub(1).toNumber(),
+    };
+  };
 
   before(async () => {
     const signers = await ethers.getSigners();
@@ -43,62 +87,196 @@ describe('OutboxValidatorManager', () => {
     const outboxFactory = new TestOutbox__factory(signer);
     outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
     await outbox.initialize(validatorManager.address);
+
+    // Deploy a second Outbox for convenience. We push a fraudulent message to this Outbox
+    // and use it to generate a fraudulent merkle proof.
+    helperOutbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
+    await helperOutbox.initialize(validatorManager.address);
   });
 
-  describe('#invalidCheckpoint', () => {
-    const messageCount = 1;
-    // An invalid checkpoint is one that has index greater than the latest index
-    // in the Outbox.
-    const invalidIndex = messageCount;
-    const root = ethers.utils.formatBytes32String('test root');
-
+  describe('#invalidCheckpoint', async () => {
+    const message = 'message';
+    const messageCount = 3;
     beforeEach(async () => {
-      const message = ethers.utils.formatBytes32String('message');
-      const recipient = utils.addressToBytes32(validator0.address);
-      const destination = INBOX_DOMAIN;
       for (let i = 0; i < messageCount; i++) {
-        await outbox.dispatch(destination, recipient, message);
+        await dispatchMessage(helperOutbox, message);
       }
     });
 
-    it('accepts an invalid checkpoint if it has been signed by a quorum of validators', async () => {
+    it('accepts an invalidity proof of a non-empty leaf if signed by a quorum', async () => {
+      const invalid = await getProofForDispatchedMessage(helperOutbox, message);
+      const root = await helperOutbox.root();
+      const index = messageCount - 1;
       const signatures = await signCheckpoint(
         root,
-        invalidIndex,
+        index,
+        [validator0, validator1], // 2/2 signers is a quorum
+      );
+      await expect(
+        validatorManager.invalidCheckpoint(
+          outbox.address,
+          root,
+          index,
+          signatures,
+          invalid.leaf,
+          invalid.proof,
+          invalid.index,
+        ),
+      )
+        .to.emit(validatorManager, 'InvalidCheckpoint')
+        .withArgs(outbox.address, invalid.root, index, signatures);
+      expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
+    });
+
+    it('accepts an invalidity proof of an empty leaf if signed by a quorum', async () => {
+      // For some reason, the `proof()` view call fails unless we make a `root()` view call first...
+      await helperOutbox.root();
+      const proof = await helperOutbox.proof();
+      const leaf = ethers.constants.HashZero;
+      const leafIndex = messageCount - 2;
+      // It's not clear what this root is a commitment to *other* than an
+      // empty leaf at leafIndex, but that's enough for us.
+      const root = await helperOutbox.branchRoot(leaf, proof, leafIndex);
+      const index = messageCount - 1;
+      const signatures = await signCheckpoint(
+        root,
+        index,
+        [validator0, validator1], // 2/2 signers is a quorum
+      );
+      await expect(
+        validatorManager.invalidCheckpoint(
+          outbox.address,
+          root,
+          index,
+          signatures,
+          leaf,
+          proof,
+          leafIndex,
+        ),
+      )
+        .to.emit(validatorManager, 'InvalidCheckpoint')
+        .withArgs(outbox.address, root, index, signatures);
+      expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
+    });
+
+    it('reverts if an invalidity proof of a non-empty leaf is not signed by a quorum', async () => {
+      const invalid = await getProofForDispatchedMessage(helperOutbox, message);
+      const root = await helperOutbox.root();
+      const index = messageCount - 1;
+      const signatures = await signCheckpoint(
+        root,
+        index,
+        [validator0], // 1/2 signers is not a quorum
+      );
+      await expect(
+        validatorManager.invalidCheckpoint(
+          outbox.address,
+          root,
+          index,
+          signatures,
+          invalid.leaf,
+          invalid.proof,
+          invalid.index,
+        ),
+      ).to.be.revertedWith('!quorum');
+    });
+
+    it('reverts if the signed root does not match the invalidity proof', async () => {
+      const root = await helperOutbox.root();
+      const invalid = await getProofForDispatchedMessage(helperOutbox, message);
+      const index = messageCount - 1;
+      const signatures = await signCheckpoint(
+        root,
+        index,
+        [validator0, validator1], // 2/2 signers is not a quorum
+      );
+      await expect(
+        validatorManager.invalidCheckpoint(
+          outbox.address,
+          root,
+          index,
+          signatures,
+          invalid.leaf,
+          invalid.proof,
+          invalid.index,
+        ),
+      ).to.be.revertedWith('!root');
+    });
+
+    it('reverts if the proved leaf is valid', async () => {
+      const valid = await getProofForDispatchedMessage(helperOutbox, message);
+      const root = await helperOutbox.root();
+      const index = messageCount;
+      const signatures = await signCheckpoint(
+        root,
+        index,
+        [validator0, validator1], // 2/2 signers is not a quorum
+      );
+      await expect(
+        validatorManager.invalidCheckpoint(
+          outbox.address,
+          root,
+          index,
+          signatures,
+          valid.leaf,
+          valid.proof,
+          valid.index,
+        ),
+      ).to.be.revertedWith('!invalid');
+    });
+  });
+
+  describe('#prematureCheckpoint', () => {
+    const messageCount = 1;
+    // An premature checkpoint is one that has index greater than the latest index
+    // in the Outbox.
+    const prematureIndex = messageCount;
+    const root = ethers.utils.formatBytes32String('test root');
+
+    beforeEach(async () => {
+      for (let i = 0; i < messageCount; i++) {
+        await dispatchMessage(outbox, 'message');
+      }
+    });
+
+    it('accepts a premature checkpoint if it has been signed by a quorum of validators', async () => {
+      const signatures = await signCheckpoint(
+        root,
+        prematureIndex,
         [validator0, validator1], // 2/2 signers is a quorum
       );
 
       await expect(
-        validatorManager.invalidCheckpoint(
+        validatorManager.prematureCheckpoint(
           outbox.address,
           root,
-          invalidIndex,
+          prematureIndex,
           signatures,
         ),
       )
-        .to.emit(validatorManager, 'InvalidCheckpoint')
-        .withArgs(outbox.address, root, invalidIndex, signatures);
+        .to.emit(validatorManager, 'PrematureCheckpoint')
+        .withArgs(outbox.address, root, prematureIndex, signatures);
       expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
     });
 
-    it('reverts if an invalid checkpoint has not been signed a quorum of validators', async () => {
+    it('reverts if a premature checkpoint has not been signed a quorum of validators', async () => {
       const signatures = await signCheckpoint(
         root,
-        invalidIndex,
+        prematureIndex,
         [validator0], // 1/2 signers is not a quorum
       );
 
       await expect(
-        validatorManager.invalidCheckpoint(
+        validatorManager.prematureCheckpoint(
           outbox.address,
           root,
-          invalidIndex,
+          prematureIndex,
           signatures,
         ),
       ).to.be.revertedWith('!quorum');
     });
 
-    it('reverts if a valid checkpoint has been signed by a quorum of validators', async () => {
+    it('reverts if a non-premature checkpoint has been signed by a quorum of validators', async () => {
       const validIndex = messageCount - 1;
       const signatures = await signCheckpoint(
         root,
@@ -107,79 +285,36 @@ describe('OutboxValidatorManager', () => {
       );
 
       await expect(
-        validatorManager.invalidCheckpoint(
+        validatorManager.prematureCheckpoint(
           outbox.address,
           root,
           validIndex,
           signatures,
         ),
-      ).to.be.revertedWith('!invalid');
+      ).to.be.revertedWith('!premature');
     });
   });
 
   describe('#fraudulentCheckpoint', async () => {
-    interface MerkleProof {
-      root: string;
-      proof: BytesArray;
-      leaf: string;
-      index: number;
-    }
-
     let actual: MerkleProof, fraudulent: MerkleProof;
     const disputedIndex = 2;
 
     beforeEach(async () => {
-      // Deploy a second Outbox for convenience. We push a fraudulent message to this Outbox
-      // and use it to generate a fraudulent merkle proof.
-      const outboxFactory = new TestOutbox__factory(signer);
-      const fraudulentOutbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
-      await fraudulentOutbox.initialize(validatorManager.address);
-
-      const actualMessage = ethers.utils.formatBytes32String('message');
-      const fraudulentMessage = ethers.utils.formatBytes32String('fraud');
-      const recipient = utils.addressToBytes32(validator0.address);
-      const destination = INBOX_DOMAIN;
-
+      const actualMessage = 'message';
+      const fraudulentMessage = 'fraud';
       for (let i = 0; i < disputedIndex; i++) {
-        await outbox.dispatch(destination, recipient, actualMessage);
-        await fraudulentOutbox.dispatch(destination, recipient, actualMessage);
+        await dispatchMessage(outbox, actualMessage);
+        await dispatchMessage(helperOutbox, fraudulentMessage);
       }
-
-      const getProofForDispatchedMessage = async (
-        outbox: TestOutbox,
-        message: string,
-      ) => {
-        await outbox.dispatch(destination, recipient, message);
-        const formattedMessage = utils.formatMessage(
-          OUTBOX_DOMAIN,
-          signer.address,
-          destination,
-          recipient,
-          message,
-        );
-        const count = await outbox.count();
-        const leaf = utils.messageHash(
-          formattedMessage,
-          count.sub(1).toNumber(),
-        );
-        const root = await outbox.root();
-        const proof = await outbox.proof();
-        return {
-          root,
-          proof,
-          leaf,
-          index: count.sub(1).toNumber(),
-        };
-      };
 
       actual = await getProofForDispatchedMessage(outbox, actualMessage);
       fraudulent = await getProofForDispatchedMessage(
-        fraudulentOutbox,
+        helperOutbox,
         fraudulentMessage,
       );
     });
 
-    it('accepts a valid fraud proof if signed by quourm', async () => {
+    it('accepts a fraud proof signed by a quorum', async () => {
       await outbox.cacheCheckpoint();
       const signatures = await signCheckpoint(
         fraudulent.root,
@@ -210,7 +345,7 @@ describe('OutboxValidatorManager', () => {
       expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
     });
 
-    it('reverts if a valid fraud proof if not signed by quorum', async () => {
+    it('reverts if a fraud proof is not signed by a quorum', async () => {
       await outbox.cacheCheckpoint();
       const signatures = await signCheckpoint(
         fraudulent.root,
@@ -253,7 +388,30 @@ describe('OutboxValidatorManager', () => {
           actual.proof,
           fraudulent.index,
         ),
-      ).to.be.revertedWith('!roots');
+      ).to.be.revertedWith('!root');
+    });
+
+    it('reverts if the disputed leaf is not committed to by the signed checkpoint', async () => {
+      await outbox.cacheCheckpoint();
+      const signatures = await signCheckpoint(
+        fraudulent.root,
+        fraudulent.index - 1,
+        [validator0, validator1], // 2/2 signers is a quorum
+      );
+
+      await expect(
+        validatorManager.fraudulentCheckpoint(
+          outbox.address,
+          fraudulent.root,
+          fraudulent.index - 1,
+          signatures,
+          fraudulent.leaf,
+          fraudulent.proof,
+          actual.leaf,
+          actual.proof,
+          fraudulent.index,
+        ),
+      ).to.be.revertedWith('!index');
     });
 
     it('reverts if the actual root is not cached', async () => {
@@ -298,7 +456,7 @@ describe('OutboxValidatorManager', () => {
           actual.proof,
           actual.index,
         ),
-      ).to.be.revertedWith('!leaves');
+      ).to.be.revertedWith('!leaf');
     });
   });
 });

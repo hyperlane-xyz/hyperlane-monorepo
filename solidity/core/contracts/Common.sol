@@ -121,10 +121,12 @@ abstract contract Common is ICommon, OwnableUpgradeable {
 
     /**
      * @notice Caches the provided checkpoint.
+     * Caching checkpoints with index == 0 are disallowed.
      * @param _root The merkle root to cache.
      * @param _index The leaf index of the latest message in the merkle tree.
      */
     function _cacheCheckpoint(bytes32 _root, uint256 _index) internal {
+        require(_index > 0, "!index");
         cachedCheckpoints[_root] = _index;
         latestCachedRoot = _root;
         emit CheckpointCached(_root, _index);
