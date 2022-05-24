@@ -7,7 +7,10 @@ use abacus_ethereum::{
 };
 use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf};
 
-use crate::{InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes, OutboxVariants, Outboxes, CoreMetrics};
+use crate::{
+    CoreMetrics, InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
+    OutboxVariants, Outboxes,
+};
 
 /// A connection to _some_ blockchain.
 ///
