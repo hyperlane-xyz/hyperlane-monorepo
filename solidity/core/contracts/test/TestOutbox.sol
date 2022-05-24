@@ -18,7 +18,7 @@ contract TestOutbox is Outbox {
 
     function proof() external view returns (bytes32[32] memory) {
         bytes32[32] memory _zeroes = MerkleLib.zeroHashes();
-        uint256 _index = tree.count-1;
+        uint256 _index = tree.count - 1;
         bytes32[32] memory _proof;
 
         for (uint256 i = 0; i < 32; i++) {
@@ -39,8 +39,8 @@ contract TestOutbox is Outbox {
     function branchRoot(
         bytes32 _item,
         bytes32[32] memory _branch,
-        uint256 _index) 
-    external pure returns (bytes32) {
+        uint256 _index
+    ) external pure returns (bytes32) {
         return MerkleLib.branchRoot(_item, _branch, _index);
     }
 }

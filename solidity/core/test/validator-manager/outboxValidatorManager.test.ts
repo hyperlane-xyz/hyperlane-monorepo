@@ -46,9 +46,10 @@ describe('OutboxValidatorManager', () => {
     // Proving a checkpoint fraudulent requires a cache entry, and the Outbox
     // will only write to the cache when leaf index is > 0.
     const recipient = utils.addressToBytes32(validator0.address);
-    await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
-    await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
-    await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
+    const numMessages = 391;
+    for (let i = 0; i < numMessages; i++) {
+      await outbox.dispatch(INBOX_DOMAIN, recipient, '0xabcdef');
+    }
   });
 
   describe('#invalidCheckpoint', () => {
