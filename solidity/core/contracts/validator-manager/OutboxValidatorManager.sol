@@ -170,7 +170,16 @@ contract OutboxValidatorManager is MultisigValidatorManager {
 
         // Check that the two roots commit to at least one differing leaf
         // with index <= _leafIndex.
-        require(impliesDifferingLeaf(_fraudulentLeaf, _fraudulentProof, _actualLeaf, _actualProof, _leafIndex), "!fraud");
+        require(
+            impliesDifferingLeaf(
+                _fraudulentLeaf,
+                _fraudulentProof,
+                _actualLeaf,
+                _actualProof,
+                _leafIndex
+            ),
+            "!fraud"
+        );
 
         // Fail the Outbox.
         _outbox.fail();

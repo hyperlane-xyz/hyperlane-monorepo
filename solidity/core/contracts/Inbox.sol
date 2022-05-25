@@ -57,7 +57,11 @@ contract Inbox is IInbox, Version0, Common {
      * @param leafIndex The leaf index of the message that was processed.
      * @param proof A merkle proof of inclusion of `messageHash` at `leafIndex`.
      */
-    event Process(bytes32 indexed messageHash, uint256 indexed leafIndex, bytes32[32] proof);
+    event Process(
+        bytes32 indexed messageHash,
+        uint256 indexed leafIndex,
+        bytes32[32] proof
+    );
 
     // ============ Constructor ============
 
