@@ -15,14 +15,13 @@ use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use log::{debug, trace, warn};
 use maplit::hashmap;
-use tokio::sync::RwLock;
 use prometheus::{GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
+use static_assertions::assert_impl_all;
+use tokio::sync::RwLock;
+use tokio::time::MissedTickBehavior;
 
 use erc20::Erc20;
 pub use error::PrometheusMiddlewareError;
-
-use static_assertions::assert_impl_all;
-use tokio::time::MissedTickBehavior;
 
 mod erc20;
 mod error;
