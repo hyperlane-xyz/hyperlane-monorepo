@@ -109,7 +109,6 @@ pub const WALLET_BALANCE_LABELS: &[&str] = &[
     "wallet_address",
     "wallet_name",
     "token_address",
-    "token_name",
     "token_symbol",
     "token_name",
 ];
