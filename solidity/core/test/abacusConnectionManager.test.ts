@@ -36,12 +36,7 @@ describe('AbacusConnectionManager', async () => {
     enrolledInbox = await inboxFactory.deploy(localDomain);
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.
-    await enrolledInbox.initialize(
-      remoteDomain,
-      outbox.address,
-      ethers.constants.HashZero,
-      0,
-    );
+    await enrolledInbox.initialize(remoteDomain, outbox.address);
 
     const connectionManagerFactory = new AbacusConnectionManager__factory(
       signer,

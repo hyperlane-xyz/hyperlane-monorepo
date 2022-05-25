@@ -51,22 +51,12 @@ describe('Inbox', async () => {
   beforeEach(async () => {
     const inboxFactory = new TestInbox__factory(signer);
     inbox = await inboxFactory.deploy(localDomain);
-    await inbox.initialize(
-      remoteDomain,
-      validatorManager.address,
-      ethers.constants.HashZero,
-      0,
-    );
+    await inbox.initialize(remoteDomain, validatorManager.address);
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      inbox.initialize(
-        remoteDomain,
-        validatorManager.address,
-        ethers.constants.HashZero,
-        0,
-      ),
+      inbox.initialize(remoteDomain, validatorManager.address),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
@@ -109,7 +99,7 @@ describe('Inbox', async () => {
     await recipient.deployTransaction.wait();
 
     let { index, proof, root, message } = messageWithProof;
-    await inbox.setCache(root, 1);
+    await inbox.setCachedCheckpoint(root, 1);
 
     await inbox.process(message, proof, index, '0x');
     const hash = utils.messageHash(message, index);
@@ -119,7 +109,7 @@ describe('Inbox', async () => {
   it('Rejects an already-processed message', async () => {
     let { leaf, index, proof, root, message } = messageWithProof;
 
-    await inbox.setCache(root, 1);
+    await inbox.setCachedCheckpoint(root, 1);
     // Set message status as MessageStatus.Processed
     await inbox.setMessageStatus(leaf, MessageStatus.PROCESSED);
 
@@ -139,7 +129,7 @@ describe('Inbox', async () => {
     newProof[0] = proof[1];
     newProof[1] = proof[0];
 
-    await inbox.setCache(root, 1);
+    await inbox.setCachedCheckpoint(root, 1);
 
     expect(
       inbox.process(message, newProof as types.BytesArray, index, '0x'),
@@ -273,7 +263,7 @@ describe('Inbox', async () => {
       path as types.BytesArray,
       index,
     );
-    await inbox.setCache(proofRoot, 1);
+    await inbox.setCachedCheckpoint(proofRoot, 1);
 
     await inbox.process(abacusMessage, path as types.BytesArray, index, '0x');
 

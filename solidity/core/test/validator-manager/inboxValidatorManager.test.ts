@@ -41,12 +41,7 @@ describe('InboxValidatorManager', () => {
 
     const inboxFactory = new Inbox__factory(signer);
     inbox = await inboxFactory.deploy(INBOX_DOMAIN);
-    await inbox.initialize(
-      OUTBOX_DOMAIN,
-      validatorManager.address,
-      ethers.constants.HashZero,
-      0,
-    );
+    await inbox.initialize(OUTBOX_DOMAIN, validatorManager.address);
   });
 
   describe('#checkpoint', () => {

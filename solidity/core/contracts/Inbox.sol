@@ -51,9 +51,13 @@ contract Inbox is IInbox, Version0, Common {
 
     /**
      * @notice Emitted when message is processed
-     * @param messageHash Hash of message that failed to process
+     * @dev This event allows watchers to observe the merkle proof they need
+     * to prove fraud on the Outbox.
+     * @param messageHash Hash of message that was processed.
+     * @param leafIndex The leaf index of the message that was processed.
+     * @param proof A merkle proof of inclusion of `messageHash` at `leafIndex`.
      */
-    event Process(bytes32 indexed messageHash);
+    event Process(bytes32 indexed messageHash, uint256 indexed leafIndex, bytes32[32] proof);
 
     // ============ Constructor ============
 
@@ -62,10 +66,10 @@ contract Inbox is IInbox, Version0, Common {
 
     // ============ Initializer ============
 
-    function initialize(
-        uint32 _remoteDomain,
-        address _validatorManager
-    ) public initializer {
+    function initialize(uint32 _remoteDomain, address _validatorManager)
+        public
+        initializer
+    {
         __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
@@ -126,6 +130,7 @@ contract Inbox is IInbox, Version0, Common {
         // ensure that the root has been cached
         require(cachedCheckpoints[_calculatedRoot] >= _index, "!cache");
         _process(_message, _messageHash);
+        emit Process(_messageHash, _index, _proof);
         // reset re-entrancy guard
         entered = 1;
     }
@@ -158,7 +163,5 @@ contract Inbox is IInbox, Version0, Common {
             sender,
             body
         );
-        // emit process results
-        emit Process(_messageHash);
     }
 }

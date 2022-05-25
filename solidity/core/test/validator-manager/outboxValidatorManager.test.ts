@@ -94,147 +94,6 @@ describe('OutboxValidatorManager', () => {
     await helperOutbox.initialize(validatorManager.address);
   });
 
-  describe('#invalidCheckpoint', async () => {
-    const message = 'message';
-    const messageCount = 3;
-    beforeEach(async () => {
-      for (let i = 0; i < messageCount; i++) {
-        await dispatchMessage(helperOutbox, message);
-      }
-    });
-
-    it('accepts an invalidity proof of a non-empty leaf if signed by a quorum', async () => {
-      const invalid = await dispatchMessageAndReturnProof(
-        helperOutbox,
-        message,
-      );
-      const root = await helperOutbox.root();
-      const index = messageCount - 1;
-      const signatures = await signCheckpoint(
-        root,
-        index,
-        [validator0, validator1], // 2/2 signers is a quorum
-      );
-      await expect(
-        validatorManager.invalidCheckpoint(
-          outbox.address,
-          root,
-          index,
-          signatures,
-          invalid.leaf,
-          invalid.proof,
-          invalid.index,
-        ),
-      )
-        .to.emit(validatorManager, 'InvalidCheckpoint')
-        .withArgs(outbox.address, invalid.root, index, signatures);
-      expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
-    });
-
-    it('accepts an invalidity proof of an empty leaf if signed by a quorum', async () => {
-      // For some reason, the `proof()` view call fails unless we make a `root()` view call first...
-      await helperOutbox.root();
-      const proof = await helperOutbox.proof();
-      const leaf = ethers.constants.HashZero;
-      const leafIndex = messageCount - 2;
-      // It's not clear what this root is a commitment to *other* than an
-      // empty leaf at leafIndex, but that's enough for us.
-      const root = await helperOutbox.branchRoot(leaf, proof, leafIndex);
-      const index = messageCount - 1;
-      const signatures = await signCheckpoint(
-        root,
-        index,
-        [validator0, validator1], // 2/2 signers is a quorum
-      );
-      await expect(
-        validatorManager.invalidCheckpoint(
-          outbox.address,
-          root,
-          index,
-          signatures,
-          leaf,
-          proof,
-          leafIndex,
-        ),
-      )
-        .to.emit(validatorManager, 'InvalidCheckpoint')
-        .withArgs(outbox.address, root, index, signatures);
-      expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
-    });
-
-    it('reverts if an invalidity proof of a non-empty leaf is not signed by a quorum', async () => {
-      const invalid = await dispatchMessageAndReturnProof(
-        helperOutbox,
-        message,
-      );
-      const root = await helperOutbox.root();
-      const index = messageCount - 1;
-      const signatures = await signCheckpoint(
-        root,
-        index,
-        [validator0], // 1/2 signers is not a quorum
-      );
-      await expect(
-        validatorManager.invalidCheckpoint(
-          outbox.address,
-          root,
-          index,
-          signatures,
-          invalid.leaf,
-          invalid.proof,
-          invalid.index,
-        ),
-      ).to.be.revertedWith('!quorum');
-    });
-
-    it('reverts if the signed root does not match the invalidity proof', async () => {
-      const root = await helperOutbox.root();
-      const invalid = await dispatchMessageAndReturnProof(
-        helperOutbox,
-        message,
-      );
-      const index = messageCount - 1;
-      const signatures = await signCheckpoint(
-        root,
-        index,
-        [validator0, validator1], // 2/2 signers is a quorum
-      );
-      await expect(
-        validatorManager.invalidCheckpoint(
-          outbox.address,
-          root,
-          index,
-          signatures,
-          invalid.leaf,
-          invalid.proof,
-          invalid.index,
-        ),
-      ).to.be.revertedWith('!root');
-    });
-
-    it('reverts if the proved leaf is valid', async () => {
-      const valid = await dispatchMessageAndReturnProof(helperOutbox, message);
-      const root = await helperOutbox.root();
-      const index = messageCount;
-      const signatures = await signCheckpoint(
-        root,
-        index,
-        [validator0, validator1], // 2/2 signers is a quorum
-      );
-      await expect(
-        validatorManager.invalidCheckpoint(
-          outbox.address,
-          root,
-          index,
-          signatures,
-          valid.leaf,
-          valid.proof,
-          valid.index,
-        ),
-      ).to.be.revertedWith('!invalid');
-    });
-  });
-
   describe('#prematureCheckpoint', () => {
     const messageCount = 1;
     // An premature checkpoint is one that has index greater than the latest index
@@ -301,6 +160,72 @@ describe('OutboxValidatorManager', () => {
           signatures,
         ),
       ).to.be.revertedWith('!premature');
+    });
+  });
+
+  describe.only('#impliesDifferingLeaf', async () => {
+    const dispatchMessagesAndReturnProofs = async (
+      differingIndex: number,
+      proofIndex: number,
+      messageCount: number,
+    ) => {
+      const actualMessage = 'message';
+      const fraudulentMessage = 'fraud';
+      let proofA: MerkleProof, proofB: MerkleProof;
+      for (let i = 0; i < messageCount; i++) {
+        const helperMessage =
+          i == differingIndex ? fraudulentMessage : actualMessage;
+        if (i == proofIndex) {
+          proofA = await dispatchMessageAndReturnProof(outbox, actualMessage);
+          proofB = await dispatchMessageAndReturnProof(
+            helperOutbox,
+            helperMessage,
+          );
+        } else {
+          await dispatchMessage(outbox, actualMessage);
+          await dispatchMessage(helperOutbox, helperMessage);
+        }
+      }
+      return { proofA: proofA!, proofB: proofB! };
+    };
+
+    it('returns true when proving a leaf with index greater than the differing leaf', async () => {
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(3, 4, 5);
+      expect(
+        await validatorManager.impliesDifferingLeaf(
+          proofA.leaf,
+          proofA.proof,
+          proofB.leaf,
+          proofB.proof,
+          proofA.index,
+        ),
+      ).to.be.true;
+    });
+
+    it('returns true when proving a leaf with index equal to the differing leaf', async () => {
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(4, 4, 5);
+      expect(
+        await validatorManager.impliesDifferingLeaf(
+          proofA.leaf,
+          proofA.proof,
+          proofB.leaf,
+          proofB.proof,
+          proofA.index,
+        ),
+      ).to.be.true;
+    });
+
+    it('returns false when proving a leaf with index less than the differing leaf', async () => {
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(4, 3, 5);
+      expect(
+        await validatorManager.impliesDifferingLeaf(
+          proofA.leaf,
+          proofA.proof,
+          proofB.leaf,
+          proofB.proof,
+          proofA.index,
+        ),
+      ).to.be.false;
     });
   });
 

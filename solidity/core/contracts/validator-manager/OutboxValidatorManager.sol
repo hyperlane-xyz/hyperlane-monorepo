@@ -82,56 +82,6 @@ contract OutboxValidatorManager is MultisigValidatorManager {
     // ============ External Functions ============
 
     /**
-     * @notice Determines if a quorum of validators have signed an invalid checkpoint,
-     * failing the Outbox if so.
-     * A checkpoint is invalid if it commits to anything other than contiguous non-empty leaves
-     * from leaf index zero to the leaf index of the checkpoint.
-     * @dev Invalid checkpoints signed by individual validators are not handled to prevent
-     * a single byzantine validator from failing the Outbox.
-     * @param _outbox The outbox.
-     * @param _signedRoot The root of the signed checkpoint.
-     * @param _signedIndex The index of the signed checkpoint.
-     * @param _signatures Signatures over the checkpoint to be checked for a validator
-     * quorum. Must be sorted in ascending order by signer address.
-     * @param _invalidLeaf The differing element in the fraudulent tree.
-     * @param _invalidProof Proof of inclusion of `_fraudulentLeaf`.
-     * @param _invalidIndex The index of the disputed leaf.
-     * @return True iff invalidity was proved.
-     */
-    function invalidCheckpoint(
-        IOutbox _outbox,
-        bytes32 _signedRoot,
-        uint256 _signedIndex,
-        bytes[] calldata _signatures,
-        bytes32 _invalidLeaf,
-        bytes32[32] calldata _invalidProof,
-        uint256 _invalidIndex
-    ) external returns (bool) {
-        require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
-
-        bytes32 _invalidRoot = MerkleLib.branchRoot(
-            _invalidLeaf,
-            _invalidProof,
-            _invalidIndex
-        );
-        require(_invalidRoot == _signedRoot, "!root");
-
-        bool _invalidIfNonEmptyLeaf = _invalidIndex > _signedIndex;
-        bool _nonEmptyLeaf = _invalidLeaf != 0;
-        require(_invalidIfNonEmptyLeaf == _nonEmptyLeaf, "!invalid");
-
-        // Fail the Outbox.
-        _outbox.fail();
-        emit InvalidCheckpoint(
-            address(_outbox),
-            _signedRoot,
-            _signedIndex,
-            _signatures
-        );
-        return true;
-    }
-
-    /**
      * @notice Determines if a quorum of validators have signed a premature checkpoint,
      * failing the Outbox if so.
      * A checkpoint is premature if it commits to more messages than are present in the
@@ -168,8 +118,12 @@ contract OutboxValidatorManager is MultisigValidatorManager {
     /**
      * @notice Determines if a quorum of validators have signed a fraudulent checkpoint,
      * failing the Outbox if so.
-     * A checkpoint is fraudulent if it commits to a message that is different
-     * than the message committed to by the Outbox at the same leaf index.
+     * A checkpoint is fraudulent if the leaf it commits to at index I differs
+     * from the leaf the Outbox committed to at index I, where I is less than
+     * the index of the checkpoint.
+     * This difference can be proved by comparing two merkle proofs for leaf
+     * index J >= I. One against the fraudulent checkpoint, and one against a
+     * checkpoint cached on the Outbox.
      * @dev Fraudulent checkpoints signed by individual validators are not handled to prevent
      * a single byzantine validator from failing the Outbox.
      * @param _outbox The outbox.
@@ -177,11 +131,11 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @param _signedIndex The index of the signed checkpoint.
      * @param _signatures Signatures over the checkpoint to be checked for a validator
      * quorum. Must be sorted in ascending order by signer address.
-     * @param _fraudulentLeaf The differing element in the fraudulent tree.
+     * @param _fraudulentLeaf The leaf in the fraudulent tree.
      * @param _fraudulentProof Proof of inclusion of `_fraudulentLeaf`.
-     * @param _actualLeaf The actual leaf in Outbox's tree.
+     * @param _actualLeaf The leaf in the Outbox's tree.
      * @param _actualProof Proof of inclusion of `_actualLeaf`.
-     * @param _leafIndex The index of the disputed leaf.
+     * @param _leafIndex The index of the leaves that are being proved.
      * @return True iff fraud was proved.
      */
     function fraudulentCheckpoint(
@@ -214,9 +168,9 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         uint256 _cachedIndex = _outbox.cachedCheckpoints(_cachedRoot);
         require(_cachedIndex > 0 && _cachedIndex >= _leafIndex, "!cache");
 
-        // Check that the signed and cached checkpoints commit to different
-        // leaves at the same leaf index.
-        require(_fraudulentLeaf != _actualLeaf, "!leaf");
+        // Check that the two roots commit to at least one differing leaf
+        // with index <= _leafIndex.
+        require(impliesDifferingLeaf(_fraudulentLeaf, _fraudulentProof, _actualLeaf, _actualProof, _leafIndex), "!fraud");
 
         // Fail the Outbox.
         _outbox.fail();
@@ -227,5 +181,49 @@ contract OutboxValidatorManager is MultisigValidatorManager {
             _signatures
         );
         return true;
+    }
+
+    /**
+     * @notice Returns true if the implied merkle roots commit to at least one
+     * differing leaf with index <= `_leafIndex`.
+     * Given a merkle proof for leaf index J, we can determine whether an
+     * element in the proof is an internal node whose terminal children are leaves
+     * with index <= J.
+     * Given two merkle proofs for leaf index J, if such elements do not match,
+     * these two proofs necessarily commit to at least one differing leaf with
+     * index I <= J.
+     * @param _leafA The leaf in tree A.
+     * @param _proofA Proof of inclusion of `_leafA` in tree A.
+     * @param _leafB The leaf in tree B.
+     * @param _proofB Proof of inclusion of `_leafB` in tree B.
+     * @param _leafIndex The index of `_leafA` and `_leafB`.
+     * @return differ True if the implied trees differ, false if not.
+     */
+    function impliesDifferingLeaf(
+        bytes32 _leafA,
+        bytes32[32] calldata _proofA,
+        bytes32 _leafB,
+        bytes32[32] calldata _proofB,
+        uint256 _leafIndex
+    ) public pure returns (bool) {
+        // The implied merkle roots commit to at least one differing leaf
+        // with index <= _leafIndex, if either:
+
+        // 1. If the provided leaves differ.
+        bool differ = _leafA != _leafB;
+
+        // 2. If the branches contain internal nodes whose subtrees are full
+        // (as implied by _leafIndex) that differ from one another.
+        for (uint256 i = 0; i < 32; i++) {
+            uint256 _ithBit = (_leafIndex >> i) & 0x01;
+            // If the i'th is 1, the i'th element in the proof is an internal
+            // node whose subtree is full.
+            // If these nodes differ, at least one leaf that they commit to
+            // must differ as well.
+            if (_ithBit == 1) {
+                differ = differ || (_proofA[i] != _proofB[i]);
+            }
+        }
+        return differ;
     }
 }

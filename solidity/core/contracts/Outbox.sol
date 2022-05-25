@@ -137,7 +137,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      * @dev emits Checkpoint event
      */
     function cacheCheckpoint() external override notFailed {
-        _cacheCheckpoint(latestCheckpoint());
+        _cacheCheckpoint(root(), count() - 1);
     }
 
     /**
@@ -155,7 +155,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      * @return root The root of the Outbox's merkle tree.
      * @return index The index of the last element in the tree.
      */
-    function latestCheckpoint() external view returns (bytes32, uint256) {
+    function latestCheckpoint() public view returns (bytes32, uint256) {
         return (root(), count() - 1);
     }
 
