@@ -14,7 +14,6 @@ import {
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
 
 import { setDifference } from '../utils/utils';
 
@@ -43,15 +42,9 @@ export interface ValidatorViolation extends CheckerViolation {
 
 export class AbacusCoreChecker<
   Chain extends ChainName,
-> extends AbacusAppChecker<
-  Chain,
-  AbacusCore<Chain>,
-  CoreConfig & {
-    owner: types.Address;
-  }
-> {
+> extends AbacusAppChecker<Chain, AbacusCore<Chain>, CoreConfig> {
   async checkChain(chain: Chain): Promise<void> {
-    await this.checkDomainOwnership(chain);
+    // await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkOutbox(chain);
     await this.checkInboxes(chain);
@@ -59,20 +52,20 @@ export class AbacusCoreChecker<
     await this.checkValidatorManagers(chain);
   }
 
-  async checkDomainOwnership(chain: Chain): Promise<void> {
-    const config = this.configMap[chain];
-    const contracts = this.app.getContracts(chain);
-    const ownables = [
-      contracts.abacusConnectionManager,
-      contracts.upgradeBeaconController,
-      contracts.outbox.outbox,
-      contracts.outbox.validatorManager,
-      ...Object.values(contracts.inboxes)
-        .map((inbox: any) => [inbox.inbox, inbox.validatorManager])
-        .flat(),
-    ];
-    return AbacusAppChecker.checkOwnership(config.owner, ownables);
-  }
+  // async checkDomainOwnership(chain: Chain): Promise<void> {
+  //   const config = this.configMap[chain];
+  //   const contracts = this.app.getContracts(chain);
+  //   const ownables = [
+  //     contracts.abacusConnectionManager,
+  //     contracts.upgradeBeaconController,
+  //     contracts.outbox.outbox,
+  //     contracts.outbox.validatorManager,
+  //     ...Object.values(contracts.inboxes)
+  //       .map((inbox: any) => [inbox.inbox, inbox.validatorManager])
+  //       .flat(),
+  //   ];
+  //   return AbacusAppChecker.checkOwnership(config.owner, ownables);
+  // }
 
   async checkOutbox(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);

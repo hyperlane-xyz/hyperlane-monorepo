@@ -10,7 +10,11 @@ async function check() {
   const multiProvider = await config.getMultiProvider();
 
   const core = AbacusCore.fromEnvironment(environment, multiProvider);
-  const coreChecker = new AbacusCoreChecker(multiProvider, core, config.core);
+  const coreChecker = new AbacusCoreChecker<any>(
+    multiProvider,
+    core,
+    config.core,
+  );
   await coreChecker.check();
   coreChecker.expectEmpty();
 }
