@@ -28,7 +28,7 @@
     "test": "test"
   },
   "scripts": {
-    "prettier": "prettier --write ./contracts ./test",
+    "prettier": "prettier --write ./contracts",
     "build": "hardhat compile && hardhat typechain && tsc && npm run copy-types",
     "copy-types": "cp types/*.d.ts dist/",
     "coverage": "hardhat coverage",
