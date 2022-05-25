@@ -5,7 +5,7 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@^0.1.1, @abacus-network/app@workspace:solidity/app":
+"@abacus-network/app@workspace:solidity/app":
   version: 0.0.0-use.local
   resolution: "@abacus-network/app@workspace:solidity/app"
   dependencies:
@@ -14,39 +14,6 @@ __metadata:
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts-upgradeable": ^4.5.0
-    "@typechain/ethers-v5": ~7.0.0
-    "@typechain/hardhat": ^2.0.1
-    "@types/mocha": ^9.1.0
-    chai: ^4.3.0
-    eslint: ^7.20.0
-    ethereum-waffle: ^3.2.2
-    ethers: ^5.4.4
-    hardhat: ^2.8.3
-    hardhat-gas-reporter: ^1.0.7
-    prettier: ^2.2.1
-    prettier-plugin-solidity: ^1.0.0-beta.5
-    solhint: ^3.3.2
-    solhint-plugin-prettier: ^0.0.5
-    solidity-coverage: ^0.7.14
-    ts-node: ^10.1.0
-    typechain: ^5.0.0
-    typescript: ^4.3.5
-  languageName: unknown
-  linkType: soft
-
-"@abacus-network/apps@^0.1.1, @abacus-network/apps@workspace:solidity/apps":
-  version: 0.0.0-use.local
-  resolution: "@abacus-network/apps@workspace:solidity/apps"
-  dependencies:
-    "@abacus-network/app": ^0.1.1
-    "@abacus-network/core": ^0.1.1
-    "@abacus-network/hardhat": ^0.1.1
-    "@abacus-network/utils": ^0.1.1
-    "@nomiclabs/hardhat-ethers": ^2.0.1
-    "@nomiclabs/hardhat-waffle": ^2.0.1
-    "@openzeppelin/contracts": ~3.4.2
-    "@openzeppelin/contracts-upgradeable": ~3.4.2
-    "@summa-tx/memview-sol": ^2.0.0
     "@typechain/ethers-v5": ~7.0.0
     "@typechain/hardhat": ^2.0.1
     "@types/mocha": ^9.1.0
@@ -118,7 +85,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/hardhat@^0.1.1, @abacus-network/hardhat@workspace:typescript/hardhat":
+"@abacus-network/hardhat@workspace:typescript/hardhat":
   version: 0.0.0-use.local
   resolution: "@abacus-network/hardhat@workspace:typescript/hardhat"
   dependencies:
@@ -141,7 +108,6 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/infra@workspace:typescript/infra"
   dependencies:
-    "@abacus-network/apps": ^0.1.1
     "@abacus-network/core": ^0.1.1
     "@abacus-network/deploy": ^0.1.1
     "@abacus-network/sdk": ^0.1.1
@@ -3074,24 +3040,10 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts-upgradeable@npm:~3.4.2":
-  version: 3.4.2
-  resolution: "@openzeppelin/contracts-upgradeable@npm:3.4.2"
-  checksum: dd461cdc8353ee6219e746fa71eced068df46c6df4bfe29207a8ad35064b476c2aa532ec0026c505d9515857ada5838c445b2433e2dadc0878fc678046c4e8b0
-  languageName: node
-  linkType: hard
-
 "@openzeppelin/contracts@npm:^4.6.0":
   version: 4.6.0
   resolution: "@openzeppelin/contracts@npm:4.6.0"
   checksum: 1de06211b279d7aef2bb9abbdd58eb80c71256f7e888a10855ea23bb06ef8723b22fb550d06af60247dfbd7f0f23de9821732012d7541a823339070a8442d1db
-  languageName: node
-  linkType: hard
-
-"@openzeppelin/contracts@npm:~3.4.2":
-  version: 3.4.2
-  resolution: "@openzeppelin/contracts@npm:3.4.2"
-  checksum: 0c90f029fe50a49643588e4c8670dae3bbf31795133a6ddce9bdcbc258486332700bb732287baabf7bf807f39182fe8ea2ffa19aa5caf359b1b9c0f083280748
   languageName: node
   linkType: hard
 
