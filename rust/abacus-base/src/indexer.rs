@@ -1,4 +1,7 @@
-use abacus_core::{AbacusCommonIndexer, CheckpointWithMeta, OutboxIndexer, RawCommittedMessage};
+use abacus_core::{
+    AbacusCommonIndexer, CheckpointWithMeta, InterchainGasPaymasterIndexer, OutboxIndexer,
+    RawCommittedMessage,
+};
 use abacus_test::mocks::indexer::MockAbacusIndexer;
 use async_trait::async_trait;
 use eyre::Result;
@@ -97,3 +100,23 @@ impl OutboxIndexer for OutboxIndexers {
         }
     }
 }
+
+/// InterchainGasPaymasterIndexer type
+#[derive(Debug)]
+pub enum InterchainGasPaymasterIndexers {
+    /// Ethereum contract indexer
+    Ethereum(Box<dyn InterchainGasPaymasterIndexer>),
+    /// Mock indexer
+    Mock(Box<dyn InterchainGasPaymasterIndexer>),
+    /// Other indexer variant
+    Other(Box<dyn InterchainGasPaymasterIndexer>),
+}
+
+// impl From<MockAbacusIndexer> for InterchainGasPaymasterIndexer {
+//     fn from(mock_indexer: MockAbacusIndexer) -> Self {
+//         InterchainGasPaymasterIndexer::Mock(Box::new(mock_indexer))
+//     }
+// }
+
+#[async_trait]
+impl InterchainGasPaymasterIndexer for InterchainGasPaymasterIndexers {}

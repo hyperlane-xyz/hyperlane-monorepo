@@ -12,7 +12,7 @@ use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
-pub use crate::{inbox::*, outbox::*, trait_builder::*, validator_manager::*};
+pub use crate::{inbox::*, interchain_gas::*, outbox::*, trait_builder::*, validator_manager::*};
 
 #[cfg(not(doctest))]
 mod tx;
