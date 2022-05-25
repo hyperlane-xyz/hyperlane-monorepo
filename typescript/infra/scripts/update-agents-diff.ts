@@ -5,9 +5,13 @@ import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function deploy() {
   const environment = await getEnvironment();
-  const config = await getCoreEnvironmentConfig(environment);
+  const config = getCoreEnvironmentConfig(environment);
   for (const chain of config.agent.chainNames) {
-    await runAgentHelmCommand(HelmCommand.UpgradeDiff, config.agent, chain);
+    await runAgentHelmCommand<any>(
+      HelmCommand.UpgradeDiff,
+      config.agent,
+      chain,
+    );
   }
 }
 
