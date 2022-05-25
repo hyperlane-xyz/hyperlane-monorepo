@@ -43,7 +43,7 @@ describe('OutboxValidatorManager', () => {
     );
   };
 
-  const getProofForDispatchedMessage = async (
+  const dispatchMessageAndReturnProof = async (
     outbox: TestOutbox,
     message: string,
   ) => {
@@ -104,7 +104,10 @@ describe('OutboxValidatorManager', () => {
     });
 
     it('accepts an invalidity proof of a non-empty leaf if signed by a quorum', async () => {
-      const invalid = await getProofForDispatchedMessage(helperOutbox, message);
+      const invalid = await dispatchMessageAndReturnProof(
+        helperOutbox,
+        message,
+      );
       const root = await helperOutbox.root();
       const index = messageCount - 1;
       const signatures = await signCheckpoint(
@@ -160,7 +163,10 @@ describe('OutboxValidatorManager', () => {
     });
 
     it('reverts if an invalidity proof of a non-empty leaf is not signed by a quorum', async () => {
-      const invalid = await getProofForDispatchedMessage(helperOutbox, message);
+      const invalid = await dispatchMessageAndReturnProof(
+        helperOutbox,
+        message,
+      );
       const root = await helperOutbox.root();
       const index = messageCount - 1;
       const signatures = await signCheckpoint(
@@ -183,12 +189,15 @@ describe('OutboxValidatorManager', () => {
 
     it('reverts if the signed root does not match the invalidity proof', async () => {
       const root = await helperOutbox.root();
-      const invalid = await getProofForDispatchedMessage(helperOutbox, message);
+      const invalid = await dispatchMessageAndReturnProof(
+        helperOutbox,
+        message,
+      );
       const index = messageCount - 1;
       const signatures = await signCheckpoint(
         root,
         index,
-        [validator0, validator1], // 2/2 signers is not a quorum
+        [validator0, validator1], // 2/2 signers is a quorum
       );
       await expect(
         validatorManager.invalidCheckpoint(
@@ -204,13 +213,13 @@ describe('OutboxValidatorManager', () => {
     });
 
     it('reverts if the proved leaf is valid', async () => {
-      const valid = await getProofForDispatchedMessage(helperOutbox, message);
+      const valid = await dispatchMessageAndReturnProof(helperOutbox, message);
       const root = await helperOutbox.root();
       const index = messageCount;
       const signatures = await signCheckpoint(
         root,
         index,
-        [validator0, validator1], // 2/2 signers is not a quorum
+        [validator0, validator1], // 2/2 signers is a quorum
       );
       await expect(
         validatorManager.invalidCheckpoint(
@@ -307,8 +316,8 @@ describe('OutboxValidatorManager', () => {
         await dispatchMessage(helperOutbox, fraudulentMessage);
       }
 
-      actual = await getProofForDispatchedMessage(outbox, actualMessage);
-      fraudulent = await getProofForDispatchedMessage(
+      actual = await dispatchMessageAndReturnProof(outbox, actualMessage);
+      fraudulent = await dispatchMessageAndReturnProof(
         helperOutbox,
         fraudulentMessage,
       );

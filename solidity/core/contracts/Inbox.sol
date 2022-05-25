@@ -64,16 +64,11 @@ contract Inbox is IInbox, Version0, Common {
 
     function initialize(
         uint32 _remoteDomain,
-        address _validatorManager,
-        bytes32 _root,
-        uint256 _index
+        address _validatorManager
     ) public initializer {
         __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
-        if (_index > 0) {
-            _cacheCheckpoint(_root, _index);
-        }
     }
 
     // ============ External Functions ============
@@ -129,7 +124,7 @@ contract Inbox is IInbox, Version0, Common {
             _index
         );
         // ensure that the root has been cached
-        require(cachedCheckpoints[_calculatedRoot] > 0, "!cache");
+        require(cachedCheckpoints[_calculatedRoot] >= _index, "!cache");
         _process(_message, _messageHash);
         // reset re-entrancy guard
         entered = 1;

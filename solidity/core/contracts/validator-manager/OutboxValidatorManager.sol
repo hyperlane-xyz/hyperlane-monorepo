@@ -154,7 +154,7 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
         // Checkpoints are premature if the checkpoint commits to more messages
         // than the Outbox has in its merkle tree.
-        require(_signedIndex + 1 > _outbox.count(), "!premature");
+        require(_signedIndex >= _outbox.count(), "!premature");
         _outbox.fail();
         emit PrematureCheckpoint(
             address(_outbox),

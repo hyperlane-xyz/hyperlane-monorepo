@@ -8,7 +8,7 @@ contract TestInbox is Inbox {
 
     constructor(uint32 _localDomain) Inbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
-    function setCache(bytes32 _root, uint256 _index) external {
+    function setCachedCheckpoint(bytes32 _root, uint256 _index) external {
         cachedCheckpoints[_root] = _index;
     }
 
