@@ -49,6 +49,7 @@ pub struct InboxAddresses {
 /// A chain setup is a domain ID, an address on that chain (where the outbox or
 /// inbox is deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ChainSetup<T> {
     /// Chain name
     pub name: String,
@@ -65,6 +66,7 @@ pub struct ChainSetup<T> {
     /// Configure chain-specific metrics information. This will automatically add all contract
     /// addresses but will not override any set explicitly.
     /// Use `metrics_conf()` to get the metrics.
+    #[serde(default)]
     pub metrics_conf: PrometheusMiddlewareConf,
 }
 

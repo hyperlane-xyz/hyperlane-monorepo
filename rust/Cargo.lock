@@ -1410,6 +1410,8 @@ dependencies = [
  "prometheus",
  "serde 1.0.130",
  "serde_json",
+ "static_assertions",
+ "tokio",
 ]
 
 [[package]]

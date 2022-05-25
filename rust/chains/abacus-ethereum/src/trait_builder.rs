@@ -1,10 +1,15 @@
 use async_trait::async_trait;
 use ethers::prelude::*;
+use std::sync::Arc;
+use std::time::Duration;
 
 use abacus_core::{ContractLocator, Signers};
 use ethers_prometheus::{PrometheusMiddleware, PrometheusMiddlewareConf, ProviderMetrics};
 
 use crate::{Connection, RetryingProvider};
+
+// This should be whatever the prometheus scrape interval is
+const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 
 /// A trait for dynamic trait creation with provider initialization.
 #[async_trait]
@@ -47,7 +52,8 @@ pub trait MakeableWithProvider {
     {
         let provider = Provider::new(client);
         Ok(if let Some(metrics) = metrics {
-            let provider = PrometheusMiddleware::new(provider, metrics.0, metrics.1);
+            let provider = Arc::new(PrometheusMiddleware::new(provider, metrics.0, metrics.1));
+            tokio::spawn(provider.start_updating_on_interval(METRICS_SCRAPE_INTERVAL));
             self.wrap_with_signer(provider, locator, signer).await?
         } else {
             self.wrap_with_signer(provider, locator, signer).await?

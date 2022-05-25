@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::fmt::{Debug, Formatter};
 use std::future::Future;
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use async_trait::async_trait;
 use derive_builder::Builder;
@@ -15,11 +15,14 @@ use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
 use log::{debug, trace, warn};
 use maplit::hashmap;
-use parking_lot::RwLock;
+use tokio::sync::RwLock;
 use prometheus::{GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
 
 use erc20::Erc20;
 pub use error::PrometheusMiddlewareError;
+
+use static_assertions::assert_impl_all;
+use tokio::time::MissedTickBehavior;
 
 mod erc20;
 mod error;
@@ -191,6 +194,9 @@ pub struct PrometheusMiddlewareConf {
     pub contracts: HashMap<Address, ContractInfo>,
 }
 
+assert_impl_all!(PrometheusMiddlewareConf: Send, Sync);
+assert_impl_all!(tokio::sync::RwLockReadGuard<PrometheusMiddlewareConf>: Send);
+
 #[cfg_attr(target_arch = "wasm32", async_trait(?Send))]
 #[cfg_attr(not(target_arch = "wasm32"), async_trait)]
 impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
@@ -265,7 +271,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let result = self.inner.call(tx, block).await;
 
         if let Some(m) = &self.metrics.contract_call_duration_seconds {
-            let data = self.data.read();
+            let data = self.data.read().await;
             let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
             let (contract_addr, contract_name) = tx
                 .to()
@@ -306,26 +312,26 @@ impl<M> PrometheusMiddleware<M> {
     }
 
     /// Start tracking metrics for a new token.
-    pub fn track_new_token(&self, addr: Address, info: TokenInfo) {
-        self.track_new_tokens([(addr, info)]);
+    pub async fn track_new_token(&self, addr: Address, info: TokenInfo) {
+        self.track_new_tokens([(addr, info)]).await;
     }
 
     /// Start tacking metrics for new tokens.
-    pub fn track_new_tokens(&self, iter: impl IntoIterator<Item = (Address, TokenInfo)>) {
-        let mut data = self.data.write();
+    pub async fn track_new_tokens(&self, iter: impl IntoIterator<Item = (Address, TokenInfo)>) {
+        let mut data = self.data.write().await;
         for (addr, info) in iter {
             data.tokens.insert(addr, info);
         }
     }
 
     /// Start tracking metrics for a new wallet.
-    pub fn track_new_wallet(&self, addr: Address, info: WalletInfo) {
-        self.track_new_wallets([(addr, info)])
+    pub async fn track_new_wallet(&self, addr: Address, info: WalletInfo) {
+        self.track_new_wallets([(addr, info)]).await;
     }
 
     /// Start tracking metrics for new wallets.
-    pub fn track_new_wallets(&self, iter: impl IntoIterator<Item = (Address, WalletInfo)>) {
-        let mut data = self.data.write();
+    pub async fn track_new_wallets(&self, iter: impl IntoIterator<Item = (Address, WalletInfo)>) {
+        let mut data = self.data.write().await;
         for (addr, info) in iter {
             data.wallets.insert(addr, info);
         }
@@ -333,6 +339,31 @@ impl<M> PrometheusMiddleware<M> {
 }
 
 impl<M: Middleware> PrometheusMiddleware<M> {
+    /// Start the update cycle using tokio. This must be called if you want
+    /// some metrics to be updated automatically. Alternatively you could call update yourself.
+    #[cfg(feature = "tokio")]
+    pub fn start_updating_on_interval(
+        self: &Arc<Self>,
+        period: Duration,
+    ) -> impl Future<Output = ()> + Send {
+        let zelf = Arc::downgrade(self);
+
+        async move {
+            let mut interval = tokio::time::interval(period);
+            interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+            loop {
+                if let Some(zelf) = zelf.upgrade() {
+                    zelf.update().await;
+                } else {
+                    return;
+                }
+                interval.tick().await;
+            }
+        }
+    }
+}
+
+impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
     /// Update gauges. You should submit this on a schedule to your runtime to be collected once
     /// on a regular interval that ideally aligns with the prometheus scrape interval.
     pub fn update(&self) -> impl Future<Output = ()> {
@@ -345,13 +376,15 @@ impl<M: Middleware> PrometheusMiddleware<M> {
         let client = self.inner.clone();
 
         async move {
-            let data = data_ref.read();
-            let chain = metrics_chain_name(client.get_chainid().await.map(|id| id.as_u64()).ok());
+            let chain_id = client.get_chainid().await.map(|id| id.as_u64()).ok();
+            let chain = metrics_chain_name(chain_id);
             debug!("Updating metrics for chain ({chain})");
 
+            // let data = data_ref.read();
             if block_height.is_some() || gas_price_gwei.is_some() {
                 Self::update_block_details(&*client, &chain, block_height, gas_price_gwei).await;
             }
+            let data = data_ref.read().await;
             if let Some(wallet_balance) = wallet_balance {
                 Self::update_wallet_balances(client.clone(), &*data, &chain, wallet_balance).await;
             }
