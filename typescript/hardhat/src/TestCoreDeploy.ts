@@ -19,7 +19,7 @@ const testValidatorManagerConfig: CoreConfig = {
 };
 
 export class TestCoreDeploy extends AbacusCoreDeployer<TestChainNames> {
-  constructor(multiProvider: MultiProvider<TestChainNames>) {
+  constructor(public readonly multiProvider: MultiProvider<TestChainNames>) {
     super(multiProvider, {
       test1: testValidatorManagerConfig,
       test2: testValidatorManagerConfig,

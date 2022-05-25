@@ -18,7 +18,7 @@ describe('TestCoreDeploy', async () => {
 
   beforeEach(async () => {
     const [signer] = await ethers.getSigners();
-    const multiProvider = hardhatMultiProvider(ethers, signer);
+    const multiProvider = hardhatMultiProvider(ethers.provider, signer);
     const deployer = new TestCoreDeploy(multiProvider);
     abacus = await deployer.deployCore();
 
@@ -41,45 +41,21 @@ describe('TestCoreDeploy', async () => {
     ).to.emit(remoteOutbox, 'Dispatch');
   });
 
-  describe('without a created checkpoint', () => {
-    it('does not process outbound messages', async () => {
-      const responses = await abacus.processOutboundMessages(localChain);
-      expect(responses.get(remoteChain)).to.be.undefined;
-    });
+  it('processes outbound messages for a single domain', async () => {
+    const responses = await abacus.processOutboundMessages(localChain);
+    expect(responses.get(remoteChain)!.length).to.equal(1);
   });
 
-  describe('with a checkpoint', () => {
-    beforeEach(async () => {
-      await localOutbox.checkpoint();
-      await remoteOutbox.checkpoint();
-    });
+  it('processes outbound messages for two domains', async () => {
+    const localResponses = await abacus.processOutboundMessages(localChain);
+    expect(localResponses.get(remoteChain)!.length).to.equal(1);
+    const remoteResponses = await abacus.processOutboundMessages(remoteChain);
+    expect(remoteResponses.get(localChain)!.length).to.equal(1);
+  });
 
-    it('processes outbound messages for a single domain', async () => {
-      const responses = await abacus.processOutboundMessages(localChain);
-      expect(responses.get(remoteChain)!.length).to.equal(1);
-      const [_, index] = await localOutbox.latestCheckpoint();
-      expect(index).to.equal(1);
-    });
-
-    it('processes outbound messages for two domains', async () => {
-      const localResponses = await abacus.processOutboundMessages(localChain);
-      expect(localResponses.get(remoteChain)!.length).to.equal(1);
-      const [, localIndex] = await localOutbox.latestCheckpoint();
-      expect(localIndex).to.equal(1);
-      const remoteResponses = await abacus.processOutboundMessages(remoteChain);
-      expect(remoteResponses.get(localChain)!.length).to.equal(1);
-      const [, remoteIndex] = await remoteOutbox.latestCheckpoint();
-      expect(remoteIndex).to.equal(1);
-    });
-
-    it('processes all messages', async () => {
-      const responses = await abacus.processMessages();
-      expect(responses.get(localChain)!.get(remoteChain)!.length).to.equal(1);
-      expect(responses.get(remoteChain)!.get(localChain)!.length).to.equal(1);
-      const [, localIndex] = await localOutbox.latestCheckpoint();
-      expect(localIndex).to.equal(1);
-      const [, remoteIndex] = await remoteOutbox.latestCheckpoint();
-      expect(remoteIndex).to.equal(1);
-    });
+  it('processes all messages', async () => {
+    const responses = await abacus.processMessages();
+    expect(responses.get(localChain)!.get(remoteChain)!.length).to.equal(1);
+    expect(responses.get(remoteChain)!.get(localChain)!.length).to.equal(1);
   });
 });
