@@ -1,20 +1,22 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use abacus_core::{accumulator::merkle::Proof, MessageStatus, *};
-use abacus_core::{
-    AbacusCommon, AbacusCommonIndexer, AbacusMessage, ChainCommunicationError, Checkpoint,
-    CheckpointMeta, CheckpointWithMeta, ContractLocator, Inbox, TxOutcome,
-};
+use std::{error::Error as StdError, sync::Arc};
+
 use async_trait::async_trait;
 use ethers::contract::abigen;
-use ethers::core::types::{H256, U256};
+use ethers::prelude::*;
 use eyre::Result;
 use tracing::instrument;
 
-use std::{error::Error as StdError, sync::Arc};
+use abacus_core::{
+    accumulator::merkle::Proof, AbacusCommon, AbacusCommonIndexer, AbacusMessage,
+    ChainCommunicationError, Checkpoint, CheckpointMeta, CheckpointWithMeta, ContractLocator,
+    Encode, Inbox, MessageStatus, TxOutcome,
+};
 
-use crate::report_tx;
+use crate::trait_builder::MakeableWithProvider;
+use crate::tx::report_tx;
 
 abigen!(
     EthereumInboxInternal,
@@ -27,10 +29,32 @@ abigen!(
 
 impl<M> std::fmt::Display for EthereumInboxInternal<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
+    }
+}
+
+pub struct InboxIndexerBuilder {
+    pub from_height: u32,
+    pub chunk_size: u32,
+}
+
+impl MakeableWithProvider for InboxIndexerBuilder {
+    type Output = Box<dyn AbacusCommonIndexer>;
+
+    fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumInboxIndexer::new(
+            Arc::new(provider),
+            locator,
+            self.from_height,
+            self.chunk_size,
+        ))
     }
 }
 
@@ -38,7 +62,7 @@ where
 /// Struct that retrieves indexes event data for Ethereum inbox
 pub struct EthereumInboxIndexer<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     contract: Arc<EthereumInboxInternal<M>>,
     provider: Arc<M>,
@@ -50,21 +74,20 @@ where
 
 impl<M> EthereumInboxIndexer<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     /// Create new EthereumInboxIndexer
     pub fn new(
         provider: Arc<M>,
-        ContractLocator {
-            name: _,
-            domain: _,
-            address,
-        }: &ContractLocator,
+        locator: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
     ) -> Self {
         Self {
-            contract: Arc::new(EthereumInboxInternal::new(address, provider.clone())),
+            contract: Arc::new(EthereumInboxInternal::new(
+                &locator.address,
+                provider.clone(),
+            )),
             provider,
             from_height,
             chunk_size,
@@ -75,7 +98,7 @@ where
 #[async_trait]
 impl<M> AbacusCommonIndexer for EthereumInboxIndexer<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
     async fn get_block_number(&self) -> Result<u32> {
@@ -127,11 +150,25 @@ where
     }
 }
 
+pub struct InboxBuilder {}
+
+impl MakeableWithProvider for InboxBuilder {
+    type Output = Box<dyn Inbox>;
+
+    fn make_with_provider<M: Middleware + 'static>(
+        &self,
+        provider: M,
+        locator: &ContractLocator,
+    ) -> Self::Output {
+        Box::new(EthereumInbox::new(Arc::new(provider), locator))
+    }
+}
+
 /// A struct that provides access to an Ethereum inbox contract
 #[derive(Debug)]
 pub struct EthereumInbox<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     contract: Arc<EthereumInboxInternal<M>>,
     domain: u32,
@@ -141,7 +178,7 @@ where
 
 impl<M> EthereumInbox<M>
 where
-    M: ethers::providers::Middleware,
+    M: Middleware,
 {
     /// Create a reference to a inbox at a specific Ethereum address on some
     /// chain
@@ -165,7 +202,7 @@ where
 #[async_trait]
 impl<M> AbacusCommon for EthereumInbox<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     fn local_domain(&self) -> u32 {
         self.domain
@@ -229,7 +266,7 @@ where
 #[async_trait]
 impl<M> Inbox for EthereumInbox<M>
 where
-    M: ethers::providers::Middleware + 'static,
+    M: Middleware + 'static,
 {
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
         Ok(self.contract.remote_domain().call().await?)
@@ -256,7 +293,7 @@ where
         );
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
-        Ok(report_tx!(gassed).into())
+        Ok(report_tx(gassed).await?.into())
     }
 
     #[tracing::instrument(err)]

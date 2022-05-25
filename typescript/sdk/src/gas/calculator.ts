@@ -135,13 +135,12 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     destination: Destination,
     destinationHandleGas: BigNumber,
   ): Promise<BigNumber> {
-    const destinationGasPrice = await this.suggestedGasPrice(destination);
-
-    const checkpointRelayGas = await this.checkpointRelayGas(
-      origin,
-      destination,
-    );
-    const inboxProcessOverheadGas = await this.inboxProcessOverheadGas();
+    const [destinationGasPrice, checkpointRelayGas, inboxProcessOverheadGas] =
+      await Promise.all([
+        this.suggestedGasPrice(destination),
+        this.checkpointRelayGas(origin, destination),
+        this.inboxProcessOverheadGas(),
+      ]);
     const totalDestinationGas = checkpointRelayGas
       .add(inboxProcessOverheadGas)
       .add(destinationHandleGas);

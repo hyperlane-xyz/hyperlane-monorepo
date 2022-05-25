@@ -4,19 +4,25 @@
 #![warn(missing_docs)]
 #![warn(unused_extern_crates)]
 
-use abacus_core::*;
-use ethers::providers::Middleware;
-use ethers::types::{Address, BlockId, BlockNumber, NameOrAddress, H160};
+use ethers::prelude::*;
 use eyre::Result;
 use num::Num;
-use std::sync::Arc;
 
-#[macro_use]
-mod macros;
+use abacus_core::*;
+pub use retrying::{RetryingProvider, RetryingProviderError};
+
+#[cfg(not(doctest))]
+pub use crate::{inbox::*, outbox::*, trait_builder::*, validator_manager::*};
+
+#[cfg(not(doctest))]
+mod tx;
 
 /// Outbox abi
 #[cfg(not(doctest))]
 mod outbox;
+
+#[cfg(not(doctest))]
+mod trait_builder;
 
 /// Inbox abi
 #[cfg(not(doctest))]
@@ -28,7 +34,6 @@ mod validator_manager;
 
 /// Retrying Provider
 mod retrying;
-pub use retrying::{RetryingProvider, RetryingProviderError};
 
 /// Ethereum connection configuration
 #[derive(Debug, serde::Deserialize, Clone)]
@@ -54,42 +59,16 @@ impl Default for Connection {
     }
 }
 
-#[cfg(not(doctest))]
-pub use crate::{inbox::*, outbox::*, validator_manager::*};
-
 #[allow(dead_code)]
 /// A live connection to an ethereum-compatible chain.
 pub struct Chain {
     creation_metadata: Connection,
-    ethers: ethers::providers::Provider<ethers::providers::Http>,
+    ethers: Provider<Http>,
 }
-
-boxed_trait!(
-    make_outbox_indexer,
-    EthereumOutboxIndexer,
-    OutboxIndexer,
-    from_height: u32,
-    chunk_size: u32
-);
-boxed_trait!(
-    make_inbox_indexer,
-    EthereumInboxIndexer,
-    AbacusCommonIndexer,
-    from_height: u32,
-    chunk_size: u32
-);
-boxed_trait!(make_outbox, EthereumOutbox, Outbox,);
-boxed_trait!(make_inbox, EthereumInbox, Inbox,);
-boxed_trait!(
-    make_inbox_validator_manager,
-    EthereumInboxValidatorManager,
-    InboxValidatorManager,
-    inbox_address: Address
-);
 
 #[async_trait::async_trait]
 impl abacus_core::Chain for Chain {
-    async fn query_balance(&self, addr: abacus_core::Address) -> Result<abacus_core::Balance> {
+    async fn query_balance(&self, addr: abacus_core::Address) -> Result<Balance> {
         let balance = format!(
             "{:x}",
             self.ethers
@@ -100,8 +79,6 @@ impl abacus_core::Chain for Chain {
                 .await?
         );
 
-        Ok(abacus_core::Balance(num::BigInt::from_str_radix(
-            &balance, 16,
-        )?))
+        Ok(Balance(num::BigInt::from_str_radix(&balance, 16)?))
     }
 }
