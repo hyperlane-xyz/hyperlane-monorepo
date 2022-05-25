@@ -32,6 +32,10 @@ mod inbox;
 #[cfg(not(doctest))]
 mod validator_manager;
 
+/// InterchainGasPaymaster abi
+#[cfg(not(doctest))]
+mod interchain_gas;
+
 /// Retrying Provider
 mod retrying;
 

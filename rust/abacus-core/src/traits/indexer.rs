@@ -32,3 +32,7 @@ pub trait OutboxIndexer: AbacusCommonIndexer + Send + Sync + std::fmt::Debug {
     async fn fetch_sorted_messages(&self, _from: u32, _to: u32)
         -> Result<Vec<RawCommittedMessage>>;
 }
+
+/// Interface for InterchainGasPaymaster contract indexer.
+#[async_trait]
+pub trait InterchainGasPaymasterIndexer: Send + Sync + std::fmt::Debug {}
