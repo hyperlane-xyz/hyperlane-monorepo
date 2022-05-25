@@ -6,7 +6,7 @@ export {
   AbacusContracts,
   Factories,
   RouterAddresses,
-  routerFactories
+  routerFactories,
 } from './contracts';
 export {
   AbacusCore,
@@ -25,18 +25,18 @@ export {
   parseMessage,
   resolveDomain,
   resolveId,
-  resolveNetworks
+  resolveNetworks,
 } from './core';
 export {
   Annotated,
   getEvents,
   queryAnnotatedEvents,
-  TSContract
+  TSContract,
 } from './events';
 export {
   DefaultTokenPriceGetter,
   InterchainGasCalculator,
-  TokenPriceGetter
+  TokenPriceGetter,
 } from './gas';
 export { ChainConnection, IChainConnection, MultiProvider } from './provider';
 export {
@@ -52,7 +52,6 @@ export {
   ProxiedAddress,
   RemoteChainMap,
   Remotes,
-  TestChainNames
+  TestChainNames,
 } from './types';
 export { objMap, objMapEntries, promiseObjAll, utils } from './utils';
-
