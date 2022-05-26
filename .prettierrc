@@ -17,5 +17,5 @@
   ],
   "importOrder": ["^@abacus-network/(.*)$", "^../(.*)$", "^./(.*)$"],
   "importOrderSeparation": true,
-  "importOrderSortSpecifiers": true,
+  "importOrderSortSpecifiers": true
 }
