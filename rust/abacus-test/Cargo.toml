@@ -1,7 +1,6 @@
 [package]
 name = "abacus-test"
 version = "0.1.0"
-authors = ["Luke Tchang <ltchang@stanford.edu>"]
 edition = "2021"
 
 [dependencies]

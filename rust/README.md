@@ -53,27 +53,6 @@ easily described. Each of these agents will connect to a home chain and any
 number of replicas. They need to be configured with chain connection details
 and have access to a reliable node for each chain.
 
-Some agent sketches:
-
-- `updater`
-  - Needs only a connection to the home chain
-  - Signs update attestations and submits them to the home chain
-- `watcher`
-  - Observe the home chain
-  - Observe as many replicas as possible
-  - Cache updates
-  - Check for fraud
-  - Submit fraud to the home chain
-  - if configured, issue emergency stop transactions
-- `relayer`
-  - Relays signed updates from the home to the replica
-- `processor`
-  - retrieve leaves from home chain
-  - observe >=1 replica
-  - generate proofs for the messages
-  - submit messages and proofs to the replica for processing
-  - config option: gas params
-
 For Ethereum and Celo connections we use
 [ethers-rs](https://github.com/gakonst/ethers-rs). Please see the docs
 [here](https://docs.rs/ethers/0.2.0/ethers/).
@@ -83,43 +62,28 @@ We use the tokio async runtime environment. Please see the docs
 
 ### Repo layout
 
-- `abacus-core`
-  - contains implementations of core primitives
-  - this includes
-    - traits (interfaces) for the on-chain contracts
-    - model implementations of the contracts in rust
-    - merkle tree implementations (for provers)
 - `abacus-base`
+  - lowest dependency abacus utilities
   - contains shared utilities for building off-chain agents
   - this includes
     - trait implementations for different chains
     - shared configuration file formats
     - basic setup for an off-chain agent
+- `abacus-core`
+  - depends on abacus-base
+  - contains implementations of core primitives
+  - this includes
+    - traits (interfaces) for the on-chain contracts
+    - model implementations of the contracts in rust
+    - merkle tree implementations (for provers)
 - `chains/abacus-ethereum`
+  - depends on abacus-core (and transitively abacus-base)
   - interfaces to the ethereum contracts
 - `agents`
   - each of the off-chain agents implemented thus far
 
-### High-level guide to building an agent
-
-- `cargo new $AGENT_NAME`
-- add the new directory name to the workspace `Cargo.toml`
-- add dependencies to the new directory's `Cargo.toml`
-  - copy most of the dependencies from `abacus-base`
-- create a new module in `src/$AGENT_NAME.rs`
-  - add a new struct
-  - implement `abacus_base::AbacusAgent` for your struct
-  - your `run` function is the business logic of your agent
-- create a new settings module `src/settings.rs`
-  - reuse the `Settings` objects from `abacus_base::settings`
-  - make sure to read the docs :)
-  - add your own new settings
-- in `$AGENT_NAME/src/main.rs`
-  - add `mod _____` declarations for your agent and settings modules
-  - create `main` and `setup` functions
-  - follow the pattern in `abacus-base/src/main.rs`
-- make a `config` folder and a toml file
-  - Make sure to include your own settings from above
-
 ### Running Locally
-See the guide [here](./running-locally.md) to run the agents locally.
+
+```bash
+./rust/run-locally.sh
+```
