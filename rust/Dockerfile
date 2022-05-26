@@ -12,8 +12,8 @@ RUN apt-get update && \
 # Add workspace to workdir 
 COPY agents ./agents
 COPY chains ./chains
-COPY tools ./tools
 COPY abacus-base ./abacus-base 
+COPY abacus-cli ./abacus-cli
 COPY abacus-core ./abacus-core
 COPY abacus-test ./abacus-test
 COPY ethers-prometheus ./ethers-prometheus
@@ -30,9 +30,7 @@ RUN \
     mkdir -p /release && \
     cp /usr/src/target/release/validator /release && \
     cp /usr/src/target/release/relayer /release && \
-    cp /usr/src/target/release/checkpointer /release && \
     cp /usr/src/target/release/kathy /release && \
-    cp /usr/src/target/release/kms-cli /release && \
     cp /usr/src/target/release/abacus-cli /release
 
 ## 2: Copy the binaries to release image

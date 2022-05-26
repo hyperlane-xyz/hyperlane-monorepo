@@ -1,7 +1,6 @@
 [package]
 name = "abacus-base"
 version = "0.1.0"
-authors = ["James Prestwich <prestwich@clabs.co>"]
 edition = "2021"
 
 
@@ -54,7 +53,3 @@ color-eyre = "0.6"
 
 [features]
 oneline-eyre = []
-
-[[example]]
-name = "example"
-path = "./bin/example.rs"
