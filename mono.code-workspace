@@ -1,10 +1,12 @@
 {
   "settings": {
+    "editor.tabSize": 2,
     "editor.formatOnSave": true,
     "editor.formatOnSaveMode": "modifications", // only formats git changes
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "prettier.configPath": ".prettierrc",
     "workbench.editor.labelFormat": "medium",
+    "npm.autoDetect": "on",
     "npm.packageManager": "yarn",
     "npm.enableRunFromFolder": true,
     "npm.scriptExplorerAction": "run",
@@ -12,9 +14,21 @@
     "scm.diffDecorationsGutterPattern": {
       "added": true
     },
-    "npm.autoDetect": "on",
+    "[typescript]": {
+      "editor.codeActionsOnSave": {
+        "source.organizeImports": true
+      },
+    },
+    "files.watcherExclude": {
+      "**/.git/**": true,
+      "**/node_modules/*/**": true
+    },
   },
   "folders": [
+    {
+      "name": "ROOT",
+      "path": "./"
+    },
     {
       "path": "./typescript"
     },
@@ -40,5 +54,5 @@
     ],
     // List of extensions recommended by VS Code that should not be recommended for users of this workspace.
     "unwantedRecommendations": []
-  }
+  },
 }
