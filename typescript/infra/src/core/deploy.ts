@@ -49,7 +49,11 @@ export class AbacusCoreInfraDeployer<
       }
 
       this.multiProvider.remoteChains(chain).forEach((remote) => {
-        const inboxAddresses = addresses.inboxes[remote];
+        // The agent configuration file should contain the `chain`'s inbox on
+        // all the remote chains
+        const remoteAddresses = contractAddresses[remote];
+        const inboxAddresses =
+          remoteAddresses.inboxes[chain as Exclude<Chain, Chain>];
 
         const inbox = {
           domain: chainMetadata[remote].id.toString(),
