@@ -22,7 +22,9 @@ contract InboxValidatorManager is MultisigValidatorManager {
      * @param signatures The signatures by a quorum of validators on the
      * checkpoint.
      */
-    event Quorum(bytes[] signatures);
+    event Quorum(bytes32 root, uint256 index, bytes[] signatures);
+    event Quorum2(bytes32 root, uint256 index, bytes32 signature, bytes32[] missing);
+    event Quorum3(bytes32 root, uint256 index);
 
     // ============ Constructor ============
 
@@ -48,19 +50,22 @@ contract InboxValidatorManager is MultisigValidatorManager {
      * @dev Reverts if `_signatures` is not sorted in ascending order by the signer
      * address, which is required for duplicate detection.
      * @param _inbox The inbox to submit the checkpoint to.
-     * @param _root The merkle root of the checkpoint.
-     * @param _index The index of the checkpoint.
-     * @param _signatures Signatures over the checkpoint to be checked for a validator
-     * quorum. Must be sorted in ascending order by signer address.
      */
-    function cacheCheckpoint(
+    function process(
         IInbox _inbox,
         bytes32 _root,
         uint256 _index,
-        bytes[] calldata _signatures
+        bytes[] calldata _signatures,
+        // address[] calldata _missing,
+        bytes calldata _message,
+        bytes32[32] calldata _proof,
+        uint256 _leafIndex
     ) external {
+        // require(isQuorum2(_root, _index, _signatures, _missing), "!quorum");
         require(isQuorum(_root, _index, _signatures), "!quorum");
-        emit Quorum(_signatures);
-        _inbox.cacheCheckpoint(_root, _index);
+        // emit Quorum(_root, _index, _signatures);
+        // emit Quorum2(_root, _index, _root, missing);
+        emit Quorum3(_root, _index);
+        _inbox.process(_root, _index, _message, _proof, _leafIndex, "0x00");
     }
 }

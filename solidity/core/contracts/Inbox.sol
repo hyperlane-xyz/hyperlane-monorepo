@@ -62,6 +62,9 @@ contract Inbox is IInbox, Version0, Common {
         uint256 indexed leafIndex,
         bytes32[32] proof
     );
+    event Process2(
+        bytes32 indexed messageHash
+    );
 
     // ============ Constructor ============
 
@@ -91,7 +94,6 @@ contract Inbox is IInbox, Version0, Common {
      */
     function cacheCheckpoint(bytes32 _root, uint256 _index)
         external
-        override
         onlyValidatorManager
     {
         // Ensure that the checkpoint is newer than the latest we've cached.
@@ -110,16 +112,18 @@ contract Inbox is IInbox, Version0, Common {
      * @param _index Index of leaf in outbox's merkle tree
      */
     function process(
+        bytes32 _root,
+        uint256 _index,
         bytes calldata _message,
         bytes32[32] calldata _proof,
-        uint256 _index,
+        uint256 _leafIndex,
         bytes calldata /* _sovereignData */
     ) external override {
         // check re-entrancy guard
         require(entered == 1, "!reentrant");
         entered = 0;
 
-        bytes32 _messageHash = _message.leaf(_index);
+        bytes32 _messageHash = _message.leaf(_leafIndex);
         // ensure that message has not been processed
         require(
             messages[_messageHash] == MessageStatus.None,
@@ -129,12 +133,12 @@ contract Inbox is IInbox, Version0, Common {
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             _messageHash,
             _proof,
-            _index
+            _leafIndex
         );
-        // ensure that the root has been cached
-        require(cachedCheckpoints[_calculatedRoot] >= _index, "!cache");
+        require(_calculatedRoot == _root, "!proof");
         _process(_message, _messageHash);
-        emit Process(_messageHash, _index, _proof);
+        // emit Process(_messageHash, _leafIndex, _proof);
+        emit Process2(_messageHash);
         // reset re-entrancy guard
         entered = 1;
     }

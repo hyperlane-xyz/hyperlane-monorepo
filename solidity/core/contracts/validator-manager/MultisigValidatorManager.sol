@@ -32,6 +32,7 @@ abstract contract MultisigValidatorManager is Ownable {
 
     // The set of validators.
     EnumerableSet.AddressSet private validatorSet;
+    bytes32 public validatorsCommitment;
 
     // ============ Events ============
 
@@ -147,29 +148,78 @@ abstract contract MultisigValidatorManager is Ownable {
         uint256 _numSignatures = _signatures.length;
         // If there are fewer signatures provided than the required quorum threshold,
         // this is not a quorum.
+        /*
         if (_numSignatures < threshold) {
             return false;
         }
+        */
+        bytes32 _digest = keccak256(
+            abi.encodePacked(domainHash, _root, _index)
+        );
+        bytes32 _signedHash = ECDSA.toEthSignedMessageHash(_digest);
         // To identify duplicates, the signers recovered from _signatures
         // must be sorted in ascending order. previousSigner is used to
         // enforce ordering.
         address _previousSigner = address(0);
         uint256 _validatorSignatureCount = 0;
         for (uint256 i = 0; i < _numSignatures; i++) {
-            address _signer = _recoverCheckpointSigner(
-                _root,
-                _index,
-                _signatures[i]
-            );
+            address _signer = ECDSA.recover(_signedHash, _signatures[i]);
             // Revert if the signer violates the required sort order.
             require(_previousSigner < _signer, "!sorted signers");
             // If the signer is a validator, increment _validatorSignatureCount.
             if (isValidator(_signer)) {
                 _validatorSignatureCount++;
-            }
+            } 
             _previousSigner = _signer;
         }
         return _validatorSignatureCount >= threshold;
+    }
+
+    function isQuorum2(
+        bytes32 _root,
+        uint256 _index,
+        bytes[] calldata _signatures,
+        address[] calldata _missing
+    ) public view returns (bool) {
+        uint256 _numSignatures = _signatures.length;
+        // If there are fewer signatures provided than the required quorum threshold,
+        // this is not a quorum.
+        /*
+        if (_numSignatures < threshold) {
+            return false;
+        }
+        */
+        require(_numSignatures == threshold, "!threshold");
+        bytes32 _digest = keccak256(
+            abi.encodePacked(domainHash, _root, _index)
+        );
+        bytes32 _signedHash = ECDSA.toEthSignedMessageHash(_digest);
+        bytes32 _validators;
+        // To identify duplicates, the signers recovered from _signatures
+        // must be sorted in ascending order. previousSigner is used to
+        // enforce ordering.
+        uint256 missingIndex = 0;
+        uint256 signaturesIndex = 0;
+        uint256 length = validatorSet.length();
+        address signer = ECDSA.recover(_signedHash, _signatures[0]); 
+        address missing = _missing[missingIndex];
+        while(missingIndex + signaturesIndex < length) {
+            if (missing < signer || signaturesIndex == _signatures.length) {
+                _validators = keccak256(abi.encodePacked(_validators, missing));
+                missingIndex += 1;
+                if (missingIndex < _missing.length) {
+                    missing = _missing[missingIndex];
+                }
+            } else {
+                _validators = keccak256(abi.encodePacked(_validators, signer));
+                signaturesIndex += 1;
+                if (signaturesIndex < _signatures.length) {
+                    signer = ECDSA.recover(_signedHash, _signatures[signaturesIndex]);
+                }
+            }
+        }
+        require(_validators == validatorsCommitment, "!validators");
+        return true;
     }
 
     /**
@@ -217,6 +267,7 @@ abstract contract MultisigValidatorManager is Ownable {
     function _enrollValidator(address _validator) internal {
         require(validatorSet.add(_validator), "already enrolled");
         emit EnrollValidator(_validator, validatorCount());
+        validatorsCommitment = keccak256(abi.encodePacked(validatorsCommitment, _validator));
     }
 
     /**
