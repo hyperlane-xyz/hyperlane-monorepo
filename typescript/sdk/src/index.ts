@@ -52,5 +52,6 @@ export {
   ProxiedAddress,
   RemoteChainMap,
   Remotes,
+  TestChainNames,
 } from './types';
 export { objMap, objMapEntries, promiseObjAll, utils } from './utils';
