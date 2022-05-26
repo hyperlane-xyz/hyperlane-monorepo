@@ -2,9 +2,8 @@
   "settings": {
     "editor.tabSize": 2,
     "editor.formatOnSave": true,
-    "editor.formatOnSaveMode": "modifications", // only formats git changes
     "editor.defaultFormatter": "esbenp.prettier-vscode",
-    "prettier.configPath": ".prettierrc",
+    "prettier.configPath": "../.prettierrc",
     "workbench.editor.labelFormat": "medium",
     "npm.autoDetect": "on",
     "npm.packageManager": "yarn",
@@ -13,11 +12,6 @@
     "npm.fetchOnlinePackageInfo": true,
     "scm.diffDecorationsGutterPattern": {
       "added": true
-    },
-    "[typescript]": {
-      "editor.codeActionsOnSave": {
-        "source.organizeImports": true
-      },
     },
     "files.watcherExclude": {
       "**/.git/**": true,
