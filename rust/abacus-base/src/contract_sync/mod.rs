@@ -3,7 +3,9 @@
 
 use crate::settings::IndexSettings;
 use abacus_core::db::AbacusDB;
-use abacus_core::{AbacusCommonIndexer, ListValidity, OutboxIndexer};
+use abacus_core::{
+    AbacusCommonIndexer, InterchainGasPaymasterIndexer, ListValidity, OutboxIndexer,
+};
 
 use tokio::time::sleep;
 use tracing::{info, info_span, warn};
@@ -223,6 +225,63 @@ where
                     }
                     ListValidity::Empty => unreachable!("Tried to validate empty list of messages"),
                 };
+            }
+        })
+        .instrument(span)
+    }
+}
+
+impl<I> ContractSync<I>
+where
+    I: InterchainGasPaymasterIndexer + 'static,
+{
+    /// Sync gas payments
+    pub fn sync_gas_payments(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
+        let span = info_span!("MessageContractSync");
+
+        let indexer = self.indexer.clone();
+
+        let config_from = self.index_settings.from();
+        let chunk_size = self.index_settings.chunk_size();
+
+        tokio::spawn(async move {
+            // let mut from = db
+            //     .retrieve_message_latest_block_end()
+            //     .map_or_else(|| config_from, |h| h + 1);
+
+            let mut from = config_from;
+
+            info!(from = from, "[GasPayments]: resuming indexer from {}", from);
+
+            loop {
+                let tip = indexer.get_block_number().await?;
+                if tip <= from {
+                    // TODO: Make this configurable
+                    // Sleep if caught up to tip
+                    sleep(Duration::from_secs(1)).await;
+                    continue;
+                }
+
+                let candidate = from + chunk_size;
+                let to = min(tip, candidate);
+
+                let gas_payments = indexer.fetch_gas_payments(from, to).await?;
+
+                info!(
+                    from = from,
+                    to = to,
+                    gas_payments_count = gas_payments.len(),
+                    "[GasPayments]: indexed block heights {}...{}",
+                    from,
+                    to
+                );
+
+                // If no gas payments found, update last seen block and next height
+                // and continue
+                if gas_payments.is_empty() {
+                    from = to + 1;
+                    continue;
+                }
             }
         })
         .instrument(span)

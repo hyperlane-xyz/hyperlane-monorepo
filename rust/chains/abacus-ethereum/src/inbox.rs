@@ -12,7 +12,7 @@ use tracing::instrument;
 use abacus_core::{
     accumulator::merkle::Proof, AbacusCommon, AbacusCommonIndexer, AbacusMessage,
     ChainCommunicationError, Checkpoint, CheckpointMeta, CheckpointWithMeta, ContractLocator,
-    Encode, Inbox, MessageStatus, TxOutcome,
+    Encode, Inbox, Indexer, MessageStatus, TxOutcome,
 };
 
 use crate::trait_builder::MakeableWithProvider;
@@ -96,7 +96,7 @@ where
 }
 
 #[async_trait]
-impl<M> AbacusCommonIndexer for EthereumInboxIndexer<M>
+impl<M> Indexer for EthereumInboxIndexer<M>
 where
     M: Middleware + 'static,
 {
@@ -104,7 +104,13 @@ where
     async fn get_block_number(&self) -> Result<u32> {
         Ok(self.provider.get_block_number().await?.as_u32())
     }
+}
 
+#[async_trait]
+impl<M> AbacusCommonIndexer for EthereumInboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
     #[instrument(err, skip(self))]
     async fn fetch_sorted_checkpoints(
         &self,

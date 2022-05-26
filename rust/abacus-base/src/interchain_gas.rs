@@ -5,6 +5,7 @@ use abacus_ethereum::EthereumInterchainGasPaymaster;
 // use abacus_test::mocks::MockInterchainGasPaymasterContract;
 use async_trait::async_trait;
 use eyre::Result;
+use futures_util::future::select_all;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
@@ -70,12 +71,12 @@ impl CachingInterchainGasPaymaster {
         );
 
         tokio::spawn(async move {
-            // let tasks = vec![sync.sync_paymaster_messages()];
+            let tasks = vec![sync.sync_gas_payments()];
 
-            // let (_, _, remaining) = select_all(tasks).await;
-            // for task in remaining.into_iter() {
-            //     cancel_task!(task);
-            // }
+            let (_, _, remaining) = select_all(tasks).await;
+            for task in remaining.into_iter() {
+                cancel_task!(task);
+            }
 
             Ok(())
         })

@@ -5,8 +5,13 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use ethers::contract::abigen;
 use ethers::prelude::*;
+use eyre::Result;
+use tracing::instrument;
 
-use abacus_core::{ContractLocator, InterchainGasPaymaster, InterchainGasPaymasterIndexer};
+use abacus_core::{
+    ContractLocator, Indexer, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
+    InterchainGasPayment,
+};
 
 use crate::trait_builder::MakeableWithProvider;
 
@@ -84,9 +89,43 @@ where
 }
 
 #[async_trait]
-impl<M> InterchainGasPaymasterIndexer for EthereumInterchainGasPaymasterIndexer<M> where
-    M: Middleware + 'static
+impl<M> Indexer for EthereumInterchainGasPaymasterIndexer<M>
+where
+    M: Middleware + 'static,
 {
+    #[instrument(err, skip(self))]
+    async fn get_block_number(&self) -> Result<u32> {
+        Ok(self.provider.get_block_number().await?.as_u32())
+    }
+}
+
+#[async_trait]
+impl<M> InterchainGasPaymasterIndexer for EthereumInterchainGasPaymasterIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn fetch_gas_payments(
+        &self,
+        from_block: u32,
+        to_block: u32,
+    ) -> Result<Vec<InterchainGasPayment>> {
+        let events = self
+            .contract
+            .gas_payment_filter()
+            .from_block(from_block)
+            .to_block(to_block)
+            .query()
+            .await?;
+
+        Ok(events
+            .into_iter()
+            .map(|e| InterchainGasPayment {
+                leaf_index: e.leaf_index.as_u32(),
+                amount: e.amount.as_u32(), // This needs to be handled more safely (or a better type)
+            })
+            .collect())
+    }
 }
 
 pub struct InterchainGasPaymasterBuilder {}
@@ -112,9 +151,13 @@ pub struct EthereumInterchainGasPaymaster<M>
 where
     M: Middleware,
 {
+    #[allow(dead_code)]
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
+    #[allow(dead_code)]
     domain: u32,
+    #[allow(dead_code)]
     name: String,
+    #[allow(dead_code)]
     provider: Arc<M>,
 }
 

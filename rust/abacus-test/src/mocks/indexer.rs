@@ -4,7 +4,7 @@ use async_trait::async_trait;
 use eyre::Result;
 use mockall::*;
 
-use abacus_core::{AbacusCommonIndexer, OutboxIndexer, *};
+use abacus_core::{AbacusCommonIndexer, Indexer, OutboxIndexer, *};
 
 mock! {
     pub Indexer {
@@ -37,11 +37,14 @@ impl std::fmt::Debug for MockAbacusIndexer {
 }
 
 #[async_trait]
-impl AbacusCommonIndexer for MockAbacusIndexer {
+impl Indexer for MockAbacusIndexer {
     async fn get_block_number(&self) -> Result<u32> {
         self._get_block_number()
     }
+}
 
+#[async_trait]
+impl AbacusCommonIndexer for MockAbacusIndexer {
     async fn fetch_sorted_checkpoints(
         &self,
         from: u32,

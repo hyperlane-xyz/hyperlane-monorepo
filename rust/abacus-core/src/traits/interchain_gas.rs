@@ -1,5 +1,13 @@
 use async_trait::async_trait;
 
+/// A payment of Outbox native tokens for a message
+pub struct InterchainGasPayment {
+    /// The index of the message's leaf in the merkle tree
+    pub leaf_index: u32,
+    /// The payment amount, in Outbox native token wei
+    pub amount: u32,
+}
+
 /// Interface for the InterchainGasPaymaster chain contract.
 /// Allows abstraction over different chains.
 #[async_trait]

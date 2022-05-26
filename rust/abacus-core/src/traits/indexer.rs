@@ -10,15 +10,19 @@
 use async_trait::async_trait;
 use eyre::Result;
 
-use crate::{CheckpointWithMeta, RawCommittedMessage};
+use crate::{CheckpointWithMeta, InterchainGasPayment, RawCommittedMessage};
+
+/// Interface for an indexer.
+#[async_trait]
+pub trait Indexer: Send + Sync + std::fmt::Debug {
+    /// Get chain's latest block number
+    async fn get_block_number(&self) -> Result<u32>;
+}
 
 /// Interface for Abacus Common contract indexer. Interface that allows for other
 /// entities to retrieve chain-specific data from an outbox or inbox.
 #[async_trait]
-pub trait AbacusCommonIndexer: Send + Sync + std::fmt::Debug {
-    /// Get chain's latest block number
-    async fn get_block_number(&self) -> Result<u32>;
-
+pub trait AbacusCommonIndexer: Indexer + Send + Sync + std::fmt::Debug {
     /// Fetch sequentially sorted list of checkpoints between blocks `from` and `to`
     async fn fetch_sorted_checkpoints(&self, from: u32, to: u32)
         -> Result<Vec<CheckpointWithMeta>>;
@@ -35,4 +39,11 @@ pub trait OutboxIndexer: AbacusCommonIndexer + Send + Sync + std::fmt::Debug {
 
 /// Interface for InterchainGasPaymaster contract indexer.
 #[async_trait]
-pub trait InterchainGasPaymasterIndexer: Send + Sync + std::fmt::Debug {}
+pub trait InterchainGasPaymasterIndexer: Indexer + Send + Sync + std::fmt::Debug {
+    /// Fetch list of gas payments between `from_block` and `to_block`, inclusive
+    async fn fetch_gas_payments(
+        &self,
+        from_block: u32,
+        to_block: u32,
+    ) -> Result<Vec<InterchainGasPayment>>;
+}
