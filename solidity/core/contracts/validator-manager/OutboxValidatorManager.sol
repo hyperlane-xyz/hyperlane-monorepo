@@ -16,22 +16,6 @@ contract OutboxValidatorManager is MultisigValidatorManager {
     // ============ Events ============
 
     /**
-     * @notice Emitted when proof of an invalid checkpoint is submitted.
-     * @dev Observers of this event should filter by the outbox address.
-     * @param outbox The outbox.
-     * @param root Root of the invalid checkpoint.
-     * @param index Index of the invalid checkpoint.
-     * @param signatures A quorum of signatures on the invalid checkpoint.
-     * May include non-validator signatures.
-     */
-    event InvalidCheckpoint(
-        address indexed outbox,
-        bytes32 root,
-        uint256 index,
-        bytes[] signatures
-    );
-
-    /**
      * @notice Emitted when proof of a premature checkpoint is submitted.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
@@ -39,12 +23,14 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @param index Index of the premature checkpoint.
      * @param signatures A quorum of signatures on the premature checkpoint.
      * May include non-validator signatures.
+     * @param count The number of messages in the Outbox.
      */
     event PrematureCheckpoint(
         address indexed outbox,
         bytes32 root,
         uint256 index,
-        bytes[] signatures
+        bytes[] signatures,
+        uint256 count
     );
 
     /**
@@ -55,12 +41,22 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @param index Index of the fraudulent checkpoint.
      * @param signatures A quorum of signatures on the fraudulent checkpoint.
      * May include non-validator signatures.
+     * @param fraudulentLeaf The leaf in the fraudulent tree.
+     * @param fraudulentProof Proof of inclusion of fraudulentLeaf.
+     * @param actualLeaf The leaf in the Outbox's tree.
+     * @param actualProof Proof of inclusion of actualLeaf.
+     * @param leafIndex The index of the leaves that are being proved.
      */
     event FraudulentCheckpoint(
         address indexed outbox,
         bytes32 root,
         uint256 index,
-        bytes[] signatures
+        bytes[] signatures,
+        bytes32 fraudulentLeaf,
+        bytes32[32] fraudulentProof,
+        bytes32 actualLeaf,
+        bytes32[32] actualProof,
+        uint256 leafIndex
     );
 
     // ============ Constructor ============
@@ -104,13 +100,15 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
         // Checkpoints are premature if the checkpoint commits to more messages
         // than the Outbox has in its merkle tree.
-        require(_signedIndex >= _outbox.count(), "!premature");
+        uint256 count = _outbox.count();
+        require(_signedIndex >= count, "!premature");
         _outbox.fail();
         emit PrematureCheckpoint(
             address(_outbox),
             _signedRoot,
             _signedIndex,
-            _signatures
+            _signatures,
+            count
         );
         return true;
     }
@@ -187,7 +185,12 @@ contract OutboxValidatorManager is MultisigValidatorManager {
             address(_outbox),
             _signedRoot,
             _signedIndex,
-            _signatures
+            _signatures,
+            _fraudulentLeaf,
+            _fraudulentProof,
+            _actualLeaf,
+            _actualProof,
+            _leafIndex
         );
         return true;
     }
