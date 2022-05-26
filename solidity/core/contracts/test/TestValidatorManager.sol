@@ -8,4 +8,5 @@ import {IInbox} from "../../interfaces/IInbox.sol";
  * to be a contract.
  */
 contract TestValidatorManager {
+
 }

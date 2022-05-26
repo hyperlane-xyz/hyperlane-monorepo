@@ -62,9 +62,7 @@ contract Inbox is IInbox, Version0, Common {
         uint256 indexed leafIndex,
         bytes32[32] proof
     );
-    event Process2(
-        bytes32 indexed messageHash
-    );
+    event Process2(bytes32 indexed messageHash);
 
     // ============ Constructor ============
 

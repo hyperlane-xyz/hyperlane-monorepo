@@ -23,7 +23,12 @@ contract InboxValidatorManager is MultisigValidatorManager {
      * checkpoint.
      */
     event Quorum(bytes32 root, uint256 index, bytes[] signatures);
-    event Quorum2(bytes32 root, uint256 index, bytes32 signature, bytes32[] missing);
+    event Quorum2(
+        bytes32 root,
+        uint256 index,
+        bytes32 signature,
+        bytes32[] missing
+    );
     event Quorum3(bytes32 root, uint256 index);
 
     // ============ Constructor ============

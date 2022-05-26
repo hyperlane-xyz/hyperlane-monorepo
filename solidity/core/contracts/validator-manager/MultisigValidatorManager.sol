@@ -169,7 +169,7 @@ abstract contract MultisigValidatorManager is Ownable {
             // If the signer is a validator, increment _validatorSignatureCount.
             if (isValidator(_signer)) {
                 _validatorSignatureCount++;
-            } 
+            }
             _previousSigner = _signer;
         }
         return _validatorSignatureCount >= threshold;
@@ -201,9 +201,9 @@ abstract contract MultisigValidatorManager is Ownable {
         uint256 missingIndex = 0;
         uint256 signaturesIndex = 0;
         uint256 length = validatorSet.length();
-        address signer = ECDSA.recover(_signedHash, _signatures[0]); 
+        address signer = ECDSA.recover(_signedHash, _signatures[0]);
         address missing = _missing[missingIndex];
-        while(missingIndex + signaturesIndex < length) {
+        while (missingIndex + signaturesIndex < length) {
             if (missing < signer || signaturesIndex == _signatures.length) {
                 _validators = keccak256(abi.encodePacked(_validators, missing));
                 missingIndex += 1;
@@ -214,7 +214,10 @@ abstract contract MultisigValidatorManager is Ownable {
                 _validators = keccak256(abi.encodePacked(_validators, signer));
                 signaturesIndex += 1;
                 if (signaturesIndex < _signatures.length) {
-                    signer = ECDSA.recover(_signedHash, _signatures[signaturesIndex]);
+                    signer = ECDSA.recover(
+                        _signedHash,
+                        _signatures[signaturesIndex]
+                    );
                 }
             }
         }
@@ -267,7 +270,9 @@ abstract contract MultisigValidatorManager is Ownable {
     function _enrollValidator(address _validator) internal {
         require(validatorSet.add(_validator), "already enrolled");
         emit EnrollValidator(_validator, validatorCount());
-        validatorsCommitment = keccak256(abi.encodePacked(validatorsCommitment, _validator));
+        validatorsCommitment = keccak256(
+            abi.encodePacked(validatorsCommitment, _validator)
+        );
     }
 
     /**
