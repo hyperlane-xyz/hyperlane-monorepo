@@ -15,5 +15,5 @@ tokio = "1"
 serde_json = "1.0"
 structopt = "0.3.23"
 
-abacus-ethereum = { path = "../../chains/abacus-ethereum" }
-abacus-core = { path = "../../abacus-core" }
+abacus-ethereum = { path = "../chains/abacus-ethereum" }
+abacus-core = { path = "../abacus-core" }

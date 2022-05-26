@@ -1,6 +1,6 @@
 import { Contract } from 'ethers';
 
-import { Router__factory } from '@abacus-network/apps';
+import { Router__factory } from '@abacus-network/app';
 import { AbacusConnectionManager__factory } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 
