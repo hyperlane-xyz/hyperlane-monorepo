@@ -141,6 +141,45 @@ describe.only('InboxValidatorManager', () => {
     });
   });
 
+  describe.only('#sprocess', () => {
+    it('processes a message if there is a quorum', async () => {
+      const outboxFactory = new TestOutbox__factory(signer);
+      const outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
+      await dispatchMessage(outbox, 'hello world');
+      const proof = await dispatchMessageAndReturnProof(outbox, 'hello world');
+      const root = await outbox.branchRoot(
+        proof.leaf,
+        proof.proof,
+        proof.index,
+      );
+      const signers = validators.slice(0, QUORUM_THRESHOLD);
+      const missing = validators.slice(QUORUM_THRESHOLD, SET_SIZE);
+      console.log(signers.length, missing.length);
+      console.log(
+        validators.map((v) => v.address),
+        signers.map((v) => v.address),
+        missing.map((m) => m.address),
+      );
+      const signatures = await signCheckpoint(root, proof.index, signers);
+      console.log(signatures);
+      await expect(
+        validatorManager.sprocess(
+          inbox.address,
+          root,
+          proof.index,
+          // Fake signature data.
+          ['0x01', '0x02', '0x03', '0x04'],
+          // Fake missing public key.
+          ['0x01', '0x02'],
+          // missing.map((m) => m.address),
+          proof.message,
+          proof.proof,
+          proof.index,
+        ),
+      ).to.emit(validatorManager, 'Quorum3');
+    });
+  });
+
   /*
   describe('#checkpoint', () => {
     const root = ethers.utils.formatBytes32String('test root');
