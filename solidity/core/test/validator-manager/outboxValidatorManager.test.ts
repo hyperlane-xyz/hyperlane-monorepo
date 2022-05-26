@@ -123,7 +123,13 @@ describe('OutboxValidatorManager', () => {
         ),
       )
         .to.emit(validatorManager, 'PrematureCheckpoint')
-        .withArgs(outbox.address, root, prematureIndex, signatures);
+        .withArgs(
+          outbox.address,
+          root,
+          prematureIndex,
+          signatures,
+          messageCount,
+        );
       expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
     });
 
@@ -265,6 +271,11 @@ describe('OutboxValidatorManager', () => {
           fraudulent.root,
           fraudulent.index,
           signatures,
+          fraudulent.leaf,
+          fraudulent.proof,
+          actual.leaf,
+          actual.proof,
+          fraudulent.index,
         );
       expect(await outbox.state()).to.equal(types.AbacusState.FAILED);
     });
