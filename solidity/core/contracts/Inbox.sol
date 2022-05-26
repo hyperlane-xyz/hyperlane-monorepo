@@ -37,8 +37,8 @@ contract Inbox is IInbox, Version0, Common {
 
     // Domain of outbox chain
     uint32 public override remoteDomain;
-    // re-entrancy guard
-    uint8 private entered;
+    // Re-entrancy guard. Use a full slot to avoid an SLOAD before each SSTORE.
+    uint256 private entered;
     // Mapping of message leaves to MessageStatus
     mapping(bytes32 => MessageStatus) public messages;
 
