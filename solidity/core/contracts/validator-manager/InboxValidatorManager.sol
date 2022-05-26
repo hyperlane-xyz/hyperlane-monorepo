@@ -5,6 +5,7 @@ pragma abicoder v2;
 // ============ Internal Imports ============
 import {IInbox} from "../../interfaces/IInbox.sol";
 import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
+import {BN256} from "../../libs/BN256.sol";
 import "hardhat/console.sol";
 
 /**
@@ -13,6 +14,7 @@ import "hardhat/console.sol";
  * them to an Inbox.
  */
 contract InboxValidatorManager is MultisigValidatorManager {
+    using BN256 for BN256.G1Point;
     // ============ Events ============
 
     /**
@@ -80,93 +82,66 @@ contract InboxValidatorManager is MultisigValidatorManager {
         _inbox.process(_root, _index, _message, _proof, _leafIndex, "0x00");
     }
 
-    struct G1Point {
-        uint256 X;
-        uint256 Y;
-    }
-    uint256 constant G_X = 1;
-    uint256 constant G_Y = 2;
-    uint256[2] public aggregateKey;
+    BN256.G1Point public aggregateKey;
     // Maps the hash of -1 * publicKey to whether or not the public key is in the validator set.
     mapping(bytes32 => bool) public inverseKeys;
+    function setAggregateKey(BN256.G1Point calldata key) public {
+        aggregateKey = key;
+    }
 
     function sprocess(
         IInbox _inbox,
         bytes32 _root,
         uint256 _index,
-        uint256[4] calldata _sigData,
-        uint256[] calldata _missing,
+        BN256.G1Point calldata nonce,
+        uint256 randomness,
+        uint256 signature,
+        BN256.G1Point[] calldata _missing,
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
     ) external {
-        bytes32 message = keccak256(abi.encodePacked(_root, _index));
-        require(!verify(_sigData, _missing, message), "!sig");
+        bytes32 digest = keccak256(
+            abi.encodePacked(domainHash, _root, _index)
+        );
+        require(verify(nonce, randomness, signature, _missing, digest), "!sig");
         // emit Quorum(_root, _index, _signatures);
         // emit Quorum2(_root, _index, _root, missing);
-        emit Quorum3(_root, _index, _sigData, _missing);
+        // emit Quorum3(_root, _index, _sigData, _missing);
         _inbox.process(_root, _index, _message, _proof, _leafIndex, "0x00");
     }
 
     function verify(
-        uint256[4] calldata sigData,
-        uint256[] calldata missing,
-        bytes32 message
+        BN256.G1Point calldata nonce,
+        uint256 randomness,
+        uint256 signature,
+        BN256.G1Point[] calldata missing,
+        bytes32 digest
     ) public view returns (bool) {
-        require(missing.length % 2 == 0, "!missing");
-        uint256[2] memory publicKey = aggregateKey;
+        BN256.G1Point memory publicKey = aggregateKey;
         // TODO: Do we need to check for repeats in here? Probably.
-        for (uint256 i = 0; i < missing.length / 2; i++) {
-            bytes32 digest = keccak256(
-                abi.encodePacked(missing[i * 2], missing[i * 2 + 1])
-            );
-            // Added the "!" for gas profiling, normally we would be requiring that this is present.
-            require(!inverseKeys[digest], "!inverse");
-            uint256[2] memory _missing = [missing[i * 2], missing[i * 2 + 1]];
-            publicKey = ecadd(publicKey, _missing);
+        /*
+        for (uint256 i = 0; i < missing.length; i++) {
+            BN256.G1Point memory missingPoint = missing[i];
+            bytes32 missingId = keccak256(abi.encodePacked(missingPoint.x, missingPoint.y));
+            require(inverseKeys[missingId], "!inverse");
+            publicKey = publicKey.add(missingPoint[i]);
         }
-        uint256 c = uint256(keccak256(abi.encodePacked(sigData[2], message)));
-        uint256[2] memory n = [sigData[0], sigData[1]];
-        uint256[2] memory v = ecadd(n, ecmul(publicKey, c));
-        uint256[2] memory generator = [G_X, G_Y];
-        uint256[2] memory g = ecmul(generator, sigData[3]);
-        return v[0] == g[0] && v[1] == g[1];
+        */
+        uint256 challenge = uint256(keccak256(abi.encodePacked(randomness, digest)));
+        BN256.G1Point memory verification = nonce.add(publicKey.mul(challenge));
+        return BN256.g().mul(signature).eq(verification);
     }
 
-    function ecadd(uint256[2] memory p1, uint256[2] memory p2)
-        internal
-        view
-        returns (uint256[2] memory r)
-    {
-        uint256[4] memory input;
-        input[0] = p1[0];
-        input[1] = p1[1];
-        input[2] = p2[0];
-        input[3] = p2[1];
-        bool success;
-        assembly {
-            success := staticcall(150, 6, input, 0xc0, r, 0x60)
-            // Use "invalid" to make gas estimation work
-            // switch success case 0 { invalid() }
-        }
-        require(success);
+    function ecGen(uint256 s) public view returns (BN256.G1Point memory) {
+        return BN256.g().mul(s);
     }
 
-    function ecmul(uint256[2] memory p, uint256 s)
-        internal
-        view
-        returns (uint256[2] memory r)
-    {
-        uint256[3] memory input;
-        input[0] = p[0];
-        input[1] = p[1];
-        input[2] = s;
-        bool success;
-        assembly {
-            success := staticcall(6000, 7, input, 0xc0, r, 0x60)
-            // Use "invalid" to make gas estimation work
-            // switch success case 0 { invalid() }
-        }
-        require(success);
+    function scalarMod(uint256 a) public pure returns (uint256) {
+        return BN256.mod(a);
+    }
+
+    function sign(uint256 a, uint256 b, uint256 c) public pure returns (uint256) {
+        return BN256.add(a, BN256.mul(b, c));
     }
 }

@@ -152,26 +152,50 @@ describe.only('InboxValidatorManager', () => {
         proof.proof,
         proof.index,
       );
-      const signers = validators.slice(0, QUORUM_THRESHOLD);
-      const missing = validators.slice(QUORUM_THRESHOLD, SET_SIZE);
-      console.log(signers.length, missing.length);
-      console.log(
-        validators.map((v) => v.address),
-        signers.map((v) => v.address),
-        missing.map((m) => m.address),
+
+      // Generate and set key.
+      const secretKey = await validatorManager.scalarMod(
+        ethers.utils.hexlify(ethers.utils.randomBytes(32)),
       );
-      const signatures = await signCheckpoint(root, proof.index, signers);
-      console.log(signatures);
+      const publicKey = await validatorManager.ecGen(secretKey);
+      await validatorManager.setAggregateKey(publicKey);
+
+      // Generate random nonce
+      const scalarNonce = await validatorManager.scalarMod(
+        ethers.utils.hexlify(ethers.utils.randomBytes(32)),
+      );
+      const nonce = await validatorManager.ecGen(scalarNonce);
+
+      // Compute the challenge.
+      // Do I need to do any modular arithmetic here?
+      const randomness = ethers.utils.hexlify(ethers.utils.randomBytes(32));
+      const domainHash = await validatorManager.domainHash();
+      const digest = ethers.utils.solidityKeccak256(
+        ['bytes32', 'bytes32', 'uint256'],
+        [domainHash, root, proof.index],
+      );
+      const challenge = ethers.utils.solidityKeccak256(
+        ['uint256', 'bytes32'],
+        [randomness, digest],
+      );
+
+      // Compute the signature
+      // This is probably wrong.
+      const signature = await validatorManager.sign(
+        scalarNonce,
+        challenge,
+        secretKey,
+      );
       await expect(
         validatorManager.sprocess(
           inbox.address,
           root,
           proof.index,
-          // Fake signature data.
-          ['0x01', '0x02', '0x03', '0x04'],
-          // Fake missing public key.
-          ['0x01', '0x02'],
-          // missing.map((m) => m.address),
+          nonce,
+          randomness,
+          signature,
+          // No public keys are missing
+          [],
           proof.message,
           proof.proof,
           proof.index,
