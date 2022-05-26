@@ -176,10 +176,15 @@ pub struct PrometheusMiddleware<M> {
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct PrometheusMiddlewareConf {
     /// The tokens to track and identifying info
+    #[serde(default)]
     pub tokens: HashMap<Address, TokenInfo>,
+
     /// The wallets to track and identifying info
+    #[serde(default)]
     pub wallets: HashMap<Address, WalletInfo>,
+
     /// Contract info for more useful metrics
+    #[serde(default)]
     pub contracts: HashMap<Address, ContractInfo>,
 }
 
