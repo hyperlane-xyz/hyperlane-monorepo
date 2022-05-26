@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { AbacusRouterChecker } from '@abacus-network/deploy';
+import { AbacusRouterChecker, RouterConfig } from '@abacus-network/deploy';
 import {
   ChainMap,
   ChainName,
@@ -18,14 +18,15 @@ export class ControllerChecker<
 > extends AbacusRouterChecker<
   Chain,
   ControllerApp<Chain>,
-  ControllerConfig & {
-    owner: types.Address;
-  }
+  ControllerConfig &
+    RouterConfig & {
+      owner: types.Address;
+    }
 > {
   constructor(
     multiProvider: MultiProvider<any>,
     app: ControllerApp<Chain>,
-    configMap: ChainMap<Chain, ControllerConfig>,
+    configMap: ChainMap<Chain, ControllerConfig & RouterConfig>,
   ) {
     const joinedConfig = objMap(configMap, (_, config) => ({
       ...config,

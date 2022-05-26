@@ -18,10 +18,7 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   transactionConfigs: EnvironmentConfig<Chain>;
   agent: AgentConfig<Chain>;
   core: ChainMap<Chain, CoreConfig>;
-  controller: ChainMap<
-    Chain,
-    Omit<ControllerConfig, 'abacusConnectionManager'>
-  >;
+  controller: ChainMap<Chain, ControllerConfig>;
   infra: InfrastructureConfig;
   getMultiProvider: () => Promise<MultiProvider<Chain>>;
 };

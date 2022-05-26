@@ -1,4 +1,3 @@
-import { RouterConfig } from '@abacus-network/deploy';
 import { types } from '@abacus-network/utils';
 
 export type ControllerConfigAddresses = {
@@ -6,5 +5,6 @@ export type ControllerConfigAddresses = {
   controller?: types.Address;
 };
 
-export type ControllerConfig = RouterConfig &
-  ControllerConfigAddresses & { recoveryTimelock: number };
+export type ControllerConfig = ControllerConfigAddresses & {
+  recoveryTimelock: number;
+};

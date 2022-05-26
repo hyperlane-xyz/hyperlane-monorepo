@@ -2,6 +2,7 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import path from 'path';
 
+import { RouterConfig } from '@abacus-network/deploy';
 import { getMultiProviderFromConfigAndSigner } from '@abacus-network/deploy/dist/src/utils';
 import {
   AbacusCore,
@@ -23,7 +24,7 @@ describe('controller', async () => {
   let multiProvider: MultiProvider<TestChains>;
   let deployer: ControllerDeployer<TestChains>;
   let addresses: ChainMap<TestChains, ControllerAddresses>;
-  let controllerConfig: ChainMap<TestChains, ControllerConfig>;
+  let controllerConfig: ChainMap<TestChains, ControllerConfig & RouterConfig>;
 
   before(async () => {
     const [signer] = await ethers.getSigners();
@@ -36,8 +37,11 @@ describe('controller', async () => {
       'test',
       multiProvider,
     );
-    controllerConfig = core.extendWithConnectionManagers(config.controller);
-    deployer = new ControllerDeployer(multiProvider, controllerConfig);
+
+    deployer = new ControllerDeployer(
+      multiProvider,
+      core.extendWithConnectionManagers(config.controller),
+    );
   });
 
   it('deploys', async () => {

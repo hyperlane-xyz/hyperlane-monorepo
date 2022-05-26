@@ -2,7 +2,7 @@ import { ethers } from 'ethers';
 
 import { ControllerRouter__factory } from '@abacus-network/apps';
 import { UpgradeBeaconController__factory } from '@abacus-network/core';
-import { AbacusRouterDeployer } from '@abacus-network/deploy';
+import { AbacusRouterDeployer, RouterConfig } from '@abacus-network/deploy';
 import {
   ChainName,
   ControllerAddresses,
@@ -17,7 +17,7 @@ export class ControllerDeployer<
 > extends AbacusRouterDeployer<Chain, ControllerConfig, ControllerAddresses> {
   async deployContracts(
     chain: Chain,
-    config: ControllerConfig,
+    config: ControllerConfig & RouterConfig,
   ): Promise<ControllerAddresses> {
     const dc = this.multiProvider.getChainConnection(chain);
     const signer = dc.signer!;
