@@ -1,7 +1,7 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::{
     accumulator::merkle::Proof, traits::RawCommittedMessage, AbacusMessage, CommittedMessage,
-    Decode,
+    Decode, InterchainGasPayment
 };
 use ethers::core::types::H256;
 use eyre::Result;
@@ -20,6 +20,7 @@ static MESSAGE: &str = "message_";
 static LATEST_LEAF_INDEX: &str = "latest_known_leaf_index_";
 static LATEST_LEAF_INDEX_FOR_DESTINATION: &str = "latest_known_leaf_index_for_destination_";
 static LEAF_PROCESS_STATUS: &str = "leaf_process_status_";
+static GAS_PAYMENT_FOR_LEAF: &str = "gas_payment_for_leaf_";
 
 /// DB handle for storing data tied to a specific Outbox.
 ///
@@ -233,10 +234,17 @@ impl AbacusDB {
     }
 
     pub fn store_gas_payment(&self, gas_payment: &InterchainGasPayment) -> Result<(), DbError> {
-        
+        match this.retrieve_gas_payment_for_leaf(gas_payment.leaf_index)? {
+            Some(existing_payment)
+        }
+
+        Ok(())
     }
 
-    pub fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<(), DbError> {
-        
+    pub fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<u32, DbError> {
+        match self.retrieve_keyed_decodable(GAS_PAYMENT_FOR_LEAF, &leaf_index)? {
+            Some(payment) => payment,
+            None => 0
+        }
     }
 }
