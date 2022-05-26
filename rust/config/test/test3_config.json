@@ -11,8 +11,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
-        "validatorManager": "0x0E801D84Fa97b50751Dbf25036d067dCf18858bF"
+        "inbox": "0x9A676e781A523b5d0C0e43731313A708CB607508",
+        "validatorManager": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"
       }
     },
     "test2": {
@@ -24,8 +24,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x809d550fca64d94Bd9F66E60752A544199cfAC3D",
-        "validatorManager": "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570"
+        "inbox": "0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690",
+        "validatorManager": "0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E"
       }
     }
   },

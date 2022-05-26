@@ -108,5 +108,3 @@ jobs:
         run: yarn workspace @abacus-network/core run test
       - name: app
         run: yarn workspace @abacus-network/app run test
-      - name: apps
-        run: yarn workspace @abacus-network/apps run test
