@@ -12,7 +12,6 @@ import {
   UpgradeBeaconController__factory,
 } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
-import { addressToBytes32 } from '@abacus-network/utils/dist/src/utils';
 import { ethers } from 'ethers';
 
 export type TestAbacusConfig = {
@@ -94,13 +93,6 @@ export class TestAbacusDeploy extends TestDeploy<
       inboxes[remote] = inbox;
     });
     await Promise.all(deploys);
-
-    // dispatch a dummy event to allow a consumer to checkpoint/process a single message
-    await outbox.dispatch(
-      remotes.find((_) => _ !== domain)!,
-      addressToBytes32(ethers.constants.AddressZero),
-      '0x',
-    );
     return {
       outbox,
       abacusConnectionManager,
