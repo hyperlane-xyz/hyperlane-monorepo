@@ -89,12 +89,7 @@ export class TestAbacusDeploy extends TestDeploy<
       // actually make use of the validator manager, so we just pass in the
       // upgradeBeaconController as the validator manager to satisfy the contract
       // requirement and avoid deploying a new validator manager.
-      await inbox.initialize(
-        remote,
-        upgradeBeaconController.address,
-        ethers.constants.HashZero,
-        0,
-      );
+      await inbox.initialize(remote, upgradeBeaconController.address);
       await abacusConnectionManager.enrollInbox(remote, inbox.address);
       inboxes[remote] = inbox;
     });
