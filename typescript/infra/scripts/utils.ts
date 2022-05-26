@@ -28,7 +28,7 @@ export function assertEnvironment(env: string): DeployEnvironment {
 export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
   env: Env,
 ) {
-  return environments[env] as any; // TODO: make indexed union compatible
+  return environments[env];
 }
 
 export async function getEnvironment() {
@@ -66,12 +66,6 @@ export function getCoreContractsSdkFilepath(environment: DeployEnvironment) {
   return getContractsSdkFilepath('core', environment);
 }
 
-export function getControllerContractsSdkFilepath(
-  environment: DeployEnvironment,
-) {
-  return getContractsSdkFilepath('controller', environment);
-}
-
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
   return path.join('./config/environments/', environment);
 }
@@ -86,16 +80,6 @@ export function getCoreVerificationDirectory(environment: DeployEnvironment) {
 
 export function getCoreRustDirectory(environment: DeployEnvironment) {
   return path.join(getCoreDirectory(environment), 'rust');
-}
-
-export function getControllerDirectory(environment: DeployEnvironment) {
-  return path.join(getEnvironmentDirectory(environment), 'controller');
-}
-
-export function getControllerVerificationDirectory(
-  environment: DeployEnvironment,
-) {
-  return path.join(getControllerDirectory(environment), 'verification');
 }
 
 export function getKeyRoleAndChainArgs() {

@@ -1,4 +1,6 @@
 export { AbacusApp } from './app';
+export { chainMetadata } from './chain-metadata';
+export { addSignerToConnection, chainConnectionConfigs } from './chains';
 export {
   AbacusContractAddresses,
   AbacusContracts,
@@ -25,7 +27,6 @@ export {
   resolveId,
   resolveNetworks,
 } from './core';
-export { chainMetadata } from './chain-metadata';
 export {
   Annotated,
   getEvents,
@@ -37,13 +38,6 @@ export {
   InterchainGasCalculator,
   TokenPriceGetter,
 } from './gas';
-export {
-  ControllerApp,
-  Call,
-  ControllerAddresses,
-  ControllerContracts,
-  controllerEnvironments,
-} from './controller';
 export { ChainConnection, IChainConnection, MultiProvider } from './provider';
 export {
   AllChains,
@@ -59,5 +53,4 @@ export {
   RemoteChainMap,
   Remotes,
 } from './types';
-export { utils, objMap, objMapEntries, promiseObjAll } from './utils';
-export { chainConnectionConfigs, addSignerToConnection } from './chains';
+export { objMap, objMapEntries, promiseObjAll, utils } from './utils';
