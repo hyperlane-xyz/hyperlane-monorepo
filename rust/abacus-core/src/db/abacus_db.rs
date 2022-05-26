@@ -231,4 +231,12 @@ impl AbacusDB {
         let value: Option<u32> = self.retrieve_keyed_decodable(LEAF_PROCESS_STATUS, &leaf_index)?;
         Ok(value.map(|x| x == 1))
     }
+
+    pub fn store_gas_payment(&self, gas_payment: &InterchainGasPayment) -> Result<(), DbError> {
+        
+    }
+
+    pub fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<(), DbError> {
+        
+    }
 }

@@ -21,7 +21,10 @@ mod schema;
 
 use last_message::OptLatestLeafIndex;
 pub use metrics::ContractSyncMetrics;
-use schema::OutboxContractSyncDB;
+use schema::{
+    InterchainGasPaymasterContractSyncDB,
+    OutboxContractSyncDB
+};
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -239,17 +242,16 @@ where
     pub fn sync_gas_payments(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
         let span = info_span!("MessageContractSync");
 
+        let db = self.db.clone();
         let indexer = self.indexer.clone();
 
         let config_from = self.index_settings.from();
         let chunk_size = self.index_settings.chunk_size();
 
         tokio::spawn(async move {
-            // let mut from = db
-            //     .retrieve_message_latest_block_end()
-            //     .map_or_else(|| config_from, |h| h + 1);
-
-            let mut from = config_from;
+            let mut from = db
+                .retrieve_latest_indexed_gas_payment_block()
+                .map_or_else(|| config_from, |h| h + 1);
 
             info!(from = from, "[GasPayments]: resuming indexer from {}", from);
 
@@ -279,9 +281,11 @@ where
                 // If no gas payments found, update last seen block and next height
                 // and continue
                 if gas_payments.is_empty() {
+                    db.store_latest_indexed_gas_payment_block(to)?;
                     from = to + 1;
                     continue;
                 }
+                db.store_latest_indexed_gas_payment_block(to)?;
             }
         })
         .instrument(span)
