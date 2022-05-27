@@ -370,7 +370,6 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
             let chain = metrics_chain_name(chain_id);
             debug!("Updating metrics for chain ({chain})");
 
-            // let data = data_ref.read();
             if block_height.is_some() || gas_price_gwei.is_some() {
                 Self::update_block_details(&*client, &chain, block_height, gas_price_gwei).await;
             }
