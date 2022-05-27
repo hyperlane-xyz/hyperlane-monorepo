@@ -13,15 +13,17 @@ export class AbacusApp<
   Contracts extends AbacusContracts,
   Chain extends ChainName = ChainName,
 > extends MultiGeneric<Chain, Contracts> {
-  constructor(
+  constructor(contractsMap: ChainMap<Chain, Contracts>) {
+    super(contractsMap);
+  }
+
+  static build<Contracts extends AbacusContracts, Chain extends ChainName>(
     addressesMap: ChainMap<Chain, AbacusAddresses>,
     factories: AbacusFactories,
-  ) {
-    super(
-      objMap(
-        addressesMap,
-        (_, addresses) => attach(addresses, factories) as Contracts,
-      ),
+  ): ChainMap<Chain, Contracts> {
+    return objMap(
+      addressesMap,
+      (_, addresses) => attach(addresses, factories) as Contracts,
     );
   }
 

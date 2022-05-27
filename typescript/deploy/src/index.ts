@@ -5,7 +5,7 @@ export {
   CoreConfig,
   ValidatorManagerConfig,
 } from './core/deploy';
-export { AbacusAppDeployer } from './deploy';
+export { AbacusDeployer } from './deploy';
 export {
   ProxiedContract,
   ProxyViolationType,

@@ -6,10 +6,11 @@ import {
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
 import {
+  AbacusContracts,
+  AbacusFactories,
   ChainMap,
   ChainName,
   MultiProvider,
-  ProxiedAddress,
   objMap,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
@@ -27,6 +28,7 @@ export abstract class AbacusDeployer<
   Chain extends ChainName,
   Config,
   Factories extends AbacusFactories,
+  Contracts extends AbacusContracts,
 > {
   verificationInputs: ChainMap<Chain, ContractVerificationInput[]>;
   protected logger: Debugger;
@@ -41,22 +43,19 @@ export abstract class AbacusDeployer<
     this.logger = options?.logger || debug('abacus:AppDeployer');
   }
 
-  abstract deployContracts(
-    chain: Chain,
-    config: Config,
-  ): Promise<AbacusContracts>;
+  abstract deployContracts(chain: Chain, config: Config): Promise<Contracts>;
 
   async deploy() {
     this.logger('Start Deploy');
     this.verificationInputs = objMap(this.configMap, () => []);
     const chains = this.multiProvider.chains();
-    const entries: [Chain, AbacusContracts][] = [];
+    const entries: [Chain, Contracts][] = [];
     for (const chain of chains) {
       this.logger(`Deploying to ${chain}...`);
       const result = await this.deployContracts(chain, this.configMap[chain]);
       entries.push([chain, result]);
     }
-    return Object.fromEntries(entries) as Record<Chain, AbacusContracts>;
+    return Object.fromEntries(entries) as Record<Chain, Contracts>;
   }
 
   async deployContract<K extends keyof Factories>(
