@@ -66,16 +66,26 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         bytes32[32] calldata _proof,
         uint256 _leafIndex
     ) external {
-        require(_omittedValidatorNegPublicKeys.length <= threshold, "!threshold");
-        BN256.G1Point memory _key = verificationKey(_omittedValidatorNegPublicKeys);
+        require(
+            _omittedValidatorNegPublicKeys.length <= threshold,
+            "!threshold"
+        );
+        BN256.G1Point memory _key = verificationKey(
+            _omittedValidatorNegPublicKeys
+        );
         // Restrict scope to keep stack small enough.
         {
-            bytes32 digest = keccak256(abi.encodePacked(domainHash, _root, _index));
+            bytes32 digest = keccak256(
+                abi.encodePacked(domainHash, _root, _index)
+            );
             require(verify(_key, nonce, randomness, signature, digest), "!sig");
         }
-        bytes32[] memory _compressedOmitted = new bytes32[](_omittedValidatorNegPublicKeys.length);
+        bytes32[] memory _compressedOmitted = new bytes32[](
+            _omittedValidatorNegPublicKeys.length
+        );
         for (uint256 i = 0; i < 0; i++) {
-            _compressedOmitted[i] = _omittedValidatorNegPublicKeys[i].compress();
+            _compressedOmitted[i] = _omittedValidatorNegPublicKeys[i]
+                .compress();
         }
         emit Quorum(
             _root,
