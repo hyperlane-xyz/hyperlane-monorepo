@@ -14,6 +14,11 @@ import "hardhat/console.sol";
  * them to an Inbox.
  */
 contract InboxValidatorManager is SchnorrValidatorManager {
+    struct Checkpoint {
+        bytes32 root;
+        uint256 index;
+    }
+
     // ============ Libraries ============
 
     using BN256 for BN256.G1Point;
@@ -27,13 +32,11 @@ contract InboxValidatorManager is SchnorrValidatorManager {
      * to prove fraud on the Outbox.
      */
     event Quorum(
-        bytes32 root,
-        uint256 index,
+        Checkpoint checkpoint,
+        uint256[2] sigScalars,
         bytes32 compressedPublicKey,
         bytes32 compressedNonce,
-        uint256 randomness,
-        uint256 signature,
-        bytes32[] compressedOmitted
+        BN256.G1Point[] omitted
     );
 
     // ============ Constructor ============
@@ -56,11 +59,9 @@ contract InboxValidatorManager is SchnorrValidatorManager {
 
     function process(
         IInbox _inbox,
-        bytes32 _root,
-        uint256 _index,
-        BN256.G1Point calldata nonce,
-        uint256 randomness,
-        uint256 signature,
+        Checkpoint calldata _checkpoint,
+        uint256[2] calldata _sigScalars,
+        BN256.G1Point calldata _nonce,
         BN256.G1Point[] calldata _omittedValidatorNegPublicKeys,
         bytes calldata _message,
         bytes32[32] calldata _proof,
@@ -70,32 +71,38 @@ contract InboxValidatorManager is SchnorrValidatorManager {
             _omittedValidatorNegPublicKeys.length <= threshold,
             "!threshold"
         );
-        BN256.G1Point memory _key = verificationKey(
-            _omittedValidatorNegPublicKeys
-        );
+        bytes32 _compressedKey;
         // Restrict scope to keep stack small enough.
         {
-            bytes32 digest = keccak256(
-                abi.encodePacked(domainHash, _root, _index)
+            BN256.G1Point memory _key = verificationKey(
+                _omittedValidatorNegPublicKeys
             );
-            require(verify(_key, nonce, randomness, signature, digest), "!sig");
+            _compressedKey = _key.compress();
+            uint256 _challenge = uint256(
+                keccak256(
+                    abi.encodePacked(_sigScalars[0], domainHash, _checkpoint.root, _checkpoint.index)
+                )
+            );
+            require(verify(_key, _nonce, _sigScalars[1], _challenge), "!sig");
         }
+        // Okay, what if we mapped the compressed key => y value?
+        // Then, we could pull the omitted keys from storage...
+        /*
         bytes32[] memory _compressedOmitted = new bytes32[](
             _omittedValidatorNegPublicKeys.length
         );
-        for (uint256 i = 0; i < 0; i++) {
+        for (uint256 i = 0; i < _omittedValidatorNegPublicKeys.length; i++) {
             _compressedOmitted[i] = _omittedValidatorNegPublicKeys[i]
                 .compress();
         }
+        */
         emit Quorum(
-            _root,
-            _index,
-            _key.compress(),
-            nonce.compress(),
-            randomness,
-            signature,
-            _compressedOmitted
+            _checkpoint,
+            _sigScalars,
+            _compressedKey,
+            _nonce.compress(),
+            _omittedValidatorNegPublicKeys
         );
-        _inbox.process(_root, _index, _message, _proof, _leafIndex, "0x00");
+        _inbox.process(_checkpoint.root, _checkpoint.index, _message, _proof, _leafIndex, "0x00");
     }
 }

@@ -25,8 +25,13 @@ interface G1Point {
   y: string;
 }
 
+interface Checkpoint {
+  root: string;
+  index: BigNumber;
+}
+
 interface SchnorrSignature {
-  digest: string;
+  challenge: string;
   nonce: G1Point;
   signature: BigNumber;
   randomness: BigNumber;
@@ -62,7 +67,10 @@ class SchnorrSigner {
     return this._validatorManager.ecNeg(await this.publicKey());
   }
 
-  async sign(digest: string, randomness: BigNumber): Promise<SchnorrSignature> {
+  async sign(
+    checkpoint: Checkpoint,
+    randomness: BigNumber,
+  ): Promise<SchnorrSignature> {
     // Generate random nonce
     const scalarNonce = await this._validatorManager.scalarMod(
       ethers.utils.hexlify(ethers.utils.randomBytes(32)),
@@ -70,9 +78,10 @@ class SchnorrSigner {
     const nonce = await this._validatorManager.ecGen(scalarNonce);
 
     // Compute the challenge.
+    const domainHash = await this._validatorManager.domainHash();
     const challenge = ethers.utils.solidityKeccak256(
-      ['uint256', 'bytes32'],
-      [randomness, digest],
+      ['uint256', 'bytes32', 'bytes32', 'uint256'],
+      [randomness, domainHash, checkpoint.root, checkpoint.index],
     );
 
     // Compute the signature
@@ -81,7 +90,7 @@ class SchnorrSigner {
       await this._validatorManager.modMul(challenge, await this.secretKey()),
     );
     return {
-      digest,
+      challenge,
       nonce,
       signature,
       randomness,
@@ -134,18 +143,19 @@ class SchnorrSignerSet {
       nonce,
       signature,
       randomness: signatures[0].randomness,
-      digest: signatures[0].digest,
+      challenge: signatures[0].challenge,
     };
   }
 
   async sign(
-    digest: string,
+    checkpoint: Checkpoint,
     omit: number = 0,
   ): Promise<AggregatedSchnorrSignature> {
     // Does this have to be modded? I think not.
     const randomness = await this._validatorManager.scalarMod(
       ethers.utils.hexlify(ethers.utils.randomBytes(32)),
     );
+
     const partials: SchnorrSignature[] = [];
     const missingUnsorted: G1Point[] = [];
     for (let i = 0; i < this._signers.length; i++) {
@@ -153,7 +163,7 @@ class SchnorrSignerSet {
       if (i < omit) {
         missingUnsorted.push(await signer.negPublicKey());
       } else {
-        partials.push(await signer.sign(digest, randomness));
+        partials.push(await signer.sign(checkpoint, randomness));
       }
     }
 
@@ -239,48 +249,37 @@ describe.only('InboxValidatorManager', () => {
     const root = await outbox.root();
     const proof = await outbox.proof();
     return {
-      root,
-      proof,
+      checkpoint: {
+        root,
+        index: count.sub(1),
+      },
       leaf,
       message: formattedMessage,
-      index: count.sub(1).toNumber(),
+      proof,
     };
   };
 
   describe('#process', () => {
     it('processes a message if there is a quorum', async () => {
+      console.log('blah');
       const outboxFactory = new TestOutbox__factory(signer);
       const outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
       // Dispatch a dummy message, not clear if this is necessary
-      await dispatchMessageAndReturnProof(outbox, 'dummy');
+      // await dispatchMessageAndReturnProof(outbox, 'dummy');
       const proof = await dispatchMessageAndReturnProof(outbox, 'hello world');
-      const root = await outbox.branchRoot(
-        proof.leaf,
-        proof.proof,
-        proof.index,
-      );
-      expect(root).to.equal(proof.root);
 
-      const domainHash = await validatorManager.domainHash();
-      const digest = ethers.utils.solidityKeccak256(
-        ['bytes32', 'bytes32', 'uint256'],
-        [domainHash, root, proof.index],
-      );
-      const signature = await validators.sign(digest, THRESHOLD);
-
+      const signature = await validators.sign(proof.checkpoint, THRESHOLD);
+      // const sigPoints = [signature.nonce, ...signature.missing];
       await expect(
         validatorManager.process(
           inbox.address,
-          // Can this be proof.root?
-          root,
-          proof.index,
+          proof.checkpoint,
+          [signature.randomness, signature.signature],
           signature.nonce,
-          signature.randomness,
-          signature.signature,
           signature.missing,
           proof.message,
           proof.proof,
-          proof.index,
+          proof.checkpoint.index,
         ),
       ).to.emit(validatorManager, 'Quorum');
     });

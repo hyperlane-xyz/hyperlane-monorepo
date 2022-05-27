@@ -171,13 +171,9 @@ abstract contract SchnorrValidatorManager is Ownable {
     function verify(
         BN256.G1Point memory _publicKey,
         BN256.G1Point calldata _nonce,
-        uint256 _randomness,
         uint256 _signature,
-        bytes32 _digest
+        uint256 _challenge
     ) public view returns (bool) {
-        uint256 _challenge = uint256(
-            keccak256(abi.encodePacked(_randomness, _digest))
-        );
         BN256.G1Point memory _verification = _nonce.add(
             _publicKey.mul(_challenge)
         );
