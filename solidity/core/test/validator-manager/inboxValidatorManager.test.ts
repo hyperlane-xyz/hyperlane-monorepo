@@ -271,13 +271,13 @@ describe.only('InboxValidatorManager', () => {
       // await dispatchMessageAndReturnProof(outbox, 'dummy');
       const proof = await dispatchMessageAndReturnProof(outbox, 'hello world');
 
-      const signature = await validators.sign(proof.checkpoint);
-      // const sigPoints = [signature.nonce, ...signature.missing];
+      const signature = await validators.sign(proof.checkpoint, THRESHOLD);
       await expect(
         validatorManager.process(
           inbox.address,
           proof.checkpoint,
-          [signature.randomness, signature.signature],
+          signature.randomness,
+          signature.signature,
           signature.nonce,
           signature.missing,
           proof.message,
