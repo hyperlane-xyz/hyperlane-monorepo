@@ -496,23 +496,5 @@ pub fn metrics_chain_name(chain_id: Option<u64>) -> String {
 
 /// Convert a u256 scaled integer value into the corresponding f64 value.
 fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
-    const SCALE: f64 = ((1u64 << 63) as f64) * 2.; // 2^64 but const
-    let acc = (value.0[3] as f64) * SCALE;
-    let acc = (acc + (value.0[2] as f64)) * SCALE;
-    let acc = (acc + (value.0[1] as f64)) * SCALE;
-    let acc = acc + (value.0[0] as f64);
-    acc / (10u64.pow(decimals as u32) as f64)
-}
-
-#[test]
-fn u256_as_scaled_f64_test() {
-    // test values calculated with wolfram alpha
-    assert_eq!(u256_as_scaled_f64(U256([5, 0, 0, 0]), 18), 5e-18);
-    assert_eq!(u256_as_scaled_f64(U256([12, 0, 0, 0]), 6), 12e-6);
-    assert_eq!(u256_as_scaled_f64(U256([123, 0, 0, 0]), 0), 123e0);
-    assert!((u256_as_scaled_f64(U256([0, 1, 0, 0]), 18) - 18.4467).abs() < 1e-4);
-    assert!((u256_as_scaled_f64(U256([43, 1, 5, 0]), 18) - 1.7014118346e21).abs() < 1e21 - 1e9);
-    assert!(
-        (u256_as_scaled_f64(U256([0, 255, 130, 87]), 18) - 5.461078509786e41).abs() < 1e41 - 1e9
-    );
+    value.to_f64_lossy() / (10u64.pow(decimals as u32) as f64)
 }

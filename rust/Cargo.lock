@@ -1306,6 +1306,7 @@ dependencies = [
  "log",
  "maplit",
  "parking_lot 0.12.0",
+ "primitive-types",
  "prometheus",
  "serde 1.0.130",
  "serde_json",
