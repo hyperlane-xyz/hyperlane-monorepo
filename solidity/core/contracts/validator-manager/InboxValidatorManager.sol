@@ -14,6 +14,10 @@ import "hardhat/console.sol";
  * them to an Inbox.
  */
 contract InboxValidatorManager is SchnorrValidatorManager {
+    // ============ Libraries ============
+
+    using BN256 for BN256.G1Point;
+
     // ============ Events ============
 
     /**
@@ -25,14 +29,11 @@ contract InboxValidatorManager is SchnorrValidatorManager {
     event Quorum(
         bytes32 root,
         uint256 index,
-        // Could be replaced with a compressed point.
-        BN256.G1Point publicKey,
-        // Could be replaced with a compressed point.
-        BN256.G1Point nonce,
+        bytes32 compressedPublicKey,
+        bytes32 compressedNonce,
         uint256 randomness,
         uint256 signature,
-        // Could be replaced with a compressed point.
-        BN256.G1Point[] missing
+        bytes32[] compressedOmitted
     );
 
     // ============ Constructor ============
@@ -60,26 +61,30 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         BN256.G1Point calldata nonce,
         uint256 randomness,
         uint256 signature,
-        // We can probably save gas by cutting the size here
-        // in approximately half by submitting the compressed
-        // keys.
-        BN256.G1Point[] calldata _missing,
+        BN256.G1Point[] calldata _omittedValidatorNegPublicKeys,
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
     ) external {
-        bytes32 digest = keccak256(abi.encodePacked(domainHash, _root, _index));
-        require(_missing.length <= threshold, "!threshold");
-        BN256.G1Point memory _key = verificationKey(_missing);
-        require(verify(_key, nonce, randomness, signature, digest), "!sig");
+        require(_omittedValidatorNegPublicKeys.length <= threshold, "!threshold");
+        BN256.G1Point memory _key = verificationKey(_omittedValidatorNegPublicKeys);
+        // Restrict scope to keep stack small enough.
+        {
+            bytes32 digest = keccak256(abi.encodePacked(domainHash, _root, _index));
+            require(verify(_key, nonce, randomness, signature, digest), "!sig");
+        }
+        bytes32[] memory _compressedOmitted = new bytes32[](_omittedValidatorNegPublicKeys.length);
+        for (uint256 i = 0; i < 0; i++) {
+            _compressedOmitted[i] = _omittedValidatorNegPublicKeys[i].compress();
+        }
         emit Quorum(
             _root,
             _index,
-            _key,
-            nonce,
+            _key.compress(),
+            nonce.compress(),
             randomness,
             signature,
-            _missing
+            _compressedOmitted
         );
         _inbox.process(_root, _index, _message, _proof, _leafIndex, "0x00");
     }
