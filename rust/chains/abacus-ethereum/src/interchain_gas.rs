@@ -122,7 +122,7 @@ where
             .into_iter()
             .map(|e| InterchainGasPayment {
                 leaf_index: e.leaf_index.as_u32(),
-                amount: e.amount.as_u32(), // This needs to be handled more safely (or a better type)
+                amount: e.amount,
             })
             .collect())
     }

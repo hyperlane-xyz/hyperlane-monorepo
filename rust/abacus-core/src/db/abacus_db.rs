@@ -3,7 +3,7 @@ use crate::{
     accumulator::merkle::Proof, traits::RawCommittedMessage, AbacusMessage, CommittedMessage,
     Decode, InterchainGasPayment,
 };
-use ethers::core::types::H256;
+use ethers::core::types::{H256, U256};
 use eyre::Result;
 use tokio::time::sleep;
 use tracing::{debug, info};
@@ -236,18 +236,20 @@ impl AbacusDB {
     /// Update the total gas payment for a leaf index.
     /// The provided gas payment amount is added to any existing stored gas payment in the DB.
     pub fn store_gas_payment(&self, gas_payment: &InterchainGasPayment) -> Result<(), DbError> {
-        let existing_payment = self.retrieve_gas_payment_for_leaf(gas_payment.leaf_index)?;
-        let total = existing_payment + gas_payment.amount;
+        let InterchainGasPayment { leaf_index, amount } = gas_payment;
+        let existing_payment = self.retrieve_gas_payment_for_leaf(*leaf_index)?;
+        let total = existing_payment + amount;
 
+        info!(leaf_index=?leaf_index, gas_payment_amount=?amount, new_total_gas_payment=?total, "Storing gas payment");
         self.store_keyed_encodable(GAS_PAYMENT_FOR_LEAF, &gas_payment.leaf_index, &total)?;
 
         Ok(())
     }
 
     /// Retrieve the total gas payment for a leaf index
-    pub fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<u32, DbError> {
+    pub fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<U256, DbError> {
         Ok(self
             .retrieve_keyed_decodable(GAS_PAYMENT_FOR_LEAF, &leaf_index)?
-            .unwrap_or(0))
+            .unwrap_or(U256::zero()))
     }
 }

@@ -59,8 +59,7 @@ const chainSummary = async <Chain extends ChainName>(
 task('kathy', 'Dispatches random abacus messages').setAction(
   async (_, hre: HardhatRuntimeEnvironment) => {
     const environment = 'test';
-    // const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
-    const interchainGasPayment = '1000';
+    const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
     const config = getCoreEnvironmentConfig(environment);
     const [signer] = await hre.ethers.getSigners();
     const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
@@ -88,13 +87,13 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       // Send a batch of messages to the destination chain to test
       // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
-        const d = await recipient.dispatchToSelf(
+        await recipient.dispatchToSelf(
           outbox.address,
           paymaster.address,
           remoteId,
           '0x1234',
           {
-            value: i % 2 === 0 ? interchainGasPayment : 0,
+            value: interchainGasPayment,
           },
         );
         if ((await outbox.count()).gt(1)) {

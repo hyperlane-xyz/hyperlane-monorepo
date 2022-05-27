@@ -18,8 +18,22 @@ contract BadRandomRecipient is IMessageRecipient {
         uint32 _destinationDomain,
         bytes calldata _messageBody
     ) external payable {
-        uint256 _leafIndex = _outbox.dispatch(_destinationDomain, address(this).addressToBytes32(), _messageBody);
-        _paymaster.payGasFor{value: msg.value}(_leafIndex);
+        uint256 _leafIndex = _outbox.dispatch(
+            _destinationDomain,
+            address(this).addressToBytes32(),
+            _messageBody
+        );
+        uint256 _blockHashNum = uint256(previousBlockHash());
+        uint256 _value = msg.value;
+        if (_blockHashNum % 5 == 0) {
+            // Pay in two separate calls, resulting in 2 distinct events
+            uint256 _half = _value / 2;
+            _paymaster.payGasFor{value: _half}(_leafIndex);
+            _paymaster.payGasFor{value: _value - _half}(_leafIndex);
+        } else if (_blockHashNum % 2 == 1) {
+            // Pay the entire msg.value in one call
+            _paymaster.payGasFor{value: _value}(_leafIndex);
+        }
     }
 
     function handle(
@@ -27,8 +41,13 @@ contract BadRandomRecipient is IMessageRecipient {
         bytes32,
         bytes calldata
     ) external override {
-        bool isBlockHashEven = uint256(blockhash(block.number - 1)) % 2 == 0;
+        bytes32 blockHash = previousBlockHash();
+        bool isBlockHashEven = uint256(blockHash) % 2 == 0;
         require(isBlockHashEven, "block hash is odd");
-        emit Handled(blockhash(block.number - 1));
+        emit Handled(blockHash);
+    }
+
+    function previousBlockHash() internal view returns (bytes32) {
+        return blockhash(block.number - 1);
     }
 }
