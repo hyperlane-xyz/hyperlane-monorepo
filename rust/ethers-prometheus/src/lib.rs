@@ -176,15 +176,15 @@ pub struct PrometheusMiddleware<M> {
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub struct PrometheusMiddlewareConf {
     /// The tokens to track and identifying info
-    #[serde(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub tokens: HashMap<Address, TokenInfo>,
 
     /// The wallets to track and identifying info
-    #[serde(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub wallets: HashMap<Address, WalletInfo>,
 
     /// Contract info for more useful metrics
-    #[serde(default)]
+    #[cfg_attr(feature = "serde", serde(default))]
     pub contracts: HashMap<Address, ContractInfo>,
 }
 
@@ -496,7 +496,7 @@ pub fn metrics_chain_name(chain_id: Option<u64>) -> String {
 
 /// Convert a u256 scaled integer value into the corresponding f64 value.
 fn u256_as_scaled_f64(value: U256, decimals: u8) -> f64 {
-    const SCALE: f64 = (0x8000000000000000u64 as f64) * 2.; // 2^64 but const
+    const SCALE: f64 = ((1u64 << 63) as f64) * 2.; // 2^64 but const
     let acc = (value.0[3] as f64) * SCALE;
     let acc = (acc + (value.0[2] as f64)) * SCALE;
     let acc = (acc + (value.0[1] as f64)) * SCALE;
