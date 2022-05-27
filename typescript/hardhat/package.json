@@ -2,7 +2,7 @@
   "name": "@abacus-network/hardhat",
   "description": "Hardhat related tools for the Abacus network",
   "version": "0.1.1",
-  "devDependencies": {
+  "dependencies": {
     "@abacus-network/core": "^0.1.1",
     "@abacus-network/sdk": "^0.1.1",
     "@abacus-network/utils": "^0.1.1",
@@ -15,6 +15,7 @@
     "typechain": "^5.0.0"
   },
   "directories": {
+    "src": "src",
     "test": "test"
   },
   "homepage": "https://www.useabacus.network",
