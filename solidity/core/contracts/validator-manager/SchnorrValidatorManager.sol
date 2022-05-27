@@ -218,6 +218,8 @@ abstract contract SchnorrValidatorManager is Ownable {
         return keccak256(abi.encodePacked(_domain, "ABACUS"));
     }
 
+    // Expose useful useful view functions for testing
+    // THESE SHOULD BE REMOVED AND NEVER USED IN PRODUCTION
     function ecAdd(BN256.G1Point memory a, BN256.G1Point memory b)
         external
         view
@@ -236,29 +238,5 @@ abstract contract SchnorrValidatorManager is Ownable {
 
     function ecGen(uint256 s) public view returns (BN256.G1Point memory) {
         return BN256.g().mul(s);
-    }
-
-    function ecNeg(BN256.G1Point memory a)
-        public
-        pure
-        returns (BN256.G1Point memory)
-    {
-        return a.neg();
-    }
-
-    function ecCompress(BN256.G1Point memory a) public pure returns (bytes32) {
-        return a.compress();
-    }
-
-    function scalarMod(uint256 a) public pure returns (uint256) {
-        return BN256.mod(a);
-    }
-
-    function modAdd(uint256 a, uint256 b) public pure returns (uint256) {
-        return BN256.add(a, b);
-    }
-
-    function modMul(uint256 a, uint256 b) public pure returns (uint256) {
-        return BN256.mul(a, b);
     }
 }

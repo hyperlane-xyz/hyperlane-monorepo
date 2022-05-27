@@ -31,7 +31,7 @@ interface Checkpoint {
 }
 
 interface SchnorrSignature {
-  challenge: string;
+  challenge: BigNumber;
   nonce: G1Point;
   signature: BigNumber;
   randomness: BigNumber;
@@ -42,33 +42,67 @@ interface AggregatedSchnorrSignature extends SchnorrSignature {
   missing: string[];
 }
 
+const GROUP_ORDER = BigNumber.from(
+  '0x30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001',
+);
+const PARITY_MASK = BigNumber.from(
+  '0x0000000000000000000000000000000000000000000000000000000000000001',
+);
+const COMPRESSION_MASK = BigNumber.from(
+  '0x8000000000000000000000000000000000000000000000000000000000000000',
+);
+
+function scalarMod(x: BigNumber): BigNumber {
+  return x.mod(GROUP_ORDER);
+}
+
+function randomScalar(): BigNumber {
+  return scalarMod(
+    BigNumber.from(ethers.utils.hexlify(ethers.utils.randomBytes(32))),
+  );
+}
+
+function ecCompress(p: G1Point): string {
+  const parity = PARITY_MASK.and(p.y).gt(0);
+  if (parity) {
+    return COMPRESSION_MASK.or(p.x).toHexString();
+  } else {
+    return p.x;
+  }
+}
+
+function modMul(a: BigNumber, b: BigNumber): BigNumber {
+  return scalarMod(a.mul(b));
+}
+
+function modAdd(a: BigNumber, b: BigNumber): BigNumber {
+  return scalarMod(a.add(b));
+}
+
 class SchnorrSigner {
-  private readonly _secretKey: string;
+  public readonly secretKey: BigNumber;
   // Used for elliptic curve operations so we don't need
   // to reimplement them in TS.
   // This is *not safe* in production as it often means sending the
   // secret key over RPC.
   private readonly _validatorManager: InboxValidatorManager;
+  private _publicKey: G1Point;
 
   constructor(_validatorManager: InboxValidatorManager) {
     this._validatorManager = _validatorManager;
-    this._secretKey = ethers.utils.hexlify(ethers.utils.randomBytes(32));
-  }
-
-  secretKey(): Promise<BigNumber> {
-    return this._validatorManager.scalarMod(this._secretKey);
+    this.secretKey = randomScalar();
+    this._publicKey = { x: '', y: '' };
   }
 
   async publicKey(): Promise<G1Point> {
-    return this._validatorManager.ecGen(await this.secretKey());
-  }
-
-  async negPublicKey(): Promise<G1Point> {
-    return this._validatorManager.ecNeg(await this.publicKey());
+    if (this._publicKey.x === '') {
+      this._publicKey = await this._validatorManager.ecGen(this.secretKey);
+    }
+    return this._publicKey;
   }
 
   async compressedPublicKey(): Promise<string> {
-    return this._validatorManager.ecCompress(await this.publicKey());
+    return ecCompress(await this.publicKey());
   }
 
   async sign(
@@ -76,23 +110,20 @@ class SchnorrSigner {
     randomness: BigNumber,
   ): Promise<SchnorrSignature> {
     // Generate random nonce
-    const scalarNonce = await this._validatorManager.scalarMod(
-      ethers.utils.hexlify(ethers.utils.randomBytes(32)),
-    );
+    const scalarNonce = randomScalar();
     const nonce = await this._validatorManager.ecGen(scalarNonce);
 
     // Compute the challenge.
     const domainHash = await this._validatorManager.domainHash();
-    const challenge = ethers.utils.solidityKeccak256(
-      ['uint256', 'bytes32', 'bytes32', 'uint256'],
-      [randomness, domainHash, checkpoint.root, checkpoint.index],
+    const challenge = BigNumber.from(
+      ethers.utils.solidityKeccak256(
+        ['uint256', 'bytes32', 'bytes32', 'uint256'],
+        [randomness, domainHash, checkpoint.root, checkpoint.index],
+      ),
     );
 
     // Compute the signature
-    const signature = await this._validatorManager.modAdd(
-      scalarNonce,
-      await this._validatorManager.modMul(challenge, await this.secretKey()),
-    );
+    const signature = modAdd(scalarNonce, modMul(challenge, this.secretKey));
     return {
       challenge,
       nonce,
@@ -131,7 +162,7 @@ class SchnorrSignerSet {
   async addScalars(scalars: BigNumber[]): Promise<BigNumber> {
     let scalar = scalars[0];
     for (let i = 1; i < scalars.length; i++) {
-      scalar = await this._validatorManager.modAdd(scalar, scalars[i]);
+      scalar = modAdd(scalar, scalars[i]);
     }
     return scalar;
   }
@@ -156,9 +187,7 @@ class SchnorrSignerSet {
     omit: number = 0,
   ): Promise<AggregatedSchnorrSignature> {
     // Does this have to be modded? I think not.
-    const randomness = await this._validatorManager.scalarMod(
-      ethers.utils.hexlify(ethers.utils.randomBytes(32)),
-    );
+    const randomness = randomScalar();
 
     const partials: SchnorrSignature[] = [];
     const missingUnsorted: string[] = [];
@@ -206,7 +235,8 @@ describe.only('InboxValidatorManager', () => {
   let validatorManager: InboxValidatorManager,
     inbox: Inbox,
     signer: SignerWithAddress,
-    validators: SchnorrSignerSet;
+    validators: SchnorrSignerSet,
+    recipient: string;
 
   before(async () => {
     const signers = await ethers.getSigners();
@@ -229,15 +259,17 @@ describe.only('InboxValidatorManager', () => {
     // Create and enroll validators
     validators = new SchnorrSignerSet(SET_SIZE, validatorManager);
     await validators.enroll();
+
+    // Set up test message recipient
+    recipient = utils.addressToBytes32(
+      (await new TestRecipient__factory(signer).deploy()).address,
+    );
   });
 
   const dispatchMessageAndReturnProof = async (
     outbox: TestOutbox,
     messageStr: string,
   ) => {
-    const recipient = utils.addressToBytes32(
-      (await new TestRecipient__factory(signer).deploy()).address,
-    );
     const destination = INBOX_DOMAIN;
     const message = ethers.utils.formatBytes32String(messageStr);
     await outbox.dispatch(destination, recipient, message);
@@ -267,24 +299,30 @@ describe.only('InboxValidatorManager', () => {
     it('processes a message if there is a quorum', async () => {
       const outboxFactory = new TestOutbox__factory(signer);
       const outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
-      // Dispatch a dummy message, not clear if this is necessary
-      // await dispatchMessageAndReturnProof(outbox, 'dummy');
-      const proof = await dispatchMessageAndReturnProof(outbox, 'hello world');
-
-      const signature = await validators.sign(proof.checkpoint, THRESHOLD);
-      await expect(
-        validatorManager.process(
-          inbox.address,
-          proof.checkpoint,
-          signature.randomness,
-          signature.signature,
-          signature.nonce,
-          signature.missing,
-          proof.message,
-          proof.proof,
-          proof.checkpoint.index,
-        ),
-      ).to.emit(validatorManager, 'Quorum');
+      const MESSAGES = 32;
+      for (let i = 0; i < MESSAGES; i++) {
+        const proof = await dispatchMessageAndReturnProof(
+          outbox,
+          'hello world',
+        );
+        const signature = await validators.sign(proof.checkpoint, THRESHOLD);
+        await expect(
+          validatorManager.process(
+            inbox.address,
+            proof.checkpoint,
+            signature.randomness,
+            signature.signature,
+            signature.nonce,
+            signature.missing,
+            proof.message,
+            proof.proof,
+            proof.checkpoint.index,
+          ),
+        ).to.emit(validatorManager, 'Quorum');
+        if (i % 10 == 0) {
+          console.log(i);
+        }
+      }
     });
   });
 });
