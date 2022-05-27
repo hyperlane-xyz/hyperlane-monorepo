@@ -18,19 +18,14 @@ __metadata:
     "@typechain/hardhat": ^2.0.1
     "@types/mocha": ^9.1.0
     chai: ^4.3.0
-    eslint: ^7.20.0
     ethereum-waffle: ^3.2.2
     ethers: ^5.4.4
     hardhat: ^2.8.3
     hardhat-gas-reporter: ^1.0.7
-    prettier: ^2.2.1
-    prettier-plugin-solidity: ^1.0.0-beta.5
     solhint: ^3.3.2
     solhint-plugin-prettier: ^0.0.5
     solidity-coverage: ^0.7.14
-    ts-node: ^10.1.0
     typechain: ^5.0.0
-    typescript: ^4.3.5
   languageName: unknown
   linkType: soft
 
@@ -47,20 +42,16 @@ __metadata:
     "@typechain/ethers-v5": ~7.0.0
     "@typechain/hardhat": ^2.0.1
     chai: ^4.3.0
-    eslint: ^7.20.0
     ethereum-waffle: ^3.2.2
     ethers: ^5.4.4
     hardhat: ^2.8.3
     hardhat-gas-reporter: ^1.0.7
-    prettier: ^2.2.1
-    prettier-plugin-solidity: ^1.0.0-beta.5
     solhint: ^3.3.2
     solhint-plugin-prettier: ^0.0.5
     solidity-coverage: ^0.7.14
     ts-generator: ^0.1.1
     ts-node: ^10.1.0
     typechain: ^5.0.0
-    typescript: ^4.3.5
   languageName: unknown
   linkType: soft
 
@@ -78,9 +69,6 @@ __metadata:
     axios: ^0.21.3
     debug: ^4.3.4
     ethers: ^5.4.7
-    prettier: ^2.3.1
-    ts-node: ^10.1.0
-    typescript: ^4.3.2
     yargs: ^17.4.1
   languageName: unknown
   linkType: soft
@@ -98,10 +86,7 @@ __metadata:
     ethereum-waffle: ^3.2.2
     ethers: ^5.4.7
     hardhat: ^2.8.4
-    prettier: ^2.3.1
-    ts-node: ^10.1.0
     typechain: ^5.0.0
-    typescript: ^4.3.2
   languageName: unknown
   linkType: soft
 
@@ -132,10 +117,7 @@ __metadata:
     ethereum-waffle: ^3.2.2
     ethers: ^5.4.7
     hardhat: ^2.8.4
-    prettier: ^2.3.1
-    ts-node: ^10.1.0
     typechain: ^5.0.0
-    typescript: ^4.3.2
     yargs: ^17.3.1
   languageName: unknown
   linkType: soft
@@ -145,8 +127,12 @@ __metadata:
   resolution: "@abacus-network/monorepo@workspace:."
   dependencies:
     "@trivago/prettier-plugin-sort-imports": ^3.2.0
+    eslint: ^7.32.0
+    eslint-config-prettier: ^8.3.0
     husky: ^8.0.0
-    prettier: ^2.2.1
+    prettier: ^2.4.1
+    prettier-plugin-solidity: ^1.0.0-beta.5
+    ts-node: ^10.1.0
     typescript: ^4.3.5
   languageName: unknown
   linkType: soft
@@ -166,13 +152,10 @@ __metadata:
     chai: ^4.3.6
     dotenv: ^10.0.0
     eslint: ^7.32.0
-    eslint-config-prettier: ^8.3.0
     ethers: ^5.4.7
     fs: 0.0.1-security
     mocha: ^9.2.2
-    prettier: ^2.4.1
     sinon: ^13.0.2
-    typescript: ^4.4.3
   languageName: unknown
   linkType: soft
 
@@ -182,7 +165,6 @@ __metadata:
   dependencies:
     chai: ^4.3.0
     ethers: ^5.4.7
-    prettier: ^2.2.1
   languageName: unknown
   linkType: soft
 
@@ -7018,7 +7000,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"eslint@npm:^7.20.0, eslint@npm:^7.32.0":
+"eslint@npm:^7.32.0":
   version: 7.32.0
   resolution: "eslint@npm:7.32.0"
   dependencies:
@@ -12371,7 +12353,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"prettier@npm:^2.1.2, prettier@npm:^2.2.1, prettier@npm:^2.3.1, prettier@npm:^2.4.1":
+"prettier@npm:^2.1.2, prettier@npm:^2.4.1":
   version: 2.6.2
   resolution: "prettier@npm:2.6.2"
   bin:
@@ -14808,7 +14790,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@npm:^4.3.2, typescript@npm:^4.3.5, typescript@npm:^4.4.3":
+"typescript@npm:^4.3.5":
   version: 4.6.3
   resolution: "typescript@npm:4.6.3"
   bin:
@@ -14818,7 +14800,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"typescript@patch:typescript@^4.3.2#~builtin<compat/typescript>, typescript@patch:typescript@^4.3.5#~builtin<compat/typescript>, typescript@patch:typescript@^4.4.3#~builtin<compat/typescript>":
+"typescript@patch:typescript@^4.3.5#~builtin<compat/typescript>":
   version: 4.6.3
   resolution: "typescript@patch:typescript@npm%3A4.6.3#~builtin<compat/typescript>::version=4.6.3&hash=bda367"
   bin:
