@@ -13,7 +13,7 @@ pub(crate) fn create_provider_metrics(metrics: &CoreMetrics) -> Result<ProviderM
         )?)
         .gas_price_gwei(metrics.new_gauge(
             "gas_price_gwei",
-            GAS_PRICE_GEWI_HELP,
+            GAS_PRICE_GWEI_HELP,
             GAS_PRICE_GWEI_LABELS,
         )?)
         .contract_call_duration_seconds(metrics.new_histogram(

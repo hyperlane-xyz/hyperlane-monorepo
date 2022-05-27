@@ -75,7 +75,7 @@ pub const BLOCK_HEIGHT_HELP: &str = "Tracks the current block height of the chai
 /// Expected label names for the `gas_price_gwei` metric.
 pub const GAS_PRICE_GWEI_LABELS: &[&str] = &["chain"];
 /// Help string for the metric.
-pub const GAS_PRICE_GEWI_HELP: &str = "Tracks the current gas price of the chain";
+pub const GAS_PRICE_GWEI_HELP: &str = "Tracks the current gas price of the chain";
 
 /// Expected label names for the `contract_call_duration_seconds` metric.
 pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] =
