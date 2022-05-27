@@ -121,6 +121,7 @@ contract Inbox is IInbox, Version0, Common {
         require(entered == 1, "!reentrant");
         entered = 0;
 
+        require(_index <= _leafIndex, "!index");
         bytes32 _messageHash = _message.leaf(_leafIndex);
         // ensure that message has not been processed
         require(
@@ -135,8 +136,7 @@ contract Inbox is IInbox, Version0, Common {
         );
         require(_calculatedRoot == _root, "!proof");
         _process(_message, _messageHash);
-        // emit Process(_messageHash, _leafIndex, _proof);
-        emit Process2(_messageHash);
+        emit Process(_messageHash, _leafIndex, _proof);
         // reset re-entrancy guard
         entered = 1;
     }
