@@ -85,6 +85,8 @@ library BN256 {
         0x0000000000000000000000000000000000000000000000000000000000000001;
     bytes32 constant COMPRESSION_MASK =
         0x8000000000000000000000000000000000000000000000000000000000000000;
+    bytes32 constant DECOMPRESSION_MASK =
+        0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
 
     function compress(G1Point memory p) internal pure returns (bytes32) {
         // Encode the parity of p.y in the high order bit of p.x
@@ -94,6 +96,10 @@ library BN256 {
         } else {
             return p.x;
         }
+    }
+
+    function decompress(bytes32 p) internal pure returns (bytes32) {
+        return p & DECOMPRESSION_MASK;
     }
 
     function add(G1Point memory p1, G1Point memory p2)

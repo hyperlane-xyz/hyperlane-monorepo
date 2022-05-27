@@ -39,7 +39,7 @@ interface SchnorrSignature {
 }
 
 interface AggregatedSchnorrSignature extends SchnorrSignature {
-  missing: G1Point[];
+  missing: string[];
 }
 
 class SchnorrSigner {
@@ -65,6 +65,10 @@ class SchnorrSigner {
 
   async negPublicKey(): Promise<G1Point> {
     return this._validatorManager.ecNeg(await this.publicKey());
+  }
+
+  async compressedPublicKey(): Promise<string> {
+    return this._validatorManager.ecCompress(await this.publicKey());
   }
 
   async sign(
@@ -157,11 +161,11 @@ class SchnorrSignerSet {
     );
 
     const partials: SchnorrSignature[] = [];
-    const missingUnsorted: G1Point[] = [];
+    const missingUnsorted: string[] = [];
     for (let i = 0; i < this._signers.length; i++) {
       const signer = this._signers[i];
       if (i < omit) {
-        missingUnsorted.push(await signer.negPublicKey());
+        missingUnsorted.push(await signer.compressedPublicKey());
       } else {
         partials.push(await signer.sign(checkpoint, randomness));
       }
@@ -170,8 +174,8 @@ class SchnorrSignerSet {
     // Sort missing public keys.
     const missing = missingUnsorted.sort((a, b) => {
       // Remove the checksums for accurate comparison
-      const ax = a.x.toLowerCase();
-      const bx = b.x.toLowerCase();
+      const ax = a.toLowerCase();
+      const bx = b.toLowerCase();
 
       if (ax < bx) {
         return -1;
@@ -261,14 +265,13 @@ describe.only('InboxValidatorManager', () => {
 
   describe('#process', () => {
     it('processes a message if there is a quorum', async () => {
-      console.log('blah');
       const outboxFactory = new TestOutbox__factory(signer);
       const outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
       // Dispatch a dummy message, not clear if this is necessary
       // await dispatchMessageAndReturnProof(outbox, 'dummy');
       const proof = await dispatchMessageAndReturnProof(outbox, 'hello world');
 
-      const signature = await validators.sign(proof.checkpoint, THRESHOLD);
+      const signature = await validators.sign(proof.checkpoint);
       // const sigPoints = [signature.nonce, ...signature.missing];
       await expect(
         validatorManager.process(

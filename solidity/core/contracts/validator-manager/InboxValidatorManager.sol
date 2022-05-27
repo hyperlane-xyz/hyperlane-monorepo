@@ -36,7 +36,7 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         uint256[2] sigScalars,
         bytes32 compressedPublicKey,
         bytes32 compressedNonce,
-        BN256.G1Point[] omitted
+        bytes32[] omitted
     );
 
     // ============ Constructor ============
@@ -62,47 +62,50 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         Checkpoint calldata _checkpoint,
         uint256[2] calldata _sigScalars,
         BN256.G1Point calldata _nonce,
-        BN256.G1Point[] calldata _omittedValidatorNegPublicKeys,
+        bytes32[] calldata _omittedValidatorCompressedPublicKeys,
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
     ) external {
         require(
-            _omittedValidatorNegPublicKeys.length <= threshold,
+            _omittedValidatorCompressedPublicKeys.length <= threshold,
             "!threshold"
         );
         bytes32 _compressedKey;
         // Restrict scope to keep stack small enough.
         {
             BN256.G1Point memory _key = verificationKey(
-                _omittedValidatorNegPublicKeys
+                _omittedValidatorCompressedPublicKeys
             );
             _compressedKey = _key.compress();
             uint256 _challenge = uint256(
                 keccak256(
-                    abi.encodePacked(_sigScalars[0], domainHash, _checkpoint.root, _checkpoint.index)
+                    abi.encodePacked(
+                        _sigScalars[0],
+                        domainHash,
+                        _checkpoint.root,
+                        _checkpoint.index
+                    )
                 )
             );
             require(verify(_key, _nonce, _sigScalars[1], _challenge), "!sig");
         }
         // Okay, what if we mapped the compressed key => y value?
         // Then, we could pull the omitted keys from storage...
-        /*
-        bytes32[] memory _compressedOmitted = new bytes32[](
-            _omittedValidatorNegPublicKeys.length
-        );
-        for (uint256 i = 0; i < _omittedValidatorNegPublicKeys.length; i++) {
-            _compressedOmitted[i] = _omittedValidatorNegPublicKeys[i]
-                .compress();
-        }
-        */
         emit Quorum(
             _checkpoint,
             _sigScalars,
             _compressedKey,
             _nonce.compress(),
-            _omittedValidatorNegPublicKeys
+            _omittedValidatorCompressedPublicKeys
         );
-        _inbox.process(_checkpoint.root, _checkpoint.index, _message, _proof, _leafIndex, "0x00");
+        _inbox.process(
+            _checkpoint.root,
+            _checkpoint.index,
+            _message,
+            _proof,
+            _leafIndex,
+            "0x00"
+        );
     }
 }

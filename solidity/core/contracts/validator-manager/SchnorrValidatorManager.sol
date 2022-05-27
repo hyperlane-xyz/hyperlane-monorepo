@@ -35,8 +35,8 @@ abstract contract SchnorrValidatorManager is Ownable {
 
     // The aggregated public key of all validators.
     BN256.G1Point public aggregatedPublicKey;
-    // Mapping of validatorPublicKey.neg().compress() => bool.
-    mapping(bytes32 => bool) public _isValidatorNegPublicKey;
+    // Mapping of validatorPublicKey.compress() => negative Y value.
+    mapping(bytes32 => bytes32) public _negativeY;
 
     // ============ Events ============
 
@@ -130,40 +130,32 @@ abstract contract SchnorrValidatorManager is Ownable {
      * @param _validator The address of the validator.
      * @return TRUE iff `_validator` is enrolled in the validator set.
      */
-    function isValidatorPublicKey(BN256.G1Point memory _validator)
+    function isEnrolled(BN256.G1Point memory _validator)
         public
         view
         returns (bool)
     {
-        return _isValidatorNegPublicKey[_validator.neg().compress()];
-    }
-
-    function isValidatorNegPublicKey(BN256.G1Point calldata _validator)
-        public
-        view
-        returns (bool)
-    {
-        return _isValidatorNegPublicKey[_validator.compress()];
+        return _negativeY[_validator.compress()] != 0;
     }
 
     // ============ Internal Functions ============
 
-    function verificationKey(BN256.G1Point[] calldata _missing)
+    function verificationKey(bytes32[] calldata _compressedOmitted)
         public
         view
         returns (BN256.G1Point memory)
     {
         BN256.G1Point memory _publicKey = aggregatedPublicKey;
-        for (uint256 i = 0; i < _missing.length; i++) {
-            if (i + 1 < _missing.length) {
-                require(_missing[i].x < _missing[i + 1].x, "!sorted");
+        for (uint256 i = 0; i < _compressedOmitted.length; i++) {
+            bytes32 _compressed = _compressedOmitted[i];
+            if (i + 1 < _compressedOmitted.length) {
+                require(_compressed < _compressedOmitted[i + 1], "!sorted");
             }
-            BN256.G1Point calldata _missingValidatorNegPublicKey = _missing[i];
-            require(
-                isValidatorNegPublicKey(_missingValidatorNegPublicKey),
-                "!validator"
-            );
-            _publicKey = _publicKey.add(_missingValidatorNegPublicKey);
+            bytes32 _negY = _negativeY[_compressed];
+            require(_negY > 0, "!validator");
+            bytes32 _x = BN256.decompress(_compressed);
+            BN256.G1Point memory _p = BN256.G1Point(_x, _negY);
+            _publicKey = _publicKey.add(_p);
         }
         return _publicKey;
     }
@@ -187,9 +179,9 @@ abstract contract SchnorrValidatorManager is Ownable {
      * @param _validator The validator to add to the validator set.
      */
     function _enrollValidator(BN256.G1Point memory _validator) internal {
-        bytes32 compressed = _validator.neg().compress();
-        require(!_isValidatorNegPublicKey[compressed], "enrolled");
-        _isValidatorNegPublicKey[compressed] = true;
+        bytes32 compressed = _validator.compress();
+        require(_negativeY[compressed] == 0, "enrolled");
+        _negativeY[compressed] = _validator.neg().y;
         aggregatedPublicKey = aggregatedPublicKey.add(_validator);
         emit EnrollValidator(_validator, aggregatedPublicKey);
     }
@@ -202,11 +194,10 @@ abstract contract SchnorrValidatorManager is Ownable {
      * @param _validator The validator to remove from the validator set.
      */
     function _unenrollValidator(BN256.G1Point memory _validator) internal {
-        BN256.G1Point memory _neg = _validator.neg();
-        bytes32 compressed = _neg.compress();
-        require(_isValidatorNegPublicKey[compressed], "!enrolled");
-        _isValidatorNegPublicKey[compressed] = false;
-        aggregatedPublicKey = aggregatedPublicKey.add(_neg);
+        bytes32 compressed = _validator.compress();
+        require(_negativeY[compressed] != 0, "!enrolled");
+        _negativeY[compressed] = 0;
+        aggregatedPublicKey = aggregatedPublicKey.add(_validator.neg());
         emit UnenrollValidator(_validator, aggregatedPublicKey);
     }
 
@@ -253,6 +244,10 @@ abstract contract SchnorrValidatorManager is Ownable {
         returns (BN256.G1Point memory)
     {
         return a.neg();
+    }
+
+    function ecCompress(BN256.G1Point memory a) public pure returns (bytes32) {
+        return a.compress();
     }
 
     function scalarMod(uint256 a) public pure returns (uint256) {
