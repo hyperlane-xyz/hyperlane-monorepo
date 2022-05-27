@@ -3,12 +3,13 @@ use serde::Deserialize;
 
 use abacus_core::{ContractLocator, Signers};
 use abacus_ethereum::{
-    Connection, InboxBuilder, InboxValidatorManagerBuilder, MakeableWithProvider, OutboxBuilder,
+    Connection, InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
+    MakeableWithProvider, OutboxBuilder,
 };
 
 use crate::{
-    InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes, OutboxVariants,
-    Outboxes,
+    InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
+    InterchainGasPaymasterVariants, InterchainGasPaymasters, OutboxVariants, Outboxes,
 };
 
 /// A connection to _some_ blockchain.
@@ -33,6 +34,8 @@ impl Default for ChainConf {
 pub struct OutboxAddresses {
     /// Address of the Outbox contract
     pub outbox: String,
+    /// Address of the InterchainGasPaymaster contract
+    pub interchain_gas_paymaster: String,
 }
 
 /// Addresses for inbox chain contracts
@@ -64,7 +67,7 @@ pub struct ChainSetup<T> {
 }
 
 impl ChainSetup<OutboxAddresses> {
-    /// Try to convert the chain setting into a Outbox contract
+    /// Try to convert the chain setting into an Outbox contract
     pub async fn try_into_outbox(&self, signer: Option<Signers>) -> Result<Outboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(OutboxVariants::Ethereum(
@@ -77,6 +80,33 @@ impl ChainSetup<OutboxAddresses> {
                             address: self
                                 .addresses
                                 .outbox
+                                .parse::<ethers::types::Address>()?
+                                .into(),
+                        },
+                        signer,
+                    )
+                    .await?,
+            )
+            .into()),
+        }
+    }
+
+    /// Try to convert the chain setting into an InterchainGasPaymaster contract
+    pub async fn try_into_interchain_gas_paymaster(
+        &self,
+        signer: Option<Signers>,
+    ) -> Result<InterchainGasPaymasters, Report> {
+        match &self.chain {
+            ChainConf::Ethereum(conf) => Ok(InterchainGasPaymasterVariants::Ethereum(
+                InterchainGasPaymasterBuilder {}
+                    .make_with_connection(
+                        conf.clone(),
+                        &ContractLocator {
+                            name: self.name.clone(),
+                            domain: self.domain.parse().expect("invalid uint"),
+                            address: self
+                                .addresses
+                                .interchain_gas_paymaster
                                 .parse::<ethers::types::Address>()?
                                 .into(),
                         },

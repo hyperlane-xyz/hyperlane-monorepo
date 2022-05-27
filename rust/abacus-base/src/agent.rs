@@ -2,7 +2,7 @@ use crate::{
     cancel_task,
     metrics::CoreMetrics,
     settings::{IndexSettings, Settings},
-    CachingInbox, CachingOutbox, InboxValidatorManagers,
+    CachingInbox, CachingInterchainGasPaymaster, CachingOutbox, InboxValidatorManagers,
 };
 use abacus_core::db::DB;
 use async_trait::async_trait;
@@ -28,6 +28,8 @@ pub struct InboxContracts {
 pub struct AbacusAgentCore {
     /// A boxed Outbox
     pub outbox: Arc<CachingOutbox>,
+    /// A boxed InterchainGasPaymaster
+    pub interchain_gas_paymaster: Arc<CachingInterchainGasPaymaster>,
     /// A map of boxed Inbox contracts
     pub inboxes: HashMap<String, InboxContracts>,
     /// A persistent KV Store (currently implemented as rocksdb)
@@ -64,9 +66,14 @@ pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
         self.as_ref().db.clone()
     }
 
-    /// Return a reference to a outbox contract
+    /// Return a reference to an Outbox contract
     fn outbox(&self) -> Arc<CachingOutbox> {
         self.as_ref().outbox.clone()
+    }
+
+    /// Return a reference to an InterchainGasPaymaster contract
+    fn interchain_gas_paymaster(&self) -> Arc<CachingInterchainGasPaymaster> {
+        self.as_ref().interchain_gas_paymaster.clone()
     }
 
     /// Get a reference to the inboxes map

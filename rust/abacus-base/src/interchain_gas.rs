@@ -63,7 +63,7 @@ impl CachingInterchainGasPaymaster {
 
         let sync = ContractSync::new(
             agent_name,
-            "foobar".to_string(), // String::from_str(self.paymaster.name()).expect("!string"),
+            "InterchainGasPaymaster".to_string(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,

@@ -21,10 +21,7 @@ mod schema;
 
 use last_message::OptLatestLeafIndex;
 pub use metrics::ContractSyncMetrics;
-use schema::{
-    InterchainGasPaymasterContractSyncDB,
-    OutboxContractSyncDB
-};
+use schema::{InterchainGasPaymasterContractSyncDB, OutboxContractSyncDB};
 
 const MESSAGES_LABEL: &str = "messages";
 
@@ -285,6 +282,11 @@ where
                     from = to + 1;
                     continue;
                 }
+
+                for gas_payment in gas_payments.iter() {
+                    db.store_gas_payment(gas_payment)?;
+                }
+
                 db.store_latest_indexed_gas_payment_block(to)?;
             }
         })
