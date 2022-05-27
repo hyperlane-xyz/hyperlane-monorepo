@@ -1,7 +1,5 @@
 import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
-import fs from 'fs';
-import path from 'path';
 
 import {
   UpgradeBeaconProxy__factory,
@@ -11,6 +9,7 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
+  ProxiedAddress,
   objMap,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
@@ -24,48 +23,54 @@ import {
 export interface DeployerOptions {
   logger?: Debugger;
 }
-
-// TODO: Make AppDeployer generic on AbacusApp and return instance from deploy()
-export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
+export abstract class AbacusDeployer<
+  Chain extends ChainName,
+  Config,
+  Factories extends AbacusFactories,
+> {
   verificationInputs: ChainMap<Chain, ContractVerificationInput[]>;
   protected logger: Debugger;
 
   constructor(
     protected readonly multiProvider: MultiProvider<Chain>,
-    protected readonly configMap: ChainMap<Chain, C>,
+    protected readonly configMap: ChainMap<Chain, Config>,
+    protected readonly factories: Factories,
     protected readonly options?: DeployerOptions,
   ) {
     this.verificationInputs = objMap(configMap, () => []);
     this.logger = options?.logger || debug('abacus:AppDeployer');
   }
 
-  abstract deployContracts(chain: Chain, config: C): Promise<A>;
+  abstract deployContracts(
+    chain: Chain,
+    config: Config,
+  ): Promise<AbacusContracts>;
 
   async deploy() {
     this.logger('Start Deploy');
     this.verificationInputs = objMap(this.configMap, () => []);
     const chains = this.multiProvider.chains();
-    const entries: [Chain, A][] = [];
+    const entries: [Chain, AbacusContracts][] = [];
     for (const chain of chains) {
       this.logger(`Deploying to ${chain}...`);
       const result = await this.deployContracts(chain, this.configMap[chain]);
       entries.push([chain, result]);
     }
-    return Object.fromEntries(entries) as Record<Chain, A>;
+    return Object.fromEntries(entries) as Record<Chain, AbacusContracts>;
   }
 
-  async deployContract<F extends ethers.ContractFactory>(
+  async deployContract<K extends keyof Factories>(
     chain: Chain,
-    contractName: string,
-    factory: F,
-    args: Parameters<F['deploy']>,
-  ): Promise<ReturnType<F['deploy']>> {
-    this.logger(`Deploy ${contractName} on ${chain}`);
+    contractName: K,
+    args: Parameters<Factories[K]['deploy']>,
+  ): Promise<ReturnType<Factories[K]['deploy']>> {
+    this.logger(`Deploy ${contractName.toString()} on ${chain}`);
     const chainConnection = this.multiProvider.getChainConnection(chain);
+    const factory = this.factories[contractName];
     const contract = await factory.deploy(...args, chainConnection.overrides);
     await contract.deployTransaction.wait(chainConnection.confirmations);
     const verificationInput = getContractVerificationInput(
-      contractName,
+      contractName.toString(),
       contract,
       factory.bytecode,
     );
@@ -77,49 +82,45 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
    * Deploys the UpgradeBeacon, Implementation and Proxy for a given contract
    *
    */
-  async deployProxiedContract<
-    F extends ethers.ContractFactory,
-    C extends ethers.Contract = Awaited<ReturnType<F['deploy']>>,
-  >(
+  async deployProxiedContract<K extends keyof Factories>(
     chain: Chain,
-    contractName: string,
-    factory: F,
-    deployArgs: Parameters<F['deploy']>,
+    contractName: K,
+    deployArgs: Parameters<Factories[K]['deploy']>,
     ubcAddress: types.Address,
-    initArgs: Parameters<C['initialize']>,
-  ) {
+    initArgs: Parameters<
+      Awaited<ReturnType<Factories[K]['deploy']>>['initialize']
+    >,
+  ): Promise<ProxiedContract<Awaited<ReturnType<Factories[K]['deploy']>>>> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const signer = chainConnection.signer;
-    const implementation = await this.deployContract(
+    const implementation = await this.deployContract<K>(
       chain,
-      `${contractName} Implementation`,
-      factory,
+      contractName,
       deployArgs,
     );
-    const beacon = await this.deployContract(
-      chain,
-      `${contractName} UpgradeBeacon`,
-      new UpgradeBeacon__factory(signer),
-      [implementation.address, ubcAddress],
+    const beacon = await new UpgradeBeacon__factory(signer).deploy(
+      implementation.address,
+      ubcAddress,
     );
-
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
-    const proxy = await this.deployContract(
-      chain,
-      `${contractName} Proxy`,
-      new UpgradeBeaconProxy__factory(signer),
-      [beacon.address, initData],
+    const beaconProxy = await new UpgradeBeaconProxy__factory(signer).deploy(
+      beacon.address,
+      initData,
     );
-
-    const proxiedContract = new ProxiedContract(factory.attach(proxy.address), {
-      proxy: proxy.address,
-      implementation: implementation.address,
-      beacon: beacon.address,
-    });
-    return proxiedContract;
+    const proxiedContract = new ProxiedContract(
+      implementation.attach(beaconProxy.address),
+      {
+        proxy: beaconProxy.address,
+        implementation: implementation.address,
+        beacon: beacon.address,
+      },
+    );
+    return proxiedContract as ProxiedContract<
+      Awaited<ReturnType<Factories[K]['deploy']>>
+    >;
   }
 
   /**
@@ -128,61 +129,25 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
    */
   async duplicateProxiedContract<C extends ethers.Contract>(
     chain: Chain,
-    contractName: string,
     proxy: ProxiedContract<C>,
     initArgs: Parameters<C['initialize']>,
-  ) {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
+  ): Promise<ProxiedContract<C>> {
+    const signer = this.multiProvider.getChainConnection(chain).signer!;
     const initData = proxy.contract.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
-    const newProxy = await this.deployContract(
-      chain,
-      `${contractName} Proxy`,
-      new UpgradeBeaconProxy__factory(chainConnection.signer!),
-      [proxy.addresses.beacon, initData],
+    const newProxy = await new UpgradeBeaconProxy__factory(signer).deploy(
+      proxy.addresses.beacon,
+      initData,
     );
-
-    const newProxiedContract = new ProxiedContract(
-      proxy.contract.attach(newProxy.address),
+    const newProxiedContract = new ProxiedContract<C>(
+      proxy.contract.attach(newProxy.address) as C,
       {
         ...proxy.addresses,
         proxy: newProxy.address,
       },
     );
     return newProxiedContract;
-  }
-
-  writeOutput(directory: string, addresses: ChainMap<Chain, A>) {
-    this.writeContracts(addresses, path.join(directory, 'addresses.ts'));
-    this.writeVerification(path.join(directory, 'verification'));
-  }
-
-  writeContracts(addresses: ChainMap<Chain, A>, filepath: string) {
-    const contents = `export const addresses = ${AbacusAppDeployer.stringify(
-      addresses,
-    )}`;
-    AbacusAppDeployer.write(filepath, contents);
-  }
-
-  writeVerification(directory: string) {
-    objMap(this.verificationInputs, (chain, input) => {
-      AbacusAppDeployer.writeJson(path.join(directory, `${chain}.json`), input);
-    });
-  }
-
-  static stringify(obj: Object) {
-    return JSON.stringify(obj, null, 2);
-  }
-
-  static write(filepath: string, contents: string) {
-    const dir = path.dirname(filepath);
-    fs.mkdirSync(dir, { recursive: true });
-    fs.writeFileSync(filepath, contents);
-  }
-
-  static writeJson(filepath: string, obj: Object) {
-    AbacusAppDeployer.write(filepath, AbacusAppDeployer.stringify(obj));
   }
 }

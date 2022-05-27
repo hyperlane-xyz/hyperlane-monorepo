@@ -1,11 +1,5 @@
 export { AbacusCore } from './app';
-export {
-  CoreContractAddresses,
-  CoreContracts,
-  coreFactories,
-  InboxContracts,
-  MailboxAddresses,
-} from './contracts';
+export { CoreContracts, coreFactories, InboxContracts } from './contracts';
 export { environments as coreEnvironments } from './environments';
 export {
   AbacusLifecyleEvent,

@@ -126,8 +126,8 @@ export class AbacusMessage {
       messageNetworks.destination,
     );
 
-    this.outbox = mailboxes.outbox;
-    this.inbox = mailboxes.inbox;
+    this.outbox = mailboxes.originOutbox;
+    this.inbox = mailboxes.destinationInbox;
     this.cache = {};
   }
 

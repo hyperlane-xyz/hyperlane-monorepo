@@ -1,13 +1,7 @@
 export { AbacusApp } from './app';
 export { chainMetadata } from './chain-metadata';
 export { addSignerToConnection, chainConnectionConfigs } from './chains';
-export {
-  AbacusContractAddresses,
-  AbacusContracts,
-  Factories,
-  RouterAddresses,
-  routerFactories,
-} from './contracts';
+export { AbacusAddresses, AbacusContracts, AbacusFactories } from './contracts';
 export {
   AbacusCore,
   AbacusLifecyleEvent,
@@ -15,12 +9,10 @@ export {
   AbacusStatus,
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
-  CoreContractAddresses,
   CoreContracts,
   coreEnvironments,
   coreFactories,
   InboxContracts,
-  MailboxAddresses,
   MessageStatus,
   parseMessage,
   resolveDomain,

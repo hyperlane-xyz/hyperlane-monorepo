@@ -1,15 +1,12 @@
-import { AbacusApp } from '../app';
-import { MultiProvider } from '../provider';
-import { ChainName, Remotes } from '../types';
+import { Inbox, Outbox } from '@abacus-network/core';
 
-import {
-  CoreContractAddresses,
-  CoreContractSchema,
-  CoreContracts,
-} from './contracts';
+import { AbacusApp } from '../app';
+import { AbacusAddresses } from '../contracts';
+import { ChainMap, ChainName, Remotes } from '../types';
+
+import { CoreContracts, coreFactories } from './contracts';
 import { environments } from './environments';
 
-export const CoreEnvironments = Object.keys(environments);
 export type CoreEnvironment = keyof typeof environments;
 export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
   keyof typeof environments[E],
@@ -17,45 +14,34 @@ export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
 >;
 
 export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
-  CoreContracts<Chain>,
+  CoreContracts<Chain, Chain>,
   Chain
 > {
-  constructor(
-    addresses: {
-      [local in Chain]: CoreContractAddresses<Chain, local>;
-    },
-    multiProvider: MultiProvider<Chain>,
-  ) {
-    super(CoreContracts, addresses, multiProvider);
+  constructor(addressesMap: ChainMap<Chain, AbacusAddresses>) {
+    super(addressesMap, coreFactories);
   }
 
-  static fromEnvironment<E extends CoreEnvironment>(
-    name: E,
-    multiProvider: MultiProvider<any>, // TODO: fix networks
-  ) {
-    return new AbacusCore(environments[name], multiProvider);
+  static fromEnvironment<Env extends CoreEnvironment>(
+    env: Env,
+  ): AbacusCore<CoreEnvironmentChain<Env>> {
+    return new AbacusCore(
+      environments[env] as ChainMap<CoreEnvironmentChain<Env>, AbacusAddresses>,
+    );
   }
 
   // override type to be derived from chain key
-  getContracts<Local extends Chain>(
-    chain: Local,
-  ): CoreContractSchema<Chain, Local> {
+  getContracts<Local extends Chain>(chain: Local): CoreContracts<Chain, Local> {
+    /* eslint-disable  @typescript-eslint/no-explicit-any */
     return super.getContracts(chain) as any;
-  }
-
-  // override type to be derived from chain key
-  getAddresses<Local extends Chain>(
-    chain: Local,
-  ): CoreContractAddresses<Chain, Local> {
-    return super.getAddresses(chain) as any;
   }
 
   getMailboxPair<Local extends Chain>(
     origin: Remotes<Chain, Local>,
     destination: Local,
-  ) {
-    const outbox = this.getContracts(origin).outbox.outbox;
-    const inbox = this.getContracts(destination).inboxes[origin].inbox;
-    return { outbox, inbox };
+  ): { originOutbox: Outbox; destinationInbox: Inbox } {
+    const originOutbox = this.getContracts(origin).outbox.outbox;
+    const destinationInbox =
+      this.getContracts(destination).inboxes[origin].inbox;
+    return { originOutbox, destinationInbox };
   }
 }

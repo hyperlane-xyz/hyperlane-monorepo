@@ -1,44 +1,39 @@
-import { ContractsBuilder, IAbacusContracts } from './contracts';
-import { MultiProvider } from './provider';
+import {
+  AbacusAddresses,
+  AbacusContracts,
+  AbacusFactories,
+  addresses,
+  attach,
+  connect,
+} from './contracts';
 import { ChainMap, ChainName, Connection } from './types';
 import { MultiGeneric, objMap } from './utils';
 
 export class AbacusApp<
-  Contracts extends IAbacusContracts<any, any>,
+  Contracts extends AbacusContracts,
   Chain extends ChainName = ChainName,
 > extends MultiGeneric<Chain, Contracts> {
   constructor(
-    builder: ContractsBuilder<any, Contracts>,
-    contractAddresses: ChainMap<Chain, any>,
-    readonly multiProvider: MultiProvider<Chain>,
+    addressesMap: ChainMap<Chain, AbacusAddresses>,
+    factories: AbacusFactories,
   ) {
     super(
       objMap(
-        contractAddresses,
-        (chain, addresses) =>
-          new builder(
-            addresses,
-            multiProvider.getChainConnection(chain).getConnection()!,
-          ),
+        addressesMap,
+        (_, addresses) => attach(addresses, factories) as Contracts,
       ),
     );
   }
 
-  public contractsMap = this.chainMap;
-
-  getContracts(
-    chain: Chain,
-  ): Contracts extends IAbacusContracts<any, infer C> ? C : never {
-    return this.get(chain).contracts;
+  getContracts(chain: Chain): Contracts {
+    return this.get(chain);
   }
 
-  getAddresses(
-    chain: Chain,
-  ): Contracts extends IAbacusContracts<infer A, any> ? A : never {
-    return this.get(chain).addresses;
+  getAddresses(chain: Chain): AbacusAddresses {
+    return addresses(this.get(chain));
   }
 
-  reconnect(chain: Chain, connection: Connection) {
-    this.get(chain).reconnect(connection);
+  reconnect(chain: Chain, connection: Connection): void {
+    connect(this.get(chain), connection);
   }
 }
