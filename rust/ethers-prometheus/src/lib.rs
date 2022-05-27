@@ -116,25 +116,25 @@ pub struct ProviderMetrics {
 
     /// Tracks the current gas price of the chain. Uses the base_fee_per_gas if available or else
     /// the median of the transactions.
-    /// - `chain`: the chain name (or ID if the name is unknown) of the chain the gas price refers to.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the gas price refers to.
     #[builder(setter(into, strip_option), default)]
     gas_price_gwei: Option<GaugeVec>,
 
     /// Contract call durations by contract.
-    /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred on.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
     /// - `contract_name`: contract name.
     /// - `contract_address`: contract address.
     #[builder(setter(into, strip_option), default)]
     contract_call_duration_seconds: Option<HistogramVec>,
 
     /// Time taken to submit the transaction (not counting time for it to be included).
-    /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred on.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
     /// - `address_from`: source address of the transaction.
     #[builder(setter(into, strip_option), default)]
     transaction_send_duration_seconds: Option<HistogramVec>,
 
     /// Number of transactions sent.
-    /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred on.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
     /// - `address_from`: source address of the transaction.
     /// - `address_to`: destination address of the transaction.
     #[builder(setter(into, strip_option), default)]
@@ -148,7 +148,7 @@ pub struct ProviderMetrics {
     // transaction_send_gas_eth_total: Option<CounterVec>,
     /// Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the
     /// `wallets` set.
-    /// - `chain`: the chain name (or ID if the name is unknown) of the chain the tx occurred on.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
     /// - `wallet_address`: Address of the wallet holding the funds.
     /// - `wallet_name`: Name of the address holding the funds.
     /// - `token_address`: Address of the token.
