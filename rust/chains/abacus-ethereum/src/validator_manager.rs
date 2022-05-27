@@ -8,8 +8,10 @@ use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
 
-use abacus_core::{ChainCommunicationError, ContractLocator, TxOutcome};
-use abacus_core::{InboxValidatorManager, MultisigSignedCheckpoint};
+use abacus_core::{
+    ChainCommunicationError, ContractLocator, InboxValidatorManager, MultisigSignedCheckpoint,
+    TxOutcome,
+};
 
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
