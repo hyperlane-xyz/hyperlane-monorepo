@@ -165,9 +165,6 @@ pub struct PrometheusMiddleware<M> {
     inner: Arc<M>,
     metrics: ProviderMetrics,
     conf: Arc<RwLock<PrometheusMiddlewareConf>>,
-    // /// Allow looking up data for metrics recording by making contract calls. Results will be cached
-    // /// to prevent unnecessary lookups.
-    // allow_contract_calls: bool,
 }
 
 /// Configuration for the prometheus middleware. This can be loaded via serde.
