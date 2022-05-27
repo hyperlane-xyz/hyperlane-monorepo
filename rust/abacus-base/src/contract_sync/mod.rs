@@ -67,7 +67,7 @@ where
 {
     /// TODO: Not implemented
     pub fn sync_checkpoints(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
-        let span = info_span!("MessageContractSync");
+        let span = info_span!("CheckpointContractSync");
 
         tokio::spawn(async move {
             loop {
@@ -237,7 +237,7 @@ where
 {
     /// Sync gas payments
     pub fn sync_gas_payments(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
-        let span = info_span!("MessageContractSync");
+        let span = info_span!("GasPaymentContractSync");
 
         let db = self.db.clone();
         let indexer = self.indexer.clone();
@@ -248,7 +248,7 @@ where
         tokio::spawn(async move {
             let mut from = db
                 .retrieve_latest_indexed_gas_payment_block()
-                .map_or_else(|| config_from, |h| h + 1);
+                .map_or_else(|| config_from, |b| b + 1);
 
             info!(from = from, "[GasPayments]: resuming indexer from {}", from);
 
@@ -274,14 +274,6 @@ where
                     from,
                     to
                 );
-
-                // If no gas payments found, update last seen block and next height
-                // and continue
-                if gas_payments.is_empty() {
-                    db.store_latest_indexed_gas_payment_block(to)?;
-                    from = to + 1;
-                    continue;
-                }
 
                 for gas_payment in gas_payments.iter() {
                     db.store_gas_payment(gas_payment)?;

@@ -1,5 +1,5 @@
 use abacus_core::db::AbacusDB;
-use abacus_core::{InterchainGasPaymaster, InterchainGasPaymasterEvents};
+use abacus_core::InterchainGasPaymaster;
 
 use abacus_ethereum::EthereumInterchainGasPaymaster;
 // use abacus_test::mocks::MockInterchainGasPaymasterContract;
@@ -83,12 +83,6 @@ impl CachingInterchainGasPaymaster {
         .instrument(span)
     }
 }
-
-#[async_trait]
-impl InterchainGasPaymaster for CachingInterchainGasPaymaster {}
-
-#[async_trait]
-impl InterchainGasPaymasterEvents for CachingInterchainGasPaymaster {}
 
 #[derive(Debug, Clone)]
 /// Arc wrapper for InterchainGasPaymasterVariants enum
