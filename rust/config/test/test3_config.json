@@ -31,7 +31,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x95401dc811bb5740090279Ba06cfA8fcF6113778"
+      "outbox": "0x95401dc811bb5740090279Ba06cfA8fcF6113778",
+      "interchainGasPaymaster": "0x998abeb3E57409262aE5b751f60747921B33613E"
     },
     "domain": "13373",
     "name": "test3",
@@ -45,5 +46,8 @@
     "level": "debug",
     "fmt": "json"
   },
-  "db": "db_path"
+  "db": "db_path",
+  "index": {
+    "from": "40"
+  }
 }

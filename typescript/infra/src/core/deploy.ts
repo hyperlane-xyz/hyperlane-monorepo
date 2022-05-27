@@ -20,6 +20,7 @@ export class AbacusCoreInfraDeployer<
       const outbox = {
         addresses: {
           outbox: addresses.outbox.proxy,
+          interchainGasPaymaster: addresses.interchainGasPaymaster,
         },
         domain: chainMetadata[chain].id.toString(),
         name: chain,

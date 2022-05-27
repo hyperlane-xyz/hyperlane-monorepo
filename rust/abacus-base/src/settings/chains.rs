@@ -31,6 +31,7 @@ impl Default for ChainConf {
 
 /// Addresses for outbox chain contracts
 #[derive(Clone, Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct OutboxAddresses {
     /// Address of the Outbox contract
     pub outbox: String,

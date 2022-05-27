@@ -81,11 +81,14 @@ impl Agent for Relayer {
 }
 
 impl Relayer {
-    fn run_outbox_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    fn run_outbox_sync(
+        &self,
+        sync_metrics: ContractSyncMetrics,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox();
         let outbox_name = outbox.name();
-        let sync_metrics =
-            ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", outbox_name, "unknown"]));
+        // let sync_metrics =
+        //     ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", outbox_name, "unknown"]));
         let sync = outbox.sync(
             Self::AGENT_NAME.to_string(),
             self.as_ref().indexer.clone(),
@@ -94,13 +97,17 @@ impl Relayer {
         sync
     }
 
-    fn run_interchain_gas_paymaster_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    fn run_interchain_gas_paymaster_sync(
+        &self,
+        sync_metrics: ContractSyncMetrics,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
         let paymaster = self.interchain_gas_paymaster();
-        let paymaster_name = "foobar"; // outbox.name();
-        let sync_metrics = ContractSyncMetrics::new(
-            self.metrics(),
-            Some(&["gas_payment", paymaster_name, "unknown"]),
-        );
+        // let paymaster_name = "foobar"; // outbox.name();
+        // TODO come back to this
+        // let sync_metrics = ContractSyncMetrics::new(
+        //     self.metrics(),
+        //     Some(&["gas_payment", paymaster_name, "unknown"]),
+        // );
         let sync = paymaster.sync(
             Self::AGENT_NAME.to_string(),
             self.as_ref().indexer.clone(),
@@ -155,8 +162,10 @@ impl Relayer {
                 self.wrap_inbox_run(inbox_name, inbox_contracts.clone())
             })
             .collect();
-        tasks.push(self.run_outbox_sync());
-        tasks.push(self.run_interchain_gas_paymaster_sync());
+        let sync_metrics =
+            ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", "outboxname", "unknown"]));
+        tasks.push(self.run_outbox_sync(sync_metrics.clone()));
+        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics.clone()));
         self.run_all(tasks)
     }
 }

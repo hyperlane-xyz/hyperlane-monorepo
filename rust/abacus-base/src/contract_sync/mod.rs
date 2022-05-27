@@ -288,6 +288,7 @@ where
                 }
 
                 db.store_latest_indexed_gas_payment_block(to)?;
+                from = to + 1;
             }
         })
         .instrument(span)

@@ -373,7 +373,7 @@ impl Settings {
                         address: self
                             .outbox
                             .addresses
-                            .outbox
+                            .interchain_gas_paymaster
                             .parse::<ethers::types::Address>()?
                             .into(),
                     },
