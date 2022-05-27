@@ -20,8 +20,8 @@
   "homepage": "https://www.useabacus.network",
   "keywords": [
     "Abacus",
-    "SDK",
-    "Typescript"
+    "Typescript",
+    "Hardhat"
   ],
   "license": "Apache-2.0",
   "main": "dist/index.js",

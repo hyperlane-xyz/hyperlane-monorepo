@@ -34,8 +34,8 @@
   "homepage": "https://www.useabacus.network",
   "keywords": [
     "Abacus",
-    "Infrastructure",
-    "Typescript"
+    "Typescript",
+    "Infrastructure"
   ],
   "license": "Apache-2.0",
   "main": "dist/index.js",
