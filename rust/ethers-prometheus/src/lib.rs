@@ -164,7 +164,7 @@ pub struct ProviderMetrics {
 pub struct PrometheusMiddleware<M> {
     inner: Arc<M>,
     metrics: ProviderMetrics,
-    data: Arc<RwLock<PrometheusMiddlewareConf>>,
+    conf: Arc<RwLock<PrometheusMiddlewareConf>>,
     // /// Allow looking up data for metrics recording by making contract calls. Results will be cached
     // /// to prevent unnecessary lookups.
     // allow_contract_calls: bool,
@@ -265,7 +265,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let result = self.inner.call(tx, block).await;
 
         if let Some(m) = &self.metrics.contract_call_duration_seconds {
-            let data = self.data.read().await;
+            let data = self.conf.read().await;
             let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
             let (contract_addr, contract_name) = tx
                 .to()
@@ -301,7 +301,7 @@ impl<M> PrometheusMiddleware<M> {
         Self {
             inner: Arc::new(inner),
             metrics,
-            data: Arc::new(RwLock::new(conf)),
+            conf: Arc::new(RwLock::new(conf)),
         }
     }
 
@@ -312,7 +312,7 @@ impl<M> PrometheusMiddleware<M> {
 
     /// Start tacking metrics for new tokens.
     pub async fn track_new_tokens(&self, iter: impl IntoIterator<Item = (Address, TokenInfo)>) {
-        let mut data = self.data.write().await;
+        let mut data = self.conf.write().await;
         for (addr, info) in iter {
             data.tokens.insert(addr, info);
         }
@@ -325,7 +325,7 @@ impl<M> PrometheusMiddleware<M> {
 
     /// Start tracking metrics for new wallets.
     pub async fn track_new_wallets(&self, iter: impl IntoIterator<Item = (Address, WalletInfo)>) {
-        let mut data = self.data.write().await;
+        let mut data = self.conf.write().await;
         for (addr, info) in iter {
             data.wallets.insert(addr, info);
         }
@@ -365,7 +365,7 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
         let block_height = self.metrics.block_height.clone();
         let gas_price_gwei = self.metrics.gas_price_gwei.clone();
 
-        let data_ref = self.data.clone();
+        let data_ref = self.conf.clone();
         let client = self.inner.clone();
 
         async move {
