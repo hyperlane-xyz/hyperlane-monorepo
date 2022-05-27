@@ -81,6 +81,19 @@ library BN256 {
         bytes32 y;
     }
 
+    bytes32 constant PARITY_MASK = 0x0000000000000000000000000000000000000000000000000000000000000001;
+    bytes32 constant COMPRESSION_MASK = 0x8000000000000000000000000000000000000000000000000000000000000000;
+
+    function compress(G1Point memory p) internal pure returns (bytes32) {
+        // Encode the parity of p.y in the high order bit of p.x
+        bool parity = p.y & PARITY_MASK > 0;
+        if (parity) {
+            return p.x | COMPRESSION_MASK;
+        } else {
+            return p.x;
+        }
+    }
+
     function add(G1Point memory p1, G1Point memory p2)
         internal
         view
@@ -140,10 +153,6 @@ library BN256 {
                 0x01b7de3dcf359928dd19f643d54dc487478b68a5b2634f9f1903c9fb78331aef,
                 0x2bda7d3ae6a557c716477c108be0d0f94abc6c4dc6b1bd93caccbcceaaa71d6b
             );
-    }
-
-    function digest(G1Point memory p) internal pure returns (bytes32) {
-        return keccak256(abi.encodePacked(p.x, p.y));
     }
 
     function mapInto(uint256 seed) internal view returns (G1Point memory) {

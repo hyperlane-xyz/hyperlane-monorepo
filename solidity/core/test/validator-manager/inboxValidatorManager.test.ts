@@ -266,7 +266,7 @@ describe.only('InboxValidatorManager', () => {
         ['bytes32', 'bytes32', 'uint256'],
         [domainHash, root, proof.index],
       );
-      const signature = await validators.sign(digest, 8);
+      const signature = await validators.sign(digest);
 
       await expect(
         validatorManager.process(

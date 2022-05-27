@@ -25,12 +25,13 @@ contract InboxValidatorManager is SchnorrValidatorManager {
     event Quorum(
         bytes32 root,
         uint256 index,
-        // Could be replaced with a key digest.
+        // Could be replaced with a compressed point.
         BN256.G1Point publicKey,
+        // Could be replaced with a compressed point.
         BN256.G1Point nonce,
         uint256 randomness,
         uint256 signature,
-        // Could be replaced with digests.
+        // Could be replaced with a compressed point.
         BN256.G1Point[] missing
     );
 
@@ -59,6 +60,9 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         BN256.G1Point calldata nonce,
         uint256 randomness,
         uint256 signature,
+        // We can probably save gas by cutting the size here
+        // in approximately half by submitting the compressed
+        // keys.
         BN256.G1Point[] calldata _missing,
         bytes calldata _message,
         bytes32[32] calldata _proof,
