@@ -58,6 +58,10 @@ class SchnorrSigner {
     return this._validatorManager.ecGen(await this.secretKey());
   }
 
+  async negPublicKey(): Promise<G1Point> {
+    return this._validatorManager.ecNeg(await this.publicKey());
+  }
+
   async sign(digest: string, randomness: BigNumber): Promise<SchnorrSignature> {
     // Generate random nonce
     const scalarNonce = await this._validatorManager.scalarMod(
@@ -147,7 +151,7 @@ class SchnorrSignerSet {
     for (let i = 0; i < this._signers.length; i++) {
       const signer = this._signers[i];
       if (i < omit) {
-        missingUnsorted.push(await signer.publicKey());
+        missingUnsorted.push(await signer.negPublicKey());
       } else {
         partials.push(await signer.sign(digest, randomness));
       }
@@ -262,7 +266,7 @@ describe.only('InboxValidatorManager', () => {
         ['bytes32', 'bytes32', 'uint256'],
         [domainHash, root, proof.index],
       );
-      const signature = await validators.sign(digest, THRESHOLD);
+      const signature = await validators.sign(digest, 8);
 
       await expect(
         validatorManager.process(
