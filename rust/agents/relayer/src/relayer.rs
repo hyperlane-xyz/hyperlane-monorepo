@@ -81,12 +81,27 @@ impl Agent for Relayer {
 }
 
 impl Relayer {
-    fn run_contract_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let outbox = self.core.outbox.outbox();
+    fn run_outbox_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let outbox = self.outbox();
         let outbox_name = outbox.name();
         let sync_metrics =
             ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", outbox_name, "unknown"]));
-        let sync = self.outbox().sync(
+        let sync = outbox.sync(
+            Self::AGENT_NAME.to_string(),
+            self.as_ref().indexer.clone(),
+            sync_metrics,
+        );
+        sync
+    }
+
+    fn run_interchain_gas_paymaster_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let paymaster = self.interchain_gas_paymaster();
+        let paymaster_name = "foobar"; // outbox.name();
+        let sync_metrics = ContractSyncMetrics::new(
+            self.metrics(),
+            Some(&["gas_payment", paymaster_name, "unknown"]),
+        );
+        let sync = paymaster.sync(
             Self::AGENT_NAME.to_string(),
             self.as_ref().indexer.clone(),
             sync_metrics,
@@ -133,15 +148,16 @@ impl Relayer {
     }
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let mut inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
+        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
             .inboxes()
             .iter()
             .map(|(inbox_name, inbox_contracts)| {
                 self.wrap_inbox_run(inbox_name, inbox_contracts.clone())
             })
             .collect();
-        inbox_tasks.push(self.run_contract_sync());
-        self.run_all(inbox_tasks)
+        tasks.push(self.run_outbox_sync());
+        tasks.push(self.run_interchain_gas_paymaster_sync());
+        self.run_all(tasks)
     }
 }
 
