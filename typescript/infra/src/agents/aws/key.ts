@@ -92,9 +92,11 @@ export class AgentAwsKey extends AgentKey {
   }
 
   async createIfNotExists() {
-    let keyId = await this.getId();
+    const keyId = await this.getId();
     // If it doesn't exist, create it
     if (!keyId) {
+      // TODO should this be awaited? create is async
+      // eslint-disable-next-line @typescript-eslint/no-floating-promises
       this.create();
       // It can take a moment for the change to propagate
       await sleep(1000);
@@ -148,15 +150,15 @@ export class AgentAwsKey extends AgentKey {
     return match?.TargetKeyId;
   }
 
-  async create() {
-    this._create(false);
+  create() {
+    return this._create(false);
   }
 
   /**
    * Creates the new key but doesn't actually rotate it
    * @returns The address of the new key
    */
-  async update() {
+  update() {
     return this._create(true);
   }
 
@@ -208,6 +210,8 @@ export class AgentAwsKey extends AgentKey {
     await client.send(new DeleteAliasCommand({ AliasName: newAlias }));
 
     // Address should have changed now
+    // TODO should this be awaited? fetch is async
+    // eslint-disable-next-line @typescript-eslint/no-floating-promises
     this.fetch();
   }
 

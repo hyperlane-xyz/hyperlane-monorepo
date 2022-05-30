@@ -172,7 +172,7 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
     });
   }
 
-  static stringify(obj: Object) {
+  static stringify(obj: any) {
     return JSON.stringify(obj, null, 2);
   }
 
@@ -182,7 +182,7 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
     fs.writeFileSync(filepath, contents);
   }
 
-  static writeJson(filepath: string, obj: Object) {
+  static writeJson(filepath: string, obj: any) {
     AbacusAppDeployer.write(filepath, AbacusAppDeployer.stringify(obj));
   }
 }

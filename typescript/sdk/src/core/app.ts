@@ -1,3 +1,5 @@
+import { Inbox, Outbox } from '@abacus-network/core';
+
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
 import { ChainMap, ChainName, Remotes } from '../types';
@@ -33,7 +35,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   static fromEnvironment<E extends CoreEnvironment>(
     name: E,
     multiProvider: MultiProvider<any>, // TODO: fix networks
-  ) {
+  ): AbacusCore<any> {
     return new AbacusCore(environments[name], multiProvider);
   }
 
@@ -64,7 +66,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   getMailboxPair<Local extends Chain>(
     origin: Remotes<Chain, Local>,
     destination: Local,
-  ) {
+  ): { outbox: Outbox; inbox: Inbox } {
     const outbox = this.getContracts(origin).outbox.outbox;
     const inbox = this.getContracts(destination).inboxes[origin].inbox;
     return { outbox, inbox };

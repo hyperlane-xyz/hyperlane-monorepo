@@ -152,8 +152,8 @@ describe('Outbox', async () => {
   });
 
   it('Correctly calculates destinationAndNonce', async () => {
-    for (let testCase of destinationNonceTestCases) {
-      let { destination, nonce, expectedDestinationAndNonce } = testCase;
+    for (const testCase of destinationNonceTestCases) {
+      const { destination, nonce, expectedDestinationAndNonce } = testCase;
       const solidityDestinationAndNonce = await outbox.destinationAndNonce(
         destination,
         nonce,

@@ -23,9 +23,10 @@ export class ChainConnection {
     this.confirmations = dc.confirmations ?? 0;
   }
 
-  getConnection = () => this.signer ?? this.provider;
+  getConnection = (): ethers.providers.Provider | ethers.Signer =>
+    this.signer ?? this.provider;
 
-  getAddress = () => this.signer?.getAddress();
+  getAddress = (): Promise<string> | undefined => this.signer?.getAddress();
 }
 
 export class MultiProvider<
@@ -39,7 +40,7 @@ export class MultiProvider<
       ),
     );
   }
-  getChainConnection(chain: Chain) {
+  getChainConnection(chain: Chain): ChainMap<Chain, ChainConnection>[Chain] {
     return this.get(chain);
   }
   // This doesn't work on hardhat providers so we skip for now

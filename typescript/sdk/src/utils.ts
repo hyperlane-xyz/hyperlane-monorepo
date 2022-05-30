@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { BytesLike, arrayify, hexlify } from '@ethersproject/bytes';
 import { ethers } from 'ethers';
 
@@ -69,7 +70,7 @@ export class MultiGeneric<Chain extends ChainName, Value> {
   }
 
   map<Output>(fn: (n: Chain, dc: Value) => Output) {
-    let entries: [Chain, Output][] = [];
+    const entries: [Chain, Output][] = [];
     const chains = this.chains();
     for (const chain of chains) {
       entries.push([chain, fn(chain, this.chainMap[chain])]);
