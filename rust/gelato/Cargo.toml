@@ -1,0 +1,25 @@
+[package]
+name = "gelato"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+async-trait = { version = "*" }
+clap = { version = "3.1.18", features = ["cargo", "derive"] }
+derive_more = "0.99.0"
+ethers = { git = "https://github.com/gakonst/ethers-rs", branch = "master" }
+num-traits = "0.2"
+num-derive = "0.3"
+tokio = { version = "1.18.2", features = ["full"] }
+serde = { version = "*", features = ["derive"] }
+serde_json = { version = "*" }
+reqwest = { version = "*", features = ["json"]}
+rustc-hex = { version = "*" }
+thiserror = { version = "*" }
+mockito = { version = "*" }
+
+# TODO(webbhorn): Merge this into abacus-cli after
+# we migrate it to `clap`.
+[[bin]]
+name = "gelato-cli"
+path = "src/bin/gelato_cli.rs"
