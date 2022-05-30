@@ -11,5 +11,5 @@ export interface Router {
 }
 
 export type RouterConfig = {
-  abacusConnectionManager?: types.Address;
+  abacusConnectionManager: types.Address;
 };

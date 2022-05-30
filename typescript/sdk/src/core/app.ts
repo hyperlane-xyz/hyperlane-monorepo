@@ -1,6 +1,7 @@
 import { AbacusApp } from '../app';
 import { MultiProvider } from '../provider';
-import { ChainName, Remotes } from '../types';
+import { ChainMap, ChainName, Remotes } from '../types';
+import { objMap } from '../utils';
 
 import {
   CoreContractAddresses,
@@ -34,6 +35,16 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     multiProvider: MultiProvider<any>, // TODO: fix networks
   ) {
     return new AbacusCore(environments[name], multiProvider);
+  }
+
+  extendWithConnectionManagers<T>(
+    config: ChainMap<Chain, T>,
+  ): ChainMap<Chain, T & { abacusConnectionManager: string }> {
+    return objMap(config, (chain, config) => ({
+      ...config,
+      abacusConnectionManager:
+        this.getContracts(chain).abacusConnectionManager.address,
+    }));
   }
 
   // override type to be derived from chain key
