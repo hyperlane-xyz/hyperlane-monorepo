@@ -154,7 +154,7 @@ impl Relayer {
             .collect();
         let sync_metrics = ContractSyncMetrics::new(self.metrics());
         tasks.push(self.run_outbox_sync(sync_metrics.clone()));
-        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics.clone()));
+        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics));
         self.run_all(tasks)
     }
 }
