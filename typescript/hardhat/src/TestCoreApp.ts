@@ -5,10 +5,10 @@ import {
 } from '@abacus-network/core';
 import {
   AbacusCore,
-  chainMetadata,
   DomainIdToChainName,
-  objMap,
   TestChainNames,
+  chainMetadata,
+  objMap,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
@@ -80,7 +80,7 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
           dispatch.args.message,
           dispatch.args.leafIndex.toNumber(),
         );
-        let destinationResponses = responses.get(destinationChain) || [];
+        const destinationResponses = responses.get(destinationChain) || [];
         destinationResponses.push(response);
         responses.set(destinationChain, destinationResponses);
       }
