@@ -13,6 +13,7 @@ use async_trait::async_trait;
 use derive_builder::Builder;
 use ethers::prelude::*;
 use ethers::types::transaction::eip2718::TypedTransaction;
+use ethers::utils::hex::ToHex;
 use log::{debug, trace, warn};
 use maplit::hashmap;
 use prometheus::{GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
@@ -208,15 +209,15 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let tx: TypedTransaction = tx.into();
 
         let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
-        let addr_from = tx
+        let addr_from: String = tx
             .from()
-            .map(|v| v.to_string())
+            .map(|v| v.encode_hex())
             .unwrap_or_else(|| "none".into());
         let addr_to = tx
             .to()
             .map(|v| match v {
                 NameOrAddress::Name(v) => v.clone(),
-                NameOrAddress::Address(v) => v.to_string(),
+                NameOrAddress::Address(v) => v.encode_hex(),
             })
             .unwrap_or_else(|| "none".into());
 
@@ -272,7 +273,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                         .contracts
                         .get(a)
                         .map_or(Some("unknown".to_string()), |c| c.name.clone())
-                        .map(|n| (a.to_string(), n)),
+                        .map(|n| (a.encode_hex(), n)),
                 })
                 .unwrap_or_else(|| ("".into(), "unknown".into()));
 
@@ -422,7 +423,7 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
         wallet_balance_metric: GaugeVec,
     ) {
         for (wallet_addr, wallet_info) in data.wallets.iter() {
-            let wallet_addr_str = wallet_addr.to_string();
+            let wallet_addr_str: String = wallet_addr.encode_hex();
             let wallet_name = wallet_info.name.as_deref().unwrap_or("none");
 
             match client.get_balance(*wallet_addr, None).await {
@@ -443,7 +444,7 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
                 Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for Ether; {e}")
             }
             for (token_addr, token) in data.tokens.iter() {
-                let token_addr_str = token_addr.to_string();
+                let token_addr_str: String = token_addr.encode_hex();
                 let balance = match Erc20::new(*token_addr, client.clone())
                     .balance_of(*wallet_addr)
                     .call()
