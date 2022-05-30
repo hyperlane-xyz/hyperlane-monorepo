@@ -17,6 +17,7 @@ pub mod zipkin;
 
 mod span_metrics;
 
+use crate::CoreMetrics;
 pub use span_metrics::TimeSpanLifetime;
 
 /// Logging level
@@ -87,30 +88,27 @@ impl Default for TracingConfig {
 
 impl TracingConfig {
     /// Attempt to instantiate and register a tracing subscriber setup from settings.
-    pub fn start_tracing(&self, latencies: prometheus::HistogramVec) -> Result<()> {
+    pub fn start_tracing(&self, metrics: &CoreMetrics) -> Result<()> {
         let fmt_layer: LogOutputLayer<_> = self.fmt.into();
         let err_layer = tracing_error::ErrorLayer::default();
 
         let subscriber = tracing_subscriber::Registry::default()
-            .with(TimeSpanLifetime::new(latencies))
+            .with(TimeSpanLifetime::new(metrics))
             .with(self.level.to_filter())
             .with(fmt_layer)
             .with(err_layer);
 
-        match self.jaeger {
-            None => match self.zipkin {
-                None => subscriber.try_init()?,
-                Some(ref zipkin) => {
-                    let layer: OpenTelemetryLayer<_, _> = zipkin.try_into_layer()?;
-                    subscriber.with(layer).try_init()?
-                }
-            },
-            Some(ref jaeger) => {
-                let layer: OpenTelemetryLayer<_, _> = jaeger.try_into_layer()?;
-                subscriber.with(layer).try_init()?
-            }
+        if let Some(jaeger) = &self.jaeger {
+            let layer: OpenTelemetryLayer<_, _> = jaeger.try_into_layer()?;
+            subscriber.with(layer).try_init()?;
+            return Ok(());
         }
-
+        if let Some(zipkin) = &self.zipkin {
+            let layer: OpenTelemetryLayer<_, _> = zipkin.try_into_layer()?;
+            subscriber.with(layer).try_init()?;
+            return Ok(());
+        }
+        subscriber.try_init()?;
         Ok(())
     }
 }

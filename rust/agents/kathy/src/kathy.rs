@@ -11,8 +11,6 @@ use tracing::{info, Instrument};
 use abacus_base::{decl_agent, AbacusAgentCore, Agent, CachingInbox};
 use abacus_core::{AbacusCommon, Message, Outbox};
 
-use crate::settings::KathySettings as Settings;
-
 decl_agent!(Kathy {
     duration: u64,
     generator: ChatGenerator,
@@ -34,9 +32,9 @@ impl Kathy {
 impl Agent for Kathy {
     const AGENT_NAME: &'static str = "kathy";
 
-    type Settings = Settings;
+    type Settings = crate::settings::KathySettings;
 
-    async fn from_settings(settings: Settings) -> Result<Self> {
+    async fn from_settings(settings: Self::Settings) -> Result<Self> {
         Ok(Self::new(
             settings.interval.parse().expect("invalid u64"),
             settings.chat.into(),
