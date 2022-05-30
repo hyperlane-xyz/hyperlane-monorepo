@@ -11,4 +11,5 @@ members = [
     "agents/kathy",
     "agents/validator",
     "agents/relayer",
+    "ethers-prometheus"
 ]

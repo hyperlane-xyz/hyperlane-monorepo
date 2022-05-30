@@ -13,6 +13,16 @@
       "addresses": {
         "inbox": "0x67d269191c92Caf3cD7723F116c85e6E9bf55933",
         "validatorManager": "0x7a2088a1bFc9d81c55368AE168C2C02570cB814F"
+      },
+      "metricsConf": {
+        "wallets": {
+          "0x7a2088a1bFc9d81c55368AE168C2C02570cB814F": {
+            "name": "validator_manager"
+          },
+          "0x67d269191c92Caf3cD7723F116c85e6E9bf55933": {
+            "name": "inbox"
+          }
+        }
       }
     },
     "test3": {

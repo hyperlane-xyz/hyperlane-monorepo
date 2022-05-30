@@ -1,12 +1,11 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
-use std::{error::Error as StdError, sync::Arc};
-
 use async_trait::async_trait;
 use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
+use std::{error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
 use abacus_core::{

@@ -570,12 +570,8 @@ mod test {
 
             let indexer = Arc::new(mock_indexer);
             let metrics = Arc::new(
-                CoreMetrics::new(
-                    "contract_sync_test",
-                    None,
-                    Arc::new(prometheus::Registry::new()),
-                )
-                .expect("could not make metrics"),
+                CoreMetrics::new("contract_sync_test", None, prometheus::Registry::new())
+                    .expect("could not make metrics"),
             );
 
             let sync_metrics = ContractSyncMetrics::new(metrics, None);
@@ -877,12 +873,8 @@ mod test {
 
             let indexer = Arc::new(mock_indexer);
             let metrics = Arc::new(
-                CoreMetrics::new(
-                    "contract_sync_test",
-                    None,
-                    Arc::new(prometheus::Registry::new()),
-                )
-                .expect("could not make metrics"),
+                CoreMetrics::new("contract_sync_test", None, prometheus::Registry::new())
+                    .expect("could not make metrics"),
             );
 
             let sync_metrics = ContractSyncMetrics::new(metrics, None);

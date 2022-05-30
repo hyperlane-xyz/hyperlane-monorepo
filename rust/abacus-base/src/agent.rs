@@ -11,6 +11,7 @@ use futures_util::future::select_all;
 use tracing::instrument::Instrumented;
 use tracing::{info_span, Instrument};
 
+use std::fmt::Debug;
 use std::{collections::HashMap, sync::Arc};
 use tokio::task::JoinHandle;
 
@@ -39,12 +40,12 @@ pub struct AbacusAgentCore {
     /// The height at which to start indexing the Outbox
     pub indexer: IndexSettings,
     /// Settings this agent was created with
-    pub settings: crate::settings::Settings,
+    pub settings: Settings,
 }
 
 /// A trait for an abacus agent
 #[async_trait]
-pub trait Agent: Send + Sync + std::fmt::Debug + AsRef<AbacusAgentCore> {
+pub trait Agent: Send + Sync + Debug + AsRef<AbacusAgentCore> {
     /// The agent's name
     const AGENT_NAME: &'static str;
 

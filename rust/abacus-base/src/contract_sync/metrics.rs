@@ -1,5 +1,5 @@
 use crate::CoreMetrics;
-use prometheus::{IntGauge, IntGaugeVec};
+use prometheus::{IntCounterVec, IntGauge, IntGaugeVec};
 use std::sync::Arc;
 
 /// Struct encapsulating prometheus metrics used by the ContractSync.
@@ -12,7 +12,7 @@ pub struct ContractSyncMetrics {
     pub stored_events: IntGaugeVec,
     /// Unique occasions when agent missed an event (label values
     /// differentiate checkpoints vs. messages)
-    pub missed_events: IntGaugeVec,
+    pub missed_events: IntCounterVec,
     /// An optional gauge for tracking the latest message leafs that are being indexed
     pub message_leaf_index: Option<IntGauge>,
 }
@@ -37,7 +37,7 @@ impl ContractSyncMetrics {
             .expect("failed to register stored_events metric");
 
         let missed_events = metrics
-            .new_int_gauge(
+            .new_int_counter(
                 "contract_sync_missed_events",
                 "Number of unique occasions when agent missed an event",
                 &["data_type", "contract_name", "agent"],

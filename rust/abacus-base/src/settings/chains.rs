@@ -6,9 +6,10 @@ use abacus_ethereum::{
     Connection, InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
     MakeableWithProvider, OutboxBuilder,
 };
+use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf};
 
 use crate::{
-    InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
+    CoreMetrics, InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
     InterchainGasPaymasterVariants, InterchainGasPaymasters, OutboxVariants, Outboxes,
 };
 
@@ -52,6 +53,7 @@ pub struct InboxAddresses {
 /// A chain setup is a domain ID, an address on that chain (where the outbox or
 /// inbox is deployed) and details for connecting to the chain API.
 #[derive(Clone, Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 pub struct ChainSetup<T> {
     /// Chain name
     pub name: String,
@@ -65,11 +67,20 @@ pub struct ChainSetup<T> {
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,
+    /// Configure chain-specific metrics information. This will automatically add all contract
+    /// addresses but will not override any set explicitly.
+    /// Use `metrics_conf()` to get the metrics.
+    #[serde(default)]
+    pub metrics_conf: PrometheusMiddlewareConf,
 }
 
 impl ChainSetup<OutboxAddresses> {
     /// Try to convert the chain setting into an Outbox contract
-    pub async fn try_into_outbox(&self, signer: Option<Signers>) -> Result<Outboxes, Report> {
+    pub async fn try_into_outbox(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> Result<Outboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(OutboxVariants::Ethereum(
                 OutboxBuilder {}
@@ -85,6 +96,7 @@ impl ChainSetup<OutboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some((metrics.provider_metrics(), self.metrics_conf())),
                     )
                     .await?,
             )
@@ -96,6 +108,7 @@ impl ChainSetup<OutboxAddresses> {
     pub async fn try_into_interchain_gas_paymaster(
         &self,
         signer: Option<Signers>,
+        metrics: &CoreMetrics,
     ) -> Result<InterchainGasPaymasters, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InterchainGasPaymasterVariants::Ethereum(
@@ -112,17 +125,33 @@ impl ChainSetup<OutboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some((metrics.provider_metrics(), self.metrics_conf())),
                     )
                     .await?,
             )
             .into()),
         }
     }
+
+    /// Get a clone of the metrics conf with correctly configured contract information.
+    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
+        let mut cfg = self.metrics_conf.clone();
+        if let Ok(addr) = self.addresses.outbox.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("outbox".into()),
+            });
+        }
+        cfg
+    }
 }
 
 impl ChainSetup<InboxAddresses> {
     /// Try to convert the chain setting into an inbox contract
-    pub async fn try_into_inbox(&self, signer: Option<Signers>) -> Result<Inboxes, Report> {
+    pub async fn try_into_inbox(
+        &self,
+        signer: Option<Signers>,
+        metrics: &CoreMetrics,
+    ) -> Result<Inboxes, Report> {
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
                 InboxBuilder {}
@@ -138,6 +167,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some((metrics.provider_metrics(), self.metrics_conf.clone())),
                     )
                     .await?,
             )
@@ -149,7 +179,7 @@ impl ChainSetup<InboxAddresses> {
     pub async fn try_into_inbox_validator_manager(
         &self,
         signer: Option<Signers>,
-        // inbox_address: Address,
+        metrics: &CoreMetrics,
     ) -> Result<InboxValidatorManagers, Report> {
         let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
         match &self.chain {
@@ -167,10 +197,27 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
+                        Some((metrics.provider_metrics(), self.metrics_conf.clone())),
                     )
                     .await?,
             )
             .into()),
         }
+    }
+
+    /// Get a clone of the metrics conf with correctly configured contract information.
+    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
+        let mut cfg = self.metrics_conf.clone();
+        if let Ok(addr) = self.addresses.inbox.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("inbox".into()),
+            });
+        }
+        if let Ok(addr) = self.addresses.validator_manager.parse() {
+            cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                name: Some("validator_manager".into()),
+            });
+        }
+        cfg
     }
 }
