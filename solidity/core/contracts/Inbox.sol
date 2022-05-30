@@ -10,13 +10,16 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInbox} from "../interfaces/IInbox.sol";
 
+// ============ External Imports ============
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+
 /**
  * @title Inbox
  * @author Celo Labs Inc.
  * @notice Track root updates on Outbox, prove and dispatch messages to end
  * recipients.
  */
-contract Inbox is IInbox, Version0, Common {
+contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Common {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -37,15 +40,13 @@ contract Inbox is IInbox, Version0, Common {
 
     // Domain of outbox chain
     uint32 public override remoteDomain;
-    // Re-entrancy guard. Use a full slot to avoid an SLOAD before each SSTORE.
-    uint256 private entered;
     // Mapping of message leaves to MessageStatus
     mapping(bytes32 => MessageStatus) public messages;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[47] private __GAP;
+    uint256[48] private __GAP;
 
     // ============ Events ============
 
@@ -68,8 +69,8 @@ contract Inbox is IInbox, Version0, Common {
         bytes32 _checkpointedRoot,
         uint256 _checkpointedIndex
     ) public initializer {
+        __ReentrancyGuard_init();
         __Common_initialize(_validatorManager);
-        entered = 1;
         remoteDomain = _remoteDomain;
         _checkpoint(_checkpointedRoot, _checkpointedIndex);
     }
@@ -109,11 +110,7 @@ contract Inbox is IInbox, Version0, Common {
         bytes32[32] calldata _proof,
         uint256 _index,
         bytes calldata /* _sovereignData */
-    ) external override {
-        // check re-entrancy guard
-        require(entered == 1, "!reentrant");
-        entered = 0;
-
+    ) external override nonReentrant {
         bytes32 _messageHash = _message.leaf(_index);
         // ensure that message has not been processed
         require(
@@ -129,8 +126,6 @@ contract Inbox is IInbox, Version0, Common {
         // ensure that the root has been checkpointed
         require(checkpoints[_calculatedRoot] > 0, "!checkpointed root");
         _process(_message, _messageHash);
-        // reset re-entrancy guard
-        entered = 1;
     }
 
     // ============ Internal Functions ============
