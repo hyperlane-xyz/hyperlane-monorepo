@@ -9,6 +9,8 @@ use std::time::Duration;
 
 use crate::{contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync};
 
+const GAS_PAYMENTS_LABEL: &str = "gas_payments";
+
 impl<I> ContractSync<I>
 where
     I: InterchainGasPaymasterIndexer + 'static,
@@ -19,6 +21,18 @@ where
 
         let db = self.db.clone();
         let indexer = self.indexer.clone();
+
+        let indexed_height = self.metrics.indexed_height.clone().with_label_values(&[
+            GAS_PAYMENTS_LABEL,
+            &self.chain_name,
+            &self.agent_name,
+        ]);
+
+        let stored_messages = self.metrics.stored_events.clone().with_label_values(&[
+            GAS_PAYMENTS_LABEL,
+            &self.chain_name,
+            &self.agent_name,
+        ]);
 
         let config_from = self.index_settings.from();
         let chunk_size = self.index_settings.chunk_size();
@@ -31,6 +45,8 @@ where
             info!(from = from, "[GasPayments]: resuming indexer from {}", from);
 
             loop {
+                indexed_height.set(from.into());
+
                 let tip = indexer.get_block_number().await?;
                 if tip <= from {
                     // TODO: Make this configurable
@@ -56,6 +72,7 @@ where
                 for gas_payment in gas_payments.iter() {
                     db.store_gas_payment(gas_payment)?;
                 }
+                stored_messages.add(gas_payments.len().try_into()?);
 
                 db.store_latest_indexed_gas_payment_block(to)?;
                 from = to + 1;
