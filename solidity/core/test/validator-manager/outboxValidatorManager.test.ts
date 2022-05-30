@@ -36,36 +36,32 @@ describe('OutboxValidatorManager', () => {
   const dispatchMessage = async (outbox: TestOutbox, message: string) => {
     const recipient = utils.addressToBytes32(validator0.address);
     const destination = INBOX_DOMAIN;
-    await outbox.dispatch(
+    const tx = await outbox.dispatch(
       destination,
       recipient,
       ethers.utils.formatBytes32String(message),
     );
+    const receipt = await tx.wait();
+    const dispatch = receipt.events![0];
+    expect(dispatch.event).to.equal('Dispatch');
+    return dispatch.args!;
   };
 
   const dispatchMessageAndReturnProof = async (
     outbox: TestOutbox,
-    message: string,
+    messageStr: string,
   ) => {
-    const destination = INBOX_DOMAIN;
-    const recipient = validator0.address;
-    await dispatchMessage(outbox, message);
-    const formattedMessage = utils.formatMessage(
-      OUTBOX_DOMAIN,
-      signer.address,
-      destination,
-      recipient,
-      ethers.utils.formatBytes32String(message),
+    const { messageHash, leafIndex } = await dispatchMessage(
+      outbox,
+      messageStr,
     );
-    const count = await outbox.count();
-    const leaf = utils.messageHash(formattedMessage, count.sub(1).toNumber());
     const root = await outbox.root();
     const proof = await outbox.proof();
     return {
       root,
       proof,
-      leaf,
-      index: count.sub(1).toNumber(),
+      leaf: messageHash,
+      index: leafIndex,
     };
   };
 
@@ -169,34 +165,41 @@ describe('OutboxValidatorManager', () => {
     });
   });
 
-  const dispatchMessagesAndReturnProofs = async (
-    differingIndex: number,
-    proofIndex: number,
-    messageCount: number,
-  ) => {
+  const dispatchMessagesAndReturnProofs = async (args: {
+    differingIndex: number;
+    proofIndex: number;
+    messageCount: number;
+  }) => {
+    const { differingIndex, proofIndex, messageCount } = args;
     const actualMessage = 'message';
     const fraudulentMessage = 'fraud';
-    let proofA: MerkleProof, proofB: MerkleProof;
-    for (let i = 0; i < messageCount; i++) {
-      const helperMessage =
-        i == differingIndex ? fraudulentMessage : actualMessage;
-      if (i == proofIndex) {
-        proofA = await dispatchMessageAndReturnProof(outbox, actualMessage);
-        proofB = await dispatchMessageAndReturnProof(
-          helperOutbox,
-          helperMessage,
-        );
-      } else {
-        await dispatchMessage(outbox, actualMessage);
-        await dispatchMessage(helperOutbox, helperMessage);
-      }
+    let index = 0;
+    const helperMessage = (j: number) =>
+      j === differingIndex ? fraudulentMessage : actualMessage;
+    for (; index < proofIndex; index++) {
+      await dispatchMessage(outbox, actualMessage);
+      await dispatchMessage(helperOutbox, helperMessage(index));
     }
-    return { proofA: proofA!, proofB: proofB! };
+    const proofA = await dispatchMessageAndReturnProof(outbox, actualMessage);
+    const proofB = await dispatchMessageAndReturnProof(
+      helperOutbox,
+      helperMessage(proofIndex),
+    );
+    for (index = proofIndex + 1; index < messageCount; index++) {
+      await dispatchMessage(outbox, actualMessage);
+      await dispatchMessage(helperOutbox, helperMessage(index));
+    }
+
+    return { proofA: proofA, proofB: proofB };
   };
 
   describe('#impliesDifferingLeaf', async () => {
     it('returns true when proving a leaf with index greater than the differing leaf', async () => {
-      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(3, 4, 5);
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs({
+        differingIndex: 3,
+        proofIndex: 4,
+        messageCount: 5,
+      });
       expect(
         await validatorManager.impliesDifferingLeaf(
           proofA.leaf,
@@ -209,7 +212,11 @@ describe('OutboxValidatorManager', () => {
     });
 
     it('returns true when proving a leaf with index equal to the differing leaf', async () => {
-      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(4, 4, 5);
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs({
+        differingIndex: 4,
+        proofIndex: 4,
+        messageCount: 5,
+      });
       expect(
         await validatorManager.impliesDifferingLeaf(
           proofA.leaf,
@@ -222,7 +229,11 @@ describe('OutboxValidatorManager', () => {
     });
 
     it('returns false when proving a leaf with index less than the differing leaf', async () => {
-      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(4, 3, 5);
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs({
+        differingIndex: 4,
+        proofIndex: 3,
+        messageCount: 5,
+      });
       expect(
         await validatorManager.impliesDifferingLeaf(
           proofA.leaf,
@@ -239,7 +250,11 @@ describe('OutboxValidatorManager', () => {
     let actual: MerkleProof, fraudulent: MerkleProof;
 
     beforeEach(async () => {
-      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(3, 4, 5);
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs({
+        differingIndex: 3,
+        proofIndex: 4,
+        messageCount: 5,
+      });
       actual = proofA;
       fraudulent = proofB;
     });

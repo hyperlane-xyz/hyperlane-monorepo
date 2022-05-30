@@ -7,7 +7,7 @@ import {Common} from "./Common.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {MerkleTreeManager} from "./Merkle.sol";
+import {MerkleTreeManager} from "./MerkleTreeManager.sol";
 import {IOutbox} from "../interfaces/IOutbox.sol";
 
 /**
@@ -151,24 +151,18 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     }
 
     /**
+     * @notice Returns the number of inserted leaves in the tree
+     */
+    function count() public view returns (uint256) {
+        return tree.count;
+    }
+
+    /**
      * @notice Returns a checkpoint representing the current merkle tree.
      * @return root The root of the Outbox's merkle tree.
      * @return index The index of the last element in the tree.
      */
     function latestCheckpoint() public view returns (bytes32, uint256) {
         return (root(), count() - 1);
-    }
-
-    /**
-     * @notice Returns the number of messages in the merkle tree.
-     * @return count The number of messages in the merkle tree.
-     */
-    function count()
-        public
-        view
-        override(IOutbox, MerkleTreeManager)
-        returns (uint256)
-    {
-        return MerkleTreeManager.count();
     }
 }

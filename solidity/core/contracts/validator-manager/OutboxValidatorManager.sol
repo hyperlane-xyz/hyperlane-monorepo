@@ -16,7 +16,7 @@ contract OutboxValidatorManager is MultisigValidatorManager {
     // ============ Events ============
 
     /**
-     * @notice Emitted when proof of a premature checkpoint is submitted.
+     * @notice Emitted when a checkpoint is proven premature.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
      * @param root Root of the premature checkpoint.
@@ -34,7 +34,7 @@ contract OutboxValidatorManager is MultisigValidatorManager {
     );
 
     /**
-     * @notice Emitted when proof of a fraudulent checkpoint is submitted.
+     * @notice Emitted when a checkpoint is proven fraudulent.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
      * @param root Root of the fraudulent checkpoint.
@@ -222,20 +222,24 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         // with index <= _leafIndex, if either:
 
         // 1. If the provided leaves differ.
-        bool differ = _leafA != _leafB;
+        if (_leafA != _leafB) {
+            return true;
+        }
 
         // 2. If the branches contain internal nodes whose subtrees are full
         // (as implied by _leafIndex) that differ from one another.
-        for (uint256 i = 0; i < 32; i++) {
+        for (uint8 i = 0; i < 32; i++) {
             uint256 _ithBit = (_leafIndex >> i) & 0x01;
             // If the i'th is 1, the i'th element in the proof is an internal
             // node whose subtree is full.
             // If these nodes differ, at least one leaf that they commit to
             // must differ as well.
             if (_ithBit == 1) {
-                differ = differ || (_proofA[i] != _proofB[i]);
+                if (_proofA[i] != _proofB[i]) {
+                    return true;
+                }
             }
         }
-        return differ;
+        return false;
     }
 }
