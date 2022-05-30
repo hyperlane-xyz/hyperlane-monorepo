@@ -1,4 +1,5 @@
 mod checkpoint;
+mod interchain_gas;
 mod messages;
 
 /// Unified 32-byte identifier with convenience tooling for handling
@@ -6,4 +7,5 @@ mod messages;
 pub mod identifiers;
 
 pub use checkpoint::*;
+pub use interchain_gas::*;
 pub use messages::*;

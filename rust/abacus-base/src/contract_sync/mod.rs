@@ -33,7 +33,7 @@ const MESSAGES_LABEL: &str = "messages";
 #[derive(Debug)]
 pub struct ContractSync<I> {
     agent_name: String,
-    contract_name: String,
+    chain_name: String,
     db: AbacusDB,
     indexer: Arc<I>,
     index_settings: IndexSettings,
@@ -44,7 +44,7 @@ impl<I> ContractSync<I> {
     /// Instantiate new ContractSync
     pub fn new(
         agent_name: String,
-        contract_name: String,
+        chain_name: String,
         db: AbacusDB,
         indexer: Arc<I>,
         index_settings: IndexSettings,
@@ -52,7 +52,7 @@ impl<I> ContractSync<I> {
     ) -> Self {
         Self {
             agent_name,
-            contract_name,
+            chain_name,
             db,
             indexer,
             index_settings,
@@ -90,25 +90,25 @@ where
         let indexer = self.indexer.clone();
         let indexed_height = self.metrics.indexed_height.clone().with_label_values(&[
             MESSAGES_LABEL,
-            &self.contract_name,
+            &self.chain_name,
             &self.agent_name,
         ]);
 
         let stored_messages = self.metrics.stored_events.clone().with_label_values(&[
             MESSAGES_LABEL,
-            &self.contract_name,
+            &self.chain_name,
             &self.agent_name,
         ]);
 
         let missed_messages = self.metrics.missed_events.clone().with_label_values(&[
             MESSAGES_LABEL,
-            &self.contract_name,
+            &self.chain_name,
             &self.agent_name,
         ]);
 
         let message_leaf_index = self.metrics.message_leaf_index.clone().with_label_values(&[
             "dispatch",
-            &self.contract_name,
+            &self.chain_name,
             "unknown",
         ]);
 
