@@ -268,10 +268,10 @@ describe.only('InboxValidatorManager', () => {
 
   const dispatchMessageAndReturnProof = async (
     outbox: TestOutbox,
-    messageStr: string,
+    message: string,
   ) => {
     const destination = INBOX_DOMAIN;
-    const message = ethers.utils.formatBytes32String(messageStr);
+    // const message = ethers.utils.formatBytes32String(messageStr);
     await outbox.dispatch(destination, recipient, message);
     const formattedMessage = utils.formatMessage(
       OUTBOX_DOMAIN,
@@ -281,7 +281,8 @@ describe.only('InboxValidatorManager', () => {
       message,
     );
     const count = await outbox.count();
-    const leaf = utils.messageHash(formattedMessage, count.sub(1).toNumber());
+    const leaf = ethers.utils.solidityKeccak256(['bytes'], [formattedMessage]);
+    // const leaf = utils.messageHash(formattedMessage, count.sub(1).toNumber());
     const root = await outbox.root();
     const proof = await outbox.proof();
     return {
@@ -300,12 +301,13 @@ describe.only('InboxValidatorManager', () => {
       const outboxFactory = new TestOutbox__factory(signer);
       const outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
       const MESSAGES = 32;
+      const MESSAGE_WORDS = 1;
       for (let i = 0; i < MESSAGES; i++) {
         const proof = await dispatchMessageAndReturnProof(
           outbox,
-          'hello world',
+          ethers.utils.hexlify(ethers.utils.randomBytes(MESSAGE_WORDS * 32)),
         );
-        const signature = await validators.sign(proof.checkpoint, THRESHOLD);
+        const signature = await validators.sign(proof.checkpoint);
         await expect(
           validatorManager.process(
             inbox.address,

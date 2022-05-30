@@ -60,17 +60,14 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
 
     /**
      * @notice Emitted when a new message is dispatched via Abacus
-     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
      * @param leafIndex Index of message's leaf in merkle tree
-     * @param destination Destination domain
      * @param message Raw bytes of message
      */
-    event Dispatch(
-        bytes32 indexed messageHash,
+    event Dispatch2(
         uint256 indexed leafIndex,
-        uint32 indexed destination,
         bytes message
     );
+    event Dispatch(bytes32 _messageHash, uint256 _leafIndex, uint32 _destinationDomain, bytes _message);
 
     event Fail();
 
@@ -91,7 +88,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      * @notice Ensures that contract state != FAILED when the function is called
      */
     modifier notFailed() {
-        require(state != States.Failed, "failed state");
+        require(state != States.Failed, "failed");
         _;
     }
 
@@ -111,7 +108,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
         bytes32 _recipientAddress,
         bytes calldata _messageBody
     ) external override notFailed returns (uint256) {
-        require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
+        require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msglen");
         // The leaf has not been inserted yet at this point1
         uint256 _leafIndex = count();
         // format the message into packed bytes
@@ -123,12 +120,17 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
             _messageBody
         );
         // insert the hashed message into the Merkle tree
+        bytes32 _messageHash = keccak256(_message);
+        /*
         bytes32 _messageHash = keccak256(
             abi.encodePacked(_message, _leafIndex)
         );
+        */
         tree.insert(_messageHash);
         // Emit Dispatch event with message information
-        emit Dispatch(_messageHash, _leafIndex, _destinationDomain, _message);
+        // Is emitting _destinationDomain and _messageHash redundant?
+        //emit Dispatch(_messageHash, _leafIndex, _destinationDomain, _message);
+        emit Dispatch2(_leafIndex, _message);
         return _leafIndex;
     }
 

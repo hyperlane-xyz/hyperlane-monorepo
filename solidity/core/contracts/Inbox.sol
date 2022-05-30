@@ -122,7 +122,8 @@ contract Inbox is IInbox, Version0, Common {
         entered = 0;
 
         require(_index <= _leafIndex, "!index");
-        bytes32 _messageHash = _message.leaf(_leafIndex);
+        //bytes32 _messageHash = _message.leaf(_leafIndex);
+        bytes32 _messageHash = keccak256(_message);
         // ensure that message has not been processed
         require(
             messages[_messageHash] == MessageStatus.None,
