@@ -1,6 +1,4 @@
-use abacus_core::{
-    ListValidity, OutboxIndexer,
-};
+use abacus_core::{ListValidity, OutboxIndexer};
 
 use tokio::time::sleep;
 use tracing::{info, info_span, warn};
@@ -10,10 +8,8 @@ use std::cmp::min;
 use std::time::Duration;
 
 use crate::{
-    ContractSync, contract_sync::{
-        last_message::OptLatestLeafIndex,
-        schema::OutboxContractSyncDB,
-    },
+    contract_sync::{last_message::OptLatestLeafIndex, schema::OutboxContractSyncDB},
+    ContractSync,
 };
 
 const MESSAGES_LABEL: &str = "messages";
@@ -180,17 +176,12 @@ mod test {
 
     use ethers::core::types::H256;
 
-    use abacus_core::{
-        AbacusMessage,
-        db::AbacusDB, Encode, RawCommittedMessage,
-    };
+    use abacus_core::{db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage};
     use abacus_test::test_utils;
 
     use super::*;
-    use crate::{
-        ContractSyncMetrics, CoreMetrics, settings::IndexSettings,
-    };
     use crate::ContractSync;
+    use crate::{settings::IndexSettings, ContractSyncMetrics, CoreMetrics};
 
     #[tokio::test]
     async fn handles_missing_rpc_messages() {

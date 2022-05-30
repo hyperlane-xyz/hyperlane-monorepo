@@ -7,10 +7,7 @@ use tracing::{instrument::Instrumented, Instrument};
 use std::cmp::min;
 use std::time::Duration;
 
-use crate::{
-    ContractSync,
-    contract_sync::schema::InterchainGasPaymasterContractSyncDB,
-};
+use crate::{contract_sync::schema::InterchainGasPaymasterContractSyncDB, ContractSync};
 
 impl<I> ContractSync<I>
 where

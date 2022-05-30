@@ -1,12 +1,10 @@
 // TODO: Reapply tip buffer
 // TODO: Reapply metrics
 
-use abacus_core::{
-    AbacusCommonIndexer,
-};
+use abacus_core::AbacusCommonIndexer;
 
 use tokio::time::sleep;
-use tracing::{info_span};
+use tracing::info_span;
 use tracing::{instrument::Instrumented, Instrument};
 
 use std::time::Duration;
@@ -39,15 +37,12 @@ mod test {
 
     use ethers::core::types::H256;
 
-    use abacus_core::{
-        Checkpoint, CheckpointMeta, CheckpointWithMeta,
-        db::AbacusDB,
-    };
+    use abacus_core::{db::AbacusDB, Checkpoint, CheckpointMeta, CheckpointWithMeta};
     use abacus_test::test_utils;
 
     use super::*;
     use crate::{
-        contract_sync::ContractSync, CoreMetrics, settings::IndexSettings, ContractSyncMetrics,
+        contract_sync::ContractSync, settings::IndexSettings, ContractSyncMetrics, CoreMetrics,
     };
 
     #[tokio::test]

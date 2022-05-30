@@ -3,8 +3,8 @@
 
 use std::sync::Arc;
 
-use abacus_core::db::AbacusDB;
 use crate::settings::IndexSettings;
+use abacus_core::db::AbacusDB;
 
 mod common;
 mod interchain_gas;
