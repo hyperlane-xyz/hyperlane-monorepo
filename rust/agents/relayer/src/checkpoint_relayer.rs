@@ -6,7 +6,9 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
 
 use abacus_base::{InboxContracts, MultisigCheckpointSyncer, Outboxes};
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, InboxValidatorManager};
+use abacus_core::{
+    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxValidatorManager,
+};
 
 use crate::merkle_tree_builder::{MerkleTreeBuilder, MessageBatch};
 
@@ -38,18 +40,18 @@ impl CheckpointRelayer {
     ) -> Self {
         let signed_checkpoint_gauge = leaf_index_gauge.with_label_values(&[
             "signed_offchain_checkpoint",
-            outbox.name(),
-            inbox_contracts.inbox.name(),
+            outbox.chain_name(),
+            inbox_contracts.inbox.chain_name(),
         ]);
         let inbox_checkpoint_gauge = leaf_index_gauge.with_label_values(&[
             "inbox_checkpoint",
-            outbox.name(),
-            inbox_contracts.inbox.name(),
+            outbox.chain_name(),
+            inbox_contracts.inbox.chain_name(),
         ]);
         let relayer_processed_gauge = leaf_index_gauge.with_label_values(&[
             "relayer_processed",
-            outbox.name(),
-            inbox_contracts.inbox.name(),
+            outbox.chain_name(),
+            inbox_contracts.inbox.chain_name(),
         ]);
         Self {
             polling_interval,
@@ -174,7 +176,7 @@ impl CheckpointRelayer {
         }
     }
 
-    #[instrument(ret, err, skip(self), fields(inbox_name = self.inbox_contracts.inbox.name()), level = "info")]
+    #[instrument(ret, err, skip(self), fields(inbox_name = self.inbox_contracts.inbox.chain_name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         let latest_inbox_checkpoint = self.inbox_contracts.inbox.latest_checkpoint(None).await?;
         let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;

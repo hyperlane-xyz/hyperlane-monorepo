@@ -106,7 +106,11 @@ where
             &self.agent_name,
         ]);
 
-        let message_leaf_index = self.metrics.message_leaf_index.clone();
+        let message_leaf_index = self.metrics.message_leaf_index.clone().with_label_values(&[
+            "dispatch",
+            &self.contract_name,
+            "unknown",
+        ]);
 
         let config_from = self.index_settings.from();
         let chunk_size = self.index_settings.chunk_size();
@@ -125,9 +129,7 @@ where
 
             // Set the metrics with the latest known leaf index
             if let Ok(Some(idx)) = db.retrieve_latest_leaf_index() {
-                if let Some(gauge) = message_leaf_index.as_ref() {
-                    gauge.set(idx as i64);
-                }
+                message_leaf_index.set(idx as i64);
             }
 
             loop {
@@ -192,9 +194,7 @@ where
                         stored_messages.add(sorted_messages.len().try_into()?);
 
                         // Report latest leaf index to gauge
-                        if let Some(gauge) = message_leaf_index.as_ref() {
-                            gauge.set(max_leaf_index_of_batch as i64);
-                        }
+                        message_leaf_index.set(max_leaf_index_of_batch as i64);
 
                         // Move forward next height
                         db.store_message_latest_block_end(to)?;

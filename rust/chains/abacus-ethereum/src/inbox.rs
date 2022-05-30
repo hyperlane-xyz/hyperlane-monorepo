@@ -10,7 +10,7 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusCommon, AbacusCommonIndexer, AbacusMessage,
+    accumulator::merkle::Proof, AbacusCommon, AbacusCommonIndexer, AbacusContract, AbacusMessage,
     ChainCommunicationError, Checkpoint, CheckpointMeta, CheckpointWithMeta, ContractLocator,
     Encode, Inbox, Indexer, MessageStatus, TxOutcome,
 };
@@ -178,7 +178,7 @@ where
 {
     contract: Arc<EthereumInboxInternal<M>>,
     domain: u32,
-    name: String,
+    chain_name: String,
     provider: Arc<M>,
 }
 
@@ -199,9 +199,18 @@ where
         Self {
             contract: Arc::new(EthereumInboxInternal::new(address, provider.clone())),
             domain: *domain,
-            name: name.to_owned(),
+            chain_name: name.to_owned(),
             provider,
         }
+    }
+}
+
+impl<M> AbacusContract for EthereumInbox<M>
+where
+    M: Middleware + 'static,
+{
+    fn chain_name(&self) -> &str {
+        &self.chain_name
     }
 }
 
@@ -212,10 +221,6 @@ where
 {
     fn local_domain(&self) -> u32 {
         self.domain
-    }
-
-    fn name(&self) -> &str {
-        &self.name
     }
 
     #[tracing::instrument(err)]

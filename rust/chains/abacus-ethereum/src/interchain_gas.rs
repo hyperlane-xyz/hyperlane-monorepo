@@ -9,8 +9,8 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    ContractLocator, Indexer, InterchainGasPaymaster, InterchainGasPaymasterIndexer,
-    InterchainGasPayment,
+    AbacusContract, ContractLocator, Indexer, InterchainGasPaymaster,
+    InterchainGasPaymasterIndexer, InterchainGasPayment,
 };
 
 use crate::trait_builder::MakeableWithProvider;
@@ -156,7 +156,7 @@ where
     #[allow(dead_code)]
     domain: u32,
     #[allow(dead_code)]
-    name: String,
+    chain_name: String,
     #[allow(dead_code)]
     provider: Arc<M>,
 }
@@ -174,9 +174,18 @@ where
                 provider.clone(),
             )),
             domain: locator.domain,
-            name: locator.name.to_owned(),
+            chain_name: locator.name.to_owned(),
             provider,
         }
+    }
+}
+
+impl<M> AbacusContract for EthereumInterchainGasPaymaster<M>
+where
+    M: Middleware + 'static,
+{
+    fn chain_name(&self) -> &str {
+        &self.chain_name
     }
 }
 

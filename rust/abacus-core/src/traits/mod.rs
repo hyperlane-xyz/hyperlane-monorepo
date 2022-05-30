@@ -82,9 +82,16 @@ where
     }
 }
 
+/// Interface for an Abacus contract
+pub trait AbacusContract {
+    /// Return an identifier (not necessarily unique) for the chain this
+    /// contract is running on.
+    fn chain_name(&self) -> &str;
+}
+
 /// Interface for attributes shared by Outbox and Inbox
 #[async_trait]
-pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
+pub trait AbacusCommon: AbacusContract + Sync + Send + std::fmt::Debug {
     /// Return the domain ID
     fn local_domain(&self) -> u32;
 
@@ -92,10 +99,6 @@ pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
     fn local_domain_hash(&self) -> H256 {
         domain_hash(self.local_domain())
     }
-
-    /// Return an identifier (not necessarily unique) for the chain this
-    /// contract is running on.
-    fn name(&self) -> &str;
 
     /// Get the status of a transaction.
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError>;

@@ -271,7 +271,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                     NameOrAddress::Address(a) => data
                         .contracts
                         .get(a)
-                        .and_then(|c| c.name.clone())
+                        .map_or(Some("unknown".to_string()), |c| c.name.clone())
                         .map(|n| (a.to_string(), n)),
                 })
                 .unwrap_or_else(|| ("".into(), "unknown".into()));

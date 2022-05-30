@@ -1,6 +1,8 @@
 use async_trait::async_trait;
 use ethers::types::U256;
 
+use crate::AbacusContract;
+
 /// A payment of Outbox native tokens for a message
 pub struct InterchainGasPayment {
     /// The index of the message's leaf in the merkle tree
@@ -12,4 +14,4 @@ pub struct InterchainGasPayment {
 /// Interface for the InterchainGasPaymaster chain contract.
 /// Allows abstraction over different chains.
 #[async_trait]
-pub trait InterchainGasPaymaster: Send + Sync + std::fmt::Debug {}
+pub trait InterchainGasPaymaster: AbacusContract + Send + Sync + std::fmt::Debug {}

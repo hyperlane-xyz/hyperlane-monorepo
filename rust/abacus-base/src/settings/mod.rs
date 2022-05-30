@@ -50,7 +50,7 @@ use tracing::instrument;
 use abacus_core::{
     db::{AbacusDB, DB},
     utils::HexString,
-    AbacusCommon, ContractLocator, Signers,
+    AbacusContract, ContractLocator, Signers,
 };
 use abacus_ethereum::{
     InboxIndexerBuilder, InterchainGasPaymasterIndexerBuilder, MakeableWithProvider,
@@ -256,7 +256,7 @@ impl Settings {
         let signer = self.get_signer(&chain_setup.name).await;
         let inbox = chain_setup.try_into_inbox(signer, metrics).await?;
         let indexer = Arc::new(self.try_inbox_indexer(chain_setup, metrics).await?);
-        let abacus_db = AbacusDB::new(inbox.name(), db);
+        let abacus_db = AbacusDB::new(inbox.chain_name(), db);
         Ok(CachingInbox::new(inbox, abacus_db, indexer))
     }
 
@@ -282,7 +282,7 @@ impl Settings {
         let signer = self.get_signer(&self.outbox.name).await;
         let outbox = self.outbox.try_into_outbox(signer, metrics).await?;
         let indexer = Arc::new(self.try_outbox_indexer(metrics).await?);
-        let abacus_db = AbacusDB::new(outbox.name(), db);
+        let abacus_db = AbacusDB::new(outbox.chain_name(), db);
         Ok(CachingOutbox::new(outbox, abacus_db, indexer))
     }
 
@@ -298,7 +298,7 @@ impl Settings {
             .try_into_interchain_gas_paymaster(signer, metrics)
             .await?;
         let indexer = Arc::new(self.try_interchain_gas_paymaster_indexer(metrics).await?);
-        let abacus_db = AbacusDB::new("foobar come back to this", db);
+        let abacus_db = AbacusDB::new(paymaster.chain_name(), db);
         Ok(CachingInterchainGasPaymaster::new(
             paymaster, abacus_db, indexer,
         ))

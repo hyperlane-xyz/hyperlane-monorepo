@@ -1,5 +1,5 @@
 use abacus_core::db::AbacusDB;
-use abacus_core::InterchainGasPaymaster;
+use abacus_core::{AbacusContract, InterchainGasPaymaster};
 
 use abacus_ethereum::EthereumInterchainGasPaymaster;
 // use abacus_test::mocks::MockInterchainGasPaymasterContract;
@@ -139,6 +139,16 @@ where
 impl From<Box<dyn InterchainGasPaymaster>> for InterchainGasPaymasters {
     fn from(paymaster: Box<dyn InterchainGasPaymaster>) -> Self {
         InterchainGasPaymasterVariants::Other(paymaster).into()
+    }
+}
+
+impl AbacusContract for InterchainGasPaymasterVariants {
+    fn chain_name(&self) -> &str {
+        match self {
+            InterchainGasPaymasterVariants::Ethereum(paymaster) => paymaster.chain_name(),
+            InterchainGasPaymasterVariants::Mock(paymaster) => paymaster.chain_name(),
+            InterchainGasPaymasterVariants::Other(paymaster) => paymaster.chain_name(),
+        }
     }
 }
 

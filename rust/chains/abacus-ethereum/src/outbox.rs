@@ -9,8 +9,8 @@ use std::{error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusCommon, AbacusCommonIndexer, ChainCommunicationError, Checkpoint, CheckpointMeta,
-    CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer,
+    AbacusCommon, AbacusCommonIndexer, AbacusContract, ChainCommunicationError, Checkpoint,
+    CheckpointMeta, CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer,
     RawCommittedMessage, State, TxOutcome,
 };
 
@@ -200,7 +200,7 @@ where
 {
     contract: Arc<EthereumOutboxInternal<M>>,
     domain: u32,
-    name: String,
+    chain_name: String,
     provider: Arc<M>,
 }
 
@@ -217,9 +217,18 @@ where
                 provider.clone(),
             )),
             domain: locator.domain,
-            name: locator.name.to_owned(),
+            chain_name: locator.name.to_owned(),
             provider,
         }
+    }
+}
+
+impl<M> AbacusContract for EthereumOutbox<M>
+where
+    M: Middleware + 'static,
+{
+    fn chain_name(&self) -> &str {
+        &self.chain_name
     }
 }
 
@@ -230,10 +239,6 @@ where
 {
     fn local_domain(&self) -> u32 {
         self.domain
-    }
-
-    fn name(&self) -> &str {
-        &self.name
     }
 
     #[tracing::instrument(err, skip(self))]

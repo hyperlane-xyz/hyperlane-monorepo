@@ -6,7 +6,6 @@ use tracing::{instrument::Instrumented, Instrument};
 use abacus_base::{
     AbacusAgentCore, Agent, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
-use abacus_core::AbacusCommon;
 
 use crate::{
     checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,
@@ -86,9 +85,6 @@ impl Relayer {
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox();
-        let outbox_name = outbox.name();
-        // let sync_metrics =
-        //     ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", outbox_name, "unknown"]));
         let sync = outbox.sync(
             Self::AGENT_NAME.to_string(),
             self.as_ref().indexer.clone(),
@@ -102,12 +98,6 @@ impl Relayer {
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let paymaster = self.interchain_gas_paymaster();
-        // let paymaster_name = "foobar"; // outbox.name();
-        // TODO come back to this
-        // let sync_metrics = ContractSyncMetrics::new(
-        //     self.metrics(),
-        //     Some(&["gas_payment", paymaster_name, "unknown"]),
-        // );
         let sync = paymaster.sync(
             Self::AGENT_NAME.to_string(),
             self.as_ref().indexer.clone(),
@@ -162,8 +152,7 @@ impl Relayer {
                 self.wrap_inbox_run(inbox_name, inbox_contracts.clone())
             })
             .collect();
-        let sync_metrics =
-            ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", "outboxname", "unknown"]));
+        let sync_metrics = ContractSyncMetrics::new(self.metrics());
         tasks.push(self.run_outbox_sync(sync_metrics.clone()));
         tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics.clone()));
         self.run_all(tasks)

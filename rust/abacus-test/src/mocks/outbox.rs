@@ -30,9 +30,7 @@ mock! {
 
         pub fn _create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {}
 
-        // Common
-        pub fn _name(&self) -> &str {}
-
+        // AbacusCommon
         pub fn _status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {}
 
         pub fn _validator_manager(&self) -> Result<H256, ChainCommunicationError> {}
@@ -42,6 +40,9 @@ mock! {
         pub fn _checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {}
 
         pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
+
+        // AbacusContract
+        pub fn _chain_name(&self) -> &str {}
     }
 }
 
@@ -70,12 +71,14 @@ impl Outbox for MockOutboxContract {
     }
 }
 
+impl AbacusContract for MockOutboxContract {
+    fn chain_name(&self) -> &str {
+        self._chain_name()
+    }
+}
+
 #[async_trait]
 impl AbacusCommon for MockOutboxContract {
-    fn name(&self) -> &str {
-        self._name()
-    }
-
     fn local_domain(&self) -> u32 {
         self._local_domain()
     }
