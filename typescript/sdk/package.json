@@ -1,31 +1,7 @@
 {
   "name": "@abacus-network/sdk",
+  "description": "The official SDK for the Abacus Network",
   "version": "0.1.1",
-  "description": "Abacus Network SDK",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
-  "scripts": {
-    "build": "tsc",
-    "check": "tsc --noEmit",
-    "prettier": "prettier --write ./src ./test",
-    "prepublishOnly": "npm run build",
-    "test": "mocha --config .mocharc.json './test/**/*.test.ts'"
-  },
-  "license": "MIT OR Apache-2.0",
-  "devDependencies": {
-    "@types/node": "^16.9.1",
-    "@typescript-eslint/eslint-plugin": "^4.33.0",
-    "@typescript-eslint/parser": "^4.33.0",
-    "chai": "^4.3.6",
-    "dotenv": "^10.0.0",
-    "eslint": "^7.32.0",
-    "eslint-config-prettier": "^8.3.0",
-    "fs": "0.0.1-security",
-    "mocha": "^9.2.2",
-    "prettier": "^2.4.1",
-    "sinon": "^13.0.2",
-    "typescript": "^4.4.3"
-  },
   "dependencies": {
     "@abacus-network/core": "^0.1.1",
     "@abacus-network/utils": "^0.1.1",
@@ -33,5 +9,33 @@
     "@ethersproject/bytes": "^5.5.0",
     "celo-ethers-provider": "^0.0.0",
     "ethers": "^5.4.7"
-  }
+  },
+  "devDependencies": {
+    "@types/node": "^16.9.1",
+    "@typescript-eslint/eslint-plugin": "^4.33.0",
+    "@typescript-eslint/parser": "^4.33.0",
+    "chai": "^4.3.6",
+    "dotenv": "^10.0.0",
+    "eslint": "^7.32.0",
+    "fs": "0.0.1-security",
+    "mocha": "^9.2.2",
+    "sinon": "^13.0.2"
+  },
+  "homepage": "https://www.useabacus.network",
+  "keywords": [
+    "Abacus",
+    "Typescript",
+    "SDK"
+  ],
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "repository": "https://github.com/abacus-network/abacus-monorepo",
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "prepublishOnly": "yarn build",
+    "prettier": "prettier --write ./src ./test",
+    "test": "mocha --config .mocharc.json './test/**/*.test.ts'"
+  },
+  "types": "dist/index.d.ts"
 }

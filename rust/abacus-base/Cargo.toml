@@ -21,13 +21,14 @@ tracing-subscriber = { version = "0.3", features = ["json"] }
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
 mockall = "0.10.2"
 
+ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
 abacus-core = { path = "../abacus-core" }
-abacus-ethereum = { path = "../chains/abacus-ethereum"}
+abacus-ethereum = { path = "../chains/abacus-ethereum" }
 abacus-test = { path = "../abacus-test" }
 paste = "1.0"
 tracing-error = "0.2"
 
-prometheus = "0.12"
+prometheus = "0.13"
 
 warp = "0.3"
 
