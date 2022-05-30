@@ -153,10 +153,9 @@ where
 {
     #[allow(dead_code)]
     contract: Arc<EthereumInterchainGasPaymasterInternal<M>>,
+    chain_name: String,
     #[allow(dead_code)]
     domain: u32,
-    #[allow(dead_code)]
-    chain_name: String,
     #[allow(dead_code)]
     provider: Arc<M>,
 }

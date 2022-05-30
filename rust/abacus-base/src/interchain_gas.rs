@@ -2,7 +2,6 @@ use abacus_core::db::AbacusDB;
 use abacus_core::{AbacusContract, InterchainGasPaymaster};
 
 use abacus_ethereum::EthereumInterchainGasPaymaster;
-// use abacus_test::mocks::MockInterchainGasPaymasterContract;
 use async_trait::async_trait;
 use eyre::Result;
 use futures_util::future::select_all;
@@ -113,7 +112,7 @@ impl std::ops::DerefMut for InterchainGasPaymasters {
 pub enum InterchainGasPaymasterVariants {
     /// Ethereum InterchainGasPaymaster contract
     Ethereum(Box<dyn InterchainGasPaymaster>),
-    /// Mock InterchainGasPaymaster contract - todo do I need to make a mock?
+    /// Mock InterchainGasPaymaster contract
     Mock(Box<dyn InterchainGasPaymaster>),
     /// Other InterchainGasPaymaster variant
     Other(Box<dyn InterchainGasPaymaster>),
@@ -129,12 +128,6 @@ where
         InterchainGasPaymasterVariants::Ethereum(Box::new(paymaster)).into()
     }
 }
-
-// impl From<MockInterchainGasPaymasterContract> for InterchainGasPaymasters {
-//     fn from(mock_paymaster: MockInterchainGasPaymasterContract) -> Self {
-//         InterchainGasPaymasterVariants::Mock(Box::new(mock_paymaster)).into()
-//     }
-// }
 
 impl From<Box<dyn InterchainGasPaymaster>> for InterchainGasPaymasters {
     fn from(paymaster: Box<dyn InterchainGasPaymaster>) -> Self {
