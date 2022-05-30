@@ -174,7 +174,7 @@ where
                 provider.clone(),
             )),
             domain: locator.domain,
-            chain_name: locator.name.to_owned(),
+            chain_name: locator.chain_name.to_owned(),
             provider,
         }
     }

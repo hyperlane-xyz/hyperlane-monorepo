@@ -191,7 +191,7 @@ where
     pub fn new(
         provider: Arc<M>,
         ContractLocator {
-            name,
+            chain_name,
             domain,
             address,
         }: &ContractLocator,
@@ -199,7 +199,7 @@ where
         Self {
             contract: Arc::new(EthereumInboxInternal::new(address, provider.clone())),
             domain: *domain,
-            chain_name: name.to_owned(),
+            chain_name: chain_name.to_owned(),
             provider,
         }
     }

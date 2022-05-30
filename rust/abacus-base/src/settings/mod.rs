@@ -320,7 +320,7 @@ impl Settings {
                 .make_with_connection(
                     conn.clone(),
                     &ContractLocator {
-                        name: self.outbox.name.clone(),
+                        chain_name: self.outbox.name.clone(),
                         domain: self.outbox.domain.parse().expect("invalid uint"),
                         address: self
                             .outbox
@@ -355,7 +355,7 @@ impl Settings {
                 .make_with_connection(
                     conn.clone(),
                     &ContractLocator {
-                        name: setup.name.clone(),
+                        chain_name: setup.name.clone(),
                         domain: setup.domain.parse().expect("invalid uint"),
                         address: setup
                             .addresses
@@ -388,7 +388,7 @@ impl Settings {
                 .make_with_connection(
                     conn.clone(),
                     &ContractLocator {
-                        name: self.outbox.name.clone(),
+                        chain_name: self.outbox.name.clone(),
                         domain: self.outbox.domain.parse().expect("invalid uint"),
                         address: self
                             .outbox

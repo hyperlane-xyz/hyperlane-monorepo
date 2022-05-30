@@ -60,7 +60,7 @@ where
     #[allow(unused)]
     domain: u32,
     #[allow(unused)]
-    name: String,
+    chain_name: String,
     #[allow(unused)]
     provider: Arc<M>,
     inbox_address: Address,
@@ -79,7 +79,7 @@ where
                 provider.clone(),
             )),
             domain: locator.domain,
-            name: locator.name.to_owned(),
+            chain_name: locator.chain_name.to_owned(),
             provider,
             inbox_address,
         }

@@ -11,7 +11,7 @@ pub struct Balance(pub num::BigInt);
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ContractLocator {
-    pub name: String,
+    pub chain_name: String,
     pub domain: u32,
     pub address: Address,
 }
@@ -20,7 +20,7 @@ impl std::fmt::Display for ContractLocator {
         write!(
             f,
             "{}[@{}]+contract:0x{:x}",
-            self.name, self.domain, self.address.0
+            self.chain_name, self.domain, self.address.0
         )
     }
 }

@@ -87,7 +87,7 @@ impl ChainSetup<OutboxAddresses> {
                     .make_with_connection(
                         conf.clone(),
                         &ContractLocator {
-                            name: self.name.clone(),
+                            chain_name: self.name.clone(),
                             domain: self.domain.parse().expect("invalid uint"),
                             address: self
                                 .addresses
@@ -116,7 +116,7 @@ impl ChainSetup<OutboxAddresses> {
                     .make_with_connection(
                         conf.clone(),
                         &ContractLocator {
-                            name: self.name.clone(),
+                            chain_name: self.name.clone(),
                             domain: self.domain.parse().expect("invalid uint"),
                             address: self
                                 .addresses
@@ -158,7 +158,7 @@ impl ChainSetup<InboxAddresses> {
                     .make_with_connection(
                         conf.clone(),
                         &ContractLocator {
-                            name: self.name.clone(),
+                            chain_name: self.name.clone(),
                             domain: self.domain.parse().expect("invalid uint"),
                             address: self
                                 .addresses
@@ -188,7 +188,7 @@ impl ChainSetup<InboxAddresses> {
                     .make_with_connection(
                         conf.clone(),
                         &ContractLocator {
-                            name: self.name.clone(),
+                            chain_name: self.name.clone(),
                             domain: self.domain.parse().expect("invalid uint"),
                             address: self
                                 .addresses

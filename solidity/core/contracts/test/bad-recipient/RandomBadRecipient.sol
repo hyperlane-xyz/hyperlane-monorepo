@@ -30,7 +30,7 @@ contract BadRandomRecipient is IMessageRecipient {
             uint256 _half = _value / 2;
             _paymaster.payGasFor{value: _half}(_leafIndex);
             _paymaster.payGasFor{value: _value - _half}(_leafIndex);
-        } else if (_blockHashNum % 2 == 1) {
+        } else {
             // Pay the entire msg.value in one call
             _paymaster.payGasFor{value: _value}(_leafIndex);
         }
