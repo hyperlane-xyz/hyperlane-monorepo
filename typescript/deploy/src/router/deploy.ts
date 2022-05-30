@@ -1,11 +1,6 @@
 import { debug } from 'debug';
 
 import {
-  AbacusConnectionManager,
-  AbacusConnectionManager__factory,
-} from '@abacus-network/core';
-import {
-  AbacusCore,
   ChainMap,
   ChainName,
   MultiProvider,
@@ -21,22 +16,18 @@ import { Router, RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
-  Config extends RouterConfig,
+  Config,
   Addresses,
-> extends AbacusAppDeployer<Chain, Config, Addresses> {
-  protected core?: AbacusCore<Chain>;
-
+> extends AbacusAppDeployer<Chain, Config & RouterConfig, Addresses> {
   abstract mustGetRouter(chain: Chain, addresses: Addresses): Router;
 
   constructor(
     multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, Config>,
-    core?: AbacusCore<Chain>,
+    configMap: ChainMap<Chain, Config & RouterConfig>,
     options?: DeployerOptions,
   ) {
     const logger = options?.logger || debug('abacus:RouterDeployer');
     super(multiProvider, configMap, { ...options, logger });
-    this.core = core;
   }
 
   async deploy() {
@@ -62,42 +53,5 @@ export abstract class AbacusRouterDeployer<
     );
 
     return deploymentOutput;
-  }
-
-  async deployConnectionManagerIfNotConfigured(
-    chain: Chain,
-  ): Promise<AbacusConnectionManager> {
-    const dc = this.multiProvider.getChainConnection(chain);
-    const signer = dc.signer!;
-    const config = this.configMap[chain];
-    if (config.abacusConnectionManager) {
-      return AbacusConnectionManager__factory.connect(
-        config.abacusConnectionManager,
-        signer,
-      );
-    }
-
-    const abacusConnectionManager = await this.deployContract(
-      chain,
-      'AbacusConnectionManager',
-      new AbacusConnectionManager__factory(signer),
-      [],
-    );
-    const overrides = dc.overrides;
-    if (!this.core)
-      throw new Error('must set core or configure abacusConnectionManager');
-    const localCore = this.core.getContracts(chain);
-    await abacusConnectionManager.setOutbox(
-      localCore.outbox.outbox.address,
-      overrides,
-    );
-    for (const remote of this.core.remoteChains(chain)) {
-      await abacusConnectionManager.enrollInbox(
-        chainMetadata[remote].id,
-        localCore.inboxes[remote].inbox.address,
-        overrides,
-      );
-    }
-    return abacusConnectionManager;
   }
 }

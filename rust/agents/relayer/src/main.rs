@@ -11,7 +11,7 @@ use eyre::Result;
 
 use abacus_base::Agent;
 
-use crate::{relayer::Relayer, settings::RelayerSettings as Settings};
+use crate::relayer::Relayer;
 
 mod checkpoint_relayer;
 mod merkle_tree_builder;
@@ -26,7 +26,7 @@ async fn _main() -> Result<()> {
     #[cfg(not(feature = "oneline-errors"))]
     color_eyre::install()?;
 
-    let settings = Settings::new()?;
+    let settings = settings::RelayerSettings::new()?;
 
     let agent = Relayer::from_settings(settings).await?;
 
@@ -34,7 +34,7 @@ async fn _main() -> Result<()> {
         .as_ref()
         .settings
         .tracing
-        .start_tracing(agent.metrics().span_duration())?;
+        .start_tracing(&agent.metrics())?;
 
     let _ = agent.metrics().run_http_server();
 

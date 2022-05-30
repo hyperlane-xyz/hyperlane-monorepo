@@ -293,7 +293,8 @@ where
         );
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
-        Ok(report_tx(gassed).await?.into())
+        let receipt = report_tx(gassed).await?;
+        Ok(receipt.into())
     }
 
     #[tracing::instrument(err)]
