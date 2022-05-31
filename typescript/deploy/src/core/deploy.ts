@@ -41,8 +41,9 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, CoreConfig>,
+    factoriesOverride = coreFactories,
   ) {
-    super(multiProvider, configMap, coreFactories);
+    super(multiProvider, configMap, factoriesOverride);
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 

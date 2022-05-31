@@ -8,12 +8,12 @@ import {
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
 import {
-  AbacusAddresses,
   AbacusContracts,
   AbacusFactories,
   ChainMap,
   ChainName,
   MultiProvider,
+  addresses,
   objMap,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
@@ -69,7 +69,10 @@ export abstract class AbacusDeployer<
     this.logger(`Deploy ${contractName.toString()} on ${chain}`);
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const factory = this.factories[contractName];
-    const contract = await factory.deploy(...args, chainConnection.overrides);
+    console.log({ factory });
+    const signerFactory = factory.connect(chainConnection.signer!);
+    console.log({ signerFactory });
+    const contract = await signerFactory.deploy(...args);
     await contract.deployTransaction.wait(chainConnection.confirmations);
     const verificationInput = getContractVerificationInput(
       contractName.toString(),
@@ -153,19 +156,13 @@ export abstract class AbacusDeployer<
     return newProxiedContract;
   }
 
-  writeOutput(directory: string, addresses: ChainMap<Chain, AbacusAddresses>) {
-    this.writeContracts(addresses, path.join(directory, 'addresses.ts'));
+  writeOutput(directory: string, contracts: ChainMap<Chain, Contracts>) {
+    this.writeContracts(contracts, path.join(directory, 'addresses.json'));
     this.writeVerification(path.join(directory, 'verification'));
   }
 
-  writeContracts(
-    addresses: ChainMap<Chain, AbacusAddresses>,
-    filepath: string,
-  ) {
-    const contents = `export const addresses = ${AbacusDeployer.stringify(
-      addresses,
-    )}`;
-    AbacusDeployer.write(filepath, contents);
+  writeContracts(contracts: ChainMap<Chain, Contracts>, filepath: string) {
+    AbacusDeployer.writeJson(filepath, addresses(contracts));
   }
 
   writeVerification(directory: string) {

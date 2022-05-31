@@ -1,38 +1,20 @@
-import {
-  TestInbox,
-  TestInbox__factory,
-  TestOutbox__factory,
-} from '@abacus-network/core';
+import { TestInbox } from '@abacus-network/core';
 import {
   AbacusCore,
-  DomainIdToChainName,
-  TestChainNames,
   chainMetadata,
-  objMap,
+  DomainIdToChainName,
+  Remotes,
+  TestChainNames,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 
 export class TestCoreApp extends AbacusCore<TestChainNames> {
-  getContracts<Local extends TestChainNames>(chain: Local) {
-    const contracts = super.getContracts(chain);
-    return {
-      ...contracts,
-      outbox: {
-        ...contracts.outbox,
-        outbox: TestOutbox__factory.connect(
-          contracts.outbox.outbox.address,
-          contracts.outbox.outbox.signer,
-        ),
-      },
-      inboxes: objMap(contracts.inboxes, (_, inbox) => ({
-        ...inbox,
-        inbox: TestInbox__factory.connect(
-          inbox.inbox.address,
-          inbox.inbox.signer,
-        ),
-      })),
-    };
+  getInbox<Local extends TestChainNames>(
+    chain: Local,
+    remote: Remotes<TestChainNames, Local>,
+  ) {
+    return this.getContracts(chain).inboxes[remote].inbox as TestInbox;
   }
 
   async processMessages(): Promise<
@@ -65,10 +47,10 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
       if (destination === chainMetadata[origin].id) {
         throw new Error('Dispatched message to local domain');
       }
-      const destinationChain = DomainIdToChainName[destination];
-      const inbox: TestInbox =
-        // @ts-ignore
-        this.getContracts(destinationChain).inboxes[origin].inbox;
+      const destinationChain = DomainIdToChainName[
+        destination
+      ] as TestChainNames;
+      const inbox = this.getInbox(destinationChain, origin as never);
       const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
         if (dispatch.args.leafIndex.toNumber() == 0) {

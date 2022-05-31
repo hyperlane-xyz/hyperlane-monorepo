@@ -17,4 +17,8 @@ export {
   RouterConfig,
 } from './router';
 export * as utils from './utils';
-export { ContractVerifier, VerificationInput } from './verify';
+export {
+  ContractVerifier,
+  getConstructorArguments,
+  VerificationInput,
+} from './verify';

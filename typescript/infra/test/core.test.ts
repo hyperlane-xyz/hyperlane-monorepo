@@ -7,7 +7,7 @@ import { getMultiProviderFromConfigAndSigner } from '@abacus-network/deploy/dist
 import {
   AbacusCore,
   ChainMap,
-  CoreContractAddresses,
+  CoreContracts,
   MultiProvider,
   objMap,
 } from '@abacus-network/sdk';
@@ -23,7 +23,7 @@ describe('core', async () => {
   let multiProvider: MultiProvider<TestChains>;
   let deployer: AbacusCoreInfraDeployer<TestChains>;
   let core: AbacusCore<TestChains>;
-  let addresses: ChainMap<TestChains, CoreContractAddresses<TestChains, any>>;
+  let contracts: ChainMap<TestChains, CoreContracts<TestChains, TestChains>>;
   let coreConfig: ChainMap<TestChains, CoreConfig>;
 
   let owners: ChainMap<TestChains, string>;
@@ -39,19 +39,19 @@ describe('core', async () => {
     owners = objMap(testConfig.transactionConfigs, () => owner.address);
   });
 
-  it('deploys', async () => {
-    addresses = await deployer.deploy(); // TODO: return AbacusApp from AbacusDeployer.deploy()
+  it.only('deploys', async () => {
+    contracts = await deployer.deploy(); // TODO: return AbacusApp from AbacusDeployer.deploy()
   });
 
   it('writes', async () => {
     const base = './test/outputs/core';
     deployer.writeVerification(path.join(base, 'verification'));
-    deployer.writeContracts(addresses, path.join(base, 'contracts.ts'));
-    deployer.writeRustConfigs(environment, path.join(base, 'rust'), addresses);
+    deployer.writeContracts(contracts, path.join(base, 'contracts.ts'));
+    deployer.writeRustConfigs(environment, path.join(base, 'rust'), contracts);
   });
 
   it('transfers ownership', async () => {
-    core = new AbacusCore(addresses, multiProvider);
+    core = new AbacusCore(contracts as any);
     await AbacusCoreDeployer.transferOwnership(core, owners, multiProvider);
   });
 

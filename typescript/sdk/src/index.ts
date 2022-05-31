@@ -1,7 +1,14 @@
 export { AbacusApp } from './app';
 export { chainMetadata } from './chain-metadata';
 export { addSignerToConnection, chainConnectionConfigs } from './chains';
-export { AbacusAddresses, AbacusContracts, AbacusFactories } from './contracts';
+export {
+  AbacusAddresses,
+  AbacusContracts,
+  AbacusFactories,
+  addresses,
+  attach,
+  connect,
+} from './contracts';
 export {
   AbacusCore,
   AbacusLifecyleEvent,

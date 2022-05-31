@@ -38,7 +38,7 @@ export class AbacusApp<
     return addresses(this.get(chain));
   }
 
-  reconnect(chain: Chain, connection: Connection): void {
+  connect(chain: Chain, connection: Connection): void {
     connect(this.get(chain), connection);
   }
 }

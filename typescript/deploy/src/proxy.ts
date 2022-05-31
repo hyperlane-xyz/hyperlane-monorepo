@@ -39,6 +39,24 @@ export async function upgradeBeaconImplementation(
   return ethers.utils.getAddress(storageValue.slice(26));
 }
 
+// export async function getProxiedAddress(
+//   proxy: UpgradeBeaconProxy,
+// ): Promise<ProxiedAddress> {
+//   const [beacon] = getConstructorArguments(
+//     proxy,
+//     UpgradeBeaconProxy__factory.bytecode,
+//   );
+//   const implementation = await upgradeBeaconImplementation(
+//     proxy.provider,
+//     beacon as string,
+//   );
+//   return {
+//     beacon,
+//     implementation,
+//     proxy: proxy.address,
+//   };
+// }
+
 export function upgradeBeaconViolation<Chain extends ChainName>(
   chain: Chain,
   name: string,

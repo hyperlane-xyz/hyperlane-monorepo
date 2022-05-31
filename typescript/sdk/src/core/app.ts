@@ -25,7 +25,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
 
   static fromEnvironment<Env extends CoreEnvironment>(
     env: Env,
-  ): AbacusCore<CoreEnvironmentChain<Env>> {
+  ): AbacusCore<any> {
     const addressesMap = environments[env] as ChainMap<
       CoreEnvironmentChain<Env>,
       AbacusAddresses

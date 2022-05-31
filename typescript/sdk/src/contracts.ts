@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BaseContract, ethers } from 'ethers';
 
 import { types } from '@abacus-network/utils';
 
@@ -18,9 +18,13 @@ export type AbacusAddresses = {
 };
 
 export function addresses(contracts: AbacusContracts): AbacusAddresses {
-  return objMap(contracts, (_, contract): string | AbacusAddresses =>
-    'address' in contract ? contract.address : addresses(contract),
-  );
+  return objMap(contracts, (_, contract): string | AbacusAddresses => {
+    if (contract instanceof BaseContract) {
+      return contract.address;
+    } else {
+      return addresses(contract);
+    }
+  });
 }
 
 export function attach(
@@ -43,10 +47,10 @@ export function connect(
   connection: Connection,
 ): void {
   for (const [key, contract] of Object.entries(contracts)) {
-    if ('connect' in contract) {
-      (contract as ethers.Contract).connect(connection);
+    if (contract instanceof BaseContract) {
+      contract.connect(connection);
     } else {
-      connect(contracts[key], connection);
+      connect(contracts[key] as AbacusContracts, connection);
     }
   }
 }

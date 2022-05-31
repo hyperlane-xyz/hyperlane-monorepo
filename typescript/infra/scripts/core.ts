@@ -14,14 +14,14 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
 
-  const addresses = await deployer.deploy();
+  const contracts = await deployer.deploy();
 
-  deployer.writeContracts(addresses, getCoreContractsSdkFilepath(environment));
+  deployer.writeContracts(contracts, getCoreContractsSdkFilepath(environment));
   deployer.writeVerification(getCoreVerificationDirectory(environment));
   deployer.writeRustConfigs(
     environment,
     getCoreRustDirectory(environment),
-    addresses,
+    contracts,
   );
 }
 
