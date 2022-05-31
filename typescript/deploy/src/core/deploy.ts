@@ -1,34 +1,24 @@
 import { ethers } from 'ethers';
 
-import {
-  AbacusConnectionManager__factory,
-  InboxValidatorManager,
-  InboxValidatorManager__factory,
-  Inbox__factory,
-  InterchainGasPaymaster__factory,
-  OutboxValidatorManager__factory,
-  Outbox__factory,
-  UpgradeBeaconController__factory,
-} from '@abacus-network/core';
+import { Inbox } from '@abacus-network/core';
 import {
   AbacusCore,
   ChainConnection,
   ChainMap,
   ChainName,
-  CoreContractAddresses,
   CoreContracts,
   InboxContracts,
-  MailboxAddresses,
   MultiProvider,
+  OutboxContracts,
   RemoteChainMap,
-  Remotes,
   chainMetadata,
+  coreFactories,
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-import { AbacusAppDeployer } from '../deploy';
+import { AbacusDeployer } from '../deploy';
 import { ProxiedContract } from '../proxy';
 
 export type ValidatorManagerConfig = {
@@ -40,183 +30,138 @@ export type CoreConfig = {
   validatorManager: ValidatorManagerConfig;
 };
 
-type FactoryBuilder = (signer: ethers.Signer) => ethers.ContractFactory;
-
-export class AbacusCoreDeployer<
-  Chain extends ChainName,
-> extends AbacusAppDeployer<
+export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   Chain,
   CoreConfig,
-  CoreContractAddresses<Chain, any>
+  typeof coreFactories,
+  CoreContracts<Chain, Chain>
 > {
-  inboxFactoryBuilder: FactoryBuilder = (signer: ethers.Signer) =>
-    new Inbox__factory(signer);
-  outboxFactoryBuilder: FactoryBuilder = (signer: ethers.Signer) =>
-    new Outbox__factory(signer);
-
   startingBlockNumbers: ChainMap<Chain, number | undefined>;
 
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, CoreConfig>,
   ) {
-    super(multiProvider, configMap);
+    super(multiProvider, configMap, coreFactories);
     this.startingBlockNumbers = objMap(configMap, () => undefined);
+  }
+
+  async deployOutbox<LocalChain extends Chain>(
+    chain: LocalChain,
+    config: ValidatorManagerConfig,
+    ubcAddress: types.Address,
+  ): Promise<OutboxContracts> {
+    const domain = chainMetadata[chain].id;
+    const outboxValidatorManager = await this.deployContract(
+      chain,
+      'outboxValidatorManager',
+      [domain, config.validators, config.threshold],
+    );
+
+    const outbox = await this.deployProxiedContract(
+      chain,
+      'outbox',
+      [domain],
+      ubcAddress,
+      [outboxValidatorManager.address],
+    );
+    return { outbox: outbox.contract, outboxValidatorManager };
+  }
+
+  async deployInbox<LocalChain extends Chain>(
+    chain: LocalChain,
+    config: ValidatorManagerConfig,
+    ubcAddress: types.Address,
+    duplicate?: ProxiedContract<Inbox>,
+  ): Promise<InboxContracts & { proxy: ProxiedContract<Inbox> }> {
+    const domain = chainMetadata[chain].id;
+    const inboxValidatorManager = await this.deployContract(
+      chain,
+      'inboxValidatorManager',
+      [domain, config.validators, config.threshold],
+    );
+    const initArgs: Parameters<Inbox['initialize']> = [
+      domain,
+      inboxValidatorManager.address,
+      ethers.constants.HashZero,
+      0,
+    ];
+    let inbox: ProxiedContract<Inbox>;
+    if (duplicate) {
+      inbox = await this.duplicateProxiedContract(chain, duplicate, initArgs);
+    } else {
+      inbox = await this.deployProxiedContract(
+        chain,
+        'inbox',
+        [domain],
+        ubcAddress,
+        initArgs,
+      );
+    }
+    return { inbox: inbox.contract, inboxValidatorManager, proxy: inbox };
   }
 
   async deployContracts<LocalChain extends Chain>(
     chain: LocalChain,
     config: CoreConfig,
-  ): Promise<CoreContractAddresses<Chain, LocalChain>> {
+  ): Promise<CoreContracts<Chain, LocalChain>> {
     const dc = this.multiProvider.getChainConnection(chain);
-    const signer = dc.signer!;
-
     const provider = dc.provider!;
     const startingBlockNumber = await provider.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;
 
     const upgradeBeaconController = await this.deployContract(
       chain,
-      'UpgradeBeaconController',
-      new UpgradeBeaconController__factory(signer),
+      'upgradeBeaconController',
       [],
-    );
-
-    const outboxValidatorManagerConfig = config.validatorManager;
-    const domain = chainMetadata[chain].id;
-    const outboxValidatorManager = await this.deployContract(
-      chain,
-      'OutboxValidatorManager',
-      new OutboxValidatorManager__factory(signer),
-      [
-        domain,
-        outboxValidatorManagerConfig.validators,
-        outboxValidatorManagerConfig.threshold,
-      ],
-    );
-
-    const outbox = await this.deployProxiedContract(
-      chain,
-      'Outbox',
-      this.outboxFactoryBuilder(signer),
-      [domain],
-      upgradeBeaconController.address,
-      [outboxValidatorManager.address],
     );
 
     const interchainGasPaymaster = await this.deployContract(
       chain,
-      'InterchainGasPaymaster',
-      new InterchainGasPaymaster__factory(signer),
+      'interchainGasPaymaster',
       [],
     );
 
     const abacusConnectionManager = await this.deployContract(
       chain,
-      'AbacusConnectionManager',
-      new AbacusConnectionManager__factory(signer),
+      'abacusConnectionManager',
       [],
-    );
-    await abacusConnectionManager.setOutbox(
-      outbox.contract.address,
-      dc.overrides,
     );
     await abacusConnectionManager.setInterchainGasPaymaster(
       interchainGasPaymaster.address,
-      dc.overrides,
     );
 
-    const remotes = Object.keys(this.configMap).filter(
-      (k) => k !== chain,
-    ) as Remotes<Chain, LocalChain>[];
-
-    const deployValidatorManager = async (
-      remote: Remotes<Chain, LocalChain>,
-    ): Promise<InboxValidatorManager> => {
-      const remoteConfig = this.configMap[remote].validatorManager;
-      return this.deployContract(
-        chain,
-        'InboxValidatorManager',
-        new InboxValidatorManager__factory(signer),
-        [
-          chainMetadata[remote].id,
-          remoteConfig.validators,
-          remoteConfig.threshold,
-        ],
-      );
-    };
-
-    const [firstRemote, ...trailingRemotes] = remotes;
-    const firstValidatorManager = await deployValidatorManager(firstRemote);
-    const firstInbox = await this.deployProxiedContract(
+    const outbox = await this.deployOutbox(
       chain,
-      'Inbox',
-      this.inboxFactoryBuilder(signer),
-      [domain],
+      config.validatorManager,
       upgradeBeaconController.address,
-      [
-        chainMetadata[firstRemote].id,
-        firstValidatorManager.address,
-        ethers.constants.HashZero,
-        0,
-      ],
     );
+    await abacusConnectionManager.setOutbox(outbox.outbox.address);
 
-    const getMailbox = (
-      validatorManager: ethers.Contract,
-      box: ProxiedContract<ethers.Contract>,
-    ): MailboxAddresses => ({
-      ...box.addresses,
-      validatorManager: validatorManager.address,
-    });
-
-    type RemoteMailboxEntry = [Remotes<Chain, LocalChain>, MailboxAddresses];
-
-    const firstInboxAddresses: RemoteMailboxEntry = [
-      firstRemote,
-      getMailbox(firstValidatorManager, firstInbox),
-    ];
-
-    const trailingInboxAddresses = await Promise.all(
-      trailingRemotes.map(async (remote): Promise<RemoteMailboxEntry> => {
-        const validatorManager = await deployValidatorManager(remote);
-        const inbox = await this.duplicateProxiedContract(
-          chain,
-          'Inbox',
-          firstInbox,
-          [
-            chainMetadata[remote].id,
-            validatorManager.address,
-            ethers.constants.HashZero,
-            0,
-          ],
-        );
-
-        return [remote, getMailbox(validatorManager, inbox)];
-      }),
-    );
-
-    const inboxAddresses = [firstInboxAddresses, ...trailingInboxAddresses];
-
-    await Promise.all(
-      inboxAddresses.map(([remote, mailbox]) =>
-        abacusConnectionManager.enrollInbox(
-          chainMetadata[remote].id,
-          mailbox.proxy,
-        ),
-      ),
-    );
+    const remotes = this.multiProvider.remoteChains(chain);
+    let proxy: ProxiedContract<Inbox> | undefined;
+    let inboxes: Partial<ChainMap<Chain, InboxContracts>> = {};
+    for (const remote of remotes) {
+      const inbox = await this.deployInbox(
+        remote,
+        this.configMap[remote].validatorManager,
+        upgradeBeaconController.address,
+        proxy,
+      );
+      await abacusConnectionManager.enrollInbox(
+        chainMetadata[remote].id,
+        inbox.inbox.address,
+      );
+      proxy = inbox.proxy;
+      inboxes[remote] = inbox;
+    }
 
     return {
-      upgradeBeaconController: upgradeBeaconController.address,
-      abacusConnectionManager: abacusConnectionManager.address,
-      interchainGasPaymaster: interchainGasPaymaster.address,
-      outbox: getMailbox(outboxValidatorManager, outbox),
-      inboxes: Object.fromEntries(inboxAddresses) as RemoteChainMap<
-        Chain,
-        LocalChain,
-        MailboxAddresses
-      >,
+      upgradeBeaconController,
+      abacusConnectionManager,
+      interchainGasPaymaster,
+      outbox,
+      inboxes: inboxes as RemoteChainMap<Chain, LocalChain, InboxContracts>,
     };
   }
 
@@ -242,28 +187,26 @@ export class AbacusCoreDeployer<
     Chain extends ChainName,
     Local extends Chain,
   >(
-    core: CoreContracts<Chain, Local>,
+    coreContracts: CoreContracts<Chain, Local>,
     owner: types.Address,
     chainConnection: ChainConnection,
   ): Promise<ethers.ContractReceipt> {
-    await core.contracts.outbox.validatorManager.transferOwnership(
+    await coreContracts.outbox.outboxValidatorManager.transferOwnership(
       owner,
       chainConnection.overrides,
     );
-    await core.contracts.abacusConnectionManager.transferOwnership(
+    await coreContracts.abacusConnectionManager.transferOwnership(
       owner,
       chainConnection.overrides,
     );
-    await core.contracts.upgradeBeaconController.transferOwnership(
+    await coreContracts.upgradeBeaconController.transferOwnership(
       owner,
       chainConnection.overrides,
     );
-    const inboxContracts: InboxContracts[] = Object.values(
-      core.contracts.inboxes,
-    );
+    const inboxContracts = Object.values<InboxContracts>(coreContracts.inboxes);
     await Promise.all(
       inboxContracts.map(async (inbox) => {
-        await inbox.validatorManager.transferOwnership(
+        await inbox.inboxValidatorManager.transferOwnership(
           owner,
           chainConnection.overrides,
         );
@@ -271,7 +214,7 @@ export class AbacusCoreDeployer<
       }),
     );
 
-    const tx = await core.contracts.outbox.outbox.transferOwnership(
+    const tx = await coreContracts.outbox.outbox.transferOwnership(
       owner,
       chainConnection.overrides,
     );

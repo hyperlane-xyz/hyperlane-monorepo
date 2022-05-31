@@ -17,22 +17,27 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   CoreContracts<Chain, Chain>,
   Chain
 > {
-  constructor(addressesMap: ChainMap<Chain, AbacusAddresses>) {
-    super(addressesMap, coreFactories);
+  constructor(contractsMap: {
+    [local in Chain]: CoreContracts<Chain, local>;
+  }) {
+    super(contractsMap);
   }
 
   static fromEnvironment<Env extends CoreEnvironment>(
     env: Env,
   ): AbacusCore<CoreEnvironmentChain<Env>> {
-    return new AbacusCore(
-      environments[env] as ChainMap<CoreEnvironmentChain<Env>, AbacusAddresses>,
-    );
+    const addressesMap = environments[env] as ChainMap<
+      CoreEnvironmentChain<Env>,
+      AbacusAddresses
+    >;
+    const contractsMap = this.buildContracts(addressesMap, coreFactories);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return new AbacusCore(contractsMap as any);
   }
 
   // override type to be derived from chain key
   getContracts<Local extends Chain>(chain: Local): CoreContracts<Chain, Local> {
-    /* eslint-disable  @typescript-eslint/no-explicit-any */
-    return super.getContracts(chain) as any;
+    return super.getContracts(chain) as CoreContracts<Chain, Local>;
   }
 
   getMailboxPair<Local extends Chain>(

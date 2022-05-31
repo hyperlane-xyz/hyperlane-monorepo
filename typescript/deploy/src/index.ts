@@ -14,7 +14,6 @@ export {
 export {
   AbacusRouterChecker,
   AbacusRouterDeployer,
-  Router,
   RouterConfig,
 } from './router';
 export * as utils from './utils';

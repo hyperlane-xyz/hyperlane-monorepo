@@ -14,6 +14,7 @@ export {
   coreFactories,
   InboxContracts,
   MessageStatus,
+  OutboxContracts,
   parseMessage,
   resolveDomain,
   resolveId,
@@ -31,6 +32,7 @@ export {
   TokenPriceGetter,
 } from './gas';
 export { ChainConnection, IChainConnection, MultiProvider } from './provider';
+export { RouterContracts, RouterFactories } from './router';
 export {
   AllChains,
   ChainMap,
