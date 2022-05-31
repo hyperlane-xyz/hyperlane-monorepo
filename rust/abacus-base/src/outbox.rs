@@ -57,14 +57,12 @@ impl CachingOutbox {
     /// data
     pub fn sync(
         &self,
-        agent_name: String,
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("OutboxContractSync", self = %self);
 
         let sync = ContractSync::new(
-            agent_name,
             String::from_str(self.outbox.name()).expect("!string"),
             self.db.clone(),
             self.indexer.clone(),
