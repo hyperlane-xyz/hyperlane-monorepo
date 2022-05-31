@@ -9,8 +9,19 @@ interface IOutbox is ICommon {
         bytes32 _recipientAddress,
         bytes calldata _messageBody
     ) external returns (uint256);
+
     function cacheCheckpoint() external;
+
     function latestCheckpoint() external view returns (bytes32, uint256);
+
     function count() external returns (uint256);
+
     function fail() external;
+
+    function cachedCheckpoints(bytes32) external view returns (uint256);
+
+    function latestCachedCheckpoint()
+        external
+        view
+        returns (bytes32 root, uint256 index);
 }
