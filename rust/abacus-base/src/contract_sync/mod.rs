@@ -30,7 +30,6 @@ const MESSAGES_LABEL: &str = "messages";
 /// db up-to-date.
 #[derive(Debug)]
 pub struct ContractSync<I> {
-    agent_name: String,
     contract_name: String,
     db: AbacusDB,
     indexer: Arc<I>,
@@ -41,7 +40,6 @@ pub struct ContractSync<I> {
 impl<I> ContractSync<I> {
     /// Instantiate new ContractSync
     pub fn new(
-        agent_name: String,
         contract_name: String,
         db: AbacusDB,
         indexer: Arc<I>,
@@ -49,7 +47,6 @@ impl<I> ContractSync<I> {
         metrics: ContractSyncMetrics,
     ) -> Self {
         Self {
-            agent_name,
             contract_name,
             db,
             indexer,
@@ -86,23 +83,23 @@ where
 
         let db = self.db.clone();
         let indexer = self.indexer.clone();
-        let indexed_height = self.metrics.indexed_height.clone().with_label_values(&[
-            MESSAGES_LABEL,
-            &self.contract_name,
-            &self.agent_name,
-        ]);
+        let indexed_height = self
+            .metrics
+            .indexed_height
+            .clone()
+            .with_label_values(&[MESSAGES_LABEL, &self.contract_name]);
 
-        let stored_messages = self.metrics.stored_events.clone().with_label_values(&[
-            MESSAGES_LABEL,
-            &self.contract_name,
-            &self.agent_name,
-        ]);
+        let stored_messages = self
+            .metrics
+            .stored_events
+            .clone()
+            .with_label_values(&[MESSAGES_LABEL, &self.contract_name]);
 
-        let missed_messages = self.metrics.missed_events.clone().with_label_values(&[
-            MESSAGES_LABEL,
-            &self.contract_name,
-            &self.agent_name,
-        ]);
+        let missed_messages = self
+            .metrics
+            .missed_events
+            .clone()
+            .with_label_values(&[MESSAGES_LABEL, &self.contract_name]);
 
         let message_leaf_index = self.metrics.message_leaf_index.clone();
 
@@ -519,7 +516,6 @@ mod test {
             let sync_metrics = ContractSyncMetrics::new(metrics, None);
 
             let contract_sync = ContractSync::new(
-                "agent".to_owned(),
                 "outbox_1".to_owned(),
                 abacus_db.clone(),
                 indexer.clone(),
@@ -822,7 +818,6 @@ mod test {
             let sync_metrics = ContractSyncMetrics::new(metrics, None);
 
             let contract_sync = ContractSync::new(
-                "agent".to_owned(),
                 "outbox_1".to_owned(),
                 abacus_db.clone(),
                 indexer.clone(),
