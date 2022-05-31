@@ -10,7 +10,6 @@ import {
   ChainName,
   ChainNameToDomainId,
 } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
@@ -60,6 +59,7 @@ const chainSummary = async <Chain extends ChainName>(
 task('kathy', 'Dispatches random abacus messages').setAction(
   async (_, hre: HardhatRuntimeEnvironment) => {
     const environment = 'test';
+    const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
     const config = getCoreEnvironmentConfig(environment);
     const [signer] = await hre.ethers.getSigners();
     const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
@@ -83,13 +83,18 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
       const outbox = coreContracts.outbox.outbox;
+      const paymaster = coreContracts.interchainGasPaymaster;
       // Send a batch of messages to the destination chain to test
       // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
-        await outbox.dispatch(
+        await recipient.dispatchToSelf(
+          outbox.address,
+          paymaster.address,
           remoteId,
-          utils.addressToBytes32(recipient.address),
           '0x1234',
+          {
+            value: interchainGasPayment,
+          },
         );
         if ((await outbox.count()).gt(1)) {
           await outbox.checkpoint();
