@@ -1,22 +1,25 @@
 {
-  "prepublish": "npm run build",
   "name": "@abacus-network/utils",
+  "description": "General utilities for the Abacus network",
   "version": "0.1.1",
-  "description": "Abacus utilities",
+  "dependencies": {
+    "chai": "^4.3.0",
+    "ethers": "^5.4.7"
+  },
+  "homepage": "https://www.useabacus.network",
+  "keywords": [
+    "Abacus",
+    "SDK",
+    "Typescript"
+  ],
+  "license": "Apache-2.0",
   "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "prepublish": "yarn build",
+  "repository": "https://github.com/abacus-network/abacus-monorepo",
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./src"
   },
-  "author": "Celo Labs Inc.",
-  "license": "MIT OR Apache-2.0",
-  "dependencies": {
-    "chai": "^4.3.0",
-    "ethers": "^5.4.7"
-  },
-  "devDependencies": {
-    "prettier": "^2.2.1"
-  }
+  "types": "dist/index.d.ts"
 }

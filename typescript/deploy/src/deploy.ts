@@ -1,11 +1,14 @@
 import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
+import fs from 'fs';
+import path from 'path';
 
 import {
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
 import {
+  AbacusAddresses,
   AbacusContracts,
   AbacusFactories,
   ChainMap,
@@ -148,5 +151,40 @@ export abstract class AbacusDeployer<
       },
     );
     return newProxiedContract;
+  }
+
+  writeOutput(directory: string, addresses: ChainMap<Chain, AbacusAddresses>) {
+    this.writeContracts(addresses, path.join(directory, 'addresses.ts'));
+    this.writeVerification(path.join(directory, 'verification'));
+  }
+
+  writeContracts(
+    addresses: ChainMap<Chain, AbacusAddresses>,
+    filepath: string,
+  ) {
+    const contents = `export const addresses = ${AbacusDeployer.stringify(
+      addresses,
+    )}`;
+    AbacusDeployer.write(filepath, contents);
+  }
+
+  writeVerification(directory: string) {
+    objMap(this.verificationInputs, (chain, input) => {
+      AbacusDeployer.writeJson(path.join(directory, `${chain}.json`), input);
+    });
+  }
+
+  static stringify(obj: any) {
+    return JSON.stringify(obj, null, 2);
+  }
+
+  static write(filepath: string, contents: string) {
+    const dir = path.dirname(filepath);
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(filepath, contents);
+  }
+
+  static writeJson(filepath: string, obj: any) {
+    AbacusDeployer.write(filepath, AbacusDeployer.stringify(obj));
   }
 }

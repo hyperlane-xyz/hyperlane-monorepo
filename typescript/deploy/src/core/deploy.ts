@@ -140,7 +140,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
 
     const remotes = this.multiProvider.remoteChains(chain);
     let proxy: ProxiedContract<Inbox> | undefined;
-    let inboxes: Partial<ChainMap<Chain, InboxContracts>> = {};
+    const inboxes: Partial<Record<Chain, InboxContracts>> = {};
     for (const remote of remotes) {
       const inbox = await this.deployInbox(
         remote,

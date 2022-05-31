@@ -8,7 +8,7 @@ use eyre::Result;
 
 use abacus_base::Agent;
 
-use crate::{kathy::Kathy, settings::KathySettings as Settings};
+use crate::kathy::Kathy;
 
 mod kathy;
 mod settings;
@@ -19,15 +19,14 @@ async fn _main() -> Result<()> {
     #[cfg(not(feature = "oneline-errors"))]
     color_eyre::install()?;
 
-    let settings = Settings::new()?;
-
+    let settings = settings::KathySettings::new()?;
     let agent = Kathy::from_settings(settings).await?;
 
     agent
         .as_ref()
         .settings
         .tracing
-        .start_tracing(agent.metrics().span_duration())?;
+        .start_tracing(&agent.metrics())?;
     let _ = agent.metrics().run_http_server();
 
     agent.run().await?
