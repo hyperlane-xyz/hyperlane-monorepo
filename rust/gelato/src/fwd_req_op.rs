@@ -41,6 +41,21 @@ pub struct ForwardRequestOptions {
     pub retry_submit_interval: Duration,
 }
 
+// TODO(webbhorn): Support cancel() on an in-flight
+// ForwardRequestOp from some task other than the one
+// currently inside of op.run(), e.g. by using a
+// tokio_util::sync::CancellationToken
+// (https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html)
+// that is private to the Op struct and signalled via a
+// call to op.cancel().
+//
+// TODO(webbhorn): ... And/Or, support injection of a
+// RetryPolicy closure in construction of the Op that
+// we can specifically use to query the shared Inbox
+// state to e.g. find out if a message has already
+// been delivered (perhaps by some other Relayer), and
+// we should stop retrying and return from run().
+//
 // TODO(webbhorn): Maybe take deps on traits
 // instead of concrete types, e.g. for 'http'.
 #[derive(Debug, Clone)]

@@ -109,6 +109,12 @@ impl From<HTTPResult> for ForwardRequestCallResult {
     }
 }
 
+// TODO(webbhorn): The signature verification stuff should be tested
+// in fwd_req_sig.rs instead.
+//
+// TODO(webbhorn): the two test cases are basically the same, probably
+// no need to duplicate.
+//
 // TODO(webbhorn): Include tests near boundary of large int
 // overflows, e.g. is nonce representation as u128 for serialization
 // purposes correct given ethers::types::U256 representation in
@@ -121,6 +127,10 @@ mod tests {
     use ethers::signers::{LocalWallet, Signer};
     use ethers::types::U256;
 
+    // TODO(webbhorn): These constants are used in a couple other
+    // places in this crate, should centralize them, or just be use
+    // them inline in the test case.
+    //
     // The sample data / parameters below, along with corresponding
     // expected digests and signatures, were validated by running the
     // Gelato Relay SDK demo "hello world" app with instrumented
@@ -201,6 +211,35 @@ mod tests {
         assert_eq!(
             EXPECTED_JSON_REQUEST_CONTENT,
             serde_json::to_string(&http_args).unwrap()
+        );
+    }
+
+    // Parameters specified by Ed in Telegram.
+    #[tokio::test]
+    async fn ed_test_case() {
+        let fwd_req_args = ForwardRequestOpArgs {
+            chain_id: Chain::Goerli,
+            target: TARGET_CONTRACT_FOR_TESTING.parse().unwrap(),
+            data: EXAMPLE_DATA_FOR_TESTING.parse().unwrap(),
+            fee_token: ETH_TOKEN_FOR_TESTING.parse().unwrap(),
+            payment_type: PaymentType::AsyncGasTank,
+            max_fee: U256::from(1000000000000000000i64),
+            gas: U256::from(200000i64),
+            sponsor: "97B503cb009670982ef9Ca472d66b3aB92fD6A9B".parse().unwrap(),
+            sponsor_chain_id: Chain::Goerli,
+            nonce: U256::from(0i64),
+            enforce_sponsor_nonce: false,
+            enforce_sponsor_nonce_ordering: true,
+        };
+
+        let wallet = "c2fc8dc5512c1fb5df710c3320daa1e1ebc41701a9d5b489692e888228aaf813"
+            .parse::<LocalWallet>().unwrap();
+        let sig = wallet.sign_typed_data(&fwd_req_args).await.unwrap();
+        assert_eq!(
+            sig.to_string(),
+            concat!(
+                "18bf6c6bb1a3410308cd5b395f5a3fac067835233f28f1b08d52b447179b72f40a50dc37ef7a785b0d5ed741e84a4375b3833cf43b4dba46686f15185f20f2541c"
+            )
         );
     }
 
