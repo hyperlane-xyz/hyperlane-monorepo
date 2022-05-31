@@ -137,11 +137,11 @@ mod tests {
     // logging, and recording the generated signatures and digests. A
     // LocalWallet with a randomly-generated private key was also
     // recorded.
-    // 
+    //
     // See
     // https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start
     // for more details.
-    
+
     const EXAMPLE_DATA_FOR_TESTING: &str =
         "0x4b327067000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee";
     const ETH_TOKEN_FOR_TESTING: &str =
@@ -225,7 +225,9 @@ mod tests {
             payment_type: PaymentType::AsyncGasTank,
             max_fee: U256::from(1000000000000000000i64),
             gas: U256::from(200000i64),
-            sponsor: "97B503cb009670982ef9Ca472d66b3aB92fD6A9B".parse().unwrap(),
+            sponsor: "97B503cb009670982ef9Ca472d66b3aB92fD6A9B"
+                .parse()
+                .unwrap(),
             sponsor_chain_id: Chain::Goerli,
             nonce: U256::from(0i64),
             enforce_sponsor_nonce: false,

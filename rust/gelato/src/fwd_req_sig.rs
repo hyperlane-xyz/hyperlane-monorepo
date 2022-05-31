@@ -66,11 +66,11 @@ mod tests {
     // logging, and recording the generated signatures and digests. A
     // LocalWallet with a randomly-generated private key was also
     // recorded.
-    // 
+    //
     // See
     // https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start
     // for more details.
-    
+
     const EXAMPLE_DATA_FOR_TESTING: &str = concat!(
         "0x4b327067000000000000000000000000",
         "eeeeeeeeeeeeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee"

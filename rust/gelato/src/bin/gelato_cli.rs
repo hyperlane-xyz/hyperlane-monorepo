@@ -2,7 +2,8 @@ use clap::{arg, command, Command};
 use ethers::signers::{LocalWallet, Signer};
 use gelato::chains::Chain;
 use gelato::fwd_req_op::{
-    ForwardRequestOpArgs, ForwardRequestOptions, Op, PaymentType,
+    ForwardRequestOp, ForwardRequestOpArgs, ForwardRequestOptions,
+    PaymentType,
 };
 use gelato::task_status_call::{TaskStatusCall, TaskStatusCallArgs};
 use reqwest::Client;
@@ -187,7 +188,7 @@ async fn main() {
             let sig = wallet.sign_typed_data(&args).await.unwrap();
             info!(?sig);
             let http = reqwest::Client::new();
-            let op = Op {
+            let op = ForwardRequestOp {
                 args,
                 opts: ForwardRequestOptions {
                     poll_interval: Duration::from_secs(10),

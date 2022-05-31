@@ -31,8 +31,8 @@ pub struct ForwardRequestOpArgs {
 #[derive(Debug, Clone)]
 pub struct ForwardRequestOpResult {
     // TODO: lots more here than just task_id,
-    // including gas charged, block number, etc
-    // etc etc etc.
+// including gas charged, block number, etc
+// etc etc etc.
 }
 
 #[derive(Debug, Clone)]
@@ -59,7 +59,7 @@ pub struct ForwardRequestOptions {
 // TODO(webbhorn): Maybe take deps on traits
 // instead of concrete types, e.g. for 'http'.
 #[derive(Debug, Clone)]
-pub struct Op<S> {
+pub struct ForwardRequestOp<S> {
     pub args: ForwardRequestOpArgs,
     pub opts: ForwardRequestOptions,
     pub signer: S,
@@ -69,7 +69,7 @@ pub struct Op<S> {
     // TODO: prometheus registry?
 }
 
-impl<S: Signer> Op<S> {
+impl<S: Signer> ForwardRequestOp<S> {
     #[instrument]
     pub async fn run(
         &self,
@@ -87,7 +87,7 @@ impl<S: Signer> Op<S> {
             // request after backoff if retryable (via 'continue;').
             let fwd_req_result = fwd_req_call.run().await?;
             info!(?fwd_req_result);
-            
+
             // Poll for task status every opts.poll_interval,
             // waiting for any of:
             //     1.  task status to be ExecSuccess, return Ok(..)
