@@ -14,8 +14,8 @@ __metadata:
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts-upgradeable": ^4.5.0
-    "@typechain/ethers-v5": ~7.0.0
-    "@typechain/hardhat": ^2.0.1
+    "@typechain/ethers-v5": ^7.2.0
+    "@typechain/hardhat": ^2.3.1
     "@types/mocha": ^9.1.0
     chai: ^4.3.0
     ethereum-waffle: ^3.2.2
@@ -41,8 +41,8 @@ __metadata:
     "@openzeppelin/contracts": ^4.6.0
     "@openzeppelin/contracts-upgradeable": ^4.6.0
     "@summa-tx/memview-sol": ^2.0.0
-    "@typechain/ethers-v5": ~7.0.0
-    "@typechain/hardhat": ^2.0.1
+    "@typechain/ethers-v5": ^7.2.0
+    "@typechain/hardhat": ^2.3.1
     chai: ^4.3.0
     ethereum-waffle: ^3.2.2
     ethers: ^5.4.4
@@ -3356,6 +3356,23 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@typechain/ethers-v5@npm:^7.2.0":
+  version: 7.2.0
+  resolution: "@typechain/ethers-v5@npm:7.2.0"
+  dependencies:
+    lodash: ^4.17.15
+    ts-essentials: ^7.0.1
+  peerDependencies:
+    "@ethersproject/abi": ^5.0.0
+    "@ethersproject/bytes": ^5.0.0
+    "@ethersproject/providers": ^5.0.0
+    ethers: ^5.1.3
+    typechain: ^5.0.0
+    typescript: ">=4.0.0"
+  checksum: 23c7bcb6ef3582fe7ec32dec26bd5067a751b7e3b88ece0b98b2c4bb9623ac074f079ebe3dbcdf57f7e659d8d3a3f018105bd660806f6e7bdafa0dc56c5de450
+  languageName: node
+  linkType: hard
+
 "@typechain/ethers-v5@npm:~7.0.0":
   version: 7.0.1
   resolution: "@typechain/ethers-v5@npm:7.0.1"
@@ -3370,7 +3387,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@typechain/hardhat@npm:^2.0.1":
+"@typechain/hardhat@npm:^2.0.1, @typechain/hardhat@npm:^2.3.1":
   version: 2.3.1
   resolution: "@typechain/hardhat@npm:2.3.1"
   dependencies:
