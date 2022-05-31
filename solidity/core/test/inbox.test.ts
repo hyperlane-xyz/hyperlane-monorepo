@@ -99,7 +99,7 @@ describe('Inbox', async () => {
     const recipient = await recipientF.deploy();
     await recipient.deployTransaction.wait();
 
-    let { index, proof, root, message } = messageWithProof;
+    const { index, proof, root, message } = messageWithProof;
     await inbox.setCachedCheckpoint(root, 1);
 
     await inbox.process(message, proof, index, '0x');
