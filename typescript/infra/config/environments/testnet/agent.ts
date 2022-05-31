@@ -9,7 +9,7 @@ export const agent: AgentConfig<TestnetChains> = {
   runEnv: 'testnet',
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-f78e79a',
+    tag: 'sha-7be078e',
   },
   aws: {
     region: 'us-east-1',
