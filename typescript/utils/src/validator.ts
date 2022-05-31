@@ -37,9 +37,9 @@ export class Validator {
   }
 
   async signCheckpoint(root: types.HexString, index: number) {
-    let message = this.message(root, index);
-    let msgHash = ethers.utils.arrayify(ethers.utils.keccak256(message));
-    let signature = await this.signer.signMessage(msgHash);
+    const message = this.message(root, index);
+    const msgHash = ethers.utils.arrayify(ethers.utils.keccak256(message));
+    const signature = await this.signer.signMessage(msgHash);
     return {
       origin: this.localDomain,
       root,

@@ -18,9 +18,9 @@ export type MysteryMathUpgrade = {
 };
 
 export class UpgradeTestHelpers {
-  a: number = 5;
-  b: number = 10;
-  stateVar: number = 17;
+  a = 5;
+  b = 10;
+  stateVar = 17;
 
   async deployMysteryMathUpgradeSetup(
     signer: SignerWithAddress,

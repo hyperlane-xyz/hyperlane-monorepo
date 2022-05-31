@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
@@ -14,6 +15,7 @@ import { signCheckpoint } from './utils';
 const OUTBOX_DOMAIN = 1234;
 const QUORUM_THRESHOLD = 1;
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
 const domainHashTestCases = require('../../../../vectors/domainHash.json');
 
 describe('MultisigValidatorManager', async () => {
@@ -257,7 +259,7 @@ describe('MultisigValidatorManager', async () => {
     it('matches Rust-produced domain hashes', async () => {
       // Compare Rust output in json file to solidity output (json file matches
       // hash for local domain of 1000)
-      for (let testCase of domainHashTestCases) {
+      for (const testCase of domainHashTestCases) {
         const { expectedDomainHash } = testCase;
         // This public function on TestMultisigValidatorManager exposes
         // the internal _domainHash on MultisigValidatorManager.
