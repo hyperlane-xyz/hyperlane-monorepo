@@ -25,6 +25,10 @@ export const agent: AgentConfig<DevChains> = {
       submissionLatency: 10,
       maxRetries: 10,
       relayerMessageProcessing: true,
+      gelatoSupported: {
+        alfajores: false,
+        kovan: false,
+      },
     },
   },
   checkpointer: {

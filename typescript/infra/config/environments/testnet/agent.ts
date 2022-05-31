@@ -34,6 +34,15 @@ export const agent: AgentConfig<TestnetChains> = {
       submissionLatency: 10,
       maxRetries: 10,
       relayerMessageProcessing: true,
+      gelatoSupported: {
+        alfajores: false,
+        fuji: false,
+        kovan: false,
+        mumbai: false,
+        bsctestnet: false,
+        arbitrumrinkeby: false,
+        optimismkovan: false,
+      },
     },
   },
   // kathy: {

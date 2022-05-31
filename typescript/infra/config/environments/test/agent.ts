@@ -25,6 +25,11 @@ export const agent: AgentConfig<TestChains> = {
       submissionLatency: 10,
       maxRetries: 10,
       relayerMessageProcessing: true,
+      gelatoSupported: {
+        test1: false,
+        test2: false,
+        test3: false,
+      },
     },
   },
   checkpointer: {

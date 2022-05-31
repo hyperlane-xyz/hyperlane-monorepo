@@ -1,4 +1,9 @@
-import { ChainMap, ChainName, RemoteChainMap } from '@abacus-network/sdk';
+import {
+  ChainMap,
+  ChainName,
+  RemoteChainMap,
+  resolveId,
+} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 import {
@@ -86,7 +91,7 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 // =================================
 
 // Incomplete basic relayer agent config
-interface BaseRelayerConfig {
+interface BaseRelayerConfig<Chain extends ChainName> {
   // The minimum latency in seconds between two relayed checkpoints on the inbox
   submissionLatency: number;
   // The polling interval to check for new checkpoints in seconds
@@ -95,16 +100,20 @@ interface BaseRelayerConfig {
   maxRetries: number;
   // Whether the CheckpointRelayer should try to immediately process messages
   relayerMessageProcessing: boolean;
+  // Whether Gelato supports each chain
+  gelatoSupported: ChainMap<Chain, boolean>;
 }
 
 // Per-chain relayer agent configs
 type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
   Chain,
-  BaseRelayerConfig
+  BaseRelayerConfig<Chain>
 >;
 
 // Full relayer agent config for a single chain
-interface RelayerConfig extends BaseRelayerConfig {
+interface RelayerConfig<Chain extends ChainName>
+  extends Omit<BaseRelayerConfig<Chain>, 'gelatoSupported'> {
+  gelatoSupportedDomains: Record<number, boolean>;
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
 }
 
@@ -373,7 +382,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
     }));
   }
 
-  get relayerConfig(): RelayerConfig {
+  get relayerConfig(): RelayerConfig<Chain> {
     const baseConfig = getChainOverriddenConfig(
       this.agentConfig.relayer,
       this.chainName,
@@ -389,6 +398,16 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
     return {
       ...baseConfig,
+      gelatoSupportedDomains: Object.entries(baseConfig.gelatoSupported).reduce(
+        (agg, [chainStr, supported]) => {
+          const chain = chainStr as Chain;
+          return {
+            ...agg,
+            [resolveId(chain)]: baseConfig.gelatoSupported[chain],
+          };
+        },
+        {},
+      ),
       multisigCheckpointSyncer: {
         threshold: this.validatorSet.threshold,
         checkpointSyncers,
