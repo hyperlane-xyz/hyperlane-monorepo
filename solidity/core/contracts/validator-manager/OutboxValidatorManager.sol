@@ -9,7 +9,7 @@ import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
 
 /**
  * @title OutboxValidatorManager
- * @notice Verifies if an invalid, premature, or fraudulent checkpoint has been signed by a quorum of
+ * @notice Verifies if an premature or fraudulent checkpoint has been signed by a quorum of
  * validators and reports it to an Outbox.
  */
 contract OutboxValidatorManager is MultisigValidatorManager {
@@ -27,8 +27,8 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      */
     event PrematureCheckpoint(
         address indexed outbox,
-        bytes32 root,
-        uint256 index,
+        bytes32 signedRoot,
+        uint256 signedIndex,
         bytes[] signatures,
         uint256 count
     );
@@ -49,8 +49,8 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      */
     event FraudulentCheckpoint(
         address indexed outbox,
-        bytes32 root,
-        uint256 index,
+        bytes32 signedRoot,
+        uint256 signedIndex,
         bytes[] signatures,
         bytes32 fraudulentLeaf,
         bytes32[32] fraudulentProof,
@@ -117,8 +117,8 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @notice Determines if a quorum of validators have signed a fraudulent checkpoint,
      * failing the Outbox if so.
      * A checkpoint is fraudulent if the leaf it commits to at index I differs
-     * from the leaf the Outbox committed to at index I, where I is less than
-     * the index of the checkpoint.
+     * from the leaf the Outbox committed to at index I, where I is less than or equal
+     * to the index of the checkpoint.
      * This difference can be proved by comparing two merkle proofs for leaf
      * index J >= I. One against the fraudulent checkpoint, and one against a
      * checkpoint cached on the Outbox.

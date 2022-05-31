@@ -137,7 +137,8 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
      * @dev emits Checkpoint event
      */
     function cacheCheckpoint() external override notFailed {
-        _cacheCheckpoint(root(), count() - 1);
+        (bytes32 root, uint256 index) = latestCheckpoint();
+        _cacheCheckpoint(root, index);
     }
 
     /**

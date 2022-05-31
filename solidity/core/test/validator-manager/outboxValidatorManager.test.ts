@@ -91,16 +91,13 @@ describe('OutboxValidatorManager', () => {
   });
 
   describe('#prematureCheckpoint', () => {
-    const messageCount = 1;
     // An premature checkpoint is one that has index greater than the latest index
     // in the Outbox.
-    const prematureIndex = messageCount;
+    const prematureIndex = 1;
     const root = ethers.utils.formatBytes32String('test root');
 
     beforeEach(async () => {
-      for (let i = 0; i < messageCount; i++) {
-        await dispatchMessage(outbox, 'message');
-      }
+      await dispatchMessage(outbox, 'message');
     });
 
     it('accepts a premature checkpoint if it has been signed by a quorum of validators', async () => {
@@ -147,7 +144,7 @@ describe('OutboxValidatorManager', () => {
     });
 
     it('reverts if a non-premature checkpoint has been signed by a quorum of validators', async () => {
-      const validIndex = messageCount - 1;
+      const validIndex = prematureIndex - 1;
       const signatures = await signCheckpoint(
         root,
         validIndex,
