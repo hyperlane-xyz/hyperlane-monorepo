@@ -22,15 +22,13 @@ const chainSummary = async <Chain extends ChainName>(
 ) => {
   const coreContracts = core.getContracts(chain);
   const outbox = coreContracts.outbox.outbox;
-  const [outboxCheckpointRoot, outboxCheckpointIndex] =
-    await outbox.latestCheckpoint();
   const count = (await outbox.tree()).toNumber();
 
   const inboxSummary = async (remote: Chain) => {
     const remoteContracts = core.getContracts(remote);
     const inbox = remoteContracts.inboxes[chain as Exclude<Chain, Chain>].inbox;
     const [inboxCheckpointRoot, inboxCheckpointIndex] =
-      await inbox.latestCheckpoint();
+      await inbox.latestCachedCheckpoint();
     const processFilter = inbox.filters.Process();
     const processes = await inbox.queryFilter(processFilter);
     return {
@@ -45,10 +43,6 @@ const chainSummary = async <Chain extends ChainName>(
     chain,
     outbox: {
       count,
-      checkpoint: {
-        root: outboxCheckpointRoot,
-        index: outboxCheckpointIndex.toNumber(),
-      },
     },
     inboxes: await Promise.all(
       core.remoteChains(chain).map((remote) => inboxSummary(remote)),
@@ -91,9 +85,6 @@ task('kathy', 'Dispatches random abacus messages').setAction(
           utils.addressToBytes32(recipient.address),
           '0x1234',
         );
-        if ((await outbox.count()).gt(1)) {
-          await outbox.checkpoint();
-        }
         console.log(
           `send to ${recipient.address} on ${remote} at index ${
             (await outbox.count()).toNumber() - 1

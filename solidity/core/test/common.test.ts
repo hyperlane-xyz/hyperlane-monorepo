@@ -43,4 +43,25 @@ describe('Common', async () => {
       common.connect(nonowner).setValidatorManager(common.address),
     ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
   });
+
+  it('Caches a checkpoint', async () => {
+    const root =
+      '0x9c7a007113f829cfd019a91e4ca5e7f6760589fd6bc7925c877f6971ffee1647';
+    const index = 1;
+    await common.cacheCheckpoint(root, index);
+    expect(await common.latestCachedRoot()).to.equal(root);
+    expect(await common.cachedCheckpoints(root)).to.equal(index);
+    const [actualRoot, actualIndex] = await common.latestCachedCheckpoint();
+    expect(actualRoot).to.equal(root);
+    expect(actualIndex).to.equal(index);
+  });
+
+  it('Reverts when caching a checkpoint with index zero', async () => {
+    const root =
+      '0x9c7a007113f829cfd019a91e4ca5e7f6760589fd6bc7925c877f6971ffee1647';
+    const index = 0;
+    await expect(common.cacheCheckpoint(root, index)).to.be.revertedWith(
+      '!index',
+    );
+  });
 });

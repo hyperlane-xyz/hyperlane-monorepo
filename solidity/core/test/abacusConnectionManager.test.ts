@@ -8,10 +8,10 @@ import {
   AbacusConnectionManager__factory,
   InterchainGasPaymaster,
   InterchainGasPaymaster__factory,
+  Outbox,
+  Outbox__factory,
   TestInbox,
   TestInbox__factory,
-  TestOutbox,
-  TestOutbox__factory,
 } from '../types';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
@@ -29,19 +29,14 @@ describe('AbacusConnectionManager', async () => {
   });
 
   beforeEach(async () => {
-    const outboxFactory = new TestOutbox__factory(signer);
+    const outboxFactory = new Outbox__factory(signer);
     const outbox = await outboxFactory.deploy(localDomain);
 
     const inboxFactory = new TestInbox__factory(signer);
     enrolledInbox = await inboxFactory.deploy(localDomain);
     // The ValidatorManager is unused in these tests *but* needs to be a
     // contract.
-    await enrolledInbox.initialize(
-      remoteDomain,
-      outbox.address,
-      ethers.constants.HashZero,
-      0,
-    );
+    await enrolledInbox.initialize(remoteDomain, outbox.address);
 
     const connectionManagerFactory = new AbacusConnectionManager__factory(
       signer,
@@ -63,10 +58,10 @@ describe('AbacusConnectionManager', async () => {
       signer?: SignerWithAddress,
     ) => Promise<ContractTransaction>,
   ) => {
-    let newOutbox: TestOutbox;
+    let newOutbox: Outbox;
 
     beforeEach(async () => {
-      const outboxFactory = new TestOutbox__factory(signer);
+      const outboxFactory = new Outbox__factory(signer);
       newOutbox = await outboxFactory.deploy(localDomain);
     });
 

@@ -4,7 +4,7 @@ pragma solidity >=0.6.11;
 import {ICommon} from "./ICommon.sol";
 
 interface IInbox is ICommon {
-    function checkpoint(
+    function cacheCheckpoint(
         bytes32 _root,
         uint256 _index
     ) external;
