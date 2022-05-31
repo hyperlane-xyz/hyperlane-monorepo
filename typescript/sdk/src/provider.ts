@@ -23,7 +23,6 @@ export interface IChainConnection {
   logger?: Debugger;
 }
 
-// TODO: Rename
 /**
  * AbacusProvider is an ethers.Provider that can also act like a ethers.Signer
  * if configured. The goal is to allow to create a contract wrapper with this
@@ -55,21 +54,7 @@ export class AbacusProvider<
     this._isProvider = connection.provider._isProvider;
   }
 
-  perform(method: string, params: any): Promise<any> {
-    this.logger('perform', method, params);
-    // @ts-ignore
-    return this.provider.perform(method, params).then(
-      (result: any) => {
-        this.logger('DEBUG', method, params, '=>', result);
-        return result;
-      },
-      (error: any) => {
-        this.logger('DEBUG:ERROR', method, params, '=>', error);
-        throw error;
-      },
-    );
-  }
-
+  // ============= Override ethers.Signer functions ====================
   isSigner() {
     return !!this.signer;
   }
@@ -88,6 +73,7 @@ export class AbacusProvider<
     }
     return this.signer.signMessage(message);
   }
+
   signTransaction(
     transaction: ethers.utils.Deferrable<TransactionRequest>,
   ): Promise<string> {
@@ -96,6 +82,7 @@ export class AbacusProvider<
     }
     return this.signer.signTransaction(transaction);
   }
+
   connect(provider: Provider): ethers.Signer {
     if (!this.signer) {
       throw new Error('Not a signer');
@@ -103,87 +90,14 @@ export class AbacusProvider<
     return this.signer.connect(provider);
   }
 
-  // All provider implementations
-  // TODO: Elaborate
-  getNetwork() {
-    return this.provider.getNetwork();
-  }
+  // == Overriden ethers.Signer functions that collide with ethers.Provider ===
+  // Unfortunately some ethers.Signer function signatures collide with
+  // ethers.provider function signatures, so "function overloading" has to be
+  // used to be able to satisfy both interfaces
 
-  getBlockNumber() {
-    return this.provider.getBlockNumber();
-  }
-  getCode(
-    addressOrName: string | Promise<string>,
-    blockTag?: BlockTag | Promise<BlockTag> | undefined,
-  ) {
-    return this.provider.getCode(addressOrName, blockTag);
-  }
-  getStorageAt(
-    addressOrName: string | Promise<string>,
-    position: ethers.BigNumberish | Promise<ethers.BigNumberish>,
-    blockTag?: BlockTag | Promise<BlockTag> | undefined,
-  ) {
-    return this.provider.getStorageAt(addressOrName, position, blockTag);
-  }
-  getBlock(blockHashOrBlockTag: BlockTag | Promise<BlockTag>) {
-    return this.provider.getBlock(blockHashOrBlockTag);
-  }
-  getBlockWithTransactions(blockHashOrBlockTag: BlockTag | Promise<BlockTag>) {
-    return this.provider.getBlockWithTransactions(blockHashOrBlockTag);
-  }
-  getTransaction(transactionHash: string) {
-    return this.provider.getTransaction(transactionHash);
-  }
-
-  getTransactionReceipt(transactionHash: string) {
-    return this.provider.getTransactionReceipt(transactionHash);
-  }
-  getLogs(filter: Filter) {
-    return this.provider.getLogs(filter);
-  }
-  lookupAddress(address: string | Promise<string>) {
-    return this.provider.lookupAddress(address);
-  }
-  on(eventName: EventType, listener: Listener) {
-    return this.provider.on(eventName, listener);
-  }
-  once(eventName: EventType, listener: Listener) {
-    return this.provider.once(eventName, listener);
-  }
-  emit(eventName: EventType, ...args: any[]) {
-    return this.provider.emit(eventName, ...args);
-  }
-  listenerCount() {
-    return this.provider.listenerCount();
-  }
-  listeners() {
-    return this.provider.listeners();
-  }
-  off(eventName: EventType, listener: Listener) {
-    return this.provider.off(eventName, listener);
-  }
-  removeAllListeners() {
-    return this.provider.removeAllListeners();
-  }
-  addListener(eventName: EventType, listener: Listener) {
-    return this.provider.addListener(eventName, listener);
-  }
-  removeListener(eventName: EventType, listener: Listener) {
-    return this.provider.removeListener(eventName, listener);
-  }
-  waitForTransaction(
-    transactionHash: string,
-    confirmations?: number | undefined,
-    timeout?: number | undefined,
-  ) {
-    return this.provider.waitForTransaction(
-      transactionHash,
-      confirmations,
-      timeout,
-    );
-  }
-
+  // ethers.Signer's getBalance
   async getBalance(blockTag?: BlockTag | undefined): Promise<BigNumber>;
+  // ethers.Provider's getBalance
   async getBalance(
     addressOrName: string | Promise<string>,
     blockTag?: BlockTag | Promise<BlockTag> | undefined,
@@ -210,7 +124,9 @@ export class AbacusProvider<
     }
   }
 
+  // ethers.Signer's getTransactionCount
   async getTransactionCount(blockTag?: BlockTag | undefined): Promise<number>;
+  // ethers.Provider's getTransactionCount
   async getTransactionCount(
     addressOrName: string | Promise<string>,
     blockTag?: BlockTag | Promise<BlockTag> | undefined,
@@ -239,9 +155,11 @@ export class AbacusProvider<
     }
   }
 
+  // ethers.Signer's sendTransaction
   async sendTransaction(
     transaction: Deferrable<TransactionRequest>,
   ): Promise<TransactionResponse>;
+  // ethers.Provider's sendTransaction
   async sendTransaction(
     signedTransaction: string | Promise<string>,
   ): Promise<TransactionResponse>;
@@ -264,6 +182,104 @@ export class AbacusProvider<
           return this.provider.sendTransaction(rawOrSignedTransaction);
         }
       },
+    );
+  }
+
+  // ============= General Provider Functions ====================
+  // Proxy ethers.Provider function calls to the underlying provider
+
+  getNetwork() {
+    return this.provider.getNetwork();
+  }
+
+  getBlockNumber() {
+    return this.provider.getBlockNumber();
+  }
+
+  getCode(
+    addressOrName: string | Promise<string>,
+    blockTag?: BlockTag | Promise<BlockTag> | undefined,
+  ) {
+    return this.provider.getCode(addressOrName, blockTag);
+  }
+
+  getStorageAt(
+    addressOrName: string | Promise<string>,
+    position: ethers.BigNumberish | Promise<ethers.BigNumberish>,
+    blockTag?: BlockTag | Promise<BlockTag> | undefined,
+  ) {
+    return this.provider.getStorageAt(addressOrName, position, blockTag);
+  }
+
+  getBlock(blockHashOrBlockTag: BlockTag | Promise<BlockTag>) {
+    return this.provider.getBlock(blockHashOrBlockTag);
+  }
+
+  getBlockWithTransactions(blockHashOrBlockTag: BlockTag | Promise<BlockTag>) {
+    return this.provider.getBlockWithTransactions(blockHashOrBlockTag);
+  }
+
+  getTransaction(transactionHash: string) {
+    return this.provider.getTransaction(transactionHash);
+  }
+
+  getTransactionReceipt(transactionHash: string) {
+    return this.provider.getTransactionReceipt(transactionHash);
+  }
+
+  getLogs(filter: Filter) {
+    return this.provider.getLogs(filter);
+  }
+
+  lookupAddress(address: string | Promise<string>) {
+    return this.provider.lookupAddress(address);
+  }
+
+  on(eventName: EventType, listener: Listener) {
+    return this.provider.on(eventName, listener);
+  }
+
+  once(eventName: EventType, listener: Listener) {
+    return this.provider.once(eventName, listener);
+  }
+
+  emit(eventName: EventType, ...args: any[]) {
+    return this.provider.emit(eventName, ...args);
+  }
+
+  listenerCount() {
+    return this.provider.listenerCount();
+  }
+
+  listeners() {
+    return this.provider.listeners();
+  }
+
+  off(eventName: EventType, listener: Listener) {
+    return this.provider.off(eventName, listener);
+  }
+
+  removeAllListeners() {
+    return this.provider.removeAllListeners();
+  }
+
+  addListener(eventName: EventType, listener: Listener) {
+    return this.provider.addListener(eventName, listener);
+  }
+
+  removeListener(eventName: EventType, listener: Listener) {
+    return this.provider.removeListener(eventName, listener);
+  }
+
+  waitForTransaction(
+    transactionHash: string,
+    confirmations?: number | undefined,
+    timeout?: number | undefined,
+  ) {
+    return this.provider.waitForTransaction(
+      transactionHash,
+      confirmations,
+      timeout,
     );
   }
 }
