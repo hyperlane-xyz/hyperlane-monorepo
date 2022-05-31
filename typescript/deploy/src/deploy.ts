@@ -61,9 +61,9 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
     args: Parameters<F['deploy']>,
   ): Promise<ReturnType<F['deploy']>> {
     this.logger(`Deploy ${contractName} on ${chain}`);
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const contract = await factory.deploy(...args, chainConnection.overrides);
-    await contract.deployTransaction.wait(chainConnection.confirmations);
+    const provider = this.multiProvider.getProvider(chain);
+    const contract = await factory.deploy(...args, provider.overrides);
+    await contract.deployTransaction.wait(provider.confirmations);
     const verificationInput = getContractVerificationInput(
       contractName,
       contract,
@@ -88,8 +88,8 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
     ubcAddress: types.Address,
     initArgs: Parameters<C['initialize']>,
   ) {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const signer = chainConnection.signer;
+    const chainProvider = this.multiProvider.getProvider(chain);
+    const signer = chainProvider.signer;
     const implementation = await this.deployContract(
       chain,
       `${contractName} Implementation`,
@@ -132,7 +132,7 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
     proxy: ProxiedContract<C>,
     initArgs: Parameters<C['initialize']>,
   ) {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const chainSigner = this.multiProvider.getSigner(chain);
     const initData = proxy.contract.interface.encodeFunctionData(
       'initialize',
       initArgs,
@@ -140,7 +140,7 @@ export abstract class AbacusAppDeployer<Chain extends ChainName, C, A> {
     const newProxy = await this.deployContract(
       chain,
       `${contractName} Proxy`,
-      new UpgradeBeaconProxy__factory(chainConnection.signer!),
+      new UpgradeBeaconProxy__factory(chainSigner),
       [proxy.addresses.beacon, initData],
     );
 

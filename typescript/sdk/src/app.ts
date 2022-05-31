@@ -16,10 +16,7 @@ export class AbacusApp<
       objMap(
         contractAddresses,
         (chain, addresses) =>
-          new builder(
-            addresses,
-            multiProvider.getChainConnection(chain).getConnection()!,
-          ),
+          new builder(addresses, multiProvider.getProvider(chain)),
       ),
     );
   }

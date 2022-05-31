@@ -12,7 +12,6 @@ import {
 } from '@abacus-network/core';
 import {
   AbacusCore,
-  ChainConnection,
   ChainMap,
   ChainName,
   CoreContractAddresses,
@@ -26,6 +25,7 @@ import {
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';
+import { WrappedProvider } from '@abacus-network/sdk/dist/provider';
 import { types } from '@abacus-network/utils';
 
 import { AbacusAppDeployer } from '../deploy';
@@ -68,11 +68,9 @@ export class AbacusCoreDeployer<
     chain: LocalChain,
     config: CoreConfig,
   ): Promise<CoreContractAddresses<Chain, LocalChain>> {
-    const dc = this.multiProvider.getChainConnection(chain);
-    const signer = dc.signer!;
+    const signer = this.multiProvider.getSigner(chain);
 
-    const provider = dc.provider!;
-    const startingBlockNumber = await provider.getBlockNumber();
+    const startingBlockNumber = await signer.getBlockNumber();
     this.startingBlockNumbers[chain] = startingBlockNumber;
 
     const upgradeBeaconController = await this.deployContract(
@@ -117,13 +115,17 @@ export class AbacusCoreDeployer<
       new AbacusConnectionManager__factory(signer),
       [],
     );
+
+    this.logger(`Setting Outbox on ACM on ${chain} ${signer.overrides}`);
     await abacusConnectionManager.setOutbox(
       outbox.contract.address,
-      dc.overrides,
+      signer.overrides,
     );
+
+    this.logger(`Setting InterchainGasPaymaster on ACM on ${chain}`);
     await abacusConnectionManager.setInterchainGasPaymaster(
       interchainGasPaymaster.address,
-      dc.overrides,
+      signer.overrides,
     );
 
     const remotes = Object.keys(this.configMap).filter(
@@ -228,11 +230,10 @@ export class AbacusCoreDeployer<
     return promiseObjAll(
       objMap(core.contractsMap, async (chain, coreContracts) => {
         const owner = owners[chain];
-        const chainConnection = multiProvider.getChainConnection(chain);
         return AbacusCoreDeployer.transferOwnershipOfChain(
           coreContracts,
           owner,
-          chainConnection,
+          multiProvider.getProvider(chain),
         );
       }),
     );
@@ -244,19 +245,19 @@ export class AbacusCoreDeployer<
   >(
     core: CoreContracts<Chain, Local>,
     owner: types.Address,
-    chainConnection: ChainConnection,
+    chainProvider: WrappedProvider,
   ): Promise<ethers.ContractReceipt> {
     await core.contracts.outbox.validatorManager.transferOwnership(
       owner,
-      chainConnection.overrides,
+      chainProvider.overrides,
     );
     await core.contracts.abacusConnectionManager.transferOwnership(
       owner,
-      chainConnection.overrides,
+      chainProvider.overrides,
     );
     await core.contracts.upgradeBeaconController.transferOwnership(
       owner,
-      chainConnection.overrides,
+      chainProvider.overrides,
     );
     const inboxContracts: InboxContracts[] = Object.values(
       core.contracts.inboxes,
@@ -265,16 +266,16 @@ export class AbacusCoreDeployer<
       inboxContracts.map(async (inbox) => {
         await inbox.validatorManager.transferOwnership(
           owner,
-          chainConnection.overrides,
+          chainProvider.overrides,
         );
-        await inbox.inbox.transferOwnership(owner, chainConnection.overrides);
+        await inbox.inbox.transferOwnership(owner, chainProvider.overrides);
       }),
     );
 
     const tx = await core.contracts.outbox.outbox.transferOwnership(
       owner,
-      chainConnection.overrides,
+      chainProvider.overrides,
     );
-    return tx.wait(chainConnection.confirmations);
+    return tx.wait(chainProvider.confirmations);
   }
 }

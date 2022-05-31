@@ -38,7 +38,7 @@ export class TestCoreDeploy extends AbacusCoreDeployer<TestChainNames> {
   ): Promise<CoreContractAddresses<TestChainNames, LocalChain>> {
     const addresses = await super.deployContracts(local, config);
 
-    const signer = this.multiProvider.getChainConnection(local).signer!;
+    const signer = this.multiProvider.getSigner(local);
     const outbox = this.outboxFactoryBuilder(signer).attach(
       addresses.outbox.proxy,
     );

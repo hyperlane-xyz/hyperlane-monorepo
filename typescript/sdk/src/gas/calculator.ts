@@ -1,9 +1,10 @@
-import { AbacusCore, MultiProvider, chainMetadata } from '..';
+import { AbacusCore, chainMetadata } from '..';
 import { BigNumber, FixedNumber, ethers } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 
 import { InboxContracts } from '../core/contracts';
+import { MultiProvider } from '../provider';
 import { ChainName, RemoteChainMap, Remotes } from '../types';
 
 import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
@@ -252,7 +253,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @returns The suggested gas price in wei on the destination chain.
    */
   async suggestedGasPrice(chainName: Chain): Promise<BigNumber> {
-    const provider = this.multiProvider.getChainConnection(chainName).provider!;
+    const provider = this.multiProvider.getProvider(chainName);
     return provider.getGasPrice();
   }
 
@@ -282,8 +283,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   async estimateHandleGasForMessage<LocalChain extends Chain>(
     message: ParsedMessage<Chain, LocalChain>,
   ): Promise<BigNumber> {
-    const provider = this.multiProvider.getChainConnection(message.destination)
-      .provider!;
+    const provider = this.multiProvider.getProvider(message.destination);
 
     const { inbox } = this.core.getMailboxPair<LocalChain>(
       message.origin,

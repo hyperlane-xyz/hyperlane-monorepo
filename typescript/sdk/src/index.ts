@@ -38,7 +38,7 @@ export {
   InterchainGasCalculator,
   TokenPriceGetter,
 } from './gas';
-export { ChainConnection, IChainConnection, MultiProvider } from './provider';
+export { IChainConnection, MultiProvider } from './provider';
 export {
   AllChains,
   ChainMap,
