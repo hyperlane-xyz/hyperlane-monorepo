@@ -64,7 +64,7 @@ __metadata:
     "@abacus-network/core": ^0.1.1
     "@abacus-network/sdk": ^0.1.1
     "@abacus-network/utils": ^0.1.1
-    "@typechain/ethers-v5": ~7.0.0
+    "@typechain/ethers-v5": ^7.2.0
     "@types/debug": ^4.1.7
     "@types/node": ^16.9.1
     "@types/yargs": ^17.0.10
@@ -110,8 +110,8 @@ __metadata:
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-etherscan": ^3.0.3
     "@nomiclabs/hardhat-waffle": ^2.0.2
-    "@typechain/ethers-v5": ~7.0.0
-    "@typechain/hardhat": ^2.0.1
+    "@typechain/ethers-v5": ^7.2.0
+    "@typechain/hardhat": ^2.3.1
     "@types/chai": ^4.2.21
     "@types/mocha": ^9.1.0
     "@types/node": ^16.9.1
@@ -3370,20 +3370,6 @@ __metadata:
     typechain: ^5.0.0
     typescript: ">=4.0.0"
   checksum: 23c7bcb6ef3582fe7ec32dec26bd5067a751b7e3b88ece0b98b2c4bb9623ac074f079ebe3dbcdf57f7e659d8d3a3f018105bd660806f6e7bdafa0dc56c5de450
-  languageName: node
-  linkType: hard
-
-"@typechain/ethers-v5@npm:~7.0.0":
-  version: 7.0.1
-  resolution: "@typechain/ethers-v5@npm:7.0.1"
-  peerDependencies:
-    "@ethersproject/abi": ^5.0.0
-    "@ethersproject/bytes": ^5.0.0
-    "@ethersproject/providers": ^5.0.0
-    ethers: ^5.1.3
-    typechain: ^5.0.0
-    typescript: ">=4.0.0"
-  checksum: 5d09eb6969f7a9dc3d8b4748d63bcdb4b0c54e4397c186c331cbb4c91bba76467b6b5b8e694f00bb5f4656bb97fc5a07b8e1ff73529b7eb7a5ce0b158cab0487
   languageName: node
   linkType: hard
 
