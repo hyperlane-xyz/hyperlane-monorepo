@@ -225,7 +225,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 function configEnvVars(
   config: Record<string, any>,
   role: string,
-  key_name_prefix: string = '',
+  key_name_prefix = '',
 ) {
   let envVars: string[] = [];
   for (const key of Object.keys(config)) {

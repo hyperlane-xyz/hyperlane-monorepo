@@ -114,6 +114,7 @@ export class AgentGCPKey extends AgentKey {
     }
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   private async _create(rotate: boolean) {
     const wallet = Wallet.createRandom();
     const address = await wallet.getAddress();

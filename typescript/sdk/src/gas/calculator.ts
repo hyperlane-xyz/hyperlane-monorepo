@@ -173,7 +173,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    */
   async estimatePaymentForMessage<Destination extends Chain>(
     message: ParsedMessage<Chain, Destination>,
-  ) {
+  ): Promise<BigNumber> {
     const destinationGas = await this.estimateHandleGasForMessage(message);
     return this.estimatePaymentForHandleGasAmount(
       message.origin,
@@ -261,7 +261,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
    * @param chain The chain.
    * @returns The number of decimals of `chain`'s native token.
    */
-  nativeTokenDecimals(chain: Chain) {
+  nativeTokenDecimals(chain: Chain): number {
     return chainMetadata[chain].nativeTokenDecimals ?? DEFAULT_TOKEN_DECIMALS;
   }
 

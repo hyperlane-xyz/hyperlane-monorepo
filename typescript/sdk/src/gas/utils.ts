@@ -15,10 +15,7 @@ export function bigToFixed(big: BigNumber): FixedNumber {
  * @param ceil If true, the ceiling of fixed is used. Otherwise, the floor is used.
  * @returns A BigNumber representation of a FixedNumber.
  */
-export function fixedToBig(
-  fixed: FixedNumber,
-  ceil: boolean = false,
-): BigNumber {
+export function fixedToBig(fixed: FixedNumber, ceil = false): BigNumber {
   const fixedAsInteger = ceil ? fixed.ceiling() : fixed.floor();
   return BigNumber.from(fixedAsInteger.toFormat('fixed256x0').toString());
 }
@@ -33,7 +30,7 @@ export function fixedToBig(
 export function mulBigAndFixed(
   big: BigNumber,
   fixed: FixedNumber,
-  ceil: boolean = false,
+  ceil = false,
 ): BigNumber {
   // Converts big to a FixedNumber, multiplies it by fixed, and converts the product back
   // to a BigNumber.

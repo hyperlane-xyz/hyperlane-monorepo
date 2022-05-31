@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-floating-promises */
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
@@ -107,7 +108,7 @@ describe('Inbox', async () => {
   });
 
   it('Rejects an already-processed message', async () => {
-    let { leaf, index, proof, root, message } = messageWithProof;
+    const { leaf, index, proof, root, message } = messageWithProof;
 
     await inbox.setCachedCheckpoint(root, 1);
     // Set message status as MessageStatus.Processed
@@ -120,7 +121,7 @@ describe('Inbox', async () => {
   });
 
   it('Rejects invalid message proof', async () => {
-    let { leaf, index, proof, root, message } = messageWithProof;
+    const { leaf, index, proof, root, message } = messageWithProof;
 
     // Switch ordering of proof hashes
     // NB: We copy 'path' here to avoid mutating the test cases for

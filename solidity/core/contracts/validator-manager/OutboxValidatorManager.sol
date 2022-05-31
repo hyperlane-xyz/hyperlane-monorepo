@@ -19,8 +19,8 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @notice Emitted when a checkpoint is proven premature.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
-     * @param root Root of the premature checkpoint.
-     * @param index Index of the premature checkpoint.
+     * @param signedRoot Root of the premature checkpoint.
+     * @param signedIndex Index of the premature checkpoint.
      * @param signatures A quorum of signatures on the premature checkpoint.
      * May include non-validator signatures.
      * @param count The number of messages in the Outbox.
@@ -37,8 +37,8 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @notice Emitted when a checkpoint is proven fraudulent.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
-     * @param root Root of the fraudulent checkpoint.
-     * @param index Index of the fraudulent checkpoint.
+     * @param signedRoot Root of the fraudulent checkpoint.
+     * @param signedIndex Index of the fraudulent checkpoint.
      * @param signatures A quorum of signatures on the fraudulent checkpoint.
      * May include non-validator signatures.
      * @param fraudulentLeaf The leaf in the fraudulent tree.

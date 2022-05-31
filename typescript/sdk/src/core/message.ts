@@ -48,7 +48,9 @@ export const resolveId = (nameOrDomain: NameOrDomain): number =>
     ? ChainNameToDomainId[nameOrDomain]
     : nameOrDomain;
 
-export const resolveNetworks = (message: ParsedMessage) => {
+export const resolveNetworks = (
+  message: ParsedMessage,
+): { origin: ChainName; destination: ChainName } => {
   return {
     origin: resolveDomain(message.origin),
     destination: resolveDomain(message.destination),

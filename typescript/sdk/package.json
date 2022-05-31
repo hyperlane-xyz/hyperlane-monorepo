@@ -12,11 +12,8 @@
   },
   "devDependencies": {
     "@types/node": "^16.9.1",
-    "@typescript-eslint/eslint-plugin": "^4.33.0",
-    "@typescript-eslint/parser": "^4.33.0",
     "chai": "^4.3.6",
     "dotenv": "^10.0.0",
-    "eslint": "^7.32.0",
     "fs": "0.0.1-security",
     "mocha": "^9.2.2",
     "sinon": "^13.0.2"
