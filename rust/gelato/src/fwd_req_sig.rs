@@ -4,7 +4,7 @@ use ethers::types::U256;
 use ethers::utils::keccak256;
 
 use crate::err::GelatoError;
-use crate::forward_request::op::OpArgs;
+use crate::fwd_req_op::ForwardRequestOpArgs;
 
 // See @gelatonetwork/gelato-relay-sdk/package/dist/lib/index.js.
 const EIP_712_DOMAIN_NAME: &str = "GelatoRelayForwarder";
@@ -17,14 +17,14 @@ const EIP_712_TYPE_HASH_STR: &str = concat!(
     "bool enforceSponsorNonceOrdering)"
 );
 
-impl Eip712 for OpArgs {
+impl Eip712 for ForwardRequestOpArgs {
     type Error = GelatoError;
     fn domain(&self) -> Result<EIP712Domain, Self::Error> {
         Ok(EIP712Domain {
             name: String::from(EIP_712_DOMAIN_NAME),
             version: String::from(EIP_712_VERSION),
             chain_id: self.chain_id.into(),
-            verifying_contract: self.chain_id.relay_forward_address()?,
+            verifying_contract: self.chain_id.relay_fwd_addr()?,
             salt: None,
         })
     }
@@ -32,9 +32,10 @@ impl Eip712 for OpArgs {
         Ok(keccak256(EIP_712_TYPE_HASH_STR))
     }
     fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
-        dbg!(OpArgs::type_hash().unwrap());
         Ok(keccak256(ethers::abi::encode(&[
-            Token::FixedBytes(OpArgs::type_hash().unwrap().to_vec()),
+            Token::FixedBytes(
+                ForwardRequestOpArgs::type_hash().unwrap().to_vec(),
+            ),
             Token::Int(U256::from(u32::from(self.chain_id))),
             Token::Address(self.target),
             Token::FixedBytes(keccak256(&self.data).to_vec()),
@@ -55,31 +56,37 @@ impl Eip712 for OpArgs {
 mod tests {
     use super::*;
     use crate::chains::Chain;
-    use crate::forward_request::op::{self, PaymentType};
+    use crate::fwd_req_op::{self, PaymentType};
     use ethers::types::transaction::eip712::Eip712;
     use ethers::utils::hex;
 
-    // The sample data / parameters below, along with corresponding expected
-    // digests and signatures, were validated by running the Gelato Relay SDK
-    // demo "hello world" app with instrumented logging, and recording the
-    // generated signatures and digests. A LocalWallet with a randomly-generated
-    // private key was also recorded.
-    //
-    // See https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start
+    // The sample data / parameters below, along with corresponding
+    // expected digests and signatures, were validated by running the
+    // Gelato Relay SDK demo "hello world" app with instrumented
+    // logging, and recording the generated signatures and digests. A
+    // LocalWallet with a randomly-generated private key was also
+    // recorded.
+    // 
+    // See
+    // https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start
     // for more details.
-
-    const EXAMPLE_DATA_FOR_TESTING: &str =
-        "0x4b327067000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee";
-    const ETH_TOKEN_FOR_TESTING: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
-    const SPONSOR_CONTRACT_FOR_TESTING: &str = "0xEED5eA7e25257a272cb3bF37B6169156D37FB908";
+    
+    const EXAMPLE_DATA_FOR_TESTING: &str = concat!(
+        "0x4b327067000000000000000000000000",
+        "eeeeeeeeeeeeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee"
+    );
+    const ETH_TOKEN_FOR_TESTING: &str =
+        "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    const SPONSOR_CONTRACT_FOR_TESTING: &str =
+        "0xeed5ea7e25257a272cb3bf37b6169156d37fb908";
+    const TARGET_CONTRACT_FOR_TESTING: &str =
+        "0x8580995eb790a3002a55d249e92a8b6e5d0b384a";
 
     #[test]
     fn sdk_demo_app() {
-        let args = OpArgs {
+        let args = ForwardRequestOpArgs {
             chain_id: Chain::Goerli,
-            target: "0x8580995EB790a3002A55d249e92A8B6e5d0b384a"
-                .parse()
-                .unwrap(),
+            target: TARGET_CONTRACT_FOR_TESTING.parse().unwrap(),
             data: EXAMPLE_DATA_FOR_TESTING.parse().unwrap(),
             fee_token: ETH_TOKEN_FOR_TESTING.parse().unwrap(),
             payment_type: PaymentType::AsyncGasTank,
@@ -96,7 +103,9 @@ mod tests {
             "5b86c8e692a12ffedb26520fb1cc801f537517ee74d7730a1d806daf2b0c2688"
         );
         assert_eq!(
-            hex::encode(&op::OpArgs::type_hash().unwrap()),
+            hex::encode(
+                &fwd_req_op::ForwardRequestOpArgs::type_hash().unwrap()
+            ),
             "4aa193de33aca882aa52ebc7dcbdbd732ad1356422dea011f3a1fa08db2fac37"
         );
         assert_eq!(

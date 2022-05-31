@@ -1,13 +1,9 @@
 use crate::err::GelatoError;
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
+use tracing::{info, instrument};
 
 const RELAY_URL: &str = "https://relay.gelato.digital";
-
-pub struct TaskStatusCall {
-    pub http: Arc<reqwest::Client>,
-    pub args: TaskStatusCallArgs,
-}
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -15,18 +11,28 @@ pub struct TaskStatusCallArgs {
     pub task_id: String,
 }
 
-#[derive(Debug, Eq, PartialEq, Deserialize, Serialize)]
+#[derive(Debug, Default, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct TaskStatusCallResult {
     pub data: Vec<TransactionStatus>,
 }
 
+#[derive(Debug)]
+pub struct TaskStatusCall {
+    pub http: Arc<reqwest::Client>,
+    pub args: TaskStatusCallArgs,
+}
 impl TaskStatusCall {
+    #[instrument]
     pub async fn run(&self) -> Result<TaskStatusCallResult, GelatoError> {
-        let url = format!("{}/tasks/GelatoMetaBox/{}", RELAY_URL, self.args.task_id);
+        let url = format!(
+            "{}/tasks/GelatoMetaBox/{}",
+            RELAY_URL, self.args.task_id
+        );
+        info!(?url);
         let res = self.http.get(url).send().await?;
-        let result_json = res.json().await.unwrap();
-        let result = TaskStatusCallResult::from(result_json);
+        info!(?res);
+        let result = TaskStatusCallResult::from(res.json().await?);
         Ok(TaskStatusCallResult::from(result))
     }
 }
@@ -51,7 +57,7 @@ pub struct TransactionStatus {
     pub task_id: String,
     pub task_state: TaskStatus,
     pub created_at: Option<String>,
-    //pub last_check: Option<Check>,
+    pub last_check: Option<Check>,
     pub execution: Option<Execution>,
     pub last_execution: Option<String>,
 }
@@ -65,8 +71,13 @@ pub struct Execution {
     pub created_at: Option<String>,
 }
 
+// Sometimes the value corresponding to the 'last_check'
+// key is a string timestamp, other times it is filled in
+// with lots of detailed fields. Represent that with
+// an enum and let serde figure it out.
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
+#[serde(untagged)]
 pub enum Check {
     Timestamp(String),
     CheckWithMetadata(CheckInfo),
@@ -78,7 +89,7 @@ pub struct CheckInfo {
     pub task_state: TaskStatus,
     pub message: String,
     pub payload: Payload,
-    pub chain: String,
+    pub chain: Option<String>,
     pub created_at: Option<String>,
 }
 

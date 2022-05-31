@@ -16,7 +16,9 @@ serde_json = { version = "*" }
 reqwest = { version = "*", features = ["json"]}
 rustc-hex = { version = "*" }
 thiserror = { version = "*" }
-mockito = { version = "*" }
+tracing = "0.1"
+tracing-subscriber = "0.2.0"
+
 
 # TODO(webbhorn): Merge this into abacus-cli after
 # we migrate it to `clap`.

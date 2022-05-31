@@ -97,7 +97,7 @@ impl Chain {
     //
     // See `getRelayForwarderAddrss()` in the SDK file
     // `@gelatonetwork/gelato-relay-sdk/package/dist/constants/index.js`.
-    pub fn relay_forward_address(&self) -> Result<Address, GelatoError> {
+    pub fn relay_fwd_addr(&self) -> Result<Address, GelatoError> {
         match self {
             Chain::Rinkeby => Ok(Address::from_str(
                 "9B79b798563e538cc326D03696B3Be38b971D282",
@@ -137,12 +137,12 @@ mod tests {
     }
     #[test]
     fn contracts() {
-        assert!(!Chain::Mainnet.relay_forward_address().is_ok());
-        assert!(Chain::Rinkeby.relay_forward_address().is_ok());
-        assert!(Chain::Goerli.relay_forward_address().is_ok());
-        assert!(Chain::Kovan.relay_forward_address().is_ok());
-        assert!(Chain::XDai.relay_forward_address().is_ok());
-        assert!(Chain::Polygon.relay_forward_address().is_ok());
-        assert!(Chain::PolygonMumbai.relay_forward_address().is_ok());
+        assert!(!Chain::Mainnet.relay_fwd_addr().is_ok());
+        assert!(Chain::Rinkeby.relay_fwd_addr().is_ok());
+        assert!(Chain::Goerli.relay_fwd_addr().is_ok());
+        assert!(Chain::Kovan.relay_fwd_addr().is_ok());
+        assert!(Chain::XDai.relay_fwd_addr().is_ok());
+        assert!(Chain::Polygon.relay_fwd_addr().is_ok());
+        assert!(Chain::PolygonMumbai.relay_fwd_addr().is_ok());
     }
 }

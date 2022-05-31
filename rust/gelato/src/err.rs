@@ -8,7 +8,7 @@ pub enum GelatoError {
     RelayForwardAddressParseError(FromHexError),
     #[error("No valid relay forward address for target chain '{0}'")]
     UnknownRelayForwardAddress(Chain),
-    #[error("HTTP error: {0}")]
+    #[error("HTTP error: {0:#?}")]
     RelayForwardHTTPError(reqwest::Error),
     #[error("Unknown or unmapped chain with name '{0}'")]
     UnknownChainNameError(String),
