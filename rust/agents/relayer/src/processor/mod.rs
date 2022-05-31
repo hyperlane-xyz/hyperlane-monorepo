@@ -1,13 +1,25 @@
+pub mod direct_submit;
+pub mod gelato;
+mod processor_trait;
+
+pub use direct_submit::*;
+pub use gelato::*;
+use processor_trait::*;
+
 use std::{
     cmp::Reverse,
-    collections::BinaryHeap,
+    collections::{BinaryHeap, HashMap},
     sync::Arc,
     time::{Duration, Instant},
 };
 
 use abacus_base::{CachingInbox, Outboxes};
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, MessageStatus};
-use eyre::{bail, Result};
+use abacus_core::{
+    accumulator::merkle::Proof, db::AbacusDB, AbacusCommon, AbacusMessage, CommittedMessage, Inbox,
+    MessageStatus,
+};
+use async_trait::async_trait;
+use eyre::{bail, Report, Result};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::{
@@ -16,7 +28,7 @@ use tracing::{
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
-pub(crate) struct MessageProcessor {
+pub struct MessageProcessor {
     polling_interval: u64,
     max_retries: u32,
     reorg_period: u64,
@@ -27,6 +39,9 @@ pub(crate) struct MessageProcessor {
     processor_loop_gauge: IntGauge,
     processed_gauge: IntGauge,
     retry_queue_length_gauge: IntGauge,
+    direct_processor: DirectMessageProcessor,
+    gelato_processor: GelatoMessageProcessor,
+    gelato_supported_domains: HashMap<u32, bool>,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -37,11 +52,25 @@ struct MessageToRetry {
 }
 
 #[derive(Debug)]
-enum MessageProcessingStatus {
+pub(crate) enum MessageProcessingStatus {
     NotDestinedForInbox,
     NotYetCheckpointed,
     Processed,
-    Error,
+    Unprocessed,
+    Error(Report),
+}
+
+#[async_trait]
+impl Processor for MessageProcessor {
+    async fn process(&self, message: &AbacusMessage, proof: &Proof) -> MessageProcessingStatus {
+        if self.is_gelato_supported_domain(message.origin)
+            && self.is_gelato_supported_domain(message.destination)
+        {
+            self.gelato_processor.process(message, proof).await
+        } else {
+            self.direct_processor.process(message, proof).await
+        }
+    }
 }
 
 impl MessageProcessor {
@@ -55,6 +84,7 @@ impl MessageProcessor {
         inbox: Arc<CachingInbox>,
         leaf_index_gauge: IntGaugeVec,
         retry_queue_length: IntGaugeVec,
+        gelato_supported_domains: HashMap<u32, bool>,
     ) -> Self {
         let processor_loop_gauge =
             leaf_index_gauge.with_label_values(&["processor_loop", outbox.name(), inbox.name()]);
@@ -68,11 +98,14 @@ impl MessageProcessor {
             reorg_period,
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
-            inbox,
+            inbox: inbox.clone(),
             retry_queue: BinaryHeap::new(),
             processor_loop_gauge,
             processed_gauge,
             retry_queue_length_gauge,
+            direct_processor: DirectMessageProcessor::new(inbox),
+            gelato_processor: GelatoMessageProcessor::new(),
+            gelato_supported_domains,
         }
     }
 
@@ -112,21 +145,7 @@ impl MessageProcessor {
                         }
 
                         match self.prover_sync.get_proof(message_leaf_index) {
-                            Ok(proof) => match self.inbox.process(&message.message, &proof).await {
-                                Ok(outcome) => {
-                                    info!(
-                                        leaf_index = message_leaf_index,
-                                        hash = ?outcome.txid,
-                                        "[MessageProcessor] processed"
-                                    );
-                                    self.db.mark_leaf_as_processed(message_leaf_index)?;
-                                    Ok(MessageProcessingStatus::Processed)
-                                }
-                                Err(err) => {
-                                    error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
-                                    Ok(MessageProcessingStatus::Error)
-                                }
-                            },
+                            Ok(proof) => Ok(self.process(&message.message, &proof).await),
                             Err(err) => {
                                 error!(error=?err, "MessageProcessor was unable to fetch proof");
                                 bail!("MessageProcessor was unable to fetch proof");
@@ -182,15 +201,30 @@ impl MessageProcessor {
                             self.processed_gauge.set(message_leaf_index as i64);
                             message_leaf_index += 1
                         }
+                        MessageProcessingStatus::Unprocessed => {
+                            // Just add to retry queue
+                            info!(
+                                destination = self.inbox.local_domain(),
+                                leaf_index = message_leaf_index,
+                                "Message unprocessed, enqueue for retry"
+                            );
+                            self.retry_queue.push(MessageToRetry {
+                                leaf_index: message_leaf_index,
+                                time_to_retry: Reverse(Instant::now()),
+                                retries: 0,
+                            });
+                            message_leaf_index += 1;
+                        }
                         MessageProcessingStatus::NotYetCheckpointed => {
                             // If we don't have an up to date checkpoint, sleep and try again
                             sleep(Duration::from_secs(self.polling_interval)).await;
                         }
                         MessageProcessingStatus::NotDestinedForInbox => message_leaf_index += 1,
-                        MessageProcessingStatus::Error => {
+                        MessageProcessingStatus::Error(err) => {
                             warn!(
                                 destination = self.inbox.local_domain(),
                                 leaf_index = message_leaf_index,
+                                error =? err,
                                 "Message could not be processed, queue for retry"
                             );
                             self.retry_queue.push(MessageToRetry {
@@ -235,7 +269,8 @@ impl MessageProcessor {
                                     )
                                 }
                                 MessageProcessingStatus::Processed => {}
-                                MessageProcessingStatus::Error => {
+                                MessageProcessingStatus::Unprocessed
+                                | MessageProcessingStatus::Error(_) => {
                                     warn!(
                                         destination = self.inbox.local_domain(),
                                         leaf_index = leaf_index,
@@ -274,6 +309,10 @@ impl MessageProcessor {
                 }
             }
         }
+    }
+
+    fn is_gelato_supported_domain(&self, domain: u32) -> bool {
+        *self.gelato_supported_domains.get(&domain).unwrap_or(&false)
     }
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {

@@ -65,7 +65,7 @@ impl CheckpointRelayer {
         }
     }
 
-    /// Only gets the messages desinated for the Relayers inbox
+    /// Only gets the messages destined for the Relayers inbox
     /// Inclusive the to_checkpoint_index
     #[instrument(ret, err, skip(self), level = "debug")]
     async fn get_messages_between(

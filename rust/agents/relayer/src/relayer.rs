@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use tokio::task::JoinHandle;
@@ -9,7 +11,7 @@ use abacus_base::{
 use abacus_core::AbacusCommon;
 
 use crate::{
-    checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,
+    checkpoint_relayer::CheckpointRelayer, processor::MessageProcessor,
     settings::RelayerSettings as Settings,
 };
 
@@ -21,6 +23,8 @@ pub struct Relayer {
     submission_latency: u64,
     relayer_message_processing: bool,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
+    #[allow(dead_code)]
+    gelato_supported_domains: HashMap<u32, bool>,
     core: AbacusAgentCore,
 }
 
@@ -39,6 +43,7 @@ impl Relayer {
         submission_latency: u64,
         relayer_message_processing: bool,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
+        gelato_supported_domains: HashMap<u32, bool>,
         core: AbacusAgentCore,
     ) -> Self {
         Self {
@@ -47,6 +52,7 @@ impl Relayer {
             submission_latency,
             relayer_message_processing,
             multisig_checkpoint_syncer,
+            gelato_supported_domains,
             core,
         }
     }
@@ -66,12 +72,20 @@ impl Agent for Relayer {
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
             .try_into_multisig_checkpoint_syncer()?;
+
+        let mut gelato_supported_domains: HashMap<u32, bool> =
+            HashMap::with_capacity(settings.gelatosupporteddomains.len());
+        for (domain, is_supported) in settings.gelatosupporteddomains.iter() {
+            gelato_supported_domains.insert(domain.parse().expect("invalid uint"), *is_supported);
+        }
+
         Ok(Self::new(
             settings.pollinginterval.parse().unwrap_or(5),
             settings.maxretries.parse().unwrap_or(10),
             settings.submissionlatency.parse().expect("invalid uint"),
             settings.relayermessageprocessing.parse().unwrap_or(false),
             multisig_checkpoint_syncer,
+            gelato_supported_domains,
             settings
                 .as_ref()
                 .try_into_abacus_core(Self::AGENT_NAME)
@@ -115,6 +129,7 @@ impl Relayer {
             inbox_contracts.inbox,
             self.core.metrics.last_known_message_leaf_index(),
             self.core.metrics.retry_queue_length(),
+            self.gelato_supported_domains.clone(),
         );
 
         self.run_all(vec![checkpoint_relayer.spawn(), message_processor.spawn()])

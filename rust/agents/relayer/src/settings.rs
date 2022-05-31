@@ -1,6 +1,7 @@
 //! Configuration
 
 use abacus_base::decl_settings;
+use std::collections::HashMap;
 
 decl_settings!(Relayer {
     /// The polling interval to check for new checkpoints in seconds
@@ -13,4 +14,6 @@ decl_settings!(Relayer {
     relayermessageprocessing: String,
     /// The multisig checkpoint syncer configuration
     multisigcheckpointsyncer: abacus_base::MultisigCheckpointSyncerConf,
+    /// Domains
+    gelatosupporteddomains: HashMap<String, bool>,
 });
