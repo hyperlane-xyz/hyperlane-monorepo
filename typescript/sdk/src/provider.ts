@@ -25,15 +25,15 @@ export interface IChainConnection {
 
 // TODO: Rename
 /**
- * WrappedProvider is an ethers.Provider that can also act like a ethers.Signer
+ * AbacusProvider is an ethers.Provider that can also act like a ethers.Signer
  * if configured. The goal is to allow to create a contract wrapper with this
  * provider once without having to recreate instances when a signer is "reconnected"
- * The abstraction isn't perfect as WrappedProvider has to extend from ethers.signer
+ * The abstraction isn't perfect as AbacusProvider has to extend from ethers.signer
  * while it is possible for it to not be configured to be a signer.
- * Consumers of WrappedProvider should be aware of this distinction and use the
+ * Consumers of AbacusProvider should be aware of this distinction and use the
  * appropriate methods to assert the desired behavior at runtime.
  */
-export class WrappedProvider<
+export class AbacusProvider<
   Chain extends ChainName = ChainName,
 > extends ethers.Signer {
   public readonly chain: Chain;
@@ -49,7 +49,7 @@ export class WrappedProvider<
     this.chain = chain;
     this.provider = connection.provider;
     this.signer = connection.signer;
-    this.logger = connection.logger || debug(`abacus:WrappedProvider:${chain}`);
+    this.logger = connection.logger || debug(`abacus:AbacusProvider:${chain}`);
     this.overrides = connection.overrides || {};
     this.confirmations = connection.confirmations;
     this._isProvider = connection.provider._isProvider;
@@ -271,19 +271,19 @@ export class WrappedProvider<
 /**
  * MultiProvider is a critical abstraction for the Abacus' SDK with a goal
  * of managing providers and signers for all configured chains without the
- * need to recreate contract wrappers. As per the notes for WrappedProvider,
+ * need to recreate contract wrappers. As per the notes for AbacusProvider,
  * developers should be aware that the "providers" returned can be ethers.Signer
  * or not and use the appropriate function to assert this at runtime (i.e. use
  * getProvider vs getSigner)
  */
 export class MultiProvider<
   Chain extends ChainName = ChainName,
-> extends MultiGeneric<Chain, WrappedProvider> {
+> extends MultiGeneric<Chain, AbacusProvider> {
   constructor(chainConnectionConfigs: ChainMap<Chain, IChainConnection>) {
     super(
       objMap(
         chainConnectionConfigs,
-        (chain, connection) => new WrappedProvider(chain, connection),
+        (chain, connection) => new AbacusProvider(chain, connection),
       ),
     );
   }

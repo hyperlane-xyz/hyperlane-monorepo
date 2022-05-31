@@ -25,7 +25,7 @@ import {
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';
-import { WrappedProvider } from '@abacus-network/sdk/dist/provider';
+import { AbacusProvider } from '@abacus-network/sdk/dist/provider';
 import { types } from '@abacus-network/utils';
 
 import { AbacusAppDeployer } from '../deploy';
@@ -245,7 +245,7 @@ export class AbacusCoreDeployer<
   >(
     core: CoreContracts<Chain, Local>,
     owner: types.Address,
-    chainProvider: WrappedProvider,
+    chainProvider: AbacusProvider,
   ): Promise<ethers.ContractReceipt> {
     await core.contracts.outbox.validatorManager.transferOwnership(
       owner,
