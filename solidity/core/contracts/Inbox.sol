@@ -51,9 +51,17 @@ contract Inbox is IInbox, Version0, Common {
 
     /**
      * @notice Emitted when message is processed
-     * @param messageHash Hash of message that failed to process
+     * @dev This event allows watchers to observe the merkle proof they need
+     * to prove fraud on the Outbox.
+     * @param messageHash Hash of message that was processed.
+     * @param leafIndex The leaf index of the message that was processed.
+     * @param proof A merkle proof of inclusion of `messageHash` at `leafIndex`.
      */
-    event Process(bytes32 indexed messageHash);
+    event Process(
+        bytes32 indexed messageHash,
+        uint256 indexed leafIndex,
+        bytes32[32] proof
+    );
 
     // ============ Constructor ============
 
@@ -62,36 +70,33 @@ contract Inbox is IInbox, Version0, Common {
 
     // ============ Initializer ============
 
-    function initialize(
-        uint32 _remoteDomain,
-        address _validatorManager,
-        bytes32 _checkpointedRoot,
-        uint256 _checkpointedIndex
-    ) public initializer {
+    function initialize(uint32 _remoteDomain, address _validatorManager)
+        public
+        initializer
+    {
         __Common_initialize(_validatorManager);
         entered = 1;
         remoteDomain = _remoteDomain;
-        _checkpoint(_checkpointedRoot, _checkpointedIndex);
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Checkpoints the provided root and index.
+     * @notice Caches the provided merkle root and index.
      * @dev Called by the validator manager, which is responsible for verifying a
      * quorum of validator signatures on the checkpoint.
-     * @dev Reverts if checkpoints's index is not greater than our latest index.
+     * @dev Reverts if the checkpoint's index is not greater than the index of the latest checkpoint in the cache.
      * @param _root Checkpoint's merkle root.
      * @param _index Checkpoint's index.
      */
-    function checkpoint(bytes32 _root, uint256 _index)
+    function cacheCheckpoint(bytes32 _root, uint256 _index)
         external
         override
         onlyValidatorManager
     {
-        // Ensure that the checkpoint is more recent than the latest we've seen.
-        require(_index > checkpoints[checkpointedRoot], "old checkpoint");
-        _checkpoint(_root, _index);
+        // Ensure that the checkpoint is newer than the latest we've cached.
+        require(_index > cachedCheckpoints[latestCachedRoot], "!newer");
+        _cacheCheckpoint(_root, _index);
     }
 
     /**
@@ -126,9 +131,10 @@ contract Inbox is IInbox, Version0, Common {
             _proof,
             _index
         );
-        // ensure that the root has been checkpointed
-        require(checkpoints[_calculatedRoot] > 0, "!checkpointed root");
+        // ensure that the root has been cached
+        require(cachedCheckpoints[_calculatedRoot] >= _index, "!cache");
         _process(_message, _messageHash);
+        emit Process(_messageHash, _index, _proof);
         // reset re-entrancy guard
         entered = 1;
     }
@@ -161,7 +167,5 @@ contract Inbox is IInbox, Version0, Common {
             sender,
             body
         );
-        // emit process results
-        emit Process(_messageHash);
     }
 }

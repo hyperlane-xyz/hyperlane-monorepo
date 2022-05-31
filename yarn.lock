@@ -25,7 +25,9 @@ __metadata:
     solhint: ^3.3.2
     solhint-plugin-prettier: ^0.0.5
     solidity-coverage: ^0.7.14
+    ts-node: ^10.8.0
     typechain: ^5.0.0
+    typescript: ^4.7.2
   languageName: unknown
   linkType: soft
 
@@ -51,6 +53,7 @@ __metadata:
     solidity-coverage: ^0.7.14
     ts-generator: ^0.1.1
     typechain: ^5.0.0
+    typescript: ^4.7.2
   languageName: unknown
   linkType: soft
 
@@ -68,6 +71,8 @@ __metadata:
     axios: ^0.21.3
     debug: ^4.3.4
     ethers: ^5.4.7
+    ts-node: ^10.8.0
+    typescript: ^4.7.2
     yargs: ^17.4.1
   languageName: unknown
   linkType: soft
@@ -85,7 +90,9 @@ __metadata:
     ethereum-waffle: ^3.2.2
     ethers: ^5.4.7
     hardhat: ^2.8.4
+    ts-node: ^10.8.0
     typechain: ^5.0.0
+    typescript: ^4.7.2
   languageName: unknown
   linkType: soft
 
@@ -116,7 +123,9 @@ __metadata:
     ethereum-waffle: ^3.2.2
     ethers: ^5.4.7
     hardhat: ^2.8.4
+    ts-node: ^10.8.0
     typechain: ^5.0.0
+    typescript: ^4.7.2
     yargs: ^17.3.1
   languageName: unknown
   linkType: soft
@@ -155,6 +164,7 @@ __metadata:
     fs: 0.0.1-security
     mocha: ^9.2.2
     sinon: ^13.0.2
+    typescript: ^4.7.2
   languageName: unknown
   linkType: soft
 

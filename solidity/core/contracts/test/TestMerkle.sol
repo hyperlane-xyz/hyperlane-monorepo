@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "../Merkle.sol";
+import "../MerkleTreeManager.sol";
 
 contract TestMerkle is MerkleTreeManager {
     using MerkleLib for MerkleLib.Tree;
@@ -19,5 +19,12 @@ contract TestMerkle is MerkleTreeManager {
         uint256 _index
     ) external pure returns (bytes32 _node) {
         return MerkleLib.branchRoot(_leaf, _proof, _index);
+    }
+
+    /**
+     * @notice Returns the number of inserted leaves in the tree
+     */
+    function count() public view returns (uint256) {
+        return tree.count;
     }
 }

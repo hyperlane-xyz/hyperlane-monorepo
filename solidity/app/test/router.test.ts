@@ -126,7 +126,6 @@ describe('Router', async () => {
         destinationDomain: number,
         interchainGasPayment?: number,
       ) => Promise<ContractTransaction>,
-      expectCheckpoint: boolean,
       expectGasPayment: boolean,
     ) => {
       // Allows a Chai Assertion to be programmatically negated
@@ -155,16 +154,6 @@ describe('Router', async () => {
           .withArgs(leafIndex, testInterchainGasPayment);
       });
 
-      it(`${
-        expectCheckpoint ? 'creates' : 'does not create'
-      } a checkpoint`, async () => {
-        const assertion = expectAssertion(
-          expect(dispatchFunction(destination)).to,
-          expectCheckpoint,
-        );
-        await assertion.emit(outbox, 'Checkpoint');
-      });
-
       it('reverts when dispatching a message to an unenrolled remote router', async () => {
         await expect(
           dispatchFunction(destinationWithoutRouter),
@@ -175,16 +164,6 @@ describe('Router', async () => {
     describe('#dispatch', () => {
       runDispatchFunctionTests(
         (destinationDomain) => router.dispatch(destinationDomain, '0x'),
-        false,
-        false,
-      );
-    });
-
-    describe('#dispatchAndCheckpoint', () => {
-      runDispatchFunctionTests(
-        (destinationDomain) =>
-          router.dispatchAndCheckpoint(destinationDomain, '0x'),
-        true,
         false,
       );
     });
@@ -200,35 +179,8 @@ describe('Router', async () => {
               value: interchainGasPayment,
             },
           ),
-        false,
         true,
       );
-    });
-
-    describe('#dispatchWithGasAndCheckpoint', () => {
-      runDispatchFunctionTests(
-        (destinationDomain, interchainGasPayment = 0) =>
-          router.dispatchWithGasAndCheckpoint(
-            destinationDomain,
-            '0x',
-            interchainGasPayment,
-            { value: interchainGasPayment },
-          ),
-        true,
-        true,
-      );
-    });
-  });
-
-  describe('#checkpoint', () => {
-    it('creates a checkpoint', async () => {
-      // dispatch dummy message
-      await outbox.dispatch(
-        destination,
-        utils.addressToBytes32(outbox.address),
-        '0x',
-      );
-      await expect(router.checkpoint()).to.emit(outbox, 'Checkpoint');
     });
   });
 });
