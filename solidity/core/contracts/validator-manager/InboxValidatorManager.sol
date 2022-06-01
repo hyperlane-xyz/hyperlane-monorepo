@@ -47,6 +47,7 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         bytes32 compressedNonce,
         bytes32[] omitted
     );
+
     // ============ Constructor ============
 
     /**
@@ -120,6 +121,7 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         );
     }
 
+    // Can we batch process with sovereign guardians?
     function batchProcess(
         IInbox _inbox,
         Checkpoint calldata _checkpoint,
@@ -136,20 +138,20 @@ contract InboxValidatorManager is SchnorrValidatorManager {
                 _omittedValidatorCompressedPublicKeys.length <= threshold,
                 "!threshold"
             );
-                BN256.G1Point memory _key = verificationKey(
-                    _omittedValidatorCompressedPublicKeys
-                );
-                uint256 _challenge = uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            _sigScalars[0],
-                            domainHash,
-                            _checkpoint.root,
-                            _checkpoint.index
-                        )
+            BN256.G1Point memory _key = verificationKey(
+                _omittedValidatorCompressedPublicKeys
+            );
+            uint256 _challenge = uint256(
+                keccak256(
+                    abi.encodePacked(
+                        _sigScalars[0],
+                        domainHash,
+                        _checkpoint.root,
+                        _checkpoint.index
                     )
-                );
-                require(verify(_key, _nonce, _sigScalars[1], _challenge), "!sig");
+                )
+            );
+            require(verify(_key, _nonce, _sigScalars[1], _challenge), "!sig");
             emit Quorum2(
                 _checkpoint,
                 _sigScalars,
