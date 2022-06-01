@@ -111,7 +111,7 @@ export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
     };
   }
 
-  reconnect(connection: Connection) {
+  reconnect(connection: Connection): void {
     this.contracts.outbox.outbox.connect(connection);
     this.contracts.outbox.validatorManager.connect(connection);
     this.contracts.interchainGasPaymaster.connect(connection);
@@ -123,12 +123,14 @@ export class CoreContracts<N extends ChainName = ChainName, L extends N = N>
     });
   }
 
-  getOutbox = () => this.contracts.outbox.outbox;
+  getOutbox = (): Outbox => this.contracts.outbox.outbox;
 
-  getOutboxValidatorManager = () => this.contracts.outbox.validatorManager;
+  getOutboxValidatorManager = (): OutboxValidatorManager =>
+    this.contracts.outbox.validatorManager;
 
-  getInbox = (chain: Remotes<N, L>) => this.contracts.inboxes[chain].inbox;
+  getInbox = (chain: Remotes<N, L>): Inbox =>
+    this.contracts.inboxes[chain].inbox;
 
-  getInboxValidatorManager = (chain: Remotes<N, L>) =>
+  getInboxValidatorManager = (chain: Remotes<N, L>): InboxValidatorManager =>
     this.contracts.inboxes[chain].validatorManager;
 }

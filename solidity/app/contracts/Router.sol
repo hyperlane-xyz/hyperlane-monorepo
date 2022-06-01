@@ -146,13 +146,16 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     ) internal {
         // Gets the abacusConnectionManager from storage once to avoid multiple reads.
         IAbacusConnectionManager _abacusConnectionManager = abacusConnectionManager;
-        _dispatchWithGas(
+        uint256 _leafIndex = _dispatch(
             _abacusConnectionManager.outbox(),
-            _abacusConnectionManager.interchainGasPaymaster(),
             _destinationDomain,
-            _msg,
-            _gasPayment
+            _msg
         );
+        if (_gasPayment > 0) {
+            _abacusConnectionManager.interchainGasPaymaster().payGasFor{
+                value: _gasPayment
+            }(_leafIndex);
+        }
     }
 
     // ============ Private functions ============
@@ -173,27 +176,5 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         // Ensure that destination chain has an enrolled router.
         bytes32 _router = _mustHaveRemoteRouter(_destinationDomain);
         return _outbox.dispatch(_destinationDomain, _router, _msg);
-    }
-
-    /**
-     * @notice Dispatches a message to an enrolled router via the provided Outbox
-     * and pays interchain gas for the dispatched message via the provided InterchainGasPaymaster.
-     * @dev Reverts if there is no enrolled router for _destinationDomain.
-     * @param _outbox The outbox contract to dispatch the message through.
-     * @param _interchainGasPaymaster The InterchainGasPaymaster contract to pay for interchain gas.
-     * @param _destinationDomain The domain of the chain to which to send the message.
-     * @param _msg The message to dispatch.
-     */
-    function _dispatchWithGas(
-        IOutbox _outbox,
-        IInterchainGasPaymaster _interchainGasPaymaster,
-        uint32 _destinationDomain,
-        bytes memory _msg,
-        uint256 _gasPayment
-    ) private {
-        uint256 _leafIndex = _dispatch(_outbox, _destinationDomain, _msg);
-        if (_gasPayment > 0) {
-            _interchainGasPaymaster.payGasFor{value: _gasPayment}(_leafIndex);
-        }
     }
 }

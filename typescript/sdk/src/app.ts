@@ -10,7 +10,7 @@ export class AbacusApp<
   constructor(
     builder: ContractsBuilder<any, Contracts>,
     contractAddresses: ChainMap<Chain, any>,
-    multiProvider: MultiProvider<Chain>,
+    readonly multiProvider: MultiProvider<Chain>,
   ) {
     super(
       objMap(
@@ -38,7 +38,7 @@ export class AbacusApp<
     return this.get(chain).addresses;
   }
 
-  reconnect(chain: Chain, connection: Connection) {
+  reconnect(chain: Chain, connection: Connection): void {
     this.get(chain).reconnect(connection);
   }
 }

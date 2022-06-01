@@ -13,6 +13,8 @@ pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
 pub use crate::{inbox::*, outbox::*, trait_builder::*, validator_manager::*};
+#[cfg(not(doctest))]
+pub use crate::{inbox::*, outbox::*, validator_manager::*};
 
 #[cfg(not(doctest))]
 mod tx;

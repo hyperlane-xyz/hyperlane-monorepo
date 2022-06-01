@@ -27,15 +27,11 @@ const chainSummary = async <Chain extends ChainName>(
   const inboxSummary = async (remote: Chain) => {
     const remoteContracts = core.getContracts(remote);
     const inbox = remoteContracts.inboxes[chain as Exclude<Chain, Chain>].inbox;
-    const [inboxCheckpointRoot, inboxCheckpointIndex] =
-      await inbox.latestCachedCheckpoint();
     const processFilter = inbox.filters.Process();
     const processes = await inbox.queryFilter(processFilter);
     return {
       chain: remote,
       processed: processes.length,
-      root: inboxCheckpointRoot,
-      index: inboxCheckpointIndex.toNumber(),
     };
   };
 

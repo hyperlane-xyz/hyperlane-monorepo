@@ -113,7 +113,7 @@ where
     ) -> Result<Vec<CheckpointWithMeta>> {
         let mut events = self
             .contract
-            .checkpoint_filter()
+            .checkpoint_cached_filter()
             .from_block(from)
             .to_block(to)
             .query_with_meta()
@@ -230,17 +230,17 @@ where
     }
 
     #[tracing::instrument(err)]
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.checkpointed_root().call().await?.into())
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.latest_cached_root().call().await?.into())
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         // This should probably moved into its own trait
-        let base_call = self.contract.latest_checkpoint();
+        let base_call = self.contract.latest_cached_checkpoint();
         let call_with_lag = match maybe_lag {
             Some(lag) => {
                 let tip = self
@@ -255,7 +255,7 @@ where
         };
         let (root, index) = call_with_lag.call().await?;
         Ok(Checkpoint {
-            // This is inefficient, but latest_checkpoint should never be called
+            // This is inefficient, but latest_cached_checkpoint should never be called
             outbox_domain: self.remote_domain().await?,
             root: root.into(),
             index: index.as_u32(),
@@ -293,7 +293,8 @@ where
         );
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
-        Ok(report_tx(gassed).await?.into())
+        let receipt = report_tx(gassed).await?;
+        Ok(receipt.into())
     }
 
     #[tracing::instrument(err)]

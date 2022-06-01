@@ -9,36 +9,36 @@ import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
 
 /**
  * @title OutboxValidatorManager
- * @notice Verifies if an invalid, premature, or fraudulent checkpoint has been signed by a quorum of
+ * @notice Verifies if an premature or fraudulent checkpoint has been signed by a quorum of
  * validators and reports it to an Outbox.
  */
 contract OutboxValidatorManager is MultisigValidatorManager {
     // ============ Events ============
 
     /**
-     * @notice Emitted when proof of a premature checkpoint is submitted.
+     * @notice Emitted when a checkpoint is proven premature.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
-     * @param root Root of the premature checkpoint.
-     * @param index Index of the premature checkpoint.
+     * @param signedRoot Root of the premature checkpoint.
+     * @param signedIndex Index of the premature checkpoint.
      * @param signatures A quorum of signatures on the premature checkpoint.
      * May include non-validator signatures.
      * @param count The number of messages in the Outbox.
      */
     event PrematureCheckpoint(
         address indexed outbox,
-        bytes32 root,
-        uint256 index,
+        bytes32 signedRoot,
+        uint256 signedIndex,
         bytes[] signatures,
         uint256 count
     );
 
     /**
-     * @notice Emitted when proof of a fraudulent checkpoint is submitted.
+     * @notice Emitted when a checkpoint is proven fraudulent.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
-     * @param root Root of the fraudulent checkpoint.
-     * @param index Index of the fraudulent checkpoint.
+     * @param signedRoot Root of the fraudulent checkpoint.
+     * @param signedIndex Index of the fraudulent checkpoint.
      * @param signatures A quorum of signatures on the fraudulent checkpoint.
      * May include non-validator signatures.
      * @param fraudulentLeaf The leaf in the fraudulent tree.
@@ -49,8 +49,8 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      */
     event FraudulentCheckpoint(
         address indexed outbox,
-        bytes32 root,
-        uint256 index,
+        bytes32 signedRoot,
+        uint256 signedIndex,
         bytes[] signatures,
         bytes32 fraudulentLeaf,
         bytes32[32] fraudulentProof,
@@ -117,8 +117,8 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      * @notice Determines if a quorum of validators have signed a fraudulent checkpoint,
      * failing the Outbox if so.
      * A checkpoint is fraudulent if the leaf it commits to at index I differs
-     * from the leaf the Outbox committed to at index I, where I is less than
-     * the index of the checkpoint.
+     * from the leaf the Outbox committed to at index I, where I is less than or equal
+     * to the index of the checkpoint.
      * This difference can be proved by comparing two merkle proofs for leaf
      * index J >= I. One against the fraudulent checkpoint, and one against a
      * checkpoint cached on the Outbox.
@@ -222,20 +222,24 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         // with index <= _leafIndex, if either:
 
         // 1. If the provided leaves differ.
-        bool differ = _leafA != _leafB;
+        if (_leafA != _leafB) {
+            return true;
+        }
 
         // 2. If the branches contain internal nodes whose subtrees are full
         // (as implied by _leafIndex) that differ from one another.
-        for (uint256 i = 0; i < 32; i++) {
+        for (uint8 i = 0; i < 32; i++) {
             uint256 _ithBit = (_leafIndex >> i) & 0x01;
             // If the i'th is 1, the i'th element in the proof is an internal
             // node whose subtree is full.
             // If these nodes differ, at least one leaf that they commit to
             // must differ as well.
             if (_ithBit == 1) {
-                differ = differ || (_proofA[i] != _proofB[i]);
+                if (_proofA[i] != _proofB[i]) {
+                    return true;
+                }
             }
         }
-        return differ;
+        return false;
     }
 }

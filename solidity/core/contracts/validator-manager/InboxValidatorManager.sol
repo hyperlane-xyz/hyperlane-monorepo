@@ -6,7 +6,6 @@ pragma abicoder v2;
 import {IInbox} from "../../interfaces/IInbox.sol";
 import {SchnorrValidatorManager} from "./SchnorrValidatorManager.sol";
 import {BN256} from "../../libs/BN256.sol";
-import "hardhat/console.sol";
 
 /**
  * @title InboxValidatorManager

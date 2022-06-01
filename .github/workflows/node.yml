@@ -64,6 +64,9 @@ jobs:
           path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
 
+      - name: lint-ts
+        run: yarn lint-ts
+
       - name: prettier
         run: |
           yarn prettier

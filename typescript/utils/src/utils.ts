@@ -84,7 +84,7 @@ export function destinationAndNonce(
     .add(ethers.BigNumber.from(sequence));
 }
 
-export function domainHash(domain: Number): string {
+export function domainHash(domain: number): string {
   return ethers.utils.solidityKeccak256(
     ['uint32', 'string'],
     [domain, 'ABACUS'],

@@ -8,8 +8,10 @@ use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
 
-use abacus_core::{ChainCommunicationError, ContractLocator, TxOutcome};
-use abacus_core::{InboxValidatorManager, MultisigSignedCheckpoint};
+use abacus_core::{
+    ChainCommunicationError, ContractLocator, InboxValidatorManager, MultisigSignedCheckpoint,
+    TxOutcome,
+};
 
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
@@ -94,7 +96,7 @@ where
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.checkpoint(
+        let tx = self.contract.cache_checkpoint(
             self.inbox_address,
             multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
             multisig_signed_checkpoint.checkpoint.index.into(),

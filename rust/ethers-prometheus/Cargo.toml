@@ -1,0 +1,27 @@
+[package]
+name = "ethers-prometheus"
+version = "0.1.0"
+authors = ["Mattie Conover <mattie@useabaucus.network>"]
+edition = "2021"
+
+[dependencies]
+prometheus = "0.13"
+ethers = { git = "https://github.com/gakonst/ethers-rs", branch = "master" }
+derive_builder = "0.11"
+async-trait = "0.1"
+futures = "0.3"
+parking_lot = { version = "0.12" }
+maplit = "1.0"
+log = "0.4"
+tokio = { version = "1", features = ["time", "sync"] }
+static_assertions = "1.1"
+
+serde = { version = "1.0", features = ["derive"], optional = true }
+serde_json = { version = "1.0", default-features = false }
+
+# enable feature for this crate that is imported by ethers-rs
+primitive-types = { version = "*", features = ["fp-conversion"] }
+
+[features]
+default = []
+serde = ["dep:serde"]

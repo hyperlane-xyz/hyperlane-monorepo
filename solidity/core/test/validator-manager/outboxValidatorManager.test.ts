@@ -11,6 +11,7 @@ import {
   TestOutbox,
   TestOutbox__factory,
 } from '../../types';
+import { MerkleProof, dispatchMessageAndReturnProof } from '../lib/mailboxes';
 
 import { signCheckpoint } from './utils';
 
@@ -33,48 +34,21 @@ describe('OutboxValidatorManager', () => {
     validator0: Validator,
     validator1: Validator;
 
-  const dispatchMessage = async (outbox: TestOutbox, message: string) => {
-    const recipient = utils.addressToBytes32(validator0.address);
-    const destination = INBOX_DOMAIN;
-    await outbox.dispatch(
-      destination,
-      recipient,
-      ethers.utils.formatBytes32String(message),
-    );
-  };
-
-  const dispatchMessageAndReturnProof = async (
-    outbox: TestOutbox,
-    message: string,
-  ) => {
-    const destination = INBOX_DOMAIN;
-    const recipient = validator0.address;
-    await dispatchMessage(outbox, message);
-    const formattedMessage = utils.formatMessage(
-      OUTBOX_DOMAIN,
-      signer.address,
-      destination,
-      recipient,
-      ethers.utils.formatBytes32String(message),
-    );
-    const count = await outbox.count();
-    const leaf = utils.messageHash(formattedMessage, count.sub(1).toNumber());
-    const root = await outbox.root();
-    const proof = await outbox.proof();
-    return {
-      root,
-      proof,
-      leaf,
-      index: count.sub(1).toNumber(),
-    };
-  };
-
   before(async () => {
     const signers = await ethers.getSigners();
     signer = signers[0];
     validator0 = await Validator.fromSigner(signers[1], OUTBOX_DOMAIN);
     validator1 = await Validator.fromSigner(signers[2], OUTBOX_DOMAIN);
   });
+
+  const dispatchMessage = async (outbox: TestOutbox, message: string) => {
+    return dispatchMessageAndReturnProof(
+      outbox,
+      INBOX_DOMAIN,
+      utils.addressToBytes32(validator0.address),
+      message,
+    );
+  };
 
   beforeEach(async () => {
     const validatorManagerFactory = new OutboxValidatorManager__factory(signer);
@@ -102,9 +76,7 @@ describe('OutboxValidatorManager', () => {
     const root = ethers.utils.formatBytes32String('test root');
 
     beforeEach(async () => {
-      for (let i = 0; i < messageCount; i++) {
-        await dispatchMessage(outbox, 'message');
-      }
+      await dispatchMessage(outbox, 'message');
     });
 
     it('accepts a premature checkpoint if it has been signed by a quorum of validators', async () => {
@@ -169,34 +141,41 @@ describe('OutboxValidatorManager', () => {
     });
   });
 
-  const dispatchMessagesAndReturnProofs = async (
-    differingIndex: number,
-    proofIndex: number,
-    messageCount: number,
-  ) => {
+  const dispatchMessagesAndReturnProofs = async (args: {
+    differingIndex: number;
+    proofIndex: number;
+    messageCount: number;
+  }) => {
+    const { differingIndex, proofIndex, messageCount } = args;
     const actualMessage = 'message';
     const fraudulentMessage = 'fraud';
-    let proofA: MerkleProof, proofB: MerkleProof;
-    for (let i = 0; i < messageCount; i++) {
-      const helperMessage =
-        i == differingIndex ? fraudulentMessage : actualMessage;
-      if (i == proofIndex) {
-        proofA = await dispatchMessageAndReturnProof(outbox, actualMessage);
-        proofB = await dispatchMessageAndReturnProof(
-          helperOutbox,
-          helperMessage,
-        );
-      } else {
-        await dispatchMessage(outbox, actualMessage);
-        await dispatchMessage(helperOutbox, helperMessage);
-      }
+    let index = 0;
+    const helperMessage = (j: number) =>
+      j === differingIndex ? fraudulentMessage : actualMessage;
+    for (; index < proofIndex; index++) {
+      await dispatchMessage(outbox, actualMessage);
+      await dispatchMessage(helperOutbox, helperMessage(index));
     }
-    return { proofA: proofA!, proofB: proofB! };
+    const proofA = await dispatchMessage(outbox, actualMessage);
+    const proofB = await dispatchMessage(
+      helperOutbox,
+      helperMessage(proofIndex),
+    );
+    for (index = proofIndex + 1; index < messageCount; index++) {
+      await dispatchMessage(outbox, actualMessage);
+      await dispatchMessage(helperOutbox, helperMessage(index));
+    }
+
+    return { proofA: proofA, proofB: proofB };
   };
 
   describe('#impliesDifferingLeaf', async () => {
     it('returns true when proving a leaf with index greater than the differing leaf', async () => {
-      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(3, 4, 5);
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs({
+        differingIndex: 3,
+        proofIndex: 4,
+        messageCount: 5,
+      });
       expect(
         await validatorManager.impliesDifferingLeaf(
           proofA.leaf,
@@ -209,7 +188,11 @@ describe('OutboxValidatorManager', () => {
     });
 
     it('returns true when proving a leaf with index equal to the differing leaf', async () => {
-      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(4, 4, 5);
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs({
+        differingIndex: 4,
+        proofIndex: 4,
+        messageCount: 5,
+      });
       expect(
         await validatorManager.impliesDifferingLeaf(
           proofA.leaf,
@@ -222,7 +205,11 @@ describe('OutboxValidatorManager', () => {
     });
 
     it('returns false when proving a leaf with index less than the differing leaf', async () => {
-      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(4, 3, 5);
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs({
+        differingIndex: 4,
+        proofIndex: 3,
+        messageCount: 5,
+      });
       expect(
         await validatorManager.impliesDifferingLeaf(
           proofA.leaf,
@@ -239,7 +226,11 @@ describe('OutboxValidatorManager', () => {
     let actual: MerkleProof, fraudulent: MerkleProof;
 
     beforeEach(async () => {
-      const { proofA, proofB } = await dispatchMessagesAndReturnProofs(3, 4, 5);
+      const { proofA, proofB } = await dispatchMessagesAndReturnProofs({
+        differingIndex: 3,
+        proofIndex: 4,
+        messageCount: 5,
+      });
       actual = proofA;
       fraudulent = proofB;
     });
@@ -330,7 +321,7 @@ describe('OutboxValidatorManager', () => {
       await outbox.cacheCheckpoint();
       const signatures = await signCheckpoint(
         fraudulent.root,
-        fraudulent.index - 1,
+        fraudulent.index.sub(1),
         [validator0, validator1], // 2/2 signers is a quorum
       );
 
@@ -338,7 +329,7 @@ describe('OutboxValidatorManager', () => {
         validatorManager.fraudulentCheckpoint(
           outbox.address,
           fraudulent.root,
-          fraudulent.index - 1,
+          fraudulent.index.sub(1),
           signatures,
           fraudulent.leaf,
           fraudulent.proof,

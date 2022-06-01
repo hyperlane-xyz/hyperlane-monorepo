@@ -1,4 +1,3 @@
-import '@abacus-network/hardhat';
 import '@nomiclabs/hardhat-waffle';
 import '@typechain/hardhat';
 import 'hardhat-gas-reporter';

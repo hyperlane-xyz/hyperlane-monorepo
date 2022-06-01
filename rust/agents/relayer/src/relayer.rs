@@ -86,11 +86,9 @@ impl Relayer {
         let outbox_name = outbox.name();
         let sync_metrics =
             ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", outbox_name, "unknown"]));
-        let sync = self.outbox().sync(
-            Self::AGENT_NAME.to_string(),
-            self.as_ref().indexer.clone(),
-            sync_metrics,
-        );
+        let sync = self
+            .outbox()
+            .sync(self.as_ref().indexer.clone(), sync_metrics);
         sync
     }
 

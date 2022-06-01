@@ -14,6 +14,7 @@ import {
   TestOutbox__factory,
   TestRecipient__factory,
 } from '../../types';
+import { MerkleProof, dispatchMessageAndReturnProof } from '../lib/mailboxes';
 
 const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;

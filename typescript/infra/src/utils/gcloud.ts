@@ -9,10 +9,7 @@ interface IamCondition {
   expression: string;
 }
 
-export async function fetchGCPSecret(
-  secretName: string,
-  parseJson: boolean = true,
-) {
+export async function fetchGCPSecret(secretName: string, parseJson = true) {
   const [output] = await execCmd(
     `gcloud secrets versions access latest --secret ${secretName}`,
   );

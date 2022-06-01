@@ -55,13 +55,13 @@ export abstract class AbacusContracts<
     this.contracts = Object.fromEntries(contractEntries);
   }
 
-  reconnect(connection: Connection) {
+  reconnect(connection: Connection): void {
     Object.values(this.contracts).forEach((contract: Contract) =>
       contract.connect(connection),
     );
   }
 
-  protected onlySigner(actual: types.Address, expected: types.Address) {
+  protected onlySigner(actual: types.Address, expected: types.Address): void {
     if (actual !== expected) {
       throw new Error(`Signer ${actual} must be ${expected} for this method`);
     }
