@@ -1,11 +1,8 @@
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { types } from '@abacus-network/utils';
-
+import merkleTestCases from '../../../vectors/merkle.json';
 import { TestMerkle, TestMerkle__factory } from '../types';
-
-const merkleTestCases = require('../../../vectors/merkle.json');
 
 describe('Merkle', async () => {
   for (const testCase of merkleTestCases) {
@@ -40,11 +37,7 @@ describe('Merkle', async () => {
         for (const proof of proofs) {
           const { leaf, path, index } = proof;
 
-          const proofRoot = await merkle.branchRoot(
-            leaf,
-            path as types.BytesArray,
-            index,
-          );
+          const proofRoot = await merkle.branchRoot(leaf, path, index);
           expect(proofRoot).to.equal(expectedRoot);
         }
       });

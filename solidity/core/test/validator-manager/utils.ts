@@ -1,10 +1,12 @@
+import { BigNumberish } from 'ethers';
+
 import { Validator, types } from '@abacus-network/utils';
 
 // Signs a checkpoint with the provided validators and returns
 // the signatures sorted by validator addresses in ascending order
 export async function signCheckpoint(
   root: types.HexString,
-  index: number,
+  index: BigNumberish,
   unsortedValidators: Validator[],
 ): Promise<string[]> {
   const validators = unsortedValidators.sort((a, b) => {

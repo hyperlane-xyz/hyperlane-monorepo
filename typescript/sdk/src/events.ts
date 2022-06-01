@@ -1,16 +1,12 @@
-import { Result } from '@ethersproject/abi';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 
-import {
-  TypedEvent,
-  TypedEventFilter,
-} from '@abacus-network/core/dist/commons';
+import { TypedEvent, TypedEventFilter } from '@abacus-network/core/dist/common';
 
 import { chainMetadata } from './chain-metadata';
 import { MultiProvider } from './provider';
 import { ChainName } from './types';
 
-export class Annotated<U extends Result, T extends TypedEvent<U>> {
+export class Annotated<T extends TypedEvent> {
   readonly domain: number;
   readonly eventName?: string;
   readonly event: T;
@@ -31,18 +27,18 @@ export class Annotated<U extends Result, T extends TypedEvent<U>> {
     this.event = event;
   }
 
-  static async fromEvent<U extends Result, T extends TypedEvent<U>>(
+  static async fromEvent<T extends TypedEvent>(
     domain: number,
     event: T,
-  ): Promise<Annotated<U, T>> {
+  ): Promise<Annotated<T>> {
     const receipt = await event.getTransactionReceipt();
     return new Annotated(domain, receipt, event, true);
   }
 
-  static async fromEvents<U extends Result, T extends TypedEvent<U>>(
+  static async fromEvents<T extends TypedEvent>(
     domain: number,
     events: T[],
-  ): Promise<Annotated<U, T>[]> {
+  ): Promise<Annotated<T>[]> {
     return Promise.all(
       events.map(async (event) => Annotated.fromEvent(domain, event)),
     );
@@ -72,22 +68,22 @@ export class Annotated<U extends Result, T extends TypedEvent<U>> {
 }
 
 // specifies an interface shared by the TS generated contracts
-export interface TSContract<T extends Result, U> {
+export interface TSContract<T extends TypedEvent> {
   queryFilter(
-    event: TypedEventFilter<T, U>,
+    event: TypedEventFilter<T>,
     fromBlockOrBlockhash?: number | undefined,
     toBlock?: number | undefined,
-  ): Promise<Array<TypedEvent<T & U>>>;
+  ): Promise<Array<T>>;
 }
 
-export async function queryAnnotatedEvents<T extends Result, U>(
+export async function queryAnnotatedEvents<T extends TypedEvent>(
   multiprovider: MultiProvider<any>,
   chain: ChainName,
-  contract: TSContract<T, U>,
-  filter: TypedEventFilter<T, U>,
+  contract: TSContract<T>,
+  filter: TypedEventFilter<T>,
   startBlock?: number,
   endBlock?: number,
-): Promise<Array<Annotated<T, TypedEvent<T & U>>>> {
+): Promise<Array<Annotated<T>>> {
   const events = await getEvents(
     multiprovider,
     chain,
@@ -99,13 +95,13 @@ export async function queryAnnotatedEvents<T extends Result, U>(
   return Annotated.fromEvents(chainMetadata[chain].id, events);
 }
 
-export async function findAnnotatedSingleEvent<T extends Result, U>(
+export async function findAnnotatedSingleEvent<T extends TypedEvent>(
   multiprovider: MultiProvider<any>,
   chain: ChainName,
-  contract: TSContract<T, U>,
-  filter: TypedEventFilter<T, U>,
+  contract: TSContract<T>,
+  filter: TypedEventFilter<T>,
   startBlock?: number,
-): Promise<Array<Annotated<T, TypedEvent<T & U>>>> {
+): Promise<Array<Annotated<T>>> {
   const events = await findEvent(
     multiprovider,
     chain,
@@ -116,14 +112,14 @@ export async function findAnnotatedSingleEvent<T extends Result, U>(
   return Annotated.fromEvents(chainMetadata[chain].id, events);
 }
 
-export async function getEvents<T extends Result, U>(
+export async function getEvents<T extends TypedEvent>(
   multiprovider: MultiProvider<any>,
   chain: ChainName,
-  contract: TSContract<T, U>,
-  filter: TypedEventFilter<T, U>,
+  contract: TSContract<T>,
+  filter: TypedEventFilter<T>,
   startBlock?: number,
   endBlock?: number,
-): Promise<Array<TypedEvent<T & U>>> {
+): Promise<Array<T>> {
   const domain = chainMetadata[chain];
   if (domain.paginate) {
     return getPaginatedEvents(
@@ -138,13 +134,13 @@ export async function getEvents<T extends Result, U>(
   return contract.queryFilter(filter, startBlock, endBlock);
 }
 
-export async function findEvent<T extends Result, U>(
+export async function findEvent<T extends TypedEvent>(
   multiprovider: MultiProvider<any>,
   chain: ChainName,
-  contract: TSContract<T, U>,
-  filter: TypedEventFilter<T, U>,
+  contract: TSContract<T>,
+  filter: TypedEventFilter<T>,
   startBlock?: number,
-): Promise<Array<TypedEvent<T & U>>> {
+): Promise<Array<T>> {
   const domain = chainMetadata[chain];
   if (domain.paginate) {
     return findFromPaginatedEvents(
@@ -158,14 +154,14 @@ export async function findEvent<T extends Result, U>(
   return contract.queryFilter(filter, startBlock);
 }
 
-async function getPaginatedEvents<T extends Result, U>(
+async function getPaginatedEvents<T extends TypedEvent>(
   multiprovider: MultiProvider<any>,
   chain: ChainName,
-  contract: TSContract<T, U>,
-  filter: TypedEventFilter<T, U>,
+  contract: TSContract<T>,
+  filter: TypedEventFilter<T>,
   startBlock?: number,
   endBlock?: number,
-): Promise<Array<TypedEvent<T & U>>> {
+): Promise<Array<T>> {
   const domain = chainMetadata[chain];
   if (!domain.paginate) {
     throw new Error('Domain need not be paginated');
@@ -198,21 +194,21 @@ async function getPaginatedEvents<T extends Result, U>(
   }
   // await promises & concatenate results
   const eventArrays = await Promise.all(eventArrayPromises);
-  let events: Array<TypedEvent<T & U>> = [];
+  let events: Array<T> = [];
   for (const eventArray of eventArrays) {
     events = events.concat(eventArray);
   }
   return events;
 }
 
-async function findFromPaginatedEvents<T extends Result, U>(
+async function findFromPaginatedEvents<T extends TypedEvent>(
   multiprovider: MultiProvider<any>,
   chain: ChainName,
-  contract: TSContract<T, U>,
-  filter: TypedEventFilter<T, U>,
+  contract: TSContract<T>,
+  filter: TypedEventFilter<T>,
   startBlock?: number,
   endBlock?: number,
-): Promise<Array<TypedEvent<T & U>>> {
+): Promise<Array<T>> {
   const domain = chainMetadata[chain];
   if (!domain.paginate) {
     throw new Error('Domain need not be paginated');
