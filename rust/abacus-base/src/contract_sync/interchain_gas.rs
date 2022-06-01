@@ -1,8 +1,7 @@
 use abacus_core::InterchainGasPaymasterIndexer;
 
-use tokio::time::sleep;
-use tracing::{info, info_span};
-use tracing::{instrument::Instrumented, Instrument};
+use tokio::{task::JoinHandle, time::sleep};
+use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use std::cmp::min;
 use std::time::Duration;
@@ -16,7 +15,7 @@ where
     I: InterchainGasPaymasterIndexer + 'static,
 {
     /// Sync gas payments
-    pub fn sync_gas_payments(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
+    pub fn sync_gas_payments(&self) -> Instrumented<JoinHandle<eyre::Result<()>>> {
         let span = info_span!("GasPaymentContractSync");
 
         let db = self.db.clone();
