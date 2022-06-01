@@ -39,6 +39,7 @@ export {
   TokenPriceGetter,
 } from './gas';
 export { ChainConnection, IChainConnection, MultiProvider } from './provider';
+export { ProxiedContract, ProxyAddresses } from './proxy';
 export { RouterContracts, RouterFactories } from './router';
 export {
   AllChains,
@@ -50,7 +51,6 @@ export {
   Connection,
   DomainIdToChainName,
   NameOrDomain,
-  ProxiedAddress,
   RemoteChainMap,
   Remotes,
   TestChainNames,

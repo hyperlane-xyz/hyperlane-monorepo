@@ -2,6 +2,7 @@ import { BaseContract, ethers } from 'ethers';
 
 import { types } from '@abacus-network/utils';
 
+import { ProxiedContract, ProxyAddresses, isProxyAddresses } from './proxy';
 import { Connection } from './types';
 import { objMap } from './utils';
 
@@ -10,47 +11,72 @@ export type AbacusFactories = {
 };
 
 export type AbacusContracts = {
-  [key: Exclude<string, 'address'>]: ethers.Contract | AbacusContracts;
+  [key: Exclude<string, 'address'>]:
+    | ethers.Contract
+    | ProxiedContract<any, any>
+    | AbacusContracts;
 };
 
 export type AbacusAddresses = {
-  [key: string]: types.Address | AbacusAddresses;
+  [key: string]: types.Address | ProxyAddresses<any> | AbacusAddresses;
 };
 
-export function addresses(contracts: AbacusContracts): AbacusAddresses {
-  return objMap(contracts, (_, contract): string | AbacusAddresses => {
-    if (contract instanceof BaseContract) {
-      return contract.address;
-    } else {
-      return addresses(contract);
-    }
-  });
+export function addresses(contractOrObject: AbacusContracts): AbacusAddresses {
+  return objMap(
+    contractOrObject,
+    (_, contract): string | ProxyAddresses<any> | AbacusAddresses => {
+      if (contract instanceof BaseContract) {
+        return contract.address;
+      } else if (contract instanceof ProxiedContract) {
+        return contract.addresses;
+      } else {
+        return addresses(contract);
+      }
+    },
+  );
+}
+
+function getFactory(
+  key: string,
+  factories: AbacusFactories,
+): ethers.ContractFactory {
+  if (!(key in factories)) {
+    throw new Error(`Factories entry missing for ${key}`);
+  }
+  return factories[key];
 }
 
 export function attach(
-  addresses: AbacusAddresses,
+  addressOrObject: AbacusAddresses,
   factories: AbacusFactories,
 ): AbacusContracts {
-  return objMap(addresses, (key, address): AbacusContracts => {
-    if (typeof address === 'string') {
-      if (!(key in factories)) {
-        throw new Error(`Factories entry missing for ${key}`);
+  return objMap(
+    addressOrObject,
+    (key, address): ProxiedContract<any, any> | AbacusContracts => {
+      if (typeof address === 'string') {
+        return getFactory(key, factories).attach(address);
+      } else if (isProxyAddresses(address)) {
+        const contract = getFactory(key, factories).attach(address.proxy);
+        return new ProxiedContract(contract, address);
+      } else {
+        return attach(address as AbacusAddresses, factories);
       }
-      return factories[key].attach(address);
-    }
-    return attach(address, factories);
-  });
+    },
+  );
 }
 
-export function connect(
-  contracts: AbacusContracts,
+export function connect<Contracts extends AbacusContracts>(
+  contractOrObject: Contracts,
   connection: Connection,
-): void {
-  for (const [key, contract] of Object.entries(contracts)) {
-    if (contract instanceof BaseContract) {
-      contract.connect(connection);
+): Contracts {
+  return objMap(contractOrObject, (_, contract) => {
+    if (
+      contract instanceof BaseContract ||
+      contract instanceof ProxiedContract
+    ) {
+      return contract.connect(connection);
     } else {
-      connect(contracts[key] as AbacusContracts, connection);
+      return connect(contract, connection);
     }
-  }
+  }) as Contracts;
 }
