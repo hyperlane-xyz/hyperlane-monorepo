@@ -37,7 +37,7 @@
   "main": "dist/index.js",
   "repository": "https://github.com/abacus-network/abacus-monorepo",
   "scripts": {
-    "build": "hardhat compile && hardhat typechain && tsc",
+    "build": "hardhat compile && tsc",
     "coverage": "hardhat coverage",
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test"

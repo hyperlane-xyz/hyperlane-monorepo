@@ -84,8 +84,6 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     const initArgs: Parameters<Inbox['initialize']> = [
       domain,
       inboxValidatorManager.address,
-      ethers.constants.HashZero,
-      0,
     ];
     let inbox: ProxiedContract<Inbox>;
     if (duplicate) {
