@@ -3,7 +3,6 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
 import { Validator, types, utils } from '@abacus-network/utils';
-import { BytesArray } from '@abacus-network/utils/dist/src/types';
 
 import {
   OutboxValidatorManager,
@@ -11,19 +10,13 @@ import {
   TestOutbox,
   TestOutbox__factory,
 } from '../../types';
+import { MerkleProof, dispatchMessageAndReturnProof } from '../lib/mailboxes';
 
 import { signCheckpoint } from './utils';
 
 const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;
 const QUORUM_THRESHOLD = 2;
-
-interface MerkleProof {
-  root: string;
-  proof: BytesArray;
-  leaf: string;
-  index: number;
-}
 
 describe('OutboxValidatorManager', () => {
   let validatorManager: OutboxValidatorManager,
@@ -33,44 +26,21 @@ describe('OutboxValidatorManager', () => {
     validator0: Validator,
     validator1: Validator;
 
-  const dispatchMessage = async (outbox: TestOutbox, message: string) => {
-    const recipient = utils.addressToBytes32(validator0.address);
-    const destination = INBOX_DOMAIN;
-    const tx = await outbox.dispatch(
-      destination,
-      recipient,
-      ethers.utils.formatBytes32String(message),
-    );
-    const receipt = await tx.wait();
-    const dispatch = receipt.events![0];
-    expect(dispatch.event).to.equal('Dispatch');
-    return dispatch.args!;
-  };
-
-  const dispatchMessageAndReturnProof = async (
-    outbox: TestOutbox,
-    messageStr: string,
-  ) => {
-    const { messageHash, leafIndex } = await dispatchMessage(
-      outbox,
-      messageStr,
-    );
-    const root = await outbox.root();
-    const proof = await outbox.proof();
-    return {
-      root,
-      proof,
-      leaf: messageHash,
-      index: leafIndex,
-    };
-  };
-
   before(async () => {
     const signers = await ethers.getSigners();
     signer = signers[0];
     validator0 = await Validator.fromSigner(signers[1], OUTBOX_DOMAIN);
     validator1 = await Validator.fromSigner(signers[2], OUTBOX_DOMAIN);
   });
+
+  const dispatchMessage = async (outbox: TestOutbox, message: string) => {
+    return dispatchMessageAndReturnProof(
+      outbox,
+      INBOX_DOMAIN,
+      utils.addressToBytes32(validator0.address),
+      message,
+    );
+  };
 
   beforeEach(async () => {
     const validatorManagerFactory = new OutboxValidatorManager__factory(signer);
@@ -178,8 +148,8 @@ describe('OutboxValidatorManager', () => {
       await dispatchMessage(outbox, actualMessage);
       await dispatchMessage(helperOutbox, helperMessage(index));
     }
-    const proofA = await dispatchMessageAndReturnProof(outbox, actualMessage);
-    const proofB = await dispatchMessageAndReturnProof(
+    const proofA = await dispatchMessage(outbox, actualMessage);
+    const proofB = await dispatchMessage(
       helperOutbox,
       helperMessage(proofIndex),
     );
