@@ -8,7 +8,6 @@ use ethers::core::types::H256;
 use eyre::Result;
 
 use abacus_ethereum::EthereumInbox;
-use std::str::FromStr;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
@@ -50,15 +49,13 @@ impl CachingInbox {
     /// data
     pub fn sync(
         &self,
-        agent_name: String,
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("InboxContractSync", self = %self);
 
         let sync = ContractSync::new(
-            agent_name,
-            String::from_str(self.inbox.chain_name()).expect("!string"),
+            self.inbox.chain_name().into(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,

@@ -5,17 +5,16 @@ import { TypedEvent } from '@abacus-network/core/dist/commons';
 import { Annotated } from '../events';
 
 // copied from the Outbox.d.ts
-export type DispatchTypes = [string, BigNumber, BigNumber, string, string];
+export type DispatchTypes = [string, BigNumber, number, string];
 export type DispatchArgs = {
   messageHash: string;
   leafIndex: BigNumber;
-  destinationAndNonce: BigNumber;
-  committedRoot: string;
+  destination: number;
   message: string;
 };
 export type DispatchEvent = TypedEvent<DispatchTypes & DispatchArgs>;
 
-// copied from the Outbox.d.ts
+// copied from the Inbox.d.ts
 export type CheckpointTypes = [string, BigNumber];
 export type CheckpointArgs = { root: string; index: BigNumber };
 export type CheckpointEvent = TypedEvent<CheckpointTypes & CheckpointArgs>;

@@ -24,7 +24,7 @@ impl ContractSyncMetrics {
             .new_int_gauge(
                 "contract_sync_block_height",
                 "Height of a recently observed block",
-                &["data_type", "chain_name", "agent"],
+                &["data_type", "chain_name"],
             )
             .expect("failed to register block_height metric");
 
@@ -32,7 +32,7 @@ impl ContractSyncMetrics {
             .new_int_gauge(
                 "contract_sync_stored_events",
                 "Number of events stored into db",
-                &["data_type", "chain_name", "agent"],
+                &["data_type", "chain_name"],
             )
             .expect("failed to register stored_events metric");
 
@@ -40,7 +40,7 @@ impl ContractSyncMetrics {
             .new_int_counter(
                 "contract_sync_missed_events",
                 "Number of unique occasions when agent missed an event",
-                &["data_type", "chain_name", "agent"],
+                &["data_type", "chain_name"],
             )
             .expect("failed to register missed_events metric");
 

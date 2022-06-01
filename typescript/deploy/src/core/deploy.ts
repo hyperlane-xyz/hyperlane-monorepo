@@ -154,12 +154,7 @@ export class AbacusCoreDeployer<
       this.inboxFactoryBuilder(signer),
       [domain],
       upgradeBeaconController.address,
-      [
-        chainMetadata[firstRemote].id,
-        firstValidatorManager.address,
-        ethers.constants.HashZero,
-        0,
-      ],
+      [chainMetadata[firstRemote].id, firstValidatorManager.address],
     );
 
     const getMailbox = (
@@ -184,12 +179,7 @@ export class AbacusCoreDeployer<
           chain,
           'Inbox',
           firstInbox,
-          [
-            chainMetadata[remote].id,
-            validatorManager.address,
-            ethers.constants.HashZero,
-            0,
-          ],
+          [chainMetadata[remote].id, validatorManager.address],
         );
 
         return [remote, getMailbox(validatorManager, inbox)];

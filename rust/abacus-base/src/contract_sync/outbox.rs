@@ -24,23 +24,23 @@ where
 
         let db = self.db.clone();
         let indexer = self.indexer.clone();
-        let indexed_height = self.metrics.indexed_height.clone().with_label_values(&[
-            MESSAGES_LABEL,
-            &self.chain_name,
-            &self.agent_name,
-        ]);
+        let indexed_height = self
+            .metrics
+            .indexed_height
+            .clone()
+            .with_label_values(&[MESSAGES_LABEL, &self.chain_name]);
 
-        let stored_messages = self.metrics.stored_events.clone().with_label_values(&[
-            MESSAGES_LABEL,
-            &self.chain_name,
-            &self.agent_name,
-        ]);
+        let stored_messages = self
+            .metrics
+            .stored_events
+            .clone()
+            .with_label_values(&[MESSAGES_LABEL, &self.chain_name]);
 
-        let missed_messages = self.metrics.missed_events.clone().with_label_values(&[
-            MESSAGES_LABEL,
-            &self.chain_name,
-            &self.agent_name,
-        ]);
+        let missed_messages = self
+            .metrics
+            .missed_events
+            .clone()
+            .with_label_values(&[MESSAGES_LABEL, &self.chain_name]);
 
         let message_leaf_index = self.metrics.message_leaf_index.clone().with_label_values(&[
             "dispatch",
@@ -428,8 +428,7 @@ mod test {
             let sync_metrics = ContractSyncMetrics::new(metrics);
 
             let contract_sync = ContractSync::new(
-                "agent".to_owned(),
-                "outbox_1".to_owned(),
+                "outbox_1".into(),
                 abacus_db.clone(),
                 indexer.clone(),
                 IndexSettings {

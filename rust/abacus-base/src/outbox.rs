@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use ethers::core::types::H256;
 use eyre::Result;
 use futures_util::future::select_all;
-use std::str::FromStr;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
@@ -57,15 +56,13 @@ impl CachingOutbox {
     /// data
     pub fn sync(
         &self,
-        agent_name: String,
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("OutboxContractSync", self = %self);
 
         let sync = ContractSync::new(
-            agent_name,
-            String::from_str(self.outbox.chain_name()).expect("!string"),
+            self.outbox.chain_name().into(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,

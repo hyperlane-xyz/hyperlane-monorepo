@@ -318,8 +318,7 @@ mod test {
             let sync_metrics = ContractSyncMetrics::new(metrics);
 
             let contract_sync = ContractSync::new(
-                "agent".to_owned(),
-                "outbox_1".to_owned(),
+                "outbox_1".into(),
                 abacus_db.clone(),
                 indexer.clone(),
                 IndexSettings {

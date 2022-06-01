@@ -85,11 +85,7 @@ impl Relayer {
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let outbox = self.outbox();
-        let sync = outbox.sync(
-            Self::AGENT_NAME.to_string(),
-            self.as_ref().indexer.clone(),
-            sync_metrics,
-        );
+        let sync = outbox.sync(self.as_ref().indexer.clone(), sync_metrics);
         sync
     }
 
@@ -98,11 +94,7 @@ impl Relayer {
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let paymaster = self.interchain_gas_paymaster();
-        let sync = paymaster.sync(
-            Self::AGENT_NAME.to_string(),
-            self.as_ref().indexer.clone(),
-            sync_metrics,
-        );
+        let sync = paymaster.sync(self.as_ref().indexer.clone(), sync_metrics);
         sync
     }
 

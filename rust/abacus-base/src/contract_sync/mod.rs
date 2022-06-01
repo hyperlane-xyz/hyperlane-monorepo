@@ -25,8 +25,6 @@ pub use outbox::*;
 /// db up-to-date.
 #[derive(Debug)]
 pub struct ContractSync<I> {
-    /// The name of the agent.
-    pub agent_name: String,
     /// The name of the chain.
     pub chain_name: String,
     /// The DB.
@@ -42,7 +40,6 @@ pub struct ContractSync<I> {
 impl<I> ContractSync<I> {
     /// Instantiate new ContractSync
     pub fn new(
-        agent_name: String,
         chain_name: String,
         db: AbacusDB,
         indexer: Arc<I>,
@@ -50,7 +47,6 @@ impl<I> ContractSync<I> {
         metrics: ContractSyncMetrics,
     ) -> Self {
         Self {
-            agent_name,
             chain_name,
             db,
             indexer,

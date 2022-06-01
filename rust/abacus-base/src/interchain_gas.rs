@@ -54,15 +54,13 @@ impl CachingInterchainGasPaymaster {
     /// data
     pub fn sync(
         &self,
-        agent_name: String,
         index_settings: IndexSettings,
         metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("InterchainGasPaymasterContractSync", self = %self);
 
         let sync = ContractSync::new(
-            agent_name,
-            "InterchainGasPaymaster".to_string(),
+            self.paymaster.chain_name().into(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,

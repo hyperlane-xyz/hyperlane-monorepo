@@ -41,12 +41,7 @@ describe('InboxValidatorManager', () => {
 
     const inboxFactory = new Inbox__factory(signer);
     inbox = await inboxFactory.deploy(INBOX_DOMAIN);
-    await inbox.initialize(
-      OUTBOX_DOMAIN,
-      validatorManager.address,
-      ethers.constants.HashZero,
-      0,
-    );
+    await inbox.initialize(OUTBOX_DOMAIN, validatorManager.address);
   });
 
   describe('#checkpoint', () => {
@@ -60,9 +55,14 @@ describe('InboxValidatorManager', () => {
         [validator0, validator1], // 2/2 signers, making a quorum
       );
 
-      await validatorManager.checkpoint(inbox.address, root, index, signatures);
+      await validatorManager.cacheCheckpoint(
+        inbox.address,
+        root,
+        index,
+        signatures,
+      );
 
-      expect(await inbox.checkpoints(root)).to.equal(index);
+      expect(await inbox.cachedCheckpoints(root)).to.equal(index);
     });
 
     it('reverts if there is not a quorum', async () => {
@@ -73,7 +73,12 @@ describe('InboxValidatorManager', () => {
       );
 
       await expect(
-        validatorManager.checkpoint(inbox.address, root, index, signatures),
+        validatorManager.cacheCheckpoint(
+          inbox.address,
+          root,
+          index,
+          signatures,
+        ),
       ).to.be.revertedWith('!quorum');
     });
   });
