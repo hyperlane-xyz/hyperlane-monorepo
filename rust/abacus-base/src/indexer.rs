@@ -118,12 +118,6 @@ pub enum InterchainGasPaymasterIndexers {
     Other(Box<dyn InterchainGasPaymasterIndexer>),
 }
 
-// impl From<MockAbacusIndexer> for InterchainGasPaymasterIndexer {
-//     fn from(mock_indexer: MockAbacusIndexer) -> Self {
-//         InterchainGasPaymasterIndexer::Mock(Box::new(mock_indexer))
-//     }
-// }
-
 #[async_trait]
 impl Indexer for InterchainGasPaymasterIndexers {
     async fn get_block_number(&self) -> Result<u32> {

@@ -7,6 +7,8 @@ mod message;
 mod outbox;
 mod validator_manager;
 
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use ethers::{
     contract::ContractError,
@@ -91,7 +93,7 @@ pub trait AbacusContract {
 
 /// Interface for attributes shared by Outbox and Inbox
 #[async_trait]
-pub trait AbacusCommon: AbacusContract + Sync + Send + std::fmt::Debug {
+pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
     /// Return the domain ID
     fn local_domain(&self) -> u32;
 

@@ -7,6 +7,8 @@
 //! traits (CommonIndexer or OutboxIndexer) to provide an common interface which
 //! other entities can retrieve this chain-specific info.
 
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use eyre::Result;
 
@@ -14,7 +16,7 @@ use crate::{CheckpointWithMeta, InterchainGasPayment, RawCommittedMessage};
 
 /// Interface for an indexer.
 #[async_trait]
-pub trait Indexer: Send + Sync + std::fmt::Debug {
+pub trait Indexer: Send + Sync + Debug {
     /// Get chain's latest block number
     async fn get_block_number(&self) -> Result<u32>;
 }
@@ -22,7 +24,7 @@ pub trait Indexer: Send + Sync + std::fmt::Debug {
 /// Interface for Abacus Common contract indexer. Interface that allows for other
 /// entities to retrieve chain-specific data from an outbox or inbox.
 #[async_trait]
-pub trait AbacusCommonIndexer: Indexer + Send + Sync + std::fmt::Debug {
+pub trait AbacusCommonIndexer: Indexer + Send + Sync + Debug {
     /// Fetch sequentially sorted list of checkpoints between blocks `from` and `to`
     async fn fetch_sorted_checkpoints(&self, from: u32, to: u32)
         -> Result<Vec<CheckpointWithMeta>>;
@@ -31,7 +33,7 @@ pub trait AbacusCommonIndexer: Indexer + Send + Sync + std::fmt::Debug {
 /// Interface for Outbox contract indexer. Interface for allowing other
 /// entities to retrieve chain-specific data from an outbox.
 #[async_trait]
-pub trait OutboxIndexer: AbacusCommonIndexer + Send + Sync + std::fmt::Debug {
+pub trait OutboxIndexer: AbacusCommonIndexer + Send + Sync + Debug {
     /// Fetch list of messages between blocks `from` and `to`.
     async fn fetch_sorted_messages(&self, _from: u32, _to: u32)
         -> Result<Vec<RawCommittedMessage>>;
@@ -39,7 +41,7 @@ pub trait OutboxIndexer: AbacusCommonIndexer + Send + Sync + std::fmt::Debug {
 
 /// Interface for InterchainGasPaymaster contract indexer.
 #[async_trait]
-pub trait InterchainGasPaymasterIndexer: Indexer + Send + Sync + std::fmt::Debug {
+pub trait InterchainGasPaymasterIndexer: Indexer + Send + Sync + Debug {
     /// Fetch list of gas payments between `from_block` and `to_block`, inclusive
     async fn fetch_gas_payments(
         &self,
