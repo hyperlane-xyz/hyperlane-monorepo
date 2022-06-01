@@ -66,6 +66,6 @@ contract InboxValidatorManager is MultisigValidatorManager {
         uint256 _leafIndex
     ) external {
         require(isQuorum(_root, _index, _signatures), "!quorum");
-        _inbox.process(_root, _index, _message, _proof, _leafIndex, "0x00");
+        _inbox.process(_root, _index, _message, _proof, _leafIndex);
     }
 }

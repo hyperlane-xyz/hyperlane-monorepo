@@ -16,6 +16,6 @@ contract TestValidatorManager {
         bytes32[32] calldata _proof,
         uint256 _leafIndex
     ) external {
-        _inbox.process(_root, _index, _message, _proof, _leafIndex, "0x00");
+        _inbox.process(_root, _index, _message, _proof, _leafIndex);
     }
 }

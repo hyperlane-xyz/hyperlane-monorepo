@@ -81,8 +81,6 @@ contract Inbox is IInbox, Version0, Common {
      * @dev Called by the validator manager, which is responsible for verifying a
      * quorum of validator signatures on the checkpoint.
      * @dev Reverts if verification of the message fails.
-     * @dev Includes the eventual function signature for Sovereign Consensus,
-     * but comments out the name to suppress compiler warning
      * @param _root The merkle root of the checkpoint used to prove message inclusion.
      * @param _index The index of the checkpoint used to prove message inclusion.
      * @param _message Formatted message (refer to Common.sol Message library)
@@ -94,8 +92,7 @@ contract Inbox is IInbox, Version0, Common {
         uint256 _index,
         bytes calldata _message,
         bytes32[32] calldata _proof,
-        uint256 _leafIndex,
-        bytes calldata /* _sovereignData */
+        uint256 _leafIndex
     ) external override onlyValidatorManager {
         // check re-entrancy guard
         require(entered == 1, "!reentrant");
