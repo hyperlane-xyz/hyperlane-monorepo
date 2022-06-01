@@ -1,9 +1,8 @@
-import path from 'path';
-
-import { AbacusCoreDeployer, AbacusDeployer } from '@abacus-network/deploy';
+import { AbacusCoreDeployer } from '@abacus-network/deploy';
 import { ChainName, chainMetadata, objMap } from '@abacus-network/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
+import { writeJSON } from '../utils/utils';
 
 export class AbacusCoreInfraDeployer<
   Chain extends ChainName,
@@ -14,7 +13,6 @@ export class AbacusCoreInfraDeployer<
     contractsMap: Awaited<ReturnType<AbacusCoreDeployer<Chain>['deploy']>>,
   ) {
     objMap(this.configMap, (chain) => {
-      const filepath = path.join(directory, `${chain}_config.json`);
       const contracts = contractsMap[chain];
 
       const outbox = {
@@ -71,7 +69,7 @@ export class AbacusCoreInfraDeployer<
 
         rustConfig.inboxes[remote] = inbox;
       });
-      AbacusDeployer.writeJson(filepath, rustConfig);
+      writeJSON(directory, `${chain}_config.json`, rustConfig);
     });
   }
 }

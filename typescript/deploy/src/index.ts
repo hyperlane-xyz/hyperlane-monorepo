@@ -6,11 +6,7 @@ export {
   ValidatorManagerConfig,
 } from './core/deploy';
 export { AbacusDeployer } from './deploy';
-export {
-  ProxiedContract,
-  ProxyViolationType,
-  UpgradeBeaconViolation,
-} from './proxy';
+export { UpgradeBeaconViolation } from './proxy';
 export {
   AbacusRouterChecker,
   AbacusRouterDeployer,

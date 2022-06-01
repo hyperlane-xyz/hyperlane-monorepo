@@ -1,4 +1,4 @@
-export { AbacusCore } from './app';
+export { AbacusCore, CoreContractsMap } from './app';
 export {
   CoreContracts,
   coreFactories,

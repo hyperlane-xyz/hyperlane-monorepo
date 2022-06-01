@@ -13,13 +13,15 @@ export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
   ChainName
 >;
 
+export type CoreContractsMap<Chain extends ChainName> = {
+  [local in Chain]: CoreContracts<Chain, local>;
+};
+
 export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   CoreContracts<Chain, Chain>,
   Chain
 > {
-  constructor(contractsMap: {
-    [local in Chain]: CoreContracts<Chain, local>;
-  }) {
+  constructor(contractsMap: CoreContractsMap<Chain>) {
     super(contractsMap);
   }
 
@@ -44,9 +46,9 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     origin: Remotes<Chain, Local>,
     destination: Local,
   ): { originOutbox: Outbox; destinationInbox: Inbox } {
-    const originOutbox = this.getContracts(origin).outbox.outbox;
+    const originOutbox = this.getContracts(origin).outbox.outbox.contract;
     const destinationInbox =
-      this.getContracts(destination).inboxes[origin].inbox;
+      this.getContracts(destination).inboxes[origin].inbox.contract;
     return { originOutbox, destinationInbox };
   }
 }

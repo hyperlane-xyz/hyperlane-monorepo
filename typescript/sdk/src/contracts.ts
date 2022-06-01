@@ -21,7 +21,9 @@ export type AbacusAddresses = {
   [key: string]: types.Address | ProxyAddresses<any> | AbacusAddresses;
 };
 
-export function addresses(contractOrObject: AbacusContracts): AbacusAddresses {
+export function deepSerialize(
+  contractOrObject: AbacusContracts,
+): AbacusAddresses {
   return objMap(
     contractOrObject,
     (_, contract): string | ProxyAddresses<any> | AbacusAddresses => {
@@ -30,7 +32,7 @@ export function addresses(contractOrObject: AbacusContracts): AbacusAddresses {
       } else if (contract instanceof ProxiedContract) {
         return contract.addresses;
       } else {
-        return addresses(contract);
+        return deepSerialize(contract);
       }
     },
   );
@@ -46,7 +48,7 @@ function getFactory(
   return factories[key];
 }
 
-export function attach(
+export function buildContracts(
   addressOrObject: AbacusAddresses,
   factories: AbacusFactories,
 ): AbacusContracts {
@@ -59,13 +61,13 @@ export function attach(
         const contract = getFactory(key, factories).attach(address.proxy);
         return new ProxiedContract(contract, address);
       } else {
-        return attach(address as AbacusAddresses, factories);
+        return buildContracts(address as AbacusAddresses, factories);
       }
     },
   );
 }
 
-export function connect<Contracts extends AbacusContracts>(
+export function connectContracts<Contracts extends AbacusContracts>(
   contractOrObject: Contracts,
   connection: Connection,
 ): Contracts {
@@ -76,7 +78,7 @@ export function connect<Contracts extends AbacusContracts>(
     ) {
       return contract.connect(connection);
     } else {
-      return connect(contract, connection);
+      return connectContracts(contract, connection);
     }
   }) as Contracts;
 }

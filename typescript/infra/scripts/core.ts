@@ -1,4 +1,5 @@
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
+import { writeJSON } from '../src/utils/utils';
 
 import {
   getCoreContractsSdkFilepath,
@@ -16,8 +17,16 @@ async function main() {
 
   const contracts = await deployer.deploy();
 
-  deployer.writeContracts(contracts, getCoreContractsSdkFilepath(environment));
-  deployer.writeVerification(getCoreVerificationDirectory(environment));
+  writeJSON(
+    getCoreContractsSdkFilepath(environment),
+    'addresses.json',
+    contracts,
+  );
+  writeJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+    deployer.verificationInputs,
+  );
   deployer.writeRustConfigs(
     environment,
     getCoreRustDirectory(environment),

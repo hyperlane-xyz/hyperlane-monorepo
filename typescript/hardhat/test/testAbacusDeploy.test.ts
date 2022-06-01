@@ -23,7 +23,7 @@ describe('TestCoreDeploy', async () => {
     abacus = await deployer.deployCore();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
-    localOutbox = abacus.getContracts(localChain).outbox.outbox;
+    localOutbox = abacus.getContracts(localChain).outbox.outbox.contract;
     await expect(
       localOutbox.dispatch(
         remoteDomain,
@@ -31,7 +31,7 @@ describe('TestCoreDeploy', async () => {
         message,
       ),
     ).to.emit(localOutbox, 'Dispatch');
-    remoteOutbox = abacus.getContracts(remoteChain).outbox.outbox;
+    remoteOutbox = abacus.getContracts(remoteChain).outbox.outbox.contract;
     await expect(
       remoteOutbox.dispatch(
         localDomain,

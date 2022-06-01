@@ -5,9 +5,9 @@ export {
   AbacusAddresses,
   AbacusContracts,
   AbacusFactories,
-  addresses,
-  attach,
-  connect,
+  connectContracts as connect,
+  deepAttach as attach,
+  serializeToAddresses as addresses,
 } from './contracts';
 export {
   AbacusCore,
@@ -17,6 +17,7 @@ export {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   CoreContracts,
+  CoreContractsMap,
   coreEnvironments,
   coreFactories,
   InboxContracts,
@@ -39,7 +40,7 @@ export {
   TokenPriceGetter,
 } from './gas';
 export { ChainConnection, IChainConnection, MultiProvider } from './provider';
-export { ProxiedContract, ProxyAddresses } from './proxy';
+export { BeaconProxyAddresses, ProxiedContract, ProxyAddresses } from './proxy';
 export { RouterContracts, RouterFactories } from './router';
 export {
   AllChains,

@@ -15,10 +15,11 @@ import {
   UpgradeBeaconController__factory,
 } from '@abacus-network/core';
 
+import { BeaconProxyAddresses, ProxiedContract } from '../proxy';
 import { ChainName, RemoteChainMap } from '../types';
 
 export type InboxContracts = {
-  inbox: Inbox;
+  inbox: ProxiedContract<Inbox, BeaconProxyAddresses>;
   inboxValidatorManager: InboxValidatorManager;
 };
 
@@ -28,7 +29,7 @@ const inboxFactories = {
 };
 
 export type OutboxContracts = {
-  outbox: Outbox;
+  outbox: ProxiedContract<Outbox, BeaconProxyAddresses>;
   outboxValidatorManager: OutboxValidatorManager;
 };
 

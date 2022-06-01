@@ -1,20 +1,45 @@
-import { TestInbox } from '@abacus-network/core';
+import { TestInbox, TestOutbox } from '@abacus-network/core';
 import {
   AbacusCore,
-  chainMetadata,
+  ChainMap,
+  CoreContracts,
   DomainIdToChainName,
+  InboxContracts,
+  OutboxContracts,
+  ProxiedContract,
   Remotes,
   TestChainNames,
+  chainMetadata,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 
+type MockProxyAddresses = {
+  kind: 'MOCK';
+  proxy: string;
+  implementation: string;
+};
+
+export type TestOutboxContracts = OutboxContracts & {
+  outbox: ProxiedContract<TestOutbox, MockProxyAddresses>;
+};
+export type TestInboxContracts = InboxContracts & {
+  inbox: ProxiedContract<TestInbox, MockProxyAddresses>;
+};
+
+export type TestCoreContracts<Local extends TestChainNames> = CoreContracts<
+  TestChainNames,
+  Local
+> & {
+  outbox: TestOutboxContracts;
+  inboxes: ChainMap<Remotes<TestChainNames, Local>, TestInboxContracts>;
+};
+
 export class TestCoreApp extends AbacusCore<TestChainNames> {
-  getInbox<Local extends TestChainNames>(
+  getContracts<Local extends TestChainNames>(
     chain: Local,
-    remote: Remotes<TestChainNames, Local>,
-  ) {
-    return this.getContracts(chain).inboxes[remote].inbox as TestInbox;
+  ): TestCoreContracts<Local> {
+    return super.getContracts(chain) as TestCoreContracts<Local>;
   }
 
   async processMessages(): Promise<
@@ -38,7 +63,7 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
   async processOutboundMessages<Local extends TestChainNames>(origin: Local) {
     const responses = new Map();
     const contracts = this.getContracts(origin);
-    const outbox = contracts.outbox.outbox;
+    const outbox: TestOutbox = contracts.outbox.outbox.contract;
 
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
@@ -47,10 +72,10 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
       if (destination === chainMetadata[origin].id) {
         throw new Error('Dispatched message to local domain');
       }
-      const destinationChain = DomainIdToChainName[
-        destination
-      ] as TestChainNames;
-      const inbox = this.getInbox(destinationChain, origin as never);
+      const destinationChain = DomainIdToChainName[destination];
+      const inbox: TestInbox =
+        // @ts-ignore
+        this.getContracts(destinationChain).inboxes[origin].inbox.contract;
       const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
         const response = await inbox.testProcess(
