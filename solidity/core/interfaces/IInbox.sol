@@ -14,4 +14,12 @@ interface IInbox is ICommon {
         uint256 _leafIndex,
         bytes calldata _sovereignData
     ) external;
+
+    function batchProcess(
+        bytes32 _root,
+        uint256 _index,
+        bytes[] calldata _messages,
+        bytes32[32][] calldata _proofs,
+        uint256[] calldata _leafIndices
+    ) external;
 }

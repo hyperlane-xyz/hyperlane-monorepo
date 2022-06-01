@@ -63,7 +63,11 @@ contract Inbox is IInbox, Version0, Common {
         bytes32[32] proof
     );
     event Process2(bytes32 indexed messageHash);
-
+    event BatchProcess(
+        bytes32 indexed messageHash,
+        bytes32[32] indexed proof,
+        uint256[] indexed leafIndices
+    );
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
@@ -97,6 +101,50 @@ contract Inbox is IInbox, Version0, Common {
         // Ensure that the checkpoint is newer than the latest we've cached.
         require(_index > cachedCheckpoints[latestCachedRoot], "!newer");
         _cacheCheckpoint(_root, _index);
+    }
+
+    /**
+     * @notice Attempts to process the provided formatted `message`. Performs
+     * verification against root of the proof
+     * @dev Reverts if verification of the message fails.
+     * @dev Includes the eventual function signature for Sovereign Consensus,
+     * but comments out the name to suppress compiler warning
+     */
+    function batchProcess(
+        bytes32 _root,
+        uint256 _index,
+        bytes[] calldata _messages,
+        bytes32[32][] calldata _proofs,
+        uint256[] calldata _leafIndices
+    ) external {
+        for (uint256 i = 0; i < _leafIndices.length; i++) {
+            // check re-entrancy guard
+            require(entered == 1, "!reentrant");
+            entered = 0;
+
+            require(_index <= _leafIndices[i], "!index");
+            //bytes32 _messageHash = _message.leaf(_leafIndex);
+            bytes32 _messageHash = keccak256(_messages[i]);
+            // ensure that message has not been processed
+            require(
+                messages[_messageHash] == MessageStatus.None,
+                "!MessageStatus.None"
+            );
+            // calculate the expected root based on the proof
+            bytes32 _calculatedRoot = MerkleLib.branchRoot(
+                _messageHash,
+                _proofs[i],
+                _leafIndices[i]
+            );
+            require(_calculatedRoot == _root, "!proof");
+            _process(_messages[i], _messageHash);
+            if (i == _leafIndices.length - 1) {
+                emit BatchProcess(_messageHash, _proofs[i], _leafIndices);
+
+            }
+            // reset re-entrancy guard
+            entered = 1;
+        }
     }
 
     /**

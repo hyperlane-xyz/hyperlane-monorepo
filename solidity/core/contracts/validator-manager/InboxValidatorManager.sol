@@ -40,6 +40,13 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         bytes32[] omitted
     );
 
+    event Quorum2(
+        Checkpoint checkpoint,
+        uint256[2] signature,
+        bytes32 compressedPublicKey,
+        bytes32 compressedNonce,
+        bytes32[] omitted
+    );
     // ============ Constructor ============
 
     /**
@@ -111,5 +118,61 @@ contract InboxValidatorManager is SchnorrValidatorManager {
             _leafIndex,
             "0x00"
         );
+    }
+
+    function batchProcess(
+        IInbox _inbox,
+        Checkpoint calldata _checkpoint,
+        uint256[2] calldata _sigScalars,
+        BN256.G1Point calldata _nonce,
+        bytes32[] calldata _omittedValidatorCompressedPublicKeys,
+        bytes[] calldata _messages,
+        bytes32[32][] calldata _proofs,
+        uint256[] calldata _leafIndices
+    ) external {
+        // Restrict scope to keep stack small.
+        {
+            require(
+                _omittedValidatorCompressedPublicKeys.length <= threshold,
+                "!threshold"
+            );
+            bytes32 _compressedKey;
+            // Restrict scope to keep stack small.
+            {
+                BN256.G1Point memory _key = verificationKey(
+                    _omittedValidatorCompressedPublicKeys
+                );
+                _compressedKey = _key.compress();
+                uint256 _challenge = uint256(
+                    keccak256(
+                        abi.encodePacked(
+                            _sigScalars[0],
+                            domainHash,
+                            _checkpoint.root,
+                            _checkpoint.index
+                        )
+                    )
+                );
+                require(verify(_key, _nonce, _sigScalars[1], _challenge), "!sig");
+            }
+            emit Quorum2(
+                _checkpoint,
+                _sigScalars,
+                _compressedKey,
+                _nonce.compress(),
+                _omittedValidatorCompressedPublicKeys
+            );
+        }
+        {
+        for (uint256 i = 0; i < _leafIndices.length; i++) {
+            _inbox.batchProcess(
+                _checkpoint.root,
+                _checkpoint.index,
+                _messages,
+                _proofs,
+                _leafIndices
+            );
+        }
+        }
     }
 }
