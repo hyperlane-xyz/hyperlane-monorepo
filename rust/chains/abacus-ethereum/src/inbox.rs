@@ -39,6 +39,7 @@ where
 pub struct InboxIndexerBuilder {
     pub from_height: u32,
     pub chunk_size: u32,
+    pub finality_blocks: u32,
 }
 
 impl MakeableWithProvider for InboxIndexerBuilder {
@@ -54,6 +55,7 @@ impl MakeableWithProvider for InboxIndexerBuilder {
             locator,
             self.from_height,
             self.chunk_size,
+            self.finality_blocks,
         ))
     }
 }
@@ -70,6 +72,7 @@ where
     from_height: u32,
     #[allow(unused)]
     chunk_size: u32,
+    finality_blocks: u32,
 }
 
 impl<M> EthereumInboxIndexer<M>
@@ -82,6 +85,7 @@ where
         locator: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
+        finality_blocks: u32,
     ) -> Self {
         Self {
             contract: Arc::new(EthereumInboxInternal::new(
@@ -91,6 +95,7 @@ where
             provider,
             from_height,
             chunk_size,
+            finality_blocks,
         }
     }
 }
@@ -101,8 +106,13 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn get_block_number(&self) -> Result<u32> {
-        Ok(self.provider.get_block_number().await?.as_u32())
+    async fn get_finalized_block_number(&self) -> Result<u32> {
+        Ok(self
+            .provider
+            .get_block_number()
+            .await?
+            .as_u32()
+            .saturating_sub(self.finality_blocks))
     }
 }
 

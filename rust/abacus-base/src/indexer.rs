@@ -25,11 +25,11 @@ impl From<MockAbacusIndexer> for AbacusCommonIndexers {
 
 #[async_trait]
 impl Indexer for AbacusCommonIndexers {
-    async fn get_block_number(&self) -> Result<u32> {
+    async fn get_finalized_block_number(&self) -> Result<u32> {
         match self {
-            AbacusCommonIndexers::Ethereum(indexer) => indexer.get_block_number().await,
-            AbacusCommonIndexers::Mock(indexer) => indexer.get_block_number().await,
-            AbacusCommonIndexers::Other(indexer) => indexer.get_block_number().await,
+            AbacusCommonIndexers::Ethereum(indexer) => indexer.get_finalized_block_number().await,
+            AbacusCommonIndexers::Mock(indexer) => indexer.get_finalized_block_number().await,
+            AbacusCommonIndexers::Other(indexer) => indexer.get_finalized_block_number().await,
         }
     }
 }
@@ -72,11 +72,11 @@ impl From<MockAbacusIndexer> for OutboxIndexers {
 
 #[async_trait]
 impl Indexer for OutboxIndexers {
-    async fn get_block_number(&self) -> Result<u32> {
+    async fn get_finalized_block_number(&self) -> Result<u32> {
         match self {
-            OutboxIndexers::Ethereum(indexer) => indexer.get_block_number().await,
-            OutboxIndexers::Mock(indexer) => indexer.get_block_number().await,
-            OutboxIndexers::Other(indexer) => indexer.get_block_number().await,
+            OutboxIndexers::Ethereum(indexer) => indexer.get_finalized_block_number().await,
+            OutboxIndexers::Mock(indexer) => indexer.get_finalized_block_number().await,
+            OutboxIndexers::Other(indexer) => indexer.get_finalized_block_number().await,
         }
     }
 }
@@ -120,11 +120,17 @@ pub enum InterchainGasPaymasterIndexers {
 
 #[async_trait]
 impl Indexer for InterchainGasPaymasterIndexers {
-    async fn get_block_number(&self) -> Result<u32> {
+    async fn get_finalized_block_number(&self) -> Result<u32> {
         match self {
-            InterchainGasPaymasterIndexers::Ethereum(indexer) => indexer.get_block_number().await,
-            InterchainGasPaymasterIndexers::Mock(indexer) => indexer.get_block_number().await,
-            InterchainGasPaymasterIndexers::Other(indexer) => indexer.get_block_number().await,
+            InterchainGasPaymasterIndexers::Ethereum(indexer) => {
+                indexer.get_finalized_block_number().await
+            }
+            InterchainGasPaymasterIndexers::Mock(indexer) => {
+                indexer.get_finalized_block_number().await
+            }
+            InterchainGasPaymasterIndexers::Other(indexer) => {
+                indexer.get_finalized_block_number().await
+            }
         }
     }
 }

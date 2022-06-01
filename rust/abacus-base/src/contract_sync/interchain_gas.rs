@@ -46,7 +46,8 @@ where
             loop {
                 indexed_height.set(from.into());
 
-                let tip = indexer.get_block_number().await?;
+                // Only index blocks considered final
+                let tip = indexer.get_finalized_block_number().await?;
                 if tip <= from {
                     // TODO: Make this configurable
                     // Sleep if caught up to tip

@@ -316,6 +316,7 @@ impl Settings {
                 OutboxIndexerBuilder {
                     from_height: self.index.from(),
                     chunk_size: self.index.chunk_size(),
+                    finality_blocks: self.outbox.finality_blocks(),
                 }
                 .make_with_connection(
                     conn.clone(),
@@ -351,6 +352,7 @@ impl Settings {
                 InboxIndexerBuilder {
                     from_height: self.index.from(),
                     chunk_size: self.index.chunk_size(),
+                    finality_blocks: self.outbox.finality_blocks(),
                 }
                 .make_with_connection(
                     conn.clone(),
@@ -384,6 +386,7 @@ impl Settings {
                 InterchainGasPaymasterIndexerBuilder {
                     from_height: self.index.from(),
                     chunk_size: self.index.chunk_size(),
+                    finality_blocks: self.outbox.finality_blocks(),
                 }
                 .make_with_connection(
                     conn.clone(),

@@ -89,7 +89,8 @@ where
                     realized_missing_end_block = 0;
                 }
 
-                let tip = indexer.get_block_number().await?;
+                // Only index blocks considered final
+                let tip = indexer.get_finalized_block_number().await?;
                 if tip <= from {
                     // TODO: Make this configurable
                     // Sleep if caught up to tip
@@ -235,7 +236,7 @@ mod test {
 
                 // Return first message
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -247,7 +248,7 @@ mod test {
 
                 // Return second message, misses third message
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -259,7 +260,7 @@ mod test {
 
                 // misses the fourth
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -271,7 +272,7 @@ mod test {
 
                 // empty range
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -283,7 +284,7 @@ mod test {
 
                 // second --> fifth message seen as invalid
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -295,7 +296,7 @@ mod test {
 
                 // Indexer goes back and tries empty block range
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -308,7 +309,7 @@ mod test {
                 // Indexer tries to move on to realized missing block range but
                 // can't
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -320,7 +321,7 @@ mod test {
 
                 // Indexer goes back further and gets to fourth message
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -332,7 +333,7 @@ mod test {
 
                 // Indexer gets empty range again
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -344,7 +345,7 @@ mod test {
 
                 // Indexer gets fifth message again
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -356,7 +357,7 @@ mod test {
 
                 // Indexer goes back even further and gets to message 2 and 3
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -368,7 +369,7 @@ mod test {
 
                 // Return fourth message
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -380,7 +381,7 @@ mod test {
 
                 // Reindexes empty block range
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -392,7 +393,7 @@ mod test {
 
                 // Return fifth message
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -404,7 +405,7 @@ mod test {
 
                 // Return empty vec for remaining calls
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));

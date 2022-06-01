@@ -18,7 +18,7 @@ use crate::{CheckpointWithMeta, InterchainGasPaymentWithMeta, RawCommittedMessag
 #[async_trait]
 pub trait Indexer: Send + Sync + Debug {
     /// Get chain's latest block number
-    async fn get_block_number(&self) -> Result<u32>;
+    async fn get_finalized_block_number(&self) -> Result<u32>;
 }
 
 /// Interface for Abacus Common contract indexer. Interface that allows for other

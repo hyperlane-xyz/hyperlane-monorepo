@@ -59,6 +59,8 @@ pub struct ChainSetup<T> {
     pub name: String,
     /// Chain domain identifier
     pub domain: String,
+    /// Number of blocks until finality
+    pub finality_blocks: String,
     /// Addresses of contracts on the chain
     pub addresses: T,
     /// The chain connection details
@@ -72,6 +74,15 @@ pub struct ChainSetup<T> {
     /// Use `metrics_conf()` to get the metrics.
     #[serde(default)]
     pub metrics_conf: PrometheusMiddlewareConf,
+}
+
+impl<T> ChainSetup<T> {
+    /// Get the number of blocks until finality
+    pub fn finality_blocks(&self) -> u32 {
+        self.finality_blocks
+            .parse::<u32>()
+            .expect("could not parse finality_blocks")
+    }
 }
 
 impl ChainSetup<OutboxAddresses> {

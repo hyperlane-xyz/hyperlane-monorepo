@@ -169,7 +169,7 @@ mod test {
 
                 // Return first checkpoint
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -181,7 +181,7 @@ mod test {
 
                 // Return second checkpoint, misses third checkpoint
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -193,7 +193,7 @@ mod test {
 
                 // --> miss fourth checkpoint
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -205,7 +205,7 @@ mod test {
 
                 // Next block range is empty checkpoints
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -217,7 +217,7 @@ mod test {
 
                 // second --> return fifth checkpoint is invalid
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -229,7 +229,7 @@ mod test {
 
                 // Indexer goes back and tries empty block range
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -242,7 +242,7 @@ mod test {
                 // Indexer tries to move on to realized missing block range but
                 // can't
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -254,7 +254,7 @@ mod test {
 
                 // Indexer goes back further and gets to the fourth checkpoint
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -266,7 +266,7 @@ mod test {
 
                 // Indexer goes further for empty range
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -278,7 +278,7 @@ mod test {
 
                 // Indexer goes back further and gets to the fifth checkpoint
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -290,7 +290,7 @@ mod test {
 
                 // Indexer goes back even further to find 2nd and 3rd checkpoint
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -307,7 +307,7 @@ mod test {
 
                 // Indexer goes forward and gets to the fourth checkpoint again
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -319,7 +319,7 @@ mod test {
 
                 // Indexer goes further for empty range
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -331,7 +331,7 @@ mod test {
 
                 // Indexer goes back further and gets to the fifth checkpoint
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
@@ -343,7 +343,7 @@ mod test {
 
                 // Return empty vec for remaining calls
                 mock_indexer
-                    .expect__get_block_number()
+                    .expect__get_finalized_block_number()
                     .times(1)
                     .in_sequence(&mut seq)
                     .return_once(|| Ok(100));
