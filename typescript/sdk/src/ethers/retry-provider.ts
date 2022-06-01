@@ -20,12 +20,12 @@ export function sleep(ms: number): Promise<void> {
 
 // Retries an async function when it raises an exeption
 // if all the tries fail it raises the last thrown exeption
-export const retryAsync = async <T extends any[], U>(
-  inFunction: InFunction<T, U>,
+export const retryAsync = async <InputArgs extends any[], ReturnType>(
+  inFunction: InFunction<InputArgs, ReturnType>,
   tries: number,
-  params: T,
+  params: InputArgs,
   delay = 100,
-) => {
+): Promise<ReturnType> => {
   let saveError;
   for (let i = 0; i < tries; i++) {
     try {
@@ -50,6 +50,7 @@ export class RetryProvider extends BaseProvider {
     ethers.utils.defineReadOnly(this, 'retryOptions', retryOptions);
   }
 
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
   perform(method: string, params: any): Promise<any> {
     return retryAsync(
       async () => this.provider.perform(method, params),
