@@ -42,7 +42,7 @@ where
                 .retrieve_latest_indexed_gas_payment_block()
                 .map_or_else(|| config_from, |b| b + 1);
 
-            info!(from = from, "[GasPayments]: resuming indexer from {}", from);
+            info!(from = from, "[GasPayments]: resuming indexer from {from}");
 
             loop {
                 indexed_height.set(from.into());
@@ -64,9 +64,7 @@ where
                     from = from,
                     to = to,
                     gas_payments_count = gas_payments.len(),
-                    "[GasPayments]: indexed block heights {}...{}",
-                    from,
-                    to
+                    "[GasPayments]: indexed block heights {from}...{to}"
                 );
 
                 for gas_payment in gas_payments.iter() {

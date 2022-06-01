@@ -61,7 +61,7 @@ where
             let mut realized_missing_end_block = 0;
             let mut exponential = 0;
 
-            info!(from = from, "[Messages]: resuming indexer from {}", from);
+            info!(from = from, "[Messages]: resuming indexer from {from}");
 
             // Set the metrics with the latest known leaf index
             if let Ok(Some(idx)) = db.retrieve_latest_leaf_index() {
@@ -106,9 +106,7 @@ where
                     from = from,
                     to = to,
                     message_count = sorted_messages.len(),
-                    "[Messages]: indexed block heights {}...{}",
-                    from,
-                    to
+                    "[Messages]: indexed block heights {from}...{to}"
                 );
 
                 // If no messages found, update last seen block and next height
@@ -144,10 +142,8 @@ where
                                 last_leaf_index = ?last_leaf_index,
                                 start_block = from,
                                 end_block = to,
-                                "[Messages]: RPC failed to find message(s) between blocks {}...{}. Last seen leaf index: {:?}. Activating finding_missing mode.",
-                                from,
-                                to,
-                                last_leaf_index,
+                                "[Messages]: RPC failed to find message(s) between blocks {from}...{to}. Last seen leaf index: {:?}. Activating finding_missing mode.",
+                                last_leaf_index
                             );
 
                             // Turn on finding_missing mode
