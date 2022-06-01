@@ -79,7 +79,7 @@ impl Kathy {
 
                         let count = outbox.count().await?;
                         if count > 1 {
-                            outbox.create_checkpoint().await?;
+                            outbox.cache_checkpoint().await?;
                         }
                         drop(guard);
                     }

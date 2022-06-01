@@ -110,15 +110,15 @@ impl AbacusCommon for CachingInbox {
         self.inbox.validator_manager().await
     }
 
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
-        self.inbox.checkpointed_root().await
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
+        self.inbox.latest_cached_root().await
     }
 
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
-        self.inbox.latest_checkpoint(maybe_lag).await
+        self.inbox.latest_cached_checkpoint(maybe_lag).await
     }
 }
 
@@ -258,22 +258,22 @@ impl AbacusCommon for InboxVariants {
         }
     }
 
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
         match self {
-            InboxVariants::Ethereum(inbox) => inbox.checkpointed_root().await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.checkpointed_root().await,
-            InboxVariants::Other(inbox) => inbox.checkpointed_root().await,
+            InboxVariants::Ethereum(inbox) => inbox.latest_cached_root().await,
+            InboxVariants::Mock(mock_inbox) => mock_inbox.latest_cached_root().await,
+            InboxVariants::Other(inbox) => inbox.latest_cached_root().await,
         }
     }
 
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         match self {
-            InboxVariants::Ethereum(inbox) => inbox.latest_checkpoint(maybe_lag).await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.latest_checkpoint(maybe_lag).await,
-            InboxVariants::Other(inbox) => inbox.latest_checkpoint(maybe_lag).await,
+            InboxVariants::Ethereum(inbox) => inbox.latest_cached_checkpoint(maybe_lag).await,
+            InboxVariants::Mock(mock_inbox) => mock_inbox.latest_cached_checkpoint(maybe_lag).await,
+            InboxVariants::Other(inbox) => inbox.latest_cached_checkpoint(maybe_lag).await,
         }
     }
 }

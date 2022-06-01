@@ -97,8 +97,8 @@ impl Outbox for CachingOutbox {
         self.outbox.count().await
     }
 
-    async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
-        self.outbox.create_checkpoint().await
+    async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+        self.outbox.cache_checkpoint().await
     }
 }
 
@@ -150,15 +150,15 @@ impl AbacusCommon for CachingOutbox {
         self.outbox.validator_manager().await
     }
 
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
-        self.outbox.checkpointed_root().await
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
+        self.outbox.latest_cached_root().await
     }
 
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
-        self.outbox.latest_checkpoint(maybe_lag).await
+        self.outbox.latest_cached_checkpoint(maybe_lag).await
     }
 }
 
@@ -258,11 +258,11 @@ impl Outbox for OutboxVariants {
         }
     }
 
-    async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+    async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
         match self {
-            OutboxVariants::Ethereum(outbox) => outbox.create_checkpoint().await,
-            OutboxVariants::Mock(mock_outbox) => mock_outbox.create_checkpoint().await,
-            OutboxVariants::Other(outbox) => outbox.create_checkpoint().await,
+            OutboxVariants::Ethereum(outbox) => outbox.cache_checkpoint().await,
+            OutboxVariants::Mock(mock_outbox) => mock_outbox.cache_checkpoint().await,
+            OutboxVariants::Other(outbox) => outbox.cache_checkpoint().await,
         }
     }
 }
@@ -303,22 +303,24 @@ impl AbacusCommon for OutboxVariants {
         }
     }
 
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
         match self {
-            OutboxVariants::Ethereum(outbox) => outbox.checkpointed_root().await,
-            OutboxVariants::Mock(mock_outbox) => mock_outbox.checkpointed_root().await,
-            OutboxVariants::Other(outbox) => outbox.checkpointed_root().await,
+            OutboxVariants::Ethereum(outbox) => outbox.latest_cached_root().await,
+            OutboxVariants::Mock(mock_outbox) => mock_outbox.latest_cached_root().await,
+            OutboxVariants::Other(outbox) => outbox.latest_cached_root().await,
         }
     }
 
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         match self {
-            OutboxVariants::Ethereum(outbox) => outbox.latest_checkpoint(maybe_lag).await,
-            OutboxVariants::Mock(mock_outbox) => mock_outbox.latest_checkpoint(maybe_lag).await,
-            OutboxVariants::Other(outbox) => outbox.latest_checkpoint(maybe_lag).await,
+            OutboxVariants::Ethereum(outbox) => outbox.latest_cached_checkpoint(maybe_lag).await,
+            OutboxVariants::Mock(mock_outbox) => {
+                mock_outbox.latest_cached_checkpoint(maybe_lag).await
+            }
+            OutboxVariants::Other(outbox) => outbox.latest_cached_checkpoint(maybe_lag).await,
         }
     }
 }

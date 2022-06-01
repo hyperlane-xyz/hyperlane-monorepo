@@ -109,10 +109,10 @@ pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError>;
 
     /// Fetch the current root.
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError>;
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError>;
 
     /// Return the latest checkpointed root and its index.
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError>;

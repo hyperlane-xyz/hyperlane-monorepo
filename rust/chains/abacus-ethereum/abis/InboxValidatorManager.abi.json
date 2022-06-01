@@ -63,6 +63,19 @@
     "inputs": [
       {
         "indexed": false,
+        "internalType": "bytes[]",
+        "name": "signatures",
+        "type": "bytes[]"
+      }
+    ],
+    "name": "Quorum",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
         "internalType": "uint256",
         "name": "threshold",
         "type": "uint256"
@@ -113,7 +126,7 @@
         "type": "bytes[]"
       }
     ],
-    "name": "checkpoint",
+    "name": "cacheCheckpoint",
     "outputs": [],
     "stateMutability": "nonpayable",
     "type": "function"

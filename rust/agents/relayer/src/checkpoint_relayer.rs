@@ -178,7 +178,11 @@ impl CheckpointRelayer {
 
     #[instrument(ret, err, skip(self), fields(inbox_name = self.inbox_contracts.inbox.chain_name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
-        let latest_inbox_checkpoint = self.inbox_contracts.inbox.latest_checkpoint(None).await?;
+        let latest_inbox_checkpoint = self
+            .inbox_contracts
+            .inbox
+            .latest_cached_checkpoint(None)
+            .await?;
         let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
         self.inbox_checkpoint_gauge
             .set(onchain_checkpoint_index as i64);
