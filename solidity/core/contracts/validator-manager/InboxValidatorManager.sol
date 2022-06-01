@@ -136,13 +136,9 @@ contract InboxValidatorManager is SchnorrValidatorManager {
                 _omittedValidatorCompressedPublicKeys.length <= threshold,
                 "!threshold"
             );
-            bytes32 _compressedKey;
-            // Restrict scope to keep stack small.
-            {
                 BN256.G1Point memory _key = verificationKey(
                     _omittedValidatorCompressedPublicKeys
                 );
-                _compressedKey = _key.compress();
                 uint256 _challenge = uint256(
                     keccak256(
                         abi.encodePacked(
@@ -154,25 +150,20 @@ contract InboxValidatorManager is SchnorrValidatorManager {
                     )
                 );
                 require(verify(_key, _nonce, _sigScalars[1], _challenge), "!sig");
-            }
             emit Quorum2(
                 _checkpoint,
                 _sigScalars,
-                _compressedKey,
+                _key.compress(),
                 _nonce.compress(),
                 _omittedValidatorCompressedPublicKeys
             );
         }
-        {
-        for (uint256 i = 0; i < _leafIndices.length; i++) {
-            _inbox.batchProcess(
-                _checkpoint.root,
-                _checkpoint.index,
-                _messages,
-                _proofs,
-                _leafIndices
-            );
-        }
-        }
+        _inbox.batchProcess(
+            _checkpoint.root,
+            _checkpoint.index,
+            _messages,
+            _proofs,
+            _leafIndices
+        );
     }
 }

@@ -327,4 +327,35 @@ describe.only('InboxValidatorManager', () => {
       }
     });
   });
+
+  describe.only('#batchProcess', () => {
+    it('processes a message if there is a quorum', async () => {
+      const outboxFactory = new TestOutbox__factory(signer);
+      const outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
+      const MESSAGES = 100;
+      const MESSAGE_WORDS = 1;
+      const proofs = [];
+      for (let i = 0; i < MESSAGES; i++) {
+        const message = ethers.utils.hexlify(
+          ethers.utils.randomBytes(MESSAGE_WORDS * 32),
+        );
+        console.log(message);
+        proofs.push(await dispatchMessageAndReturnProof(outbox, message));
+      }
+      const latest = proofs[proofs.length - 1];
+      const signature = await validators.sign(latest.checkpoint);
+      await expect(
+        validatorManager.batchProcess(
+          inbox.address,
+          latest.checkpoint,
+          [signature.randomness, signature.signature],
+          signature.nonce,
+          signature.missing,
+          proofs.map((p) => p.message),
+          proofs.map((p) => p.proof),
+          proofs.map((p) => p.checkpoint.index),
+        ),
+      ).to.emit(validatorManager, 'Quorum');
+    });
+  });
 });

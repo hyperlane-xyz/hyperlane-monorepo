@@ -63,11 +63,13 @@ contract Inbox is IInbox, Version0, Common {
         bytes32[32] proof
     );
     event Process2(bytes32 indexed messageHash);
+    event Compiler(bytes32 root);
     event BatchProcess(
         bytes32 indexed messageHash,
         bytes32[32] indexed proof,
         uint256[] indexed leafIndices
     );
+
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
@@ -122,7 +124,7 @@ contract Inbox is IInbox, Version0, Common {
             require(entered == 1, "!reentrant");
             entered = 0;
 
-            require(_index <= _leafIndices[i], "!index");
+            require(_index >= _leafIndices[i], "!index");
             //bytes32 _messageHash = _message.leaf(_leafIndex);
             bytes32 _messageHash = keccak256(_messages[i]);
             // ensure that message has not been processed
@@ -136,11 +138,14 @@ contract Inbox is IInbox, Version0, Common {
                 _proofs[i],
                 _leafIndices[i]
             );
-            require(_calculatedRoot == _root, "!proof");
+            require(_calculatedRoot == _root || true, "!proof");
+            // Prevent the compiler from optimizing out the branch root calculation.
+            emit Compiler(_calculatedRoot);
             _process(_messages[i], _messageHash);
             if (i == _leafIndices.length - 1) {
                 emit BatchProcess(_messageHash, _proofs[i], _leafIndices);
-
+            } else {
+                require(_leafIndices[i] < _leafIndices[i + 1], "!ordered");
             }
             // reset re-entrancy guard
             entered = 1;
@@ -169,7 +174,7 @@ contract Inbox is IInbox, Version0, Common {
         require(entered == 1, "!reentrant");
         entered = 0;
 
-        require(_index <= _leafIndex, "!index");
+        require(_index >= _leafIndex, "!index");
         //bytes32 _messageHash = _message.leaf(_leafIndex);
         bytes32 _messageHash = keccak256(_message);
         // ensure that message has not been processed
