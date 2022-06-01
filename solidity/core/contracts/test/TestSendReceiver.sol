@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TypeCasts} from "../../../libs/TypeCasts.sol";
+import {TypeCasts} from "../../libs/TypeCasts.sol";
 
-import {IInterchainGasPaymaster} from "../../../interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "../../../interfaces/IMessageRecipient.sol";
-import {IOutbox} from "../../../interfaces/IOutbox.sol";
+import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
+import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
+import {IOutbox} from "../../interfaces/IOutbox.sol";
 
-contract BadRandomRecipient is IMessageRecipient {
+contract TestSendReceiver is IMessageRecipient {
     using TypeCasts for address;
 
     event Handled(bytes32 blockHash);

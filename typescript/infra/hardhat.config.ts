@@ -3,7 +3,7 @@ import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
-import { BadRandomRecipient__factory } from '@abacus-network/core';
+import { TestSendReceiver__factory } from '@abacus-network/core';
 import { utils as deployUtils } from '@abacus-network/deploy';
 import {
   AbacusCore,
@@ -66,7 +66,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       list[Math.floor(Math.random() * list.length)];
 
     // Deploy a recipient
-    const recipientF = new BadRandomRecipient__factory(signer);
+    const recipientF = new TestSendReceiver__factory(signer);
     const recipient = await recipientF.deploy();
     await recipient.deployTransaction.wait();
 
