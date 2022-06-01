@@ -18,11 +18,11 @@
   "packageManager": "yarn@3.2.0",
   "private": true,
   "scripts": {
-    "build": "yarn workspaces foreach --parallel --topological run build",
+    "build": "yarn workspaces foreach --verbose --parallel --topological run build",
     "postinstall": "husky install",
-    "prettier": "yarn workspaces foreach --parallel run prettier",
+    "prettier": "yarn workspaces foreach --verbose --parallel run prettier",
     "lint-ts": "eslint . --ext .ts",
-    "test": "yarn workspaces foreach --parallel --topological run test"
+    "test": "yarn workspaces foreach --verbose --parallel run test"
   },
   "workspaces": [
     "solidity/*",
