@@ -10,6 +10,7 @@ import {
   InterchainGasCalculator,
   MultiProvider,
 } from '../..';
+import { CoreContracts } from '../../src';
 import { ParsedMessage } from '../../src/gas/calculator';
 import { TestChainNames } from '../../src/types';
 import { MockProvider, MockTokenPriceGetter } from '../utils';
@@ -199,14 +200,15 @@ describe('InterchainGasCalculator', () => {
       let thresholdStub: sinon.SinonStub | undefined;
       getContractsStub.callsFake((chain) => {
         // Get the "real" return value of getContracts.
-        const contracts = getContractsStub.wrappedMethod.bind(core)(chain);
+        const contracts: CoreContracts<TestChainNames, TestChainNames> =
+          getContractsStub.wrappedMethod.bind(core)(chain);
 
         // Ethers contracts are frozen using Object.freeze, so we make a copy
         // of the object so we can stub `threshold`.
         const validatorManager = Object.assign(
           {},
-          // @ts-ignore Typescript has trouble properly typing the stubbed getContracts
-          contracts.inboxes[origin].validatorManager,
+          // @ts-ignore
+          contracts.inboxes[origin].inboxValidatorManager,
         );
 
         // Because we are stubbing vaidatorManager.threshold when core.getContracts gets called,
@@ -216,8 +218,8 @@ describe('InterchainGasCalculator', () => {
             .stub(validatorManager, 'threshold')
             .callsFake(() => Promise.resolve(BigNumber.from(threshold)));
 
-          // @ts-ignore Typescript has trouble properly typing the stubbed getContracts
-          contracts.inboxes[origin].validatorManager = validatorManager;
+          // @ts-ignore
+          contracts.inboxes[origin].inboxValidatorManager = validatorManager;
         }
         return contracts;
       });

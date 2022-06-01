@@ -4,7 +4,11 @@ import {
   TestOutboxContracts,
 } from './TestCoreApp';
 import { TestInbox__factory, TestOutbox__factory } from '@abacus-network/core';
-import { AbacusCoreDeployer, CoreConfig } from '@abacus-network/deploy';
+import {
+  AbacusCoreDeployer,
+  CoreConfig,
+  ValidatorManagerConfig,
+} from '@abacus-network/deploy';
 import {
   MultiProvider,
   ProxiedContract,
@@ -50,29 +54,49 @@ export class TestCoreDeploy extends AbacusCoreDeployer<TestChainNames> {
     );
   }
 
-  // skip proxying and deploying validator managers
+  // skip proxying
   async deployOutbox<LocalChain extends TestChainNames>(
     chain: LocalChain,
+    config: ValidatorManagerConfig,
   ): Promise<TestOutboxContracts> {
-    const contract = await this.deployContract(chain, 'outbox', [
-      chainMetadata[chain].id,
+    const localDomain = chainMetadata[chain].id;
+    const outboxContract = await this.deployContract(chain, 'outbox', [
+      localDomain,
     ]);
+    const outboxValidatorManager = await this.deployContract(
+      chain,
+      'outboxValidatorManager',
+      [localDomain, config.validators, config.threshold],
+    );
     // validator manager must be contract
-    await contract.initialize(contract.address);
-    return { outbox: mockProxy(contract) } as TestOutboxContracts;
+    await outboxContract.initialize(outboxValidatorManager.address);
+    return {
+      outbox: mockProxy(outboxContract),
+      outboxValidatorManager,
+    } as TestOutboxContracts;
   }
 
-  // skip proxying and deploying validator managers
+  // skip proxying
   async deployInbox<LocalChain extends TestChainNames>(
     local: LocalChain,
     remote: Remotes<TestChainNames, LocalChain>,
+    config: ValidatorManagerConfig,
   ): Promise<TestInboxContracts> {
-    const contract = await this.deployContract(local, 'inbox', [
-      chainMetadata[local].id,
+    const localDomain = chainMetadata[local].id;
+    const remoteDomain = chainMetadata[remote].id;
+    const inboxContract = await this.deployContract(local, 'inbox', [
+      localDomain,
     ]);
-    // validator manager must be contract
-    await contract.initialize(chainMetadata[remote].id, contract.address);
-    return { inbox: mockProxy(contract) } as TestInboxContracts;
+    const inboxValidatorManager = await this.deployContract(
+      local,
+      'inboxValidatorManager',
+      [remoteDomain, config.validators, config.threshold],
+    );
+    await inboxContract.initialize(remoteDomain, inboxValidatorManager.address);
+    return {
+      inbox: mockProxy(inboxContract),
+      inboxValidatorManager,
+    } as TestInboxContracts;
   }
 
   async deployCore() {
