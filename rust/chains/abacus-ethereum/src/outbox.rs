@@ -108,7 +108,7 @@ where
     ) -> Result<Vec<CheckpointWithMeta>> {
         let mut events = self
             .contract
-            .checkpoint_filter()
+            .checkpoint_cached_filter()
             .from_block(from)
             .to_block(to)
             .query_with_meta()
@@ -248,17 +248,17 @@ where
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.checkpointed_root().call().await?.into())
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.latest_cached_root().call().await?.into())
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         // This should probably moved into its own trait
-        let base_call = self.contract.latest_checkpoint();
+        let base_call = self.contract.latest_cached_checkpoint();
         let call_with_lag = match maybe_lag {
             Some(lag) => {
                 let tip = self
@@ -312,8 +312,8 @@ where
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.checkpoint();
+    async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+        let tx = self.contract.cache_checkpoint();
 
         Ok(report_tx(tx).await?.into())
     }
