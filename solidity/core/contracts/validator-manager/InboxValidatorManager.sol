@@ -12,18 +12,6 @@ import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
  * them to an Inbox.
  */
 contract InboxValidatorManager is MultisigValidatorManager {
-    // ============ Events ============
-
-    /**
-     * @notice Emitted when a checkpoint has been signed by a quorum
-     * of validators and cached on an Inbox.
-     * @dev This event allows watchers to observe the signatures they need
-     * to prove fraud on the Outbox.
-     * @param signatures The signatures by a quorum of validators on the
-     * checkpoint.
-     */
-    event Quorum(bytes[] signatures);
-
     // ============ Constructor ============
 
     /**
