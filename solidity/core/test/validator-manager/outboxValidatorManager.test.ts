@@ -1,5 +1,6 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { Validator, types, utils } from '@abacus-network/utils';
@@ -313,7 +314,7 @@ describe('OutboxValidatorManager', () => {
       await outbox.cacheCheckpoint();
       const signatures = await signCheckpoint(
         fraudulent.root,
-        fraudulent.index - 1,
+        fraudulent.index.sub(1),
         [validator0, validator1], // 2/2 signers is a quorum
       );
 
@@ -321,7 +322,7 @@ describe('OutboxValidatorManager', () => {
         validatorManager.fraudulentCheckpoint(
           outbox.address,
           fraudulent.root,
-          fraudulent.index - 1,
+          fraudulent.index.sub(1),
           signatures,
           fraudulent.leaf,
           fraudulent.proof,

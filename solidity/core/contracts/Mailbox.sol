@@ -2,17 +2,17 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {ICommon} from "../interfaces/ICommon.sol";
+import {IMailbox} from "../interfaces/IMailbox.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
- * @title Common
+ * @title Mailbox
  * @author Celo Labs Inc.
  * @notice Shared utilities between Outbox and Inbox.
  */
-abstract contract Common is ICommon, OwnableUpgradeable {
+abstract contract Mailbox is IMailbox, OwnableUpgradeable {
     // ============ Immutable Variables ============
 
     // Domain of chain on which the contract is deployed
@@ -54,7 +54,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
 
     // ============ Initializer ============
 
-    function __Common_initialize(address _validatorManager)
+    function __Mailbox_initialize(address _validatorManager)
         internal
         onlyInitializing
     {

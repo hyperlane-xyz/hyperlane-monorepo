@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {ICommon} from "./ICommon.sol";
+import {IMailbox} from "./IMailbox.sol";
 
-interface IInbox is ICommon {
+interface IInbox is IMailbox {
     function remoteDomain() external returns (uint32);
 
     function process(

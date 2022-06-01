@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Version0} from "./Version0.sol";
-import {Common} from "./Common.sol";
+import {Mailbox} from "./Mailbox.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
@@ -20,7 +20,7 @@ import {IOutbox} from "../interfaces/IOutbox.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
+contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -89,12 +89,12 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
 
     // ============ Constructor ============
 
-    constructor(uint32 _localDomain) Common(_localDomain) {} // solhint-disable-line no-empty-blocks
+    constructor(uint32 _localDomain) Mailbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     // ============ Initializer ============
 
     function initialize(address _validatorManager) public initializer {
-        __Common_initialize(_validatorManager);
+        __Mailbox_initialize(_validatorManager);
         state = States.Active;
     }
 

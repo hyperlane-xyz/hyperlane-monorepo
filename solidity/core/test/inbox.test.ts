@@ -5,6 +5,8 @@ import { ethers } from 'hardhat';
 
 import { types, utils } from '@abacus-network/utils';
 
+import messageWithProof from '../../../vectors/messageWithProof.json';
+import proveAndProcessTestCases from '../../../vectors/proveAndProcess.json';
 import {
   BadRecipient1__factory,
   BadRecipient3__factory,
@@ -139,7 +141,7 @@ describe('Inbox', async () => {
         proof.proof,
         proof.index,
       ),
-    ).to.be.reverted;
+    ).to.be.revertedWith('!validatorManager');
   });
 
   for (let i = 0; i < badRecipientFactories.length; i++) {
