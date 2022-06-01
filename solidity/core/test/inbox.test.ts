@@ -5,14 +5,12 @@ import { ethers } from 'hardhat';
 
 import { types, utils } from '@abacus-network/utils';
 
-import messageWithProof from '../../../vectors/messageWithProof.json';
-import proveAndProcessTestCases from '../../../vectors/proveAndProcess.json';
 import {
   BadRecipient1__factory,
+  BadRecipient2__factory,
   BadRecipient3__factory,
   BadRecipient5__factory,
   BadRecipient6__factory,
-  BadRecipientHandle__factory,
   TestInbox,
   TestInbox__factory,
   TestOutbox,
@@ -30,10 +28,10 @@ const remoteDomain = 1000;
 describe('Inbox', async () => {
   const badRecipientFactories = [
     BadRecipient1__factory,
+    BadRecipient2__factory,
     BadRecipient3__factory,
     BadRecipient5__factory,
     BadRecipient6__factory,
-    BadRecipientHandle__factory,
   ];
 
   let inbox: TestInbox,
@@ -125,7 +123,7 @@ describe('Inbox', async () => {
         proof.root,
         proof.index,
         proof.message,
-        newProof as types.BytesArray,
+        newProof,
         proof.index,
       ),
     ).to.be.revertedWith('!proof');
