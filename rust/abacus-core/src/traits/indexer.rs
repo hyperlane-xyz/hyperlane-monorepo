@@ -12,7 +12,7 @@ use std::fmt::Debug;
 use async_trait::async_trait;
 use eyre::Result;
 
-use crate::{CheckpointWithMeta, InterchainGasPayment, RawCommittedMessage};
+use crate::{CheckpointWithMeta, InterchainGasPaymentWithMeta, RawCommittedMessage};
 
 /// Interface for an indexer.
 #[async_trait]
@@ -47,5 +47,5 @@ pub trait InterchainGasPaymasterIndexer: Indexer + Send + Sync + Debug {
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> Result<Vec<InterchainGasPayment>>;
+    ) -> Result<Vec<InterchainGasPaymentWithMeta>>;
 }

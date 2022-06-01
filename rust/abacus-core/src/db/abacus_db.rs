@@ -1,12 +1,12 @@
 use crate::db::{DbError, TypedDB, DB};
 use crate::{
     accumulator::merkle::Proof, traits::RawCommittedMessage, AbacusMessage, CommittedMessage,
-    Decode, InterchainGasPayment,
+    Decode, InterchainGasPayment, InterchainGasPaymentMeta, InterchainGasPaymentWithMeta,
 };
 use ethers::core::types::{H256, U256};
 use eyre::Result;
 use tokio::time::sleep;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 
 use std::future::Future;
 use std::time::Duration;
@@ -21,6 +21,7 @@ static LATEST_LEAF_INDEX: &str = "latest_known_leaf_index_";
 static LATEST_LEAF_INDEX_FOR_DESTINATION: &str = "latest_known_leaf_index_for_destination_";
 static LEAF_PROCESS_STATUS: &str = "leaf_process_status_";
 static GAS_PAYMENT_FOR_LEAF: &str = "gas_payment_for_leaf_";
+static GAS_PAYMENT_META_PROCESSED: &str = "gas_payment_meta_processed_";
 
 /// DB handle for storing data tied to a specific Outbox.
 ///
@@ -233,9 +234,50 @@ impl AbacusDB {
         Ok(value.map(|x| x == 1))
     }
 
-    /// Update the total gas payment for a leaf index.
-    /// The provided gas payment amount is added to any existing stored gas payment in the DB.
-    pub fn store_gas_payment(&self, gas_payment: &InterchainGasPayment) -> Result<(), DbError> {
+    /// If the provided gas payment, identified by its metadata, has not been processed,
+    /// processes the gas payment and records it as processed.
+    pub fn process_gas_payment(
+        &self,
+        gas_payment_with_meta: &InterchainGasPaymentWithMeta,
+    ) -> Result<(), DbError> {
+        let meta = &gas_payment_with_meta.meta;
+        // If the gas payment has already been processed, do nothing
+        if self.retrieve_gas_payment_meta_processed(meta)? {
+            warn!(gas_payment_with_meta=?gas_payment_with_meta, "Attempted to process an already-processed gas payment");
+            return Ok(());
+        }
+        // Set the gas payment as processed
+        self.store_gas_payment_meta_processed(meta)?;
+
+        // Update the total gas payment for the leaf to include the payment
+        self.update_gas_payment_for_leaf(&gas_payment_with_meta.payment)?;
+
+        Ok(())
+    }
+
+    /// Record a gas payment, identified by its metadata, as processed
+    fn store_gas_payment_meta_processed(
+        &self,
+        gas_payment_meta: &InterchainGasPaymentMeta,
+    ) -> Result<(), DbError> {
+        self.store_keyed_encodable(GAS_PAYMENT_META_PROCESSED, gas_payment_meta, &true)
+    }
+
+    /// Get whether a gas payment, identified by its metadata, has been processed already
+    fn retrieve_gas_payment_meta_processed(
+        &self,
+        gas_payment_meta: &InterchainGasPaymentMeta,
+    ) -> Result<bool, DbError> {
+        Ok(self
+            .retrieve_keyed_decodable(GAS_PAYMENT_META_PROCESSED, gas_payment_meta)?
+            .unwrap_or(false))
+    }
+
+    /// Update the total gas payment for a leaf index to include gas_payment
+    fn update_gas_payment_for_leaf(
+        &self,
+        gas_payment: &InterchainGasPayment,
+    ) -> Result<(), DbError> {
         let InterchainGasPayment { leaf_index, amount } = gas_payment;
         let existing_payment = self.retrieve_gas_payment_for_leaf(*leaf_index)?;
         let total = existing_payment + amount;
@@ -247,7 +289,7 @@ impl AbacusDB {
     }
 
     /// Retrieve the total gas payment for a leaf index
-    pub fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<U256, DbError> {
+    fn retrieve_gas_payment_for_leaf(&self, leaf_index: u32) -> Result<U256, DbError> {
         Ok(self
             .retrieve_keyed_decodable(GAS_PAYMENT_FOR_LEAF, &leaf_index)?
             .unwrap_or(U256::zero()))

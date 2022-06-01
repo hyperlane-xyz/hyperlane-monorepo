@@ -1,6 +1,6 @@
 use abacus_core::{
     AbacusCommonIndexer, CheckpointWithMeta, Indexer, InterchainGasPaymasterIndexer,
-    InterchainGasPayment, OutboxIndexer, RawCommittedMessage,
+    InterchainGasPaymentWithMeta, OutboxIndexer, RawCommittedMessage,
 };
 use abacus_test::mocks::indexer::MockAbacusIndexer;
 use async_trait::async_trait;
@@ -135,7 +135,7 @@ impl InterchainGasPaymasterIndexer for InterchainGasPaymasterIndexers {
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> Result<Vec<InterchainGasPayment>> {
+    ) -> Result<Vec<InterchainGasPaymentWithMeta>> {
         match self {
             InterchainGasPaymasterIndexers::Ethereum(indexer) => {
                 indexer.fetch_gas_payments(from_block, to_block).await

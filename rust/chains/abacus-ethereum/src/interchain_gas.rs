@@ -10,7 +10,8 @@ use tracing::instrument;
 
 use abacus_core::{
     AbacusContract, ContractLocator, Indexer, InterchainGasPaymaster,
-    InterchainGasPaymasterIndexer, InterchainGasPayment,
+    InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
+    InterchainGasPaymentWithMeta,
 };
 
 use crate::trait_builder::MakeableWithProvider;
@@ -109,20 +110,26 @@ where
         &self,
         from_block: u32,
         to_block: u32,
-    ) -> Result<Vec<InterchainGasPayment>> {
+    ) -> Result<Vec<InterchainGasPaymentWithMeta>> {
         let events = self
             .contract
             .gas_payment_filter()
             .from_block(from_block)
             .to_block(to_block)
-            .query()
+            .query_with_meta()
             .await?;
 
         Ok(events
             .into_iter()
-            .map(|e| InterchainGasPayment {
-                leaf_index: e.leaf_index.as_u32(),
-                amount: e.amount,
+            .map(|(log, log_meta)| InterchainGasPaymentWithMeta {
+                payment: InterchainGasPayment {
+                    leaf_index: log.leaf_index.as_u32(),
+                    amount: log.amount,
+                },
+                meta: InterchainGasPaymentMeta {
+                    transaction_hash: log_meta.transaction_hash,
+                    log_index: log_meta.log_index,
+                },
             })
             .collect())
     }

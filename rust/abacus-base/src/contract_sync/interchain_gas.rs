@@ -68,7 +68,7 @@ where
                 );
 
                 for gas_payment in gas_payments.iter() {
-                    db.store_gas_payment(gas_payment)?;
+                    db.process_gas_payment(gas_payment)?;
                 }
                 stored_messages.add(gas_payments.len().try_into()?);
 
