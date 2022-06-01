@@ -21,7 +21,8 @@
     "build": "yarn workspaces foreach --parallel --topological run build",
     "postinstall": "husky install",
     "prettier": "yarn workspaces foreach --parallel run prettier",
-    "lint-ts": "eslint . --ext .ts"
+    "lint-ts": "eslint . --ext .ts",
+    "test": "yarn workspaces foreach --parallel --topological run test"
   },
   "workspaces": [
     "solidity/*",

@@ -21,12 +21,9 @@ import {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   AnnotatedProcess,
-  CheckpointArgs,
-  CheckpointTypes,
+  CheckpointCachedEvent,
   DispatchEvent,
-  DispatchTypes,
-  ProcessArgs,
-  ProcessTypes,
+  ProcessEvent,
 } from './events';
 
 // I didn't want to override the existing ParsedMessage in message.ts as that would include having to type AbacusMessage and more and it's not clear to me that we will keep those.
@@ -76,7 +73,6 @@ export enum InboxMessageStatus {
 }
 
 export type EventCache = {
-  outboxCheckpoint?: AnnotatedCheckpoint;
   inboxCheckpoint?: AnnotatedCheckpoint;
   process?: AnnotatedProcess;
 };
@@ -171,7 +167,7 @@ export class AbacusMessage {
               provider.getTransactionReceipt(log.transactionHash),
           } as unknown as DispatchEvent;
 
-          const annotated = new Annotated<DispatchTypes, DispatchEvent>(
+          const annotated = new Annotated<DispatchEvent>(
             resolveId(nameOrDomain),
             receipt,
             dispatch,
@@ -277,51 +273,6 @@ export class AbacusMessage {
   }
 
   /**
-   * Get the Outbox `Checkpoint` event associated with this message (if any)
-   *
-   * @returns An {@link AnnotatedCheckpoint} (if any)
-   */
-  async getOutboxCheckpoint(): Promise<AnnotatedCheckpoint | undefined> {
-    // if we have already gotten the event,
-    // return it without re-querying
-    if (this.cache.outboxCheckpoint) {
-      return this.cache.outboxCheckpoint;
-    }
-
-    const leafIndex = this.dispatch.event.args.leafIndex;
-    const [checkpointRoot, checkpointIndex] =
-      await this.outbox.latestCheckpoint();
-    // The checkpoint index needs to be at least leafIndex + 1 to include
-    // the message.
-    if (checkpointIndex.lte(leafIndex)) {
-      return undefined;
-    }
-
-    // Query the latest checkpoint event.
-    const checkpointFilter = this.outbox.filters.Checkpoint(
-      checkpointRoot,
-      checkpointIndex,
-    );
-
-    const checkpointLogs: AnnotatedCheckpoint[] =
-      await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
-        this.multiProvider,
-        this.originName,
-        this.outbox,
-        checkpointFilter,
-      );
-
-    if (checkpointLogs.length === 1) {
-      // if event is returned, store it to the object
-      this.cache.outboxCheckpoint = checkpointLogs[0];
-    } else if (checkpointLogs.length > 1) {
-      throw new Error('multiple outbox checkpoints for same root and index');
-    }
-    // return the event or undefined if it doesn't exist
-    return this.cache.outboxCheckpoint;
-  }
-
-  /**
    * Get the Inbox `Checkpoint` event associated with this message (if any)
    *
    * @returns An {@link AnnotatedCheckpoint} (if any)
@@ -335,7 +286,7 @@ export class AbacusMessage {
 
     const leafIndex = this.dispatch.event.args.leafIndex;
     const [checkpointRoot, checkpointIndex] =
-      await this.inbox.latestCheckpoint();
+      await this.inbox.latestCachedCheckpoint();
     // The checkpoint index needs to be at least leafIndex + 1 to include
     // the message.
     if (checkpointIndex.lte(leafIndex)) {
@@ -343,12 +294,12 @@ export class AbacusMessage {
     }
 
     // if not, attempt to query the event
-    const checkpointFilter = this.inbox.filters.Checkpoint(
+    const checkpointFilter = this.inbox.filters.CheckpointCached(
       checkpointRoot,
       checkpointIndex,
     );
     const checkpointLogs: AnnotatedCheckpoint[] =
-      await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
+      await findAnnotatedSingleEvent<CheckpointCachedEvent>(
         this.multiProvider,
         this.destinationName,
         this.inbox,
@@ -377,10 +328,7 @@ export class AbacusMessage {
     }
     // if not, attempt to query the event
     const processFilter = this.inbox.filters.Process(this.leaf);
-    const processLogs = await findAnnotatedSingleEvent<
-      ProcessTypes,
-      ProcessArgs
-    >(
+    const processLogs = await findAnnotatedSingleEvent<ProcessEvent>(
       this.multiProvider,
       this.destinationName,
       this.inbox,
@@ -404,15 +352,6 @@ export class AbacusMessage {
    */
   async events(): Promise<AbacusStatus> {
     const events: AnnotatedLifecycleEvent[] = [this.dispatch];
-    // attempt to get Outbox checkpoint
-    const outboxCheckpoint = await this.getOutboxCheckpoint();
-    if (!outboxCheckpoint) {
-      return {
-        status: MessageStatus.Dispatched, // the message has been sent; nothing more
-        events,
-      };
-    }
-    events.push(outboxCheckpoint);
     // attempt to get Inbox checkpoint
     const inboxCheckpoint = await this.getInboxCheckpoint();
     if (!inboxCheckpoint) {
@@ -548,19 +487,5 @@ export class AbacusMessage {
    */
   get leafIndex(): BigNumber {
     return this.dispatch.event.args.leafIndex;
-  }
-
-  /**
-   * The destination and nonceof this message.
-   */
-  get destinationAndNonce(): BigNumber {
-    return this.dispatch.event.args.destinationAndNonce;
-  }
-
-  /**
-   * The committed root when this message was dispatched.
-   */
-  get committedRoot(): string {
-    return this.dispatch.event.args.committedRoot;
   }
 }

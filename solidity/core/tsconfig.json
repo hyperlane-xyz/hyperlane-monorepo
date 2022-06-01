@@ -1,7 +1,8 @@
 {
   "compilerOptions": {
     "outDir": "./dist/",
-    "rootDir": "./types/"
+    "rootDir": "./types/",
+    "resolveJsonModule": true
   },
   "exclude": ["./node_modules/", "./dist/", "./types/hardhat.d.ts"],
   "extends": "../../tsconfig.json",

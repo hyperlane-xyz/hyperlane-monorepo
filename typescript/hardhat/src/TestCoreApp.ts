@@ -53,11 +53,6 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
       const inbox = this.getInbox(destinationChain, origin as never);
       const status = await inbox.messages(dispatch.args.messageHash);
       if (status !== types.MessageStatus.PROCESSED) {
-        if (dispatch.args.leafIndex.toNumber() == 0) {
-          // disregard the dummy message
-          continue;
-        }
-
         const response = await inbox.testProcess(
           dispatch.args.message,
           dispatch.args.leafIndex.toNumber(),

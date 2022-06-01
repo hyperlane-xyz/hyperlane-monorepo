@@ -2,17 +2,17 @@
 pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
-import {ICommon} from "../interfaces/ICommon.sol";
+import {IMailbox} from "../interfaces/IMailbox.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 /**
- * @title Common
+ * @title Mailbox
  * @author Celo Labs Inc.
  * @notice Shared utilities between Outbox and Inbox.
  */
-abstract contract Common is ICommon, OwnableUpgradeable {
+abstract contract Mailbox is IMailbox, OwnableUpgradeable {
     // ============ Immutable Variables ============
 
     // Domain of chain on which the contract is deployed
@@ -20,12 +20,12 @@ abstract contract Common is ICommon, OwnableUpgradeable {
 
     // ============ Public Variables ============
 
-    // Checkpoints of root => leaf index
-    // Checkpoints of index 0 have to be disallowed as the existence of such
-    // a checkpoint cannot be distinguished from their non-existence
-    mapping(bytes32 => uint256) public checkpoints;
-    // The latest checkpointed root
-    bytes32 public checkpointedRoot;
+    // Cached checkpoints, mapping root => leaf index.
+    // Cached checkpoints must have index > 0 as the presence of such
+    // a checkpoint cannot be distinguished from its absence.
+    mapping(bytes32 => uint256) public cachedCheckpoints;
+    // The latest cached root
+    bytes32 public latestCachedRoot;
     // Address of the validator manager contract.
     address public validatorManager;
 
@@ -37,12 +37,11 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     // ============ Events ============
 
     /**
-     * @notice Emitted when a root is checkpointed on Outbox or a signed
-     * checkpoint is relayed to a Inbox.
+     * @notice Emitted when a checkpoint is cached.
      * @param root Merkle root
      * @param index Leaf index
      */
-    event Checkpoint(bytes32 indexed root, uint256 indexed index);
+    event CheckpointCached(bytes32 indexed root, uint256 indexed index);
 
     /**
      * @notice Emitted when the validator manager contract is changed
@@ -68,7 +67,7 @@ abstract contract Common is ICommon, OwnableUpgradeable {
 
     // ============ Initializer ============
 
-    function __Common_initialize(address _validatorManager)
+    function __Mailbox_initialize(address _validatorManager)
         internal
         onlyInitializing
     {
@@ -91,18 +90,18 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     }
 
     /**
-     * @notice Returns the latest checkpoint for the Validators to sign.
-     * @return root Latest checkpointed root
-     * @return index Latest checkpointed index
+     * @notice Returns the latest entry in the checkpoint cache.
+     * @return root Latest cached root
+     * @return index Latest cached index
      */
-    function latestCheckpoint()
+    function latestCachedCheckpoint()
         external
         view
         override
         returns (bytes32 root, uint256 index)
     {
-        root = checkpointedRoot;
-        index = checkpoints[root];
+        root = latestCachedRoot;
+        index = cachedCheckpoints[root];
     }
 
     // ============ Internal Functions ============
@@ -121,13 +120,15 @@ abstract contract Common is ICommon, OwnableUpgradeable {
     }
 
     /**
-     * @notice Store the provided checkpoint.
-     * @param _root The merkle root
+     * @notice Caches the provided checkpoint.
+     * Caching checkpoints with index == 0 are disallowed.
+     * @param _root The merkle root to cache.
      * @param _index The leaf index of the latest message in the merkle tree.
      */
-    function _checkpoint(bytes32 _root, uint256 _index) internal {
-        checkpoints[_root] = _index;
-        checkpointedRoot = _root;
-        emit Checkpoint(_root, _index);
+    function _cacheCheckpoint(bytes32 _root, uint256 _index) internal {
+        require(_index > 0, "!index");
+        cachedCheckpoints[_root] = _index;
+        latestCachedRoot = _root;
+        emit CheckpointCached(_root, _index);
     }
 }

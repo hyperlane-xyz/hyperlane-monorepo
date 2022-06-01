@@ -6,6 +6,8 @@ import { ethers } from 'hardhat';
 import { types, utils } from '@abacus-network/utils';
 import { MessageStatus } from '@abacus-network/utils/dist/src/types';
 
+import messageWithProof from '../../../vectors/messageWithProof.json';
+import proveAndProcessTestCases from '../../../vectors/proveAndProcess.json';
 import {
   BadRecipient1__factory,
   BadRecipient3__factory,
@@ -18,9 +20,6 @@ import {
   TestValidatorManager,
   TestValidatorManager__factory,
 } from '../types';
-
-const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json');
-const messageWithProof = require('../../../vectors/messageWithProof.json');
 
 const localDomain = 3000;
 const remoteDomain = 1000;
@@ -52,30 +51,20 @@ describe('Inbox', async () => {
   beforeEach(async () => {
     const inboxFactory = new TestInbox__factory(signer);
     inbox = await inboxFactory.deploy(localDomain);
-    await inbox.initialize(
-      remoteDomain,
-      validatorManager.address,
-      ethers.constants.HashZero,
-      0,
-    );
+    await inbox.initialize(remoteDomain, validatorManager.address);
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      inbox.initialize(
-        remoteDomain,
-        validatorManager.address,
-        ethers.constants.HashZero,
-        0,
-      ),
+      inbox.initialize(remoteDomain, validatorManager.address),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
-  it('Accepts checkpoint from validator manager', async () => {
+  it('Caches checkpoint from validator manager', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
     const index = 1;
-    await validatorManager.checkpoint(inbox.address, root, index);
-    const [croot, cindex] = await inbox.latestCheckpoint();
+    await validatorManager.cacheCheckpoint(inbox.address, root, index);
+    const [croot, cindex] = await inbox.latestCachedCheckpoint();
     expect(croot).to.equal(root);
     expect(cindex).to.equal(index);
   });
@@ -83,7 +72,7 @@ describe('Inbox', async () => {
   it('Rejects checkpoint from non-validator manager', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
     const index = 1;
-    await expect(inbox.checkpoint(root, index)).to.be.revertedWith(
+    await expect(inbox.cacheCheckpoint(root, index)).to.be.revertedWith(
       '!validatorManager',
     );
   });
@@ -91,16 +80,16 @@ describe('Inbox', async () => {
   it('Rejects old checkpoint from validator manager', async () => {
     let root = ethers.utils.formatBytes32String('first new root');
     let index = 10;
-    await validatorManager.checkpoint(inbox.address, root, index);
-    const [croot, cindex] = await inbox.latestCheckpoint();
+    await validatorManager.cacheCheckpoint(inbox.address, root, index);
+    const [croot, cindex] = await inbox.latestCachedCheckpoint();
     expect(croot).to.equal(root);
     expect(cindex).to.equal(index);
 
     root = ethers.utils.formatBytes32String('second new root');
     index = 9;
     await expect(
-      validatorManager.checkpoint(inbox.address, root, index),
-    ).to.be.revertedWith('old checkpoint');
+      validatorManager.cacheCheckpoint(inbox.address, root, index),
+    ).to.be.revertedWith('!newer');
   });
 
   it('Processes a valid message', async () => {
@@ -110,7 +99,7 @@ describe('Inbox', async () => {
     await recipient.deployTransaction.wait();
 
     const { index, proof, root, message } = messageWithProof;
-    await inbox.setCheckpoint(root, 1);
+    await inbox.setCachedCheckpoint(root, 1);
 
     await inbox.process(message, proof, index, '0x');
     const hash = utils.messageHash(message, index);
@@ -120,7 +109,7 @@ describe('Inbox', async () => {
   it('Rejects an already-processed message', async () => {
     const { leaf, index, proof, root, message } = messageWithProof;
 
-    await inbox.setCheckpoint(root, 1);
+    await inbox.setCachedCheckpoint(root, 1);
     // Set message status as MessageStatus.Processed
     await inbox.setMessageStatus(leaf, MessageStatus.PROCESSED);
 
@@ -140,11 +129,11 @@ describe('Inbox', async () => {
     newProof[0] = proof[1];
     newProof[1] = proof[0];
 
-    await inbox.setCheckpoint(root, 1);
+    await inbox.setCachedCheckpoint(root, 1);
 
-    expect(
-      inbox.process(message, newProof as types.BytesArray, index, '0x'),
-    ).to.be.revertedWith('!checkpointed root');
+    expect(inbox.process(message, newProof, index, '0x')).to.be.revertedWith(
+      '!cache',
+    );
     expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.NONE);
   });
 
@@ -269,14 +258,10 @@ describe('Inbox', async () => {
     // simply verifies leaf is in tree but because it is cryptographically
     // impossible to find the inputs that create a pre-determined root, we
     // simply recalculate root with the leaf using branchRoot)
-    const proofRoot = await inbox.testBranchRoot(
-      hash,
-      path as types.BytesArray,
-      index,
-    );
-    await inbox.setCheckpoint(proofRoot, 1);
+    const proofRoot = await inbox.testBranchRoot(hash, path, index);
+    await inbox.setCachedCheckpoint(proofRoot, 1);
 
-    await inbox.process(abacusMessage, path as types.BytesArray, index, '0x');
+    await inbox.process(abacusMessage, path, index, '0x');
 
     expect(await inbox.messages(hash)).to.equal(types.MessageStatus.PROCESSED);
   });

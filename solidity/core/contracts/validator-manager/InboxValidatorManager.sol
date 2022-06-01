@@ -12,6 +12,18 @@ import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
  * them to an Inbox.
  */
 contract InboxValidatorManager is MultisigValidatorManager {
+    // ============ Events ============
+
+    /**
+     * @notice Emitted when a checkpoint has been signed by a quorum
+     * of validators and cached on an Inbox.
+     * @dev This event allows watchers to observe the signatures they need
+     * to prove fraud on the Outbox.
+     * @param signatures The signatures by a quorum of validators on the
+     * checkpoint.
+     */
+    event Quorum(bytes[] signatures);
+
     // ============ Constructor ============
 
     /**
@@ -31,7 +43,7 @@ contract InboxValidatorManager is MultisigValidatorManager {
     // ============ External Functions ============
 
     /**
-     * @notice Submits a checkpoint signed by a quorum of validators to an Inbox.
+     * @notice Submits a checkpoint signed by a quorum of validators to be cached by an Inbox.
      * @dev Reverts if `_signatures` is not a quorum of validator signatures.
      * @dev Reverts if `_signatures` is not sorted in ascending order by the signer
      * address, which is required for duplicate detection.
@@ -41,13 +53,14 @@ contract InboxValidatorManager is MultisigValidatorManager {
      * @param _signatures Signatures over the checkpoint to be checked for a validator
      * quorum. Must be sorted in ascending order by signer address.
      */
-    function checkpoint(
+    function cacheCheckpoint(
         IInbox _inbox,
         bytes32 _root,
         uint256 _index,
         bytes[] calldata _signatures
     ) external {
         require(isQuorum(_root, _index, _signatures), "!quorum");
-        _inbox.checkpoint(_root, _index);
+        emit Quorum(_signatures);
+        _inbox.cacheCheckpoint(_root, _index);
     }
 }

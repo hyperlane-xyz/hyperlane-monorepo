@@ -3,11 +3,11 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Version0} from "./Version0.sol";
-import {Common} from "./Common.sol";
+import {Mailbox} from "./Mailbox.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {MerkleTreeManager} from "./Merkle.sol";
+import {MerkleTreeManager} from "./MerkleTreeManager.sol";
 import {IOutbox} from "../interfaces/IOutbox.sol";
 
 /**
@@ -20,7 +20,7 @@ import {IOutbox} from "../interfaces/IOutbox.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
+contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -76,12 +76,12 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
 
     // ============ Constructor ============
 
-    constructor(uint32 _localDomain) Common(_localDomain) {} // solhint-disable-line no-empty-blocks
+    constructor(uint32 _localDomain) Mailbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     // ============ Initializer ============
 
     function initialize(address _validatorManager) public initializer {
-        __Common_initialize(_validatorManager);
+        __Mailbox_initialize(_validatorManager);
         state = States.Active;
     }
 
@@ -133,18 +133,12 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     }
 
     /**
-     * @notice Checkpoints the latest root and index.
-     * Validators are expected to sign this checkpoint so that it can be
-     * relayed to the Inbox contracts. Checkpoints for a single message (i.e.
-     * count = 1) are disallowed since they make checkpoint tracking more
-     * difficult.
+     * @notice Caches the current merkle root and index.
      * @dev emits Checkpoint event
      */
-    function checkpoint() external override notFailed {
-        uint256 count = count();
-        require(count > 1, "!count");
-        bytes32 root = root();
-        _checkpoint(root, count - 1);
+    function cacheCheckpoint() external override notFailed {
+        (bytes32 root, uint256 index) = latestCheckpoint();
+        _cacheCheckpoint(root, index);
     }
 
     /**
@@ -158,37 +152,18 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     }
 
     /**
-     * @notice Returns whether the provided root and index are a known
-     * checkpoint.
-     * @param _root The merkle root.
-     * @param _index The index.
-     * @return TRUE iff `_root` and `_index` are a known checkpoint.
+     * @notice Returns the number of inserted leaves in the tree
      */
-    function isCheckpoint(bytes32 _root, uint256 _index)
-        external
-        view
-        override
-        returns (bool)
-    {
-        // Checkpoints are zero-indexed, but checkpoints of index 0 are disallowed
-        return _index > 0 && checkpoints[_root] == _index;
+    function count() public view returns (uint256) {
+        return tree.count;
     }
 
-    // ============ Internal Functions  ============
-
     /**
-     * @notice Internal utility function that combines
-     * `_destination` and `_nonce`.
-     * @dev Both destination and nonce should be less than 2^32 - 1
-     * @param _destination Domain of destination chain
-     * @param _nonce Current nonce for given destination chain
-     * @return Returns (`_destination` << 32) & `_nonce`
+     * @notice Returns a checkpoint representing the current merkle tree.
+     * @return root The root of the Outbox's merkle tree.
+     * @return index The index of the last element in the tree.
      */
-    function _destinationAndNonce(uint32 _destination, uint32 _nonce)
-        internal
-        pure
-        returns (uint64)
-    {
-        return (uint64(_destination) << 32) | _nonce;
+    function latestCheckpoint() public view returns (bytes32, uint256) {
+        return (root(), count() - 1);
     }
 }
