@@ -1,9 +1,9 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
+import { BigNumber } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { Validator, types, utils } from '@abacus-network/utils';
-import { BytesArray } from '@abacus-network/utils/dist/src/types';
 
 import {
   OutboxValidatorManager,
@@ -11,6 +11,7 @@ import {
   TestOutbox,
   TestOutbox__factory,
 } from '../../types';
+import { DispatchEvent } from '../../types/contracts/Outbox';
 
 import { signCheckpoint } from './utils';
 
@@ -20,9 +21,9 @@ const QUORUM_THRESHOLD = 2;
 
 interface MerkleProof {
   root: string;
-  proof: BytesArray;
+  proof: string[];
   leaf: string;
-  index: number;
+  index: BigNumber;
 }
 
 describe('OutboxValidatorManager', () => {
@@ -42,7 +43,7 @@ describe('OutboxValidatorManager', () => {
       ethers.utils.formatBytes32String(message),
     );
     const receipt = await tx.wait();
-    const dispatch = receipt.events![0];
+    const dispatch = receipt.events![0] as DispatchEvent;
     expect(dispatch.event).to.equal('Dispatch');
     return dispatch.args!;
   };
@@ -50,7 +51,7 @@ describe('OutboxValidatorManager', () => {
   const dispatchMessageAndReturnProof = async (
     outbox: TestOutbox,
     messageStr: string,
-  ) => {
+  ): Promise<MerkleProof> => {
     const { messageHash, leafIndex } = await dispatchMessage(
       outbox,
       messageStr,
@@ -343,7 +344,7 @@ describe('OutboxValidatorManager', () => {
       await outbox.cacheCheckpoint();
       const signatures = await signCheckpoint(
         fraudulent.root,
-        fraudulent.index - 1,
+        fraudulent.index.sub(1),
         [validator0, validator1], // 2/2 signers is a quorum
       );
 
@@ -351,7 +352,7 @@ describe('OutboxValidatorManager', () => {
         validatorManager.fraudulentCheckpoint(
           outbox.address,
           fraudulent.root,
-          fraudulent.index - 1,
+          fraudulent.index.sub(1),
           signatures,
           fraudulent.leaf,
           fraudulent.proof,

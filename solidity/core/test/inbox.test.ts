@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-floating-promises */
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
@@ -6,6 +5,8 @@ import { ethers } from 'hardhat';
 import { types, utils } from '@abacus-network/utils';
 import { MessageStatus } from '@abacus-network/utils/dist/src/types';
 
+import messageWithProof from '../../../vectors/messageWithProof.json';
+import proveAndProcessTestCases from '../../../vectors/proveAndProcess.json';
 import {
   BadRecipient1__factory,
   BadRecipient3__factory,
@@ -18,9 +19,6 @@ import {
   TestValidatorManager,
   TestValidatorManager__factory,
 } from '../types';
-
-const proveAndProcessTestCases = require('../../../vectors/proveAndProcess.json');
-const messageWithProof = require('../../../vectors/messageWithProof.json');
 
 const localDomain = 3000;
 const remoteDomain = 1000;
@@ -132,9 +130,9 @@ describe('Inbox', async () => {
 
     await inbox.setCachedCheckpoint(root, 1);
 
-    expect(
-      inbox.process(message, newProof as types.BytesArray, index, '0x'),
-    ).to.be.revertedWith('!cache');
+    expect(inbox.process(message, newProof, index, '0x')).to.be.revertedWith(
+      '!cache',
+    );
     expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.NONE);
   });
 
@@ -259,14 +257,10 @@ describe('Inbox', async () => {
     // simply verifies leaf is in tree but because it is cryptographically
     // impossible to find the inputs that create a pre-determined root, we
     // simply recalculate root with the leaf using branchRoot)
-    const proofRoot = await inbox.testBranchRoot(
-      hash,
-      path as types.BytesArray,
-      index,
-    );
+    const proofRoot = await inbox.testBranchRoot(hash, path, index);
     await inbox.setCachedCheckpoint(proofRoot, 1);
 
-    await inbox.process(abacusMessage, path as types.BytesArray, index, '0x');
+    await inbox.process(abacusMessage, path, index, '0x');
 
     expect(await inbox.messages(hash)).to.equal(types.MessageStatus.PROCESSED);
   });
