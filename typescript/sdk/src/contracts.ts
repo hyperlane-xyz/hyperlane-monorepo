@@ -21,7 +21,7 @@ export type AbacusAddresses = {
   [key: string]: types.Address | ProxyAddresses<any> | AbacusAddresses;
 };
 
-export function deepSerialize(
+export function serializeContracts(
   contractOrObject: AbacusContracts,
 ): AbacusAddresses {
   return objMap(
@@ -32,7 +32,7 @@ export function deepSerialize(
       } else if (contract instanceof ProxiedContract) {
         return contract.addresses;
       } else {
-        return deepSerialize(contract);
+        return serializeContracts(contract);
       }
     },
   );

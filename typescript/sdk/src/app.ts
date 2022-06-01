@@ -2,9 +2,9 @@ import {
   AbacusAddresses,
   AbacusContracts,
   AbacusFactories,
+  buildContracts,
   connectContracts,
-  deepAttach,
-  serializeToAddresses,
+  serializeContracts,
 } from './contracts';
 import { ChainMap, ChainName, Connection } from './types';
 import { MultiGeneric, objMap } from './utils';
@@ -26,7 +26,7 @@ export class AbacusApp<
   ): ChainMap<Chain, Contracts> {
     return objMap(
       addressesMap,
-      (_, addresses) => deepAttach(addresses, factories) as Contracts,
+      (_, addresses) => buildContracts(addresses, factories) as Contracts,
     );
   }
 
@@ -35,10 +35,10 @@ export class AbacusApp<
   }
 
   getAddresses(chain: Chain): AbacusAddresses {
-    return serializeToAddresses(this.get(chain));
+    return serializeContracts(this.get(chain));
   }
 
-  connect(chain: Chain, connection: Connection): void {
+  connectToChain(chain: Chain, connection: Connection): void {
     this.set(chain, connectContracts(this.get(chain), connection));
   }
 }

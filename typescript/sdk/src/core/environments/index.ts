@@ -1,5 +1,5 @@
 import { addresses as dev } from './dev';
-import { addresses as test } from './test';
+import test from './test.json';
 import { addresses as testnet } from './testnet';
 
 export const environments = {

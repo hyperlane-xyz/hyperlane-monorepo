@@ -5,9 +5,9 @@ export {
   AbacusAddresses,
   AbacusContracts,
   AbacusFactories,
-  connectContracts as connect,
-  deepAttach as attach,
-  serializeToAddresses as addresses,
+  buildContracts,
+  connectContracts,
+  serializeContracts,
 } from './contracts';
 export {
   AbacusCore,

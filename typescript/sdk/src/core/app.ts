@@ -32,9 +32,11 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
       CoreEnvironmentChain<Env>,
       AbacusAddresses
     >;
-    const contractsMap = this.buildContracts(addressesMap, coreFactories);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    return new AbacusCore(contractsMap as any);
+    const contractsMap: CoreContractsMap<any> = this.buildContracts(
+      addressesMap,
+      coreFactories,
+    );
+    return new AbacusCore(contractsMap);
   }
 
   // override type to be derived from chain key

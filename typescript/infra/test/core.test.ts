@@ -9,8 +9,8 @@ import {
   ChainMap,
   CoreContractsMap,
   MultiProvider,
-  addresses,
   objMap,
+  serializeContracts,
 } from '@abacus-network/sdk';
 
 import { environment as testConfig } from '../config/environments/test';
@@ -45,9 +45,10 @@ describe('core', async () => {
     contracts = await deployer.deploy();
   });
 
-  it('writes rust config', async () => {
+  it('writes', async () => {
     const base = './test/outputs/core';
-    writeJSON(base, 'contracts.json', addresses(contracts));
+    writeJSON(base, 'contracts.json', serializeContracts(contracts));
+    writeJSON(base, 'verification.json', deployer.verificationInputs);
     deployer.writeRustConfigs(environment, path.join(base, 'rust'), contracts);
   });
 
