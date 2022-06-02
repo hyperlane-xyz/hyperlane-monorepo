@@ -1,9 +1,9 @@
 {
   "name": "@abacus-network/core",
   "description": "Core solidity contracts for Abacus",
-  "version": "0.2.1-alpha2",
+  "version": "0.2.1-alpha3",
   "dependencies": {
-    "@abacus-network/utils": "^0.2.1-alpha2",
+    "@abacus-network/utils": "^0.2.1-alpha3",
     "@openzeppelin/contracts": "^4.6.0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "@summa-tx/memview-sol": "^2.0.0"
@@ -29,7 +29,9 @@
     "test": "test"
   },
   "files": [
-    "/dist"
+    "/dist",
+    "/contracts",
+    "/interfaces"
   ],
   "homepage": "https://www.useabacus.network",
   "keywords": [
