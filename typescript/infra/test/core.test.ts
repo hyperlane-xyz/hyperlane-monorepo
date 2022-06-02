@@ -7,15 +7,17 @@ import { getMultiProviderFromConfigAndSigner } from '@abacus-network/deploy/dist
 import {
   AbacusCore,
   ChainMap,
-  CoreContractAddresses,
+  CoreContractsMap,
   MultiProvider,
   objMap,
+  serializeContracts,
 } from '@abacus-network/sdk';
 
 import { environment as testConfig } from '../config/environments/test';
 import { TestChains } from '../config/environments/test/chains';
 import { AbacusCoreChecker } from '../src/core';
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
+import { writeJSON } from '../src/utils/utils';
 
 describe('core', async () => {
   const environment = 'test';
@@ -23,7 +25,7 @@ describe('core', async () => {
   let multiProvider: MultiProvider<TestChains>;
   let deployer: AbacusCoreInfraDeployer<TestChains>;
   let core: AbacusCore<TestChains>;
-  let addresses: ChainMap<TestChains, CoreContractAddresses<TestChains, any>>;
+  let contracts: CoreContractsMap<TestChains>;
   let coreConfig: ChainMap<TestChains, CoreConfig>;
 
   let owners: ChainMap<TestChains, string>;
@@ -40,18 +42,18 @@ describe('core', async () => {
   });
 
   it('deploys', async () => {
-    addresses = await deployer.deploy(); // TODO: return AbacusApp from AbacusDeployer.deploy()
+    contracts = await deployer.deploy();
   });
 
   it('writes', async () => {
     const base = './test/outputs/core';
-    deployer.writeVerification(path.join(base, 'verification'));
-    deployer.writeContracts(addresses, path.join(base, 'contracts.ts'));
-    deployer.writeRustConfigs(environment, path.join(base, 'rust'), addresses);
+    writeJSON(base, 'contracts.json', serializeContracts(contracts));
+    writeJSON(base, 'verification.json', deployer.verificationInputs);
+    deployer.writeRustConfigs(environment, path.join(base, 'rust'), contracts);
   });
 
   it('transfers ownership', async () => {
-    core = new AbacusCore(addresses, multiProvider);
+    core = new AbacusCore(contracts, multiProvider);
     await AbacusCoreDeployer.transferOwnership(core, owners, multiProvider);
   });
 

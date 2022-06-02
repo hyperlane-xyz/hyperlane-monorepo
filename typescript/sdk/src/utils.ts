@@ -59,7 +59,13 @@ export function delay(ms: number): Promise<void> {
 export class MultiGeneric<Chain extends ChainName, Value> {
   constructor(protected readonly chainMap: ChainMap<Chain, Value>) {}
 
-  protected get = (chain: Chain) => this.chainMap[chain];
+  protected get(chain: Chain) {
+    return this.chainMap[chain];
+  }
+
+  protected set(chain: Chain, value: Value) {
+    this.chainMap[chain] = value;
+  }
 
   chains = () => Object.keys(this.chainMap) as Chain[];
 

@@ -3,8 +3,7 @@ import { BigNumber, FixedNumber, ethers } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 
-import { InboxContracts } from '../core/contracts';
-import { ChainName, RemoteChainMap, Remotes } from '../types';
+import { ChainName, Remotes } from '../types';
 
 import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
 import { convertDecimalValue, mulBigAndFixed } from './utils';
@@ -285,7 +284,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     const provider = this.multiProvider.getChainConnection(message.destination)
       .provider!;
 
-    const { inbox } = this.core.getMailboxPair<LocalChain>(
+    const { destinationInbox } = this.core.getMailboxPair<LocalChain>(
       message.origin,
       message.destination,
     );
@@ -298,7 +297,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     // This includes intrinsic gas.
     const directHandleCallGas = await provider.estimateGas({
       to: utils.bytes32ToAddress(message.recipient),
-      from: inbox.address,
+      from: destinationInbox.address,
       data: handlerInterface.encodeFunctionData('handle', [
         message.origin,
         message.sender,
@@ -325,10 +324,8 @@ export class InterchainGasCalculator<Chain extends ChainName> {
     origin: Remotes<Chain, Destination>,
     destination: Destination,
   ): Promise<BigNumber> {
-    const inboxes: RemoteChainMap<Chain, Destination, InboxContracts> =
-      this.core.getContracts(destination).inboxes;
-    const inboxValidatorManager = inboxes[origin].validatorManager;
-    const threshold = await inboxValidatorManager.threshold();
+    const inboxes = this.core.getContracts(destination).inboxes;
+    const threshold = await inboxes[origin].inboxValidatorManager.threshold();
 
     return threshold
       .mul(CHECKPOINT_RELAY_GAS_PER_SIGNATURE)
