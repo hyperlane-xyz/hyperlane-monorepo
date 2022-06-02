@@ -53,7 +53,7 @@ describe('core', async () => {
   });
 
   it('transfers ownership', async () => {
-    core = new AbacusCore(contracts);
+    core = new AbacusCore(contracts, multiProvider);
     await AbacusCoreDeployer.transferOwnership(core, owners, multiProvider);
   });
 

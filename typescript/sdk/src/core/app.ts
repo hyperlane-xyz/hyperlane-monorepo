@@ -1,8 +1,9 @@
 import { Inbox, Outbox } from '@abacus-network/core';
 
 import { AbacusApp } from '../app';
-import { AbacusAddresses } from '../contracts';
-import { ChainMap, ChainName, Remotes } from '../types';
+import { buildContracts } from '../contracts';
+import { MultiProvider } from '../provider';
+import { ChainName, Remotes } from '../types';
 
 import { CoreContracts, coreFactories } from './contracts';
 import { environments } from './environments';
@@ -21,22 +22,22 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   CoreContracts<Chain, Chain>,
   Chain
 > {
-  constructor(contractsMap: CoreContractsMap<Chain>) {
-    super(contractsMap);
+  constructor(
+    contractsMap: CoreContractsMap<Chain>,
+    multiProvider: MultiProvider<Chain>,
+  ) {
+    super(contractsMap, multiProvider);
   }
 
   static fromEnvironment<Env extends CoreEnvironment>(
     env: Env,
-  ): AbacusCore<any> {
-    const addressesMap = environments[env] as ChainMap<
-      CoreEnvironmentChain<Env>,
-      AbacusAddresses
-    >;
-    const contractsMap: CoreContractsMap<any> = this.buildContracts(
-      addressesMap,
+    multiProvider: MultiProvider<CoreEnvironmentChain<Env>>,
+  ): AbacusCore<CoreEnvironmentChain<Env>> {
+    const contractsMap = buildContracts(
+      environments[env],
       coreFactories,
-    );
-    return new AbacusCore(contractsMap);
+    ) as CoreContractsMap<CoreEnvironmentChain<Env>>;
+    return new AbacusCore(contractsMap, multiProvider);
   }
 
   // override type to be derived from chain key

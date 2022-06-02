@@ -32,7 +32,10 @@ describe('InterchainGasCalculator', () => {
     test2: { provider },
     test3: { provider },
   });
-  const core: AbacusCore<TestChainNames> = AbacusCore.fromEnvironment('test');
+  const core: AbacusCore<TestChainNames> = AbacusCore.fromEnvironment(
+    'test',
+    multiProvider,
+  );
   const origin = Chains.test1;
   const destination = Chains.test2;
 

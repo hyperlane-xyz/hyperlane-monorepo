@@ -9,7 +9,8 @@ async function check() {
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  const core = AbacusCore.fromEnvironment(environment);
+  // environments union doesn't work well with typescript
+  const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
   const coreChecker = new AbacusCoreChecker<any>(
     multiProvider,
     core,

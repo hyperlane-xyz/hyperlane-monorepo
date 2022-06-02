@@ -4,6 +4,7 @@ import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
 import { BadRandomRecipient__factory } from '@abacus-network/core';
+import { utils as deployUtils } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainName,
@@ -11,6 +12,7 @@ import {
 } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
+import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
 import { AbacusContractVerifier } from './src/verify';
 
@@ -52,13 +54,18 @@ const chainSummary = async <Chain extends ChainName>(
 
 task('kathy', 'Dispatches random abacus messages').setAction(
   async (_, hre: HardhatRuntimeEnvironment) => {
-    const core = AbacusCore.fromEnvironment('test');
+    const config = getCoreEnvironmentConfig('test');
+    const [signer] = await hre.ethers.getSigners();
+    const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
+      config.transactionConfigs,
+      signer,
+    );
+    const core = AbacusCore.fromEnvironment('test', multiProvider);
 
     const randomElement = <T>(list: T[]) =>
       list[Math.floor(Math.random() * list.length)];
 
     // Deploy a recipient
-    const [signer] = await hre.ethers.getSigners();
     const recipientF = new BadRandomRecipient__factory(signer);
     const recipient = await recipientF.deploy();
     await recipient.deployTransaction.wait();
