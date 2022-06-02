@@ -12,6 +12,11 @@ import {BN256} from "../../libs/BN256.sol";
  * reach a quorum.
  */
 abstract contract SchnorrValidatorManager is Ownable {
+    struct Checkpoint {
+        bytes32 root;
+        uint256 index;
+    }
+
     // ============ Libraries ============
 
     using BN256 for BN256.G1Point;
@@ -139,6 +144,33 @@ abstract contract SchnorrValidatorManager is Ownable {
     }
 
     // ============ Internal Functions ============
+
+    function isQuorum(
+        Checkpoint calldata _checkpoint,
+        uint256[2] calldata _sigScalars,
+        BN256.G1Point calldata _nonce,
+        bytes32[] calldata _compressedOmitted
+    ) public view returns (bool, bytes32) {
+        // By checking that length == 0 we can occasionally avoid an SLOAD.
+        require(
+            _compressedOmitted.length == 0 ||
+                _compressedOmitted.length <= threshold,
+            "!threshold"
+        );
+        BN256.G1Point memory _key = verificationKey(_compressedOmitted);
+        uint256 _challenge = uint256(
+            keccak256(
+                abi.encodePacked(
+                    _sigScalars[0],
+                    domainHash,
+                    _checkpoint.root,
+                    _checkpoint.index
+                )
+            )
+        );
+        bool _success = verify(_key, _nonce, _sigScalars[1], _challenge);
+        return (_success, _key.compress());
+    }
 
     function verificationKey(bytes32[] calldata _compressedOmitted)
         public

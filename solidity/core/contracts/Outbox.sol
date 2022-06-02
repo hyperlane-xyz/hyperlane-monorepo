@@ -78,10 +78,10 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
      */
     event Dispatch2(uint256 indexed leafIndex, bytes message);
     event Dispatch(
-        bytes32 _messageHash,
-        uint256 _leafIndex,
-        uint32 _destinationDomain,
-        bytes _message
+        bytes32 messageHash,
+        uint256 leafIndex,
+        uint32 destinationDomain,
+        bytes message
     );
 
     event Fail();

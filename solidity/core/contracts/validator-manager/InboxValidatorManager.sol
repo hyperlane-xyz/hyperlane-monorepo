@@ -13,11 +13,6 @@ import {BN256} from "../../libs/BN256.sol";
  * them to an Inbox.
  */
 contract InboxValidatorManager is SchnorrValidatorManager {
-    struct Checkpoint {
-        bytes32 root;
-        uint256 index;
-    }
-
     // ============ Libraries ============
 
     using BN256 for BN256.G1Point;
@@ -68,8 +63,7 @@ contract InboxValidatorManager is SchnorrValidatorManager {
     function process(
         IInbox _inbox,
         Checkpoint calldata _checkpoint,
-        uint256 _randomness,
-        uint256 _signature,
+        uint256[2] calldata _sigScalars,
         BN256.G1Point calldata _nonce,
         bytes32[] calldata _omittedValidatorCompressedPublicKeys,
         bytes calldata _message,
@@ -78,33 +72,16 @@ contract InboxValidatorManager is SchnorrValidatorManager {
     ) external {
         // Restrict scope to keep stack small.
         {
-            require(
-                _omittedValidatorCompressedPublicKeys.length <= threshold,
-                "!threshold"
-            );
-            bytes32 _compressedKey;
-            // Restrict scope to keep stack small.
-            {
-                BN256.G1Point memory _key = verificationKey(
-                    _omittedValidatorCompressedPublicKeys
-                );
-                _compressedKey = _key.compress();
-                uint256 _challenge = uint256(
-                    keccak256(
-                        abi.encodePacked(
-                            _randomness,
-                            domainHash,
-                            _checkpoint.root,
-                            _checkpoint.index
-                        )
-                    )
-                );
-                require(verify(_key, _nonce, _signature, _challenge), "!sig");
-            }
-            emit Quorum(
+            (bool _success, bytes32 _compressedKey) = isQuorum(
                 _checkpoint,
-                _randomness,
-                _signature,
+                _sigScalars,
+                _nonce,
+                _omittedValidatorCompressedPublicKeys
+            );
+            require(_success, "!quorum");
+            emit Quorum2(
+                _checkpoint,
+                _sigScalars,
                 _compressedKey,
                 _nonce.compress(),
                 _omittedValidatorCompressedPublicKeys
@@ -115,8 +92,7 @@ contract InboxValidatorManager is SchnorrValidatorManager {
             _checkpoint.index,
             _message,
             _proof,
-            _leafIndex,
-            "0x00"
+            _leafIndex
         );
     }
 
@@ -133,28 +109,17 @@ contract InboxValidatorManager is SchnorrValidatorManager {
     ) external {
         // Restrict scope to keep stack small.
         {
-            require(
-                _omittedValidatorCompressedPublicKeys.length <= threshold,
-                "!threshold"
-            );
-            BN256.G1Point memory _key = verificationKey(
+            (bool _success, bytes32 _compressedKey) = isQuorum(
+                _checkpoint,
+                _sigScalars,
+                _nonce,
                 _omittedValidatorCompressedPublicKeys
             );
-            uint256 _challenge = uint256(
-                keccak256(
-                    abi.encodePacked(
-                        _sigScalars[0],
-                        domainHash,
-                        _checkpoint.root,
-                        _checkpoint.index
-                    )
-                )
-            );
-            require(verify(_key, _nonce, _sigScalars[1], _challenge), "!sig");
+            require(_success, "!quorum");
             emit Quorum2(
                 _checkpoint,
                 _sigScalars,
-                _key.compress(),
+                _compressedKey,
                 _nonce.compress(),
                 _omittedValidatorCompressedPublicKeys
             );
@@ -165,6 +130,28 @@ contract InboxValidatorManager is SchnorrValidatorManager {
             _messages,
             _proofs,
             _leafIndices
+        );
+    }
+
+    function _requireQuorum(
+        Checkpoint calldata _checkpoint,
+        uint256[2] calldata _sigScalars,
+        BN256.G1Point calldata _nonce,
+        bytes32[] calldata _omittedValidatorCompressedPublicKeys
+    ) internal {
+        (bool _success, bytes32 _compressedKey) = isQuorum(
+            _checkpoint,
+            _sigScalars,
+            _nonce,
+            _omittedValidatorCompressedPublicKeys
+        );
+        require(_success, "!quorum");
+        emit Quorum2(
+            _checkpoint,
+            _sigScalars,
+            _compressedKey,
+            _nonce.compress(),
+            _omittedValidatorCompressedPublicKeys
         );
     }
 }

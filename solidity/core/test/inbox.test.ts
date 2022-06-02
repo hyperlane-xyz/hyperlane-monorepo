@@ -82,11 +82,11 @@ describe('Inbox', async () => {
   it('processes a message', async () => {
     await validatorManager.process(
       inbox.address,
-      proof.root,
-      proof.index,
+      proof.checkpoint.root,
+      proof.checkpoint.index,
       proof.message,
       proof.proof,
-      proof.index,
+      proof.checkpoint.index,
     );
     expect(await inbox.messages(proof.leaf)).to.eql(
       types.MessageStatus.PROCESSED,
@@ -100,11 +100,11 @@ describe('Inbox', async () => {
     await expect(
       validatorManager.process(
         inbox.address,
-        proof.root,
-        proof.index,
+        proof.checkpoint.root,
+        proof.checkpoint.index,
         proof.message,
         proof.proof,
-        proof.index,
+        proof.checkpoint.index,
       ),
     ).to.be.revertedWith('!MessageStatus.None');
   });
@@ -120,11 +120,11 @@ describe('Inbox', async () => {
     expect(
       validatorManager.process(
         inbox.address,
-        proof.root,
-        proof.index,
+        proof.checkpoint.root,
+        proof.checkpoint.index,
         proof.message,
         newProof,
-        proof.index,
+        proof.checkpoint.index,
       ),
     ).to.be.revertedWith('!proof');
     expect(await inbox.messages(proof.leaf)).to.equal(types.MessageStatus.NONE);
@@ -133,11 +133,11 @@ describe('Inbox', async () => {
   it('Fails to process message when not called by validator manager', async () => {
     await expect(
       inbox.process(
-        proof.root,
-        proof.index,
+        proof.checkpoint.root,
+        proof.checkpoint.index,
         proof.message,
         proof.proof,
-        proof.index,
+        proof.checkpoint.index,
       ),
     ).to.be.revertedWith('!validatorManager');
   });
@@ -159,11 +159,11 @@ describe('Inbox', async () => {
       await expect(
         validatorManager.process(
           inbox.address,
-          badProof.root,
-          badProof.index,
+          badProof.checkpoint.root,
+          badProof.checkpoint.index,
           badProof.message,
           badProof.proof,
-          badProof.index,
+          badProof.checkpoint.index,
         ),
       ).to.be.reverted;
     });
@@ -180,11 +180,11 @@ describe('Inbox', async () => {
     await expect(
       validatorManager.process(
         inbox.address,
-        badProof.root,
-        badProof.index,
+        badProof.checkpoint.root,
+        badProof.checkpoint.index,
         badProof.message,
         badProof.proof,
-        badProof.index,
+        badProof.checkpoint.index,
       ),
     ).to.be.revertedWith('!destination');
   });
@@ -199,11 +199,11 @@ describe('Inbox', async () => {
     await expect(
       validatorManager.process(
         inbox.address,
-        badProof.root,
-        badProof.index,
+        badProof.checkpoint.root,
+        badProof.checkpoint.index,
         badProof.message,
         badProof.proof,
-        badProof.index,
+        badProof.checkpoint.index,
       ),
     ).to.be.reverted;
   });

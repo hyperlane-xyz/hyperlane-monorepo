@@ -5,14 +5,15 @@ pragma abicoder v2;
 // ============ Internal Imports ============
 import {IOutbox} from "../../interfaces/IOutbox.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
-import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
+import {SchnorrValidatorManager} from "./SchnorrValidatorManager.sol";
+import {BN256} from "../../libs/BN256.sol";
 
 /**
  * @title OutboxValidatorManager
  * @notice Verifies if an premature or fraudulent checkpoint has been signed by a quorum of
  * validators and reports it to an Outbox.
  */
-contract OutboxValidatorManager is MultisigValidatorManager {
+contract OutboxValidatorManager is SchnorrValidatorManager {
     // ============ Events ============
 
     /**
@@ -71,9 +72,9 @@ contract OutboxValidatorManager is MultisigValidatorManager {
     // solhint-disable-next-line no-empty-blocks
     constructor(
         uint32 _localDomain,
-        address[] memory _validators,
+        BN256.G1Point[] memory _validators,
         uint256 _threshold
-    ) MultisigValidatorManager(_localDomain, _validators, _threshold) {}
+    ) SchnorrValidatorManager(_localDomain, _validators, _threshold) {}
 
     // ============ External Functions ============
 
@@ -93,11 +94,12 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      */
     function prematureCheckpoint(
         IOutbox _outbox,
-        bytes32 _signedRoot,
-        uint256 _signedIndex,
-        bytes[] calldata _signatures
+        Checkpoint calldata _checkpoint,
+        uint256[2] calldata _sigScalars,
+        BN256.G1Point calldata _nonce,
+        bytes32[] calldata _omittedValidatorCompressedPublicKeys
     ) external returns (bool) {
-        require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
+        // require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
         // Checkpoints are premature if the checkpoint commits to more messages
         // than the Outbox has in its merkle tree.
         uint256 count = _outbox.count();
@@ -138,9 +140,10 @@ contract OutboxValidatorManager is MultisigValidatorManager {
      */
     function fraudulentCheckpoint(
         IOutbox _outbox,
-        bytes32 _signedRoot,
-        uint256 _signedIndex,
-        bytes[] calldata _signatures,
+        Checkpoint calldata _checkpoint,
+        uint256[2] calldata _sigScalars,
+        BN256.G1Point calldata _nonce,
+        bytes32[] calldata _omittedValidatorCompressedPublicKeys,
         bytes32 _fraudulentLeaf,
         bytes32[32] calldata _fraudulentProof,
         bytes32 _actualLeaf,
@@ -148,7 +151,13 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         uint256 _leafIndex
     ) external returns (bool) {
         // Check the signed checkpoint commits to _fraudulentLeaf at _leafIndex.
-        require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
+        //require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
+        (bool _success, bytes32 _compressedKey) = isQuorum(
+            _checkpoint,
+            _sigScalars,
+            _nonce,
+            _omittedValidatorCompressedPublicKeys
+        );
         bytes32 _fraudulentRoot = MerkleLib.branchRoot(
             _fraudulentLeaf,
             _fraudulentProof,

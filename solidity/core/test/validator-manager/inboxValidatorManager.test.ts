@@ -14,7 +14,7 @@ import {
   TestOutbox__factory,
   TestRecipient__factory,
 } from '../../types';
-import { MerkleProof, dispatchMessageAndReturnProof } from '../lib/mailboxes';
+import { Checkpoint, dispatchMessageAndReturnProof } from '../lib/mailboxes';
 
 const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;
@@ -24,11 +24,6 @@ const SET_SIZE = 32;
 interface G1Point {
   x: string;
   y: string;
-}
-
-interface Checkpoint {
-  root: string;
-  index: BigNumber;
 }
 
 interface SchnorrSignature {
@@ -267,34 +262,13 @@ describe.only('InboxValidatorManager', () => {
     );
   });
 
-  const dispatchMessageAndReturnProof = async (
-    outbox: TestOutbox,
-    message: string,
-  ) => {
-    const destination = INBOX_DOMAIN;
-    // const message = ethers.utils.formatBytes32String(messageStr);
-    await outbox.dispatch(destination, recipient, message);
-    const formattedMessage = utils.formatMessage(
-      OUTBOX_DOMAIN,
-      signer.address,
-      destination,
+  const dispatchMessage = async (outbox: TestOutbox, message: string) => {
+    return dispatchMessageAndReturnProof(
+      outbox,
+      INBOX_DOMAIN,
       recipient,
       message,
     );
-    const count = await outbox.count();
-    const leaf = ethers.utils.solidityKeccak256(['bytes'], [formattedMessage]);
-    // const leaf = utils.messageHash(formattedMessage, count.sub(1).toNumber());
-    const root = await outbox.root();
-    const proof = await outbox.proof();
-    return {
-      checkpoint: {
-        root,
-        index: count.sub(1),
-      },
-      leaf,
-      message: formattedMessage,
-      proof,
-    };
   };
 
   describe('#process', () => {
@@ -304,7 +278,7 @@ describe.only('InboxValidatorManager', () => {
       const MESSAGES = 32;
       const MESSAGE_WORDS = 1;
       for (let i = 0; i < MESSAGES; i++) {
-        const proof = await dispatchMessageAndReturnProof(
+        const proof = await dispatchMessage(
           outbox,
           ethers.utils.hexlify(ethers.utils.randomBytes(MESSAGE_WORDS * 32)),
         );
@@ -341,7 +315,7 @@ describe.only('InboxValidatorManager', () => {
           ethers.utils.randomBytes(MESSAGE_WORDS * 32),
         );
         console.log(message);
-        proofs.push(await dispatchMessageAndReturnProof(outbox, message));
+        proofs.push(await dispatchMessage(outbox, message));
       }
       const latest = proofs[proofs.length - 1];
       const signature = await validators.sign(latest.checkpoint);
