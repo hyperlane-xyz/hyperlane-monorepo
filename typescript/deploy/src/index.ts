@@ -5,17 +5,16 @@ export {
   CoreConfig,
   ValidatorManagerConfig,
 } from './core/deploy';
-export { AbacusAppDeployer } from './deploy';
-export {
-  ProxiedContract,
-  ProxyViolationType,
-  UpgradeBeaconViolation,
-} from './proxy';
+export { AbacusDeployer } from './deploy';
+export { UpgradeBeaconViolation } from './proxy';
 export {
   AbacusRouterChecker,
   AbacusRouterDeployer,
-  Router,
   RouterConfig,
 } from './router';
 export * as utils from './utils';
-export { ContractVerifier, VerificationInput } from './verify';
+export {
+  ContractVerifier,
+  getConstructorArguments,
+  VerificationInput,
+} from './verify';

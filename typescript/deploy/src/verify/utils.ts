@@ -10,7 +10,7 @@ export function formatFunctionArguments(fragment: Fragment, args: any[]) {
   return JSON.stringify(params, null, 2);
 }
 
-function getConstructorArguments(
+export function getConstructorArguments(
   contract: ethers.Contract,
   bytecode: string,
 ): any {

@@ -44,7 +44,7 @@ impl ValidatorSubmitter {
                 sleep(Duration::from_secs(self.interval)).await;
 
                 // Check the current checkpoint
-                let checkpoint = self.outbox.latest_checkpoint(reorg_period).await?;
+                let checkpoint = self.outbox.latest_cached_checkpoint(reorg_period).await?;
 
                 if current_index < checkpoint.index {
                     let signed_checkpoint = checkpoint.sign_with(self.signer.as_ref()).await?;

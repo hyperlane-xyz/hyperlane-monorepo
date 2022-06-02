@@ -97,13 +97,13 @@ impl MessageProcessor {
                     MessageStatus::None => {
                         if message_leaf_index >= self.prover_sync.count() {
                             // gotta find a root that includes the message
-                            let latest_checkpoint = self
+                            let latest_cached_checkpoint = self
                                 .inbox
-                                .latest_checkpoint(Some(self.reorg_period))
+                                .latest_cached_checkpoint(Some(self.reorg_period))
                                 .await?;
 
                             self.prover_sync
-                                .update_to_checkpoint(&latest_checkpoint)
+                                .update_to_checkpoint(&latest_cached_checkpoint)
                                 .await?;
 
                             if message_leaf_index >= self.prover_sync.count() {

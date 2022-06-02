@@ -1,22 +1,31 @@
 {
   "name": "@abacus-network/monorepo",
+  "description": "A yarn workspace of many core Abacus packages",
+  "version": "0.0.0",
+  "devDependencies": {
+    "@trivago/prettier-plugin-sort-imports": "^3.2.0",
+    "@typescript-eslint/eslint-plugin": "^5.27.0",
+    "@typescript-eslint/parser": "^5.27.0",
+    "eslint": "^8.16.0",
+    "eslint-config-prettier": "^8.5.0",
+    "husky": "^8.0.0",
+    "lint-staged": "^12.4.3",
+    "prettier": "^2.4.1",
+    "prettier-plugin-solidity": "^1.0.0-beta.5",
+    "ts-node": "^10.8.0",
+    "typescript": "^4.7.2"
+  },
+  "packageManager": "yarn@3.2.0",
+  "private": true,
   "scripts": {
-    "build": "yarn workspaces foreach --parallel --topological run build",
-    "prettier": "yarn workspaces foreach --parallel run prettier",
-    "postinstall": "husky install"
+    "build": "yarn workspaces foreach --verbose --parallel --topological run build",
+    "postinstall": "husky install",
+    "prettier": "yarn workspaces foreach --verbose --parallel run prettier",
+    "lint-ts": "eslint . --ext .ts",
+    "test": "yarn workspaces foreach --verbose --parallel run test"
   },
   "workspaces": [
     "solidity/*",
     "typescript/*"
-  ],
-  "private": true,
-  "version": "0.0.0",
-  "packageManager": "yarn@3.2.0",
-  "devDependencies": {
-    "@trivago/prettier-plugin-sort-imports": "^3.2.0",
-    "husky": "^8.0.0",
-    "lint-staged": "^12.4.2",
-    "prettier": "^2.2.1",
-    "typescript": "^4.3.5"
-  }
+  ]
 }

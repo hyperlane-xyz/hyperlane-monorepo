@@ -1,13 +1,10 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
 
-import {ICommon} from "./ICommon.sol";
+import {IMailbox} from "./IMailbox.sol";
 
-interface IInbox is ICommon {
-    function checkpoint(
-        bytes32 _root,
-        uint256 _index
-    ) external;
+interface IInbox is IMailbox {
+    function cacheCheckpoint(bytes32 _root, uint256 _index) external;
 
     function remoteDomain() external returns (uint32);
 

@@ -136,7 +136,7 @@ export function log(isTest: boolean, str: string) {
   }
 }
 
-export function warn(text: string, padded: boolean = false) {
+export function warn(text: string, padded = false) {
   if (padded) {
     const padding = '*'.repeat(text.length + 8);
     console.log(
@@ -152,6 +152,9 @@ export function warn(text: string, padded: boolean = false) {
 }
 
 export function writeJSON(directory: string, filename: string, obj: any) {
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+  }
   fs.writeFileSync(
     path.join(directory, filename),
     JSON.stringify(obj, null, 2),
@@ -161,7 +164,7 @@ export function writeJSON(directory: string, filename: string, obj: any) {
 // Returns a \ b
 // Taken from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set#implementing_basic_set_operations
 export function setDifference<T>(a: Set<T>, b: Set<T>) {
-  let diff = new Set(a);
+  const diff = new Set(a);
   for (const element of b) {
     diff.delete(element);
   }

@@ -1,30 +1,7 @@
 {
   "name": "@abacus-network/infra",
-  "devDependencies": {
-    "@nomiclabs/hardhat-ethers": "^2.0.5",
-    "@nomiclabs/hardhat-waffle": "^2.0.2",
-    "@typechain/ethers-v5": "~7.0.0",
-    "@typechain/hardhat": "^2.0.1",
-    "@types/chai": "^4.2.21",
-    "ethereum-waffle": "^3.2.2",
-    "ethers": "^5.4.7",
-    "hardhat": "^2.8.4",
-    "prettier": "^2.3.1",
-    "ts-node": "^10.1.0",
-    "typechain": "^5.0.0",
-    "typescript": "^4.3.2"
-  },
-  "prepublish": "npm run build",
-  "scripts": {
-    "build": "tsc",
-    "test": "hardhat test",
-    "check": "tsc --noEmit",
-    "node": "hardhat node",
-    "abacus": "ts-node scripts/core.ts -e test",
-    "kathy": "hardhat kathy --network localhost",
-    "prettier": "prettier --write *.ts ./src ./config ./scripts ./test"
-  },
-  "license": "MIT OR Apache-2.0",
+  "description": "Infrastructure utilities for the Abacus Network",
+  "version": "0.1.1",
   "dependencies": {
     "@abacus-network/core": "^0.1.1",
     "@abacus-network/deploy": "^0.1.1",
@@ -43,5 +20,33 @@
     "dotenv": "^10.0.0",
     "yargs": "^17.3.1"
   },
-  "version": "0.1.1"
+  "devDependencies": {
+    "@nomiclabs/hardhat-ethers": "^2.0.5",
+    "@nomiclabs/hardhat-waffle": "^2.0.2",
+    "@types/chai": "^4.2.21",
+    "ethereum-waffle": "^3.2.2",
+    "ethers": "^5.4.7",
+    "hardhat": "^2.8.4",
+    "ts-node": "^10.8.0",
+    "typescript": "^4.7.2"
+  },
+  "homepage": "https://www.useabacus.network",
+  "keywords": [
+    "Abacus",
+    "Typescript",
+    "Infrastructure"
+  ],
+  "license": "Apache-2.0",
+  "main": "dist/index.js",
+  "prepublish": "yarn build",
+  "repository": "https://github.com/abacus-network/abacus-monorepo",
+  "scripts": {
+    "abacus": "ts-node scripts/core.ts -e test",
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "kathy": "hardhat kathy --network localhost",
+    "node": "hardhat node",
+    "prettier": "prettier --write *.ts ./src ./config ./scripts ./test",
+    "test": "hardhat test"
+  }
 }

@@ -1,4 +1,5 @@
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
+import { writeJSON } from '../src/utils/utils';
 
 import {
   getCoreContractsSdkFilepath,
@@ -14,14 +15,22 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
 
-  const addresses = await deployer.deploy();
+  const contracts = await deployer.deploy();
 
-  deployer.writeContracts(addresses, getCoreContractsSdkFilepath(environment));
-  deployer.writeVerification(getCoreVerificationDirectory(environment));
+  writeJSON(
+    getCoreContractsSdkFilepath(environment),
+    'addresses.json',
+    contracts,
+  );
+  writeJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+    deployer.verificationInputs,
+  );
   deployer.writeRustConfigs(
     environment,
     getCoreRustDirectory(environment),
-    addresses,
+    contracts,
   );
 }
 
