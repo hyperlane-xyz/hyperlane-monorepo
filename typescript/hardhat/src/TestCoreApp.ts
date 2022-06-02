@@ -30,10 +30,10 @@ export type TestInboxContracts = InboxContracts & {
 export type TestCoreContracts<Local extends TestChainNames> = CoreContracts<
   TestChainNames,
   Local
-> & {
-  outbox: TestOutboxContracts;
-  inboxes: ChainMap<Remotes<TestChainNames, Local>, TestInboxContracts>;
-};
+> &
+  TestOutboxContracts & {
+    inboxes: ChainMap<Remotes<TestChainNames, Local>, TestInboxContracts>;
+  };
 
 export class TestCoreApp extends AbacusCore<TestChainNames> {
   getContracts<Local extends TestChainNames>(
@@ -63,7 +63,7 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
   async processOutboundMessages<Local extends TestChainNames>(origin: Local) {
     const responses = new Map();
     const contracts = this.getContracts(origin);
-    const outbox: TestOutbox = contracts.outbox.outbox.contract;
+    const outbox: TestOutbox = contracts.outbox.contract;
 
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);

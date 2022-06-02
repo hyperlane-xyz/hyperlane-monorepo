@@ -21,7 +21,7 @@ const chainSummary = async <Chain extends ChainName>(
   chain: Chain,
 ) => {
   const coreContracts = core.getContracts(chain);
-  const outbox = coreContracts.outbox.outbox.contract;
+  const outbox = coreContracts.outbox.contract;
   const count = (await outbox.tree()).toNumber();
 
   const inboxSummary = async (remote: Chain) => {
@@ -76,7 +76,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       const remote: ChainName = randomElement(core.remoteChains(local));
       const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
-      const outbox = coreContracts.outbox.outbox.contract;
+      const outbox = coreContracts.outbox.contract;
       // Send a batch of messages to the destination chain to test
       // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {

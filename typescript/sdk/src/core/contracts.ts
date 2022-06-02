@@ -45,9 +45,8 @@ export type CoreContracts<
   abacusConnectionManager: AbacusConnectionManager;
   upgradeBeaconController: UpgradeBeaconController;
   interchainGasPaymaster: InterchainGasPaymaster;
-  outbox: OutboxContracts;
   inboxes: RemoteChainMap<Networks, Local, InboxContracts>;
-};
+} & OutboxContracts;
 
 export const coreFactories = {
   interchainGasPaymaster: new InterchainGasPaymaster__factory(),

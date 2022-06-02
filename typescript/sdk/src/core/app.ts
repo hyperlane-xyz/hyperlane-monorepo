@@ -49,7 +49,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     origin: Remotes<Chain, Local>,
     destination: Local,
   ): { originOutbox: Outbox; destinationInbox: Inbox } {
-    const originOutbox = this.getContracts(origin).outbox.outbox.contract;
+    const originOutbox = this.getContracts(origin).outbox.contract;
     const destinationInbox =
       this.getContracts(destination).inboxes[origin].inbox.contract;
     return { originOutbox, destinationInbox };

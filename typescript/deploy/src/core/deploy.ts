@@ -173,8 +173,8 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       upgradeBeaconController,
       abacusConnectionManager,
       interchainGasPaymaster,
-      outbox,
       inboxes: inboxes as RemoteChainMap<Chain, LocalChain, InboxContracts>,
+      ...outbox,
     };
   }
 
@@ -204,7 +204,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     owner: types.Address,
     chainConnection: ChainConnection,
   ): Promise<ethers.ContractReceipt> {
-    await coreContracts.outbox.outboxValidatorManager.transferOwnership(
+    await coreContracts.outboxValidatorManager.transferOwnership(
       owner,
       chainConnection.overrides,
     );
@@ -230,7 +230,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       }),
     );
 
-    const tx = await coreContracts.outbox.outbox.contract.transferOwnership(
+    const tx = await coreContracts.outbox.contract.transferOwnership(
       owner,
       chainConnection.overrides,
     );

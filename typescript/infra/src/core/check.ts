@@ -70,9 +70,8 @@ export class AbacusCoreChecker<
 
   async checkOutbox(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
-    const actualManager =
-      await contracts.outbox.outbox.contract.validatorManager();
-    const expectedManager = contracts.outbox.outboxValidatorManager.address;
+    const actualManager = await contracts.outbox.contract.validatorManager();
+    const expectedManager = contracts.outboxValidatorManager.address;
     if (actualManager !== expectedManager) {
       const violation: ValidatorManagerViolation = {
         chain,
@@ -91,7 +90,7 @@ export class AbacusCoreChecker<
     await this.checkValidatorManager(
       chain,
       chain,
-      coreContracts.outbox.outboxValidatorManager,
+      coreContracts.outboxValidatorManager,
     );
     return promiseObjAll(
       objMap(coreContracts.inboxes, (remote, inbox) =>
@@ -210,16 +209,12 @@ export class AbacusCoreChecker<
 
     // Outbox is set on abacusConnectionManager
     const outbox = await coreContracts.abacusConnectionManager.outbox();
-    expect(outbox).to.equal(coreContracts.outbox.outbox.address);
+    expect(outbox).to.equal(coreContracts.outbox.address);
   }
 
   async checkProxiedContracts(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
-    await this.checkUpgradeBeacon(
-      chain,
-      'Outbox',
-      contracts.outbox.outbox.addresses,
-    );
+    await this.checkUpgradeBeacon(chain, 'Outbox', contracts.outbox.addresses);
     await promiseObjAll(
       objMap(contracts.inboxes, (chain, inbox) =>
         this.checkUpgradeBeacon(chain, 'Inbox', inbox.inbox.addresses),
