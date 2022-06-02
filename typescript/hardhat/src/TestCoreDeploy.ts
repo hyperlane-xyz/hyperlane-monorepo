@@ -10,12 +10,12 @@ import {
   ValidatorManagerConfig,
 } from '@abacus-network/deploy';
 import {
+  chainMetadata,
+  coreFactories,
   MultiProvider,
   ProxiedContract,
   Remotes,
   TestChainNames,
-  chainMetadata,
-  coreFactories,
 } from '@abacus-network/sdk';
 import { ethers } from 'ethers';
 
@@ -100,6 +100,6 @@ export class TestCoreDeploy extends AbacusCoreDeployer<TestChainNames> {
   }
 
   async deployCore() {
-    return new TestCoreApp(await this.deploy());
+    return new TestCoreApp(await this.deploy(), this.multiProvider);
   }
 }
