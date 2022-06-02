@@ -1,29 +1,14 @@
 import { ethers } from 'ethers';
 
-import { ChainName, ProxiedAddress } from '@abacus-network/sdk';
+import { BeaconProxyAddresses, ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 import { CheckerViolation } from './config';
 
-export class ProxiedContract<T extends ethers.Contract> {
-  constructor(
-    public readonly contract: T,
-    public readonly addresses: ProxiedAddress,
-  ) {}
-
-  get address() {
-    return this.contract.address;
-  }
-}
-
-export enum ProxyViolationType {
-  UpgradeBeacon = 'UpgradeBeacon',
-}
-
 export interface UpgradeBeaconViolation extends CheckerViolation {
-  type: ProxyViolationType.UpgradeBeacon;
+  type: BeaconProxyAddresses['kind'];
   data: {
-    proxiedAddress: ProxiedAddress;
+    proxiedAddress: BeaconProxyAddresses;
     name: string;
   };
   actual: string;
@@ -42,12 +27,12 @@ export async function upgradeBeaconImplementation(
 export function upgradeBeaconViolation<Chain extends ChainName>(
   chain: Chain,
   name: string,
-  proxiedAddress: ProxiedAddress,
+  proxiedAddress: BeaconProxyAddresses,
   actual: types.Address,
 ): UpgradeBeaconViolation {
   return {
     chain,
-    type: ProxyViolationType.UpgradeBeacon,
+    type: proxiedAddress.kind,
     actual,
     expected: proxiedAddress.implementation,
     data: {

@@ -1,79 +1,84 @@
-import { Contract } from 'ethers';
+import { BaseContract, ethers } from 'ethers';
 
-import { Router__factory } from '@abacus-network/app';
-import { AbacusConnectionManager__factory } from '@abacus-network/core';
 import { types } from '@abacus-network/utils';
 
-import { Connection, ProxiedAddress } from './types';
+import { ProxiedContract, ProxyAddresses, isProxyAddresses } from './proxy';
+import { Connection } from './types';
+import { objMap } from './utils';
 
-// address types generated from AbacusDeployer deployContract or deployProxiedContract
-export type AbacusContractAddresses = {
-  [key in string]: ProxiedAddress | types.Address;
+export type AbacusFactories = {
+  [key: string]: ethers.ContractFactory;
 };
 
-// from concrete ethers.ContractFactory static connect() type
-type EthersFactory<C> = (
-  address: types.Address, // TODO: generic on ProxiedAddress for proxy utilities
+export type AbacusContracts = {
+  [key: Exclude<string, 'address'>]:
+    | ethers.Contract
+    | ProxiedContract<any, any>
+    | AbacusContracts;
+};
+
+export type AbacusAddresses = {
+  [key: string]: types.Address | ProxyAddresses<any> | AbacusAddresses;
+};
+
+export function serializeContracts(
+  contractOrObject: AbacusContracts,
+): AbacusAddresses {
+  return objMap(
+    contractOrObject,
+    (_, contract): string | ProxyAddresses<any> | AbacusAddresses => {
+      if (contract instanceof BaseContract) {
+        return contract.address;
+      } else if (contract instanceof ProxiedContract) {
+        return contract.addresses;
+      } else {
+        return serializeContracts(contract);
+      }
+    },
+  );
+}
+
+function getFactory(
+  key: string,
+  factories: AbacusFactories,
+): ethers.ContractFactory {
+  if (!(key in factories)) {
+    throw new Error(`Factories entry missing for ${key}`);
+  }
+  return factories[key];
+}
+
+export function buildContracts(
+  addressOrObject: AbacusAddresses,
+  factories: AbacusFactories,
+): AbacusContracts {
+  return objMap(
+    addressOrObject,
+    (key, address): ProxiedContract<any, any> | AbacusContracts => {
+      if (typeof address === 'string') {
+        return getFactory(key, factories).attach(address);
+      } else if (isProxyAddresses(address)) {
+        const contract = getFactory(key, factories).attach(address.proxy);
+        return new ProxiedContract(contract, address);
+      } else {
+        return buildContracts(address as AbacusAddresses, factories);
+      }
+    },
+  );
+}
+
+export function connectContracts<Contracts extends AbacusContracts>(
+  contractOrObject: Contracts,
   connection: Connection,
-) => C;
-export type Factories<A extends AbacusContractAddresses> = Record<
-  keyof A,
-  EthersFactory<any>
->;
-
-export interface IAbacusContracts<Addresses, Contracts> {
-  readonly addresses: Addresses;
-  readonly contracts: Contracts;
-  reconnect(connection: Connection): void;
-}
-
-export interface ContractsBuilder<
-  Addresses,
-  Contracts extends IAbacusContracts<Addresses, any>,
-> {
-  new (addresses: Addresses, connection: Connection): Contracts;
-}
-
-export abstract class AbacusContracts<
-  A extends AbacusContractAddresses,
-  F extends Factories<A> = Factories<A>,
-  CM = {
-    [key in keyof A]: F[key] extends EthersFactory<infer C> ? C : never;
-  },
-> implements IAbacusContracts<A, CM>
-{
-  abstract factories(): F;
-  // complexity here allows for subclasses to have strong typing on `this.contracts` inferred
-  // from the return types of the factory functions provided to the constructor
-  readonly contracts: CM;
-  constructor(readonly addresses: A, connection: Connection) {
-    const factories = this.factories();
-    const contractEntries = Object.entries(addresses).map(([key, addr]) => {
-      const contractAddress = typeof addr === 'string' ? addr : addr.proxy;
-      return [key, factories[key](contractAddress, connection)];
-    });
-    this.contracts = Object.fromEntries(contractEntries);
-  }
-
-  reconnect(connection: Connection): void {
-    Object.values(this.contracts).forEach((contract: Contract) =>
-      contract.connect(connection),
-    );
-  }
-
-  protected onlySigner(actual: types.Address, expected: types.Address): void {
-    if (actual !== expected) {
-      throw new Error(`Signer ${actual} must be ${expected} for this method`);
+): Contracts {
+  return objMap(contractOrObject, (_, contract) => {
+    if (
+      contract instanceof BaseContract ||
+      contract instanceof ProxiedContract
+    ) {
+      return contract.connect(connection);
+    } else {
+      return connectContracts(contract, connection);
     }
-  }
+  }) as Contracts;
 }
-
-export type RouterAddresses = {
-  abacusConnectionManager: types.Address;
-  router: types.Address;
-};
-
-export const routerFactories: Factories<RouterAddresses> = {
-  router: Router__factory.connect,
-  abacusConnectionManager: AbacusConnectionManager__factory.connect,
-};

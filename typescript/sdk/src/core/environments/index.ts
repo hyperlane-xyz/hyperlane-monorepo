@@ -1,6 +1,6 @@
-import { addresses as dev } from './dev';
-import { addresses as test } from './test';
-import { addresses as testnet } from './testnet';
+import dev from './dev.json';
+import test from './test.json';
+import testnet from './testnet.json';
 
 export const environments = {
   test,

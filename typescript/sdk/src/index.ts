@@ -2,11 +2,12 @@ export { AbacusApp } from './app';
 export { chainMetadata } from './chain-metadata';
 export { addSignerToConnection, chainConnectionConfigs } from './chains';
 export {
-  AbacusContractAddresses,
+  AbacusAddresses,
   AbacusContracts,
-  Factories,
-  RouterAddresses,
-  routerFactories,
+  AbacusFactories,
+  buildContracts,
+  connectContracts,
+  serializeContracts,
 } from './contracts';
 export {
   AbacusCore,
@@ -15,13 +16,13 @@ export {
   AbacusStatus,
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
-  CoreContractAddresses,
   CoreContracts,
+  CoreContractsMap,
   coreEnvironments,
   coreFactories,
   InboxContracts,
-  MailboxAddresses,
   MessageStatus,
+  OutboxContracts,
   parseMessage,
   resolveDomain,
   resolveId,
@@ -39,6 +40,8 @@ export {
   TokenPriceGetter,
 } from './gas';
 export { ChainConnection, IChainConnection, MultiProvider } from './provider';
+export { BeaconProxyAddresses, ProxiedContract, ProxyAddresses } from './proxy';
+export { RouterContracts, RouterFactories } from './router';
 export {
   AllChains,
   ChainMap,
@@ -49,7 +52,6 @@ export {
   Connection,
   DomainIdToChainName,
   NameOrDomain,
-  ProxiedAddress,
   RemoteChainMap,
   Remotes,
   TestChainNames,
