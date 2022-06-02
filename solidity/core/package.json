@@ -28,6 +28,9 @@
   "directories": {
     "test": "test"
   },
+  "files": [
+    "/dist"
+  ],
   "homepage": "https://www.useabacus.network",
   "keywords": [
     "Abacus",
