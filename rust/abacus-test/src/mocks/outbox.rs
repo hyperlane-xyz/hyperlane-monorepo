@@ -28,7 +28,7 @@ mock! {
 
         pub fn _count(&self) -> Result<u32, ChainCommunicationError> {}
 
-        pub fn _create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {}
+        pub fn _cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {}
 
         // Common
         pub fn _name(&self) -> &str {}
@@ -39,9 +39,9 @@ mock! {
 
         pub fn _state(&self) -> Result<State, ChainCommunicationError> {}
 
-        pub fn _checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {}
+        pub fn _latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {}
 
-        pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
+        pub fn _latest_cached_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
     }
 }
 
@@ -65,8 +65,8 @@ impl Outbox for MockOutboxContract {
         self._count()
     }
 
-    async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
-        self._create_checkpoint()
+    async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
+        self._cache_checkpoint()
     }
 }
 
@@ -88,14 +88,14 @@ impl AbacusCommon for MockOutboxContract {
         self._validator_manager()
     }
 
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
-        self._checkpointed_root()
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
+        self._latest_cached_root()
     }
 
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
-        self._latest_checkpoint(maybe_lag)
+        self._latest_cached_checkpoint(maybe_lag)
     }
 }

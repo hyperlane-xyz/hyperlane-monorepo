@@ -21,12 +21,13 @@ const chainSummary = async <Chain extends ChainName>(
   chain: Chain,
 ) => {
   const coreContracts = core.getContracts(chain);
-  const outbox = coreContracts.outbox.outbox;
+  const outbox = coreContracts.outbox.contract;
   const count = (await outbox.tree()).toNumber();
 
   const inboxSummary = async (remote: Chain) => {
     const remoteContracts = core.getContracts(remote);
-    const inbox = remoteContracts.inboxes[chain as Exclude<Chain, Chain>].inbox;
+    const inbox =
+      remoteContracts.inboxes[chain as Exclude<Chain, Chain>].inbox.contract;
     const [inboxCheckpointRoot, inboxCheckpointIndex] =
       await inbox.latestCachedCheckpoint();
     const processFilter = inbox.filters.Process();
@@ -53,14 +54,13 @@ const chainSummary = async <Chain extends ChainName>(
 
 task('kathy', 'Dispatches random abacus messages').setAction(
   async (_, hre: HardhatRuntimeEnvironment) => {
-    const environment = 'test';
-    const config = getCoreEnvironmentConfig(environment);
+    const config = getCoreEnvironmentConfig('test');
     const [signer] = await hre.ethers.getSigners();
     const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
       config.transactionConfigs,
       signer,
     );
-    const core = AbacusCore.fromEnvironment(environment, multiProvider);
+    const core = AbacusCore.fromEnvironment('test', multiProvider);
 
     const randomElement = <T>(list: T[]) =>
       list[Math.floor(Math.random() * list.length)];
@@ -76,7 +76,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       const remote: ChainName = randomElement(core.remoteChains(local));
       const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
-      const outbox = coreContracts.outbox.outbox;
+      const outbox = coreContracts.outbox.contract;
       // Send a batch of messages to the destination chain to test
       // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {

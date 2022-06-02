@@ -21,12 +21,9 @@ import {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   AnnotatedProcess,
-  CheckpointArgs,
-  CheckpointTypes,
+  CheckpointCachedEvent,
   DispatchEvent,
-  DispatchTypes,
-  ProcessArgs,
-  ProcessTypes,
+  ProcessEvent,
 } from './events';
 
 // I didn't want to override the existing ParsedMessage in message.ts as that would include having to type AbacusMessage and more and it's not clear to me that we will keep those.
@@ -127,8 +124,8 @@ export class AbacusMessage {
       messageNetworks.destination,
     );
 
-    this.outbox = mailboxes.outbox;
-    this.inbox = mailboxes.inbox;
+    this.outbox = mailboxes.originOutbox;
+    this.inbox = mailboxes.destinationInbox;
     this.cache = {};
   }
 
@@ -170,7 +167,7 @@ export class AbacusMessage {
               provider.getTransactionReceipt(log.transactionHash),
           } as unknown as DispatchEvent;
 
-          const annotated = new Annotated<DispatchTypes, DispatchEvent>(
+          const annotated = new Annotated<DispatchEvent>(
             resolveId(nameOrDomain),
             receipt,
             dispatch,
@@ -302,7 +299,7 @@ export class AbacusMessage {
       checkpointIndex,
     );
     const checkpointLogs: AnnotatedCheckpoint[] =
-      await findAnnotatedSingleEvent<CheckpointTypes, CheckpointArgs>(
+      await findAnnotatedSingleEvent<CheckpointCachedEvent>(
         this.multiProvider,
         this.destinationName,
         this.inbox,
@@ -331,10 +328,7 @@ export class AbacusMessage {
     }
     // if not, attempt to query the event
     const processFilter = this.inbox.filters.Process(this.leaf);
-    const processLogs = await findAnnotatedSingleEvent<
-      ProcessTypes,
-      ProcessArgs
-    >(
+    const processLogs = await findAnnotatedSingleEvent<ProcessEvent>(
       this.multiProvider,
       this.destinationName,
       this.inbox,
