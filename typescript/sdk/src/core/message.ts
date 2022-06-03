@@ -17,11 +17,9 @@ import {
 import { delay } from '../utils';
 
 import {
-  AnnotatedCheckpoint,
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   AnnotatedProcess,
-  CheckpointCachedEvent,
   DispatchEvent,
   ProcessEvent,
 } from './events';
@@ -73,7 +71,6 @@ export enum InboxMessageStatus {
 }
 
 export type EventCache = {
-  inboxCheckpoint?: AnnotatedCheckpoint;
   process?: AnnotatedProcess;
 };
 
@@ -273,54 +270,11 @@ export class AbacusMessage {
   }
 
   /**
-   * Get the Inbox `Checkpoint` event associated with this message (if any)
-   *
-   * @returns An {@link AnnotatedCheckpoint} (if any)
-   */
-  async getInboxCheckpoint(): Promise<AnnotatedCheckpoint | undefined> {
-    // if we have already gotten the event,
-    // return it without re-querying
-    if (this.cache.inboxCheckpoint) {
-      return this.cache.inboxCheckpoint;
-    }
-
-    const leafIndex = this.dispatch.event.args.leafIndex;
-    const [checkpointRoot, checkpointIndex] =
-      await this.inbox.latestCachedCheckpoint();
-    // The checkpoint index needs to be at least leafIndex + 1 to include
-    // the message.
-    if (checkpointIndex.lte(leafIndex)) {
-      return undefined;
-    }
-
-    // if not, attempt to query the event
-    const checkpointFilter = this.inbox.filters.CheckpointCached(
-      checkpointRoot,
-      checkpointIndex,
-    );
-    const checkpointLogs: AnnotatedCheckpoint[] =
-      await findAnnotatedSingleEvent<CheckpointCachedEvent>(
-        this.multiProvider,
-        this.destinationName,
-        this.inbox,
-        checkpointFilter,
-      );
-    if (checkpointLogs.length === 1) {
-      // if event is returned, store it to the object
-      this.cache.inboxCheckpoint = checkpointLogs[0];
-    } else if (checkpointLogs.length > 1) {
-      throw new Error('multiple inbox checkpoints for same root');
-    }
-    // return the event or undefined if it wasn't found
-    return this.cache.inboxCheckpoint;
-  }
-
-  /**
    * Get the Inbox `Process` event associated with this message (if any)
    *
    * @returns An {@link AnnotatedProcess} (if any)
    */
-  async getProcess(startBlock?: number): Promise<AnnotatedProcess | undefined> {
+  async getProcess(): Promise<AnnotatedProcess | undefined> {
     // if we have already gotten the event,
     // return it without re-querying
     if (this.cache.process) {
@@ -333,7 +287,6 @@ export class AbacusMessage {
       this.destinationName,
       this.inbox,
       processFilter,
-      startBlock,
     );
     if (processLogs.length === 1) {
       // if event is returned, store it to the object
@@ -352,17 +305,8 @@ export class AbacusMessage {
    */
   async events(): Promise<AbacusStatus> {
     const events: AnnotatedLifecycleEvent[] = [this.dispatch];
-    // attempt to get Inbox checkpoint
-    const inboxCheckpoint = await this.getInboxCheckpoint();
-    if (!inboxCheckpoint) {
-      return {
-        status: MessageStatus.Included, // the message was sent, then included in an Checkpoint on Outbox
-        events,
-      };
-    }
-    events.push(inboxCheckpoint);
     // attempt to get Inbox process
-    const process = await this.getProcess(inboxCheckpoint.blockNumber);
+    const process = await this.getProcess();
     if (!process) {
       // NOTE: when this is the status, you may way to
       // query confirmAt() to check if challenge period

@@ -17,4 +17,11 @@ interface IOutbox is IMailbox {
     function count() external returns (uint256);
 
     function fail() external;
+
+    function cachedCheckpoints(bytes32) external view returns (uint256);
+
+    function latestCachedCheckpoint()
+        external
+        view
+        returns (bytes32 root, uint256 index);
 }

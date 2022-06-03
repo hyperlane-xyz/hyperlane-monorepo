@@ -89,7 +89,7 @@ describe('Outbox', async () => {
     });
 
     it('Dispatches a message', async () => {
-      const { message, destDomain, abacusMessage, hash, leafIndex } =
+      const { message, destDomain, abacusMessage, leafIndex, hash } =
         await testMessageValues();
 
       // Send message with signer address as msg.sender

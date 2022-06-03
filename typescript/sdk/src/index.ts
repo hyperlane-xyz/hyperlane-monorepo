@@ -57,3 +57,4 @@ export {
   TestChainNames,
 } from './types';
 export { objMap, objMapEntries, promiseObjAll, utils } from './utils';
+export { RetryProvider, RetryJsonRpcProvider } from './ethers';

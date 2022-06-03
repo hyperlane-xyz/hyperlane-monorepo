@@ -1,6 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { Validator, types, utils } from '@abacus-network/utils';
@@ -11,20 +10,16 @@ import {
   TestOutbox,
   TestOutbox__factory,
 } from '../../types';
-import { DispatchEvent } from '../../types/contracts/Outbox';
+import {
+  MerkleProof,
+  dispatchMessageAndReturnProof as _dispatchMessageAndReturnProof,
+} from '../lib/mailboxes';
 
 import { signCheckpoint } from './utils';
 
 const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;
 const QUORUM_THRESHOLD = 2;
-
-interface MerkleProof {
-  root: string;
-  proof: string[];
-  leaf: string;
-  index: BigNumber;
-}
 
 describe('OutboxValidatorManager', () => {
   let validatorManager: OutboxValidatorManager,
@@ -34,44 +29,24 @@ describe('OutboxValidatorManager', () => {
     validator0: Validator,
     validator1: Validator;
 
-  const dispatchMessage = async (outbox: TestOutbox, message: string) => {
-    const recipient = utils.addressToBytes32(validator0.address);
-    const destination = INBOX_DOMAIN;
-    const tx = await outbox.dispatch(
-      destination,
-      recipient,
-      ethers.utils.formatBytes32String(message),
-    );
-    const receipt = await tx.wait();
-    const dispatch = receipt.events![0] as DispatchEvent;
-    expect(dispatch.event).to.equal('Dispatch');
-    return dispatch.args!;
-  };
-
-  const dispatchMessageAndReturnProof = async (
-    outbox: TestOutbox,
-    messageStr: string,
-  ): Promise<MerkleProof> => {
-    const { messageHash, leafIndex } = await dispatchMessage(
-      outbox,
-      messageStr,
-    );
-    const root = await outbox.root();
-    const proof = await outbox.proof();
-    return {
-      root,
-      proof,
-      leaf: messageHash,
-      index: leafIndex,
-    };
-  };
-
   before(async () => {
     const signers = await ethers.getSigners();
     signer = signers[0];
     validator0 = await Validator.fromSigner(signers[1], OUTBOX_DOMAIN);
     validator1 = await Validator.fromSigner(signers[2], OUTBOX_DOMAIN);
   });
+
+  const dispatchMessageAndReturnProof = async (
+    outbox: TestOutbox,
+    message: string,
+  ) => {
+    return _dispatchMessageAndReturnProof(
+      outbox,
+      INBOX_DOMAIN,
+      utils.addressToBytes32(validator0.address),
+      message,
+    );
+  };
 
   beforeEach(async () => {
     const validatorManagerFactory = new OutboxValidatorManager__factory(signer);
@@ -99,7 +74,7 @@ describe('OutboxValidatorManager', () => {
     const root = ethers.utils.formatBytes32String('test root');
 
     beforeEach(async () => {
-      await dispatchMessage(outbox, 'message');
+      await dispatchMessageAndReturnProof(outbox, 'message');
     });
 
     it('accepts a premature checkpoint if it has been signed by a quorum of validators', async () => {
@@ -176,8 +151,8 @@ describe('OutboxValidatorManager', () => {
     const helperMessage = (j: number) =>
       j === differingIndex ? fraudulentMessage : actualMessage;
     for (; index < proofIndex; index++) {
-      await dispatchMessage(outbox, actualMessage);
-      await dispatchMessage(helperOutbox, helperMessage(index));
+      await dispatchMessageAndReturnProof(outbox, actualMessage);
+      await dispatchMessageAndReturnProof(helperOutbox, helperMessage(index));
     }
     const proofA = await dispatchMessageAndReturnProof(outbox, actualMessage);
     const proofB = await dispatchMessageAndReturnProof(
@@ -185,8 +160,8 @@ describe('OutboxValidatorManager', () => {
       helperMessage(proofIndex),
     );
     for (index = proofIndex + 1; index < messageCount; index++) {
-      await dispatchMessage(outbox, actualMessage);
-      await dispatchMessage(helperOutbox, helperMessage(index));
+      await dispatchMessageAndReturnProof(outbox, actualMessage);
+      await dispatchMessageAndReturnProof(helperOutbox, helperMessage(index));
     }
 
     return { proofA: proofA, proofB: proofB };
