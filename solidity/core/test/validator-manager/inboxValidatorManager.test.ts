@@ -52,10 +52,8 @@ describe('InboxValidatorManager', () => {
     const outboxFactory = new TestOutbox__factory(signer);
     const helperOutbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
     await helperOutbox.initialize(validatorManager.address);
-    const recipientF = new TestRecipient__factory(signer);
-    const recipient = utils.addressToBytes32(
-      (await recipientF.deploy()).address,
-    );
+    const recipientF = await new TestRecipient__factory(signer).deploy();
+    const recipient = utils.addressToBytes32(recipientF.address);
     proof = await dispatchMessageAndReturnProof(
       helperOutbox,
       INBOX_DOMAIN,
