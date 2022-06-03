@@ -1,74 +1,57 @@
 import { Inbox, Outbox } from '@abacus-network/core';
 
 import { AbacusApp } from '../app';
+import { buildContracts } from '../contracts';
 import { MultiProvider } from '../provider';
-import { ChainMap, ChainName, Remotes } from '../types';
-import { objMap } from '../utils';
+import { ChainName, Remotes } from '../types';
 
-import {
-  CoreContractAddresses,
-  CoreContractSchema,
-  CoreContracts,
-} from './contracts';
+import { CoreContracts, coreFactories } from './contracts';
 import { environments } from './environments';
 
-export const CoreEnvironments = Object.keys(environments);
 export type CoreEnvironment = keyof typeof environments;
 export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
   keyof typeof environments[E],
   ChainName
 >;
 
+export type CoreContractsMap<Chain extends ChainName> = {
+  [local in Chain]: CoreContracts<Chain, local>;
+};
+
 export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
-  CoreContracts<Chain>,
+  CoreContracts<Chain, Chain>,
   Chain
 > {
   constructor(
-    addresses: {
-      [local in Chain]: CoreContractAddresses<Chain, local>;
-    },
+    contractsMap: CoreContractsMap<Chain>,
     multiProvider: MultiProvider<Chain>,
   ) {
-    super(CoreContracts, addresses, multiProvider);
+    super(contractsMap, multiProvider);
   }
 
-  static fromEnvironment<E extends CoreEnvironment>(
-    name: E,
-    multiProvider: MultiProvider<any>, // TODO: fix networks
-  ): AbacusCore<any> {
-    return new AbacusCore(environments[name], multiProvider);
-  }
-
-  extendWithConnectionManagers<T>(
-    config: ChainMap<Chain, T>,
-  ): ChainMap<Chain, T & { abacusConnectionManager: string }> {
-    return objMap(config, (chain, config) => ({
-      ...config,
-      abacusConnectionManager:
-        this.getContracts(chain).abacusConnectionManager.address,
-    }));
+  static fromEnvironment<Env extends CoreEnvironment>(
+    env: Env,
+    multiProvider: MultiProvider<CoreEnvironmentChain<Env>>,
+  ): AbacusCore<CoreEnvironmentChain<Env>> {
+    const contractsMap = buildContracts(
+      environments[env],
+      coreFactories,
+    ) as CoreContractsMap<CoreEnvironmentChain<Env>>;
+    return new AbacusCore(contractsMap, multiProvider);
   }
 
   // override type to be derived from chain key
-  getContracts<Local extends Chain>(
-    chain: Local,
-  ): CoreContractSchema<Chain, Local> {
-    return super.getContracts(chain) as any;
-  }
-
-  // override type to be derived from chain key
-  getAddresses<Local extends Chain>(
-    chain: Local,
-  ): CoreContractAddresses<Chain, Local> {
-    return super.getAddresses(chain) as any;
+  getContracts<Local extends Chain>(chain: Local): CoreContracts<Chain, Local> {
+    return super.getContracts(chain) as CoreContracts<Chain, Local>;
   }
 
   getMailboxPair<Local extends Chain>(
     origin: Remotes<Chain, Local>,
     destination: Local,
-  ): { outbox: Outbox; inbox: Inbox } {
-    const outbox = this.getContracts(origin).outbox.outbox;
-    const inbox = this.getContracts(destination).inboxes[origin].inbox;
-    return { outbox, inbox };
+  ): { originOutbox: Outbox; destinationInbox: Inbox } {
+    const originOutbox = this.getContracts(origin).outbox.contract;
+    const destinationInbox =
+      this.getContracts(destination).inboxes[origin].inbox.contract;
+    return { originOutbox, destinationInbox };
   }
 }

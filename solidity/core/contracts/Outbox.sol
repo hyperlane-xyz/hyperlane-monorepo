@@ -76,13 +76,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
      * @param leafIndex Index of message's leaf in merkle tree
      * @param message Raw bytes of message
      */
-    event Dispatch2(uint256 indexed leafIndex, bytes message);
-    event Dispatch(
-        bytes32 messageHash,
-        uint256 leafIndex,
-        uint32 destinationDomain,
-        bytes message
-    );
+    event Dispatch(uint256 indexed leafIndex, bytes message);
 
     event Fail();
 
@@ -143,9 +137,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
         */
         tree.insert(_messageHash);
         // Emit Dispatch event with message information
-        // Is emitting _destinationDomain and _messageHash redundant?
-        //emit Dispatch(_messageHash, _leafIndex, _destinationDomain, _message);
-        emit Dispatch2(_leafIndex, _message);
+        emit Dispatch(_leafIndex, _message);
         return _leafIndex;
     }
 
@@ -179,7 +171,6 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
     function latestCachedCheckpoint()
         external
         view
-        override
         returns (bytes32 root, uint256 index)
     {
         root = latestCachedRoot;

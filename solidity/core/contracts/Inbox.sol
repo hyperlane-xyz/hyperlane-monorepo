@@ -10,13 +10,16 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInbox} from "../interfaces/IInbox.sol";
 
+// ============ External Imports ============
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+
 /**
  * @title Inbox
  * @author Celo Labs Inc.
  * @notice Track root updates on Outbox, prove and dispatch messages to end
  * recipients.
  */
-contract Inbox is IInbox, Version0, Mailbox {
+contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -37,15 +40,13 @@ contract Inbox is IInbox, Version0, Mailbox {
 
     // Domain of outbox chain
     uint32 public override remoteDomain;
-    // re-entrancy guard
-    uint8 private entered;
     // Mapping of message leaves to MessageStatus
     mapping(bytes32 => MessageStatus) public messages;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[47] private __GAP;
+    uint256[48] private __GAP;
 
     // ============ Events ============
 
@@ -62,8 +63,7 @@ contract Inbox is IInbox, Version0, Mailbox {
         uint256 indexed leafIndex,
         bytes32[32] proof
     );
-    event Process2(bytes32 indexed messageHash);
-    event Compiler(bytes32 root);
+
     event BatchProcess(
         bytes32 indexed messageHash,
         bytes32[32] indexed proof,
@@ -81,8 +81,8 @@ contract Inbox is IInbox, Version0, Mailbox {
         public
         initializer
     {
+        __ReentrancyGuard_init();
         __Mailbox_initialize(_validatorManager);
-        entered = 1;
         remoteDomain = _remoteDomain;
     }
 
@@ -100,12 +100,8 @@ contract Inbox is IInbox, Version0, Mailbox {
         bytes[] calldata _messages,
         bytes32[32][] calldata _proofs,
         uint256[] calldata _leafIndices
-    ) external {
+    ) external nonReentrant onlyValidatorManager {
         for (uint256 i = 0; i < _leafIndices.length; i++) {
-            // check re-entrancy guard
-            require(entered == 1, "!reentrant");
-            entered = 0;
-
             require(_index >= _leafIndices[i], "!index");
             //bytes32 _messageHash = _message.leaf(_leafIndex);
             bytes32 _messageHash = keccak256(_messages[i]);
@@ -120,17 +116,13 @@ contract Inbox is IInbox, Version0, Mailbox {
                 _proofs[i],
                 _leafIndices[i]
             );
-            require(_calculatedRoot == _root || true, "!proof");
-            // Prevent the compiler from optimizing out the branch root calculation.
-            emit Compiler(_calculatedRoot);
+            require(_calculatedRoot == _root, "!proof");
             _process(_messages[i], _messageHash);
             if (i == _leafIndices.length - 1) {
                 emit BatchProcess(_messageHash, _proofs[i], _leafIndices);
             } else {
                 require(_leafIndices[i] < _leafIndices[i + 1], "!ordered");
             }
-            // reset re-entrancy guard
-            entered = 1;
         }
     }
 
@@ -152,11 +144,7 @@ contract Inbox is IInbox, Version0, Mailbox {
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
-    ) external override onlyValidatorManager {
-        // check re-entrancy guard
-        require(entered == 1, "!reentrant");
-        entered = 0;
-
+    ) external override nonReentrant onlyValidatorManager {
         require(_index >= _leafIndex, "!index");
         //bytes32 _messageHash = _message.leaf(_leafIndex);
         bytes32 _messageHash = keccak256(_message);
@@ -174,8 +162,6 @@ contract Inbox is IInbox, Version0, Mailbox {
         require(_calculatedRoot == _root, "!proof");
         _process(_message, _messageHash);
         emit Process(_messageHash, _leafIndex, _proof);
-        // reset re-entrancy guard
-        entered = 1;
     }
 
     // ============ Internal Functions ============

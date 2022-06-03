@@ -26,15 +26,7 @@ contract InboxValidatorManager is SchnorrValidatorManager {
      * to prove fraud on the Outbox.
      */
     event Quorum(
-        Checkpoint checkpoint,
-        uint256 randomness,
-        uint256 signature,
-        bytes32 compressedPublicKey,
-        bytes32 compressedNonce,
-        bytes32[] omitted
-    );
-
-    event Quorum2(
+        address inbox,
         Checkpoint checkpoint,
         uint256[2] signature,
         bytes32 compressedPublicKey,
@@ -70,23 +62,13 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         bytes32[32] calldata _proof,
         uint256 _leafIndex
     ) external {
-        // Restrict scope to keep stack small.
-        {
-            (bool _success, bytes32 _compressedKey) = isQuorum(
-                _checkpoint,
-                _sigScalars,
-                _nonce,
-                _omittedValidatorCompressedPublicKeys
-            );
-            require(_success, "!quorum");
-            emit Quorum2(
-                _checkpoint,
-                _sigScalars,
-                _compressedKey,
-                _nonce.compress(),
-                _omittedValidatorCompressedPublicKeys
-            );
-        }
+        _requireQuorum(
+            _inbox,
+            _checkpoint,
+            _sigScalars,
+            _nonce,
+            _omittedValidatorCompressedPublicKeys
+        );
         _inbox.process(
             _checkpoint.root,
             _checkpoint.index,
@@ -107,23 +89,13 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         bytes32[32][] calldata _proofs,
         uint256[] calldata _leafIndices
     ) external {
-        // Restrict scope to keep stack small.
-        {
-            (bool _success, bytes32 _compressedKey) = isQuorum(
-                _checkpoint,
-                _sigScalars,
-                _nonce,
-                _omittedValidatorCompressedPublicKeys
-            );
-            require(_success, "!quorum");
-            emit Quorum2(
-                _checkpoint,
-                _sigScalars,
-                _compressedKey,
-                _nonce.compress(),
-                _omittedValidatorCompressedPublicKeys
-            );
-        }
+        _requireQuorum(
+            _inbox,
+            _checkpoint,
+            _sigScalars,
+            _nonce,
+            _omittedValidatorCompressedPublicKeys
+        );
         _inbox.batchProcess(
             _checkpoint.root,
             _checkpoint.index,
@@ -134,6 +106,7 @@ contract InboxValidatorManager is SchnorrValidatorManager {
     }
 
     function _requireQuorum(
+        IInbox _inbox,
         Checkpoint calldata _checkpoint,
         uint256[2] calldata _sigScalars,
         BN256.G1Point calldata _nonce,
@@ -146,7 +119,8 @@ contract InboxValidatorManager is SchnorrValidatorManager {
             _omittedValidatorCompressedPublicKeys
         );
         require(_success, "!quorum");
-        emit Quorum2(
+        emit Quorum(
+            address(_inbox),
             _checkpoint,
             _sigScalars,
             _compressedKey,

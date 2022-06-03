@@ -27,11 +27,11 @@ export const dispatchMessage = async (
   const tx = await outbox.dispatch(
     destination,
     recipient,
-    ethers.utils.formatBytes32String(messageStr),
+    ethers.utils.toUtf8Bytes(messageStr),
   );
   const receipt = await tx.wait();
-  const dispatch = receipt.events![0] as Dispatch2Event;
-  expect(dispatch.event).to.equal('Dispatch2');
+  const dispatch = receipt.events![0] as DispatchEvent;
+  expect(dispatch.event).to.equal('Dispatch');
   return dispatch.args!;
 };
 
@@ -55,7 +55,7 @@ export const dispatchMessageAndReturnProof = async (
       root,
       index: leafIndex,
     },
-    proof: proof as types.BytesArray,
+    proof,
     leaf,
     message,
   };

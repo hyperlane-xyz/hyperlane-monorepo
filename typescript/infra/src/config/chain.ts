@@ -3,7 +3,7 @@ import { NonceManager } from '@ethersproject/experimental';
 import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
 import { ethers } from 'ethers';
 
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName, RetryJsonRpcProvider } from '@abacus-network/sdk';
 
 import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
 
@@ -17,7 +17,10 @@ export async function fetchProvider(
   const celoChainNames = new Set(['alfajores', 'baklava', 'celo']);
   const provider = celoChainNames.has(chainName)
     ? new StaticCeloJsonRpcProvider(rpc)
-    : new ethers.providers.JsonRpcProvider(rpc);
+    : new RetryJsonRpcProvider(new ethers.providers.JsonRpcProvider(rpc), {
+        retryLimit: 2,
+        interval: 250,
+      });
   return provider;
 }
 

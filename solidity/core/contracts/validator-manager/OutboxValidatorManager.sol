@@ -14,23 +14,25 @@ import {BN256} from "../../libs/BN256.sol";
  * validators and reports it to an Outbox.
  */
 contract OutboxValidatorManager is SchnorrValidatorManager {
+    // ============ Libraries ============
+
+    using BN256 for BN256.G1Point;
+
     // ============ Events ============
 
     /**
      * @notice Emitted when a checkpoint is proven premature.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
-     * @param signedRoot Root of the premature checkpoint.
-     * @param signedIndex Index of the premature checkpoint.
-     * @param signatures A quorum of signatures on the premature checkpoint.
-     * May include non-validator signatures.
      * @param count The number of messages in the Outbox.
      */
     event PrematureCheckpoint(
         address indexed outbox,
-        bytes32 signedRoot,
-        uint256 signedIndex,
-        bytes[] signatures,
+        Checkpoint checkpoint,
+        uint256[2] signature,
+        bytes32 compressedPublicKey,
+        bytes32 compressedNonce,
+        bytes32[] omitted,
         uint256 count
     );
 
@@ -38,25 +40,19 @@ contract OutboxValidatorManager is SchnorrValidatorManager {
      * @notice Emitted when a checkpoint is proven fraudulent.
      * @dev Observers of this event should filter by the outbox address.
      * @param outbox The outbox.
-     * @param signedRoot Root of the fraudulent checkpoint.
-     * @param signedIndex Index of the fraudulent checkpoint.
-     * @param signatures A quorum of signatures on the fraudulent checkpoint.
-     * May include non-validator signatures.
      * @param fraudulentLeaf The leaf in the fraudulent tree.
      * @param fraudulentProof Proof of inclusion of fraudulentLeaf.
-     * @param actualLeaf The leaf in the Outbox's tree.
-     * @param actualProof Proof of inclusion of actualLeaf.
      * @param leafIndex The index of the leaves that are being proved.
      */
     event FraudulentCheckpoint(
         address indexed outbox,
-        bytes32 signedRoot,
-        uint256 signedIndex,
-        bytes[] signatures,
+        Checkpoint checkpoint,
+        uint256[2] signature,
+        bytes32 compressedPublicKey,
+        bytes32 compressedNonce,
+        bytes32[] omitted,
         bytes32 fraudulentLeaf,
         bytes32[32] fraudulentProof,
-        bytes32 actualLeaf,
-        bytes32[32] actualProof,
         uint256 leafIndex
     );
 
@@ -86,10 +82,9 @@ contract OutboxValidatorManager is SchnorrValidatorManager {
      * @dev Premature checkpoints signed by individual validators are not handled to prevent
      * a single byzantine validator from failing the Outbox.
      * @param _outbox The outbox.
-     * @param _signedRoot The root of the signed checkpoint.
-     * @param _signedIndex The index of the signed checkpoint.
-     * @param _signatures Signatures over the checkpoint to be checked for a validator
-     * quorum. Must be sorted in ascending order by signer address.
+     * @param _checkpoint The signed checkpoint.
+     * @param _sigScalars The scalar values that comprise the schnorr signature.
+     * @param _nonce The combined nonce used to verify the signature.
      * @return True iff prematurity was proved.
      */
     function prematureCheckpoint(
@@ -99,17 +94,25 @@ contract OutboxValidatorManager is SchnorrValidatorManager {
         BN256.G1Point calldata _nonce,
         bytes32[] calldata _omittedValidatorCompressedPublicKeys
     ) external returns (bool) {
-        // require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
+        (bool _success, bytes32 _compressedKey) = isQuorum(
+            _checkpoint,
+            _sigScalars,
+            _nonce,
+            _omittedValidatorCompressedPublicKeys
+        );
+        require(_success, "!quorum");
         // Checkpoints are premature if the checkpoint commits to more messages
         // than the Outbox has in its merkle tree.
         uint256 count = _outbox.count();
-        require(_signedIndex >= count, "!premature");
+        require(_checkpoint.index >= count, "!premature");
         _outbox.fail();
         emit PrematureCheckpoint(
             address(_outbox),
-            _signedRoot,
-            _signedIndex,
-            _signatures,
+            _checkpoint,
+            _sigScalars,
+            _compressedKey,
+            _nonce.compress(),
+            _omittedValidatorCompressedPublicKeys,
             count
         );
         return true;
@@ -127,10 +130,9 @@ contract OutboxValidatorManager is SchnorrValidatorManager {
      * @dev Fraudulent checkpoints signed by individual validators are not handled to prevent
      * a single byzantine validator from failing the Outbox.
      * @param _outbox The outbox.
-     * @param _signedRoot The root of the signed checkpoint.
-     * @param _signedIndex The index of the signed checkpoint.
-     * @param _signatures Signatures over the checkpoint to be checked for a validator
-     * quorum. Must be sorted in ascending order by signer address.
+     * @param _checkpoint The signed checkpoint.
+     * @param _sigScalars The scalar values that comprise the schnorr signature.
+     * @param _nonce The combined nonce used to verify the signature.
      * @param _fraudulentLeaf The leaf in the fraudulent tree.
      * @param _fraudulentProof Proof of inclusion of `_fraudulentLeaf`.
      * @param _actualLeaf The leaf in the Outbox's tree.
@@ -151,29 +153,33 @@ contract OutboxValidatorManager is SchnorrValidatorManager {
         uint256 _leafIndex
     ) external returns (bool) {
         // Check the signed checkpoint commits to _fraudulentLeaf at _leafIndex.
-        //require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
         (bool _success, bytes32 _compressedKey) = isQuorum(
             _checkpoint,
             _sigScalars,
             _nonce,
             _omittedValidatorCompressedPublicKeys
         );
-        bytes32 _fraudulentRoot = MerkleLib.branchRoot(
-            _fraudulentLeaf,
-            _fraudulentProof,
-            _leafIndex
-        );
-        require(_fraudulentRoot == _signedRoot, "!root");
-        require(_signedIndex >= _leafIndex, "!index");
+        {
+            require(_success, "!quorum");
+            bytes32 _fraudulentRoot = MerkleLib.branchRoot(
+                _fraudulentLeaf,
+                _fraudulentProof,
+                _leafIndex
+            );
+            require(_fraudulentRoot == _checkpoint.root, "!root");
+            require(_checkpoint.index >= _leafIndex, "!index");
+        }
 
-        // Check the cached checkpoint commits to _actualLeaf at _leafIndex.
-        bytes32 _cachedRoot = MerkleLib.branchRoot(
-            _actualLeaf,
-            _actualProof,
-            _leafIndex
-        );
-        uint256 _cachedIndex = _outbox.cachedCheckpoints(_cachedRoot);
-        require(_cachedIndex > 0 && _cachedIndex >= _leafIndex, "!cache");
+        {
+            // Check the cached checkpoint commits to _actualLeaf at _leafIndex.
+            bytes32 _cachedRoot = MerkleLib.branchRoot(
+                _actualLeaf,
+                _actualProof,
+                _leafIndex
+            );
+            uint256 _cachedIndex = _outbox.cachedCheckpoints(_cachedRoot);
+            require(_cachedIndex > 0 && _cachedIndex >= _leafIndex, "!cache");
+        }
 
         // Check that the two roots commit to at least one differing leaf
         // with index <= _leafIndex.
@@ -192,13 +198,13 @@ contract OutboxValidatorManager is SchnorrValidatorManager {
         _outbox.fail();
         emit FraudulentCheckpoint(
             address(_outbox),
-            _signedRoot,
-            _signedIndex,
-            _signatures,
+            _checkpoint,
+            _sigScalars,
+            _compressedKey,
+            _nonce.compress(),
+            _omittedValidatorCompressedPublicKeys,
             _fraudulentLeaf,
             _fraudulentProof,
-            _actualLeaf,
-            _actualProof,
             _leafIndex
         );
         return true;
