@@ -9,8 +9,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/app@workspace:solidity/app"
   dependencies:
-    "@abacus-network/core": ^0.2.3
-    "@abacus-network/utils": ^0.2.3
+    "@abacus-network/core": ^0.2.1-alpha7
+    "@abacus-network/utils": ^0.2.1-alpha7
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts-upgradeable": ^4.5.0
@@ -33,20 +33,11 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/celo-ethers-provider@npm:^0.1.0":
-  version: 0.1.0
-  resolution: "@abacus-network/celo-ethers-provider@npm:0.1.0"
-  peerDependencies:
-    ethers: ^5
-  checksum: 06f440366bbd9ddf9962aa46c471be1fb587909c4da71a0d816497a5c0c8597e9b315d70fe9ae728ed51fc936097da50da2cd18f750861f3d602660b8ea1ecfd
-  languageName: node
-  linkType: hard
-
-"@abacus-network/core@^0.2.3, @abacus-network/core@workspace:solidity/core":
+"@abacus-network/core@^0.2.1-alpha7, @abacus-network/core@workspace:solidity/core":
   version: 0.0.0-use.local
   resolution: "@abacus-network/core@workspace:solidity/core"
   dependencies:
-    "@abacus-network/utils": ^0.2.3
+    "@abacus-network/utils": ^0.2.1-alpha7
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts": ^4.6.0
@@ -70,14 +61,13 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/deploy@^0.2.3, @abacus-network/deploy@workspace:typescript/deploy":
+"@abacus-network/deploy@^0.2.1-alpha7, @abacus-network/deploy@workspace:typescript/deploy":
   version: 0.0.0-use.local
   resolution: "@abacus-network/deploy@workspace:typescript/deploy"
   dependencies:
-    "@abacus-network/app": ^0.2.3
-    "@abacus-network/core": ^0.2.3
-    "@abacus-network/sdk": ^0.2.3
-    "@abacus-network/utils": ^0.2.3
+    "@abacus-network/core": ^0.2.1-alpha7
+    "@abacus-network/sdk": ^0.2.1-alpha7
+    "@abacus-network/utils": ^0.2.1-alpha7
     "@types/debug": ^4.1.7
     "@types/node": ^16.9.1
     "@types/yargs": ^17.0.10
@@ -95,10 +85,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/hardhat@workspace:typescript/hardhat"
   dependencies:
-    "@abacus-network/core": ^0.2.3
-    "@abacus-network/deploy": ^0.2.3
-    "@abacus-network/sdk": ^0.2.3
-    "@abacus-network/utils": ^0.2.3
+    "@abacus-network/core": ^0.2.1-alpha7
+    "@abacus-network/deploy": ^0.2.1-alpha7
+    "@abacus-network/sdk": ^0.2.1-alpha7
+    "@abacus-network/utils": ^0.2.1-alpha7
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     ethereum-waffle: ^3.2.2
@@ -126,11 +116,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/infra@workspace:typescript/infra"
   dependencies:
-    "@abacus-network/celo-ethers-provider": ^0.1.0
-    "@abacus-network/core": ^0.2.3
-    "@abacus-network/deploy": ^0.2.3
-    "@abacus-network/helloworld": 0.2.3
-    "@abacus-network/sdk": ^0.2.3
+    "@abacus-network/core": ^0.2.1-alpha7
+    "@abacus-network/deploy": ^0.2.1-alpha7
+    "@abacus-network/sdk": ^0.2.1-alpha7
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -170,13 +158,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@0.2.3, @abacus-network/sdk@^0.2.3, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@^0.2.1-alpha7, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
-    "@abacus-network/celo-ethers-provider": ^0.1.0
-    "@abacus-network/core": ^0.2.3
-    "@abacus-network/utils": ^0.2.3
+    "@abacus-network/core": ^0.2.1-alpha7
+    "@abacus-network/utils": ^0.2.1-alpha7
+    "@ethersproject/bignumber": ^5.5.0
+    "@ethersproject/bytes": ^5.5.0
     "@types/node": ^16.9.1
     chai: ^4.3.6
     dotenv: ^10.0.0
@@ -189,7 +178,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/utils@^0.2.3, @abacus-network/utils@workspace:typescript/utils":
+"@abacus-network/utils@^0.2.1-alpha7, @abacus-network/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@abacus-network/utils@workspace:typescript/utils"
   dependencies:

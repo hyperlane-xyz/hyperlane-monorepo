@@ -1,12 +1,12 @@
 {
   "name": "@abacus-network/hardhat",
   "description": "Hardhat related tools for the Abacus network",
-  "version": "0.2.3",
+  "version": "0.2.1-alpha7",
   "dependencies": {
-    "@abacus-network/core": "^0.2.3",
-    "@abacus-network/deploy": "^0.2.3",
-    "@abacus-network/sdk": "^0.2.3",
-    "@abacus-network/utils": "^0.2.3",
+    "@abacus-network/core": "^0.2.1-alpha7",
+    "@abacus-network/deploy": "^0.2.1-alpha7",
+    "@abacus-network/sdk": "^0.2.1-alpha7",
+    "@abacus-network/utils": "^0.2.1-alpha7",
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
     "ethereum-waffle": "^3.2.2",

@@ -1,9 +1,11 @@
 import { debug } from 'debug';
 
+import { Router } from '@abacus-network/app';
 import {
   ChainMap,
   ChainName,
   MultiProvider,
+  ProxiedContract,
   RouterContracts,
   RouterFactories,
   chainMetadata,
@@ -34,24 +36,13 @@ export abstract class AbacusRouterDeployer<
     });
   }
 
-  // for use in implementations of deployContracts
-  async deployRouter(
-    chain: Chain,
-    deployParams: Parameters<Factories['router']['deploy']>,
-    initParams: Parameters<Contracts['router']['initialize']>,
-  ): Promise<Contracts['router']> {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const router = await this.deployContract(chain, 'router', deployParams);
-    this.logger(`Initializing ${chain}'s router with ${initParams}`);
-    const response = await router.initialize(
-      // @ts-ignore spread operator
-      ...initParams,
-      chainConnection.overrides,
-    );
-    this.logger(`Pending init ${chainConnection.getTxUrl(response)}`);
-    await response.wait(chainConnection.confirmations);
-    return router;
+  getRouterInstance(contracts: Contracts): Router {
+    const router = contracts.router;
+    return router instanceof ProxiedContract ? router.contract : router;
   }
+
+  async deploy() {
+    const contractsMap = await super.deploy();
 
   async enrollRemoteRouters(contractsMap: ChainMap<Chain, Contracts>) {
     this.logger(`Enrolling deployed routers with each other...`);
@@ -61,10 +52,11 @@ export abstract class AbacusRouterDeployer<
         const chainConnection = this.multiProvider.getChainConnection(local);
         for (const remote of this.multiProvider.remoteChains(local)) {
           this.logger(`Enroll ${remote}'s router on ${local}`);
-          const response = await contracts.router.enrollRemoteRouter(
+          await this.getRouterInstance(contracts).enrollRemoteRouter(
             chainMetadata[remote].id,
-            utils.addressToBytes32(contractsMap[remote].router.address),
-            chainConnection.overrides,
+            utils.addressToBytes32(
+              this.getRouterInstance(contractsMap[remote]).address,
+            ),
           );
           this.logger(`Pending enroll ${chainConnection.getTxUrl(response)}`);
           await response.wait(chainConnection.confirmations);
