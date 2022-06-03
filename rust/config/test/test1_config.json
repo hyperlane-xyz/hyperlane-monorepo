@@ -6,6 +6,7 @@
       "domain": "13372",
       "name": "test2",
       "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
       "connection": {
         "type": "http",
         "url": ""
@@ -29,6 +30,7 @@
       "domain": "13373",
       "name": "test3",
       "rpcStyle": "ethereum",
+      "finalityBlocks": "2",
       "connection": {
         "type": "http",
         "url": ""
@@ -47,6 +49,7 @@
     "domain": "13371",
     "name": "test1",
     "rpcStyle": "ethereum",
+    "finalityBlocks": "1",
     "connection": {
       "type": "http",
       "url": ""

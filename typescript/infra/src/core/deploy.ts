@@ -1,7 +1,12 @@
 import path from 'path';
 
 import { AbacusAppDeployer, AbacusCoreDeployer } from '@abacus-network/deploy';
-import { ChainName, chainMetadata, objMap } from '@abacus-network/sdk';
+import {
+  ChainName,
+  chainConnectionConfigs,
+  chainMetadata,
+  objMap,
+} from '@abacus-network/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
 
@@ -25,6 +30,7 @@ export class AbacusCoreInfraDeployer<
         domain: chainMetadata[chain].id.toString(),
         name: chain,
         rpcStyle: 'ethereum',
+        finalityBlocks: chainConnectionConfigs[chain].confirmations.toString(),
         connection: {
           type: 'http',
           url: '',
@@ -56,10 +62,12 @@ export class AbacusCoreInfraDeployer<
         const inboxAddresses =
           remoteAddresses.inboxes[chain as Exclude<Chain, Chain>];
 
+        const metadata = chainMetadata[remote];
         const inbox = {
-          domain: chainMetadata[remote].id.toString(),
+          domain: metadata.id.toString(),
           name: remote,
           rpcStyle: 'ethereum',
+          finalityBlocks: metadata.finalityBlocks.toString(),
           connection: {
             type: 'http',
             url: '',
