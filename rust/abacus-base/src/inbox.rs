@@ -1,6 +1,6 @@
 use abacus_core::{
-    accumulator::merkle::Proof, db::AbacusDB, AbacusCommon, AbacusMessage, ChainCommunicationError,
-    Checkpoint, Inbox, MessageStatus, TxOutcome,
+    accumulator::merkle::Proof, db::AbacusDB, AbacusCommon, AbacusContract, AbacusMessage,
+    ChainCommunicationError, Checkpoint, Inbox, MessageStatus, TxOutcome,
 };
 use abacus_test::mocks::inbox::MockInboxContract;
 use async_trait::async_trait;
@@ -8,7 +8,6 @@ use ethers::core::types::H256;
 use eyre::Result;
 
 use abacus_ethereum::EthereumInbox;
-use std::str::FromStr;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
@@ -56,7 +55,7 @@ impl CachingInbox {
         let span = info_span!("InboxContractSync", self = %self);
 
         let sync = ContractSync::new(
-            String::from_str(self.inbox.name()).expect("!string"),
+            self.inbox.chain_name().into(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,
@@ -91,12 +90,14 @@ impl Inbox for CachingInbox {
     }
 }
 
+impl AbacusContract for CachingInbox {
+    fn chain_name(&self) -> &str {
+        self.inbox.chain_name()
+    }
+}
+
 #[async_trait]
 impl AbacusCommon for CachingInbox {
-    fn name(&self) -> &str {
-        self.inbox.name()
-    }
-
     fn local_domain(&self) -> u32 {
         self.inbox.local_domain()
     }
@@ -221,16 +222,18 @@ impl Inbox for InboxVariants {
     }
 }
 
-#[async_trait]
-impl AbacusCommon for InboxVariants {
-    fn name(&self) -> &str {
+impl AbacusContract for InboxVariants {
+    fn chain_name(&self) -> &str {
         match self {
-            InboxVariants::Ethereum(inbox) => inbox.name(),
-            InboxVariants::Mock(mock_inbox) => mock_inbox.name(),
-            InboxVariants::Other(inbox) => inbox.name(),
+            InboxVariants::Ethereum(inbox) => inbox.chain_name(),
+            InboxVariants::Mock(mock_inbox) => mock_inbox.chain_name(),
+            InboxVariants::Other(inbox) => inbox.chain_name(),
         }
     }
+}
 
+#[async_trait]
+impl AbacusCommon for InboxVariants {
     fn local_domain(&self) -> u32 {
         match self {
             InboxVariants::Ethereum(inbox) => inbox.local_domain(),

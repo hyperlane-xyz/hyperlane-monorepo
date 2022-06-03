@@ -1,3 +1,5 @@
+use std::fmt::Debug;
+
 use async_trait::async_trait;
 use ethers::core::types::H256;
 use eyre::Result;
@@ -10,7 +12,7 @@ use crate::{
 
 /// Interface for on-chain inboxes
 #[async_trait]
-pub trait Inbox: AbacusCommon + Send + Sync + std::fmt::Debug {
+pub trait Inbox: AbacusCommon + Send + Sync + Debug {
     /// Return the domain of the inbox's linked outbox
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError>;
 
