@@ -9,8 +9,4 @@ contract TestMailbox is Mailbox {
     function initialize(address _validatorManager) external initializer {
         __Mailbox_initialize(_validatorManager);
     }
-
-    function cacheCheckpoint(bytes32 _root, uint256 _index) external {
-        _cacheCheckpoint(_root, _index);
-    }
 }

@@ -12,18 +12,6 @@ import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
  * them to an Inbox.
  */
 contract InboxValidatorManager is MultisigValidatorManager {
-    // ============ Events ============
-
-    /**
-     * @notice Emitted when a checkpoint has been signed by a quorum
-     * of validators and cached on an Inbox.
-     * @dev This event allows watchers to observe the signatures they need
-     * to prove fraud on the Outbox.
-     * @param signatures The signatures by a quorum of validators on the
-     * checkpoint.
-     */
-    event Quorum(bytes[] signatures);
-
     // ============ Constructor ============
 
     /**
@@ -43,24 +31,29 @@ contract InboxValidatorManager is MultisigValidatorManager {
     // ============ External Functions ============
 
     /**
-     * @notice Submits a checkpoint signed by a quorum of validators to be cached by an Inbox.
+     * @notice Verifies a signed checkpoint and submits a message for processing.
      * @dev Reverts if `_signatures` is not a quorum of validator signatures.
      * @dev Reverts if `_signatures` is not sorted in ascending order by the signer
      * address, which is required for duplicate detection.
-     * @param _inbox The inbox to submit the checkpoint to.
-     * @param _root The merkle root of the checkpoint.
-     * @param _index The index of the checkpoint.
+     * @param _inbox The inbox to submit the message to.
+     * @param _root The merkle root of the signed checkpoint.
+     * @param _index The index of the signed checkpoint.
      * @param _signatures Signatures over the checkpoint to be checked for a validator
      * quorum. Must be sorted in ascending order by signer address.
+     * @param _message The message to process.
+     * @param _proof Merkle proof of inclusion for message's leaf
+     * @param _leafIndex Index of leaf in outbox's merkle tree
      */
-    function cacheCheckpoint(
+    function process(
         IInbox _inbox,
         bytes32 _root,
         uint256 _index,
-        bytes[] calldata _signatures
+        bytes[] calldata _signatures,
+        bytes calldata _message,
+        bytes32[32] calldata _proof,
+        uint256 _leafIndex
     ) external {
         require(isQuorum(_root, _index, _signatures), "!quorum");
-        emit Quorum(_signatures);
-        _inbox.cacheCheckpoint(_root, _index);
+        _inbox.process(_root, _index, _message, _proof, _leafIndex);
     }
 }

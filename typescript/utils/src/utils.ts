@@ -90,3 +90,26 @@ export function domainHash(domain: number): string {
     [domain, 'ABACUS'],
   );
 }
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+// Retries an async function when it raises an exeption
+// if all the tries fail it raises the last thrown exeption
+export async function retryAsync<T>(
+  runner: () => T,
+  attempts = 3,
+  delay = 500,
+) {
+  let saveError;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return runner();
+    } catch (error) {
+      saveError = error;
+      await sleep(delay * (i + 1));
+    }
+  }
+  throw saveError;
+}
