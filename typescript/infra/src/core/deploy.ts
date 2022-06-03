@@ -15,13 +15,16 @@ export class AbacusCoreInfraDeployer<
     objMap(this.configMap, (chain) => {
       const contracts = contractsMap[chain];
 
+      const outboxMetadata = chainMetadata[chain];
       const outbox = {
         addresses: {
           outbox: contracts.outbox.address,
+          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
         },
-        domain: chainMetadata[chain].id.toString(),
+        domain: outboxMetadata.id.toString(),
         name: chain,
         rpcStyle: 'ethereum',
+        finalityBlocks: outboxMetadata.finalityBlocks.toString(),
         connection: {
           type: 'http',
           url: '',
@@ -53,10 +56,12 @@ export class AbacusCoreInfraDeployer<
         const inboxContracts =
           remoteContracts.inboxes[chain as Exclude<Chain, Chain>];
 
+        const metadata = chainMetadata[remote];
         const inbox = {
-          domain: chainMetadata[remote].id.toString(),
+          domain: metadata.id.toString(),
           name: remote,
           rpcStyle: 'ethereum',
+          finalityBlocks: metadata.finalityBlocks.toString(),
           connection: {
             type: 'http',
             url: '',

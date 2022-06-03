@@ -6,6 +6,7 @@
       "domain": "13372",
       "name": "test2",
       "rpcStyle": "ethereum",
+      "finalityBlocks": "1",
       "connection": {
         "type": "http",
         "url": ""
@@ -29,6 +30,7 @@
       "domain": "13373",
       "name": "test3",
       "rpcStyle": "ethereum",
+      "finalityBlocks": "2",
       "connection": {
         "type": "http",
         "url": ""
@@ -41,11 +43,13 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9"
+      "outbox": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+      "interchainGasPaymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
     },
     "domain": "13371",
     "name": "test1",
     "rpcStyle": "ethereum",
+    "finalityBlocks": "1",
     "connection": {
       "type": "http",
       "url": ""

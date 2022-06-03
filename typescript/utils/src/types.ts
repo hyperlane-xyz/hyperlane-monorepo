@@ -26,3 +26,11 @@ export enum MessageStatus {
   NONE = 0,
   PROCESSED,
 }
+
+export type ParsedMessage = {
+  origin: number;
+  sender: string;
+  destination: number;
+  recipient: string;
+  body: string;
+};

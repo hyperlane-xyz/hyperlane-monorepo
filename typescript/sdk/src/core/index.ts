@@ -15,7 +15,6 @@ export {
   AbacusMessage,
   AbacusStatus,
   MessageStatus,
-  parseMessage,
   resolveDomain,
   resolveId,
   resolveNetworks,
