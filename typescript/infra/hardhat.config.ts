@@ -20,21 +20,18 @@ const chainSummary = async <Chain extends ChainName>(
   chain: Chain,
 ) => {
   const coreContracts = core.getContracts(chain);
-  const outbox = coreContracts.outbox.outbox;
+  const outbox = coreContracts.outbox.contract;
   const count = (await outbox.tree()).toNumber();
 
   const inboxSummary = async (remote: Chain) => {
     const remoteContracts = core.getContracts(remote);
-    const inbox = remoteContracts.inboxes[chain as Exclude<Chain, Chain>].inbox;
-    const [inboxCheckpointRoot, inboxCheckpointIndex] =
-      await inbox.latestCachedCheckpoint();
+    const inbox =
+      remoteContracts.inboxes[chain as Exclude<Chain, Chain>].inbox.contract;
     const processFilter = inbox.filters.Process();
     const processes = await inbox.queryFilter(processFilter);
     return {
       chain: remote,
       processed: processes.length,
-      root: inboxCheckpointRoot,
-      index: inboxCheckpointIndex.toNumber(),
     };
   };
 
@@ -76,7 +73,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       const remote: ChainName = randomElement(core.remoteChains(local));
       const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
-      const outbox = coreContracts.outbox.outbox;
+      const outbox = coreContracts.outbox.contract;
       const paymaster = coreContracts.interchainGasPaymaster;
       // Send a batch of messages to the destination chain to test
       // the relayer submitting only greedily

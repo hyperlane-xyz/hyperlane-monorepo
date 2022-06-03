@@ -1,14 +1,8 @@
-import path from 'path';
-
-import { AbacusAppDeployer, AbacusCoreDeployer } from '@abacus-network/deploy';
-import {
-  ChainName,
-  chainConnectionConfigs,
-  chainMetadata,
-  objMap,
-} from '@abacus-network/sdk';
+import { AbacusCoreDeployer } from '@abacus-network/deploy';
+import { ChainName, chainMetadata, objMap } from '@abacus-network/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
+import { writeJSON } from '../utils/utils';
 
 export class AbacusCoreInfraDeployer<
   Chain extends ChainName,
@@ -16,21 +10,21 @@ export class AbacusCoreInfraDeployer<
   writeRustConfigs(
     environment: DeployEnvironment,
     directory: string,
-    contractAddresses: Awaited<ReturnType<AbacusCoreDeployer<Chain>['deploy']>>,
+    contractsMap: Awaited<ReturnType<AbacusCoreDeployer<Chain>['deploy']>>,
   ) {
     objMap(this.configMap, (chain) => {
-      const filepath = path.join(directory, `${chain}_config.json`);
-      const addresses = contractAddresses[chain];
+      const contracts = contractsMap[chain];
 
+      const outboxMetadata = chainMetadata[chain];
       const outbox = {
         addresses: {
-          outbox: addresses.outbox.proxy,
-          interchainGasPaymaster: addresses.interchainGasPaymaster,
+          outbox: contracts.outbox.address,
+          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
         },
-        domain: chainMetadata[chain].id.toString(),
+        domain: outboxMetadata.id.toString(),
         name: chain,
         rpcStyle: 'ethereum',
-        finalityBlocks: chainConnectionConfigs[chain].confirmations.toString(),
+        finalityBlocks: outboxMetadata.finalityBlocks.toString(),
         connection: {
           type: 'http',
           url: '',
@@ -58,9 +52,9 @@ export class AbacusCoreInfraDeployer<
       this.multiProvider.remoteChains(chain).forEach((remote) => {
         // The agent configuration file should contain the `chain`'s inbox on
         // all the remote chains
-        const remoteAddresses = contractAddresses[remote];
-        const inboxAddresses =
-          remoteAddresses.inboxes[chain as Exclude<Chain, Chain>];
+        const remoteContracts = contractsMap[remote];
+        const inboxContracts =
+          remoteContracts.inboxes[chain as Exclude<Chain, Chain>];
 
         const metadata = chainMetadata[remote];
         const inbox = {
@@ -73,14 +67,14 @@ export class AbacusCoreInfraDeployer<
             url: '',
           },
           addresses: {
-            inbox: inboxAddresses.proxy,
-            validatorManager: inboxAddresses.validatorManager,
+            inbox: inboxContracts.inbox.address,
+            validatorManager: inboxContracts.inboxValidatorManager.address,
           },
         };
 
         rustConfig.inboxes[remote] = inbox;
       });
-      AbacusAppDeployer.writeJson(filepath, rustConfig);
+      writeJSON(directory, `${chain}_config.json`, rustConfig);
     });
   }
 }

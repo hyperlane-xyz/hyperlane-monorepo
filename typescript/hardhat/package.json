@@ -4,16 +4,15 @@
   "version": "0.1.1",
   "dependencies": {
     "@abacus-network/core": "^0.1.1",
+    "@abacus-network/deploy": "^0.1.1",
     "@abacus-network/sdk": "^0.1.1",
     "@abacus-network/utils": "^0.1.1",
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
-    "@typechain/hardhat": "^2.0.1",
     "ethereum-waffle": "^3.2.2",
     "ethers": "^5.4.7",
     "hardhat": "^2.8.4",
     "ts-node": "^10.8.0",
-    "typechain": "^5.0.0",
     "typescript": "^4.7.2"
   },
   "directories": {

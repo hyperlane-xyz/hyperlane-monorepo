@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { BigNumberish, ethers } from 'ethers';
 
 import { types, utils } from '@abacus-network/utils';
 
@@ -29,14 +29,14 @@ export class Validator {
     return utils.domainHash(this.localDomain);
   }
 
-  message(root: types.HexString, index: number) {
+  message(root: types.HexString, index: BigNumberish) {
     return ethers.utils.solidityPack(
       ['bytes32', 'bytes32', 'uint256'],
       [this.domainHash(), root, index],
     );
   }
 
-  async signCheckpoint(root: types.HexString, index: number) {
+  async signCheckpoint(root: types.HexString, index: BigNumberish) {
     const message = this.message(root, index);
     const msgHash = ethers.utils.arrayify(ethers.utils.keccak256(message));
     const signature = await this.signer.signMessage(msgHash);

@@ -13,24 +13,21 @@
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@types/mocha": "^9.1.0",
     "@types/node": "^16.9.1",
-    "@types/yargs": "^17.0.8",
+    "@types/yargs": "^17.0.10",
     "asn1.js": "5.4.1",
     "celo-ethers-provider": "^0.0.0",
     "chai": "^4.3.4",
     "dotenv": "^10.0.0",
-    "yargs": "^17.3.1"
+    "yargs": "^17.4.1"
   },
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
-    "@typechain/ethers-v5": "~7.0.0",
-    "@typechain/hardhat": "^2.0.1",
     "@types/chai": "^4.2.21",
     "ethereum-waffle": "^3.2.2",
     "ethers": "^5.4.7",
     "hardhat": "^2.8.4",
     "ts-node": "^10.8.0",
-    "typechain": "^5.0.0",
     "typescript": "^4.7.2"
   },
   "homepage": "https://www.useabacus.network",

@@ -6,15 +6,14 @@
     "@abacus-network/core": "^0.1.1",
     "@abacus-network/sdk": "^0.1.1",
     "@abacus-network/utils": "^0.1.1",
+    "@types/debug": "^4.1.7",
+    "@types/yargs": "^17.0.10",
     "axios": "^0.21.3",
     "debug": "^4.3.4",
     "yargs": "^17.4.1"
   },
   "devDependencies": {
-    "@typechain/ethers-v5": "~7.0.0",
-    "@types/debug": "^4.1.7",
     "@types/node": "^16.9.1",
-    "@types/yargs": "^17.0.10",
     "ethers": "^5.4.7",
     "ts-node": "^10.8.0",
     "typescript": "^4.7.2"

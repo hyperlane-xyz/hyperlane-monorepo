@@ -2,10 +2,10 @@ import { expect } from 'chai';
 
 import {
   AbacusApp,
+  BeaconProxyAddresses,
   ChainMap,
   ChainName,
   MultiProvider,
-  ProxiedAddress,
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
@@ -54,7 +54,7 @@ export abstract class AbacusAppChecker<
   async checkUpgradeBeacon(
     chain: Chain,
     name: string,
-    proxiedAddress: ProxiedAddress,
+    proxiedAddress: BeaconProxyAddresses,
   ) {
     const dc = this.multiProvider.getChainConnection(chain);
     const implementation = await upgradeBeaconImplementation(
