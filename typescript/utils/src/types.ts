@@ -1,5 +1,3 @@
-import { BytesLike } from 'ethers';
-
 /********* BASIC TYPES *********/
 export type Domain = number;
 export type Address = string;

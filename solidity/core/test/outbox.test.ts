@@ -89,7 +89,7 @@ describe('Outbox', async () => {
     });
 
     it('Dispatches a message', async () => {
-      const { message, destDomain, abacusMessage, leafIndex } =
+      const { message, destDomain, abacusMessage, leafIndex, hash } =
         await testMessageValues();
 
       // Send message with signer address as msg.sender
@@ -103,7 +103,7 @@ describe('Outbox', async () => {
           ),
       )
         .to.emit(outbox, 'Dispatch')
-        .withArgs(leafIndex, abacusMessage);
+        .withArgs(hash, leafIndex, destDomain, abacusMessage);
     });
 
     it('Returns the leaf index of the dispatched message', async () => {
