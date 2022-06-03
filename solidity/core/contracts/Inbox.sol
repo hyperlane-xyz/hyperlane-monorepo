@@ -10,13 +10,16 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInbox} from "../interfaces/IInbox.sol";
 
+// ============ External Imports ============
+import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+
 /**
  * @title Inbox
  * @author Celo Labs Inc.
  * @notice Track root updates on Outbox, prove and dispatch messages to end
  * recipients.
  */
-contract Inbox is IInbox, Version0, Mailbox {
+contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -37,15 +40,13 @@ contract Inbox is IInbox, Version0, Mailbox {
 
     // Domain of outbox chain
     uint32 public override remoteDomain;
-    // re-entrancy guard
-    uint8 private entered;
     // Mapping of message leaves to MessageStatus
     mapping(bytes32 => MessageStatus) public messages;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[47] private __GAP;
+    uint256[48] private __GAP;
 
     // ============ Events ============
 
@@ -68,8 +69,8 @@ contract Inbox is IInbox, Version0, Mailbox {
         public
         initializer
     {
+        __ReentrancyGuard_init();
         __Mailbox_initialize(_validatorManager);
-        entered = 1;
         remoteDomain = _remoteDomain;
     }
 
@@ -93,11 +94,7 @@ contract Inbox is IInbox, Version0, Mailbox {
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
-    ) external override onlyValidatorManager {
-        // check re-entrancy guard
-        require(entered == 1, "!reentrant");
-        entered = 0;
-
+    ) external override nonReentrant onlyValidatorManager {
         require(_index >= _leafIndex, "!index");
         bytes32 _messageHash = _message.leaf(_leafIndex);
         // ensure that message has not been processed
@@ -115,8 +112,6 @@ contract Inbox is IInbox, Version0, Mailbox {
         require(_calculatedRoot == _root, "!proof");
         _process(_message, _messageHash);
         emit Process(_messageHash);
-        // reset re-entrancy guard
-        entered = 1;
     }
 
     // ============ Internal Functions ============

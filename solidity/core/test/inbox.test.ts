@@ -113,7 +113,7 @@ describe('Inbox', async () => {
     // Switch ordering of proof hashes
     // NB: We copy 'path' here to avoid mutating the test cases for
     // other tests.
-    const newProof = proof.slice().reverse()
+    const newProof = proof.proof.slice().reverse();
 
     expect(
       validatorManager.process(

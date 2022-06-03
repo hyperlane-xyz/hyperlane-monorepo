@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { BigNumber, ethers } from 'ethers';
 
+import { utils } from '@abacus-network/utils';
+
 import { TestOutbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Outbox';
 
@@ -27,12 +29,13 @@ export const dispatchMessageAndReturnProof = async (
   recipient: string,
   messageStr: string,
 ): Promise<MerkleProof> => {
-  const { messageHash, leafIndex, message } = await dispatchMessage(
+  const { leafIndex, message } = await dispatchMessage(
     outbox,
     destination,
     recipient,
     messageStr,
   );
+  const messageHash = utils.messageHash(message, leafIndex.toNumber());
   const root = await outbox.root();
   const proof = await outbox.proof();
   return {
