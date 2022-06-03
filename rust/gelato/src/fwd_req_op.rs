@@ -1,9 +1,7 @@
 use crate::chains::Chain;
 use crate::err::GelatoError;
 use crate::fwd_req_call::ForwardRequestCall;
-use crate::task_status_call::{
-    TaskStatus, TaskStatusCall, TaskStatusCallArgs,
-};
+use crate::task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs};
 use ethers::signers::Signer;
 use ethers::types::{Address, Bytes, U256};
 use std::sync::Arc;
@@ -71,9 +69,7 @@ pub struct ForwardRequestOp<S> {
 
 impl<S: Signer> ForwardRequestOp<S> {
     #[instrument]
-    pub async fn run(
-        &self,
-    ) -> Result<ForwardRequestOpResult, GelatoError> {
+    pub async fn run(&self) -> Result<ForwardRequestOpResult, GelatoError> {
         // TODO(webbhorn): handle signing error. Presumably for AWS
         // some are retryable, others not?
         let sig = self.signer.sign_typed_data(&self.args).await.unwrap();

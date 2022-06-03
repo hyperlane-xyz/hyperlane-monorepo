@@ -23,9 +23,7 @@ pub struct ForwardRequestCallResult {
 
 impl ForwardRequestCall {
     #[instrument]
-    pub async fn run(
-        &self,
-    ) -> Result<ForwardRequestCallResult, GelatoError> {
+    pub async fn run(&self) -> Result<ForwardRequestCallResult, GelatoError> {
         let url = format!(
             "{}/metabox-relays/{}",
             GATEWAY_URL,
@@ -59,44 +57,27 @@ impl Serialize for HTTPArgs {
     where
         S: Serializer,
     {
-        let mut state =
-            serializer.serialize_struct("ForwardRequestHTTPArgs", 14)?;
+        let mut state = serializer.serialize_struct("ForwardRequestHTTPArgs", 14)?;
         state.serialize_field("typeId", "ForwardRequest")?;
-        state.serialize_field(
-            "chainId",
-            &(u32::from(self.args.chain_id)),
-        )?;
+        state.serialize_field("chainId", &(u32::from(self.args.chain_id)))?;
         state.serialize_field("target", &self.args.target)?;
         state.serialize_field("data", &self.args.data)?;
         state.serialize_field("feeToken", &self.args.fee_token)?;
         // TODO(webbhorn): Get rid of the clone and cast.
-        state.serialize_field(
-            "paymentType",
-            &(self.args.payment_type.clone() as u64),
-        )?;
-        state
-            .serialize_field("maxFee", &self.args.max_fee.to_string())?;
+        state.serialize_field("paymentType", &(self.args.payment_type.clone() as u64))?;
+        state.serialize_field("maxFee", &self.args.max_fee.to_string())?;
         state.serialize_field("gas", &self.args.gas.to_string())?;
         state.serialize_field("sponsor", &self.args.sponsor)?;
         // TODO(webbhorn): Just implement a `From<Chain> for H160` directly?
-        state.serialize_field(
-            "sponsorChainId",
-            &(u32::from(self.args.sponsor_chain_id)),
-        )?;
+        state.serialize_field("sponsorChainId", &(u32::from(self.args.sponsor_chain_id)))?;
         // TODO(webbhorn): Avoid narrowing conversion for serialization.
         state.serialize_field("nonce", &self.args.nonce.as_u128())?;
-        state.serialize_field(
-            "enforceSponsorNonce",
-            &self.args.enforce_sponsor_nonce,
-        )?;
+        state.serialize_field("enforceSponsorNonce", &self.args.enforce_sponsor_nonce)?;
         state.serialize_field(
             "enforceSponsorNonceOrdering",
             &self.args.enforce_sponsor_nonce_ordering,
         )?;
-        state.serialize_field(
-            "sponsorSignature",
-            &format!("0x{}", self.sig.to_string()),
-        )?;
+        state.serialize_field("sponsorSignature", &format!("0x{}", self.sig.to_string()))?;
         state.end()
     }
 }
@@ -144,12 +125,9 @@ mod tests {
 
     const EXAMPLE_DATA_FOR_TESTING: &str =
         "0x4b327067000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee";
-    const ETH_TOKEN_FOR_TESTING: &str =
-        "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
-    const SPONSOR_CONTRACT_FOR_TESTING: &str =
-        "0xEED5eA7e25257a272cb3bF37B6169156D37FB908";
-    const TARGET_CONTRACT_FOR_TESTING: &str =
-        "0x8580995EB790a3002A55d249e92A8B6e5d0b384a";
+    const ETH_TOKEN_FOR_TESTING: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+    const SPONSOR_CONTRACT_FOR_TESTING: &str = "0xEED5eA7e25257a272cb3bF37B6169156D37FB908";
+    const TARGET_CONTRACT_FOR_TESTING: &str = "0x8580995EB790a3002A55d249e92A8B6e5d0b384a";
     const LOCAL_WALLET_KEY_FOR_TESTING: &str =
         "969e81320ae43e23660804b78647bd4de6a12b82e3b06873f11ddbe164ebf58b";
 
@@ -192,8 +170,7 @@ mod tests {
             enforce_sponsor_nonce_ordering: true,
         };
 
-        let wallet =
-            LOCAL_WALLET_KEY_FOR_TESTING.parse::<LocalWallet>().unwrap();
+        let wallet = LOCAL_WALLET_KEY_FOR_TESTING.parse::<LocalWallet>().unwrap();
         let sig = wallet.sign_typed_data(&fwd_req_args).await.unwrap();
         assert_eq!(
             sig.to_string(),
@@ -225,9 +202,7 @@ mod tests {
             payment_type: PaymentType::AsyncGasTank,
             max_fee: U256::from(1000000000000000000i64),
             gas: U256::from(200000i64),
-            sponsor: "97B503cb009670982ef9Ca472d66b3aB92fD6A9B"
-                .parse()
-                .unwrap(),
+            sponsor: "97B503cb009670982ef9Ca472d66b3aB92fD6A9B".parse().unwrap(),
             sponsor_chain_id: Chain::Goerli,
             nonce: U256::from(0i64),
             enforce_sponsor_nonce: false,
@@ -235,7 +210,8 @@ mod tests {
         };
 
         let wallet = "c2fc8dc5512c1fb5df710c3320daa1e1ebc41701a9d5b489692e888228aaf813"
-            .parse::<LocalWallet>().unwrap();
+            .parse::<LocalWallet>()
+            .unwrap();
         let sig = wallet.sign_typed_data(&fwd_req_args).await.unwrap();
         assert_eq!(
             sig.to_string(),
@@ -252,8 +228,7 @@ mod tests {
             r#""0x053d975549b9298bb7672b20d3f7c0960df00d065e6f68c"#,
             r#"29abd8550b31cdbc2"}"#
         );
-        let parsed: HTTPResult =
-            serde_json::from_str(reply_json).unwrap();
+        let parsed: HTTPResult = serde_json::from_str(reply_json).unwrap();
         assert_eq!(
             parsed,
             HTTPResult {

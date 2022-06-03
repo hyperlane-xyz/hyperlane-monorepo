@@ -33,9 +33,7 @@ impl Eip712 for ForwardRequestOpArgs {
     }
     fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
         Ok(keccak256(ethers::abi::encode(&[
-            Token::FixedBytes(
-                ForwardRequestOpArgs::type_hash().unwrap().to_vec(),
-            ),
+            Token::FixedBytes(ForwardRequestOpArgs::type_hash().unwrap().to_vec()),
             Token::Int(U256::from(u32::from(self.chain_id))),
             Token::Address(self.target),
             Token::FixedBytes(keccak256(&self.data).to_vec()),
@@ -75,12 +73,9 @@ mod tests {
         "0x4b327067000000000000000000000000",
         "eeeeeeeeeeeeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee"
     );
-    const ETH_TOKEN_FOR_TESTING: &str =
-        "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-    const SPONSOR_CONTRACT_FOR_TESTING: &str =
-        "0xeed5ea7e25257a272cb3bf37b6169156d37fb908";
-    const TARGET_CONTRACT_FOR_TESTING: &str =
-        "0x8580995eb790a3002a55d249e92a8b6e5d0b384a";
+    const ETH_TOKEN_FOR_TESTING: &str = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
+    const SPONSOR_CONTRACT_FOR_TESTING: &str = "0xeed5ea7e25257a272cb3bf37b6169156d37fb908";
+    const TARGET_CONTRACT_FOR_TESTING: &str = "0x8580995eb790a3002a55d249e92a8b6e5d0b384a";
 
     #[test]
     fn sdk_demo_app() {
@@ -103,9 +98,7 @@ mod tests {
             "5b86c8e692a12ffedb26520fb1cc801f537517ee74d7730a1d806daf2b0c2688"
         );
         assert_eq!(
-            hex::encode(
-                &fwd_req_op::ForwardRequestOpArgs::type_hash().unwrap()
-            ),
+            hex::encode(&fwd_req_op::ForwardRequestOpArgs::type_hash().unwrap()),
             "4aa193de33aca882aa52ebc7dcbdbd732ad1356422dea011f3a1fa08db2fac37"
         );
         assert_eq!(

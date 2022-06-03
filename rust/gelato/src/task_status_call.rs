@@ -25,10 +25,7 @@ pub struct TaskStatusCall {
 impl TaskStatusCall {
     #[instrument]
     pub async fn run(&self) -> Result<TaskStatusCallResult, GelatoError> {
-        let url = format!(
-            "{}/tasks/GelatoMetaBox/{}",
-            RELAY_URL, self.args.task_id
-        );
+        let url = format!("{}/tasks/GelatoMetaBox/{}", RELAY_URL, self.args.task_id);
         info!(?url);
         let res = self.http.get(url).send().await?;
         info!(?res);

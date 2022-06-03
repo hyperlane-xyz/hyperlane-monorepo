@@ -2,8 +2,7 @@ use clap::{arg, command, Command};
 use ethers::signers::{LocalWallet, Signer};
 use gelato::chains::Chain;
 use gelato::fwd_req_op::{
-    ForwardRequestOp, ForwardRequestOpArgs, ForwardRequestOptions,
-    PaymentType,
+    ForwardRequestOp, ForwardRequestOpArgs, ForwardRequestOptions, PaymentType,
 };
 use gelato::task_status_call::{TaskStatusCall, TaskStatusCallArgs};
 use reqwest::Client;
@@ -19,16 +18,13 @@ use tracing_subscriber::FmtSubscriber;
 // https://github.com/clap-rs/clap/blob/master/examples/typed-derive.rs.
 
 const DEFAULT_CHAIN: &str = "5"; // Chain::Goerli. Would be nice to deduce.
-const DEFAULT_TARGET_CONTRACT_ADDRESS: &str =
-    "0x8580995EB790a3002A55d249e92A8B6e5d0b384a";
-const DEFAULT_SPONSOR_CONTRACT_ADDRESS: &str =
-    "0xEED5eA7e25257a272cb3bF37B6169156D37FB908";
+const DEFAULT_TARGET_CONTRACT_ADDRESS: &str = "0x8580995EB790a3002A55d249e92A8B6e5d0b384a";
+const DEFAULT_SPONSOR_CONTRACT_ADDRESS: &str = "0xEED5eA7e25257a272cb3bF37B6169156D37FB908";
 const DEFAULT_DATA_TO_SEND: &str = concat!(
     "0x4b327067000000000000000000000000eeeeeeeeee",
     "eeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee"
 );
-const NATIVE_ETH_TOKEN_ADDRESS: &str =
-    "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
+const NATIVE_ETH_TOKEN_ADDRESS: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
 const DEFAULT_MAX_FEE: &str = "1000000000000000000";
 const DEFAULT_GAS: &str = "200000";
 const DEFAULT_SIGNING_KEY: &str =
@@ -39,8 +35,7 @@ async fn main() {
     let subscriber = FmtSubscriber::builder()
         .with_max_level(Level::TRACE)
         .finish();
-    tracing::subscriber::set_global_default(subscriber)
-        .expect("setting default subscriber failed");
+    tracing::subscriber::set_global_default(subscriber).expect("setting default subscriber failed");
 
     let matches = command!()
         .subcommand(
@@ -53,64 +48,33 @@ async fn main() {
             Command::new("forward-request")
                 .alias("fwd")
                 .about("Runs a ForwardRequest op against Gelato Relay")
-                .arg(
-                    arg!(-c - -chain[chain]).default_value(DEFAULT_CHAIN),
-                )
+                .arg(arg!(-c - -chain[chain]).default_value(DEFAULT_CHAIN))
                 .arg(
                     arg!(-t - -target_contract_address[target])
                         .default_value(DEFAULT_TARGET_CONTRACT_ADDRESS),
                 )
-                .arg(
-                    arg!(-d - -data[data])
-                        .default_value(DEFAULT_DATA_TO_SEND),
-                )
-                .arg(
-                    arg!(-f - -fee_token[fee_token])
-                        .default_value(NATIVE_ETH_TOKEN_ADDRESS),
-                )
-                .arg(
-                    arg!(-p - -payment_type[payment_type])
-                        .default_value("1"),
-                )
-                .arg(
-                    arg!(-m - -max_fee[max_fee])
-                        .default_value(DEFAULT_MAX_FEE),
-                )
+                .arg(arg!(-d - -data[data]).default_value(DEFAULT_DATA_TO_SEND))
+                .arg(arg!(-f - -fee_token[fee_token]).default_value(NATIVE_ETH_TOKEN_ADDRESS))
+                .arg(arg!(-p - -payment_type[payment_type]).default_value("1"))
+                .arg(arg!(-m - -max_fee[max_fee]).default_value(DEFAULT_MAX_FEE))
                 .arg(arg!(-g - -gas[gas]).default_value(DEFAULT_GAS))
-                .arg(
-                    arg!(-s - -sponsor[sponsor])
-                        .default_value(DEFAULT_SPONSOR_CONTRACT_ADDRESS),
-                )
-                .arg(
-                    arg!(-S - -sponsor_chain_id[sponsor_chain_id])
-                        .default_value(DEFAULT_CHAIN),
-                )
-                .arg(
-                    arg!(-k - -private_key[private_key])
-                        .default_value(DEFAULT_SIGNING_KEY),
-                )
+                .arg(arg!(-s - -sponsor[sponsor]).default_value(DEFAULT_SPONSOR_CONTRACT_ADDRESS))
+                .arg(arg!(-S - -sponsor_chain_id[sponsor_chain_id]).default_value(DEFAULT_CHAIN))
+                .arg(arg!(-k - -private_key[private_key]).default_value(DEFAULT_SIGNING_KEY))
                 .arg(arg!(-n - -nonce[nonce]).default_value("0"))
                 .arg(
-                    arg!(
-                        -e - -enforce_sponsor_nonce
-                            [enforce_sponsor_nonce]
-                    )
-                    .default_value("false"),
+                    arg!(-e - -enforce_sponsor_nonce[enforce_sponsor_nonce]).default_value("false"),
                 )
                 .arg(
-                    arg!(
-                        -o - -enforce_sponsor_nonce_ordering
-                            [enforce_sponsor_nonce_ordering]
-                    )
-                    .default_value("false"),
+                    arg!(-o - -enforce_sponsor_nonce_ordering[enforce_sponsor_nonce_ordering])
+                        .default_value("false"),
                 ),
         )
         .get_matches();
 
     match matches.subcommand() {
         Some(("task-status", sub_matches)) => {
-            let id: String =
-                sub_matches.value_of("TASK_ID").unwrap().parse().unwrap();
+            let id: String = sub_matches.value_of("TASK_ID").unwrap().parse().unwrap();
             let call: TaskStatusCall = TaskStatusCall {
                 http: Arc::new(Client::new()),
                 args: TaskStatusCallArgs {
@@ -120,10 +84,7 @@ async fn main() {
             let result = call.run().await;
             match result {
                 Ok(status) => {
-                    println!(
-                        "Task status for task_id='{}': {:#?}",
-                        &id, &status
-                    );
+                    println!("Task status for task_id='{}': {:#?}", &id, &status);
                 }
                 Err(e) => println!("{}", e),
             }
@@ -136,38 +97,14 @@ async fn main() {
                     .unwrap()
                     .parse()
                     .unwrap(),
-                data: sub_matches
-                    .value_of("data")
-                    .unwrap()
-                    .parse()
-                    .unwrap(),
-                fee_token: sub_matches
-                    .value_of("fee_token")
-                    .unwrap()
-                    .parse()
-                    .unwrap(),
+                data: sub_matches.value_of("data").unwrap().parse().unwrap(),
+                fee_token: sub_matches.value_of("fee_token").unwrap().parse().unwrap(),
                 payment_type: PaymentType::AsyncGasTank, // TODO: figure out parsing...
-                max_fee: sub_matches
-                    .value_of("max_fee")
-                    .unwrap()
-                    .parse()
-                    .unwrap(),
-                gas: sub_matches
-                    .value_of("gas")
-                    .unwrap()
-                    .parse()
-                    .unwrap(),
-                sponsor: sub_matches
-                    .value_of("sponsor")
-                    .unwrap()
-                    .parse()
-                    .unwrap(),
+                max_fee: sub_matches.value_of("max_fee").unwrap().parse().unwrap(),
+                gas: sub_matches.value_of("gas").unwrap().parse().unwrap(),
+                sponsor: sub_matches.value_of("sponsor").unwrap().parse().unwrap(),
                 sponsor_chain_id: Chain::Goerli, // TODO: Figure out parsing...
-                nonce: sub_matches
-                    .value_of("nonce")
-                    .unwrap()
-                    .parse()
-                    .unwrap(),
+                nonce: sub_matches.value_of("nonce").unwrap().parse().unwrap(),
                 enforce_sponsor_nonce: sub_matches
                     .value_of("enforce_sponsor_nonce")
                     .unwrap()
