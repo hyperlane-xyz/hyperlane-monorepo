@@ -154,7 +154,7 @@ impl ProveCommand {
         Ok(EthereumInbox::new(
             Arc::new(middleware),
             &ContractLocator {
-                name: "".into(),
+                chain_name: "".into(),
                 domain: 0,
                 address: address.into(),
             },

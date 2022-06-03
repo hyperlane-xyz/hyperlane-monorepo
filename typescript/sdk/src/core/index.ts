@@ -1,10 +1,9 @@
-export { AbacusCore } from './app';
+export { AbacusCore, CoreContractsMap } from './app';
 export {
-  CoreContractAddresses,
   CoreContracts,
   coreFactories,
   InboxContracts,
-  MailboxAddresses,
+  OutboxContracts,
 } from './contracts';
 export { environments as coreEnvironments } from './environments';
 export {
@@ -16,7 +15,6 @@ export {
   AbacusMessage,
   AbacusStatus,
   MessageStatus,
-  parseMessage,
   resolveDomain,
   resolveId,
   resolveNetworks,

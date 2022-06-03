@@ -108,21 +108,25 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       outboxChainName,
     )) as Record<string, AgentGCPKey>;
 
+    const keyId = keyIdentifier(
+      agentConfig.environment,
+      role,
+      outboxChainName,
+      index,
+    );
+
     // Only checkpointer and relayer need to sign txs
     if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
       chainNames.forEach((name) => {
         envVars.push(
           `OPT_BASE_SIGNERS_${name.toUpperCase()}_KEY=${strip0x(
-            gcpKeys[role].privateKey,
+            gcpKeys[keyId].privateKey,
           )}`,
         );
         envVars.push(`OPT_BASE_SIGNERS_${name.toUpperCase()}_TYPE=hexKey`);
       });
     } else if (role === KEY_ROLE_ENUM.Validator) {
-      const privateKey =
-        gcpKeys[
-          keyIdentifier(agentConfig.environment, role, outboxChainName, index)
-        ].privateKey;
+      const privateKey = gcpKeys[keyId].privateKey;
 
       envVars.push(
         `OPT_VALIDATOR_VALIDATOR_KEY=${strip0x(privateKey)}`,
@@ -225,7 +229,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 function configEnvVars(
   config: Record<string, any>,
   role: string,
-  key_name_prefix: string = '',
+  key_name_prefix = '',
 ) {
   let envVars: string[] = [];
   for (const key of Object.keys(config)) {

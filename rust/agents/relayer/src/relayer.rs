@@ -6,7 +6,6 @@ use tracing::{instrument::Instrumented, Instrument};
 use abacus_base::{
     AbacusAgentCore, Agent, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
-use abacus_core::AbacusCommon;
 
 use crate::{
     checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,
@@ -81,16 +80,21 @@ impl Agent for Relayer {
 }
 
 impl Relayer {
-    fn run_contract_sync(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let outbox = self.core.outbox.outbox();
-        let outbox_name = outbox.name();
-        let sync_metrics =
-            ContractSyncMetrics::new(self.metrics(), Some(&["dispatch", outbox_name, "unknown"]));
-        let sync = self.outbox().sync(
-            Self::AGENT_NAME.to_string(),
-            self.as_ref().indexer.clone(),
-            sync_metrics,
-        );
+    fn run_outbox_sync(
+        &self,
+        sync_metrics: ContractSyncMetrics,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
+        let outbox = self.outbox();
+        let sync = outbox.sync(self.as_ref().indexer.clone(), sync_metrics);
+        sync
+    }
+
+    fn run_interchain_gas_paymaster_sync(
+        &self,
+        sync_metrics: ContractSyncMetrics,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
+        let paymaster = self.interchain_gas_paymaster();
+        let sync = paymaster.sync(self.as_ref().indexer.clone(), sync_metrics);
         sync
     }
 
@@ -133,15 +137,17 @@ impl Relayer {
     }
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let mut inbox_tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
+        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
             .inboxes()
             .iter()
             .map(|(inbox_name, inbox_contracts)| {
                 self.wrap_inbox_run(inbox_name, inbox_contracts.clone())
             })
             .collect();
-        inbox_tasks.push(self.run_contract_sync());
-        self.run_all(inbox_tasks)
+        let sync_metrics = ContractSyncMetrics::new(self.metrics());
+        tasks.push(self.run_outbox_sync(sync_metrics.clone()));
+        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics));
+        self.run_all(tasks)
     }
 }
 

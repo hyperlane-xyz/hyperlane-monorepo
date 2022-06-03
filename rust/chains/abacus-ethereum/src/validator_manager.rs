@@ -60,7 +60,7 @@ where
     #[allow(unused)]
     domain: u32,
     #[allow(unused)]
-    name: String,
+    chain_name: String,
     #[allow(unused)]
     provider: Arc<M>,
     inbox_address: Address,
@@ -79,7 +79,7 @@ where
                 provider.clone(),
             )),
             domain: locator.domain,
-            name: locator.name.to_owned(),
+            chain_name: locator.chain_name.to_owned(),
             provider,
             inbox_address,
         }
@@ -96,7 +96,7 @@ where
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.checkpoint(
+        let tx = self.contract.cache_checkpoint(
             self.inbox_address,
             multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
             multisig_signed_checkpoint.checkpoint.index.into(),

@@ -3,11 +3,11 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {Version0} from "./Version0.sol";
-import {Common} from "./Common.sol";
+import {Mailbox} from "./Mailbox.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {MerkleTreeManager} from "./Merkle.sol";
+import {MerkleTreeManager} from "./MerkleTreeManager.sol";
 import {IOutbox} from "../interfaces/IOutbox.sol";
 
 /**
@@ -20,7 +20,7 @@ import {IOutbox} from "../interfaces/IOutbox.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
+contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -48,40 +48,46 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
 
     // ============ Public Storage Variables ============
 
+    // Cached checkpoints, mapping root => leaf index.
+    // Cached checkpoints must have index > 0 as the presence of such
+    // a checkpoint cannot be distinguished from its absence.
+    mapping(bytes32 => uint256) public cachedCheckpoints;
+    // The latest cached root
+    bytes32 public latestCachedRoot;
     // Current state of contract
     States public state;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[49] private __GAP;
+    uint256[47] private __GAP;
 
     // ============ Events ============
 
     /**
+     * @notice Emitted when a checkpoint is cached.
+     * @param root Merkle root
+     * @param index Leaf index
+     */
+    event CheckpointCached(bytes32 indexed root, uint256 indexed index);
+
+    /**
      * @notice Emitted when a new message is dispatched via Abacus
-     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
      * @param leafIndex Index of message's leaf in merkle tree
-     * @param destination Destination domain
      * @param message Raw bytes of message
      */
-    event Dispatch(
-        bytes32 indexed messageHash,
-        uint256 indexed leafIndex,
-        uint32 indexed destination,
-        bytes message
-    );
+    event Dispatch(uint256 indexed leafIndex, bytes message);
 
     event Fail();
 
     // ============ Constructor ============
 
-    constructor(uint32 _localDomain) Common(_localDomain) {} // solhint-disable-line no-empty-blocks
+    constructor(uint32 _localDomain) Mailbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
     // ============ Initializer ============
 
     function initialize(address _validatorManager) public initializer {
-        __Common_initialize(_validatorManager);
+        __Mailbox_initialize(_validatorManager);
         state = States.Active;
     }
 
@@ -127,24 +133,20 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
             abi.encodePacked(_message, _leafIndex)
         );
         tree.insert(_messageHash);
-        // Emit Dispatch event with message information
-        emit Dispatch(_messageHash, _leafIndex, _destinationDomain, _message);
+        emit Dispatch(_leafIndex, _message);
         return _leafIndex;
     }
 
     /**
-     * @notice Checkpoints the latest root and index.
-     * Validators are expected to sign this checkpoint so that it can be
-     * relayed to the Inbox contracts. Checkpoints for a single message (i.e.
-     * count = 1) are disallowed since they make checkpoint tracking more
-     * difficult.
-     * @dev emits Checkpoint event
+     * @notice Caches the current merkle root and index.
+     * @dev emits CheckpointCached event
      */
-    function checkpoint() external override notFailed {
-        uint256 count = count();
-        require(count > 1, "!count");
-        bytes32 root = root();
-        _checkpoint(root, count - 1);
+    function cacheCheckpoint() external override notFailed {
+        (bytes32 _root, uint256 _index) = latestCheckpoint();
+        require(_index > 0, "!index");
+        cachedCheckpoints[_root] = _index;
+        latestCachedRoot = _root;
+        emit CheckpointCached(_root, _index);
     }
 
     /**
@@ -158,37 +160,32 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Common {
     }
 
     /**
-     * @notice Returns whether the provided root and index are a known
-     * checkpoint.
-     * @param _root The merkle root.
-     * @param _index The index.
-     * @return TRUE iff `_root` and `_index` are a known checkpoint.
+     * @notice Returns the latest entry in the checkpoint cache.
+     * @return root Latest cached root
+     * @return index Latest cached index
      */
-    function isCheckpoint(bytes32 _root, uint256 _index)
+    function latestCachedCheckpoint()
         external
         view
-        override
-        returns (bool)
+        returns (bytes32 root, uint256 index)
     {
-        // Checkpoints are zero-indexed, but checkpoints of index 0 are disallowed
-        return _index > 0 && checkpoints[_root] == _index;
+        root = latestCachedRoot;
+        index = cachedCheckpoints[root];
     }
 
-    // ============ Internal Functions  ============
+    /**
+     * @notice Returns the number of inserted leaves in the tree
+     */
+    function count() public view returns (uint256) {
+        return tree.count;
+    }
 
     /**
-     * @notice Internal utility function that combines
-     * `_destination` and `_nonce`.
-     * @dev Both destination and nonce should be less than 2^32 - 1
-     * @param _destination Domain of destination chain
-     * @param _nonce Current nonce for given destination chain
-     * @return Returns (`_destination` << 32) & `_nonce`
+     * @notice Returns a checkpoint representing the current merkle tree.
+     * @return root The root of the Outbox's merkle tree.
+     * @return index The index of the last element in the tree.
      */
-    function _destinationAndNonce(uint32 _destination, uint32 _nonce)
-        internal
-        pure
-        returns (uint64)
-    {
-        return (uint64(_destination) << 32) | _nonce;
+    function latestCheckpoint() public view returns (bytes32, uint256) {
+        return (root(), count() - 1);
     }
 }

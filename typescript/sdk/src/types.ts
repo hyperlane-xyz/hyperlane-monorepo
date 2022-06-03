@@ -1,7 +1,5 @@
 import { ethers } from 'ethers';
 
-import { types } from '@abacus-network/utils';
-
 import { chainMetadata } from './chain-metadata';
 
 /**
@@ -64,14 +62,9 @@ export type RemoteChainMap<
  */
 export type ChainMetadata = {
   id: number;
+  finalityBlocks: number;
   nativeTokenDecimals?: number;
   paginate?: Pagination;
 };
 
 export type Connection = ethers.providers.Provider | ethers.Signer;
-
-export type ProxiedAddress = {
-  proxy: types.Address;
-  implementation: types.Address;
-  beacon: types.Address;
-};

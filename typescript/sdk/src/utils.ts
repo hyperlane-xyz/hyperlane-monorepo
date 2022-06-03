@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
 import { BytesLike, arrayify, hexlify } from '@ethersproject/bytes';
 import { ethers } from 'ethers';
 
@@ -58,7 +59,13 @@ export function delay(ms: number): Promise<void> {
 export class MultiGeneric<Chain extends ChainName, Value> {
   constructor(protected readonly chainMap: ChainMap<Chain, Value>) {}
 
-  protected get = (chain: Chain) => this.chainMap[chain];
+  protected get(chain: Chain) {
+    return this.chainMap[chain];
+  }
+
+  protected set(chain: Chain, value: Value) {
+    this.chainMap[chain] = value;
+  }
 
   chains = () => Object.keys(this.chainMap) as Chain[];
 
@@ -69,7 +76,7 @@ export class MultiGeneric<Chain extends ChainName, Value> {
   }
 
   map<Output>(fn: (n: Chain, dc: Value) => Output) {
-    let entries: [Chain, Output][] = [];
+    const entries: [Chain, Output][] = [];
     const chains = this.chains();
     for (const chain of chains) {
       entries.push([chain, fn(chain, this.chainMap[chain])]);

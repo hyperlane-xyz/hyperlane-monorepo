@@ -1,5 +1,5 @@
 use crate::CoreMetrics;
-use prometheus::{IntCounterVec, IntGauge, IntGaugeVec};
+use prometheus::{IntCounterVec, IntGaugeVec};
 use std::sync::Arc;
 
 /// Struct encapsulating prometheus metrics used by the ContractSync.
@@ -13,18 +13,18 @@ pub struct ContractSyncMetrics {
     /// Unique occasions when agent missed an event (label values
     /// differentiate checkpoints vs. messages)
     pub missed_events: IntCounterVec,
-    /// An optional gauge for tracking the latest message leafs that are being indexed
-    pub message_leaf_index: Option<IntGauge>,
+    /// A gauge for tracking the latest message leafs that are being indexed
+    pub message_leaf_index: IntGaugeVec,
 }
 
 impl ContractSyncMetrics {
     /// Instantiate a new ContractSyncMetrics object.
-    pub fn new(metrics: Arc<CoreMetrics>, opt_labels: Option<&[&str]>) -> Self {
+    pub fn new(metrics: Arc<CoreMetrics>) -> Self {
         let indexed_height = metrics
             .new_int_gauge(
                 "contract_sync_block_height",
                 "Height of a recently observed block",
-                &["data_type", "contract_name", "agent"],
+                &["data_type", "chain"],
             )
             .expect("failed to register block_height metric");
 
@@ -32,7 +32,7 @@ impl ContractSyncMetrics {
             .new_int_gauge(
                 "contract_sync_stored_events",
                 "Number of events stored into db",
-                &["data_type", "contract_name", "agent"],
+                &["data_type", "chain"],
             )
             .expect("failed to register stored_events metric");
 
@@ -40,15 +40,12 @@ impl ContractSyncMetrics {
             .new_int_counter(
                 "contract_sync_missed_events",
                 "Number of unique occasions when agent missed an event",
-                &["data_type", "contract_name", "agent"],
+                &["data_type", "chain"],
             )
             .expect("failed to register missed_events metric");
 
-        let message_leaf_index = opt_labels.map(|labels| {
-            metrics
-                .last_known_message_leaf_index()
-                .with_label_values(labels)
-        });
+        let message_leaf_index = metrics.last_known_message_leaf_index();
+
         ContractSyncMetrics {
             indexed_height,
             stored_events,

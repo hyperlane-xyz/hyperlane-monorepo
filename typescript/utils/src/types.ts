@@ -1,44 +1,8 @@
-import { BytesLike } from 'ethers';
-
 /********* BASIC TYPES *********/
 export type Domain = number;
 export type Address = string;
 export type AddressBytes32 = string;
 export type HexString = string;
-export type BytesArray = [
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-];
 
 /********* ABACUS CORE *********/
 export type Checkpoint = {
@@ -62,3 +26,11 @@ export enum MessageStatus {
   NONE = 0,
   PROCESSED,
 }
+
+export type ParsedMessage = {
+  origin: number;
+  sender: string;
+  destination: number;
+  recipient: string;
+  body: string;
+};

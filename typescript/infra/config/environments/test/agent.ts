@@ -27,10 +27,4 @@ export const agent: AgentConfig<TestChains> = {
       relayerMessageProcessing: true,
     },
   },
-  checkpointer: {
-    default: {
-      pollingInterval: 5,
-      creationLatency: 10,
-    },
-  },
 };

@@ -12,7 +12,9 @@ async function main() {
       try {
         await key.fetch();
         address = key.address;
-      } catch (e) {}
+      } catch (e) {
+        // Swallow error
+      }
       return {
         identifier: key.identifier,
         address,

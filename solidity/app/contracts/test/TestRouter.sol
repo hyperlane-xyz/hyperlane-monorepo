@@ -41,22 +41,4 @@ contract TestRouter is Router {
     ) external payable {
         _dispatchWithGas(_destination, _msg, _gasPayment);
     }
-
-    function dispatchAndCheckpoint(uint32 _destination, bytes memory _msg)
-        external
-    {
-        _dispatchAndCheckpoint(_destination, _msg);
-    }
-
-    function dispatchWithGasAndCheckpoint(
-        uint32 _destination,
-        bytes memory _msg,
-        uint256 _gasPayment
-    ) external payable {
-        _dispatchWithGasAndCheckpoint(_destination, _msg, _gasPayment);
-    }
-
-    function checkpoint() external {
-        _checkpoint();
-    }
 }

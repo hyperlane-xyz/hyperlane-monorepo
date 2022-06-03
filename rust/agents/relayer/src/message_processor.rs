@@ -6,7 +6,9 @@ use std::{
 };
 
 use abacus_base::{CachingInbox, Outboxes};
-use abacus_core::{db::AbacusDB, AbacusCommon, CommittedMessage, Inbox, MessageStatus};
+use abacus_core::{
+    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, MessageStatus,
+};
 use eyre::{bail, Result};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{task::JoinHandle, time::sleep};
@@ -56,12 +58,18 @@ impl MessageProcessor {
         leaf_index_gauge: IntGaugeVec,
         retry_queue_length: IntGaugeVec,
     ) -> Self {
-        let processor_loop_gauge =
-            leaf_index_gauge.with_label_values(&["processor_loop", outbox.name(), inbox.name()]);
-        let processed_gauge =
-            leaf_index_gauge.with_label_values(&["message_processed", outbox.name(), inbox.name()]);
+        let processor_loop_gauge = leaf_index_gauge.with_label_values(&[
+            "processor_loop",
+            outbox.chain_name(),
+            inbox.chain_name(),
+        ]);
+        let processed_gauge = leaf_index_gauge.with_label_values(&[
+            "message_processed",
+            outbox.chain_name(),
+            inbox.chain_name(),
+        ]);
         let retry_queue_length_gauge =
-            retry_queue_length.with_label_values(&[outbox.name(), inbox.name()]);
+            retry_queue_length.with_label_values(&[outbox.chain_name(), inbox.chain_name()]);
         Self {
             polling_interval,
             max_retries,
@@ -76,7 +84,7 @@ impl MessageProcessor {
         }
     }
 
-    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox.name()), level = "debug")]
+    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox.chain_name()), level = "debug")]
     async fn try_processing_message(
         &mut self,
         message_leaf_index: u32,
@@ -97,13 +105,13 @@ impl MessageProcessor {
                     MessageStatus::None => {
                         if message_leaf_index >= self.prover_sync.count() {
                             // gotta find a root that includes the message
-                            let latest_checkpoint = self
+                            let latest_cached_checkpoint = self
                                 .inbox
-                                .latest_checkpoint(Some(self.reorg_period))
+                                .latest_cached_checkpoint(Some(self.reorg_period))
                                 .await?;
 
                             self.prover_sync
-                                .update_to_checkpoint(&latest_checkpoint)
+                                .update_to_checkpoint(&latest_cached_checkpoint)
                                 .await?;
 
                             if message_leaf_index >= self.prover_sync.count() {
@@ -151,7 +159,7 @@ impl MessageProcessor {
         }
     }
 
-    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox.name()), level = "info")]
+    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox.chain_name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         let mut message_leaf_index = 0;
         loop {

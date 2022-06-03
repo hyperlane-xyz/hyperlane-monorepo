@@ -39,6 +39,9 @@ pub use contract_sync::*;
 mod indexer;
 pub use indexer::*;
 
+mod interchain_gas;
+pub use interchain_gas::*;
+
 mod traits;
 pub use traits::*;
 

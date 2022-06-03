@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use std::fmt::Debug;
 
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
@@ -11,7 +12,7 @@ use eyre::Result;
 /// Interface for the Outbox chain contract. Allows abstraction over different
 /// chains
 #[async_trait]
-pub trait Outbox: AbacusCommon + Send + Sync + std::fmt::Debug {
+pub trait Outbox: AbacusCommon + Send + Sync + Debug {
     /// Fetch the current state.
     async fn state(&self) -> Result<State, ChainCommunicationError>;
 
@@ -25,12 +26,12 @@ pub trait Outbox: AbacusCommon + Send + Sync + std::fmt::Debug {
     /// This isn't called `checkpoint` to avoid a conflict with the MockOutboxContract,
     /// which has a conflicting `checkpoint` function automatically created by the mockall
     /// library's automocking attribute macro.
-    async fn create_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError>;
+    async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError>;
 }
 
 /// Interface for retrieving event data emitted specifically by the outbox
 #[async_trait]
-pub trait OutboxEvents: Outbox + Send + Sync + std::fmt::Debug {
+pub trait OutboxEvents: Outbox + Send + Sync + Debug {
     /// Look up a message by its hash.
     /// This should fetch events from the chain API
     async fn raw_message_by_leaf(

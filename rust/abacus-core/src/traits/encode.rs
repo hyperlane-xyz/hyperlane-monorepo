@@ -1,6 +1,9 @@
-use crate::AbacusError;
-use ethers::prelude::{Signature, SignatureError, H256};
 use std::convert::TryFrom;
+use std::io::{Error, ErrorKind};
+
+use ethers::prelude::{Signature, SignatureError, H256, U256};
+
+use crate::AbacusError;
 
 /// Simple trait for types with a canonical encoding
 pub trait Encode {
@@ -73,6 +76,30 @@ impl Decode for H256 {
     }
 }
 
+impl Encode for U256 {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        let mut buf = [0; 32];
+        self.to_little_endian(&mut buf);
+        writer.write_all(&buf)?;
+        Ok(32)
+    }
+}
+
+impl Decode for U256 {
+    fn read_from<R>(reader: &mut R) -> Result<Self, AbacusError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        let mut buf = [0; 32];
+        reader.read_exact(&mut buf)?;
+        Ok(U256::from_little_endian(&buf))
+    }
+}
+
 impl Encode for u32 {
     fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
     where
@@ -114,5 +141,34 @@ impl Decode for u64 {
         let mut buf = [0; 8];
         reader.read_exact(&mut buf)?;
         Ok(u64::from_be_bytes(buf))
+    }
+}
+
+impl Encode for bool {
+    fn write_to<W>(&self, writer: &mut W) -> std::io::Result<usize>
+    where
+        W: std::io::Write,
+    {
+        writer.write_all(&[u8::from(*self)])?;
+        Ok(1)
+    }
+}
+
+impl Decode for bool {
+    fn read_from<R>(reader: &mut R) -> Result<Self, AbacusError>
+    where
+        R: std::io::Read,
+        Self: Sized,
+    {
+        let mut buf = [0; 1];
+        reader.read_exact(&mut buf)?;
+        match buf[0] {
+            0 => Ok(false),
+            1 => Ok(true),
+            _ => Err(AbacusError::IoError(Error::new(
+                ErrorKind::InvalidData,
+                "decoded bool invalid",
+            ))),
+        }
     }
 }

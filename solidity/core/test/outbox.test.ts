@@ -6,8 +6,6 @@ import { types, utils } from '@abacus-network/utils';
 
 import { TestOutbox, TestOutbox__factory } from '../types';
 
-const destinationNonceTestCases = require('../../../vectors/destinationNonce.json');
-
 const localDomain = 1000;
 const destDomain = 2000;
 
@@ -91,7 +89,7 @@ describe('Outbox', async () => {
     });
 
     it('Dispatches a message', async () => {
-      const { message, destDomain, abacusMessage, hash, leafIndex } =
+      const { message, destDomain, abacusMessage, leafIndex } =
         await testMessageValues();
 
       // Send message with signer address as msg.sender
@@ -105,7 +103,7 @@ describe('Outbox', async () => {
           ),
       )
         .to.emit(outbox, 'Dispatch')
-        .withArgs(hash, leafIndex, destDomain, abacusMessage);
+        .withArgs(leafIndex, abacusMessage);
     });
 
     it('Returns the leaf index of the dispatched message', async () => {
@@ -123,7 +121,7 @@ describe('Outbox', async () => {
     });
   });
 
-  it('Checkpoints the latest root', async () => {
+  it('Caches a checkpoint', async () => {
     const message = ethers.utils.formatBytes32String('message');
     const count = 2;
     for (let i = 0; i < count; i++) {
@@ -133,32 +131,19 @@ describe('Outbox', async () => {
         message,
       );
     }
-    await outbox.checkpoint();
-    const [root, index] = await outbox.latestCheckpoint();
+    await outbox.cacheCheckpoint();
+    const root = await outbox.latestCachedRoot();
     expect(root).to.not.equal(ethers.constants.HashZero);
-    expect(index).to.equal(count - 1);
-
-    expect(await outbox.isCheckpoint(root, index)).to.be.true;
+    expect(await outbox.cachedCheckpoints(root)).to.equal(count - 1);
   });
 
-  it('does not allow a checkpoint of index 0', async () => {
+  it('does not allow caching a checkpoint with index 0', async () => {
     const message = ethers.utils.formatBytes32String('message');
     await outbox.dispatch(
       destDomain,
       utils.addressToBytes32(recipient.address),
       message,
     );
-    await expect(outbox.checkpoint()).to.be.revertedWith('!count');
-  });
-
-  it('Correctly calculates destinationAndNonce', async () => {
-    for (let testCase of destinationNonceTestCases) {
-      let { destination, nonce, expectedDestinationAndNonce } = testCase;
-      const solidityDestinationAndNonce = await outbox.destinationAndNonce(
-        destination,
-        nonce,
-      );
-      expect(solidityDestinationAndNonce).to.equal(expectedDestinationAndNonce);
-    }
+    await expect(outbox.cacheCheckpoint()).to.be.revertedWith('!index');
   });
 });

@@ -10,9 +10,9 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusCommon, AbacusCommonIndexer, AbacusMessage,
+    accumulator::merkle::Proof, AbacusCommon, AbacusCommonIndexer, AbacusContract, AbacusMessage,
     ChainCommunicationError, Checkpoint, CheckpointMeta, CheckpointWithMeta, ContractLocator,
-    Encode, Inbox, MessageStatus, TxOutcome,
+    Encode, Inbox, Indexer, MessageStatus, TxOutcome,
 };
 
 use crate::trait_builder::MakeableWithProvider;
@@ -39,6 +39,7 @@ where
 pub struct InboxIndexerBuilder {
     pub from_height: u32,
     pub chunk_size: u32,
+    pub finality_blocks: u32,
 }
 
 impl MakeableWithProvider for InboxIndexerBuilder {
@@ -54,6 +55,7 @@ impl MakeableWithProvider for InboxIndexerBuilder {
             locator,
             self.from_height,
             self.chunk_size,
+            self.finality_blocks,
         ))
     }
 }
@@ -70,6 +72,7 @@ where
     from_height: u32,
     #[allow(unused)]
     chunk_size: u32,
+    finality_blocks: u32,
 }
 
 impl<M> EthereumInboxIndexer<M>
@@ -82,6 +85,7 @@ where
         locator: &ContractLocator,
         from_height: u32,
         chunk_size: u32,
+        finality_blocks: u32,
     ) -> Self {
         Self {
             contract: Arc::new(EthereumInboxInternal::new(
@@ -91,7 +95,24 @@ where
             provider,
             from_height,
             chunk_size,
+            finality_blocks,
         }
+    }
+}
+
+#[async_trait]
+impl<M> Indexer for EthereumInboxIndexer<M>
+where
+    M: Middleware + 'static,
+{
+    #[instrument(err, skip(self))]
+    async fn get_finalized_block_number(&self) -> Result<u32> {
+        Ok(self
+            .provider
+            .get_block_number()
+            .await?
+            .as_u32()
+            .saturating_sub(self.finality_blocks))
     }
 }
 
@@ -101,11 +122,6 @@ where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn get_block_number(&self) -> Result<u32> {
-        Ok(self.provider.get_block_number().await?.as_u32())
-    }
-
-    #[instrument(err, skip(self))]
     async fn fetch_sorted_checkpoints(
         &self,
         from: u32,
@@ -113,7 +129,7 @@ where
     ) -> Result<Vec<CheckpointWithMeta>> {
         let mut events = self
             .contract
-            .checkpoint_filter()
+            .checkpoint_cached_filter()
             .from_block(from)
             .to_block(to)
             .query_with_meta()
@@ -172,7 +188,7 @@ where
 {
     contract: Arc<EthereumInboxInternal<M>>,
     domain: u32,
-    name: String,
+    chain_name: String,
     provider: Arc<M>,
 }
 
@@ -185,7 +201,7 @@ where
     pub fn new(
         provider: Arc<M>,
         ContractLocator {
-            name,
+            chain_name,
             domain,
             address,
         }: &ContractLocator,
@@ -193,9 +209,18 @@ where
         Self {
             contract: Arc::new(EthereumInboxInternal::new(address, provider.clone())),
             domain: *domain,
-            name: name.to_owned(),
+            chain_name: chain_name.to_owned(),
             provider,
         }
+    }
+}
+
+impl<M> AbacusContract for EthereumInbox<M>
+where
+    M: Middleware + 'static,
+{
+    fn chain_name(&self) -> &str {
+        &self.chain_name
     }
 }
 
@@ -206,10 +231,6 @@ where
 {
     fn local_domain(&self) -> u32 {
         self.domain
-    }
-
-    fn name(&self) -> &str {
-        &self.name
     }
 
     #[tracing::instrument(err)]
@@ -230,17 +251,17 @@ where
     }
 
     #[tracing::instrument(err)]
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.checkpointed_root().call().await?.into())
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.latest_cached_root().call().await?.into())
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         maybe_lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError> {
         // This should probably moved into its own trait
-        let base_call = self.contract.latest_checkpoint();
+        let base_call = self.contract.latest_cached_checkpoint();
         let call_with_lag = match maybe_lag {
             Some(lag) => {
                 let tip = self
@@ -255,7 +276,7 @@ where
         };
         let (root, index) = call_with_lag.call().await?;
         Ok(Checkpoint {
-            // This is inefficient, but latest_checkpoint should never be called
+            // This is inefficient, but latest_cached_checkpoint should never be called
             outbox_domain: self.remote_domain().await?,
             root: root.into(),
             index: index.as_u32(),

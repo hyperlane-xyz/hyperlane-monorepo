@@ -12,9 +12,7 @@ use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
 #[cfg(not(doctest))]
-pub use crate::{inbox::*, outbox::*, trait_builder::*, validator_manager::*};
-#[cfg(not(doctest))]
-pub use crate::{inbox::*, outbox::*, validator_manager::*};
+pub use crate::{inbox::*, interchain_gas::*, outbox::*, trait_builder::*, validator_manager::*};
 
 #[cfg(not(doctest))]
 mod tx;
@@ -33,6 +31,10 @@ mod inbox;
 /// InboxValidatorManager abi
 #[cfg(not(doctest))]
 mod validator_manager;
+
+/// InterchainGasPaymaster abi
+#[cfg(not(doctest))]
+mod interchain_gas;
 
 /// Retrying Provider
 mod retrying;

@@ -1,7 +1,8 @@
+import { arrayify, hexlify } from '@ethersproject/bytes';
 import { assert } from 'chai';
 import { ethers } from 'ethers';
 
-import { Address, Domain, HexString } from './types';
+import { Address, Domain, HexString, ParsedMessage } from './types';
 
 /*
  * Gets the byte length of a hex string
@@ -65,6 +66,22 @@ export const formatMessage = (
   );
 };
 
+/**
+ * Parse a serialized Abacus message from raw bytes.
+ *
+ * @param message
+ * @returns
+ */
+export function parseMessage(message: string): ParsedMessage {
+  const buf = Buffer.from(arrayify(message));
+  const origin = buf.readUInt32BE(0);
+  const sender = hexlify(buf.slice(4, 36));
+  const destination = buf.readUInt32BE(36);
+  const recipient = hexlify(buf.slice(40, 72));
+  const body = hexlify(buf.slice(72));
+  return { origin, sender, destination, recipient, body };
+}
+
 export function messageHash(message: HexString, leafIndex: number): string {
   return ethers.utils.solidityKeccak256(
     ['bytes', 'uint256'],
@@ -84,9 +101,32 @@ export function destinationAndNonce(
     .add(ethers.BigNumber.from(sequence));
 }
 
-export function domainHash(domain: Number): string {
+export function domainHash(domain: number): string {
   return ethers.utils.solidityKeccak256(
     ['uint32', 'string'],
     [domain, 'ABACUS'],
   );
+}
+
+export function sleep(ms: number): Promise<void> {
+  return new Promise<void>((resolve) => setTimeout(resolve, ms));
+}
+
+// Retries an async function when it raises an exeption
+// if all the tries fail it raises the last thrown exeption
+export async function retryAsync<T>(
+  runner: () => T,
+  attempts = 3,
+  delay = 500,
+) {
+  let saveError;
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return runner();
+    } catch (error) {
+      saveError = error;
+      await sleep(delay * (i + 1));
+    }
+  }
+  throw saveError;
 }

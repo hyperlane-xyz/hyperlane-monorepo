@@ -2,14 +2,17 @@ import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
-import { Validator } from '@abacus-network/utils';
+import { Validator, types, utils } from '@abacus-network/utils';
 
 import {
   Inbox,
   InboxValidatorManager,
   InboxValidatorManager__factory,
   Inbox__factory,
+  TestOutbox__factory,
+  TestRecipient__factory,
 } from '../../types';
+import { MerkleProof, dispatchMessageAndReturnProof } from '../lib/mailboxes';
 
 import { signCheckpoint } from './utils';
 
@@ -21,6 +24,7 @@ describe('InboxValidatorManager', () => {
   let validatorManager: InboxValidatorManager,
     inbox: Inbox,
     signer: SignerWithAddress,
+    proof: MerkleProof,
     validator0: Validator,
     validator1: Validator;
 
@@ -41,39 +45,62 @@ describe('InboxValidatorManager', () => {
 
     const inboxFactory = new Inbox__factory(signer);
     inbox = await inboxFactory.deploy(INBOX_DOMAIN);
-    await inbox.initialize(
-      OUTBOX_DOMAIN,
-      validatorManager.address,
-      ethers.constants.HashZero,
-      0,
+    await inbox.initialize(OUTBOX_DOMAIN, validatorManager.address);
+
+    // Deploy a helper outbox contract so that we can easily construct merkle
+    // proofs.
+    const outboxFactory = new TestOutbox__factory(signer);
+    const helperOutbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
+    await helperOutbox.initialize(validatorManager.address);
+    const recipientF = await new TestRecipient__factory(signer).deploy();
+    const recipient = utils.addressToBytes32(recipientF.address);
+    proof = await dispatchMessageAndReturnProof(
+      helperOutbox,
+      INBOX_DOMAIN,
+      recipient,
+      'hello world',
     );
   });
 
-  describe('#checkpoint', () => {
-    const root = ethers.utils.formatBytes32String('test root');
-    const index = 1;
-
-    it('submits a checkpoint to the Inbox if there is a quorum', async () => {
+  describe('#process', () => {
+    it('processes a message on the Inbox if there is a quorum', async () => {
       const signatures = await signCheckpoint(
-        root,
-        index,
+        proof.root,
+        proof.index,
         [validator0, validator1], // 2/2 signers, making a quorum
       );
 
-      await validatorManager.checkpoint(inbox.address, root, index, signatures);
-
-      expect(await inbox.checkpoints(root)).to.equal(index);
+      await validatorManager.process(
+        inbox.address,
+        proof.root,
+        proof.index,
+        signatures,
+        proof.message,
+        proof.proof,
+        proof.index,
+      );
+      expect(await inbox.messages(proof.leaf)).to.eql(
+        types.MessageStatus.PROCESSED,
+      );
     });
 
     it('reverts if there is not a quorum', async () => {
       const signatures = await signCheckpoint(
-        root,
-        index,
+        proof.root,
+        proof.index,
         [validator0], // 1/2 signers is not a quorum
       );
 
       await expect(
-        validatorManager.checkpoint(inbox.address, root, index, signatures),
+        validatorManager.process(
+          inbox.address,
+          proof.root,
+          proof.index,
+          signatures,
+          proof.message,
+          proof.proof,
+          proof.index,
+        ),
       ).to.be.revertedWith('!quorum');
     });
   });

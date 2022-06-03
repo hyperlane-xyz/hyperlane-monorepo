@@ -2,9 +2,12 @@ mod common;
 mod encode;
 mod inbox;
 mod indexer;
+mod interchain_gas;
 mod message;
 mod outbox;
 mod validator_manager;
+
+use std::fmt::Debug;
 
 use async_trait::async_trait;
 use ethers::{
@@ -21,6 +24,7 @@ pub use common::*;
 pub use encode::*;
 pub use inbox::*;
 pub use indexer::*;
+pub use interchain_gas::*;
 pub use message::*;
 pub use outbox::*;
 pub use validator_manager::*;
@@ -80,9 +84,18 @@ where
     }
 }
 
+/// Interface for a deployed contract.
+/// This trait is intended to expose attributes of any contract, and
+/// should not consider the purpose or implementation details of the contract.
+pub trait AbacusContract {
+    /// Return an identifier (not necessarily unique) for the chain this
+    /// contract is deployed to.
+    fn chain_name(&self) -> &str;
+}
+
 /// Interface for attributes shared by Outbox and Inbox
 #[async_trait]
-pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
+pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
     /// Return the domain ID
     fn local_domain(&self) -> u32;
 
@@ -91,10 +104,6 @@ pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
         domain_hash(self.local_domain())
     }
 
-    /// Return an identifier (not necessarily unique) for the chain this
-    /// contract is running on.
-    fn name(&self) -> &str;
-
     /// Get the status of a transaction.
     async fn status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError>;
 
@@ -102,10 +111,10 @@ pub trait AbacusCommon: Sync + Send + std::fmt::Debug {
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError>;
 
     /// Fetch the current root.
-    async fn checkpointed_root(&self) -> Result<H256, ChainCommunicationError>;
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError>;
 
     /// Return the latest checkpointed root and its index.
-    async fn latest_checkpoint(
+    async fn latest_cached_checkpoint(
         &self,
         lag: Option<u64>,
     ) -> Result<Checkpoint, ChainCommunicationError>;

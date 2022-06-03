@@ -8,10 +8,6 @@ contract TestInbox is Inbox {
 
     constructor(uint32 _localDomain) Inbox(_localDomain) {} // solhint-disable-line no-empty-blocks
 
-    function setCheckpoint(bytes32 _root, uint256 _index) external {
-        checkpoints[_root] = _index;
-    }
-
     function testBranchRoot(
         bytes32 leaf,
         bytes32[32] calldata proof,
