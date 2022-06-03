@@ -1,8 +1,0 @@
-undecided:
-  - "@abacus-network/monorepo"
-  - "@abacus-network/app"
-  - "@abacus-network/core"
-  - "@abacus-network/deploy"
-  - "@abacus-network/hardhat"
-  - "@abacus-network/sdk"
-  - "@abacus-network/utils"
