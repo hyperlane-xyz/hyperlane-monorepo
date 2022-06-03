@@ -12,20 +12,20 @@ use crate::err::GelatoError;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Chain {
-    Mainnet,
-    Ropsten,
-    Rinkeby,
-    Goerli,
-    Kovan,
-    XDai,
-    Polygon,
-    PolygonMumbai,
-    Avalanche,
-    AvalancheFuji,
-    Sepolia,
-    Moonbeam,
-    MoonbeamDev,
-    Moonriver,
+    Mainnet = 1,
+    Ropsten = 3,
+    Rinkeby = 4,
+    Goerli = 5,
+    Kovan = 42,
+    XDai = 100,
+    Polygon = 137,
+    PolygonMumbai = 80001,
+    Avalanche = 43114,
+    AvalancheFuji = 43113,
+    Sepolia = 1155111,
+    Moonbeam = 1287,
+    MoonbeamDev = 1281,
+    Moonriver = 1285,
 }
 
 impl fmt::Display for Chain {
