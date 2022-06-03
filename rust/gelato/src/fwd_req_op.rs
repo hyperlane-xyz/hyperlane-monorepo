@@ -99,9 +99,7 @@ impl<S: Signer> ForwardRequestOp<S> {
             //     4.  A transient, OK state, or temporary error,
             //         in which case, re-enter the top of the inner
             //         retry loop.
-            let mut attempt = 0;
-            loop {
-                attempt += 1;
+            for attempt in 0.. {
                 info!(?attempt);
                 // TODO(webbhorn): Resubmit the op if
                 // 'opts.retry_submit_interval' has elapsed since
