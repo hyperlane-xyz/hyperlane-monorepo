@@ -1,9 +1,11 @@
 import { debug } from 'debug';
 
+import { Router } from '@abacus-network/app';
 import {
   ChainMap,
   ChainName,
   MultiProvider,
+  ProxiedContract,
   RouterContracts,
   RouterFactories,
   chainMetadata,
@@ -32,6 +34,11 @@ export abstract class AbacusRouterDeployer<
     super(multiProvider, configMap, factories, { ...options, logger });
   }
 
+  getRouterInstance(contracts: Contracts): Router {
+    const router = contracts.router;
+    return router instanceof ProxiedContract ? router.contract : router;
+  }
+
   async deploy() {
     const contractsMap = await super.deploy();
 
@@ -41,9 +48,11 @@ export abstract class AbacusRouterDeployer<
       objMap(contractsMap, async (local, contracts) => {
         for (const remote of this.multiProvider.remoteChains(local)) {
           this.logger(`Enroll ${remote}'s router on ${local}`);
-          await contracts.router.enrollRemoteRouter(
+          await this.getRouterInstance(contracts).enrollRemoteRouter(
             chainMetadata[remote].id,
-            utils.addressToBytes32(contractsMap[remote].router.address),
+            utils.addressToBytes32(
+              this.getRouterInstance(contractsMap[remote]).address,
+            ),
           );
         }
       }),
