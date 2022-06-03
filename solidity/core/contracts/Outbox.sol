@@ -73,17 +73,10 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
 
     /**
      * @notice Emitted when a new message is dispatched via Abacus
-     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
      * @param leafIndex Index of message's leaf in merkle tree
-     * @param destination Destination domain
      * @param message Raw bytes of message
      */
-    event Dispatch(
-        bytes32 indexed messageHash,
-        uint256 indexed leafIndex,
-        uint32 indexed destination,
-        bytes message
-    );
+    event Dispatch(uint256 indexed leafIndex, bytes message);
 
     event Fail();
 
@@ -140,8 +133,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
             abi.encodePacked(_message, _leafIndex)
         );
         tree.insert(_messageHash);
-        // Emit Dispatch event with message information
-        emit Dispatch(_messageHash, _leafIndex, _destinationDomain, _message);
+        emit Dispatch(_leafIndex, _message);
         return _leafIndex;
     }
 

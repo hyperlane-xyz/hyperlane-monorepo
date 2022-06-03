@@ -1,10 +1,10 @@
 import { AbacusCore } from '.';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { BigNumber } from '@ethersproject/bignumber';
-import { arrayify, hexlify } from '@ethersproject/bytes';
 import { keccak256 } from 'ethers/lib/utils';
 
 import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+import { types, utils } from '@abacus-network/utils';
 
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { MultiProvider } from '../provider';
@@ -24,15 +24,6 @@ import {
   ProcessEvent,
 } from './events';
 
-// I didn't want to override the existing ParsedMessage in message.ts as that would include having to type AbacusMessage and more and it's not clear to me that we will keep those.
-type ParsedMessage = {
-  origin: number;
-  sender: string;
-  destination: number;
-  recipient: string;
-  body: string;
-};
-
 export const resolveDomain = (nameOrDomain: NameOrDomain): ChainName =>
   typeof nameOrDomain === 'number'
     ? DomainIdToChainName[nameOrDomain]
@@ -44,7 +35,7 @@ export const resolveId = (nameOrDomain: NameOrDomain): number =>
     : nameOrDomain;
 
 export const resolveNetworks = (
-  message: ParsedMessage,
+  message: types.ParsedMessage,
 ): { origin: ChainName; destination: ChainName } => {
   return {
     origin: resolveDomain(message.origin),
@@ -74,22 +65,6 @@ export type EventCache = {
   process?: AnnotatedProcess;
 };
 
-/**
- * Parse a serialized Abacus message from raw bytes.
- *
- * @param message
- * @returns
- */
-export function parseMessage(message: string): ParsedMessage {
-  const buf = Buffer.from(arrayify(message));
-  const origin = buf.readUInt32BE(0);
-  const sender = hexlify(buf.slice(4, 36));
-  const destination = buf.readUInt32BE(36);
-  const recipient = hexlify(buf.slice(40, 72));
-  const body = hexlify(buf.slice(72));
-  return { origin, sender, destination, recipient, body };
-}
-
 // TODO: move AbacusMessage into AbacusCore app
 
 /**
@@ -97,7 +72,7 @@ export function parseMessage(message: string): ParsedMessage {
  */
 export class AbacusMessage {
   readonly dispatch: AnnotatedDispatch;
-  readonly message: ParsedMessage;
+  readonly message: types.ParsedMessage;
   readonly outbox: Outbox;
   readonly inbox: Inbox;
 
@@ -112,7 +87,7 @@ export class AbacusMessage {
   ) {
     this.multiProvider = multiProvider;
     this.core = core;
-    this.message = parseMessage(dispatch.event.args.message);
+    this.message = utils.parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
 
     const messageNetworks = resolveNetworks(this.message);
@@ -423,7 +398,10 @@ export class AbacusMessage {
    * The messageHash committed to the tree in the Outbox contract.
    */
   get leaf(): string {
-    return this.dispatch.event.args.messageHash;
+    return utils.messageHash(
+      this.dispatch.event.args.message,
+      this.dispatch.event.args.leafIndex.toNumber(),
+    );
   }
 
   /**
