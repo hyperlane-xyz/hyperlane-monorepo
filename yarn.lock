@@ -5,7 +5,7 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@workspace:solidity/app":
+"@abacus-network/app@^0.2.1-alpha7, @abacus-network/app@workspace:solidity/app":
   version: 0.0.0-use.local
   resolution: "@abacus-network/app@workspace:solidity/app"
   dependencies:
@@ -61,6 +61,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/deploy@workspace:typescript/deploy"
   dependencies:
+    "@abacus-network/app": ^0.2.1-alpha7
     "@abacus-network/core": ^0.2.1-alpha7
     "@abacus-network/sdk": ^0.2.1-alpha7
     "@abacus-network/utils": ^0.2.1-alpha7

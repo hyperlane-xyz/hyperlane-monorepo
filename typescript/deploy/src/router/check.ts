@@ -1,8 +1,10 @@
 import { expect } from 'chai';
 
+import { Router } from '@abacus-network/app';
 import {
   AbacusApp,
   ChainName,
+  ProxiedContract,
   RouterContracts,
   chainMetadata,
 } from '@abacus-network/sdk';
@@ -23,18 +25,23 @@ export class AbacusRouterChecker<
     return AbacusAppChecker.checkOwnership(owner, ownables);
   }
 
+  getRouterInstance(router: Router | ProxiedContract<Router, any>) {
+    return router instanceof ProxiedContract ? router.contract : router;
+  }
+
   async checkChain(chain: Chain): Promise<void> {
     await this.checkEnrolledRouters(chain);
     await this.checkOwnership(chain);
-    await this.checkAbacusConnectionManager(chain);
   }
 
   async checkEnrolledRouters(chain: Chain): Promise<void> {
-    const router = this.app.getContracts(chain).router;
+    const router = this.getRouterInstance(this.app.getContracts(chain).router);
 
     await Promise.all(
       this.app.remoteChains(chain).map(async (remoteNetwork) => {
-        const remoteRouter = this.app.getContracts(remoteNetwork).router;
+        const remoteRouter = this.getRouterInstance(
+          this.app.getContracts(remoteNetwork).router,
+        );
         const remoteChainId = chainMetadata[remoteNetwork].id;
         expect(await router.routers(remoteChainId)).to.equal(
           utils.addressToBytes32(remoteRouter.address),
@@ -45,23 +52,7 @@ export class AbacusRouterChecker<
 
   ownables(chain: Chain): Ownable[] {
     const contracts = this.app.getContracts(chain);
-    const ownables: Ownable[] = [contracts.router];
-    const config = this.configMap[chain];
-    // If the config specifies that an abacusConnectionManager should have been deployed,
-    // it should be owned by the owner.
-    if (config.abacusConnectionManager && contracts.abacusConnectionManager) {
-      ownables.push(contracts.abacusConnectionManager);
-    }
+    const ownables: Ownable[] = [this.getRouterInstance(contracts.router)];
     return ownables;
-  }
-
-  async checkAbacusConnectionManager(chain: Chain): Promise<void> {
-    const config = this.configMap[chain];
-    const contracts = this.app.getContracts(chain);
-    if (!config.abacusConnectionManager || !contracts.abacusConnectionManager) {
-      return;
-    }
-    const actual = contracts.abacusConnectionManager.address;
-    expect(actual).to.equal(config.abacusConnectionManager);
   }
 }
