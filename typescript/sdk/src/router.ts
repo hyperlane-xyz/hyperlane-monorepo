@@ -5,7 +5,7 @@ import { ProxiedContract } from './proxy';
 
 export type RouterContracts<RouterContract extends Router = Router> =
   AbacusContracts & {
-    router: RouterContract | ProxiedContract<Router, any>;
+    router: RouterContract | ProxiedContract<RouterContract, any>;
   };
 
 export type RouterFactories<
