@@ -41,10 +41,26 @@ export const alfajores: IChainConnection = {
   confirmations: 1,
 };
 
+export const auroratestnet: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://testnet.aurora.dev',
+    1313161555,
+  ),
+  confirmations: 1,
+};
+
 export const fuji: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
     'https://api.avax-test.network/ext/bc/C/rpc',
     43113,
+  ),
+  confirmations: 1,
+};
+
+export const goerli: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://rpc.ankr.com/eth_goerli',
+    5,
   ),
   confirmations: 1,
 };
@@ -114,12 +130,14 @@ export const test3: IChainConnection = {
 };
 
 const _configs = {
+  auroratestnet,
   ethereum,
   celo,
   polygon,
   avalanche,
   alfajores,
   fuji,
+  goerli,
   kovan,
   mumbai,
   bsctestnet,
@@ -138,7 +156,5 @@ export const addSignerToConnection =
     signer,
   });
 
-export const chainConnectionConfigs: ChainMap<
-  keyof typeof _configs,
-  IChainConnection
-> = _configs;
+export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> =
+  _configs;

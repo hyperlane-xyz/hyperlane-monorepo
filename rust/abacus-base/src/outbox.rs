@@ -1,7 +1,7 @@
 use abacus_core::db::AbacusDB;
 use abacus_core::{
-    AbacusCommon, ChainCommunicationError, Checkpoint, Message, Outbox, OutboxEvents,
-    RawCommittedMessage, State, TxOutcome,
+    AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, Message, Outbox,
+    OutboxEvents, RawCommittedMessage, State, TxOutcome,
 };
 
 use abacus_ethereum::EthereumOutbox;
@@ -10,7 +10,6 @@ use async_trait::async_trait;
 use ethers::core::types::H256;
 use eyre::Result;
 use futures_util::future::select_all;
-use std::str::FromStr;
 use std::sync::Arc;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
@@ -63,7 +62,7 @@ impl CachingOutbox {
         let span = info_span!("OutboxContractSync", self = %self);
 
         let sync = ContractSync::new(
-            String::from_str(self.outbox.name()).expect("!string"),
+            self.outbox.chain_name().into(),
             self.db.clone(),
             self.indexer.clone(),
             index_settings,
@@ -131,12 +130,14 @@ impl OutboxEvents for CachingOutbox {
     }
 }
 
+impl AbacusContract for CachingOutbox {
+    fn chain_name(&self) -> &str {
+        self.outbox.chain_name()
+    }
+}
+
 #[async_trait]
 impl AbacusCommon for CachingOutbox {
-    fn name(&self) -> &str {
-        self.outbox.name()
-    }
-
     fn local_domain(&self) -> u32 {
         self.outbox.local_domain()
     }
@@ -266,16 +267,18 @@ impl Outbox for OutboxVariants {
     }
 }
 
-#[async_trait]
-impl AbacusCommon for OutboxVariants {
-    fn name(&self) -> &str {
+impl AbacusContract for OutboxVariants {
+    fn chain_name(&self) -> &str {
         match self {
-            OutboxVariants::Ethereum(outbox) => outbox.name(),
-            OutboxVariants::Mock(mock_outbox) => mock_outbox.name(),
-            OutboxVariants::Other(outbox) => outbox.name(),
+            OutboxVariants::Ethereum(outbox) => outbox.chain_name(),
+            OutboxVariants::Mock(mock_outbox) => mock_outbox.chain_name(),
+            OutboxVariants::Other(outbox) => outbox.chain_name(),
         }
     }
+}
 
+#[async_trait]
+impl AbacusCommon for OutboxVariants {
     fn local_domain(&self) -> u32 {
         match self {
             OutboxVariants::Ethereum(outbox) => outbox.local_domain(),
