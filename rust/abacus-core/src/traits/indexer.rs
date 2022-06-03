@@ -17,7 +17,7 @@ use crate::{CheckpointWithMeta, InterchainGasPaymentWithMeta, RawCommittedMessag
 /// Interface for an indexer.
 #[async_trait]
 pub trait Indexer: Send + Sync + Debug {
-    /// Get chain's latest block number
+    /// Get the chain's latest block number that has reached finality
     async fn get_finalized_block_number(&self) -> Result<u32>;
 }
 

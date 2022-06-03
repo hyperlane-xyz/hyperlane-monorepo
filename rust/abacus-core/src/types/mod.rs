@@ -26,7 +26,7 @@ pub struct InterchainGasPayment {
 pub struct InterchainGasPaymentMeta {
     /// The transaction hash in which the GasPayment log was emitted
     pub transaction_hash: H256,
-    /// The index of the GasPayment log in the transaction
+    /// The index of the GasPayment log within the transaction's logs
     pub log_index: U256,
 }
 

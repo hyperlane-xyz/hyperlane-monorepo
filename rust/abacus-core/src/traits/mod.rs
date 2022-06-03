@@ -84,10 +84,12 @@ where
     }
 }
 
-/// Interface for an Abacus contract
+/// Interface for a deployed contract.
+/// This trait is intended to expose attributes of any contract, and
+/// should not consider the purpose or implementation details of the contract.
 pub trait AbacusContract {
     /// Return an identifier (not necessarily unique) for the chain this
-    /// contract is running on.
+    /// contract is deployed to.
     fn chain_name(&self) -> &str;
 }
 

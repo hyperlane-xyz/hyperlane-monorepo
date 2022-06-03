@@ -1,7 +1,7 @@
 use abacus_core::InterchainGasPaymasterIndexer;
 
 use tokio::{task::JoinHandle, time::sleep};
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use tracing::{debug, info, info_span, instrument::Instrumented, Instrument};
 
 use std::cmp::min;
 use std::time::Duration;
@@ -49,6 +49,7 @@ where
                 // Only index blocks considered final
                 let tip = indexer.get_finalized_block_number().await?;
                 if tip <= from {
+                    debug!(tip=?tip, from=?from, "[GasPayments]: caught up to tip, waiting for new block");
                     // TODO: Make this configurable
                     // Sleep if caught up to tip
                     sleep(Duration::from_secs(1)).await;
