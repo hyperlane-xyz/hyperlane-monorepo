@@ -24,6 +24,8 @@ contract InboxValidatorManager is MultisigValidatorManager {
      */
     event Quorum(bytes[] signatures);
 
+    // ============ Modifiers ============
+
     // ============ Constructor ============
 
     /**
@@ -58,8 +60,7 @@ contract InboxValidatorManager is MultisigValidatorManager {
         bytes32 _root,
         uint256 _index,
         bytes[] calldata _signatures
-    ) external {
-        require(isQuorum(_root, _index, _signatures), "!quorum");
+    ) external mustBeQuorum(_root, _index, _signatures) {
         emit Quorum(_signatures);
         _inbox.cacheCheckpoint(_root, _index);
     }

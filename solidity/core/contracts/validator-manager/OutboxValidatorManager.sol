@@ -7,6 +7,12 @@ import {IOutbox} from "../../interfaces/IOutbox.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
 import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
 
+error SignedRootNotFraudulent();
+error SignedIndexNotFraudulent();
+error CachedRootDoesNotContainLeaf();
+error FraudNotProven();
+error CheckpointNotPremature();
+
 /**
  * @title OutboxValidatorManager
  * @notice Verifies if an premature or fraudulent checkpoint has been signed by a quorum of
@@ -96,12 +102,17 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         bytes32 _signedRoot,
         uint256 _signedIndex,
         bytes[] calldata _signatures
-    ) external returns (bool) {
-        require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
+    )
+        external
+        mustBeQuorum(_signedRoot, _signedIndex, _signatures)
+        returns (bool)
+    {
         // Checkpoints are premature if the checkpoint commits to more messages
         // than the Outbox has in its merkle tree.
         uint256 count = _outbox.count();
-        require(_signedIndex >= count, "!premature");
+        if (_signedIndex < count) {
+            revert CheckpointNotPremature();
+        }
         _outbox.fail();
         emit PrematureCheckpoint(
             address(_outbox),
@@ -146,40 +157,53 @@ contract OutboxValidatorManager is MultisigValidatorManager {
         bytes32 _actualLeaf,
         bytes32[32] calldata _actualProof,
         uint256 _leafIndex
-    ) external returns (bool) {
-        // Check the signed checkpoint commits to _fraudulentLeaf at _leafIndex.
-        require(isQuorum(_signedRoot, _signedIndex, _signatures), "!quorum");
-        bytes32 _fraudulentRoot = MerkleLib.branchRoot(
-            _fraudulentLeaf,
-            _fraudulentProof,
-            _leafIndex
-        );
-        require(_fraudulentRoot == _signedRoot, "!root");
-        require(_signedIndex >= _leafIndex, "!index");
+    )
+        external
+        mustBeQuorum(_signedRoot, _signedIndex, _signatures)
+        returns (bool)
+    {
+        {
+            // scope to avoid stack too deep errors
+            // Check the signed checkpoint commits to _fraudulentLeaf at _leafIndex.
+            bytes32 _fraudulentRoot = MerkleLib.branchRoot(
+                _fraudulentLeaf,
+                _fraudulentProof,
+                _leafIndex
+            );
+            if (_signedRoot != _fraudulentRoot) {
+                revert SignedRootNotFraudulent();
+            } else if (_signedIndex < _leafIndex) {
+                revert SignedIndexNotFraudulent();
+            }
+        }
 
-        // Check the cached checkpoint commits to _actualLeaf at _leafIndex.
-        bytes32 _cachedRoot = MerkleLib.branchRoot(
-            _actualLeaf,
-            _actualProof,
-            _leafIndex
-        );
-        uint256 _cachedIndex = _outbox.cachedCheckpoints(_cachedRoot);
-        require(_cachedIndex > 0 && _cachedIndex >= _leafIndex, "!cache");
+        {
+            // scope to avoid stack too deep errors
+            // Check the cached checkpoint commits to _actualLeaf at _leafIndex.
+            uint256 _cachedIndex = _outbox.cachedCheckpoints(
+                MerkleLib.branchRoot(_actualLeaf, _actualProof, _leafIndex)
+            );
+            // uncached implies zero index
+            if (_cachedIndex < _leafIndex) {
+                revert CachedRootDoesNotContainLeaf();
+            }
+        }
 
         // Check that the two roots commit to at least one differing leaf
         // with index <= _leafIndex.
-        require(
-            impliesDifferingLeaf(
+        if (
+            !impliesDifferingLeaf(
                 _fraudulentLeaf,
                 _fraudulentProof,
                 _actualLeaf,
                 _actualProof,
                 _leafIndex
-            ),
-            "!fraud"
-        );
+            )
+        ) {
+            revert FraudNotProven();
+        }
 
-        // Fail the Outbox.
+        // Fail the Outbox
         _outbox.fail();
         emit FraudulentCheckpoint(
             address(_outbox),

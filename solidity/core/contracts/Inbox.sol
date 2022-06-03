@@ -9,9 +9,13 @@ import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInbox} from "../interfaces/IInbox.sol";
-
 // ============ External Imports ============
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+
+error CacheOldCheckpointIndex();
+error RootNotCached(bytes32 root);
+error MessageAlreadyProcessed(bytes32 messageHash);
+error MessageNotLocal(uint32 remoteDomain);
 
 /**
  * @title Inbox
@@ -96,7 +100,9 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         onlyValidatorManager
     {
         // Ensure that the checkpoint is newer than the latest we've cached.
-        require(_index > cachedCheckpoints[latestCachedRoot], "!newer");
+        if (_index <= cachedCheckpoints[latestCachedRoot]) {
+            revert CacheOldCheckpointIndex();
+        }
         _cacheCheckpoint(_root, _index);
     }
 
@@ -118,10 +124,9 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
     ) external override nonReentrant {
         bytes32 _messageHash = _message.leaf(_index);
         // ensure that message has not been processed
-        require(
-            messages[_messageHash] == MessageStatus.None,
-            "!MessageStatus.None"
-        );
+        if (messages[_messageHash] == MessageStatus.Processed) {
+            revert MessageAlreadyProcessed(_messageHash);
+        }
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             _messageHash,
@@ -129,7 +134,9 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
             _index
         );
         // ensure that the root has been cached
-        require(cachedCheckpoints[_calculatedRoot] >= _index, "!cache");
+        if (_index > cachedCheckpoints[_calculatedRoot]) {
+            revert RootNotCached(_calculatedRoot);
+        }
         _process(_message, _messageHash);
         emit Process(_messageHash, _index, _proof);
     }
@@ -152,7 +159,9 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         ) = _message.destructure();
 
         // ensure message was meant for this domain
-        require(destination == localDomain, "!destination");
+        if (destination != localDomain) {
+            revert MessageNotLocal(destination);
+        }
 
         // update message status as processed
         messages[_messageHash] = MessageStatus.Processed;

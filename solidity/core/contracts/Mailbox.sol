@@ -7,6 +7,10 @@ import {IMailbox} from "../interfaces/IMailbox.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
+error SenderNotValidatorManager();
+error AddressNotContract();
+error CacheZeroCheckpointIndex();
+
 /**
  * @title Mailbox
  * @author Celo Labs Inc.
@@ -55,7 +59,9 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
      * @notice Ensures that a function is called by the validator manager contract.
      */
     modifier onlyValidatorManager() {
-        require(msg.sender == validatorManager, "!validatorManager");
+        if (msg.sender != validatorManager) {
+            revert SenderNotValidatorManager();
+        }
         _;
     }
 
@@ -111,10 +117,9 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
      * @param _validatorManager Address of the validator manager
      */
     function _setValidatorManager(address _validatorManager) internal {
-        require(
-            Address.isContract(_validatorManager),
-            "!contract validatorManager"
-        );
+        if (!Address.isContract(_validatorManager)) {
+            revert AddressNotContract();
+        }
         validatorManager = _validatorManager;
         emit NewValidatorManager(_validatorManager);
     }
@@ -126,7 +131,9 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
      * @param _index The leaf index of the latest message in the merkle tree.
      */
     function _cacheCheckpoint(bytes32 _root, uint256 _index) internal {
-        require(_index > 0, "!index");
+        if (_index == 0) {
+            revert CacheZeroCheckpointIndex();
+        }
         cachedCheckpoints[_root] = _index;
         latestCachedRoot = _root;
         emit CheckpointCached(_root, _index);
