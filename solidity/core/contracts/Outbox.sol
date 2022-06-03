@@ -175,7 +175,6 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
     function latestCachedCheckpoint()
         external
         view
-        override
         returns (bytes32 root, uint256 index)
     {
         root = latestCachedRoot;

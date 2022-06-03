@@ -10,7 +10,10 @@ import {
   TestOutbox,
   TestOutbox__factory,
 } from '../../types';
-import { MerkleProof, dispatchMessageAndReturnProof } from '../lib/mailboxes';
+import {
+  MerkleProof,
+  dispatchMessageAndReturnProof as _dispatchMessageAndReturnProof,
+} from '../lib/mailboxes';
 
 import { signCheckpoint } from './utils';
 
@@ -33,8 +36,11 @@ describe('OutboxValidatorManager', () => {
     validator1 = await Validator.fromSigner(signers[2], OUTBOX_DOMAIN);
   });
 
-  const dispatchMessage = async (outbox: TestOutbox, message: string) => {
-    return dispatchMessageAndReturnProof(
+  const dispatchMessageAndReturnProof = async (
+    outbox: TestOutbox,
+    message: string,
+  ) => {
+    return _dispatchMessageAndReturnProof(
       outbox,
       INBOX_DOMAIN,
       utils.addressToBytes32(validator0.address),
@@ -68,7 +74,7 @@ describe('OutboxValidatorManager', () => {
     const root = ethers.utils.formatBytes32String('test root');
 
     beforeEach(async () => {
-      await dispatchMessage(outbox, 'message');
+      await dispatchMessageAndReturnProof(outbox, 'message');
     });
 
     it('accepts a premature checkpoint if it has been signed by a quorum of validators', async () => {
@@ -145,17 +151,17 @@ describe('OutboxValidatorManager', () => {
     const helperMessage = (j: number) =>
       j === differingIndex ? fraudulentMessage : actualMessage;
     for (; index < proofIndex; index++) {
-      await dispatchMessage(outbox, actualMessage);
-      await dispatchMessage(helperOutbox, helperMessage(index));
+      await dispatchMessageAndReturnProof(outbox, actualMessage);
+      await dispatchMessageAndReturnProof(helperOutbox, helperMessage(index));
     }
-    const proofA = await dispatchMessage(outbox, actualMessage);
-    const proofB = await dispatchMessage(
+    const proofA = await dispatchMessageAndReturnProof(outbox, actualMessage);
+    const proofB = await dispatchMessageAndReturnProof(
       helperOutbox,
       helperMessage(proofIndex),
     );
     for (index = proofIndex + 1; index < messageCount; index++) {
-      await dispatchMessage(outbox, actualMessage);
-      await dispatchMessage(helperOutbox, helperMessage(index));
+      await dispatchMessageAndReturnProof(outbox, actualMessage);
+      await dispatchMessageAndReturnProof(helperOutbox, helperMessage(index));
     }
 
     return { proofA: proofA, proofB: proofB };

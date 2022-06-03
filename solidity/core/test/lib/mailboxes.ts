@@ -1,8 +1,6 @@
 import { expect } from 'chai';
 import { BigNumber, ethers } from 'ethers';
 
-import { types } from '@abacus-network/utils';
-
 import { TestOutbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Outbox';
 
@@ -15,7 +13,7 @@ export const dispatchMessage = async (
   const tx = await outbox.dispatch(
     destination,
     recipient,
-    ethers.utils.formatBytes32String(messageStr),
+    ethers.utils.toUtf8Bytes(messageStr),
   );
   const receipt = await tx.wait();
   const dispatch = receipt.events![0] as DispatchEvent;
@@ -39,7 +37,7 @@ export const dispatchMessageAndReturnProof = async (
   const proof = await outbox.proof();
   return {
     root,
-    proof: proof as types.BytesArray,
+    proof: proof,
     leaf: messageHash,
     index: leafIndex,
     message,
@@ -48,7 +46,7 @@ export const dispatchMessageAndReturnProof = async (
 
 export interface MerkleProof {
   root: string;
-  proof: types.BytesArray;
+  proof: string[];
   leaf: string;
   index: BigNumber;
   message: string;

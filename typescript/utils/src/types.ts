@@ -5,40 +5,6 @@ export type Domain = number;
 export type Address = string;
 export type AddressBytes32 = string;
 export type HexString = string;
-export type BytesArray = [
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-  BytesLike,
-];
 
 /********* ABACUS CORE *********/
 export type Checkpoint = {
