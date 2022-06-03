@@ -3,18 +3,19 @@ import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import { ethers } from 'hardhat';
 
-import { utils } from '@abacus-network/utils';
+import { Validator, types, utils } from '@abacus-network/utils';
 
 import {
   Inbox,
   InboxValidatorManager,
   InboxValidatorManager__factory,
   Inbox__factory,
-  TestOutbox,
   TestOutbox__factory,
   TestRecipient__factory,
 } from '../../types';
-import { Checkpoint, dispatchMessageAndReturnProof } from '../lib/mailboxes';
+import { MerkleProof, dispatchMessageAndReturnProof } from '../lib/mailboxes';
+
+import { signCheckpoint } from './utils';
 
 const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;

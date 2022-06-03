@@ -17,23 +17,6 @@ contract InboxValidatorManager is SchnorrValidatorManager {
 
     using BN256 for BN256.G1Point;
 
-    // ============ Events ============
-
-    /**
-     * @notice Emitted when a checkpoint has been signed by a quorum
-     * of validators and cached on an Inbox.
-     * @dev This event allows watchers to observe the signatures they need
-     * to prove fraud on the Outbox.
-     */
-    event Quorum(
-        address inbox,
-        Checkpoint checkpoint,
-        uint256[2] signature,
-        bytes32 compressedPublicKey,
-        bytes32 compressedNonce,
-        bytes32[] omitted
-    );
-
     // ============ Constructor ============
 
     /**
@@ -63,7 +46,6 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         uint256 _leafIndex
     ) external {
         _requireQuorum(
-            _inbox,
             _checkpoint,
             _sigScalars,
             _nonce,
@@ -90,7 +72,6 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         uint256[] calldata _leafIndices
     ) external {
         _requireQuorum(
-            _inbox,
             _checkpoint,
             _sigScalars,
             _nonce,
@@ -106,7 +87,6 @@ contract InboxValidatorManager is SchnorrValidatorManager {
     }
 
     function _requireQuorum(
-        IInbox _inbox,
         Checkpoint calldata _checkpoint,
         uint256[2] calldata _sigScalars,
         BN256.G1Point calldata _nonce,
@@ -120,7 +100,6 @@ contract InboxValidatorManager is SchnorrValidatorManager {
         );
         require(_success, "!quorum");
         emit Quorum(
-            address(_inbox),
             _checkpoint,
             _sigScalars,
             _compressedKey,

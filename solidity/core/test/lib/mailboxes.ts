@@ -1,10 +1,10 @@
 import { expect } from 'chai';
 import { BigNumber, ethers } from 'ethers';
 
-import { types, utils } from '@abacus-network/utils';
+import { utils } from '@abacus-network/utils';
 
 import { TestOutbox } from '../../types';
-import { Dispatch2Event } from '../../types/contracts/Outbox';
+import { DispatchEvent } from '../../types/contracts/Outbox';
 
 export interface Checkpoint {
   root: string;
@@ -13,7 +13,7 @@ export interface Checkpoint {
 
 export interface MerkleProof {
   checkpoint: Checkpoint;
-  proof: types.BytesArray;
+  proof: string[];
   leaf: string;
   message: string;
 }

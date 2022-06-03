@@ -67,6 +67,20 @@ abstract contract SchnorrValidatorManager is Ownable {
      */
     event SetThreshold(uint256 threshold);
 
+    /**
+     * @notice Emitted when a checkpoint has been signed by a quorum
+     * of validators and cached on an Inbox.
+     * @dev This event allows watchers to observe the signatures they need
+     * to prove fraud on the Outbox.
+     */
+    event Quorum(
+        Checkpoint checkpoint,
+        uint256[2] signature,
+        bytes32 compressedPublicKey,
+        bytes32 compressedNonce,
+        bytes32[] omitted
+    );
+
     // ============ Constructor ============
 
     /**

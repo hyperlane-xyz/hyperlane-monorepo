@@ -22,13 +22,6 @@ const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;
 const QUORUM_THRESHOLD = 2;
 
-interface MerkleProof {
-  root: string;
-  proof: BytesArray;
-  leaf: string;
-  index: number;
-}
-
 describe('OutboxValidatorManager', () => {
   let validatorManager: OutboxValidatorManager,
     outbox: TestOutbox,

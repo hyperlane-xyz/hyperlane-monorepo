@@ -55,12 +55,10 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
      * @dev This event allows watchers to observe the merkle proof they need
      * to prove fraud on the Outbox.
      * @param messageHash Hash of message that was processed.
-     * @param leafIndex The leaf index of the message that was processed.
-     * @param proof A merkle proof of inclusion of `messageHash` at `leafIndex`.
      */
     event Process(
         bytes32 indexed messageHash,
-        uint256 indexed leafIndex,
+        uint256 leafIndex,
         bytes32[32] proof
     );
 

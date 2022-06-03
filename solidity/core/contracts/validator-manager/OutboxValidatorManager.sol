@@ -39,18 +39,11 @@ contract OutboxValidatorManager is SchnorrValidatorManager {
     /**
      * @notice Emitted when a checkpoint is proven fraudulent.
      * @dev Observers of this event should filter by the outbox address.
-     * @param outbox The outbox.
      * @param fraudulentLeaf The leaf in the fraudulent tree.
      * @param fraudulentProof Proof of inclusion of fraudulentLeaf.
      * @param leafIndex The index of the leaves that are being proved.
      */
     event FraudulentCheckpoint(
-        address indexed outbox,
-        Checkpoint checkpoint,
-        uint256[2] signature,
-        bytes32 compressedPublicKey,
-        bytes32 compressedNonce,
-        bytes32[] omitted,
         bytes32 fraudulentLeaf,
         bytes32[32] fraudulentProof,
         uint256 leafIndex
@@ -196,13 +189,15 @@ contract OutboxValidatorManager is SchnorrValidatorManager {
 
         // Fail the Outbox.
         _outbox.fail();
-        emit FraudulentCheckpoint(
-            address(_outbox),
+        emit Quorum(
             _checkpoint,
             _sigScalars,
             _compressedKey,
             _nonce.compress(),
-            _omittedValidatorCompressedPublicKeys,
+            _omittedValidatorCompressedPublicKeys
+        );
+
+        emit FraudulentCheckpoint(
             _fraudulentLeaf,
             _fraudulentProof,
             _leafIndex
