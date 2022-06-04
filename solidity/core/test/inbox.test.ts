@@ -73,7 +73,7 @@ describe('Inbox', async () => {
     const root = ethers.utils.formatBytes32String('first new root');
     const index = 1;
     await expect(inbox.cacheCheckpoint(root, index)).to.be.revertedWith(
-      '!validatorManager',
+      'SenderNotValidatorManager()',
     );
   });
 
@@ -89,7 +89,7 @@ describe('Inbox', async () => {
     index = 9;
     await expect(
       validatorManager.cacheCheckpoint(inbox.address, root, index),
-    ).to.be.revertedWith('!newer');
+    ).to.be.revertedWith('CacheOldCheckpointIndex()');
   });
 
   it('Processes a valid message', async () => {
@@ -114,8 +114,9 @@ describe('Inbox', async () => {
     await inbox.setMessageStatus(leaf, MessageStatus.PROCESSED);
 
     // Try to process message again
+    const hash = utils.messageHash(message, index);
     await expect(inbox.process(message, proof, index, '0x')).to.be.revertedWith(
-      '!MessageStatus.None',
+      `MessageAlreadyProcessed("${hash}")`,
     );
   });
 
@@ -132,7 +133,7 @@ describe('Inbox', async () => {
     await inbox.setCachedCheckpoint(root, 1);
 
     expect(inbox.process(message, newProof, index, '0x')).to.be.revertedWith(
-      '!cache',
+      `RootNotCached(${root})`,
     );
     expect(await inbox.messages(leaf)).to.equal(types.MessageStatus.NONE);
   });
@@ -164,18 +165,18 @@ describe('Inbox', async () => {
     const body = ethers.utils.formatBytes32String('message');
 
     const leafIndex = 0;
+    const wrongDomain = localDomain + 5;
     const abacusMessage = utils.formatMessage(
       remoteDomain,
       sender.address,
-      // Wrong destination Domain
-      localDomain + 5,
+      wrongDomain,
       recipient.address,
       body,
     );
 
     await expect(
       inbox.testProcess(abacusMessage, leafIndex),
-    ).to.be.revertedWith('!destination');
+    ).to.be.revertedWith(`MessageNotLocal(${wrongDomain})`);
   });
 
   it('Fails to process message sent to a non-existent contract address', async () => {

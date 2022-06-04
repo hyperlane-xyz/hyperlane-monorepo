@@ -142,7 +142,7 @@ describe('OutboxValidatorManager', () => {
           prematureIndex,
           signatures,
         ),
-      ).to.be.revertedWith('!quorum');
+      ).to.be.revertedWith('SignaturesNotQuorum()');
     });
 
     it('reverts if a non-premature checkpoint has been signed by a quorum of validators', async () => {
@@ -160,7 +160,7 @@ describe('OutboxValidatorManager', () => {
           validIndex,
           signatures,
         ),
-      ).to.be.revertedWith('!premature');
+      ).to.be.revertedWith('CheckpointNotPremature()');
     });
   });
 
@@ -314,7 +314,7 @@ describe('OutboxValidatorManager', () => {
           actual.proof,
           fraudulent.index,
         ),
-      ).to.be.revertedWith('!quorum');
+      ).to.be.revertedWith('SignaturesNotQuorum()');
     });
 
     it('reverts if the signed root is not fraudulent', async () => {
@@ -337,7 +337,7 @@ describe('OutboxValidatorManager', () => {
           actual.proof,
           fraudulent.index,
         ),
-      ).to.be.revertedWith('!root');
+      ).to.be.revertedWith('SignedRootNotFraudulent()');
     });
 
     it('reverts if the disputed leaf is not committed to by the signed checkpoint', async () => {
@@ -360,7 +360,7 @@ describe('OutboxValidatorManager', () => {
           actual.proof,
           fraudulent.index,
         ),
-      ).to.be.revertedWith('!index');
+      ).to.be.revertedWith('SignedIndexNotFraudulent()');
     });
 
     it('reverts if the actual root is not cached', async () => {
@@ -382,7 +382,7 @@ describe('OutboxValidatorManager', () => {
           actual.proof,
           fraudulent.index,
         ),
-      ).to.be.revertedWith('!cache');
+      ).to.be.revertedWith('CachedRootDoesNotContainLeaf()');
     });
 
     it('reverts if the root is not fraudulent', async () => {
@@ -405,7 +405,7 @@ describe('OutboxValidatorManager', () => {
           actual.proof,
           actual.index,
         ),
-      ).to.be.revertedWith('!fraud');
+      ).to.be.revertedWith('FraudNotProven()');
     });
   });
 });

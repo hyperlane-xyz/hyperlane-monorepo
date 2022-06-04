@@ -63,7 +63,7 @@ describe('Mailbox', async () => {
       '0x9c7a007113f829cfd019a91e4ca5e7f6760589fd6bc7925c877f6971ffee1647';
     const index = 0;
     await expect(mailbox.cacheCheckpoint(root, index)).to.be.revertedWith(
-      '!index',
+      'CacheZeroCheckpointIndex()',
     );
   });
 });

@@ -79,7 +79,7 @@ describe('InboxValidatorManager', () => {
           index,
           signatures,
         ),
-      ).to.be.revertedWith('!quorum');
+      ).to.be.revertedWith('SignaturesNotQuorum()');
     });
   });
 });

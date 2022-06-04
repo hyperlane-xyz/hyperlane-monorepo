@@ -8,10 +8,11 @@ import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
 error SignaturesNotQuorum();
-error UnsortedSigners(address prev, address curr);
+error UnsortedSigners();
 error ValidatorAlreadyEnrolled();
 error ValidatorNotEnrolled();
 error ValidatorSetTooSmall(uint256 size, uint256 min);
+error SetZeroThreshold();
 
 /**
  * @title MultisigValidatorManager
@@ -179,7 +180,7 @@ abstract contract MultisigValidatorManager is Ownable {
                 _signatures[i]
             );
             if (_previousSigner >= _signer) {
-                revert UnsortedSigners(_previousSigner, _signer);
+                revert UnsortedSigners();
             }
             // If the signer is a validator, increment _validatorSignatureCount.
             if (isValidator(_signer)) {
@@ -264,6 +265,8 @@ abstract contract MultisigValidatorManager is Ownable {
     function _setThreshold(uint256 _threshold) internal {
         if (_threshold > validatorCount()) {
             revert ValidatorSetTooSmall(validatorCount(), _threshold);
+        } else if (_threshold == 0) {
+            revert SetZeroThreshold();
         }
         threshold = _threshold;
         emit SetThreshold(_threshold);
