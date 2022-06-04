@@ -23,7 +23,6 @@ export {
   InboxContracts,
   MessageStatus,
   OutboxContracts,
-  parseMessage,
   resolveDomain,
   resolveId,
   resolveNetworks,

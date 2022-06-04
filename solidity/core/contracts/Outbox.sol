@@ -136,7 +136,6 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
         );
         */
         tree.insert(_messageHash);
-        // Emit Dispatch event with message information
         emit Dispatch(_leafIndex, _message);
         return _leafIndex;
     }

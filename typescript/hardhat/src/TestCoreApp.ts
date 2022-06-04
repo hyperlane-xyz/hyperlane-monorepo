@@ -11,7 +11,7 @@ import {
   TestChainNames,
   chainMetadata,
 } from '@abacus-network/sdk';
-import { types } from '@abacus-network/utils';
+import { types, utils } from '@abacus-network/utils';
 import { ethers } from 'ethers';
 
 type MockProxyAddresses = {
@@ -68,7 +68,8 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
     const dispatchFilter = outbox.filters.Dispatch();
     const dispatches = await outbox.queryFilter(dispatchFilter);
     for (const dispatch of dispatches) {
-      const destination = dispatch.args.destination;
+      const message = utils.parseMessage(dispatch.args.message);
+      const destination = message.destination;
       if (destination === chainMetadata[origin].id) {
         throw new Error('Dispatched message to local domain');
       }
@@ -76,7 +77,12 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
       const inbox: TestInbox =
         // @ts-ignore
         this.getContracts(destinationChain).inboxes[origin].inbox.contract;
-      const status = await inbox.messages(dispatch.args.messageHash);
+      const status = await inbox.messages(
+        utils.messageHash(
+          dispatch.args.message,
+          dispatch.args.leafIndex.toNumber(),
+        ),
+      );
       if (status !== types.MessageStatus.PROCESSED) {
         const response = await inbox.testProcess(
           dispatch.args.message,
