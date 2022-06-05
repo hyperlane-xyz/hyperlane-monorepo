@@ -12,5 +12,5 @@ interface IInbox is IMailbox {
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
-    ) external;
+    ) external payable;
 }

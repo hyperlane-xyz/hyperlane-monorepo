@@ -52,8 +52,14 @@ contract InboxValidatorManager is MultisigValidatorManager {
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
-    ) external {
+    ) external payable {
         require(isQuorum(_root, _index, _signatures), "!quorum");
-        _inbox.process(_root, _index, _message, _proof, _leafIndex);
+        _inbox.process{value: msg.value}(
+            _root,
+            _index,
+            _message,
+            _proof,
+            _leafIndex
+        );
     }
 }

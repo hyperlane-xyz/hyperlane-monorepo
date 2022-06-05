@@ -39,6 +39,7 @@ describe('Inbox', async () => {
     validatorManager: TestValidatorManager,
     helperOutbox: TestOutbox,
     recipient: string,
+    recipientAddress: string,
     proof: MerkleProof;
 
   before(async () => {
@@ -51,7 +52,8 @@ describe('Inbox', async () => {
     );
     validatorManager = await testValidatorManagerFactory.deploy();
     const recipientF = new TestRecipient__factory(signer);
-    recipient = utils.addressToBytes32((await recipientF.deploy()).address);
+    recipientAddress = (await recipientF.deploy()).address;
+    recipient = utils.addressToBytes32(recipientAddress);
 
     // Deploy a helper outbox contract so that we can easily construct merkle
     // proofs.
@@ -91,6 +93,23 @@ describe('Inbox', async () => {
     expect(await inbox.messages(proof.leaf)).to.eql(
       types.MessageStatus.PROCESSED,
     );
+  });
+
+  it('process passes native value to recipient', async () => {
+    const value = ethers.utils.parseEther('1');
+    await validatorManager.process(
+      inbox.address,
+      proof.root,
+      proof.index,
+      proof.message,
+      proof.proof,
+      proof.index,
+      { value },
+    );
+    const balance = await validatorManager.provider.getBalance(
+      recipientAddress,
+    );
+    expect(balance).to.eq(value);
   });
 
   it('Rejects an already-processed message', async () => {

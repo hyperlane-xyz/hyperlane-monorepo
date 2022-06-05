@@ -15,7 +15,13 @@ contract TestValidatorManager {
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
-    ) external {
-        _inbox.process(_root, _index, _message, _proof, _leafIndex);
+    ) external payable {
+        _inbox.process{value: msg.value}(
+            _root,
+            _index,
+            _message,
+            _proof,
+            _leafIndex
+        );
     }
 }

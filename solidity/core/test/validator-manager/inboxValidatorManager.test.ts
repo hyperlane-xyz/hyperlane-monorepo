@@ -25,6 +25,7 @@ describe('InboxValidatorManager', () => {
     inbox: Inbox,
     signer: SignerWithAddress,
     proof: MerkleProof,
+    recipientAddress: string,
     validator0: Validator,
     validator1: Validator;
 
@@ -53,6 +54,7 @@ describe('InboxValidatorManager', () => {
     const helperOutbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
     await helperOutbox.initialize(validatorManager.address);
     const recipientF = await new TestRecipient__factory(signer).deploy();
+    recipientAddress = recipientF.address;
     const recipient = utils.addressToBytes32(recipientF.address);
     proof = await dispatchMessageAndReturnProof(
       helperOutbox,
@@ -102,6 +104,29 @@ describe('InboxValidatorManager', () => {
           proof.index,
         ),
       ).to.be.revertedWith('!quorum');
+    });
+
+    it('passes native value to recipient', async () => {
+      const signatures = await signCheckpoint(
+        proof.root,
+        proof.index,
+        [validator0, validator1], // 2/2 signers, making a quorum
+      );
+      const value = ethers.utils.parseEther('1');
+      await validatorManager.process(
+        inbox.address,
+        proof.root,
+        proof.index,
+        signatures,
+        proof.message,
+        proof.proof,
+        proof.index,
+        { value },
+      );
+      const balance = await validatorManager.provider.getBalance(
+        recipientAddress,
+      );
+      expect(balance).to.eq(value);
     });
   });
 });

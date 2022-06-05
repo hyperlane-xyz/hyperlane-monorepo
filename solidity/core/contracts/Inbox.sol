@@ -94,7 +94,7 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
-    ) external override nonReentrant onlyValidatorManager {
+    ) external payable override nonReentrant onlyValidatorManager {
         require(_index >= _leafIndex, "!index");
         bytes32 _messageHash = _message.leaf(_leafIndex);
         // ensure that message has not been processed
@@ -137,10 +137,8 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         // update message status as processed
         messages[_messageHash] = MessageStatus.Processed;
 
-        IMessageRecipient(recipient.bytes32ToAddress()).handle(
-            origin,
-            sender,
-            body
-        );
+        IMessageRecipient(recipient.bytes32ToAddress()).handle{
+            value: msg.value
+        }(origin, sender, body);
     }
 }

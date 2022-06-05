@@ -40,7 +40,7 @@ contract TestSendReceiver is IMessageRecipient {
         uint32,
         bytes32,
         bytes calldata
-    ) external override {
+    ) external payable override {
         bytes32 blockHash = previousBlockHash();
         bool isBlockHashEven = uint256(blockHash) % 2 == 0;
         require(isBlockHashEven, "block hash is odd");
