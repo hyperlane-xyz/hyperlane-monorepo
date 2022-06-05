@@ -3,14 +3,13 @@ import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
-import { BadRandomRecipient__factory } from '@abacus-network/core';
+import { TestSendReceiver__factory } from '@abacus-network/core';
 import { utils as deployUtils } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainName,
   ChainNameToDomainId,
 } from '@abacus-network/sdk';
-import { utils } from '@abacus-network/utils';
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
@@ -28,15 +27,11 @@ const chainSummary = async <Chain extends ChainName>(
     const remoteContracts = core.getContracts(remote);
     const inbox =
       remoteContracts.inboxes[chain as Exclude<Chain, Chain>].inbox.contract;
-    const [inboxCheckpointRoot, inboxCheckpointIndex] =
-      await inbox.latestCachedCheckpoint();
     const processFilter = inbox.filters.Process();
     const processes = await inbox.queryFilter(processFilter);
     return {
       chain: remote,
       processed: processes.length,
-      root: inboxCheckpointRoot,
-      index: inboxCheckpointIndex.toNumber(),
     };
   };
 
@@ -54,19 +49,21 @@ const chainSummary = async <Chain extends ChainName>(
 
 task('kathy', 'Dispatches random abacus messages').setAction(
   async (_, hre: HardhatRuntimeEnvironment) => {
-    const config = getCoreEnvironmentConfig('test');
+    const environment = 'test';
+    const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
+    const config = getCoreEnvironmentConfig(environment);
     const [signer] = await hre.ethers.getSigners();
     const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
       config.transactionConfigs,
       signer,
     );
-    const core = AbacusCore.fromEnvironment('test', multiProvider);
+    const core = AbacusCore.fromEnvironment(environment, multiProvider);
 
     const randomElement = <T>(list: T[]) =>
       list[Math.floor(Math.random() * list.length)];
 
     // Deploy a recipient
-    const recipientF = new BadRandomRecipient__factory(signer);
+    const recipientF = new TestSendReceiver__factory(signer);
     const recipient = await recipientF.deploy();
     await recipient.deployTransaction.wait();
 
@@ -77,13 +74,18 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
       const outbox = coreContracts.outbox.contract;
+      const paymaster = coreContracts.interchainGasPaymaster;
       // Send a batch of messages to the destination chain to test
       // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
-        await outbox.dispatch(
+        await recipient.dispatchToSelf(
+          outbox.address,
+          paymaster.address,
           remoteId,
-          utils.addressToBytes32(recipient.address),
           '0x1234',
+          {
+            value: interchainGasPayment,
+          },
         );
         console.log(
           `send to ${recipient.address} on ${remote} at index ${

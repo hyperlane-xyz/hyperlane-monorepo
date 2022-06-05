@@ -18,7 +18,8 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x71f37188d27788ea86E12557edbc9b07E5BDdf03"
+      "outbox": "0x71f37188d27788ea86E12557edbc9b07E5BDdf03",
+      "interchainGasPaymaster": "0x63BDfEF81688ddd5f135D8a8680f942205E030c2"
     },
     "domain": "1000",
     "name": "alfajores",

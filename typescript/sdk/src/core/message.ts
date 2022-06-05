@@ -1,10 +1,10 @@
 import { AbacusCore } from '.';
 import { TransactionReceipt } from '@ethersproject/abstract-provider';
 import { BigNumber } from '@ethersproject/bignumber';
-import { arrayify, hexlify } from '@ethersproject/bytes';
 import { keccak256 } from 'ethers/lib/utils';
 
 import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+import { types, utils } from '@abacus-network/utils';
 
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { MultiProvider } from '../provider';
@@ -17,23 +17,12 @@ import {
 import { delay } from '../utils';
 
 import {
-  AnnotatedCheckpoint,
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
   AnnotatedProcess,
-  CheckpointCachedEvent,
   DispatchEvent,
   ProcessEvent,
 } from './events';
-
-// I didn't want to override the existing ParsedMessage in message.ts as that would include having to type AbacusMessage and more and it's not clear to me that we will keep those.
-type ParsedMessage = {
-  origin: number;
-  sender: string;
-  destination: number;
-  recipient: string;
-  body: string;
-};
 
 export const resolveDomain = (nameOrDomain: NameOrDomain): ChainName =>
   typeof nameOrDomain === 'number'
@@ -46,7 +35,7 @@ export const resolveId = (nameOrDomain: NameOrDomain): number =>
     : nameOrDomain;
 
 export const resolveNetworks = (
-  message: ParsedMessage,
+  message: types.ParsedMessage,
 ): { origin: ChainName; destination: ChainName } => {
   return {
     origin: resolveDomain(message.origin),
@@ -73,25 +62,8 @@ export enum InboxMessageStatus {
 }
 
 export type EventCache = {
-  inboxCheckpoint?: AnnotatedCheckpoint;
   process?: AnnotatedProcess;
 };
-
-/**
- * Parse a serialized Abacus message from raw bytes.
- *
- * @param message
- * @returns
- */
-export function parseMessage(message: string): ParsedMessage {
-  const buf = Buffer.from(arrayify(message));
-  const origin = buf.readUInt32BE(0);
-  const sender = hexlify(buf.slice(4, 36));
-  const destination = buf.readUInt32BE(36);
-  const recipient = hexlify(buf.slice(40, 72));
-  const body = hexlify(buf.slice(72));
-  return { origin, sender, destination, recipient, body };
-}
 
 // TODO: move AbacusMessage into AbacusCore app
 
@@ -100,7 +72,7 @@ export function parseMessage(message: string): ParsedMessage {
  */
 export class AbacusMessage {
   readonly dispatch: AnnotatedDispatch;
-  readonly message: ParsedMessage;
+  readonly message: types.ParsedMessage;
   readonly outbox: Outbox;
   readonly inbox: Inbox;
 
@@ -115,7 +87,7 @@ export class AbacusMessage {
   ) {
     this.multiProvider = multiProvider;
     this.core = core;
-    this.message = parseMessage(dispatch.event.args.message);
+    this.message = utils.parseMessage(dispatch.event.args.message);
     this.dispatch = dispatch;
 
     const messageNetworks = resolveNetworks(this.message);
@@ -273,54 +245,11 @@ export class AbacusMessage {
   }
 
   /**
-   * Get the Inbox `Checkpoint` event associated with this message (if any)
-   *
-   * @returns An {@link AnnotatedCheckpoint} (if any)
-   */
-  async getInboxCheckpoint(): Promise<AnnotatedCheckpoint | undefined> {
-    // if we have already gotten the event,
-    // return it without re-querying
-    if (this.cache.inboxCheckpoint) {
-      return this.cache.inboxCheckpoint;
-    }
-
-    const leafIndex = this.dispatch.event.args.leafIndex;
-    const [checkpointRoot, checkpointIndex] =
-      await this.inbox.latestCachedCheckpoint();
-    // The checkpoint index needs to be at least leafIndex + 1 to include
-    // the message.
-    if (checkpointIndex.lte(leafIndex)) {
-      return undefined;
-    }
-
-    // if not, attempt to query the event
-    const checkpointFilter = this.inbox.filters.CheckpointCached(
-      checkpointRoot,
-      checkpointIndex,
-    );
-    const checkpointLogs: AnnotatedCheckpoint[] =
-      await findAnnotatedSingleEvent<CheckpointCachedEvent>(
-        this.multiProvider,
-        this.destinationName,
-        this.inbox,
-        checkpointFilter,
-      );
-    if (checkpointLogs.length === 1) {
-      // if event is returned, store it to the object
-      this.cache.inboxCheckpoint = checkpointLogs[0];
-    } else if (checkpointLogs.length > 1) {
-      throw new Error('multiple inbox checkpoints for same root');
-    }
-    // return the event or undefined if it wasn't found
-    return this.cache.inboxCheckpoint;
-  }
-
-  /**
    * Get the Inbox `Process` event associated with this message (if any)
    *
    * @returns An {@link AnnotatedProcess} (if any)
    */
-  async getProcess(startBlock?: number): Promise<AnnotatedProcess | undefined> {
+  async getProcess(): Promise<AnnotatedProcess | undefined> {
     // if we have already gotten the event,
     // return it without re-querying
     if (this.cache.process) {
@@ -333,7 +262,6 @@ export class AbacusMessage {
       this.destinationName,
       this.inbox,
       processFilter,
-      startBlock,
     );
     if (processLogs.length === 1) {
       // if event is returned, store it to the object
@@ -352,17 +280,8 @@ export class AbacusMessage {
    */
   async events(): Promise<AbacusStatus> {
     const events: AnnotatedLifecycleEvent[] = [this.dispatch];
-    // attempt to get Inbox checkpoint
-    const inboxCheckpoint = await this.getInboxCheckpoint();
-    if (!inboxCheckpoint) {
-      return {
-        status: MessageStatus.Included, // the message was sent, then included in an Checkpoint on Outbox
-        events,
-      };
-    }
-    events.push(inboxCheckpoint);
     // attempt to get Inbox process
-    const process = await this.getProcess(inboxCheckpoint.blockNumber);
+    const process = await this.getProcess();
     if (!process) {
       // NOTE: when this is the status, you may way to
       // query confirmAt() to check if challenge period
@@ -479,7 +398,10 @@ export class AbacusMessage {
    * The messageHash committed to the tree in the Outbox contract.
    */
   get leaf(): string {
-    return this.dispatch.event.args.messageHash;
+    return utils.messageHash(
+      this.dispatch.event.args.message,
+      this.dispatch.event.args.leafIndex.toNumber(),
+    );
   }
 
   /**

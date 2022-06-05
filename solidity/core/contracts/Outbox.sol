@@ -51,29 +51,35 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
 
     // ============ Public Storage Variables ============
 
+    // Cached checkpoints, mapping root => leaf index.
+    // Cached checkpoints must have index > 0 as the presence of such
+    // a checkpoint cannot be distinguished from its absence.
+    mapping(bytes32 => uint256) public cachedCheckpoints;
+    // The latest cached root
+    bytes32 public latestCachedRoot;
     // Current state of contract
     States public state;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[49] private __GAP;
+    uint256[47] private __GAP;
 
     // ============ Events ============
 
     /**
+     * @notice Emitted when a checkpoint is cached.
+     * @param root Merkle root
+     * @param index Leaf index
+     */
+    event CheckpointCached(bytes32 indexed root, uint256 indexed index);
+
+    /**
      * @notice Emitted when a new message is dispatched via Abacus
-     * @param messageHash Hash of message; the leaf inserted to the Merkle tree for the message
      * @param leafIndex Index of message's leaf in merkle tree
-     * @param destination Destination domain
      * @param message Raw bytes of message
      */
-    event Dispatch(
-        bytes32 indexed messageHash,
-        uint256 indexed leafIndex,
-        uint32 indexed destination,
-        bytes message
-    );
+    event Dispatch(uint256 indexed leafIndex, bytes message);
 
     event Fail();
 
@@ -134,18 +140,20 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
             abi.encodePacked(_message, _leafIndex)
         );
         tree.insert(_messageHash);
-        // Emit Dispatch event with message information
-        emit Dispatch(_messageHash, _leafIndex, _destinationDomain, _message);
+        emit Dispatch(_leafIndex, _message);
         return _leafIndex;
     }
 
     /**
      * @notice Caches the current merkle root and index.
-     * @dev emits Checkpoint event
+     * @dev emits CheckpointCached event
      */
     function cacheCheckpoint() external override notFailed {
-        (bytes32 root, uint256 index) = latestCheckpoint();
-        _cacheCheckpoint(root, index);
+        (bytes32 _root, uint256 _index) = latestCheckpoint();
+        require(_index > 0, "!index");
+        cachedCheckpoints[_root] = _index;
+        latestCachedRoot = _root;
+        emit CheckpointCached(_root, _index);
     }
 
     /**
@@ -156,6 +164,20 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
         // set contract to FAILED
         state = States.Failed;
         emit Fail();
+    }
+
+    /**
+     * @notice Returns the latest entry in the checkpoint cache.
+     * @return root Latest cached root
+     * @return index Latest cached index
+     */
+    function latestCachedCheckpoint()
+        external
+        view
+        returns (bytes32 root, uint256 index)
+    {
+        root = latestCachedRoot;
+        index = cachedCheckpoints[root];
     }
 
     /**

@@ -24,28 +24,15 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
 
     // ============ Public Variables ============
 
-    // Cached checkpoints, mapping root => leaf index.
-    // Cached checkpoints must have index > 0 as the presence of such
-    // a checkpoint cannot be distinguished from its absence.
-    mapping(bytes32 => uint256) public cachedCheckpoints;
-    // The latest cached root
-    bytes32 public latestCachedRoot;
     // Address of the validator manager contract.
     address public validatorManager;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[47] private __GAP;
+    uint256[49] private __GAP;
 
     // ============ Events ============
-
-    /**
-     * @notice Emitted when a checkpoint is cached.
-     * @param root Merkle root
-     * @param index Leaf index
-     */
-    event CheckpointCached(bytes32 indexed root, uint256 indexed index);
 
     /**
      * @notice Emitted when the validator manager contract is changed
@@ -95,21 +82,6 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
         _setValidatorManager(_validatorManager);
     }
 
-    /**
-     * @notice Returns the latest entry in the checkpoint cache.
-     * @return root Latest cached root
-     * @return index Latest cached index
-     */
-    function latestCachedCheckpoint()
-        external
-        view
-        override
-        returns (bytes32 root, uint256 index)
-    {
-        root = latestCachedRoot;
-        index = cachedCheckpoints[root];
-    }
-
     // ============ Internal Functions ============
 
     /**
@@ -122,20 +94,5 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
         }
         validatorManager = _validatorManager;
         emit NewValidatorManager(_validatorManager);
-    }
-
-    /**
-     * @notice Caches the provided checkpoint.
-     * Caching checkpoints with index == 0 are disallowed.
-     * @param _root The merkle root to cache.
-     * @param _index The leaf index of the latest message in the merkle tree.
-     */
-    function _cacheCheckpoint(bytes32 _root, uint256 _index) internal {
-        if (_index == 0) {
-            revert CacheZeroCheckpointIndex();
-        }
-        cachedCheckpoints[_root] = _index;
-        latestCachedRoot = _root;
-        emit CheckpointCached(_root, _index);
     }
 }

@@ -59,14 +59,8 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
      * @dev This event allows watchers to observe the merkle proof they need
      * to prove fraud on the Outbox.
      * @param messageHash Hash of message that was processed.
-     * @param leafIndex The leaf index of the message that was processed.
-     * @param proof A merkle proof of inclusion of `messageHash` at `leafIndex`.
      */
-    event Process(
-        bytes32 indexed messageHash,
-        uint256 indexed leafIndex,
-        bytes32[32] proof
-    );
+    event Process(bytes32 indexed messageHash);
 
     // ============ Constructor ============
 
@@ -87,42 +81,26 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
     // ============ External Functions ============
 
     /**
-     * @notice Caches the provided merkle root and index.
-     * @dev Called by the validator manager, which is responsible for verifying a
-     * quorum of validator signatures on the checkpoint.
-     * @dev Reverts if the checkpoint's index is not greater than the index of the latest checkpoint in the cache.
-     * @param _root Checkpoint's merkle root.
-     * @param _index Checkpoint's index.
-     */
-    function cacheCheckpoint(bytes32 _root, uint256 _index)
-        external
-        override
-        onlyValidatorManager
-    {
-        // Ensure that the checkpoint is newer than the latest we've cached.
-        if (_index <= cachedCheckpoints[latestCachedRoot]) {
-            revert CacheOldCheckpointIndex();
-        }
-        _cacheCheckpoint(_root, _index);
-    }
-
-    /**
      * @notice Attempts to process the provided formatted `message`. Performs
      * verification against root of the proof
+     * @dev Called by the validator manager, which is responsible for verifying a
+     * quorum of validator signatures on the checkpoint.
      * @dev Reverts if verification of the message fails.
-     * @dev Includes the eventual function signature for Sovereign Consensus,
-     * but comments out the name to suppress compiler warning
+     * @param _root The merkle root of the checkpoint used to prove message inclusion.
+     * @param _index The index of the checkpoint used to prove message inclusion.
      * @param _message Formatted message (refer to Mailbox.sol Message library)
      * @param _proof Merkle proof of inclusion for message's leaf
-     * @param _index Index of leaf in outbox's merkle tree
+     * @param _leafIndex Index of leaf in outbox's merkle tree
      */
     function process(
+        bytes32 _root,
+        uint256 _index,
         bytes calldata _message,
         bytes32[32] calldata _proof,
-        uint256 _index,
-        bytes calldata /* _sovereignData */
-    ) external override nonReentrant {
-        bytes32 _messageHash = _message.leaf(_index);
+        uint256 _leafIndex
+    ) external override nonReentrant onlyValidatorManager {
+        require(_index >= _leafIndex, "!index");
+        bytes32 _messageHash = _message.leaf(_leafIndex);
         // ensure that message has not been processed
         if (messages[_messageHash] == MessageStatus.Processed) {
             revert MessageAlreadyProcessed(_messageHash);
@@ -131,14 +109,12 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             _messageHash,
             _proof,
-            _index
+            _leafIndex
         );
-        // ensure that the root has been cached
-        if (_index > cachedCheckpoints[_calculatedRoot]) {
-            revert RootNotCached(_calculatedRoot);
-        }
+        // verify the merkle proof
+        require(_calculatedRoot == _root, "!proof");
         _process(_message, _messageHash);
-        emit Process(_messageHash, _index, _proof);
+        emit Process(_messageHash);
     }
 
     // ============ Internal Functions ============

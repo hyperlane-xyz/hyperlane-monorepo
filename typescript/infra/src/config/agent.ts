@@ -290,28 +290,29 @@ export class ChainAgentConfig<Chain extends ChainName> {
 
     return Promise.all(
       this.validatorSet.validators.map(async (val, i) => {
-        if (val.checkpointSyncer.type !== CheckpointSyncerType.S3) {
-          throw Error(
-            'Expected k8s-based validator to use S3 checkpoint syncer',
-          );
-        }
-
-        const awsUser = new ValidatorAgentAwsUser(
-          this.agentConfig.environment,
-          this.chainName,
-          i,
-          val.checkpointSyncer.region,
-          val.checkpointSyncer.bucket,
-        );
-        await awsUser.createIfNotExists();
-        await awsUser.createBucketIfNotExists();
-
         let validator: KeyConfig = {
           type: KeyType.Hex,
         };
-        if (this.awsKeys) {
-          const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-          validator = key.keyConfig;
+
+        if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
+          const awsUser = new ValidatorAgentAwsUser(
+            this.agentConfig.environment,
+            this.chainName,
+            i,
+            val.checkpointSyncer.region,
+            val.checkpointSyncer.bucket,
+          );
+          await awsUser.createIfNotExists();
+          await awsUser.createBucketIfNotExists();
+
+          if (this.awsKeys) {
+            const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+            validator = key.keyConfig;
+          }
+        } else {
+          console.warn(
+            `Validator ${val.address}'s checkpoint syncer is not S3-based. Be sure this is a non-k8s-based environment!`,
+          );
         }
 
         return {
