@@ -65,7 +65,14 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         uint32 _origin,
         bytes32 _sender,
         bytes memory _message
-    ) external virtual override onlyInbox onlyRemoteRouter(_origin, _sender) {
+    )
+        external
+        payable
+        virtual
+        override
+        onlyInbox
+        onlyRemoteRouter(_origin, _sender)
+    {
         // TODO: callbacks on success/failure
         _handle(_origin, _sender, _message);
     }

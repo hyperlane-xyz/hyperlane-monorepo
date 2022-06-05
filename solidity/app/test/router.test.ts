@@ -68,6 +68,16 @@ describe('Router', async () => {
     await router.handle(origin, remote, message);
   });
 
+  it('accepts native value', async () => {
+    await connectionManager.enrollInbox(origin, signer.address);
+    const remote = utils.addressToBytes32(nonOwner.address);
+    await router.enrollRemoteRouter(origin, remote);
+    const value = ethers.utils.parseEther('1');
+    await router.handle(origin, remote, message, { value });
+    const balance = await router.provider.getBalance(router.address);
+    expect(balance).to.eq(value);
+  });
+
   it('rejects message from unenrolled inbox', async () => {
     await expect(
       router.handle(origin, utils.addressToBytes32(nonOwner.address), message),
