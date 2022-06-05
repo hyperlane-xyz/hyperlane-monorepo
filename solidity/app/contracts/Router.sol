@@ -8,6 +8,9 @@ import {IInterchainGasPaymaster} from "@abacus-network/core/interfaces/IIntercha
 import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
 import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
 
+error RemoteSenderNotEnrolledRouter(bytes32 sender);
+error RouterNotEnrolled(uint32 domain);
+
 abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
 
@@ -27,10 +30,12 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     /**
      * @notice Only accept messages from a remote Router contract
      * @param _origin The domain the message is coming from
-     * @param _router The address the message is coming from
+     * @param _sender The address the message is coming from
      */
-    modifier onlyRemoteRouter(uint32 _origin, bytes32 _router) {
-        require(_isRemoteRouter(_origin, _router), "!router");
+    modifier onlyRemoteRouter(uint32 _origin, bytes32 _sender) {
+        if (!_isRemoteRouter(_origin, _sender)) {
+            revert RemoteSenderNotEnrolledRouter(_sender);
+        }
         _;
     }
 
@@ -113,7 +118,9 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         returns (bytes32 _router)
     {
         _router = routers[_domain];
-        require(_router != bytes32(0), "!router");
+        if (_router == bytes32(0)) {
+            revert RouterNotEnrolled(_domain);
+        }
     }
 
     /**
