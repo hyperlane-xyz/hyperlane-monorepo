@@ -18,8 +18,8 @@ export class AbacusRouterChecker<
   Chain extends ChainName,
   Contracts extends RouterContracts,
   App extends AbacusApp<Contracts, Chain>,
-  Config extends RouterConfig,
-> extends AbacusAppChecker<Chain, App, Config> {
+  Config,
+> extends AbacusAppChecker<Chain, App, Config & RouterConfig> {
   checkOwnership(chain: Chain) {
     const owner = this.configMap[chain].owner;
     const ownables = this.ownables(chain);

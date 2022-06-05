@@ -20,9 +20,9 @@ import { RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
-  Contracts extends RouterContracts,
-  Factories extends RouterFactories,
   Config,
+  Factories extends RouterFactories,
+  Contracts extends RouterContracts,
 > extends AbacusDeployer<Chain, Config & RouterConfig, Factories, Contracts> {
   constructor(
     multiProvider: MultiProvider<Chain>,
