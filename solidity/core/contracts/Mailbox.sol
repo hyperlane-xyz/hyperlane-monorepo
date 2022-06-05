@@ -9,7 +9,6 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
 error SenderNotValidatorManager();
 error AddressNotContract();
-error CacheZeroCheckpointIndex();
 
 /**
  * @title Mailbox

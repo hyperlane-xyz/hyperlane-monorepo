@@ -12,6 +12,7 @@ import {IOutbox} from "../interfaces/IOutbox.sol";
 
 error MessageTooLong();
 error OutboxFailed();
+error CacheZeroCheckpointIndex();
 
 /**
  * @title Outbox
@@ -150,7 +151,9 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
      */
     function cacheCheckpoint() external override notFailed {
         (bytes32 _root, uint256 _index) = latestCheckpoint();
-        require(_index > 0, "!index");
+        if (_index == 0) {
+            revert CacheZeroCheckpointIndex();
+        }
         cachedCheckpoints[_root] = _index;
         latestCachedRoot = _root;
         emit CheckpointCached(_root, _index);
