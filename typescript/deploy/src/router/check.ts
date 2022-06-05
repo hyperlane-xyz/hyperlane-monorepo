@@ -16,9 +16,10 @@ import { RouterConfig } from './types';
 
 export class AbacusRouterChecker<
   Chain extends ChainName,
-  App extends AbacusApp<RouterContracts, Chain>,
-  Config extends RouterConfig,
-> extends AbacusAppChecker<Chain, App, Config> {
+  Contracts extends RouterContracts,
+  App extends AbacusApp<Contracts, Chain>,
+  Config,
+> extends AbacusAppChecker<Chain, App, Config & RouterConfig> {
   checkOwnership(chain: Chain) {
     const owner = this.configMap[chain].owner;
     const ownables = this.ownables(chain);
