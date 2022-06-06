@@ -52,8 +52,7 @@ contract InboxValidatorManager is MultisigValidatorManager {
         bytes calldata _message,
         bytes32[32] calldata _proof,
         uint256 _leafIndex
-    ) external {
-        require(isQuorum(_root, _index, _signatures), "!quorum");
+    ) external mustBeQuorum(_root, _index, _signatures) {
         _inbox.process(_root, _index, _message, _proof, _leafIndex);
     }
 }
