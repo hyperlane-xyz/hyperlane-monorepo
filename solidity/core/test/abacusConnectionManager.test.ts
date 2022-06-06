@@ -246,6 +246,6 @@ describe('AbacusConnectionManager', async () => {
     const newRemoteDomain = 3000;
     await expect(
       connectionManager.enrollInbox(newRemoteDomain, enrolledInbox.address),
-    ).to.be.revertedWith('InboxAlreadyEnrolled()');
+    ).to.be.revertedWith('already inbox');
   });
 });

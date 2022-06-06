@@ -11,8 +11,6 @@ import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.s
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-error InboxAlreadyEnrolled();
-
 /**
  * @title AbacusConnectionManager
  * @author Celo Labs Inc.
@@ -92,9 +90,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @param _inbox the address of the Inbox
      */
     function enrollInbox(uint32 _domain, address _inbox) external onlyOwner {
-        if (isInbox(_inbox)) {
-            revert InboxAlreadyEnrolled();
-        }
+        require(!isInbox(_inbox), "already inbox");
         // add inbox and domain to two-way mapping
         inboxToDomain[_inbox] = _domain;
         domainToInboxes[_domain].add(_inbox);

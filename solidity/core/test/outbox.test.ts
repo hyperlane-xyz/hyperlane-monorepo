@@ -45,12 +45,12 @@ describe('Outbox', async () => {
         utils.addressToBytes32(recipient.address),
         message,
       ),
-    ).to.be.revertedWith('OutboxFailed()');
+    ).to.be.revertedWith('failed state');
   });
 
   it('Non ValidatorManager cannot fail', async () => {
     await expect(outbox.connect(recipient).fail()).to.be.revertedWith(
-      'NotFromValidatorManager()',
+      '!validatorManager',
     );
   });
 
@@ -85,7 +85,7 @@ describe('Outbox', async () => {
           utils.addressToBytes32(recipient.address),
           message,
         ),
-      ).to.be.revertedWith('MessageTooLong()');
+      ).to.be.revertedWith('msg too long');
     });
 
     it('Dispatches a message', async () => {
@@ -144,8 +144,6 @@ describe('Outbox', async () => {
       utils.addressToBytes32(recipient.address),
       message,
     );
-    await expect(outbox.cacheCheckpoint()).to.be.revertedWith(
-      'CacheZeroCheckpointIndex()',
-    );
+    await expect(outbox.cacheCheckpoint()).to.be.revertedWith('!index');
   });
 });

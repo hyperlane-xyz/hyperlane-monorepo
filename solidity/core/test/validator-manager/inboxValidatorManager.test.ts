@@ -101,7 +101,7 @@ describe('InboxValidatorManager', () => {
           proof.proof,
           proof.index,
         ),
-      ).to.be.revertedWith('SignaturesNotQuorum()');
+      ).to.be.revertedWith('!quorum');
     });
   });
 });

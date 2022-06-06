@@ -7,13 +7,6 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
-error SignaturesNotQuorum();
-error UnsortedSigners();
-error ValidatorAlreadyEnrolled();
-error ValidatorNotEnrolled();
-error ValidatorSetTooSmall(uint256 size, uint256 min);
-error SetZeroThreshold();
-
 /**
  * @title MultisigValidatorManager
  * @notice Manages an ownable set of validators that ECDSA sign checkpoints to
@@ -61,17 +54,6 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param threshold The new quorum threshold.
      */
     event SetThreshold(uint256 threshold);
-
-    modifier mustBeQuorum(
-        bytes32 _root,
-        uint256 _index,
-        bytes[] calldata _signatures
-    ) {
-        if (!isQuorum(_root, _index, _signatures)) {
-            revert SignaturesNotQuorum();
-        }
-        _;
-    }
 
     // ============ Constructor ============
 
@@ -179,9 +161,8 @@ abstract contract MultisigValidatorManager is Ownable {
                 _index,
                 _signatures[i]
             );
-            if (_previousSigner >= _signer) {
-                revert UnsortedSigners();
-            }
+            // Revert if the signer violates the required sort order.
+            require(_previousSigner < _signer, "!sorted signers");
             // If the signer is a validator, increment _validatorSignatureCount.
             if (isValidator(_signer)) {
                 _validatorSignatureCount++;
@@ -234,9 +215,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to add to the validator set.
      */
     function _enrollValidator(address _validator) internal {
-        if (!validatorSet.add(_validator)) {
-            revert ValidatorAlreadyEnrolled();
-        }
+        require(validatorSet.add(_validator), "already enrolled");
         emit EnrollValidator(_validator, validatorCount());
     }
 
@@ -248,13 +227,9 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _validator The validator to remove from the validator set.
      */
     function _unenrollValidator(address _validator) internal {
-        if (!validatorSet.remove(_validator)) {
-            revert ValidatorNotEnrolled();
-        }
+        require(validatorSet.remove(_validator), "!enrolled");
         uint256 _numValidators = validatorCount();
-        if (_numValidators < threshold) {
-            revert ValidatorSetTooSmall(_numValidators, threshold);
-        }
+        require(_numValidators >= threshold, "violates quorum threshold");
         emit UnenrollValidator(_validator, _numValidators);
     }
 
@@ -263,11 +238,7 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param _threshold The new quorum threshold.
      */
     function _setThreshold(uint256 _threshold) internal {
-        if (_threshold > validatorCount()) {
-            revert ValidatorSetTooSmall(validatorCount(), _threshold);
-        } else if (_threshold == 0) {
-            revert SetZeroThreshold();
-        }
+        require(_threshold > 0 && _threshold <= validatorCount(), "!range");
         threshold = _threshold;
         emit SetThreshold(_threshold);
     }
