@@ -3,14 +3,15 @@
 
 use std::sync::Arc;
 
+use abacus_core::Encode;
 use async_trait::async_trait;
 use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{
-    ChainCommunicationError, ContractLocator, InboxValidatorManager, MultisigSignedCheckpoint,
-    TxOutcome,
+    accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, ContractLocator,
+    InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
 use crate::trait_builder::MakeableWithProvider;
@@ -92,11 +93,19 @@ where
     M: Middleware + 'static,
 {
     #[tracing::instrument(err, skip(self))]
-    async fn submit_checkpoint(
+    async fn process(
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
-        let tx = self.contract.cache_checkpoint(
+        let mut sol_proof: [[u8; 32]; 32] = Default::default();
+        sol_proof
+            .iter_mut()
+            .enumerate()
+            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
+
+        let tx = self.contract.process(
             self.inbox_address,
             multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
             multisig_signed_checkpoint.checkpoint.index.into(),
@@ -105,8 +114,27 @@ where
                 .iter()
                 .map(|s| s.to_vec().into())
                 .collect(),
+            message.to_vec().into(),
+            sol_proof,
+            proof.index.into(),
         );
+        let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
+        let gassed = tx.gas(gas);
+        let receipt = report_tx(gassed).await?;
+        Ok(receipt.into())
 
-        Ok(report_tx(tx).await?.into())
+        // let tx = self.contract.process(
+        //     self.inbox_address,
+        //     multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
+        //     multisig_signed_checkpoint.checkpoint.index.into(),
+        //     multisig_signed_checkpoint
+        //         .signatures
+        //         .iter()
+        //         .map(|s| s.to_vec().into())
+        //         .collect(),
+
+        // );
+
+        // Ok(report_tx(tx).await?.into())
     }
 }

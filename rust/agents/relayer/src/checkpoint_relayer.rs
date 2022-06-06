@@ -7,8 +7,8 @@ use tracing::{debug, error, info, info_span, instrument, instrument::Instrumente
 
 use abacus_base::{InboxContracts, MultisigCheckpointSyncer, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, Checkpoint, CommittedMessage, Inbox,
-    InboxValidatorManager,
+    db::AbacusDB, AbacusCommon, AbacusContract, Checkpoint, CommittedMessage,
+    InboxValidatorManager, MultisigSignedCheckpoint,
 };
 
 use ethers::types::H256;
@@ -107,7 +107,7 @@ impl CheckpointRelayer {
     #[instrument(ret, err, skip(self, messages), fields(messages = messages.len()))]
     async fn submit_checkpoint_and_messages(
         &mut self,
-        onchain_checkpoint_index: u32,
+        latest_signed_checkpoint_index: u32,
         signed_checkpoint_index: u32,
         messages: Vec<CommittedMessage>,
     ) -> Result<u32> {
@@ -120,25 +120,27 @@ impl CheckpointRelayer {
         {
             let batch = MessageBatch::new(
                 messages,
-                onchain_checkpoint_index,
+                latest_signed_checkpoint_index,
                 latest_signed_checkpoint.checkpoint,
             );
 
             self.prover_sync.update_from_batch(&batch)?;
-            match self
-                .inbox_contracts
-                .validator_manager
-                .submit_checkpoint(&latest_signed_checkpoint)
-                .await
-            {
-                Ok(_) => (),
-                Err(err) => {
-                    error!(checkpoint=?latest_signed_checkpoint, err=?err, "Checkpoint could not be submitted on-chain");
-                    // Ignore errors as to not fail the process and just retry after some sleep
-                    sleep(Duration::from_secs(self.submission_latency)).await;
-                    return Ok(onchain_checkpoint_index);
-                }
-            }
+
+            // TODO come back to this!
+            // match self
+            //     .inbox_contracts
+            //     .validator_manager
+            //     .submit_checkpoint(&latest_signed_checkpoint)
+            //     .await
+            // {
+            //     Ok(_) => (),
+            //     Err(err) => {
+            //         error!(checkpoint=?latest_signed_checkpoint, err=?err, "Checkpoint could not be submitted on-chain");
+            //         // Ignore errors as to not fail the process and just retry after some sleep
+            //         sleep(Duration::from_secs(self.submission_latency)).await;
+            //         return Ok(latest_signed_checkpoint_index);
+            //     }
+            // }
 
             self.inbox_checkpoint_gauge
                 .set(latest_signed_checkpoint.checkpoint.index as i64);
@@ -151,8 +153,20 @@ impl CheckpointRelayer {
                             // Ignore errors and expect the lagged message processor to retry
                             match self
                                 .inbox_contracts
-                                .inbox
-                                .process(&message.message, &proof)
+                                .validator_manager
+                                .process(
+                                    // TODO come back here
+                                    &MultisigSignedCheckpoint {
+                                        checkpoint: Checkpoint {
+                                            outbox_domain: 1,
+                                            root: H256::zero(),
+                                            index: 1,
+                                        },
+                                        signatures: vec![],
+                                    },
+                                    &message.message,
+                                    &proof,
+                                )
                                 .await
                             {
                                 Ok(outcome) => {
@@ -175,35 +189,17 @@ impl CheckpointRelayer {
             sleep(Duration::from_secs(self.submission_latency)).await;
             Ok(latest_signed_checkpoint.checkpoint.index)
         } else {
-            Ok(onchain_checkpoint_index)
+            Ok(latest_signed_checkpoint_index)
         }
     }
 
     #[instrument(ret, err, skip(self), fields(inbox_name = self.inbox_contracts.inbox.chain_name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
-        // TODO come back to this
-        // let latest_inbox_checkpoint = self
-        //     .inbox_contracts
-        //     .inbox
-        //     .latest_cached_checkpoint(None)
-        //     .await?;
-
-        let latest_inbox_checkpoint = Checkpoint {
-            outbox_domain: 1,
-            root: H256::zero(),
-            index: 1,
-        };
-        let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
-        self.inbox_checkpoint_gauge
-            .set(onchain_checkpoint_index as i64);
-        let mut next_inbox_leaf_index = if onchain_checkpoint_index == 0 {
-            0
-        } else {
-            onchain_checkpoint_index + 1
-        };
+        let mut latest_signed_checkpoint_index = 0;
+        let mut next_inbox_leaf_index = 0;
 
         info!(
-            onchain_checkpoint_index = onchain_checkpoint_index,
+            latest_signed_checkpoint_index=?latest_signed_checkpoint_index,
             "Starting CheckpointRelayer"
         );
 
@@ -215,11 +211,11 @@ impl CheckpointRelayer {
             {
                 self.signed_checkpoint_gauge
                     .set(signed_checkpoint_index as i64);
-                if signed_checkpoint_index <= onchain_checkpoint_index {
+                if signed_checkpoint_index <= latest_signed_checkpoint_index {
                     debug!(
-                        onchain = onchain_checkpoint_index,
+                        latest = latest_signed_checkpoint_index,
                         signed = signed_checkpoint_index,
-                        "Signed checkpoint matches known checkpoint on-chain, continue"
+                        "Signed checkpoint matches latest known checkpoint, continuing"
                     );
                     continue;
                 }
@@ -240,9 +236,9 @@ impl CheckpointRelayer {
                             "Signed checkpoint allows for processing of new messages"
                         );
 
-                        onchain_checkpoint_index = self
+                        latest_signed_checkpoint_index = self
                             .submit_checkpoint_and_messages(
-                                onchain_checkpoint_index,
+                                latest_signed_checkpoint_index,
                                 signed_checkpoint_index,
                                 messages,
                             )
