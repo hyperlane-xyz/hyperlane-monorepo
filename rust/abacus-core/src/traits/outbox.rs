@@ -22,20 +22,17 @@ pub trait Outbox: AbacusCommon + Send + Sync + Debug {
     /// Dispatch a message.
     async fn dispatch(&self, message: &Message) -> Result<TxOutcome, ChainCommunicationError>;
 
-    /// Creates a new checkpoint.
-    /// This isn't called `checkpoint` to avoid a conflict with the MockOutboxContract,
-    /// which has a conflicting `checkpoint` function automatically created by the mockall
-    /// library's automocking attribute macro.
+    /// Caches the latest checkpoint.
     async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError>;
 
-    /// Fetch the current root.
+    /// Fetch the latest cached root.
     async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError>;
 
-    /// Return the latest checkpointed root and its index.
-    async fn latest_cached_checkpoint(
-        &self,
-        lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError>;
+    /// Return the latest cached checkpoint.
+    async fn latest_cached_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError>;
+
+    /// Get the latest checkpoint.
+    async fn latest_checkpoint(&self, lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError>;
 }
 
 /// Interface for retrieving event data emitted specifically by the outbox

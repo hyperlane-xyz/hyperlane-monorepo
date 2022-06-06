@@ -173,9 +173,7 @@ impl CheckpointRelayer {
     }
 
     #[instrument(ret, err, skip(self), fields(inbox_name = self.inbox_contracts.inbox.chain_name()), level = "info")]
-    async fn main_loop(
-        mut self, /*, signed_checkpoint_sender: Sender<MultisigSignedCheckpoint>*/
-    ) -> Result<()> {
+    async fn main_loop(mut self) -> Result<()> {
         let mut latest_signed_checkpoint_index = 0;
         let mut next_inbox_leaf_index = 0;
 

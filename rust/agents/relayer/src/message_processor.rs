@@ -113,21 +113,6 @@ impl MessageProcessor {
                 match self.inbox_contracts.inbox.message_status(leaf).await? {
                     MessageStatus::None => {
                         if message_leaf_index >= self.prover_sync.count() {
-                            // gotta find a root that includes the message
-                            // TODO come back here
-                            // let latest_cached_checkpoint = self
-                            //     .inbox
-                            //     .latest_cached_checkpoint(Some(self.reorg_period))
-                            //     .await?;
-
-                            // let latest_signed_checkpoint = self.signed_checkpoint_receiver.recv().await.ok_or(eyre::eyre!("TODO come back"))?;
-
-                            // let latest_cached_checkpoint = Checkpoint {
-                            //     outbox_domain: 1,
-                            //     root: H256::zero(),
-                            //     index: 1,
-                            // };
-
                             self.prover_sync
                                 .update_to_checkpoint(&latest_signed_checkpoint.checkpoint)
                                 .await?;

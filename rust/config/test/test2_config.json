@@ -26,15 +26,15 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x809d550fca64d94Bd9F66E60752A544199cfAC3D",
-        "validatorManager": "0x36C02dA8a0983159322a80FFE9F24b1acfF8B570"
+        "inbox": "0x4c5859f0F772848b2D91F1D83E2Fe57935348029",
+        "validatorManager": "0x809d550fca64d94Bd9F66E60752A544199cfAC3D"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x59b670e9fA9D0A427751Af201D676719a970857b",
-      "interchainGasPaymaster": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1"
+      "outbox": "0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f",
+      "interchainGasPaymaster": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
     },
     "domain": "13372",
     "name": "test2",
@@ -49,5 +49,8 @@
     "level": "debug",
     "fmt": "json"
   },
-  "db": "db_path"
+  "db": "db_path",
+  "index": {
+    "from": "18"
+  }
 }

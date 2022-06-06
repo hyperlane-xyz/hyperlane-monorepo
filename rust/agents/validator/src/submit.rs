@@ -43,14 +43,14 @@ impl ValidatorSubmitter {
             loop {
                 sleep(Duration::from_secs(self.interval)).await;
 
-                // Check the current checkpoint
-                let checkpoint = self.outbox.latest_cached_checkpoint(reorg_period).await?;
+                // Check the latest checkpoint
+                let latest_checkpoint = self.outbox.latest_checkpoint(reorg_period).await?;
 
-                if current_index < checkpoint.index {
-                    let signed_checkpoint = checkpoint.sign_with(self.signer.as_ref()).await?;
+                if current_index < latest_checkpoint.index {
+                    let signed_checkpoint = latest_checkpoint.sign_with(self.signer.as_ref()).await?;
 
                     info!(signature = ?signed_checkpoint, signer=?self.signer, "Sign latest checkpoint");
-                    current_index = checkpoint.index;
+                    current_index = latest_checkpoint.index;
 
                     self.checkpoint_syncer.write_checkpoint(signed_checkpoint.clone()).await?;
                 }
