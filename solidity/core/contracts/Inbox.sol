@@ -12,10 +12,10 @@ import {IInbox} from "../interfaces/IInbox.sol";
 // ============ External Imports ============
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
 
-error MessageAlreadyProcessed(bytes32 messageHash);
-error MessageNotLocal(uint32 remoteDomain);
+error MessageAlreadyProcessed(uint256 leafIndex);
+error WrongDestination(uint32 remoteDomain);
 error MerkleProofFailedVerification(bytes32 root);
-error MerkleIndexBeforeCheckpoint();
+error LeafIndexBeforeCheckpoint();
 
 /**
  * @title Inbox
@@ -100,12 +100,12 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         uint256 _leafIndex
     ) external override nonReentrant onlyValidatorManager {
         if (_leafIndex < _index) {
-            revert MerkleIndexBeforeCheckpoint();
+            revert LeafIndexBeforeCheckpoint();
         }
         bytes32 _messageHash = _message.leaf(_leafIndex);
         // ensure that message has not been processed
         if (messages[_messageHash] == MessageStatus.Processed) {
-            revert MessageAlreadyProcessed(_messageHash);
+            revert MessageAlreadyProcessed(_leafIndex);
         }
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
@@ -140,7 +140,7 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
 
         // ensure message was meant for this domain
         if (destination != localDomain) {
-            revert MessageNotLocal(destination);
+            revert WrongDestination(destination);
         }
 
         // update message status as processed

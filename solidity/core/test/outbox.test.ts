@@ -50,7 +50,7 @@ describe('Outbox', async () => {
 
   it('Non ValidatorManager cannot fail', async () => {
     await expect(outbox.connect(recipient).fail()).to.be.revertedWith(
-      'SenderNotValidatorManager()',
+      'NotFromValidatorManager()',
     );
   });
 

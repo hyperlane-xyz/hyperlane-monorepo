@@ -97,7 +97,6 @@ describe('Inbox', async () => {
     await inbox.setMessageStatus(proof.leaf, types.MessageStatus.PROCESSED);
 
     // Try to process message again
-    const hash = utils.messageHash(proof.message, proof.index.toNumber());
     await expect(
       validatorManager.process(
         inbox.address,
@@ -107,7 +106,7 @@ describe('Inbox', async () => {
         proof.proof,
         proof.index,
       ),
-    ).to.be.revertedWith(`MessageAlreadyProcessed("${hash}")`);
+    ).to.be.revertedWith(`MessageAlreadyProcessed(${proof.index})`);
   });
 
   it('Rejects invalid message proof', async () => {
@@ -138,7 +137,7 @@ describe('Inbox', async () => {
         proof.proof,
         proof.index,
       ),
-    ).to.be.revertedWith('SenderNotValidatorManager()');
+    ).to.be.revertedWith('NotFromValidatorManager()');
   });
 
   for (let i = 0; i < badRecipientFactories.length; i++) {
@@ -186,7 +185,7 @@ describe('Inbox', async () => {
         badProof.proof,
         badProof.index,
       ),
-    ).to.be.revertedWith(`MessageNotLocal(${wrongDomain})`);
+    ).to.be.revertedWith(`WrongDestination(${wrongDomain})`);
   });
 
   it('Fails to process message sent to a non-existent contract address', async () => {

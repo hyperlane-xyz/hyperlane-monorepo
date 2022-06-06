@@ -7,7 +7,7 @@ import {IMailbox} from "../interfaces/IMailbox.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-error SenderNotValidatorManager();
+error NotFromValidatorManager();
 error AddressNotContract();
 
 /**
@@ -46,7 +46,7 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
      */
     modifier onlyValidatorManager() {
         if (msg.sender != validatorManager) {
-            revert SenderNotValidatorManager();
+            revert NotFromValidatorManager();
         }
         _;
     }

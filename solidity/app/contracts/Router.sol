@@ -8,8 +8,8 @@ import {IInterchainGasPaymaster} from "@abacus-network/core/interfaces/IIntercha
 import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
 import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
 
-error RemoteSenderNotEnrolledRouter(bytes32 sender);
-error RouterNotEnrolled(uint32 domain);
+error AbacusMessageSenderNotRemoteRouter(bytes32 sender);
+error NoEnrolledRouterForDomain(uint32 domain);
 
 abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
@@ -34,7 +34,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      */
     modifier onlyRemoteRouter(uint32 _origin, bytes32 _sender) {
         if (!_isRemoteRouter(_origin, _sender)) {
-            revert RemoteSenderNotEnrolledRouter(_sender);
+            revert AbacusMessageSenderNotRemoteRouter(_sender);
         }
         _;
     }
@@ -119,7 +119,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     {
         _router = routers[_domain];
         if (_router == bytes32(0)) {
-            revert RouterNotEnrolled(_domain);
+            revert NoEnrolledRouterForDomain(_domain);
         }
     }
 
