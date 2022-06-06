@@ -4,14 +4,12 @@
     "abacusConnectionManager": "0x433f7d6d0cB9eb8FF2902Ad01C1BEd6C09934a33",
     "interchainGasPaymaster": "0x28B02B97a850872C4D33C3E024fab6499ad96564",
     "outbox": {
-      "outbox": {
-        "kind": "UpgradeBeacon",
-        "proxy": "0xD0680F80F4f947968206806C2598Cbc5b6FE5b03",
-        "implementation": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
-        "beacon": "0xc756cFc1b7d0d4646589EDf10eD54b201237F5e8"
-      },
-      "outboxValidatorManager": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8"
+      "kind": "UpgradeBeacon",
+      "proxy": "0xD0680F80F4f947968206806C2598Cbc5b6FE5b03",
+      "implementation": "0x267B6B6eAf6790faE5D5E9070F28a9cE64CbF279",
+      "beacon": "0xc756cFc1b7d0d4646589EDf10eD54b201237F5e8"
     },
+    "outboxValidatorManager": "0x5821f3B6eE05F3dC62b43B74AB1C8F8E6904b1C8",
     "inboxes": {
       "kovan": {
         "inbox": {
@@ -74,14 +72,12 @@
     "abacusConnectionManager": "0xF7561c34f17A32D5620583A3397C304e7038a7F6",
     "interchainGasPaymaster": "0x07009DA2249c388aD0f416a235AfE90D784e1aAc",
     "outbox": {
-      "outbox": {
-        "kind": "UpgradeBeacon",
-        "proxy": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
-        "implementation": "0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7",
-        "beacon": "0x4926a10788306D84202A2aDbd290b7743146Cc17"
-      },
-      "outboxValidatorManager": "0x58483b754Abb1E8947BE63d6b95DF75b8249543A"
+      "kind": "UpgradeBeacon",
+      "proxy": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
+      "implementation": "0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7",
+      "beacon": "0x4926a10788306D84202A2aDbd290b7743146Cc17"
     },
+    "outboxValidatorManager": "0x58483b754Abb1E8947BE63d6b95DF75b8249543A",
     "inboxes": {
       "alfajores": {
         "inbox": {
@@ -145,14 +141,12 @@
     "interchainGasPaymaster": "0x07009DA2249c388aD0f416a235AfE90D784e1aAc",
     "inboxValidatorManagers": {},
     "outbox": {
-      "outbox": {
-        "kind": "UpgradeBeacon",
-        "proxy": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
-        "implementation": "0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7",
-        "beacon": "0x4926a10788306D84202A2aDbd290b7743146Cc17"
-      },
-      "outboxValidatorManager": "0x58483b754Abb1E8947BE63d6b95DF75b8249543A"
+      "kind": "UpgradeBeacon",
+      "proxy": "0x98AAE089CaD930C64a76dD2247a2aC5773a4B8cE",
+      "implementation": "0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7",
+      "beacon": "0x4926a10788306D84202A2aDbd290b7743146Cc17"
     },
+    "outboxValidatorManager": "0x58483b754Abb1E8947BE63d6b95DF75b8249543A",
     "inboxes": {
       "alfajores": {
         "inbox": {
@@ -215,14 +209,12 @@
     "abacusConnectionManager": "0x46f7C5D896bbeC89bE1B19e4485e59b4Be49e9Cc",
     "interchainGasPaymaster": "0xB08d78F439e55D02C398519eef61606A5926245F",
     "outbox": {
-      "outbox": {
-        "kind": "UpgradeBeacon",
-        "proxy": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
-        "implementation": "0x589C201a07c26b4725A4A829d772f24423da480B",
-        "beacon": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD"
-      },
-      "outboxValidatorManager": "0x54148470292C24345fb828B003461a9444414517"
+      "kind": "UpgradeBeacon",
+      "proxy": "0x33dB966328Ea213b0f76eF96CA368AB37779F065",
+      "implementation": "0x589C201a07c26b4725A4A829d772f24423da480B",
+      "beacon": "0xDDcFEcF17586D08A5740B7D91735fcCE3dfe3eeD"
     },
+    "outboxValidatorManager": "0x54148470292C24345fb828B003461a9444414517",
     "inboxes": {
       "alfajores": {
         "inbox": {
@@ -285,14 +277,12 @@
     "abacusConnectionManager": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
     "interchainGasPaymaster": "0x44b764045BfDC68517e10e783E69B376cef196B2",
     "outbox": {
-      "outbox": {
-        "kind": "UpgradeBeacon",
-        "proxy": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
-        "implementation": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
-        "beacon": "0xeb6f11189197223c656807a83B0DD374f9A6dF44"
-      },
-      "outboxValidatorManager": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213"
+      "kind": "UpgradeBeacon",
+      "proxy": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+      "implementation": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
+      "beacon": "0xeb6f11189197223c656807a83B0DD374f9A6dF44"
     },
+    "outboxValidatorManager": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
     "inboxes": {
       "alfajores": {
         "inbox": {
@@ -355,14 +345,12 @@
     "abacusConnectionManager": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
     "interchainGasPaymaster": "0x44b764045BfDC68517e10e783E69B376cef196B2",
     "outbox": {
-      "outbox": {
-        "kind": "UpgradeBeacon",
-        "proxy": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
-        "implementation": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
-        "beacon": "0xeb6f11189197223c656807a83B0DD374f9A6dF44"
-      },
-      "outboxValidatorManager": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213"
+      "kind": "UpgradeBeacon",
+      "proxy": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+      "implementation": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
+      "beacon": "0xeb6f11189197223c656807a83B0DD374f9A6dF44"
     },
+    "outboxValidatorManager": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
     "inboxes": {
       "alfajores": {
         "inbox": {
@@ -425,14 +413,12 @@
     "abacusConnectionManager": "0xC2E36cd6e32e194EE11f15D9273B64461A4D49A2",
     "interchainGasPaymaster": "0x44b764045BfDC68517e10e783E69B376cef196B2",
     "outbox": {
-      "outbox": {
-        "kind": "UpgradeBeacon",
-        "proxy": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
-        "implementation": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
-        "beacon": "0xeb6f11189197223c656807a83B0DD374f9A6dF44"
-      },
-      "outboxValidatorManager": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213"
+      "kind": "UpgradeBeacon",
+      "proxy": "0x16B710b86CAd07E6F1C531861a16F5feC29dba37",
+      "implementation": "0x275aCcCa81cAD931dC6fB6E49ED233Bc99Bed4A7",
+      "beacon": "0xeb6f11189197223c656807a83B0DD374f9A6dF44"
     },
+    "outboxValidatorManager": "0xfc6e546510dC9d76057F1f76633FCFfC188CB213",
     "inboxes": {
       "alfajores": {
         "inbox": {
