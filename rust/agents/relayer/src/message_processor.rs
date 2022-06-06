@@ -4,11 +4,6 @@ use std::{
     time::{Duration, Instant},
 };
 
-use abacus_base::{InboxContracts, Outboxes};
-use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxValidatorManager,
-    MessageStatus, MultisigSignedCheckpoint,
-};
 use eyre::{bail, Result};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{
@@ -18,6 +13,12 @@ use tokio::{
 };
 use tracing::{
     debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument,
+};
+
+use abacus_base::{InboxContracts, Outboxes};
+use abacus_core::{
+    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxValidatorManager,
+    MessageStatus, MultisigSignedCheckpoint,
 };
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
@@ -98,71 +99,70 @@ impl MessageProcessor {
         latest_signed_checkpoint: &MultisigSignedCheckpoint,
         message_leaf_index: u32,
     ) -> Result<MessageProcessingStatus> {
-        match self
+        let message = if let Some(m) = self
             .db
             .message_by_leaf_index(message_leaf_index)?
             .map(CommittedMessage::try_from)
             .transpose()?
         {
-            Some(message) => {
-                let leaf = message.to_leaf();
-                if message.message.destination != self.inbox_contracts.inbox.local_domain() {
-                    return Ok(MessageProcessingStatus::NotDestinedForInbox);
+            m
+        } else {
+            // Should not get here
+            bail!("Somehow MessageProcessor get the leaf despite waiting for it");
+        };
+
+        let leaf = message.to_leaf();
+        if message.message.destination != self.inbox_contracts.inbox.local_domain() {
+            return Ok(MessageProcessingStatus::NotDestinedForInbox);
+        }
+
+        match self.inbox_contracts.inbox.message_status(leaf).await? {
+            MessageStatus::None => {
+                if message_leaf_index >= self.prover_sync.count() {
+                    self.prover_sync
+                        .update_to_checkpoint(&latest_signed_checkpoint.checkpoint)
+                        .await?;
+
+                    if message_leaf_index >= self.prover_sync.count() {
+                        return Ok(MessageProcessingStatus::NotYetCheckpointed);
+                    }
                 }
 
-                match self.inbox_contracts.inbox.message_status(leaf).await? {
-                    MessageStatus::None => {
-                        if message_leaf_index >= self.prover_sync.count() {
-                            self.prover_sync
-                                .update_to_checkpoint(&latest_signed_checkpoint.checkpoint)
-                                .await?;
-
-                            if message_leaf_index >= self.prover_sync.count() {
-                                return Ok(MessageProcessingStatus::NotYetCheckpointed);
-                            }
+                match self.prover_sync.get_proof(message_leaf_index) {
+                    Ok(proof) => match self
+                        .inbox_contracts
+                        .validator_manager
+                        .process(latest_signed_checkpoint, &message.message, &proof)
+                        .await
+                    {
+                        Ok(outcome) => {
+                            info!(
+                                leaf_index = message_leaf_index,
+                                hash = ?outcome.txid,
+                                "[MessageProcessor] processed"
+                            );
+                            self.db.mark_leaf_as_processed(message_leaf_index)?;
+                            Ok(MessageProcessingStatus::Processed)
                         }
-
-                        match self.prover_sync.get_proof(message_leaf_index) {
-                            Ok(proof) => match self
-                                .inbox_contracts
-                                .validator_manager
-                                .process(latest_signed_checkpoint, &message.message, &proof)
-                                .await
-                            {
-                                Ok(outcome) => {
-                                    info!(
-                                        leaf_index = message_leaf_index,
-                                        hash = ?outcome.txid,
-                                        "[MessageProcessor] processed"
-                                    );
-                                    self.db.mark_leaf_as_processed(message_leaf_index)?;
-                                    Ok(MessageProcessingStatus::Processed)
-                                }
-                                Err(err) => {
-                                    error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
-                                    Ok(MessageProcessingStatus::Error)
-                                }
-                            },
-                            Err(err) => {
-                                error!(error=?err, "MessageProcessor was unable to fetch proof");
-                                bail!("MessageProcessor was unable to fetch proof");
-                            }
+                        Err(err) => {
+                            error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
+                            Ok(MessageProcessingStatus::Error)
                         }
-                    }
-                    MessageStatus::Processed => {
-                        debug!(
-                            leaf_index = message_leaf_index,
-                            domain = self.inbox_contracts.inbox.local_domain(),
-                            "Already processed"
-                        );
-                        self.db.mark_leaf_as_processed(message_leaf_index)?;
-                        Ok(MessageProcessingStatus::Processed)
+                    },
+                    Err(err) => {
+                        error!(error=?err, "MessageProcessor was unable to fetch proof");
+                        bail!("MessageProcessor was unable to fetch proof");
                     }
                 }
             }
-            None => {
-                // Should not get here
-                bail!("Somehow MessageProcessor get the leaf despite waiting for it");
+            MessageStatus::Processed => {
+                debug!(
+                    leaf_index = message_leaf_index,
+                    domain = self.inbox_contracts.inbox.local_domain(),
+                    "Already processed"
+                );
+                self.db.mark_leaf_as_processed(message_leaf_index)?;
+                Ok(MessageProcessingStatus::Processed)
             }
         }
     }
@@ -224,114 +224,106 @@ impl MessageProcessor {
             // Sleep to not fire too many view calls in a short duration
             sleep(Duration::from_millis(20)).await;
 
-            match self.db.leaf_by_leaf_index(message_leaf_index)? {
-                Some(_) => {
-                    // We have unseen messages to process
-                    info!(
-                        destination = self.inbox_contracts.inbox.local_domain(),
-                        leaf_index = message_leaf_index,
-                        "Process fresh leaf"
-                    );
-                    match self
-                        .try_processing_message(&latest_signed_checkpoint, message_leaf_index)
-                        .await?
-                    {
-                        MessageProcessingStatus::Processed => {
-                            self.processed_gauge.set(message_leaf_index as i64);
-                            message_leaf_index += 1
-                        }
-                        MessageProcessingStatus::NotYetCheckpointed => {
-                            // If we don't have an up to date checkpoint, sleep and try again
-                            sleep(Duration::from_secs(self.polling_interval)).await;
-                        }
-                        MessageProcessingStatus::NotDestinedForInbox => message_leaf_index += 1,
-                        MessageProcessingStatus::Error => {
-                            warn!(
-                                destination = self.inbox_contracts.inbox.local_domain(),
-                                leaf_index = message_leaf_index,
-                                "Message could not be processed, queue for retry"
-                            );
-                            self.retry_queue.push(MessageToRetry {
-                                leaf_index: message_leaf_index,
-                                time_to_retry: Reverse(Instant::now()),
-                                retries: 0,
-                            });
-                            message_leaf_index += 1;
-                        }
+            if self.db.leaf_by_leaf_index(message_leaf_index)?.is_some() {
+                // We have unseen messages to process
+                info!(
+                    destination = self.inbox_contracts.inbox.local_domain(),
+                    leaf_index = message_leaf_index,
+                    "Process fresh leaf"
+                );
+                match self
+                    .try_processing_message(&latest_signed_checkpoint, message_leaf_index)
+                    .await?
+                {
+                    MessageProcessingStatus::Processed => {
+                        self.processed_gauge.set(message_leaf_index as i64);
+                        message_leaf_index += 1
+                    }
+                    MessageProcessingStatus::NotYetCheckpointed => {
+                        // If we don't have an up to date checkpoint, sleep and try again
+                        sleep(Duration::from_secs(self.polling_interval)).await;
+                    }
+                    MessageProcessingStatus::NotDestinedForInbox => message_leaf_index += 1,
+                    MessageProcessingStatus::Error => {
+                        warn!(
+                            destination = self.inbox_contracts.inbox.local_domain(),
+                            leaf_index = message_leaf_index,
+                            "Message could not be processed, queue for retry"
+                        );
+                        self.retry_queue.push(MessageToRetry {
+                            leaf_index: message_leaf_index,
+                            time_to_retry: Reverse(Instant::now()),
+                            retries: 0,
+                        });
+                        message_leaf_index += 1;
                     }
                 }
-                None => {
-                    // See if we have messages to retry
-                    if let Some(MessageToRetry { time_to_retry, .. }) = self.retry_queue.peek() {
-                        // Since we use Reverse, we want time_to_retry to be smaller
-                        if time_to_retry < &Reverse(Instant::now()) {
-                            continue;
-                        }
+            } else {
+                // See if we have messages to retry
+                if let Some(MessageToRetry { time_to_retry, .. }) = self.retry_queue.peek() {
+                    // Since we use Reverse, we want time_to_retry to be smaller
+                    if time_to_retry < &Reverse(Instant::now()) {
+                        continue;
                     }
-                    match self.retry_queue.pop() {
-                        Some(MessageToRetry {
-                            leaf_index,
-                            retries,
-                            ..
-                        }) => {
-                            info!(
+                }
+                if let Some(MessageToRetry {
+                    leaf_index,
+                    retries,
+                    ..
+                }) = self.retry_queue.pop()
+                {
+                    info!(
+                        destination = self.inbox_contracts.inbox.local_domain(),
+                        leaf_index = leaf_index,
+                        retries = retries,
+                        retry_queue_length = self.retry_queue.len(),
+                        "Retry processing of message"
+                    );
+                    match self
+                        .try_processing_message(&latest_signed_checkpoint, leaf_index)
+                        .await?
+                    {
+                        MessageProcessingStatus::NotDestinedForInbox
+                        | MessageProcessingStatus::NotYetCheckpointed => {
+                            error!(
+                                leaf_index = leaf_index,
+                                "Somehow we tried to retry a message that cant be retried"
+                            );
+                            bail!("Somehow we tried to retry a message that cant be retried")
+                        }
+                        MessageProcessingStatus::Processed => {}
+                        MessageProcessingStatus::Error => {
+                            warn!(
                                 destination = self.inbox_contracts.inbox.local_domain(),
                                 leaf_index = leaf_index,
                                 retries = retries,
                                 retry_queue_length = self.retry_queue.len(),
-                                "Retry processing of message"
+                                "Retry of message failed processing"
                             );
-                            match self
-                                .try_processing_message(&latest_signed_checkpoint, leaf_index)
-                                .await?
-                            {
-                                MessageProcessingStatus::NotDestinedForInbox
-                                | MessageProcessingStatus::NotYetCheckpointed => {
-                                    error!(
-                                        leaf_index = leaf_index,
-                                        "Somehow we tried to retry a message that cant be retried"
-                                    );
-                                    bail!(
-                                        "Somehow we tried to retry a message that cant be retried"
-                                    )
-                                }
-                                MessageProcessingStatus::Processed => {}
-                                MessageProcessingStatus::Error => {
-                                    warn!(
-                                        destination = self.inbox_contracts.inbox.local_domain(),
-                                        leaf_index = leaf_index,
-                                        retries = retries,
-                                        retry_queue_length = self.retry_queue.len(),
-                                        "Retry of message failed processing"
-                                    );
-                                    if retries >= self.max_retries {
-                                        error!(
-                                        destination = self.inbox_contracts.inbox.local_domain(),
-                                        leaf_index = leaf_index,
-                                        retries = retries,
-                                        retry_queue_length = self.retry_queue.len(),
-                                        "Maximum number of retries exceeded for processing message"
-                                    );
-                                        continue;
-                                    }
-                                    let retries = retries + 1;
-                                    let time_to_retry = Reverse(
-                                        Instant::now()
-                                            + Duration::from_secs(2u64.pow(retries as u32)),
-                                    );
-                                    self.retry_queue.push(MessageToRetry {
-                                        leaf_index,
-                                        time_to_retry,
-                                        retries,
-                                    });
-                                }
+                            if retries >= self.max_retries {
+                                error!(
+                                    destination = self.inbox_contracts.inbox.local_domain(),
+                                    leaf_index = leaf_index,
+                                    retries = retries,
+                                    retry_queue_length = self.retry_queue.len(),
+                                    "Maximum number of retries exceeded for processing message"
+                                );
+                                continue;
                             }
-                        }
-                        None => {
-                            // Nothing to do, just sleep
-                            sleep(Duration::from_secs(1)).await;
+                            let retries = retries + 1;
+                            let time_to_retry = Reverse(
+                                Instant::now() + Duration::from_secs(2u64.pow(retries as u32)),
+                            );
+                            self.retry_queue.push(MessageToRetry {
+                                leaf_index,
+                                time_to_retry,
+                                retries,
+                            });
                         }
                     }
+                } else {
+                    // Nothing to do, just sleep
+                    sleep(Duration::from_secs(1)).await;
                 }
             }
         }
