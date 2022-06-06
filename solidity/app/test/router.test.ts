@@ -71,18 +71,14 @@ describe('Router', async () => {
   it('rejects message from unenrolled inbox', async () => {
     await expect(
       router.handle(origin, utils.addressToBytes32(nonOwner.address), message),
-    ).to.be.revertedWith('NotFromInbox()');
+    ).to.be.revertedWith('!inbox');
   });
 
   it('rejects message from unenrolled router', async () => {
     await connectionManager.enrollInbox(origin, signer.address);
     await expect(
       router.handle(origin, utils.addressToBytes32(nonOwner.address), message),
-    ).to.be.revertedWith(
-      `AbacusMessageSenderNotRemoteRouter("${utils.addressToBytes32(
-        nonOwner.address,
-      )}")`,
-    );
+    ).to.be.revertedWith('!router');
   });
 
   it('owner can enroll remote router', async () => {
@@ -90,7 +86,7 @@ describe('Router', async () => {
     const remoteBytes = utils.addressToBytes32(nonOwner.address);
     expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
     await expect(router.mustHaveRemoteRouter(origin)).to.be.revertedWith(
-      `NoEnrolledRouterForDomain(${origin})`,
+      '!router',
     );
     await router.enrollRemoteRouter(origin, utils.addressToBytes32(remote));
     expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
@@ -161,9 +157,7 @@ describe('Router', async () => {
       it('reverts when dispatching a message to an unenrolled remote router', async () => {
         await expect(
           dispatchFunction(destinationWithoutRouter),
-        ).to.be.revertedWith(
-          `NoEnrolledRouterForDomain(${destinationWithoutRouter})`,
-        );
+        ).to.be.revertedWith('!router');
       });
     };
 

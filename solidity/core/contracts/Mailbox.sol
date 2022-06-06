@@ -7,9 +7,6 @@ import {IMailbox} from "../interfaces/IMailbox.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-error NotFromValidatorManager();
-error AddressNotContract();
-
 /**
  * @title Mailbox
  * @author Celo Labs Inc.
@@ -45,9 +42,7 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
      * @notice Ensures that a function is called by the validator manager contract.
      */
     modifier onlyValidatorManager() {
-        if (msg.sender != validatorManager) {
-            revert NotFromValidatorManager();
-        }
+        require(msg.sender == validatorManager, "!validatorManager");
         _;
     }
 
@@ -88,9 +83,10 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
      * @param _validatorManager Address of the validator manager
      */
     function _setValidatorManager(address _validatorManager) internal {
-        if (!Address.isContract(_validatorManager)) {
-            revert AddressNotContract();
-        }
+        require(
+            Address.isContract(_validatorManager),
+            "!contract validatorManager"
+        );
         validatorManager = _validatorManager;
         emit NewValidatorManager(_validatorManager);
     }

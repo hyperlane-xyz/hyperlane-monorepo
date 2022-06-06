@@ -4,9 +4,6 @@ pragma solidity >=0.8.0;
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-error AddressNotContract();
-error FetchBeaconImplementationFailed(bytes result);
-
 /**
  * @title UpgradeBeaconProxy
  * @notice
@@ -43,14 +40,16 @@ contract UpgradeBeaconProxy {
     constructor(address _upgradeBeacon, bytes memory _initializationCalldata)
         payable
     {
-        if (!Address.isContract(_upgradeBeacon)) {
-            revert AddressNotContract();
-        }
+        // Validate the Upgrade Beacon is a contract
+        require(Address.isContract(_upgradeBeacon), "beacon !contract");
+        // set the Upgrade Beacon
         upgradeBeacon = _upgradeBeacon;
+        // Validate the implementation is a contract
         address _implementation = _getImplementation(_upgradeBeacon);
-        if (!Address.isContract(_implementation)) {
-            revert AddressNotContract();
-        }
+        require(
+            Address.isContract(_implementation),
+            "beacon implementation !contract"
+        );
         // Call the initialization function on the implementation
         if (_initializationCalldata.length > 0) {
             _initialize(_implementation, _initializationCalldata);
@@ -170,9 +169,7 @@ contract UpgradeBeaconProxy {
         // Get the current implementation address from the upgrade beacon.
         (bool _ok, bytes memory _returnData) = _upgradeBeacon.staticcall("");
         // Revert and pass along revert message if call to upgrade beacon reverts.
-        if (!_ok) {
-            revert FetchBeaconImplementationFailed(_returnData);
-        }
+        require(_ok, string(_returnData));
         // Set the implementation to the address returned from the upgrade beacon.
         _implementation = abi.decode(_returnData, (address));
     }
