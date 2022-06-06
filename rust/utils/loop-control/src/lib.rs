@@ -10,6 +10,12 @@ pub enum LoopControl {
     Break,
 }
 
+impl Default for LoopControl {
+    fn default() -> Self {
+        LoopControl::Flow
+    }
+}
+
 /// Handle a loop control operation. This must be called directly within a loop.
 #[macro_export]
 macro_rules! loop_ctrl {

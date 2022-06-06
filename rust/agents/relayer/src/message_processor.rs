@@ -20,6 +20,10 @@ use abacus_core::{
     db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxValidatorManager,
     MessageStatus, MultisigSignedCheckpoint,
 };
+use loop_control::{
+    loop_ctrl,
+    LoopControl::{self, *},
+};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
@@ -213,6 +217,7 @@ impl MessageProcessor {
             self.processor_loop_gauge.set(message_leaf_index as i64);
             self.retry_queue_length_gauge
                 .set(self.retry_queue.len() as i64);
+
             if self
                 .db
                 .retrieve_leaf_processing_status(message_leaf_index)?
@@ -221,111 +226,137 @@ impl MessageProcessor {
                 message_leaf_index += 1;
                 continue;
             }
+
             // Sleep to not fire too many view calls in a short duration
             sleep(Duration::from_millis(20)).await;
 
             if self.db.leaf_by_leaf_index(message_leaf_index)?.is_some() {
-                // We have unseen messages to process
-                info!(
+                self.process_fresh_leaf(message_leaf_index, &mut latest_signed_checkpoint)
+                    .await?;
+            } else {
+                loop_ctrl!(
+                    self.retry_processing_messages(&mut latest_signed_checkpoint)
+                        .await?
+                );
+            }
+        }
+        // will only reach this if we break
+        Ok(())
+    }
+
+    async fn process_fresh_leaf(
+        &mut self,
+        mut message_leaf_index: u32,
+        latest_signed_checkpoint: &mut MultisigSignedCheckpoint,
+    ) -> Result<()> {
+        // We have unseen messages to process
+        info!(
+            destination = self.inbox_contracts.inbox.local_domain(),
+            leaf_index = message_leaf_index,
+            "Process fresh leaf"
+        );
+        match self
+            .try_processing_message(&latest_signed_checkpoint, message_leaf_index)
+            .await?
+        {
+            MessageProcessingStatus::Processed => {
+                self.processed_gauge.set(message_leaf_index as i64);
+                message_leaf_index += 1
+            }
+            MessageProcessingStatus::NotYetCheckpointed => {
+                // If we don't have an up to date checkpoint, sleep and try again
+                sleep(Duration::from_secs(self.polling_interval)).await;
+            }
+            MessageProcessingStatus::NotDestinedForInbox => message_leaf_index += 1,
+            MessageProcessingStatus::Error => {
+                warn!(
                     destination = self.inbox_contracts.inbox.local_domain(),
                     leaf_index = message_leaf_index,
-                    "Process fresh leaf"
+                    "Message could not be processed, queue for retry"
                 );
-                match self
-                    .try_processing_message(&latest_signed_checkpoint, message_leaf_index)
-                    .await?
-                {
-                    MessageProcessingStatus::Processed => {
-                        self.processed_gauge.set(message_leaf_index as i64);
-                        message_leaf_index += 1
-                    }
-                    MessageProcessingStatus::NotYetCheckpointed => {
-                        // If we don't have an up to date checkpoint, sleep and try again
-                        sleep(Duration::from_secs(self.polling_interval)).await;
-                    }
-                    MessageProcessingStatus::NotDestinedForInbox => message_leaf_index += 1,
-                    MessageProcessingStatus::Error => {
-                        warn!(
-                            destination = self.inbox_contracts.inbox.local_domain(),
-                            leaf_index = message_leaf_index,
-                            "Message could not be processed, queue for retry"
-                        );
-                        self.retry_queue.push(MessageToRetry {
-                            leaf_index: message_leaf_index,
-                            time_to_retry: Reverse(Instant::now()),
-                            retries: 0,
-                        });
-                        message_leaf_index += 1;
-                    }
+                self.retry_queue.push(MessageToRetry {
+                    leaf_index: message_leaf_index,
+                    time_to_retry: Reverse(Instant::now()),
+                    retries: 0,
+                });
+                message_leaf_index += 1;
+            }
+        }
+
+        Ok(())
+    }
+
+    async fn retry_processing_messages(
+        &mut self,
+        latest_signed_checkpoint: &mut MultisigSignedCheckpoint,
+    ) -> Result<LoopControl> {
+        // See if we have messages to retry
+        if let Some(MessageToRetry { time_to_retry, .. }) = self.retry_queue.peek() {
+            // Since we use Reverse, we want time_to_retry to be smaller
+            if time_to_retry < &Reverse(Instant::now()) {
+                return Ok(Continue);
+            }
+        }
+        if let Some(MessageToRetry {
+            leaf_index,
+            retries,
+            ..
+        }) = self.retry_queue.pop()
+        {
+            info!(
+                destination = self.inbox_contracts.inbox.local_domain(),
+                leaf_index = leaf_index,
+                retries = retries,
+                retry_queue_length = self.retry_queue.len(),
+                "Retry processing of message"
+            );
+            match self
+                .try_processing_message(&latest_signed_checkpoint, leaf_index)
+                .await?
+            {
+                MessageProcessingStatus::NotDestinedForInbox
+                | MessageProcessingStatus::NotYetCheckpointed => {
+                    error!(
+                        leaf_index = leaf_index,
+                        "Somehow we tried to retry a message that cant be retried"
+                    );
+                    bail!("Somehow we tried to retry a message that cant be retried")
                 }
-            } else {
-                // See if we have messages to retry
-                if let Some(MessageToRetry { time_to_retry, .. }) = self.retry_queue.peek() {
-                    // Since we use Reverse, we want time_to_retry to be smaller
-                    if time_to_retry < &Reverse(Instant::now()) {
-                        continue;
-                    }
-                }
-                if let Some(MessageToRetry {
-                    leaf_index,
-                    retries,
-                    ..
-                }) = self.retry_queue.pop()
-                {
-                    info!(
+                MessageProcessingStatus::Processed => {}
+                MessageProcessingStatus::Error => {
+                    warn!(
                         destination = self.inbox_contracts.inbox.local_domain(),
                         leaf_index = leaf_index,
                         retries = retries,
                         retry_queue_length = self.retry_queue.len(),
-                        "Retry processing of message"
+                        "Retry of message failed processing"
                     );
-                    match self
-                        .try_processing_message(&latest_signed_checkpoint, leaf_index)
-                        .await?
-                    {
-                        MessageProcessingStatus::NotDestinedForInbox
-                        | MessageProcessingStatus::NotYetCheckpointed => {
-                            error!(
-                                leaf_index = leaf_index,
-                                "Somehow we tried to retry a message that cant be retried"
-                            );
-                            bail!("Somehow we tried to retry a message that cant be retried")
-                        }
-                        MessageProcessingStatus::Processed => {}
-                        MessageProcessingStatus::Error => {
-                            warn!(
-                                destination = self.inbox_contracts.inbox.local_domain(),
-                                leaf_index = leaf_index,
-                                retries = retries,
-                                retry_queue_length = self.retry_queue.len(),
-                                "Retry of message failed processing"
-                            );
-                            if retries >= self.max_retries {
-                                error!(
-                                    destination = self.inbox_contracts.inbox.local_domain(),
-                                    leaf_index = leaf_index,
-                                    retries = retries,
-                                    retry_queue_length = self.retry_queue.len(),
-                                    "Maximum number of retries exceeded for processing message"
-                                );
-                                continue;
-                            }
-                            let retries = retries + 1;
-                            let time_to_retry = Reverse(
-                                Instant::now() + Duration::from_secs(2u64.pow(retries as u32)),
-                            );
-                            self.retry_queue.push(MessageToRetry {
-                                leaf_index,
-                                time_to_retry,
-                                retries,
-                            });
-                        }
+                    if retries >= self.max_retries {
+                        error!(
+                            destination = self.inbox_contracts.inbox.local_domain(),
+                            leaf_index = leaf_index,
+                            retries = retries,
+                            retry_queue_length = self.retry_queue.len(),
+                            "Maximum number of retries exceeded for processing message"
+                        );
+                        return Ok(Continue);
                     }
-                } else {
-                    // Nothing to do, just sleep
-                    sleep(Duration::from_secs(1)).await;
+                    let retries = retries + 1;
+                    let time_to_retry =
+                        Reverse(Instant::now() + Duration::from_secs(2u64.pow(retries as u32)));
+                    self.retry_queue.push(MessageToRetry {
+                        leaf_index,
+                        time_to_retry,
+                        retries,
+                    });
                 }
             }
+
+            Ok(Flow)
+        } else {
+            // Nothing to do, just sleep
+            sleep(Duration::from_secs(1)).await;
+            Ok(Flow)
         }
     }
 
