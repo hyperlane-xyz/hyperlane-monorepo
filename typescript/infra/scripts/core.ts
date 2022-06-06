@@ -1,3 +1,5 @@
+import { serializeContracts } from '@abacus-network/sdk';
+
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 import { writeJSON } from '../src/utils/utils';
 
@@ -18,9 +20,9 @@ async function main() {
   const contracts = await deployer.deploy();
 
   writeJSON(
-    getCoreContractsSdkFilepath(environment),
-    'addresses.json',
-    contracts,
+    getCoreContractsSdkFilepath(),
+    `${environment}.json`,
+    serializeContracts(contracts),
   );
   writeJSON(
     getCoreVerificationDirectory(environment),
