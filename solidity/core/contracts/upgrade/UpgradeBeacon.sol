@@ -4,9 +4,6 @@ pragma solidity >=0.8.0;
 // ============ External Imports ============
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
-error AddressNotContract();
-error AddressNotNew();
-
 /**
  * @title UpgradeBeacon
  * @notice Stores the address of an implementation contract
@@ -74,6 +71,7 @@ contract UpgradeBeacon {
             assembly {
                 _newImplementation := calldataload(0)
             }
+            // set the new implementation
             _setImplementation(_newImplementation);
         }
     }
@@ -86,12 +84,14 @@ contract UpgradeBeacon {
      * @param _newImplementation Address of the new implementation contract which will replace the old one
      */
     function _setImplementation(address _newImplementation) private {
-        if (implementation == _newImplementation) {
-            revert AddressNotNew();
-        }
-        if (!Address.isContract(_newImplementation)) {
-            revert AddressNotContract();
-        }
+        // Require that the new implementation is different from the current one
+        require(implementation != _newImplementation, "!upgrade");
+        // Require that the new implementation is a contract
+        require(
+            Address.isContract(_newImplementation),
+            "implementation !contract"
+        );
+        // set the new implementation
         implementation = _newImplementation;
         emit Upgrade(_newImplementation);
     }

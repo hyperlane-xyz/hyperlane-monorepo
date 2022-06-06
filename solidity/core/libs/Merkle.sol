@@ -3,8 +3,6 @@ pragma solidity >=0.6.11;
 
 // work based on eth2 deposit contract, which is used under CC0-1.0
 
-error TreeIsFull();
-
 /**
  * @title MerkleLib
  * @author Celo Labs Inc.
@@ -29,9 +27,7 @@ library MerkleLib {
      * @param _node Element to insert into tree
      **/
     function insert(Tree storage _tree, bytes32 _node) internal {
-        if (_tree.count >= MAX_LEAVES) {
-            revert TreeIsFull();
-        }
+        require(_tree.count < MAX_LEAVES, "merkle tree full");
 
         _tree.count += 1;
         uint256 size = _tree.count;
