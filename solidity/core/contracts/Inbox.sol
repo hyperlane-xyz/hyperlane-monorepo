@@ -9,9 +9,13 @@ import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInbox} from "../interfaces/IInbox.sol";
-
 // ============ External Imports ============
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+
+error MessageAlreadyProcessed(uint256 leafIndex);
+error WrongDestination(uint32 remoteDomain);
+error MerkleProofFailedVerification(bytes32 root);
+error LeafIndexBeforeCheckpoint();
 
 /**
  * @title Inbox
@@ -95,13 +99,14 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         bytes32[32] calldata _proof,
         uint256 _leafIndex
     ) external override nonReentrant onlyValidatorManager {
-        require(_index >= _leafIndex, "!index");
+        if (_leafIndex < _index) {
+            revert LeafIndexBeforeCheckpoint();
+        }
         bytes32 _messageHash = _message.leaf(_leafIndex);
         // ensure that message has not been processed
-        require(
-            messages[_messageHash] == MessageStatus.None,
-            "!MessageStatus.None"
-        );
+        if (messages[_messageHash] == MessageStatus.Processed) {
+            revert MessageAlreadyProcessed(_leafIndex);
+        }
         // calculate the expected root based on the proof
         bytes32 _calculatedRoot = MerkleLib.branchRoot(
             _messageHash,
@@ -109,7 +114,9 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
             _leafIndex
         );
         // verify the merkle proof
-        require(_calculatedRoot == _root, "!proof");
+        if (_calculatedRoot != _root) {
+            revert MerkleProofFailedVerification(_calculatedRoot);
+        }
         _process(_message, _messageHash);
         emit Process(_messageHash);
     }
@@ -132,7 +139,9 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         ) = _message.destructure();
 
         // ensure message was meant for this domain
-        require(destination == localDomain, "!destination");
+        if (destination != localDomain) {
+            revert WrongDestination(destination);
+        }
 
         // update message status as processed
         messages[_messageHash] = MessageStatus.Processed;

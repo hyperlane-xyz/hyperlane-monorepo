@@ -6,6 +6,8 @@ import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
+error OwnerClaimBalanceFailed();
+
 /**
  * @title InterchainGasPaymaster
  * @notice Manages payments on a source chain to cover gas costs of proving
@@ -46,6 +48,8 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, Ownable {
     function claim() external {
         // Transfer the entire balance to owner.
         (bool success, ) = owner().call{value: address(this).balance}("");
-        require(success, "!transfer");
+        if (!success) {
+            revert OwnerClaimBalanceFailed();
+        }
     }
 }

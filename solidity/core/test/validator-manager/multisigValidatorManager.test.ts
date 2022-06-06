@@ -87,7 +87,7 @@ describe('MultisigValidatorManager', async () => {
     it('reverts if the validator is already enrolled', async () => {
       await expect(
         validatorManager.enrollValidator(validator0.address),
-      ).to.be.revertedWith('already enrolled');
+      ).to.be.revertedWith('ValidatorAlreadyEnrolled()');
     });
 
     it('reverts when called by a non-owner', async () => {
@@ -122,13 +122,13 @@ describe('MultisigValidatorManager', async () => {
 
       await expect(
         validatorManager.unenrollValidator(validator1.address),
-      ).to.be.revertedWith('violates quorum threshold');
+      ).to.be.revertedWith(`ValidatorSetTooSmall(${1}, ${2})`);
     });
 
     it('reverts if the validator is not already enrolled', async () => {
       await expect(
         validatorManager.unenrollValidator(validator2.address),
-      ).to.be.revertedWith('!enrolled');
+      ).to.be.revertedWith('ValidatorNotEnrolled()');
     });
 
     it('reverts when called by a non-owner', async () => {
@@ -161,13 +161,13 @@ describe('MultisigValidatorManager', async () => {
 
     it('reverts if the new quorum threshold is zero', async () => {
       await expect(validatorManager.setThreshold(0)).to.be.revertedWith(
-        '!range',
+        'SetZeroThreshold()',
       );
     });
 
     it('reverts if the new quorum threshold is greater than the validator set size', async () => {
       await expect(validatorManager.setThreshold(3)).to.be.revertedWith(
-        '!range',
+        `ValidatorSetTooSmall(${2}, ${3})`,
       );
     });
 
@@ -240,7 +240,7 @@ describe('MultisigValidatorManager', async () => {
 
       await expect(
         validatorManager.isQuorum(root, index, signatures),
-      ).to.be.revertedWith('!sorted signers');
+      ).to.be.revertedWith('UnsortedSigners()');
     });
   });
 

@@ -9,6 +9,8 @@ import {IAbacusConnectionManager} from "@abacus-network/core/interfaces/IAbacusC
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
+error NotFromInbox();
+
 abstract contract AbacusConnectionClient is OwnableUpgradeable {
     // ============ Mutable Storage ============
 
@@ -29,7 +31,9 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
      * @notice Only accept messages from an Abacus Inbox contract
      */
     modifier onlyInbox() {
-        require(_isInbox(msg.sender), "!inbox");
+        if (!_isInbox(msg.sender)) {
+            revert NotFromInbox();
+        }
         _;
     }
 
