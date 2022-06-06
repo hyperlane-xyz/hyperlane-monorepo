@@ -39,9 +39,7 @@ export abstract class AbacusRouterDeployer<
     return router instanceof ProxiedContract ? router.contract : router;
   }
 
-  async deploy() {
-    const contractsMap = await super.deploy();
-
+  async mututallyEnrollRouters(contractsMap: ChainMap<Chain, Contracts>) {
     this.logger(`Enrolling deployed routers with each other...`);
     // Make all routers aware of eachother.
     await promiseObjAll(
@@ -57,6 +55,24 @@ export abstract class AbacusRouterDeployer<
         }
       }),
     );
+  }
+
+  async transferOwnership(contractsMap: ChainMap<Chain, Contracts>) {
+    this.logger(`Transfer Ownership of routers to owner ...`);
+    await promiseObjAll(
+      objMap(contractsMap, async (chain, contracts) => {
+        this.getRouterInstance(contracts).transferOwnership(
+          this.configMap[chain].owner,
+        );
+      }),
+    );
+  }
+
+  async deploy() {
+    const contractsMap = await super.deploy();
+
+    this.mututallyEnrollRouters(contractsMap);
+    this.transferOwnership(contractsMap);
 
     return contractsMap;
   }
