@@ -7,6 +7,8 @@ import {UpgradeBeacon} from "./UpgradeBeacon.sol";
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 
+error AddressNotContract();
+
 /**
  * @title UpgradeBeaconController
  * @notice Set as the controller of UpgradeBeacon contract(s),
@@ -33,7 +35,9 @@ contract UpgradeBeaconController is Ownable {
         onlyOwner
     {
         // Require that the beacon is a contract
-        require(Address.isContract(_beacon), "beacon !contract");
+        if (!Address.isContract(_beacon)) {
+            revert AddressNotContract();
+        }
         // Call into beacon and supply address of new implementation to update it.
         (bool _success, ) = _beacon.call(abi.encode(_implementation));
         // Revert with message on failure (i.e. if the beacon is somehow incorrect).

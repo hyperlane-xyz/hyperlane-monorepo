@@ -10,6 +10,10 @@ import {TypeCasts} from "../libs/TypeCasts.sol";
 import {MerkleTreeManager} from "./MerkleTreeManager.sol";
 import {IOutbox} from "../interfaces/IOutbox.sol";
 
+error MessageTooLong();
+error OutboxFailed();
+error CacheZeroCheckpointIndex();
+
 /**
  * @title Outbox
  * @author Celo Labs Inc.
@@ -97,7 +101,9 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
      * @notice Ensures that contract state != FAILED when the function is called
      */
     modifier notFailed() {
-        require(state != States.Failed, "failed state");
+        if (state == States.Failed) {
+            revert OutboxFailed();
+        }
         _;
     }
 
@@ -117,7 +123,9 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
         bytes32 _recipientAddress,
         bytes calldata _messageBody
     ) external override notFailed returns (uint256) {
-        require(_messageBody.length <= MAX_MESSAGE_BODY_BYTES, "msg too long");
+        if (_messageBody.length > MAX_MESSAGE_BODY_BYTES) {
+            revert MessageTooLong();
+        }
         // The leaf has not been inserted yet at this point1
         uint256 _leafIndex = count();
         // format the message into packed bytes
@@ -143,7 +151,9 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
      */
     function cacheCheckpoint() external override notFailed {
         (bytes32 _root, uint256 _index) = latestCheckpoint();
-        require(_index > 0, "!index");
+        if (_index == 0) {
+            revert CacheZeroCheckpointIndex();
+        }
         cachedCheckpoints[_root] = _index;
         latestCachedRoot = _root;
         emit CheckpointCached(_root, _index);
