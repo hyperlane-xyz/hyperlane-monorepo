@@ -198,7 +198,7 @@ pub struct SignedCheckpointWithSigner {
 }
 
 /// A checkpoint and multiple signatures
-#[derive(Debug)]
+#[derive(Clone, Debug)]
 pub struct MultisigSignedCheckpoint {
     /// The checkpoint
     pub checkpoint: Checkpoint,

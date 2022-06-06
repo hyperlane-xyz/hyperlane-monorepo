@@ -9,12 +9,11 @@ use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusCommon, AbacusContract, AbacusMessage,
-    ChainCommunicationError, ContractLocator, Encode, Inbox, MessageStatus, TxOutcome,
+    AbacusCommon, AbacusContract, ChainCommunicationError, ContractLocator, Inbox, MessageStatus,
+    TxOutcome,
 };
 
 use crate::trait_builder::MakeableWithProvider;
-use crate::tx::report_tx;
 
 abigen!(
     EthereumInboxInternal,
@@ -124,31 +123,6 @@ where
 {
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
         Ok(self.contract.remote_domain().call().await?)
-    }
-
-    #[tracing::instrument(err, skip(proof))]
-    async fn process(
-        &self,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        let mut sol_proof: [[u8; 32]; 32] = Default::default();
-        sol_proof
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
-
-        let tx = self.contract.process(
-            [0u8; 32],   // TODO come back to this
-            U256::one(), // TODO come back to this
-            message.to_vec().into(),
-            sol_proof,
-            proof.index.into(),
-        );
-        let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
-        let gassed = tx.gas(gas);
-        let receipt = report_tx(gassed).await?;
-        Ok(receipt.into())
     }
 
     #[tracing::instrument(err)]

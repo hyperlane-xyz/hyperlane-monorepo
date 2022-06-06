@@ -68,14 +68,15 @@ pub struct ProveCommand {
 impl ProveCommand {
     pub async fn run(&self) -> Result<()> {
         let db = AbacusDB::new(&self.outbox_name, DB::from_path(&self.db_path)?);
-        let (message, proof) = self.fetch_proof(db)?;
+        let (message, _proof) = self.fetch_proof(db)?;
         let inbox = self.inbox(message.origin, message.destination).await?;
 
         let status = inbox
             .message_status(message.to_leaf(self.leaf_index.unwrap()))
             .await?;
         let outcome = match status {
-            MessageStatus::None => inbox.process(&message, &proof).await?,
+            // TODO come back here
+            MessageStatus::None => {}, // inbox.process(&message, &proof).await?,
             _ => {
                 println!("Message already processed.");
                 return Ok(());

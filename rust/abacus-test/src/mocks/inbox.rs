@@ -16,12 +16,6 @@ mock! {
 
         pub fn _prove(&self, proof: &Proof) -> Result<TxOutcome, ChainCommunicationError> {}
 
-        pub fn _process(
-            &self,
-            message: &AbacusMessage,
-            proof: &Proof,
-        ) -> Result<TxOutcome, ChainCommunicationError> {}
-
         pub fn _checkpoint(
             &self,
             signed_checkpoint: &SignedCheckpoint,
@@ -49,14 +43,6 @@ impl std::fmt::Debug for MockInboxContract {
 impl Inbox for MockInboxContract {
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
         self._remote_domain()
-    }
-
-    async fn process(
-        &self,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        self._process(message, proof)
     }
 
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {

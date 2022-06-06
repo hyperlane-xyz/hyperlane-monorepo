@@ -1,6 +1,8 @@
+use abacus_core::MultisigSignedCheckpoint;
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use tokio::task::JoinHandle;
+use tokio::{sync::mpsc::channel, task::JoinHandle};
+
 use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_base::{
@@ -11,6 +13,9 @@ use crate::{
     checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,
     settings::RelayerSettings as Settings,
 };
+
+/// The buffer size of the channel in which signed checkpoints are sent over.
+const SIGNED_CHECKPOINT_CHANNEL_BUFFER: usize = 1000;
 
 /// A relayer agent
 #[derive(Debug)]
@@ -100,6 +105,9 @@ impl Relayer {
 
     fn run_inbox(&self, inbox_contracts: InboxContracts) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
+        let (signed_checkpoint_sender, signed_checkpoint_receiver) =
+            channel::<MultisigSignedCheckpoint>(SIGNED_CHECKPOINT_CHANNEL_BUFFER);
+
         let checkpoint_relayer = CheckpointRelayer::new(
             self.outbox().outbox(),
             self.polling_interval,
@@ -108,6 +116,7 @@ impl Relayer {
             db.clone(),
             inbox_contracts.clone(),
             self.multisig_checkpoint_syncer.clone(),
+            signed_checkpoint_sender,
             self.core.metrics.last_known_message_leaf_index(),
         );
         let message_processor = MessageProcessor::new(
@@ -116,7 +125,8 @@ impl Relayer {
             self.max_retries,
             db,
             self.submission_latency,
-            inbox_contracts.inbox,
+            inbox_contracts,
+            signed_checkpoint_receiver,
             self.core.metrics.last_known_message_leaf_index(),
             self.core.metrics.retry_queue_length(),
         );

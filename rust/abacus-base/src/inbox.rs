@@ -1,6 +1,6 @@
 use abacus_core::{
-    accumulator::merkle::Proof, db::AbacusDB, AbacusCommon, AbacusContract, AbacusMessage,
-    ChainCommunicationError, Inbox, MessageStatus, TxOutcome,
+    db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, Inbox, MessageStatus,
+    TxOutcome,
 };
 use abacus_test::mocks::inbox::MockInboxContract;
 use async_trait::async_trait;
@@ -44,15 +44,6 @@ impl CachingInbox {
 impl Inbox for CachingInbox {
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
         self.inbox.remote_domain().await
-    }
-
-    /// Process a message
-    async fn process(
-        &self,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        self.inbox.process(message, proof).await
     }
 
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
@@ -165,18 +156,6 @@ impl Inbox for InboxVariants {
             InboxVariants::Ethereum(inbox) => inbox.message_status(leaf).await,
             InboxVariants::Mock(mock_inbox) => mock_inbox.message_status(leaf).await,
             InboxVariants::Other(inbox) => inbox.message_status(leaf).await,
-        }
-    }
-
-    async fn process(
-        &self,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        match self {
-            InboxVariants::Ethereum(inbox) => inbox.process(message, proof).await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.process(message, proof).await,
-            InboxVariants::Other(inbox) => inbox.process(message, proof).await,
         }
     }
 }
