@@ -9,7 +9,7 @@ export const agent: AgentConfig<DevChains> = {
   runEnv: 'dev',
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-7be078e',
+    tag: 'sha-5e639a2',
   },
   chainNames,
   validatorSets: validators,
