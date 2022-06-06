@@ -20,7 +20,7 @@
       "implementation": "0x3219827B9D028Cec62b996147076b4cFCeac282a",
       "beacon": "0xe0B98662f15B12E4aCfd950cBe53FAad4b0C0b98"
     },
-    "outboxValidatorManager": "0xCfC4862Df4544923265873f2d288AcEd9919d679",
+    "outboxValidatorManager": "0xCfC4862Df4544923265873f2d288AcEd9919d679"
   },
   "kovan": {
     "upgradeBeaconController": "0x74A77C554685651F7dB3784359E1436604794438",
