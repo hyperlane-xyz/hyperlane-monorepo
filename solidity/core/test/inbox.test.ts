@@ -106,7 +106,7 @@ describe('Inbox', async () => {
         proof.proof,
         proof.index,
       ),
-    ).to.be.revertedWith(`MessageAlreadyProcessed(${proof.index})`);
+    ).to.be.revertedWith('!MessageStatus.None');
   });
 
   it('Rejects invalid message proof', async () => {
@@ -137,7 +137,7 @@ describe('Inbox', async () => {
         proof.proof,
         proof.index,
       ),
-    ).to.be.revertedWith('NotFromValidatorManager()');
+    ).to.be.revertedWith('!validatorManager');
   });
 
   for (let i = 0; i < badRecipientFactories.length; i++) {
@@ -168,10 +168,9 @@ describe('Inbox', async () => {
   }
 
   it('Fails to process message with wrong destination Domain', async () => {
-    const wrongDomain = localDomain + 1;
     const badProof = await dispatchMessageAndReturnProof(
       helperOutbox,
-      wrongDomain,
+      localDomain + 1,
       recipient,
       'hello world',
     );
@@ -185,7 +184,7 @@ describe('Inbox', async () => {
         badProof.proof,
         badProof.index,
       ),
-    ).to.be.revertedWith(`WrongDestination(${wrongDomain})`);
+    ).to.be.revertedWith('!destination');
   });
 
   it('Fails to process message sent to a non-existent contract address', async () => {
