@@ -2,13 +2,6 @@
 // TODO: Reapply metrics
 
 use std::sync::Arc;
-use std::time::Duration;
-
-use abacus_core::AbacusCommonIndexer;
-
-use tokio::time::sleep;
-use tracing::info_span;
-use tracing::{instrument::Instrumented, Instrument};
 
 use crate::settings::IndexSettings;
 use abacus_core::db::AbacusDB;
@@ -53,23 +46,6 @@ impl<I> ContractSync<I> {
             index_settings,
             metrics,
         }
-    }
-}
-
-impl<I> ContractSync<I>
-where
-    I: AbacusCommonIndexer + 'static,
-{
-    /// TODO: Not implemented
-    pub fn sync_checkpoints(&self) -> Instrumented<tokio::task::JoinHandle<eyre::Result<()>>> {
-        let span = info_span!("CheckpointContractSync");
-
-        tokio::spawn(async move {
-            loop {
-                sleep(Duration::from_secs(1)).await;
-            }
-        })
-        .instrument(span)
     }
 }
 

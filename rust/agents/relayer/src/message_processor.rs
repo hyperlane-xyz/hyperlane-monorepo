@@ -7,7 +7,7 @@ use std::{
 
 use abacus_base::{CachingInbox, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, MessageStatus,
+    db::AbacusDB, AbacusCommon, AbacusContract, Checkpoint, CommittedMessage, Inbox, MessageStatus,
 };
 use eyre::{bail, Result};
 use prometheus::{IntGauge, IntGaugeVec};
@@ -16,11 +16,14 @@ use tracing::{
     debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument,
 };
 
+use ethers::types::H256;
+
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
 pub(crate) struct MessageProcessor {
     polling_interval: u64,
     max_retries: u32,
+    #[allow(dead_code)] // TODO come back to this
     reorg_period: u64,
     db: AbacusDB,
     inbox: Arc<CachingInbox>,
@@ -105,10 +108,17 @@ impl MessageProcessor {
                     MessageStatus::None => {
                         if message_leaf_index >= self.prover_sync.count() {
                             // gotta find a root that includes the message
-                            let latest_cached_checkpoint = self
-                                .inbox
-                                .latest_cached_checkpoint(Some(self.reorg_period))
-                                .await?;
+                            // TODO come back here
+                            // let latest_cached_checkpoint = self
+                            //     .inbox
+                            //     .latest_cached_checkpoint(Some(self.reorg_period))
+                            //     .await?;
+
+                            let latest_cached_checkpoint = Checkpoint {
+                                outbox_domain: 1,
+                                root: H256::zero(),
+                                index: 1,
+                            };
 
                             self.prover_sync
                                 .update_to_checkpoint(&latest_cached_checkpoint)

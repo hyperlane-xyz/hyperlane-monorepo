@@ -7,8 +7,11 @@ use tracing::{debug, error, info, info_span, instrument, instrument::Instrumente
 
 use abacus_base::{InboxContracts, MultisigCheckpointSyncer, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxValidatorManager,
+    db::AbacusDB, AbacusCommon, AbacusContract, Checkpoint, CommittedMessage, Inbox,
+    InboxValidatorManager,
 };
+
+use ethers::types::H256;
 
 use crate::merkle_tree_builder::{MerkleTreeBuilder, MessageBatch};
 
@@ -178,11 +181,18 @@ impl CheckpointRelayer {
 
     #[instrument(ret, err, skip(self), fields(inbox_name = self.inbox_contracts.inbox.chain_name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
-        let latest_inbox_checkpoint = self
-            .inbox_contracts
-            .inbox
-            .latest_cached_checkpoint(None)
-            .await?;
+        // TODO come back to this
+        // let latest_inbox_checkpoint = self
+        //     .inbox_contracts
+        //     .inbox
+        //     .latest_cached_checkpoint(None)
+        //     .await?;
+
+        let latest_inbox_checkpoint = Checkpoint {
+            outbox_domain: 1,
+            root: H256::zero(),
+            index: 1,
+        };
         let mut onchain_checkpoint_index = latest_inbox_checkpoint.index;
         self.inbox_checkpoint_gauge
             .set(onchain_checkpoint_index as i64);

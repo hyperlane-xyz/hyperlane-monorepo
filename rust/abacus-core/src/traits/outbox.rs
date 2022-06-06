@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
-    AbacusCommon, CommittedMessage, Message, RawCommittedMessage, State,
+    AbacusCommon, Checkpoint, CommittedMessage, Message, RawCommittedMessage, State,
 };
 use async_trait::async_trait;
 use ethers::core::types::H256;
@@ -27,6 +27,15 @@ pub trait Outbox: AbacusCommon + Send + Sync + Debug {
     /// which has a conflicting `checkpoint` function automatically created by the mockall
     /// library's automocking attribute macro.
     async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError>;
+
+    /// Fetch the current root.
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError>;
+
+    /// Return the latest checkpointed root and its index.
+    async fn latest_cached_checkpoint(
+        &self,
+        lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError>;
 }
 
 /// Interface for retrieving event data emitted specifically by the outbox
