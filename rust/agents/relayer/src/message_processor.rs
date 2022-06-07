@@ -138,7 +138,7 @@ impl MessageProcessor {
                                     Ok(MessageProcessingStatus::Processed)
                                 }
                                 Err(err) => {
-                                    error!(leaf_index = message_leaf_index, error=?err, "Message failed to process, enqueuing for retry");
+                                    info!(leaf_index = message_leaf_index, error=?err, "Message failed to process, enqueuing for retry");
                                     Ok(MessageProcessingStatus::Error)
                                 }
                             },
@@ -298,7 +298,7 @@ impl MessageProcessor {
                                 }
                                 MessageProcessingStatus::Processed => {}
                                 MessageProcessingStatus::Error => {
-                                    warn!(
+                                    info!(
                                         destination = self.inbox_contracts.inbox.local_domain(),
                                         leaf_index = leaf_index,
                                         retries = retries,
@@ -306,13 +306,13 @@ impl MessageProcessor {
                                         "Retry of message failed processing"
                                     );
                                     if retries >= self.max_retries {
-                                        error!(
-                                        destination = self.inbox_contracts.inbox.local_domain(),
-                                        leaf_index = leaf_index,
-                                        retries = retries,
-                                        retry_queue_length = self.retry_queue.len(),
-                                        "Maximum number of retries exceeded for processing message"
-                                    );
+                                        info!(
+                                            destination = self.inbox_contracts.inbox.local_domain(),
+                                            leaf_index = leaf_index,
+                                            retries = retries,
+                                            retry_queue_length = self.retry_queue.len(),
+                                            "Maximum number of retries exceeded for processing message"
+                                        );
                                         continue;
                                     }
                                     let retries = retries + 1;

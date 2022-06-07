@@ -118,27 +118,9 @@ where
             sol_proof,
             proof.index.into(),
         );
-        tracing::warn!(
-            "calldata {:?}",
-            hex::encode(tx.calldata().unwrap().to_vec())
-        );
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
         let receipt = report_tx(gassed).await?;
         Ok(receipt.into())
-
-        // let tx = self.contract.process(
-        //     self.inbox_address,
-        //     multisig_signed_checkpoint.checkpoint.root.to_fixed_bytes(),
-        //     multisig_signed_checkpoint.checkpoint.index.into(),
-        //     multisig_signed_checkpoint
-        //         .signatures
-        //         .iter()
-        //         .map(|s| s.to_vec().into())
-        //         .collect(),
-
-        // );
-
-        // Ok(report_tx(tx).await?.into())
     }
 }
