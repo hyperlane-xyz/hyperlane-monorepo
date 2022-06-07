@@ -143,14 +143,13 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         bytes memory _msg,
         uint256 _gasPayment
     ) internal {
-        // Gets the abacusConnectionManager from storage once to avoid multiple reads.
-        IAbacusConnectionManager _abacusConnectionManager = abacusConnectionManager;
-        IOutbox _outbox = _abacusConnectionManager.outbox();
+        IOutbox _outbox = _outbox();
         uint256 _leafIndex = _dispatch(_outbox, _destinationDomain, _msg);
         if (_gasPayment > 0) {
-            _abacusConnectionManager.interchainGasPaymaster().payGasFor{
-                value: _gasPayment
-            }(_outbox, _leafIndex);
+            interchainGasPaymaster.payGasFor{value: _gasPayment}(
+                address(_outbox),
+                _leafIndex
+            );
         }
     }
 

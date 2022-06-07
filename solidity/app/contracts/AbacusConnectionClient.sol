@@ -17,7 +17,7 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
     // the paymaster contract must be willing to process messages dispatched from
     // the current Outbox contract, otherwise payments made to the paymaster will
     // not result in processed messages.
-    IInterchainGasPaymaster public override interchainGasPaymaster;
+    IInterchainGasPaymaster public interchainGasPaymaster;
 
     uint256[48] private __GAP; // gap for upgrade safety
 
@@ -103,18 +103,6 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
      */
     function _outbox() internal view returns (IOutbox) {
         return abacusConnectionManager.outbox();
-    }
-
-    /**
-     * @notice Gets the local Interchain Gas Paymaster contract from the abacusConnectionManager.
-     * @return The local Interchain Gas Paymaster contract.
-     */
-    function _interchainGasPaymaster()
-        internal
-        view
-        returns (IInterchainGasPaymaster)
-    {
-        return abacusConnectionManager.interchainGasPaymaster();
     }
 
     /**

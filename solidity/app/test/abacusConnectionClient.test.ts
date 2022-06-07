@@ -74,15 +74,6 @@ describe('AbacusConnectionClient', async () => {
     expect(await connectionClient.outbox()).to.equal(outbox);
   });
 
-  it('returns paymaster from connection manager', async () => {
-    const paymaster = nonOwner.address;
-    expect(await connectionClient.interchainGasPaymaster()).to.equal(
-      ethers.constants.AddressZero,
-    );
-    await connectionManager.setInterchainGasPaymaster(paymaster);
-    expect(await connectionClient.interchainGasPaymaster()).to.equal(paymaster);
-  });
-
   it('returns inbox from connection manager', async () => {
     const inbox = nonOwner.address;
     const domain = 1;
@@ -109,25 +100,24 @@ describe('AbacusConnectionClient', async () => {
 
     it('Allows owner to set the interchainGasPaymaster', async () => {
       await connectionClient.setInterchainGasPaymaster(newPaymaster.address);
-      expect(await connectionManager.interchainGasPaymaster()).to.equal(
+      expect(await connectionClient.interchainGasPaymaster()).to.equal(
         newPaymaster.address,
       );
     });
 
-    it('Emits the NewInterchainGasPaymaster event', async () => {
+    it('Emits the SetInterchainGasPaymaster event', async () => {
       await expect(
         connectionClient.setInterchainGasPaymaster(newPaymaster.address),
       )
-        .to.emit(connectionManager, 'NewInterchainGasPaymaster')
+        .to.emit(connectionClient, 'SetInterchainGasPaymaster')
         .withArgs(newPaymaster.address);
     });
 
     it('Reverts a call from non-owner', async () => {
       await expect(
-        connectionClient.setInterchainGasPaymaster(
-          newPaymaster.address,
-          nonOwner,
-        ),
+        connectionClient
+          .connect(nonOwner)
+          .setInterchainGasPaymaster(newPaymaster.address),
       ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
     });
   });
