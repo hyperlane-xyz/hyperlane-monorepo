@@ -70,6 +70,17 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
      * @param index Leaf index
      */
     event CheckpointCached(bytes32 indexed root, uint256 indexed index);
+    event PrematureCheckpoint(
+        Checkpoint checkpoint,
+        Signature signature,
+        uint256 count
+    );
+    event FraudulentCheckpoint(
+        Checkpoint checkpoint,
+        Signature signature,
+        MerkleLib.Proof fraudulent,
+        MerkleLib.Proof canonical
+    );
 
     /**
      * @notice Emitted when a new message is dispatched via Abacus
@@ -152,11 +163,51 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
         emit CheckpointCached(_root, _index);
     }
 
+    function prematureCheckpoint(
+        Checkpoint calldata _checkpoint,
+        Signature calldata _sig
+    ) external returns (bool) {
+        bool _success = _verify(_sig, _checkpoint, localDomain);
+        require(_success, "!sig");
+        // Checkpoints are premature if the checkpoint commits to more messages
+        // than the Outbox has in its merkle tree.
+        require(_checkpoint.index >= count(), "!premature");
+        fail();
+        emit PrematureCheckpoint(_checkpoint, _sig, count());
+        return true;
+    }
+
+    function fraudulentCheckpoint(
+        Checkpoint calldata _checkpoint,
+        Signature calldata _sig,
+        MerkleLib.Proof calldata _fraudulent,
+        MerkleLib.Proof calldata _canonical
+    ) external returns (bool) {
+        bool _success = _verify(_sig, _checkpoint, localDomain);
+        require(_success, "!sig");
+        require(MerkleLib.branchRoot(_fraudulent) == _checkpoint.root, "!root");
+        require(_checkpoint.index >= _fraudulent.index, "!index");
+
+        uint256 _cachedIndex = cachedCheckpoints[
+            MerkleLib.branchRoot(_canonical)
+        ];
+        require(_cachedIndex > 0 && _cachedIndex >= _canonical.index, "!cache");
+        // Check that the two roots commit to at least one differing leaf
+        // with index <= _leafIndex.
+        require(
+            MerkleLib.impliesDifferingLeaf(_fraudulent, _canonical),
+            "!fraud"
+        );
+
+        fail();
+        emit FraudulentCheckpoint(_checkpoint, _sig, _fraudulent, _canonical);
+        return true;
+    }
+
     /**
      * @notice Set contract state to FAILED.
-     * @dev Called by the validator manager when fraud is proven.
      */
-    function fail() external override onlyValidatorManager {
+    function fail() internal {
         // set contract to FAILED
         state = States.Failed;
         emit Fail();

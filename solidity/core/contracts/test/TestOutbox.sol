@@ -3,6 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import "../Outbox.sol";
+import {IValidatorManager} from "../../interfaces/IValidatorManager.sol";
 import {MerkleLib} from "../../libs/Merkle.sol";
 
 contract TestOutbox is Outbox {
@@ -13,7 +14,7 @@ contract TestOutbox is Outbox {
      * @param _validatorManager Address of the validator manager
      */
     function testSetValidatorManager(address _validatorManager) external {
-        validatorManager = _validatorManager;
+        validatorManager = IValidatorManager(_validatorManager);
     }
 
     function proof() external view returns (bytes32[32] memory) {
@@ -36,11 +37,11 @@ contract TestOutbox is Outbox {
         return tree.branch;
     }
 
-    function branchRoot(
-        bytes32 _item,
-        bytes32[32] memory _branch,
-        uint256 _index
-    ) external pure returns (bytes32) {
-        return MerkleLib.branchRoot(_item, _branch, _index);
+    function branchRoot(MerkleLib.Proof calldata _proof)
+        external
+        pure
+        returns (bytes32)
+    {
+        return MerkleLib.branchRoot(_proof);
     }
 }

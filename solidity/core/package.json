@@ -39,7 +39,7 @@
   "scripts": {
     "build": "hardhat compile && tsc",
     "coverage": "hardhat coverage",
-    "prettier": "prettier --write ./contracts ./libs ./test",
+    "prettier": "prettier --write ./contracts ./interfaces ./libs ./test",
     "test": "hardhat test"
   },
   "types": "dist/index.d.ts"

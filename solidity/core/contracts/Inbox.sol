@@ -9,6 +9,7 @@ import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
 import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
 import {IInbox} from "../interfaces/IInbox.sol";
+import {BN256} from "../libs/BN256.sol";
 
 // ============ External Imports ============
 import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
@@ -21,10 +22,11 @@ import {ReentrancyGuardUpgradeable} from "@openzeppelin/contracts-upgradeable/se
  */
 contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
     // ============ Libraries ============
-
-    using MerkleLib for MerkleLib.Tree;
-    using Message for bytes;
     using TypeCasts for bytes32;
+    using MerkleLib for MerkleLib.Tree;
+    using MerkleLib for MerkleLib.Proof;
+    using Message for bytes;
+    using BN256 for BN256.G1Point;
 
     // ============ Enums ============
 
@@ -54,18 +56,24 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
      * @notice Emitted when message is processed
      * @dev This event allows watchers to observe the merkle proof they need
      * to prove fraud on the Outbox.
-     * @param messageHash Hash of message that was processed.
      */
     event Process(
-        bytes32 indexed messageHash,
-        uint256 leafIndex,
-        bytes32[32] proof
+        Checkpoint checkpoint,
+        MerkleLib.Proof proof,
+        uint256 signature,
+        uint256 randomness,
+        bytes32 nonce,
+        bytes32[] missing
     );
 
+    // This event should probably include a list of leaf indices.
     event BatchProcess(
-        bytes32 indexed messageHash,
-        bytes32[32] indexed proof,
-        uint256[] indexed leafIndices
+        Checkpoint checkpoint,
+        MerkleLib.Proof proof,
+        uint256 signature,
+        uint256 randomness,
+        bytes32 nonce,
+        bytes32[] missing
     );
 
     // ============ Constructor ============
@@ -93,33 +101,26 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
      * but comments out the name to suppress compiler warning
      */
     function batchProcess(
-        bytes32 _root,
-        uint256 _index,
-        bytes[] calldata _messages,
-        bytes32[32][] calldata _proofs,
-        uint256[] calldata _leafIndices
-    ) external nonReentrant onlyValidatorManager {
-        for (uint256 i = 0; i < _leafIndices.length; i++) {
-            require(_index >= _leafIndices[i], "!index");
-            //bytes32 _messageHash = _message.leaf(_leafIndex);
-            bytes32 _messageHash = keccak256(_messages[i]);
-            // ensure that message has not been processed
-            require(
-                messages[_messageHash] == MessageStatus.None,
-                "!MessageStatus.None"
-            );
-            // calculate the expected root based on the proof
-            bytes32 _calculatedRoot = MerkleLib.branchRoot(
-                _messageHash,
-                _proofs[i],
-                _leafIndices[i]
-            );
-            require(_calculatedRoot == _root, "!proof");
-            _process(_messages[i], _messageHash);
-            if (i == _leafIndices.length - 1) {
-                emit BatchProcess(_messageHash, _proofs[i], _leafIndices);
+        Checkpoint calldata _checkpoint,
+        Signature calldata _sig,
+        MerkleLib.Proof[] calldata _proofs,
+        bytes[] calldata _messages
+    ) external nonReentrant {
+        bool _success = _verify(_sig, _checkpoint, remoteDomain);
+        require(_success, "!sig");
+        for (uint256 i = 0; i < _proofs.length; i++) {
+            _process(_checkpoint, _proofs[i], _messages[i]);
+            if (i == _proofs.length - 1) {
+                emit BatchProcess(
+                    _checkpoint,
+                    _proofs[i],
+                    _sig.sig,
+                    _sig.randomness,
+                    _sig.nonce.compress(),
+                    _sig.missing
+                );
             } else {
-                require(_leafIndices[i] < _leafIndices[i + 1], "!ordered");
+                require(_proofs[i].index < _proofs[i + 1].index, "!ordered");
             }
         }
     }
@@ -130,37 +131,30 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
      * @dev Called by the validator manager, which is responsible for verifying a
      * quorum of validator signatures on the checkpoint.
      * @dev Reverts if verification of the message fails.
-     * @param _root The merkle root of the checkpoint used to prove message inclusion.
-     * @param _index The index of the checkpoint used to prove message inclusion.
-     * @param _message Formatted message (refer to Mailbox.sol Message library)
      * @param _proof Merkle proof of inclusion for message's leaf
-     * @param _leafIndex Index of leaf in outbox's merkle tree
+     * @param _message Formatted message (refer to Mailbox.sol Message library)
      */
     function process(
-        bytes32 _root,
-        uint256 _index,
-        bytes calldata _message,
-        bytes32[32] calldata _proof,
-        uint256 _leafIndex
-    ) external override nonReentrant onlyValidatorManager {
-        require(_index >= _leafIndex, "!index");
-        //bytes32 _messageHash = _message.leaf(_leafIndex);
-        bytes32 _messageHash = keccak256(_message);
-        // ensure that message has not been processed
-        require(
-            messages[_messageHash] == MessageStatus.None,
-            "!MessageStatus.None"
-        );
-        // calculate the expected root based on the proof
-        bytes32 _calculatedRoot = MerkleLib.branchRoot(
-            _messageHash,
+        Signature calldata _sig,
+        Checkpoint calldata _checkpoint,
+        MerkleLib.Proof calldata _proof,
+        bytes calldata _message
+    ) external override nonReentrant {
+        bool _success = _verify(_sig, _checkpoint, remoteDomain);
+        require(_success, "!sig");
+        _process(_checkpoint, _proof, _message);
+        // Missing compressed key, but maybe it's unnecessary?
+        emit Process(
+            _checkpoint,
             _proof,
-            _leafIndex
+            _sig.sig,
+            _sig.randomness,
+            _sig.nonce.compress(),
+            _sig.missing
         );
-        require(_calculatedRoot == _root, "!proof");
-        _process(_message, _messageHash);
-        emit Process(_messageHash, _leafIndex, _proof);
     }
+
+    // ============ Public Functions ============
 
     // ============ Internal Functions ============
 
@@ -168,9 +162,22 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
      * @notice Marks a message as processed and calls handle on the recipient
      * @dev Internal function that can be called by contracts like TestInbox
      * @param _message Formatted message (refer to Mailbox.sol Message library)
-     * @param _messageHash keccak256 hash of the message
      */
-    function _process(bytes calldata _message, bytes32 _messageHash) internal {
+    function _process(
+        Checkpoint calldata _checkpoint,
+        MerkleLib.Proof calldata _proof,
+        bytes calldata _message
+    ) internal {
+        require(_checkpoint.index >= _proof.index, "!index");
+        //bytes32 _messageHash = _message.leaf(_leafIndex);
+        require(keccak256(_message) == _proof.item, "!hash");
+        require(
+            messages[_proof.item] == MessageStatus.None,
+            "!MessageStatus.None"
+        );
+        // calculate the expected root based on the proof
+        require(_checkpoint.root == _proof.branchRoot(), "!proof");
+
         (
             uint32 origin,
             bytes32 sender,
@@ -183,7 +190,7 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         require(destination == localDomain, "!destination");
 
         // update message status as processed
-        messages[_messageHash] = MessageStatus.Processed;
+        messages[_proof.item] = MessageStatus.Processed;
 
         IMessageRecipient(recipient.bytes32ToAddress()).handle(
             origin,

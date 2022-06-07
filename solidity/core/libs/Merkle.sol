@@ -21,6 +21,12 @@ library MerkleLib {
         uint256 count;
     }
 
+    struct Proof {
+        bytes32[TREE_DEPTH] branch;
+        bytes32 item;
+        uint256 index;
+    }
+
     /**
      * @notice Inserts `_node` into merkle tree
      * @dev Reverts if tree is full
@@ -117,27 +123,65 @@ library MerkleLib {
     /**
      * @notice Calculates and returns the merkle root for the given leaf
      * `_item`, a merkle branch, and the index of `_item` in the tree.
-     * @param _item Merkle leaf
-     * @param _branch Merkle proof
-     * @param _index Index of `_item` in tree
      * @return _current Calculated merkle root
      **/
-    function branchRoot(
-        bytes32 _item,
-        bytes32[TREE_DEPTH] memory _branch,
-        uint256 _index
-    ) internal pure returns (bytes32 _current) {
-        _current = _item;
-
+    function branchRoot(Proof calldata _proof)
+        internal
+        pure
+        returns (bytes32 _current)
+    {
+        _current = _proof.item;
         for (uint256 i = 0; i < TREE_DEPTH; i++) {
-            uint256 _ithBit = (_index >> i) & 0x01;
-            bytes32 _next = _branch[i];
+            uint256 _ithBit = (_proof.index >> i) & 0x01;
+            bytes32 _next = _proof.branch[i];
             if (_ithBit == 1) {
                 _current = keccak256(abi.encodePacked(_next, _current));
             } else {
                 _current = keccak256(abi.encodePacked(_current, _next));
             }
         }
+    }
+
+    /**
+     * @notice Returns true if the implied merkle roots commit to at least one
+     * differing leaf with index <= `_leafIndex`.
+     * Given a merkle proof for leaf index J, we can determine whether an
+     * element in the proof is an internal node whose terminal children are leaves
+     * with index <= J.
+     * Given two merkle proofs for leaf index J, if such elements do not match,
+     * these two proofs necessarily commit to at least one differing leaf with
+     * index I <= J.
+     * @return differ True if the implied trees differ, false if not.
+     */
+    function impliesDifferingLeaf(Proof calldata _a, Proof calldata _b)
+        internal
+        pure
+        returns (bool)
+    {
+        require(_a.index == _b.index, "!indices");
+        // The implied merkle roots commit to at least one differing leaf
+        // with index <= _leafIndex, if either:
+
+        // 1. If the provided leaves differ.
+        if (_a.item != _b.item) {
+            return true;
+        }
+
+        // 2. If the branches contain internal nodes whose subtrees are full
+        // (as implied by _leafIndex) that differ from one another.
+        for (uint8 i = 0; i < 32; i++) {
+            uint256 _ithBit = (_a.index >> i) & 0x01;
+            // If the i'th is 1, the i'th element in the proof is an internal
+            // node whose subtree is full.
+            // If these nodes differ, at least one leaf that they commit to
+            // must differ as well.
+            if (_ithBit == 1) {
+                if (_a.branch[i] != _b.branch[i]) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     // keccak256 zero hashes

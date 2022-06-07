@@ -3,6 +3,8 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {IMailbox} from "../interfaces/IMailbox.sol";
+import {IValidatorManager} from "../interfaces/IValidatorManager.sol";
+import {BN256} from "../libs/BN256.sol";
 // ============ External Imports ============
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
@@ -13,6 +15,10 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
  * @notice Shared utilities between Outbox and Inbox.
  */
 abstract contract Mailbox is IMailbox, OwnableUpgradeable {
+    // ============ Libraries ============
+
+    using BN256 for BN256.G1Point;
+
     // ============ Immutable Variables ============
 
     // Domain of chain on which the contract is deployed
@@ -21,7 +27,7 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
     // ============ Public Variables ============
 
     // Address of the validator manager contract.
-    address public validatorManager;
+    IValidatorManager public validatorManager;
 
     // ============ Upgrade Gap ============
 
@@ -35,16 +41,6 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
      * @param validatorManager The address of the new validatorManager
      */
     event NewValidatorManager(address validatorManager);
-
-    // ============ Modifiers ============
-
-    /**
-     * @notice Ensures that a function is called by the validator manager contract.
-     */
-    modifier onlyValidatorManager() {
-        require(msg.sender == validatorManager, "!validatorManager");
-        _;
-    }
 
     // ============ Constructor ============
 
@@ -87,7 +83,41 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
             Address.isContract(_validatorManager),
             "!contract validatorManager"
         );
-        validatorManager = _validatorManager;
+        validatorManager = IValidatorManager(_validatorManager);
         emit NewValidatorManager(_validatorManager);
+    }
+
+    /**
+     * @notice Hash of `_domain` concatenated with "ABACUS".
+     * @param _domain The domain to hash.
+     */
+    function _domainHash(uint32 _domain) internal pure returns (bytes32) {
+        return keccak256(abi.encodePacked(_domain, "ABACUS"));
+    }
+
+    function _verify(
+        Signature calldata _sig,
+        Checkpoint calldata _checkpoint,
+        uint32 _domain
+    ) public view returns (bool) {
+        BN256.G1Point memory _key = validatorManager.verificationKey(
+            _domain,
+            _sig.missing
+        );
+        uint256 _challenge = uint256(
+            keccak256(
+                abi.encodePacked(
+                    _sig.randomness,
+                    _domainHash(_domain),
+                    _checkpoint.root,
+                    _checkpoint.index
+                )
+            )
+        );
+
+        BN256.G1Point memory _verification = _sig.nonce.add(
+            _key.mul(_challenge)
+        );
+        return BN256.g().mul(_sig.sig).eq(_verification);
     }
 }

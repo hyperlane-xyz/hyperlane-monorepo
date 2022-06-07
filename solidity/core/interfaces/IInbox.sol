@@ -2,23 +2,22 @@
 pragma solidity >=0.6.11;
 
 import {IMailbox} from "./IMailbox.sol";
+import {MerkleLib} from "../libs/Merkle.sol";
 
 interface IInbox is IMailbox {
     function remoteDomain() external returns (uint32);
 
     function process(
-        bytes32 _root,
-        uint256 _index,
-        bytes calldata _message,
-        bytes32[32] calldata _proof,
-        uint256 _leafIndex
+        Signature calldata _sig,
+        Checkpoint calldata _checkpoint,
+        MerkleLib.Proof calldata _proof,
+        bytes calldata _message
     ) external;
 
     function batchProcess(
-        bytes32 _root,
-        uint256 _index,
-        bytes[] calldata _messages,
-        bytes32[32][] calldata _proofs,
-        uint256[] calldata _leafIndices
+        Checkpoint calldata _checkpoint,
+        Signature calldata _sig,
+        MerkleLib.Proof[] calldata _proofs,
+        bytes[] calldata _messages
     ) external;
 }

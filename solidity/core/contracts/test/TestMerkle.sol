@@ -13,12 +13,12 @@ contract TestMerkle is MerkleTreeManager {
         tree.insert(_node);
     }
 
-    function branchRoot(
-        bytes32 _leaf,
-        bytes32[32] calldata _proof,
-        uint256 _index
-    ) external pure returns (bytes32 _node) {
-        return MerkleLib.branchRoot(_leaf, _proof, _index);
+    function branchRoot(MerkleLib.Proof calldata _proof)
+        external
+        pure
+        returns (bytes32 _node)
+    {
+        return MerkleLib.branchRoot(_proof);
     }
 
     /**
