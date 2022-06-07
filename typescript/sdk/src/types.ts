@@ -62,6 +62,7 @@ export type RemoteChainMap<
  */
 export type ChainMetadata = {
   id: number;
+  finalityBlocks: number;
   nativeTokenDecimals?: number;
   paginate?: Pagination;
 };
