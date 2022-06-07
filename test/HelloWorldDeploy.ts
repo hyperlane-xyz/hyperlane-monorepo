@@ -4,14 +4,13 @@ import { TestAbacusDeploy, TestRouterDeploy } from '@abacus-network/hardhat';
 
 import { HelloWorld__factory, HelloWorld } from '../src/types';
 
-// HelloWorld has no configurable variables.
-export type HelloWorldConfig = {
+type HelloWorldTestConfig = {
   signer: SignerWithAddress;
 };
 
 export class HelloWorldDeploy extends TestRouterDeploy<
   HelloWorld,
-  HelloWorldConfig
+  HelloWorldTestConfig
 > {
   async deployInstance(
     domain: types.Domain,

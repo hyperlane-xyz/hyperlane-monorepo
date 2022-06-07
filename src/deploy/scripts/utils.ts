@@ -1,7 +1,7 @@
-import { environments, HelloWorldConfig } from '../environments';
+import { environments, HelloWorldEnvironmentConfig } from '../environments';
 
 export async function getEnvironmentConfig(
   environment: keyof typeof environments,
-): Promise<HelloWorldConfig> {
+): Promise<HelloWorldEnvironmentConfig> {
   return environments[environment];
 }
