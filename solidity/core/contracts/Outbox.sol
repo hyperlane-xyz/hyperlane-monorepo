@@ -244,4 +244,8 @@ contract Outbox is IOutbox, Version0, Mailbox {
     function latestCheckpoint() public view returns (bytes32, uint256) {
         return (root(), count() - 1);
     }
+
+    function domainHash() public view returns (bytes32) {
+        return _domainHash(localDomain);
+    }
 }

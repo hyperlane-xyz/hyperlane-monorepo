@@ -1,8 +1,6 @@
 import { expect } from 'chai';
 import { BigNumber, ethers } from 'ethers';
 
-import { utils } from '@abacus-network/utils';
-
 import { TestOutbox } from '../../types';
 import { DispatchEvent } from '../../types/contracts/Outbox';
 
@@ -12,13 +10,18 @@ export interface Checkpoint {
 }
 
 export interface MerkleProof {
+  branch: string[];
+  item: string;
+  index: BigNumber;
+}
+
+interface DispatchReturnValues {
+  proof: MerkleProof;
   checkpoint: Checkpoint;
-  proof: string[];
-  leaf: string;
   message: string;
 }
 
-export const dispatchMessage = async (
+const _dispatchMessage = async (
   outbox: TestOutbox,
   destination: number,
   recipient: string,
@@ -35,28 +38,32 @@ export const dispatchMessage = async (
   return dispatch.args!;
 };
 
-export const dispatchMessageAndReturnProof = async (
+export const dispatchMessage = async (
   outbox: TestOutbox,
   destination: number,
   recipient: string,
   messageStr: string,
-): Promise<MerkleProof> => {
-  const { leafIndex, message } = await dispatchMessage(
+): Promise<DispatchReturnValues> => {
+  const { leafIndex, message } = await _dispatchMessage(
     outbox,
     destination,
     recipient,
     messageStr,
   );
-  const leaf = utils.messageHash(message, leafIndex.toNumber());
+  // const item = utils.messageHash(message, leafIndex.toNumber());
+  const item = ethers.utils.solidityKeccak256(['bytes'], [message]);
   const root = await outbox.root();
-  const proof = await outbox.proof();
+  const branch = await outbox.proof();
   return {
     checkpoint: {
       root,
       index: leafIndex,
     },
-    proof,
-    leaf,
+    proof: {
+      branch,
+      item,
+      index: leafIndex,
+    },
     message,
   };
 };

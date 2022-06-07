@@ -16,16 +16,18 @@ import {
   TestOutbox,
   TestOutbox__factory,
   TestRecipient__factory,
-  TestValidatorManager,
-  TestValidatorManager__factory,
+  ValidatorManager,
+  ValidatorManager__factory,
 } from '../types';
 
-import { MerkleProof, dispatchMessageAndReturnProof } from './lib/mailboxes';
+import { Checkpoint, MerkleProof, dispatchMessage } from './lib/mailboxes';
+import { AggregatedSignature, ValidatorSet } from './lib/validators';
 
-const localDomain = 3000;
-const remoteDomain = 1000;
+const OUTBOX_DOMAIN = 1234;
+const INBOX_DOMAIN = 4321;
+const SET_SIZE = 32;
 
-describe('Inbox', async () => {
+describe.only('Inbox', async () => {
   const badRecipientFactories = [
     BadRecipient1__factory,
     BadRecipient2__factory,
@@ -36,76 +38,75 @@ describe('Inbox', async () => {
 
   let inbox: TestInbox,
     signer: SignerWithAddress,
-    validatorManager: TestValidatorManager,
-    helperOutbox: TestOutbox,
+    validatorManager: ValidatorManager,
+    outbox: TestOutbox,
+    validators: ValidatorSet,
     recipient: string,
-    proof: MerkleProof;
+    signature: AggregatedSignature,
+    proof: MerkleProof,
+    checkpoint: Checkpoint,
+    message: string;
 
   before(async () => {
     [signer] = await ethers.getSigners();
-    // Inbox.initialize will ensure the validator manager is a contract.
-    // TestValidatorManager doesn't have any special logic, it just forwards
-    // calls to Inbox.process.
-    const testValidatorManagerFactory = new TestValidatorManager__factory(
-      signer,
-    );
-    validatorManager = await testValidatorManagerFactory.deploy();
-    const recipientF = new TestRecipient__factory(signer);
-    recipient = utils.addressToBytes32((await recipientF.deploy()).address);
+
+    // Deploy contracts
+    const validatorManagerFactory = new ValidatorManager__factory(signer);
+    validatorManager = await validatorManagerFactory.deploy();
 
     // Deploy a helper outbox contract so that we can easily construct merkle
     // proofs.
     const outboxFactory = new TestOutbox__factory(signer);
-    helperOutbox = await outboxFactory.deploy(localDomain);
-    await helperOutbox.initialize(validatorManager.address);
+    outbox = await outboxFactory.deploy(OUTBOX_DOMAIN);
+    await outbox.initialize(validatorManager.address);
 
-    proof = await dispatchMessageAndReturnProof(
-      helperOutbox,
-      remoteDomain,
+    const domainHash = await outbox.domainHash();
+
+    // Create and enroll validators
+    validators = new ValidatorSet(SET_SIZE, validatorManager, domainHash);
+    await validators.enroll(OUTBOX_DOMAIN);
+
+    // Deploy a recipient
+    const recipientF = new TestRecipient__factory(signer);
+    recipient = utils.addressToBytes32((await recipientF.deploy()).address);
+
+    const _r = await dispatchMessage(
+      outbox,
+      INBOX_DOMAIN,
       recipient,
       'hello world',
     );
+    message = _r.message;
+    checkpoint = _r.checkpoint;
+    proof = _r.proof;
+    signature = await validators.sign(checkpoint);
   });
 
   beforeEach(async () => {
     const inboxFactory = new TestInbox__factory(signer);
-    inbox = await inboxFactory.deploy(remoteDomain);
-    await inbox.initialize(localDomain, validatorManager.address);
+    inbox = await inboxFactory.deploy(INBOX_DOMAIN);
+    await inbox.initialize(OUTBOX_DOMAIN, validatorManager.address);
   });
 
   it('Cannot be initialized twice', async () => {
     await expect(
-      inbox.initialize(localDomain, validatorManager.address),
+      inbox.initialize(OUTBOX_DOMAIN, validatorManager.address),
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
   it('processes a message', async () => {
-    await validatorManager.process(
-      inbox.address,
-      proof.checkpoint.root,
-      proof.checkpoint.index,
-      proof.message,
-      proof.proof,
-      proof.checkpoint.index,
-    );
-    expect(await inbox.messages(proof.leaf)).to.eql(
+    await inbox.process(signature, checkpoint, proof, message);
+    expect(await inbox.messages(proof.item)).to.eql(
       types.MessageStatus.PROCESSED,
     );
   });
 
   it('Rejects an already-processed message', async () => {
-    await inbox.setMessageStatus(proof.leaf, types.MessageStatus.PROCESSED);
+    await inbox.setMessageStatus(proof.item, types.MessageStatus.PROCESSED);
 
     // Try to process message again
     await expect(
-      validatorManager.process(
-        inbox.address,
-        proof.checkpoint.root,
-        proof.checkpoint.index,
-        proof.message,
-        proof.proof,
-        proof.checkpoint.index,
-      ),
+      inbox.process(signature, checkpoint, proof, message),
     ).to.be.revertedWith('!MessageStatus.None');
   });
 
@@ -113,31 +114,37 @@ describe('Inbox', async () => {
     // Switch ordering of proof hashes
     // NB: We copy 'path' here to avoid mutating the test cases for
     // other tests.
-    const newProof = proof.proof.slice().reverse();
+    const newBranch = proof.branch.slice().reverse();
 
     expect(
-      validatorManager.process(
-        inbox.address,
-        proof.checkpoint.root,
-        proof.checkpoint.index,
-        proof.message,
-        newProof,
-        proof.checkpoint.index,
+      inbox.process(
+        signature,
+        checkpoint,
+        {
+          branch: newBranch,
+          item: proof.item,
+          index: proof.index,
+        },
+        message,
       ),
     ).to.be.revertedWith('!proof');
-    expect(await inbox.messages(proof.leaf)).to.equal(types.MessageStatus.NONE);
+    expect(await inbox.messages(proof.item)).to.equal(types.MessageStatus.NONE);
   });
 
-  it('Fails to process message when not called by validator manager', async () => {
+  it('Fails to process message when signature is invalid', async () => {
     await expect(
       inbox.process(
-        proof.checkpoint.root,
-        proof.checkpoint.index,
-        proof.message,
-        proof.proof,
-        proof.checkpoint.index,
+        {
+          sig: signature.sig.add(1),
+          randomness: signature.randomness,
+          nonce: signature.nonce,
+          missing: signature.missing,
+        },
+        checkpoint,
+        proof,
+        message,
       ),
-    ).to.be.revertedWith('!validatorManager');
+    ).to.be.revertedWith('!sig');
   });
 
   for (let i = 0; i < badRecipientFactories.length; i++) {
@@ -147,61 +154,58 @@ describe('Inbox', async () => {
       const factory = new badRecipientFactories[i](signer);
       const badRecipient = await factory.deploy();
 
-      const badProof = await dispatchMessageAndReturnProof(
-        helperOutbox,
-        localDomain,
+      const badDispatch = await dispatchMessage(
+        outbox,
+        INBOX_DOMAIN,
         utils.addressToBytes32(badRecipient.address),
         'hello world',
       );
+      const badSig = await validators.sign(badDispatch.checkpoint);
 
       await expect(
-        validatorManager.process(
-          inbox.address,
-          badProof.checkpoint.root,
-          badProof.checkpoint.index,
-          badProof.message,
-          badProof.proof,
-          badProof.checkpoint.index,
+        inbox.process(
+          badSig,
+          badDispatch.checkpoint,
+          badDispatch.proof,
+          badDispatch.message,
         ),
       ).to.be.reverted;
     });
   }
 
   it('Fails to process message with wrong destination Domain', async () => {
-    const badProof = await dispatchMessageAndReturnProof(
-      helperOutbox,
-      localDomain + 1,
+    const badDispatch = await dispatchMessage(
+      outbox,
+      INBOX_DOMAIN + 1,
       recipient,
       'hello world',
     );
+    const badSig = await validators.sign(badDispatch.checkpoint);
 
     await expect(
-      validatorManager.process(
-        inbox.address,
-        badProof.checkpoint.root,
-        badProof.checkpoint.index,
-        badProof.message,
-        badProof.proof,
-        badProof.checkpoint.index,
+      inbox.process(
+        badSig,
+        badDispatch.checkpoint,
+        badDispatch.proof,
+        badDispatch.message,
       ),
     ).to.be.revertedWith('!destination');
   });
 
   it('Fails to process message sent to a non-existent contract address', async () => {
-    const badProof = await dispatchMessageAndReturnProof(
-      helperOutbox,
-      localDomain,
+    const badDispatch = await dispatchMessage(
+      outbox,
+      INBOX_DOMAIN,
       utils.addressToBytes32('0x1234567890123456789012345678901234567890'), // non-existent contract address
       'hello world',
     );
+    const badSig = await validators.sign(badDispatch.checkpoint);
     await expect(
-      validatorManager.process(
-        inbox.address,
-        badProof.checkpoint.root,
-        badProof.checkpoint.index,
-        badProof.message,
-        badProof.proof,
-        badProof.checkpoint.index,
+      inbox.process(
+        badSig,
+        badDispatch.checkpoint,
+        badDispatch.proof,
+        badDispatch.message,
       ),
     ).to.be.reverted;
   });
