@@ -44,4 +44,15 @@ contract TestOutbox is Outbox {
     {
         return MerkleLib.branchRoot(_proof);
     }
+
+    function impliesDifferingLeaf(
+        MerkleLib.Proof calldata _a,
+        MerkleLib.Proof calldata _b
+    ) external pure returns (bool) {
+        return MerkleLib.impliesDifferingLeaf(_a, _b);
+    }
+
+    function testFail() external {
+        fail();
+    }
 }

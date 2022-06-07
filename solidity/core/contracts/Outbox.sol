@@ -164,8 +164,8 @@ contract Outbox is IOutbox, Version0, Mailbox {
     }
 
     function prematureCheckpoint(
-        Checkpoint calldata _checkpoint,
-        Signature calldata _sig
+        Signature calldata _sig,
+        Checkpoint calldata _checkpoint
     ) external returns (bool) {
         bool _success = _verify(_sig, _checkpoint, localDomain);
         require(_success, "!sig");
@@ -178,8 +178,8 @@ contract Outbox is IOutbox, Version0, Mailbox {
     }
 
     function fraudulentCheckpoint(
-        Checkpoint calldata _checkpoint,
         Signature calldata _sig,
+        Checkpoint calldata _checkpoint,
         MerkleLib.Proof calldata _fraudulent,
         MerkleLib.Proof calldata _canonical
     ) external returns (bool) {

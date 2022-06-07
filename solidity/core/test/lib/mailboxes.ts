@@ -15,7 +15,7 @@ export interface MerkleProof {
   index: BigNumber;
 }
 
-interface DispatchReturnValues {
+export interface DispatchReturnValues {
   proof: MerkleProof;
   checkpoint: Checkpoint;
   message: string;
