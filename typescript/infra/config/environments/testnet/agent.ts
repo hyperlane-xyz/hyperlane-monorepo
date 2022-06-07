@@ -33,7 +33,6 @@ export const agent: AgentConfig<TestnetChains> = {
       pollingInterval: 5,
       submissionLatency: 10,
       maxRetries: 10,
-      relayerMessageProcessing: true,
     },
   },
   // kathy: {

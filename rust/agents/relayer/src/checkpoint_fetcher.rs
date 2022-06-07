@@ -4,38 +4,27 @@ use eyre::Result;
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{sync::mpsc::Sender, task::JoinHandle, time::sleep};
 
-use tracing::{debug, error, info, info_span, instrument, instrument::Instrumented, Instrument};
+use tracing::{debug, info, info_span, instrument, instrument::Instrumented, Instrument};
 
 use abacus_base::{InboxContracts, MultisigCheckpointSyncer, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, InboxValidatorManager,
-    MultisigSignedCheckpoint,
+    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, MultisigSignedCheckpoint,
 };
 
-use crate::merkle_tree_builder::{MerkleTreeBuilder, MessageBatch};
-
-pub(crate) struct CheckpointRelayer {
+pub(crate) struct CheckpointFetcher {
     polling_interval: u64,
-    /// The minimum latency in seconds between two relayed checkpoints on the inbox
-    submission_latency: u64,
-    immediate_message_processing: bool,
     db: AbacusDB,
     inbox_contracts: InboxContracts,
-    prover_sync: MerkleTreeBuilder,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     signed_checkpoint_sender: Sender<MultisigSignedCheckpoint>,
     signed_checkpoint_gauge: IntGauge,
-    inbox_checkpoint_gauge: IntGauge,
-    relayer_processed_gauge: IntGauge,
 }
 
-impl CheckpointRelayer {
+impl CheckpointFetcher {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         outbox: Outboxes,
         polling_interval: u64,
-        submission_latency: u64,
-        immediate_message_processing: bool,
         db: AbacusDB,
         inbox_contracts: InboxContracts,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
@@ -47,28 +36,13 @@ impl CheckpointRelayer {
             outbox.chain_name(),
             inbox_contracts.inbox.chain_name(),
         ]);
-        let inbox_checkpoint_gauge = leaf_index_gauge.with_label_values(&[
-            "inbox_checkpoint",
-            outbox.chain_name(),
-            inbox_contracts.inbox.chain_name(),
-        ]);
-        let relayer_processed_gauge = leaf_index_gauge.with_label_values(&[
-            "relayer_processed",
-            outbox.chain_name(),
-            inbox_contracts.inbox.chain_name(),
-        ]);
         Self {
             polling_interval,
-            immediate_message_processing,
-            submission_latency,
-            prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
             inbox_contracts,
             multisig_checkpoint_syncer,
             signed_checkpoint_sender,
             signed_checkpoint_gauge,
-            inbox_checkpoint_gauge,
-            relayer_processed_gauge,
         }
     }
 
@@ -105,9 +79,9 @@ impl CheckpointRelayer {
         Ok(Some(messages))
     }
 
-    // Returns the newest "current" checkpoint index
+    // Returns the latest signed checkpoint index
     #[instrument(ret, err, skip(self, messages), fields(messages = messages.len()))]
-    async fn submit_checkpoint_and_messages(
+    async fn fetch_and_send_signed_checkpoint(
         &mut self,
         latest_signed_checkpoint_index: u32,
         signed_checkpoint_index: u32,
@@ -120,52 +94,12 @@ impl CheckpointRelayer {
             .fetch_checkpoint(signed_checkpoint_index)
             .await?
         {
-            let batch = MessageBatch::new(
-                messages,
-                latest_signed_checkpoint_index,
-                latest_signed_checkpoint.checkpoint,
-            );
-
-            self.prover_sync.update_from_batch(&batch)?;
-
-            // Send the signed checkpoint to the message processor
+            // Send the signed checkpoint to the message processor.
+            // Blocks if the receiver's buffer is full.
             self.signed_checkpoint_sender
                 .send(latest_signed_checkpoint.clone())
                 .await?;
 
-            self.inbox_checkpoint_gauge
-                .set(latest_signed_checkpoint.checkpoint.index as i64);
-
-            if self.immediate_message_processing {
-                // TODO: sign in parallel
-                for message in &batch.messages {
-                    match self.prover_sync.get_proof(message.leaf_index) {
-                        Ok(proof) => {
-                            // Ignore errors and expect the lagged message processor to retry
-                            match self
-                                .inbox_contracts
-                                .validator_manager
-                                .process(&latest_signed_checkpoint, &message.message, &proof)
-                                .await
-                            {
-                                Ok(outcome) => {
-                                    info!(txHash=?outcome.txid, leaf_index=message.leaf_index, "CheckpointRelayer processed message");
-                                    self.relayer_processed_gauge.set(message.leaf_index as i64);
-                                }
-                                Err(error) => {
-                                    error!(error=?error, leaf_index=message.leaf_index, "CheckpointRelayer encountered error while processing message, ignoring")
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            error!(error=?err, "Checkpoint relayer was unable to fetch proof for message processing")
-                        }
-                    }
-                }
-            }
-
-            // Sleep latency period after submission
-            sleep(Duration::from_secs(self.submission_latency)).await;
             Ok(latest_signed_checkpoint.checkpoint.index)
         } else {
             Ok(latest_signed_checkpoint_index)
@@ -179,7 +113,7 @@ impl CheckpointRelayer {
 
         info!(
             latest_signed_checkpoint_index=?latest_signed_checkpoint_index,
-            "Starting CheckpointRelayer"
+            "Starting CheckpointFetcher"
         );
 
         loop {
@@ -216,7 +150,7 @@ impl CheckpointRelayer {
                         );
 
                         latest_signed_checkpoint_index = self
-                            .submit_checkpoint_and_messages(
+                            .fetch_and_send_signed_checkpoint(
                                 latest_signed_checkpoint_index,
                                 signed_checkpoint_index,
                                 messages,
@@ -229,7 +163,7 @@ impl CheckpointRelayer {
     }
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("CheckpointRelayer");
+        let span = info_span!("CheckpointFetcher");
         tokio::spawn(async move { self.main_loop().await }).instrument(span)
     }
 }

@@ -76,7 +76,7 @@ impl ProveCommand {
             .await?;
         let outcome = match status {
             // TODO come back here
-            MessageStatus::None => {}, // inbox.process(&message, &proof).await?,
+            MessageStatus::None => {} // inbox.process(&message, &proof).await?,
             _ => {
                 println!("Message already processed.");
                 return Ok(());

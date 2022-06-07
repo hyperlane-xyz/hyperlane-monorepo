@@ -118,7 +118,10 @@ where
             sol_proof,
             proof.index.into(),
         );
-        tracing::warn!("calldata {:?}", hex::encode(tx.calldata().unwrap().to_vec()));
+        tracing::warn!(
+            "calldata {:?}",
+            hex::encode(tx.calldata().unwrap().to_vec())
+        );
         let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
         let gassed = tx.gas(gas);
         let receipt = report_tx(gassed).await?;

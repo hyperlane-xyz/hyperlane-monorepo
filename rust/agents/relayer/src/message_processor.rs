@@ -119,7 +119,10 @@ impl MessageProcessor {
                         }
 
                         // prover_sync should always be in sync with latest_signed_checkpoint
-                        assert_eq!(latest_signed_checkpoint.checkpoint.index + 1, self.prover_sync.count());
+                        assert_eq!(
+                            latest_signed_checkpoint.checkpoint.index + 1,
+                            self.prover_sync.count()
+                        );
 
                         if message_leaf_index > latest_signed_checkpoint.checkpoint.index {
                             return Ok(MessageProcessingStatus::NotYetCheckpointed);

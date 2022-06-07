@@ -24,7 +24,6 @@ export const agent: AgentConfig<DevChains> = {
       pollingInterval: 5,
       submissionLatency: 10,
       maxRetries: 10,
-      relayerMessageProcessing: true,
     },
   },
   checkpointer: {

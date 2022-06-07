@@ -10,7 +10,7 @@ use abacus_base::{
 };
 
 use crate::{
-    checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,
+    checkpoint_fetcher::CheckpointFetcher, message_processor::MessageProcessor,
     settings::RelayerSettings as Settings,
 };
 
@@ -23,7 +23,6 @@ pub struct Relayer {
     polling_interval: u64,
     max_retries: u32,
     submission_latency: u64,
-    relayer_message_processing: bool,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
 }
@@ -41,7 +40,6 @@ impl Relayer {
         polling_interval: u64,
         max_retries: u32,
         submission_latency: u64,
-        relayer_message_processing: bool,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
         core: AbacusAgentCore,
     ) -> Self {
@@ -49,7 +47,6 @@ impl Relayer {
             polling_interval,
             max_retries,
             submission_latency,
-            relayer_message_processing,
             multisig_checkpoint_syncer,
             core,
         }
@@ -74,7 +71,6 @@ impl Agent for Relayer {
             settings.pollinginterval.parse().unwrap_or(5),
             settings.maxretries.parse().unwrap_or(10),
             settings.submissionlatency.parse().expect("invalid uint"),
-            settings.relayermessageprocessing.parse().unwrap_or(false),
             multisig_checkpoint_syncer,
             settings
                 .as_ref()
@@ -108,11 +104,9 @@ impl Relayer {
         let (signed_checkpoint_sender, signed_checkpoint_receiver) =
             channel::<MultisigSignedCheckpoint>(SIGNED_CHECKPOINT_CHANNEL_BUFFER);
 
-        let checkpoint_relayer = CheckpointRelayer::new(
+        let checkpoint_relayer = CheckpointFetcher::new(
             self.outbox().outbox(),
             self.polling_interval,
-            self.submission_latency,
-            self.relayer_message_processing,
             db.clone(),
             inbox_contracts.clone(),
             self.multisig_checkpoint_syncer.clone(),

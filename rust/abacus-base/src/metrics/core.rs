@@ -107,7 +107,7 @@ impl CoreMetrics {
         // - dispatch: When a message is indexed and stored in the DB
         // - signed_offchain_checkpoint: When a leaf index is known to be signed by a validator
         // - inbox_checkpoint: When a leaf index is known to be checkpointed on the inbox
-        // - relayer_processed: When a leaf index was processed with CheckpointRelayer
+        // - relayer_processed: When a leaf index was processed with CheckpointFetcher
         // - processor_loop: The current leaf index in the MessageProcessor loop
         // - message_processed: When a leaf index was processed as part of the regular MessageProcessor loop
         let last_known_message_leaf_index = register_int_gauge_vec_with_registry!(

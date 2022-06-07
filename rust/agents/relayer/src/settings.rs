@@ -9,8 +9,6 @@ decl_settings!(Relayer {
     submissionlatency: String,
     /// The maxinmum number of times a processor will try to process a message
     maxretries: String,
-    /// Whether the CheckpointRelayer should try to immediately process messages
-    relayermessageprocessing: String,
     /// The multisig checkpoint syncer configuration
     multisigcheckpointsyncer: abacus_base::MultisigCheckpointSyncerConf,
 });

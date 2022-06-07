@@ -308,11 +308,7 @@ where
 
     #[tracing::instrument(err, skip(self))]
     async fn latest_cached_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
-        let (root, index) = self
-            .contract
-            .latest_cached_checkpoint()
-            .call()
-            .await?;
+        let (root, index) = self.contract.latest_cached_checkpoint().call().await?;
         Ok(Checkpoint {
             outbox_domain: self.domain,
             root: root.into(),

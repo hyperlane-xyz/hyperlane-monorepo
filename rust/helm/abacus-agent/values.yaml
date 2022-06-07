@@ -114,7 +114,6 @@ abacus:
       submissionLatency:
       pollingInterval:
       maxRetries:
-      relayerMessageProcessing:
       multisigCheckpointSyncer:
         threshold:
         checkpointSyncers:

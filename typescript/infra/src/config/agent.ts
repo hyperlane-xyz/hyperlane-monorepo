@@ -93,8 +93,6 @@ interface BaseRelayerConfig {
   pollingInterval: number;
   // The maxinmum number of times a processor will try to process a message
   maxRetries: number;
-  // Whether the CheckpointRelayer should try to immediately process messages
-  relayerMessageProcessing: boolean;
 }
 
 // Per-chain relayer agent configs
