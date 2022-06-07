@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import "../MerkleTreeManager.sol";
+import {MerkleLib} from "../../libs/Merkle.sol";
 
-contract TestMerkle is MerkleTreeManager {
+contract TestMerkle {
     using MerkleLib for MerkleLib.Tree;
 
+    MerkleLib.Tree public tree;
+
     // solhint-disable-next-line no-empty-blocks
-    constructor() MerkleTreeManager() {}
+    constructor() {}
 
     function insert(bytes32 _node) external {
         tree.insert(_node);
@@ -26,5 +28,12 @@ contract TestMerkle is MerkleTreeManager {
      */
     function count() public view returns (uint256) {
         return tree.count;
+    }
+
+    /**
+     * @notice Calculates and returns tree's current root
+     */
+    function root() public view returns (bytes32) {
+        return tree.root();
     }
 }

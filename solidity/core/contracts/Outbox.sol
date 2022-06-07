@@ -7,7 +7,6 @@ import {Mailbox} from "./Mailbox.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 import {Message} from "../libs/Message.sol";
 import {TypeCasts} from "../libs/TypeCasts.sol";
-import {MerkleTreeManager} from "./MerkleTreeManager.sol";
 import {IOutbox} from "../interfaces/IOutbox.sol";
 
 /**
@@ -20,7 +19,7 @@ import {IOutbox} from "../interfaces/IOutbox.sol";
  * Accepts submissions of fraudulent signatures
  * by the Validator and slashes the Validator in this case.
  */
-contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
+contract Outbox is IOutbox, Version0, Mailbox {
     // ============ Libraries ============
 
     using MerkleLib for MerkleLib.Tree;
@@ -48,6 +47,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
 
     // ============ Public Storage Variables ============
 
+    MerkleLib.Tree public tree;
     // Cached checkpoints, mapping root => leaf index.
     // Cached checkpoints must have index > 0 as the presence of such
     // a checkpoint cannot be distinguished from its absence.
@@ -60,7 +60,7 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[47] private __GAP;
+    uint256[46] private __GAP;
 
     // ============ Events ============
 
@@ -218,13 +218,8 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
      * @return root Latest cached root
      * @return index Latest cached index
      */
-    function latestCachedCheckpoint()
-        external
-        view
-        returns (bytes32 root, uint256 index)
-    {
-        root = latestCachedRoot;
-        index = cachedCheckpoints[root];
+    function latestCachedCheckpoint() external view returns (bytes32, uint256) {
+        return (latestCachedRoot, cachedCheckpoints[latestCachedRoot]);
     }
 
     /**
@@ -232,6 +227,13 @@ contract Outbox is IOutbox, Version0, MerkleTreeManager, Mailbox {
      */
     function count() public view returns (uint256) {
         return tree.count;
+    }
+
+    /**
+     * @notice Calculates and returns tree's current root
+     */
+    function root() public view returns (bytes32) {
+        return tree.root();
     }
 
     /**
