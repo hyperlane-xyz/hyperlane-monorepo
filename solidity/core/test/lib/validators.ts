@@ -61,7 +61,7 @@ function modAdd(a: BigNumber, b: BigNumber): BigNumber {
   return scalarMod(a.add(b));
 }
 
-class Validator {
+export class Validator {
   public readonly secretKey: BigNumber;
   // Used for elliptic curve operations so we don't need
   // to reimplement them in TS.

@@ -26,7 +26,7 @@ library ValidatorSet {
 
     function remove(Set storage _set, BN256.G1Point memory _key) internal {
         bytes32 _compressed = _key.compress();
-        require(_set.yValue[_compressed] != 0, "!enrolled");
+        require(_set.yValue[_compressed] != _key.y, "!enrolled");
         _set.yValue[_compressed] = 0;
         _set.aggregateKey = _set.aggregateKey.add(_key.neg());
     }
