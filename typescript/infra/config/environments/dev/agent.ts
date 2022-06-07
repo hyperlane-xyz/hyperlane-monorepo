@@ -21,8 +21,8 @@ export const agent: AgentConfig<DevChains> = {
   },
   relayer: {
     default: {
-      pollingInterval: 5,
-      maxRetries: 10,
+      signedCheckpointPollingInteral: 5,
+      maxProcessingRetries: 10,
     },
   },
   checkpointer: {
