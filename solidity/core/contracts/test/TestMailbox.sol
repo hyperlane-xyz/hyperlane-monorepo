@@ -9,4 +9,8 @@ contract TestMailbox is Mailbox {
     function initialize(address _validatorManager) external initializer {
         __Mailbox_initialize(_validatorManager);
     }
+
+    function domainHash(uint32 _domain) external pure returns (bytes32) {
+        return _domainHash(_domain);
+    }
 }

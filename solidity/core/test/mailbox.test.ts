@@ -4,6 +4,9 @@ import { ethers } from 'hardhat';
 
 import { TestMailbox, TestMailbox__factory } from '../types';
 
+// eslint-disable-next-line @typescript-eslint/no-require-imports, @typescript-eslint/no-var-requires
+const domainHashTestCases = require('../../../vectors/domainHash.json');
+
 const localDomain = 1000;
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 
@@ -48,4 +51,18 @@ describe('Mailbox', async () => {
     });
   });
   describe.skip('#verify', async () => {});
+
+  describe('#_domainHash', () => {
+    it('matches Rust-produced domain hashes', async () => {
+      // Compare Rust output in json file to solidity output (json file matches
+      // hash for local domain of 1000)
+      for (const testCase of domainHashTestCases) {
+        const { expectedDomainHash } = testCase;
+        // This public function on TestMultisigValidatorManager exposes
+        // the internal _domainHash on MultisigValidatorManager.
+        const domainHash = await mailbox.domainHash(testCase.outboxDomain);
+        expect(domainHash).to.equal(expectedDomainHash);
+      }
+    });
+  });
 });
