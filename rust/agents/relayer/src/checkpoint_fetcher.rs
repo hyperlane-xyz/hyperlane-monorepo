@@ -2,21 +2,17 @@ use std::time::Duration;
 
 use eyre::Result;
 use prometheus::{IntGauge, IntGaugeVec};
-use tokio::{sync::mpsc::Sender, task::JoinHandle, time::sleep};
+use tokio::{sync::watch::Sender, task::JoinHandle, time::sleep};
 
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, Instrument};
 
-use abacus_base::{InboxContracts, MultisigCheckpointSyncer, Outboxes};
-use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, MultisigSignedCheckpoint,
-};
+use abacus_base::{MultisigCheckpointSyncer, Outboxes};
+use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
 pub(crate) struct CheckpointFetcher {
     polling_interval: u64,
-    db: AbacusDB,
-    inbox_contracts: InboxContracts,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
-    signed_checkpoint_sender: Sender<MultisigSignedCheckpoint>,
+    signed_checkpoint_sender: Sender<Option<MultisigSignedCheckpoint>>,
     signed_checkpoint_gauge: IntGauge,
 }
 
@@ -25,57 +21,21 @@ impl CheckpointFetcher {
     pub(crate) fn new(
         outbox: Outboxes,
         polling_interval: u64,
-        db: AbacusDB,
-        inbox_contracts: InboxContracts,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
-        signed_checkpoint_sender: Sender<MultisigSignedCheckpoint>,
+        signed_checkpoint_sender: Sender<Option<MultisigSignedCheckpoint>>,
         leaf_index_gauge: IntGaugeVec,
     ) -> Self {
         let signed_checkpoint_gauge = leaf_index_gauge.with_label_values(&[
             "signed_offchain_checkpoint",
             outbox.chain_name(),
-            inbox_contracts.inbox.chain_name(),
+            "unknown", // Checkpoints are not remote-specific
         ]);
         Self {
             polling_interval,
-            db,
-            inbox_contracts,
             multisig_checkpoint_syncer,
             signed_checkpoint_sender,
             signed_checkpoint_gauge,
         }
-    }
-
-    /// Only gets the messages desinated for the Relayers inbox
-    /// Inclusive the to_checkpoint_index
-    #[instrument(ret, err, skip(self), level = "debug")]
-    async fn inbox_has_messages_between(
-        &self,
-        from_leaf_index: u32,
-        to_checkpoint_index: u32,
-    ) -> Result<Option<bool>> {
-        let mut current_leaf_index = from_leaf_index;
-        while current_leaf_index <= to_checkpoint_index {
-            // Relies on the indexer finding this message eventually
-            self.db.wait_for_leaf(current_leaf_index).await?;
-            let maybe_message = self
-                .db
-                .message_by_leaf_index(current_leaf_index)?
-                .map(CommittedMessage::try_from)
-                .transpose()?;
-            match maybe_message {
-                Some(message) => {
-                    if message.message.destination == self.inbox_contracts.inbox.local_domain() {
-                        return Ok(Some(true))
-                    }
-                }
-                // This should never happen, but if it does, retry the range
-                None => return Ok(None),
-            }
-            current_leaf_index += 1
-        }
-
-        Ok(Some(false))
     }
 
     // Returns the latest signed checkpoint index
@@ -92,11 +52,13 @@ impl CheckpointFetcher {
             .fetch_checkpoint(signed_checkpoint_index)
             .await?
         {
+            debug!(
+                signed_checkpoint_index = signed_checkpoint_index,
+                "Sending a newly fetched signed checkpoint via channel"
+            );
             // Send the signed checkpoint to the message processor.
-            // Blocks if the receiver's buffer is full.
             self.signed_checkpoint_sender
-                .send(latest_signed_checkpoint.clone())
-                .await?;
+                .send(Some(latest_signed_checkpoint.clone()))?;
 
             Ok(latest_signed_checkpoint.checkpoint.index)
         } else {
@@ -104,10 +66,9 @@ impl CheckpointFetcher {
         }
     }
 
-    #[instrument(ret, err, skip(self), fields(inbox_name = self.inbox_contracts.inbox.chain_name()), level = "info")]
+    #[instrument(ret, err, skip(self), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         let mut latest_signed_checkpoint_index = 0;
-        let mut next_inbox_leaf_index = 0;
 
         info!(
             latest_signed_checkpoint_index=?latest_signed_checkpoint_index,
@@ -131,29 +92,13 @@ impl CheckpointFetcher {
                     continue;
                 }
 
-                match self
-                    .inbox_has_messages_between(next_inbox_leaf_index, signed_checkpoint_index)
-                    .await?
-                {
-                    None => debug!("Couldn't fetch the relevant messages, retry this range"),
-                    Some(false) => {
-                        next_inbox_leaf_index = signed_checkpoint_index + 1;
-                        debug!("New signed checkpoint does not include messages destined for the inbox")
-                    }
-                    Some(true) => {
-                        next_inbox_leaf_index = signed_checkpoint_index + 1;
-                        debug!(
-                            "New signed checkpoint includes messages destined for the inbox"
-                        );
-
-                        latest_signed_checkpoint_index = self
-                            .fetch_and_send_signed_checkpoint(
-                                latest_signed_checkpoint_index,
-                                signed_checkpoint_index,
-                            )
-                            .await?;
-                    }
-                }
+                // Fetch the new signed checkpoint and send it over the channel
+                latest_signed_checkpoint_index = self
+                    .fetch_and_send_signed_checkpoint(
+                        latest_signed_checkpoint_index,
+                        signed_checkpoint_index,
+                    )
+                    .await?;
             }
         }
     }

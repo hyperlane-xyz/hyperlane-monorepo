@@ -11,11 +11,7 @@ use abacus_core::{
 };
 use eyre::{bail, Result};
 use prometheus::{IntGauge, IntGaugeVec};
-use tokio::{
-    sync::mpsc::{error::TryRecvError, Receiver},
-    task::JoinHandle,
-    time::sleep,
-};
+use tokio::{sync::watch::Receiver, task::JoinHandle, time::sleep};
 use tracing::{
     debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument,
 };
@@ -28,7 +24,7 @@ pub(crate) struct MessageProcessor {
     inbox_contracts: InboxContracts,
     prover_sync: MerkleTreeBuilder,
     retry_queue: BinaryHeap<MessageToRetry>,
-    signed_checkpoint_receiver: Receiver<MultisigSignedCheckpoint>,
+    signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
     processor_loop_gauge: IntGauge,
     processed_gauge: IntGauge,
     retry_queue_length_gauge: IntGauge,
@@ -56,7 +52,7 @@ impl MessageProcessor {
         max_retries: u32,
         db: AbacusDB,
         inbox_contracts: InboxContracts,
-        signed_checkpoint_receiver: Receiver<MultisigSignedCheckpoint>,
+        signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
         leaf_index_gauge: IntGaugeVec,
         retry_queue_length: IntGaugeVec,
     ) -> Self {
@@ -166,45 +162,50 @@ impl MessageProcessor {
         }
     }
 
-    /// Read any signed checkpoints that the channel may have received,
-    /// setting the one with the latest index to latest_signed_checkpoint.
-    /// Non-blocking. Intended to handle situations where signed checkpoints
-    /// are sent faster than they are received.
+    /// Read a signed checkpoint that the channel may have received without blocking.
+    /// Of current_latest_signed_checkpoint and the signed checkpoint received,
+    /// the one with the latest index is returned.
     fn get_latest_signed_checkpoint(
         &mut self,
-        mut latest_signed_checkpoint: MultisigSignedCheckpoint,
+        current_latest_signed_checkpoint: MultisigSignedCheckpoint,
     ) -> Result<MultisigSignedCheckpoint> {
-        loop {
-            match self.signed_checkpoint_receiver.try_recv() {
-                Ok(signed_checkpoint) => {
-                    if signed_checkpoint.checkpoint.index
-                        > latest_signed_checkpoint.checkpoint.index
-                    {
-                        latest_signed_checkpoint = signed_checkpoint;
-                    }
-                }
-                Err(TryRecvError::Empty) => {
-                    return Ok(latest_signed_checkpoint);
-                }
-                Err(TryRecvError::Disconnected) => {
-                    // Occurs if the channel is currently empty and there are no outstanding senders or permits
-                    eyre::bail!("Booo disconnected!");
-                }
+        if let Some(new_signed_checkpoint) = self.get_signed_checkpoint_nonblocking()? {
+            if new_signed_checkpoint.checkpoint.index
+                > current_latest_signed_checkpoint.checkpoint.index
+            {
+                return Ok(new_signed_checkpoint);
             }
         }
+        return Ok(current_latest_signed_checkpoint);
+    }
+
+    /// Blocks for a MultisigSignedCheckpoint from the channel
+    async fn get_signed_checkpoint_blocking(&mut self) -> Result<MultisigSignedCheckpoint> {
+        // Waits for a Some(signed_checkpoint)
+        loop {
+            // This blocks until an unseen value is found
+            self.signed_checkpoint_receiver.changed().await?;
+
+            // If it's not None, this is what we've been waiting for
+            if let Some(signed_checkpoint) = self.signed_checkpoint_receiver.borrow().clone() {
+                return Ok(signed_checkpoint);
+            }
+        }
+    }
+
+    /// Attempts to get a signed checkpoint from the channel without blocking.
+    fn get_signed_checkpoint_nonblocking(&mut self) -> Result<Option<MultisigSignedCheckpoint>> {
+        if self.signed_checkpoint_receiver.has_changed()? {
+            return Ok(self.signed_checkpoint_receiver.borrow_and_update().clone());
+        }
+        Ok(None)
     }
 
     #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         let mut message_leaf_index = 0;
         // Block until the first signed checkpoint is received
-        let mut latest_signed_checkpoint =
-            self.signed_checkpoint_receiver
-                .recv()
-                .await
-                .ok_or(eyre::eyre!(
-                    "Error getting latest signed checkpoint upon starting"
-                ))?;
+        let mut latest_signed_checkpoint = self.get_signed_checkpoint_blocking().await?;
 
         loop {
             // Get latest signed checkpoint, non-blocking

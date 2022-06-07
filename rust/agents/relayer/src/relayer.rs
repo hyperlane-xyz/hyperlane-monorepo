@@ -1,7 +1,10 @@
 use abacus_core::MultisigSignedCheckpoint;
 use async_trait::async_trait;
 use eyre::{Context, Result};
-use tokio::{sync::mpsc::channel, task::JoinHandle};
+use tokio::{
+    sync::watch::{channel, Receiver, Sender},
+    task::JoinHandle,
+};
 
 use tracing::{instrument::Instrumented, Instrument};
 
@@ -13,9 +16,6 @@ use crate::{
     checkpoint_fetcher::CheckpointFetcher, message_processor::MessageProcessor,
     settings::RelayerSettings as Settings,
 };
-
-/// The buffer size of the channel in which signed checkpoints are sent over.
-const SIGNED_CHECKPOINT_CHANNEL_BUFFER: usize = 1000;
 
 /// A relayer agent
 #[derive(Debug)]
@@ -98,20 +98,26 @@ impl Relayer {
         sync
     }
 
-    fn run_inbox(&self, inbox_contracts: InboxContracts) -> Instrumented<JoinHandle<Result<()>>> {
-        let db = self.outbox().db();
-        let (signed_checkpoint_sender, signed_checkpoint_receiver) =
-            channel::<MultisigSignedCheckpoint>(SIGNED_CHECKPOINT_CHANNEL_BUFFER);
-
+    fn run_checkpoint_fetcher(
+        &self,
+        signed_checkpoint_sender: Sender<Option<MultisigSignedCheckpoint>>,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
         let checkpoint_fetcher = CheckpointFetcher::new(
             self.outbox().outbox(),
             self.signed_checkpoint_polling_interval,
-            db.clone(),
-            inbox_contracts.clone(),
             self.multisig_checkpoint_syncer.clone(),
             signed_checkpoint_sender,
             self.core.metrics.last_known_message_leaf_index(),
         );
+        checkpoint_fetcher.spawn()
+    }
+
+    fn run_inbox(
+        &self,
+        inbox_contracts: InboxContracts,
+        signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
+    ) -> Instrumented<JoinHandle<Result<()>>> {
+        let db = self.outbox().db();
         let message_processor = MessageProcessor::new(
             self.outbox().outbox(),
             self.max_processing_retries,
@@ -122,29 +128,44 @@ impl Relayer {
             self.core.metrics.retry_queue_length(),
         );
 
-        self.run_all(vec![checkpoint_fetcher.spawn(), message_processor.spawn()])
+        self.run_all(vec![
+            /*checkpoint_fetcher.spawn(), */ message_processor.spawn(),
+        ])
     }
 
     fn wrap_inbox_run(
         &self,
         inbox_name: &str,
         inbox_contracts: InboxContracts,
+        signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let m = format!("Task for inbox named {} failed", inbox_name);
-        let handle = self.run_inbox(inbox_contracts).in_current_span();
+        let handle = self
+            .run_inbox(inbox_contracts, signed_checkpoint_receiver)
+            .in_current_span();
         let fut = async move { handle.await?.wrap_err(m) };
 
         tokio::spawn(fut).in_current_span()
     }
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        let (signed_checkpoint_sender, signed_checkpoint_receiver) =
+            channel::<Option<MultisigSignedCheckpoint>>(None);
+
         let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
             .inboxes()
             .iter()
             .map(|(inbox_name, inbox_contracts)| {
-                self.wrap_inbox_run(inbox_name, inbox_contracts.clone())
+                self.wrap_inbox_run(
+                    inbox_name,
+                    inbox_contracts.clone(),
+                    signed_checkpoint_receiver.clone(),
+                )
             })
             .collect();
+
+        tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
+
         let sync_metrics = ContractSyncMetrics::new(self.metrics());
         tasks.push(self.run_outbox_sync(sync_metrics.clone()));
         tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics));
