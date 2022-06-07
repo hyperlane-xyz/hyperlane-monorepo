@@ -49,12 +49,11 @@ impl CheckpointFetcher {
     /// Only gets the messages desinated for the Relayers inbox
     /// Inclusive the to_checkpoint_index
     #[instrument(ret, err, skip(self), level = "debug")]
-    async fn get_messages_between(
+    async fn inbox_has_messages_between(
         &self,
         from_leaf_index: u32,
         to_checkpoint_index: u32,
-    ) -> Result<Option<Vec<CommittedMessage>>> {
-        let mut messages: Vec<CommittedMessage> = vec![];
+    ) -> Result<Option<bool>> {
         let mut current_leaf_index = from_leaf_index;
         while current_leaf_index <= to_checkpoint_index {
             // Relies on the indexer finding this message eventually
@@ -67,7 +66,7 @@ impl CheckpointFetcher {
             match maybe_message {
                 Some(message) => {
                     if message.message.destination == self.inbox_contracts.inbox.local_domain() {
-                        messages.push(message);
+                        return Ok(Some(true))
                     }
                 }
                 // This should never happen, but if it does, retry the range
@@ -76,16 +75,15 @@ impl CheckpointFetcher {
             current_leaf_index += 1
         }
 
-        Ok(Some(messages))
+        Ok(Some(false))
     }
 
     // Returns the latest signed checkpoint index
-    #[instrument(ret, err, skip(self, messages), fields(messages = messages.len()))]
+    #[instrument(ret, err, skip(self))]
     async fn fetch_and_send_signed_checkpoint(
         &mut self,
         latest_signed_checkpoint_index: u32,
         signed_checkpoint_index: u32,
-        messages: Vec<CommittedMessage>,
     ) -> Result<u32> {
         // If the checkpoint storage is inconsistent, then this arm won't match
         // and it will cause us to have skipped this message batch
@@ -134,26 +132,24 @@ impl CheckpointFetcher {
                 }
 
                 match self
-                    .get_messages_between(next_inbox_leaf_index, signed_checkpoint_index)
+                    .inbox_has_messages_between(next_inbox_leaf_index, signed_checkpoint_index)
                     .await?
                 {
                     None => debug!("Couldn't fetch the relevant messages, retry this range"),
-                    Some(messages) if messages.is_empty() => {
+                    Some(false) => {
                         next_inbox_leaf_index = signed_checkpoint_index + 1;
-                        debug!("New checkpoint does not include messages for inbox")
+                        debug!("New signed checkpoint does not include messages destined for the inbox")
                     }
-                    Some(messages) => {
+                    Some(true) => {
                         next_inbox_leaf_index = signed_checkpoint_index + 1;
                         debug!(
-                            len = messages.len(),
-                            "Signed checkpoint allows for processing of new messages"
+                            "New signed checkpoint includes messages destined for the inbox"
                         );
 
                         latest_signed_checkpoint_index = self
                             .fetch_and_send_signed_checkpoint(
                                 latest_signed_checkpoint_index,
                                 signed_checkpoint_index,
-                                messages,
                             )
                             .await?;
                     }
