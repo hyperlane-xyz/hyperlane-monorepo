@@ -19,7 +19,6 @@ export class AbacusCoreInfraDeployer<
       const outbox = {
         addresses: {
           outbox: contracts.outbox.address,
-          interchainGasPaymaster: contracts.interchainGasPaymaster.address,
         },
         domain: outboxMetadata.id.toString(),
         name: chain,
