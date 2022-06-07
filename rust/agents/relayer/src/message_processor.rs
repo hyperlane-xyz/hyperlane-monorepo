@@ -176,7 +176,7 @@ impl MessageProcessor {
                 return Ok(new_signed_checkpoint);
             }
         }
-        return Ok(current_latest_signed_checkpoint);
+        Ok(current_latest_signed_checkpoint)
     }
 
     /// Blocks for a MultisigSignedCheckpoint from the channel
