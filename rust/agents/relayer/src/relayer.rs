@@ -20,8 +20,8 @@ const SIGNED_CHECKPOINT_CHANNEL_BUFFER: usize = 1000;
 /// A relayer agent
 #[derive(Debug)]
 pub struct Relayer {
-    polling_interval: u64,
-    max_retries: u32,
+    signed_checkpoint_polling_interval: u64,
+    max_processing_retries: u32,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
 }
@@ -36,14 +36,14 @@ impl AsRef<AbacusAgentCore> for Relayer {
 impl Relayer {
     /// Instantiate a new relayer
     pub fn new(
-        polling_interval: u64,
-        max_retries: u32,
+        signed_checkpoint_polling_interval: u64,
+        max_processing_retries: u32,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
         core: AbacusAgentCore,
     ) -> Self {
         Self {
-            polling_interval,
-            max_retries,
+            signed_checkpoint_polling_interval,
+            max_processing_retries,
             multisig_checkpoint_syncer,
             core,
         }
@@ -65,8 +65,11 @@ impl Agent for Relayer {
             .multisigcheckpointsyncer
             .try_into_multisig_checkpoint_syncer()?;
         Ok(Self::new(
-            settings.pollinginterval.parse().unwrap_or(5),
-            settings.maxretries.parse().unwrap_or(10),
+            settings
+                .signedcheckpointpollinginterval
+                .parse()
+                .unwrap_or(5),
+            settings.maxprocessingretries.parse().unwrap_or(10),
             multisig_checkpoint_syncer,
             settings
                 .as_ref()
@@ -100,9 +103,9 @@ impl Relayer {
         let (signed_checkpoint_sender, signed_checkpoint_receiver) =
             channel::<MultisigSignedCheckpoint>(SIGNED_CHECKPOINT_CHANNEL_BUFFER);
 
-        let checkpoint_relayer = CheckpointFetcher::new(
+        let checkpoint_fetcher = CheckpointFetcher::new(
             self.outbox().outbox(),
-            self.polling_interval,
+            self.signed_checkpoint_polling_interval,
             db.clone(),
             inbox_contracts.clone(),
             self.multisig_checkpoint_syncer.clone(),
@@ -111,8 +114,7 @@ impl Relayer {
         );
         let message_processor = MessageProcessor::new(
             self.outbox().outbox(),
-            self.polling_interval,
-            self.max_retries,
+            self.max_processing_retries,
             db,
             inbox_contracts,
             signed_checkpoint_receiver,
@@ -120,7 +122,7 @@ impl Relayer {
             self.core.metrics.retry_queue_length(),
         );
 
-        self.run_all(vec![checkpoint_relayer.spawn(), message_processor.spawn()])
+        self.run_all(vec![checkpoint_fetcher.spawn(), message_processor.spawn()])
     }
 
     fn wrap_inbox_run(

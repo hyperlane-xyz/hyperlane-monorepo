@@ -23,7 +23,6 @@ use tracing::{
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
 pub(crate) struct MessageProcessor {
-    polling_interval: u64,
     max_retries: u32,
     db: AbacusDB,
     inbox_contracts: InboxContracts,
@@ -54,7 +53,6 @@ impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         outbox: Outboxes,
-        polling_interval: u64,
         max_retries: u32,
         db: AbacusDB,
         inbox_contracts: InboxContracts,
@@ -75,7 +73,6 @@ impl MessageProcessor {
         let retry_queue_length_gauge = retry_queue_length
             .with_label_values(&[outbox.chain_name(), inbox_contracts.inbox.chain_name()]);
         Self {
-            polling_interval,
             max_retries,
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
@@ -245,8 +242,8 @@ impl MessageProcessor {
                             message_leaf_index += 1
                         }
                         MessageProcessingStatus::NotYetCheckpointed => {
-                            // If we don't have an up to date checkpoint, sleep and try again
-                            sleep(Duration::from_secs(self.polling_interval)).await;
+                            // Do nothing. We should allow the backlog to be evaluated
+                            // and will eventually learn about a new signed checkpoint.
                         }
                         MessageProcessingStatus::NotDestinedForInbox => message_leaf_index += 1,
                         MessageProcessingStatus::Error => {
