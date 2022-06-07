@@ -128,9 +128,7 @@ impl Relayer {
             self.core.metrics.retry_queue_length(),
         );
 
-        self.run_all(vec![
-            /*checkpoint_fetcher.spawn(), */ message_processor.spawn(),
-        ])
+        message_processor.spawn()
     }
 
     fn wrap_inbox_run(

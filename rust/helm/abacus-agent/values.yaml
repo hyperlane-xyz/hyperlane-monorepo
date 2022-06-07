@@ -111,8 +111,8 @@ abacus:
       - name: "alfajores"
         # aws:
     config:
-      pollingInterval:
-      maxRetries:
+      signedCheckpointPollingInterval:
+      maxProcessingRetries:
       multisigCheckpointSyncer:
         threshold:
         checkpointSyncers:
