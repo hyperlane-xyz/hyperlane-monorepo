@@ -4,7 +4,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use eyre::{bail, Result};
+use eyre::{bail, eyre, Result};
 use prometheus::{IntGauge, IntGaugeVec};
 use tokio::{
     sync::mpsc::{error::TryRecvError, Receiver},
@@ -193,7 +193,7 @@ impl MessageProcessor {
                 }
                 Err(TryRecvError::Disconnected) => {
                     // Occurs if the channel is currently empty and there are no outstanding senders or permits
-                    eyre::bail!("Booo disconnected!");
+                    bail!("Booo disconnected!");
                 }
             }
         }
@@ -231,7 +231,8 @@ impl MessageProcessor {
             sleep(Duration::from_millis(20)).await;
 
             if self.db.leaf_by_leaf_index(message_leaf_index)?.is_some() {
-                self.process_fresh_leaf(message_leaf_index, &mut latest_signed_checkpoint)
+                message_leaf_index = self
+                    .process_fresh_leaf(&mut latest_signed_checkpoint, message_leaf_index)
                     .await?;
             } else {
                 loop_ctrl!(
@@ -244,48 +245,53 @@ impl MessageProcessor {
         Ok(())
     }
 
+    /// Part of main loop
+    ///
+    /// - `returns` the new message leaf index.
     async fn process_fresh_leaf(
         &mut self,
-        mut message_leaf_index: u32,
         latest_signed_checkpoint: &mut MultisigSignedCheckpoint,
-    ) -> Result<()> {
+        message_leaf_index: u32,
+    ) -> Result<u32> {
         // We have unseen messages to process
         info!(
             destination = self.inbox_contracts.inbox.local_domain(),
             leaf_index = message_leaf_index,
             "Process fresh leaf"
         );
-        match self
-            .try_processing_message(&latest_signed_checkpoint, message_leaf_index)
-            .await?
-        {
-            MessageProcessingStatus::Processed => {
-                self.processed_gauge.set(message_leaf_index as i64);
-                message_leaf_index += 1
-            }
-            MessageProcessingStatus::NotYetCheckpointed => {
-                // If we don't have an up to date checkpoint, sleep and try again
-                sleep(Duration::from_secs(self.polling_interval)).await;
-            }
-            MessageProcessingStatus::NotDestinedForInbox => message_leaf_index += 1,
-            MessageProcessingStatus::Error => {
-                warn!(
-                    destination = self.inbox_contracts.inbox.local_domain(),
-                    leaf_index = message_leaf_index,
-                    "Message could not be processed, queue for retry"
-                );
-                self.retry_queue.push(MessageToRetry {
-                    leaf_index: message_leaf_index,
-                    time_to_retry: Reverse(Instant::now()),
-                    retries: 0,
-                });
-                message_leaf_index += 1;
-            }
-        }
-
-        Ok(())
+        Ok(
+            match self
+                .try_processing_message(latest_signed_checkpoint, message_leaf_index)
+                .await?
+            {
+                MessageProcessingStatus::Processed => {
+                    self.processed_gauge.set(message_leaf_index as i64);
+                    message_leaf_index + 1
+                }
+                MessageProcessingStatus::NotYetCheckpointed => {
+                    // If we don't have an up to date checkpoint, sleep and try again
+                    sleep(Duration::from_secs(self.polling_interval)).await;
+                    message_leaf_index
+                }
+                MessageProcessingStatus::NotDestinedForInbox => message_leaf_index + 1,
+                MessageProcessingStatus::Error => {
+                    warn!(
+                        destination = self.inbox_contracts.inbox.local_domain(),
+                        leaf_index = message_leaf_index,
+                        "Message could not be processed, queue for retry"
+                    );
+                    self.retry_queue.push(MessageToRetry {
+                        leaf_index: message_leaf_index,
+                        time_to_retry: Reverse(Instant::now()),
+                        retries: 0,
+                    });
+                    message_leaf_index + 1
+                }
+            },
+        )
     }
 
+    /// Part of main loop
     async fn retry_processing_messages(
         &mut self,
         latest_signed_checkpoint: &mut MultisigSignedCheckpoint,
@@ -311,7 +317,7 @@ impl MessageProcessor {
                 "Retry processing of message"
             );
             match self
-                .try_processing_message(&latest_signed_checkpoint, leaf_index)
+                .try_processing_message(latest_signed_checkpoint, leaf_index)
                 .await?
             {
                 MessageProcessingStatus::NotDestinedForInbox
