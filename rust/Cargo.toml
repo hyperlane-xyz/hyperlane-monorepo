@@ -5,7 +5,6 @@ cargo-features = ["edition2021"]
 members = [
     "abacus-core",
     "abacus-base",
-    "abacus-cli",
     "abacus-test",
     "chains/abacus-ethereum",
     "agents/kathy",

@@ -1,8 +1,9 @@
 //! Configuration
 
-use abacus_base::decl_settings;
 use regex::Regex;
 use serde::Deserialize;
+
+use abacus_base::decl_settings;
 use abacus_core::Address;
 
 #[derive(Debug, Deserialize)]
@@ -36,20 +37,21 @@ impl TryFrom<RawWhitelist> for CompiledWhitelist {
 }
 
 impl CompiledWhitelist {
-    pub fn matches(src_addr: &Address, src_domain: &str, dst_addr: &Address, dst_domain: &str) -> bool {
+    pub fn matches(
+        src_addr: &Address,
+        src_domain: &str,
+        dst_addr: &Address,
+        dst_domain: &str,
+    ) -> bool {
         todo!()
     }
 }
 
 decl_settings!(Relayer {
-    /// The polling interval to check for new checkpoints in seconds
-    pollinginterval: String,
-    /// The minimum latency in seconds between two relayed checkpoints on the inbox
-    submissionlatency: String,
+    /// The polling interval to check for new signed checkpoints in seconds
+    signedcheckpointpollinginterval: String,
     /// The maximum number of times a processor will try to process a message
-    maxretries: String,
-    /// Whether the CheckpointRelayer should try to immediately process messages
-    relayermessageprocessing: String,
+    maxprocessingretries: String,
     /// The multisig checkpoint syncer configuration
     multisigcheckpointsyncer: abacus_base::MultisigCheckpointSyncerConf,
     /// Whitelist defining which messages should be published. If no wishlist is provided ALL

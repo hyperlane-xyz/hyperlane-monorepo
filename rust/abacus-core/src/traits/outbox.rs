@@ -32,7 +32,10 @@ pub trait Outbox: AbacusCommon + Send + Sync + Debug {
     async fn latest_cached_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError>;
 
     /// Get the latest checkpoint.
-    async fn latest_checkpoint(&self, lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError>;
+    async fn latest_checkpoint(
+        &self,
+        lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError>;
 }
 
 /// Interface for retrieving event data emitted specifically by the outbox
