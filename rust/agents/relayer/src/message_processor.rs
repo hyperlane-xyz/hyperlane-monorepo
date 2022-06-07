@@ -112,14 +112,17 @@ impl MessageProcessor {
 
                 match self.inbox_contracts.inbox.message_status(leaf).await? {
                     MessageStatus::None => {
-                        if message_leaf_index >= self.prover_sync.count() {
+                        if latest_signed_checkpoint.checkpoint.index >= self.prover_sync.count() {
                             self.prover_sync
                                 .update_to_checkpoint(&latest_signed_checkpoint.checkpoint)
                                 .await?;
+                        }
 
-                            if message_leaf_index >= self.prover_sync.count() {
-                                return Ok(MessageProcessingStatus::NotYetCheckpointed);
-                            }
+                        // prover_sync should always be in sync with latest_signed_checkpoint
+                        assert_eq!(latest_signed_checkpoint.checkpoint.index + 1, self.prover_sync.count());
+
+                        if message_leaf_index > latest_signed_checkpoint.checkpoint.index {
+                            return Ok(MessageProcessingStatus::NotYetCheckpointed);
                         }
 
                         match self.prover_sync.get_proof(message_leaf_index) {
@@ -133,19 +136,19 @@ impl MessageProcessor {
                                     info!(
                                         leaf_index = message_leaf_index,
                                         hash = ?outcome.txid,
-                                        "[MessageProcessor] processed"
+                                        "Message successfully processed"
                                     );
                                     self.db.mark_leaf_as_processed(message_leaf_index)?;
                                     Ok(MessageProcessingStatus::Processed)
                                 }
                                 Err(err) => {
-                                    error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
+                                    error!(leaf_index = message_leaf_index, error=?err, "Message failed to process, enqueuing for retry");
                                     Ok(MessageProcessingStatus::Error)
                                 }
                             },
                             Err(err) => {
-                                error!(error=?err, "MessageProcessor was unable to fetch proof");
-                                bail!("MessageProcessor was unable to fetch proof");
+                                error!(error=?err, "Unable to fetch proof");
+                                bail!("Unable to fetch proof");
                             }
                         }
                     }
@@ -153,7 +156,7 @@ impl MessageProcessor {
                         debug!(
                             leaf_index = message_leaf_index,
                             domain = self.inbox_contracts.inbox.local_domain(),
-                            "Already processed"
+                            "Message already processed"
                         );
                         self.db.mark_leaf_as_processed(message_leaf_index)?;
                         Ok(MessageProcessingStatus::Processed)
