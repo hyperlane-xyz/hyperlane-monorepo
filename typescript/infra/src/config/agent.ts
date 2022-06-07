@@ -87,8 +87,6 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  // The minimum latency in seconds between two relayed checkpoints on the inbox
-  submissionLatency: number;
   // The polling interval to check for new checkpoints in seconds
   pollingInterval: number;
   // The maxinmum number of times a processor will try to process a message

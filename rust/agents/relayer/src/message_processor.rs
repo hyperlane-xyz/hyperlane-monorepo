@@ -25,8 +25,6 @@ use crate::merkle_tree_builder::MerkleTreeBuilder;
 pub(crate) struct MessageProcessor {
     polling_interval: u64,
     max_retries: u32,
-    #[allow(dead_code)] // TODO come back to this
-    reorg_period: u64,
     db: AbacusDB,
     inbox_contracts: InboxContracts,
     prover_sync: MerkleTreeBuilder,
@@ -59,7 +57,6 @@ impl MessageProcessor {
         polling_interval: u64,
         max_retries: u32,
         db: AbacusDB,
-        reorg_period: u64,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: Receiver<MultisigSignedCheckpoint>,
         leaf_index_gauge: IntGaugeVec,
@@ -80,7 +77,6 @@ impl MessageProcessor {
         Self {
             polling_interval,
             max_retries,
-            reorg_period,
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
             inbox_contracts,
@@ -205,11 +201,13 @@ impl MessageProcessor {
     async fn main_loop(mut self) -> Result<()> {
         let mut message_leaf_index = 0;
         // Block until the first signed checkpoint is received
-        let mut latest_signed_checkpoint = self
-            .signed_checkpoint_receiver
-            .recv()
-            .await
-            .ok_or(eyre::eyre!("TODO come back"))?;
+        let mut latest_signed_checkpoint =
+            self.signed_checkpoint_receiver
+                .recv()
+                .await
+                .ok_or(eyre::eyre!(
+                    "Error getting latest signed checkpoint upon starting"
+                ))?;
 
         loop {
             // Get latest signed checkpoint, non-blocking

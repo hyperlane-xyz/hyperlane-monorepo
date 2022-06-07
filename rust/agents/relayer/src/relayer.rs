@@ -22,7 +22,6 @@ const SIGNED_CHECKPOINT_CHANNEL_BUFFER: usize = 1000;
 pub struct Relayer {
     polling_interval: u64,
     max_retries: u32,
-    submission_latency: u64,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
 }
@@ -39,14 +38,12 @@ impl Relayer {
     pub fn new(
         polling_interval: u64,
         max_retries: u32,
-        submission_latency: u64,
         multisig_checkpoint_syncer: MultisigCheckpointSyncer,
         core: AbacusAgentCore,
     ) -> Self {
         Self {
             polling_interval,
             max_retries,
-            submission_latency,
             multisig_checkpoint_syncer,
             core,
         }
@@ -70,7 +67,6 @@ impl Agent for Relayer {
         Ok(Self::new(
             settings.pollinginterval.parse().unwrap_or(5),
             settings.maxretries.parse().unwrap_or(10),
-            settings.submissionlatency.parse().expect("invalid uint"),
             multisig_checkpoint_syncer,
             settings
                 .as_ref()
@@ -118,7 +114,6 @@ impl Relayer {
             self.polling_interval,
             self.max_retries,
             db,
-            self.submission_latency,
             inbox_contracts,
             signed_checkpoint_receiver,
             self.core.metrics.last_known_message_leaf_index(),

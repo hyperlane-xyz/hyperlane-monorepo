@@ -22,7 +22,6 @@ export const agent: AgentConfig<DevChains> = {
   relayer: {
     default: {
       pollingInterval: 5,
-      submissionLatency: 10,
       maxRetries: 10,
     },
   },
