@@ -5,6 +5,8 @@ import { ethers } from 'hardhat';
 import {
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
   Outbox__factory,
 } from '@abacus-network/core';
 
@@ -95,5 +97,38 @@ describe('AbacusConnectionClient', async () => {
     const outbox = await outboxFactory.deploy(localDomain);
     await connectionManager.setOutbox(outbox.address);
     expect(await connectionClient.localDomain()).to.equal(localDomain);
+  });
+
+  describe('#setInterchainGasPaymaster', () => {
+    let newPaymaster: InterchainGasPaymaster;
+
+    before(async () => {
+      const paymasterFactory = new InterchainGasPaymaster__factory(signer);
+      newPaymaster = await paymasterFactory.deploy();
+    });
+
+    it('Allows owner to set the interchainGasPaymaster', async () => {
+      await connectionClient.setInterchainGasPaymaster(newPaymaster.address);
+      expect(await connectionManager.interchainGasPaymaster()).to.equal(
+        newPaymaster.address,
+      );
+    });
+
+    it('Emits the NewInterchainGasPaymaster event', async () => {
+      await expect(
+        connectionClient.setInterchainGasPaymaster(newPaymaster.address),
+      )
+        .to.emit(connectionManager, 'NewInterchainGasPaymaster')
+        .withArgs(newPaymaster.address);
+    });
+
+    it('Reverts a call from non-owner', async () => {
+      await expect(
+        connectionClient.setInterchainGasPaymaster(
+          newPaymaster.address,
+          nonOwner,
+        ),
+      ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
+    });
   });
 });

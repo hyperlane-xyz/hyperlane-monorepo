@@ -1,13 +1,10 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
-import { ContractTransaction } from 'ethers';
 import { ethers } from 'hardhat';
 
 import {
   AbacusConnectionManager,
   AbacusConnectionManager__factory,
-  InterchainGasPaymaster,
-  InterchainGasPaymaster__factory,
   Outbox,
   Outbox__factory,
   TestInbox,
@@ -50,14 +47,7 @@ describe('AbacusConnectionManager', async () => {
     expect(await connectionManager!.localDomain()).to.equal(localDomain);
   });
 
-  // Used for testing `setOutbox` and `setOutboxAndInterchainGasPaymaster` to avoid
-  // code duplication
-  const setOutboxTests = (
-    setter: (
-      outbox: string,
-      signer?: SignerWithAddress,
-    ) => Promise<ContractTransaction>,
-  ) => {
+  describe('#setOutbox', () => {
     let newOutbox: Outbox;
 
     beforeEach(async () => {
@@ -66,104 +56,21 @@ describe('AbacusConnectionManager', async () => {
     });
 
     it('Allows owner to set the outbox', async () => {
-      await setter(newOutbox.address);
+      await connectionManager.setOutbox(newOutbox.address);
       expect(await connectionManager.outbox()).to.equal(newOutbox.address);
     });
 
     it('Emits the NewOutbox event', async () => {
-      await expect(setter(newOutbox.address))
+      await expect(connectionManager.setOutbox(newOutbox.address))
         .to.emit(connectionManager, 'NewOutbox')
         .withArgs(newOutbox.address);
     });
 
     it('Reverts a call from non-owner', async () => {
-      await expect(setter(newOutbox.address, nonOwner)).to.be.revertedWith(
-        ONLY_OWNER_REVERT_MSG,
-      );
+      await expect(
+        connectionManager.connect(nonOwner).setOutbox(newOutbox.address),
+      ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
     });
-  };
-
-  // Used for testing `setInterchainGasPaymaster` and `setOutboxAndInterchainGasPaymaster`
-  // to avoid code duplication
-  const setInterchainGasPaymasterTests = (
-    setter: (
-      interchainGasPaymaster: string,
-      signer?: SignerWithAddress,
-    ) => Promise<ContractTransaction>,
-  ) => {
-    let newPaymaster: InterchainGasPaymaster;
-
-    beforeEach(async () => {
-      const paymasterFactory = new InterchainGasPaymaster__factory(signer);
-      newPaymaster = await paymasterFactory.deploy();
-    });
-
-    it('Allows owner to set the interchainGasPaymaster', async () => {
-      await setter(newPaymaster.address);
-      expect(await connectionManager.interchainGasPaymaster()).to.equal(
-        newPaymaster.address,
-      );
-    });
-
-    it('Emits the NewInterchainGasPaymaster event', async () => {
-      await expect(setter(newPaymaster.address))
-        .to.emit(connectionManager, 'NewInterchainGasPaymaster')
-        .withArgs(newPaymaster.address);
-    });
-
-    it('Reverts a call from non-owner', async () => {
-      await expect(setter(newPaymaster.address, nonOwner)).to.be.revertedWith(
-        ONLY_OWNER_REVERT_MSG,
-      );
-    });
-  };
-
-  describe('#setOutboxAndInterchainGasPaymaster', () => {
-    const dummyAddress = '0xdEADBEeF00000000000000000000000000000000';
-
-    // Test the outbox setting works
-    setOutboxTests((outbox: string, signer?: SignerWithAddress) => {
-      const connManager = signer
-        ? connectionManager.connect(signer)
-        : connectionManager;
-      return connManager.setOutboxAndInterchainGasPaymaster(
-        outbox,
-        dummyAddress,
-      );
-    });
-
-    // And test the interchain gas paymaster setting works
-    setInterchainGasPaymasterTests(
-      (interchainGasPaymaster: string, signer?: SignerWithAddress) => {
-        const connManager = signer
-          ? connectionManager.connect(signer)
-          : connectionManager;
-        return connManager.setOutboxAndInterchainGasPaymaster(
-          dummyAddress,
-          interchainGasPaymaster,
-        );
-      },
-    );
-  });
-
-  describe('#setOutbox', () => {
-    setOutboxTests((outbox: string, signer?: SignerWithAddress) => {
-      const connManager = signer
-        ? connectionManager.connect(signer)
-        : connectionManager;
-      return connManager.setOutbox(outbox);
-    });
-  });
-
-  describe('#setInterchainGasPaymaster', () => {
-    setInterchainGasPaymasterTests(
-      (interchainGasPaymaster: string, signer?: SignerWithAddress) => {
-        const connManager = signer
-          ? connectionManager.connect(signer)
-          : connectionManager;
-        return connManager.setInterchainGasPaymaster(interchainGasPaymaster);
-      },
-    );
   });
 
   it('isInbox returns true for enrolledInbox and false for non-enrolled Inbox', async () => {
