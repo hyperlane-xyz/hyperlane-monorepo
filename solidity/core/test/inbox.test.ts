@@ -27,7 +27,7 @@ const OUTBOX_DOMAIN = 1234;
 const INBOX_DOMAIN = 4321;
 const SET_SIZE = 32;
 
-describe.only('Inbox', async () => {
+describe('Inbox', async () => {
   const badRecipientFactories = [
     BadRecipient1__factory,
     BadRecipient2__factory,
@@ -41,11 +41,7 @@ describe.only('Inbox', async () => {
     validatorManager: ValidatorManager,
     outbox: TestOutbox,
     validators: ValidatorSet,
-    recipient: string,
-    signature: AggregatedSignature,
-    proof: MerkleProof,
-    checkpoint: Checkpoint,
-    message: string;
+    recipient: string;
 
   before(async () => {
     [signer] = await ethers.getSigners();
@@ -69,17 +65,6 @@ describe.only('Inbox', async () => {
     // Deploy a recipient
     const recipientF = new TestRecipient__factory(signer);
     recipient = utils.addressToBytes32((await recipientF.deploy()).address);
-
-    const _r = await dispatchMessage(
-      outbox,
-      INBOX_DOMAIN,
-      recipient,
-      'hello world',
-    );
-    message = _r.message;
-    checkpoint = _r.checkpoint;
-    proof = _r.proof;
-    signature = await validators.sign(checkpoint);
   });
 
   beforeEach(async () => {
@@ -94,70 +79,113 @@ describe.only('Inbox', async () => {
     ).to.be.revertedWith('Initializable: contract is already initialized');
   });
 
-  it('processes a message', async () => {
-    await inbox.process(signature, checkpoint, proof, message);
-    expect(await inbox.messages(proof.item)).to.eql(
-      types.MessageStatus.PROCESSED,
-    );
-  });
+  describe('#process', () => {
+    let signature: AggregatedSignature,
+      proof: MerkleProof,
+      checkpoint: Checkpoint,
+      message: string;
 
-  it('Rejects an already-processed message', async () => {
-    await inbox.setMessageStatus(proof.item, types.MessageStatus.PROCESSED);
-
-    // Try to process message again
-    await expect(
-      inbox.process(signature, checkpoint, proof, message),
-    ).to.be.revertedWith('!MessageStatus.None');
-  });
-
-  it('Rejects invalid message proof', async () => {
-    // Switch ordering of proof hashes
-    // NB: We copy 'path' here to avoid mutating the test cases for
-    // other tests.
-    const newBranch = proof.branch.slice().reverse();
-
-    expect(
-      inbox.process(
-        signature,
-        checkpoint,
-        {
-          branch: newBranch,
-          item: proof.item,
-          index: proof.index,
-        },
-        message,
-      ),
-    ).to.be.revertedWith('!proof');
-    expect(await inbox.messages(proof.item)).to.equal(types.MessageStatus.NONE);
-  });
-
-  it('Fails to process message when signature is invalid', async () => {
-    await expect(
-      inbox.process(
-        {
-          sig: signature.sig.add(1),
-          randomness: signature.randomness,
-          nonce: signature.nonce,
-          missing: signature.missing,
-        },
-        checkpoint,
-        proof,
-        message,
-      ),
-    ).to.be.revertedWith('!sig');
-  });
-
-  for (let i = 0; i < badRecipientFactories.length; i++) {
-    it(`Fails to process a message for a badly implemented recipient (${
-      i + 1
-    })`, async () => {
-      const factory = new badRecipientFactories[i](signer);
-      const badRecipient = await factory.deploy();
-
-      const badDispatch = await dispatchMessage(
+    before(async () => {
+      const _r = await dispatchMessage(
         outbox,
         INBOX_DOMAIN,
-        utils.addressToBytes32(badRecipient.address),
+        recipient,
+        'hello world',
+      );
+      message = _r.message;
+      checkpoint = _r.checkpoint;
+      proof = _r.proof;
+      signature = await validators.sign(checkpoint);
+    });
+
+    it('processes a message', async () => {
+      await expect(
+        inbox.process(signature, checkpoint, proof, message),
+      ).to.emit(inbox, 'Process');
+      expect(await inbox.messages(proof.item)).to.eql(
+        types.MessageStatus.PROCESSED,
+      );
+    });
+
+    it('Rejects an already-processed message', async () => {
+      await inbox.setMessageStatus(proof.item, types.MessageStatus.PROCESSED);
+
+      // Try to process message again
+      await expect(
+        inbox.process(signature, checkpoint, proof, message),
+      ).to.be.revertedWith('!MessageStatus.None');
+    });
+
+    it('Rejects invalid message proof', async () => {
+      // Switch ordering of proof hashes
+      // NB: We copy 'path' here to avoid mutating the test cases for
+      // other tests.
+      const newBranch = proof.branch.slice().reverse();
+
+      expect(
+        inbox.process(
+          signature,
+          checkpoint,
+          {
+            branch: newBranch,
+            item: proof.item,
+            index: proof.index,
+          },
+          message,
+        ),
+      ).to.be.revertedWith('!proof');
+      expect(await inbox.messages(proof.item)).to.equal(
+        types.MessageStatus.NONE,
+      );
+    });
+
+    it('Fails to process message when signature is invalid', async () => {
+      await expect(
+        inbox.process(
+          {
+            sig: signature.sig.add(1),
+            randomness: signature.randomness,
+            nonce: signature.nonce,
+            missing: signature.missing,
+          },
+          checkpoint,
+          proof,
+          message,
+        ),
+      ).to.be.revertedWith('!sig');
+    });
+
+    for (let i = 0; i < badRecipientFactories.length; i++) {
+      it(`Fails to process a message for a badly implemented recipient (${
+        i + 1
+      })`, async () => {
+        const factory = new badRecipientFactories[i](signer);
+        const badRecipient = await factory.deploy();
+
+        const badDispatch = await dispatchMessage(
+          outbox,
+          INBOX_DOMAIN,
+          utils.addressToBytes32(badRecipient.address),
+          'hello world',
+        );
+        const badSig = await validators.sign(badDispatch.checkpoint);
+
+        await expect(
+          inbox.process(
+            badSig,
+            badDispatch.checkpoint,
+            badDispatch.proof,
+            badDispatch.message,
+          ),
+        ).to.be.reverted;
+      });
+    }
+
+    it('Fails to process message with wrong destination Domain', async () => {
+      const badDispatch = await dispatchMessage(
+        outbox,
+        INBOX_DOMAIN + 1,
+        recipient,
         'hello world',
       );
       const badSig = await validators.sign(badDispatch.checkpoint);
@@ -169,44 +197,87 @@ describe.only('Inbox', async () => {
           badDispatch.proof,
           badDispatch.message,
         ),
+      ).to.be.revertedWith('!destination');
+    });
+
+    it('Fails to process message sent to a non-existent contract address', async () => {
+      const badDispatch = await dispatchMessage(
+        outbox,
+        INBOX_DOMAIN,
+        utils.addressToBytes32('0x1234567890123456789012345678901234567890'), // non-existent contract address
+        'hello world',
+      );
+      const badSig = await validators.sign(badDispatch.checkpoint);
+      await expect(
+        inbox.process(
+          badSig,
+          badDispatch.checkpoint,
+          badDispatch.proof,
+          badDispatch.message,
+        ),
       ).to.be.reverted;
     });
-  }
-
-  it('Fails to process message with wrong destination Domain', async () => {
-    const badDispatch = await dispatchMessage(
-      outbox,
-      INBOX_DOMAIN + 1,
-      recipient,
-      'hello world',
-    );
-    const badSig = await validators.sign(badDispatch.checkpoint);
-
-    await expect(
-      inbox.process(
-        badSig,
-        badDispatch.checkpoint,
-        badDispatch.proof,
-        badDispatch.message,
-      ),
-    ).to.be.revertedWith('!destination');
   });
 
-  it('Fails to process message sent to a non-existent contract address', async () => {
-    const badDispatch = await dispatchMessage(
-      outbox,
-      INBOX_DOMAIN,
-      utils.addressToBytes32('0x1234567890123456789012345678901234567890'), // non-existent contract address
-      'hello world',
-    );
-    const badSig = await validators.sign(badDispatch.checkpoint);
-    await expect(
-      inbox.process(
-        badSig,
-        badDispatch.checkpoint,
-        badDispatch.proof,
-        badDispatch.message,
-      ),
-    ).to.be.reverted;
+  // Because the Outbox only gives us proofs against the latest root, we can
+  // only easily create one proof against a checkpoint.
+  describe.skip('#batchProcess', () => {
+    let signature: AggregatedSignature,
+      checkpoint: Checkpoint,
+      proofs: MerkleProof[],
+      messages: string[];
+
+    before(async () => {
+      const MESSAGES = 100;
+      const MESSAGE_WORDS = 1;
+
+      const dispatches = [];
+      for (let i = 0; i < MESSAGES; i++) {
+        const message = ethers.utils.hexlify(
+          ethers.utils.randomBytes(MESSAGE_WORDS * 32),
+        );
+        dispatches.push(
+          await dispatchMessage(outbox, INBOX_DOMAIN, recipient, message),
+        );
+      }
+      const latest = dispatches[dispatches.length - 1];
+      checkpoint = latest.checkpoint;
+      signature = await validators.sign(checkpoint);
+      proofs = dispatches.map((m) => m.proof);
+      messages = dispatches.map((m) => m.message);
+    });
+
+    it('processes multiple messages', async () => {
+      await expect(
+        inbox.batchProcess(signature, checkpoint, proofs, messages),
+      ).to.emit(validatorManager, 'BatchProcess');
+    });
+
+    it('reverts if the signature is invalid', async () => {
+      await expect(
+        inbox.batchProcess(
+          {
+            sig: signature.sig.add(1),
+            randomness: signature.randomness,
+            nonce: signature.nonce,
+            missing: signature.missing,
+          },
+          checkpoint,
+          proofs,
+          messages,
+        ),
+      ).to.be.reverted;
+    });
+
+    it('reverts if the proofs are out of order', async () => {
+      await expect(
+        inbox.batchProcess(
+          signature,
+          checkpoint,
+          proofs.slice().reverse(),
+          messages,
+        ),
+      ).to.be.reverted;
+    });
   });
 });

@@ -15,8 +15,8 @@ interface IInbox is IMailbox {
     ) external;
 
     function batchProcess(
-        Checkpoint calldata _checkpoint,
         Signature calldata _sig,
+        Checkpoint calldata _checkpoint,
         MerkleLib.Proof[] calldata _proofs,
         bytes[] calldata _messages
     ) external;

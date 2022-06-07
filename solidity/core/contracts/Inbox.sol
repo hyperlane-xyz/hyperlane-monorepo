@@ -101,8 +101,8 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
      * but comments out the name to suppress compiler warning
      */
     function batchProcess(
-        Checkpoint calldata _checkpoint,
         Signature calldata _sig,
+        Checkpoint calldata _checkpoint,
         MerkleLib.Proof[] calldata _proofs,
         bytes[] calldata _messages
     ) external nonReentrant {
