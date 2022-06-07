@@ -132,12 +132,11 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
 
     /**
      * @notice Dispatches a message to an enrolled router via the local router's Outbox
-     * and pays interchain gas for the dispatched message.
+     * and pays for it to be relayed to the destination.
      * @dev Reverts if there is no enrolled router for _destinationDomain.
      * @param _destinationDomain The domain of the chain to which to send the message.
      * @param _msg The message to dispatch.
-     * @param _gasPayment The amount of native tokens to pay the Interchain Gas
-     * Paymaster to process the dispatched message.
+     * @param _gasPayment The amount of native tokens to pay for the message to be relayed.
      */
     function _dispatchWithGas(
         uint32 _destinationDomain,
@@ -146,15 +145,12 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     ) internal {
         // Gets the abacusConnectionManager from storage once to avoid multiple reads.
         IAbacusConnectionManager _abacusConnectionManager = abacusConnectionManager;
-        uint256 _leafIndex = _dispatch(
-            _abacusConnectionManager.outbox(),
-            _destinationDomain,
-            _msg
-        );
+        IOutbox _outbox = _abacusConnectionManager.outbox();
+        uint256 _leafIndex = _dispatch(_outbox, _destinationDomain, _msg);
         if (_gasPayment > 0) {
             _abacusConnectionManager.interchainGasPaymaster().payGasFor{
                 value: _gasPayment
-            }(_leafIndex);
+            }(_outbox, _leafIndex);
         }
     }
 
