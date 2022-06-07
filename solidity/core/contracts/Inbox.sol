@@ -105,7 +105,7 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         Checkpoint calldata _checkpoint,
         MerkleLib.Proof[] calldata _proofs,
         bytes[] calldata _messages
-    ) external nonReentrant {
+    ) external override nonReentrant {
         bool _success = _verify(_sig, _checkpoint, remoteDomain);
         require(_success, "!sig");
         for (uint256 i = 0; i < _proofs.length; i++) {
@@ -153,8 +153,6 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
             _sig.missing
         );
     }
-
-    // ============ Public Functions ============
 
     // ============ Internal Functions ============
 
