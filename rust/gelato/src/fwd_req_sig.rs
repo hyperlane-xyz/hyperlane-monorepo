@@ -58,16 +58,13 @@ mod tests {
     use ethers::types::transaction::eip712::Eip712;
     use ethers::utils::hex;
 
-    // The sample data / parameters below, along with corresponding
-    // expected digests and signatures, were validated by running the
-    // Gelato Relay SDK demo "hello world" app with instrumented
-    // logging, and recording the generated signatures and digests. A
-    // LocalWallet with a randomly-generated private key was also
-    // recorded.
-    //
-    // See
-    // https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start
-    // for more details.
+    // The sample data / parameters below, along with corresponding expected digests and signatures,
+    // were validated by running the Gelato Relay SDK demo "hello world" app with instrumented
+    // logging, and recording the generated signatures and digests. A LocalWallet with a
+    // randomly-generated private key was also recorded.
+    // 
+    // See https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start for more
+    // details.
 
     const EXAMPLE_DATA_FOR_TESTING: &str = concat!(
         "0x4b327067000000000000000000000000",

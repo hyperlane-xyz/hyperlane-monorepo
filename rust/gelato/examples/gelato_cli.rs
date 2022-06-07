@@ -11,8 +11,7 @@ use tokio::time::Duration;
 use tracing::{info, Level};
 use tracing_subscriber::FmtSubscriber;
 
-// TODO(webbhorn): move into an abacus CLI subcommand once it is migrated to
-// Clap from structopt.
+// TODO(webbhorn): move into an abacus CLI subcommand once it is migrated to Clap from structopt.
 
 // TODO(webbhorn): Switch to using typed derive
 // https://github.com/clap-rs/clap/blob/master/examples/typed-derive.rs.

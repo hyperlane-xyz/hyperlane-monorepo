@@ -28,9 +28,8 @@ pub struct ForwardRequestOpArgs {
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestOpResult {
-    // TODO: lots more here than just task_id,
-// including gas charged, block number, etc
-// etc etc etc.
+    // TODO: lots more here than just task_id, including gas charged,
+    // block number, etc etc etc etc.
 }
 
 #[derive(Debug, Clone)]
@@ -39,23 +38,17 @@ pub struct ForwardRequestOptions {
     pub retry_submit_interval: Duration,
 }
 
-// TODO(webbhorn): Support cancel() on an in-flight
-// ForwardRequestOp from some task other than the one
-// currently inside of op.run(), e.g. by using a
-// tokio_util::sync::CancellationToken
-// (https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html)
-// that is private to the Op struct and signalled via a
-// call to op.cancel().
-//
-// TODO(webbhorn): ... And/Or, support injection of a
-// RetryPolicy closure in construction of the Op that
-// we can specifically use to query the shared Inbox
-// state to e.g. find out if a message has already
-// been delivered (perhaps by some other Relayer), and
-// we should stop retrying and return from run().
-//
-// TODO(webbhorn): Maybe take deps on traits
-// instead of concrete types, e.g. for 'http'.
+// TODO(webbhorn): Support cancel() on an in-flight ForwardRequestOp from some task other than the
+// one currently inside of op.run(), e.g. by using a tokio_util::sync::CancellationToken
+// (https://docs.rs/tokio-util/latest/tokio_util/sync/struct.CancellationToken.html) that is private
+// to the Op struct and signalled via a call to op.cancel().
+// 
+// TODO(webbhorn): ... And/Or, support injection of a RetryPolicy closure in construction of the Op
+// that we can specifically use to query the shared Inbox state to e.g. find out if a message has
+// already been delivered (perhaps by some other Relayer), and we should stop retrying and return
+// from run().
+// 
+// TODO(webbhorn): Maybe take deps on traits instead of concrete types, e.g. for 'http'.
 #[derive(Debug, Clone)]
 pub struct ForwardRequestOp<S> {
     pub args: ForwardRequestOpArgs,
@@ -70,8 +63,7 @@ pub struct ForwardRequestOp<S> {
 impl<S: Signer> ForwardRequestOp<S> {
     #[instrument]
     pub async fn run(&self) -> Result<ForwardRequestOpResult, GelatoError> {
-        // TODO(webbhorn): handle signing error. Presumably for AWS
-        // some are retryable, others not?
+        // TODO(webbhorn): handle signing error. Presumably for AWS some are retryable, others not?
         let sig = self.signer.sign_typed_data(&self.args).await.unwrap();
         loop {
             let fwd_req_call = ForwardRequestCall {
@@ -79,28 +71,22 @@ impl<S: Signer> ForwardRequestOp<S> {
                 args: self.args.clone(),
                 sig: sig.clone(),
             };
-            // TODO(webbhorn): If retryable error, retry submitting
-            // request after backoff if retryable (via 'continue;').
+            // TODO(webbhorn): If retryable error, retry submitting request after backoff if
+            // retryable (via 'continue;').
             let fwd_req_result = fwd_req_call.run().await?;
             info!(?fwd_req_result);
 
-            // Poll for task status every opts.poll_interval,
-            // waiting for any of:
-            //     1.  task status to be ExecSuccess, return Ok(..)
-            //     2.  task status to be a permanent, non-retryable
-            //         error, return GelatoError:: ...
-            //     3.  20m (aka `self.opts.retry_submit_interval`)
-            //         to have elapsed, in which case re-enter
-            //         outer loop..
-            //     4.  A transient, OK state, or temporary error,
-            //         in which case, re-enter the top of the inner
-            //         retry loop.
+            // Poll for task status every opts.poll_interval, waiting for any of:
+            //     1.  task status to be ExecSuccess, return Ok(..).
+            //     2.  task status to be a . permanent, non-retryable error, return a GelatoError.
+            //     3.  20m (aka `self.opts.retry_submit_interval`) to have elapsed, in which case
+            //         re-enter outer loop.
+            //     4.  A transient, OK state, or temporary error, in which case, re-enter the top of
+            //         the inner retry loop.
             for attempt in 0.. {
                 info!(?attempt);
-                // TODO(webbhorn): Resubmit the op if
-                // 'opts.retry_submit_interval' has elapsed since
-                // initial submission and we have still not seen
-                // success or a permanent error.
+                // TODO(webbhorn): Resubmit the op if 'opts.retry_submit_interval' has elapsed since
+                // initial submission and we have still not seen success or a permanent error.
                 let poll_call_args = TaskStatusCallArgs {
                     task_id: fwd_req_result.task_id.clone(),
                 };

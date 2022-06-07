@@ -68,10 +68,9 @@ pub struct Execution {
     pub created_at: Option<String>,
 }
 
-// Sometimes the value corresponding to the 'last_check'
-// key is a string timestamp, other times it is filled in
-// with lots of detailed fields. Represent that with
-// an enum and let serde figure it out.
+// Sometimes the value corresponding to the 'last_check' key is a string timestamp, other times it
+// is filled in with lots of detailed fields. Represent that with an enum and let serde figure it
+// out.
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 #[serde(untagged)]
