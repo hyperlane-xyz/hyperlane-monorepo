@@ -1,14 +1,14 @@
-use abacus_core::MultisigSignedCheckpoint;
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use tokio::{sync::mpsc::channel, task::JoinHandle};
-
 use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_base::{
     AbacusAgentCore, Agent, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
 };
+use abacus_core::MultisigSignedCheckpoint;
 
+use crate::settings::CompiledWhitelist;
 use crate::{
     checkpoint_relayer::CheckpointRelayer, message_processor::MessageProcessor,
     settings::RelayerSettings as Settings,
@@ -26,33 +26,12 @@ pub struct Relayer {
     relayer_message_processing: bool,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
+    whitelist: Option<CompiledWhitelist>,
 }
 
 impl AsRef<AbacusAgentCore> for Relayer {
     fn as_ref(&self) -> &AbacusAgentCore {
         &self.core
-    }
-}
-
-#[allow(clippy::unit_arg)]
-impl Relayer {
-    /// Instantiate a new relayer
-    pub fn new(
-        polling_interval: u64,
-        max_retries: u32,
-        submission_latency: u64,
-        relayer_message_processing: bool,
-        multisig_checkpoint_syncer: MultisigCheckpointSyncer,
-        core: AbacusAgentCore,
-    ) -> Self {
-        Self {
-            polling_interval,
-            max_retries,
-            submission_latency,
-            relayer_message_processing,
-            multisig_checkpoint_syncer,
-            core,
-        }
     }
 }
 
@@ -70,17 +49,20 @@ impl Agent for Relayer {
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
             .try_into_multisig_checkpoint_syncer()?;
-        Ok(Self::new(
-            settings.pollinginterval.parse().unwrap_or(5),
-            settings.maxretries.parse().unwrap_or(10),
-            settings.submissionlatency.parse().expect("invalid uint"),
-            settings.relayermessageprocessing.parse().unwrap_or(false),
+        Ok(Self {
+            polling_interval: settings.pollinginterval.parse().unwrap_or(5),
+            max_retries: settings.maxretries.parse().unwrap_or(10),
+            submission_latency: settings.submissionlatency.parse().expect("invalid uint"),
+            relayer_message_processing: settings.relayermessageprocessing.parse().unwrap_or(false),
             multisig_checkpoint_syncer,
-            settings
+            core: settings
                 .as_ref()
                 .try_into_abacus_core(Self::AGENT_NAME)
                 .await?,
-        ))
+            whitelist: settings
+                .whitelist
+                .map(|wl| wl.try_into().expect("Invalid whitelist configuration")),
+        })
     }
 }
 
