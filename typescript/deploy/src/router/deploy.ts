@@ -6,8 +6,8 @@ import {
   ChainName,
   MultiProvider,
   ProxiedContract,
-  RouterContracts,
   RouterFactories,
+  RouterFactory,
   chainMetadata,
   objMap,
   promiseObjAll,
@@ -20,11 +20,9 @@ import { RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
-  Contracts extends RouterContracts,
-  Factories extends RouterFactories,
-  Config extends {
-    router: RouterConfig<Contracts['router'], Factories['router']>;
-  },
+  RouterContract extends Router,
+  Factories extends RouterFactories<RouterFactory<RouterContract>>,
+  Config extends RouterConfig<Contracts, Factories>,
 > extends AbacusDeployer<Chain, Config, Factories, Contracts> {
   constructor(
     multiProvider: MultiProvider<Chain>,
@@ -41,15 +39,12 @@ export abstract class AbacusRouterDeployer<
     return router instanceof ProxiedContract ? router.contract : router;
   }
 
-  async deployRouter(
-    chain: Chain,
-    config: Config['router'],
-  ): Promise<Contracts['router']> {
-    const router = (await this.deployContract(
+  async deployRouter(chain: Chain, config: Config): Promise<RouterContract> {
+    const router = await this.deployContract(
       chain,
       'router',
       config.deployParams,
-    )) as Contracts['router'];
+    );
     // @ts-ignore spread operator
     await router.initialize(...config.initParams);
     return router;

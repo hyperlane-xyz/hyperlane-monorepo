@@ -1,13 +1,11 @@
-import { ethers } from 'ethers';
-
-import { Router } from '@abacus-network/app';
+import { RouterContracts, RouterFactories } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
 export type RouterConfig<
-  RouterContract extends Router,
-  RouterFactory extends ethers.ContractFactory,
+  Contracts extends RouterContracts,
+  Factories extends RouterFactories,
 > = {
   owner: types.Address;
-  deployParams: Parameters<RouterFactory['deploy']>;
-  initParams: Parameters<RouterContract['initialize']>;
+  deployParams: Parameters<Factories['router']['deploy']>;
+  initParams: Parameters<Contracts['router']['initialize']>;
 };
