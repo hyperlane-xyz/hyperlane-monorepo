@@ -10,6 +10,7 @@ import {
 const LEAF_INDEX = 4321;
 const PAYMENT_AMOUNT = 123456789;
 const OWNER = '0xdeadbeef00000000000000000000000000000000';
+const OUTBOX = '0x00000000000000000000000000000000DeaDBeef';
 
 describe('InterchainGasPaymaster', async () => {
   let paymaster: InterchainGasPaymaster, signer: SignerWithAddress;
@@ -29,7 +30,7 @@ describe('InterchainGasPaymaster', async () => {
         paymaster.address,
       );
 
-      await paymaster.payGasFor(LEAF_INDEX, { value: PAYMENT_AMOUNT });
+      await paymaster.payGasFor(OUTBOX, LEAF_INDEX, { value: PAYMENT_AMOUNT });
 
       const paymasterBalanceAfter = await signer.provider!.getBalance(
         paymaster.address,
@@ -41,16 +42,18 @@ describe('InterchainGasPaymaster', async () => {
     });
 
     it('emits the GasPayment event', async () => {
-      await expect(paymaster.payGasFor(LEAF_INDEX, { value: PAYMENT_AMOUNT }))
+      await expect(
+        paymaster.payGasFor(OUTBOX, LEAF_INDEX, { value: PAYMENT_AMOUNT }),
+      )
         .to.emit(paymaster, 'GasPayment')
-        .withArgs(LEAF_INDEX, PAYMENT_AMOUNT);
+        .withArgs(OUTBOX, LEAF_INDEX, PAYMENT_AMOUNT);
     });
   });
 
   describe('#claim', async () => {
     it('sends the entire balance of the contract to the owner', async () => {
       // First pay some ether into the contract
-      await paymaster.payGasFor(LEAF_INDEX, { value: PAYMENT_AMOUNT });
+      await paymaster.payGasFor(OUTBOX, LEAF_INDEX, { value: PAYMENT_AMOUNT });
 
       // Set the owner to a different address so we aren't paying gas with the same
       // address we want to observe the balance of
