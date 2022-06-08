@@ -9,8 +9,8 @@ use std::{error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusCommon, AbacusCommonIndexer, AbacusContract, ChainCommunicationError, Checkpoint,
-    CheckpointMeta, CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer,
+    AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, CheckpointMeta,
+    CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer,
     RawCommittedMessage, State, TxOutcome,
 };
 
@@ -112,12 +112,33 @@ where
 }
 
 #[async_trait]
-impl<M> AbacusCommonIndexer for EthereumOutboxIndexer<M>
+impl<M> OutboxIndexer for EthereumOutboxIndexer<M>
 where
     M: Middleware + 'static,
 {
     #[instrument(err, skip(self))]
-    async fn fetch_sorted_checkpoints(
+    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {
+        let mut events = self
+            .contract
+            .dispatch_filter()
+            .from_block(from)
+            .to_block(to)
+            .query()
+            .await?;
+
+        events.sort_by(|a, b| a.leaf_index.cmp(&b.leaf_index));
+
+        Ok(events
+            .into_iter()
+            .map(|f| RawCommittedMessage {
+                leaf_index: f.leaf_index.as_u32(),
+                message: f.message.to_vec(),
+            })
+            .collect())
+    }
+
+    #[instrument(err, skip(self))]
+    async fn fetch_sorted_cached_checkpoints(
         &self,
         from: u32,
         to: u32,
@@ -156,33 +177,6 @@ where
                         block_number: event.1.block_number.as_u64(),
                     },
                 }
-            })
-            .collect())
-    }
-}
-
-#[async_trait]
-impl<M> OutboxIndexer for EthereumOutboxIndexer<M>
-where
-    M: Middleware + 'static,
-{
-    #[instrument(err, skip(self))]
-    async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {
-        let mut events = self
-            .contract
-            .dispatch_filter()
-            .from_block(from)
-            .to_block(to)
-            .query()
-            .await?;
-
-        events.sort_by(|a, b| a.leaf_index.cmp(&b.leaf_index));
-
-        Ok(events
-            .into_iter()
-            .map(|f| RawCommittedMessage {
-                leaf_index: f.leaf_index.as_u32(),
-                message: f.message.to_vec(),
             })
             .collect())
     }
@@ -267,38 +261,6 @@ where
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.validator_manager().call().await?.into())
     }
-
-    #[tracing::instrument(err, skip(self))]
-    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.latest_cached_root().call().await?.into())
-    }
-
-    #[tracing::instrument(err, skip(self))]
-    async fn latest_cached_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
-        // This should probably moved into its own trait
-        let base_call = self.contract.latest_cached_checkpoint();
-        let call_with_lag = match maybe_lag {
-            Some(lag) => {
-                let tip = self
-                    .provider
-                    .get_block_number()
-                    .await
-                    .map_err(|x| ChainCommunicationError::CustomError(Box::new(x)))?
-                    .as_u64();
-                base_call.block(if lag > tip { 0 } else { tip - lag })
-            }
-            None => base_call,
-        };
-        let (root, index) = call_with_lag.call().await?;
-        Ok(Checkpoint {
-            outbox_domain: self.domain,
-            root: root.into(),
-            index: index.as_u32(),
-        })
-    }
 }
 
 #[async_trait]
@@ -337,5 +299,46 @@ where
         let tx = self.contract.cache_checkpoint();
 
         Ok(report_tx(tx).await?.into())
+    }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
+        Ok(self.contract.latest_cached_root().call().await?.into())
+    }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn latest_cached_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
+        let (root, index) = self.contract.latest_cached_checkpoint().call().await?;
+        Ok(Checkpoint {
+            outbox_domain: self.domain,
+            root: root.into(),
+            index: index.as_u32(),
+        })
+    }
+
+    #[tracing::instrument(err, skip(self))]
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
+        let base_call = self.contract.latest_checkpoint();
+        let call_with_lag = match maybe_lag {
+            Some(lag) => {
+                let tip = self
+                    .provider
+                    .get_block_number()
+                    .await
+                    .map_err(|x| ChainCommunicationError::CustomError(Box::new(x)))?
+                    .as_u64();
+                base_call.block(if lag > tip { 0 } else { tip - lag })
+            }
+            None => base_call,
+        };
+        let (root, index) = call_with_lag.call().await?;
+        Ok(Checkpoint {
+            outbox_domain: self.domain,
+            root: root.into(),
+            index: index.as_u32(),
+        })
     }
 }

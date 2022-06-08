@@ -12,8 +12,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x9A676e781A523b5d0C0e43731313A708CB607508",
-        "validatorManager": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82"
+        "inbox": "0x0DCd1Bf9A1b36cE34237eEaFef220932846BCD82",
+        "validatorManager": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0"
       }
     },
     "test2": {
@@ -26,20 +26,19 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0xc3e53F4d16Ae77Db1c982e75a937B9f60FE63690",
-        "validatorManager": "0xE6E340D132b5f46d1e472DebcD681B2aBc16e57E"
+        "inbox": "0xc5a5C42992dECbae36851359345FE25997F5C42d",
+        "validatorManager": "0x09635F643e140090A9A8Dcd712eD6285858ceBef"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0x95401dc811bb5740090279Ba06cfA8fcF6113778",
-      "interchainGasPaymaster": "0x998abeb3E57409262aE5b751f60747921B33613E"
+      "outbox": "0x1613beB3B2C4f22Ee086B2b38C1476A3cE7f78E8"
     },
     "domain": "13373",
     "name": "test3",
     "rpcStyle": "ethereum",
-    "finalityBlocks": "1",
+    "finalityBlocks": "2",
     "connection": {
       "type": "http",
       "url": ""

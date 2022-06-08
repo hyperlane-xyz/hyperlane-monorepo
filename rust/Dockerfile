@@ -13,7 +13,6 @@ RUN apt-get update && \
 COPY agents ./agents
 COPY chains ./chains
 COPY abacus-base ./abacus-base 
-COPY abacus-cli ./abacus-cli
 COPY abacus-core ./abacus-core
 COPY abacus-test ./abacus-test
 COPY ethers-prometheus ./ethers-prometheus
@@ -30,8 +29,7 @@ RUN \
     mkdir -p /release && \
     cp /usr/src/target/release/validator /release && \
     cp /usr/src/target/release/relayer /release && \
-    cp /usr/src/target/release/kathy /release && \
-    cp /usr/src/target/release/abacus-cli /release
+    cp /usr/src/target/release/kathy /release
 
 ## 2: Copy the binaries to release image
 FROM ubuntu:20.04

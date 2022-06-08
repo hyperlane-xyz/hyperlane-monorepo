@@ -8,20 +8,19 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
 /**
  * @title InterchainGasPaymaster
- * @notice Manages payments on a source chain to cover gas costs of proving
- * & processing messages on destination chains.
- * @dev This contract is only intended for paying for messages sent via a specific
- * Outbox contract on the same source chain.
+ * @notice Manages payments on a source chain to cover gas costs of relaying
+ * messages to destination chains.
  */
 contract InterchainGasPaymaster is IInterchainGasPaymaster, Ownable {
     // ============ Events ============
 
     /**
      * @notice Emitted when a payment is made for a message's gas costs.
+     * @param outbox The address of the Outbox contract.
      * @param leafIndex The index of the message in the Outbox merkle tree.
      * @param amount The amount of native tokens paid.
      */
-    event GasPayment(uint256 indexed leafIndex, uint256 amount);
+    event GasPayment(address indexed outbox, uint256 leafIndex, uint256 amount);
 
     // ============ Constructor ============
 
@@ -31,12 +30,17 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, Ownable {
     // ============ External Functions ============
 
     /**
-     * @notice Deposits the msg.value as a payment for the proving & processing
-     * of a message on its destination chain.
+     * @notice Deposits msg.value as a payment for the relaying of a message
+     * to its destination chain.
+     * @param _outbox The address of the Outbox contract.
      * @param _leafIndex The index of the message in the Outbox merkle tree.
      */
-    function payGasFor(uint256 _leafIndex) external payable override {
-        emit GasPayment(_leafIndex, msg.value);
+    function payGasFor(address _outbox, uint256 _leafIndex)
+        external
+        payable
+        override
+    {
+        emit GasPayment(_outbox, _leafIndex, msg.value);
     }
 
     /**

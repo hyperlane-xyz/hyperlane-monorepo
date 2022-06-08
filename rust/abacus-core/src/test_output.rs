@@ -4,7 +4,7 @@ use crate::{
         TREE_DEPTH,
     },
     test_utils::find_vector,
-    utils::{destination_and_nonce, domain_hash},
+    utils::domain_hash,
     AbacusMessage, Checkpoint,
 };
 use ethers::{
@@ -113,32 +113,6 @@ pub mod output_functions {
             .create(true)
             .truncate(true)
             .open(find_vector("domainHash.json"))
-            .expect("Failed to open/create file");
-
-        file.write_all(json.as_bytes())
-            .expect("Failed to write to file");
-    }
-
-    /// Outputs combined destination and nonce test cases in /vector/
-    /// destinationNonce.json
-    pub fn output_destination_and_nonces() {
-        let test_cases: Vec<Value> = (1..=5)
-            .map(|i| {
-                json!({
-                    "destination": i,
-                    "nonce": i + 1,
-                    "expectedDestinationAndNonce": destination_and_nonce(i, i + 1)
-                })
-            })
-            .collect();
-
-        let json = json!(test_cases).to_string();
-
-        let mut file = OpenOptions::new()
-            .write(true)
-            .create(true)
-            .truncate(true)
-            .open(find_vector("destinationNonce.json"))
             .expect("Failed to open/create file");
 
         file.write_all(json.as_bytes())

@@ -7,33 +7,10 @@ use tracing::{debug, error, instrument};
 use abacus_core::{
     accumulator::{incremental::IncrementalMerkle, merkle::Proof},
     db::{AbacusDB, DbError},
-    ChainCommunicationError, Checkpoint, CommittedMessage,
+    ChainCommunicationError, Checkpoint,
 };
 
 use crate::prover::{Prover, ProverError};
-
-#[derive(Debug)]
-/// Struct to update prover
-pub struct MessageBatch {
-    /// Messages
-    pub messages: Vec<CommittedMessage>,
-    current_checkpoint_index: u32,
-    target_checkpoint: Checkpoint,
-}
-
-impl MessageBatch {
-    pub fn new(
-        messages: Vec<CommittedMessage>,
-        current_checkpoint_index: u32,
-        target_checkpoint: Checkpoint,
-    ) -> Self {
-        Self {
-            messages,
-            current_checkpoint_index,
-            target_checkpoint,
-        }
-    }
-}
 
 /// Struct to sync prover.
 #[derive(Debug)]
@@ -81,16 +58,6 @@ pub enum MerkleTreeBuilderError {
     UnavailableLeaf {
         /// Root of prover's local merkle tree
         leaf_index: u32,
-    },
-    /// Unexpected prover state
-    #[error("Unexpected prover state, prover count: {prover_count:?}, message batch on chain checkpoint index: {onchain_checkpoint_index:?} and signed {signed_checkpoint_index:?}")]
-    UnexpectedProverState {
-        /// Count of leaves in the prover
-        prover_count: u32,
-        /// Batch on-chain checkpoint index
-        onchain_checkpoint_index: u32,
-        /// Batch signed checkpoint index
-        signed_checkpoint_index: u32,
     },
     /// MerkleTreeBuilder attempts Prover operation and receives ProverError
     #[error(transparent)]
@@ -164,53 +131,6 @@ impl MerkleTreeBuilder {
                 checkpoint_root,
             });
         }
-
-        Ok(())
-    }
-
-    #[instrument(err, skip(self), level = "debug")]
-    /// Update the prover with a message batch
-    pub fn update_from_batch(
-        &mut self,
-        batch: &MessageBatch,
-    ) -> Result<(), MerkleTreeBuilderError> {
-        if self.prover.count() as u32 > batch.current_checkpoint_index + 1 {
-            error!("Prover was already ahead of MessageBatch, something went wrong");
-            return Err(MerkleTreeBuilderError::UnexpectedProverState {
-                prover_count: self.prover.count() as u32,
-                onchain_checkpoint_index: batch.current_checkpoint_index,
-                signed_checkpoint_index: batch.target_checkpoint.index,
-            });
-        }
-        // if we are somehow behind the current index, prove until then
-        for i in (self.prover.count() as u32)..batch.current_checkpoint_index + 1 {
-            self.ingest_leaf_index(i)?;
-        }
-
-        debug!(
-            count = self.prover.count(),
-            "update_from_batch fast forward"
-        );
-        // prove the until target
-        for i in (batch.current_checkpoint_index + 1)..=batch.target_checkpoint.index {
-            self.ingest_leaf_index(i)?;
-        }
-
-        let prover_root = self.prover.root();
-        let incremental_root = self.incremental.root();
-        let checkpoint_root = batch.target_checkpoint.root;
-        if prover_root != incremental_root || prover_root != checkpoint_root {
-            return Err(MerkleTreeBuilderError::MismatchedRoots {
-                prover_root,
-                incremental_root,
-                checkpoint_root,
-            });
-        }
-
-        debug!(
-            count = self.prover.count(),
-            "update_from_batch batch proving"
-        );
 
         Ok(())
     }

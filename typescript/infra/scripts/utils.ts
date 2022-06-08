@@ -58,12 +58,12 @@ export async function getMultiProviderFromGCP<Chain extends ChainName>(
   return new MultiProvider<Chain>(connections);
 }
 
-function getContractsSdkFilepath(mod: string, environment: DeployEnvironment) {
-  return path.join('../sdk/src/', mod, 'environments', environment);
+function getContractsSdkFilepath(mod: string) {
+  return path.join('../sdk/src/', mod, 'environments');
 }
 
-export function getCoreContractsSdkFilepath(environment: DeployEnvironment) {
-  return getContractsSdkFilepath('core', environment);
+export function getCoreContractsSdkFilepath() {
+  return getContractsSdkFilepath('core');
 }
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {

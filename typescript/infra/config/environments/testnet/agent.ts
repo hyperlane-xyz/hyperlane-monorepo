@@ -9,7 +9,7 @@ export const agent: AgentConfig<TestnetChains> = {
   runEnv: 'testnet',
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-7be078e',
+    tag: 'sha-5e639a2',
   },
   aws: {
     region: 'us-east-1',
@@ -30,10 +30,8 @@ export const agent: AgentConfig<TestnetChains> = {
   },
   relayer: {
     default: {
-      pollingInterval: 5,
-      submissionLatency: 10,
-      maxRetries: 10,
-      relayerMessageProcessing: true,
+      signedCheckpointPollingInteral: 5,
+      maxProcessingRetries: 10,
     },
   },
   // kathy: {
