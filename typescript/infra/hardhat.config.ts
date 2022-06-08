@@ -92,6 +92,10 @@ task('kathy', 'Dispatches random abacus messages').setAction(
           '0x1234',
           {
             value: interchainGasPayment,
+            // Some behavior is dependent upon the previous block hash
+            // so gas estimation may sometimes be incorrect. Just avoid
+            // estimation to avoid this.
+            gasLimit: 150_000,
           },
         );
         console.log(

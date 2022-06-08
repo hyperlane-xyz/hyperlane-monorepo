@@ -21,22 +21,20 @@ pub trait Indexer: Send + Sync + Debug {
     async fn get_finalized_block_number(&self) -> Result<u32>;
 }
 
-/// Interface for Abacus Common contract indexer. Interface that allows for other
-/// entities to retrieve chain-specific data from an outbox or inbox.
-#[async_trait]
-pub trait AbacusCommonIndexer: Indexer + Send + Sync + Debug {
-    /// Fetch sequentially sorted list of checkpoints between blocks `from` and `to`
-    async fn fetch_sorted_checkpoints(&self, from: u32, to: u32)
-        -> Result<Vec<CheckpointWithMeta>>;
-}
-
 /// Interface for Outbox contract indexer. Interface for allowing other
 /// entities to retrieve chain-specific data from an outbox.
 #[async_trait]
-pub trait OutboxIndexer: AbacusCommonIndexer + Send + Sync + Debug {
+pub trait OutboxIndexer: Indexer + Send + Sync + Debug {
     /// Fetch list of messages between blocks `from` and `to`.
     async fn fetch_sorted_messages(&self, _from: u32, _to: u32)
         -> Result<Vec<RawCommittedMessage>>;
+
+    /// Fetch sequentially sorted list of cached checkpoints between blocks `from` and `to`
+    async fn fetch_sorted_cached_checkpoints(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<CheckpointWithMeta>>;
 }
 
 /// Interface for InterchainGasPaymaster contract indexer.
