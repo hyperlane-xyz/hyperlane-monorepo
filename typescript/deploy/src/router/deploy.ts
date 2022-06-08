@@ -1,11 +1,10 @@
 import { debug } from 'debug';
 
-import { Router } from '@abacus-network/app';
 import {
   ChainMap,
   ChainName,
   MultiProvider,
-  ProxiedContract,
+  Router,
   RouterContracts,
   RouterFactories,
   chainMetadata,
@@ -20,13 +19,13 @@ import { RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
-  Config,
-  Factories extends RouterFactories,
   Contracts extends RouterContracts,
-> extends AbacusDeployer<Chain, Config & RouterConfig, Factories, Contracts> {
+  Factories extends RouterFactories,
+  Config extends RouterConfig,
+> extends AbacusDeployer<Chain, Config, Factories, Contracts> {
   constructor(
     multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, Config & RouterConfig>,
+    configMap: ChainMap<Chain, Config>,
     factories: Factories,
     options?: DeployerOptions,
   ) {
@@ -36,13 +35,18 @@ export abstract class AbacusRouterDeployer<
     });
   }
 
-  getRouterInstance(contracts: Contracts): Router {
-    const router = contracts.router;
-    return router instanceof ProxiedContract ? router.contract : router;
+  // for use in implementations of deployContracts
+  async deployRouter<RouterContract extends Router>(
+    chain: Chain,
+    deployParams: Parameters<Factories['router']['deploy']>,
+    initParams: Parameters<RouterContract['initialize']>,
+  ): Promise<Contracts['router']> {
+    const router = await this.deployContract(chain, 'router', deployParams);
+    this.logger(`Initializing ${chain}'s router with ${initParams}`);
+    // @ts-ignore spread operator
+    await router.initialize(...initParams);
+    return router;
   }
-
-  async deploy() {
-    const contractsMap = await super.deploy();
 
   async enrollRemoteRouters(contractsMap: ChainMap<Chain, Contracts>) {
     this.logger(`Enrolling deployed routers with each other...`);
@@ -52,11 +56,9 @@ export abstract class AbacusRouterDeployer<
         const chainConnection = this.multiProvider.getChainConnection(local);
         for (const remote of this.multiProvider.remoteChains(local)) {
           this.logger(`Enroll ${remote}'s router on ${local}`);
-          await this.getRouterInstance(contracts).enrollRemoteRouter(
+          await contracts.router.enrollRemoteRouter(
             chainMetadata[remote].id,
-            utils.addressToBytes32(
-              this.getRouterInstance(contractsMap[remote]).address,
-            ),
+            utils.addressToBytes32(contractsMap[remote].router.address),
           );
           this.logger(`Pending enroll ${chainConnection.getTxUrl(response)}`);
           await response.wait(chainConnection.confirmations);
@@ -70,21 +72,15 @@ export abstract class AbacusRouterDeployer<
     this.logger(`Transferring ownership of routers...`);
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
-        const chainConnection = this.multiProvider.getChainConnection(chain);
         const owner = this.configMap[chain].owner;
         this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
-        const response = await contracts.router.transferOwnership(
-          owner,
-          chainConnection.overrides,
-        );
-        this.logger(`Pending transfer ${chainConnection.getTxUrl(response)}`);
-        await response.wait(chainConnection.confirmations);
+        await contracts.router.transferOwnership(owner);
       }),
     );
   }
 
-  async deploy(partialDeployment: Partial<Record<Chain, Contracts>>) {
-    const contractsMap = await super.deploy(partialDeployment);
+  async deploy() {
+    const contractsMap = await super.deploy();
 
     await this.enrollRemoteRouters(contractsMap);
     await this.transferOwnership(contractsMap);

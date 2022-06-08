@@ -4,15 +4,14 @@ pragma solidity >=0.6.11;
 import "../Router.sol";
 
 contract TestRouter is Router {
-    event InitializeOverload();
+    event InitializeTest(uint256 value);
 
-    function initialize(address abacusConnectionManager)
+    function initialize(address abacusConnectionManager, uint256 test)
         external
-        override
         initializer
     {
         __Router_initialize(abacusConnectionManager);
-        emit InitializeOverload();
+        emit InitializeTest(test);
     }
 
     function _handle(
