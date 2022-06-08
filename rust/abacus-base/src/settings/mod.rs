@@ -396,7 +396,7 @@ impl Settings {
         let interchain_gas_paymaster = self
             .try_caching_interchain_gas_paymaster(db.clone(), &metrics)
             .await?
-            .and_then(|paymaster| Some(Arc::new(paymaster)));
+            .map(Arc::new);
 
         let inbox_contracts = self.try_inbox_contracts(db.clone(), &metrics).await?;
 

@@ -121,12 +121,11 @@ impl ChainSetup<OutboxAddresses> {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> Result<Option<InterchainGasPaymasters>, Report> {
-        let paymaster_address;
-        if let Some(address) = &self.addresses.interchain_gas_paymaster {
-            paymaster_address = address;
+        let paymaster_address = if let Some(address) = &self.addresses.interchain_gas_paymaster {
+            address
         } else {
             return Ok(None);
-        }
+        };
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(Some(
                 InterchainGasPaymasterVariants::Ethereum(
