@@ -4,7 +4,6 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  ProxiedContract,
   Router,
   RouterContracts,
   RouterFactories,
@@ -34,11 +33,6 @@ export abstract class AbacusRouterDeployer<
     super(multiProvider, configMap, factories, { ...options, logger });
   }
 
-  getRouterInstance(contracts: Contracts): Router {
-    const router = contracts.router;
-    return router instanceof ProxiedContract ? router.contract : router;
-  }
-
   // for use in implementations of deployContracts
   async deployRouter<RouterContract extends Router>(
     chain: Chain,
@@ -59,7 +53,7 @@ export abstract class AbacusRouterDeployer<
       objMap(contractsMap, async (local, contracts) => {
         for (const remote of this.multiProvider.remoteChains(local)) {
           this.logger(`Enroll ${remote}'s router on ${local}`);
-          await this.getRouterInstance(contracts).enrollRemoteRouter(
+          await contracts.router.enrollRemoteRouter(
             chainMetadata[remote].id,
             utils.addressToBytes32(contractsMap[remote].router.address),
           );
@@ -75,7 +69,7 @@ export abstract class AbacusRouterDeployer<
       objMap(contractsMap, async (chain, contracts) => {
         const owner = this.configMap[chain].owner;
         this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
-        await this.getRouterInstance(contracts).transferOwnership(owner);
+        await contracts.router.transferOwnership(owner);
       }),
     );
   }
