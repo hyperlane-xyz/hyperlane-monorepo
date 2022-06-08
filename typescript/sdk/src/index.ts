@@ -27,6 +27,7 @@ export {
   resolveId,
   resolveNetworks,
 } from './core';
+export { RetryJsonRpcProvider, RetryProvider } from './ethers';
 export {
   Annotated,
   getEvents,
@@ -40,7 +41,7 @@ export {
 } from './gas';
 export { ChainConnection, IChainConnection, MultiProvider } from './provider';
 export { BeaconProxyAddresses, ProxiedContract, ProxyAddresses } from './proxy';
-export { RouterContracts, RouterFactories } from './router';
+export { Router, RouterContracts, RouterFactories } from './router';
 export {
   AllChains,
   ChainMap,
@@ -56,4 +57,3 @@ export {
   TestChainNames,
 } from './types';
 export { objMap, objMapEntries, promiseObjAll, utils } from './utils';
-export { RetryProvider, RetryJsonRpcProvider } from './ethers';
