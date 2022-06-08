@@ -3146,7 +3146,6 @@ dependencies = [
  "futures-util",
  "loop-control",
  "prometheus",
- "regex",
  "serde 1.0.130",
  "serde_json",
  "thiserror",

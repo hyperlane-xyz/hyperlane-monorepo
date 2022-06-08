@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use tokio::{
@@ -11,7 +13,7 @@ use abacus_base::{
 };
 use abacus_core::MultisigSignedCheckpoint;
 
-use crate::settings::CompiledWhitelist;
+use crate::settings::whitelist::Whitelist;
 use crate::{
     checkpoint_fetcher::CheckpointFetcher, message_processor::MessageProcessor,
     settings::RelayerSettings as Settings,
@@ -24,7 +26,7 @@ pub struct Relayer {
     max_processing_retries: u32,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
-    whitelist: Option<CompiledWhitelist>,
+    whitelist: Arc<Whitelist>,
 }
 
 impl AsRef<AbacusAgentCore> for Relayer {
@@ -47,6 +49,7 @@ impl Agent for Relayer {
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
             .try_into_multisig_checkpoint_syncer()?;
+
         Ok(Self {
             signed_checkpoint_polling_interval: settings
                 .signedcheckpointpollinginterval
@@ -58,9 +61,7 @@ impl Agent for Relayer {
                 .as_ref()
                 .try_into_abacus_core(Self::AGENT_NAME)
                 .await?,
-            whitelist: settings
-                .whitelist
-                .map(|wl| wl.try_into().expect("Invalid whitelist configuration")),
+            whitelist: Arc::new(settings.whitelist.clone()),
         })
     }
 }
@@ -110,6 +111,7 @@ impl Relayer {
             db,
             inbox_contracts,
             signed_checkpoint_receiver,
+            self.whitelist.clone(),
             self.core.metrics.last_known_message_leaf_index(),
             self.core.metrics.retry_queue_length(),
         );

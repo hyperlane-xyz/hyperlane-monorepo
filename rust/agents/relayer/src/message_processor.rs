@@ -1,3 +1,4 @@
+use std::sync::Arc;
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,
@@ -20,6 +21,7 @@ use loop_control::LoopControl::{Continue, Flow};
 use loop_control::{loop_ctrl, LoopControl};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
+use crate::settings::whitelist::Whitelist;
 
 pub(crate) struct MessageProcessor {
     max_retries: u32,
@@ -28,6 +30,7 @@ pub(crate) struct MessageProcessor {
     prover_sync: MerkleTreeBuilder,
     retry_queue: BinaryHeap<MessageToRetry>,
     signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
+    whitelist: Arc<Whitelist>,
     processor_loop_gauge: IntGauge,
     processed_gauge: IntGauge,
     retry_queue_length_gauge: IntGauge,
@@ -43,6 +46,7 @@ struct MessageToRetry {
 #[derive(Debug)]
 enum MessageProcessingStatus {
     NotDestinedForInbox,
+    NotWhitelisted,
     NotYetCheckpointed,
     Processed,
     Error,
@@ -56,6 +60,7 @@ impl MessageProcessor {
         db: AbacusDB,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
+        whitelist: Arc<Whitelist>,
         leaf_index_gauge: IntGaugeVec,
         retry_queue_length: IntGaugeVec,
     ) -> Self {
@@ -77,6 +82,7 @@ impl MessageProcessor {
             db,
             inbox_contracts,
             retry_queue: BinaryHeap::new(),
+            whitelist,
             signed_checkpoint_receiver,
             processor_loop_gauge,
             processed_gauge,
@@ -126,26 +132,32 @@ impl MessageProcessor {
                 }
 
                 match self.prover_sync.get_proof(message_leaf_index) {
-                    Ok(proof) => match self
-                        .inbox_contracts
-                        .validator_manager
-                        .process(latest_signed_checkpoint, &message.message, &proof)
-                        .await
-                    {
-                        Ok(outcome) => {
-                            info!(
-                                leaf_index = message_leaf_index,
-                                hash = ?outcome.txid,
-                                "Message successfully processed"
-                            );
-                            self.db.mark_leaf_as_processed(message_leaf_index)?;
-                            Ok(MessageProcessingStatus::Processed)
+                    Ok(proof) => {
+                        if !self.whitelist.msg_matches(&message.message) {
+                            return Ok(MessageProcessingStatus::NotWhitelisted);
                         }
-                        Err(err) => {
-                            info!(leaf_index = message_leaf_index, error=?err, "Message failed to process, enqueuing for retry");
-                            Ok(MessageProcessingStatus::Error)
+
+                        match self
+                            .inbox_contracts
+                            .validator_manager
+                            .process(latest_signed_checkpoint, &message.message, &proof)
+                            .await
+                        {
+                            Ok(outcome) => {
+                                info!(
+                                    leaf_index = message_leaf_index,
+                                    hash = ?outcome.txid,
+                                    "Message successfully processed"
+                                );
+                                self.db.mark_leaf_as_processed(message_leaf_index)?;
+                                Ok(MessageProcessingStatus::Processed)
+                            }
+                            Err(err) => {
+                                info!(leaf_index = message_leaf_index, error=?err, "Message failed to process, enqueuing for retry");
+                                Ok(MessageProcessingStatus::Error)
+                            }
                         }
-                    },
+                    }
                     Err(err) => {
                         error!(error=?err, "Unable to fetch proof");
                         bail!("Unable to fetch proof");
@@ -167,7 +179,7 @@ impl MessageProcessor {
     /// Read a signed checkpoint that the channel may have received without blocking.
     /// Of current_latest_signed_checkpoint and the signed checkpoint received,
     /// the one with the latest index is returned.
-    fn update_latest_signed_checkpoint(
+    fn get_updated_latest_signed_checkpoint(
         &mut self,
         current_latest_signed_checkpoint: MultisigSignedCheckpoint,
     ) -> Result<MultisigSignedCheckpoint> {
@@ -212,7 +224,7 @@ impl MessageProcessor {
         loop {
             // Get latest signed checkpoint, non-blocking
             latest_signed_checkpoint =
-                self.update_latest_signed_checkpoint(latest_signed_checkpoint)?;
+                self.get_updated_latest_signed_checkpoint(latest_signed_checkpoint)?;
 
             self.processor_loop_gauge.set(message_leaf_index as i64);
             self.retry_queue_length_gauge
@@ -272,7 +284,8 @@ impl MessageProcessor {
                 // and will eventually learn about a new signed checkpoint.
                 message_leaf_index
             }
-            MessageProcessingStatus::NotDestinedForInbox => message_leaf_index + 1,
+            MessageProcessingStatus::NotDestinedForInbox
+            | MessageProcessingStatus::NotWhitelisted => message_leaf_index + 1,
             MessageProcessingStatus::Error => {
                 warn!(
                     destination = self.inbox_contracts.inbox.local_domain(),
@@ -326,7 +339,8 @@ impl MessageProcessor {
             .await?
         {
             MessageProcessingStatus::NotDestinedForInbox
-            | MessageProcessingStatus::NotYetCheckpointed => {
+            | MessageProcessingStatus::NotYetCheckpointed
+            | MessageProcessingStatus::NotWhitelisted => {
                 error!(
                     leaf_index = leaf_index,
                     "Somehow we tried to retry a message that cant be retried"

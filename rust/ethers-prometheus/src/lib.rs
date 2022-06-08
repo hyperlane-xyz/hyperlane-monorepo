@@ -221,7 +221,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
             })
             .unwrap_or_else(|| "none".into());
 
-        if let Some(m) = &self.metrics.transaction_send_total {
+        if let Some(m) = &self.metrixcs.transaction_send_total {
             m.with(&hashmap! {
                 "chain" => chain_name.as_str(),
                 "address_from" => addr_from.as_str(),
