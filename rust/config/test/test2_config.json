@@ -12,8 +12,8 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0xA51c1fc2f0D1a1b8494Ed1FE312d7C3a78Ed91C0",
-        "validatorManager": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318"
+        "inbox": "0x610178dA211FEF7D417bC0e6FeD39F05609AD788",
+        "validatorManager": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853"
       }
     },
     "test3": {
@@ -26,15 +26,14 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x4c5859f0F772848b2D91F1D83E2Fe57935348029",
-        "validatorManager": "0x809d550fca64d94Bd9F66E60752A544199cfAC3D"
+        "inbox": "0x0E801D84Fa97b50751Dbf25036d067dCf18858bF",
+        "validatorManager": "0x99bbA657f2BbC93c02D617f8bA121cB8Fc104Acf"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xa85233C63b9Ee964Add6F2cffe00Fd84eb32338f",
-      "interchainGasPaymaster": "0x68B1D87F95878fE05B998F19b66F4baba5De1aed"
+      "outbox": "0xc6e7DF5E7b4f2A278906862b61205850344D4e7d"
     },
     "domain": "13372",
     "name": "test2",
@@ -49,5 +48,8 @@
     "level": "debug",
     "fmt": "json"
   },
-  "db": "db_path"
+  "db": "db_path",
+  "index": {
+    "from": "16"
+  }
 }
