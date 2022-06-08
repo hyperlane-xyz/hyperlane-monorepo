@@ -7,16 +7,13 @@ use async_trait::async_trait;
 use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
-use tracing::instrument;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusCommon, AbacusCommonIndexer, AbacusContract, AbacusMessage,
-    ChainCommunicationError, Checkpoint, CheckpointMeta, CheckpointWithMeta, ContractLocator,
-    Encode, Inbox, Indexer, MessageStatus, TxOutcome,
+    AbacusCommon, AbacusContract, ChainCommunicationError, ContractLocator, Inbox, MessageStatus,
+    TxOutcome,
 };
 
 use crate::trait_builder::MakeableWithProvider;
-use crate::tx::report_tx;
 
 abigen!(
     EthereumInboxInternal,
@@ -33,136 +30,6 @@ where
 {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}", self)
-    }
-}
-
-pub struct InboxIndexerBuilder {
-    pub from_height: u32,
-    pub chunk_size: u32,
-    pub finality_blocks: u32,
-}
-
-impl MakeableWithProvider for InboxIndexerBuilder {
-    type Output = Box<dyn AbacusCommonIndexer>;
-
-    fn make_with_provider<M: Middleware + 'static>(
-        &self,
-        provider: M,
-        locator: &ContractLocator,
-    ) -> Self::Output {
-        Box::new(EthereumInboxIndexer::new(
-            Arc::new(provider),
-            locator,
-            self.from_height,
-            self.chunk_size,
-            self.finality_blocks,
-        ))
-    }
-}
-
-#[derive(Debug)]
-/// Struct that retrieves indexes event data for Ethereum inbox
-pub struct EthereumInboxIndexer<M>
-where
-    M: Middleware,
-{
-    contract: Arc<EthereumInboxInternal<M>>,
-    provider: Arc<M>,
-    #[allow(unused)]
-    from_height: u32,
-    #[allow(unused)]
-    chunk_size: u32,
-    finality_blocks: u32,
-}
-
-impl<M> EthereumInboxIndexer<M>
-where
-    M: Middleware + 'static,
-{
-    /// Create new EthereumInboxIndexer
-    pub fn new(
-        provider: Arc<M>,
-        locator: &ContractLocator,
-        from_height: u32,
-        chunk_size: u32,
-        finality_blocks: u32,
-    ) -> Self {
-        Self {
-            contract: Arc::new(EthereumInboxInternal::new(
-                &locator.address,
-                provider.clone(),
-            )),
-            provider,
-            from_height,
-            chunk_size,
-            finality_blocks,
-        }
-    }
-}
-
-#[async_trait]
-impl<M> Indexer for EthereumInboxIndexer<M>
-where
-    M: Middleware + 'static,
-{
-    #[instrument(err, skip(self))]
-    async fn get_finalized_block_number(&self) -> Result<u32> {
-        Ok(self
-            .provider
-            .get_block_number()
-            .await?
-            .as_u32()
-            .saturating_sub(self.finality_blocks))
-    }
-}
-
-#[async_trait]
-impl<M> AbacusCommonIndexer for EthereumInboxIndexer<M>
-where
-    M: Middleware + 'static,
-{
-    #[instrument(err, skip(self))]
-    async fn fetch_sorted_checkpoints(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<Vec<CheckpointWithMeta>> {
-        let mut events = self
-            .contract
-            .checkpoint_cached_filter()
-            .from_block(from)
-            .to_block(to)
-            .query_with_meta()
-            .await?;
-
-        events.sort_by(|a, b| {
-            let mut ordering = a.1.block_number.cmp(&b.1.block_number);
-            if ordering == std::cmp::Ordering::Equal {
-                ordering = a.1.transaction_index.cmp(&b.1.transaction_index);
-            }
-
-            ordering
-        });
-
-        let outbox_domain = self.contract.remote_domain().call().await?;
-
-        Ok(events
-            .iter()
-            .map(|event| {
-                let checkpoint = Checkpoint {
-                    outbox_domain,
-                    root: event.0.root.into(),
-                    index: event.0.index.as_u32(),
-                };
-
-                CheckpointWithMeta {
-                    checkpoint,
-                    metadata: CheckpointMeta {
-                        block_number: event.1.block_number.as_u64(),
-                    },
-                }
-            })
-            .collect())
     }
 }
 
@@ -189,7 +56,6 @@ where
     contract: Arc<EthereumInboxInternal<M>>,
     domain: u32,
     chain_name: String,
-    provider: Arc<M>,
 }
 
 impl<M> EthereumInbox<M>
@@ -207,10 +73,9 @@ where
         }: &ContractLocator,
     ) -> Self {
         Self {
-            contract: Arc::new(EthereumInboxInternal::new(address, provider.clone())),
+            contract: Arc::new(EthereumInboxInternal::new(address, provider)),
             domain: *domain,
             chain_name: chain_name.to_owned(),
-            provider,
         }
     }
 }
@@ -249,39 +114,6 @@ where
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         Ok(self.contract.validator_manager().call().await?.into())
     }
-
-    #[tracing::instrument(err)]
-    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
-        Ok(self.contract.latest_cached_root().call().await?.into())
-    }
-
-    #[tracing::instrument(err, skip(self))]
-    async fn latest_cached_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
-        // This should probably moved into its own trait
-        let base_call = self.contract.latest_cached_checkpoint();
-        let call_with_lag = match maybe_lag {
-            Some(lag) => {
-                let tip = self
-                    .provider
-                    .get_block_number()
-                    .await
-                    .map_err(|x| ChainCommunicationError::CustomError(Box::new(x)))?
-                    .as_u64();
-                base_call.block(if lag > tip { 0 } else { tip - lag })
-            }
-            None => base_call,
-        };
-        let (root, index) = call_with_lag.call().await?;
-        Ok(Checkpoint {
-            // This is inefficient, but latest_cached_checkpoint should never be called
-            outbox_domain: self.remote_domain().await?,
-            root: root.into(),
-            index: index.as_u32(),
-        })
-    }
 }
 
 #[async_trait]
@@ -291,31 +123,6 @@ where
 {
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
         Ok(self.contract.remote_domain().call().await?)
-    }
-
-    #[tracing::instrument(err, skip(proof))]
-    async fn process(
-        &self,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        let mut sol_proof: [[u8; 32]; 32] = Default::default();
-        sol_proof
-            .iter_mut()
-            .enumerate()
-            .for_each(|(i, elem)| *elem = proof.path[i].to_fixed_bytes());
-
-        let tx = self.contract.process(
-            message.to_vec().into(),
-            sol_proof,
-            proof.index.into(),
-            // Sovereign Consensus is not yet implemented
-            Default::default(),
-        );
-        let gas = tx.estimate_gas().await?.saturating_add(U256::from(100000));
-        let gassed = tx.gas(gas);
-        let receipt = report_tx(gassed).await?;
-        Ok(receipt.into())
     }
 
     #[tracing::instrument(err)]

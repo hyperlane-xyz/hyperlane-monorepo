@@ -28,14 +28,6 @@ pub fn domain_hash(domain: u32) -> H256 {
     )
 }
 
-/// Destination and destination-specific nonce combined in single field (
-/// (destination << 32) & nonce)
-pub fn destination_and_nonce(destination: u32, nonce: u32) -> u64 {
-    assert!(destination < u32::MAX);
-    assert!(nonce < u32::MAX);
-    ((destination as u64) << 32) | nonce as u64
-}
-
 /// A Hex String of length `N` representing bytes of length `N / 2`
 #[derive(Debug, Clone)]
 pub struct HexString<const N: usize>(String);

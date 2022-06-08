@@ -88,7 +88,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     const inboxValidatorManager = await this.deployContract(
       localChain,
       'inboxValidatorManager',
-      [localDomain, config.validators, config.threshold],
+      [remoteDomain, config.validators, config.threshold],
     );
     const initArgs: Parameters<Inbox['initialize']> = [
       remoteDomain,

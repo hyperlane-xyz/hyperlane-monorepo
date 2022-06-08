@@ -1,17 +1,17 @@
 use std::{
     cmp::Reverse,
     collections::BinaryHeap,
-    sync::Arc,
     time::{Duration, Instant},
 };
 
-use abacus_base::{CachingInbox, Outboxes};
+use abacus_base::{InboxContracts, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, MessageStatus,
+    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxValidatorManager,
+    MessageStatus, MultisigSignedCheckpoint,
 };
 use eyre::{bail, Result};
 use prometheus::{IntGauge, IntGaugeVec};
-use tokio::{task::JoinHandle, time::sleep};
+use tokio::{sync::watch::Receiver, task::JoinHandle, time::sleep};
 use tracing::{
     debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument,
 };
@@ -19,13 +19,12 @@ use tracing::{
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
 pub(crate) struct MessageProcessor {
-    polling_interval: u64,
     max_retries: u32,
-    reorg_period: u64,
     db: AbacusDB,
-    inbox: Arc<CachingInbox>,
+    inbox_contracts: InboxContracts,
     prover_sync: MerkleTreeBuilder,
     retry_queue: BinaryHeap<MessageToRetry>,
+    signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
     processor_loop_gauge: IntGauge,
     processed_gauge: IntGauge,
     retry_queue_length_gauge: IntGauge,
@@ -50,43 +49,42 @@ impl MessageProcessor {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         outbox: Outboxes,
-        polling_interval: u64,
         max_retries: u32,
         db: AbacusDB,
-        reorg_period: u64,
-        inbox: Arc<CachingInbox>,
+        inbox_contracts: InboxContracts,
+        signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
         leaf_index_gauge: IntGaugeVec,
         retry_queue_length: IntGaugeVec,
     ) -> Self {
         let processor_loop_gauge = leaf_index_gauge.with_label_values(&[
             "processor_loop",
             outbox.chain_name(),
-            inbox.chain_name(),
+            inbox_contracts.inbox.chain_name(),
         ]);
         let processed_gauge = leaf_index_gauge.with_label_values(&[
             "message_processed",
             outbox.chain_name(),
-            inbox.chain_name(),
+            inbox_contracts.inbox.chain_name(),
         ]);
-        let retry_queue_length_gauge =
-            retry_queue_length.with_label_values(&[outbox.chain_name(), inbox.chain_name()]);
+        let retry_queue_length_gauge = retry_queue_length
+            .with_label_values(&[outbox.chain_name(), inbox_contracts.inbox.chain_name()]);
         Self {
-            polling_interval,
             max_retries,
-            reorg_period,
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
-            inbox,
+            inbox_contracts,
             retry_queue: BinaryHeap::new(),
+            signed_checkpoint_receiver,
             processor_loop_gauge,
             processed_gauge,
             retry_queue_length_gauge,
         }
     }
 
-    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox.chain_name()), level = "debug")]
+    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name()), level = "debug")]
     async fn try_processing_message(
         &mut self,
+        latest_signed_checkpoint: &MultisigSignedCheckpoint,
         message_leaf_index: u32,
     ) -> Result<MessageProcessingStatus> {
         match self
@@ -97,55 +95,60 @@ impl MessageProcessor {
         {
             Some(message) => {
                 let leaf = message.to_leaf();
-                if message.message.destination != self.inbox.local_domain() {
+                if message.message.destination != self.inbox_contracts.inbox.local_domain() {
                     return Ok(MessageProcessingStatus::NotDestinedForInbox);
                 }
 
-                match self.inbox.message_status(leaf).await? {
+                match self.inbox_contracts.inbox.message_status(leaf).await? {
                     MessageStatus::None => {
-                        if message_leaf_index >= self.prover_sync.count() {
-                            // gotta find a root that includes the message
-                            let latest_cached_checkpoint = self
-                                .inbox
-                                .latest_cached_checkpoint(Some(self.reorg_period))
-                                .await?;
-
+                        if latest_signed_checkpoint.checkpoint.index >= self.prover_sync.count() {
                             self.prover_sync
-                                .update_to_checkpoint(&latest_cached_checkpoint)
+                                .update_to_checkpoint(&latest_signed_checkpoint.checkpoint)
                                 .await?;
+                        }
 
-                            if message_leaf_index >= self.prover_sync.count() {
-                                return Ok(MessageProcessingStatus::NotYetCheckpointed);
-                            }
+                        // prover_sync should always be in sync with latest_signed_checkpoint
+                        assert_eq!(
+                            latest_signed_checkpoint.checkpoint.index + 1,
+                            self.prover_sync.count()
+                        );
+
+                        if message_leaf_index > latest_signed_checkpoint.checkpoint.index {
+                            return Ok(MessageProcessingStatus::NotYetCheckpointed);
                         }
 
                         match self.prover_sync.get_proof(message_leaf_index) {
-                            Ok(proof) => match self.inbox.process(&message.message, &proof).await {
+                            Ok(proof) => match self
+                                .inbox_contracts
+                                .validator_manager
+                                .process(latest_signed_checkpoint, &message.message, &proof)
+                                .await
+                            {
                                 Ok(outcome) => {
                                     info!(
                                         leaf_index = message_leaf_index,
                                         hash = ?outcome.txid,
-                                        "[MessageProcessor] processed"
+                                        "Message successfully processed"
                                     );
                                     self.db.mark_leaf_as_processed(message_leaf_index)?;
                                     Ok(MessageProcessingStatus::Processed)
                                 }
                                 Err(err) => {
-                                    error!(leaf_index = message_leaf_index, error=?err, "MessageProcessor failed processing, enqueue for retry");
+                                    info!(leaf_index = message_leaf_index, error=?err, "Message failed to process, enqueuing for retry");
                                     Ok(MessageProcessingStatus::Error)
                                 }
                             },
                             Err(err) => {
-                                error!(error=?err, "MessageProcessor was unable to fetch proof");
-                                bail!("MessageProcessor was unable to fetch proof");
+                                error!(error=?err, "Unable to fetch proof");
+                                bail!("Unable to fetch proof");
                             }
                         }
                     }
                     MessageStatus::Processed => {
                         debug!(
                             leaf_index = message_leaf_index,
-                            domain = self.inbox.local_domain(),
-                            "Already processed"
+                            domain = self.inbox_contracts.inbox.local_domain(),
+                            "Message already processed"
                         );
                         self.db.mark_leaf_as_processed(message_leaf_index)?;
                         Ok(MessageProcessingStatus::Processed)
@@ -159,10 +162,56 @@ impl MessageProcessor {
         }
     }
 
-    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox.chain_name()), level = "info")]
+    /// Read a signed checkpoint that the channel may have received without blocking.
+    /// Of current_latest_signed_checkpoint and the signed checkpoint received,
+    /// the one with the latest index is returned.
+    fn get_latest_signed_checkpoint(
+        &mut self,
+        current_latest_signed_checkpoint: MultisigSignedCheckpoint,
+    ) -> Result<MultisigSignedCheckpoint> {
+        if let Some(new_signed_checkpoint) = self.get_signed_checkpoint_nonblocking()? {
+            if new_signed_checkpoint.checkpoint.index
+                > current_latest_signed_checkpoint.checkpoint.index
+            {
+                return Ok(new_signed_checkpoint);
+            }
+        }
+        Ok(current_latest_signed_checkpoint)
+    }
+
+    /// Blocks for a MultisigSignedCheckpoint from the channel
+    async fn get_signed_checkpoint_blocking(&mut self) -> Result<MultisigSignedCheckpoint> {
+        // Waits for a Some(signed_checkpoint)
+        loop {
+            // This blocks until an unseen value is found
+            self.signed_checkpoint_receiver.changed().await?;
+
+            // If it's not None, this is what we've been waiting for
+            if let Some(signed_checkpoint) = self.signed_checkpoint_receiver.borrow().clone() {
+                return Ok(signed_checkpoint);
+            }
+        }
+    }
+
+    /// Attempts to get a signed checkpoint from the channel without blocking.
+    fn get_signed_checkpoint_nonblocking(&mut self) -> Result<Option<MultisigSignedCheckpoint>> {
+        if self.signed_checkpoint_receiver.has_changed()? {
+            return Ok(self.signed_checkpoint_receiver.borrow_and_update().clone());
+        }
+        Ok(None)
+    }
+
+    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         let mut message_leaf_index = 0;
+        // Block until the first signed checkpoint is received
+        let mut latest_signed_checkpoint = self.get_signed_checkpoint_blocking().await?;
+
         loop {
+            // Get latest signed checkpoint, non-blocking
+            latest_signed_checkpoint =
+                self.get_latest_signed_checkpoint(latest_signed_checkpoint)?;
+
             self.processor_loop_gauge.set(message_leaf_index as i64);
             self.retry_queue_length_gauge
                 .set(self.retry_queue.len() as i64);
@@ -181,23 +230,26 @@ impl MessageProcessor {
                 Some(_) => {
                     // We have unseen messages to process
                     info!(
-                        destination = self.inbox.local_domain(),
+                        destination = self.inbox_contracts.inbox.local_domain(),
                         leaf_index = message_leaf_index,
                         "Process fresh leaf"
                     );
-                    match self.try_processing_message(message_leaf_index).await? {
+                    match self
+                        .try_processing_message(&latest_signed_checkpoint, message_leaf_index)
+                        .await?
+                    {
                         MessageProcessingStatus::Processed => {
                             self.processed_gauge.set(message_leaf_index as i64);
                             message_leaf_index += 1
                         }
                         MessageProcessingStatus::NotYetCheckpointed => {
-                            // If we don't have an up to date checkpoint, sleep and try again
-                            sleep(Duration::from_secs(self.polling_interval)).await;
+                            // Do nothing. We should allow the backlog to be evaluated
+                            // and will eventually learn about a new signed checkpoint.
                         }
                         MessageProcessingStatus::NotDestinedForInbox => message_leaf_index += 1,
                         MessageProcessingStatus::Error => {
                             warn!(
-                                destination = self.inbox.local_domain(),
+                                destination = self.inbox_contracts.inbox.local_domain(),
                                 leaf_index = message_leaf_index,
                                 "Message could not be processed, queue for retry"
                             );
@@ -225,13 +277,16 @@ impl MessageProcessor {
                             ..
                         }) => {
                             info!(
-                                destination = self.inbox.local_domain(),
+                                destination = self.inbox_contracts.inbox.local_domain(),
                                 leaf_index = leaf_index,
                                 retries = retries,
                                 retry_queue_length = self.retry_queue.len(),
                                 "Retry processing of message"
                             );
-                            match self.try_processing_message(leaf_index).await? {
+                            match self
+                                .try_processing_message(&latest_signed_checkpoint, leaf_index)
+                                .await?
+                            {
                                 MessageProcessingStatus::NotDestinedForInbox
                                 | MessageProcessingStatus::NotYetCheckpointed => {
                                     error!(
@@ -244,21 +299,21 @@ impl MessageProcessor {
                                 }
                                 MessageProcessingStatus::Processed => {}
                                 MessageProcessingStatus::Error => {
-                                    warn!(
-                                        destination = self.inbox.local_domain(),
+                                    info!(
+                                        destination = self.inbox_contracts.inbox.local_domain(),
                                         leaf_index = leaf_index,
                                         retries = retries,
                                         retry_queue_length = self.retry_queue.len(),
                                         "Retry of message failed processing"
                                     );
                                     if retries >= self.max_retries {
-                                        error!(
-                                        destination = self.inbox.local_domain(),
-                                        leaf_index = leaf_index,
-                                        retries = retries,
-                                        retry_queue_length = self.retry_queue.len(),
-                                        "Maximum number of retries exceeded for processing message"
-                                    );
+                                        info!(
+                                            destination = self.inbox_contracts.inbox.local_domain(),
+                                            leaf_index = leaf_index,
+                                            retries = retries,
+                                            retry_queue_length = self.retry_queue.len(),
+                                            "Max retries exceeded for processing message, dropping"
+                                        );
                                         continue;
                                     }
                                     let retries = retries + 1;
@@ -286,6 +341,6 @@ impl MessageProcessor {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
-        tokio::spawn(async move { self.main_loop().await }).instrument(span)
+        tokio::spawn(self.main_loop()).instrument(span)
     }
 }

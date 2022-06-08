@@ -1,57 +1,10 @@
 use abacus_core::{
-    AbacusCommonIndexer, CheckpointWithMeta, Indexer, InterchainGasPaymasterIndexer,
-    InterchainGasPaymentWithMeta, OutboxIndexer, RawCommittedMessage,
+    CheckpointWithMeta, Indexer, InterchainGasPaymasterIndexer, InterchainGasPaymentWithMeta,
+    OutboxIndexer, RawCommittedMessage,
 };
 use abacus_test::mocks::indexer::MockAbacusIndexer;
 use async_trait::async_trait;
 use eyre::Result;
-
-/// Outbox/Inbox CommonIndexer type
-#[derive(Debug)]
-pub enum AbacusCommonIndexers {
-    /// Ethereum contract indexer
-    Ethereum(Box<dyn AbacusCommonIndexer>),
-    /// Mock indexer
-    Mock(Box<dyn AbacusCommonIndexer>),
-    /// Other indexer variant
-    Other(Box<dyn AbacusCommonIndexer>),
-}
-
-impl From<MockAbacusIndexer> for AbacusCommonIndexers {
-    fn from(mock_indexer: MockAbacusIndexer) -> Self {
-        AbacusCommonIndexers::Mock(Box::new(mock_indexer))
-    }
-}
-
-#[async_trait]
-impl Indexer for AbacusCommonIndexers {
-    async fn get_finalized_block_number(&self) -> Result<u32> {
-        match self {
-            AbacusCommonIndexers::Ethereum(indexer) => indexer.get_finalized_block_number().await,
-            AbacusCommonIndexers::Mock(indexer) => indexer.get_finalized_block_number().await,
-            AbacusCommonIndexers::Other(indexer) => indexer.get_finalized_block_number().await,
-        }
-    }
-}
-
-#[async_trait]
-impl AbacusCommonIndexer for AbacusCommonIndexers {
-    async fn fetch_sorted_checkpoints(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<Vec<CheckpointWithMeta>> {
-        match self {
-            AbacusCommonIndexers::Ethereum(indexer) => {
-                indexer.fetch_sorted_checkpoints(from, to).await
-            }
-            AbacusCommonIndexers::Mock(indexer) => indexer.fetch_sorted_checkpoints(from, to).await,
-            AbacusCommonIndexers::Other(indexer) => {
-                indexer.fetch_sorted_checkpoints(from, to).await
-            }
-        }
-    }
-}
 
 /// OutboxIndexer type
 #[derive(Debug)]
@@ -82,27 +35,30 @@ impl Indexer for OutboxIndexers {
 }
 
 #[async_trait]
-impl AbacusCommonIndexer for OutboxIndexers {
-    async fn fetch_sorted_checkpoints(
-        &self,
-        from: u32,
-        to: u32,
-    ) -> Result<Vec<CheckpointWithMeta>> {
-        match self {
-            OutboxIndexers::Ethereum(indexer) => indexer.fetch_sorted_checkpoints(from, to).await,
-            OutboxIndexers::Mock(indexer) => indexer.fetch_sorted_checkpoints(from, to).await,
-            OutboxIndexers::Other(indexer) => indexer.fetch_sorted_checkpoints(from, to).await,
-        }
-    }
-}
-
-#[async_trait]
 impl OutboxIndexer for OutboxIndexers {
     async fn fetch_sorted_messages(&self, from: u32, to: u32) -> Result<Vec<RawCommittedMessage>> {
         match self {
             OutboxIndexers::Ethereum(indexer) => indexer.fetch_sorted_messages(from, to).await,
             OutboxIndexers::Mock(indexer) => indexer.fetch_sorted_messages(from, to).await,
             OutboxIndexers::Other(indexer) => indexer.fetch_sorted_messages(from, to).await,
+        }
+    }
+
+    async fn fetch_sorted_cached_checkpoints(
+        &self,
+        from: u32,
+        to: u32,
+    ) -> Result<Vec<CheckpointWithMeta>> {
+        match self {
+            OutboxIndexers::Ethereum(indexer) => {
+                indexer.fetch_sorted_cached_checkpoints(from, to).await
+            }
+            OutboxIndexers::Mock(indexer) => {
+                indexer.fetch_sorted_cached_checkpoints(from, to).await
+            }
+            OutboxIndexers::Other(indexer) => {
+                indexer.fetch_sorted_cached_checkpoints(from, to).await
+            }
         }
     }
 }
