@@ -72,7 +72,7 @@ The name of the ClusterSecretStore
 {{/*
 Recursively converts a config object into environment variables than can
 be parsed by rust. For example, a config of { foo: { bar: { baz: 420 }, boo: 421 } } will
-be: OPT_FOO_BAR_BAZ=420 and OPT_FOO_BOO=421
+be: ABC_FOO_BAR_BAZ=420 and ABC_FOO_BOO=421
 Env vars can be formatted in FOO=BAR format if .dot_env_format is true, otherwise
 they will be formatted as YAML-friendly environment variables
 */}}
@@ -89,9 +89,9 @@ they will be formatted as YAML-friendly environment variables
 
 {{- define "abacus-agent.config-env-var" }}
 {{- if .dot_env_format }}
-OPT_{{ .agent_name | upper }}_{{ .key | upper }}={{ .value | quote }}
+ABC_{{ .agent_name | upper }}_{{ .key | upper }}={{ .value | quote }}
 {{- else }}
-- name: OPT_{{ .agent_name | upper }}_{{ .key | upper }}
+- name: ABC_{{ .agent_name | upper }}_{{ .key | upper }}
   value: {{ .value | quote }}
 {{- end }}
 {{- end }}
