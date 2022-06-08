@@ -1,12 +1,12 @@
 {
   "name": "@abacus-network/deploy",
   "description": "Deploy tools for the Abacus network",
-  "version": "0.2.1-alpha11",
+  "version": "0.2.1-alpha12",
   "dependencies": {
-    "@abacus-network/app": "^0.2.1-alpha11",
-    "@abacus-network/core": "^0.2.1-alpha11",
-    "@abacus-network/sdk": "^0.2.1-alpha11",
-    "@abacus-network/utils": "^0.2.1-alpha11",
+    "@abacus-network/app": "^0.2.1-alpha12",
+    "@abacus-network/core": "^0.2.1-alpha12",
+    "@abacus-network/sdk": "^0.2.1-alpha12",
+    "@abacus-network/utils": "^0.2.1-alpha12",
     "@types/debug": "^4.1.7",
     "@types/yargs": "^17.0.10",
     "axios": "^0.21.3",

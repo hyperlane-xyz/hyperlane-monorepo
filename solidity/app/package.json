@@ -1,10 +1,10 @@
 {
   "name": "@abacus-network/app",
   "description": "Solidity contracts for Abacus apps",
-  "version": "0.2.1-alpha11",
+  "version": "0.2.1-alpha12",
   "dependencies": {
-    "@abacus-network/core": "^0.2.1-alpha11",
-    "@abacus-network/utils": "^0.2.1-alpha11",
+    "@abacus-network/core": "^0.2.1-alpha12",
+    "@abacus-network/utils": "^0.2.1-alpha12",
     "@openzeppelin/contracts-upgradeable": "^4.5.0"
   },
   "devDependencies": {
