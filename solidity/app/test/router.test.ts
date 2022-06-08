@@ -108,9 +108,7 @@ describe('Router', async () => {
         signer,
       );
       interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
-      await connectionManager.setInterchainGasPaymaster(
-        interchainGasPaymaster.address,
-      );
+      await router.setInterchainGasPaymaster(interchainGasPaymaster.address);
 
       // Enroll a remote router on the destination domain.
       // The address is arbitrary because no messages will actually be processed.
@@ -151,7 +149,7 @@ describe('Router', async () => {
         );
         await assertion
           .emit(interchainGasPaymaster, 'GasPayment')
-          .withArgs(leafIndex, testInterchainGasPayment);
+          .withArgs(outbox.address, leafIndex, testInterchainGasPayment);
       });
 
       it('reverts when dispatching a message to an unenrolled remote router', async () => {

@@ -9,6 +9,12 @@
     "inputs": [
       {
         "indexed": true,
+        "internalType": "address",
+        "name": "outbox",
+        "type": "address"
+      },
+      {
+        "indexed": false,
         "internalType": "uint256",
         "name": "leafIndex",
         "type": "uint256"
@@ -64,6 +70,11 @@
   },
   {
     "inputs": [
+      {
+        "internalType": "address",
+        "name": "_outbox",
+        "type": "address"
+      },
       {
         "internalType": "uint256",
         "name": "_leafIndex",

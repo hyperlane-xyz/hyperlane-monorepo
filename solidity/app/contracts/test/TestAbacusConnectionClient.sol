@@ -1,6 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.6.11;
-import {IInterchainGasPaymaster} from "@abacus-network/core/interfaces/IInterchainGasPaymaster.sol";
 import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
 
 import "../AbacusConnectionClient.sol";
@@ -12,14 +11,6 @@ contract TestAbacusConnectionClient is AbacusConnectionClient {
 
     function outbox() external view returns (IOutbox) {
         return _outbox();
-    }
-
-    function interchainGasPaymaster()
-        external
-        view
-        returns (IInterchainGasPaymaster)
-    {
-        return _interchainGasPaymaster();
     }
 
     function isInbox(address _potentialInbox) external view returns (bool) {
