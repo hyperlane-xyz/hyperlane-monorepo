@@ -10,7 +10,7 @@ export type RouterContracts<RouterContract extends Router = Router> =
     router: RouterContract | ProxiedContract<RouterContract, any>;
   };
 
-export type RouterFactory<RouterContract extends Router = Router> =
+type RouterFactory<RouterContract extends Router = Router> =
   ethers.ContractFactory & {
     deploy: (...args: any[]) => Promise<RouterContract>;
   };

@@ -18,15 +18,15 @@ export class AbacusRouterChecker<
   Chain extends ChainName,
   Contracts extends RouterContracts,
   App extends AbacusApp<Contracts, Chain>,
-  Config,
-> extends AbacusAppChecker<Chain, App, Config & RouterConfig> {
+  Config extends RouterConfig<Contracts, any>,
+> extends AbacusAppChecker<Chain, App, Config> {
   checkOwnership(chain: Chain) {
     const owner = this.configMap[chain].owner;
     const ownables = this.ownables(chain);
     return AbacusAppChecker.checkOwnership(owner, ownables);
   }
 
-  getRouterInstance(router: Router | ProxiedContract<Router, any>) {
+  getRouterInstance(router: Router | ProxiedContract<Router, any>): Router {
     return router instanceof ProxiedContract ? router.contract : router;
   }
 
@@ -53,7 +53,6 @@ export class AbacusRouterChecker<
 
   ownables(chain: Chain): Ownable[] {
     const contracts = this.app.getContracts(chain);
-    const ownables: Ownable[] = [this.getRouterInstance(contracts.router)];
-    return ownables;
+    return [this.getRouterInstance(contracts.router)];
   }
 }
