@@ -5,6 +5,7 @@ import {
   AbacusCore,
   BeaconProxyAddresses,
   ChainName,
+  ChainNameToDomainId,
   chainMetadata,
   objMap,
   promiseObjAll,
@@ -178,6 +179,17 @@ export class AbacusCoreChecker<
         const expected = inbox.inboxValidatorManager.address;
         const actual = await inbox.inbox.contract.validatorManager();
         expect(actual).to.equal(expected);
+      }),
+    );
+
+    await promiseObjAll(
+      objMap(coreContracts.inboxes, async (remoteChain, inbox) => {
+        // check that the inbox has the right local domain
+        const actualLocalDomain = await inbox.inbox.contract.localDomain();
+        expect(actualLocalDomain).to.equal(ChainNameToDomainId[chain]);
+
+        const actualRemoteDomain = await inbox.inbox.contract.remoteDomain();
+        expect(actualRemoteDomain).to.equal(ChainNameToDomainId[remoteChain]);
       }),
     );
 
