@@ -13,10 +13,9 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
     // ============ Mutable Storage ============
 
     IAbacusConnectionManager public abacusConnectionManager;
-    // Interchain Gas Paymaster contract. The off-chain processor associated with
-    // the paymaster contract must be willing to process messages dispatched from
-    // the current Outbox contract, otherwise payments made to the paymaster will
-    // not result in processed messages.
+    // Interchain Gas Paymaster contract. The relayer associated with this contract
+    // must be willing to relay messages dispatched from the current Outbox contract,
+    // otherwise payments made to the paymaster will not result in relayed messages.
     IInterchainGasPaymaster public interchainGasPaymaster;
 
     uint256[48] private __GAP; // gap for upgrade safety

@@ -2,7 +2,7 @@
 pragma solidity >=0.6.11;
 
 /**
- * @title InterchainGasPaymaster
+ * @title IInterchainGasPaymaster
  * @notice Manages payments on a source chain to cover gas costs of relaying
  * messages to destination chains.
  */
