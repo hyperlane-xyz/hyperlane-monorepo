@@ -19,6 +19,7 @@
   "private": true,
   "scripts": {
     "build": "yarn workspaces foreach --verbose --parallel --topological run build",
+    "publish": "yarn workspaces foreach --no-private --verbose --topological npm publish --access public",
     "postinstall": "husky install",
     "prettier": "yarn workspaces foreach --verbose --parallel run prettier",
     "lint-ts": "eslint . --ext .ts",
