@@ -48,8 +48,5 @@
     "level": "debug",
     "fmt": "json"
   },
-  "db": "db_path",
-  "index": {
-    "from": "31"
-  }
+  "db": "db_path"
 }
