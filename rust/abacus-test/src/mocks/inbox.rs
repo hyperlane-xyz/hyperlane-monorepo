@@ -16,12 +16,6 @@ mock! {
 
         pub fn _prove(&self, proof: &Proof) -> Result<TxOutcome, ChainCommunicationError> {}
 
-        pub fn _process(
-            &self,
-            message: &AbacusMessage,
-            proof: &Proof,
-        ) -> Result<TxOutcome, ChainCommunicationError> {}
-
         pub fn _checkpoint(
             &self,
             signed_checkpoint: &SignedCheckpoint,
@@ -32,11 +26,7 @@ mock! {
 
         pub fn _validator_manager(&self) -> Result<H256, ChainCommunicationError> {}
 
-        pub fn _latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {}
-
         pub fn _message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {}
-
-        pub fn _latest_cached_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
 
         // AbacusContract
         pub fn _chain_name(&self) -> &str {}
@@ -53,14 +43,6 @@ impl std::fmt::Debug for MockInboxContract {
 impl Inbox for MockInboxContract {
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
         self._remote_domain()
-    }
-
-    async fn process(
-        &self,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        self._process(message, proof)
     }
 
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
@@ -86,16 +68,5 @@ impl AbacusCommon for MockInboxContract {
 
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         self._validator_manager()
-    }
-
-    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
-        self._latest_cached_root()
-    }
-
-    async fn latest_cached_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
-        self._latest_cached_checkpoint(maybe_lag)
     }
 }

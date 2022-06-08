@@ -1,6 +1,6 @@
 use abacus_core::{
-    accumulator::merkle::Proof, db::AbacusDB, AbacusCommon, AbacusContract, AbacusMessage,
-    ChainCommunicationError, Checkpoint, Inbox, MessageStatus, TxOutcome,
+    db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, Inbox, MessageStatus,
+    TxOutcome,
 };
 use abacus_test::mocks::inbox::MockInboxContract;
 use async_trait::async_trait;
@@ -9,18 +9,12 @@ use eyre::Result;
 
 use abacus_ethereum::EthereumInbox;
 use std::sync::Arc;
-use tokio::task::JoinHandle;
-use tracing::instrument::Instrumented;
-use tracing::{info_span, Instrument};
-
-use crate::{AbacusCommonIndexers, ContractSync, ContractSyncMetrics, IndexSettings};
 
 /// Caching inbox type
 #[derive(Debug)]
 pub struct CachingInbox {
     inbox: Inboxes,
     db: AbacusDB,
-    indexer: Arc<AbacusCommonIndexers>,
 }
 
 impl std::fmt::Display for CachingInbox {
@@ -31,8 +25,8 @@ impl std::fmt::Display for CachingInbox {
 
 impl CachingInbox {
     /// Instantiate new CachingInbox
-    pub fn new(inbox: Inboxes, db: AbacusDB, indexer: Arc<AbacusCommonIndexers>) -> Self {
-        Self { inbox, db, indexer }
+    pub fn new(inbox: Inboxes, db: AbacusDB) -> Self {
+        Self { inbox, db }
     }
 
     /// Return handle on inbox object
@@ -44,45 +38,12 @@ impl CachingInbox {
     pub fn db(&self) -> AbacusDB {
         self.db.clone()
     }
-
-    /// Spawn a task that syncs the CachingInbox's db with the on-chain event
-    /// data
-    pub fn sync(
-        &self,
-        index_settings: IndexSettings,
-        metrics: ContractSyncMetrics,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
-        let span = info_span!("InboxContractSync", self = %self);
-
-        let sync = ContractSync::new(
-            self.inbox.chain_name().into(),
-            self.db.clone(),
-            self.indexer.clone(),
-            index_settings,
-            metrics,
-        );
-
-        tokio::spawn(async move {
-            let _ = sync.sync_checkpoints().await?;
-            Ok(())
-        })
-        .instrument(span)
-    }
 }
 
 #[async_trait]
 impl Inbox for CachingInbox {
     async fn remote_domain(&self) -> Result<u32, ChainCommunicationError> {
         self.inbox.remote_domain().await
-    }
-
-    /// Process a message
-    async fn process(
-        &self,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        self.inbox.process(message, proof).await
     }
 
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
@@ -108,17 +69,6 @@ impl AbacusCommon for CachingInbox {
 
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         self.inbox.validator_manager().await
-    }
-
-    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
-        self.inbox.latest_cached_root().await
-    }
-
-    async fn latest_cached_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
-        self.inbox.latest_cached_checkpoint(maybe_lag).await
     }
 }
 
@@ -208,18 +158,6 @@ impl Inbox for InboxVariants {
             InboxVariants::Other(inbox) => inbox.message_status(leaf).await,
         }
     }
-
-    async fn process(
-        &self,
-        message: &AbacusMessage,
-        proof: &Proof,
-    ) -> Result<TxOutcome, ChainCommunicationError> {
-        match self {
-            InboxVariants::Ethereum(inbox) => inbox.process(message, proof).await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.process(message, proof).await,
-            InboxVariants::Other(inbox) => inbox.process(message, proof).await,
-        }
-    }
 }
 
 impl AbacusContract for InboxVariants {
@@ -255,25 +193,6 @@ impl AbacusCommon for InboxVariants {
             InboxVariants::Ethereum(inbox) => inbox.validator_manager().await,
             InboxVariants::Mock(mock_inbox) => mock_inbox.validator_manager().await,
             InboxVariants::Other(inbox) => inbox.validator_manager().await,
-        }
-    }
-
-    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
-        match self {
-            InboxVariants::Ethereum(inbox) => inbox.latest_cached_root().await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.latest_cached_root().await,
-            InboxVariants::Other(inbox) => inbox.latest_cached_root().await,
-        }
-    }
-
-    async fn latest_cached_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
-        match self {
-            InboxVariants::Ethereum(inbox) => inbox.latest_cached_checkpoint(maybe_lag).await,
-            InboxVariants::Mock(mock_inbox) => mock_inbox.latest_cached_checkpoint(maybe_lag).await,
-            InboxVariants::Other(inbox) => inbox.latest_cached_checkpoint(maybe_lag).await,
         }
     }
 }
