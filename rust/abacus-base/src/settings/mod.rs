@@ -291,17 +291,22 @@ impl Settings {
         &self,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> Result<CachingInterchainGasPaymaster, Report> {
+    ) -> Result<Option<CachingInterchainGasPaymaster>, Report> {
         let signer = self.get_signer(&self.outbox.name).await;
-        let paymaster = self
+        match self
             .outbox
             .try_into_interchain_gas_paymaster(signer, metrics)
-            .await?;
-        let indexer = Arc::new(self.try_interchain_gas_paymaster_indexer(metrics).await?);
-        let abacus_db = AbacusDB::new(paymaster.chain_name(), db);
-        Ok(CachingInterchainGasPaymaster::new(
-            paymaster, abacus_db, indexer,
-        ))
+            .await?
+        {
+            Some(paymaster) => {
+                let indexer = Arc::new(self.try_interchain_gas_paymaster_indexer(metrics).await?);
+                let abacus_db = AbacusDB::new(paymaster.chain_name(), db);
+                Ok(Some(CachingInterchainGasPaymaster::new(
+                    paymaster, abacus_db, indexer,
+                )))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Try to get an indexer object for a outbox
@@ -373,7 +378,10 @@ impl Settings {
         }
     }
 
-    /// Try to get an indexer object for a outbox
+    /// Try to get an indexer object for an interchain gas paymaster.
+    /// This function is only expected to be called when it's already been
+    /// confirmed that the interchain gas paymaster address was provided in
+    /// settings.
     pub async fn try_interchain_gas_paymaster_indexer(
         &self,
         metrics: &CoreMetrics,
@@ -397,6 +405,8 @@ impl Settings {
                             .outbox
                             .addresses
                             .interchain_gas_paymaster
+                            .as_ref()
+                            .expect("interchain_gas_paymaster not provided")
                             .parse::<ethers::types::Address>()?
                             .into(),
                     },
@@ -420,10 +430,11 @@ impl Settings {
 
         let db = DB::from_path(&self.db)?;
         let outbox = Arc::new(self.try_caching_outbox(db.clone(), &metrics).await?);
-        let interchain_gas_paymaster = Arc::new(
-            self.try_caching_interchain_gas_paymaster(db.clone(), &metrics)
-                .await?,
-        );
+        let interchain_gas_paymaster = self
+            .try_caching_interchain_gas_paymaster(db.clone(), &metrics)
+            .await?
+            .and_then(|paymaster| Some(Arc::new(paymaster)));
+
         let inbox_contracts = self.try_inbox_contracts(db.clone(), &metrics).await?;
 
         Ok(AbacusAgentCore {

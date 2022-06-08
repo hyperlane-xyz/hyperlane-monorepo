@@ -37,7 +37,7 @@ pub struct OutboxAddresses {
     /// Address of the Outbox contract
     pub outbox: String,
     /// Address of the InterchainGasPaymaster contract
-    pub interchain_gas_paymaster: String,
+    pub interchain_gas_paymaster: Option<String>,
 }
 
 /// Addresses for inbox chain contracts
@@ -120,27 +120,33 @@ impl ChainSetup<OutboxAddresses> {
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> Result<InterchainGasPaymasters, Report> {
+    ) -> Result<Option<InterchainGasPaymasters>, Report> {
+        let paymaster_address;
+        if let Some(address) = &self.addresses.interchain_gas_paymaster {
+            paymaster_address = address;
+        } else {
+            return Ok(None);
+        }
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InterchainGasPaymasterVariants::Ethereum(
-                InterchainGasPaymasterBuilder {}
-                    .make_with_connection(
-                        conf.clone(),
-                        &ContractLocator {
-                            chain_name: self.name.clone(),
-                            domain: self.domain.parse().expect("invalid uint"),
-                            address: self
-                                .addresses
-                                .interchain_gas_paymaster
-                                .parse::<ethers::types::Address>()?
-                                .into(),
-                        },
-                        signer,
-                        Some((metrics.provider_metrics(), self.metrics_conf())),
-                    )
-                    .await?,
-            )
-            .into()),
+            ChainConf::Ethereum(conf) => Ok(Some(
+                InterchainGasPaymasterVariants::Ethereum(
+                    InterchainGasPaymasterBuilder {}
+                        .make_with_connection(
+                            conf.clone(),
+                            &ContractLocator {
+                                chain_name: self.name.clone(),
+                                domain: self.domain.parse().expect("invalid uint"),
+                                address: paymaster_address
+                                    .parse::<ethers::types::Address>()?
+                                    .into(),
+                            },
+                            signer,
+                            Some((metrics.provider_metrics(), self.metrics_conf())),
+                        )
+                        .await?,
+                )
+                .into(),
+            )),
         }
     }
 
