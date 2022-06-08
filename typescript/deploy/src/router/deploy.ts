@@ -60,19 +60,19 @@ export abstract class AbacusRouterDeployer<
   async transferOwnership(contractsMap: ChainMap<Chain, Contracts>) {
     this.logger(`Transfer ownership of routers to owner ...`);
     await promiseObjAll(
-      objMap(contractsMap, async (chain, contracts) => {
+      objMap(contractsMap, async (chain, contracts) =>
         this.getRouterInstance(contracts).transferOwnership(
           this.configMap[chain].owner,
-        );
-      }),
+        ),
+      ),
     );
   }
 
   async deploy() {
     const contractsMap = await super.deploy();
 
-    this.enrollRemoteRouters(contractsMap);
-    this.transferOwnership(contractsMap);
+    await this.enrollRemoteRouters(contractsMap);
+    await this.transferOwnership(contractsMap);
 
     return contractsMap;
   }
