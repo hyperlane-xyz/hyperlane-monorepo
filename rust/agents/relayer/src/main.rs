@@ -13,7 +13,7 @@ use abacus_base::Agent;
 
 use crate::relayer::Relayer;
 
-mod checkpoint_relayer;
+mod checkpoint_fetcher;
 mod merkle_tree_builder;
 mod message_processor;
 mod prover;

@@ -18,7 +18,7 @@ use ethers::{
 use eyre::Result;
 use std::error::Error as StdError;
 
-use crate::{db::DbError, utils::domain_hash, AbacusError, Checkpoint};
+use crate::{db::DbError, utils::domain_hash, AbacusError};
 
 pub use common::*;
 pub use encode::*;
@@ -109,13 +109,4 @@ pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
 
     /// Fetch the current validator manager value
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError>;
-
-    /// Fetch the current root.
-    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError>;
-
-    /// Return the latest checkpointed root and its index.
-    async fn latest_cached_checkpoint(
-        &self,
-        lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError>;
 }

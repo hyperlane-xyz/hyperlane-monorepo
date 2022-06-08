@@ -43,13 +43,13 @@
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
-      "interchainGasPaymaster": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
+      "outbox": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+      "interchainGasPaymaster": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
     },
     "domain": "13371",
     "name": "test1",
     "rpcStyle": "ethereum",
-    "finalityBlocks": "1",
+    "finalityBlocks": "0",
     "connection": {
       "type": "http",
       "url": ""
