@@ -53,15 +53,14 @@ use abacus_core::{
     AbacusContract, ContractLocator, Signers,
 };
 use abacus_ethereum::{
-    InboxIndexerBuilder, InterchainGasPaymasterIndexerBuilder, MakeableWithProvider,
-    OutboxIndexerBuilder,
+    InterchainGasPaymasterIndexerBuilder, MakeableWithProvider, OutboxIndexerBuilder,
 };
 pub use chains::{ChainConf, ChainSetup, InboxAddresses, OutboxAddresses};
 
 use crate::{settings::trace::TracingConfig, CachingInterchainGasPaymaster};
 use crate::{
-    AbacusAgentCore, AbacusCommonIndexers, CachingInbox, CachingOutbox, CoreMetrics,
-    InboxContracts, InboxValidatorManagers, InterchainGasPaymasterIndexers, OutboxIndexers,
+    AbacusAgentCore, CachingInbox, CachingOutbox, CoreMetrics, InboxContracts,
+    InboxValidatorManagers, InterchainGasPaymasterIndexers, OutboxIndexers,
 };
 
 /// Chain configuration
@@ -255,9 +254,8 @@ impl Settings {
     ) -> Result<CachingInbox, Report> {
         let signer = self.get_signer(&chain_setup.name).await;
         let inbox = chain_setup.try_into_inbox(signer, metrics).await?;
-        let indexer = Arc::new(self.try_inbox_indexer(chain_setup, metrics).await?);
         let abacus_db = AbacusDB::new(inbox.chain_name(), db);
-        Ok(CachingInbox::new(inbox, abacus_db, indexer))
+        Ok(CachingInbox::new(inbox, abacus_db))
     }
 
     /// Try to get an InboxValidatorManager
@@ -291,17 +289,22 @@ impl Settings {
         &self,
         db: DB,
         metrics: &CoreMetrics,
-    ) -> Result<CachingInterchainGasPaymaster, Report> {
+    ) -> Result<Option<CachingInterchainGasPaymaster>, Report> {
         let signer = self.get_signer(&self.outbox.name).await;
-        let paymaster = self
+        match self
             .outbox
             .try_into_interchain_gas_paymaster(signer, metrics)
-            .await?;
-        let indexer = Arc::new(self.try_interchain_gas_paymaster_indexer(metrics).await?);
-        let abacus_db = AbacusDB::new(paymaster.chain_name(), db);
-        Ok(CachingInterchainGasPaymaster::new(
-            paymaster, abacus_db, indexer,
-        ))
+            .await?
+        {
+            Some(paymaster) => {
+                let indexer = Arc::new(self.try_interchain_gas_paymaster_indexer(metrics).await?);
+                let abacus_db = AbacusDB::new(paymaster.chain_name(), db);
+                Ok(Some(CachingInterchainGasPaymaster::new(
+                    paymaster, abacus_db, indexer,
+                )))
+            }
+            None => Ok(None),
+        }
     }
 
     /// Try to get an indexer object for a outbox
@@ -338,42 +341,10 @@ impl Settings {
         }
     }
 
-    /// Try to get an indexer object for a inbox
-    pub async fn try_inbox_indexer(
-        &self,
-        setup: &ChainSetup<InboxAddresses>,
-        metrics: &CoreMetrics,
-    ) -> Result<AbacusCommonIndexers, Report> {
-        let signer = self.get_signer(&setup.name).await;
-        let metrics = Some((metrics.provider_metrics(), setup.metrics_conf()));
-
-        match &setup.chain {
-            ChainConf::Ethereum(conn) => Ok(AbacusCommonIndexers::Ethereum(
-                InboxIndexerBuilder {
-                    from_height: self.index.from(),
-                    chunk_size: self.index.chunk_size(),
-                    finality_blocks: self.outbox.finality_blocks(),
-                }
-                .make_with_connection(
-                    conn.clone(),
-                    &ContractLocator {
-                        chain_name: setup.name.clone(),
-                        domain: setup.domain.parse().expect("invalid uint"),
-                        address: setup
-                            .addresses
-                            .inbox
-                            .parse::<ethers::types::Address>()?
-                            .into(),
-                    },
-                    signer,
-                    metrics,
-                )
-                .await?,
-            )),
-        }
-    }
-
-    /// Try to get an indexer object for a outbox
+    /// Try to get an indexer object for an interchain gas paymaster.
+    /// This function is only expected to be called when it's already been
+    /// confirmed that the interchain gas paymaster address was provided in
+    /// settings.
     pub async fn try_interchain_gas_paymaster_indexer(
         &self,
         metrics: &CoreMetrics,
@@ -397,6 +368,8 @@ impl Settings {
                             .outbox
                             .addresses
                             .interchain_gas_paymaster
+                            .as_ref()
+                            .expect("interchain_gas_paymaster not provided")
                             .parse::<ethers::types::Address>()?
                             .into(),
                     },
@@ -420,10 +393,11 @@ impl Settings {
 
         let db = DB::from_path(&self.db)?;
         let outbox = Arc::new(self.try_caching_outbox(db.clone(), &metrics).await?);
-        let interchain_gas_paymaster = Arc::new(
-            self.try_caching_interchain_gas_paymaster(db.clone(), &metrics)
-                .await?,
-        );
+        let interchain_gas_paymaster = self
+            .try_caching_interchain_gas_paymaster(db.clone(), &metrics)
+            .await?
+            .map(Arc::new);
+
         let inbox_contracts = self.try_inbox_contracts(db.clone(), &metrics).await?;
 
         Ok(AbacusAgentCore {

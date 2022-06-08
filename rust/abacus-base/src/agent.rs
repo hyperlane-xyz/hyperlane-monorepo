@@ -30,7 +30,7 @@ pub struct AbacusAgentCore {
     /// A boxed Outbox
     pub outbox: Arc<CachingOutbox>,
     /// A boxed InterchainGasPaymaster
-    pub interchain_gas_paymaster: Arc<CachingInterchainGasPaymaster>,
+    pub interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
     /// A map of boxed Inbox contracts
     pub inboxes: HashMap<String, InboxContracts>,
     /// A persistent KV Store (currently implemented as rocksdb)
@@ -73,7 +73,7 @@ pub trait Agent: Send + Sync + Debug + AsRef<AbacusAgentCore> {
     }
 
     /// Return a reference to an InterchainGasPaymaster contract
-    fn interchain_gas_paymaster(&self) -> Arc<CachingInterchainGasPaymaster> {
+    fn interchain_gas_paymaster(&self) -> Option<Arc<CachingInterchainGasPaymaster>> {
         self.as_ref().interchain_gas_paymaster.clone()
     }
 

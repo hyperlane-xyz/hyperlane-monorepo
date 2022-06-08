@@ -14,25 +14,6 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": true,
-        "internalType": "bytes32",
-        "name": "root",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "index",
-        "type": "uint256"
-      }
-    ],
-    "name": "CheckpointCached",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": false,
         "internalType": "uint8",
         "name": "version",
@@ -82,18 +63,6 @@
         "internalType": "bytes32",
         "name": "messageHash",
         "type": "bytes32"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint256",
-        "name": "leafIndex",
-        "type": "uint256"
-      },
-      {
-        "indexed": false,
-        "internalType": "bytes32[32]",
-        "name": "proof",
-        "type": "bytes32[32]"
       }
     ],
     "name": "Process",
@@ -115,43 +84,6 @@
   {
     "inputs": [
       {
-        "internalType": "bytes32",
-        "name": "_root",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "_index",
-        "type": "uint256"
-      }
-    ],
-    "name": "cacheCheckpoint",
-    "outputs": [],
-    "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "name": "cachedCheckpoints",
-    "outputs": [
-      {
-        "internalType": "uint256",
-        "name": "",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [
-      {
         "internalType": "uint32",
         "name": "_remoteDomain",
         "type": "uint32"
@@ -165,37 +97,6 @@
     "name": "initialize",
     "outputs": [],
     "stateMutability": "nonpayable",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "latestCachedCheckpoint",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "root",
-        "type": "bytes32"
-      },
-      {
-        "internalType": "uint256",
-        "name": "index",
-        "type": "uint256"
-      }
-    ],
-    "stateMutability": "view",
-    "type": "function"
-  },
-  {
-    "inputs": [],
-    "name": "latestCachedRoot",
-    "outputs": [
-      {
-        "internalType": "bytes32",
-        "name": "",
-        "type": "bytes32"
-      }
-    ],
-    "stateMutability": "view",
     "type": "function"
   },
   {
@@ -246,6 +147,16 @@
   {
     "inputs": [
       {
+        "internalType": "bytes32",
+        "name": "_root",
+        "type": "bytes32"
+      },
+      {
+        "internalType": "uint256",
+        "name": "_index",
+        "type": "uint256"
+      },
+      {
         "internalType": "bytes",
         "name": "_message",
         "type": "bytes"
@@ -257,13 +168,8 @@
       },
       {
         "internalType": "uint256",
-        "name": "_index",
+        "name": "_leafIndex",
         "type": "uint256"
-      },
-      {
-        "internalType": "bytes",
-        "name": "",
-        "type": "bytes"
       }
     ],
     "name": "process",
