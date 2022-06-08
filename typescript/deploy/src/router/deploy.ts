@@ -20,10 +20,12 @@ import { RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
-  Config,
-  Factories extends RouterFactories,
   Contracts extends RouterContracts,
-> extends AbacusDeployer<Chain, Config & RouterConfig, Factories, Contracts> {
+  Factories extends RouterFactories,
+  Config extends {
+    router: RouterConfig<Contracts['router'], Factories['router']>;
+  },
+> extends AbacusDeployer<Chain, Config, Factories, Contracts> {
   constructor(
     multiProvider: MultiProvider<Chain>,
     configMap: ChainMap<Chain, Config & RouterConfig>,
@@ -37,6 +39,20 @@ export abstract class AbacusRouterDeployer<
   getRouterInstance(contracts: Contracts): Router {
     const router = contracts.router;
     return router instanceof ProxiedContract ? router.contract : router;
+  }
+
+  async deployRouter(
+    chain: Chain,
+    config: Config['router'],
+  ): Promise<Contracts['router']> {
+    const router = (await this.deployContract(
+      chain,
+      'router',
+      config.deployParams,
+    )) as Contracts['router'];
+    // @ts-ignore spread operator
+    await router.initialize(...config.initParams);
+    return router;
   }
 
   async enrollRemoteRouters(contractsMap: ChainMap<Chain, Contracts>) {
