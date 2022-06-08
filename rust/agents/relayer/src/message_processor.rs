@@ -312,7 +312,7 @@ impl MessageProcessor {
                                             leaf_index = leaf_index,
                                             retries = retries,
                                             retry_queue_length = self.retry_queue.len(),
-                                            "Maximum number of retries exceeded for processing message"
+                                            "Max retries exceeded for processing message, dropping"
                                         );
                                         continue;
                                     }
@@ -341,6 +341,6 @@ impl MessageProcessor {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
-        tokio::spawn(async move { self.main_loop().await }).instrument(span)
+        tokio::spawn(self.main_loop()).instrument(span)
     }
 }
