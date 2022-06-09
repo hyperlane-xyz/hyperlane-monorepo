@@ -5,7 +5,7 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@^0.2.1-beta3, @abacus-network/app@workspace:solidity/app":
+"@abacus-network/app@0.2.1-beta3, @abacus-network/app@^0.2.1-beta3, @abacus-network/app@workspace:solidity/app":
   version: 0.0.0-use.local
   resolution: "@abacus-network/app@workspace:solidity/app"
   dependencies:
@@ -101,15 +101,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/helloworld@npm:0.2.3":
-  version: 0.2.3
-  resolution: "@abacus-network/helloworld@npm:0.2.3"
+"@abacus-network/helloworld@npm:0.2.1-alpha":
+  version: 0.2.1-alpha
+  resolution: "@abacus-network/helloworld@npm:0.2.1-alpha"
   dependencies:
-    "@abacus-network/app": 0.2.3
-    "@abacus-network/sdk": 0.2.3
-    "@openzeppelin/contracts-upgradeable": ^4.6.0
+    "@abacus-network/app": 0.2.1-beta3
+    "@abacus-network/sdk": 0.2.1-beta3
+    "@openzeppelin/contracts-upgradeable": ~4.5.0
     ethers: ^5.4.7
-  checksum: e4b787b22da6c19f413722b9941d4bc849b8de2d214f387b71a4075aa587791ea22e7d28088d8068ac4f332aec8758f7a67a5f3f8bbe7c46543b9db7d4e97e58
+  checksum: 08ccdd0078122bcd4a8cc1b41f3584536d4cd513f458c2ad446d18e80052aa4abcf4b5dd5fc67f9b9e81f782f2ce1e6d257c4fef3e395be29344ab6dca3b90f6
   languageName: node
   linkType: hard
 
@@ -119,6 +119,7 @@ __metadata:
   dependencies:
     "@abacus-network/core": ^0.2.1-beta3
     "@abacus-network/deploy": ^0.2.1-beta3
+    "@abacus-network/helloworld": 0.2.1-alpha
     "@abacus-network/sdk": ^0.2.1-beta3
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
@@ -159,7 +160,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@^0.2.1-beta3, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@0.2.1-beta3, @abacus-network/sdk@^0.2.1-beta3, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
@@ -3060,7 +3061,14 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts-upgradeable@npm:^4.5.0, @openzeppelin/contracts-upgradeable@npm:^4.6.0":
+"@openzeppelin/contracts-upgradeable@npm:^4.5.0, @openzeppelin/contracts-upgradeable@npm:~4.5.0":
+  version: 4.5.2
+  resolution: "@openzeppelin/contracts-upgradeable@npm:4.5.2"
+  checksum: bd6a12eb83d8e3194e0847ffb248a1063668e2bf723afd21066316090de9b02e95af6057086a95fa21b0d09a2ef0ea057459bb5f5645dfff298e59e8c3267692
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/contracts-upgradeable@npm:^4.6.0":
   version: 4.6.0
   resolution: "@openzeppelin/contracts-upgradeable@npm:4.6.0"
   checksum: f9802c9cccf31bd475412ba5d862ed15eed5352302c30b29c38f84aed2dcfe0d957687935a72068f3d44292a4a55b0ff26cd018b2e14a47f16f74f087009aa29
