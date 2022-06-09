@@ -14,7 +14,7 @@ import {
   promiseObjAll,
 } from '@abacus-network/sdk';
 
-import addresses from '../helloworld.json';
+import addresses from '../config/environments/testnet2/helloworld/addresses.json';
 
 import { getCoreEnvironmentConfig } from './utils';
 
@@ -22,6 +22,13 @@ async function main() {
   const environment = 'testnet2';
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
+
+  type Chains = keyof typeof addresses;
+  const contracts = buildContracts(addresses, helloWorldFactories) as ChainMap<
+    Chains,
+    HelloWorldContracts
+  >;
+  const app = new HelloWorldApp(contracts, multiProvider);
 
   const signerMap = await promiseObjAll(
     multiProvider.map(async (_, dc) => dc.signer!),
@@ -34,15 +41,9 @@ async function main() {
       return config;
     }),
   );
-  type Chains = keyof typeof addresses;
-  const contracts = buildContracts(addresses, helloWorldFactories) as ChainMap<
-    Chains,
-    HelloWorldContracts
-  >;
-  const app = new HelloWorldApp(contracts, multiProvider);
   const checker = new HelloWorldChecker(multiProvider, app, configMap);
   await checker.check();
   checker.expectEmpty();
 }
 
-main().then(console.log).catch(console.error);
+main().then().catch(console.error);

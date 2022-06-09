@@ -1,3 +1,5 @@
+import path from 'path';
+
 import {
   HelloWorldConfig,
   HelloWorldDeployer,
@@ -9,7 +11,9 @@ import {
   serializeContracts,
 } from '@abacus-network/sdk';
 
-import { getCoreEnvironmentConfig } from './utils';
+import { writeJSON } from '../src/utils/utils';
+
+import { getCoreEnvironmentConfig, getEnvironmentDirectory } from './utils';
 
 async function main() {
   const environment = 'testnet2';
@@ -31,10 +35,8 @@ async function main() {
 
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
   const contracts = await deployer.deploy();
-  console.log('===helloworld addresses===');
-  console.log(serializeContracts(contracts));
-  console.log('===helloworld verification===');
-  console.log(JSON.stringify(deployer.verificationInputs));
+  const dir = path.join(getEnvironmentDirectory(environment), 'helloworld');
+  writeJSON(dir, 'addresses.json', serializeContracts(contracts));
 }
 
 main().then(console.log).catch(console.error);
