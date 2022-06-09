@@ -78,35 +78,33 @@ where
         T: Debug + Serialize + Send + Sync,
         R: DeserializeOwned,
     {
+        const BACKOFF_MILLIS: u64 = 100;
         let mut errors = vec![];
 
         let params = serde_json::to_value(params).expect("valid");
 
         for i in 0..self.max_requests {
-            let backoff_seconds = 2u64.pow(i as u32);
-            {
-                debug!(attempt = i, "Dispatching request");
+            debug!(attempt = i, "Dispatching request");
 
-                let fut = match params {
-                    Value::Null => self.inner.request(method, ()),
-                    _ => self.inner.request(method, &params),
-                };
+            let fut = match params {
+                Value::Null => self.inner.request(method, ()),
+                _ => self.inner.request(method, &params),
+            };
 
-                match fut.await {
-                    Ok(res) => return Ok(res),
-                    Err(e) => {
-                        warn!(
-                            backoff_seconds,
-                            retries_remaining = self.max_requests - i - 1,
-                            error = %e,
-                            method = %method,
-                            "Error in retrying provider",
-                        );
-                        errors.push(e);
-                    }
+            match fut.await {
+                Ok(res) => return Ok(res),
+                Err(e) => {
+                    warn!(
+                        BACKOFF_MILLIS,
+                        retries_remaining = self.max_requests - i - 1,
+                        error = %e,
+                        method = %method,
+                        "Error in retrying provider",
+                    );
+                    errors.push(e);
                 }
             }
-            sleep(Duration::from_secs(backoff_seconds)).await;
+            sleep(Duration::from_millis(BACKOFF_MILLIS)).await;
         }
 
         return Err(RetryingProviderError::MaxRequests(errors));
@@ -120,6 +118,6 @@ where
     type Err = <P as FromStr>::Err;
 
     fn from_str(src: &str) -> Result<Self, Self::Err> {
-        Ok(Self::new(src.parse()?, 6))
+        Ok(Self::new(src.parse()?, 2))
     }
 }
