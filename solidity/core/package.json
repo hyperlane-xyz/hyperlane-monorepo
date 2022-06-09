@@ -45,7 +45,7 @@
     "build": "hardhat compile && tsc",
     "clean": "hardhat clean",
     "coverage": "hardhat coverage",
-    "prettier": "prettier --write ./contracts ./libs ./test",
+    "prettier": "prettier --write ./contracts ./interfaces ./test",
     "test": "hardhat test"
   },
   "types": "dist/index.d.ts"
