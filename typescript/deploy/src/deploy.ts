@@ -108,6 +108,9 @@ export abstract class AbacusDeployer<
       implementation.address,
       ubcAddress,
     );
+    // Wait for the beacon to be deployed so that the proxy
+    // constructor is happy.
+    await beacon.deployTransaction.wait(chainConnection.confirmations);
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
