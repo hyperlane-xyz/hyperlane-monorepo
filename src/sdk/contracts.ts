@@ -1,25 +1,10 @@
-import {
-  AbacusContracts,
-  RouterAddresses,
-  routerFactories,
-} from '@abacus-network/sdk';
-import { HelloWorld__factory } from '../types';
+import { RouterContracts, RouterFactories } from '@abacus-network/sdk';
+import { HelloWorld, HelloWorld__factory } from '../types';
 
-export type HelloWorldAddresses = RouterAddresses;
+export type HelloWorldFactories = RouterFactories<HelloWorld>;
 
-export const helloWorldFactories = {
-  ...routerFactories,
-  router: HelloWorld__factory.connect,
+export const helloWorldFactories: HelloWorldFactories = {
+  router: new HelloWorld__factory(),
 };
 
-export type HelloWorldFactories = typeof helloWorldFactories;
-
-export class HelloWorldContracts extends AbacusContracts<
-  HelloWorldAddresses,
-  HelloWorldFactories
-> {
-  // necessary for factories be defined in the constructor
-  factories() {
-    return helloWorldFactories;
-  }
-}
+export type HelloWorldContracts = RouterContracts<HelloWorld>;

@@ -1,63 +1,79 @@
-import { ethers, abacus } from 'hardhat';
-import { expect } from 'chai';
+import { utils as deployUtils } from '@abacus-network/deploy';
+import '@abacus-network/hardhat';
+// TODO export TestCoreApp from @abacus-network/hardhat properly
+import { TestCoreApp } from '@abacus-network/hardhat/dist/src/TestCoreApp';
+// TODO export TestCoreDeploy from @abacus-network/hardhat properly
+import { TestCoreDeploy } from '@abacus-network/hardhat/dist/src/TestCoreDeploy';
+import { ChainNameToDomainId } from '@abacus-network/sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-
-import { HelloWorldDeploy } from './HelloWorldDeploy';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+import { getConfigMap, testConfigs } from '../src/deploy/config';
+import { HelloWorldDeployer } from '../src/deploy/deploy';
 import { HelloWorld } from '../src/types';
-import { BigNumber } from 'ethers';
-
-const localDomain = 1000;
-const remoteDomain = 2000;
-const domains = [localDomain, remoteDomain];
 
 describe('HelloWorld', async () => {
-  let signer: SignerWithAddress,
-    router: HelloWorld,
-    remote: HelloWorld,
-    helloWorld: HelloWorldDeploy;
+  const localChain = 'test1';
+  const remoteChain = 'test2';
+  const localDomain = ChainNameToDomainId[localChain];
+  const remoteDomain = ChainNameToDomainId[remoteChain];
+
+  let signer: SignerWithAddress;
+  let local: HelloWorld;
+  let remote: HelloWorld;
+  // TODO fix multiProvider type issues
+  let multiProvider: any; /*MultiProvider<TestChainNames>;*/
+  let coreApp: TestCoreApp;
 
   before(async () => {
     [signer] = await ethers.getSigners();
-    await abacus.deploy(domains, signer);
+
+    multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
+      testConfigs,
+      signer,
+    );
+
+    const coreDeployer = new TestCoreDeploy(multiProvider);
+    const coreContractsMaps = await coreDeployer.deploy();
+    coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
   });
 
   beforeEach(async () => {
-    const config = { signer };
-    helloWorld = new HelloWorldDeploy(config);
-    await helloWorld.deploy(abacus);
-    router = helloWorld.router(localDomain);
-    remote = helloWorld.router(remoteDomain);
-    expect(await router.sent()).to.equal(0);
-    expect(await router.received()).to.equal(0);
+    const helloWorld = new HelloWorldDeployer(
+      multiProvider,
+      getConfigMap(signer.address),
+      coreApp,
+    );
+    const contracts = await helloWorld.deploy();
+
+    local = contracts[localChain].router;
+    remote = contracts[remoteChain].router;
+
+    // The all counts start empty
+    expect(await local.sent()).to.equal(0);
+    expect(await local.received()).to.equal(0);
     expect(await remote.sent()).to.equal(0);
     expect(await remote.received()).to.equal(0);
   });
 
   it('sends a message', async () => {
-    await expect(router.sendHelloWorld(remoteDomain, 'Hello')).to.emit(
-      abacus.outbox(localDomain),
-      'Dispatch',
+    await expect(local.sendHelloWorld(remoteDomain, 'Hello')).to.emit(
+      local,
+      'SentHelloWorld',
     );
-    expect(await router.sent()).to.equal(1);
-    expect(await router.sentTo(remoteDomain)).to.equal(1);
-    expect(await router.received()).to.equal(0);
-  });
-
-  it('pays interchain gas', async () => {
-    const gasPayment = BigNumber.from('1000');
-    await expect(
-      router.sendHelloWorld(remoteDomain, 'World', {
-        value: gasPayment,
-      }),
-    ).to.emit(abacus.interchainGasPaymaster(localDomain), 'GasPayment');
+    // The sent counts are correct
+    expect(await local.sent()).to.equal(1);
+    expect(await local.sentTo(remoteDomain)).to.equal(1);
+    // The received counts are correct
+    expect(await local.received()).to.equal(0);
   });
 
   it('handles a message', async () => {
-    await router.sendHelloWorld(remoteDomain, 'World');
+    await local.sendHelloWorld(remoteDomain, 'World');
     // Mock processing of the message by Abacus
-    await abacus.processOutboundMessages(localDomain);
+    await coreApp.processOutboundMessages(localChain);
     // The initial message has been dispatched.
-    expect(await router.sent()).to.equal(1);
+    expect(await local.sent()).to.equal(1);
     // The initial message has been processed.
     expect(await remote.received()).to.equal(1);
     expect(await remote.receivedFrom(localDomain)).to.equal(1);

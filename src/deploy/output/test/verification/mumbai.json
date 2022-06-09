@@ -1,8 +1,0 @@
-[
-  {
-    "name": "HelloWorld",
-    "address": "0xF8e31cb472bc70500f08Cd84917E5A1912Ec8397",
-    "constructorArguments": ["0xb7278A61aa25c888815aFC32Ad3cC52fF24fE575"],
-    "isProxy": false
-  }
-]

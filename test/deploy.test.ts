@@ -1,69 +1,59 @@
-import path from 'path';
+import { utils } from '@abacus-network/deploy';
+// TODO export TestCoreApp from @abacus-network/hardhat properly
+import { TestCoreApp } from '@abacus-network/hardhat/dist/src/TestCoreApp';
+// TODO export TestCoreDeploy from @abacus-network/hardhat properly
+import { TestCoreDeploy } from '@abacus-network/hardhat/dist/src/TestCoreDeploy';
+import { MultiProvider, TestChainNames } from '@abacus-network/sdk';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
-import { utils } from '@abacus-network/deploy';
-
-import { HelloWorldAddresses, HelloWorldApp } from '../src';
-import { HelloWorldChecker, HelloWorldDeployer } from '../src/deploy';
-import { configs } from '../src/deploy/networks';
-import { AbacusCore } from '@abacus-network/sdk';
+import { HelloWorldChecker } from '../src/deploy/check';
+import { getConfigMap, testConfigs } from '../src/deploy/config';
+import { HelloWorldDeployer } from '../src/deploy/deploy';
+import { HelloWorldApp } from '../src/sdk/app';
+import { HelloWorldContracts } from '../src/sdk/contracts';
 
 describe('deploy', async () => {
-  type TestNetworks = 'test1' | 'test2' | 'test3';
-  let deployer: HelloWorldDeployer<TestNetworks>;
-  let addresses: Record<TestNetworks, HelloWorldAddresses>;
-  let core: AbacusCore<TestNetworks>;
+  let multiProvider: MultiProvider<TestChainNames>;
+  let core: TestCoreApp;
+  let deployer: HelloWorldDeployer<TestChainNames>;
+  let contracts: Record<TestChainNames, HelloWorldContracts>;
+  let app: HelloWorldApp<TestChainNames>;
 
   before(async () => {
-    const transactionConfigs = {
-      test1: configs.test1,
-      test2: configs.test2,
-      test3: configs.test3,
-    };
     const [signer] = await ethers.getSigners();
-    const multiProvider = utils.getMultiProviderFromConfigAndSigner(
-      transactionConfigs,
+    multiProvider = utils.getMultiProviderFromConfigAndSigner(
+      testConfigs,
       signer,
     );
-    core = AbacusCore.fromEnvironment('test', multiProvider);
+
+    const coreDeployer = new TestCoreDeploy(multiProvider);
+    const coreContractsMaps = await coreDeployer.deploy();
+    core = new TestCoreApp(coreContractsMaps, multiProvider);
+
     deployer = new HelloWorldDeployer(
       multiProvider,
-      { owner: signer.address },
+      getConfigMap(signer.address),
       core,
     );
   });
 
   it('deploys', async () => {
-    addresses = await deployer.deploy();
+    contracts = await deployer.deploy();
   });
 
-  it('writes', async () => {
-    const base = './test/outputs/yo';
-    deployer.writeVerification(path.join(base, 'verification'));
-    deployer.writeContracts(addresses, path.join(base, 'contracts.ts'));
+  it('builds app', async () => {
+    contracts = await deployer.deploy();
+    app = new HelloWorldApp(contracts, multiProvider);
   });
 
   it('checks', async () => {
-    const transactionConfigs = {
-      test1: configs.test1,
-      test2: configs.test2,
-      test3: configs.test3,
-    };
     const [signer] = await ethers.getSigners();
-    const multiProvider = utils.getMultiProviderFromConfigAndSigner(
-      transactionConfigs,
-      signer,
-    );
-    const app = HelloWorldApp.fromNetworkAddresses<TestNetworks>(
-      addresses,
+
+    const checker = new HelloWorldChecker(
       multiProvider,
-      core,
+      app,
+      getConfigMap(signer.address),
     );
-    const checker = new HelloWorldChecker(multiProvider, app, {
-      test1: { owner: signer.address },
-      test2: { owner: signer.address },
-      test3: { owner: signer.address },
-    });
     await checker.check();
     checker.expectEmpty();
   });

@@ -1,16 +1,14 @@
 import { AbacusRouterChecker } from '@abacus-network/deploy';
 import { ChainName } from '@abacus-network/sdk';
-import { HelloWorldApp } from '../sdk';
-import { HelloWorldConfig } from '../sdk/types';
+import { HelloWorldApp } from '../sdk/app';
+import { HelloWorldContracts } from '../sdk/contracts';
+import { HelloWorldConfig } from './config';
 
 export class HelloWorldChecker<
-  Networks extends ChainName,
+  Chain extends ChainName,
 > extends AbacusRouterChecker<
-  Networks,
-  HelloWorldApp<Networks>,
+  Chain,
+  HelloWorldContracts,
+  HelloWorldApp<Chain>,
   HelloWorldConfig
-> {
-  mustGetRouter(network: Networks) {
-    return this.app.getContracts(network).router;
-  }
-}
+> {}

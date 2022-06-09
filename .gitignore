@@ -5,6 +5,7 @@ coverage.json
 dist/
 node_modules/
 src/types/
+src/deploy/output
 test/outputs/
 *.swp
 .yarn/install-state.gz

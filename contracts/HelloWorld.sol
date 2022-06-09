@@ -34,16 +34,6 @@ contract HelloWorld is Router {
         string message
     );
 
-    // ============ Constructor ============
-
-    constructor() {}
-
-    // ============ Initializer ============
-
-    function initialize(address _abacusConnectionManager) external initializer {
-        __Router_initialize(_abacusConnectionManager);
-    }
-
     // ============ External functions ============
 
     /**
@@ -57,11 +47,7 @@ contract HelloWorld is Router {
     {
         sent += 1;
         sentTo[_destinationDomain] += 1;
-        _dispatchWithGasAndCheckpoint(
-            _destinationDomain,
-            bytes(_message),
-            msg.value
-        );
+        _dispatchWithGas(_destinationDomain, bytes(_message), msg.value);
         emit SentHelloWorld(_localDomain(), _destinationDomain, _message);
     }
 
