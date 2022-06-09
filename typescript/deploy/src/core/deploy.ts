@@ -24,6 +24,8 @@ import { types } from '@abacus-network/utils';
 
 import { AbacusDeployer } from '../deploy';
 
+import debug = require('debug');
+
 export type ValidatorManagerConfig = {
   validators: Array<types.Address>;
   threshold: number;
@@ -46,10 +48,13 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     configMap: ChainMap<Chain, CoreConfig>,
     factoriesOverride = coreFactories,
   ) {
-    super(multiProvider, configMap, factoriesOverride);
+    super(multiProvider, configMap, factoriesOverride, {
+      logger: debug('abacus:CoreDeployer'),
+    });
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
+  // override return type for inboxes shape derived from chain
   async deploy(): Promise<CoreContractsMap<Chain>> {
     return super.deploy() as Promise<CoreContractsMap<Chain>>;
   }

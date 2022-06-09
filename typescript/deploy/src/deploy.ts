@@ -96,13 +96,14 @@ export abstract class AbacusDeployer<
     ubcAddress: types.Address,
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const signer = chainConnection.signer;
     const implementation = await this.deployContract<K>(
       chain,
       contractName,
       deployArgs,
     );
+    this.logger(`Proxy ${contractName.toString()} on ${chain}`);
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const signer = chainConnection.signer;
     const beacon = await new UpgradeBeacon__factory(signer).deploy(
       implementation.address,
       ubcAddress,
@@ -135,6 +136,7 @@ export abstract class AbacusDeployer<
     proxy: ProxiedContract<C, BeaconProxyAddresses>,
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
+    this.logger(`Duplicate Proxy on ${chain}`);
     const signer = this.multiProvider.getChainConnection(chain).signer!;
     const initData = proxy.contract.interface.encodeFunctionData(
       'initialize',
