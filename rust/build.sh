@@ -1,6 +1,6 @@
 TAG=$1
 if [[ -z $TAG ]]; then
-  TAG=$(git rev-parse HEAD)
+  TAG="sha-$(git rev-parse --short HEAD)"
   echo "Defaulting to tag $TAG"
 
   if [[ ! -z $(git status -s) ]]; then
