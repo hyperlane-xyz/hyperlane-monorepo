@@ -17,7 +17,7 @@ use abacus_core::AbacusMessage;
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
 ///
-/// 4-tuple in the form `(sourceAddress, sourceDomain, destinationAddress, destinationDomain)`.
+/// 4-tuple in the form `(sourceDomain, sourceAddress, destinationDomain, destinationAddress)`.
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(transparent)]
 pub struct Whitelist(Option<Vec<WhitelistElement>>);
@@ -159,47 +159,47 @@ impl<'de> Deserialize<'de> for Filter<H256> {
     }
 }
 
-/// The tuple of (sourceAddress, sourceDomain, destinationAddress, destinationDomain).
-type FilterTuple = (Filter<H256>, Filter<u32>, Filter<H256>, Filter<u32>);
+/// The tuple of (sourceDomain, sourceAddress, destinationDomain, destinationAddress).
+type FilterTuple = (Filter<u32>, Filter<H256>, Filter<u32>, Filter<H256>);
 
 #[derive(Debug, Deserialize, Clone)]
 #[serde(tag = "type", rename_all = "camelCase", from = "FilterTuple")]
 struct WhitelistElement {
-    source_address: Filter<H256>,
     source_domain: Filter<u32>,
-    destination_address: Filter<H256>,
+    source_address: Filter<H256>,
     destination_domain: Filter<u32>,
+    destination_address: Filter<H256>,
 }
 
 impl From<FilterTuple> for WhitelistElement {
     fn from(tup: FilterTuple) -> Self {
         Self {
-            source_address: tup.0,
-            source_domain: tup.1,
-            destination_address: tup.2,
-            destination_domain: tup.3,
+            source_domain: tup.0,
+            source_address: tup.1,
+            destination_domain: tup.2,
+            destination_address: tup.3,
         }
     }
 }
 
 impl Whitelist {
     pub fn msg_matches(&self, msg: &AbacusMessage) -> bool {
-        self.matches(&msg.sender, msg.origin, &msg.recipient, msg.destination)
+        self.matches(msg.origin, &msg.sender, msg.destination, &msg.recipient)
     }
 
     pub fn matches(
         &self,
-        src_addr: &H256,
         src_domain: u32,
-        dst_addr: &H256,
+        src_addr: &H256,
         dst_domain: u32,
+        dst_addr: &H256,
     ) -> bool {
         if let Some(rules) = &self.0 {
             rules.iter().any(|rule| {
-                rule.source_address.matches(src_addr)
-                    && rule.source_domain.matches(&src_domain)
-                    && rule.destination_address.matches(dst_addr)
+                rule.source_domain.matches(&src_domain)
+                    && rule.source_address.matches(src_addr)
                     && rule.destination_domain.matches(&dst_domain)
+                    && rule.destination_address.matches(dst_addr)
             })
         } else {
             // by default if there is no whitelist, allow everything
