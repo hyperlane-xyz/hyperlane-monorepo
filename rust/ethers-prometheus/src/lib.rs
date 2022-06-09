@@ -406,13 +406,13 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
                 .set(height);
         }
         if let Some(gas_price_gwei) = gas_price_gwei {
-            let gas = if let Some(london_fee) = current_block.base_fee_per_gas {
-                u256_as_scaled_f64(london_fee, 18) * 1e9
+            if let Some(london_fee) = current_block.base_fee_per_gas {
+                let gas = u256_as_scaled_f64(london_fee, 18) * 1e9;
+                trace!("Gas price for chain {chain} is {gas:.1}gwei");
+                gas_price_gwei.with(&hashmap! { "chain" => chain }).set(gas);
             } else {
-                todo!("Pre-london gas calculation is not currently supported.")
-            };
-            trace!("Gas price for chain {chain} is {gas:.1}gwei");
-            gas_price_gwei.with(&hashmap! { "chain" => chain }).set(gas);
+                trace!("Gas price for chain {chain} unknown, chain is pre-london");
+            }
         }
     }
 
