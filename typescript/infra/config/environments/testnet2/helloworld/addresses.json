@@ -5,5 +5,5 @@
     "mumbai": { "router": "0x0a71AcC99967829eE305a285750017C4916Ca269" },
     "bsctestnet": { "router": "0x711166cE892CBa0Fc01FdD74cFBE73b027678e15" },
     "arbitrumrinkeby": { "router": "0xcCcC2A71810f9D16770F8062dccc47f7F7C7bA2E" },
-    "optimismkovan": { "router": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB" },
+    "optimismkovan": { "router": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB" }
 }
