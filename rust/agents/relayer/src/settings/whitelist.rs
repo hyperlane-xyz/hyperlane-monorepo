@@ -9,8 +9,8 @@ use serde::{Deserialize, Deserializer};
 
 use abacus_core::AbacusMessage;
 
-/// Whitelist defining which messages should be published. If no wishlist is provided ALL
-/// messages will be published.
+/// Whitelist defining which messages should be relayed. If no wishlist is provided ALL
+/// messages will be relayed.
 ///
 /// Valid options for each of the tuple elements are
 /// - wildcard "*"
