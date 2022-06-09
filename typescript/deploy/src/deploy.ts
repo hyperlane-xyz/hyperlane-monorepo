@@ -199,7 +199,6 @@ export abstract class AbacusDeployer<
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
     this.logger(`Duplicate Proxy on ${chain}`);
-    const chainConnection = this.multiProvider.getChainConnection(chain);
     const signer = this.multiProvider.getChainConnection(chain).signer!;
     const initData = proxy.contract.interface.encodeFunctionData(
       'initialize',
