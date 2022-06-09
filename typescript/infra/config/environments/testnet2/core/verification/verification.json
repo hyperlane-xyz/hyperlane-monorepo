@@ -29,9 +29,7 @@
     {
       "name": "outbox",
       "address": "0x9095fDae1977A5fa61877FD44f307f7aDcBF9A0d",
-      "constructorArguments": [
-        1000
-      ],
+      "constructorArguments": [1000],
       "isProxy": false
     },
     {
@@ -51,9 +49,7 @@
     {
       "name": "inbox",
       "address": "0x09a7167BD6d44Ba500f77dd45C693443C4d7dEC0",
-      "constructorArguments": [
-        1000
-      ],
+      "constructorArguments": [1000],
       "isProxy": false
     },
     {
@@ -157,9 +153,7 @@
     {
       "name": "outbox",
       "address": "0xFF214d77Ac42592b6E44B8d6C7c70565D5d72AB9",
-      "constructorArguments": [
-        3000
-      ],
+      "constructorArguments": [3000],
       "isProxy": false
     },
     {
@@ -179,9 +173,7 @@
     {
       "name": "inbox",
       "address": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
-      "constructorArguments": [
-        3000
-      ],
+      "constructorArguments": [3000],
       "isProxy": false
     },
     {
@@ -285,9 +277,7 @@
     {
       "name": "outbox",
       "address": "0x71B1BF7C99BEef0545eAFf441372cb6413d9367c",
-      "constructorArguments": [
-        43113
-      ],
+      "constructorArguments": [43113],
       "isProxy": false
     },
     {
@@ -307,9 +297,7 @@
     {
       "name": "inbox",
       "address": "0x657A78E8c129Ee54105151FD03cc295f3470A235",
-      "constructorArguments": [
-        43113
-      ],
+      "constructorArguments": [43113],
       "isProxy": false
     },
     {
@@ -413,9 +401,7 @@
     {
       "name": "outbox",
       "address": "0x5310F977D29ae0Cf14eC000b5dbDF9734499Be4E",
-      "constructorArguments": [
-        80001
-      ],
+      "constructorArguments": [80001],
       "isProxy": false
     },
     {
@@ -435,9 +421,7 @@
     {
       "name": "inbox",
       "address": "0xfBe9FEE52abe170Ef4e1dc0CECF4409Dcd2AA4a7",
-      "constructorArguments": [
-        80001
-      ],
+      "constructorArguments": [80001],
       "isProxy": false
     },
     {
@@ -541,9 +525,7 @@
     {
       "name": "outbox",
       "address": "0x7740342863717e26E3d5B828639834ADfce8a061",
-      "constructorArguments": [
-        1651715444
-      ],
+      "constructorArguments": [1651715444],
       "isProxy": false
     },
     {
@@ -563,9 +545,7 @@
     {
       "name": "inbox",
       "address": "0x062dF6670d8F4E1dB8C1caaFf590e9c290147bba",
-      "constructorArguments": [
-        1651715444
-      ],
+      "constructorArguments": [1651715444],
       "isProxy": false
     },
     {
@@ -669,9 +649,7 @@
     {
       "name": "outbox",
       "address": "0x6C3132f78260EdD1cE88Ea4FeEB8C2D6309ecc75",
-      "constructorArguments": [
-        1634872690
-      ],
+      "constructorArguments": [1634872690],
       "isProxy": false
     },
     {
@@ -691,9 +669,7 @@
     {
       "name": "inbox",
       "address": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
-      "constructorArguments": [
-        1634872690
-      ],
+      "constructorArguments": [1634872690],
       "isProxy": false
     },
     {
@@ -797,9 +773,7 @@
     {
       "name": "outbox",
       "address": "0xB261C52241E133f957630AeeFEd48a82963AC33e",
-      "constructorArguments": [
-        1869622635
-      ],
+      "constructorArguments": [1869622635],
       "isProxy": false
     },
     {
@@ -819,9 +793,7 @@
     {
       "name": "inbox",
       "address": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
-      "constructorArguments": [
-        1869622635
-      ],
+      "constructorArguments": [1869622635],
       "isProxy": false
     },
     {
