@@ -1,0 +1,898 @@
+{
+  "alfajores": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x15e07BD101dfB4e8C2D0B368AbFeE3524e541277",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "abacusConnectionManager",
+      "address": "0xc41169650335Ad274157Ea5116Cdf227430A68a3",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "outboxValidatorManager",
+      "address": "0xEB25e6e42B743a815E5C0409007993a828a0565f",
+      "constructorArguments": [
+        1000,
+        [
+          "0x7716860b2bE4079137Dc21533Ac6d26A99d76E83",
+          "0xB476F4D55d640e9a9a43b9bdF471DC06e4508BBD",
+          "0xda63918DD964C0D7c59A04062bffe0Fba8EdAf1c"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "outbox",
+      "address": "0x9095fDae1977A5fa61877FD44f307f7aDcBF9A0d",
+      "constructorArguments": [
+        1000
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x6B3fA33fE951D5b2Dca82B64aD4c283187FD881D",
+      "constructorArguments": [
+        3000,
+        [
+          "0x1eE94e776cBE4BF74D2F80daE551758eFbC21887",
+          "0xF2AF10d9fd08eEad8C6724a7feB679b5c900a38C",
+          "0xF3B7d58aCFbff1FD64F173607101f611034E4f5F"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inbox",
+      "address": "0x09a7167BD6d44Ba500f77dd45C693443C4d7dEC0",
+      "constructorArguments": [
+        1000
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x793b4c911362c8900372cE6Da5f9dA96457E8c1B",
+      "constructorArguments": [
+        43113,
+        [
+          "0xc0Ab1F3e3317521A92462927849b8844cF408B09",
+          "0xefdE1812FEa378c645d8e7984CE985B228cD1bEb",
+          "0xB17F4f63e09c0A9207E2f008977e3f5B5584875D"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x50d45EEe9C2903Ad204d393F5411Aa75A6CB02c4",
+      "constructorArguments": [
+        80001,
+        [
+          "0x0f1a231CB2ecc5f26696c433D76fE59521a227e0",
+          "0x3e527087FC60752695d9A4f77A6324Bbae3940b1",
+          "0x62Afdaed75bDFD94e0D6103EB0333669D4f5d232"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x0AfCCF2ffc1D7A42b3F8616C4270Da27f2729F5F",
+      "constructorArguments": [
+        1651715444,
+        [
+          "0xA7959B2f03F6fc77C9592547Bd0ca12FE2C7bF8F",
+          "0xC78C1198d4224103DBb0e365286c3403c54fbBf6",
+          "0x453Da5C773e829Aa4F61BE9baD64Aa5eaaEF000a"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x0d772404D3a6De86F7263D82E055686f73f55Ba8",
+      "constructorArguments": [
+        1634872690,
+        [
+          "0xF5a871BCb9d6dfA2d3519CaF396e7aB3c5A7A2Ee",
+          "0xA6773fC38b023A512106e104a4F2Cad2e68d802D",
+          "0x42F7b994720463EFF351186F83D683EfA5e2ED49"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xAf4778deef817E02c63076d803D687596067179d",
+      "constructorArguments": [
+        1869622635,
+        [
+          "0xEF0d7bBB9C71FEF7dc148722060aFD78d0FF09d8",
+          "0x8e64Ff3936AEadACc23A76cf2C96466927Ed758f",
+          "0x13A3CD962CE99D6a6509f8D5b63A4498db329323"
+        ],
+        2
+      ],
+      "isProxy": false
+    }
+  ],
+  "kovan": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x38030040C09B213ec47F121c9B8a396D7FC2636b",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "abacusConnectionManager",
+      "address": "0xfA1fBF362144ae1bEf2E33409948dA1FB812bb41",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "outboxValidatorManager",
+      "address": "0x81e53D200FAB5eFfaC369D9255d82EFe4A2d43bF",
+      "constructorArguments": [
+        3000,
+        [
+          "0x1eE94e776cBE4BF74D2F80daE551758eFbC21887",
+          "0xF2AF10d9fd08eEad8C6724a7feB679b5c900a38C",
+          "0xF3B7d58aCFbff1FD64F173607101f611034E4f5F"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "outbox",
+      "address": "0xFF214d77Ac42592b6E44B8d6C7c70565D5d72AB9",
+      "constructorArguments": [
+        3000
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x4b6fb57de2DE643bEFBa13F46149A765FCd2DD09",
+      "constructorArguments": [
+        1000,
+        [
+          "0x7716860b2bE4079137Dc21533Ac6d26A99d76E83",
+          "0xB476F4D55d640e9a9a43b9bdF471DC06e4508BBD",
+          "0xda63918DD964C0D7c59A04062bffe0Fba8EdAf1c"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inbox",
+      "address": "0x1b530F53fa7aeb2E36FD76DCc951908DBFc8c460",
+      "constructorArguments": [
+        3000
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x506aDc3Ff4E70da42BB9Fc5ca9fa4A89f30D64a4",
+      "constructorArguments": [
+        43113,
+        [
+          "0xc0Ab1F3e3317521A92462927849b8844cF408B09",
+          "0xefdE1812FEa378c645d8e7984CE985B228cD1bEb",
+          "0xB17F4f63e09c0A9207E2f008977e3f5B5584875D"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x17Dc724B7a2F09141C13b8AC33B396073785c2BC",
+      "constructorArguments": [
+        80001,
+        [
+          "0x0f1a231CB2ecc5f26696c433D76fE59521a227e0",
+          "0x3e527087FC60752695d9A4f77A6324Bbae3940b1",
+          "0x62Afdaed75bDFD94e0D6103EB0333669D4f5d232"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x1710F4F05955da2645CE8E5B6AaEfa6A2109F030",
+      "constructorArguments": [
+        1651715444,
+        [
+          "0xA7959B2f03F6fc77C9592547Bd0ca12FE2C7bF8F",
+          "0xC78C1198d4224103DBb0e365286c3403c54fbBf6",
+          "0x453Da5C773e829Aa4F61BE9baD64Aa5eaaEF000a"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xce25Bc319913BE39d1469ab6c4f0443d94d96d81",
+      "constructorArguments": [
+        1634872690,
+        [
+          "0xF5a871BCb9d6dfA2d3519CaF396e7aB3c5A7A2Ee",
+          "0xA6773fC38b023A512106e104a4F2Cad2e68d802D",
+          "0x42F7b994720463EFF351186F83D683EfA5e2ED49"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x8705bc838b7EB06FB330CaA1e807CDFCe52Be2b6",
+      "constructorArguments": [
+        1869622635,
+        [
+          "0xEF0d7bBB9C71FEF7dc148722060aFD78d0FF09d8",
+          "0x8e64Ff3936AEadACc23A76cf2C96466927Ed758f",
+          "0x13A3CD962CE99D6a6509f8D5b63A4498db329323"
+        ],
+        2
+      ],
+      "isProxy": false
+    }
+  ],
+  "fuji": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x97Bbc6bBaFa5Ce3b2FA966c121Af63bD09e940f8",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "abacusConnectionManager",
+      "address": "0x33AbaF6708be03Bdf0595DA0745A7111b01dB8c7",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "outboxValidatorManager",
+      "address": "0x41e1799D0249FbB3Fc9e467b813b7479c96a3Ec3",
+      "constructorArguments": [
+        43113,
+        [
+          "0xc0Ab1F3e3317521A92462927849b8844cF408B09",
+          "0xefdE1812FEa378c645d8e7984CE985B228cD1bEb",
+          "0xB17F4f63e09c0A9207E2f008977e3f5B5584875D"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "outbox",
+      "address": "0x71B1BF7C99BEef0545eAFf441372cb6413d9367c",
+      "constructorArguments": [
+        43113
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x4904f38433583f0F72609C0bb8788d3296bd0E3B",
+      "constructorArguments": [
+        1000,
+        [
+          "0x7716860b2bE4079137Dc21533Ac6d26A99d76E83",
+          "0xB476F4D55d640e9a9a43b9bdF471DC06e4508BBD",
+          "0xda63918DD964C0D7c59A04062bffe0Fba8EdAf1c"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inbox",
+      "address": "0x657A78E8c129Ee54105151FD03cc295f3470A235",
+      "constructorArguments": [
+        43113
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x892D9cD6D2DB86a15863b4EA1431F77330b23FDf",
+      "constructorArguments": [
+        3000,
+        [
+          "0x1eE94e776cBE4BF74D2F80daE551758eFbC21887",
+          "0xF2AF10d9fd08eEad8C6724a7feB679b5c900a38C",
+          "0xF3B7d58aCFbff1FD64F173607101f611034E4f5F"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x5e976f063FbE35d29d6E575f8ee504e59D19fcc6",
+      "constructorArguments": [
+        80001,
+        [
+          "0x0f1a231CB2ecc5f26696c433D76fE59521a227e0",
+          "0x3e527087FC60752695d9A4f77A6324Bbae3940b1",
+          "0x62Afdaed75bDFD94e0D6103EB0333669D4f5d232"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x15569bE4B03593A9eA93Bd519bB74928B1eF5fB2",
+      "constructorArguments": [
+        1651715444,
+        [
+          "0xA7959B2f03F6fc77C9592547Bd0ca12FE2C7bF8F",
+          "0xC78C1198d4224103DBb0e365286c3403c54fbBf6",
+          "0x453Da5C773e829Aa4F61BE9baD64Aa5eaaEF000a"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x71775B071F77F1ce52Ece810ce084451a3045FFe",
+      "constructorArguments": [
+        1634872690,
+        [
+          "0xF5a871BCb9d6dfA2d3519CaF396e7aB3c5A7A2Ee",
+          "0xA6773fC38b023A512106e104a4F2Cad2e68d802D",
+          "0x42F7b994720463EFF351186F83D683EfA5e2ED49"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x6f2756380FD49228ae25Aa7F2817993cB74Ecc56",
+      "constructorArguments": [
+        1869622635,
+        [
+          "0xEF0d7bBB9C71FEF7dc148722060aFD78d0FF09d8",
+          "0x8e64Ff3936AEadACc23A76cf2C96466927Ed758f",
+          "0x13A3CD962CE99D6a6509f8D5b63A4498db329323"
+        ],
+        2
+      ],
+      "isProxy": false
+    }
+  ],
+  "mumbai": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0xC81e6D1070aFA48DA4e4f35E744CC1aE43532a10",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "abacusConnectionManager",
+      "address": "0xb636B2c65A75d41F0dBe98fB33eb563d245a241a",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "outboxValidatorManager",
+      "address": "0x5c8cC5d94a7F84893e155457E4C1244f6e2B7F8D",
+      "constructorArguments": [
+        80001,
+        [
+          "0x0f1a231CB2ecc5f26696c433D76fE59521a227e0",
+          "0x3e527087FC60752695d9A4f77A6324Bbae3940b1",
+          "0x62Afdaed75bDFD94e0D6103EB0333669D4f5d232"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "outbox",
+      "address": "0x5310F977D29ae0Cf14eC000b5dbDF9734499Be4E",
+      "constructorArguments": [
+        80001
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x99A42d6Bf191127667f55297Af0259708bd8c59e",
+      "constructorArguments": [
+        1000,
+        [
+          "0x7716860b2bE4079137Dc21533Ac6d26A99d76E83",
+          "0xB476F4D55d640e9a9a43b9bdF471DC06e4508BBD",
+          "0xda63918DD964C0D7c59A04062bffe0Fba8EdAf1c"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inbox",
+      "address": "0xfBe9FEE52abe170Ef4e1dc0CECF4409Dcd2AA4a7",
+      "constructorArguments": [
+        80001
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x2b51361F4E49A78b57b5561d87Cb49784c1720A6",
+      "constructorArguments": [
+        3000,
+        [
+          "0x1eE94e776cBE4BF74D2F80daE551758eFbC21887",
+          "0xF2AF10d9fd08eEad8C6724a7feB679b5c900a38C",
+          "0xF3B7d58aCFbff1FD64F173607101f611034E4f5F"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xd09D08a19C6609a1B51e1ca6a055861E7e7A4400",
+      "constructorArguments": [
+        43113,
+        [
+          "0xc0Ab1F3e3317521A92462927849b8844cF408B09",
+          "0xefdE1812FEa378c645d8e7984CE985B228cD1bEb",
+          "0xB17F4f63e09c0A9207E2f008977e3f5B5584875D"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x3572a9d808738922194921b275B2A55414BcDA57",
+      "constructorArguments": [
+        1651715444,
+        [
+          "0xA7959B2f03F6fc77C9592547Bd0ca12FE2C7bF8F",
+          "0xC78C1198d4224103DBb0e365286c3403c54fbBf6",
+          "0x453Da5C773e829Aa4F61BE9baD64Aa5eaaEF000a"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x26b1C86221dA5Fa24C508dCeD1C86749F2Bdf4F0",
+      "constructorArguments": [
+        1634872690,
+        [
+          "0xF5a871BCb9d6dfA2d3519CaF396e7aB3c5A7A2Ee",
+          "0xA6773fC38b023A512106e104a4F2Cad2e68d802D",
+          "0x42F7b994720463EFF351186F83D683EfA5e2ED49"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x4D40f433F2f89cBa4BB9D994FD18D8302C378D26",
+      "constructorArguments": [
+        1869622635,
+        [
+          "0xEF0d7bBB9C71FEF7dc148722060aFD78d0FF09d8",
+          "0x8e64Ff3936AEadACc23A76cf2C96466927Ed758f",
+          "0x13A3CD962CE99D6a6509f8D5b63A4498db329323"
+        ],
+        2
+      ],
+      "isProxy": false
+    }
+  ],
+  "bsctestnet": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x638A831b4d11Be6a72AcB97d1aE79DA05Ae9B1D3",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "abacusConnectionManager",
+      "address": "0xe403E16db1f5997bC62Dc611A8d42836364A7f01",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "outboxValidatorManager",
+      "address": "0xE0745955baF7e614707E22c90EA14d329C38941D",
+      "constructorArguments": [
+        1651715444,
+        [
+          "0xA7959B2f03F6fc77C9592547Bd0ca12FE2C7bF8F",
+          "0xC78C1198d4224103DBb0e365286c3403c54fbBf6",
+          "0x453Da5C773e829Aa4F61BE9baD64Aa5eaaEF000a"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "outbox",
+      "address": "0x7740342863717e26E3d5B828639834ADfce8a061",
+      "constructorArguments": [
+        1651715444
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x5B30De0c322F7720D144df2AB2e82b160Eba0EBF",
+      "constructorArguments": [
+        1000,
+        [
+          "0x7716860b2bE4079137Dc21533Ac6d26A99d76E83",
+          "0xB476F4D55d640e9a9a43b9bdF471DC06e4508BBD",
+          "0xda63918DD964C0D7c59A04062bffe0Fba8EdAf1c"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inbox",
+      "address": "0x062dF6670d8F4E1dB8C1caaFf590e9c290147bba",
+      "constructorArguments": [
+        1651715444
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xC9f8Ab1f8b5F58B09317b93c07BfF44e4c01E66F",
+      "constructorArguments": [
+        3000,
+        [
+          "0x1eE94e776cBE4BF74D2F80daE551758eFbC21887",
+          "0xF2AF10d9fd08eEad8C6724a7feB679b5c900a38C",
+          "0xF3B7d58aCFbff1FD64F173607101f611034E4f5F"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x6d6a9bDDea1456673062633b7a4823dB13bDB9fb",
+      "constructorArguments": [
+        43113,
+        [
+          "0xc0Ab1F3e3317521A92462927849b8844cF408B09",
+          "0xefdE1812FEa378c645d8e7984CE985B228cD1bEb",
+          "0xB17F4f63e09c0A9207E2f008977e3f5B5584875D"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xDa5177080f7fC5d9255eB32cC64B9b4e5136A716",
+      "constructorArguments": [
+        80001,
+        [
+          "0x0f1a231CB2ecc5f26696c433D76fE59521a227e0",
+          "0x3e527087FC60752695d9A4f77A6324Bbae3940b1",
+          "0x62Afdaed75bDFD94e0D6103EB0333669D4f5d232"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xd876C01aB40e8cE42Db417fBC79c726d45504dE4",
+      "constructorArguments": [
+        1634872690,
+        [
+          "0xF5a871BCb9d6dfA2d3519CaF396e7aB3c5A7A2Ee",
+          "0xA6773fC38b023A512106e104a4F2Cad2e68d802D",
+          "0x42F7b994720463EFF351186F83D683EfA5e2ED49"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xC60C145f1e1904f9d6483A611BF1416697CCc1FE",
+      "constructorArguments": [
+        1869622635,
+        [
+          "0xEF0d7bBB9C71FEF7dc148722060aFD78d0FF09d8",
+          "0x8e64Ff3936AEadACc23A76cf2C96466927Ed758f",
+          "0x13A3CD962CE99D6a6509f8D5b63A4498db329323"
+        ],
+        2
+      ],
+      "isProxy": false
+    }
+  ],
+  "arbitrumrinkeby": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0xA6cb9B457d1670bb5cDa4AAADA56a2d010E49bb9",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "abacusConnectionManager",
+      "address": "0xFb55597F07417b08195Ba674f4dd58aeC9B89FBB",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "outboxValidatorManager",
+      "address": "0x0E18b28D98C2efDb59252c021320F203305b1B66",
+      "constructorArguments": [
+        1634872690,
+        [
+          "0xF5a871BCb9d6dfA2d3519CaF396e7aB3c5A7A2Ee",
+          "0xA6773fC38b023A512106e104a4F2Cad2e68d802D",
+          "0x42F7b994720463EFF351186F83D683EfA5e2ED49"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "outbox",
+      "address": "0x6C3132f78260EdD1cE88Ea4FeEB8C2D6309ecc75",
+      "constructorArguments": [
+        1634872690
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x6202f54B22b72526dEC5364F6b7bE2bd0abEd8A6",
+      "constructorArguments": [
+        1000,
+        [
+          "0x7716860b2bE4079137Dc21533Ac6d26A99d76E83",
+          "0xB476F4D55d640e9a9a43b9bdF471DC06e4508BBD",
+          "0xda63918DD964C0D7c59A04062bffe0Fba8EdAf1c"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inbox",
+      "address": "0x3212977FBE6464c2bB60Fdb85ab0a5E06e25cdFB",
+      "constructorArguments": [
+        1634872690
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x8921Adb6B2e365545CCF3EDfc04a7199164e0E0e",
+      "constructorArguments": [
+        3000,
+        [
+          "0x1eE94e776cBE4BF74D2F80daE551758eFbC21887",
+          "0xF2AF10d9fd08eEad8C6724a7feB679b5c900a38C",
+          "0xF3B7d58aCFbff1FD64F173607101f611034E4f5F"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xE43CEb0771DB31C8658F446441F3d5F451b42954",
+      "constructorArguments": [
+        43113,
+        [
+          "0xc0Ab1F3e3317521A92462927849b8844cF408B09",
+          "0xefdE1812FEa378c645d8e7984CE985B228cD1bEb",
+          "0xB17F4f63e09c0A9207E2f008977e3f5B5584875D"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x5f2fFCF69c58AcA2b521690400756FAe8CC99117",
+      "constructorArguments": [
+        80001,
+        [
+          "0x0f1a231CB2ecc5f26696c433D76fE59521a227e0",
+          "0x3e527087FC60752695d9A4f77A6324Bbae3940b1",
+          "0x62Afdaed75bDFD94e0D6103EB0333669D4f5d232"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xa1C91dd4F3050DE9C4184BD8B4403A0C81D5463C",
+      "constructorArguments": [
+        1651715444,
+        [
+          "0xA7959B2f03F6fc77C9592547Bd0ca12FE2C7bF8F",
+          "0xC78C1198d4224103DBb0e365286c3403c54fbBf6",
+          "0x453Da5C773e829Aa4F61BE9baD64Aa5eaaEF000a"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x890eB21B76DCB165A1807cBE279f883716eA47D4",
+      "constructorArguments": [
+        1869622635,
+        [
+          "0xEF0d7bBB9C71FEF7dc148722060aFD78d0FF09d8",
+          "0x8e64Ff3936AEadACc23A76cf2C96466927Ed758f",
+          "0x13A3CD962CE99D6a6509f8D5b63A4498db329323"
+        ],
+        2
+      ],
+      "isProxy": false
+    }
+  ],
+  "optimismkovan": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0xc0Ce04851bF6Ea149fA06bf7a4808c9db81af189",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "abacusConnectionManager",
+      "address": "0x740bEd6E4eEc7c57a2818177Fba3f9E896D5DE1c",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "outboxValidatorManager",
+      "address": "0x45AEBD45B5Bb1C3A0bDBDf6094e8adA5712e1b74",
+      "constructorArguments": [
+        1869622635,
+        [
+          "0xEF0d7bBB9C71FEF7dc148722060aFD78d0FF09d8",
+          "0x8e64Ff3936AEadACc23A76cf2C96466927Ed758f",
+          "0x13A3CD962CE99D6a6509f8D5b63A4498db329323"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "outbox",
+      "address": "0xB261C52241E133f957630AeeFEd48a82963AC33e",
+      "constructorArguments": [
+        1869622635
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x413c74F3D034dB54A1ecfFbd0Ad74Cb25E59f579",
+      "constructorArguments": [
+        1000,
+        [
+          "0x7716860b2bE4079137Dc21533Ac6d26A99d76E83",
+          "0xB476F4D55d640e9a9a43b9bdF471DC06e4508BBD",
+          "0xda63918DD964C0D7c59A04062bffe0Fba8EdAf1c"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inbox",
+      "address": "0xE6C0740b6aB7C060e197a7bd2952A27bB219c62A",
+      "constructorArguments": [
+        1869622635
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x6916690816a1aE1F6D9163dA9e691124737B5f5b",
+      "constructorArguments": [
+        3000,
+        [
+          "0x1eE94e776cBE4BF74D2F80daE551758eFbC21887",
+          "0xF2AF10d9fd08eEad8C6724a7feB679b5c900a38C",
+          "0xF3B7d58aCFbff1FD64F173607101f611034E4f5F"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xe18Bc753aa53E938315f57B13EDB6E1b168f0d26",
+      "constructorArguments": [
+        43113,
+        [
+          "0xc0Ab1F3e3317521A92462927849b8844cF408B09",
+          "0xefdE1812FEa378c645d8e7984CE985B228cD1bEb",
+          "0xB17F4f63e09c0A9207E2f008977e3f5B5584875D"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xF78deCe5Cf97e1bd61C202A5ba1af33b87454878",
+      "constructorArguments": [
+        80001,
+        [
+          "0x0f1a231CB2ecc5f26696c433D76fE59521a227e0",
+          "0x3e527087FC60752695d9A4f77A6324Bbae3940b1",
+          "0x62Afdaed75bDFD94e0D6103EB0333669D4f5d232"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xFb55597F07417b08195Ba674f4dd58aeC9B89FBB",
+      "constructorArguments": [
+        1651715444,
+        [
+          "0xA7959B2f03F6fc77C9592547Bd0ca12FE2C7bF8F",
+          "0xC78C1198d4224103DBb0e365286c3403c54fbBf6",
+          "0x453Da5C773e829Aa4F61BE9baD64Aa5eaaEF000a"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0xe63844Ca06Ce8E6D4097Cb33E9b3d62704122307",
+      "constructorArguments": [
+        1634872690,
+        [
+          "0xF5a871BCb9d6dfA2d3519CaF396e7aB3c5A7A2Ee",
+          "0xA6773fC38b023A512106e104a4F2Cad2e68d802D",
+          "0x42F7b994720463EFF351186F83D683EfA5e2ED49"
+        ],
+        2
+      ],
+      "isProxy": false
+    }
+  ]
+}

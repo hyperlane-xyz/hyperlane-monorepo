@@ -1,0 +1,88 @@
+asaoines@Asas-MacBook-Pro infra % yarn ts-node scripts/core.ts -e testnet2
+  abacus:AppDeployer Start Deploy +0ms
+  abacus:AppDeployer Deploying to alfajores... +0ms
+  abacus:AppDeployer Deploy upgradeBeaconController on alfajores +230ms
+  abacus:AppDeployer Deploy abacusConnectionManager on alfajores +6s
+  abacus:AppDeployer Deploy outboxValidatorManager on alfajores +6s
+  abacus:AppDeployer Deploy outbox on alfajores +6s
+  abacus:AppDeployer Deploy inboxValidatorManager on alfajores +9s
+  abacus:AppDeployer Deploy inbox on alfajores +6s
+  abacus:AppDeployer Deploy inboxValidatorManager on alfajores +17s
+  abacus:AppDeployer Deploy inboxValidatorManager on alfajores +8s
+  abacus:AppDeployer Deploy inboxValidatorManager on alfajores +12s
+  abacus:AppDeployer Deploy inboxValidatorManager on alfajores +8s
+  abacus:AppDeployer Deploy inboxValidatorManager on alfajores +8s
+  abacus:AppDeployer Deploying to kovan... +9s
+  abacus:AppDeployer Deploy upgradeBeaconController on kovan +102ms
+  abacus:AppDeployer Deploy abacusConnectionManager on kovan +14s
+  abacus:AppDeployer Deploy outboxValidatorManager on kovan +9s
+  abacus:AppDeployer Deploy outbox on kovan +5s
+  abacus:AppDeployer Deploy inboxValidatorManager on kovan +20s
+  abacus:AppDeployer Deploy inbox on kovan +21s
+  abacus:AppDeployer Deploy inboxValidatorManager on kovan +21s
+  abacus:AppDeployer Deploy inboxValidatorManager on kovan +28s
+  abacus:AppDeployer Deploy inboxValidatorManager on kovan +26s
+  abacus:AppDeployer Deploy inboxValidatorManager on kovan +22s
+  abacus:AppDeployer Deploy inboxValidatorManager on kovan +28s
+  abacus:AppDeployer Deploying to fuji... +22s
+  abacus:AppDeployer Deploy upgradeBeaconController on fuji +100ms
+  abacus:AppDeployer Deploy abacusConnectionManager on fuji +5s
+  abacus:AppDeployer Deploy outboxValidatorManager on fuji +5s
+  abacus:AppDeployer Deploy outbox on fuji +5s
+  abacus:AppDeployer Deploy inboxValidatorManager on fuji +11s
+  abacus:AppDeployer Deploy inbox on fuji +5s
+  abacus:AppDeployer Deploy inboxValidatorManager on fuji +11s
+  abacus:AppDeployer Deploy inboxValidatorManager on fuji +6s
+  abacus:AppDeployer Deploy inboxValidatorManager on fuji +11s
+  abacus:AppDeployer Deploy inboxValidatorManager on fuji +6s
+  abacus:AppDeployer Deploy inboxValidatorManager on fuji +7s
+  abacus:AppDeployer Deploying to mumbai... +11s
+  abacus:AppDeployer Deploy upgradeBeaconController on mumbai +126ms
+  abacus:AppDeployer Deploy abacusConnectionManager on mumbai +3m
+  abacus:AppDeployer Deploy outboxValidatorManager on mumbai +3m
+  abacus:AppDeployer Deploy outbox on mumbai +3m
+  abacus:AppDeployer Deploy inboxValidatorManager on mumbai +5m
+  abacus:AppDeployer Deploy inbox on mumbai +3m
+  abacus:AppDeployer Deploy inboxValidatorManager on mumbai +11m
+  abacus:AppDeployer Deploy inboxValidatorManager on mumbai +3m
+  abacus:AppDeployer Deploy inboxValidatorManager on mumbai +3m
+  abacus:AppDeployer Deploy inboxValidatorManager on mumbai +6m
+  abacus:AppDeployer Deploy inboxValidatorManager on mumbai +3m
+  abacus:AppDeployer Deploying to bsctestnet... +5m
+  abacus:AppDeployer Deploy upgradeBeaconController on bsctestnet +145ms
+  abacus:AppDeployer Deploy abacusConnectionManager on bsctestnet +10s
+  abacus:AppDeployer Deploy outboxValidatorManager on bsctestnet +9s
+  abacus:AppDeployer Deploy outbox on bsctestnet +5s
+  abacus:AppDeployer Deploy inboxValidatorManager on bsctestnet +16s
+  abacus:AppDeployer Deploy inbox on bsctestnet +5s
+  abacus:AppDeployer Deploy inboxValidatorManager on bsctestnet +16s
+  abacus:AppDeployer Deploy inboxValidatorManager on bsctestnet +7s
+  abacus:AppDeployer Deploy inboxValidatorManager on bsctestnet +11s
+  abacus:AppDeployer Deploy inboxValidatorManager on bsctestnet +12s
+  abacus:AppDeployer Deploy inboxValidatorManager on bsctestnet +7s
+  abacus:AppDeployer Deploying to arbitrumrinkeby... +11s
+  abacus:AppDeployer Deploy upgradeBeaconController on arbitrumrinkeby +122ms
+  abacus:AppDeployer Deploy abacusConnectionManager on arbitrumrinkeby +6s
+  abacus:AppDeployer Deploy outboxValidatorManager on arbitrumrinkeby +6s
+  abacus:AppDeployer Deploy outbox on arbitrumrinkeby +7s
+  abacus:AppDeployer Deploy inboxValidatorManager on arbitrumrinkeby +14s
+  abacus:AppDeployer Deploy inbox on arbitrumrinkeby +7s
+  abacus:AppDeployer Deploy inboxValidatorManager on arbitrumrinkeby +14s
+  abacus:AppDeployer Deploy inboxValidatorManager on arbitrumrinkeby +9s
+  abacus:AppDeployer Deploy inboxValidatorManager on arbitrumrinkeby +9s
+  abacus:AppDeployer Deploy inboxValidatorManager on arbitrumrinkeby +9s
+  abacus:AppDeployer Deploy inboxValidatorManager on arbitrumrinkeby +9s
+  abacus:AppDeployer Deploying to optimismkovan... +9s
+  abacus:AppDeployer Deploy upgradeBeaconController on optimismkovan +150ms
+  abacus:AppDeployer Deploy abacusConnectionManager on optimismkovan +6s
+  abacus:AppDeployer Deploy outboxValidatorManager on optimismkovan +6s
+  abacus:AppDeployer Deploy outbox on optimismkovan +6s
+  abacus:AppDeployer Deploy inboxValidatorManager on optimismkovan +14s
+  abacus:AppDeployer Deploy inbox on optimismkovan +6s
+  abacus:AppDeployer Deploy inboxValidatorManager on optimismkovan +14s
+  abacus:AppDeployer Deploy inboxValidatorManager on optimismkovan +8s
+  abacus:AppDeployer Deploy inboxValidatorManager on optimismkovan +8s
+  abacus:AppDeployer Deploy inboxValidatorManager on optimismkovan +20s
+  abacus:AppDeployer Deploy inboxValidatorManager on optimismkovan +12s
+undefined
+
