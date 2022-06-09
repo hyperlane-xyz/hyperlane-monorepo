@@ -12,8 +12,18 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x67d269191c92Caf3cD7723F116c85e6E9bf55933",
-        "validatorManager": "0x7a2088a1bFc9d81c55368AE168C2C02570cB814F"
+        "inbox": "0x4A679253410272dd5232B3Ff7cF5dbB88f295319",
+        "validatorManager": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1"
+      },
+      "metricsConf": {
+        "wallets": {
+          "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1": {
+            "name": "validator_manager"
+          },
+          "0x4A679253410272dd5232B3Ff7cF5dbB88f295319": {
+            "name": "inbox"
+          }
+        }
       }
     },
     "test3": {
@@ -26,15 +36,14 @@
         "url": ""
       },
       "addresses": {
-        "inbox": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
-        "validatorManager": "0x0E801D84Fa97b50751Dbf25036d067dCf18858bF"
+        "inbox": "0x70e0bA845a1A0F2DA3359C97E0285013525FFC49",
+        "validatorManager": "0xf5059a5D33d5853360D16C683c16e67980206f36"
       }
     }
   },
   "outbox": {
     "addresses": {
-      "outbox": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
-      "interchainGasPaymaster": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512"
+      "outbox": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707"
     },
     "domain": "13371",
     "name": "test1",

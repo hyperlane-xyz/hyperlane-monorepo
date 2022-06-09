@@ -21,9 +21,13 @@ impl Default for LoopControl {
 macro_rules! loop_ctrl {
     ($ctrl:expr) => {
         match $ctrl {
-            ::loop_control::LoopControl::Flow => {},
-            ::loop_control::LoopControl::Continue => { continue; },
-            ::loop_control::LoopControl::Break => { break; },
+            ::loop_control::LoopControl::Flow => {}
+            ::loop_control::LoopControl::Continue => {
+                continue;
+            }
+            ::loop_control::LoopControl::Break => {
+                break;
+            }
         }
-    }
+    };
 }

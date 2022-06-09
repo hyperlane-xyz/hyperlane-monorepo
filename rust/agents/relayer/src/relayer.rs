@@ -6,18 +6,17 @@ use tokio::{
     sync::watch::{channel, Receiver, Sender},
     task::JoinHandle,
 };
-use tracing::{instrument::Instrumented, Instrument};
+use tracing::{info, instrument::Instrumented, Instrument};
 
 use abacus_base::{
-    AbacusAgentCore, Agent, ContractSyncMetrics, InboxContracts, MultisigCheckpointSyncer,
+    AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics, InboxContracts,
+    MultisigCheckpointSyncer,
 };
 use abacus_core::MultisigSignedCheckpoint;
 
+use crate::checkpoint_fetcher::CheckpointFetcher;
 use crate::settings::whitelist::Whitelist;
-use crate::{
-    checkpoint_fetcher::CheckpointFetcher, message_processor::MessageProcessor,
-    settings::RelayerSettings as Settings,
-};
+use crate::{message_processor::MessageProcessor, settings::RelayerSettings as Settings};
 
 /// A relayer agent
 #[derive(Debug)]
@@ -78,11 +77,10 @@ impl Relayer {
 
     fn run_interchain_gas_paymaster_sync(
         &self,
+        paymaster: Arc<CachingInterchainGasPaymaster>,
         sync_metrics: ContractSyncMetrics,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let paymaster = self.interchain_gas_paymaster();
-        let sync = paymaster.sync(self.as_ref().indexer.clone(), sync_metrics);
-        sync
+        paymaster.sync(self.as_ref().indexer.clone(), sync_metrics)
     }
 
     fn run_checkpoint_fetcher(
@@ -154,7 +152,13 @@ impl Relayer {
 
         let sync_metrics = ContractSyncMetrics::new(self.metrics());
         tasks.push(self.run_outbox_sync(sync_metrics.clone()));
-        tasks.push(self.run_interchain_gas_paymaster_sync(sync_metrics));
+
+        if let Some(paymaster) = self.interchain_gas_paymaster() {
+            tasks.push(self.run_interchain_gas_paymaster_sync(paymaster, sync_metrics));
+        } else {
+            info!("Interchain Gas Paymaster not provided, not running sync");
+        }
+
         self.run_all(tasks)
     }
 }
