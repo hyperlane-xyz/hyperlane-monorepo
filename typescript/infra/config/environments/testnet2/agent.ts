@@ -9,7 +9,7 @@ export const agent: AgentConfig<TestnetChains> = {
   runEnv: 'testnet2',
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-0b525b2',
+    tag: 'sha-d664980',
   },
   aws: {
     region: 'us-east-1',
@@ -36,24 +36,13 @@ export const agent: AgentConfig<TestnetChains> = {
   },
   kathy: {
     default: {
-      enabled: false,
-      interval: 60 * 2,
+      enabled: true,
+      interval: 60 * 60,
       chat: {
         type: 'static',
-        message: '',
-        recipient: '',
-      },
-    },
-    chainOverrides: {
-      alfajores: {
-        enabled: true,
-        interval: 60 * 2,
-        chat: {
-          type: 'static',
-          message: 'f00',
-          recipient:
-            '0x000000000000000000000000d0d0ff5589da9b43031f8adf576b08476f587191',
-        },
+        message: 'f00',
+        recipient:
+          '0x000000000000000000000000d0d0ff5589da9b43031f8adf576b08476f587191',
       },
     },
   },
