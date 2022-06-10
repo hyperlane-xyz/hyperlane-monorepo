@@ -442,20 +442,22 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
 
             match client.get_balance(*wallet_addr, None).await {
                 Ok(balance) => {
-                    // Okay, so Ether is not a token, but whatever, close enough.
+                    // Okay, so the native type is not a token, but whatever, close enough.
+                    // Note: This is ETH for many chains, but not all so that is why we use `N` and `Native`
+                    // TODO: can we get away with scaling as 18 in all cases here? I am guessing not.
                     let balance = u256_as_scaled_f64(balance, 18);
-                    trace!("Wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance is {balance}ETH");
+                    trace!("Wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance is {balance} of the native currency");
                     wallet_balance_metric
                         .with(&hashmap! {
                         "chain" => chain,
                         "wallet_address" => wallet_addr_str.as_str(),
                         "wallet_name" => wallet_name,
                         "token_address" => "none",
-                        "token_symbol" => "ETH",
-                        "token_name" => "Ether"
+                        "token_symbol" => "N",
+                        "token_name" => "Native"
                     }).set(balance)
                 },
-                Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for Ether; {e}")
+                Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for native currency; {e}")
             }
             for (token_addr, token) in data.tokens.iter() {
                 let token_addr_str: String = token_addr.encode_hex();
