@@ -36,21 +36,13 @@ export const agent: AgentConfig<TestnetChains> = {
   },
   kathy: {
     default: {
-      enabled: false,
+      enabled: true,
       interval: 60 * 60,
       chat: {
         type: 'static',
         message: 'f00',
         recipient:
           '0x000000000000000000000000d0d0ff5589da9b43031f8adf576b08476f587191',
-      },
-    },
-    chainOverrides: {
-      alfajores: {
-        enabled: true,
-      },
-      fuji: {
-        enabled: true,
       },
     },
   },
