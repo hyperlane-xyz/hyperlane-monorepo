@@ -1,3 +1,4 @@
+use ethers::signers::Signer;
 use eyre::Report;
 use serde::Deserialize;
 
@@ -6,7 +7,7 @@ use abacus_ethereum::{
     Connection, InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
     MakeableWithProvider, OutboxBuilder,
 };
-use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf};
+use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf, WalletInfo};
 
 use crate::{
     CoreMetrics, InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
@@ -168,6 +169,7 @@ impl ChainSetup<InboxAddresses> {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> Result<Inboxes, Report> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
                 InboxBuilder {}
@@ -183,7 +185,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
-                        Some((metrics.provider_metrics(), self.metrics_conf.clone())),
+                        Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await?,
             )
@@ -198,6 +200,7 @@ impl ChainSetup<InboxAddresses> {
         metrics: &CoreMetrics,
     ) -> Result<InboxValidatorManagers, Report> {
         let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerVariants::Ethereum(
                 InboxValidatorManagerBuilder { inbox_address }
@@ -213,7 +216,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
-                        Some((metrics.provider_metrics(), self.metrics_conf.clone())),
+                        Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await?,
             )
@@ -222,8 +225,21 @@ impl ChainSetup<InboxAddresses> {
     }
 
     /// Get a clone of the metrics conf with correctly configured contract information.
-    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
+    pub fn metrics_conf(
+        &self,
+        agent_name: &str,
+        signer: &Option<Signers>,
+    ) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
+
+        if let Some(signer) = signer {
+            cfg.wallets.insert(
+                signer.address(),
+                WalletInfo {
+                    name: Some(agent_name.into()),
+                },
+            );
+        }
         if let Ok(addr) = self.addresses.inbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("inbox".into()),
