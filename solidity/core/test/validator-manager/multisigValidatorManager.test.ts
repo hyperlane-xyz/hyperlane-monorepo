@@ -80,7 +80,7 @@ describe('MultisigValidatorManager', async () => {
 
     it('emits the EnrollValidator event', async () => {
       expect(await validatorManager.enrollValidator(validator1.address))
-        .to.emit(validatorManager, 'EnrollValidator')
+        .to.emit(validatorManager, 'ValidatorEnrolled')
         .withArgs(validator1.address, 2);
     });
 
@@ -113,7 +113,7 @@ describe('MultisigValidatorManager', async () => {
 
     it('emits the UnenrollValidator event', async () => {
       expect(await validatorManager.unenrollValidator(validator1.address))
-        .to.emit(validatorManager, 'UnenrollValidator')
+        .to.emit(validatorManager, 'ValidatorUnenrolled')
         .withArgs(validator1.address, 1);
     });
 
@@ -155,7 +155,7 @@ describe('MultisigValidatorManager', async () => {
 
     it('emits the SetThreshold event', async () => {
       expect(await validatorManager.setThreshold(2))
-        .to.emit(validatorManager, 'SetThreshold')
+        .to.emit(validatorManager, 'ThresholdSet')
         .withArgs(2);
     });
 

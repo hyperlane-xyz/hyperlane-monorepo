@@ -88,7 +88,9 @@ describe('Router', async () => {
     await expect(router.mustHaveRemoteRouter(origin)).to.be.revertedWith(
       '!router',
     );
-    await router.enrollRemoteRouter(origin, utils.addressToBytes32(remote));
+    await expect(
+      router.enrollRemoteRouter(origin, utils.addressToBytes32(remote)),
+    ).to.emit(router, 'RemoteRouterEnrolled');
     expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
     expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
   });

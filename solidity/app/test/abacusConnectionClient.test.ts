@@ -51,7 +51,9 @@ describe('AbacusConnectionClient', async () => {
     expect(await connectionClient.abacusConnectionManager()).to.not.equal(
       newConnectionManager,
     );
-    await connectionClient.setAbacusConnectionManager(newConnectionManager);
+    await expect(
+      connectionClient.setAbacusConnectionManager(newConnectionManager),
+    ).to.emit(connectionClient, 'AbacusConnectionManagerSet');
     expect(await connectionClient.abacusConnectionManager()).to.equal(
       newConnectionManager,
     );
@@ -109,7 +111,7 @@ describe('AbacusConnectionClient', async () => {
       await expect(
         connectionClient.setInterchainGasPaymaster(newPaymaster.address),
       )
-        .to.emit(connectionClient, 'SetInterchainGasPaymaster')
+        .to.emit(connectionClient, 'InterchainGasPaymasterSet')
         .withArgs(newPaymaster.address);
     });
 
