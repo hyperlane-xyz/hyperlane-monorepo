@@ -154,10 +154,11 @@ impl ChainSetup<OutboxAddresses> {
     pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
 
-        let domain: u64 = self.domain.parse().expect("invalid uint");
-        cfg.chains.entry(domain).or_insert_with(|| ChainInfo {
-            name: Some(self.name.clone()),
-        });
+        if cfg.chain.is_none() {
+            cfg.chain = Some(ChainInfo {
+                name: Some(self.name.clone()),
+            });
+        }
 
         if let Ok(addr) = self.addresses.outbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
@@ -245,10 +246,11 @@ impl ChainSetup<InboxAddresses> {
     ) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
 
-        let domain: u64 = self.domain.parse().expect("invalid uint");
-        cfg.chains.entry(domain).or_insert_with(|| ChainInfo {
-            name: Some(self.name.clone()),
-        });
+        if cfg.chain.is_none() {
+            cfg.chain = Some(ChainInfo {
+                name: Some(self.name.clone()),
+            });
+        }
 
         if let Some(signer) = signer {
             cfg.wallets

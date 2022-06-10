@@ -194,9 +194,8 @@ pub struct PrometheusMiddlewareConf {
     #[cfg_attr(feature = "serde", serde(default))]
     pub contracts: HashMap<Address, ContractInfo>,
 
-    /// Information about chains by their domain.
-    #[cfg_attr(feature = "serde", serde(default))]
-    pub chains: HashMap<u64, ChainInfo>,
+    /// Information about the chain this provider is for.
+    pub chain: Option<ChainInfo>,
 }
 
 assert_impl_all!(PrometheusMiddlewareConf: Send, Sync);
@@ -221,10 +220,10 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let start = Instant::now();
         let tx: TypedTransaction = tx.into();
 
-        let chain_name = metrics_chain_name(
-            &self.conf.read().await.chains,
-            tx.chain_id().map(|id| id.as_u64()),
-        );
+        let chain = {
+            let data = self.conf.read().await;
+            chain_name(&data.chain).to_owned()
+        };
         let addr_from: String = tx
             .from()
             .map(|v| v.encode_hex())
@@ -239,7 +238,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
 
         if let Some(m) = &self.metrics.transaction_send_total {
             m.with(&hashmap! {
-                "chain" => chain_name.as_str(),
+                "chain" => chain.as_str(),
                 "address_from" => addr_from.as_str(),
                 "address_to" => addr_to.as_str(),
                 "txn_status" => "dispatched"
@@ -252,14 +251,14 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         if let Some(m) = &self.metrics.transaction_send_duration_seconds {
             let duration = (Instant::now() - start).as_secs_f64();
             m.with(&hashmap! {
-                "chain" => chain_name.as_str(),
+                "chain" => chain.as_str(),
                 "address_from" => addr_from.as_str(),
             })
             .observe(duration);
         }
         if let Some(m) = &self.metrics.transaction_send_total {
             m.with(&hashmap! {
-                "chain" => chain_name.as_str(),
+                "chain" => chain.as_str(),
                 "address_from" => addr_from.as_str(),
                 "address_to" => addr_to.as_str(),
                 "txn_status" => if result.is_ok() { "completed" } else { "failed" }
@@ -280,7 +279,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
 
         if let Some(m) = &self.metrics.contract_call_duration_seconds {
             let data = self.conf.read().await;
-            let chain_name = metrics_chain_name(&data.chains, tx.chain_id().map(|id| id.as_u64()));
+            let chain = chain_name(&data.chain);
             let (contract_addr, contract_name) = tx
                 .to()
                 .and_then(|addr| match addr {
@@ -294,7 +293,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                 .unwrap_or_else(|| ("".into(), "unknown".into()));
 
             m.with(&hashmap! {
-                "chain" => chain_name.as_str(),
+                "chain" => chain,
                 "contract_name" => contract_name.as_str(),
                 "contract_address" => contract_addr.as_str()
             })
@@ -383,16 +382,15 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
         let client = self.inner.clone();
 
         async move {
-            let chain_id = client.get_chainid().await.map(|id| id.as_u64()).ok();
             let data = data_ref.read().await;
-            let chain = metrics_chain_name(&data.chains, chain_id);
+            let chain = chain_name(&data.chain);
             debug!("Updating metrics for chain ({chain})");
 
             if block_height.is_some() || gas_price_gwei.is_some() {
-                Self::update_block_details(&*client, &chain, block_height, gas_price_gwei).await;
+                Self::update_block_details(&*client, chain, block_height, gas_price_gwei).await;
             }
             if let Some(wallet_balance) = wallet_balance {
-                Self::update_wallet_balances(client.clone(), &*data, &chain, wallet_balance).await;
+                Self::update_wallet_balances(client.clone(), &*data, chain, wallet_balance).await;
             }
 
             // more metrics to come...
@@ -488,23 +486,18 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
     }
 }
 
-/// Get the metrics appropriate chain name from the chain ID.
-fn metrics_chain_name(chains: &HashMap<u64, ChainInfo>, domain: Option<u64>) -> String {
-    if let Some(domain) = domain {
-        if let Some(chain) = chains.get(&domain) {
-            format!("{}", chain.name.as_deref().unwrap_or("undefined"))
-        } else {
-            format!("{domain}")
-        }
-    } else {
-        "unknown".into()
-    }
-}
-
 impl<M: Middleware> Debug for PrometheusMiddleware<M> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "PrometheusMiddleware({:?})", self.inner)
     }
+}
+
+/// Uniform way to name the chain.
+fn chain_name(chain: &Option<ChainInfo>) -> &str {
+    chain
+        .as_ref()
+        .and_then(|c| c.name.as_deref())
+        .unwrap_or("unknown")
 }
 
 /// Convert a u256 scaled integer value into the corresponding f64 value.
