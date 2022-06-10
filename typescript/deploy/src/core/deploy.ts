@@ -66,6 +66,12 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       [domain, config.validators, config.threshold],
     );
 
+    // Wait for the ValidatorManager to be deployed so that the Outbox
+    // constructor is happy.
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    await outboxValidatorManager.deployTransaction.wait(
+      chainConnection.confirmations,
+    );
     const outbox = await this.deployProxiedContract(
       chain,
       'outbox',
@@ -89,6 +95,12 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       localChain,
       'inboxValidatorManager',
       [remoteDomain, config.validators, config.threshold],
+    );
+    // Wait for the ValidatorManager to be deployed so that the Inbox
+    // constructor is happy.
+    const chainConnection = this.multiProvider.getChainConnection(localChain);
+    await inboxValidatorManager.deployTransaction.wait(
+      chainConnection.confirmations,
     );
     const initArgs: Parameters<Inbox['initialize']> = [
       remoteDomain,

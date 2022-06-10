@@ -10,7 +10,7 @@ async function deploy() {
   const config = await getEnvironmentConfig();
 
   const currentKubeContext = await getCurrentKubernetesContext();
-  if (!currentKubeContext.endsWith(`-${config.agent.runEnv}`)) {
+  if (!currentKubeContext.endsWith(`${config.infra.kubernetes.clusterName}`)) {
     console.error(
       `Cowardly refusing to deploy ${config.agent.runEnv} to ${currentKubeContext}; are you sure you have the right k8s context active?`,
     );
