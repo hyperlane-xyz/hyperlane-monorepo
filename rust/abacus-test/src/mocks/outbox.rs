@@ -30,16 +30,18 @@ mock! {
 
         pub fn _cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {}
 
+        pub fn _latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {}
+
+        pub fn _latest_cached_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {}
+
+        pub fn _latest_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
+
         // AbacusCommon
         pub fn _status(&self, txid: H256) -> Result<Option<TxOutcome>, ChainCommunicationError> {}
 
         pub fn _validator_manager(&self) -> Result<H256, ChainCommunicationError> {}
 
         pub fn _state(&self) -> Result<State, ChainCommunicationError> {}
-
-        pub fn _latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {}
-
-        pub fn _latest_cached_checkpoint(&self, maybe_lag: Option<u64>) -> Result<Checkpoint, ChainCommunicationError> {}
 
         // AbacusContract
         pub fn _chain_name(&self) -> &str {}
@@ -69,6 +71,21 @@ impl Outbox for MockOutboxContract {
     async fn cache_checkpoint(&self) -> Result<TxOutcome, ChainCommunicationError> {
         self._cache_checkpoint()
     }
+
+    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
+        self._latest_cached_root()
+    }
+
+    async fn latest_cached_checkpoint(&self) -> Result<Checkpoint, ChainCommunicationError> {
+        self._latest_cached_checkpoint()
+    }
+
+    async fn latest_checkpoint(
+        &self,
+        maybe_lag: Option<u64>,
+    ) -> Result<Checkpoint, ChainCommunicationError> {
+        self._latest_checkpoint(maybe_lag)
+    }
 }
 
 impl AbacusContract for MockOutboxContract {
@@ -89,16 +106,5 @@ impl AbacusCommon for MockOutboxContract {
 
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError> {
         self._validator_manager()
-    }
-
-    async fn latest_cached_root(&self) -> Result<H256, ChainCommunicationError> {
-        self._latest_cached_root()
-    }
-
-    async fn latest_cached_checkpoint(
-        &self,
-        maybe_lag: Option<u64>,
-    ) -> Result<Checkpoint, ChainCommunicationError> {
-        self._latest_cached_checkpoint(maybe_lag)
     }
 }

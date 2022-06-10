@@ -30,20 +30,19 @@ export const agent: AgentConfig<TestnetChains> = {
   },
   relayer: {
     default: {
-      pollingInterval: 5,
-      submissionLatency: 10,
-      maxRetries: 10,
-      relayerMessageProcessing: true,
+      signedCheckpointPollingInteral: 5,
+      maxProcessingRetries: 10,
     },
   },
   // kathy: {
   //   default: {
-  //     interval: 30,
-  //   },
-  //   chainOverrides: {
-  //     kovan: {
-  //       interval: 120,
-  //     },
-  //   },
-  // },
+  //     enabled: false,
+  //     interval: 60 * 2,
+  //     chat: {
+  //       type: 'static',
+  //       message: '',
+  //       recipient: '',
+  //     }
+  //   }
+  // }
 };

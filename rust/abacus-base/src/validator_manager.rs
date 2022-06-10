@@ -2,7 +2,8 @@ use async_trait::async_trait;
 use std::sync::Arc;
 
 use abacus_core::{
-    ChainCommunicationError, InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
+    accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, InboxValidatorManager,
+    MultisigSignedCheckpoint, TxOutcome,
 };
 
 #[derive(Debug, Clone)]
@@ -43,24 +44,26 @@ pub enum InboxValidatorManagerVariants {
 #[async_trait]
 impl InboxValidatorManager for InboxValidatorManagerVariants {
     /// Submit a signed checkpoint for inclusion
-    async fn submit_checkpoint(
+    async fn process(
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
+        message: &AbacusMessage,
+        proof: &Proof,
     ) -> Result<TxOutcome, ChainCommunicationError> {
         match self {
             InboxValidatorManagerVariants::Ethereum(validator_manager) => {
                 validator_manager
-                    .submit_checkpoint(multisig_signed_checkpoint)
+                    .process(multisig_signed_checkpoint, message, proof)
                     .await
             }
             InboxValidatorManagerVariants::Mock(mock_validator_manager) => {
                 mock_validator_manager
-                    .submit_checkpoint(multisig_signed_checkpoint)
+                    .process(multisig_signed_checkpoint, message, proof)
                     .await
             }
             InboxValidatorManagerVariants::Other(validator_manager) => {
                 validator_manager
-                    .submit_checkpoint(multisig_signed_checkpoint)
+                    .process(multisig_signed_checkpoint, message, proof)
                     .await
             }
         }

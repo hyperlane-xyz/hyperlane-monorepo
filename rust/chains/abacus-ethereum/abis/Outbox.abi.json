@@ -34,21 +34,9 @@
     "inputs": [
       {
         "indexed": true,
-        "internalType": "bytes32",
-        "name": "messageHash",
-        "type": "bytes32"
-      },
-      {
-        "indexed": true,
         "internalType": "uint256",
         "name": "leafIndex",
         "type": "uint256"
-      },
-      {
-        "indexed": true,
-        "internalType": "uint32",
-        "name": "destination",
-        "type": "uint32"
       },
       {
         "indexed": false,
