@@ -240,12 +240,11 @@ impl ChainSetup<InboxAddresses> {
         let mut cfg = self.metrics_conf.clone();
 
         if let Some(signer) = signer {
-            cfg.wallets.insert(
-                signer.address(),
-                WalletInfo {
+            cfg.wallets
+                .entry(signer.address())
+                .or_insert_with(|| WalletInfo {
                     name: Some(agent_name.into()),
-                },
-            );
+                });
         }
         if let Ok(addr) = self.addresses.inbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
