@@ -68,6 +68,15 @@ pub struct ContractInfo {
     pub name: Option<String>,
 }
 
+/// Some basic information about a chain.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
+pub struct ChainInfo {
+    /// A human-friendly name for the chain. This should be a short string like "kovan".
+    pub name: Option<String>,
+}
+
 /// Expected label names for the `block_height` metric.
 pub const BLOCK_HEIGHT_LABELS: &[&str] = &["chain"];
 /// Help string for the metric.
@@ -184,6 +193,10 @@ pub struct PrometheusMiddlewareConf {
     /// Contract info for more useful metrics
     #[cfg_attr(feature = "serde", serde(default))]
     pub contracts: HashMap<Address, ContractInfo>,
+
+    /// Information about chains by their domain.
+    #[cfg_attr(feature = "serde", serde(default))]
+    pub chains: HashMap<u64, ChainInfo>,
 }
 
 assert_impl_all!(PrometheusMiddlewareConf: Send, Sync);
@@ -208,7 +221,10 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let start = Instant::now();
         let tx: TypedTransaction = tx.into();
 
-        let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
+        let chain_name = metrics_chain_name(
+            &self.conf.read().await.chains,
+            tx.chain_id().map(|id| id.as_u64()),
+        );
         let addr_from: String = tx
             .from()
             .map(|v| v.encode_hex())
@@ -264,7 +280,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
 
         if let Some(m) = &self.metrics.contract_call_duration_seconds {
             let data = self.conf.read().await;
-            let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
+            let chain_name = metrics_chain_name(&data.chains, tx.chain_id().map(|id| id.as_u64()));
             let (contract_addr, contract_name) = tx
                 .to()
                 .and_then(|addr| match addr {
@@ -368,13 +384,13 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
 
         async move {
             let chain_id = client.get_chainid().await.map(|id| id.as_u64()).ok();
-            let chain = metrics_chain_name(chain_id);
+            let data = data_ref.read().await;
+            let chain = metrics_chain_name(&data.chains, chain_id);
             debug!("Updating metrics for chain ({chain})");
 
             if block_height.is_some() || gas_price_gwei.is_some() {
                 Self::update_block_details(&*client, &chain, block_height, gas_price_gwei).await;
             }
-            let data = data_ref.read().await;
             if let Some(wallet_balance) = wallet_balance {
                 Self::update_wallet_balances(client.clone(), &*data, &chain, wallet_balance).await;
             }
@@ -472,22 +488,22 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
     }
 }
 
-impl<M: Middleware> Debug for PrometheusMiddleware<M> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PrometheusMiddleware({:?})", self.inner)
-    }
-}
-
 /// Get the metrics appropriate chain name from the chain ID.
-pub fn metrics_chain_name(chain_id: Option<u64>) -> String {
-    if let Some(chain_id) = chain_id {
-        if let Ok(chain) = Chain::try_from(chain_id) {
-            format!("{chain}")
+fn metrics_chain_name(chains: &HashMap<u64, ChainInfo>, domain: Option<u64>) -> String {
+    if let Some(domain) = domain {
+        if let Some(chain) = chains.get(&domain) {
+            format!("{}", chain.name.as_deref().unwrap_or("undefined"))
         } else {
-            format!("{chain_id}")
+            format!("{domain}")
         }
     } else {
         "unknown".into()
+    }
+}
+
+impl<M: Middleware> Debug for PrometheusMiddleware<M> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "PrometheusMiddleware({:?})", self.inner)
     }
 }
 
