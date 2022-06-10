@@ -150,10 +150,20 @@ type ChainCheckpointerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 // =====     Kathy Agent     =====
 // ===============================
 
+interface ChatGenConfig {
+  type: 'static';
+  message: string;
+  recipient: string;
+}
+
 // Full kathy agent config for a single chain
 interface KathyConfig {
   // The message interval (in seconds)
   interval: number;
+  // Configuration for kathy's chat
+  chat: ChatGenConfig;
+  // Whether kathy is enabled
+  enabled: boolean;
 }
 
 // Per-chain kathy agent configs
@@ -424,14 +434,31 @@ export class ChainAgentConfig<Chain extends ChainName> {
   }
 
   // Gets signer info, creating them if necessary
-  kathySigners() {
+  async kathySigners() {
     if (!this.kathyEnabled) {
       return [];
     }
+
+    let keyConfig;
+
+    if (this.awsKeys) {
+      const awsUser = new AgentAwsUser(
+        this.agentConfig.environment,
+        this.chainName,
+        KEY_ROLE_ENUM.Kathy,
+        this.agentConfig.aws!.region,
+      );
+      await awsUser.createIfNotExists();
+      const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+      keyConfig = key.keyConfig;
+    } else {
+      keyConfig = this.keyConfig(KEY_ROLE_ENUM.Kathy);
+    }
+
     return [
       {
         name: this.chainName,
-        keyConfig: this.keyConfig(KEY_ROLE_ENUM.Kathy),
+        keyConfig,
       },
     ];
   }
@@ -448,7 +475,8 @@ export class ChainAgentConfig<Chain extends ChainName> {
   }
 
   get kathyEnabled() {
-    return this.kathyConfig !== undefined;
+    const kathyConfig = this.kathyConfig;
+    return kathyConfig !== undefined && kathyConfig.enabled;
   }
 
   get validatorSet(): ValidatorSet {
