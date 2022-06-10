@@ -158,6 +158,13 @@ impl ChainSetup<OutboxAddresses> {
                 name: Some("outbox".into()),
             });
         }
+        if let Some(igp) = &self.addresses.interchain_gas_paymaster {
+            if let Ok(addr) = igp.parse() {
+                cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                    name: Some("igp".into()),
+                });
+            }
+        }
         cfg
     }
 }
@@ -247,7 +254,7 @@ impl ChainSetup<InboxAddresses> {
         }
         if let Ok(addr) = self.addresses.validator_manager.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                name: Some("validator_manager".into()),
+                name: Some("ivm".into()),
             });
         }
         cfg
