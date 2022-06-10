@@ -6,6 +6,7 @@ import { ethers } from 'hardhat';
 import { types, utils } from '@abacus-network/utils';
 
 import {
+  TestBN256__factory,
   TestOutbox,
   TestOutbox__factory,
   ValidatorManager,
@@ -41,9 +42,12 @@ describe('Outbox', async () => {
 
     const domainHash = await outbox.domainHash();
 
+    const bn256Factory = new TestBN256__factory(signer);
+    const bn256 = await bn256Factory.deploy();
+
     // Create and enroll validators
-    validators = new ValidatorSet(SET_SIZE, validatorManager, domainHash);
-    await validators.enroll(localDomain);
+    validators = new ValidatorSet(SET_SIZE, bn256, domainHash);
+    await validators.enroll(localDomain, validatorManager);
 
     await outbox.initialize(validatorManager.address);
 

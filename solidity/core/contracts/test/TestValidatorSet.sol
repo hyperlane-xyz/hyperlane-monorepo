@@ -32,6 +32,14 @@ contract TestValidatorSet {
         return set.isValidator(_key);
     }
 
+    function decompress(bytes32 _compressed)
+        external
+        view
+        returns (BN256.G1Point memory)
+    {
+        return set.decompress(_compressed);
+    }
+
     function verificationKey(bytes32[] calldata _missing)
         external
         view

@@ -1,10 +1,10 @@
 import { BigNumber, ethers } from 'ethers';
 
-import { ValidatorManager } from '../../types';
+import { TestBN256, ValidatorManager } from '../../types';
 
 import { Checkpoint } from './mailboxes';
 
-interface G1Point {
+export interface G1Point {
   x: string;
   y: string;
 }
@@ -65,20 +65,18 @@ export class Validator {
   public readonly secretKey: BigNumber;
   // Used for elliptic curve operations so we don't need
   // to reimplement them in TS.
-  // This is *not safe* in production as it often means sending the
-  // secret key over RPC.
-  private readonly _validatorManager: ValidatorManager;
+  private readonly _bn256Helper: TestBN256;
   private _publicKey: G1Point;
 
-  constructor(_validatorManager: ValidatorManager) {
-    this._validatorManager = _validatorManager;
+  constructor(_bn256Helper: TestBN256) {
+    this._bn256Helper = _bn256Helper;
     this.secretKey = randomScalar();
     this._publicKey = { x: '', y: '' };
   }
 
   async publicKey(): Promise<G1Point> {
     if (this._publicKey.x === '') {
-      this._publicKey = await this._validatorManager.ecGen(this.secretKey);
+      this._publicKey = await this._bn256Helper.ecGen(this.secretKey);
     }
     return this._publicKey;
   }
@@ -94,7 +92,7 @@ export class Validator {
   ): Promise<SchnorrSignature> {
     // Generate random nonce
     const scalarNonce = randomScalar();
-    const nonce = await this._validatorManager.ecGen(scalarNonce);
+    const nonce = await this._bn256Helper.ecGen(scalarNonce);
 
     // Compute the challenge.
     const challenge = BigNumber.from(
@@ -118,20 +116,16 @@ export class Validator {
 
 export class ValidatorSet {
   private readonly _validators: Validator[];
-  private readonly _validatorManager: ValidatorManager;
+  private readonly _bn256Helper: TestBN256;
   private readonly _domainHash: string;
 
-  constructor(
-    _size: number,
-    _validatorManager: ValidatorManager,
-    _domainHash: string,
-  ) {
+  constructor(_size: number, _bn256Helper: TestBN256, _domainHash: string) {
     const _tmp: Validator[] = [];
     for (let i = 0; i < _size; i++) {
-      _tmp.push(new Validator(_validatorManager));
+      _tmp.push(new Validator(_bn256Helper));
     }
     this._validators = _tmp;
-    this._validatorManager = _validatorManager;
+    this._bn256Helper = _bn256Helper;
     this._domainHash = _domainHash;
   }
 
@@ -142,7 +136,7 @@ export class ValidatorSet {
   async addPoints(points: G1Point[]): Promise<G1Point> {
     let point = points[0];
     for (let i = 1; i < points.length; i++) {
-      point = await this._validatorManager.ecAdd(point, points[i]);
+      point = await this._bn256Helper.ecAdd(point, points[i]);
     }
     return point;
   }
@@ -214,10 +208,13 @@ export class ValidatorSet {
     };
   }
 
-  async enroll(domain: number): Promise<void> {
+  async enroll(
+    domain: number,
+    validatorManager: ValidatorManager,
+  ): Promise<void> {
     await Promise.all(
       this._validators.map(async (s) =>
-        this._validatorManager.enrollValidator(domain, await s.publicKey()),
+        validatorManager.enrollValidator(domain, await s.publicKey()),
       ),
     );
   }

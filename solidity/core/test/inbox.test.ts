@@ -11,6 +11,7 @@ import {
   BadRecipient3__factory,
   BadRecipient5__factory,
   BadRecipient6__factory,
+  TestBN256__factory,
   TestInbox,
   TestInbox__factory,
   TestOutbox,
@@ -50,6 +51,9 @@ describe('Inbox', async () => {
     const validatorManagerFactory = new ValidatorManager__factory(signer);
     validatorManager = await validatorManagerFactory.deploy();
 
+    const bn256Factory = new TestBN256__factory(signer);
+    const bn256 = await bn256Factory.deploy();
+
     // Deploy a helper outbox contract so that we can easily construct merkle
     // proofs.
     const outboxFactory = new TestOutbox__factory(signer);
@@ -59,8 +63,8 @@ describe('Inbox', async () => {
     const domainHash = await outbox.domainHash();
 
     // Create and enroll validators
-    validators = new ValidatorSet(SET_SIZE, validatorManager, domainHash);
-    await validators.enroll(OUTBOX_DOMAIN);
+    validators = new ValidatorSet(SET_SIZE, bn256, domainHash);
+    await validators.enroll(OUTBOX_DOMAIN, validatorManager);
 
     // Deploy a recipient
     const recipientF = new TestRecipient__factory(signer);

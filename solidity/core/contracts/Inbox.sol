@@ -54,20 +54,14 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
 
     /**
      * @notice Emitted when message is processed
+     */
+    event Process(bytes32 indexed leaf);
+
+    /**
      * @dev This event allows watchers to observe the merkle proof they need
      * to prove fraud on the Outbox.
      */
-    event Process(
-        Checkpoint checkpoint,
-        MerkleLib.Proof proof,
-        uint256 signature,
-        uint256 randomness,
-        bytes32 nonce,
-        bytes32[] missing
-    );
-
-    // This event should probably include a list of leaf indices.
-    event BatchProcess(
+    event SignedCheckpoint(
         Checkpoint checkpoint,
         MerkleLib.Proof proof,
         uint256 signature,
@@ -111,7 +105,7 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         for (uint256 i = 0; i < _proofs.length; i++) {
             _process(_checkpoint, _proofs[i], _messages[i]);
             if (i == _proofs.length - 1) {
-                emit BatchProcess(
+                emit SignedCheckpoint(
                     _checkpoint,
                     _proofs[i],
                     _sig.sig,
@@ -144,7 +138,7 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         require(_success, "!sig");
         _process(_checkpoint, _proof, _message);
         // Missing compressed key, but maybe it's unnecessary?
-        emit Process(
+        emit SignedCheckpoint(
             _checkpoint,
             _proof,
             _sig.sig,
@@ -195,5 +189,6 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
             sender,
             body
         );
+        emit Process(_proof.item);
     }
 }
