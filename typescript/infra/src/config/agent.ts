@@ -13,7 +13,7 @@ import { DeployEnvironment } from './environment';
 // Allows a "default" config to be specified and any per-chain overrides.
 interface ChainOverridableConfig<Chain extends ChainName, T> {
   default: T;
-  chainOverrides?: Partial<ChainMap<Chain, T>>;
+  chainOverrides?: Partial<ChainMap<Chain, Partial<T>>>;
 }
 
 // Returns the default config with any overriden values specified for the provided chain.
