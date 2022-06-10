@@ -94,7 +94,7 @@
     "domain": "80001",
     "name": "mumbai",
     "rpcStyle": "ethereum",
-    "finalityBlocks": "500",
+    "finalityBlocks": "32",
     "connection": {
       "type": "http",
       "url": ""
