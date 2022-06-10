@@ -7,7 +7,7 @@ use abacus_ethereum::{
     Connection, InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
     MakeableWithProvider, OutboxBuilder,
 };
-use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf, WalletInfo};
+use ethers_prometheus::{ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo};
 
 use crate::{
     CoreMetrics, InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
@@ -153,6 +153,12 @@ impl ChainSetup<OutboxAddresses> {
     /// Get a clone of the metrics conf with correctly configured contract information.
     pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
+
+        let domain: u64 = self.domain.parse().expect("invalid uint");
+        cfg.chains.entry(domain).or_insert_with(|| ChainInfo {
+            name: Some(self.name.clone()),
+        });
+
         if let Ok(addr) = self.addresses.outbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("outbox".into()),
@@ -238,6 +244,11 @@ impl ChainSetup<InboxAddresses> {
         signer: &Option<Signers>,
     ) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
+
+        let domain: u64 = self.domain.parse().expect("invalid uint");
+        cfg.chains.entry(domain).or_insert_with(|| ChainInfo {
+            name: Some(self.name.clone()),
+        });
 
         if let Some(signer) = signer {
             cfg.wallets
