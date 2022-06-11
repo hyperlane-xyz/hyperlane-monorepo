@@ -21,7 +21,12 @@ import {
   ValidatorManager__factory,
 } from '../types';
 
-import { Checkpoint, MerkleProof, dispatchMessage } from './lib/mailboxes';
+import {
+  Checkpoint,
+  DispatchReturnValues,
+  MerkleProof,
+  dispatchMessage,
+} from './lib/mailboxes';
 import { AggregatedSignature, ValidatorSet } from './lib/validators';
 
 const OUTBOX_DOMAIN = 1234;
@@ -223,19 +228,19 @@ describe('Inbox', async () => {
     });
   });
 
-  // Because the Outbox only gives us proofs against the latest root, we can
-  // only easily create one proof against a checkpoint.
-  describe.skip('#batchProcess', () => {
+  describe('#batchProcess', () => {
     let signature: AggregatedSignature,
       checkpoint: Checkpoint,
       proofs: MerkleProof[],
       messages: string[];
 
     before(async () => {
-      const MESSAGES = 100;
+      // Because the Outbox only gives us proofs against the latest root,
+      // creating an arbitrary number of proofs is difficult.
+      const MESSAGES = 2;
       const MESSAGE_WORDS = 1;
 
-      const dispatches = [];
+      const dispatches: DispatchReturnValues[] = [];
       for (let i = 0; i < MESSAGES; i++) {
         const message = ethers.utils.hexlify(
           ethers.utils.randomBytes(MESSAGE_WORDS * 32),
@@ -248,13 +253,16 @@ describe('Inbox', async () => {
       checkpoint = latest.checkpoint;
       signature = await validators.sign(checkpoint);
       proofs = dispatches.map((m) => m.proof);
+      // Fix the first proof.
+      proofs[0].branch = proofs[1].branch.slice();
+      proofs[0].branch[0] = proofs[1].item;
       messages = dispatches.map((m) => m.message);
     });
 
     it('processes multiple messages', async () => {
       await expect(
         inbox.batchProcess(signature, checkpoint, proofs, messages),
-      ).to.emit(validatorManager, 'BatchProcess');
+      ).to.emit(inbox, 'Process');
     });
 
     it('reverts if the signature is invalid', async () => {

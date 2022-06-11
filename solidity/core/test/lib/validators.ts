@@ -44,7 +44,7 @@ function randomScalar(): BigNumber {
   );
 }
 
-function ecCompress(p: G1Point): string {
+export function ecCompress(p: G1Point): string {
   const parity = PARITY_MASK.and(p.y).gt(0);
   if (parity) {
     return COMPRESSION_MASK.or(p.x).toHexString();
@@ -59,6 +59,47 @@ function modMul(a: BigNumber, b: BigNumber): BigNumber {
 
 function modAdd(a: BigNumber, b: BigNumber): BigNumber {
   return scalarMod(a.add(b));
+}
+
+export async function addPoints(
+  points: G1Point[],
+  bn256: TestBN256,
+): Promise<G1Point> {
+  let point = points[0];
+  for (let i = 1; i < points.length; i++) {
+    point = await bn256.ecAdd(point, points[i]);
+  }
+  return point;
+}
+
+export async function addScalars(scalars: BigNumber[]): Promise<BigNumber> {
+  let scalar = scalars[0];
+  for (let i = 1; i < scalars.length; i++) {
+    scalar = modAdd(scalar, scalars[i]);
+  }
+  return scalar;
+}
+
+export async function aggregateSignatures(
+  signatures: SchnorrSignature[],
+  bn256: TestBN256,
+): Promise<SchnorrSignature> {
+  const nonce = await addPoints(
+    signatures.map((s) => s.nonce),
+    bn256,
+  );
+  const signature = await addScalars(signatures.map((s) => s.signature));
+  const publicKey = await addPoints(
+    signatures.map((s) => s.publicKey),
+    bn256,
+  );
+  return {
+    publicKey,
+    nonce,
+    signature,
+    randomness: signatures[0].randomness,
+    challenge: signatures[0].challenge,
+  };
 }
 
 export class Validator {
@@ -133,37 +174,6 @@ export class ValidatorSet {
     return Promise.all(this._validators.map((s) => s.publicKey()));
   }
 
-  async addPoints(points: G1Point[]): Promise<G1Point> {
-    let point = points[0];
-    for (let i = 1; i < points.length; i++) {
-      point = await this._bn256Helper.ecAdd(point, points[i]);
-    }
-    return point;
-  }
-
-  async addScalars(scalars: BigNumber[]): Promise<BigNumber> {
-    let scalar = scalars[0];
-    for (let i = 1; i < scalars.length; i++) {
-      scalar = modAdd(scalar, scalars[i]);
-    }
-    return scalar;
-  }
-
-  async aggregateSignatures(
-    signatures: SchnorrSignature[],
-  ): Promise<SchnorrSignature> {
-    const nonce = await this.addPoints(signatures.map((s) => s.nonce));
-    const signature = await this.addScalars(signatures.map((s) => s.signature));
-    const publicKey = await this.addPoints(signatures.map((s) => s.publicKey));
-    return {
-      publicKey,
-      nonce,
-      signature,
-      randomness: signatures[0].randomness,
-      challenge: signatures[0].challenge,
-    };
-  }
-
   async sign(
     checkpoint: Checkpoint,
     omit: number = 0,
@@ -199,7 +209,7 @@ export class ValidatorSet {
       }
     });
 
-    const signature = await this.aggregateSignatures(partials);
+    const signature = await aggregateSignatures(partials, this._bn256Helper);
     return {
       sig: signature.signature,
       randomness: signature.randomness,
@@ -212,10 +222,9 @@ export class ValidatorSet {
     domain: number,
     validatorManager: ValidatorManager,
   ): Promise<void> {
+    const keys = await this.publicKeys();
     await Promise.all(
-      this._validators.map(async (s) =>
-        validatorManager.enrollValidator(domain, await s.publicKey()),
-      ),
+      keys.map((k) => validatorManager.enrollValidator(domain, k)),
     );
   }
 }
