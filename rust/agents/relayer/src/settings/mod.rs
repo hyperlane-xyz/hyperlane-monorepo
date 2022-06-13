@@ -1,7 +1,6 @@
 //! Configuration
 
 use abacus_base::decl_settings;
-use whitelist::Whitelist;
 
 pub mod whitelist;
 
@@ -13,5 +12,5 @@ decl_settings!(Relayer {
     /// The multisig checkpoint syncer configuration
     multisigcheckpointsyncer: abacus_base::MultisigCheckpointSyncerConf,
     /// This is optional. See `Whitelist` for more.
-    whitelist: Whitelist,
+    whitelist: Option<String>,
 });

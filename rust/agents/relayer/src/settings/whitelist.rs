@@ -1,5 +1,5 @@
 use std::fmt;
-use std::fmt::Formatter;
+use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::num::ParseIntError;
 
@@ -16,16 +16,21 @@ use abacus_core::AbacusMessage;
 /// - wildcard "*"
 /// - single value in decimal or hex (must start with `0x`) format
 /// - list of values in decimal or hex format
-///
-/// 4-tuple in the form `(sourceDomain, sourceAddress, destinationDomain, destinationAddress)`.
+/// - defaults to wildcards
 #[derive(Debug, Deserialize, Default, Clone)]
 #[serde(transparent)]
 pub struct Whitelist(Option<Vec<WhitelistElement>>);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum Filter<T> {
     Wildcard,
     Enumerated(Vec<T>),
+}
+
+impl<T> Default for Filter<T> {
+    fn default() -> Self {
+        Self::Wildcard
+    }
 }
 
 impl<T: PartialEq> Filter<T> {
@@ -33,6 +38,22 @@ impl<T: PartialEq> Filter<T> {
         match self {
             Filter::Wildcard => true,
             Filter::Enumerated(list) => list.iter().any(|i| i == v),
+        }
+    }
+}
+
+impl<T: Display> Display for Filter<T> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Wildcard => write!(f, "*"),
+            Self::Enumerated(l) if l.len() == 1 => write!(f, "{}", l[0]),
+            Self::Enumerated(l) => {
+                write!(f, "[")?;
+                for i in l {
+                    write!(f, "{i},")?;
+                }
+                write!(f, "]")
+            }
         }
     }
 }
@@ -159,26 +180,22 @@ impl<'de> Deserialize<'de> for Filter<H256> {
     }
 }
 
-/// The tuple of (sourceDomain, sourceAddress, destinationDomain, destinationAddress).
-type FilterTuple = (Filter<u32>, Filter<H256>, Filter<u32>, Filter<H256>);
-
 #[derive(Debug, Deserialize, Clone)]
-#[serde(tag = "type", rename_all = "camelCase", from = "FilterTuple")]
+#[serde(tag = "type", rename_all = "camelCase")]
 struct WhitelistElement {
+    #[serde(default)]
     source_domain: Filter<u32>,
+    #[serde(default)]
     source_address: Filter<H256>,
+    #[serde(default)]
     destination_domain: Filter<u32>,
+    #[serde(default)]
     destination_address: Filter<H256>,
 }
 
-impl From<FilterTuple> for WhitelistElement {
-    fn from(tup: FilterTuple) -> Self {
-        Self {
-            source_domain: tup.0,
-            source_address: tup.1,
-            destination_domain: tup.2,
-            destination_address: tup.3,
-        }
+impl Display for WhitelistElement {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        write!(f, "{{sourceDomain: {}, sourceAddress: {}, destinationDomain: {}, destinationAddress: {}}}", self.source_domain, self.source_address, self.destination_domain, self.destination_address)
     }
 }
 
@@ -206,4 +223,45 @@ impl Whitelist {
             true
         }
     }
+}
+
+impl Display for Whitelist {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if let Some(wl) = &self.0 {
+            write!(f, "[")?;
+            for i in wl {
+                write!(f, "{i},")?;
+            }
+            write!(f, "]")
+        } else {
+            write!(f, "null")
+        }
+    }
+}
+
+#[test]
+fn parse_whitelist_cfg() {
+    let whitelist: Whitelist = serde_json::from_str(r#"[{"sourceDomain": "*", "sourceAddress": "*", "destinationDomain": "*", "destinationAddress": "*"}, {}]"#).unwrap();
+    assert!(whitelist.0.is_some());
+    assert_eq!(whitelist.0.as_ref().unwrap().len(), 2);
+    let elem = &whitelist.0.as_ref().unwrap()[0];
+    assert_eq!(elem.destination_domain, Filter::Wildcard);
+    assert_eq!(elem.destination_address, Filter::Wildcard);
+    assert_eq!(elem.source_domain, Filter::Wildcard);
+    assert_eq!(elem.source_address, Filter::Wildcard);
+
+    let elem = &whitelist.0.as_ref().unwrap()[1];
+    assert_eq!(elem.destination_domain, Filter::Wildcard);
+    assert_eq!(elem.destination_address, Filter::Wildcard);
+    assert_eq!(elem.source_domain, Filter::Wildcard);
+    assert_eq!(elem.source_address, Filter::Wildcard);
+
+    let whitelist: Whitelist = serde_json::from_str(r#"[{"sourceAddress": "*", "destinationDomain": [13372, "13373"], "destinationAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+    assert!(whitelist.0.is_some());
+    assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
+    let elem = &whitelist.0.as_ref().unwrap()[0];
+    assert_eq!(elem.destination_domain, Filter::Enumerated(vec![13372, 13373]));
+    assert_eq!(elem.destination_address, Filter::Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688".parse().unwrap()]));
+    assert_eq!(elem.source_domain, Filter::Wildcard);
+    assert_eq!(elem.source_address, Filter::Wildcard);
 }

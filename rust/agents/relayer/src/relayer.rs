@@ -16,7 +16,7 @@ use abacus_core::MultisigSignedCheckpoint;
 
 use crate::checkpoint_fetcher::CheckpointFetcher;
 use crate::settings::whitelist::Whitelist;
-use crate::{message_processor::MessageProcessor, settings::RelayerSettings as Settings};
+use crate::{message_processor::MessageProcessor, settings::RelayerSettings};
 
 /// A relayer agent
 #[derive(Debug)]
@@ -39,7 +39,7 @@ impl AsRef<AbacusAgentCore> for Relayer {
 impl Agent for Relayer {
     const AGENT_NAME: &'static str = "relayer";
 
-    type Settings = Settings;
+    type Settings = RelayerSettings;
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
     where
@@ -48,6 +48,16 @@ impl Agent for Relayer {
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
             .try_into_multisig_checkpoint_syncer()?;
+        let whitelist = Arc::new(
+            settings
+                .whitelist
+                .as_ref()
+                .map(|wl| serde_json::from_str(wl))
+                .transpose()
+                .expect("Invalid whitelist received")
+                .unwrap_or_default(),
+        );
+        info!(whitelist = %whitelist, "Whitelist configuration");
 
         Ok(Self {
             signed_checkpoint_polling_interval: settings
@@ -60,7 +70,7 @@ impl Agent for Relayer {
                 .as_ref()
                 .try_into_abacus_core(Self::AGENT_NAME)
                 .await?,
-            whitelist: Arc::new(settings.whitelist.clone()),
+            whitelist,
         })
     }
 }

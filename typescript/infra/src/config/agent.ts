@@ -85,12 +85,22 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 // =====     Relayer Agent     =====
 // =================================
 
+type Whitelist = WhitelistElement[];
+
+interface WhitelistElement {
+  sourceDomain?: '*' | string | string[] | number | number[];
+  sourceAddress?: '*' | string | string[];
+  destinationDomain?: '*' | string | string[] | number | number[];
+  destinationAddress?: '*' | string | string[];
+}
+
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
   // The polling interval to check for new signed checkpoints in seconds
-  signedCheckpointPollingInteral: number;
+  signedCheckpointPollingInterval: number;
   // The maxinmum number of times a processor will try to process a message
   maxProcessingRetries: number;
+  whitelist?: Whitelist;
 }
 
 // Per-chain relayer agent configs
@@ -100,8 +110,9 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 >;
 
 // Full relayer agent config for a single chain
-interface RelayerConfig extends BaseRelayerConfig {
+interface RelayerConfig extends Omit<BaseRelayerConfig, 'whitelist'> {
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
+  whitelist?: string;
 }
 
 // ===================================
@@ -394,13 +405,20 @@ export class ChainAgentConfig<Chain extends ChainName> {
       {},
     );
 
-    return {
-      ...baseConfig,
+    const obj: RelayerConfig = {
+      signedCheckpointPollingInterval:
+        baseConfig.signedCheckpointPollingInterval,
+      maxProcessingRetries: baseConfig.maxProcessingRetries,
       multisigCheckpointSyncer: {
         threshold: this.validatorSet.threshold,
         checkpointSyncers,
       },
     };
+    if (baseConfig.whitelist) {
+      obj.whitelist = JSON.stringify(baseConfig.whitelist);
+    }
+
+    return obj;
   }
 
   get checkpointerEnabled() {
