@@ -63,6 +63,13 @@ impl<'de> Visitor<'de> for FilterVisitor<u32> {
         write!(fmt, "Expecting either a wildcard \"*\", decimal/hex value string, or list of decimal/hex value strings")
     }
 
+    fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E>
+    where
+        E: Error,
+    {
+        Ok(Self::Value::Enumerated(vec![v]))
+    }
+
     fn visit_u64<E>(self, v: u64) -> Result<Self::Value, E>
     where
         E: Error,
@@ -72,13 +79,6 @@ impl<'de> Visitor<'de> for FilterVisitor<u32> {
         } else {
             Err(E::custom("Domain Id must fit within a u32 value"))
         }
-    }
-
-    fn visit_u32<E>(self, v: u32) -> Result<Self::Value, E>
-    where
-        E: Error,
-    {
-        Ok(Self::Value::Enumerated(vec![v]))
     }
 
     fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
