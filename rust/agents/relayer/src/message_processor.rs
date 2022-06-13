@@ -130,34 +130,31 @@ impl MessageProcessor {
                 if message_leaf_index > latest_signed_checkpoint.checkpoint.index {
                     return Ok(MessageProcessingStatus::NotYetCheckpointed);
                 }
+                if !self.whitelist.msg_matches(&message.message) {
+                    return Ok(MessageProcessingStatus::NotWhitelisted);
+                }
 
                 match self.prover_sync.get_proof(message_leaf_index) {
-                    Ok(proof) => {
-                        if !self.whitelist.msg_matches(&message.message) {
-                            return Ok(MessageProcessingStatus::NotWhitelisted);
+                    Ok(proof) => match self
+                        .inbox_contracts
+                        .validator_manager
+                        .process(latest_signed_checkpoint, &message.message, &proof)
+                        .await
+                    {
+                        Ok(outcome) => {
+                            info!(
+                                leaf_index = message_leaf_index,
+                                hash = ?outcome.txid,
+                                "Message successfully processed"
+                            );
+                            self.db.mark_leaf_as_processed(message_leaf_index)?;
+                            Ok(MessageProcessingStatus::Processed)
                         }
-
-                        match self
-                            .inbox_contracts
-                            .validator_manager
-                            .process(latest_signed_checkpoint, &message.message, &proof)
-                            .await
-                        {
-                            Ok(outcome) => {
-                                info!(
-                                    leaf_index = message_leaf_index,
-                                    hash = ?outcome.txid,
-                                    "Message successfully processed"
-                                );
-                                self.db.mark_leaf_as_processed(message_leaf_index)?;
-                                Ok(MessageProcessingStatus::Processed)
-                            }
-                            Err(err) => {
-                                info!(leaf_index = message_leaf_index, error=?err, "Message failed to process, enqueuing for retry");
-                                Ok(MessageProcessingStatus::Error)
-                            }
+                        Err(err) => {
+                            info!(leaf_index = message_leaf_index, error=?err, "Message failed to process, enqueuing for retry");
+                            Ok(MessageProcessingStatus::Error)
                         }
-                    }
+                    },
                     Err(err) => {
                         error!(error=?err, "Unable to fetch proof");
                         bail!("Unable to fetch proof");
