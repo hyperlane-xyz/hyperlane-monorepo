@@ -12,7 +12,6 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
 
     mapping(uint32 => bytes32) public routers;
-    uint256[49] private __GAP; // gap for upgrade safety
 
     // ============ Events ============
 

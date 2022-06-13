@@ -5,9 +5,9 @@ import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
 import "../AbacusConnectionClient.sol";
 
 contract TestAbacusConnectionClient is AbacusConnectionClient {
-    function initialize(address _abacusConnectionManager) external initializer {
-        __AbacusConnectionClient_initialize(_abacusConnectionManager);
-    }
+    constructor(address _abacusConnectionManager)
+        AbacusConnectionClient(_abacusConnectionManager)
+    {}
 
     function outbox() external view returns (IOutbox) {
         return _outbox();

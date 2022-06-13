@@ -36,14 +36,9 @@ describe('AbacusConnectionClient', async () => {
     const connectionClientFactory = new TestAbacusConnectionClient__factory(
       signer,
     );
-    connectionClient = await connectionClientFactory.deploy();
-    await connectionClient.initialize(connectionManager.address);
-  });
-
-  it('Cannot be initialized twice', async () => {
-    await expect(
-      connectionClient.initialize(ethers.constants.AddressZero),
-    ).to.be.revertedWith('Initializable: contract is already initialized');
+    connectionClient = await connectionClientFactory.deploy(
+      connectionManager.address,
+    );
   });
 
   it('owner can set connection manager', async () => {
