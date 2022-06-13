@@ -79,6 +79,7 @@ describe('core', async () => {
   it('persists partial failure', async () => {
     try {
       await flakeyDeployer.deploy();
+      // eslint-disable-next-line no-empty
     } catch (e) {}
     expect(flakeyDeployer.deployedContracts).to.have.keys(['test1', 'test2']);
   });
