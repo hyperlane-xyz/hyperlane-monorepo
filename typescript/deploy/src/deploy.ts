@@ -64,7 +64,9 @@ export abstract class AbacusDeployer<
       );
     this.logger(
       `Start deploy to ${targetChains} ${
-        deployedChains.length > 0 && `(already deployed to ${deployedChains})`
+        deployedChains.length > 0
+          ? `(already deployed to ${deployedChains})`
+          : ''
       }`,
     );
     for (const chain of targetChains) {
