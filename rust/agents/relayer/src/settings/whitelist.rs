@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use std::marker::PhantomData;
 use std::num::ParseIntError;
 
-use ethers::types::H256;
+use ethers::prelude::*;
 use serde::de::{Error, SeqAccess, Visitor};
 use serde::{Deserialize, Deserializer};
 
@@ -125,10 +125,6 @@ impl<'de> Visitor<'de> for FilterVisitor<u32> {
     }
 }
 
-fn to_serde_err<IE: ToString, OE: Error>(e: IE) -> OE {
-    OE::custom(e.to_string())
-}
-
 impl<'de> Visitor<'de> for FilterVisitor<H256> {
     type Value = Filter<H256>;
 
@@ -146,7 +142,7 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
         Ok(if v == "*" {
             Self::Value::Wildcard
         } else {
-            Self::Value::Enumerated(vec![v.parse::<H256>().map_err(to_serde_err)?])
+            Self::Value::Enumerated(vec![parse_addr(v)?])
         })
     }
 
@@ -156,7 +152,7 @@ impl<'de> Visitor<'de> for FilterVisitor<H256> {
     {
         let mut values = Vec::new();
         while let Some(i) = seq.next_element::<&str>()? {
-            values.push(i.parse::<H256>().map_err(to_serde_err)?)
+            values.push(parse_addr(i)?)
         }
         Ok(Self::Value::Enumerated(values))
     }
@@ -239,29 +235,77 @@ impl Display for Whitelist {
     }
 }
 
-#[test]
-fn parse_whitelist_cfg() {
-    let whitelist: Whitelist = serde_json::from_str(r#"[{"sourceDomain": "*", "sourceAddress": "*", "destinationDomain": "*", "destinationAddress": "*"}, {}]"#).unwrap();
-    assert!(whitelist.0.is_some());
-    assert_eq!(whitelist.0.as_ref().unwrap().len(), 2);
-    let elem = &whitelist.0.as_ref().unwrap()[0];
-    assert_eq!(elem.destination_domain, Filter::Wildcard);
-    assert_eq!(elem.destination_address, Filter::Wildcard);
-    assert_eq!(elem.source_domain, Filter::Wildcard);
-    assert_eq!(elem.source_address, Filter::Wildcard);
+fn to_serde_err<IE: ToString, OE: Error>(e: IE) -> OE {
+    OE::custom(e.to_string())
+}
 
-    let elem = &whitelist.0.as_ref().unwrap()[1];
-    assert_eq!(elem.destination_domain, Filter::Wildcard);
-    assert_eq!(elem.destination_address, Filter::Wildcard);
-    assert_eq!(elem.source_domain, Filter::Wildcard);
-    assert_eq!(elem.source_address, Filter::Wildcard);
+fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
+    if addr_str.len() <= 42 {
+        addr_str.parse::<H160>().map(H256::from)
+    } else {
+        addr_str.parse::<H256>()
+    }
+    .map_err(to_serde_err)
+}
 
-    let whitelist: Whitelist = serde_json::from_str(r#"[{"sourceAddress": "*", "destinationDomain": [13372, "13373"], "destinationAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
-    assert!(whitelist.0.is_some());
-    assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
-    let elem = &whitelist.0.as_ref().unwrap()[0];
-    assert_eq!(elem.destination_domain, Filter::Enumerated(vec![13372, 13373]));
-    assert_eq!(elem.destination_address, Filter::Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688".parse().unwrap()]));
-    assert_eq!(elem.source_domain, Filter::Wildcard);
-    assert_eq!(elem.source_address, Filter::Wildcard);
+#[cfg(test)]
+mod test {
+    use ethers::prelude::*;
+
+    use super::{Filter::*, Whitelist};
+
+    #[test]
+    fn basic_config() {
+        let whitelist: Whitelist = serde_json::from_str(r#"[{"sourceDomain": "*", "sourceAddress": "*", "destinationDomain": "*", "destinationAddress": "*"}, {}]"#).unwrap();
+        assert!(whitelist.0.is_some());
+        assert_eq!(whitelist.0.as_ref().unwrap().len(), 2);
+        let elem = &whitelist.0.as_ref().unwrap()[0];
+        assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.destination_address, Wildcard);
+        assert_eq!(elem.source_domain, Wildcard);
+        assert_eq!(elem.source_address, Wildcard);
+
+        let elem = &whitelist.0.as_ref().unwrap()[1];
+        assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(elem.destination_address, Wildcard);
+        assert_eq!(elem.source_domain, Wildcard);
+        assert_eq!(elem.source_address, Wildcard);
+    }
+
+    #[test]
+    fn config_with_address() {
+        let whitelist: Whitelist = serde_json::from_str(r#"[{"sourceAddress": "0x9d4454B023096f34B160D6B654540c56A1F81688", "destinationAddress": "9d4454B023096f34B160D6B654540c56A1F81688"}]"#).unwrap();
+        assert!(whitelist.0.is_some());
+        assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
+        let elem = &whitelist.0.as_ref().unwrap()[0];
+        assert_eq!(elem.destination_domain, Wildcard);
+        assert_eq!(
+            elem.destination_address,
+            Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
+                .parse::<H160>()
+                .unwrap()
+                .into()])
+        );
+        assert_eq!(elem.source_domain, Wildcard);
+        assert_eq!(
+            elem.source_address,
+            Enumerated(vec!["0x9d4454B023096f34B160D6B654540c56A1F81688"
+                .parse::<H160>()
+                .unwrap()
+                .into()])
+        );
+    }
+
+    #[test]
+    fn config_with_multiple_domains() {
+        let whitelist: Whitelist =
+            serde_json::from_str(r#"[{"destinationDomain": ["13372", "13373"]}]"#).unwrap();
+        assert!(whitelist.0.is_some());
+        assert_eq!(whitelist.0.as_ref().unwrap().len(), 1);
+        let elem = &whitelist.0.as_ref().unwrap()[0];
+        assert_eq!(elem.destination_domain, Enumerated(vec![13372, 13373]));
+        assert_eq!(elem.destination_address, Wildcard);
+        assert_eq!(elem.source_domain, Wildcard);
+        assert_eq!(elem.source_address, Wildcard);
+    }
 }
