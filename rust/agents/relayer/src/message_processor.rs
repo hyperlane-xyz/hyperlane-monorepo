@@ -245,7 +245,7 @@ impl MessageProcessor {
                     .await?;
             } else {
                 loop_ctrl!(
-                    self.retry_processing_messages(&mut latest_signed_checkpoint)
+                    self.retry_processing_message(&mut latest_signed_checkpoint)
                         .await?
                 );
             }
@@ -301,7 +301,7 @@ impl MessageProcessor {
     }
 
     /// Part of main loop
-    async fn retry_processing_messages(
+    async fn retry_processing_message(
         &mut self,
         latest_signed_checkpoint: &mut MultisigSignedCheckpoint,
     ) -> Result<LoopControl> {
