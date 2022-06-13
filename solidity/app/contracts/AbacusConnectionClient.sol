@@ -2,9 +2,9 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
-import {IInterchainGasPaymaster} from "@abacus-network/core/interfaces/IInterchainGasPaymaster.sol";
-import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
-import {IAbacusConnectionManager} from "@abacus-network/core/interfaces/IAbacusConnectionManager.sol";
+import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
+import {IOutbox} from "../interfaces/IOutbox.sol";
+import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
 
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
