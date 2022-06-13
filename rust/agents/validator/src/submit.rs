@@ -37,7 +37,22 @@ impl ValidatorSubmitter {
         let span = info_span!("ValidatorSubmitter");
         let reorg_period = Some(self.reorg_period);
         tokio::spawn(async move {
-            let mut current_index = self.checkpoint_syncer.latest_index().await?.unwrap_or_default();
+            // Ensure that the outbox has > 0 messages before we enter the main
+            // validator submit loop. This is to avoid an underflow / reverted
+            // call when we invoke the `outbox.latest_checkpoint()` method,
+            // which returns the **index** of the last element in the tree
+            // rather than just the size.  See
+            // https://github.com/abacus-network/abacus-monorepo/issues/575 for
+            // more details.
+            let mut outbox_count = self.outbox.count().await?;
+            while outbox_count <= 0 {
+                info!(outbox_count, "waiting for non-zero outbox size");
+                tokio::time::sleep(Duration::from_secs(self.interval)).await;
+                outbox_count = self.outbox.count().await?;
+            }
+
+            let mut current_index =
+                self.checkpoint_syncer.latest_index().await?.unwrap_or_default();
 
             info!(current_index=current_index, "Starting Validator");
             loop {
