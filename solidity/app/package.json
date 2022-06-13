@@ -46,8 +46,8 @@
   "main": "dist/index.js",
   "repository": "https://github.com/abacus-network/abacus-monorepo",
   "scripts": {
-    "clean": "hardhat clean",
-    "copy-core-interfaces": "rm -r ./interfaces && cp -r ../core/interfaces ./interfaces",
+    "clean": "rm -r ./interfaces && hardhat clean",
+    "copy-core-interfaces": "mkdir -p ./interfaces && cp -r ../core/interfaces .",
     "build": "yarn copy-core-interfaces && hardhat compile && tsc",
     "coverage": "hardhat coverage",
     "prettier": "prettier --write ./contracts ./test",
