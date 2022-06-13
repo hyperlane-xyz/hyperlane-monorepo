@@ -40,20 +40,23 @@ abstract contract MultisigValidatorManager is Ownable {
      * @param validator The address of the validator.
      * @param validatorCount The new number of enrolled validators in the validator set.
      */
-    event EnrollValidator(address indexed validator, uint256 validatorCount);
+    event ValidatorEnrolled(address indexed validator, uint256 validatorCount);
 
     /**
      * @notice Emitted when a validator is unenrolled from the validator set.
      * @param validator The address of the validator.
      * @param validatorCount The new number of enrolled validators in the validator set.
      */
-    event UnenrollValidator(address indexed validator, uint256 validatorCount);
+    event ValidatorUnenrolled(
+        address indexed validator,
+        uint256 validatorCount
+    );
 
     /**
      * @notice Emitted when the quorum threshold is set.
      * @param threshold The new quorum threshold.
      */
-    event SetThreshold(uint256 threshold);
+    event ThresholdSet(uint256 threshold);
 
     // ============ Constructor ============
 
@@ -216,7 +219,7 @@ abstract contract MultisigValidatorManager is Ownable {
      */
     function _enrollValidator(address _validator) internal {
         require(validatorSet.add(_validator), "already enrolled");
-        emit EnrollValidator(_validator, validatorCount());
+        emit ValidatorEnrolled(_validator, validatorCount());
     }
 
     /**
@@ -230,7 +233,7 @@ abstract contract MultisigValidatorManager is Ownable {
         require(validatorSet.remove(_validator), "!enrolled");
         uint256 _numValidators = validatorCount();
         require(_numValidators >= threshold, "violates quorum threshold");
-        emit UnenrollValidator(_validator, _numValidators);
+        emit ValidatorUnenrolled(_validator, _numValidators);
     }
 
     /**
@@ -240,7 +243,7 @@ abstract contract MultisigValidatorManager is Ownable {
     function _setThreshold(uint256 _threshold) internal {
         require(_threshold > 0 && _threshold <= validatorCount(), "!range");
         threshold = _threshold;
-        emit SetThreshold(_threshold);
+        emit ThresholdSet(_threshold);
     }
 
     /**
