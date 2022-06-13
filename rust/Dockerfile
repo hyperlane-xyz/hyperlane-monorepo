@@ -16,6 +16,7 @@ COPY abacus-base ./abacus-base
 COPY abacus-core ./abacus-core
 COPY abacus-test ./abacus-test
 COPY ethers-prometheus ./ethers-prometheus
+COPY utils ./utils
 
 COPY Cargo.toml .
 COPY Cargo.lock .

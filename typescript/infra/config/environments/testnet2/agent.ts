@@ -30,7 +30,7 @@ export const agent: AgentConfig<TestnetChains> = {
   },
   relayer: {
     default: {
-      signedCheckpointPollingInteral: 5,
+      signedCheckpointPollingInterval: 5,
       maxProcessingRetries: 10,
     },
   },
