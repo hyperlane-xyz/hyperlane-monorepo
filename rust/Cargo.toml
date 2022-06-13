@@ -10,5 +10,6 @@ members = [
     "agents/kathy",
     "agents/validator",
     "agents/relayer",
-    "ethers-prometheus"
+    "ethers-prometheus",
+    "utils/loop-control"
 ]
