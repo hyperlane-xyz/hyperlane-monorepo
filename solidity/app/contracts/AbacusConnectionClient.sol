@@ -9,7 +9,7 @@ import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.s
 // ============ External Imports ============
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 
-contract AbacusConnectionClient is Ownable {
+abstract contract AbacusConnectionClient is Ownable {
     // ============ Mutable Storage ============
 
     IAbacusConnectionManager public abacusConnectionManager;
