@@ -55,8 +55,10 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   }
 
   // override return type for inboxes shape derived from chain
-  async deploy(): Promise<CoreContractsMap<Chain>> {
-    return super.deploy() as Promise<CoreContractsMap<Chain>>;
+  async deploy(
+    partialDeployment?: Partial<CoreContractsMap<Chain>>,
+  ): Promise<CoreContractsMap<Chain>> {
+    return super.deploy(partialDeployment) as Promise<CoreContractsMap<Chain>>;
   }
 
   async deployOutbox<LocalChain extends Chain>(
