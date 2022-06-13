@@ -62,7 +62,7 @@ export const kovan: ChainMetadata = {
 
 export const mumbai: ChainMetadata = {
   id: 80001,
-  finalityBlocks: 500,
+  finalityBlocks: 32,
   paginate: {
     // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
     blocks: 10000,

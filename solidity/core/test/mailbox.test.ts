@@ -35,7 +35,9 @@ describe('Mailbox', async () => {
     it('Allows owner to update the ValidatorManager', async () => {
       const mailboxFactory = new TestMailbox__factory(owner);
       const newValidatorManager = await mailboxFactory.deploy(localDomain);
-      await mailbox.setValidatorManager(newValidatorManager.address);
+      await expect(
+        mailbox.setValidatorManager(newValidatorManager.address),
+      ).to.emit(mailbox, 'ValidatorManagerSet');
       expect(await mailbox.validatorManager()).to.equal(
         newValidatorManager.address,
       );
