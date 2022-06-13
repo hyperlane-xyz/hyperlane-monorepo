@@ -44,11 +44,9 @@ impl ValidatorSubmitter {
             // rather than just the size.  See
             // https://github.com/abacus-network/abacus-monorepo/issues/575 for
             // more details.
-            let mut outbox_count = self.outbox.count().await?;
-            while outbox_count == 0 {
-                info!(outbox_count, "waiting for non-zero outbox size");
-                tokio::time::sleep(Duration::from_secs(self.interval)).await;
-                outbox_count = self.outbox.count().await?;
+            while self.outbox.count().await? == 0 {
+                info!("waiting for non-zero outbox size");
+                sleep(Duration::from_secs(self.interval)).await;
             }
 
             let mut current_index =
