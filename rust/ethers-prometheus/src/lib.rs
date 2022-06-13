@@ -453,7 +453,7 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
                         "wallet_address" => wallet_addr_str.as_str(),
                         "wallet_name" => wallet_name,
                         "token_address" => "none",
-                        "token_symbol" => "N",
+                        "token_symbol" => "Native",
                         "token_name" => "Native"
                     }).set(balance)
                 },
