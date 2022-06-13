@@ -70,7 +70,7 @@ impl<'de> Visitor<'de> for FilterVisitor<u32> {
         if v <= u32::MAX as u64 {
             Ok(Self::Value::Enumerated(vec![v as u32]))
         } else {
-            Err(E::custom("Id must fit within a u32 value"))
+            Err(E::custom("Domain Id must fit within a u32 value"))
         }
     }
 
