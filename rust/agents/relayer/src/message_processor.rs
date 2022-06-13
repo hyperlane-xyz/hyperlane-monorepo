@@ -266,7 +266,7 @@ impl MessageProcessor {
         info!(
             destination = self.inbox_contracts.inbox.local_domain(),
             leaf_index = message_leaf_index,
-            "Process fresh leaf"
+            "Attempting to process fresh leaf"
         );
         let new_leaf = match self
             .try_processing_message(latest_signed_checkpoint, message_leaf_index)
