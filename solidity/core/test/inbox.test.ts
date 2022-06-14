@@ -79,13 +79,13 @@ describe('Inbox', async () => {
   beforeEach(async () => {
     const inboxFactory = new TestInbox__factory(signer);
     inbox = await inboxFactory.deploy(INBOX_DOMAIN);
-    await inbox.initialize(OUTBOX_DOMAIN, validatorManager.address);
+    await inbox.initialize(validatorManager.address);
   });
 
   it('Cannot be initialized twice', async () => {
-    await expect(
-      inbox.initialize(OUTBOX_DOMAIN, validatorManager.address),
-    ).to.be.revertedWith('Initializable: contract is already initialized');
+    await expect(inbox.initialize(validatorManager.address)).to.be.revertedWith(
+      'Initializable: contract is already initialized',
+    );
   });
 
   describe('#process', () => {
@@ -111,13 +111,17 @@ describe('Inbox', async () => {
       await expect(
         inbox.process(signature, checkpoint, proof, message),
       ).to.emit(inbox, 'Process');
-      expect(await inbox.messages(proof.item)).to.eql(
+      expect(await inbox.messages(OUTBOX_DOMAIN, proof.item)).to.eql(
         types.MessageStatus.PROCESSED,
       );
     });
 
     it('Rejects an already-processed message', async () => {
-      await inbox.setMessageStatus(proof.item, types.MessageStatus.PROCESSED);
+      await inbox.setMessageStatus(
+        OUTBOX_DOMAIN,
+        proof.item,
+        types.MessageStatus.PROCESSED,
+      );
 
       // Try to process message again
       await expect(
@@ -143,7 +147,7 @@ describe('Inbox', async () => {
           message,
         ),
       ).to.be.revertedWith('!proof');
-      expect(await inbox.messages(proof.item)).to.equal(
+      expect(await inbox.messages(OUTBOX_DOMAIN, proof.item)).to.equal(
         types.MessageStatus.NONE,
       );
     });

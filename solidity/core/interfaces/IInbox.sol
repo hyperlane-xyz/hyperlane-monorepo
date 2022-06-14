@@ -5,8 +5,6 @@ import {IMailbox} from "./IMailbox.sol";
 import {MerkleLib} from "../libs/Merkle.sol";
 
 interface IInbox is IMailbox {
-    function remoteDomain() external returns (uint32);
-
     function process(
         Signature calldata _sig,
         Checkpoint calldata _checkpoint,

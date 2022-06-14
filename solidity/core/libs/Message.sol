@@ -67,11 +67,11 @@ library Message {
         internal
         pure
         returns (
-            uint32 origin,
-            bytes32 sender,
-            uint32 destination,
-            bytes32 recipient,
-            bytes calldata body
+            uint32,
+            bytes32,
+            uint32,
+            bytes32,
+            bytes calldata
         )
     {
         return (
@@ -81,6 +81,18 @@ library Message {
             bytes32(_message[40:72]),
             bytes(_message[72:])
         );
+    }
+
+    function origin(bytes calldata _message) internal pure returns (uint32) {
+        return uint32(bytes4(_message[0:4]));
+    }
+
+    function destination(bytes calldata _message)
+        internal
+        pure
+        returns (uint32)
+    {
+        return uint32(bytes4(_message[36:40]));
     }
 
     /**
@@ -107,16 +119,16 @@ library Message {
         (
             uint32 _origin,
             bytes32 _sender,
-            uint32 destination,
+            uint32 _destination,
             bytes32 _recipient,
-            bytes calldata body
+            bytes calldata _body
         ) = destructure(_message);
         return (
             _origin,
             _sender.bytes32ToAddress(),
-            destination,
+            _destination,
             _recipient.bytes32ToAddress(),
-            body
+            _body
         );
     }
 }

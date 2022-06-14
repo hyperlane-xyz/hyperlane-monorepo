@@ -24,8 +24,12 @@ contract TestInbox is Inbox {
         _process(_checkpoint, _proof, _message);
     }
 
-    function setMessageStatus(bytes32 _leaf, MessageStatus status) external {
-        messages[_leaf] = status;
+    function setMessageStatus(
+        uint32 _origin,
+        bytes32 _leaf,
+        MessageStatus status
+    ) external {
+        messages[_origin][_leaf] = status;
     }
 
     function getRevertMsg(bytes calldata _res)

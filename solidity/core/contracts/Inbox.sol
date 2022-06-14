@@ -40,22 +40,20 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
 
     // ============ Public Storage ============
 
-    // Domain of outbox chain
-    uint32 public override remoteDomain;
     // Mapping of message leaves to MessageStatus
-    mapping(bytes32 => MessageStatus) public messages;
+    mapping(uint32 => mapping(bytes32 => MessageStatus)) public messages;
 
     // ============ Upgrade Gap ============
 
     // gap for upgrade safety
-    uint256[48] private __GAP;
+    uint256[49] private __GAP;
 
     // ============ Events ============
 
     /**
      * @notice Emitted when message is processed
      */
-    event Process(bytes32 indexed leaf);
+    event Process(uint32 indexed origin, bytes32 indexed leaf);
 
     /**
      * @dev This event allows watchers to observe the merkle proof they need
@@ -77,16 +75,23 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
 
     // ============ Initializer ============
 
-    function initialize(uint32 _remoteDomain, address _validatorManager)
-        public
-        initializer
-    {
+    function initialize(address _validatorManager) public initializer {
         __ReentrancyGuard_init();
         __Mailbox_initialize(_validatorManager);
-        remoteDomain = _remoteDomain;
     }
 
     // ============ External Functions ============
+    function multiProcess(
+        Signature[] calldata _sigs,
+        Checkpoint[] calldata _checkpoints,
+        MerkleLib.Proof[][] calldata _proofs,
+        bytes[][] calldata _messages
+    ) external nonReentrant {
+        for (uint256 i = 0; i < _sigs.length; i++) {
+            _batchProcess(_sigs[i], _checkpoints[i], _proofs[i], _messages[i]);
+        }
+    }
+
     /**
      * @notice Attempts to process the provided formatted `message`. Performs
      * verification against root of the proof
@@ -100,11 +105,24 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         MerkleLib.Proof[] calldata _proofs,
         bytes[] calldata _messages
     ) external override nonReentrant {
-        bool _success = _verify(_sig, _checkpoint, remoteDomain);
-        require(_success, "!sig");
+        _batchProcess(_sig, _checkpoint, _proofs, _messages);
+    }
+
+    function _batchProcess(
+        Signature calldata _sig,
+        Checkpoint calldata _checkpoint,
+        MerkleLib.Proof[] calldata _proofs,
+        bytes[] calldata _messages
+    ) internal {
+        uint32 _origin = _messages[0].origin();
+        require(_verify(_sig, _checkpoint, _origin), "!sig");
         for (uint256 i = 0; i < _proofs.length; i++) {
             _process(_checkpoint, _proofs[i], _messages[i]);
-            if (i == _proofs.length - 1) {
+            // Require proofs are ordered so that SignedCheckpoint emits
+            // the proof with the highest leaf index.
+            if (i < _proofs.length - 1) {
+                require(_proofs[i].index < _proofs[i + 1].index, "!ordered");
+            } else {
                 emit SignedCheckpoint(
                     _checkpoint,
                     _proofs[i],
@@ -113,8 +131,6 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
                     _sig.nonce.compress(),
                     _sig.missing
                 );
-            } else {
-                require(_proofs[i].index < _proofs[i + 1].index, "!ordered");
             }
         }
     }
@@ -134,8 +150,8 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         MerkleLib.Proof calldata _proof,
         bytes calldata _message
     ) external override nonReentrant {
-        bool _success = _verify(_sig, _checkpoint, remoteDomain);
-        require(_success, "!sig");
+        uint32 _origin = _message.origin();
+        require(_verify(_sig, _checkpoint, _origin), "!sig");
         _process(_checkpoint, _proof, _message);
         // Missing compressed key, but maybe it's unnecessary?
         emit SignedCheckpoint(
@@ -163,10 +179,6 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         require(_checkpoint.index >= _proof.index, "!index");
         //bytes32 _messageHash = _message.leaf(_leafIndex);
         require(keccak256(_message) == _proof.item, "!hash");
-        require(
-            messages[_proof.item] == MessageStatus.None,
-            "!MessageStatus.None"
-        );
         // calculate the expected root based on the proof
         require(_checkpoint.root == _proof.branchRoot(), "!proof");
 
@@ -178,17 +190,21 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
             bytes calldata body
         ) = _message.destructure();
 
+        require(
+            messages[origin][_proof.item] == MessageStatus.None,
+            "!MessageStatus.None"
+        );
         // ensure message was meant for this domain
         require(destination == localDomain, "!destination");
 
         // update message status as processed
-        messages[_proof.item] = MessageStatus.Processed;
+        messages[origin][_proof.item] = MessageStatus.Processed;
 
         IMessageRecipient(recipient.bytes32ToAddress()).handle(
             origin,
             sender,
             body
         );
-        emit Process(_proof.item);
+        emit Process(origin, _proof.item);
     }
 }
