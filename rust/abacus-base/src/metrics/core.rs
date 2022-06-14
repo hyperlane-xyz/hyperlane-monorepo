@@ -290,6 +290,11 @@ impl CoreMetrics {
         }
     }
 
+    /// Get the name of this agent, e.g. "relayer"
+    pub fn agent_name(&self) -> &str {
+        &self.agent_name
+    }
+
     fn const_labels_str(&self) -> HashMap<&str, &str> {
         self.const_labels
             .iter()

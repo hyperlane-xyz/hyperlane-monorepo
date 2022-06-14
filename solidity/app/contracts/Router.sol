@@ -21,7 +21,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      * @param domain The domain of the new router
      * @param router The address of the new router
      */
-    event EnrollRemoteRouter(uint32 indexed domain, bytes32 indexed router);
+    event RemoteRouterEnrolled(uint32 indexed domain, bytes32 indexed router);
 
     // ============ Modifiers ============
     /**
@@ -96,7 +96,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
      */
     function _enrollRemoteRouter(uint32 _domain, bytes32 _router) internal {
         routers[_domain] = _router;
-        emit EnrollRemoteRouter(_domain, _router);
+        emit RemoteRouterEnrolled(_domain, _router);
     }
 
     /**
