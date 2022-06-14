@@ -76,7 +76,10 @@ export abstract class AbacusDeployer<
         this.configMap[chain],
       );
     }
-    return this.deployedContracts as Record<Chain, Contracts>;
+    return { ...partialDeployment, ...this.deployedContracts } as Record<
+      Chain,
+      Contracts
+    >;
   }
 
   async deployContract<K extends keyof Factories>(

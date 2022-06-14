@@ -2,6 +2,7 @@ import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 import path from 'path';
+import sinon from 'sinon';
 
 import {
   AbacusCoreChecker,
@@ -12,7 +13,6 @@ import { getMultiProviderFromConfigAndSigner } from '@abacus-network/deploy/dist
 import {
   AbacusCore,
   ChainMap,
-  CoreContracts,
   CoreContractsMap,
   MultiProvider,
   objMap,
@@ -24,18 +24,6 @@ import { TestChains } from '../config/environments/test/chains';
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 import { writeJSON } from '../src/utils/utils';
 
-class FlakeyCoreInfraDeployer extends AbacusCoreInfraDeployer<TestChains> {
-  async deployContracts<LocalChain extends TestChains>(
-    chain: TestChains,
-    config: CoreConfig,
-  ): Promise<CoreContracts<TestChains, LocalChain>> {
-    if (chain === 'test3') {
-      throw new Error('test3 failure');
-    }
-    return super.deployContracts(chain, config) as any;
-  }
-}
-
 describe('core', async () => {
   const environment = 'test';
 
@@ -44,10 +32,9 @@ describe('core', async () => {
   let core: AbacusCore<TestChains>;
   let contracts: CoreContractsMap<TestChains>;
   let coreConfig: ChainMap<TestChains, CoreConfig>;
-  let flakeyDeployer: FlakeyCoreInfraDeployer;
 
   let owners: ChainMap<TestChains, string>;
-  before(async () => {
+  beforeEach(async () => {
     const [signer, owner] = await ethers.getSigners();
     // This is kind of awkward and really these tests shouldn't live here
     multiProvider = getMultiProviderFromConfigAndSigner(
@@ -56,7 +43,6 @@ describe('core', async () => {
     );
     coreConfig = testConfig.core;
     deployer = new AbacusCoreInfraDeployer(multiProvider, coreConfig);
-    flakeyDeployer = new FlakeyCoreInfraDeployer(multiProvider, coreConfig);
     owners = objMap(testConfig.transactionConfigs, () => owner.address);
   });
 
@@ -76,19 +62,27 @@ describe('core', async () => {
     await AbacusCoreDeployer.transferOwnership(core, owners, multiProvider);
   });
 
-  it('persists partial failure', async () => {
-    try {
-      await flakeyDeployer.deploy();
-      // eslint-disable-next-line no-empty
-    } catch (e) {}
-    expect(flakeyDeployer.deployedContracts).to.have.keys(['test1', 'test2']);
-  });
+  describe('failure modes', async () => {
+    beforeEach(async () => {
+      const stub = sinon.stub(deployer, 'deployContracts');
+      stub.withArgs('test3', sinon.match.any).rejects();
+      // @ts-ignore
+      deployer.deployContracts.callThrough();
 
-  it('can be resumed from partial failure', async () => {
-    const result = await deployer.deploy(
-      flakeyDeployer.deployedContracts as any,
-    );
-    expect(result).to.have.keys(['test1', 'test2', 'test3']);
+      try {
+        await deployer.deploy();
+      } catch (e: any) {}
+    });
+
+    it('persists partial failure', async () => {
+      expect(deployer.deployedContracts).to.have.keys(['test1', 'test2']);
+    });
+
+    it('can be resumed from partial failure', async () => {
+      sinon.reset(); // restore normal deployer behavior and test3 will be deployed
+      const result = await deployer.deploy();
+      expect(result).to.have.keys(['test1', 'test2', 'test3']);
+    });
   });
 
   it('checks', async () => {
