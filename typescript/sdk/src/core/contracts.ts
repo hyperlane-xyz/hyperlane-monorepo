@@ -21,29 +21,29 @@ export type InboxContracts = {
   inboxValidatorManager: InboxValidatorManager;
 };
 
-const inboxFactories = {
-  inbox: new Inbox__factory(),
-  inboxValidatorManager: new InboxValidatorManager__factory(),
-};
-
 export type OutboxContracts = {
   outbox: ProxiedContract<Outbox, BeaconProxyAddresses>;
   outboxValidatorManager: OutboxValidatorManager;
+};
+
+export type CoreContracts<
+  Networks extends ChainName,
+  Local extends Networks,
+> = OutboxContracts & {
+  inboxes: RemoteChainMap<Networks, Local, InboxContracts>;
+  abacusConnectionManager: AbacusConnectionManager;
+  upgradeBeaconController: UpgradeBeaconController;
+};
+
+const inboxFactories = {
+  inbox: new Inbox__factory(),
+  inboxValidatorManager: new InboxValidatorManager__factory(),
 };
 
 const outboxFactories = {
   outbox: new Outbox__factory(),
   outboxValidatorManager: new OutboxValidatorManager__factory(),
 };
-
-export type CoreContracts<
-  Networks extends ChainName,
-  Local extends Networks,
-> = {
-  abacusConnectionManager: AbacusConnectionManager;
-  upgradeBeaconController: UpgradeBeaconController;
-  inboxes: RemoteChainMap<Networks, Local, InboxContracts>;
-} & OutboxContracts;
 
 export const coreFactories = {
   abacusConnectionManager: new AbacusConnectionManager__factory(),

@@ -60,9 +60,9 @@ describe('AbacusConnectionManager', async () => {
       expect(await connectionManager.outbox()).to.equal(newOutbox.address);
     });
 
-    it('Emits the NewOutbox event', async () => {
+    it('Emits the OutboxSet event', async () => {
       await expect(connectionManager.setOutbox(newOutbox.address))
-        .to.emit(connectionManager, 'NewOutbox')
+        .to.emit(connectionManager, 'OutboxSet')
         .withArgs(newOutbox.address);
     });
 

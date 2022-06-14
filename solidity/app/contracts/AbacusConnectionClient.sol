@@ -26,13 +26,13 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
      * @notice Emitted when a new abacusConnectionManager is set.
      * @param abacusConnectionManager The address of the abacusConnectionManager contract
      */
-    event SetAbacusConnectionManager(address indexed abacusConnectionManager);
+    event AbacusConnectionManagerSet(address indexed abacusConnectionManager);
 
     /**
      * @notice Emitted when a new Interchain Gas Paymaster is set.
      * @param interchainGasPaymaster The address of the Interchain Gas Paymaster.
      */
-    event SetInterchainGasPaymaster(address indexed interchainGasPaymaster);
+    event InterchainGasPaymasterSet(address indexed interchainGasPaymaster);
 
     // ============ Modifiers ============
 
@@ -48,7 +48,7 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
 
     function __AbacusConnectionClient_initialize(
         address _abacusConnectionManager
-    ) internal {
+    ) internal onlyInitializing {
         _setAbacusConnectionManager(_abacusConnectionManager);
         __Ownable_init();
     }
@@ -78,7 +78,7 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
         interchainGasPaymaster = IInterchainGasPaymaster(
             _interchainGasPaymaster
         );
-        emit SetInterchainGasPaymaster(_interchainGasPaymaster);
+        emit InterchainGasPaymasterSet(_interchainGasPaymaster);
     }
 
     // ============ Internal functions ============
@@ -93,7 +93,7 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
         abacusConnectionManager = IAbacusConnectionManager(
             _abacusConnectionManager
         );
-        emit SetAbacusConnectionManager(_abacusConnectionManager);
+        emit AbacusConnectionManagerSet(_abacusConnectionManager);
     }
 
     /**
