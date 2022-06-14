@@ -14,7 +14,13 @@ import {
 } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
-import { TestRouter, TestRouter__factory } from '../types';
+import {
+  TestProxy__factory,
+  TestRouter,
+  TestRouter__factory,
+  TestUpgradeableRouter__factory,
+} from '../types';
+import { TestUpgradeableRouter } from '../types/contracts/upgradeable/test';
 
 const ONLY_OWNER_REVERT_MSG = 'Ownable: caller is not the owner';
 const origin = 1;
@@ -22,68 +28,79 @@ const destination = 2;
 const destinationWithoutRouter = 3;
 const message = '0xdeadbeef';
 
-describe('Router', async () => {
-  let router: TestRouter,
-    outbox: Outbox,
-    connectionManager: AbacusConnectionManager,
-    signer: SignerWithAddress,
-    nonOwner: SignerWithAddress;
+const factories = {
+  Router: new TestRouter__factory(),
+  RouterUpgradeable: new TestUpgradeableRouter__factory(),
+};
 
-  before(async () => {
-    [signer, nonOwner] = await ethers.getSigners();
-  });
+for (const [name, factory] of Object.entries(factories)) {
+  describe(name, async () => {
+    let router: TestRouter | TestUpgradeableRouter,
+      initResp: ContractTransaction | undefined,
+      outbox: Outbox,
+      connectionManager: AbacusConnectionManager,
+      signer: SignerWithAddress,
+      nonOwner: SignerWithAddress;
 
-  beforeEach(async () => {
-    const connectionManagerFactory = new AbacusConnectionManager__factory(
-      signer,
-    );
-    connectionManager = await connectionManagerFactory.deploy();
+    before(async () => {
+      [signer, nonOwner] = await ethers.getSigners();
+    });
 
-    const outboxFactory = new Outbox__factory(signer);
-    outbox = await outboxFactory.deploy(origin);
-    // dispatch dummy message
-    await outbox.dispatch(
-      destination,
-      utils.addressToBytes32(outbox.address),
-      '0x',
-    );
-    await connectionManager.setOutbox(outbox.address);
+    beforeEach(async () => {
+      const connectionManagerFactory = new AbacusConnectionManager__factory(
+        signer,
+      );
+      connectionManager = await connectionManagerFactory.deploy();
 
-    router = await new TestRouter__factory(signer).deploy();
-  });
+      const outboxFactory = new Outbox__factory(signer);
+      outbox = await outboxFactory.deploy(origin);
+      // dispatch dummy message
+      await outbox.dispatch(
+        destination,
+        utils.addressToBytes32(outbox.address),
+        '0x',
+      );
+      await connectionManager.setOutbox(outbox.address);
 
-  describe('#initialize', () => {
+      if (factory instanceof TestRouter__factory) {
+        router = await factory
+          .connect(signer)
+          .deploy(connectionManager.address);
+      } else {
+        const implementation = await factory.connect(signer).deploy();
+        const proxy = await new TestProxy__factory(signer).deploy(
+          implementation.address,
+        );
+        router = TestUpgradeableRouter__factory.connect(proxy.address, signer);
+        initResp = await (router as TestUpgradeableRouter).initialize(
+          connectionManager.address,
+        );
+      }
+    });
+
     it('should set the abacus connection manager', async () => {
-      await router.initialize(connectionManager.address);
       expect(await router.abacusConnectionManager()).to.equal(
         connectionManager.address,
       );
     });
 
     it('should transfer owner to deployer', async () => {
-      await router.initialize(connectionManager.address);
       expect(await router.owner()).to.equal(signer.address);
     });
 
-    it('should use overloaded initialize', async () => {
-      await expect(router.initialize(connectionManager.address)).to.emit(
-        router,
-        'InitializeOverload',
-      );
-    });
+    if (name === 'RouterUpgradeable') {
+      it('should use overloaded initialize', async () => {
+        expect(initResp).to.emit(router, 'InitializeOverload');
+      });
 
-    it('cannot be initialized twice', async () => {
-      await router.initialize(ethers.constants.AddressZero);
-      await expect(
-        router.initialize(ethers.constants.AddressZero),
-      ).to.be.revertedWith('Initializable: contract is already initialized');
-    });
-  });
-
-  describe('when initialized', () => {
-    beforeEach(async () => {
-      await router.initialize(connectionManager.address);
-    });
+      it('cannot be initialized twice', async () => {
+        await expect(
+          (router as TestUpgradeableRouter).initialize(
+            ethers.constants.AddressZero,
+          ),
+        ).to.be.revertedWith('Initializable: contract is already initialized');
+      });
+    }
 
     it('accepts message from enrolled inbox and router', async () => {
       await connectionManager.enrollInbox(origin, signer.address);
@@ -217,4 +234,4 @@ describe('Router', async () => {
       });
     });
   });
-});
+}
