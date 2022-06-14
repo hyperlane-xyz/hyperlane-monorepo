@@ -48,7 +48,7 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
 
     function __AbacusConnectionClient_initialize(
         address _abacusConnectionManager
-    ) internal {
+    ) internal onlyInitializing {
         _setAbacusConnectionManager(_abacusConnectionManager);
         __Ownable_init();
     }

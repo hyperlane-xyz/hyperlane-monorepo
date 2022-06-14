@@ -4,7 +4,7 @@ pragma abicoder v2;
 
 // ============ Internal Imports ============
 import {IOutbox} from "../../interfaces/IOutbox.sol";
-import {MerkleLib} from "../../libs/Merkle.sol";
+import {MerkleLib} from "../libs/Merkle.sol";
 import {MultisigValidatorManager} from "./MultisigValidatorManager.sol";
 
 /**

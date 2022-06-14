@@ -5,6 +5,7 @@ export {
   CoreConfig,
   ValidatorManagerConfig,
 } from './core/deploy';
+export { AbacusCoreChecker } from './core/check';
 export { AbacusDeployer } from './deploy';
 export { UpgradeBeaconViolation } from './proxy';
 export {

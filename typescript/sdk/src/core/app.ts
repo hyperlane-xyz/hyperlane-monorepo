@@ -3,7 +3,8 @@ import { Inbox, Outbox } from '@abacus-network/core';
 import { AbacusApp } from '../app';
 import { buildContracts } from '../contracts';
 import { MultiProvider } from '../provider';
-import { ChainName, Remotes } from '../types';
+import { ChainMap, ChainName, Remotes } from '../types';
+import { objMap } from '../utils';
 
 import { CoreContracts, coreFactories } from './contracts';
 import { environments } from './environments';
@@ -43,6 +44,16 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   // override type to be derived from chain key
   getContracts<Local extends Chain>(chain: Local): CoreContracts<Chain, Local> {
     return super.getContracts(chain) as CoreContracts<Chain, Local>;
+  }
+
+  extendWithConnectionManagers<T>(
+    config: ChainMap<Chain, T>,
+  ): ChainMap<Chain, T & { abacusConnectionManager: string }> {
+    return objMap(config, (chain, config) => ({
+      ...config,
+      abacusConnectionManager:
+        this.getContracts(chain).abacusConnectionManager.address,
+    }));
   }
 
   getMailboxPair<Local extends Chain>(

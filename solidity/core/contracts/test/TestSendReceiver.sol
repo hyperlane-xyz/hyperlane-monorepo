@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
 pragma solidity >=0.8.0;
 
-import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {TypeCasts} from "../libs/TypeCasts.sol";
 
 import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.sol";
 import {IMessageRecipient} from "../../interfaces/IMessageRecipient.sol";
