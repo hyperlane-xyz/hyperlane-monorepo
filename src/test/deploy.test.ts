@@ -6,11 +6,11 @@ import { TestCoreDeploy } from '@abacus-network/hardhat/dist/src/TestCoreDeploy'
 import { MultiProvider, TestChainNames } from '@abacus-network/sdk';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
-import { HelloWorldChecker } from '../src/deploy/check';
-import { getConfigMap, testConfigs } from '../src/deploy/config';
-import { HelloWorldDeployer } from '../src/deploy/deploy';
-import { HelloWorldApp } from '../src/sdk/app';
-import { HelloWorldContracts } from '../src/sdk/contracts';
+import { HelloWorldChecker } from '../deploy/check';
+import { getConfigMap, testConfigs } from '../deploy/config';
+import { HelloWorldDeployer } from '../deploy/deploy';
+import { HelloWorldApp } from '../sdk/app';
+import { HelloWorldContracts } from '../sdk/contracts';
 
 describe('deploy', async () => {
   let multiProvider: MultiProvider<TestChainNames>;

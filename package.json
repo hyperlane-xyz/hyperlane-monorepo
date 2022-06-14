@@ -3,19 +3,19 @@
   "description": "A basic skeleton of an Abacus app",
   "version": "0.2.1",
   "dependencies": {
-    "@abacus-network/app": "0.2.1-beta1",
-    "@abacus-network/sdk": "0.2.1-beta1",
-    "@openzeppelin/contracts-upgradeable": "~4.5.0",
+    "@abacus-network/app": "0.2.1",
+    "@abacus-network/sdk": "0.2.1",
+    "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "ethers": "^5.4.7"
   },
   "devDependencies": {
-    "@abacus-network/core": "^0.2.1-beta1",
-    "@abacus-network/deploy": "0.2.1-beta1",
-    "@abacus-network/hardhat": "0.2.1-beta1",
+    "@abacus-network/core": "0.2.1",
+    "@abacus-network/deploy": "0.2.1",
+    "@abacus-network/hardhat": "0.2.1",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
-    "@typechain/ethers-v5": "^10.0.0",
-    "@typechain/hardhat": "^6.0.0",
+    "@typechain/ethers-v5": "10.0.0",
+    "@typechain/hardhat": "6.0.0",
     "@types/mocha": "^9.1.0",
     "@typescript-eslint/eslint-plugin": "^5.27.0",
     "@typescript-eslint/parser": "^5.27.0",
@@ -30,20 +30,34 @@
     "solhint-plugin-prettier": "^0.0.5",
     "solidity-coverage": "^0.7.14",
     "ts-node": "^10.8.0",
-    "typechain": "^8.0.0",
+    "typechain": "8.0.0",
     "typescript": "^4.7.2"
   },
+  "files": [
+    "/dist",
+    "/contracts"
+  ],
+  "homepage": "https://www.useabacus.network",
+  "keywords": [
+    "Abacus",
+    "HelloWorld",
+    "Solidity",
+    "Typescript"
+  ],
   "license": "Apache-2.0",
   "main": "dist/index.js",
   "packageManager": "yarn@3.2.0",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/abacus-network/abacus-app-template"
+  },
   "scripts": {
-    "clean": "hardhat clean && rm -r dist",
     "build": "hardhat compile && tsc",
-    "test": "hardhat test",
+    "clean": "hardhat clean && rm -rf dist cache src/types",
     "coverage": "hardhat coverage",
-    "prettier": "prettier --write ./contracts ./src ./test",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "prettier": "prettier --write ./contracts ./src",
+    "test": "hardhat test ./src/test/*"
   },
   "types": "dist/index.d.ts"
 }
