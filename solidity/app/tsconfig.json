@@ -5,5 +5,5 @@
   },
   "exclude": ["./node_modules/", "./dist/", "./types/hardhat.d.ts"],
   "extends": "../../tsconfig.json",
-  "include": ["./types/*.ts", "./types/factories/*.ts"]
+  "include": ["./types/**/*.ts"]
 }

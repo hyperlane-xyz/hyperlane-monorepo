@@ -42,6 +42,7 @@ function relayer {(
       ABC_BASE_SIGNERS_TEST2_TYPE="hexKey" \
       ABC_BASE_SIGNERS_TEST3_KEY="701b615bbdfb9de65240bc28bd21bbc0d996645a3dd57e7b12bc2bdf6f192c82" \
       ABC_BASE_SIGNERS_TEST3_TYPE="hexKey" \
+      ABC_RELAYER_WHITELIST='[{"sourceAddress": "*", "destinationDomain": ["13372", "13373"], "destinationAddress": "*"}]' \
       ABC_RELAYER_SIGNEDCHECKPOINTPOLLINGINTERVAL="5" \
       ABC_RELAYER_MAXPROCESSINGRETRIES="5" \
       ABC_RELAYER_MULTISIGCHECKPOINTSYNCER_THRESHOLD="1" \

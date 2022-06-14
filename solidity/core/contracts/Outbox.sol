@@ -4,9 +4,9 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {Version0} from "./Version0.sol";
 import {Mailbox} from "./Mailbox.sol";
-import {MerkleLib} from "../libs/Merkle.sol";
-import {Message} from "../libs/Message.sol";
-import {TypeCasts} from "../libs/TypeCasts.sol";
+import {MerkleLib} from "./libs/Merkle.sol";
+import {Message} from "./libs/Message.sol";
+import {TypeCasts} from "./libs/TypeCasts.sol";
 import {MerkleTreeManager} from "./MerkleTreeManager.sol";
 import {IOutbox} from "../interfaces/IOutbox.sol";
 

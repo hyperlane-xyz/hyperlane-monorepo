@@ -58,7 +58,7 @@ export abstract class AbacusAppChecker<
   ) {
     const dc = this.multiProvider.getChainConnection(chain);
     const implementation = await upgradeBeaconImplementation(
-      dc.provider!,
+      dc.provider,
       proxiedAddress.beacon,
     );
     if (implementation !== proxiedAddress.implementation) {
