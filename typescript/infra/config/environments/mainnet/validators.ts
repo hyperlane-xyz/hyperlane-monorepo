@@ -49,7 +49,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
         address: '0x7c1d96c9e72c41b84d74095dc2e72b979e933904',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('kovan', 0),
+          bucket: s3BucketName('ethereum', 0),
           region: s3BucketRegion,
         },
       },
@@ -57,7 +57,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
         address: '0xd82ebbd1ef3d75b21f33a36a5c250865d97b9ca1',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('kovan', 1),
+          bucket: s3BucketName('ethereum', 1),
           region: s3BucketRegion,
         },
       },
@@ -65,7 +65,7 @@ export const validators: ChainValidatorSets<MainnetChains> = {
         address: '0x333f37f29c6bca607084a75abbe66fd268f585cb',
         checkpointSyncer: {
           type: CheckpointSyncerType.S3,
-          bucket: s3BucketName('kovan', 2),
+          bucket: s3BucketName('ethereum', 2),
           region: s3BucketRegion,
         },
       },
