@@ -9,7 +9,7 @@ export const agent: AgentConfig<DevChains> = {
   runEnv: 'dev',
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-7be078e',
+    tag: 'sha-5e639a2',
   },
   chainNames,
   validatorSets: validators,
@@ -21,10 +21,8 @@ export const agent: AgentConfig<DevChains> = {
   },
   relayer: {
     default: {
-      pollingInterval: 5,
-      submissionLatency: 10,
-      maxRetries: 10,
-      relayerMessageProcessing: true,
+      signedCheckpointPollingInterval: 5,
+      maxProcessingRetries: 10,
     },
   },
   checkpointer: {
@@ -35,11 +33,12 @@ export const agent: AgentConfig<DevChains> = {
   },
   kathy: {
     default: {
-      interval: 30,
-    },
-    chainOverrides: {
-      kovan: {
-        interval: 120,
+      enabled: false,
+      interval: 60 * 2,
+      chat: {
+        type: 'static',
+        message: '',
+        recipient: '',
       },
     },
   },

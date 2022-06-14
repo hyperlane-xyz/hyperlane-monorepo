@@ -14,7 +14,8 @@ import { RouterConfig } from './types';
 
 export class AbacusRouterChecker<
   Chain extends ChainName,
-  App extends AbacusApp<RouterContracts, Chain>,
+  Contracts extends RouterContracts,
+  App extends AbacusApp<Contracts, Chain>,
   Config extends RouterConfig,
 > extends AbacusAppChecker<Chain, App, Config> {
   checkOwnership(chain: Chain) {
@@ -26,7 +27,6 @@ export class AbacusRouterChecker<
   async checkChain(chain: Chain): Promise<void> {
     await this.checkEnrolledRouters(chain);
     await this.checkOwnership(chain);
-    await this.checkAbacusConnectionManager(chain);
   }
 
   async checkEnrolledRouters(chain: Chain): Promise<void> {
@@ -44,24 +44,6 @@ export class AbacusRouterChecker<
   }
 
   ownables(chain: Chain): Ownable[] {
-    const contracts = this.app.getContracts(chain);
-    const ownables: Ownable[] = [contracts.router];
-    const config = this.configMap[chain];
-    // If the config specifies that an abacusConnectionManager should have been deployed,
-    // it should be owned by the owner.
-    if (config.abacusConnectionManager && contracts.abacusConnectionManager) {
-      ownables.push(contracts.abacusConnectionManager);
-    }
-    return ownables;
-  }
-
-  async checkAbacusConnectionManager(chain: Chain): Promise<void> {
-    const config = this.configMap[chain];
-    const contracts = this.app.getContracts(chain);
-    if (!config.abacusConnectionManager || !contracts.abacusConnectionManager) {
-      return;
-    }
-    const actual = contracts.abacusConnectionManager.address;
-    expect(actual).to.equal(config.abacusConnectionManager);
+    return [this.app.getContracts(chain).router];
   }
 }

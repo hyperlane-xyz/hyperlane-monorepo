@@ -4,7 +4,6 @@ pragma abicoder v2;
 
 // ============ Internal Imports ============
 import {IOutbox} from "../interfaces/IOutbox.sol";
-import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
 
 // ============ External Imports ============
@@ -24,11 +23,6 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
 
     // Outbox contract
     IOutbox public override outbox;
-    // Interchain Gas Paymaster contract. The off-chain processor associated with
-    // the paymaster contract must be willing to process messages dispatched from
-    // the current Outbox contract, otherwise payments made to the paymaster will
-    // not result in processed messages.
-    IInterchainGasPaymaster public override interchainGasPaymaster;
     // local Inbox address => remote Outbox domain
     mapping(address => uint32) public inboxToDomain;
     // remote Outbox domain => local Inbox addresses
@@ -40,13 +34,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @notice Emitted when a new Outbox is set.
      * @param outbox the address of the Outbox
      */
-    event NewOutbox(address indexed outbox);
-
-    /**
-     * @notice Emitted when a new Interchain Gas Paymaster is set.
-     * @param interchainGasPaymaster The address of the Interchain Gas Paymaster.
-     */
-    event NewInterchainGasPaymaster(address indexed interchainGasPaymaster);
+    event OutboxSet(address indexed outbox);
 
     /**
      * @notice Emitted when a new Inbox is enrolled / added
@@ -70,18 +58,12 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     // ============ External Functions ============
 
     /**
-     * @notice Sets the address of the local Outbox contract and the address of
-     * the local Interchain Gas Paymaster contract.
-     * @dev This should be used to atomically change the local Outbox and Interchain Gas Paymaster.
+     * @notice Sets the address of the local Outbox contract.
      * @param _outbox The address of the new local Outbox contract.
-     * @param _interchainGasPaymaster The address of the new local Interchain Gas Paymaster contract.
      */
-    function setOutboxAndInterchainGasPaymaster(
-        address _outbox,
-        address _interchainGasPaymaster
-    ) external onlyOwner {
-        setOutbox(_outbox);
-        setInterchainGasPaymaster(_interchainGasPaymaster);
+    function setOutbox(address _outbox) external onlyOwner {
+        outbox = IOutbox(_outbox);
+        emit OutboxSet(_outbox);
     }
 
     /**
@@ -134,33 +116,6 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
     }
 
     // ============ Public Functions ============
-
-    /**
-     * @notice Sets the address of the local Outbox contract.
-     * @dev Changing the Outbox and not the Interchain Gas Paymaster may result in
-     * using an Interchain Gas Paymaster that expects messages to be dispatched via
-     * a different outbox. Use `setOutboxAndInterchainGasPaymaster` to change both
-     * atomically.
-     * @param _outbox The address of the new local Outbox contract.
-     */
-    function setOutbox(address _outbox) public onlyOwner {
-        outbox = IOutbox(_outbox);
-        emit NewOutbox(_outbox);
-    }
-
-    /**
-     * @notice Sets the address of the local Interchain Gas Paymaster contract.
-     * @param _interchainGasPaymaster The address of the new local Interchain Gas Paymaster contract.
-     */
-    function setInterchainGasPaymaster(address _interchainGasPaymaster)
-        public
-        onlyOwner
-    {
-        interchainGasPaymaster = IInterchainGasPaymaster(
-            _interchainGasPaymaster
-        );
-        emit NewInterchainGasPaymaster(_interchainGasPaymaster);
-    }
 
     /**
      * @notice Check whether _inbox is enrolled

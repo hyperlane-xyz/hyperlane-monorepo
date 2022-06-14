@@ -2,7 +2,11 @@ import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import path from 'path';
 
-import { AbacusCoreDeployer, CoreConfig } from '@abacus-network/deploy';
+import {
+  AbacusCoreChecker,
+  AbacusCoreDeployer,
+  CoreConfig,
+} from '@abacus-network/deploy';
 import { getMultiProviderFromConfigAndSigner } from '@abacus-network/deploy/dist/src/utils';
 import {
   AbacusCore,
@@ -15,7 +19,6 @@ import {
 
 import { environment as testConfig } from '../config/environments/test';
 import { TestChains } from '../config/environments/test/chains';
-import { AbacusCoreChecker } from '../src/core';
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
 import { writeJSON } from '../src/utils/utils';
 

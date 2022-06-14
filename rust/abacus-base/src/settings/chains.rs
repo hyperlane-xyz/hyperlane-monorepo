@@ -1,3 +1,4 @@
+use ethers::signers::Signer;
 use eyre::Report;
 use serde::Deserialize;
 
@@ -6,7 +7,7 @@ use abacus_ethereum::{
     Connection, InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
     MakeableWithProvider, OutboxBuilder,
 };
-use ethers_prometheus::{ContractInfo, PrometheusMiddlewareConf};
+use ethers_prometheus::{ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo};
 
 use crate::{
     CoreMetrics, InboxValidatorManagerVariants, InboxValidatorManagers, InboxVariants, Inboxes,
@@ -37,7 +38,7 @@ pub struct OutboxAddresses {
     /// Address of the Outbox contract
     pub outbox: String,
     /// Address of the InterchainGasPaymaster contract
-    pub interchain_gas_paymaster: String,
+    pub interchain_gas_paymaster: Option<String>,
 }
 
 /// Addresses for inbox chain contracts
@@ -120,37 +121,56 @@ impl ChainSetup<OutboxAddresses> {
         &self,
         signer: Option<Signers>,
         metrics: &CoreMetrics,
-    ) -> Result<InterchainGasPaymasters, Report> {
+    ) -> Result<Option<InterchainGasPaymasters>, Report> {
+        let paymaster_address = if let Some(address) = &self.addresses.interchain_gas_paymaster {
+            address
+        } else {
+            return Ok(None);
+        };
         match &self.chain {
-            ChainConf::Ethereum(conf) => Ok(InterchainGasPaymasterVariants::Ethereum(
-                InterchainGasPaymasterBuilder {}
-                    .make_with_connection(
-                        conf.clone(),
-                        &ContractLocator {
-                            chain_name: self.name.clone(),
-                            domain: self.domain.parse().expect("invalid uint"),
-                            address: self
-                                .addresses
-                                .interchain_gas_paymaster
-                                .parse::<ethers::types::Address>()?
-                                .into(),
-                        },
-                        signer,
-                        Some((metrics.provider_metrics(), self.metrics_conf())),
-                    )
-                    .await?,
-            )
-            .into()),
+            ChainConf::Ethereum(conf) => Ok(Some(
+                InterchainGasPaymasterVariants::Ethereum(
+                    InterchainGasPaymasterBuilder {}
+                        .make_with_connection(
+                            conf.clone(),
+                            &ContractLocator {
+                                chain_name: self.name.clone(),
+                                domain: self.domain.parse().expect("invalid uint"),
+                                address: paymaster_address
+                                    .parse::<ethers::types::Address>()?
+                                    .into(),
+                            },
+                            signer,
+                            Some((metrics.provider_metrics(), self.metrics_conf())),
+                        )
+                        .await?,
+                )
+                .into(),
+            )),
         }
     }
 
     /// Get a clone of the metrics conf with correctly configured contract information.
     pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
+
+        if cfg.chain.is_none() {
+            cfg.chain = Some(ChainInfo {
+                name: Some(self.name.clone()),
+            });
+        }
+
         if let Ok(addr) = self.addresses.outbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("outbox".into()),
             });
+        }
+        if let Some(igp) = &self.addresses.interchain_gas_paymaster {
+            if let Ok(addr) = igp.parse() {
+                cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
+                    name: Some("igp".into()),
+                });
+            }
         }
         cfg
     }
@@ -163,6 +183,7 @@ impl ChainSetup<InboxAddresses> {
         signer: Option<Signers>,
         metrics: &CoreMetrics,
     ) -> Result<Inboxes, Report> {
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxVariants::Ethereum(
                 InboxBuilder {}
@@ -178,7 +199,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
-                        Some((metrics.provider_metrics(), self.metrics_conf.clone())),
+                        Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await?,
             )
@@ -193,6 +214,7 @@ impl ChainSetup<InboxAddresses> {
         metrics: &CoreMetrics,
     ) -> Result<InboxValidatorManagers, Report> {
         let inbox_address = self.addresses.inbox.parse::<ethers::types::Address>()?;
+        let metrics_conf = self.metrics_conf(metrics.agent_name(), &signer);
         match &self.chain {
             ChainConf::Ethereum(conf) => Ok(InboxValidatorManagerVariants::Ethereum(
                 InboxValidatorManagerBuilder { inbox_address }
@@ -208,7 +230,7 @@ impl ChainSetup<InboxAddresses> {
                                 .into(),
                         },
                         signer,
-                        Some((metrics.provider_metrics(), self.metrics_conf.clone())),
+                        Some((metrics.provider_metrics(), metrics_conf)),
                     )
                     .await?,
             )
@@ -217,8 +239,26 @@ impl ChainSetup<InboxAddresses> {
     }
 
     /// Get a clone of the metrics conf with correctly configured contract information.
-    pub fn metrics_conf(&self) -> PrometheusMiddlewareConf {
+    pub fn metrics_conf(
+        &self,
+        agent_name: &str,
+        signer: &Option<Signers>,
+    ) -> PrometheusMiddlewareConf {
         let mut cfg = self.metrics_conf.clone();
+
+        if cfg.chain.is_none() {
+            cfg.chain = Some(ChainInfo {
+                name: Some(self.name.clone()),
+            });
+        }
+
+        if let Some(signer) = signer {
+            cfg.wallets
+                .entry(signer.address())
+                .or_insert_with(|| WalletInfo {
+                    name: Some(agent_name.into()),
+                });
+        }
         if let Ok(addr) = self.addresses.inbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("inbox".into()),
@@ -226,7 +266,7 @@ impl ChainSetup<InboxAddresses> {
         }
         if let Ok(addr) = self.addresses.validator_manager.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
-                name: Some("validator_manager".into()),
+                name: Some("ivm".into()),
             });
         }
         cfg

@@ -49,138 +49,172 @@ describe('Router', async () => {
     );
     await connectionManager.setOutbox(outbox.address);
 
-    const routerFactory = new TestRouter__factory(signer);
-    router = await routerFactory.deploy();
-    await router.initialize(connectionManager.address);
+    router = await new TestRouter__factory(signer).deploy();
   });
 
-  it('Cannot be initialized twice', async () => {
-    await expect(
-      router.initialize(ethers.constants.AddressZero),
-    ).to.be.revertedWith('Initializable: contract is already initialized');
-  });
-
-  it('accepts message from enrolled inbox and router', async () => {
-    await connectionManager.enrollInbox(origin, signer.address);
-    const remote = utils.addressToBytes32(nonOwner.address);
-    await router.enrollRemoteRouter(origin, remote);
-    // Does not revert.
-    await router.handle(origin, remote, message);
-  });
-
-  it('rejects message from unenrolled inbox', async () => {
-    await expect(
-      router.handle(origin, utils.addressToBytes32(nonOwner.address), message),
-    ).to.be.revertedWith('!inbox');
-  });
-
-  it('rejects message from unenrolled router', async () => {
-    await connectionManager.enrollInbox(origin, signer.address);
-    await expect(
-      router.handle(origin, utils.addressToBytes32(nonOwner.address), message),
-    ).to.be.revertedWith('!router');
-  });
-
-  it('owner can enroll remote router', async () => {
-    const remote = nonOwner.address;
-    const remoteBytes = utils.addressToBytes32(nonOwner.address);
-    expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
-    await expect(router.mustHaveRemoteRouter(origin)).to.be.revertedWith(
-      '!router',
-    );
-    await router.enrollRemoteRouter(origin, utils.addressToBytes32(remote));
-    expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
-    expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
-  });
-
-  it('non-owner cannot enroll remote router', async () => {
-    await expect(
-      router
-        .connect(nonOwner)
-        .enrollRemoteRouter(origin, utils.addressToBytes32(nonOwner.address)),
-    ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
-  });
-
-  describe('dispatch functions', () => {
-    let interchainGasPaymaster: InterchainGasPaymaster;
-    beforeEach(async () => {
-      const interchainGasPaymasterFactory = new InterchainGasPaymaster__factory(
-        signer,
-      );
-      interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
-      await connectionManager.setInterchainGasPaymaster(
-        interchainGasPaymaster.address,
-      );
-
-      // Enroll a remote router on the destination domain.
-      // The address is arbitrary because no messages will actually be processed.
-      await router.enrollRemoteRouter(
-        destination,
-        utils.addressToBytes32(nonOwner.address),
+  describe('#initialize', () => {
+    it('should set the abacus connection manager', async () => {
+      await router.initialize(connectionManager.address);
+      expect(await router.abacusConnectionManager()).to.equal(
+        connectionManager.address,
       );
     });
 
-    // Helper for testing different variations of dispatch functions
-    const runDispatchFunctionTests = async (
-      dispatchFunction: (
-        destinationDomain: number,
-        interchainGasPayment?: number,
-      ) => Promise<ContractTransaction>,
-      expectGasPayment: boolean,
-    ) => {
-      // Allows a Chai Assertion to be programmatically negated
-      const expectAssertion = (
-        assertion: Chai.Assertion,
-        expected: boolean,
+    it('should transfer owner to deployer', async () => {
+      await router.initialize(connectionManager.address);
+      expect(await router.owner()).to.equal(signer.address);
+    });
+
+    it('should use overloaded initialize', async () => {
+      await expect(router.initialize(connectionManager.address)).to.emit(
+        router,
+        'InitializeOverload',
+      );
+    });
+
+    it('cannot be initialized twice', async () => {
+      await router.initialize(ethers.constants.AddressZero);
+      await expect(
+        router.initialize(ethers.constants.AddressZero),
+      ).to.be.revertedWith('Initializable: contract is already initialized');
+    });
+  });
+
+  describe('when initialized', () => {
+    beforeEach(async () => {
+      await router.initialize(connectionManager.address);
+    });
+
+    it('accepts message from enrolled inbox and router', async () => {
+      await connectionManager.enrollInbox(origin, signer.address);
+      const remote = utils.addressToBytes32(nonOwner.address);
+      await router.enrollRemoteRouter(origin, remote);
+      // Does not revert.
+      await router.handle(origin, remote, message);
+    });
+
+    it('rejects message from unenrolled inbox', async () => {
+      await expect(
+        router.handle(
+          origin,
+          utils.addressToBytes32(nonOwner.address),
+          message,
+        ),
+      ).to.be.revertedWith('!inbox');
+    });
+
+    it('rejects message from unenrolled router', async () => {
+      await connectionManager.enrollInbox(origin, signer.address);
+      await expect(
+        router.handle(
+          origin,
+          utils.addressToBytes32(nonOwner.address),
+          message,
+        ),
+      ).to.be.revertedWith('!router');
+    });
+
+    it('owner can enroll remote router', async () => {
+      const remote = nonOwner.address;
+      const remoteBytes = utils.addressToBytes32(nonOwner.address);
+      expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(false);
+      await expect(router.mustHaveRemoteRouter(origin)).to.be.revertedWith(
+        '!router',
+      );
+      await router.enrollRemoteRouter(origin, utils.addressToBytes32(remote));
+      expect(await router.isRemoteRouter(origin, remoteBytes)).to.equal(true);
+      expect(await router.mustHaveRemoteRouter(origin)).to.equal(remoteBytes);
+    });
+
+    it('non-owner cannot enroll remote router', async () => {
+      await expect(
+        router
+          .connect(nonOwner)
+          .enrollRemoteRouter(origin, utils.addressToBytes32(nonOwner.address)),
+      ).to.be.revertedWith(ONLY_OWNER_REVERT_MSG);
+    });
+
+    describe('dispatch functions', () => {
+      let interchainGasPaymaster: InterchainGasPaymaster;
+      beforeEach(async () => {
+        const interchainGasPaymasterFactory =
+          new InterchainGasPaymaster__factory(signer);
+        interchainGasPaymaster = await interchainGasPaymasterFactory.deploy();
+        await router.setInterchainGasPaymaster(interchainGasPaymaster.address);
+
+        // Enroll a remote router on the destination domain.
+        // The address is arbitrary because no messages will actually be processed.
+        await router.enrollRemoteRouter(
+          destination,
+          utils.addressToBytes32(nonOwner.address),
+        );
+      });
+
+      // Helper for testing different variations of dispatch functions
+      const runDispatchFunctionTests = async (
+        dispatchFunction: (
+          destinationDomain: number,
+          interchainGasPayment?: number,
+        ) => Promise<ContractTransaction>,
+        expectGasPayment: boolean,
       ) => {
-        return expected ? assertion : assertion.not;
+        // Allows a Chai Assertion to be programmatically negated
+        const expectAssertion = (
+          assertion: Chai.Assertion,
+          expected: boolean,
+        ) => {
+          return expected ? assertion : assertion.not;
+        };
+
+        it('dispatches a message', async () => {
+          await expect(dispatchFunction(destination)).to.emit(
+            outbox,
+            'Dispatch',
+          );
+        });
+
+        it(`${
+          expectGasPayment ? 'pays' : 'does not pay'
+        } interchain gas`, async () => {
+          const testInterchainGasPayment = 1234;
+          const leafIndex = await outbox.count();
+          const assertion = expectAssertion(
+            expect(dispatchFunction(destination, testInterchainGasPayment)).to,
+            expectGasPayment,
+          );
+          await assertion
+            .emit(interchainGasPaymaster, 'GasPayment')
+            .withArgs(outbox.address, leafIndex, testInterchainGasPayment);
+        });
+
+        it('reverts when dispatching a message to an unenrolled remote router', async () => {
+          await expect(
+            dispatchFunction(destinationWithoutRouter),
+          ).to.be.revertedWith('!router');
+        });
       };
 
-      it('dispatches a message', async () => {
-        await expect(dispatchFunction(destination)).to.emit(outbox, 'Dispatch');
-      });
-
-      it(`${
-        expectGasPayment ? 'pays' : 'does not pay'
-      } interchain gas`, async () => {
-        const testInterchainGasPayment = 1234;
-        const leafIndex = await outbox.count();
-        const assertion = expectAssertion(
-          expect(dispatchFunction(destination, testInterchainGasPayment)).to,
-          expectGasPayment,
+      describe('#dispatch', () => {
+        runDispatchFunctionTests(
+          (destinationDomain) => router.dispatch(destinationDomain, '0x'),
+          false,
         );
-        await assertion
-          .emit(interchainGasPaymaster, 'GasPayment')
-          .withArgs(leafIndex, testInterchainGasPayment);
       });
 
-      it('reverts when dispatching a message to an unenrolled remote router', async () => {
-        await expect(
-          dispatchFunction(destinationWithoutRouter),
-        ).to.be.revertedWith('!router');
+      describe('#dispatchWithGas', () => {
+        runDispatchFunctionTests(
+          (destinationDomain, interchainGasPayment = 0) =>
+            router.dispatchWithGas(
+              destinationDomain,
+              '0x',
+              interchainGasPayment,
+              {
+                value: interchainGasPayment,
+              },
+            ),
+          true,
+        );
       });
-    };
-
-    describe('#dispatch', () => {
-      runDispatchFunctionTests(
-        (destinationDomain) => router.dispatch(destinationDomain, '0x'),
-        false,
-      );
-    });
-
-    describe('#dispatchWithGas', () => {
-      runDispatchFunctionTests(
-        (destinationDomain, interchainGasPayment = 0) =>
-          router.dispatchWithGas(
-            destinationDomain,
-            '0x',
-            interchainGasPayment,
-            {
-              value: interchainGasPayment,
-            },
-          ),
-        true,
-      );
     });
   });
 });

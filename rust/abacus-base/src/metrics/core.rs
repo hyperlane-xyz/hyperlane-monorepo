@@ -106,10 +106,8 @@ impl CoreMetrics {
         // The following phases are implemented:
         // - dispatch: When a message is indexed and stored in the DB
         // - signed_offchain_checkpoint: When a leaf index is known to be signed by a validator
-        // - inbox_checkpoint: When a leaf index is known to be checkpointed on the inbox
-        // - relayer_processed: When a leaf index was processed with CheckpointRelayer
         // - processor_loop: The current leaf index in the MessageProcessor loop
-        // - message_processed: When a leaf index was processed as part of the regular MessageProcessor loop
+        // - message_processed: When a leaf index was processed as part of the MessageProcessor loop
         let last_known_message_leaf_index = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("last_known_message_leaf_index"),
@@ -290,6 +288,11 @@ impl CoreMetrics {
             tracing::info!("not starting prometheus server");
             tokio::spawn(std::future::ready(()))
         }
+    }
+
+    /// Get the name of this agent, e.g. "relayer"
+    pub fn agent_name(&self) -> &str {
+        &self.agent_name
     }
 
     fn const_labels_str(&self) -> HashMap<&str, &str> {

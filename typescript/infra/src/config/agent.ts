@@ -13,7 +13,7 @@ import { DeployEnvironment } from './environment';
 // Allows a "default" config to be specified and any per-chain overrides.
 interface ChainOverridableConfig<Chain extends ChainName, T> {
   default: T;
-  chainOverrides?: Partial<ChainMap<Chain, T>>;
+  chainOverrides?: Partial<ChainMap<Chain, Partial<T>>>;
 }
 
 // Returns the default config with any overriden values specified for the provided chain.
@@ -85,16 +85,22 @@ export type ChainValidatorSets<Chain extends ChainName> = ChainMap<
 // =====     Relayer Agent     =====
 // =================================
 
+type Whitelist = WhitelistElement[];
+
+interface WhitelistElement {
+  sourceDomain?: '*' | string | string[] | number | number[];
+  sourceAddress?: '*' | string | string[];
+  destinationDomain?: '*' | string | string[] | number | number[];
+  destinationAddress?: '*' | string | string[];
+}
+
 // Incomplete basic relayer agent config
 interface BaseRelayerConfig {
-  // The minimum latency in seconds between two relayed checkpoints on the inbox
-  submissionLatency: number;
-  // The polling interval to check for new checkpoints in seconds
-  pollingInterval: number;
+  // The polling interval to check for new signed checkpoints in seconds
+  signedCheckpointPollingInterval: number;
   // The maxinmum number of times a processor will try to process a message
-  maxRetries: number;
-  // Whether the CheckpointRelayer should try to immediately process messages
-  relayerMessageProcessing: boolean;
+  maxProcessingRetries: number;
+  whitelist?: Whitelist;
 }
 
 // Per-chain relayer agent configs
@@ -104,8 +110,9 @@ type ChainRelayerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 >;
 
 // Full relayer agent config for a single chain
-interface RelayerConfig extends BaseRelayerConfig {
+interface RelayerConfig extends Omit<BaseRelayerConfig, 'whitelist'> {
   multisigCheckpointSyncer: MultisigCheckpointSyncerConfig;
+  whitelist?: string;
 }
 
 // ===================================
@@ -154,10 +161,20 @@ type ChainCheckpointerConfigs<Chain extends ChainName> = ChainOverridableConfig<
 // =====     Kathy Agent     =====
 // ===============================
 
+interface ChatGenConfig {
+  type: 'static';
+  message: string;
+  recipient: string;
+}
+
 // Full kathy agent config for a single chain
 interface KathyConfig {
   // The message interval (in seconds)
   interval: number;
+  // Configuration for kathy's chat
+  chat: ChatGenConfig;
+  // Whether kathy is enabled
+  enabled: boolean;
 }
 
 // Per-chain kathy agent configs
@@ -388,13 +405,20 @@ export class ChainAgentConfig<Chain extends ChainName> {
       {},
     );
 
-    return {
-      ...baseConfig,
+    const obj: RelayerConfig = {
+      signedCheckpointPollingInterval:
+        baseConfig.signedCheckpointPollingInterval,
+      maxProcessingRetries: baseConfig.maxProcessingRetries,
       multisigCheckpointSyncer: {
         threshold: this.validatorSet.threshold,
         checkpointSyncers,
       },
     };
+    if (baseConfig.whitelist) {
+      obj.whitelist = JSON.stringify(baseConfig.whitelist);
+    }
+
+    return obj;
   }
 
   get checkpointerEnabled() {
@@ -428,14 +452,31 @@ export class ChainAgentConfig<Chain extends ChainName> {
   }
 
   // Gets signer info, creating them if necessary
-  kathySigners() {
+  async kathySigners() {
     if (!this.kathyEnabled) {
       return [];
     }
+
+    let keyConfig;
+
+    if (this.awsKeys) {
+      const awsUser = new AgentAwsUser(
+        this.agentConfig.environment,
+        this.chainName,
+        KEY_ROLE_ENUM.Kathy,
+        this.agentConfig.aws!.region,
+      );
+      await awsUser.createIfNotExists();
+      const key = await awsUser.createKeyIfNotExists(this.agentConfig);
+      keyConfig = key.keyConfig;
+    } else {
+      keyConfig = this.keyConfig(KEY_ROLE_ENUM.Kathy);
+    }
+
     return [
       {
         name: this.chainName,
-        keyConfig: this.keyConfig(KEY_ROLE_ENUM.Kathy),
+        keyConfig,
       },
     ];
   }
@@ -452,7 +493,8 @@ export class ChainAgentConfig<Chain extends ChainName> {
   }
 
   get kathyEnabled() {
-    return this.kathyConfig !== undefined;
+    const kathyConfig = this.kathyConfig;
+    return kathyConfig !== undefined && kathyConfig.enabled;
   }
 
   get validatorSet(): ValidatorSet {

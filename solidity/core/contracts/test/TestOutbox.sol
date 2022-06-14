@@ -3,7 +3,7 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import "../Outbox.sol";
-import {MerkleLib} from "../../libs/Merkle.sol";
+import {MerkleLib} from "../libs/Merkle.sol";
 
 contract TestOutbox is Outbox {
     constructor(uint32 _localDomain) Outbox(_localDomain) {} // solhint-disable-line no-empty-blocks

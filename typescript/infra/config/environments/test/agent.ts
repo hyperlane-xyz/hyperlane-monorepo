@@ -21,10 +21,8 @@ export const agent: AgentConfig<TestChains> = {
   },
   relayer: {
     default: {
-      pollingInterval: 5,
-      submissionLatency: 10,
-      maxRetries: 10,
-      relayerMessageProcessing: true,
+      signedCheckpointPollingInterval: 5,
+      maxProcessingRetries: 10,
     },
   },
 };

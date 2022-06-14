@@ -5,7 +5,7 @@ use tokio::{task::JoinHandle, time::sleep};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{CachingOutbox, CheckpointSyncer, CheckpointSyncers};
-use abacus_core::{AbacusCommon, Signers};
+use abacus_core::{Outbox, Signers};
 use eyre::Result;
 
 pub(crate) struct ValidatorSubmitter {
@@ -37,20 +37,33 @@ impl ValidatorSubmitter {
         let span = info_span!("ValidatorSubmitter");
         let reorg_period = Some(self.reorg_period);
         tokio::spawn(async move {
-            let mut current_index = self.checkpoint_syncer.latest_index().await?.unwrap_or_default();
+            // Ensure that the outbox has > 0 messages before we enter the main
+            // validator submit loop. This is to avoid an underflow / reverted
+            // call when we invoke the `outbox.latest_checkpoint()` method,
+            // which returns the **index** of the last element in the tree
+            // rather than just the size.  See
+            // https://github.com/abacus-network/abacus-monorepo/issues/575 for
+            // more details.
+            while self.outbox.count().await? == 0 {
+                info!("waiting for non-zero outbox size");
+                sleep(Duration::from_secs(self.interval)).await;
+            }
+
+            let mut current_index =
+                self.checkpoint_syncer.latest_index().await?.unwrap_or_default();
 
             info!(current_index=current_index, "Starting Validator");
             loop {
                 sleep(Duration::from_secs(self.interval)).await;
 
-                // Check the current checkpoint
-                let checkpoint = self.outbox.latest_cached_checkpoint(reorg_period).await?;
+                // Check the latest checkpoint
+                let latest_checkpoint = self.outbox.latest_checkpoint(reorg_period).await?;
 
-                if current_index < checkpoint.index {
-                    let signed_checkpoint = checkpoint.sign_with(self.signer.as_ref()).await?;
+                if current_index < latest_checkpoint.index {
+                    let signed_checkpoint = latest_checkpoint.sign_with(self.signer.as_ref()).await?;
 
                     info!(signature = ?signed_checkpoint, signer=?self.signer, "Sign latest checkpoint");
-                    current_index = checkpoint.index;
+                    current_index = latest_checkpoint.index;
 
                     self.checkpoint_syncer.write_checkpoint(signed_checkpoint.clone()).await?;
                 }

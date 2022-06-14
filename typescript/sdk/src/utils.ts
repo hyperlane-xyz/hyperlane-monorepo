@@ -112,6 +112,7 @@ export function objMapEntries<K extends string, I = any, O = any>(
   return Object.entries<I>(obj).map(([k, v]) => [k as K, func(k as K, v)]);
 }
 
+// Map over the values of the object
 export function objMap<K extends string, I = any, O = any>(
   obj: Record<K, I>,
   func: (k: K, _: I) => O,

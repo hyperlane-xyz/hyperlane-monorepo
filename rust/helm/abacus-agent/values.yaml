@@ -111,10 +111,8 @@ abacus:
       - name: "alfajores"
         # aws:
     config:
-      submissionLatency:
-      pollingInterval:
-      maxRetries:
-      relayerMessageProcessing:
+      signedCheckpointPollingInterval:
+      maxProcessingRetries:
       multisigCheckpointSyncer:
         threshold:
         checkpointSyncers:

@@ -13,7 +13,12 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
     // ============ Mutable Storage ============
 
     IAbacusConnectionManager public abacusConnectionManager;
-    uint256[49] private __GAP; // gap for upgrade safety
+    // Interchain Gas Paymaster contract. The relayer associated with this contract
+    // must be willing to relay messages dispatched from the current Outbox contract,
+    // otherwise payments made to the paymaster will not result in relayed messages.
+    IInterchainGasPaymaster public interchainGasPaymaster;
+
+    uint256[48] private __GAP; // gap for upgrade safety
 
     // ============ Events ============
 
@@ -21,7 +26,13 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
      * @notice Emitted when a new abacusConnectionManager is set.
      * @param abacusConnectionManager The address of the abacusConnectionManager contract
      */
-    event SetAbacusConnectionManager(address indexed abacusConnectionManager);
+    event AbacusConnectionManagerSet(address indexed abacusConnectionManager);
+
+    /**
+     * @notice Emitted when a new Interchain Gas Paymaster is set.
+     * @param interchainGasPaymaster The address of the Interchain Gas Paymaster.
+     */
+    event InterchainGasPaymasterSet(address indexed interchainGasPaymaster);
 
     // ============ Modifiers ============
 
@@ -37,7 +48,7 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
 
     function __AbacusConnectionClient_initialize(
         address _abacusConnectionManager
-    ) internal {
+    ) internal onlyInitializing {
         _setAbacusConnectionManager(_abacusConnectionManager);
         __Ownable_init();
     }
@@ -45,8 +56,8 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
     // ============ External functions ============
 
     /**
-     * @notice Modify the contract the Application uses to validate Inbox contracts
-     * @param _abacusConnectionManager The address of the abacusConnectionManager contract
+     * @notice Sets the address of the application's AbacusConnectionManager.
+     * @param _abacusConnectionManager The address of the AbacusConnectionManager contract.
      */
     function setAbacusConnectionManager(address _abacusConnectionManager)
         external
@@ -54,6 +65,20 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
         onlyOwner
     {
         _setAbacusConnectionManager(_abacusConnectionManager);
+    }
+
+    /**
+     * @notice Sets the address of the application's InterchainGasPaymaster.
+     * @param _interchainGasPaymaster The address of the InterchainGasPaymaster contract.
+     */
+    function setInterchainGasPaymaster(address _interchainGasPaymaster)
+        public
+        onlyOwner
+    {
+        interchainGasPaymaster = IInterchainGasPaymaster(
+            _interchainGasPaymaster
+        );
+        emit InterchainGasPaymasterSet(_interchainGasPaymaster);
     }
 
     // ============ Internal functions ============
@@ -68,7 +93,7 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
         abacusConnectionManager = IAbacusConnectionManager(
             _abacusConnectionManager
         );
-        emit SetAbacusConnectionManager(_abacusConnectionManager);
+        emit AbacusConnectionManagerSet(_abacusConnectionManager);
     }
 
     /**
@@ -77,18 +102,6 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
      */
     function _outbox() internal view returns (IOutbox) {
         return abacusConnectionManager.outbox();
-    }
-
-    /**
-     * @notice Gets the local Interchain Gas Paymaster contract from the abacusConnectionManager.
-     * @return The local Interchain Gas Paymaster contract.
-     */
-    function _interchainGasPaymaster()
-        internal
-        view
-        returns (IInterchainGasPaymaster)
-    {
-        return abacusConnectionManager.interchainGasPaymaster();
     }
 
     /**
