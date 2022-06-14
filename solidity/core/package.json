@@ -33,7 +33,8 @@
   "files": [
     "/dist",
     "/contracts",
-    "/interfaces"
+    "/interfaces",
+    "/libs"
   ],
   "homepage": "https://www.useabacus.network",
   "keywords": [
