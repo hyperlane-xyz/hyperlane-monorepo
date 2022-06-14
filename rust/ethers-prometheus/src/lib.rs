@@ -68,6 +68,15 @@ pub struct ContractInfo {
     pub name: Option<String>,
 }
 
+/// Some basic information about a chain.
+#[derive(Clone, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Deserialize))]
+#[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
+pub struct ChainInfo {
+    /// A human-friendly name for the chain. This should be a short string like "kovan".
+    pub name: Option<String>,
+}
+
 /// Expected label names for the `block_height` metric.
 pub const BLOCK_HEIGHT_LABELS: &[&str] = &["chain"];
 /// Help string for the metric.
@@ -184,6 +193,9 @@ pub struct PrometheusMiddlewareConf {
     /// Contract info for more useful metrics
     #[cfg_attr(feature = "serde", serde(default))]
     pub contracts: HashMap<Address, ContractInfo>,
+
+    /// Information about the chain this provider is for.
+    pub chain: Option<ChainInfo>,
 }
 
 assert_impl_all!(PrometheusMiddlewareConf: Send, Sync);
@@ -208,7 +220,10 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let start = Instant::now();
         let tx: TypedTransaction = tx.into();
 
-        let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
+        let chain = {
+            let data = self.conf.read().await;
+            chain_name(&data.chain).to_owned()
+        };
         let addr_from: String = tx
             .from()
             .map(|v| v.encode_hex())
@@ -223,7 +238,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
 
         if let Some(m) = &self.metrics.transaction_send_total {
             m.with(&hashmap! {
-                "chain" => chain_name.as_str(),
+                "chain" => chain.as_str(),
                 "address_from" => addr_from.as_str(),
                 "address_to" => addr_to.as_str(),
                 "txn_status" => "dispatched"
@@ -236,14 +251,14 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         if let Some(m) = &self.metrics.transaction_send_duration_seconds {
             let duration = (Instant::now() - start).as_secs_f64();
             m.with(&hashmap! {
-                "chain" => chain_name.as_str(),
+                "chain" => chain.as_str(),
                 "address_from" => addr_from.as_str(),
             })
             .observe(duration);
         }
         if let Some(m) = &self.metrics.transaction_send_total {
             m.with(&hashmap! {
-                "chain" => chain_name.as_str(),
+                "chain" => chain.as_str(),
                 "address_from" => addr_from.as_str(),
                 "address_to" => addr_to.as_str(),
                 "txn_status" => if result.is_ok() { "completed" } else { "failed" }
@@ -264,7 +279,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
 
         if let Some(m) = &self.metrics.contract_call_duration_seconds {
             let data = self.conf.read().await;
-            let chain_name = metrics_chain_name(tx.chain_id().map(|id| id.as_u64()));
+            let chain = chain_name(&data.chain);
             let (contract_addr, contract_name) = tx
                 .to()
                 .and_then(|addr| match addr {
@@ -278,7 +293,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                 .unwrap_or_else(|| ("".into(), "unknown".into()));
 
             m.with(&hashmap! {
-                "chain" => chain_name.as_str(),
+                "chain" => chain,
                 "contract_name" => contract_name.as_str(),
                 "contract_address" => contract_addr.as_str()
             })
@@ -367,16 +382,15 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
         let client = self.inner.clone();
 
         async move {
-            let chain_id = client.get_chainid().await.map(|id| id.as_u64()).ok();
-            let chain = metrics_chain_name(chain_id);
+            let data = data_ref.read().await;
+            let chain = chain_name(&data.chain);
             debug!("Updating metrics for chain ({chain})");
 
             if block_height.is_some() || gas_price_gwei.is_some() {
-                Self::update_block_details(&*client, &chain, block_height, gas_price_gwei).await;
+                Self::update_block_details(&*client, chain, block_height, gas_price_gwei).await;
             }
-            let data = data_ref.read().await;
             if let Some(wallet_balance) = wallet_balance {
-                Self::update_wallet_balances(client.clone(), &*data, &chain, wallet_balance).await;
+                Self::update_wallet_balances(client.clone(), &*data, chain, wallet_balance).await;
             }
 
             // more metrics to come...
@@ -406,13 +420,13 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
                 .set(height);
         }
         if let Some(gas_price_gwei) = gas_price_gwei {
-            let gas = if let Some(london_fee) = current_block.base_fee_per_gas {
-                u256_as_scaled_f64(london_fee, 18) * 1e9
+            if let Some(london_fee) = current_block.base_fee_per_gas {
+                let gas = u256_as_scaled_f64(london_fee, 18) * 1e9;
+                trace!("Gas price for chain {chain} is {gas:.1}gwei");
+                gas_price_gwei.with(&hashmap! { "chain" => chain }).set(gas);
             } else {
-                todo!("Pre-london gas calculation is not currently supported.")
-            };
-            trace!("Gas price for chain {chain} is {gas:.1}gwei");
-            gas_price_gwei.with(&hashmap! { "chain" => chain }).set(gas);
+                trace!("Gas price for chain {chain} unknown, chain is pre-london");
+            }
         }
     }
 
@@ -428,20 +442,22 @@ impl<M: Middleware + Send + Sync> PrometheusMiddleware<M> {
 
             match client.get_balance(*wallet_addr, None).await {
                 Ok(balance) => {
-                    // Okay, so Ether is not a token, but whatever, close enough.
+                    // Okay, so the native type is not a token, but whatever, close enough.
+                    // Note: This is ETH for many chains, but not all so that is why we use `N` and `Native`
+                    // TODO: can we get away with scaling as 18 in all cases here? I am guessing not.
                     let balance = u256_as_scaled_f64(balance, 18);
-                    trace!("Wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance is {balance}ETH");
+                    trace!("Wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance is {balance} of the native currency");
                     wallet_balance_metric
                         .with(&hashmap! {
                         "chain" => chain,
                         "wallet_address" => wallet_addr_str.as_str(),
                         "wallet_name" => wallet_name,
                         "token_address" => "none",
-                        "token_symbol" => "ETH",
-                        "token_name" => "Ether"
+                        "token_symbol" => "Native",
+                        "token_name" => "Native"
                     }).set(balance)
                 },
-                Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for Ether; {e}")
+                Err(e) => warn!("Metric update failed for wallet {wallet_name} ({wallet_addr_str}) on chain {chain} balance for native currency; {e}")
             }
             for (token_addr, token) in data.tokens.iter() {
                 let token_addr_str: String = token_addr.encode_hex();
@@ -478,17 +494,12 @@ impl<M: Middleware> Debug for PrometheusMiddleware<M> {
     }
 }
 
-/// Get the metrics appropriate chain name from the chain ID.
-pub fn metrics_chain_name(chain_id: Option<u64>) -> String {
-    if let Some(chain_id) = chain_id {
-        if let Ok(chain) = Chain::try_from(chain_id) {
-            format!("{chain}")
-        } else {
-            format!("{chain_id}")
-        }
-    } else {
-        "unknown".into()
-    }
+/// Uniform way to name the chain.
+fn chain_name(chain: &Option<ChainInfo>) -> &str {
+    chain
+        .as_ref()
+        .and_then(|c| c.name.as_deref())
+        .unwrap_or("unknown")
 }
 
 /// Convert a u256 scaled integer value into the corresponding f64 value.

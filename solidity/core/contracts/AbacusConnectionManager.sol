@@ -34,7 +34,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      * @notice Emitted when a new Outbox is set.
      * @param outbox the address of the Outbox
      */
-    event NewOutbox(address indexed outbox);
+    event OutboxSet(address indexed outbox);
 
     /**
      * @notice Emitted when a new Inbox is enrolled / added
@@ -63,7 +63,7 @@ contract AbacusConnectionManager is IAbacusConnectionManager, Ownable {
      */
     function setOutbox(address _outbox) external onlyOwner {
         outbox = IOutbox(_outbox);
-        emit NewOutbox(_outbox);
+        emit OutboxSet(_outbox);
     }
 
     /**

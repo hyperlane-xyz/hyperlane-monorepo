@@ -34,7 +34,7 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
      * @notice Emitted when the validator manager contract is changed
      * @param validatorManager The address of the new validatorManager
      */
-    event NewValidatorManager(address validatorManager);
+    event ValidatorManagerSet(address validatorManager);
 
     // ============ Modifiers ============
 
@@ -88,6 +88,6 @@ abstract contract Mailbox is IMailbox, OwnableUpgradeable {
             "!contract validatorManager"
         );
         validatorManager = _validatorManager;
-        emit NewValidatorManager(_validatorManager);
+        emit ValidatorManagerSet(_validatorManager);
     }
 }
