@@ -30,13 +30,12 @@ export const agent: AgentConfig<MainnetChains> = {
   },
   kathy: {
     default: {
-      enabled: true,
+      enabled: false,
       interval: 60 * 60,
       chat: {
         type: 'static',
-        message: 'f00',
-        recipient:
-          '0x000000000000000000000000d0d0ff5589da9b43031f8adf576b08476f587191',
+        message: '',
+        recipient: '',
       },
     },
   },

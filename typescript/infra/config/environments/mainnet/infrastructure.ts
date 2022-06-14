@@ -2,7 +2,7 @@ import { InfrastructureConfig } from '../../../src/config';
 
 export const infrastructure: InfrastructureConfig = {
   kubernetes: {
-    clusterName: 'abacus-testnet',
+    clusterName: 'abacus-mainnet',
   },
   monitoring: {
     namespace: 'monitoring',
@@ -31,12 +31,7 @@ export const infrastructure: InfrastructureConfig = {
       name: 'external-secrets',
       version: '0.5.1',
     },
-    gcpServiceAccountName: 'k8s-external-secrets-testnet',
-    accessibleGCPSecretPrefixes: [
-      'abacus-testnet-',
-      'testnet-',
-      'abacus-mainnet-',
-      'mainnet-',
-    ],
+    gcpServiceAccountName: 'k8s-external-secrets-mainnet',
+    accessibleGCPSecretPrefixes: ['abacus-mainnet-', 'mainnet-'],
   },
 };
