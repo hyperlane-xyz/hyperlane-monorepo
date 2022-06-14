@@ -71,6 +71,7 @@ describe('core', async () => {
 
       try {
         await deployer.deploy();
+        // eslint-disable-next-line no-empty
       } catch (e: any) {}
     });
 
