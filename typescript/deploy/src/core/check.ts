@@ -70,6 +70,10 @@ export class AbacusCoreChecker<
 
   async checkOutbox(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
+    const outbox = contracts.outbox.contract;
+    const localDomain = await outbox.localDomain();
+    expect(localDomain).to.equal(ChainNameToDomainId[chain]);
+
     const actualManager = await contracts.outbox.contract.validatorManager();
     const expectedManager = contracts.outboxValidatorManager.address;
     if (actualManager !== expectedManager) {
