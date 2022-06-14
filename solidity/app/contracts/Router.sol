@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.6.11;
+pragma solidity >=0.6.11 <0.8.0;
 
 // ============ Internal Imports ============
 import {AbacusConnectionClient} from "./AbacusConnectionClient.sol";
@@ -43,10 +43,7 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         __Router_initialize(_abacusConnectionManager);
     }
 
-    function __Router_initialize(address _abacusConnectionManager)
-        internal
-        onlyInitializing
-    {
+    function __Router_initialize(address _abacusConnectionManager) internal {
         __AbacusConnectionClient_initialize(_abacusConnectionManager);
     }
 

@@ -13,7 +13,7 @@ __metadata:
     "@abacus-network/utils": ^0.2.1
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
-    "@openzeppelin/contracts-upgradeable": ^4.5.0
+    "@openzeppelin/contracts-upgradeable": ~3.4.2
     "@typechain/ethers-v5": 10.0.0
     "@typechain/hardhat": ^6.0.0
     "@types/mocha": ^9.1.0
@@ -3050,10 +3050,17 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@openzeppelin/contracts-upgradeable@npm:^4.5.0, @openzeppelin/contracts-upgradeable@npm:^4.6.0":
+"@openzeppelin/contracts-upgradeable@npm:^4.6.0":
   version: 4.6.0
   resolution: "@openzeppelin/contracts-upgradeable@npm:4.6.0"
   checksum: f9802c9cccf31bd475412ba5d862ed15eed5352302c30b29c38f84aed2dcfe0d957687935a72068f3d44292a4a55b0ff26cd018b2e14a47f16f74f087009aa29
+  languageName: node
+  linkType: hard
+
+"@openzeppelin/contracts-upgradeable@npm:~3.4.2":
+  version: 3.4.2
+  resolution: "@openzeppelin/contracts-upgradeable@npm:3.4.2"
+  checksum: dd461cdc8353ee6219e746fa71eced068df46c6df4bfe29207a8ad35064b476c2aa532ec0026c505d9515857ada5838c445b2433e2dadc0878fc678046c4e8b0
   languageName: node
   linkType: hard
 
