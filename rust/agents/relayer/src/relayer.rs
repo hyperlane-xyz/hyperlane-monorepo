@@ -12,9 +12,10 @@ use abacus_base::{
     AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics, InboxContracts,
     MultisigCheckpointSyncer,
 };
-use abacus_core::MultisigSignedCheckpoint;
+use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
 use crate::checkpoint_fetcher::CheckpointFetcher;
+use crate::message_processor::MessageProcessorMetrics;
 use crate::settings::whitelist::Whitelist;
 use crate::{message_processor::MessageProcessor, settings::RelayerSettings};
 
@@ -113,15 +114,20 @@ impl Relayer {
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
+        let outbox = self.outbox().outbox();
+        let metrics = MessageProcessorMetrics::new(
+            &self.core.metrics,
+            outbox.chain_name(),
+            inbox_contracts.inbox.chain_name(),
+        );
         let message_processor = MessageProcessor::new(
-            self.outbox().outbox(),
+            outbox,
             self.max_processing_retries,
             db,
             inbox_contracts,
             signed_checkpoint_receiver,
             self.whitelist.clone(),
-            self.core.metrics.last_known_message_leaf_index(),
-            self.core.metrics.retry_queue_length(),
+            metrics,
         );
 
         message_processor.spawn()

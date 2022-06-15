@@ -6,16 +6,16 @@ use std::{
 };
 
 use eyre::{bail, Result};
-use prometheus::{IntGauge, IntGaugeVec};
+use prometheus::IntGauge;
 use tokio::{sync::watch::Receiver, task::JoinHandle, time::sleep};
 use tracing::{
     debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument,
 };
 
-use abacus_base::{InboxContracts, Outboxes};
+use abacus_base::{CoreMetrics, InboxContracts, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxValidatorManager,
-    MessageStatus, MultisigSignedCheckpoint,
+    db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, CommittedMessage, Inbox,
+    InboxValidatorManager, MessageStatus, MultisigSignedCheckpoint, Outbox, OutboxState,
 };
 use loop_control::LoopControl::{Continue, Flow};
 use loop_control::{loop_ctrl, LoopControl};
@@ -24,6 +24,7 @@ use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::settings::whitelist::Whitelist;
 
 pub(crate) struct MessageProcessor {
+    outbox: Outboxes,
     max_retries: u32,
     db: AbacusDB,
     inbox_contracts: InboxContracts,
@@ -31,9 +32,7 @@ pub(crate) struct MessageProcessor {
     retry_queue: BinaryHeap<MessageToRetry>,
     signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
     whitelist: Arc<Whitelist>,
-    processor_loop_gauge: IntGauge,
-    processed_gauge: IntGauge,
-    retry_queue_length_gauge: IntGauge,
+    metrics: MessageProcessorMetrics,
 }
 
 #[derive(PartialEq, Eq, PartialOrd, Ord)]
@@ -61,22 +60,10 @@ impl MessageProcessor {
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
         whitelist: Arc<Whitelist>,
-        leaf_index_gauge: IntGaugeVec,
-        retry_queue_length: IntGaugeVec,
+        metrics: MessageProcessorMetrics,
     ) -> Self {
-        let processor_loop_gauge = leaf_index_gauge.with_label_values(&[
-            "processor_loop",
-            outbox.chain_name(),
-            inbox_contracts.inbox.chain_name(),
-        ]);
-        let processed_gauge = leaf_index_gauge.with_label_values(&[
-            "message_processed",
-            outbox.chain_name(),
-            inbox_contracts.inbox.chain_name(),
-        ]);
-        let retry_queue_length_gauge = retry_queue_length
-            .with_label_values(&[outbox.chain_name(), inbox_contracts.inbox.chain_name()]);
         Self {
+            outbox,
             max_retries,
             prover_sync: MerkleTreeBuilder::new(db.clone()),
             db,
@@ -84,9 +71,7 @@ impl MessageProcessor {
             retry_queue: BinaryHeap::new(),
             whitelist,
             signed_checkpoint_receiver,
-            processor_loop_gauge,
-            processed_gauge,
-            retry_queue_length_gauge,
+            metrics,
         }
     }
 
@@ -219,12 +204,17 @@ impl MessageProcessor {
         let mut latest_signed_checkpoint = self.get_signed_checkpoint_blocking().await?;
 
         loop {
+            self.update_outbox_state_gauge();
+
             // Get latest signed checkpoint, non-blocking
             latest_signed_checkpoint =
                 self.get_updated_latest_signed_checkpoint(latest_signed_checkpoint)?;
 
-            self.processor_loop_gauge.set(message_leaf_index as i64);
-            self.retry_queue_length_gauge
+            self.metrics
+                .processor_loop_gauge
+                .set(message_leaf_index as i64);
+            self.metrics
+                .retry_queue_length_gauge
                 .set(self.retry_queue.len() as i64);
 
             if self
@@ -254,6 +244,24 @@ impl MessageProcessor {
         Ok(())
     }
 
+    /// Part of main loop.
+    ///
+    /// Spawn a task to update the outbox state gauge.
+    fn update_outbox_state_gauge(
+        &self,
+    ) -> JoinHandle<Result<OutboxState, ChainCommunicationError>> {
+        let outbox_state_gauge = self.metrics.outbox_state_gauge.clone();
+        let outbox = self.outbox.clone();
+        tokio::spawn(async move {
+            let state = outbox.state().await;
+            match &state {
+                Ok(state) => outbox_state_gauge.set(*state as u8 as i64),
+                Err(e) => warn!(error = %e, "Failed to get outbox state"),
+            };
+            state
+        })
+    }
+
     /// Part of main loop
     ///
     /// - `returns` the new message leaf index.
@@ -273,7 +281,7 @@ impl MessageProcessor {
             .await?
         {
             MessageProcessingStatus::Processed => {
-                self.processed_gauge.set(message_leaf_index as i64);
+                self.metrics.processed_gauge.set(message_leaf_index as i64);
                 message_leaf_index + 1
             }
             MessageProcessingStatus::NotYetCheckpointed => {
@@ -380,5 +388,33 @@ impl MessageProcessor {
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
         tokio::spawn(self.main_loop()).instrument(span)
+    }
+}
+
+pub(crate) struct MessageProcessorMetrics {
+    processor_loop_gauge: IntGauge,
+    processed_gauge: IntGauge,
+    retry_queue_length_gauge: IntGauge,
+    outbox_state_gauge: IntGauge,
+}
+
+impl MessageProcessorMetrics {
+    pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
+        Self {
+            processor_loop_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
+                "processor_loop",
+                outbox_chain,
+                inbox_chain,
+            ]),
+            processed_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
+                "message_processed",
+                outbox_chain,
+                inbox_chain,
+            ]),
+            outbox_state_gauge: metrics.outbox_state().with_label_values(&[outbox_chain]),
+            retry_queue_length_gauge: metrics
+                .retry_queue_length()
+                .with_label_values(&[outbox_chain, inbox_chain]),
+        }
     }
 }

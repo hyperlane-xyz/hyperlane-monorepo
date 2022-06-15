@@ -1,11 +1,11 @@
-use abacus_core::{ListValidity, OutboxIndexer};
+use std::cmp::min;
+use std::time::Duration;
 
 use tokio::time::sleep;
 use tracing::{info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
-use std::cmp::min;
-use std::time::Duration;
+use abacus_core::{chain_from_domain, CommittedMessage, ListValidity, OutboxIndexer};
 
 use crate::{
     contract_sync::{last_message::OptLatestLeafIndex, schema::OutboxContractSyncDB},
@@ -27,26 +27,20 @@ where
         let indexed_height = self
             .metrics
             .indexed_height
-            .clone()
             .with_label_values(&[MESSAGES_LABEL, &self.chain_name]);
 
         let stored_messages = self
             .metrics
             .stored_events
-            .clone()
             .with_label_values(&[MESSAGES_LABEL, &self.chain_name]);
 
         let missed_messages = self
             .metrics
             .missed_events
-            .clone()
             .with_label_values(&[MESSAGES_LABEL, &self.chain_name]);
 
-        let message_leaf_index = self.metrics.message_leaf_index.clone().with_label_values(&[
-            "dispatch",
-            &self.chain_name,
-            "unknown",
-        ]);
+        let message_leaf_index = self.metrics.message_leaf_index.clone();
+        let chain_name = self.chain_name.clone();
 
         let config_from = self.index_settings.from();
         let chunk_size = self.index_settings.chunk_size();
@@ -62,11 +56,6 @@ where
             let mut exponential = 0;
 
             info!(from = from, "[Messages]: resuming indexer from {from}");
-
-            // Set the metrics with the latest known leaf index
-            if let Ok(Some(idx)) = db.retrieve_latest_leaf_index() {
-                message_leaf_index.set(idx as i64);
-            }
 
             loop {
                 indexed_height.set(from as i64);
@@ -128,8 +117,16 @@ where
                         // Report amount of messages stored into db
                         stored_messages.add(sorted_messages.len().try_into()?);
 
-                        // Report latest leaf index to gauge
-                        message_leaf_index.set(max_leaf_index_of_batch as i64);
+                        // Report latest leaf index to gauge by dst
+                        for raw_msg in sorted_messages.iter() {
+                            let dst = CommittedMessage::try_from(raw_msg)
+                                .ok()
+                                .and_then(|msg| chain_from_domain(msg.message.destination))
+                                .unwrap_or("unknown");
+                            message_leaf_index
+                                .with_label_values(&["dispatch", &chain_name, dst])
+                                .set(max_leaf_index_of_batch as i64);
+                        }
 
                         // Move forward next height
                         db.store_message_latest_block_end(to)?;
@@ -166,19 +163,19 @@ where
 
 #[cfg(test)]
 mod test {
-    use abacus_test::mocks::indexer::MockAbacusIndexer;
-    use mockall::*;
-
     use std::sync::Arc;
 
     use ethers::core::types::H256;
+    use mockall::*;
 
     use abacus_core::{db::AbacusDB, AbacusMessage, Encode, RawCommittedMessage};
+    use abacus_test::mocks::indexer::MockAbacusIndexer;
     use abacus_test::test_utils;
 
-    use super::*;
     use crate::ContractSync;
     use crate::{settings::IndexSettings, ContractSyncMetrics, CoreMetrics};
+
+    use super::*;
 
     #[tokio::test]
     async fn handles_missing_rpc_messages() {
