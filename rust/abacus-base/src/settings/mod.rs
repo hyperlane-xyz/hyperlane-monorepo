@@ -29,12 +29,12 @@
 //! 2. The config file specified by the `RUN_ENV` env var and the
 //!    agent's name. `$RUN_ENV/{agent}-partial.json`.
 //!    E.g. `$RUN_ENV/validator-partial.json`
-//! 3. Configuration env vars with the prefix `OPT_BASE` intended
+//! 3. Configuration env vars with the prefix `ABC_BASE` intended
 //!    to be shared by multiple agents in the same environment
-//!    E.g. `export OPT_BASE_INBOXES_KOVAN_DOMAIN=3000`
-//! 4. Configuration env vars with the prefix `OPT_{agent name}`
+//!    E.g. `export ABC_BASE_INBOXES_KOVAN_DOMAIN=3000`
+//! 4. Configuration env vars with the prefix `ABC_{agent name}`
 //!    intended to be used by a specific agent.
-//!    E.g. `export OPT_KATHY_CHAT_TYPE="static message"`
+//!    E.g. `export ABC_KATHY_CHAT_TYPE="static message"`
 
 use std::{collections::HashMap, env, sync::Arc};
 

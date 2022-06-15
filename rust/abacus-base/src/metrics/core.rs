@@ -3,8 +3,6 @@ use std::fmt::{Debug, Formatter};
 use std::sync::Arc;
 use std::time::Duration;
 
-use crate::metrics::provider::create_provider_metrics;
-use ethers_prometheus::ProviderMetrics;
 use eyre::Result;
 use once_cell::sync::OnceCell;
 use prometheus::{
@@ -14,6 +12,10 @@ use prometheus::{
     IntGaugeVec, Registry,
 };
 use tokio::task::JoinHandle;
+
+use ethers_prometheus::ProviderMetrics;
+
+use crate::metrics::provider::create_provider_metrics;
 
 use super::NAMESPACE;
 
@@ -43,6 +45,7 @@ pub struct CoreMetrics {
     span_events: IntCounterVec,
     last_known_message_leaf_index: IntGaugeVec,
     retry_queue_length: IntGaugeVec,
+    outbox_state: IntGaugeVec,
 
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceCell<ProviderMetrics>,
@@ -128,6 +131,16 @@ impl CoreMetrics {
             registry
         )?;
 
+        let outbox_state = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("outbox_state"),
+                "Outbox contract state value",
+                const_labels_ref
+            ),
+            &["chain"],
+            registry
+        )?;
+
         Ok(Self {
             agent_name: for_agent.into(),
             registry,
@@ -139,6 +152,7 @@ impl CoreMetrics {
             span_events,
             last_known_message_leaf_index,
             retry_queue_length,
+            outbox_state,
 
             provider_metrics: OnceCell::new(),
         })
@@ -220,6 +234,11 @@ impl CoreMetrics {
     /// Gauge for measuring the last known message leaf index
     pub fn last_known_message_leaf_index(&self) -> IntGaugeVec {
         self.last_known_message_leaf_index.clone()
+    }
+
+    /// Gauge for reporting the current outbox state.
+    pub fn outbox_state(&self) -> IntGaugeVec {
+        self.outbox_state.clone()
     }
 
     /// Gauge for measuring the retry queue length in MessageProcessor

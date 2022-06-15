@@ -24,13 +24,11 @@ where
         let indexed_height = self
             .metrics
             .indexed_height
-            .clone()
             .with_label_values(&[GAS_PAYMENTS_LABEL, &self.chain_name]);
 
         let stored_messages = self
             .metrics
             .stored_events
-            .clone()
             .with_label_values(&[GAS_PAYMENTS_LABEL, &self.chain_name]);
 
         let config_from = self.index_settings.from();

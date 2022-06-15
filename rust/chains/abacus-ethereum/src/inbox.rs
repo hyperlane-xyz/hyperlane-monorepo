@@ -128,10 +128,6 @@ where
     #[tracing::instrument(err)]
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         let status = self.contract.messages(leaf.into()).call().await?;
-        match status {
-            0 => Ok(MessageStatus::None),
-            1 => Ok(MessageStatus::Processed),
-            _ => panic!("Bad status from solidity"),
-        }
+        Ok(MessageStatus::try_from(status).expect("Bad status from solidity"))
     }
 }
