@@ -46,6 +46,7 @@ pub struct CoreMetrics {
     last_known_message_leaf_index: IntGaugeVec,
     retry_queue_length: IntGaugeVec,
     outbox_state: IntGaugeVec,
+    latest_checkpoint: IntGaugeVec,
 
     /// Set of provider-specific metrics. These only need to get created once.
     provider_metrics: OnceCell<ProviderMetrics>,
@@ -107,10 +108,10 @@ impl CoreMetrics {
 
         // "remote is unknown where remote is unavailable"
         // The following phases are implemented:
-        // - dispatch: When a message is indexed and stored in the DB
-        // - signed_offchain_checkpoint: When a leaf index is known to be signed by a validator
-        // - processor_loop: The current leaf index in the MessageProcessor loop
-        // - message_processed: When a leaf index was processed as part of the MessageProcessor loop
+        // - `dispatch`: When a message is indexed and stored in the DB
+        // - `signed_offchain_checkpoint`: When a leaf index is known to be signed by a validator
+        // - `processor_loop`: The current leaf index in the MessageProcessor loop
+        // - `message_processed`: When a leaf index was processed as part of the MessageProcessor loop
         let last_known_message_leaf_index = register_int_gauge_vec_with_registry!(
             opts!(
                 namespaced!("last_known_message_leaf_index"),
@@ -141,6 +142,20 @@ impl CoreMetrics {
             registry
         )?;
 
+        // Latest checkpoint that has been observed.
+        // Phase:
+        // - `validator_observed`: When the validator has begun processing this checkpoint.
+        // - `validator_processed`: When the validator has written this checkpoint.
+        let latest_checkpoint = register_int_gauge_vec_with_registry!(
+            opts!(
+                namespaced!("latest_checkpoint"),
+                "Outbox latest checkpoint",
+                const_labels_ref
+            ),
+            &["phase", "chain"],
+            registry
+        )?;
+
         Ok(Self {
             agent_name: for_agent.into(),
             registry,
@@ -153,6 +168,7 @@ impl CoreMetrics {
             last_known_message_leaf_index,
             retry_queue_length,
             outbox_state,
+            latest_checkpoint,
 
             provider_metrics: OnceCell::new(),
         })
@@ -239,6 +255,11 @@ impl CoreMetrics {
     /// Gauge for reporting the current outbox state.
     pub fn outbox_state(&self) -> IntGaugeVec {
         self.outbox_state.clone()
+    }
+
+    /// Gauge for the latest checkpoint at various phases.
+    pub fn latest_checkpoint(&self) -> IntGaugeVec {
+        self.latest_checkpoint.clone()
     }
 
     /// Gauge for measuring the retry queue length in MessageProcessor
