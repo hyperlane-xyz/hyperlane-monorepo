@@ -1,13 +1,10 @@
-import {
-  HelloWorldApp,
-  HelloWorldChecker,
-  HelloWorldConfig,
-} from '@abacus-network/helloworld';
+import { HelloWorldApp, HelloWorldChecker } from '@abacus-network/helloworld';
 import {
   HelloWorldContracts,
   helloWorldFactories,
 } from '@abacus-network/helloworld/dist/sdk/contracts';
 import {
+  AbacusCore,
   ChainMap,
   buildContracts,
   objMap,
@@ -15,15 +12,21 @@ import {
 } from '@abacus-network/sdk';
 
 import addresses from '../config/environments/testnet2/helloworld/addresses.json';
+import { CoreEnvironmentConfig } from '../src/config';
 
 import { getCoreEnvironmentConfig } from './utils';
 
+type Chains = keyof typeof addresses;
+
 async function main() {
   const environment = 'testnet2';
-  const coreConfig = getCoreEnvironmentConfig(environment);
+  // TODO Fix need for cast here due to https://github.com/abacus-network/abacus-monorepo/pull/594/files#diff-40a12589668de942078f498e0ab0fda512e1eb7397189d6d286b590ae87c45d1R31
+  const coreConfig = getCoreEnvironmentConfig(
+    environment,
+  ) as CoreEnvironmentConfig<Chains>;
   const multiProvider = await coreConfig.getMultiProvider();
+  const core = AbacusCore.fromEnvironment(environment, multiProvider);
 
-  type Chains = keyof typeof addresses;
   const contracts = buildContracts(addresses, helloWorldFactories) as ChainMap<
     Chains,
     HelloWorldContracts
@@ -33,17 +36,19 @@ async function main() {
   const signerMap = await promiseObjAll(
     multiProvider.map(async (_, dc) => dc.signer!),
   );
-  const configMap = await promiseObjAll(
+  const ownerMap = await promiseObjAll(
     objMap(signerMap, async (_, signer) => {
-      const config: HelloWorldConfig = {
+      return {
         owner: await signer.getAddress(),
       };
-      return config;
     }),
   );
+  const configMap = core.extendWithConnectionManagers(ownerMap);
   const checker = new HelloWorldChecker(multiProvider, app, configMap);
   await checker.check();
   checker.expectEmpty();
 }
 
-main().then().catch(console.error);
+main()
+  .then(() => console.info('HelloWorld check complete'))
+  .catch(console.error);
