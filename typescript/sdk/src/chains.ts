@@ -33,6 +33,30 @@ export const avalanche: IChainConnection = {
   confirmations: 1,
 };
 
+export const arbitrum: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://arb1.arbitrum.io/rpc',
+    42161,
+  ),
+  confirmations: 1,
+};
+
+export const optimism: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://mainnet.optimism.io',
+    10,
+  ),
+  confirmations: 1,
+};
+
+export const bsc: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://rpc.ankr.com/bsc',
+    56,
+  ),
+  confirmations: 1,
+};
+
 export const alfajores: IChainConnection = {
   provider: new StaticCeloJsonRpcProvider(
     'https://alfajores-forno.celo.org',
@@ -130,7 +154,9 @@ export const test3: IChainConnection = {
 };
 
 const _configs = {
+  arbitrum,
   auroratestnet,
+  bsc,
   ethereum,
   celo,
   polygon,
@@ -142,6 +168,7 @@ const _configs = {
   mumbai,
   bsctestnet,
   arbitrumrinkeby,
+  optimism,
   optimismkovan,
   test1,
   test2,
