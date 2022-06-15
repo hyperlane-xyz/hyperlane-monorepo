@@ -11,7 +11,7 @@ use tracing::instrument;
 use abacus_core::{
     AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, CheckpointMeta,
     CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer,
-    RawCommittedMessage, State, TxOutcome,
+    RawCommittedMessage, OutboxState, TxOutcome,
 };
 
 use crate::trait_builder::MakeableWithProvider;
@@ -280,13 +280,9 @@ where
     }
 
     #[tracing::instrument(err, skip(self))]
-    async fn state(&self) -> Result<State, ChainCommunicationError> {
+    async fn state(&self) -> Result<OutboxState, ChainCommunicationError> {
         let state = self.contract.state().call().await?;
-        match state {
-            0 => Ok(State::Waiting),
-            1 => Ok(State::Failed),
-            _ => unreachable!(),
-        }
+        Ok(OutboxState::try_from(state).expect("Invalid state received from contract"))
     }
 
     #[tracing::instrument(err, skip(self))]

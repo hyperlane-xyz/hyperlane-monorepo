@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
-    AbacusCommon, Checkpoint, CommittedMessage, Message, RawCommittedMessage, State,
+    AbacusCommon, Checkpoint, CommittedMessage, Message, RawCommittedMessage, OutboxState,
 };
 use async_trait::async_trait;
 use ethers::core::types::H256;
@@ -14,7 +14,7 @@ use eyre::Result;
 #[async_trait]
 pub trait Outbox: AbacusCommon + Send + Sync + Debug {
     /// Fetch the current state.
-    async fn state(&self) -> Result<State, ChainCommunicationError>;
+    async fn state(&self) -> Result<OutboxState, ChainCommunicationError>;
 
     /// Gets the current leaf count of the merkle tree
     async fn count(&self) -> Result<u32, ChainCommunicationError>;
