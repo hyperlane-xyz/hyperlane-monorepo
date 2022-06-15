@@ -8,8 +8,6 @@ use std::sync::Arc;
 use tokio::time::Duration;
 use tracing::{info, instrument};
 
-extern crate num_derive;
-
 #[derive(Debug, Clone)]
 pub struct ForwardRequestOpArgs {
     pub chain_id: Chain,
@@ -122,8 +120,7 @@ impl Default for ForwardRequestOptions {
     }
 }
 
-#[repr(u64)]
-#[derive(Debug, Clone, FromPrimitive)]
+#[derive(Debug, Clone)]
 pub enum PaymentType {
     Sync = 0,
     AsyncGasTank = 1,

@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate num_derive;
-
 // TODO(webbhorn): pub mod probably wrong as blanket policy...
 pub mod chains;
 pub mod err;
