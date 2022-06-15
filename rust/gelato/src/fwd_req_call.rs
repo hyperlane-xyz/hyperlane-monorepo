@@ -1,7 +1,6 @@
 use crate::chains::Chain;
 use crate::err::GelatoError;
-use ethers::types::{Address, Bytes, U256};
-use ethers::types::Signature;
+use ethers::types::{Address, Bytes, Signature, U256};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
 use std::sync::Arc;
