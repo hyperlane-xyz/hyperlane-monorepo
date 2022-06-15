@@ -9,6 +9,7 @@ import {
   getCoreRustDirectory,
   getCoreVerificationDirectory,
   getEnvironment,
+  getEnvironmentDirectory,
 } from './utils';
 
 async function main() {
@@ -17,23 +18,32 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
 
-  const contracts = await deployer.deploy();
-
-  writeJSON(
-    getCoreContractsSdkFilepath(),
-    `${environment}.json`,
-    serializeContracts(contracts),
-  );
-  writeJSON(
-    getCoreVerificationDirectory(environment),
-    'verification.json',
-    deployer.verificationInputs,
-  );
-  deployer.writeRustConfigs(
-    environment,
-    getCoreRustDirectory(environment),
-    contracts,
-  );
+  try {
+    const contracts = await deployer.deploy();
+    writeJSON(
+      getCoreContractsSdkFilepath(),
+      `${environment}.json`,
+      serializeContracts(contracts),
+    );
+    writeJSON(
+      getCoreVerificationDirectory(environment),
+      'verification.json',
+      deployer.verificationInputs,
+    );
+    deployer.writeRustConfigs(
+      environment,
+      getCoreRustDirectory(environment),
+      contracts,
+    );
+  } catch (e) {
+    console.error(e);
+    // persist partial deployment
+    writeJSON(
+      getEnvironmentDirectory(environment),
+      'partial_core_addresses.json',
+      serializeContracts(deployer.deployedContracts),
+    );
+  }
 }
 
 main().then(console.log).catch(console.error);
