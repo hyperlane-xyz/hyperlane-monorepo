@@ -5,7 +5,7 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@0.2.1-beta3, @abacus-network/app@^0.2.1-beta3, @abacus-network/app@workspace:solidity/app":
+"@abacus-network/app@0.2.2, @abacus-network/app@^0.2.2, @abacus-network/app@workspace:solidity/app":
   version: 0.0.0-use.local
   resolution: "@abacus-network/app@workspace:solidity/app"
   dependencies:
@@ -101,15 +101,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/helloworld@npm:0.2.1-alpha":
-  version: 0.2.1-alpha
-  resolution: "@abacus-network/helloworld@npm:0.2.1-alpha"
+"@abacus-network/helloworld@npm:0.2.2":
+  version: 0.2.2
+  resolution: "@abacus-network/helloworld@npm:0.2.2"
   dependencies:
-    "@abacus-network/app": 0.2.1-beta3
-    "@abacus-network/sdk": 0.2.1-beta3
-    "@openzeppelin/contracts-upgradeable": ~4.5.0
+    "@abacus-network/app": 0.2.2
+    "@abacus-network/sdk": 0.2.2
+    "@openzeppelin/contracts-upgradeable": ^4.6.0
     ethers: ^5.4.7
-  checksum: 08ccdd0078122bcd4a8cc1b41f3584536d4cd513f458c2ad446d18e80052aa4abcf4b5dd5fc67f9b9e81f782f2ce1e6d257c4fef3e395be29344ab6dca3b90f6
+  checksum: c4aaff98c7d311bb654029f44a30a811957ac1051ea89499265ac19676e55f10737ae2420e5443891371f4d74cbb69b9f6a0ead075027d15416b9a8351e7f460
   languageName: node
   linkType: hard
 
@@ -117,10 +117,10 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/infra@workspace:typescript/infra"
   dependencies:
-    "@abacus-network/core": ^0.2.1-beta3
-    "@abacus-network/deploy": ^0.2.1-beta3
-    "@abacus-network/helloworld": 0.2.1-alpha
-    "@abacus-network/sdk": ^0.2.1-beta3
+    "@abacus-network/core": ^0.2.2
+    "@abacus-network/deploy": ^0.2.2
+    "@abacus-network/helloworld": 0.2.2
+    "@abacus-network/sdk": ^0.2.2
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -160,7 +160,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@0.2.1-beta3, @abacus-network/sdk@^0.2.1-beta3, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@0.2.2, @abacus-network/sdk@^0.2.2, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
