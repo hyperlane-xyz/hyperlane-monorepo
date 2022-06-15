@@ -21,16 +21,18 @@ export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
   Contracts extends RouterContracts,
   Factories extends RouterFactories,
-  Config extends RouterConfig,
-> extends AbacusDeployer<Chain, Config, Factories, Contracts> {
+  Config,
+> extends AbacusDeployer<Chain, Config & RouterConfig, Factories, Contracts> {
   constructor(
     multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, Config>,
+    configMap: ChainMap<Chain, Config & RouterConfig>,
     factories: Factories,
     options?: DeployerOptions,
   ) {
-    const logger = options?.logger || debug('abacus:RouterDeployer');
-    super(multiProvider, configMap, factories, { ...options, logger });
+    super(multiProvider, configMap, factories, {
+      logger: debug('abacus:RouterDeployer'),
+      ...options,
+    });
   }
 
   // for use in implementations of deployContracts
