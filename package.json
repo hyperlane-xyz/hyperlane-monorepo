@@ -1,17 +1,17 @@
 {
   "name": "@abacus-network/helloworld",
   "description": "A basic skeleton of an Abacus app",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "dependencies": {
-    "@abacus-network/app": "0.2.1",
-    "@abacus-network/sdk": "0.2.1",
+    "@abacus-network/app": "0.2.2",
+    "@abacus-network/sdk": "0.2.2",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "ethers": "^5.4.7"
   },
   "devDependencies": {
-    "@abacus-network/core": "0.2.1",
-    "@abacus-network/deploy": "0.2.1",
-    "@abacus-network/hardhat": "0.2.1",
+    "@abacus-network/core": "0.2.2",
+    "@abacus-network/deploy": "0.2.2",
+    "@abacus-network/hardhat": "0.2.2",
     "@nomiclabs/hardhat-ethers": "^2.0.1",
     "@nomiclabs/hardhat-waffle": "^2.0.1",
     "@typechain/ethers-v5": "10.0.0",

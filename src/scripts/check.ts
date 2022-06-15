@@ -1,5 +1,10 @@
 import { utils } from '@abacus-network/deploy';
-import { buildContracts, ChainMap, ChainName } from '@abacus-network/sdk';
+import {
+  AbacusCore,
+  buildContracts,
+  ChainMap,
+  ChainName,
+} from '@abacus-network/sdk';
 import { ethers } from 'hardhat';
 import { HelloWorldChecker } from '../deploy/check';
 import { getConfigMap, testConfigs } from '../deploy/config';
@@ -21,11 +26,12 @@ async function check() {
 
   const app = new HelloWorldApp(contractsMap, multiProvider);
 
-  const helloWorldChecker = new HelloWorldChecker(
-    multiProvider,
-    app,
+  const core = AbacusCore.fromEnvironment('test', multiProvider);
+  const config = core.extendWithConnectionManagers(
     getConfigMap(signer.address),
   );
+
+  const helloWorldChecker = new HelloWorldChecker(multiProvider, app, config);
   await helloWorldChecker.check();
   helloWorldChecker.expectEmpty();
 }

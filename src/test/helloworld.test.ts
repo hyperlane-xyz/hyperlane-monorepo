@@ -5,6 +5,7 @@ import { TestCoreApp } from '@abacus-network/hardhat/dist/src/TestCoreApp';
 // TODO export TestCoreDeploy from @abacus-network/hardhat properly
 import { TestCoreDeploy } from '@abacus-network/hardhat/dist/src/TestCoreDeploy';
 import {
+  ChainMap,
   ChainNameToDomainId,
   MultiProvider,
   TestChainNames,
@@ -12,7 +13,7 @@ import {
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
-import { getConfigMap, testConfigs } from '../deploy/config';
+import { getConfigMap, HelloWorldConfig, testConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
 import { HelloWorld } from '../types';
 
@@ -27,6 +28,7 @@ describe('HelloWorld', async () => {
   let remote: HelloWorld;
   let multiProvider: MultiProvider<TestChainNames>;
   let coreApp: TestCoreApp;
+  let config: ChainMap<TestChainNames, HelloWorldConfig>;
 
   before(async () => {
     [signer] = await ethers.getSigners();
@@ -39,14 +41,11 @@ describe('HelloWorld', async () => {
     const coreDeployer = new TestCoreDeploy(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
+    config = coreApp.extendWithConnectionManagers(getConfigMap(signer.address));
   });
 
   beforeEach(async () => {
-    const helloWorld = new HelloWorldDeployer(
-      multiProvider,
-      getConfigMap(signer.address),
-      coreApp,
-    );
+    const helloWorld = new HelloWorldDeployer(multiProvider, config, coreApp);
     const contracts = await helloWorld.deploy();
 
     local = contracts[localChain].router;

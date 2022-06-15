@@ -1,6 +1,5 @@
 import { utils } from '@abacus-network/deploy';
-import { TestCoreApp } from '@abacus-network/hardhat/dist/src/TestCoreApp';
-import { serializeContracts } from '@abacus-network/sdk';
+import { AbacusCore, serializeContracts } from '@abacus-network/sdk';
 import '@nomiclabs/hardhat-ethers';
 import { ethers } from 'hardhat';
 import { getConfigMap, testConfigs } from '../deploy/config';
@@ -13,13 +12,12 @@ async function main() {
     signer,
   );
 
-  const core = TestCoreApp.fromEnvironment('test', multiProvider);
-
-  const deployer = new HelloWorldDeployer(
-    multiProvider,
+  const core = AbacusCore.fromEnvironment('test', multiProvider);
+  const config = core.extendWithConnectionManagers(
     getConfigMap(signer.address),
-    core,
   );
+
+  const deployer = new HelloWorldDeployer(multiProvider, config, core);
   const chainToContracts = await deployer.deploy();
   const addresses = serializeContracts(chainToContracts);
   console.info('===Contract Addresses===');

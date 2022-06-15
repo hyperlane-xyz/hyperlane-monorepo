@@ -3,11 +3,11 @@ import { utils } from '@abacus-network/deploy';
 import { TestCoreApp } from '@abacus-network/hardhat/dist/src/TestCoreApp';
 // TODO export TestCoreDeploy from @abacus-network/hardhat properly
 import { TestCoreDeploy } from '@abacus-network/hardhat/dist/src/TestCoreDeploy';
-import { MultiProvider, TestChainNames } from '@abacus-network/sdk';
+import { ChainMap, MultiProvider, TestChainNames } from '@abacus-network/sdk';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'hardhat';
 import { HelloWorldChecker } from '../deploy/check';
-import { getConfigMap, testConfigs } from '../deploy/config';
+import { getConfigMap, HelloWorldConfig, testConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
 import { HelloWorldApp } from '../sdk/app';
 import { HelloWorldContracts } from '../sdk/contracts';
@@ -15,6 +15,7 @@ import { HelloWorldContracts } from '../sdk/contracts';
 describe('deploy', async () => {
   let multiProvider: MultiProvider<TestChainNames>;
   let core: TestCoreApp;
+  let config: ChainMap<TestChainNames, HelloWorldConfig>;
   let deployer: HelloWorldDeployer<TestChainNames>;
   let contracts: Record<TestChainNames, HelloWorldContracts>;
   let app: HelloWorldApp<TestChainNames>;
@@ -29,12 +30,8 @@ describe('deploy', async () => {
     const coreDeployer = new TestCoreDeploy(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     core = new TestCoreApp(coreContractsMaps, multiProvider);
-
-    deployer = new HelloWorldDeployer(
-      multiProvider,
-      getConfigMap(signer.address),
-      core,
-    );
+    config = core.extendWithConnectionManagers(getConfigMap(signer.address));
+    deployer = new HelloWorldDeployer(multiProvider, config, core);
   });
 
   it('deploys', async () => {
@@ -47,13 +44,7 @@ describe('deploy', async () => {
   });
 
   it('checks', async () => {
-    const [signer] = await ethers.getSigners();
-
-    const checker = new HelloWorldChecker(
-      multiProvider,
-      app,
-      getConfigMap(signer.address),
-    );
+    const checker = new HelloWorldChecker(multiProvider, app, config);
     await checker.check();
     checker.expectEmpty();
   });
