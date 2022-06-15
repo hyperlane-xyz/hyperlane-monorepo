@@ -10,8 +10,8 @@ use tracing::instrument;
 
 use abacus_core::{
     AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, CheckpointMeta,
-    CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer,
-    RawCommittedMessage, OutboxState, TxOutcome,
+    CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer, OutboxState,
+    RawCommittedMessage, TxOutcome,
 };
 
 use crate::trait_builder::MakeableWithProvider;

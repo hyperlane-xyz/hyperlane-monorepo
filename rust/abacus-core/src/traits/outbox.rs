@@ -3,7 +3,7 @@ use std::fmt::Debug;
 
 use crate::{
     traits::{ChainCommunicationError, TxOutcome},
-    AbacusCommon, Checkpoint, CommittedMessage, Message, RawCommittedMessage, OutboxState,
+    AbacusCommon, Checkpoint, CommittedMessage, Message, OutboxState, RawCommittedMessage,
 };
 use async_trait::async_trait;
 use ethers::core::types::H256;
