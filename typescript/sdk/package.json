@@ -3,12 +3,10 @@
   "description": "The official SDK for the Abacus Network",
   "version": "0.2.1-beta3",
   "dependencies": {
-    "@abacus-network/core": "^0.2.1-beta3",
-    "@abacus-network/utils": "^0.2.1-beta3",
-    "@ethersproject/bignumber": "^5.5.0",
-    "@ethersproject/bytes": "^5.5.0",
-    "celo-ethers-provider": "^0.0.0",
-    "ethers": "^5.4.7"
+    "@abacus-network/core": "^0.2.2",
+    "@abacus-network/utils": "^0.2.2",
+    "@celo-tools/celo-ethers-wrapper": "^0.2.0",
+    "ethers": "^5.6.8"
   },
   "devDependencies": {
     "@types/node": "^16.9.1",

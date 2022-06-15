@@ -124,6 +124,7 @@ __metadata:
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
+    "@celo-tools/celo-ethers-wrapper": ^0.2.0
     "@ethersproject/experimental": ^5.6.2
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-etherscan": ^3.0.3
@@ -164,10 +165,9 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
-    "@abacus-network/core": ^0.2.1-beta3
-    "@abacus-network/utils": ^0.2.1-beta3
-    "@ethersproject/bignumber": ^5.5.0
-    "@ethersproject/bytes": ^5.5.0
+    "@abacus-network/core": ^0.2.2
+    "@abacus-network/utils": ^0.2.2
+    "@celo-tools/celo-ethers-wrapper": ^0.2.0
     "@types/node": ^16.9.1
     chai: ^4.3.6
     dotenv: ^10.0.0
@@ -2226,6 +2226,15 @@ __metadata:
     "@babel/helper-validator-identifier": ^7.16.7
     to-fast-properties: ^2.0.0
   checksum: 85df59beb99c1b95e9e41590442f2ffa1e5b1b558d025489db40c9f7c906bd03a17da26c3ec486e5800e80af27c42ca7eee9506d9212ab17766d2d68d30fbf52
+  languageName: node
+  linkType: hard
+
+"@celo-tools/celo-ethers-wrapper@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@celo-tools/celo-ethers-wrapper@npm:0.2.0"
+  peerDependencies:
+    ethers: ^5
+  checksum: 204177c8845003738a36d20ed5c1d64015c6ba95b2d01d186b709345f5cda1c09892471f47e7981bd5424ab50c13edc33cca5dfbb80ac607c7fadb6b8c16d0c2
   languageName: node
   linkType: hard
 
@@ -7855,7 +7864,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^5.0.1, ethers@npm:^5.0.2, ethers@npm:^5.4.7, ethers@npm:^5.5.2, ethers@npm:^5.6.8":
+"ethers@npm:^5.0.1, ethers@npm:^5.0.2, ethers@npm:^5.5.2, ethers@npm:^5.6.8":
   version: 5.6.8
   resolution: "ethers@npm:5.6.8"
   dependencies:
