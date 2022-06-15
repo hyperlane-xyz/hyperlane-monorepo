@@ -4,7 +4,7 @@ use ethers::types::U256;
 use ethers::utils::keccak256;
 
 use crate::err::GelatoError;
-use crate::fwd_req_op::ForwardRequestOpArgs;
+use crate::fwd_req_call::ForwardRequestArgs;
 
 // See @gelatonetwork/gelato-relay-sdk/package/dist/lib/index.js.
 const EIP_712_DOMAIN_NAME: &str = "GelatoRelayForwarder";
@@ -17,7 +17,7 @@ const EIP_712_TYPE_HASH_STR: &str = concat!(
     "bool enforceSponsorNonceOrdering)"
 );
 
-impl Eip712 for ForwardRequestOpArgs {
+impl Eip712 for ForwardRequestArgs {
     type Error = GelatoError;
     fn domain(&self) -> Result<EIP712Domain, Self::Error> {
         Ok(EIP712Domain {
@@ -33,7 +33,7 @@ impl Eip712 for ForwardRequestOpArgs {
     }
     fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
         Ok(keccak256(ethers::abi::encode(&[
-            Token::FixedBytes(ForwardRequestOpArgs::type_hash().unwrap().to_vec()),
+            Token::FixedBytes(ForwardRequestArgs::type_hash().unwrap().to_vec()),
             Token::Int(U256::from(u32::from(self.chain_id))),
             Token::Address(self.target),
             Token::FixedBytes(keccak256(&self.data).to_vec()),
@@ -54,7 +54,7 @@ impl Eip712 for ForwardRequestOpArgs {
 mod tests {
     use super::*;
     use crate::chains::Chain;
-    use crate::fwd_req_op::{self, PaymentType};
+    use crate::fwd_req_call::PaymentType;
     use ethers::types::transaction::eip712::Eip712;
     use ethers::utils::hex;
 
@@ -76,7 +76,7 @@ mod tests {
 
     #[test]
     fn sdk_demo_app() {
-        let args = ForwardRequestOpArgs {
+        let args = ForwardRequestArgs {
             chain_id: Chain::Goerli,
             target: TARGET_CONTRACT_FOR_TESTING.parse().unwrap(),
             data: EXAMPLE_DATA_FOR_TESTING.parse().unwrap(),
@@ -95,7 +95,7 @@ mod tests {
             "5b86c8e692a12ffedb26520fb1cc801f537517ee74d7730a1d806daf2b0c2688"
         );
         assert_eq!(
-            hex::encode(&fwd_req_op::ForwardRequestOpArgs::type_hash().unwrap()),
+            hex::encode(&ForwardRequestArgs::type_hash().unwrap()),
             "4aa193de33aca882aa52ebc7dcbdbd732ad1356422dea011f3a1fa08db2fac37"
         );
         assert_eq!(

@@ -1,5 +1,6 @@
+use crate::chains::Chain;
 use crate::err::GelatoError;
-use crate::fwd_req_op::ForwardRequestOpArgs;
+use ethers::types::{Address, Bytes, U256};
 use ethers::types::Signature;
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Serialize, Serializer};
@@ -10,9 +11,25 @@ use tracing::instrument;
 const GATEWAY_URL: &str = "https://gateway.api.gelato.digital";
 
 #[derive(Debug, Clone)]
+pub struct ForwardRequestArgs {
+    pub chain_id: Chain,
+    pub target: Address,
+    pub data: Bytes,
+    pub fee_token: Address,
+    pub payment_type: PaymentType,
+    pub max_fee: U256,
+    pub gas: U256,
+    pub sponsor: Address,
+    pub sponsor_chain_id: Chain,
+    pub nonce: U256,
+    pub enforce_sponsor_nonce: bool,
+    pub enforce_sponsor_nonce_ordering: bool,
+}
+
+#[derive(Debug, Clone)]
 pub struct ForwardRequestCall {
     pub http: Arc<reqwest::Client>,
-    pub args: ForwardRequestOpArgs,
+    pub args: ForwardRequestArgs,
     pub sig: Signature,
 }
 
@@ -42,7 +59,7 @@ impl ForwardRequestCall {
 
 #[derive(Debug)]
 struct HTTPArgs {
-    args: ForwardRequestOpArgs,
+    args: ForwardRequestArgs,
     sig: Signature,
 }
 
@@ -90,6 +107,14 @@ impl From<HTTPResult> for ForwardRequestCallResult {
     }
 }
 
+#[derive(Debug, Clone)]
+pub enum PaymentType {
+    Sync = 0,
+    AsyncGasTank = 1,
+    SyncGasTank = 2,
+    SyncPullFee = 3,
+}
+
 // TODO(webbhorn): The signature verification stuff should be tested
 // in fwd_req_sig.rs instead.
 //
@@ -104,7 +129,6 @@ impl From<HTTPResult> for ForwardRequestCallResult {
 mod tests {
     use super::*;
     use crate::chains::Chain;
-    use crate::fwd_req_op::PaymentType;
     use ethers::signers::{LocalWallet, Signer};
     use ethers::types::U256;
 
@@ -155,7 +179,7 @@ mod tests {
 
     #[tokio::test]
     async fn sdk_test() {
-        let fwd_req_args = ForwardRequestOpArgs {
+        let fwd_req_args = ForwardRequestArgs {
             chain_id: Chain::Goerli,
             target: TARGET_CONTRACT_FOR_TESTING.parse().unwrap(),
             data: EXAMPLE_DATA_FOR_TESTING.parse().unwrap(),
@@ -194,7 +218,7 @@ mod tests {
     // Parameters specified by Ed in Telegram.
     #[tokio::test]
     async fn ed_test_case() {
-        let fwd_req_args = ForwardRequestOpArgs {
+        let fwd_req_args = ForwardRequestArgs {
             chain_id: Chain::Goerli,
             target: TARGET_CONTRACT_FOR_TESTING.parse().unwrap(),
             data: EXAMPLE_DATA_FOR_TESTING.parse().unwrap(),
