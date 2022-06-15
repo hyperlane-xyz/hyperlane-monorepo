@@ -1,10 +1,10 @@
 {
   "name": "@abacus-network/sdk",
   "description": "The official SDK for the Abacus Network",
-  "version": "0.2.1-alpha3",
+  "version": "0.2.2",
   "dependencies": {
-    "@abacus-network/core": "^0.2.1-alpha3",
-    "@abacus-network/utils": "^0.2.1-alpha3",
+    "@abacus-network/core": "^0.2.2",
+    "@abacus-network/utils": "^0.2.2",
     "@ethersproject/bignumber": "^5.5.0",
     "@ethersproject/bytes": "^5.5.0",
     "celo-ethers-provider": "^0.0.0",

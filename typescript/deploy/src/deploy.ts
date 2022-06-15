@@ -33,6 +33,8 @@ export abstract class AbacusDeployer<
   Factories extends AbacusFactories,
   Contracts extends AbacusContracts,
 > {
+  public deployedContracts: Partial<Record<Chain, Contracts>> = {};
+
   verificationInputs: ChainMap<Chain, ContractVerificationInput[]>;
   protected logger: Debugger;
 
@@ -48,17 +50,36 @@ export abstract class AbacusDeployer<
 
   abstract deployContracts(chain: Chain, config: Config): Promise<Contracts>;
 
-  async deploy() {
-    this.logger('Start Deploy');
-    this.verificationInputs = objMap(this.configMap, () => []);
-    const chains = this.multiProvider.chains();
-    const entries: [Chain, Contracts][] = [];
-    for (const chain of chains) {
+  async deploy(
+    partialDeployment: Partial<Record<Chain, Contracts>> = this
+      .deployedContracts,
+  ): Promise<Record<Chain, Contracts>> {
+    const deployedChains = Object.keys(partialDeployment);
+    const configChains = Object.keys(this.configMap);
+    const targetChains = this.multiProvider
+      .chains()
+      .filter(
+        (chain) =>
+          configChains.includes(chain) && !deployedChains.includes(chain),
+      );
+    this.logger(
+      `Start deploy to ${targetChains} ${
+        deployedChains.length > 0
+          ? `(already deployed to ${deployedChains})`
+          : ''
+      }`,
+    );
+    for (const chain of targetChains) {
       this.logger(`Deploying to ${chain}...`);
-      const result = await this.deployContracts(chain, this.configMap[chain]);
-      entries.push([chain, result]);
+      this.deployedContracts[chain] = await this.deployContracts(
+        chain,
+        this.configMap[chain],
+      );
     }
-    return Object.fromEntries(entries) as Record<Chain, Contracts>;
+    return { ...partialDeployment, ...this.deployedContracts } as Record<
+      Chain,
+      Contracts
+    >;
   }
 
   async deployContract<K extends keyof Factories>(
@@ -96,13 +117,14 @@ export abstract class AbacusDeployer<
     ubcAddress: types.Address,
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const signer = chainConnection.signer;
     const implementation = await this.deployContract<K>(
       chain,
       contractName,
       deployArgs,
     );
+    this.logger(`Proxy ${contractName.toString()} on ${chain}`);
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const signer = chainConnection.signer;
     const beacon = await new UpgradeBeacon__factory(signer).deploy(
       implementation.address,
       ubcAddress,
@@ -138,6 +160,7 @@ export abstract class AbacusDeployer<
     proxy: ProxiedContract<C, BeaconProxyAddresses>,
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
+    this.logger(`Duplicate Proxy on ${chain}`);
     const signer = this.multiProvider.getChainConnection(chain).signer!;
     const initData = proxy.contract.interface.encodeFunctionData(
       'initialize',

@@ -104,9 +104,9 @@ macro_rules! decl_settings {
                 ///    env vars. `RUN_ENV/BASECONFIG`
                 /// 2. The file specified by the `RUN_ENV` env var and the
                 ///    agent's name. `RUN_ENV/AGENT-partial.json`
-                /// 3. Configuration env vars with the prefix `OPT_BASE` intended
+                /// 3. Configuration env vars with the prefix `ABC_BASE` intended
                 ///    to be shared by multiple agents in the same environment
-                /// 4. Configuration env vars with the prefix `OPT_AGENTNAME`
+                /// 4. Configuration env vars with the prefix `ABC_AGENTNAME`
                 ///    intended to be used by a specific agent.
                 ///
                 /// Specify a configuration directory with the `RUN_ENV` env
@@ -123,10 +123,10 @@ macro_rules! decl_settings {
                     s.merge(config::File::with_name(&format!("./config/{}/{}-partial", env, stringify!($name).to_lowercase())).required(false))?;
 
                     // Use a base configuration env variable prefix
-                    s.merge(config::Environment::with_prefix(&"OPT_BASE").separator("_"))?;
+                    s.merge(config::Environment::with_prefix(&"ABC_BASE").separator("_"))?;
 
                     // Derive additional prefix from agent name
-                    let prefix = format!("OPT_{}", stringify!($name).to_ascii_uppercase());
+                    let prefix = format!("ABC_{}", stringify!($name).to_ascii_uppercase());
                     s.merge(config::Environment::with_prefix(&prefix).separator("_"))?;
 
                     s.try_into()

@@ -1,3 +1,4 @@
+import debug from 'debug';
 import { ethers } from 'ethers';
 
 import { Inbox } from '@abacus-network/core';
@@ -46,12 +47,17 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     configMap: ChainMap<Chain, CoreConfig>,
     factoriesOverride = coreFactories,
   ) {
-    super(multiProvider, configMap, factoriesOverride);
+    super(multiProvider, configMap, factoriesOverride, {
+      logger: debug('abacus:CoreDeployer'),
+    });
     this.startingBlockNumbers = objMap(configMap, () => undefined);
   }
 
-  async deploy(): Promise<CoreContractsMap<Chain>> {
-    return super.deploy() as Promise<CoreContractsMap<Chain>>;
+  // override return type for inboxes shape derived from chain
+  async deploy(
+    partialDeployment?: Partial<CoreContractsMap<Chain>>,
+  ): Promise<CoreContractsMap<Chain>> {
+    return super.deploy(partialDeployment) as Promise<CoreContractsMap<Chain>>;
   }
 
   async deployOutbox<LocalChain extends Chain>(

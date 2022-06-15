@@ -4,6 +4,7 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
+  Router,
   RouterContracts,
   RouterFactories,
   chainMetadata,
@@ -18,23 +19,36 @@ import { RouterConfig } from './types';
 
 export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
-  Config extends RouterConfig,
-  Factories extends RouterFactories,
   Contracts extends RouterContracts,
-> extends AbacusDeployer<Chain, Config, Factories, Contracts> {
+  Factories extends RouterFactories,
+  Config,
+> extends AbacusDeployer<Chain, Config & RouterConfig, Factories, Contracts> {
   constructor(
     multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, Config>,
+    configMap: ChainMap<Chain, Config & RouterConfig>,
     factories: Factories,
     options?: DeployerOptions,
   ) {
-    const logger = options?.logger || debug('abacus:RouterDeployer');
-    super(multiProvider, configMap, factories, { ...options, logger });
+    super(multiProvider, configMap, factories, {
+      logger: debug('abacus:RouterDeployer'),
+      ...options,
+    });
   }
 
-  async deploy() {
-    const contractsMap = await super.deploy();
+  // for use in implementations of deployContracts
+  async deployRouter<RouterContract extends Router>(
+    chain: Chain,
+    deployParams: Parameters<Factories['router']['deploy']>,
+    initParams: Parameters<RouterContract['initialize']>,
+  ): Promise<Contracts['router']> {
+    const router = await this.deployContract(chain, 'router', deployParams);
+    this.logger(`Initializing ${chain}'s router with ${initParams}`);
+    // @ts-ignore spread operator
+    await router.initialize(...initParams);
+    return router;
+  }
 
+  async enrollRemoteRouters(contractsMap: ChainMap<Chain, Contracts>) {
     this.logger(`Enrolling deployed routers with each other...`);
     // Make all routers aware of eachother.
     await promiseObjAll(
@@ -48,6 +62,25 @@ export abstract class AbacusRouterDeployer<
         }
       }),
     );
+  }
+
+  async transferOwnership(contractsMap: ChainMap<Chain, Contracts>) {
+    // TODO: check for initialization before transferring ownership
+    this.logger(`Transferring ownership of routers...`);
+    await promiseObjAll(
+      objMap(contractsMap, async (chain, contracts) => {
+        const owner = this.configMap[chain].owner;
+        this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
+        await contracts.router.transferOwnership(owner);
+      }),
+    );
+  }
+
+  async deploy() {
+    const contractsMap = await super.deploy();
+
+    await this.enrollRemoteRouters(contractsMap);
+    await this.transferOwnership(contractsMap);
 
     return contractsMap;
   }

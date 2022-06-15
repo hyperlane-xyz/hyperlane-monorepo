@@ -2,20 +2,20 @@ import { expect } from 'chai';
 
 import { MultisigValidatorManager } from '@abacus-network/core';
 import {
-  AbacusAppChecker,
-  CheckerViolation,
-  CoreConfig,
-} from '@abacus-network/deploy';
-import {
   AbacusCore,
   BeaconProxyAddresses,
   ChainName,
+  ChainNameToDomainId,
   chainMetadata,
   objMap,
   promiseObjAll,
 } from '@abacus-network/sdk';
 
-import { setDifference } from '../utils/utils';
+import { AbacusAppChecker } from '../check';
+import { CheckerViolation } from '../config';
+import { setDifference } from '../utils';
+
+import { CoreConfig } from './deploy';
 
 export enum CoreViolationType {
   ValidatorManager = 'ValidatorManager',
@@ -70,6 +70,10 @@ export class AbacusCoreChecker<
 
   async checkOutbox(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
+    const outbox = contracts.outbox.contract;
+    const localDomain = await outbox.localDomain();
+    expect(localDomain).to.equal(ChainNameToDomainId[chain]);
+
     const actualManager = await contracts.outbox.contract.validatorManager();
     const expectedManager = contracts.outboxValidatorManager.address;
     if (actualManager !== expectedManager) {
@@ -179,6 +183,17 @@ export class AbacusCoreChecker<
         const expected = inbox.inboxValidatorManager.address;
         const actual = await inbox.inbox.contract.validatorManager();
         expect(actual).to.equal(expected);
+      }),
+    );
+
+    await promiseObjAll(
+      objMap(coreContracts.inboxes, async (remoteChain, inbox) => {
+        // check that the inbox has the right local domain
+        const actualLocalDomain = await inbox.inbox.contract.localDomain();
+        expect(actualLocalDomain).to.equal(ChainNameToDomainId[chain]);
+
+        const actualRemoteDomain = await inbox.inbox.contract.remoteDomain();
+        expect(actualRemoteDomain).to.equal(ChainNameToDomainId[remoteChain]);
       }),
     );
 

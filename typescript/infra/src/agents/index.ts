@@ -80,11 +80,11 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   let envVars: string[] = [];
   const rpcEndpoints = await getSecretRpcEndpoints(agentConfig);
   envVars.push(
-    `OPT_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
+    `ABC_BASE_OUTBOX_CONNECTION_URL=${rpcEndpoints[outboxChainName]}`,
   );
   valueDict.abacus.inboxChains.forEach((inboxChain: any) => {
     envVars.push(
-      `OPT_BASE_INBOXES_${inboxChain.name.toUpperCase()}_CONNECTION_URL=${
+      `ABC_BASE_INBOXES_${inboxChain.name.toUpperCase()}_CONNECTION_URL=${
         rpcEndpoints[inboxChain.name]
       }`,
     );
@@ -93,10 +93,10 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   // Base vars from config map
   envVars.push(`BASE_CONFIG=${valueDict.abacus.baseConfig}`);
   envVars.push(`RUN_ENV=${agentConfig.runEnv}`);
-  envVars.push(`OPT_BASE_METRICS=9090`);
-  envVars.push(`OPT_BASE_TRACING_LEVEL=info`);
+  envVars.push(`ABC_BASE_METRICS=9090`);
+  envVars.push(`ABC_BASE_TRACING_LEVEL=info`);
   envVars.push(
-    `OPT_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}${
+    `ABC_BASE_DB=/tmp/${agentConfig.environment}-${role}-${outboxChainName}${
       role === KEY_ROLE_ENUM.Validator ? `-${index}` : ''
     }-db`,
   );
@@ -119,18 +119,18 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
       chainNames.forEach((name) => {
         envVars.push(
-          `OPT_BASE_SIGNERS_${name.toUpperCase()}_KEY=${strip0x(
+          `ABC_BASE_SIGNERS_${name.toUpperCase()}_KEY=${strip0x(
             gcpKeys[keyId].privateKey,
           )}`,
         );
-        envVars.push(`OPT_BASE_SIGNERS_${name.toUpperCase()}_TYPE=hexKey`);
+        envVars.push(`ABC_BASE_SIGNERS_${name.toUpperCase()}_TYPE=hexKey`);
       });
     } else if (role === KEY_ROLE_ENUM.Validator) {
       const privateKey = gcpKeys[keyId].privateKey;
 
       envVars.push(
-        `OPT_VALIDATOR_VALIDATOR_KEY=${strip0x(privateKey)}`,
-        `OPT_VALIDATOR_VALIDATOR_TYPE=hexKey`,
+        `ABC_VALIDATOR_VALIDATOR_KEY=${strip0x(privateKey)}`,
+        `ABC_VALIDATOR_VALIDATOR_TYPE=hexKey`,
       );
     }
   } else {
@@ -225,7 +225,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
 // Recursively converts a config object into environment variables than can
 // be parsed by rust. For example, a config of { foo: { bar: { baz: 420 }, boo: 421 } } will
-// be: OPT_FOO_BAR_BAZ=420 and OPT_FOO_BOO=421
+// be: ABC_FOO_BAR_BAZ=420 and ABC_FOO_BOO=421
 function configEnvVars(
   config: Record<string, any>,
   role: string,
@@ -245,7 +245,7 @@ function configEnvVars(
       ];
     } else {
       envVars.push(
-        `OPT_${role.toUpperCase()}_${key_name_prefix}${key.toUpperCase()}=${
+        `ABC_${role.toUpperCase()}_${key_name_prefix}${key.toUpperCase()}=${
           config[key]
         }`,
       );
@@ -331,7 +331,7 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
   return execCmd(
     `helm ${action} ${outboxChainName} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
-    } ${values.join(' ')} --debug --dry-run ${extraPipe}`,
+    } ${values.join(' ')} ${extraPipe}`,
     {},
     false,
     true,
