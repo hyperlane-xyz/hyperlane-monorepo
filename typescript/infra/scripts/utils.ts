@@ -13,6 +13,7 @@ import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 import { environments } from '../config/environments';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { DeployEnvironment } from '../src/config';
+import { CoreEnvironmentConfig } from '../src/config';
 import { fetchProvider, fetchSigner } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
 
@@ -27,7 +28,7 @@ export function assertEnvironment(env: string): DeployEnvironment {
 
 export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
   env: Env,
-) {
+): CoreEnvironmentConfig<any> {
   return environments[env];
 }
 

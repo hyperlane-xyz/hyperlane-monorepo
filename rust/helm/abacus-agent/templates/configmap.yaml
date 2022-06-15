@@ -8,18 +8,18 @@ data:
   RUN_ENV: {{ .Values.abacus.runEnv | quote }}
   BASE_CONFIG: {{ .Values.abacus.baseConfig }}
   RUST_BACKTRACE: {{ .Values.abacus.rustBacktrace }}
-  OPT_BASE_DB: {{ .Values.abacus.dbPath }}
-  OPT_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
-  OPT_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
+  ABC_BASE_DB: {{ .Values.abacus.dbPath }}
+  ABC_BASE_TRACING_FMT: {{ .Values.abacus.tracing.format }}
+  ABC_BASE_TRACING_LEVEL: {{ .Values.abacus.tracing.level }}
   {{- if .Values.abacus.outboxChain.connectionType }}
-  OPT_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.outboxChain.connectionType }}
+  ABC_BASE_OUTBOX_CONNECTION_TYPE: {{ .Values.abacus.outboxChain.connectionType }}
   {{- end }}
   {{- range .Values.abacus.inboxChains }}
   {{- if .address }}
-  OPT_BASE_INBOXES_{{ .name | upper }}_ADDRESS: {{ .address }}
+  ABC_BASE_INBOXES_{{ .name | upper }}_ADDRESS: {{ .address }}
   {{- end }}
   {{- end }}
   {{- if .Values.abacus.tracing.uri }}
-  OPT_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}
+  ABC_BASE_TRACING_JAEGER_COLLECTOR_URI: {{ .Values.abacus.tracing.uri }}
   {{- end }}
-  OPT_BASE_METRICS: {{ .Values.abacus.metrics.port | quote }}
+  ABC_BASE_METRICS: {{ .Values.abacus.metrics.port | quote }}
