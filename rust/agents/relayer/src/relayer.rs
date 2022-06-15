@@ -1,24 +1,23 @@
 use std::sync::Arc;
 
-use abacus_core::MultisigSignedCheckpoint;
 use async_trait::async_trait;
 use eyre::{Context, Result};
 use tokio::{
     sync::watch::{channel, Receiver, Sender},
     task::JoinHandle,
 };
-
 use tracing::{info, instrument::Instrumented, Instrument};
 
 use abacus_base::{
     AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics, InboxContracts,
     MultisigCheckpointSyncer,
 };
+use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
-use crate::{
-    checkpoint_fetcher::CheckpointFetcher, message_processor::MessageProcessor,
-    settings::RelayerSettings as Settings,
-};
+use crate::checkpoint_fetcher::CheckpointFetcher;
+use crate::message_processor::MessageProcessorMetrics;
+use crate::settings::whitelist::Whitelist;
+use crate::{message_processor::MessageProcessor, settings::RelayerSettings};
 
 /// A relayer agent
 #[derive(Debug)]
@@ -27,6 +26,7 @@ pub struct Relayer {
     max_processing_retries: u32,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
+    whitelist: Arc<Whitelist>,
 }
 
 impl AsRef<AbacusAgentCore> for Relayer {
@@ -35,30 +35,12 @@ impl AsRef<AbacusAgentCore> for Relayer {
     }
 }
 
-#[allow(clippy::unit_arg)]
-impl Relayer {
-    /// Instantiate a new relayer
-    pub fn new(
-        signed_checkpoint_polling_interval: u64,
-        max_processing_retries: u32,
-        multisig_checkpoint_syncer: MultisigCheckpointSyncer,
-        core: AbacusAgentCore,
-    ) -> Self {
-        Self {
-            signed_checkpoint_polling_interval,
-            max_processing_retries,
-            multisig_checkpoint_syncer,
-            core,
-        }
-    }
-}
-
 #[async_trait]
 #[allow(clippy::unit_arg)]
 impl Agent for Relayer {
     const AGENT_NAME: &'static str = "relayer";
 
-    type Settings = Settings;
+    type Settings = RelayerSettings;
 
     async fn from_settings(settings: Self::Settings) -> Result<Self>
     where
@@ -67,18 +49,30 @@ impl Agent for Relayer {
         let multisig_checkpoint_syncer: MultisigCheckpointSyncer = settings
             .multisigcheckpointsyncer
             .try_into_multisig_checkpoint_syncer()?;
-        Ok(Self::new(
+        let whitelist = Arc::new(
             settings
+                .whitelist
+                .as_ref()
+                .map(|wl| serde_json::from_str(wl))
+                .transpose()
+                .expect("Invalid whitelist received")
+                .unwrap_or_default(),
+        );
+        info!(whitelist = %whitelist, "Whitelist configuration");
+
+        Ok(Self {
+            signed_checkpoint_polling_interval: settings
                 .signedcheckpointpollinginterval
                 .parse()
                 .unwrap_or(5),
-            settings.maxprocessingretries.parse().unwrap_or(10),
+            max_processing_retries: settings.maxprocessingretries.parse().unwrap_or(10),
             multisig_checkpoint_syncer,
-            settings
+            core: settings
                 .as_ref()
                 .try_into_abacus_core(Self::AGENT_NAME)
                 .await?,
-        ))
+            whitelist,
+        })
     }
 }
 
@@ -120,14 +114,20 @@ impl Relayer {
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
+        let outbox = self.outbox().outbox();
+        let metrics = MessageProcessorMetrics::new(
+            &self.core.metrics,
+            outbox.chain_name(),
+            inbox_contracts.inbox.chain_name(),
+        );
         let message_processor = MessageProcessor::new(
-            self.outbox().outbox(),
+            outbox,
             self.max_processing_retries,
             db,
             inbox_contracts,
             signed_checkpoint_receiver,
-            self.core.metrics.last_known_message_leaf_index(),
-            self.core.metrics.retry_queue_length(),
+            self.whitelist.clone(),
+            metrics,
         );
 
         message_processor.spawn()

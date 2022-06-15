@@ -14,7 +14,9 @@ export interface Pagination {
  * Enumeration of Abacus supported chains
  */
 export enum Chains { // must be string type to be used with Object.keys
+  arbitrum = 'arbitrum',
   alfajores = 'alfajores',
+  bsc = 'bsc',
   mumbai = 'mumbai',
   kovan = 'kovan',
   goerli = 'goerli',
@@ -22,6 +24,7 @@ export enum Chains { // must be string type to be used with Object.keys
   celo = 'celo',
   ethereum = 'ethereum',
   avalanche = 'avalanche',
+  optimism = 'optimism',
   polygon = 'polygon',
   bsctestnet = 'bsctestnet',
   arbitrumrinkeby = 'arbitrumrinkeby',

@@ -9,7 +9,7 @@ export const agent: AgentConfig<TestnetChains> = {
   runEnv: 'testnet2',
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-5e639a2',
+    tag: 'sha-9ab7525',
   },
   aws: {
     region: 'us-east-1',
@@ -30,18 +30,20 @@ export const agent: AgentConfig<TestnetChains> = {
   },
   relayer: {
     default: {
-      signedCheckpointPollingInteral: 5,
+      signedCheckpointPollingInterval: 5,
       maxProcessingRetries: 10,
     },
   },
-  // kathy: {
-  //   default: {
-  //     interval: 30,
-  //   },
-  //   chainOverrides: {
-  //     kovan: {
-  //       interval: 120,
-  //     },
-  //   },
-  // },
+  kathy: {
+    default: {
+      enabled: true,
+      interval: 60 * 60,
+      chat: {
+        type: 'static',
+        message: 'f00',
+        recipient:
+          '0x000000000000000000000000d0d0ff5589da9b43031f8adf576b08476f587191',
+      },
+    },
+  },
 };

@@ -17,6 +17,21 @@ export const ethereum: ChainMetadata = {
   finalityBlocks: 7,
 };
 
+export const arbitrum: ChainMetadata = {
+  id: 0x617262, // b'arb' interpreted as an int
+  finalityBlocks: 1,
+};
+
+export const optimism: ChainMetadata = {
+  id: 0x6f70, // b'op' interpreted as an int
+  finalityBlocks: 1,
+};
+
+export const bsc: ChainMetadata = {
+  id: 0x627363, // b'bsc' interpreted as an int
+  finalityBlocks: 7,
+};
+
 export const avalanche: ChainMetadata = {
   id: 0x61766178, // b'avax' interpreted as an int
   finalityBlocks: 0,
@@ -62,7 +77,7 @@ export const kovan: ChainMetadata = {
 
 export const mumbai: ChainMetadata = {
   id: 80001,
-  finalityBlocks: 500,
+  finalityBlocks: 32,
   paginate: {
     // eth_getLogs and eth_newFilter are limited to a 10,000 blocks range
     blocks: 10000,
@@ -106,9 +121,12 @@ export const auroratestnet: ChainMetadata = {
 };
 
 export const chainMetadata: CompleteChainMap<ChainMetadata> = {
+  arbitrum,
+  bsc,
   celo,
   ethereum,
   avalanche,
+  optimism,
   polygon,
   alfajores,
   fuji,
