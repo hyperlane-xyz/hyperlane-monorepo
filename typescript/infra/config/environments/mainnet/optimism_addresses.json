@@ -1,0 +1,67 @@
+{
+  "upgradeBeaconController": "0x15ab173bDB6832f9b64276bA128659b0eD77730B",
+  "abacusConnectionManager": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
+  "inboxes": {
+    "bsc": {
+      "inbox": {
+        "kind": "UpgradeBeacon",
+        "proxy": "0x66DC49405Ae2956f7E87FEAa9fE8f506C8987462",
+        "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
+        "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
+      },
+      "inboxValidatorManager": "0xaad207a0Fd7a4e3C927Ccc78ac8134baF586B852"
+    },
+    "avalanche": {
+      "inbox": {
+        "kind": "UpgradeBeacon",
+        "proxy": "0x79b3D752cc9494eCB93800712471a7a62954C8AE",
+        "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
+        "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
+      },
+      "inboxValidatorManager": "0x61DDB465eEA5bc3708Cf8B53156aC91a77A2f029"
+    },
+    "polygon": {
+      "inbox": {
+        "kind": "UpgradeBeacon",
+        "proxy": "0xA1ac41d8A663fd317cc3BD94C7de92dC4BA4a882",
+        "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
+        "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
+      },
+      "inboxValidatorManager": "0x8F1E22d309baa69D398a03cc88E9b46037e988AA"
+    },
+    "celo": {
+      "inbox": {
+        "kind": "UpgradeBeacon",
+        "proxy": "0xE0C452DDA7506f0F4dE5C8C1d383F7aD866eA4F0",
+        "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
+        "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
+      },
+      "inboxValidatorManager": "0x6Fae4D9935E2fcb11fC79a64e917fb2BF14DaFaa"
+    },
+    "arbitrum": {
+      "inbox": {
+        "kind": "UpgradeBeacon",
+        "proxy": "0x2Fa570E83009eaEef3a1cbd496a9a30F05266634",
+        "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
+        "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
+      },
+      "inboxValidatorManager": "0x931dFCc8c1141D6F532FD023bd87DAe0080c835d"
+    },
+    "ethereum": {
+      "inbox": {
+        "kind": "UpgradeBeacon",
+        "proxy": "0xea820f9BCFD5E16a0dd42071EB61A29874Ad81A4",
+        "implementation": "0x811808Dd29ba8B0FC6C0ec0b5537035E59745162",
+        "beacon": "0x5E01d8F34b629E3f92d69546bbc4142A7Adee7e9"
+      },
+      "inboxValidatorManager": "0xB3fCcD379ad66CED0c91028520C64226611A48c9"
+    }
+  },
+  "outbox": {
+    "kind": "UpgradeBeacon",
+    "proxy": "0x0be2Ae2f6D02a3e0e00ECB57D3E1fCbb7f8F38F4",
+    "implementation": "0x2fa5F5C96419C222cDbCeC797D696e6cE428A7A9",
+    "beacon": "0x182E8d7c5F1B06201b102123FC7dF0EaeB445a7B"
+  },
+  "outboxValidatorManager": "0x99ca8c74cE7Cfa9d72A51fbb05F9821f5f826b3a"
+}

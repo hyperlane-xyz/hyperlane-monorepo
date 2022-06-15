@@ -157,7 +157,10 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       config.validatorManager,
       upgradeBeaconController.address,
     );
-    await abacusConnectionManager.setOutbox(outbox.outbox.address);
+    await abacusConnectionManager.setOutbox(
+      outbox.outbox.address,
+      dc.overrides,
+    );
 
     const remotes = this.multiProvider.remoteChains(chain);
     const inboxes: Partial<Record<Chain, InboxContracts>> = {};
@@ -173,6 +176,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       await abacusConnectionManager.enrollInbox(
         chainMetadata[remote].id,
         inbox.inbox.address,
+        dc.overrides,
       );
       inboxes[remote] = inbox;
       prev = remote;
