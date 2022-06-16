@@ -36,10 +36,10 @@ export abstract class AbacusRouterDeployer<
   }
 
   // for use in implementations of deployContracts
-  async deployRouter<RouterContract extends Router>(
+  async deployRouter(
     chain: Chain,
     deployParams: Parameters<Factories['router']['deploy']>,
-    initParams: Parameters<RouterContract['initialize']>,
+    initParams: Parameters<Contracts['router']['initialize']>,
   ): Promise<Contracts['router']> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const router = await this.deployContract(chain, 'router', deployParams);
