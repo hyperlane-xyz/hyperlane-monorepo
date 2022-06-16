@@ -1,5 +1,6 @@
 {
   "name": "@abacus-network/infra",
+  "private": true,
   "description": "Infrastructure utilities for the Abacus Network",
   "version": "0.2.3",
   "dependencies": {
