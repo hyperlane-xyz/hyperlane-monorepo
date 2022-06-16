@@ -41,7 +41,7 @@ mock! {
 
         pub fn _validator_manager(&self) -> Result<H256, ChainCommunicationError> {}
 
-        pub fn _state(&self) -> Result<State, ChainCommunicationError> {}
+        pub fn _state(&self) -> Result<OutboxState, ChainCommunicationError> {}
 
         // AbacusContract
         pub fn _chain_name(&self) -> &str {}
@@ -60,7 +60,7 @@ impl Outbox for MockOutboxContract {
         self._dispatch(message)
     }
 
-    async fn state(&self) -> Result<State, ChainCommunicationError> {
+    async fn state(&self) -> Result<OutboxState, ChainCommunicationError> {
         self._state()
     }
 

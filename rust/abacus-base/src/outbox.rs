@@ -1,7 +1,7 @@
 use abacus_core::db::AbacusDB;
 use abacus_core::{
     AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, Message, Outbox,
-    OutboxEvents, RawCommittedMessage, State, TxOutcome,
+    OutboxEvents, OutboxState, RawCommittedMessage, TxOutcome,
 };
 
 use abacus_ethereum::EthereumOutbox;
@@ -89,7 +89,7 @@ impl Outbox for CachingOutbox {
         self.outbox.dispatch(message).await
     }
 
-    async fn state(&self) -> Result<State, ChainCommunicationError> {
+    async fn state(&self) -> Result<OutboxState, ChainCommunicationError> {
         self.outbox.state().await
     }
 
@@ -246,7 +246,7 @@ impl Outbox for OutboxVariants {
         }
     }
 
-    async fn state(&self) -> Result<State, ChainCommunicationError> {
+    async fn state(&self) -> Result<OutboxState, ChainCommunicationError> {
         match self {
             OutboxVariants::Ethereum(outbox) => outbox.state().await,
             OutboxVariants::Mock(mock_outbox) => mock_outbox.state().await,
