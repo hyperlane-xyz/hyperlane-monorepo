@@ -43,10 +43,16 @@ export async function getConfiguration<Chain extends ChainName>(
 export async function getApp<Chain extends ChainName>(
   coreConfig: CoreEnvironmentConfig<Chain>,
 ) {
-  const contracts = buildContracts(
-    coreConfig.helloWorldAddresses!,
-    helloWorldFactories,
-  ) as ChainMap<Chain, HelloWorldContracts>;
+  const addresses = coreConfig.helloWorldAddresses;
+  if (!addresses) {
+    throw new Error(
+      `Environment ${coreConfig.environment} does not have addresses for HelloWorld`,
+    );
+  }
+  const contracts = buildContracts(addresses, helloWorldFactories) as ChainMap<
+    Chain,
+    HelloWorldContracts
+  >;
   const multiProvider = await coreConfig.getMultiProvider();
   const app = new HelloWorldApp(contracts, multiProvider as any);
   return app;

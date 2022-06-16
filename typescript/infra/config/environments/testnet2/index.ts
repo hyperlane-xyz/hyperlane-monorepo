@@ -8,6 +8,7 @@ import helloWorldAddresses from './helloworld/addresses.json';
 import { infrastructure } from './infrastructure';
 
 export const environment: CoreEnvironmentConfig<TestnetChains> = {
+  environment: 'testnet2',
   transactionConfigs: testnetConfigs,
   getMultiProvider: () => getMultiProviderFromGCP(testnetConfigs, 'testnet2'),
   agent,
