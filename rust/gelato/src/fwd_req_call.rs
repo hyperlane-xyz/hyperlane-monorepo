@@ -68,6 +68,20 @@ struct HTTPResult {
     pub task_id: String,
 }
 
+// We could try to get equivalent serde serializaztion for this type via the typical attributes,
+// like #[serde(rename_all...)], #[serde(flatten)], etc, but altogether there are enough changes
+// piled on top of one another that it seems more readable to just explicitly rewrite the relevant
+// fields with inline modifications below.
+//
+// In total, we have to make the following logical changes from the default serde serialization:
+//     *  add a new top-level dict field 'typeId', with const literal value 'ForwardRequest'.
+//     *  hoist the two struct members (`args` and `sig`) up to the top-level dict (equiv. to
+//        `#[serde(flatten)]`).
+//     *  make sure the integers for the fields `gas` and `maxfee` are enclosed within quotes,
+//        since Gelato-server-side, they will be interpreted as ~bignums.
+//     *  ensure all hex-string-type fields are prefixed with '0x', rather than a string of
+//        ([0-9][a-f])+, which is expected server-side.
+//     *  rewrite all field names to camelCase (equiv. to `#[serde(rename_all = "camelCase")]`).
 impl Serialize for HTTPArgs {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -84,7 +98,6 @@ impl Serialize for HTTPArgs {
         state.serialize_field("maxFee", &self.args.max_fee.to_string())?;
         state.serialize_field("gas", &self.args.gas.to_string())?;
         state.serialize_field("sponsor", &self.args.sponsor)?;
-        // TODO(webbhorn): Just implement a `From<Chain> for H160` directly?
         state.serialize_field("sponsorChainId", &(u32::from(self.args.sponsor_chain_id)))?;
         // TODO(webbhorn): Avoid narrowing conversion for serialization.
         state.serialize_field("nonce", &self.args.nonce.as_u128())?;
@@ -114,16 +127,12 @@ pub enum PaymentType {
     SyncPullFee = 3,
 }
 
-// TODO(webbhorn): The signature verification stuff should be tested
-// in fwd_req_sig.rs instead.
+// TODO(webbhorn): The signature verification stuff should be tested in fwd_req_sig.rs instead.
 //
-// TODO(webbhorn): the two test cases are basically the same, probably
-// no need to duplicate.
+// TODO(webbhorn): the two test cases are basically the same, probably no need to duplicate.
 //
-// TODO(webbhorn): Include tests near boundary of large int
-// overflows, e.g. is nonce representation as u128 for serialization
-// purposes correct given ethers::types::U256 representation in
-// OpArgs?
+// TODO(webbhorn): Include tests near boundary of large int overflows, e.g. is nonce representation
+// as u128 for serialization purposes correct given ethers::types::U256 representation in OpArgs?
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -131,20 +140,16 @@ mod tests {
     use ethers::signers::{LocalWallet, Signer};
     use ethers::types::U256;
 
-    // TODO(webbhorn): These constants are used in a couple other
-    // places in this crate, should centralize them, or just be use
-    // them inline in the test case.
+    // TODO(webbhorn): These constants are used in a couple other places in this crate, should
+    // centralize them, or just be use them inline in the test case.
     //
-    // The sample data / parameters below, along with corresponding
-    // expected digests and signatures, were validated by running the
-    // Gelato Relay SDK demo "hello world" app with instrumented
-    // logging, and recording the generated signatures and digests. A
-    // LocalWallet with a randomly-generated private key was also
-    // recorded.
+    // The sample data / parameters below, along with corresponding expected digests and signatures,
+    // were validated by running the Gelato Relay SDK demo "hello world" app with instrumented
+    // logging, and recording the generated signatures and digests. A LocalWallet with a
+    // randomly-generated private key was also recorded.
     //
-    // See
-    // https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start
-    // for more details.
+    // See https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start for more
+    // details.
 
     const EXAMPLE_DATA_FOR_TESTING: &str =
         "0x4b327067000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee";
@@ -245,20 +250,16 @@ mod tests {
     }
 
     #[test]
-    fn sdk_reply() {
-        let reply_json = concat!(
-            r#"{"taskId": "#,
-            r#""0x053d975549b9298bb7672b20d3f7c0960df00d065e6f68c"#,
-            r#"29abd8550b31cdbc2"}"#
-        );
-        let parsed: HTTPResult = serde_json::from_str(reply_json).unwrap();
+    fn sdk_reply_json_parses() {
+        let reply_json =
+            r#"{"taskId": "0x053d975549b9298bb7672b20d3f7c0960df00d065e6f68c29abd8550b31cdbc2"}"#;
+        let parsed: HTTPResult = serde_json::from_str(&reply_json).unwrap();
         assert_eq!(
             parsed,
             HTTPResult {
-                task_id: String::from(concat!(
-                    "0x053d975549b9298bb7672b20d3f7c0960df00d",
-                    "065e6f68c29abd8550b31cdbc2"
-                )),
+                task_id: String::from(
+                    "0x053d975549b9298bb7672b20d3f7c0960df00d065e6f68c29abd8550b31cdbc2"
+                ),
             }
         );
     }
