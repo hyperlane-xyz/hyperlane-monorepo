@@ -5,9 +5,10 @@ use tokio::task::JoinHandle;
 use tracing::instrument::Instrumented;
 
 use abacus_base::{AbacusAgentCore, Agent, CheckpointSyncers};
-use abacus_core::Signers;
+use abacus_core::{AbacusContract, Signers};
 use eyre::Result;
 
+use crate::submit::ValidatorSubmitterMetrics;
 use crate::{settings::ValidatorSettings as Settings, submit::ValidatorSubmitter};
 
 /// An validator agent
@@ -75,13 +76,13 @@ impl Agent for Validator {
 
 impl Validator {
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        let outbox = self.outbox();
         let submit = ValidatorSubmitter::new(
             self.interval,
             self.reorg_period,
-            outbox,
+            self.outbox(),
             self.signer.clone(),
             self.checkpoint_syncer.clone(),
+            ValidatorSubmitterMetrics::new(&self.core.metrics, self.outbox().chain_name()),
         );
 
         self.run_all(vec![submit.spawn()])

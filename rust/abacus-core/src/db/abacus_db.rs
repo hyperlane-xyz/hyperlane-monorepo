@@ -61,7 +61,7 @@ impl AbacusDB {
         for message in messages {
             self.store_latest_message(message)?;
 
-            let committed_message: CommittedMessage = message.clone().try_into()?;
+            let committed_message: CommittedMessage = message.try_into()?;
             info!(
                 leaf_index = &committed_message.leaf_index,
                 origin = &committed_message.message.origin,

@@ -8,4 +8,5 @@ export const environments = {
   dev,
   testnet,
   testnet2,
+  mainnet: {},
 };

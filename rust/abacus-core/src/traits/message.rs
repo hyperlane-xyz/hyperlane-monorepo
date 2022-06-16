@@ -89,9 +89,17 @@ impl TryFrom<RawCommittedMessage> for CommittedMessage {
     type Error = AbacusError;
 
     fn try_from(raw: RawCommittedMessage) -> Result<Self, Self::Error> {
+        (&raw).try_into()
+    }
+}
+
+impl TryFrom<&RawCommittedMessage> for CommittedMessage {
+    type Error = AbacusError;
+
+    fn try_from(raw: &RawCommittedMessage) -> Result<Self, Self::Error> {
         Ok(Self {
             leaf_index: raw.leaf_index,
-            message: AbacusMessage::read_from(&mut &raw.message[..])?,
+            message: AbacusMessage::read_from(&mut raw.message.as_slice())?,
         })
     }
 }

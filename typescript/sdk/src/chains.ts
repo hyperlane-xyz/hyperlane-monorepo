@@ -1,4 +1,4 @@
-import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
+import { StaticCeloProvider } from '@celo-tools/celo-ethers-wrapper';
 import { ethers } from 'ethers';
 
 import { IChainConnection } from './provider';
@@ -13,7 +13,7 @@ export const ethereum: IChainConnection = {
 };
 
 export const celo: IChainConnection = {
-  provider: new StaticCeloJsonRpcProvider('https://forno.celo.org', 42220),
+  provider: new StaticCeloProvider('https://forno.celo.org', 42220),
   confirmations: 1,
 };
 
@@ -33,11 +33,32 @@ export const avalanche: IChainConnection = {
   confirmations: 1,
 };
 
-export const alfajores: IChainConnection = {
-  provider: new StaticCeloJsonRpcProvider(
-    'https://alfajores-forno.celo.org',
-    44787,
+export const arbitrum: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://arb1.arbitrum.io/rpc',
+    42161,
   ),
+  confirmations: 1,
+};
+
+export const optimism: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://mainnet.optimism.io',
+    10,
+  ),
+  confirmations: 1,
+};
+
+export const bsc: IChainConnection = {
+  provider: new ethers.providers.JsonRpcProvider(
+    'https://rpc.ankr.com/bsc',
+    56,
+  ),
+  confirmations: 1,
+};
+
+export const alfajores: IChainConnection = {
+  provider: new StaticCeloProvider('https://alfajores-forno.celo.org', 44787),
   confirmations: 1,
 };
 
@@ -130,7 +151,9 @@ export const test3: IChainConnection = {
 };
 
 const _configs = {
+  arbitrum,
   auroratestnet,
+  bsc,
   ethereum,
   celo,
   polygon,
@@ -142,6 +165,7 @@ const _configs = {
   mumbai,
   bsctestnet,
   arbitrumrinkeby,
+  optimism,
   optimismkovan,
   test1,
   test2,
