@@ -76,7 +76,7 @@ export abstract class AbacusDeployer<
         chain,
         this.configMap[chain],
       );
-      console.log(JSON.stringify(serializeContracts(contracts)));
+      this.logger(JSON.stringify(serializeContracts(contracts), null, 2));
       this.deployedContracts[chain] = contracts;
     }
     return { ...partialDeployment, ...this.deployedContracts } as Record<
