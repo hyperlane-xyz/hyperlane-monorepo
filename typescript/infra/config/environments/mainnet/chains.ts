@@ -21,7 +21,6 @@ export const mainnetConfigs: ChainMap<any, IChainConnection> = {
       // gasPrice: 50 * 10 ** 9, // gwei
     },
   },
-  celo: chainConnectionConfigs.celo,
   arbitrum: chainConnectionConfigs.arbitrum,
   optimism: chainConnectionConfigs.optimism,
   ethereum: {
@@ -32,6 +31,7 @@ export const mainnetConfigs: ChainMap<any, IChainConnection> = {
       maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
     },
   },
+  celo: chainConnectionConfigs.celo,
 };
 
 export type MainnetChains = keyof typeof mainnetConfigs;
