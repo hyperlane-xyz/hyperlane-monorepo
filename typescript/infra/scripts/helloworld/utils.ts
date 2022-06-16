@@ -29,10 +29,14 @@ export async function getConfiguration<Chain extends ChainName>(
     }),
   );
 
-  const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
+  // Currently can't be typed as per https://github.com/abacus-network/abacus-monorepo/pull/594/files#diff-40a12589668de942078f498e0ab0fda512e1eb7397189d6d286b590ae87c45d1R31
+  // @ts-ignore
+  const core: AbacusCore<Chain> = AbacusCore.fromEnvironment(
+    environment,
+    multiProvider as any,
+  );
 
   const configMap = core.extendWithConnectionManagers(ownerMap);
-  // @ts-ignore
   return configMap;
 }
 
