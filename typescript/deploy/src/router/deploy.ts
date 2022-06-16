@@ -41,10 +41,11 @@ export abstract class AbacusRouterDeployer<
     deployParams: Parameters<Factories['router']['deploy']>,
     initParams: Parameters<RouterContract['initialize']>,
   ): Promise<Contracts['router']> {
+    const chainConnection = this.multiProvider.getChainConnection(chain);
     const router = await this.deployContract(chain, 'router', deployParams);
     this.logger(`Initializing ${chain}'s router with ${initParams}`);
     // @ts-ignore spread operator
-    await router.initialize(...initParams);
+    await router.initialize(...initParams, chainConnection.overrides);
     return router;
   }
 

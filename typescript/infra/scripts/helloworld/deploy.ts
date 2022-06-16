@@ -19,9 +19,18 @@ async function main() {
   const configMap = await getConfiguration(environment, multiProvider);
   const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
-  const contracts = await deployer.deploy();
-  const dir = path.join(getEnvironmentDirectory(environment), 'helloworld');
-  writeJSON(dir, 'addresses.json', serializeContracts(contracts));
+  try {
+    const contracts = await deployer.deploy();
+    const dir = path.join(getEnvironmentDirectory(environment), 'helloworld');
+    writeJSON(dir, 'addresses.json', serializeContracts(contracts));
+  } catch (error) {
+    // @ts-ignore
+    writeJSON(
+      './',
+      'partial.json',
+      serializeContracts(deployer.deployedContracts!),
+    );
+  }
 }
 
 main()
