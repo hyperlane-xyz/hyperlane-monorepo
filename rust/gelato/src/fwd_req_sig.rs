@@ -53,58 +53,63 @@ impl Eip712 for ForwardRequestArgs {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chains::Chain;
-    use crate::fwd_req_call::PaymentType;
+    use crate::test_data;
+    use ethers::signers::{LocalWallet, Signer};
     use ethers::types::transaction::eip712::Eip712;
     use ethers::utils::hex;
 
-    // The sample data / parameters below, along with corresponding expected digests and signatures,
-    // were validated by running the Gelato Relay SDK demo "hello world" app with instrumented
-    // logging, and recording the generated signatures and digests. A LocalWallet with a
-    // randomly-generated private key was also recorded.
-    //
-    // See https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start for more
-    // details.
-
-    const EXAMPLE_DATA_FOR_TESTING: &str = concat!(
-        "0x4b327067000000000000000000000000",
-        "eeeeeeeeeeeeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee"
-    );
-    const ETH_TOKEN_FOR_TESTING: &str = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
-    const SPONSOR_CONTRACT_FOR_TESTING: &str = "0xeed5ea7e25257a272cb3bf37b6169156d37fb908";
-    const TARGET_CONTRACT_FOR_TESTING: &str = "0x8580995eb790a3002a55d249e92a8b6e5d0b384a";
-
+    // The EIP712 typehash for a ForwardRequest is invariant to the actual contents of the
+    // ForwardRequest message, and is instead deterministic of the ABI signature. So we
+    // can test it without constructing any interesting-looking message.
     #[test]
-    fn sdk_demo_app() {
-        let args = ForwardRequestArgs {
-            chain_id: Chain::Goerli,
-            target: TARGET_CONTRACT_FOR_TESTING.parse().unwrap(),
-            data: EXAMPLE_DATA_FOR_TESTING.parse().unwrap(),
-            fee_token: ETH_TOKEN_FOR_TESTING.parse().unwrap(),
-            payment_type: PaymentType::AsyncGasTank,
-            max_fee: U256::from(1000000000000000000i64),
-            gas: U256::from(200000i64),
-            sponsor: SPONSOR_CONTRACT_FOR_TESTING.parse().unwrap(),
-            sponsor_chain_id: Chain::Goerli,
-            nonce: U256::zero(),
-            enforce_sponsor_nonce: false,
-            enforce_sponsor_nonce_ordering: true,
-        };
-        assert_eq!(
-            hex::encode(&args.domain_separator().unwrap()),
-            "5b86c8e692a12ffedb26520fb1cc801f537517ee74d7730a1d806daf2b0c2688"
-        );
+    fn eip712_type_hash_gelato_forward_request() {
         assert_eq!(
             hex::encode(&ForwardRequestArgs::type_hash().unwrap()),
             "4aa193de33aca882aa52ebc7dcbdbd732ad1356422dea011f3a1fa08db2fac37"
         );
+    }
+
+    #[tokio::test]
+    async fn sdk_demo_data_eip_712() {
+        use ethers::signers::{LocalWallet, Signer};
+        let args = test_data::sdk_demo_data::new_fwd_req_args();
+        assert_eq!(
+            hex::encode(&args.domain_separator().unwrap()),
+            test_data::sdk_demo_data::EXPECTED_DOMAIN_SEPARATOR
+        );
         assert_eq!(
             hex::encode(&args.struct_hash().unwrap()),
-            "6a2d78b78f47d56209a1b28617f9aee0ead447384cbc6b55f66247991d4462b6"
+            test_data::sdk_demo_data::EXPECTED_STRUCT_HASH
         );
         assert_eq!(
             hex::encode(&args.encode_eip712().unwrap()),
-            "e9841a12928faf38821e924705b2fae99936a23086a0555d57fac07880bebc74"
+            test_data::sdk_demo_data::EXPECTED_EIP712_ENCODED_PAYLOAD
         );
+        let wallet = test_data::sdk_demo_data::WALLET_KEY
+            .parse::<LocalWallet>()
+            .unwrap();
+        let sig = wallet.sign_typed_data(&args).await.unwrap();
+        assert_eq!(
+            sig.to_string(),
+            test_data::sdk_demo_data::EXPECTED_EIP712_SIGNATURE
+        );
+    }
+
+    // A test case provided to us from the Gelato team. The actual `ForwardRequest` message
+    // contents is *almost* the same as the `sdk_demo_data` test message. (The sponsor address
+    // differs, so we override in this test case.) OUtside of the message contents, the
+    // Gelato-provided LocalWallet private key differs as well.
+    #[tokio::test]
+    async fn gelato_provided_signature_matches() {
+        let mut args = test_data::sdk_demo_data::new_fwd_req_args();
+        args.sponsor = "97B503cb009670982ef9Ca472d66b3aB92fD6A9B".parse().unwrap();
+        let wallet = "c2fc8dc5512c1fb5df710c3320daa1e1ebc41701a9d5b489692e888228aaf813"
+            .parse::<LocalWallet>()
+            .unwrap();
+        let sig = wallet.sign_typed_data(&args).await.unwrap();
+        assert_eq!(
+            sig.to_string(),
+            "18bf6c6bb1a3410308cd5b395f5a3fac067835233f28f1b08d52b447179b72f40a50dc37ef7a785b0d5ed741e84a4375b3833cf43b4dba46686f15185f20f2541c"
+            );
     }
 }

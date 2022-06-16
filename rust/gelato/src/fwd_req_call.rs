@@ -127,130 +127,30 @@ pub enum PaymentType {
     SyncPullFee = 3,
 }
 
-// TODO(webbhorn): The signature verification stuff should be tested in fwd_req_sig.rs instead.
-//
-// TODO(webbhorn): the two test cases are basically the same, probably no need to duplicate.
-//
 // TODO(webbhorn): Include tests near boundary of large int overflows, e.g. is nonce representation
 // as u128 for serialization purposes correct given ethers::types::U256 representation in OpArgs?
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::chains::Chain;
-    use ethers::signers::{LocalWallet, Signer};
-    use ethers::types::U256;
-
-    // TODO(webbhorn): These constants are used in a couple other places in this crate, should
-    // centralize them, or just be use them inline in the test case.
-    //
-    // The sample data / parameters below, along with corresponding expected digests and signatures,
-    // were validated by running the Gelato Relay SDK demo "hello world" app with instrumented
-    // logging, and recording the generated signatures and digests. A LocalWallet with a
-    // randomly-generated private key was also recorded.
-    //
-    // See https://docs.gelato.network/developer-products/gelato-relay-sdk/quick-start for more
-    // details.
-
-    const EXAMPLE_DATA_FOR_TESTING: &str =
-        "0x4b327067000000000000000000000000eeeeeeeeeeeeeeeeeeeeeeeeaeeeeeeeeeeeeeeeee";
-    const ETH_TOKEN_FOR_TESTING: &str = "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE";
-    const SPONSOR_CONTRACT_FOR_TESTING: &str = "0xEED5eA7e25257a272cb3bF37B6169156D37FB908";
-    const TARGET_CONTRACT_FOR_TESTING: &str = "0x8580995EB790a3002A55d249e92A8B6e5d0b384a";
-    const LOCAL_WALLET_KEY_FOR_TESTING: &str =
-        "969e81320ae43e23660804b78647bd4de6a12b82e3b06873f11ddbe164ebf58b";
-
-    const EXPECTED_JSON_REQUEST_CONTENT: &str = concat!(
-        "{",
-        r#""typeId":"ForwardRequest","#,
-        r#""chainId":5,"#,
-        r#""target":"0x8580995eb790a3002a55d249e92a8b6e5d0b384a","#,
-        r#""data":"0x4b327067000000000000000000000000eeeeeeeeeeeeeee"#,
-        r#"eeeeeeeeeaeeeeeeeeeeeeeeeee","#,
-        r#""feeToken":"0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee","#,
-        r#""paymentType":1,"#,
-        r#""maxFee":"1000000000000000000","#,
-        r#""gas":"200000","#,
-        r#""sponsor":"0xeed5ea7e25257a272cb3bf37b6169156d37fb908","#,
-        r#""sponsorChainId":5,"#,
-        r#""nonce":0,"#,
-        r#""enforceSponsorNonce":false,"#,
-        r#""enforceSponsorNonceOrdering":true,"#,
-        r#""sponsorSignature":"#,
-        r#""0xa0e6d94b1608d4d8888f72c9e1335def0d187e41dca0ffe"#,
-        r#"9fcd9b4bf96c1c59a27447248fef6a70e53646c0a156656f642"#,
-        r#"ff361f3ab14b9db5f446f3681538b91c"}"#
-    );
+    use crate::test_data;
 
     #[tokio::test]
-    async fn sdk_test() {
-        let fwd_req_args = ForwardRequestArgs {
-            chain_id: Chain::Goerli,
-            target: TARGET_CONTRACT_FOR_TESTING.parse().unwrap(),
-            data: EXAMPLE_DATA_FOR_TESTING.parse().unwrap(),
-            fee_token: ETH_TOKEN_FOR_TESTING.parse().unwrap(),
-            payment_type: PaymentType::AsyncGasTank,
-            max_fee: U256::from(1000000000000000000i64),
-            gas: U256::from(200000i64),
-            sponsor: SPONSOR_CONTRACT_FOR_TESTING.parse().unwrap(),
-            sponsor_chain_id: Chain::Goerli,
-            nonce: U256::from(0i64),
-            enforce_sponsor_nonce: false,
-            enforce_sponsor_nonce_ordering: true,
-        };
-
-        let wallet = LOCAL_WALLET_KEY_FOR_TESTING.parse::<LocalWallet>().unwrap();
-        let sig = wallet.sign_typed_data(&fwd_req_args).await.unwrap();
-        assert_eq!(
-            sig.to_string(),
-            concat!(
-                "a0e6d94b1608d4d8888f72c9e1335def0d187e41dca0ffe9fcd",
-                "9b4bf96c1c59a27447248fef6a70e53646c0a156656f642ff36",
-                "1f3ab14b9db5f446f3681538b91c"
-            )
-        );
-
-        let http_args = HTTPArgs {
-            args: fwd_req_args,
-            sig,
-        };
-        assert_eq!(
-            EXPECTED_JSON_REQUEST_CONTENT,
-            serde_json::to_string(&http_args).unwrap()
-        );
-    }
-
-    // Parameters specified by Ed in Telegram.
-    #[tokio::test]
-    async fn ed_test_case() {
-        let fwd_req_args = ForwardRequestArgs {
-            chain_id: Chain::Goerli,
-            target: TARGET_CONTRACT_FOR_TESTING.parse().unwrap(),
-            data: EXAMPLE_DATA_FOR_TESTING.parse().unwrap(),
-            fee_token: ETH_TOKEN_FOR_TESTING.parse().unwrap(),
-            payment_type: PaymentType::AsyncGasTank,
-            max_fee: U256::from(1000000000000000000i64),
-            gas: U256::from(200000i64),
-            sponsor: "97B503cb009670982ef9Ca472d66b3aB92fD6A9B".parse().unwrap(),
-            sponsor_chain_id: Chain::Goerli,
-            nonce: U256::from(0i64),
-            enforce_sponsor_nonce: false,
-            enforce_sponsor_nonce_ordering: true,
-        };
-
-        let wallet = "c2fc8dc5512c1fb5df710c3320daa1e1ebc41701a9d5b489692e888228aaf813"
+    async fn sdk_demo_data_request() {
+        use ethers::signers::{LocalWallet, Signer};
+        let args = test_data::sdk_demo_data::new_fwd_req_args();
+        let wallet = test_data::sdk_demo_data::WALLET_KEY
             .parse::<LocalWallet>()
             .unwrap();
-        let sig = wallet.sign_typed_data(&fwd_req_args).await.unwrap();
+        let sig = wallet.sign_typed_data(&args).await.unwrap();
+        let http_args = HTTPArgs { args: args, sig };
         assert_eq!(
-            sig.to_string(),
-            concat!(
-                "18bf6c6bb1a3410308cd5b395f5a3fac067835233f28f1b08d52b447179b72f40a50dc37ef7a785b0d5ed741e84a4375b3833cf43b4dba46686f15185f20f2541c"
-            )
+            serde_json::to_string(&http_args).unwrap(),
+            test_data::sdk_demo_data::EXPECTED_JSON_REQUEST_CONTENT
         );
     }
 
     #[test]
-    fn sdk_reply_json_parses() {
+    fn sdk_demo_data_json_reply_parses() {
         let reply_json =
             r#"{"taskId": "0x053d975549b9298bb7672b20d3f7c0960df00d065e6f68c29abd8550b31cdbc2"}"#;
         let parsed: HTTPResult = serde_json::from_str(&reply_json).unwrap();
