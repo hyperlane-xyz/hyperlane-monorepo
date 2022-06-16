@@ -75,6 +75,10 @@ describe('core', async () => {
       } catch (e: any) {}
     });
 
+    afterEach(async () => {
+      sinon.reset();
+    });
+
     it('persists partial failure', async () => {
       expect(deployer.deployedContracts).to.have.keys(['test1', 'test2']);
     });
