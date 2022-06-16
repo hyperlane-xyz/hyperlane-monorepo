@@ -65,8 +65,8 @@ export abstract class AbacusRouterDeployer<
             utils.addressToBytes32(contractsMap[remote].router.address),
             chainConnection.overrides,
           );
-          await response.wait(chainConnection.confirmations);
           this.logger(`Pending enroll ${chainConnection.getTxUrl(response)}`);
+          await response.wait(chainConnection.confirmations);
         }
       }),
     );
@@ -84,8 +84,8 @@ export abstract class AbacusRouterDeployer<
           owner,
           chainConnection.overrides,
         );
-        await response.wait(chainConnection.confirmations);
         this.logger(`Pending transfer ${chainConnection.getTxUrl(response)}`);
+        await response.wait(chainConnection.confirmations);
       }),
     );
   }
