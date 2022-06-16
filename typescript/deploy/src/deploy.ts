@@ -13,7 +13,6 @@ import {
   ChainName,
   MultiProvider,
   ProxiedContract,
-  chainConnectionConfigs,
   objMap,
   serializeContracts,
 } from '@abacus-network/sdk';
