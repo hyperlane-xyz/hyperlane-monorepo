@@ -25,10 +25,10 @@
 //!
 //! In particular, note that any environment variables whose names are prefixed with:
 //!
-//!     *  `ABC_BASE`
+//! *  `ABC_BASE`
 //!
-//!     *  `ABC_[agentname]`, where `[agentmame]` is agent-specific, e.g.
-//!        `ABC_VALIDATOR` or `ABC_RELAYER`.
+//! *  `ABC_[agentname]`, where `[agentmame]` is agent-specific, e.g. `ABC_VALIDATOR` or
+//!    `ABC_RELAYER`.
 //!
 //! will be read as an override to be applied against the hierarchical structure of
 //! the configuration provided by the json config file at
@@ -50,14 +50,10 @@
 //! }
 //! ```
 //!
-//! and an environment variable is supplied which defines:
-//!
-//!     `ABC_BASE_INBOXES_TEST2_DOMAIN=1`
-//!
-//! then the `decl_settings` macro in `rust/abacus-base/src/macros.rs` will directly
-//! override the 'domain' field found in the json config to be `1`, since the fields
-//! in the environment variable name describe the path traversal to arrive at this
-//! field in the JSON config object.
+//! and an environment variable is supplied which defines `ABC_BASE_INBOXES_TEST3_DOMAIN=1`, then
+//! the `decl_settings` macro in `rust/abacus-base/src/macros.rs` will directly override the
+//! 'domain' field found in the json config to be `1`, since the fields in the environment variable
+//! name describe the path traversal to arrive at this field in the JSON config object.
 //!
 //! ### Configuration value precedence
 //!
