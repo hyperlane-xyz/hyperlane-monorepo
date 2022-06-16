@@ -75,13 +75,18 @@ export abstract class AbacusDeployer<
       this.logger(
         `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
       );
-      const contracts = await this.deployContracts(
+      this.deployedContracts[chain] = await this.deployContracts(
         chain,
         this.configMap[chain],
       );
       // TODO: remove these logs once we have better timeouts
-      this.logger(JSON.stringify(serializeContracts(contracts), null, 2));
-      this.deployedContracts[chain] = contracts;
+      this.logger(
+        JSON.stringify(
+          serializeContracts(this.deployedContracts[chain] ?? {}),
+          null,
+          2,
+        ),
+      );
     }
     return { ...partialDeployment, ...this.deployedContracts } as Record<
       Chain,
