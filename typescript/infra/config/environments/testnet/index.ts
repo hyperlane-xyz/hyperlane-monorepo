@@ -7,6 +7,7 @@ import { core } from './core';
 import { infrastructure } from './infrastructure';
 
 export const environment: CoreEnvironmentConfig<TestnetChains> = {
+  environment: 'testnet',
   transactionConfigs: testnetConfigs,
   getMultiProvider: () => getMultiProviderFromGCP(testnetConfigs, 'testnet'),
   agent,
