@@ -10,6 +10,7 @@ import { core } from './core';
 import { infra } from './infra';
 
 export const environment: CoreEnvironmentConfig<TestChains> = {
+  environment: 'test',
   transactionConfigs: testConfigs,
   agent,
   core,
