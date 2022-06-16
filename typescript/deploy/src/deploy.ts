@@ -76,6 +76,7 @@ export abstract class AbacusDeployer<
         chain,
         this.configMap[chain],
       );
+      // TODO: remove these logs once we have better timeouts
       this.logger(JSON.stringify(serializeContracts(contracts), null, 2));
       this.deployedContracts[chain] = contracts;
     }
@@ -136,7 +137,6 @@ export abstract class AbacusDeployer<
     // Wait for the beacon to be deployed so that the proxy
     // constructor is happy.
     await beacon.deployTransaction.wait(chainConnection.confirmations);
-    this.logger(`UpgradeBeacon deployed!`);
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
