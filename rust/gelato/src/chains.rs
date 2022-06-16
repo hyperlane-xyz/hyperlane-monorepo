@@ -1,31 +1,30 @@
-// Ideally we would avoid duplicating ethers::types::Chain, but we
-// have enough need to justify a separate, more complete type
-// conversion setup, including some helpers for e.g. locating
-// Gelato's verifying contracts. Converting from the chain's name
-// in string format is useful for CLI usage so that we don't
-// have to remember chain IDs and can instead refer to names.
+// Ideally we would avoid duplicating ethers::types::Chain, but we have enough need to justify
+// a separate, more complete type conversion setup, including some helpers for e.g. locating
+// Gelato's verifying contracts. Converting from the chain's name in string format is useful
+// for CLI usage so that we don't have to remember chain IDs and can instead refer to names.
 
 use ethers::types::{Address, U256};
 use std::{fmt, str::FromStr};
 
 use crate::err::GelatoError;
 
+// This list is currently trimmed to the *intersection* of
+// {chains used by Abacus in any environment} and {chains included in ethers::types::Chain}.
+// Notably missing is Celo.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Chain {
     Mainnet = 1,
-    Ropsten = 3,
     Rinkeby = 4,
     Goerli = 5,
     Kovan = 42,
-    XDai = 100,
     Polygon = 137,
     PolygonMumbai = 80001,
     Avalanche = 43114,
     AvalancheFuji = 43113,
-    Sepolia = 1155111,
-    Moonbeam = 1287,
-    MoonbeamDev = 1281,
-    Moonriver = 1285,
+    Arbitrum = 42161,
+    ArbitrumTestnet = 421611,
+    Optimism = 10,
+    OptimismKovan = 69,
 }
 
 impl fmt::Display for Chain {
@@ -39,19 +38,17 @@ impl FromStr for Chain {
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s.to_lowercase().as_str() {
             "mainnet" => Ok(Chain::Mainnet),
-            "ropsten" => Ok(Chain::Ropsten),
             "rinkeby" => Ok(Chain::Rinkeby),
             "goerli" => Ok(Chain::Goerli),
             "kovan" => Ok(Chain::Kovan),
-            "xdai" => Ok(Chain::XDai),
             "polygon" => Ok(Chain::Polygon),
             "polygonmumbai" => Ok(Chain::PolygonMumbai),
             "avalanche" => Ok(Chain::Avalanche),
             "avalanchefuji" => Ok(Chain::AvalancheFuji),
-            "sepolia" => Ok(Chain::Sepolia),
-            "moonbeam" => Ok(Chain::Moonbeam),
-            "moonbeamd" => Ok(Chain::MoonbeamDev),
-            "moonriver" => Ok(Chain::Moonriver),
+            "arbitrum" => Ok(Chain::Arbitrum),
+            "arbitrumtestnet" => Ok(Chain::ArbitrumTestnet),
+            "optimism" => Ok(Chain::Optimism),
+            "optimismkovan" => Ok(Chain::OptimismKovan),
             _ => Err(GelatoError::UnknownChainNameError(String::from(s))),
         }
     }
@@ -61,19 +58,17 @@ impl From<Chain> for u32 {
     fn from(chain: Chain) -> Self {
         match chain {
             Chain::Mainnet => 1,
-            Chain::Ropsten => 3,
             Chain::Rinkeby => 4,
             Chain::Goerli => 5,
             Chain::Kovan => 42,
-            Chain::XDai => 100,
             Chain::Polygon => 137,
             Chain::PolygonMumbai => 80001,
             Chain::Avalanche => 43114,
             Chain::AvalancheFuji => 43113,
-            Chain::Sepolia => 11155111,
-            Chain::Moonbeam => 1287,
-            Chain::MoonbeamDev => 1281,
-            Chain::Moonriver => 1285,
+            Chain::Arbitrum => 42161,
+            Chain::ArbitrumTestnet => 421611,
+            Chain::Optimism => 10,
+            Chain::OptimismKovan => 69,
         }
     }
 }
@@ -108,9 +103,6 @@ impl Chain {
             Chain::Kovan => Ok(Address::from_str(
                 "4F36f93F58d36DcbC1E60b9bdBE213482285C482",
             )?),
-            Chain::XDai => Ok(Address::from_str(
-                "eeea839E2435873adA11d5dD4CAE6032742C0445",
-            )?),
             Chain::Polygon => Ok(Address::from_str(
                 "c2336e796F77E4E57b6630b6dEdb01f5EE82383e",
             )?),
@@ -131,7 +123,10 @@ mod tests {
         assert_eq!(Chain::from_str("MAINNET").unwrap(), Chain::Mainnet);
         assert_eq!("MAINNET".parse::<Chain>().unwrap(), Chain::Mainnet);
         // Conversions are case insensitive.
-        assert_eq!("XdAi".parse::<Chain>().unwrap(), Chain::XDai);
+        assert_eq!(
+            "polyGoNMuMBai".parse::<Chain>().unwrap(),
+            Chain::PolygonMumbai
+        );
         // Error for unknown names.
         assert!("notChain".parse::<Chain>().is_err());
     }
@@ -141,7 +136,6 @@ mod tests {
         assert!(Chain::Rinkeby.relay_fwd_addr().is_ok());
         assert!(Chain::Goerli.relay_fwd_addr().is_ok());
         assert!(Chain::Kovan.relay_fwd_addr().is_ok());
-        assert!(Chain::XDai.relay_fwd_addr().is_ok());
         assert!(Chain::Polygon.relay_fwd_addr().is_ok());
         assert!(Chain::PolygonMumbai.relay_fwd_addr().is_ok());
     }
