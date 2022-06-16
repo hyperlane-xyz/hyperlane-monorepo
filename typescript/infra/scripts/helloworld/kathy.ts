@@ -1,23 +1,14 @@
 import { HelloWorldApp } from '@abacus-network/helloworld';
-import {
-  HelloWorldContracts,
-  helloWorldFactories,
-} from '@abacus-network/helloworld/dist/sdk/contracts';
-import { ChainMap, ChainName, buildContracts } from '@abacus-network/sdk';
+import { ChainName } from '@abacus-network/sdk';
 
-import addresses from '../config/environments/testnet2/helloworld/addresses.json';
+import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
-import { getCoreEnvironmentConfig } from './utils';
+import { getApp } from './utils';
 
 async function main() {
-  const environment = 'testnet2';
+  const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
-  const multiProvider = await coreConfig.getMultiProvider();
-  const contracts = buildContracts(addresses, helloWorldFactories) as ChainMap<
-    keyof typeof addresses,
-    HelloWorldContracts
-  >;
-  const app = new HelloWorldApp(contracts, multiProvider);
+  const app = await getApp(coreConfig);
   const sources = app.chains();
   await Promise.all(
     sources.map((source) => {

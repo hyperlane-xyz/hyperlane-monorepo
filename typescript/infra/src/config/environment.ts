@@ -19,4 +19,5 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   core: ChainMap<Chain, CoreConfig>;
   infra: InfrastructureConfig;
   getMultiProvider: () => Promise<MultiProvider<Chain>>;
+  helloWorldAddresses?: ChainMap<Chain, { router: string }>;
 };
