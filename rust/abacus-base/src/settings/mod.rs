@@ -36,21 +36,23 @@
 //!
 //! For example, if the config file `example_config.json` is:
 //!
-//!     {
-//!       "environment": "test",
-//!       "signers": {},
-//!       "inboxes": {
-//!         "test2": {
-//!           "domain": "13372",
-//!           ...
-//!         },
-//!         ...
-//!       },
-//!     }
+//! ```json
+//! {
+//!   "environment": "test",
+//!   "signers": {},
+//!   "inboxes": {
+//!     "test2": {
+//!       "domain": "13372",
+//!       ...
+//!     },
+//!     ...
+//!   },
+//! }
+//! ```
 //!
 //! and an environment variable is supplied which defines:
 //!
-//!     `ABC_BASE_INBOXES_TEST2_DOMAIN=1`,
+//!     `ABC_BASE_INBOXES_TEST2_DOMAIN=1`
 //!
 //! then the `decl_settings` macro in `rust/abacus-base/src/macros.rs` will directly
 //! override the 'domain' field found in the json config to be `1`, since the fields
