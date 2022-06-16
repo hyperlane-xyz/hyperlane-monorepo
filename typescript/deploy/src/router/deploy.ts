@@ -4,7 +4,6 @@ import {
   ChainMap,
   ChainName,
   MultiProvider,
-  Router,
   RouterContracts,
   RouterFactories,
   chainMetadata,
