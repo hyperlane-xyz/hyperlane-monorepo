@@ -48,5 +48,7 @@ mod print;
 /// function _must_ be called before any `eyre::Report`s are constructed to
 /// prevent the default handler from being installed.
 pub fn install() -> Result<()> {
-    HookBuilder::default().capture_backtrace_by_default(true).install()
+    HookBuilder::default()
+        .capture_backtrace_by_default(true)
+        .install()
 }
