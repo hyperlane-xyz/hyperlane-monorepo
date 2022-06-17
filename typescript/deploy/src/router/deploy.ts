@@ -49,6 +49,7 @@ export abstract class AbacusRouterDeployer<
       chainConnection.overrides,
     );
     this.logger(`Pending init ${chainConnection.getTxUrl(response)}`);
+    await response.wait(chainConnection.confirmations);
     return router;
   }
 
@@ -90,8 +91,11 @@ export abstract class AbacusRouterDeployer<
     );
   }
 
-  async deploy() {
-    const contractsMap = await super.deploy();
+  async deploy(
+    partialDeployment: Partial<Record<Chain, Contracts>> = this
+      .deployedContracts,
+  ) {
+    const contractsMap = await super.deploy(partialDeployment);
 
     await this.enrollRemoteRouters(contractsMap);
     await this.transferOwnership(contractsMap);
