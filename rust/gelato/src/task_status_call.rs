@@ -29,8 +29,8 @@ impl TaskStatusCall {
         info!(?url);
         let res = self.http.get(url).send().await?;
         info!(?res);
-        let result = TaskStatusCallResult::from(res.json().await?);
-        Ok(TaskStatusCallResult::from(result))
+        let result: TaskStatusCallResult = res.json().await?;
+        Ok(result)
     }
 }
 
@@ -79,7 +79,7 @@ pub struct Execution {
 #[serde(untagged)]
 pub enum Check {
     Timestamp(String),
-    CheckWithMetadata(CheckInfo),
+    CheckWithMetadata(Box<CheckInfo>),
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Deserialize, Serialize)]

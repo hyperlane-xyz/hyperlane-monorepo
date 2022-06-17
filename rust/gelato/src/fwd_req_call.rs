@@ -51,7 +51,7 @@ impl ForwardRequestCall {
         };
         info!(?url, ?http_args);
         let res = self.http.post(url).json(&http_args).send().await?;
-        let result = HTTPResult::from(res.json().await.unwrap());
+        let result: HTTPResult = res.json().await.unwrap();
         Ok(ForwardRequestCallResult::from(result))
     }
 }
@@ -106,7 +106,7 @@ impl Serialize for HTTPArgs {
             "enforceSponsorNonceOrdering",
             &self.args.enforce_sponsor_nonce_ordering,
         )?;
-        state.serialize_field("sponsorSignature", &format!("0x{}", self.sig.to_string()))?;
+        state.serialize_field("sponsorSignature", &format!("0x{}", self.sig))?;
         state.end()
     }
 }
