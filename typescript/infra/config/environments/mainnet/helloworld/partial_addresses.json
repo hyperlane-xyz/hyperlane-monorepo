@@ -16,5 +16,8 @@
   },
   "ethereum": {
     "router": "0x8202df0d3a5ba6d65fabe63122fAaCC1529E054F"
+  },
+  "celo": {
+    "router": "0x0054D19613f20dD72721A146ED408971a2CCA9BD"
   }
 }

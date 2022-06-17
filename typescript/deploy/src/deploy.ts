@@ -13,6 +13,7 @@ import {
   ChainName,
   MultiProvider,
   ProxiedContract,
+  connectContracts,
   objMap,
   serializeContracts,
 } from '@abacus-network/sdk';
@@ -88,10 +89,16 @@ export abstract class AbacusDeployer<
         ),
       );
     }
-    return { ...partialDeployment, ...this.deployedContracts } as Record<
-      Chain,
-      Contracts
-    >;
+    const contractsMap = {
+      ...partialDeployment,
+      ...this.deployedContracts,
+    } as Record<Chain, Contracts>;
+    // ensure all contracts are connected
+    objMap(contractsMap, (chain, contracts) => {
+      const connection = this.multiProvider.getChainConnection(chain);
+      connectContracts(contracts, connection.signer!);
+    });
+    return contractsMap;
   }
 
   async deployContract<K extends keyof Factories>(

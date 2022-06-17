@@ -1,4 +1,4 @@
-import { StaticCeloProvider } from '@celo-tools/celo-ethers-wrapper';
+import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
 import { ethers } from 'ethers';
 
 import { IChainConnection } from './provider';
@@ -14,7 +14,7 @@ export const ethereum: IChainConnection = {
 };
 
 export const celo: IChainConnection = {
-  provider: new StaticCeloProvider('https://forno.celo.org', 42220),
+  provider: new StaticCeloJsonRpcProvider('https://forno.celo.org', 42220),
   confirmations: 1,
   blockExplorerUrl: 'https://celoscan.xyz',
 };
@@ -65,7 +65,10 @@ export const bsc: IChainConnection = {
 };
 
 export const alfajores: IChainConnection = {
-  provider: new StaticCeloProvider('https://alfajores-forno.celo.org', 44787),
+  provider: new StaticCeloJsonRpcProvider(
+    'https://alfajores-forno.celo.org',
+    44787,
+  ),
   confirmations: 1,
 };
 
