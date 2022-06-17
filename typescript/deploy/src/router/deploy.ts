@@ -43,8 +43,13 @@ export abstract class AbacusRouterDeployer<
   ): Promise<Contracts['router']> {
     const router = await this.deployContract(chain, 'router', deployParams);
     this.logger(`Initializing ${chain}'s router with ${initParams}`);
-    // @ts-ignore spread operator
-    await router.initialize(...initParams);
+    const response = await router.initialize(
+      // @ts-ignore spread operator
+      ...initParams,
+      chainConnection.overrides,
+    );
+    this.logger(`Pending init ${chainConnection.getTxUrl(response)}`);
+    await response.wait(chainConnection.confirmations);
     return router;
   }
 
@@ -79,8 +84,11 @@ export abstract class AbacusRouterDeployer<
     );
   }
 
-  async deploy() {
-    const contractsMap = await super.deploy();
+  async deploy(
+    partialDeployment: Partial<Record<Chain, Contracts>> = this
+      .deployedContracts,
+  ) {
+    const contractsMap = await super.deploy(partialDeployment);
 
     await this.enrollRemoteRouters(contractsMap);
     await this.transferOwnership(contractsMap);

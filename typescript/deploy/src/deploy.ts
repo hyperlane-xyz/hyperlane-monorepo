@@ -77,41 +77,29 @@ export abstract class AbacusDeployer<
         (chain) =>
           configChains.includes(chain) && !deployedChains.includes(chain),
       );
-    this.logger(
-      `Start deploy to ${targetChains} ${
-        deployedChains.length > 0
-          ? `(already deployed to ${deployedChains})`
-          : ''
-      }`,
+    this.logger(`Start deploy to ${targetChains}`);
+    await Promise.all(
+      targetChains.map(async (chain) => {
+        this.logger;
+        const chainConnection = this.multiProvider.getChainConnection(chain);
+        this.logger(
+          `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
+        );
+        this.deployedContracts[chain] = await this.deployContracts(
+          chain,
+          this.configMap[chain],
+        );
+        // TODO: remove these logs once we have better timeouts
+        this.logger(
+          JSON.stringify(
+            serializeContracts(this.deployedContracts[chain] ?? {}),
+            null,
+            2,
+          ),
+        );
+      }),
     );
-    for (const chain of targetChains) {
-      const chainConnection = this.multiProvider.getChainConnection(chain);
-      this.logger(
-        `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
-      );
-      this.deployedContracts[chain] = await this.deployContracts(
-        chain,
-        this.configMap[chain],
-      );
-      // TODO: remove these logs once we have better timeouts
-      this.logger(
-        JSON.stringify(
-          serializeContracts(this.deployedContracts[chain] ?? {}),
-          null,
-          2,
-        ),
-      );
-    }
-    const contractsMap = {
-      ...partialDeployment,
-      ...this.deployedContracts,
-    } as Record<Chain, Contracts>;
-    // ensure all contracts are connected
-    objMap(contractsMap, (chain, contracts) => {
-      const connection = this.multiProvider.getChainConnection(chain);
-      connectContracts(contracts, connection.signer!);
-    });
-    return contractsMap;
+    return this.deployedContracts as ChainMap<Chain, Contracts>;
   }
 
   async deployContract<K extends keyof Factories>(

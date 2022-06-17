@@ -10,14 +10,14 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
   const chains = app.chains() as Chains[];
-  const skip = process.env.NETWORKS_TO_SKIP?.split(',');
+  const skip = process.env.NETWORKS_TO_SKIP?.split(',') as Chains[];
 
-  const invalidChain = chains.find((chain) => skip && !skip.includes(chain));
+  const invalidChain = chains.find((chain) => !skip.includes(chain));
   if (invalidChain) {
     throw new Error(`Invalid chain to skip ${invalidChain}`);
   }
 
-  const sources = chains.filter((chain) => !skip || !skip.includes(chain));
+  const sources = chains.filter((chain) => !skip.includes(chain));
   for (const source of sources) {
     for (const destination of sources.slice().filter((d) => d !== source)) {
       await sendMessage(app, source, destination);
@@ -25,23 +25,14 @@ async function main() {
   }
 }
 
-async function sendMessage(
+export async function sendMessage(
   app: HelloWorldApp<any>,
   source: ChainName,
   destination: ChainName,
 ) {
-  try {
-    const receipt = await app.sendHelloWorld(
-      source,
-      destination,
-      `Hello from ${source} to ${destination}!`,
-    );
-    console.log(JSON.stringify(receipt.events || receipt.logs));
-  } catch (err) {
-    console.error(`Error sending ${source} -> ${destination}`, err);
-    // Propagate error up
-    throw err;
-  }
+  console.log(`Sending message from ${source} to ${destination}`);
+  const receipt = await app.sendHelloWorld(source, destination, `Hello!`);
+  console.log(JSON.stringify(receipt.events || receipt.logs));
 }
 
 main()
