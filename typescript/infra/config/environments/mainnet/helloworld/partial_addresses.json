@@ -13,5 +13,8 @@
   },
   "optimism": {
     "router": "0x8249cD1275855F2BB20eE71f0B9fA3c9155E5FaB"
+  },
+  "ethereum": {
+    "router": "0x8202df0d3a5ba6d65fabe63122fAaCC1529E054F"
   }
 }
