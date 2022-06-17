@@ -10,7 +10,7 @@ use crate::err::GelatoError;
 
 // This list is currently trimmed to the *intersection* of
 // {chains used by Abacus in any environment} and {chains included in ethers::types::Chain}.
-// Notably missing is Celo.
+// Notably missing is Celo/Alfajores.
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Chain {
     Mainnet = 1,
@@ -25,6 +25,8 @@ pub enum Chain {
     ArbitrumTestnet = 421611,
     Optimism = 10,
     OptimismKovan = 69,
+    BinanceSmartChain = 56,
+    BinanceSmartChainTestnet = 97,
 }
 
 impl fmt::Display for Chain {
@@ -49,6 +51,8 @@ impl FromStr for Chain {
             "arbitrumtestnet" => Ok(Chain::ArbitrumTestnet),
             "optimism" => Ok(Chain::Optimism),
             "optimismkovan" => Ok(Chain::OptimismKovan),
+            "bsc" => Ok(Chain::BinanceSmartChain),
+            "bsc-testnet" => Ok(Chain::BinanceSmartChainTestnet),
             _ => Err(GelatoError::UnknownChainNameError(String::from(s))),
         }
     }
@@ -69,6 +73,8 @@ impl From<Chain> for u32 {
             Chain::ArbitrumTestnet => 421611,
             Chain::Optimism => 10,
             Chain::OptimismKovan => 69,
+            Chain::BinanceSmartChain => 56,
+            Chain::BinanceSmartChainTestnet => 97,
         }
     }
 }
@@ -91,7 +97,7 @@ impl Chain {
     // becomes available.
     //
     // See `getRelayForwarderAddrss()` in the SDK file
-    // `@gelatonetwork/gelato-relay-sdk/package/dist/constants/index.js`.
+    // https://github.com/gelatodigital/relay-sdk/blob/master/src/constants/index.ts.
     pub fn relay_fwd_addr(&self) -> Result<Address, GelatoError> {
         match self {
             Chain::Rinkeby => Ok(Address::from_str(
@@ -108,6 +114,9 @@ impl Chain {
             )?),
             Chain::PolygonMumbai => Ok(Address::from_str(
                 "3428E19A01E40333D5D51465A08476b8F61B86f3",
+            )?),
+            Chain::BinanceSmartChain => Ok(Address::from_str(
+                "247A1306b6122ba28862b19a95004899db91f1b5",
             )?),
             _ => Err(GelatoError::UnknownRelayForwardAddress(*self)),
         }
