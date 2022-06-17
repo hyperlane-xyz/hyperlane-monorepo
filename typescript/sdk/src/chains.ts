@@ -1,3 +1,4 @@
+import { StaticCeloJsonRpcProvider } from 'celo-ethers-provider';
 import { ethers } from 'ethers';
 
 import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
@@ -67,7 +68,7 @@ export const bsc: IChainConnection = {
 
 export const alfajores: IChainConnection = {
   provider: new StaticCeloJsonRpcProvider(
-    'https://alfajores-forno.celo-testnet.org',
+    'https://alfajores-forno.celo.org',
     44787,
   ),
   confirmations: 1,
