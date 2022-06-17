@@ -18,6 +18,7 @@ tracing = "0.1"
 tracing-futures = "0.2"
 tracing-subscriber = "0.3"
 rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
+prometheus = "0.13"
 
 abacus-core = { path = "../../abacus-core" }
 abacus-base = { path = "../../abacus-base" }

@@ -117,8 +117,12 @@ export class AbacusCoreChecker<
     const expectedValidators = validatorManagerConfig.validators;
     const actualValidators = await validatorManager.validators();
 
-    const expectedSet = new Set<string>(expectedValidators);
-    const actualSet = new Set<string>(actualValidators);
+    const expectedSet = new Set<string>(
+      expectedValidators.map((_) => _.toLowerCase()),
+    );
+    const actualSet = new Set<string>(
+      actualValidators.map((_) => _.toLowerCase()),
+    );
 
     const toEnroll = setDifference(expectedSet, actualSet);
     const toUnenroll = setDifference(actualSet, expectedSet);
@@ -231,7 +235,7 @@ export class AbacusCoreChecker<
     const contracts = this.app.getContracts(chain);
     await this.checkUpgradeBeacon(chain, 'Outbox', contracts.outbox.addresses);
     await promiseObjAll(
-      objMap(contracts.inboxes, (chain, inbox) =>
+      objMap(contracts.inboxes, (_remoteChain, inbox) =>
         this.checkUpgradeBeacon(chain, 'Inbox', inbox.inbox.addresses),
       ),
     );
