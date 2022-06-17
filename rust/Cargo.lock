@@ -20,6 +20,7 @@ dependencies = [
  "abacus-ethereum",
  "abacus-test",
  "async-trait",
+ "backtrace",
  "color-eyre",
  "config",
  "ethers",
