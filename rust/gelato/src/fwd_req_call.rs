@@ -39,7 +39,7 @@ pub struct ForwardRequestCallResult {
 
 impl ForwardRequestCall {
     #[instrument]
-    pub async fn run(&self) -> Result<ForwardRequestCallResult, GelatoError> {
+    pub async fn run(self) -> Result<ForwardRequestCallResult, GelatoError> {
         let url = format!(
             "{}/metabox-relays/{}",
             GATEWAY_URL,
