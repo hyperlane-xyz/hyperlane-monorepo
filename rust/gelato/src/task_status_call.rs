@@ -53,6 +53,9 @@ pub struct TransactionStatus {
     pub chain: String,
     pub task_id: String,
     pub task_state: TaskStatus,
+    // TODO(webbhorn): Consider not even trying to parse as many of these optionals as we can
+    // get away with. It is kind of fragile and awkward since Gelato does not make any
+    // guarantees about which fields will be present in different scenarios.
     pub created_at: Option<String>,
     pub last_check: Option<Check>,
     pub execution: Option<Execution>,
