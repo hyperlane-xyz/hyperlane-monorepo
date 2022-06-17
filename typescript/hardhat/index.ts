@@ -1,10 +1,10 @@
-import { TestCoreDeploy } from './src/TestCoreDeploy';
 import { MultiProvider, TestChainNames } from '@abacus-network/sdk';
 import '@nomiclabs/hardhat-waffle';
 import { ethers } from 'ethers';
 import { extendEnvironment } from 'hardhat/config';
-import { lazyObject } from 'hardhat/plugins';
+import { lazyObject } from "hardhat/plugins";
 import 'hardhat/types/runtime';
+import { TestCoreDeploy } from './src/TestCoreDeploy';
 
 declare module 'hardhat/types/runtime' {
   interface HardhatRuntimeEnvironment {
