@@ -10,13 +10,36 @@ interface IamCondition {
 }
 
 export async function fetchGCPSecret(secretName: string, parseJson = true) {
-  const [output] = await execCmd(
-    `gcloud secrets versions access latest --secret ${secretName}`,
-  );
+  let output: string;
+
+  const envVarOverride = tryGCPSecretFromEnvVariable(secretName);
+  if (envVarOverride !== undefined) {
+    console.log(
+      `Using environment variable instead of GCP secret with name ${secretName}`,
+    );
+    output = envVarOverride;
+  } else {
+    [output] = await execCmd(
+      `gcloud secrets versions access latest --secret ${secretName}`,
+    );
+  }
+
   if (parseJson) {
     return JSON.parse(output);
   }
   return output;
+}
+
+function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
+  const overridingEnabled =
+    process.env.GCP_SECRET_OVERRIDES_ENABLED?.toLowerCase().trim() === 'true';
+  if (!overridingEnabled) {
+    return undefined;
+  }
+  const overrideEnvVarName = `GCP_SECRET_OVERRIDE_${gcpSecretName
+    .replace('-', '_')
+    .toUpperCase()}`;
+  return process.env[overrideEnvVarName];
 }
 
 export async function gcpSecretExists(secretName: string) {
