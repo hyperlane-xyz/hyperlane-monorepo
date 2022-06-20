@@ -18,7 +18,7 @@ use crate::{
 ///
 /// Specify the chain name (enum variant) in toml under the `chain` key
 #[derive(Clone, Debug, Deserialize)]
-#[serde(rename_all = "camelCase")]
+#[serde(tag = "rpcStyle", content = "connection", rename_all = "camelCase")]
 pub enum ChainConf {
     /// Ethereum configuration
     Ethereum(Connection),
