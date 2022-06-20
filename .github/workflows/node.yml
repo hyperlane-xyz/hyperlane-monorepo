@@ -41,6 +41,8 @@ jobs:
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v2
+        with:
+          submodules: 'true'
 
       - name: yarn-cache
         uses: actions/cache@v2
