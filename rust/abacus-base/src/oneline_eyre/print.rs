@@ -164,7 +164,6 @@ impl BacktraceFrameFmt<'_, '_, '_> {
         // symbols which don't have a name,
         if let Some(name) = symbol_name {
             write!(self.fmt.fmt, "{name:#}")?;
-            // write!(self.fmt.fmt, "{name}")?;
         } else {
             write!(self.fmt.fmt, "<unknown>")?;
         }
