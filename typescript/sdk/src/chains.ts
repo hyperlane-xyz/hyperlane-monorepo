@@ -67,7 +67,7 @@ export const bsc: IChainConnection = {
 
 export const alfajores: IChainConnection = {
   provider: new StaticCeloJsonRpcProvider(
-    'https://alfajores-forno.celo.org',
+    'https://alfajores-forno.celo-testnet.org',
     44787,
   ),
   confirmations: 1,
