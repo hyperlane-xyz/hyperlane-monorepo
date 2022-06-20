@@ -14,6 +14,7 @@ import {
   MultiProvider,
   ProxiedContract,
   objMap,
+  serializeContracts,
 } from '@abacus-network/sdk';
 import { ProxyKind } from '@abacus-network/sdk/dist/proxy';
 import { types } from '@abacus-network/utils';
@@ -70,10 +71,21 @@ export abstract class AbacusDeployer<
       }`,
     );
     for (const chain of targetChains) {
-      this.logger(`Deploying to ${chain}...`);
+      const chainConnection = this.multiProvider.getChainConnection(chain);
+      this.logger(
+        `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
+      );
       this.deployedContracts[chain] = await this.deployContracts(
         chain,
         this.configMap[chain],
+      );
+      // TODO: remove these logs once we have better timeouts
+      this.logger(
+        JSON.stringify(
+          serializeContracts(this.deployedContracts[chain] ?? {}),
+          null,
+          2,
+        ),
       );
     }
     return { ...partialDeployment, ...this.deployedContracts } as Record<
@@ -92,7 +104,12 @@ export abstract class AbacusDeployer<
     const factory = this.factories[contractName].connect(
       chainConnection.signer!,
     );
-    const contract = await factory.deploy(...args);
+    const contract = await factory.deploy(...args, chainConnection.overrides);
+    this.logger(
+      `Pending deployment ${chainConnection.getTxUrl(
+        contract.deployTransaction,
+      )}`,
+    );
     await contract.deployTransaction.wait(chainConnection.confirmations);
     const verificationInput = getContractVerificationInput(
       contractName.toString(),
@@ -128,6 +145,12 @@ export abstract class AbacusDeployer<
     const beacon = await new UpgradeBeacon__factory(signer).deploy(
       implementation.address,
       ubcAddress,
+      chainConnection.overrides,
+    );
+    this.logger(
+      `Pending beacon deployment ${chainConnection.getTxUrl(
+        beacon.deployTransaction,
+      )}`,
     );
     // Wait for the beacon to be deployed so that the proxy
     // constructor is happy.
@@ -139,7 +162,14 @@ export abstract class AbacusDeployer<
     const beaconProxy = await new UpgradeBeaconProxy__factory(signer).deploy(
       beacon.address,
       initData,
+      chainConnection.overrides,
     );
+    this.logger(
+      `Pending proxy deployment and init ${chainConnection.getTxUrl(
+        beaconProxy.deployTransaction,
+      )}`,
+    );
+    await beaconProxy.deployTransaction.wait(chainConnection.confirmations);
     return new ProxiedContract<C, BeaconProxyAddresses>(
       implementation.attach(beaconProxy.address) as any,
       {
@@ -161,6 +191,7 @@ export abstract class AbacusDeployer<
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
     this.logger(`Duplicate Proxy on ${chain}`);
+    const chainConnection = this.multiProvider.getChainConnection(chain);
     const signer = this.multiProvider.getChainConnection(chain).signer!;
     const initData = proxy.contract.interface.encodeFunctionData(
       'initialize',
@@ -170,6 +201,12 @@ export abstract class AbacusDeployer<
     const newProxy = await new UpgradeBeaconProxy__factory(signer).deploy(
       proxyAddresses.beacon,
       initData,
+      chainConnection.overrides,
+    );
+    this.logger(
+      `Pending proxy deployment and init ${chainConnection.getTxUrl(
+        newProxy.deployTransaction,
+      )}`,
     );
     return new ProxiedContract<C, BeaconProxyAddresses>(
       proxy.contract.attach(newProxy.address) as C,
