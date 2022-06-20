@@ -6,11 +6,11 @@ use tokio::{
     sync::watch::{channel, Receiver, Sender},
     task::JoinHandle,
 };
-use tracing::{info, instrument::Instrumented, Instrument};
+use tracing::{info, warn, instrument::Instrumented, Instrument};
 
 use abacus_base::{
     AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics, InboxContracts,
-    MultisigCheckpointSyncer,
+    MultisigCheckpointSyncer, chains::GelatoConf,
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
@@ -112,6 +112,7 @@ impl Relayer {
         &self,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
+        gelato_conf: Option<GelatoConf>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let db = self.outbox().db();
         let outbox = self.outbox().outbox();
@@ -120,6 +121,7 @@ impl Relayer {
             outbox.chain_name(),
             inbox_contracts.inbox.chain_name(),
         );
+        warn!(?gelato_conf);
         let message_processor = MessageProcessor::new(
             outbox,
             self.max_processing_retries,
@@ -138,10 +140,11 @@ impl Relayer {
         inbox_name: &str,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
+        gelato_conf: Option<GelatoConf>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
         let m = format!("Task for inbox named {} failed", inbox_name);
         let handle = self
-            .run_inbox(inbox_contracts, signed_checkpoint_receiver)
+            .run_inbox(inbox_contracts, signed_checkpoint_receiver, gelato_conf)
             .in_current_span();
         let fut = async move { handle.await?.wrap_err(m) };
 
@@ -160,6 +163,7 @@ impl Relayer {
                     inbox_name,
                     inbox_contracts.clone(),
                     signed_checkpoint_receiver.clone(),
+                    self.core.settings.inboxes[inbox_name].gelato_conf.clone(),
                 )
             })
             .collect();
