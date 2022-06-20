@@ -21,10 +21,6 @@
 //! }
 //! ```
 //!
-//! # TODO
-//! Later we can add support for backtraces and spantraces. These are not currently in-use in our
-//! deployments and they are difficult to format correctly, so holding off for now.
-//!
 //! [`eyre::EyreHandler`]: https://docs.rs/eyre/*/eyre/trait.EyreHandler.html
 //! [`eyre`]: https://docs.rs/eyre
 
