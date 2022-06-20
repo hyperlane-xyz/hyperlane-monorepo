@@ -9,7 +9,7 @@ export const agent: AgentConfig<TestnetChains> = {
   runEnv: 'testnet2',
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
-    tag: 'sha-9ab7525',
+    tag: 'sha-4b9faad',
   },
   aws: {
     region: 'us-east-1',
@@ -22,9 +22,26 @@ export const agent: AgentConfig<TestnetChains> = {
       reorgPeriod: 1,
     },
     chainOverrides: {
+      alfajores: {
+        reorgPeriod: 0,
+      },
+      fuji: {
+        reorgPeriod: 0,
+      },
+      kovan: {
+        reorgPeriod: 7,
+      },
+      mumbai: {
+        reorgPeriod: 32,
+      },
+      bsctestnet: {
+        reorgPeriod: 9,
+      },
+      arbitrumrinkeby: {
+        reorgPeriod: 1,
+      },
       optimismkovan: {
-        interval: 5,
-        reorgPeriod: 2,
+        reorgPeriod: 1,
       },
     },
   },
