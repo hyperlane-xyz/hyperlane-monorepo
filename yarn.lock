@@ -5,60 +5,60 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@npm:0.2.2, @abacus-network/app@npm:^0.2.2":
-  version: 0.2.2
-  resolution: "@abacus-network/app@npm:0.2.2"
+"@abacus-network/app@npm:0.2.3, @abacus-network/app@npm:^0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/app@npm:0.2.3"
   dependencies:
-    "@abacus-network/core": ^0.2.2
-    "@abacus-network/utils": ^0.2.2
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
     "@openzeppelin/contracts-upgradeable": ^4.5.0
-  checksum: a5dab4a20da6a48fd9df82481d9f82c09fd4eb2cd8bc6178fdcb4aa28eaab986310b543daa6c51fadfe68554d774ebc9e9da2d8afa837dd00f7ce23215c81985
+  checksum: 83a673b03d8a03a9a1d413212721dec23dede11d3b6bc968b9130c3206b24e2498c5bea833bdc8291568a4b176cf9ad804aea7049a89df65c41a01347ff0f74a
   languageName: node
   linkType: hard
 
-"@abacus-network/core@npm:0.2.2, @abacus-network/core@npm:^0.2.2":
-  version: 0.2.2
-  resolution: "@abacus-network/core@npm:0.2.2"
+"@abacus-network/core@npm:0.2.3, @abacus-network/core@npm:^0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/core@npm:0.2.3"
   dependencies:
-    "@abacus-network/utils": ^0.2.2
+    "@abacus-network/utils": ^0.2.3
     "@openzeppelin/contracts": ^4.6.0
     "@openzeppelin/contracts-upgradeable": ^4.6.0
     "@summa-tx/memview-sol": ^2.0.0
-  checksum: 52e706890d8727ceb8ed6a9ef8e2ce99845583851256e714ec2b88b32806ac430a2f2573548f02a738e09a65d39ee1fdd3034f5598af7d5d83c31fb85355569f
+  checksum: f4740e8e14a40f01a65c5a6576e86eeb69e911fa4dd8d14cb3e1514d6e47139ea3bedeaecc9fb8c7301b11cb1ba766caa97331cc74a3e45943c8793da11d52ba
   languageName: node
   linkType: hard
 
-"@abacus-network/deploy@npm:0.2.2, @abacus-network/deploy@npm:^0.2.2":
-  version: 0.2.2
-  resolution: "@abacus-network/deploy@npm:0.2.2"
+"@abacus-network/deploy@npm:0.2.3, @abacus-network/deploy@npm:^0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/deploy@npm:0.2.3"
   dependencies:
-    "@abacus-network/app": ^0.2.2
-    "@abacus-network/core": ^0.2.2
-    "@abacus-network/sdk": ^0.2.2
-    "@abacus-network/utils": ^0.2.2
+    "@abacus-network/app": ^0.2.3
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/sdk": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
     "@types/debug": ^4.1.7
     "@types/yargs": ^17.0.10
     axios: ^0.21.3
     debug: ^4.3.4
     yargs: ^17.4.1
-  checksum: 04830655193d0ee27c863d82b50ad41cf1cf5353f3b7ab26ae0d7e0fbff3ed9171879de2ad3269f660e19cd6dd57b582b02e045c18f54cacdbc190d677c6475f
+  checksum: 7b551a5409eb569e30a72f46bed49745fac2b20dc4800c008dee73dbc9c7b2358e84df6e5f880bc044bd45be207b9fb5f1bc53c6545016b8ef0097c5c4096527
   languageName: node
   linkType: hard
 
-"@abacus-network/hardhat@npm:0.2.2":
-  version: 0.2.2
-  resolution: "@abacus-network/hardhat@npm:0.2.2"
+"@abacus-network/hardhat@npm:0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/hardhat@npm:0.2.3"
   dependencies:
-    "@abacus-network/core": ^0.2.2
-    "@abacus-network/deploy": ^0.2.2
-    "@abacus-network/sdk": ^0.2.2
-    "@abacus-network/utils": ^0.2.2
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/deploy": ^0.2.3
+    "@abacus-network/sdk": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     ethereum-waffle: ^3.2.2
-    ethers: ^5.4.7
+    ethers: ^5.6.8
     hardhat: ^2.8.4
-  checksum: 6d6b78023b35fa41c00841702a2aa9ac99ba247e85245e7329386ec0551c3aeeefc15a98b76e0788c1f352e5000128acddabca44358a1c6ea08f5904842f4255
+  checksum: e58577f4023391c339f7a8c2d8e2949e71aa957c3fa8ce0f034d37ea194f7e83ddb941eeda1f0cfb738893c3e6515722fdf497394638233f1e9407c3641d07f0
   languageName: node
   linkType: hard
 
@@ -66,11 +66,11 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@abacus-network/helloworld@workspace:."
   dependencies:
-    "@abacus-network/app": 0.2.2
-    "@abacus-network/core": 0.2.2
-    "@abacus-network/deploy": 0.2.2
-    "@abacus-network/hardhat": 0.2.2
-    "@abacus-network/sdk": 0.2.2
+    "@abacus-network/app": 0.2.3
+    "@abacus-network/core": 0.2.3
+    "@abacus-network/deploy": 0.2.3
+    "@abacus-network/hardhat": 0.2.3
+    "@abacus-network/sdk": 0.2.3
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts-upgradeable": ^4.6.0
@@ -96,27 +96,25 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@npm:0.2.2, @abacus-network/sdk@npm:^0.2.2":
-  version: 0.2.2
-  resolution: "@abacus-network/sdk@npm:0.2.2"
+"@abacus-network/sdk@npm:0.2.3, @abacus-network/sdk@npm:^0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/sdk@npm:0.2.3"
   dependencies:
-    "@abacus-network/core": ^0.2.2
-    "@abacus-network/utils": ^0.2.2
-    "@ethersproject/bignumber": ^5.5.0
-    "@ethersproject/bytes": ^5.5.0
-    celo-ethers-provider: ^0.0.0
-    ethers: ^5.4.7
-  checksum: 416847fdc1057876ba636917cbee95c44c4dbdb6d562783f7d666e282bdb5965804cd8a86035cb18d6b4767587e9a25fdaeb68a0783995034347e7cf52f679d0
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
+    "@celo-tools/celo-ethers-wrapper": ^0.2.0
+    ethers: ^5.6.8
+  checksum: d79f9c33a3b21140f583808430200777fa2e076cfea3629eb5f21b998fbe9e259520e5245d7459c368ce51c17e7cc1c2f903eb2e3706dc9dbcfad0472a169a0d
   languageName: node
   linkType: hard
 
-"@abacus-network/utils@npm:^0.2.2":
-  version: 0.2.2
-  resolution: "@abacus-network/utils@npm:0.2.2"
+"@abacus-network/utils@npm:^0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/utils@npm:0.2.3"
   dependencies:
     chai: ^4.3.0
-    ethers: ^5.4.7
-  checksum: b9de8b8db79494d43b398780b1ec16c6c6088a46871ee717477477164d428bce30c069a7452f57da399a219d39f54bd057c61436ee150dee2d9f0270a1bcbc66
+    ethers: ^5.6.8
+  checksum: 5399694f2395b2e0f532f412053670a558b0eba35303dcd0e01f9a4877ff69a917569bdf7a597bc6bcb8c9ad990a0c87d73b72b03ed361d5d6fa6988fd18a344
   languageName: node
   linkType: hard
 
@@ -144,6 +142,15 @@ __metadata:
     chalk: ^2.0.0
     js-tokens: ^4.0.0
   checksum: 841a11aa353113bcce662b47085085a379251bf8b09054e37e1e082da1bf0d59355a556192a6b5e9ee98e8ee6f1f2831ac42510633c5e7043e3744dda2d6b9d6
+  languageName: node
+  linkType: hard
+
+"@celo-tools/celo-ethers-wrapper@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@celo-tools/celo-ethers-wrapper@npm:0.2.0"
+  peerDependencies:
+    ethers: ^5
+  checksum: 204177c8845003738a36d20ed5c1d64015c6ba95b2d01d186b709345f5cda1c09892471f47e7981bd5424ab50c13edc33cca5dfbb80ac607c7fadb6b8c16d0c2
   languageName: node
   linkType: hard
 
@@ -448,7 +455,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ethersproject/bignumber@npm:5.6.2, @ethersproject/bignumber@npm:>=5.0.0-beta.130, @ethersproject/bignumber@npm:^5.0.7, @ethersproject/bignumber@npm:^5.5.0, @ethersproject/bignumber@npm:^5.6.2":
+"@ethersproject/bignumber@npm:5.6.2, @ethersproject/bignumber@npm:>=5.0.0-beta.130, @ethersproject/bignumber@npm:^5.0.7, @ethersproject/bignumber@npm:^5.6.2":
   version: 5.6.2
   resolution: "@ethersproject/bignumber@npm:5.6.2"
   dependencies:
@@ -459,7 +466,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@ethersproject/bytes@npm:5.6.1, @ethersproject/bytes@npm:>=5.0.0-beta.129, @ethersproject/bytes@npm:^5.0.4, @ethersproject/bytes@npm:^5.5.0, @ethersproject/bytes@npm:^5.6.1":
+"@ethersproject/bytes@npm:5.6.1, @ethersproject/bytes@npm:>=5.0.0-beta.129, @ethersproject/bytes@npm:^5.0.4, @ethersproject/bytes@npm:^5.6.1":
   version: 5.6.1
   resolution: "@ethersproject/bytes@npm:5.6.1"
   dependencies:
@@ -3413,15 +3420,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"celo-ethers-provider@npm:^0.0.0":
-  version: 0.0.0
-  resolution: "celo-ethers-provider@npm:0.0.0"
-  dependencies:
-    ethers: ^5.4.7
-  checksum: e684dafae84dc6e1f88f1f9456e9eccbf225cac0b9075759a7341b1263afe8f9fed1fc515e6902429fdb24adb982e67b7b37f81d3708c1e47c6b365541c5eceb
-  languageName: node
-  linkType: hard
-
 "chai@npm:^4.3.0":
   version: 4.3.6
   resolution: "chai@npm:4.3.6"
@@ -5513,7 +5511,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"ethers@npm:^5.0.1, ethers@npm:^5.0.2, ethers@npm:^5.4.7, ethers@npm:^5.5.2":
+"ethers@npm:^5.0.1, ethers@npm:^5.0.2, ethers@npm:^5.4.7, ethers@npm:^5.5.2, ethers@npm:^5.6.8":
   version: 5.6.8
   resolution: "ethers@npm:5.6.8"
   dependencies:
