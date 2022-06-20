@@ -16,7 +16,7 @@ use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
 use log::{debug, trace, warn};
 use maplit::hashmap;
-use prometheus::{GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
+use prometheus::{CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
 use static_assertions::assert_impl_all;
 use tokio::sync::RwLock;
 use tokio::time::MissedTickBehavior;
@@ -88,10 +88,24 @@ pub const GAS_PRICE_GWEI_LABELS: &[&str] = &["chain"];
 pub const GAS_PRICE_GWEI_HELP: &str = "Tracks the current gas price of the chain";
 
 /// Expected label names for the `contract_call_duration_seconds` metric.
-pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] =
-    &["chain", "contract_name", "contract_address"];
+pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] = &[
+    "chain",
+    "contract_name",
+    "contract_address",
+    "contract_function",
+];
 /// Help string for the metric.
-pub const CONTRACT_CALL_DURATION_SECONDS_HELP: &str = "Contract call durations by contract";
+pub const CONTRACT_CALL_DURATION_SECONDS_HELP: &str = "Contract call durations by contract and function";
+
+/// Expected label names for the `contract_call_count` metric.
+pub const CONTRACT_CALL_COUNT_LABELS: &[&str] = &[
+    "chain",
+    "contract_name",
+    "contract_address",
+    "contract_function",
+];
+/// Help string for the metric.
+pub const CONTRACT_CALL_COUNT_HELP: &str = "Contract invocations by contract and function";
 
 /// Expected label names for the `transaction_send_duration_seconds` metric.
 pub const TRANSACTION_SEND_DURATION_SECONDS_LABELS: &[&str] = &["chain", "address_from"];
@@ -130,12 +144,21 @@ pub struct ProviderMetrics {
     #[builder(setter(into, strip_option), default)]
     gas_price_gwei: Option<GaugeVec>,
 
-    /// Contract call durations by contract.
+    /// Contract call durations by contract and function
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
     /// - `contract_name`: contract name.
-    /// - `contract_address`: contract address.
+    /// - `contract_address`: contract address (hex).
+    /// - `contract_function`: contract function opcode (hex).
     #[builder(setter(into, strip_option), default)]
-    contract_call_duration_seconds: Option<HistogramVec>,
+    contract_call_duration_seconds: Option<CounterVec>,
+
+    /// Contract invocations by contract and function.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
+    /// - `contract_name`: contract name.
+    /// - `contract_address`: contract address (hex).
+    /// - `contract_function`: contract function opcode (hex).
+    #[builder(setter(into, strip_option), default)]
+    contract_call_count: Option<IntCounterVec>,
 
     /// Time taken to submit the transaction (not counting time for it to be included).
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
@@ -277,7 +300,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let start = Instant::now();
         let result = self.inner.call(tx, block).await;
 
-        if let Some(m) = &self.metrics.contract_call_duration_seconds {
+        if self.metrics.contract_call_duration_seconds.is_some() || self.metrics.contract_call_count.is_some() {
             let data = self.conf.read().await;
             let chain = chain_name(&data.chain);
             let (contract_addr, contract_name) = tx
@@ -292,12 +315,32 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                 })
                 .unwrap_or_else(|| ("".into(), "unknown".into()));
 
-            m.with(&hashmap! {
+            let contract_fn = tx
+                .data()
+                .map(|data| {
+                    format!(
+                        "{:x}",
+                        (data.0[0] as u32)
+                            + ((data.0[1] as u32) << 8)
+                            + ((data.0[2] as u32) << 16)
+                            + ((data.0[3] as u32) << 24)
+                    )
+                })
+                .unwrap_or_else(|| "unknown".to_owned());
+
+            let labels = hashmap! {
                 "chain" => chain,
                 "contract_name" => contract_name.as_str(),
-                "contract_address" => contract_addr.as_str()
-            })
-            .observe((Instant::now() - start).as_secs_f64())
+                "contract_address" => contract_addr.as_str(),
+                "contract_function" => contract_fn.as_str()
+            };
+            if let Some(m) = &self.metrics.contract_call_count {
+                m.with(&labels).inc();
+            }
+            if let Some(m) = &self.metrics.contract_call_duration_seconds {
+                m.with(&labels)
+                    .inc_by((Instant::now() - start).as_secs_f64());
+            }
         }
 
         Ok(result?)
