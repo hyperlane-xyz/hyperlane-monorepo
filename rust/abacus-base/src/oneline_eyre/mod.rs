@@ -29,7 +29,6 @@ use eyre::Result;
 use handler::HookBuilder;
 
 mod handler;
-mod print;
 
 /// Install the default `oneline_eyre` hook as the global error report hook.
 ///

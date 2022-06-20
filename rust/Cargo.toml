@@ -12,5 +12,6 @@ members = [
     "chains/abacus-ethereum",
     "ethers-prometheus",
     "gelato",
-    "utils/loop-control"
+    "utils/backtrace-oneline",
+    "utils/loop-control",
 ]

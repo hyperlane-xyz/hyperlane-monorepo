@@ -1,11 +1,9 @@
 use std::error::Error;
-use std::fmt::{Debug, Display, Formatter};
+use std::fmt::{Debug, Formatter};
 use std::{env, fmt, iter};
 
-use backtrace::{Backtrace, BytesOrWideString};
+use backtrace::Backtrace;
 use eyre::EyreHandler;
-
-use crate::oneline_eyre::print::BacktraceFmt;
 
 /// The default separator used to delimitate lines in error messages.
 const DEFAULT_LINE_SEPARATOR: &str = " ## ";
@@ -40,34 +38,10 @@ impl Handler {
     }
 
     /// Format a backtrace onto a single line.
-    /// Largely stolen from backtrace's Debug implementation.
     fn fmt_backtrace(&self, backtrace: &Backtrace, f: &mut Formatter<'_>) -> fmt::Result {
         write!(f, "{}Stack backtrace:", self.section_separator)?;
 
-        // When printing paths we try to strip the cwd if it exists, otherwise
-        // we just print the path as-is. Note that we also only do this for the
-        // short format, because if it's full we presumably want to print
-        // everything.
-        let cwd = if !self.show_full_paths {
-            env::current_dir().ok()
-        } else {
-            None
-        };
-        let mut print_path = move |fmt: &mut Formatter<'_>, path: BytesOrWideString<'_>| {
-            let path = path.into_path_buf();
-            if let Some(cwd) = &cwd {
-                if let Ok(suffix) = path.strip_prefix(cwd) {
-                    return Display::fmt(&suffix.display(), fmt);
-                }
-            }
-            Display::fmt(&path.display(), fmt)
-        };
-
-        let mut formatter = BacktraceFmt::new(f, self.line_separator, &mut print_path);
-        for frame in backtrace.frames() {
-            formatter.frame().backtrace_frame(frame)?;
-        }
-        Ok(())
+        backtrace_oneline::fmt_backtrace(backtrace, f, self.line_separator, self.show_full_paths)
     }
 }
 

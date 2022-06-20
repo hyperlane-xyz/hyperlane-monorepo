@@ -26,6 +26,7 @@ ethers-prometheus = { path = "../ethers-prometheus", features = ["serde"] }
 abacus-core = { path = "../abacus-core" }
 abacus-ethereum = { path = "../chains/abacus-ethereum" }
 abacus-test = { path = "../abacus-test" }
+backtrace-oneline = { path = "../utils/backtrace-oneline" }
 paste = "1.0"
 tracing-error = "0.2"
 

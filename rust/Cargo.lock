@@ -21,6 +21,7 @@ dependencies = [
  "abacus-test",
  "async-trait",
  "backtrace",
+ "backtrace-oneline",
  "color-eyre",
  "config",
  "ethers",
@@ -267,6 +268,13 @@ dependencies = [
  "miniz_oxide",
  "object",
  "rustc-demangle",
+]
+
+[[package]]
+name = "backtrace-oneline"
+version = "0.1.0"
+dependencies = [
+ "backtrace",
 ]
 
 [[package]]
