@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: hello
+  name: helloworld-kathy
 spec:
   schedule: "* * * * *"
   jobTemplate:
@@ -9,11 +9,14 @@ spec:
       template:
         spec:
           containers:
-          - name: hello
-            image: busybox:1.28
+          - name: helloworld-kathy
+            image: gcr.io/abacus-labs-dev/abacus-monorepo:trevor-testing
             imagePullPolicy: IfNotPresent
             command:
-            - /bin/sh
-            - -c
-            - date; echo Hello from the Kubernetes cluster
-          restartPolicy: OnFailure
+            - ./node_modules/.bin/ts-node
+            - ./typescript/infra/scripts/helloworld/kathy.ts
+            - -e
+            - {{ .Values.abacus.runEnv }}
+            envFrom:
+            - secretRef:
+                name: {{ include "abacus-agent.fullname" . }}-secret

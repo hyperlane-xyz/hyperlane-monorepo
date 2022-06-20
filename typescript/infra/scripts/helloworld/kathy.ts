@@ -30,9 +30,18 @@ async function sendMessage(
   source: ChainName,
   destination: ChainName,
 ) {
-  console.log(`Sending message from ${source} to ${destination}`);
-  const receipt = await app.sendHelloWorld(source, destination, `Hello!`);
-  console.log(JSON.stringify(receipt.events || receipt.logs));
+  try {
+    const receipt = await app.sendHelloWorld(
+      source,
+      destination,
+      `Hello from ${source} to ${destination}!`,
+    );
+    console.log(JSON.stringify(receipt.events || receipt.logs));
+  } catch (err) {
+    console.error(`Error sending ${source} -> ${destination}`, err);
+    // Propagate error up
+    throw err;
+  }
 }
 
 main()
