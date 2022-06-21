@@ -21,10 +21,10 @@ use static_assertions::assert_impl_all;
 use tokio::sync::RwLock;
 use tokio::time::MissedTickBehavior;
 
-use erc20::Erc20;
+use contracts::erc_20::Erc20;
 pub use error::PrometheusMiddlewareError;
 
-mod erc20;
+mod contracts;
 mod error;
 
 /// Some basic information about a token.

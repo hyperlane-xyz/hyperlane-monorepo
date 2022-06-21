@@ -1,9 +1,9 @@
 #![allow(missing_docs)]
 
+use std::fmt::Display;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
 use tracing::instrument;
@@ -14,14 +14,10 @@ use abacus_core::{
     InterchainGasPaymentWithMeta,
 };
 
+use crate::contracts::interchain_gas_paymaster::InterchainGasPaymaster as EthereumInterchainGasPaymasterInternal;
 use crate::trait_builder::MakeableWithProvider;
 
-abigen!(
-    EthereumInterchainGasPaymasterInternal,
-    "./chains/abacus-ethereum/abis/InterchainGasPaymaster.abi.json"
-);
-
-impl<M> std::fmt::Display for EthereumInterchainGasPaymasterInternal<M>
+impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
 where
     M: Middleware,
 {
