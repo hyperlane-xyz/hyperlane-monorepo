@@ -9,7 +9,7 @@ export const infrastructure: InfrastructureConfig = {
     prometheus: {
       deployName: 'prometheus',
       // Node exporter does not work with GKE Autopilot
-      nodeExporterEnabled: false,
+      nodeExporterEnabled: true,
       helmChart: {
         // See https://github.com/prometheus-community/helm-charts#usage
         repository: {

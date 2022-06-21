@@ -12,7 +12,7 @@ import {
   getDeployableHelmChartName,
   helmifyValues,
 } from '../../utils/helm';
-import { execCmd } from '../../utils/utils';
+import { execCmd, execCmdAndParseJson, sleep } from '../../utils/utils';
 
 const SECRET_ACCESSOR_ROLE = 'roles/secretmanager.secretAccessor';
 
@@ -92,7 +92,28 @@ async function ensureExternalSecretsRelease(infraConfig: InfrastructureConfig) {
     infraConfig.externalSecrets.helmChart,
   );
 
-  return execCmd(
+  await execCmd(
     `helm upgrade external-secrets ${chartName} --namespace ${infraConfig.externalSecrets.namespace} --create-namespace --version ${infraConfig.externalSecrets.helmChart.version} --install --set installCRDs=true `,
   );
+
+  // Wait for the external-secrets-webhook deployment to have a ready replica.
+  // The webhook deployment is required in order for subsequent deployments
+  // that make use of external-secrets CRDs to be successful.
+  while (true) {
+    console.log(
+      'Waiting for external-secrets webhook deployment to be ready...',
+    );
+
+    // Note `kubectl wait` exists and newer versions support the ability to wait for
+    // arbitrary conditions. However this is a recent feature, so instead we poll to
+    // avoid annoying kubectl versioning issues.
+    const readyReplicas = await execCmdAndParseJson(
+      `kubectl get deploy external-secrets-webhook -o jsonpath='{.status.readyReplicas}' --namespace ${infraConfig.externalSecrets.namespace}`,
+    );
+    if (readyReplicas > 0) {
+      return;
+    }
+    // Sleep a second and try again
+    await sleep(1000);
+  }
 }
