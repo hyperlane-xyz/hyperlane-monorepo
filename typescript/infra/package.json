@@ -3,6 +3,7 @@
   "description": "Infrastructure utilities for the Abacus Network",
   "version": "0.2.2",
   "dependencies": {
+    "@abacus-network/celo-ethers-provider": "^0.1.0",
     "@abacus-network/core": "^0.2.2",
     "@abacus-network/deploy": "^0.2.2",
     "@abacus-network/helloworld": "0.2.2",
@@ -10,7 +11,6 @@
     "@aws-sdk/client-iam": "^3.74.0",
     "@aws-sdk/client-kms": "3.48.0",
     "@aws-sdk/client-s3": "^3.74.0",
-    "@celo-tools/celo-ethers-wrapper": "^0.3.0",
     "@ethersproject/experimental": "^5.6.2",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@types/mocha": "^9.1.0",
