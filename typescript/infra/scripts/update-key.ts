@@ -9,7 +9,7 @@ async function rotateKey() {
   const argv = await args.argv;
 
   const environment = await getEnvironment();
-  const config = await getCoreEnvironmentConfig(environment);
+  const config = getCoreEnvironmentConfig(environment);
 
   switch (environment) {
     // TODO: Reimplement this when the environments get readded

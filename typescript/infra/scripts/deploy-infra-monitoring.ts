@@ -5,7 +5,7 @@ import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function main() {
   const environment = await getEnvironment();
-  const config = await getCoreEnvironmentConfig(environment);
+  const config = getCoreEnvironmentConfig(environment);
   return runPrometheusHelmCommand(
     HelmCommand.InstallOrUpgrade,
     config.infra,

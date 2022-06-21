@@ -1,28 +1,23 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use std::fmt::Display;
 use std::sync::Arc;
 
-use abacus_core::Encode;
 use async_trait::async_trait;
-use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, ContractLocator,
+    accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, ContractLocator, Encode,
     InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
+use crate::contracts::inbox_validator_manager::InboxValidatorManager as EthereumInboxValidatorManagerInternal;
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
 
-abigen!(
-    EthereumInboxValidatorManagerInternal,
-    "./chains/abacus-ethereum/abis/InboxValidatorManager.abi.json",
-);
-
-impl<M> std::fmt::Display for EthereumInboxValidatorManagerInternal<M>
+impl<M> Display for EthereumInboxValidatorManagerInternal<M>
 where
     M: Middleware,
 {
