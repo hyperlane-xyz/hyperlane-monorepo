@@ -418,7 +418,11 @@ impl Settings {
     }
 
     /// Try to generate an agent core for a named agent
-    pub async fn try_into_abacus_core(&self, name: &str, parse_inboxes: bool) -> Result<AbacusAgentCore, Report> {
+    pub async fn try_into_abacus_core(
+        &self,
+        name: &str,
+        parse_inboxes: bool,
+    ) -> Result<AbacusAgentCore, Report> {
         let metrics = Arc::new(CoreMetrics::new(
             name,
             self.metrics
