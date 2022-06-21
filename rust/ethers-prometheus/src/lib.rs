@@ -66,6 +66,8 @@ pub struct WalletInfo {
 pub struct ContractInfo {
     /// A human-friendly name for the contract. This should be a short string like "inbox".
     pub name: Option<String>,
+    /// Mapping from function selectors to human readable names.
+    pub functions: HashMap<Selector, String>,
 }
 
 /// Some basic information about a chain.
@@ -92,17 +94,20 @@ pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] = &[
     "chain",
     "contract_name",
     "contract_address",
-    "contract_function",
+    "function_name",
+    "function_selector",
 ];
 /// Help string for the metric.
-pub const CONTRACT_CALL_DURATION_SECONDS_HELP: &str = "Contract call durations by contract and function";
+pub const CONTRACT_CALL_DURATION_SECONDS_HELP: &str =
+    "Contract call durations by contract and function";
 
 /// Expected label names for the `contract_call_count` metric.
 pub const CONTRACT_CALL_COUNT_LABELS: &[&str] = &[
     "chain",
     "contract_name",
     "contract_address",
-    "contract_function",
+    "function_name",
+    "function_selector",
 ];
 /// Help string for the metric.
 pub const CONTRACT_CALL_COUNT_HELP: &str = "Contract invocations by contract and function";
@@ -148,7 +153,8 @@ pub struct ProviderMetrics {
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
     /// - `contract_name`: contract name.
     /// - `contract_address`: contract address (hex).
-    /// - `contract_function`: contract function opcode (hex).
+    /// - `function_name`: contract function name.
+    /// - `function_selector`: contract function hash (hex).
     #[builder(setter(into, strip_option), default)]
     contract_call_duration_seconds: Option<CounterVec>,
 
@@ -156,7 +162,8 @@ pub struct ProviderMetrics {
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
     /// - `contract_name`: contract name.
     /// - `contract_address`: contract address (hex).
-    /// - `contract_function`: contract function opcode (hex).
+    /// - `function_name`: contract function name.
+    /// - `function_selector`: contract function hash (hex).
     #[builder(setter(into, strip_option), default)]
     contract_call_count: Option<IntCounterVec>,
 
@@ -300,39 +307,45 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let start = Instant::now();
         let result = self.inner.call(tx, block).await;
 
-        if self.metrics.contract_call_duration_seconds.is_some() || self.metrics.contract_call_count.is_some() {
+        if self.metrics.contract_call_duration_seconds.is_some()
+            || self.metrics.contract_call_count.is_some()
+        {
             let data = self.conf.read().await;
             let chain = chain_name(&data.chain);
-            let (contract_addr, contract_name) = tx
+            let empty_hm = HashMap::default();
+            let (contract_addr, contract_name, contract_fns) = tx
                 .to()
                 .and_then(|addr| match addr {
-                    NameOrAddress::Name(n) => Some((n.clone(), n.clone())),
+                    NameOrAddress::Name(n) => {
+                        // not supporting ENS names for lookups by address right now
+                        Some((n.clone(), n.clone(), &empty_hm))
+                    }
                     NameOrAddress::Address(a) => data
                         .contracts
                         .get(a)
-                        .map_or(Some("unknown".to_string()), |c| c.name.clone())
-                        .map(|n| (a.encode_hex(), n)),
+                        .map(|c| (c.name.as_deref().unwrap_or("unknown").clone(), &c.functions))
+                        .map(|(n, m)| (a.encode_hex(), n.into(), m)),
                 })
-                .unwrap_or_else(|| ("".into(), "unknown".into()));
+                .unwrap_or_else(|| ("".into(), "unknown".into(), &empty_hm));
 
-            let contract_fn = tx
+            let fn_selector: Option<Selector> = tx
                 .data()
-                .map(|data| {
-                    format!(
-                        "{:x}",
-                        (data.0[0] as u32)
-                            + ((data.0[1] as u32) << 8)
-                            + ((data.0[2] as u32) << 16)
-                            + ((data.0[3] as u32) << 24)
-                    )
-                })
-                .unwrap_or_else(|| "unknown".to_owned());
+                .filter(|data| data.0.len() >= 4)
+                .map(|data| Selector::from([data.0[0], data.0[1], data.0[2], data.0[3]]));
+            let fn_name: &str = fn_selector
+                .and_then(|s| contract_fns.get(&s))
+                .map(|s| s.as_str())
+                .unwrap_or("unknown");
+            let fn_selector: String = fn_selector
+                .map(|s| format!("{:02x}{:02x}{:02x}{:02x}", s[0], s[1], s[2], s[3]))
+                .unwrap_or_else(|| "unknown".into());
 
             let labels = hashmap! {
                 "chain" => chain,
                 "contract_name" => contract_name.as_str(),
                 "contract_address" => contract_addr.as_str(),
-                "contract_function" => contract_fn.as_str()
+                "function_name" => fn_name,
+                "function_selector" => &fn_selector,
             };
             if let Some(m) = &self.metrics.contract_call_count {
                 m.with(&labels).inc();
