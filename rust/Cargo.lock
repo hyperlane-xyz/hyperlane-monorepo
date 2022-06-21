@@ -1285,6 +1285,7 @@ dependencies = [
 name = "ethers-prometheus"
 version = "0.1.0"
 dependencies = [
+ "abigen",
  "async-trait",
  "derive_builder",
  "ethers",
