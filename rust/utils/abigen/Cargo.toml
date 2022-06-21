@@ -1,0 +1,11 @@
+[package]
+name = "abigen"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+ethers = { git = "https://github.com/gakonst/ethers-rs", branch = "master" }
+Inflector = "0.11"
+which = "4.2"

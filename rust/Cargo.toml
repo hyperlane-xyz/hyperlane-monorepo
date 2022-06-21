@@ -12,6 +12,7 @@ members = [
     "chains/abacus-ethereum",
     "ethers-prometheus",
     "gelato",
+    "utils/abigen",
     "utils/backtrace-oneline",
     "utils/loop-control",
 ]
