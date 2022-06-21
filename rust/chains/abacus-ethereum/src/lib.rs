@@ -36,6 +36,10 @@ mod validator_manager;
 #[cfg(not(doctest))]
 mod interchain_gas;
 
+/// Generated contract bindings.
+#[cfg(not(doctest))]
+mod contracts;
+
 /// Retrying Provider
 mod retrying;
 
