@@ -11,6 +11,7 @@ import {
 } from '@abacus-network/sdk';
 
 import { CoreEnvironmentConfig, DeployEnvironment } from '../../src/config';
+import { HelloWorldConfig } from '../../src/config/helloworld';
 
 export async function getConfiguration<Chain extends ChainName>(
   environment: DeployEnvironment,
@@ -43,17 +44,29 @@ export async function getConfiguration<Chain extends ChainName>(
 export async function getApp<Chain extends ChainName>(
   coreConfig: CoreEnvironmentConfig<Chain>,
 ) {
-  const addresses = coreConfig.helloWorldAddresses;
-  if (!addresses) {
+  const helloworldConfig = coreConfig.helloWorld;
+  if (!helloworldConfig) {
     throw new Error(
-      `Environment ${coreConfig.environment} does not have addresses for HelloWorld`,
+      `Environment ${coreConfig.environment} does not have a HelloWorld config`,
     );
   }
-  const contracts = buildContracts(addresses, helloWorldFactories) as ChainMap<
-    Chain,
-    HelloWorldContracts
-  >;
+  const contracts = buildContracts(
+    helloworldConfig.addresses,
+    helloWorldFactories,
+  ) as ChainMap<Chain, HelloWorldContracts>;
   const multiProvider = await coreConfig.getMultiProvider();
   const app = new HelloWorldApp(contracts, multiProvider as any);
   return app;
+}
+
+export function getHelloWorldConfig<Chain extends ChainName>(
+  coreConfig: CoreEnvironmentConfig<Chain>,
+): HelloWorldConfig<Chain> {
+  const helloWorldConfig = coreConfig.helloWorld;
+  if (!helloWorldConfig) {
+    throw new Error(
+      `Environment ${coreConfig.environment} does not have a HelloWorld config`,
+    );
+  }
+  return helloWorldConfig;
 }

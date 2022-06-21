@@ -11,7 +11,7 @@ spec:
           restartPolicy: Never
           containers:
           - name: helloworld-kathy
-            image: gcr.io/abacus-labs-dev/abacus-monorepo@sha256:288dc1def387b27c98817b34487d568b39c8b1ec5bebd475ab7c9606c8adcc67
+            image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: IfNotPresent
             command:
             - ./node_modules/.bin/ts-node

@@ -1,3 +1,6 @@
+image:
+  repository: gcr.io/abacus-labs-dev/abacus-monorepo
+  tag:
 abacus:
   runEnv: testnet2
   chains: []

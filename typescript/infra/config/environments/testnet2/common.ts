@@ -12,3 +12,4 @@ export const testnetConfigs = {
 
 export type TestnetChains = keyof typeof testnetConfigs;
 export const chainNames = Object.keys(testnetConfigs) as TestnetChains[];
+export const environment = 'testnet2';

@@ -1,12 +1,12 @@
 import { AgentConfig } from '../../../src/config';
 
-import { TestnetChains, chainNames } from './chains';
+import { TestnetChains, chainNames, environment } from './common';
 import { validators } from './validators';
 
 export const agent: AgentConfig<TestnetChains> = {
-  environment: 'testnet2',
-  namespace: 'testnet2',
-  runEnv: 'testnet2',
+  environment,
+  namespace: environment,
+  runEnv: environment,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-4b9faad',
