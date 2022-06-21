@@ -24,3 +24,7 @@ tracing-futures = "0.2"
 
 abacus-core = { path = "../../abacus-core" }
 ethers-prometheus = { path = "../../ethers-prometheus" }
+
+
+[build-dependencies]
+abigen = { path = "../../utils/abigen" }
