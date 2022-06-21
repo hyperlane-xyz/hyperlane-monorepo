@@ -7,10 +7,6 @@ use std::path::Path;
 use ethers::contract::Abigen;
 use inflector::Inflector;
 
-use crate::format::fmt_file;
-
-mod format;
-
 /// A `build.rs` tool for building a directory of ABIs. This will parse the `abi_dir` for ABI files
 /// ending in `.json` and write the generated rust code to `output_dir` and create an appropriate
 /// `mod.rs` file to.
@@ -48,12 +44,11 @@ pub fn generate_bindings_for_dir(abi_dir: impl AsRef<Path>, output_dir: impl AsR
 
     println!("Creating module file at {}", mod_file_path.display());
     let mut mod_file = File::create(&mod_file_path).expect("could not create modfile");
-    writeln!(mod_file, "#![allow(clippy::all)]").unwrap();
+    write!(mod_file, "#![allow(clippy::all)]\n\n").unwrap();
     for m in modules {
         writeln!(mod_file, "pub(crate) mod {};", m).expect("failed to write to modfile");
     }
     drop(mod_file);
-    fmt_file(mod_file_path);
 }
 
 /// Generate the bindings for a given ABI and return the new module name. Will create a file within
@@ -88,7 +83,6 @@ pub fn generate_bindings(contract_path: impl AsRef<Path>, output_dir: impl AsRef
     bindings
         .write_to_file(&output_file)
         .expect("Could not write bidings to file");
-    fmt_file(output_file);
 
     module_name
 }
