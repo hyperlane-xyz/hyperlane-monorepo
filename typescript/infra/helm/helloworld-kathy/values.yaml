@@ -1,0 +1,5 @@
+abacus:
+  runEnv: testnet2
+  chains: []
+externalSecrets:
+  clusterSecretStore:

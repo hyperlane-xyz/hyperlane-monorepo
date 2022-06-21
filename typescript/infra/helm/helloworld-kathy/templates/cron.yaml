@@ -3,14 +3,15 @@ kind: CronJob
 metadata:
   name: helloworld-kathy
 spec:
-  schedule: "* * * * *"
+  schedule: "*/6 * * * *"
   jobTemplate:
     spec:
       template:
         spec:
+          restartPolicy: Never
           containers:
           - name: helloworld-kathy
-            image: gcr.io/abacus-labs-dev/abacus-monorepo:trevor-testing
+            image: gcr.io/abacus-labs-dev/abacus-monorepo@sha256:288dc1def387b27c98817b34487d568b39c8b1ec5bebd475ab7c9606c8adcc67
             imagePullPolicy: IfNotPresent
             command:
             - ./node_modules/.bin/ts-node
@@ -19,4 +20,4 @@ spec:
             - {{ .Values.abacus.runEnv }}
             envFrom:
             - secretRef:
-                name: {{ include "abacus-agent.fullname" . }}-secret
+                name: helloworld-kathy-secret

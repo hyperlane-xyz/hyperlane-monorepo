@@ -37,7 +37,7 @@ function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
     return undefined;
   }
   const overrideEnvVarName = `GCP_SECRET_OVERRIDE_${gcpSecretName
-    .replace('-', '_')
+    .replaceAll('-', '_')
     .toUpperCase()}`;
   return process.env[overrideEnvVarName];
 }
