@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{Context, Result};
+use eyre::{Context, Result, WrapErr};
+use futures_util::{Future, try_join};
 use tokio::{
-    sync::watch::{channel, Receiver, Sender},
-    task::JoinHandle,
+    sync::{watch::{channel, Receiver, Sender}, futures},
+    task::{JoinHandle},
 };
-use tracing::{info, warn, instrument::Instrumented, Instrument};
+use tracing::{info, warn, instrument::Instrumented, Instrument, info_span};
 
 use abacus_base::{
     AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics, InboxContracts,
@@ -18,6 +19,66 @@ use crate::checkpoint_fetcher::CheckpointFetcher;
 use crate::message_processor::MessageProcessorMetrics;
 use crate::settings::whitelist::Whitelist;
 use crate::{message_processor::MessageProcessor, settings::RelayerSettings};
+
+#[derive(Debug)]
+pub enum MessageSubmitter {
+    SerialWithProvider(SerialSubmitterImpl),
+    GelatoSubmitter(GelatoSubmitterImpl),
+}
+
+impl MessageSubmitter {
+    fn new(gelato_cfg: Option<GelatoConf>) -> Self {
+        if gelato_cfg.is_none() {
+            MessageSubmitter::SerialWithProvider(SerialSubmitterImpl{})
+        } else {
+            MessageSubmitter::GelatoSubmitter(GelatoSubmitterImpl{})
+        }
+    }
+    fn inner(&self) -> &dyn MessageSubmitterInner {
+        match self {
+            MessageSubmitter::SerialWithProvider(inner) => inner,
+            MessageSubmitter::GelatoSubmitter(inner) => inner,
+        }
+    }
+    fn send_message(&self) -> Result<()> {
+        match self {
+            SerialWithProvider => self.inner().send_message(),
+            GelatoSubmitter => self.inner().send_message(),
+        }
+    }
+    fn spawn_worker_task(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        match self {
+            SerialWithProvider => self.inner().spawn_worker_task(),
+            GelatoSubmitter => self.inner().spawn_worker_task(),
+        }
+    }
+}
+
+#[async_trait]
+trait MessageSubmitterInner {
+    fn send_message(&self) -> Result<()>;
+    fn spawn_worker_task(&self) -> Instrumented<JoinHandle<Result<()>>>;
+}
+#[derive(Debug)]
+pub struct SerialSubmitterImpl;
+impl MessageSubmitterInner for SerialSubmitterImpl {
+    fn send_message(&self) -> Result<()> {
+        Ok(())
+    }
+    fn spawn_worker_task(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        todo!()
+    }
+}
+#[derive(Debug)]
+pub struct GelatoSubmitterImpl;
+impl MessageSubmitterInner for GelatoSubmitterImpl {
+    fn send_message(&self) -> Result<()> {
+        Ok(())
+    }
+    fn spawn_worker_task(&self) -> Instrumented<JoinHandle<Result<()>>> {
+        todo!()
+    }
+}
 
 /// A relayer agent
 #[derive(Debug)]
@@ -121,34 +182,43 @@ impl Relayer {
             outbox.chain_name(),
             inbox_contracts.inbox.chain_name(),
         );
-        warn!(?gelato_conf);
+        info!(
+            name=%inbox_contracts.inbox,
+            db=?db,
+            outbox=?outbox,
+            metrics=?metrics,
+            gelato=?gelato_conf,
+            "running inbox message processor and submit worker"
+        );
+
+        let submitter = MessageSubmitter::new(gelato_conf);
+        let submit_fut = submitter.spawn_worker_task();
+        info!(
+            submitter=?submitter,
+            submitter_fut=?submit_fut,
+            "using submitter"
+        );
+
         let message_processor = MessageProcessor::new(
             outbox,
-            self.max_processing_retries,
+            self.max_processing_retries.clone(),
             db,
             inbox_contracts,
             signed_checkpoint_receiver,
             self.whitelist.clone(),
             metrics,
+            submitter,
+        );
+        info!(
+            message_processor=?message_processor,
+            "using message processor"
         );
 
-        message_processor.spawn()
-    }
-
-    fn wrap_inbox_run(
-        &self,
-        inbox_name: &str,
-        inbox_contracts: InboxContracts,
-        signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
-        gelato_conf: Option<GelatoConf>,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
-        let m = format!("Task for inbox named {} failed", inbox_name);
-        let handle = self
-            .run_inbox(inbox_contracts, signed_checkpoint_receiver, gelato_conf)
-            .in_current_span();
-        let fut = async move { handle.await?.wrap_err(m) };
-
-        tokio::spawn(fut).in_current_span()
+        tokio::spawn(async move {
+            let res = try_join!(submit_fut, message_processor.spawn())?;
+            info!(?res, "try_join finished for inbox");
+            Ok(())
+        }).instrument(info_span!("run inbox"))
     }
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
@@ -159,8 +229,7 @@ impl Relayer {
             .inboxes()
             .iter()
             .map(|(inbox_name, inbox_contracts)| {
-                self.wrap_inbox_run(
-                    inbox_name,
+                self.run_inbox(
                     inbox_contracts.clone(),
                     signed_checkpoint_receiver.clone(),
                     self.core.settings.inboxes[inbox_name].gelato_conf.clone(),

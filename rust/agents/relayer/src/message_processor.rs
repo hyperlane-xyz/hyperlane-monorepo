@@ -21,8 +21,10 @@ use loop_control::LoopControl::{Continue, Flow};
 use loop_control::{loop_ctrl, LoopControl};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
+use crate::relayer::MessageSubmitter;
 use crate::settings::whitelist::Whitelist;
 
+#[derive(Debug)]
 pub(crate) struct MessageProcessor {
     outbox: Outboxes,
     max_retries: u32,
@@ -33,9 +35,10 @@ pub(crate) struct MessageProcessor {
     signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
     whitelist: Arc<Whitelist>,
     metrics: MessageProcessorMetrics,
+    submitter: MessageSubmitter,
 }
 
-#[derive(PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct MessageToRetry {
     time_to_retry: Reverse<Instant>,
     leaf_index: u32,
@@ -61,6 +64,7 @@ impl MessageProcessor {
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
         whitelist: Arc<Whitelist>,
         metrics: MessageProcessorMetrics,
+        submitter: MessageSubmitter,
     ) -> Self {
         Self {
             outbox,
@@ -72,6 +76,7 @@ impl MessageProcessor {
             whitelist,
             signed_checkpoint_receiver,
             metrics,
+            submitter,
         }
     }
 
@@ -391,6 +396,7 @@ impl MessageProcessor {
     }
 }
 
+#[derive(Debug)]
 pub(crate) struct MessageProcessorMetrics {
     processor_loop_gauge: IntGauge,
     processed_gauge: IntGauge,
