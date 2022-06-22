@@ -7,6 +7,7 @@ use std::{
 
 use eyre::{bail, Result};
 use prometheus::IntGauge;
+use tokio::time::MissedTickBehavior;
 use tokio::{sync::watch::Receiver, task::JoinHandle, time::sleep};
 use tracing::{
     debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument,
@@ -14,8 +15,8 @@ use tracing::{
 
 use abacus_base::{CoreMetrics, InboxContracts, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, CommittedMessage, Inbox,
-    InboxValidatorManager, MessageStatus, MultisigSignedCheckpoint, Outbox, OutboxState,
+    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, Inbox, InboxValidatorManager,
+    MessageStatus, MultisigSignedCheckpoint, Outbox,
 };
 use loop_control::LoopControl::{Continue, Flow};
 use loop_control::{loop_ctrl, LoopControl};
@@ -204,8 +205,6 @@ impl MessageProcessor {
         let mut latest_signed_checkpoint = self.get_signed_checkpoint_blocking().await?;
 
         loop {
-            self.update_outbox_state_gauge();
-
             // Get latest signed checkpoint, non-blocking
             latest_signed_checkpoint =
                 self.get_updated_latest_signed_checkpoint(latest_signed_checkpoint)?;
@@ -240,6 +239,7 @@ impl MessageProcessor {
                 );
             }
         }
+
         // will only reach this if we break
         Ok(())
     }
@@ -247,19 +247,18 @@ impl MessageProcessor {
     /// Part of main loop.
     ///
     /// Spawn a task to update the outbox state gauge.
-    fn update_outbox_state_gauge(
-        &self,
-    ) -> JoinHandle<Result<OutboxState, ChainCommunicationError>> {
-        let outbox_state_gauge = self.metrics.outbox_state_gauge.clone();
-        let outbox = self.outbox.clone();
-        tokio::spawn(async move {
+    async fn metrics_loop(outbox_state_gauge: IntGauge, outbox: Outboxes) -> () {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
             let state = outbox.state().await;
             match &state {
                 Ok(state) => outbox_state_gauge.set(*state as u8 as i64),
                 Err(e) => warn!(error = %e, "Failed to get outbox state"),
             };
-            state
-        })
+
+            interval.tick().await;
+        }
     }
 
     /// Part of main loop
@@ -387,7 +386,18 @@ impl MessageProcessor {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
-        tokio::spawn(self.main_loop()).instrument(span)
+
+        let metrics_loop = tokio::spawn(Self::metrics_loop(
+            self.metrics.outbox_state_gauge.clone(),
+            self.outbox.clone(),
+        ));
+
+        tokio::spawn(async move {
+            let res = self.main_loop().await;
+            metrics_loop.abort();
+            res
+        })
+        .instrument(span)
     }
 }
 
