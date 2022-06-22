@@ -1,7 +1,7 @@
 import debug from 'debug';
 import { ethers } from 'ethers';
 
-import { Inbox } from '@abacus-network/core';
+import { Inbox, Ownable } from '@abacus-network/core';
 import {
   AbacusCore,
   BeaconProxyAddresses,
@@ -216,36 +216,24 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     owner: types.Address,
     chainConnection: ChainConnection,
   ): Promise<ethers.ContractReceipt> {
-    await coreContracts.outboxValidatorManager.transferOwnership(
-      owner,
-      chainConnection.overrides,
-    );
-    await coreContracts.abacusConnectionManager.transferOwnership(
-      owner,
-      chainConnection.overrides,
-    );
-    await coreContracts.upgradeBeaconController.transferOwnership(
-      owner,
-      chainConnection.overrides,
-    );
-    const inboxContracts = Object.values<InboxContracts>(coreContracts.inboxes);
-    await Promise.all(
-      inboxContracts.map(async (inbox) => {
-        await inbox.inboxValidatorManager.transferOwnership(
+    const ownables: Ownable[] = [
+      coreContracts.outbox.contract,
+      coreContracts.outboxValidatorManager,
+      coreContracts.abacusConnectionManager,
+      coreContracts.upgradeBeaconController,
+      ...Object.values<InboxContracts>(coreContracts.inboxes).flatMap(
+        (inbox) => [inbox.inbox.contract, inbox.inboxValidatorManager],
+      ),
+    ];
+    const receipts = await Promise.all(
+      ownables.map(async (ownable) => {
+        const response = await ownable.transferOwnership(
           owner,
           chainConnection.overrides,
         );
-        await inbox.inbox.contract.transferOwnership(
-          owner,
-          chainConnection.overrides,
-        );
+        return response.wait(chainConnection.confirmations);
       }),
     );
-
-    const tx = await coreContracts.outbox.contract.transferOwnership(
-      owner,
-      chainConnection.overrides,
-    );
-    return tx.wait(chainConnection.confirmations);
+    return receipts[0];
   }
 }
