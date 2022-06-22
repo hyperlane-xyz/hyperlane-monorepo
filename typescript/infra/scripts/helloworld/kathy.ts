@@ -1,5 +1,5 @@
 import { HelloWorldApp } from '@abacus-network/helloworld';
-import { ChainName } from '@abacus-network/sdk';
+import { ChainName, Chains } from '@abacus-network/sdk';
 
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
@@ -9,17 +9,20 @@ async function main() {
   const environment = await getEnvironment();
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
-  const sources = app.chains();
-  await Promise.all(
-    sources.map((source) => {
-      const destinations = sources.slice().filter((d) => d !== source);
-      return Promise.all(
-        destinations.map((destination) =>
-          sendMessage(app, source, destination),
-        ),
-      );
-    }),
-  );
+  const chains = app.chains() as Chains[];
+  const skip = process.env.NETWORKS_TO_SKIP?.split(',');
+
+  const invalidChain = chains.find((chain) => skip && !skip.includes(chain));
+  if (invalidChain) {
+    throw new Error(`Invalid chain to skip ${invalidChain}`);
+  }
+
+  const sources = chains.filter((chain) => !skip || !skip.includes(chain));
+  for (const source of sources) {
+    for (const destination of sources.slice().filter((d) => d !== source)) {
+      await sendMessage(app, source, destination);
+    }
+  }
 }
 
 async function sendMessage(
@@ -27,11 +30,8 @@ async function sendMessage(
   source: ChainName,
   destination: ChainName,
 ) {
-  const receipt = await app.sendHelloWorld(
-    source,
-    destination,
-    `Hello from ${source} to ${destination}!`,
-  );
+  console.log(`Sending message from ${source} to ${destination}`);
+  const receipt = await app.sendHelloWorld(source, destination, `Hello!`);
   console.log(JSON.stringify(receipt.events || receipt.logs));
 }
 
