@@ -17,24 +17,39 @@ impl GelatoSubmitter {
         assert!(cfg.enabled);
         Self { rx }
     }
-    pub fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
+    pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
             .instrument(info_span!("submitter work loop"))
     }
-    async fn work_loop(&self) -> Result<()> {
-        // TODO(webbhorn):
-        // - ===> Waiting for validation checkpoint queue
-        // - ===> Waiting for funding queue
-        // - ===> Send queue
-        // - Forever:
-        //   -  Pull rx work
-        //   -  Categorize new work into ckpt_q, fund_q, or send_q.
-        //   -  Move work through queues
-        //   -  Pick next ready work that sorts best for some queue metric
-        //      (most recent)?
-        for _ in 1..1000 {
-            sleep(
-              tokio::time::Duration::from_secs(86400 * 365)).await;
+    // The relay SDK framework allows us to submit ops in parallel,
+    // subject to certain retry rules. Therefore all we do here is
+    // spin forever asking for work from the rx channel, then spawn
+    // the work to submit to gelato in a root tokio task.
+    //
+    // It is possible that there has not been sufficient interchain
+    // gas deposited in the interchaingaspaymaster account on the source
+    // chain, so we also keep a pending_gas queue of ops that we
+    // periodically scan for any gas updates.
+    //
+    // In the future one could maybe imagine also applying a rate-limiter
+    // or something, or a max-inflight-cap on Gelato messages from
+    // relayres, enforced here.
+    async fn work_loop(&mut self) -> Result<()> {
+        loop {
+            let foo = self.rx.recv().await;
+            if foo.is_none() {
+                break;
+            }
+
+            // TODO(webbhorn): Check if enough gas. If not, put on
+            // pending_gas queue. If there is, spawn it and run the op
+            // in its own task.
+
+            // TODO(webbhorn): Scan pending queue for any newly-eligible
+            // ops and if encountered, spawn them in root task.
+            // Remove them from pending queue.
+            //
+            // Also look for 'expired' ops, i.e. those created >= time ago.
         }
         Ok(())
     }
