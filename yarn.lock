@@ -143,7 +143,6 @@ __metadata:
     "@types/node": ^16.9.1
     "@types/yargs": ^17.0.10
     asn1.js: 5.4.1
-    celo-ethers-provider: 0.0.0
     chai: ^4.3.4
     dotenv: ^10.0.0
     ethereum-waffle: ^3.2.2
@@ -5686,15 +5685,6 @@ __metadata:
     bignumber.js: ^9.0.1
     nofilter: ^1.0.4
   checksum: b3c39dae64370f361526dbec88f51d0f1b47027224cdd21dbd64c228f0fe7eaa945932d349ec5324068a6c6dcdbb1e3b46242852524fd53c526d14cb60514bdc
-  languageName: node
-  linkType: hard
-
-"celo-ethers-provider@npm:0.0.0":
-  version: 0.0.0
-  resolution: "celo-ethers-provider@npm:0.0.0"
-  dependencies:
-    ethers: ^5.4.7
-  checksum: e684dafae84dc6e1f88f1f9456e9eccbf225cac0b9075759a7341b1263afe8f9fed1fc515e6902429fdb24adb982e67b7b37f81d3708c1e47c6b365541c5eceb
   languageName: node
   linkType: hard
 

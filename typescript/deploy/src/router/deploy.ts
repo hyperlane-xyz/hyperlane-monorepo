@@ -91,10 +91,7 @@ export abstract class AbacusRouterDeployer<
     );
   }
 
-  async deploy(
-    partialDeployment: Partial<Record<Chain, Contracts>> = this
-      .deployedContracts,
-  ) {
+  async deploy(partialDeployment: Partial<Record<Chain, Contracts>>) {
     const contractsMap = await super.deploy(partialDeployment);
 
     await this.enrollRemoteRouters(contractsMap);
