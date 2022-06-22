@@ -131,11 +131,9 @@ impl Relayer {
             gelato=?gelato_conf,
             "running inbox message processor and submit worker"
         );
-
         let (snd, rcv) = tokio::sync::mpsc::channel(1000);
-
         let submit_fut = match gelato_conf {
-            Some(cfg) => {
+            Some(cfg) if cfg.enabled_for_message_submission => {
                 let gelato_submitter = GelatoSubmitter::new(cfg, rcv);
                 gelato_submitter.spawn()
             }
@@ -144,7 +142,6 @@ impl Relayer {
                 serial_submitter.spawn()
             }
         };
-
         let message_processor = MessageProcessor::new(
             outbox,
             self.max_processing_retries,
@@ -160,7 +157,6 @@ impl Relayer {
             "using message processor"
         );
         let process_fut = message_processor.spawn();
-
         tokio::spawn(async move {
             let res = tokio::try_join!(submit_fut, process_fut)?;
             info!(?res, "try_join finished for inbox");
