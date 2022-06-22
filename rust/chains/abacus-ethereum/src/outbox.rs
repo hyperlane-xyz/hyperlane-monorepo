@@ -1,11 +1,11 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use std::{error::Error as StdError, sync::Arc};
+
 use async_trait::async_trait;
-use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
-use std::{error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
 use abacus_core::{
@@ -14,13 +14,9 @@ use abacus_core::{
     RawCommittedMessage, TxOutcome,
 };
 
+use crate::contracts::outbox::Outbox as EthereumOutboxInternal;
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
-
-abigen!(
-    EthereumOutboxInternal,
-    "./chains/abacus-ethereum/abis/Outbox.abi.json"
-);
 
 impl<M> std::fmt::Display for EthereumOutboxInternal<M>
 where

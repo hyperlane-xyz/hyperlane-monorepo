@@ -22,6 +22,9 @@ serde_json = { version = "1.0", default-features = false }
 # enable feature for this crate that is imported by ethers-rs
 primitive-types = { version = "*", features = ["fp-conversion"] }
 
+[build-dependencies]
+abigen = { path = "../utils/abigen" }
+
 [features]
 default = []
 serde = ["dep:serde"]
