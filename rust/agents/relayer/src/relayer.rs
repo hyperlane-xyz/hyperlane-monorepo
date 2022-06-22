@@ -46,7 +46,7 @@ impl MessageSubmitter {
             GelatoSubmitter => self.inner().send_message(),
         }
     }
-    fn spawn_worker_task(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    fn spawn(&self) -> Instrumented<JoinHandle<Result<()>>> {
         match self {
             SerialWithProvider => self.inner().spawn_worker_task(),
             GelatoSubmitter => self.inner().spawn_worker_task(),
@@ -192,7 +192,7 @@ impl Relayer {
         );
 
         let submitter = MessageSubmitter::new(gelato_conf);
-        let submit_fut = submitter.spawn_worker_task();
+        let submit_fut = tokio::spawn(submitter.spawn());
         info!(
             submitter=?submitter,
             submitter_fut=?submit_fut,
@@ -213,9 +213,10 @@ impl Relayer {
             message_processor=?message_processor,
             "using message processor"
         );
+        let process_fut = tokio::spawn(message_processor.spawn());
 
         tokio::spawn(async move {
-            let res = try_join!(submit_fut, message_processor.spawn())?;
+            let res = try_join!(submit_fut, process_fut)?;
             info!(?res, "try_join finished for inbox");
             Ok(())
         }).instrument(info_span!("run inbox"))
