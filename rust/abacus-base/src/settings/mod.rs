@@ -17,9 +17,45 @@
 //!
 //! Agents read settings from the config files and/or env.
 //!
-//! Config files are loaded from `rust/config/default` unless specified
-//! otherwise. Currently deployment config directories are labeled by the
-//! timestamp at which they were deployed
+//! Config files are loaded from `rust/config/default` unless specified otherwise,
+//! i.e.  via $RUN_ENV and $BASE_CONFIG (see the definition of `decl_settings` in
+//! `rust/abacus-base/src/macros.rs`).
+//!
+//! #### N.B.: Environment variable names correspond 1:1 with cfg file's JSON object hierarchy.
+//!
+//! In particular, note that any environment variables whose names are prefixed with:
+//!
+//! *  `ABC_BASE`
+//!
+//! *  `ABC_[agentname]`, where `[agentmame]` is agent-specific, e.g. `ABC_VALIDATOR` or
+//!    `ABC_RELAYER`.
+//!
+//! will be read as an override to be applied against the hierarchical structure of
+//! the configuration provided by the json config file at
+//! `./config/$RUN_ENV/$BASE_CONFIG`.
+//!
+//! For example, if the config file `example_config.json` is:
+//!
+//! ```json
+//! {
+//!   "environment": "test",
+//!   "signers": {},
+//!   "inboxes": {
+//!     "test2": {
+//!       "domain": "13372",
+//!       ...
+//!     },
+//!     ...
+//!   },
+//! }
+//! ```
+//!
+//! and an environment variable is supplied which defines `ABC_BASE_INBOXES_TEST3_DOMAIN=1`, then
+//! the `decl_settings` macro in `rust/abacus-base/src/macros.rs` will directly override the
+//! 'domain' field found in the json config to be `1`, since the fields in the environment variable
+//! name describe the path traversal to arrive at this field in the JSON config object.
+//!
+//! ### Configuration value precedence
 //!
 //! Configuration key/value pairs are loaded in the following order, with later
 //! sources taking precedence:
@@ -382,7 +418,11 @@ impl Settings {
     }
 
     /// Try to generate an agent core for a named agent
-    pub async fn try_into_abacus_core(&self, name: &str) -> Result<AbacusAgentCore, Report> {
+    pub async fn try_into_abacus_core(
+        &self,
+        name: &str,
+        parse_inboxes: bool,
+    ) -> Result<AbacusAgentCore, Report> {
         let metrics = Arc::new(CoreMetrics::new(
             name,
             self.metrics
@@ -398,7 +438,11 @@ impl Settings {
             .await?
             .map(Arc::new);
 
-        let inbox_contracts = self.try_inbox_contracts(db.clone(), &metrics).await?;
+        let inbox_contracts = if parse_inboxes {
+            self.try_inbox_contracts(db.clone(), &metrics).await?
+        } else {
+            HashMap::new()
+        };
 
         Ok(AbacusAgentCore {
             outbox,

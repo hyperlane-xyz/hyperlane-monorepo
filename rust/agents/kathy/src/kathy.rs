@@ -38,7 +38,10 @@ impl Agent for Kathy {
         Ok(Self::new(
             settings.interval.parse().expect("invalid u64"),
             settings.chat.into(),
-            settings.base.try_into_abacus_core(Self::AGENT_NAME).await?,
+            settings
+                .base
+                .try_into_abacus_core(Self::AGENT_NAME, true)
+                .await?,
         ))
     }
 }

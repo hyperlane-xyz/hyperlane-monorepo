@@ -65,9 +65,9 @@ jobs:
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-      - name: Rustfmt
-        run: cargo fmt --all -- --check
       - name: Check
         run: cargo check --all-features --all-targets --verbose
+      - name: Rustfmt
+        run: cargo fmt --all -- --check
       - name: Clippy
         run: cargo clippy -- -D warnings

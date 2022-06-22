@@ -22,12 +22,16 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
   const deployer = new AbacusCoreInfraDeployer(multiProvider, config.core);
 
-  const addresses = readJSON(
-    getEnvironmentDirectory(environment),
-    'partial_core_addresses.json',
-  );
-  const partial_contracts = buildContracts(addresses, coreFactories);
-
+  let partial_contracts = {};
+  try {
+    const addresses = readJSON(
+      getEnvironmentDirectory(environment),
+      'partial_core_addresses.json',
+    );
+    partial_contracts = buildContracts(addresses, coreFactories);
+  } catch (e) {
+    console.warn('Could not load partial core addresses', e);
+  }
   try {
     const contracts = await deployer.deploy(partial_contracts);
     writeJSON(

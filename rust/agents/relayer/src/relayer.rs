@@ -69,7 +69,7 @@ impl Agent for Relayer {
             multisig_checkpoint_syncer,
             core: settings
                 .as_ref()
-                .try_into_abacus_core(Self::AGENT_NAME)
+                .try_into_abacus_core(Self::AGENT_NAME, true)
                 .await?,
             whitelist,
         })
