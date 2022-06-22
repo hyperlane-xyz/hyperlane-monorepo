@@ -244,8 +244,6 @@ impl MessageProcessor {
         Ok(())
     }
 
-    /// Part of main loop.
-    ///
     /// Spawn a task to update the outbox state gauge.
     async fn metrics_loop(outbox_state_gauge: IntGauge, outbox: Outboxes) -> () {
         let mut interval = tokio::time::interval(Duration::from_secs(60));
