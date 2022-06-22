@@ -98,6 +98,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
             gasLimit: 150_000,
           },
         );
+        console.log('Outbox address: ', outbox.address);
         console.log(
           `send to ${recipient.address} on ${remote} at index ${
             (await outbox.count()).toNumber() - 1
