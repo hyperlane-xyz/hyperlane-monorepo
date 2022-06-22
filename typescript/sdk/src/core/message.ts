@@ -6,14 +6,10 @@ import { keccak256 } from 'ethers/lib/utils';
 import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
 import { types, utils } from '@abacus-network/utils';
 
+import { ChainNameToDomainId, DomainIdToChainName } from '../domains';
 import { Annotated, findAnnotatedSingleEvent } from '../events';
 import { MultiProvider } from '../provider';
-import {
-  ChainName,
-  ChainNameToDomainId,
-  DomainIdToChainName,
-  NameOrDomain,
-} from '../types';
+import { ChainName, NameOrDomain } from '../types';
 import { delay } from '../utils';
 
 import {

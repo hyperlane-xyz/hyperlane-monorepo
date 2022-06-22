@@ -1,18 +1,18 @@
+import { ethers } from 'ethers';
+
 import { TestInbox, TestOutbox } from '@abacus-network/core';
+import { types, utils } from '@abacus-network/utils';
+
+import { chainMetadata } from '../consts/chainMetadata';
 import {
   AbacusCore,
-  ChainMap,
   CoreContracts,
-  DomainIdToChainName,
   InboxContracts,
   OutboxContracts,
-  ProxiedContract,
-  Remotes,
-  TestChainNames,
-  chainMetadata,
-} from '@abacus-network/sdk';
-import { types, utils } from '@abacus-network/utils';
-import { ethers } from 'ethers';
+} from '../core';
+import { DomainIdToChainName } from '../domains';
+import { ProxiedContract } from '../proxy';
+import { ChainMap, ChainName, Remotes, TestChainNames } from '../types';
 
 type MockProxyAddresses = {
   kind: 'MOCK';
@@ -60,8 +60,10 @@ export class TestCoreApp extends AbacusCore<TestChainNames> {
     return responses;
   }
 
-  async processOutboundMessages<Local extends TestChainNames>(origin: Local) {
-    const responses = new Map();
+  async processOutboundMessages<Local extends TestChainNames>(
+    origin: Local,
+  ): Promise<Map<ChainName, any>> {
+    const responses = new Map<ChainName, any>();
     const contracts = this.getContracts(origin);
     const outbox: TestOutbox = contracts.outbox.contract;
 

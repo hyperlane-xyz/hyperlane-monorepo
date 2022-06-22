@@ -5,7 +5,7 @@ export {
   InboxContracts,
   OutboxContracts,
 } from './contracts';
-export { environments as coreEnvironments } from './environments';
+export { environments as coreEnvironments } from '../consts/environments';
 export {
   AbacusLifecyleEvent,
   AnnotatedDispatch,

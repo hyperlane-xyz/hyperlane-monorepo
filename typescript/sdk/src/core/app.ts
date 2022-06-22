@@ -1,13 +1,13 @@
 import { Inbox, Outbox } from '@abacus-network/core';
 
-import { AbacusApp } from '../app';
+import { AbacusApp } from '../AbacusApp';
+import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
 import { MultiProvider } from '../provider';
 import { ChainMap, ChainName, Remotes } from '../types';
 import { objMap } from '../utils';
 
 import { CoreContracts, coreFactories } from './contracts';
-import { environments } from './environments';
 
 export type CoreEnvironment = keyof typeof environments;
 export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<

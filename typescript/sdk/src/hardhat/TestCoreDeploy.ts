@@ -1,23 +1,24 @@
-import {
-  TestCoreApp,
-  TestInboxContracts,
-  TestOutboxContracts,
-} from './TestCoreApp';
+import { ethers } from 'ethers';
+
 import { TestInbox__factory, TestOutbox__factory } from '@abacus-network/core';
+// TODO
 import {
   AbacusCoreDeployer,
   CoreConfig,
   ValidatorManagerConfig,
 } from '@abacus-network/deploy';
+
+import { chainMetadata } from '../consts/chainMetadata';
+import { coreFactories } from '../core';
+import { MultiProvider } from '../provider';
+import { ProxiedContract } from '../proxy';
+import { Remotes, TestChainNames } from '../types';
+
 import {
-  chainMetadata,
-  coreFactories,
-  MultiProvider,
-  ProxiedContract,
-  Remotes,
-  TestChainNames,
-} from '@abacus-network/sdk';
-import { ethers } from 'ethers';
+  TestCoreApp,
+  TestInboxContracts,
+  TestOutboxContracts,
+} from './TestCoreApp';
 
 // dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
 const testValidatorManagerConfig: CoreConfig = {
@@ -99,7 +100,7 @@ export class TestCoreDeploy extends AbacusCoreDeployer<TestChainNames> {
     } as TestInboxContracts;
   }
 
-  async deployCore() {
+  async deployCore(): Promise<TestCoreApp> {
     return new TestCoreApp(await this.deploy(), this.multiProvider);
   }
 }

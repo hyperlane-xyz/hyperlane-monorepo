@@ -2,8 +2,8 @@ import { ethers } from 'ethers';
 
 import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
 
-import { IChainConnection } from './provider';
-import { ChainMap, ChainName } from './types';
+import { IChainConnection } from '../provider';
+import { ChainMap, ChainName } from '../types';
 
 export const ethereum: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(
@@ -161,7 +161,7 @@ export const test3: IChainConnection = {
   confirmations: 1,
 };
 
-const _configs = {
+export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> = {
   arbitrum,
   auroratestnet,
   bsc,
@@ -182,14 +182,3 @@ const _configs = {
   test2,
   test3,
 };
-
-export const addSignerToConnection =
-  <Chain extends ChainName>(signer: ethers.Signer) =>
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-  (_chain: Chain, connection: IChainConnection) => ({
-    ...connection,
-    signer,
-  });
-
-export const chainConnectionConfigs: ChainMap<ChainName, IChainConnection> =
-  _configs;

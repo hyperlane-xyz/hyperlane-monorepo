@@ -1,4 +1,22 @@
-import { ChainMetadata, CompleteChainMap } from './types';
+import { ChainName } from '../types';
+
+/**
+ * A Domain (and its characteristics)
+ */
+export type ChainMetadata = {
+  id: number;
+  finalityBlocks: number;
+  nativeTokenDecimals?: number;
+  paginate?: RpcPagination;
+};
+
+/**
+ * RPC Pagination information for Polygon
+ */
+export interface RpcPagination {
+  blocks: number;
+  from: number;
+}
 
 // IDs can be generated in many ways-- for example, in JS:
 // > Array.from('celo').map((c, i) => c.charCodeAt(0).toString(16).padStart(2, '0')).join('')
@@ -120,7 +138,7 @@ export const auroratestnet: ChainMetadata = {
   finalityBlocks: 1,
 };
 
-export const chainMetadata: CompleteChainMap<ChainMetadata> = {
+export const chainMetadata = {
   arbitrum,
   bsc,
   celo,
@@ -138,4 +156,4 @@ export const chainMetadata: CompleteChainMap<ChainMetadata> = {
   optimismkovan,
   auroratestnet,
   ...testChains,
-};
+} as Record<ChainName, ChainMetadata>;

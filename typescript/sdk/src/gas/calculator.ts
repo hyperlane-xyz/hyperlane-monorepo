@@ -1,8 +1,10 @@
-import { AbacusCore, MultiProvider, chainMetadata } from '..';
 import { BigNumber, FixedNumber, ethers } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 
+import { chainMetadata } from '../consts/chainMetadata';
+import { AbacusCore } from '../core';
+import { MultiProvider } from '../provider';
 import { ChainName, Remotes } from '../types';
 
 import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
