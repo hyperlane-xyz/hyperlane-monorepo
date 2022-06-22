@@ -7,7 +7,11 @@ use std::{
 
 use eyre::{bail, Result};
 use prometheus::IntGauge;
-use tokio::{sync::{mpsc, watch}, task::JoinHandle, time::sleep};
+use tokio::{
+    sync::{mpsc, watch},
+    task::JoinHandle,
+    time::sleep,
+};
 use tracing::{
     debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument,
 };
@@ -235,9 +239,11 @@ impl MessageProcessor {
             sleep(Duration::from_millis(20)).await;
 
             if self.db.leaf_by_leaf_index(message_leaf_index)?.is_some() {
-                self.tx_msg.send(SubmitMessageOp {
-                    leaf_index: message_leaf_index,
-                }).await?;
+                self.tx_msg
+                    .send(SubmitMessageOp {
+                        leaf_index: message_leaf_index,
+                    })
+                    .await?;
                 message_leaf_index = self
                     .process_fresh_leaf(&mut latest_signed_checkpoint, message_leaf_index)
                     .await?;

@@ -1,18 +1,21 @@
-use std::sync::Arc;
 use std::sync::mpsc::channel;
+use std::sync::Arc;
 
 use async_trait::async_trait;
 use eyre::{Context, Result, WrapErr};
-use futures_util::{Future, try_join};
+use futures_util::{try_join, Future};
 use tokio::{
-    sync::{mpsc, watch, watch::{Receiver, Sender}, futures},
-    task::{JoinHandle},
+    sync::{
+        futures, mpsc, watch,
+        watch::{Receiver, Sender},
+    },
+    task::JoinHandle,
 };
-use tracing::{info, warn, instrument::Instrumented, Instrument, info_span};
+use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{
-    AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics, InboxContracts,
-    MultisigCheckpointSyncer, chains::GelatoConf,
+    chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics,
+    InboxContracts, MultisigCheckpointSyncer,
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
@@ -21,7 +24,7 @@ use crate::message_processor::MessageProcessorMetrics;
 use crate::settings::whitelist::Whitelist;
 use crate::{message_processor::MessageProcessor, settings::RelayerSettings};
 
-#[derive(Clone, Debug, Default, PartialEq)] 
+#[derive(Clone, Debug, Default, PartialEq)]
 pub struct SubmitMessageOp {
     // TODO(webbhorn): Elsewhere in e.g. message_processor.rs, u32 is
     // used to represent leaf index, but isn't that too narrow? In
@@ -42,22 +45,21 @@ impl MessageSubmitter {
         }
         MessageSubmitter::GelatoSubmitter(rx)
     }
-   fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
-        tokio::spawn( async move {
-            self.work_loop().await
-        }).instrument(info_span!("submitter work loop"))
+    fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
+        tokio::spawn(async move { self.work_loop().await })
+            .instrument(info_span!("submitter work loop"))
     }
     async fn work_loop(&self) -> Result<()> {
-            match self  {
-                Self::SerialWithProvider(_) => Ok(()),
-                Self::GelatoSubmitter(rx) => {
-                    for _ in 0..100 {
-                        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-                    }
-                    Ok(())
-                },
+        match self {
+            Self::SerialWithProvider(_) => Ok(()),
+            Self::GelatoSubmitter(rx) => {
+                for _ in 0..100 {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                }
+                Ok(())
             }
-     }
+        }
+    }
 }
 
 #[async_trait]
@@ -202,7 +204,7 @@ impl Relayer {
 
         let submitter = MessageSubmitter::new(gelato_conf, rcv);
         info!(submitter=?submitter, "using submitter");
-        let submit_fut = tokio::spawn(async move {submitter.spawn()});
+        let submit_fut = tokio::spawn(async move { submitter.spawn() });
 
         let message_processor = MessageProcessor::new(
             outbox,
@@ -224,7 +226,8 @@ impl Relayer {
             let res = tokio::try_join!(submit_fut, process_fut)?;
             info!(?res, "try_join finished for inbox");
             Ok(())
-        }).instrument(info_span!("run inbox"))
+        })
+        .instrument(info_span!("run inbox"))
     }
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
