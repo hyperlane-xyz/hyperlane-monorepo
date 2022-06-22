@@ -78,7 +78,8 @@ export abstract class AbacusDeployer<
           configChains.includes(chain) && !deployedChains.includes(chain),
       );
     this.logger(`Start deploy to ${targetChains}`);
-    await Promise.all(
+    // wait until all promises are resolved / rejected
+    await Promise.allSettled(
       targetChains.map(async (chain) => {
         this.logger;
         const chainConnection = this.multiProvider.getChainConnection(chain);
