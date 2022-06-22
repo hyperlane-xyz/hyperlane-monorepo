@@ -134,11 +134,26 @@ impl Relayer {
         let (snd, rcv) = tokio::sync::mpsc::channel(1000);
         let submit_fut = match gelato_conf {
             Some(cfg) if cfg.enabled_for_message_submission => {
-                let gelato_submitter = GelatoSubmitter::new(cfg, rcv);
+                let gelato_submitter = GelatoSubmitter::new(
+                    cfg,
+                    rcv,
+                    inbox_contracts.clone(),
+                    self.interchain_gas_paymaster(),
+                    self.outbox().db(),
+                    signed_checkpoint_receiver.clone(),
+                );
                 gelato_submitter.spawn()
             }
             _ => {
-                let serial_submitter = SerialSubmitter::new(rcv);
+                let serial_submitter = SerialSubmitter::new(
+                    rcv,
+                    inbox_contracts.clone(),
+                    self.outbox().outbox(),
+                    self.interchain_gas_paymaster(),
+                    self.max_processing_retries,
+                    self.outbox().db(),
+                    signed_checkpoint_receiver.clone(),
+                );
                 serial_submitter.spawn()
             }
         };

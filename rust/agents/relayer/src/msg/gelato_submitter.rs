@@ -1,20 +1,64 @@
+use std::sync::Arc;
+
+use abacus_base::CachingInterchainGasPaymaster;
+use abacus_core::{db::AbacusDB, MultisigSignedCheckpoint};
 use tokio::task::JoinHandle;
 
+use crate::merkle_tree_builder::MerkleTreeBuilder;
+
 use super::SubmitMessageOp;
-use abacus_base::chains::GelatoConf;
+use abacus_base::{chains::GelatoConf, InboxContracts};
 use eyre::Result;
 use tokio::sync::mpsc;
+use tokio::sync::watch;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
+// TODO(webbhorn): Take dep on interchain gas paymaster indexed data.
+// TODO(webbhorn): Metrics data.
+
+#[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     rx: mpsc::Receiver<SubmitMessageOp>,
+
+    // Interface to Inbox / InboxValidatorManager on the destination chain.
+    // Will be useful in retry logic to determine whether or not to re-submit
+    // forward request to Gelato, if e.g. we have confirmation via inbox syncer
+    // that the message has already been submitted by some other relayer.
+    inbox_contracts: InboxContracts,
+
+    // Contract tracking interchain gas payments for use when deciding whether
+    // sufficient funds have been provided for message forwarding.
+    interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
+
+    // Interface to agent rocks DB for e.g. writing delivery status upon completion.
+    db: AbacusDB,
+
+    // Interface to generating merkle proofs for messages against a checkpoint.
+    prover_sync: MerkleTreeBuilder,
+
+    // Provides access to most-recently available signed checkpoint.
+    signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
 }
 
 impl GelatoSubmitter {
-    pub fn new(cfg: GelatoConf, rx: mpsc::Receiver<SubmitMessageOp>) -> Self {
+    pub fn new(
+        cfg: GelatoConf,
+        rx: mpsc::Receiver<SubmitMessageOp>,
+        inbox_contracts: InboxContracts,
+        interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
+        db: AbacusDB,
+        signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
+    ) -> Self {
         assert!(cfg.enabled_for_message_submission);
-        Self { rx }
+        Self {
+            rx,
+            inbox_contracts,
+            interchain_gas_paymaster,
+            db: db.clone(),
+            prover_sync: MerkleTreeBuilder::new(db),
+            signed_checkpoint_receiver,
+        }
     }
 
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {

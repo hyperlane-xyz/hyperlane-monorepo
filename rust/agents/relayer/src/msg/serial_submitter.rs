@@ -1,22 +1,81 @@
 use std::cmp::Reverse;
+use std::collections::BinaryHeap;
+use std::sync::Arc;
 
+use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::SubmitMessageOp;
+use abacus_base::{InboxContracts, Outboxes, CachingInterchainGasPaymaster};
+use abacus_core::db::AbacusDB;
+use abacus_core::MultisigSignedCheckpoint;
 use eyre::Result;
 use tokio::task::JoinHandle;
-use tokio::{sync::mpsc, time::Instant};
+use tokio::{
+    sync::{mpsc, watch},
+    time::Instant,
+};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
+// TODO(webbhorn): Take dep on interchain gas paymaster indexed data.
+// TODO(webbhorn): Metrics data.
+
+#[allow(dead_code)]
+#[derive(Debug)]
 pub(crate) struct SerialSubmitter {
+    // Receiver for new messages to submit.
     rx: mpsc::Receiver<SubmitMessageOp>,
-    // TODO(webbhorn): Pending queue.
-    // TODO(webbhorn): Retry queue.
-    // TODO(webbhorn): Metrics.
-    // TODO(webbhorn): DB.
+
+    // Messages we are aware of that we want to eventually submit,
+    // but haven't yet, for whatever reason.
+    retry_queue: BinaryHeap<MessageToRetry>,
+
+    // Inbox / InboxValidatorManager on the destination chain.
+    inbox_contracts: InboxContracts,
+
+    // Outbox on message origin chain.
+    outbox: Outboxes,
+
+    // Contract tracking interchain gas payments for use when deciding whether
+    // sufficient funds have been provided for message forwarding.
+    interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
+
+    // The number of times to attepmt submitting each message
+    // before giving up.
+    //
+    // TODO(webbhorn): Is this the number of attempts we'll make before permanently
+    // giving up, or until we re-insert into retry queue and try the next readiest message?
+    max_retries: u32,
+
+    // Interface to agent rocks DB for e.g. writing delivery status upon completion.
+    db: AbacusDB,
+
+    // Interface to generating merkle proofs for messages against a checkpoint.
+    prover_sync: MerkleTreeBuilder,
+
+    // Provides access to most-recently available signed checkpoint.
+    signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
 }
 
 impl SerialSubmitter {
-    pub fn new(rx: mpsc::Receiver<SubmitMessageOp>) -> Self {
-        Self { rx }
+    pub(crate) fn new(
+        rx: mpsc::Receiver<SubmitMessageOp>,
+        inbox_contracts: InboxContracts,
+        outbox: Outboxes,
+        interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
+        max_retries: u32,
+        db: AbacusDB,
+        signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
+    ) -> Self {
+        Self {
+            rx,
+            retry_queue: BinaryHeap::new(),
+            inbox_contracts,
+            outbox,
+            interchain_gas_paymaster,
+            max_retries,
+            db: db.clone(),
+            prover_sync: MerkleTreeBuilder::new(db),
+            signed_checkpoint_receiver,
+        }
     }
 
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {

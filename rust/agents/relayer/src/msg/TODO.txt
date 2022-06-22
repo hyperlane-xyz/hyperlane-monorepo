@@ -1,0 +1,14 @@
+[TODO]
+1.  Handle trying to submit next message
+2.  Handle retry queue
+3.  migrate metrics
+4.  migrate ForwardRequestOp to gelato_submitter.rs
+5.  marshal call args into gelato forward request data field
+6.  pending gas queue with checks
+7.  TTL on message delivery
+8.  monitoring for Gelato
+9.  depend on interfaces and test retry behaviors
+
+[DONE]
+- clippy / lint clean
+- Take dependencies in SerialSubmitter
