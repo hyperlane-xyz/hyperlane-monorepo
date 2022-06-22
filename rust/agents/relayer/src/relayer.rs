@@ -36,6 +36,17 @@ pub struct SubmitMessageOp {
 pub enum MessageSubmitter {
     SerialWithProvider(mpsc::Receiver<SubmitMessageOp>),
     GelatoSubmitter(mpsc::Receiver<SubmitMessageOp>),
+    // Potential future Submitters:
+    //
+    // - BatchingMessagesSubmitter
+    //
+    // - ShardedWalletSubmitter (to get parallelism / nonce)
+    //
+    // - SpeculativeSerializedSubmitter (batches with higher optimistic
+    // - nonces, recovery behavior)
+    //
+    // - FallbackProviderSubmitter (Serialized, but if some RPC provider sucks,
+    //   switch everyone to new one)
 }
 
 impl MessageSubmitter {
@@ -51,41 +62,33 @@ impl MessageSubmitter {
     }
     async fn work_loop(&self) -> Result<()> {
         match self {
-            Self::SerialWithProvider(_) => Ok(()),
+            Self::SerialWithProvider(rx) => {
+                // TODO(webbhorn):
+                // - ===> Waiting for validation checkpoint queue
+                // - ===> Waiting for funding queue
+                // - ===> Send queue
+                // - Forever:
+                //   -  Pull rx work
+                //   -  Categorize new work into ckpt_q, fund_q, or send_q.
+                //   -  Move work through queues
+                //   -  Pick next ready work that sorts best for some queue metric
+                //      (most recent)?
+                for _ in 0..100 {
+                    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                }
+                Ok(())
+            },
             Self::GelatoSubmitter(rx) => {
+                // TODO(webbhorn):
+                // - While rx has work
+                //   -  Spawn a top-level tokio task to run the ForwardGelatoOp
+                //      to completion.
                 for _ in 0..100 {
                     tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
                 }
                 Ok(())
             }
         }
-    }
-}
-
-#[async_trait]
-trait MessageSubmitterInner {
-    fn work_loop(&self) -> Result<()>;
-}
-
-#[derive(Debug)]
-pub struct SerialSubmitterImpl {
-    new_messages: mpsc::Receiver<SubmitMessageOp>,
-}
-
-impl MessageSubmitterInner for SerialSubmitterImpl {
-    fn work_loop(&self) -> Result<()> {
-        todo!()
-    }
-}
-
-#[derive(Debug)]
-pub struct GelatoSubmitterImpl {
-    new_messages: mpsc::Receiver<SubmitMessageOp>,
-}
-
-impl MessageSubmitterInner for GelatoSubmitterImpl {
-    fn work_loop(&self) -> Result<()> {
-        todo!()
     }
 }
 
