@@ -80,7 +80,7 @@ export function getCoreVerificationDirectory(environment: DeployEnvironment) {
 }
 
 export function getCoreRustDirectory(environment: DeployEnvironment) {
-  return path.join(getCoreDirectory(environment), 'rust');
+  return path.join('../../', 'rust', 'config', environment);
 }
 
 export function getKeyRoleAndChainArgs() {
