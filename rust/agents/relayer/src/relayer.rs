@@ -1,17 +1,12 @@
-use std::sync::mpsc::channel;
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{Context, Result, WrapErr};
-use futures_util::{try_join, Future};
+use eyre::Result;
 use tokio::{
-    sync::{
-        futures, mpsc, watch,
-        watch::{Receiver, Sender},
-    },
+    sync::watch::{Receiver, Sender},
     task::JoinHandle,
 };
-use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
+use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{
     chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics,
@@ -19,11 +14,11 @@ use abacus_base::{
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
-use crate::{checkpoint_fetcher::CheckpointFetcher, msg::SubmitMessageOp};
-use crate::settings::whitelist::Whitelist;
-use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
+use crate::checkpoint_fetcher::CheckpointFetcher;
 use crate::msg::gelato_submitter::GelatoSubmitter;
+use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
+use crate::settings::whitelist::Whitelist;
 use crate::settings::RelayerSettings;
 
 /// A relayer agent
@@ -143,16 +138,16 @@ impl Relayer {
             Some(cfg) => {
                 let gelato_submitter = GelatoSubmitter::new(cfg, rcv);
                 gelato_submitter.spawn()
-            },
+            }
             _ => {
                 let serial_submitter = SerialSubmitter::new(rcv);
                 serial_submitter.spawn()
-            },
+            }
         };
 
         let message_processor = MessageProcessor::new(
             outbox,
-            self.max_processing_retries.clone(),
+            self.max_processing_retries,
             db,
             inbox_contracts,
             signed_checkpoint_receiver,
@@ -170,7 +165,8 @@ impl Relayer {
             let res = tokio::try_join!(submit_fut, process_fut)?;
             info!(?res, "try_join finished for inbox");
             Ok(())
-        }).instrument(info_span!("run inbox"))
+        })
+        .instrument(info_span!("run inbox"))
     }
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {

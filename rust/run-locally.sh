@@ -105,6 +105,7 @@ grep "Contract deployment" ${HARDHAT_LOG?} > /dev/null
 echo "Spawning relayer..."
 relayer > ${RELAYER_STDOUT_LOG?} 2> ${RELAYER_STDERR_LOG?} &
 while ! grep -i "listening on" ${RELAYER_STDOUT_LOG?}; do sleep 1; done
+(tail -f ${RELAYER_STDOUT_LOG} | grep -i "message successfully processed") &
 
 echo "Spawning validator..."
 validator > ${VALIDATOR_STDOUT_LOG?} 2> ${VALIDATOR_STDERR_LOG?} &
@@ -119,7 +120,6 @@ echo "Spawning Kathy to send Abacus message traffic..."
 
 # Emit any ERROR logs found in an agent's stdout
 # or the presence of anything at all in stderr.
-(tail -f ${RELAYER_STDOUT_LOG} | grep -i "message successfully processed") &
 (tail -f "${RELAYER_STDOUT_LOG?}" | grep ERROR) &
 (tail -f "${VALIDATOR_STDOUT_LOG?}" | grep ERROR) &
 (tail -f "${RELAYER_STDERR_LOG?}") &

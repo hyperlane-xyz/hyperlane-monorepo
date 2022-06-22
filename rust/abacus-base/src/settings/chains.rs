@@ -30,10 +30,12 @@ impl Default for ChainConf {
     }
 }
 
+/// Configuration for using Gelato to interact with some chain.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GelatoConf {
-    pub enabled: bool,
+    /// Whether to use Gelato's Relay service for processing messages on inboxes.
+    pub enabled_for_message_submission: bool,
     // Other gelato configuration options can go here, like
     // max-in-flight submissions we're willing to try, perhaps
     // the Ethereum-based chain_id (which may differ from

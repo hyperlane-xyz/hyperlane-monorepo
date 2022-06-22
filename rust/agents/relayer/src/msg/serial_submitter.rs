@@ -1,10 +1,10 @@
 use std::cmp::Reverse;
 
-use tokio::{sync::mpsc, time::Instant};
-use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
-use tokio::task::JoinHandle;
 use crate::msg::SubmitMessageOp;
-use eyre::{Context, Result, WrapErr};
+use eyre::Result;
+use tokio::task::JoinHandle;
+use tokio::{sync::mpsc, time::Instant};
+use tracing::{info_span, instrument::Instrumented, Instrument};
 
 pub(crate) struct SerialSubmitter {
     rx: mpsc::Receiver<SubmitMessageOp>,
@@ -18,14 +18,15 @@ impl SerialSubmitter {
     pub fn new(rx: mpsc::Receiver<SubmitMessageOp>) -> Self {
         Self { rx }
     }
+
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
             .instrument(info_span!("submitter work loop"))
     }
+
     async fn work_loop(&mut self) -> Result<()> {
         loop {
-            let foo = self.rx.recv().await;
-            if foo.is_none() {
+            if self.rx.recv().await.is_none() {
                 break;
             }
 
@@ -48,20 +49,9 @@ impl SerialSubmitter {
     }
 }
 
-#[derive(Debug)]
-enum MessageProcessingStatus {
-    NotDestinedForInbox,
-    NotWhitelisted,
-    NotYetCheckpointed,
-    Processed,
-    Error,
-}
-
-
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct MessageToRetry {
     time_to_retry: Reverse<Instant>,
     leaf_index: u32,
     retries: u32,
 }
-

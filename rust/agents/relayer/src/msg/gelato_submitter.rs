@@ -1,11 +1,10 @@
 use tokio::task::JoinHandle;
 
-use abacus_base::chains::GelatoConf;
-use eyre::{Context, Result, WrapErr};
-use tokio::sync::mpsc;
-use tokio::time::sleep;
-use tracing::{info, info_span, instrument::Instrumented, warn, Instrument};
 use super::SubmitMessageOp;
+use abacus_base::chains::GelatoConf;
+use eyre::Result;
+use tokio::sync::mpsc;
+use tracing::{info_span, instrument::Instrumented, Instrument};
 
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
@@ -14,13 +13,15 @@ pub(crate) struct GelatoSubmitter {
 
 impl GelatoSubmitter {
     pub fn new(cfg: GelatoConf, rx: mpsc::Receiver<SubmitMessageOp>) -> Self {
-        assert!(cfg.enabled);
+        assert!(cfg.enabled_for_message_submission);
         Self { rx }
     }
+
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
             .instrument(info_span!("submitter work loop"))
     }
+
     // The relay SDK framework allows us to submit ops in parallel,
     // subject to certain retry rules. Therefore all we do here is
     // spin forever asking for work from the rx channel, then spawn
@@ -36,8 +37,7 @@ impl GelatoSubmitter {
     // relayres, enforced here.
     async fn work_loop(&mut self) -> Result<()> {
         loop {
-            let foo = self.rx.recv().await;
-            if foo.is_none() {
+            if self.rx.recv().await.is_none() {
                 break;
             }
 
