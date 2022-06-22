@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          submodules: 'true'
+          submodules: 'false'
 
       - uses: actions/cache@v2
         with:
@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v2
         with:
-          submodules: 'true'
+          submodules: 'false'
 
       - name: yarn-cache
         uses: actions/cache@v2
