@@ -215,7 +215,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     coreContracts: CoreContracts<Chain, Local>,
     owner: types.Address,
     chainConnection: ChainConnection,
-  ): Promise<ethers.ContractReceipt> {
+  ): Promise<ethers.ContractReceipt[]> {
     const ownables: Ownable[] = [
       coreContracts.outbox.contract,
       coreContracts.outboxValidatorManager,
@@ -225,7 +225,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
         (inbox) => [inbox.inbox.contract, inbox.inboxValidatorManager],
       ),
     ];
-    const receipts = await Promise.all(
+    return Promise.all(
       ownables.map(async (ownable) => {
         const response = await ownable.transferOwnership(
           owner,
@@ -234,6 +234,5 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
         return response.wait(chainConnection.confirmations);
       }),
     );
-    return receipts[0];
   }
 }
