@@ -25,7 +25,7 @@ use loop_control::LoopControl::{Continue, Flow};
 use loop_control::{loop_ctrl, LoopControl};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::relayer::{MessageSubmitter, SubmitMessageOp};
+use crate::msg::SubmitMessageOp;
 use crate::settings::whitelist::Whitelist;
 
 #[derive(Debug)]

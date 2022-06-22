@@ -19,78 +19,12 @@ use abacus_base::{
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
-use crate::checkpoint_fetcher::CheckpointFetcher;
-use crate::message_processor::MessageProcessorMetrics;
+use crate::{checkpoint_fetcher::CheckpointFetcher, msg::SubmitMessageOp};
 use crate::settings::whitelist::Whitelist;
-use crate::{message_processor::MessageProcessor, settings::RelayerSettings};
-
-#[derive(Clone, Debug, Default, PartialEq)]
-pub struct SubmitMessageOp {
-    // TODO(webbhorn): Elsewhere in e.g. message_processor.rs, u32 is
-    // used to represent leaf index, but isn't that too narrow? In
-    // some places we use H256 which seems more intuitively right.
-    pub leaf_index: u32,
-}
-
-#[derive(Debug)]
-pub enum MessageSubmitter {
-    SerialWithProvider(mpsc::Receiver<SubmitMessageOp>),
-    GelatoSubmitter(mpsc::Receiver<SubmitMessageOp>),
-    // Potential future Submitters:
-    //
-    // - BatchingMessagesSubmitter
-    //
-    // - ShardedWalletSubmitter (to get parallelism / nonce)
-    //
-    // - SpeculativeSerializedSubmitter (batches with higher optimistic
-    // - nonces, recovery behavior)
-    //
-    // - FallbackProviderSubmitter (Serialized, but if some RPC provider sucks,
-    //   switch everyone to new one)
-}
-
-impl MessageSubmitter {
-    fn new(gelato_cfg: Option<GelatoConf>, rx: mpsc::Receiver<SubmitMessageOp>) -> Self {
-        if gelato_cfg.is_none() {
-            return MessageSubmitter::SerialWithProvider(rx);
-        }
-        MessageSubmitter::GelatoSubmitter(rx)
-    }
-    fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
-        tokio::spawn(async move { self.work_loop().await })
-            .instrument(info_span!("submitter work loop"))
-    }
-    async fn work_loop(&self) -> Result<()> {
-        match self {
-            Self::SerialWithProvider(rx) => {
-                // TODO(webbhorn):
-                // - ===> Waiting for validation checkpoint queue
-                // - ===> Waiting for funding queue
-                // - ===> Send queue
-                // - Forever:
-                //   -  Pull rx work
-                //   -  Categorize new work into ckpt_q, fund_q, or send_q.
-                //   -  Move work through queues
-                //   -  Pick next ready work that sorts best for some queue metric
-                //      (most recent)?
-                for _ in 0..100 {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-                }
-                Ok(())
-            },
-            Self::GelatoSubmitter(rx) => {
-                // TODO(webbhorn):
-                // - While rx has work
-                //   -  Spawn a top-level tokio task to run the ForwardGelatoOp
-                //      to completion.
-                for _ in 0..100 {
-                    tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-                }
-                Ok(())
-            }
-        }
-    }
-}
+use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
+use crate::msg::gelato_submitter::GelatoSubmitter;
+use crate::msg::serial_submitter::SerialSubmitter;
+use crate::settings::RelayerSettings;
 
 /// A relayer agent
 #[derive(Debug)]
@@ -205,9 +139,16 @@ impl Relayer {
 
         let (snd, rcv) = tokio::sync::mpsc::channel(1000);
 
-        let submitter = MessageSubmitter::new(gelato_conf, rcv);
-        info!(submitter=?submitter, "using submitter");
-        let submit_fut = tokio::spawn(async move { submitter.spawn() });
+        let submit_fut = match gelato_conf {
+            Some(cfg) => {
+                let gelato_submitter = GelatoSubmitter::new(cfg, rcv);
+                gelato_submitter.spawn()
+            },
+            _ => {
+                let serial_submitter = SerialSubmitter::new(rcv);
+                serial_submitter.spawn()
+            },
+        };
 
         let message_processor = MessageProcessor::new(
             outbox,
@@ -223,14 +164,13 @@ impl Relayer {
             message_processor=?message_processor,
             "using message processor"
         );
-        let process_fut = tokio::spawn(message_processor.spawn());
+        let process_fut = message_processor.spawn();
 
         tokio::spawn(async move {
             let res = tokio::try_join!(submit_fut, process_fut)?;
             info!(?res, "try_join finished for inbox");
             Ok(())
-        })
-        .instrument(info_span!("run inbox"))
+        }).instrument(info_span!("run inbox"))
     }
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
