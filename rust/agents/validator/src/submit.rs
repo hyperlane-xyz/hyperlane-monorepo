@@ -89,6 +89,7 @@ impl ValidatorSubmitter {
             .unwrap_or_default();
 
         info!(current_index = current_index, "Starting Validator");
+        let mut initialized = false;
         loop {
             // Check the latest checkpoint
             let latest_checkpoint = self.outbox.latest_checkpoint(reorg_period).await?;
@@ -109,8 +110,13 @@ impl ValidatorSubmitter {
                 self.metrics
                     .latest_checkpoint_processed
                     .set(signed_checkpoint.checkpoint.index as i64);
+            } else if !initialized {
+                self.metrics
+                    .latest_checkpoint_processed
+                    .set(latest_checkpoint.index as i64);
             }
 
+            initialized = true;
             sleep(Duration::from_secs(self.interval)).await;
         }
     }
