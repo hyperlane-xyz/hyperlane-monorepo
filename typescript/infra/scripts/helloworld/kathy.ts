@@ -10,14 +10,14 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
   const chains = app.chains() as Chains[];
-  const skip = process.env.NETWORKS_TO_SKIP?.split(',') as Chains[];
+  const skip = process.env.NETWORKS_TO_SKIP?.split(',');
 
-  const invalidChain = chains.find((chain) => !skip.includes(chain));
+  const invalidChain = chains.find((chain) => skip && !skip.includes(chain));
   if (invalidChain) {
     throw new Error(`Invalid chain to skip ${invalidChain}`);
   }
 
-  const sources = chains.filter((chain) => !skip.includes(chain));
+  const sources = chains.filter((chain) => !skip || !skip.includes(chain));
   for (const source of sources) {
     for (const destination of sources.slice().filter((d) => d !== source)) {
       await sendMessage(app, source, destination);
