@@ -323,7 +323,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
                     NameOrAddress::Address(a) => data
                         .contracts
                         .get(a)
-                        .map(|c| (c.name.as_deref().unwrap_or("unknown").clone(), &c.functions))
+                        .map(|c| (c.name.as_deref().unwrap_or("unknown"), &c.functions))
                         .map(|(n, m)| (a.encode_hex(), n.into(), m)),
                 })
                 .unwrap_or_else(|| ("".into(), "unknown".into(), &empty_hm));
@@ -331,7 +331,7 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
             let fn_selector: Option<Selector> = tx
                 .data()
                 .filter(|data| data.0.len() >= 4)
-                .map(|data| Selector::from([data.0[0], data.0[1], data.0[2], data.0[3]]));
+                .map(|data| [data.0[0], data.0[1], data.0[2], data.0[3]]);
             let fn_name: &str = fn_selector
                 .and_then(|s| contract_fns.get(&s))
                 .map(|s| s.as_str())
