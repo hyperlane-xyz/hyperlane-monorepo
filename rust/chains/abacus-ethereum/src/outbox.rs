@@ -41,15 +41,6 @@ impl MakeableWithProvider for OutboxIndexerBuilder {
         provider: M,
         locator: &ContractLocator,
     ) -> Self::Output {
-        println!(
-            "Outbox address: {:?}",
-            locator
-                .address
-                .0
-                .iter()
-                .map(|b| format!("{:02x}", b))
-                .collect::<String>()
-        );
         Box::new(EthereumOutboxIndexer::new(
             Arc::new(provider),
             locator,
