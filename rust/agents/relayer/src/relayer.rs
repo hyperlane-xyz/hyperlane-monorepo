@@ -1,10 +1,11 @@
 use std::sync::Arc;
+use std::sync::mpsc::channel;
 
 use async_trait::async_trait;
 use eyre::{Context, Result, WrapErr};
 use futures_util::{Future, try_join};
 use tokio::{
-    sync::{watch::{channel, Receiver, Sender}, futures},
+    sync::{mpsc, watch, watch::{Receiver, Sender}, futures},
     task::{JoinHandle},
 };
 use tracing::{info, warn, instrument::Instrumented, Instrument, info_span};
@@ -20,62 +21,68 @@ use crate::message_processor::MessageProcessorMetrics;
 use crate::settings::whitelist::Whitelist;
 use crate::{message_processor::MessageProcessor, settings::RelayerSettings};
 
+#[derive(Clone, Debug, Default, PartialEq)] 
+pub struct SubmitMessageOp {
+    // TODO(webbhorn): Elsewhere in e.g. message_processor.rs, u32 is
+    // used to represent leaf index, but isn't that too narrow? In
+    // some places we use H256 which seems more intuitively right.
+    pub leaf_index: u32,
+}
+
 #[derive(Debug)]
 pub enum MessageSubmitter {
-    SerialWithProvider(SerialSubmitterImpl),
-    GelatoSubmitter(GelatoSubmitterImpl),
+    SerialWithProvider(mpsc::Receiver<SubmitMessageOp>),
+    GelatoSubmitter(mpsc::Receiver<SubmitMessageOp>),
 }
 
 impl MessageSubmitter {
-    fn new(gelato_cfg: Option<GelatoConf>) -> Self {
+    fn new(gelato_cfg: Option<GelatoConf>, rx: mpsc::Receiver<SubmitMessageOp>) -> Self {
         if gelato_cfg.is_none() {
-            MessageSubmitter::SerialWithProvider(SerialSubmitterImpl{})
-        } else {
-            MessageSubmitter::GelatoSubmitter(GelatoSubmitterImpl{})
+            return MessageSubmitter::SerialWithProvider(rx);
         }
+        MessageSubmitter::GelatoSubmitter(rx)
     }
-    fn inner(&self) -> &dyn MessageSubmitterInner {
-        match self {
-            MessageSubmitter::SerialWithProvider(inner) => inner,
-            MessageSubmitter::GelatoSubmitter(inner) => inner,
-        }
+   fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
+        tokio::spawn( async move {
+            self.work_loop().await
+        }).instrument(info_span!("submitter work loop"))
     }
-    fn send_message(&self) -> Result<()> {
-        match self {
-            SerialWithProvider => self.inner().send_message(),
-            GelatoSubmitter => self.inner().send_message(),
-        }
-    }
-    fn spawn(&self) -> Instrumented<JoinHandle<Result<()>>> {
-        match self {
-            SerialWithProvider => self.inner().spawn_worker_task(),
-            GelatoSubmitter => self.inner().spawn_worker_task(),
-        }
-    }
+    async fn work_loop(&self) -> Result<()> {
+            match self  {
+                Self::SerialWithProvider(_) => Ok(()),
+                Self::GelatoSubmitter(rx) => {
+                    for _ in 0..100 {
+                        tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+                    }
+                    Ok(())
+                },
+            }
+     }
 }
 
 #[async_trait]
 trait MessageSubmitterInner {
-    fn send_message(&self) -> Result<()>;
-    fn spawn_worker_task(&self) -> Instrumented<JoinHandle<Result<()>>>;
+    fn work_loop(&self) -> Result<()>;
 }
+
 #[derive(Debug)]
-pub struct SerialSubmitterImpl;
+pub struct SerialSubmitterImpl {
+    new_messages: mpsc::Receiver<SubmitMessageOp>,
+}
+
 impl MessageSubmitterInner for SerialSubmitterImpl {
-    fn send_message(&self) -> Result<()> {
-        Ok(())
-    }
-    fn spawn_worker_task(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    fn work_loop(&self) -> Result<()> {
         todo!()
     }
 }
+
 #[derive(Debug)]
-pub struct GelatoSubmitterImpl;
+pub struct GelatoSubmitterImpl {
+    new_messages: mpsc::Receiver<SubmitMessageOp>,
+}
+
 impl MessageSubmitterInner for GelatoSubmitterImpl {
-    fn send_message(&self) -> Result<()> {
-        Ok(())
-    }
-    fn spawn_worker_task(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    fn work_loop(&self) -> Result<()> {
         todo!()
     }
 }
@@ -191,13 +198,11 @@ impl Relayer {
             "running inbox message processor and submit worker"
         );
 
-        let submitter = MessageSubmitter::new(gelato_conf);
-        let submit_fut = tokio::spawn(submitter.spawn());
-        info!(
-            submitter=?submitter,
-            submitter_fut=?submit_fut,
-            "using submitter"
-        );
+        let (snd, rcv) = tokio::sync::mpsc::channel(1000);
+
+        let submitter = MessageSubmitter::new(gelato_conf, rcv);
+        info!(submitter=?submitter, "using submitter");
+        let submit_fut = tokio::spawn(async move {submitter.spawn()});
 
         let message_processor = MessageProcessor::new(
             outbox,
@@ -207,7 +212,7 @@ impl Relayer {
             signed_checkpoint_receiver,
             self.whitelist.clone(),
             metrics,
-            submitter,
+            snd,
         );
         info!(
             message_processor=?message_processor,
@@ -224,7 +229,7 @@ impl Relayer {
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let (signed_checkpoint_sender, signed_checkpoint_receiver) =
-            channel::<Option<MultisigSignedCheckpoint>>(None);
+            tokio::sync::watch::channel::<Option<MultisigSignedCheckpoint>>(None);
 
         let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
             .inboxes()

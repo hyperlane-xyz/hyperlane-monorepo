@@ -7,7 +7,7 @@ use std::{
 
 use eyre::{bail, Result};
 use prometheus::IntGauge;
-use tokio::{sync::watch::Receiver, task::JoinHandle, time::sleep};
+use tokio::{sync::{mpsc, watch}, task::JoinHandle, time::sleep};
 use tracing::{
     debug, error, info, info_span, instrument, instrument::Instrumented, warn, Instrument,
 };
@@ -21,7 +21,7 @@ use loop_control::LoopControl::{Continue, Flow};
 use loop_control::{loop_ctrl, LoopControl};
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::relayer::MessageSubmitter;
+use crate::relayer::{MessageSubmitter, SubmitMessageOp};
 use crate::settings::whitelist::Whitelist;
 
 #[derive(Debug)]
@@ -32,10 +32,10 @@ pub(crate) struct MessageProcessor {
     inbox_contracts: InboxContracts,
     prover_sync: MerkleTreeBuilder,
     retry_queue: BinaryHeap<MessageToRetry>,
-    signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
+    signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     whitelist: Arc<Whitelist>,
     metrics: MessageProcessorMetrics,
-    submitter: MessageSubmitter,
+    tx_msg: mpsc::Sender<SubmitMessageOp>,
 }
 
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -61,10 +61,10 @@ impl MessageProcessor {
         max_retries: u32,
         db: AbacusDB,
         inbox_contracts: InboxContracts,
-        signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
+        signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
         whitelist: Arc<Whitelist>,
         metrics: MessageProcessorMetrics,
-        submitter: MessageSubmitter,
+        tx_msg: mpsc::Sender<SubmitMessageOp>,
     ) -> Self {
         Self {
             outbox,
@@ -76,7 +76,7 @@ impl MessageProcessor {
             whitelist,
             signed_checkpoint_receiver,
             metrics,
-            submitter,
+            tx_msg,
         }
     }
 
@@ -235,6 +235,9 @@ impl MessageProcessor {
             sleep(Duration::from_millis(20)).await;
 
             if self.db.leaf_by_leaf_index(message_leaf_index)?.is_some() {
+                self.tx_msg.send(SubmitMessageOp {
+                    leaf_index: message_leaf_index,
+                }).await?;
                 message_leaf_index = self
                     .process_fresh_leaf(&mut latest_signed_checkpoint, message_leaf_index)
                     .await?;
