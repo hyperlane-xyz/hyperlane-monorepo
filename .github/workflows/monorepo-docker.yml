@@ -1,4 +1,4 @@
-name: Push to GCR GitHub Action
+name: Build and Push Monorepo Image to GCR
 on: 
   push:
     branches:
