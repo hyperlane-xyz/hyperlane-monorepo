@@ -79,26 +79,24 @@ export abstract class AbacusDeployer<
       );
     this.logger(`Start deploy to ${targetChains}`);
     // wait until all promises are resolved / rejected
-    await Promise.allSettled(
-      targetChains.map(async (chain) => {
-        const chainConnection = this.multiProvider.getChainConnection(chain);
-        this.logger(
-          `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
-        );
-        this.deployedContracts[chain] = await this.deployContracts(
-          chain,
-          this.configMap[chain],
-        );
-        // TODO: remove these logs once we have better timeouts
-        this.logger(
-          JSON.stringify(
-            serializeContracts(this.deployedContracts[chain] ?? {}),
-            null,
-            2,
-          ),
-        );
-      }),
-    );
+    for (const chain of targetChains) {
+      const chainConnection = this.multiProvider.getChainConnection(chain);
+      this.logger(
+        `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
+      );
+      this.deployedContracts[chain] = await this.deployContracts(
+        chain,
+        this.configMap[chain],
+      );
+      // TODO: remove these logs once we have better timeouts
+      this.logger(
+        JSON.stringify(
+          serializeContracts(this.deployedContracts[chain] ?? {}),
+          null,
+          2,
+        ),
+      );
+    }
     return this.deployedContracts as ChainMap<Chain, Contracts>;
   }
 
