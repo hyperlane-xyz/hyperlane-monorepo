@@ -119,6 +119,7 @@ echo "Spawning Kathy to send Abacus message traffic..."
 
 # Emit any ERROR logs found in an agent's stdout
 # or the presence of anything at all in stderr.
+(tail -f ${RELAYER_STDOUT_LOG} | grep -i "message successfully processed") &
 (tail -f "${RELAYER_STDOUT_LOG?}" | grep ERROR) &
 (tail -f "${VALIDATOR_STDOUT_LOG?}" | grep ERROR) &
 (tail -f "${RELAYER_STDERR_LOG?}") &
