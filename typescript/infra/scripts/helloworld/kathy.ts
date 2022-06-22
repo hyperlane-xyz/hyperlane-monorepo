@@ -25,7 +25,7 @@ async function main() {
   }
 }
 
-export async function sendMessage(
+async function sendMessage(
   app: HelloWorldApp<any>,
   source: ChainName,
   destination: ChainName,
