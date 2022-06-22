@@ -7,9 +7,11 @@ mod message;
 mod outbox;
 mod validator_manager;
 
+use std::collections::HashMap;
 use std::fmt::Debug;
 
 use async_trait::async_trait;
+use ethers::prelude::Selector;
 use ethers::{
     contract::ContractError,
     core::types::{TransactionReceipt, H256},
@@ -109,4 +111,18 @@ pub trait AbacusCommon: AbacusContract + Sync + Send + Debug {
 
     /// Fetch the current validator manager value
     async fn validator_manager(&self) -> Result<H256, ChainCommunicationError>;
+}
+
+/// Static contract ABI information.
+pub trait AbacusAbi {
+    /// Get a mapping from function selectors to human readable function names.
+    fn fn_map() -> HashMap<Selector, &'static str>;
+
+    /// Get a mapping from function selectors to owned human readable function names.
+    fn fn_map_owned() -> HashMap<Selector, String> {
+        Self::fn_map()
+            .into_iter()
+            .map(|(sig, name)| (sig, name.to_owned()))
+            .collect()
+    }
 }

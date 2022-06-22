@@ -86,6 +86,7 @@ pub struct HookBuilder {
     show_full_paths: bool,
 }
 
+#[allow(dead_code)]
 impl HookBuilder {
     fn make_handler(&self, _error: &(dyn Error + 'static)) -> Handler {
         let backtrace = if self.capture_enabled() {

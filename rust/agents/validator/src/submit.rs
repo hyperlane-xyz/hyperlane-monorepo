@@ -3,12 +3,13 @@ use std::time::Duration;
 
 use eyre::Result;
 use prometheus::IntGauge;
+use tokio::time::MissedTickBehavior;
 use tokio::{task::JoinHandle, time::sleep};
 use tracing::warn;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{CachingOutbox, CheckpointSyncer, CheckpointSyncers, CoreMetrics};
-use abacus_core::{ChainCommunicationError, Outbox, OutboxState, Signers};
+use abacus_core::{Outbox, Signers};
 
 pub(crate) struct ValidatorSubmitter {
     interval: u64,
@@ -40,7 +41,31 @@ impl ValidatorSubmitter {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("ValidatorSubmitter");
-        tokio::spawn(self.main_task()).instrument(span)
+        let metrics_loop = tokio::spawn(Self::metrics_loop(
+            self.metrics.outbox_state.clone(),
+            self.outbox.clone(),
+        ));
+        tokio::spawn(async move {
+            let res = self.main_task().await;
+            metrics_loop.abort();
+            res
+        })
+        .instrument(span)
+    }
+
+    /// Spawn a task to update the outbox state gauge.
+    async fn metrics_loop(outbox_state_gauge: IntGauge, outbox: Arc<CachingOutbox>) {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
+            let state = outbox.state().await;
+            match &state {
+                Ok(state) => outbox_state_gauge.set(*state as u8 as i64),
+                Err(e) => warn!(error = %e, "Failed to get outbox state"),
+            };
+
+            interval.tick().await;
+        }
     }
 
     async fn main_task(self) -> Result<()> {
@@ -64,9 +89,8 @@ impl ValidatorSubmitter {
             .unwrap_or_default();
 
         info!(current_index = current_index, "Starting Validator");
+        let mut initialized = false;
         loop {
-            self.update_outbox_state_gauge();
-
             // Check the latest checkpoint
             let latest_checkpoint = self.outbox.latest_checkpoint(reorg_period).await?;
 
@@ -86,25 +110,15 @@ impl ValidatorSubmitter {
                 self.metrics
                     .latest_checkpoint_processed
                     .set(signed_checkpoint.checkpoint.index as i64);
+            } else if !initialized {
+                self.metrics
+                    .latest_checkpoint_processed
+                    .set(latest_checkpoint.index as i64);
             }
 
+            initialized = true;
             sleep(Duration::from_secs(self.interval)).await;
         }
-    }
-
-    fn update_outbox_state_gauge(
-        &self,
-    ) -> JoinHandle<Result<OutboxState, ChainCommunicationError>> {
-        let outbox_state_gauge = self.metrics.outbox_state.clone();
-        let outbox = self.outbox.clone();
-        tokio::spawn(async move {
-            let state = outbox.state().await;
-            match &state {
-                Ok(state) => outbox_state_gauge.set(*state as u8 as i64),
-                Err(e) => warn!(error = %e, "Failed to get outbox state"),
-            };
-            state
-        })
     }
 }
 

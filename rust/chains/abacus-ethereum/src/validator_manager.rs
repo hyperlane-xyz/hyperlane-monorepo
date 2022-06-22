@@ -1,6 +1,7 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -9,11 +10,13 @@ use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{
-    accumulator::merkle::Proof, AbacusMessage, ChainCommunicationError, ContractLocator, Encode,
-    InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
+    accumulator::merkle::Proof, AbacusAbi, AbacusMessage, ChainCommunicationError, ContractLocator,
+    Encode, InboxValidatorManager, MultisigSignedCheckpoint, TxOutcome,
 };
 
-use crate::contracts::inbox_validator_manager::InboxValidatorManager as EthereumInboxValidatorManagerInternal;
+use crate::contracts::inbox_validator_manager::{
+    InboxValidatorManager as EthereumInboxValidatorManagerInternal, INBOXVALIDATORMANAGER_ABI,
+};
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
 
@@ -117,5 +120,13 @@ where
         let gassed = tx.gas(gas);
         let receipt = report_tx(gassed).await?;
         Ok(receipt.into())
+    }
+}
+
+pub struct EthereumInboxValidatorManagerAbi;
+
+impl AbacusAbi for EthereumInboxValidatorManagerAbi {
+    fn fn_map() -> HashMap<Selector, &'static str> {
+        super::extract_fn_map(&INBOXVALIDATORMANAGER_ABI)
     }
 }
