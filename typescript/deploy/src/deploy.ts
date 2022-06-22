@@ -13,6 +13,7 @@ import {
   ChainName,
   MultiProvider,
   ProxiedContract,
+  connectContracts,
   objMap,
   serializeContracts,
 } from '@abacus-network/sdk';
@@ -55,7 +56,20 @@ export abstract class AbacusDeployer<
     partialDeployment: Partial<Record<Chain, Contracts>> = this
       .deployedContracts,
   ): Promise<Record<Chain, Contracts>> {
-    const deployedChains = Object.keys(partialDeployment);
+    objMap(
+      partialDeployment as ChainMap<Chain, Contracts>,
+      (chain, contracts) => {
+        this.logger(
+          `Recovering contracts for ${chain} from partial deployment`,
+        );
+        const chainConnection = this.multiProvider.getChainConnection(chain);
+        this.deployedContracts[chain] = connectContracts(
+          contracts,
+          chainConnection.signer!,
+        );
+      },
+    );
+    const deployedChains = Object.keys(this.deployedContracts);
     const configChains = Object.keys(this.configMap);
     const targetChains = this.multiProvider
       .chains()
@@ -63,35 +77,29 @@ export abstract class AbacusDeployer<
         (chain) =>
           configChains.includes(chain) && !deployedChains.includes(chain),
       );
-    this.logger(
-      `Start deploy to ${targetChains} ${
-        deployedChains.length > 0
-          ? `(already deployed to ${deployedChains})`
-          : ''
-      }`,
+    this.logger(`Start deploy to ${targetChains}`);
+    // wait until all promises are resolved / rejected
+    await Promise.allSettled(
+      targetChains.map(async (chain) => {
+        const chainConnection = this.multiProvider.getChainConnection(chain);
+        this.logger(
+          `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
+        );
+        this.deployedContracts[chain] = await this.deployContracts(
+          chain,
+          this.configMap[chain],
+        );
+        // TODO: remove these logs once we have better timeouts
+        this.logger(
+          JSON.stringify(
+            serializeContracts(this.deployedContracts[chain] ?? {}),
+            null,
+            2,
+          ),
+        );
+      }),
     );
-    for (const chain of targetChains) {
-      const chainConnection = this.multiProvider.getChainConnection(chain);
-      this.logger(
-        `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
-      );
-      this.deployedContracts[chain] = await this.deployContracts(
-        chain,
-        this.configMap[chain],
-      );
-      // TODO: remove these logs once we have better timeouts
-      this.logger(
-        JSON.stringify(
-          serializeContracts(this.deployedContracts[chain] ?? {}),
-          null,
-          2,
-        ),
-      );
-    }
-    return { ...partialDeployment, ...this.deployedContracts } as Record<
-      Chain,
-      Contracts
-    >;
+    return this.deployedContracts as ChainMap<Chain, Contracts>;
   }
 
   async deployContract<K extends keyof Factories>(
