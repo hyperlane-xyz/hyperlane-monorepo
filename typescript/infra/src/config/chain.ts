@@ -1,8 +1,8 @@
-import { StaticCeloProvider } from '@celo-tools/celo-ethers-wrapper';
 import { Provider } from '@ethersproject/abstract-provider';
 import { NonceManager } from '@ethersproject/experimental';
 import { ethers } from 'ethers';
 
+import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
 import { ChainName, RetryJsonRpcProvider } from '@abacus-network/sdk';
 
 import { getSecretDeployerKey, getSecretRpcEndpoint } from '../agents';
@@ -16,7 +16,7 @@ export async function fetchProvider(
   const rpc = await getSecretRpcEndpoint(environment, chainName);
   const celoChainNames = new Set(['alfajores', 'baklava', 'celo']);
   const provider = celoChainNames.has(chainName)
-    ? new StaticCeloProvider(rpc)
+    ? new StaticCeloJsonRpcProvider(rpc)
     : new RetryJsonRpcProvider(new ethers.providers.JsonRpcProvider(rpc), {
         retryLimit: 2,
         interval: 250,

@@ -1,10 +1,10 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use std::fmt::Display;
 use std::{error::Error as StdError, sync::Arc};
 
 use async_trait::async_trait;
-use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
 
@@ -13,18 +13,10 @@ use abacus_core::{
     TxOutcome,
 };
 
+use crate::contracts::inbox::Inbox as EthereumInboxInternal;
 use crate::trait_builder::MakeableWithProvider;
 
-abigen!(
-    EthereumInboxInternal,
-    "./chains/abacus-ethereum/abis/Inbox.abi.json",
-     methods {
-        initialize(address) as initialize_common;
-        initialize(uint32, address, bytes32, uint256, uint32) as initialize;
-     },
-);
-
-impl<M> std::fmt::Display for EthereumInboxInternal<M>
+impl<M> Display for EthereumInboxInternal<M>
 where
     M: Middleware,
 {

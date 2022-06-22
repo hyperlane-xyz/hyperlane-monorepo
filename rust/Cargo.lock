@@ -81,6 +81,7 @@ name = "abacus-ethereum"
 version = "0.1.0"
 dependencies = [
  "abacus-core",
+ "abigen",
  "async-trait",
  "ethers",
  "ethers-contract",
@@ -115,6 +116,14 @@ dependencies = [
  "thiserror",
  "tokio",
  "tracing",
+]
+
+[[package]]
+name = "abigen"
+version = "0.1.0"
+dependencies = [
+ "Inflector",
+ "ethers",
 ]
 
 [[package]]
@@ -1275,6 +1284,7 @@ dependencies = [
 name = "ethers-prometheus"
 version = "0.1.0"
 dependencies = [
+ "abigen",
  "async-trait",
  "derive_builder",
  "ethers",
