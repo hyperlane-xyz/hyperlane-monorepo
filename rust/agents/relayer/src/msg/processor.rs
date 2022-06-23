@@ -1,17 +1,16 @@
 use std::sync::Arc;
 
-use eyre::{bail, Result};
+use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{sync::mpsc, task::JoinHandle};
 use tracing::{info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CoreMetrics, InboxContracts, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, CommittedMessage, Inbox,
-    InboxValidatorManager, MessageStatus, MultisigSignedCheckpoint, Outbox, OutboxState,
+    db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, CommittedMessage, Outbox,
+    OutboxState,
 };
 
-use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::SubmitMessageOp;
 use crate::settings::whitelist::Whitelist;
 
@@ -50,7 +49,7 @@ impl MessageProcessor {
         tokio::spawn(self.main_loop()).instrument(span)
     }
     #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name()), level = "info")]
-    async fn main_loop(mut self) -> Result<()> {
+    async fn main_loop(self) -> Result<()> {
         let mut message_leaf_index = 0;
         loop {
             self.update_outbox_state_gauge();
@@ -147,8 +146,6 @@ impl MessageProcessor {
 #[derive(Debug)]
 pub(crate) struct MessageProcessorMetrics {
     processor_loop_gauge: IntGauge,
-    processed_gauge: IntGauge,
-    retry_queue_length_gauge: IntGauge,
     outbox_state_gauge: IntGauge,
 }
 
@@ -160,15 +157,7 @@ impl MessageProcessorMetrics {
                 outbox_chain,
                 inbox_chain,
             ]),
-            processed_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
-                "message_processed",
-                outbox_chain,
-                inbox_chain,
-            ]),
             outbox_state_gauge: metrics.outbox_state().with_label_values(&[outbox_chain]),
-            retry_queue_length_gauge: metrics
-                .retry_queue_length()
-                .with_label_values(&[outbox_chain, inbox_chain]),
         }
     }
 }

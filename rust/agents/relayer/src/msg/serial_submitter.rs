@@ -1,4 +1,3 @@
-use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 
@@ -6,14 +5,10 @@ use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::SubmitMessageOp;
 use abacus_base::{CachingInterchainGasPaymaster, InboxContracts, Outboxes};
 use abacus_core::db::AbacusDB;
-use abacus_core::{CommittedMessage, InboxValidatorManager, Message, MultisigSignedCheckpoint};
+use abacus_core::{CommittedMessage, InboxValidatorManager, MultisigSignedCheckpoint};
 use eyre::{bail, Result};
+use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
-use tokio::{
-    sync::{mpsc, watch},
-    time::Instant,
-};
-use tracing::warn;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 /// The scheduler implemented in this file is responsible for managing the submission of N
@@ -62,10 +57,7 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 /// message is promoted to the runnable queue and prioritized accordingly. Note that for messages
 /// that have never been attempted before, they will sort very highly due to num_retries==0 and
 /// probably be tried soon.
-///
-///
 
-// TODO(webbhorn): Take dep on interchain gas paymaster indexed data.
 // TODO(webbhorn): Metrics data.
 
 #[allow(dead_code)]
