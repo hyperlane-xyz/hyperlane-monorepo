@@ -1,7 +1,7 @@
 import { CoreConfig } from '@abacus-network/deploy';
 import { ChainMap } from '@abacus-network/sdk';
 
-import { TestnetChains } from './chains';
+import { TestnetChains } from './common';
 
 export const core: ChainMap<TestnetChains, CoreConfig> = {
   alfajores: {

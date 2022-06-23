@@ -78,9 +78,9 @@ export abstract class AbacusDeployer<
           configChains.includes(chain) && !deployedChains.includes(chain),
       );
     this.logger(`Start deploy to ${targetChains}`);
-    await Promise.all(
+    // wait until all promises are resolved / rejected
+    await Promise.allSettled(
       targetChains.map(async (chain) => {
-        this.logger;
         const chainConnection = this.multiProvider.getChainConnection(chain);
         this.logger(
           `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
@@ -199,6 +199,7 @@ export abstract class AbacusDeployer<
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
     this.logger(`Duplicate Proxy on ${chain}`);
+    const chainConnection = this.multiProvider.getChainConnection(chain);
     const signer = this.multiProvider.getChainConnection(chain).signer!;
     const initData = proxy.contract.interface.encodeFunctionData(
       'initialize',

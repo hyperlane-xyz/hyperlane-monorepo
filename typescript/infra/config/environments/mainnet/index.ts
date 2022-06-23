@@ -4,7 +4,7 @@ import { CoreEnvironmentConfig } from '../../../src/config';
 import { agent } from './agent';
 import { MainnetChains, mainnetConfigs } from './chains';
 import { core } from './core';
-import helloWorldAddresses from './helloworld/addresses.json';
+// import helloWorldAddresses from './helloworld/addresses.json';
 import { infrastructure } from './infrastructure';
 
 export const environment: CoreEnvironmentConfig<MainnetChains> = {
@@ -14,5 +14,6 @@ export const environment: CoreEnvironmentConfig<MainnetChains> = {
   agent,
   core,
   infra: infrastructure,
-  helloWorldAddresses,
+  // TODO come back
+  // helloWorldAddresses,
 };

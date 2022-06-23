@@ -5,7 +5,7 @@ import {
   CheckpointSyncerType,
 } from '../../../src/config/agent';
 
-import { TestnetChains } from './chains';
+import { TestnetChains } from './common';
 
 const s3BucketRegion = 'us-east-1';
 

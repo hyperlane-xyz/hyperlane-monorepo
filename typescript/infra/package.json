@@ -1,9 +1,9 @@
 {
   "name": "@abacus-network/infra",
-  "private": true,
   "description": "Infrastructure utilities for the Abacus Network",
   "version": "0.2.3",
   "dependencies": {
+    "@abacus-network/celo-ethers-provider": "^0.1.0",
     "@abacus-network/core": "^0.2.3",
     "@abacus-network/deploy": "^0.2.3",
     "@abacus-network/helloworld": "0.2.3",
@@ -17,7 +17,6 @@
     "@types/node": "^16.9.1",
     "@types/yargs": "^17.0.10",
     "asn1.js": "5.4.1",
-    "celo-ethers-provider": "0.0.0",
     "chai": "^4.3.4",
     "dotenv": "^10.0.0",
     "yargs": "^17.4.1"
