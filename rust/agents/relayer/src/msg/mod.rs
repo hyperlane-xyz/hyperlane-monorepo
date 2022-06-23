@@ -21,7 +21,7 @@ pub mod serial_submitter;
 ///   - FallbackProviderSubmitter (Serialized, but if some RPC provider sucks,
 ///   switch everyone to new one)
 
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq, PartialOrd, Ord)]
 pub struct SubmitMessageOp {
     pub leaf_index: u32,
 }
