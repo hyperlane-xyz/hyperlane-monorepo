@@ -1,7 +1,5 @@
-// TODO remove/move to test
-import { expect } from 'chai';
-
 import { MultisigValidatorManager } from '@abacus-network/core';
+import { utils } from '@abacus-network/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import { AbacusCore } from '../../core/AbacusCore';
@@ -52,7 +50,7 @@ export class AbacusCoreChecker<
     const contracts = this.app.getContracts(chain);
     const outbox = contracts.outbox.contract;
     const localDomain = await outbox.localDomain();
-    expect(localDomain).to.equal(ChainNameToDomainId[chain]);
+    utils.assert(localDomain === ChainNameToDomainId[chain]);
 
     const actualManager = await contracts.outbox.contract.validatorManager();
     const expectedManager = contracts.outboxValidatorManager.address;
@@ -138,7 +136,7 @@ export class AbacusCoreChecker<
     }
 
     const expectedThreshold = validatorManagerConfig.threshold;
-    expect(expectedThreshold).to.not.be.undefined;
+    utils.assert(expectedThreshold !== undefined);
 
     const actualThreshold = await validatorManager.threshold();
 
@@ -166,7 +164,7 @@ export class AbacusCoreChecker<
       objMap(coreContracts.inboxes, async (_, inbox) => {
         const expected = inbox.inboxValidatorManager.address;
         const actual = await inbox.inbox.contract.validatorManager();
-        expect(actual).to.equal(expected);
+        utils.assert(actual === expected);
       }),
     );
 
@@ -174,10 +172,10 @@ export class AbacusCoreChecker<
       objMap(coreContracts.inboxes, async (remoteChain, inbox) => {
         // check that the inbox has the right local domain
         const actualLocalDomain = await inbox.inbox.contract.localDomain();
-        expect(actualLocalDomain).to.equal(ChainNameToDomainId[chain]);
+        utils.assert(actualLocalDomain === ChainNameToDomainId[chain]);
 
         const actualRemoteDomain = await inbox.inbox.contract.remoteDomain();
-        expect(actualRemoteDomain).to.equal(ChainNameToDomainId[remoteChain]);
+        utils.assert(actualRemoteDomain === ChainNameToDomainId[remoteChain]);
       }),
     );
 
@@ -190,8 +188,8 @@ export class AbacusCoreChecker<
     const implementations = inboxes.map((r) => r.implementation);
     const identical = (a: any, b: any) => (a === b ? a : false);
     const upgradeBeacons = inboxes.map((r) => r.beacon);
-    expect(implementations.reduce(identical)).to.not.be.false;
-    expect(upgradeBeacons.reduce(identical)).to.not.be.false;
+    utils.assert(implementations.reduce(identical));
+    utils.assert(upgradeBeacons.reduce(identical));
   }
 
   async checkAbacusConnectionManager(chain: Chain): Promise<void> {
@@ -202,13 +200,13 @@ export class AbacusCoreChecker<
         // inbox is enrolled in abacusConnectionManager
         const enrolledInboxes =
           await coreContracts.abacusConnectionManager.getInboxes(remoteDomain);
-        expect(enrolledInboxes).to.deep.equal([inbox.inbox.address]);
+        utils.assert(utils.deepEquals(enrolledInboxes, [inbox.inbox.address]));
       }),
     );
 
     // Outbox is set on abacusConnectionManager
     const outbox = await coreContracts.abacusConnectionManager.outbox();
-    expect(outbox).to.equal(coreContracts.outbox.address);
+    utils.assert(outbox === coreContracts.outbox.address);
   }
 
   async checkProxiedContracts(chain: Chain): Promise<void> {

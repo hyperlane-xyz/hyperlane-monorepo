@@ -1,5 +1,3 @@
-import { expect } from 'chai';
-
 import { utils } from '@abacus-network/utils';
 
 import { AbacusApp } from '../../AbacusApp';
@@ -34,9 +32,8 @@ export class AbacusRouterChecker<
       this.app.remoteChains(chain).map(async (remoteNetwork) => {
         const remoteRouter = this.app.getContracts(remoteNetwork).router;
         const remoteChainId = chainMetadata[remoteNetwork].id;
-        expect(await router.routers(remoteChainId)).to.equal(
-          utils.addressToBytes32(remoteRouter.address),
-        );
+        const address = await router.routers(remoteChainId);
+        utils.assert(address === utils.addressToBytes32(remoteRouter.address));
       }),
     );
   }

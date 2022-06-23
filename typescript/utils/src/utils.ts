@@ -1,7 +1,16 @@
-import { assert } from 'chai';
 import { ethers, utils } from 'ethers';
 
 import { Address, Domain, HexString, ParsedMessage } from './types';
+
+export function assert(predicate: any, errorMessage?: string) {
+  if (!predicate) {
+    throw new Error(errorMessage ?? 'Error');
+  }
+}
+
+export function deepEquals(v1: any, v2: any) {
+  return JSON.stringify(v1) === JSON.stringify(v2);
+}
 
 /*
  * Gets the byte length of a hex string

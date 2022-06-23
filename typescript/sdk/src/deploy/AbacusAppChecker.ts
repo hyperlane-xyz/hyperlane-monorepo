@@ -1,5 +1,4 @@
-//TODO
-import { expect } from 'chai';
+import { utils } from '@abacus-network/utils';
 
 import { AbacusApp } from '../AbacusApp';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -70,7 +69,7 @@ export abstract class AbacusAppChecker<
     ownables: Ownable[],
   ): Promise<void> {
     const owners = await Promise.all(ownables.map((o) => o.owner()));
-    owners.map((_) => expect(_).to.equal(owner));
+    owners.map((_) => utils.assert(_ == owner));
   }
 
   isDuplicateViolation(violation: CheckerViolation): boolean {
@@ -89,15 +88,15 @@ export abstract class AbacusAppChecker<
     const actualMatches = types.map(
       (t) => this.violations.map((v) => v.type === t).filter(Boolean).length,
     );
-    expect(actualMatches).to.deep.equal(expectedMatches);
+    utils.assert(utils.deepEquals(actualMatches, expectedMatches));
     // Every violation should be matched by at least one partial.
     const unmatched = this.violations.map(
       (v) => types.map((t) => v.type === t).filter(Boolean).length,
     );
-    expect(unmatched).to.not.include(0);
+    utils.assert(!unmatched.includes(0));
   }
 
   expectEmpty(): void {
-    expect(this.violations).to.be.empty;
+    utils.assert(this.violations.length === 0);
   }
 }
