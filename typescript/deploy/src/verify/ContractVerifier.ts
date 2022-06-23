@@ -1,4 +1,4 @@
-import axios from 'axios';
+import fetch from 'cross-fetch';
 
 import { ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
@@ -91,23 +91,27 @@ export abstract class ContractVerifier {
 
     console.log(`   Submit ${address} for proxy verification on ${chain}`);
     // Submit contract for verification
-    const verifyResponse = await axios.post(
-      `https://api${suffix}.etherscan.io/api`,
-      `address=${address}`,
+    const verifyResponse = await fetch(
+      `https://api${suffix}.etherscan.io/api?address=${address}`,
       {
-        params: {
+        method: 'POST',
+        body: JSON.stringify({
           module: 'contract',
           action: 'verifyproxycontract',
           apikey: this.key,
-        },
+        }),
       },
     );
 
     // Validate that submission worked
-    if (verifyResponse.status !== 200) {
+    if (!verifyResponse.ok) {
       throw new Error('Verify POST failed');
-    } else if (verifyResponse.data.status != '1') {
-      throw new Error(verifyResponse.data.result);
+    }
+
+    const data = await verifyResponse.json();
+
+    if (data?.status != '1') {
+      throw new Error(data?.result);
     }
 
     console.log(`   Submitted.`);

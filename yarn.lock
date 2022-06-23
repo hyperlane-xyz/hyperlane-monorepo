@@ -80,30 +80,9 @@ __metadata:
     "@abacus-network/utils": ^0.2.3
     "@types/debug": ^4.1.7
     "@types/node": ^16.9.1
-    "@types/yargs": ^17.0.10
-    axios: ^0.21.3
+    cross-fetch: ^3.1.5
     debug: ^4.3.4
     ethers: ^5.6.8
-    prettier: ^2.4.1
-    ts-node: ^10.8.0
-    typescript: ^4.7.2
-    yargs: ^17.4.1
-  languageName: unknown
-  linkType: soft
-
-"@abacus-network/hardhat@workspace:typescript/hardhat":
-  version: 0.0.0-use.local
-  resolution: "@abacus-network/hardhat@workspace:typescript/hardhat"
-  dependencies:
-    "@abacus-network/core": ^0.2.3
-    "@abacus-network/deploy": ^0.2.3
-    "@abacus-network/sdk": ^0.2.3
-    "@abacus-network/utils": ^0.2.3
-    "@nomiclabs/hardhat-ethers": ^2.0.5
-    "@nomiclabs/hardhat-waffle": ^2.0.2
-    ethereum-waffle: ^3.2.2
-    ethers: ^5.6.8
-    hardhat: ^2.8.4
     prettier: ^2.4.1
     ts-node: ^10.8.0
     typescript: ^4.7.2
@@ -177,11 +156,17 @@ __metadata:
     "@abacus-network/celo-ethers-provider": ^0.1.0
     "@abacus-network/core": ^0.2.3
     "@abacus-network/utils": ^0.2.3
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
+    "@types/debug": ^4.1.7
     "@types/node": ^16.9.1
     chai: ^4.3.6
+    debug: ^4.3.4
     dotenv: ^10.0.0
+    ethereum-waffle: ^3.2.2
     ethers: ^5.6.8
     fs: 0.0.1-security
+    hardhat: ^2.8.4
     mocha: ^9.2.2
     prettier: ^2.4.1
     sinon: ^13.0.2
@@ -4496,15 +4481,6 @@ __metadata:
   languageName: node
   linkType: hard
 
-"axios@npm:^0.21.3":
-  version: 0.21.4
-  resolution: "axios@npm:0.21.4"
-  dependencies:
-    follow-redirects: ^1.14.0
-  checksum: 44245f24ac971e7458f3120c92f9d66d1fc695e8b97019139de5b0cc65d9b8104647db01e5f46917728edfc0cfd88eb30fc4c55e6053eef4ace76768ce95ff3c
-  languageName: node
-  linkType: hard
-
 "babel-code-frame@npm:^6.26.0":
   version: 6.26.0
   resolution: "babel-code-frame@npm:6.26.0"
@@ -6343,6 +6319,15 @@ __metadata:
     node-fetch: ^2.6.7
     whatwg-fetch: ^2.0.4
   checksum: df9c6728b314ff96022dca468a3d2a05b4546cd318d82a7e1f1445e7160472d39029bccbe5f20d319b8ba3793930592b0b956244aef6a87a133fbcfed85fc8ca
+  languageName: node
+  linkType: hard
+
+"cross-fetch@npm:^3.1.5":
+  version: 3.1.5
+  resolution: "cross-fetch@npm:3.1.5"
+  dependencies:
+    node-fetch: 2.6.7
+  checksum: f6b8c6ee3ef993ace6277fd789c71b6acf1b504fd5f5c7128df4ef2f125a429e29cd62dc8c127523f04a5f2fa4771ed80e3f3d9695617f441425045f505cf3bb
   languageName: node
   linkType: hard
 
@@ -8372,7 +8357,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"follow-redirects@npm:^1.12.1, follow-redirects@npm:^1.14.0":
+"follow-redirects@npm:^1.12.1":
   version: 1.15.1
   resolution: "follow-redirects@npm:1.15.1"
   peerDependenciesMeta:
@@ -11901,7 +11886,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-fetch@npm:^2.6.1, node-fetch@npm:^2.6.7":
+"node-fetch@npm:2.6.7, node-fetch@npm:^2.6.1, node-fetch@npm:^2.6.7":
   version: 2.6.7
   resolution: "node-fetch@npm:2.6.7"
   dependencies:
