@@ -5,6 +5,7 @@ WORKDIR /abacus-monorepo
 RUN apk add --update --no-cache git g++ make py3-pip
 
 RUN yarn set version 3.2.0
+RUN yarn plugin import workspace-tools
 
 # Copy package.json and friends
 COPY package.json yarn.lock .yarnrc.yml ./
@@ -17,8 +18,6 @@ COPY typescript/deploy/package.json ./typescript/deploy/
 COPY typescript/infra/package.json ./typescript/infra/
 COPY solidity/core/package.json ./solidity/core/
 COPY solidity/app/package.json ./solidity/app/
-
-RUN yarn plugin import workspace-tools
 
 RUN yarn install && yarn cache clean
 
