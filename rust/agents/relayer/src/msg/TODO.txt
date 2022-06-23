@@ -12,3 +12,100 @@
 [DONE]
 - clippy / lint clean
 - Take dependencies in SerialSubmitter
+
+
+------------------------------
+Summary of MessageProcessor
+------------------------------
+
+Scans rocks DB for all messages on outbox chain
+    starting from 0 on startup.
+
+AbacusDB maps leaf_$index to a boolean, literally 1 or 0.
+    if 1, that means the message has been processed, i.e. delivered
+    e.g. for leaf 18 that has been processed,
+      leaf_process_status_18 --> 1
+
+Four metrics:
+    outbox state, rarely updated to be off in case of ForwardRequestO
+
+
+Retry queue is kept as a binary heap
+  reverse chronological order, i.e. Reverse<tokio::Instant>
+  processor_loop_gauge --> whatever leaf index the processor scanner is on
+  retry_queue_length_gauge --> current size of retry queue (the max heap by Instant)
+
+
+concise statement about behavior:
+  
+  try to process each unsubmitted message from index=0
+    if retryable error, put it on retry queue
+  
+  only once an outbox leaf index has been found for which users have not yet
+  posted a message do we consider the retry loop.
+
+--------
+
+main loop:
+
+keep a pointer into outbox leaf index, message_leaf_index
+
+scan through outbox leafs, starting at zero, doing nothing but
+update metrics until discovering the next index with no entry in
+abacus db.
+
+So, message_leaf_index is pointing to an outbox index with no entry
+in the db, indicating it has not been processed.
+
+If we can get its hash from the DB (when couldn't you?), try to
+process it via process_fresh_leaf. If you couldn't (when), process over
+retry loops.
+
+Processing case:
+    If processing worked, update processed_gauge metric, increment leaf index, restart loop.
+    special-case errors:
+        If it failed due to checkpoint behind, keep leaf index the same, re-enter loop.
+        If it failed due to not being whitelisted, or wrong inbox, incr message_leaf_index,
+           re-enter loop.
+    all other errors:
+        put on retry queue, with updated 'instant' timestamp (now)
+
+Retry case:
+    attempted logic: early return if time_to_retry is in the future, i.e. haven't waited enough
+    yet.
+    pop from retry queue --> message with lowest instant, i.e. oldest message.
+    if retry queue empty, sleep for 1s (lol?) and return a friggin loop control.
+    ok so we've got a message to retry. try it. done if it worked.
+    if error
+      if > max retries, kill it forever.
+      otherwise, re-attempt at time >= 2^num_retries seconds in the future, put it back on
+          retry loop
+      
+-------
+
+gripes about old approach
+    no monitoring by error type
+    why permanently kill it max retries reached? what is its final fate?
+    spaghetti, hard to reason rigorously about
+      fucking loop_control
+      why doesn't < checkpoint just immediately go to retry or pending?
+    confusing nested errors, e.g. Ok(MessageProcessingStatus::Error), wtf
+    in retry loop, if notyetcheckpointed, we bail forever and never retry, but why? we might
+    get a newer validator
+        no test to verify that, code not very testable.
+    nearly-the-same-but-different MessageProcessingStatus matching
+    
+    
+-------
+
+
+Forever, do the following:
+
+- message_leaf_index: init to 0
+
+- Get latest checkpoint signature
+
+- get outbox[message_leaf_index] processing status
+  - if there's a DB entry (regardless of val)
+    increment message_leaf_index
+    re-enter loop

@@ -159,10 +159,8 @@ impl Relayer {
         };
         let message_processor = MessageProcessor::new(
             outbox,
-            self.max_processing_retries,
             db,
             inbox_contracts,
-            signed_checkpoint_receiver,
             self.whitelist.clone(),
             metrics,
             snd,

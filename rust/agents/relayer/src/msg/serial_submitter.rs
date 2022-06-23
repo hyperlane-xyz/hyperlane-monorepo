@@ -6,7 +6,7 @@ use crate::merkle_tree_builder::MerkleTreeBuilder;
 use crate::msg::SubmitMessageOp;
 use abacus_base::{CachingInterchainGasPaymaster, InboxContracts, Outboxes};
 use abacus_core::db::AbacusDB;
-use abacus_core::MultisigSignedCheckpoint;
+use abacus_core::{CommittedMessage, InboxValidatorManager, Message, MultisigSignedCheckpoint};
 use eyre::{bail, Result};
 use tokio::task::JoinHandle;
 use tokio::{
@@ -16,16 +16,15 @@ use tokio::{
 use tracing::warn;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
-
 /// The scheduler implemented in this file is responsible for managing the submission of N
 /// messages to a target chain. It is designed to be used in a scenario allowing only one
 /// simultaneously in-flight submission, a consequence imposed by strictly ordered nonces at
 /// the target chain combined with a hesitancy to speculatively batch > 1 messages with a
 /// sequence of nonces, which entails harder to manage error recovery, could lead to head of
 /// line blocking, etc.
-/// 
+///
 /// Two primary objectives determine the structure of this scheduler:
-/// 
+///
 /// 1.  Most important messages to send are those which we haven't yet attempted
 ///     (num_retries==0), and among those, prioritizing messages at the highest indexes
 ///     first. After that, try the num_retries==1 messages with highest index first, and so on.
@@ -38,17 +37,17 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 ///
 /// Messages may have been received from the Processor but not yet be eligible for submission.
 /// The reasons a message might not be eligible are:
-/// 
+///
 ///  *  Not whitelisted (checked by processor)
 ///  *  Wrong destination chain (checked by processor)
 ///  *  Insufficient interchain gas payment on source chain
 ///  *  Checkpoint index < leaf index
-/// 
+///
 /// Therefore, we maintain two queues of messages:
-/// 
+///
 ///   1.  run_queue: messages which are eligible for submission but waiting for
 ///       their turn to run, since we can only do one at a time.
-/// 
+///
 ///   2.  wait_queue: messages currently ineligible for submission, due to one of the
 ///       reasons listed above (e.g. index not covered by checkpoint, insufficient gas, etc).
 ///
@@ -56,16 +55,15 @@ use tracing::{info, info_span, instrument::Instrumented, Instrument};
 /// reason, the message instead goes directly back on to the runnable queue (though it will be
 /// prioritized lower than it was prior to the failed attempt due to the increased
 /// num_retries).
-/// 
+///
 /// Each round, new messages from the processor are inserted onto the wait queue. We then scan
 /// the wait_queue, looking for messages which can be promoted to the runnable_queue, e.g. by
 /// comparing with a recent checkpoint or latest gas payments on source chain. If eligible, the
 /// message is promoted to the runnable queue and prioritized accordingly. Note that for messages
 /// that have never been attempted before, they will sort very highly due to num_retries==0 and
 /// probably be tried soon.
-/// 
-/// 
-
+///
+///
 
 // TODO(webbhorn): Take dep on interchain gas paymaster indexed data.
 // TODO(webbhorn): Metrics data.
@@ -76,15 +74,15 @@ pub(crate) struct SerialSubmitter {
     // Receiver for new messages to submit.
     rx: mpsc::Receiver<SubmitMessageOp>,
     // Provides access to most-recently available signed checkpoint.
-    signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
+    ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     // Messages we are aware of that we want to eventually submit,
     // but haven't yet, for whatever reason. They are not in any
     // priority order, so are held in a vector.
-    retry_queue: Vec<SubmitMessageOp>,
+    wait_queue: Vec<SubmitMessageOp>,
     // Messages that are in theory deliverable, but which are waiting in a queue for
     // their turn to be dispatched. The SerialSubmitter can only dispatch one message
     // at a time, so this queue could grow.
-    runnable_queue: BinaryHeap<SubmitMessageOp>,
+    run_queue: BinaryHeap<SubmitMessageOp>,
     // Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
     // Outbox on message origin chain.
@@ -116,9 +114,9 @@ impl SerialSubmitter {
     ) -> Self {
         Self {
             rx,
-            signed_checkpoint_receiver,
-            retry_queue: Vec::new(),
-            runnable_queue: BinaryHeap::new(),
+            ckpt_rx: signed_checkpoint_receiver,
+            wait_queue: Vec::new(),
+            run_queue: BinaryHeap::new(),
             inbox_contracts,
             outbox,
             interchain_gas_paymaster,
@@ -134,95 +132,105 @@ impl SerialSubmitter {
     }
 
     async fn work_loop(&mut self) -> Result<()> {
+        // Wait until we have a non-option checkpoint.
         loop {
-            // We maintain the invariant that each iteration of this loop begins and ends with
-            // an empty runnable queue, since we do not want to let the task wait for an
-            // arbitrarily long time in tokio::select! while there's useful work we already
-            // know we could be doing.
-            assert!(self.runnable_queue.is_empty());
-            
-            // The runnable_queue is currently empty, although there may be pending messages on
-            // the retry_queue. The only way for a message on the retry queue to be promoted to
-            // the runnable queue is if some external condition changes that makes them become
-            // runnable. Currently, our only two criteria for this are:
-            //     (1) a new signed checkpoint covering a higher leaf index, and
-            //     (2) a new message arriving that might be immediately eligible for delivery.
-            // Therefore, wait until we get a signal that either of these events may have
-            // occurred. Until then, there's nothing to be done.
-            tokio::select! {
-                // Place the new message on the retry queue initially.
-                // If in fact it is runnable, we will immediately discover that fact and
-                // promote it to the runnable queue below.
-                Some(new_msg) = self.rx.recv() => {
-                    info!(msg=?new_msg, "new message avail");
-                    self.retry_queue.push(new_msg);
-                },
-                // If a new checkpoint is available, some messages on the retry queue
-                // might be promotable to the runnable queue.
-                Ok(_) = self.signed_checkpoint_receiver.changed() => {
-                    info!(ckpt=?self.signed_checkpoint_receiver.borrow(),
-                        "new signed checkpoint avail");
-                },
-                // It's unclear under what cirucmstances this would happen, but there's also no
-                // clear way to recover from whatever error could trigger this situation.
-                // Without recovery, the relayer would  no longer be functionally delivering
-                // messages, so for now bailing seems like the simplest and most explicit
-                // option.
-                else => {
-                    bail!("unexpected work loop select! error, bailing")
+            self.ckpt_rx.changed().await?;
+            let ckpt = self.ckpt_rx.borrow().clone();
+            match ckpt {
+                Some(ckpt) => {
+                    break;
                 }
-
-                // TODO(webbhorn): Since we probably won't be able to rely on a channel
-                // to receive gas price updates on source chain's interchain gas paymaster
-                // we will probably eventually want to add a simple time-based wakeup here
-                // too, so that we'll look for any newly-runnable messages on the retry
-                // queue that are now runnable because of a gas paymaster udpate.
-            };
-
-            loop {
-                // Invariant: whenever we enter or leave this loop, runnable_queue is empty.
-                // Within the loop, we may promote some messages from retryable to runnable,
-                // and then attempt submission for each of those.
-                info!(retry_queue=?self.retry_queue, "pre-scan retry queue state");
-                info!(runnable_queue=?self.retry_queue, "pre-scan runnable queue state");
-                assert!(self.runnable_queue.is_empty());
-
-                let ckpt = match self.signed_checkpoint_receiver.borrow().clone() {
-                    Some(ckpt) => ckpt,
-                    None => {
-                        warn!("no signed checkpoint actually available");
-                        break;
-                    },
-                };
-                info!(ckpt=?ckpt);
-
-                self.process_retryable(&ckpt).await?;
-                self.process_runnable(&ckpt).await?;
-
-                // If runnable queue is empty and there's no new checkpoint at a higher
-                // index, exit the loop and wait for more work via tokio::select!.
-                // Otherwise, there might still be eligible work sitting in the retry queue,
-                // so loop back around to rescan the retry queue and then run anything in the
-                // runnable queue.
-                match self.signed_checkpoint_receiver.borrow().clone() {
-                    Some(new_ckpt) if self.runnable_queue.is_empty() => {
-                        if new_ckpt.checkpoint.index <= ckpt.checkpoint.index {
-                            break;
-                        }
-                    },
-                    _ => {},
-                }
+                _ => {}
             }
-            assert!(self.runnable_queue.is_empty());
+        }
+
+        loop {
+            // Pull any messages sent by processor over channel.
+            info!(wq=?self.wait_queue,rq=?self.run_queue, "start work loop iter");
+            while let Ok(msg) = self.rx.try_recv() {
+                self.wait_queue.push(msg);
+            }
+            info!(wq=?self.wait_queue,rq=?self.run_queue, "processed rcv queue");
+
+            // Save latest signed validator checkpoint, which may cover messages
+            // which previously were waiting on the wait queue with too high index.
+            let ckpt = self.ckpt_rx.borrow().clone().unwrap();
+            info!(ckpt=?ckpt);
+
+            // Promote any newly-ready messages from the wait queue to the run queue.
+            let mut new_wait_queue = Vec::new();
+            for i in 0..self.wait_queue.len() {
+                let msg = self.wait_queue[i].clone();
+                if msg.leaf_index > ckpt.checkpoint.index {
+                    info!(msg.leaf_index, "leaf > ckpt.index");
+                    new_wait_queue.push(msg);
+                } else {
+                    info!(msg.leaf_index, "nothing disqualifying --> runq");
+                    self.run_queue.push(msg);
+                }
+                // TODO(webbhorn): Check if already delivered to
+                // inbox, e.g. by another relay. In that case, drop
+                // from wait queue.
+                //
+                // TODO(webbhorn): Check against interchain gas paymaster.
+                // If now enough payment, promote to run queue.
+            }
+            self.wait_queue = new_wait_queue;
+            info!(wq=?self.wait_queue,rq=?self.run_queue,
+                "processed wait queue, before run queue");
+
+            // Deliver the highest-priority message on the run queue.
+            if let Some(mut msg) = self.run_queue.pop() {
+                info!(msg=?msg, "ready to deliver message");
+                match self.deliver_message(&msg, &ckpt).await {
+                    Ok(()) => {
+                        info!(msg=?msg, "message delivered");
+                    }
+                    Err(e) => {
+                        info!(msg=?msg, "message delivery failed: {}", e);
+                        msg.num_retries += 1;
+                        self.run_queue.push(msg);
+                    }
+                }
+            } else {
+                info!("no messages on runq, sleeping");
+                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+            }
+            info!(wq=?self.wait_queue,rq=?self.run_queue);
         }
     }
 
-    async fn process_retryable(&self, ckpt: &MultisigSignedCheckpoint) -> Result<()> {
-        todo!()
-    }
+    async fn deliver_message(
+        &mut self,
+        msg: &SubmitMessageOp,
+        ckpt: &MultisigSignedCheckpoint,
+    ) -> Result<()> {
+        let message = if let Some(m) = self
+            .db
+            .message_by_leaf_index(msg.leaf_index)?
+            .map(CommittedMessage::try_from)
+            .transpose()?
+        {
+            m
+        } else {
+            bail!("no message in db for leaf index {}", msg.leaf_index);
+        };
 
-    async fn process_runnable(&self, ckpt: &MultisigSignedCheckpoint) -> Result<()> {
-        todo!()
+        if ckpt.checkpoint.index >= self.prover_sync.count() {
+            self.prover_sync
+                .update_to_checkpoint(&ckpt.checkpoint)
+                .await?;
+        }
+        assert_eq!(ckpt.checkpoint.index + 1, self.prover_sync.count());
+        let proof = self.prover_sync.get_proof(msg.leaf_index)?;
+        let result = self
+            .inbox_contracts
+            .validator_manager
+            .process(ckpt, &message.message, &proof)
+            .await?;
+        info!(leaf_index=?msg.leaf_index, hash=?result.txid, "message successfully processed");
+        self.db.mark_leaf_as_processed(msg.leaf_index)?;
+        Ok(())
     }
 }
 

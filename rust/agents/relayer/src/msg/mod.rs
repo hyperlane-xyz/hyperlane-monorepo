@@ -24,6 +24,7 @@ pub mod serial_submitter;
 #[derive(Clone, Debug, Default, Eq, PartialEq, PartialOrd, Ord)]
 pub struct SubmitMessageOp {
     pub leaf_index: u32,
+    pub num_retries: u32,
 }
 
 #[allow(dead_code)]
