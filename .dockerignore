@@ -8,9 +8,7 @@ typescript/abacus-deploy/.env
 **/*.swp
 **/*.swo
 
-rust/vendor/
-rust/tmp_db
-rust/tmp.env
+rust
 tmp.env
 .DS_STORE
 
@@ -24,5 +22,3 @@ typescript/**/tsconfig.tsbuildinfo
 yarn-error.log
 
 .idea
-
-rust

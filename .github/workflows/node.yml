@@ -15,9 +15,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-        with:
-          submodules: 'false'
-
       - uses: actions/cache@v2
         with:
           path: '**/node_modules'
@@ -41,8 +38,6 @@ jobs:
     needs: [yarn-install]
     steps:
       - uses: actions/checkout@v2
-        with:
-          submodules: 'false'
 
       - name: yarn-cache
         uses: actions/cache@v2
