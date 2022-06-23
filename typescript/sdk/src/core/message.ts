@@ -1,7 +1,5 @@
 import { AbacusCore } from '.';
-import { TransactionReceipt } from '@ethersproject/abstract-provider';
-import { BigNumber } from '@ethersproject/bignumber';
-import { keccak256 } from 'ethers/lib/utils';
+import { BigNumber, utils as ethersUtils, providers } from 'ethers';
 
 import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
 import { types, utils } from '@abacus-network/utils';
@@ -100,7 +98,7 @@ export class AbacusMessage {
   /**
    * The receipt of the TX that dispatched this message
    */
-  get receipt(): TransactionReceipt {
+  get receipt(): providers.TransactionReceipt {
     return this.dispatch.receipt;
   }
 
@@ -116,7 +114,7 @@ export class AbacusMessage {
     multiProvider: MultiProvider,
     core: AbacusCore,
     nameOrDomain: NameOrDomain,
-    receipt: TransactionReceipt,
+    receipt: providers.TransactionReceipt,
   ): AbacusMessage[] {
     const messages: AbacusMessage[] = [];
     const outbox = new Outbox__factory().interface;
@@ -165,7 +163,7 @@ export class AbacusMessage {
     multiProvider: MultiProvider,
     core: AbacusCore,
     nameOrDomain: NameOrDomain,
-    receipt: TransactionReceipt,
+    receipt: providers.TransactionReceipt,
   ): AbacusMessage {
     const messages: AbacusMessage[] = AbacusMessage.fromReceipt(
       multiProvider,
@@ -380,7 +378,7 @@ export class AbacusMessage {
    * The keccak256 hash of the message body
    */
   get bodyHash(): string {
-    return keccak256(this.body);
+    return ethersUtils.keccak256(this.body);
   }
 
   /**

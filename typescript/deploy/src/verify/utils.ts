@@ -1,9 +1,8 @@
-import { Fragment } from '@ethersproject/abi';
-import { ethers } from 'ethers';
+import { ethers, utils } from 'ethers';
 
 import { ContractVerificationInput } from './types';
 
-export function formatFunctionArguments(fragment: Fragment, args: any[]) {
+export function formatFunctionArguments(fragment: utils.Fragment, args: any[]) {
   const params = Object.fromEntries(
     fragment.inputs.map((input, index) => [input.name, args[index]]),
   );
