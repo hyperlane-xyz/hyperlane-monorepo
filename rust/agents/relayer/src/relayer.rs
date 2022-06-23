@@ -140,7 +140,7 @@ impl Relayer {
                     inbox_contracts.clone(),
                     self.interchain_gas_paymaster(),
                     self.outbox().db(),
-                    signed_checkpoint_receiver.clone(),
+                    signed_checkpoint_receiver,
                 );
                 gelato_submitter.spawn()
             }
@@ -152,7 +152,7 @@ impl Relayer {
                     self.interchain_gas_paymaster(),
                     self.max_processing_retries,
                     self.outbox().db(),
-                    signed_checkpoint_receiver.clone(),
+                    signed_checkpoint_receiver,
                 );
                 serial_submitter.spawn()
             }
