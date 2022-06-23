@@ -1,18 +1,13 @@
 import { debug } from 'debug';
 
-import {
-  ChainMap,
-  ChainName,
-  MultiProvider,
-  RouterContracts,
-  RouterFactories,
-  chainMetadata,
-  objMap,
-  promiseObjAll,
-} from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
-import { AbacusDeployer, DeployerOptions } from '../deploy';
+import { chainMetadata } from '../../consts/chainMetadata';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { RouterContracts, RouterFactories } from '../../router';
+import { ChainMap, ChainName } from '../../types';
+import { objMap, promiseObjAll } from '../../utils/objects';
+import { AbacusDeployer, DeployerOptions } from '../AbacusDeployer';
 
 import { RouterConfig } from './types';
 
@@ -53,7 +48,9 @@ export abstract class AbacusRouterDeployer<
     return router;
   }
 
-  async enrollRemoteRouters(contractsMap: ChainMap<Chain, Contracts>) {
+  async enrollRemoteRouters(
+    contractsMap: ChainMap<Chain, Contracts>,
+  ): Promise<void> {
     this.logger(`Enrolling deployed routers with each other...`);
     // Make all routers aware of eachother.
     await promiseObjAll(
@@ -73,7 +70,9 @@ export abstract class AbacusRouterDeployer<
     );
   }
 
-  async transferOwnership(contractsMap: ChainMap<Chain, Contracts>) {
+  async transferOwnership(
+    contractsMap: ChainMap<Chain, Contracts>,
+  ): Promise<void> {
     // TODO: check for initialization before transferring ownership
     this.logger(`Transferring ownership of routers...`);
     await promiseObjAll(
@@ -91,7 +90,9 @@ export abstract class AbacusRouterDeployer<
     );
   }
 
-  async deploy(partialDeployment: Partial<Record<Chain, Contracts>>) {
+  async deploy(
+    partialDeployment: Partial<Record<Chain, Contracts>>,
+  ): Promise<ChainMap<Chain, Contracts>> {
     const contractsMap = await super.deploy(partialDeployment);
 
     await this.enrollRemoteRouters(contractsMap);

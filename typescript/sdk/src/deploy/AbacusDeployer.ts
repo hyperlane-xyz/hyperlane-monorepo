@@ -5,25 +5,21 @@ import {
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
-import {
-  AbacusContracts,
-  AbacusFactories,
-  BeaconProxyAddresses,
-  ChainMap,
-  ChainName,
-  MultiProvider,
-  ProxiedContract,
-  connectContracts,
-  objMap,
-  serializeContracts,
-} from '@abacus-network/sdk';
-import { ProxyKind } from '@abacus-network/sdk/dist/proxy';
 import { types } from '@abacus-network/utils';
 
 import {
-  ContractVerificationInput,
-  getContractVerificationInput,
-} from './verify';
+  AbacusContracts,
+  AbacusFactories,
+  connectContracts,
+  serializeContracts,
+} from '../contracts';
+import { MultiProvider } from '../providers/MultiProvider';
+import { BeaconProxyAddresses, ProxiedContract, ProxyKind } from '../proxy';
+import { ChainMap, ChainName } from '../types';
+import { objMap } from '../utils/objects';
+
+import { ContractVerificationInput } from './verify/types';
+import { getContractVerificationInput } from './verify/utils';
 
 export interface DeployerOptions {
   logger?: Debugger;

@@ -1,9 +1,11 @@
 import { ethers } from 'ethers';
 
-import { BeaconProxyAddresses, ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-import { CheckerViolation } from './config';
+import { BeaconProxyAddresses } from '../proxy';
+import { ChainName } from '../types';
+
+import { CheckerViolation } from './types';
 
 export interface UpgradeBeaconViolation extends CheckerViolation {
   type: BeaconProxyAddresses['kind'];

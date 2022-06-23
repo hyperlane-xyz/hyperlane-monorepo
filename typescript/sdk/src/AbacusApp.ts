@@ -4,7 +4,7 @@ import {
   connectContracts,
   serializeContracts,
 } from './contracts';
-import { MultiProvider } from './provider';
+import { MultiProvider } from './providers/MultiProvider';
 import { ChainMap, ChainName, Connection } from './types';
 import { MultiGeneric, objMap } from './utils';
 

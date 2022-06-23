@@ -1,7 +1,6 @@
 import type { ethers } from 'ethers';
 
-import type { IChainConnection } from '../provider';
-import type { ChainName } from '../types';
+import type { ChainName, IChainConnection } from '../types';
 
 export const addSignerToConnection =
   <Chain extends ChainName>(signer: ethers.Signer) =>

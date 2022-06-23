@@ -1,4 +1,3 @@
-import { AbacusCore } from '.';
 import { BigNumber, utils as ethersUtils, providers } from 'ethers';
 
 import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
@@ -6,10 +5,11 @@ import { types, utils } from '@abacus-network/utils';
 
 import { ChainNameToDomainId, DomainIdToChainName } from '../domains';
 import { Annotated, findAnnotatedSingleEvent } from '../events';
-import { MultiProvider } from '../provider';
+import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName, NameOrDomain } from '../types';
 import { delay } from '../utils';
 
+import { AbacusCore } from './AbacusCore';
 import {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,

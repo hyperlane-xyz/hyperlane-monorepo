@@ -2,37 +2,29 @@ import debug from 'debug';
 import { ethers } from 'ethers';
 
 import { Inbox, Ownable } from '@abacus-network/core';
-import {
-  AbacusCore,
-  BeaconProxyAddresses,
-  ChainConnection,
-  ChainMap,
-  ChainName,
-  CoreContracts,
-  CoreContractsMap,
-  InboxContracts,
-  MultiProvider,
-  OutboxContracts,
-  ProxiedContract,
-  RemoteChainMap,
-  Remotes,
-  chainMetadata,
-  coreFactories,
-  objMap,
-  promiseObjAll,
-} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-import { AbacusDeployer } from '../deploy';
+import { chainMetadata } from '../../consts/chainMetadata';
+import { AbacusCore, CoreContractsMap } from '../../core/AbacusCore';
+import {
+  CoreContracts,
+  InboxContracts,
+  OutboxContracts,
+  coreFactories,
+} from '../../core/contracts';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { BeaconProxyAddresses, ProxiedContract } from '../../proxy';
+import {
+  ChainMap,
+  ChainName,
+  IChainConnection,
+  RemoteChainMap,
+  Remotes,
+} from '../../types';
+import { objMap, promiseObjAll } from '../../utils/objects';
+import { AbacusDeployer } from '../AbacusDeployer';
 
-export type ValidatorManagerConfig = {
-  validators: Array<types.Address>;
-  threshold: number;
-};
-
-export type CoreConfig = {
-  validatorManager: ValidatorManagerConfig;
-};
+import { CoreConfig, ValidatorManagerConfig } from './types';
 
 export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   Chain,
@@ -194,7 +186,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     core: AbacusCore<CoreNetworks>,
     owners: ChainMap<CoreNetworks, types.Address>,
     multiProvider: MultiProvider<CoreNetworks>,
-  ) {
+  ): Promise<ChainMap<CoreNetworks, ethers.ContractReceipt[]>> {
     return promiseObjAll(
       objMap(core.contractsMap, async (chain, coreContracts) => {
         const owner = owners[chain];
@@ -214,7 +206,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   >(
     coreContracts: CoreContracts<Chain, Local>,
     owner: types.Address,
-    chainConnection: ChainConnection,
+    chainConnection: IChainConnection,
   ): Promise<ethers.ContractReceipt[]> {
     const ownables: Ownable[] = [
       coreContracts.outbox.contract,

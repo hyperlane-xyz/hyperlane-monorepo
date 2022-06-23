@@ -1,16 +1,15 @@
+//TODO
 import { expect } from 'chai';
 
-import {
-  AbacusApp,
-  BeaconProxyAddresses,
-  ChainMap,
-  ChainName,
-  MultiProvider,
-} from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-import { CheckerViolation } from './config';
+import { AbacusApp } from '../AbacusApp';
+import { MultiProvider } from '../providers/MultiProvider';
+import { BeaconProxyAddresses } from '../proxy';
+import { ChainMap, ChainName } from '../types';
+
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
+import { CheckerViolation } from './types';
 
 export interface Ownable {
   owner(): Promise<types.Address>;
@@ -39,13 +38,13 @@ export abstract class AbacusAppChecker<
 
   abstract checkChain(chain: Chain): Promise<void>;
 
-  async check() {
+  async check(): Promise<void[]> {
     return Promise.all(
       this.app.chains().map((chain) => this.checkChain(chain)),
     );
   }
 
-  addViolation(violation: CheckerViolation) {
+  addViolation(violation: CheckerViolation): void {
     if (!this.isDuplicateViolation(violation)) {
       this.violations.push(violation);
     }
@@ -55,7 +54,7 @@ export abstract class AbacusAppChecker<
     chain: Chain,
     name: string,
     proxiedAddress: BeaconProxyAddresses,
-  ) {
+  ): Promise<void> {
     const dc = this.multiProvider.getChainConnection(chain);
     const implementation = await upgradeBeaconImplementation(
       dc.provider,
@@ -76,7 +75,7 @@ export abstract class AbacusAppChecker<
     owners.map((_) => expect(_).to.equal(owner));
   }
 
-  isDuplicateViolation(violation: CheckerViolation) {
+  isDuplicateViolation(violation: CheckerViolation): boolean {
     const duplicates = this.violations.filter(
       (v) =>
         violation.type === v.type &&
@@ -87,7 +86,7 @@ export abstract class AbacusAppChecker<
     return duplicates.length > 0;
   }
 
-  expectViolations(types: string[], expectedMatches: number[]) {
+  expectViolations(types: string[], expectedMatches: number[]): void {
     // Every type should have exactly the number of expected matches.
     const actualMatches = types.map(
       (t) => this.violations.map((v) => v.type === t).filter(Boolean).length,

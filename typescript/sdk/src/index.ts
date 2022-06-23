@@ -1,6 +1,8 @@
 export { AllChains, Chains } from './consts/chains';
 export { chainMetadata } from './consts/chainMetadata';
 export { chainConnectionConfigs } from './consts/chainConnectionConfigs';
+export { environments as coreEnvironments } from './consts/environments';
+
 export {
   ChainMap,
   ChainName,
@@ -10,10 +12,13 @@ export {
   RemoteChainMap,
   Remotes,
   TestChainNames,
+  IChainConnection,
 } from './types';
+
 export { ChainNameToDomainId, DomainIdToChainName } from './domains';
 
 export { AbacusApp } from './AbacusApp';
+
 export {
   AbacusAddresses,
   AbacusContracts,
@@ -22,47 +27,76 @@ export {
   connectContracts,
   serializeContracts,
 } from './contracts';
-export {
-  AbacusCore,
-  AbacusLifecyleEvent,
-  AbacusMessage,
-  AbacusStatus,
-  AnnotatedDispatch,
-  AnnotatedLifecycleEvent,
-  CoreContracts,
-  CoreContractsMap,
-  coreEnvironments,
-  coreFactories,
-  InboxContracts,
-  MessageStatus,
-  OutboxContracts,
-  resolveDomain,
-  resolveId,
-  resolveNetworks,
-} from './core';
+
 export {
   Annotated,
   getEvents,
   queryAnnotatedEvents,
   TSContract,
 } from './events';
-export { ChainConnection, IChainConnection, MultiProvider } from './provider';
+
 export { BeaconProxyAddresses, ProxiedContract, ProxyAddresses } from './proxy';
+
 export { Router, RouterContracts, RouterFactories } from './router';
 
+export { ChainConnection } from './providers/ChainConnection';
+export { MultiProvider } from './providers/MultiProvider';
+export { RetryJsonRpcProvider, RetryProvider } from './providers/RetryProvider';
+
+export { AbacusCore, CoreContractsMap } from './core/AbacusCore';
 export {
-  DefaultTokenPriceGetter,
-  InterchainGasCalculator,
-  TokenPriceGetter,
-} from './gas';
+  CoreContracts,
+  coreFactories,
+  InboxContracts,
+  OutboxContracts,
+} from './core/contracts';
+export {
+  AbacusLifecyleEvent,
+  AnnotatedDispatch,
+  AnnotatedLifecycleEvent,
+} from './core/events';
+export {
+  AbacusMessage,
+  AbacusStatus,
+  MessageStatus,
+  resolveDomain,
+  resolveId,
+  resolveNetworks,
+} from './core/message';
+
+export { InterchainGasCalculator } from './gas/calculator';
+export { DefaultTokenPriceGetter, TokenPriceGetter } from './gas/token-prices';
+
+export { AbacusAppChecker, Ownable } from './deploy/AbacusAppChecker';
+export { CheckerViolation, EnvironmentConfig } from './deploy/types';
+export { AbacusCoreDeployer } from './deploy/core/AbacusCoreDeployer';
+export { AbacusCoreChecker } from './deploy/core/AbacusCoreChecker';
+export {
+  CoreConfig,
+  CoreViolationType,
+  ValidatorManagerConfig,
+  ValidatorManagerViolation,
+  ValidatorViolation,
+  ValidatorViolationType,
+} from './deploy/core/types';
+export { AbacusDeployer } from './deploy/AbacusDeployer';
+export { UpgradeBeaconViolation } from './deploy/proxy';
+export { AbacusRouterDeployer } from './deploy/router/AbacusRouterDeployer';
+export { AbacusRouterChecker } from './deploy/router/AbacusRouterChecker';
+export { RouterConfig } from './deploy/router/types';
+export { getMultiProviderFromConfigAndSigner } from './deploy/utils';
+export { ContractVerifier } from './deploy/verify/ContractVerifier';
+export {
+  ContractVerificationInput,
+  VerificationInput,
+} from './deploy/verify/types';
+export * as verificationUtils from './deploy/verify/utils';
 
 export {
   objMap,
   objMapEntries,
   promiseObjAll,
   addSignerToConnection,
-  RetryJsonRpcProvider,
-  RetryProvider,
 } from './utils';
 export * as utils from './utils';
 
@@ -71,5 +105,5 @@ export {
   TestCoreContracts,
   TestInboxContracts,
   TestOutboxContracts,
-  TestCoreDeploy,
-} from './hardhat';
+} from './hardhat/TestCoreApp';
+export { TestCoreDeployer } from './hardhat/TestCoreDeployer';

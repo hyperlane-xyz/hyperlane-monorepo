@@ -1,44 +1,24 @@
+// TODO remove/move to test
 import { expect } from 'chai';
 
 import { MultisigValidatorManager } from '@abacus-network/core';
+
+import { chainMetadata } from '../../consts/chainMetadata';
+import { AbacusCore } from '../../core/AbacusCore';
+import { ChainNameToDomainId } from '../../domains';
+import { BeaconProxyAddresses } from '../../proxy';
+import { ChainName } from '../../types';
+import { objMap, promiseObjAll } from '../../utils/objects';
+import { setDifference } from '../../utils/sets';
+import { AbacusAppChecker } from '../AbacusAppChecker';
+
 import {
-  AbacusCore,
-  BeaconProxyAddresses,
-  ChainName,
-  ChainNameToDomainId,
-  chainMetadata,
-  objMap,
-  promiseObjAll,
-} from '@abacus-network/sdk';
-
-import { AbacusAppChecker } from '../check';
-import { CheckerViolation } from '../config';
-import { setDifference } from '../utils';
-
-import { CoreConfig } from './deploy';
-
-export enum CoreViolationType {
-  ValidatorManager = 'ValidatorManager',
-  Validator = 'Validator',
-}
-
-export enum ValidatorViolationType {
-  EnrollValidator = 'EnrollValidator',
-  UnenrollValidator = 'UnenrollValidator',
-  Threshold = 'Threshold',
-}
-
-export interface ValidatorManagerViolation extends CheckerViolation {
-  type: CoreViolationType.ValidatorManager;
-}
-
-export interface ValidatorViolation extends CheckerViolation {
-  type: CoreViolationType.Validator;
-  data: {
-    type: ValidatorViolationType;
-    validatorManagerAddress: string;
-  };
-}
+  CoreConfig,
+  CoreViolationType,
+  ValidatorManagerViolation,
+  ValidatorViolation,
+  ValidatorViolationType,
+} from './types';
 
 export class AbacusCoreChecker<
   Chain extends ChainName,
@@ -89,14 +69,14 @@ export class AbacusCoreChecker<
 
   // Checks validator sets of the OutboxValidatorManager and all
   // InboxValidatorManagers on the chain.
-  async checkValidatorManagers(chain: Chain) {
+  async checkValidatorManagers(chain: Chain): Promise<void> {
     const coreContracts = this.app.getContracts(chain);
     await this.checkValidatorManager(
       chain,
       chain,
       coreContracts.outboxValidatorManager,
     );
-    return promiseObjAll(
+    await promiseObjAll(
       objMap(coreContracts.inboxes, (remote, inbox) =>
         this.checkValidatorManager(chain, remote, inbox.inboxValidatorManager),
       ),

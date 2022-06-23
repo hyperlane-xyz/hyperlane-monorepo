@@ -2,8 +2,7 @@ import { ethers } from 'ethers';
 
 import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
 
-import { IChainConnection } from '../provider';
-import { ChainMap, ChainName } from '../types';
+import { ChainMap, ChainName, IChainConnection } from '../types';
 
 export const ethereum: IChainConnection = {
   provider: new ethers.providers.JsonRpcProvider(

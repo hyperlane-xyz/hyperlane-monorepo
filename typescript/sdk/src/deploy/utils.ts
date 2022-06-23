@@ -1,8 +1,10 @@
 import { ethers } from 'ethers';
 
-import { ChainName, MultiProvider, objMap } from '@abacus-network/sdk';
+import { MultiProvider } from '../providers/MultiProvider';
+import { ChainName } from '../types';
+import { objMap } from '../utils';
 
-import { EnvironmentConfig } from './config';
+import { EnvironmentConfig } from './types';
 
 export const getMultiProviderFromConfigAndSigner = <Chain extends ChainName>(
   environmentConfig: EnvironmentConfig<Chain>,
@@ -16,13 +18,3 @@ export const getMultiProviderFromConfigAndSigner = <Chain extends ChainName>(
   }));
   return new MultiProvider(chainProviders);
 };
-
-// Returns a \ b
-// Taken from https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Set#implementing_basic_set_operations
-export function setDifference<T>(a: Set<T>, b: Set<T>) {
-  const diff = new Set(a);
-  for (const element of b) {
-    diff.delete(element);
-  }
-  return diff;
-}

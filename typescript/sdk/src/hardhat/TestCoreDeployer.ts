@@ -1,16 +1,12 @@
 import { ethers } from 'ethers';
 
 import { TestInbox__factory, TestOutbox__factory } from '@abacus-network/core';
-// TODO
-import {
-  AbacusCoreDeployer,
-  CoreConfig,
-  ValidatorManagerConfig,
-} from '@abacus-network/deploy';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { coreFactories } from '../core';
-import { MultiProvider } from '../provider';
+import { coreFactories } from '../core/contracts';
+import { AbacusCoreDeployer } from '../deploy/core/AbacusCoreDeployer';
+import { CoreConfig, ValidatorManagerConfig } from '../deploy/core/types';
+import { MultiProvider } from '../providers/MultiProvider';
 import { ProxiedContract } from '../proxy';
 import { Remotes, TestChainNames } from '../types';
 
@@ -42,7 +38,7 @@ function mockProxy(contract: ethers.Contract) {
   });
 }
 
-export class TestCoreDeploy extends AbacusCoreDeployer<TestChainNames> {
+export class TestCoreDeployer extends AbacusCoreDeployer<TestChainNames> {
   constructor(public readonly multiProvider: MultiProvider<TestChainNames>) {
     super(
       multiProvider,

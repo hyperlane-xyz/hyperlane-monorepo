@@ -3,7 +3,7 @@ import { providers } from 'ethers';
 import { TypedEvent, TypedEventFilter } from '@abacus-network/core/dist/common';
 
 import { chainMetadata } from './consts/chainMetadata';
-import { MultiProvider } from './provider';
+import { MultiProvider } from './providers/MultiProvider';
 import { ChainName } from './types';
 
 export class Annotated<T extends TypedEvent> {

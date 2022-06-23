@@ -1,7 +1,8 @@
 import fetch from 'cross-fetch';
 
-import { ChainName } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
+
+import { ChainName } from '../../types';
 
 import { ContractVerificationInput, VerificationInput } from './types';
 
@@ -20,7 +21,7 @@ export abstract class ContractVerifier {
   abstract chainNames: ChainName[];
   abstract getVerificationInput(chain: ChainName): VerificationInput;
 
-  static etherscanLink(chain: ChainName, address: types.Address) {
+  static etherscanLink(chain: ChainName, address: types.Address): string {
     if (chain === 'polygon') {
       return `https://polygonscan.com/address/${address}`;
     }
@@ -29,7 +30,8 @@ export abstract class ContractVerifier {
     return `https://${prefix}etherscan.io/address/${address}`;
   }
 
-  async verify(hre: any) {
+  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
+  async verify(hre: any): Promise<void> {
     let chain = hre.network.name;
 
     if (chain === 'mainnet') {
@@ -59,8 +61,9 @@ export abstract class ContractVerifier {
   async verifyContract(
     chain: ChainName,
     input: ContractVerificationInput,
+    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
     hre: any,
-  ) {
+  ): Promise<void> {
     try {
       console.log(
         `   Attempt to verify ${
@@ -86,7 +89,7 @@ export abstract class ContractVerifier {
     console.log('\n\n'); // add space after each attempt
   }
 
-  async verifyProxy(chain: ChainName, address: types.Address) {
+  async verifyProxy(chain: ChainName, address: types.Address): Promise<void> {
     const suffix = chain === 'ethereum' ? '' : `-${chain}`;
 
     console.log(`   Submit ${address} for proxy verification on ${chain}`);

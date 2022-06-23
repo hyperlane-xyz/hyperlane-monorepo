@@ -2,7 +2,10 @@ import { ethers, utils } from 'ethers';
 
 import { ContractVerificationInput } from './types';
 
-export function formatFunctionArguments(fragment: utils.Fragment, args: any[]) {
+export function formatFunctionArguments(
+  fragment: utils.Fragment,
+  args: any[],
+): any {
   const params = Object.fromEntries(
     fragment.inputs.map((input, index) => [input.name, args[index]]),
   );

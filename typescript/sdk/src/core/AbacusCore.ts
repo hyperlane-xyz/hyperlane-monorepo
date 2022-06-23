@@ -3,7 +3,7 @@ import { Inbox, Outbox } from '@abacus-network/core';
 import { AbacusApp } from '../AbacusApp';
 import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
-import { MultiProvider } from '../provider';
+import { MultiProvider } from '../providers/MultiProvider';
 import { ChainMap, ChainName, Remotes } from '../types';
 import { objMap } from '../utils';
 

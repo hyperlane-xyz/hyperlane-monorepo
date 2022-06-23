@@ -1,4 +1,4 @@
-import { ChainMap, ChainName, IChainConnection } from '@abacus-network/sdk';
+import type { ChainMap, ChainName, IChainConnection } from '../types';
 
 export interface CheckerViolation {
   chain: ChainName;

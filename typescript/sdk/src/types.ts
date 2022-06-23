@@ -21,3 +21,11 @@ export type RemoteChainMap<
 > = Record<Remotes<Chain, LocalChain>, Value>;
 
 export type Connection = ethers.providers.Provider | ethers.Signer;
+
+export interface IChainConnection {
+  provider: ethers.providers.Provider;
+  signer?: ethers.Signer;
+  overrides?: ethers.Overrides;
+  confirmations?: number;
+  blockExplorerUrl?: string;
+}
