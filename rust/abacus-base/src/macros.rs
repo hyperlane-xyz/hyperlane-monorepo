@@ -46,6 +46,7 @@ macro_rules! decl_agent {
 /// Export this so they don't need to import paste.
 #[doc(hidden)]
 pub use paste;
+use serde::Deserialize;
 
 #[macro_export]
 /// Declare a new settings block
@@ -74,7 +75,7 @@ macro_rules! decl_settings {
             $($(#[$tags:meta])* $prop:ident: $type:ty,)*
         }
     ) => {
-        abacus_base::paste::paste! {
+        abacus_base::macros::paste::paste! {
             #[derive(Debug, serde::Deserialize)]
             #[serde(rename_all = "camelCase")]
             #[doc = "Settings for `" $name]
@@ -113,25 +114,33 @@ macro_rules! decl_settings {
                 /// variable. Specify a configuration file with the `BASE_CONFIG`
                 /// env variable.
                 pub fn new() -> Result<Self, config::ConfigError> {
-                    let mut s = config::Config::new();
-
-                    let env = std::env::var("RUN_ENV").unwrap_or_else(|_| "default".into());
-
-                    let fname = std::env::var("BASE_CONFIG").unwrap_or_else(|_| "base".into());
-
-                    s.merge(config::File::with_name(&format!("./config/{}/{}", env, fname)))?;
-                    s.merge(config::File::with_name(&format!("./config/{}/{}-partial", env, stringify!($name).to_lowercase())).required(false))?;
-
-                    // Use a base configuration env variable prefix
-                    s.merge(config::Environment::with_prefix(&"ABC_BASE").separator("_"))?;
-
-                    // Derive additional prefix from agent name
-                    let prefix = format!("ABC_{}", stringify!($name).to_ascii_uppercase());
-                    s.merge(config::Environment::with_prefix(&prefix).separator("_"))?;
-
-                    s.try_into()
+                    abacus_base::macros::_new_settings(stringify!($name))
                 }
             }
         }
     }
+}
+
+/// Static logic called by the decl_settings! macro. Do not call directly!
+pub fn _new_settings<'de, T: Deserialize<'de>>(name: &str) -> Result<T, config::ConfigError> {
+    use config::{Config, Environment, File};
+    use std::env;
+
+    let env = env::var("RUN_ENV").unwrap_or_else(|_| "default".into());
+    let fname = env::var("BASE_CONFIG").unwrap_or_else(|_| "base".into());
+
+    // Derive additional prefix from agent name
+    let prefix = format!("ABC_{}", name).to_ascii_uppercase();
+
+    Config::builder()
+        .add_source(File::with_name(&format!("./config/{}/{}", env, fname)))
+        .add_source(
+            File::with_name(&format!("./config/{}/{}-partial", env, name.to_lowercase()))
+                .required(false),
+        )
+        // Use a base configuration env variable prefix
+        .add_source(Environment::with_prefix(&"ABC_BASE").separator("_"))
+        .add_source(Environment::with_prefix(&prefix).separator("_"))
+        .build()?
+        .try_deserialize()
 }
