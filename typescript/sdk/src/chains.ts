@@ -1,5 +1,6 @@
-import { StaticCeloProvider } from '@celo-tools/celo-ethers-wrapper';
 import { ethers } from 'ethers';
+
+import { StaticCeloJsonRpcProvider } from '@abacus-network/celo-ethers-provider';
 
 import { IChainConnection } from './provider';
 import { ChainMap, ChainName } from './types';
@@ -10,11 +11,13 @@ export const ethereum: IChainConnection = {
     1,
   ),
   confirmations: 7,
+  blockExplorerUrl: 'https://etherscan.io',
 };
 
 export const celo: IChainConnection = {
-  provider: new StaticCeloProvider('https://forno.celo.org', 42220),
+  provider: new StaticCeloJsonRpcProvider('https://forno.celo.org', 42220),
   confirmations: 1,
+  blockExplorerUrl: 'https://celoscan.xyz',
 };
 
 export const polygon: IChainConnection = {
@@ -23,6 +26,7 @@ export const polygon: IChainConnection = {
     137,
   ),
   confirmations: 200,
+  blockExplorerUrl: 'https://polygonscan.com',
 };
 
 export const avalanche: IChainConnection = {
@@ -31,6 +35,7 @@ export const avalanche: IChainConnection = {
     43114,
   ),
   confirmations: 1,
+  blockExplorerUrl: 'https://snowtrace.io',
 };
 
 export const arbitrum: IChainConnection = {
@@ -39,6 +44,7 @@ export const arbitrum: IChainConnection = {
     42161,
   ),
   confirmations: 1,
+  blockExplorerUrl: 'https://arbiscan.io/',
 };
 
 export const optimism: IChainConnection = {
@@ -47,6 +53,7 @@ export const optimism: IChainConnection = {
     10,
   ),
   confirmations: 1,
+  blockExplorerUrl: 'https://optimistic.etherscan.io/',
 };
 
 export const bsc: IChainConnection = {
@@ -55,10 +62,14 @@ export const bsc: IChainConnection = {
     56,
   ),
   confirmations: 1,
+  blockExplorerUrl: 'https://bscscan.com/',
 };
 
 export const alfajores: IChainConnection = {
-  provider: new StaticCeloProvider('https://alfajores-forno.celo.org', 44787),
+  provider: new StaticCeloJsonRpcProvider(
+    'https://alfajores-forno.celo-testnet.org',
+    44787,
+  ),
   confirmations: 1,
 };
 

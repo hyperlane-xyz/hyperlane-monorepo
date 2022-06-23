@@ -13,6 +13,7 @@ import {
   ChainName,
   MultiProvider,
   ProxiedContract,
+  connectContracts,
   objMap,
   serializeContracts,
 } from '@abacus-network/sdk';
@@ -55,7 +56,20 @@ export abstract class AbacusDeployer<
     partialDeployment: Partial<Record<Chain, Contracts>> = this
       .deployedContracts,
   ): Promise<Record<Chain, Contracts>> {
-    const deployedChains = Object.keys(partialDeployment);
+    objMap(
+      partialDeployment as ChainMap<Chain, Contracts>,
+      (chain, contracts) => {
+        this.logger(
+          `Recovering contracts for ${chain} from partial deployment`,
+        );
+        const chainConnection = this.multiProvider.getChainConnection(chain);
+        this.deployedContracts[chain] = connectContracts(
+          contracts,
+          chainConnection.signer!,
+        );
+      },
+    );
+    const deployedChains = Object.keys(this.deployedContracts);
     const configChains = Object.keys(this.configMap);
     const targetChains = this.multiProvider
       .chains()
@@ -63,26 +77,27 @@ export abstract class AbacusDeployer<
         (chain) =>
           configChains.includes(chain) && !deployedChains.includes(chain),
       );
-    this.logger(
-      `Start deploy to ${targetChains} ${
-        deployedChains.length > 0
-          ? `(already deployed to ${deployedChains})`
-          : ''
-      }`,
-    );
+    this.logger(`Start deploy to ${targetChains}`);
+    // wait until all promises are resolved / rejected
     for (const chain of targetChains) {
-      this.logger(`Deploying to ${chain}...`);
-      const contracts = await this.deployContracts(
+      const chainConnection = this.multiProvider.getChainConnection(chain);
+      this.logger(
+        `Deploying to ${chain} from ${await chainConnection.getAddressUrl()}...`,
+      );
+      this.deployedContracts[chain] = await this.deployContracts(
         chain,
         this.configMap[chain],
       );
-      console.log(JSON.stringify(serializeContracts(contracts)));
-      this.deployedContracts[chain] = contracts;
+      // TODO: remove these logs once we have better timeouts
+      this.logger(
+        JSON.stringify(
+          serializeContracts(this.deployedContracts[chain] ?? {}),
+          null,
+          2,
+        ),
+      );
     }
-    return { ...partialDeployment, ...this.deployedContracts } as Record<
-      Chain,
-      Contracts
-    >;
+    return this.deployedContracts as ChainMap<Chain, Contracts>;
   }
 
   async deployContract<K extends keyof Factories>(
@@ -96,6 +111,11 @@ export abstract class AbacusDeployer<
       chainConnection.signer!,
     );
     const contract = await factory.deploy(...args, chainConnection.overrides);
+    this.logger(
+      `Pending deployment ${chainConnection.getTxUrl(
+        contract.deployTransaction,
+      )}`,
+    );
     await contract.deployTransaction.wait(chainConnection.confirmations);
     const verificationInput = getContractVerificationInput(
       contractName.toString(),
@@ -133,6 +153,11 @@ export abstract class AbacusDeployer<
       ubcAddress,
       chainConnection.overrides,
     );
+    this.logger(
+      `Pending beacon deployment ${chainConnection.getTxUrl(
+        beacon.deployTransaction,
+      )}`,
+    );
     // Wait for the beacon to be deployed so that the proxy
     // constructor is happy.
     await beacon.deployTransaction.wait(chainConnection.confirmations);
@@ -145,6 +170,11 @@ export abstract class AbacusDeployer<
       beacon.address,
       initData,
       chainConnection.overrides,
+    );
+    this.logger(
+      `Pending proxy deployment and init ${chainConnection.getTxUrl(
+        beaconProxy.deployTransaction,
+      )}`,
     );
     await beaconProxy.deployTransaction.wait(chainConnection.confirmations);
     return new ProxiedContract<C, BeaconProxyAddresses>(
@@ -179,6 +209,11 @@ export abstract class AbacusDeployer<
       proxyAddresses.beacon,
       initData,
       chainConnection.overrides,
+    );
+    this.logger(
+      `Pending proxy deployment and init ${chainConnection.getTxUrl(
+        newProxy.deployTransaction,
+      )}`,
     );
     return new ProxiedContract<C, BeaconProxyAddresses>(
       proxy.contract.attach(newProxy.address) as C,

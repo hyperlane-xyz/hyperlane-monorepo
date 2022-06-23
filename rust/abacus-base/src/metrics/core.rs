@@ -6,10 +6,10 @@ use std::time::Duration;
 use eyre::Result;
 use once_cell::sync::OnceCell;
 use prometheus::{
-    histogram_opts, labels, opts, register_gauge_vec_with_registry,
-    register_histogram_vec_with_registry, register_int_counter_vec_with_registry,
-    register_int_gauge_vec_with_registry, Encoder, GaugeVec, HistogramVec, IntCounterVec,
-    IntGaugeVec, Registry,
+    histogram_opts, labels, opts, register_counter_vec_with_registry,
+    register_gauge_vec_with_registry, register_histogram_vec_with_registry,
+    register_int_counter_vec_with_registry, register_int_gauge_vec_with_registry, CounterVec,
+    Encoder, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec, Registry,
 };
 use tokio::task::JoinHandle;
 
@@ -200,6 +200,20 @@ impl CoreMetrics {
     /// Create and register a new gauge.
     pub fn new_gauge(&self, metric_name: &str, help: &str, labels: &[&str]) -> Result<GaugeVec> {
         Ok(register_gauge_vec_with_registry!(
+            opts!(namespaced!(metric_name), help, self.const_labels_str()),
+            labels,
+            self.registry
+        )?)
+    }
+
+    /// Create and register a new counter.
+    pub fn new_counter(
+        &self,
+        metric_name: &str,
+        help: &str,
+        labels: &[&str],
+    ) -> Result<CounterVec> {
+        Ok(register_counter_vec_with_registry!(
             opts!(namespaced!(metric_name), help, self.const_labels_str()),
             labels,
             self.registry

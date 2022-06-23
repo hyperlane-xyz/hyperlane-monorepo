@@ -7,10 +7,12 @@
 use ethers::prelude::*;
 use eyre::Result;
 use num::Num;
+use std::collections::HashMap;
 
 use abacus_core::*;
 pub use retrying::{RetryingProvider, RetryingProviderError};
 
+use crate::abi::FunctionExt;
 #[cfg(not(doctest))]
 pub use crate::{inbox::*, interchain_gas::*, outbox::*, trait_builder::*, validator_manager::*};
 
@@ -35,6 +37,10 @@ mod validator_manager;
 /// InterchainGasPaymaster abi
 #[cfg(not(doctest))]
 mod interchain_gas;
+
+/// Generated contract bindings.
+#[cfg(not(doctest))]
+mod contracts;
 
 /// Retrying Provider
 mod retrying;
@@ -85,4 +91,10 @@ impl abacus_core::Chain for Chain {
 
         Ok(Balance(num::BigInt::from_str_radix(&balance, 16)?))
     }
+}
+
+fn extract_fn_map(abi: &'static Lazy<abi::Abi>) -> HashMap<Selector, &'static str> {
+    abi.functions()
+        .map(|f| (f.selector(), f.name.as_str()))
+        .collect()
 }

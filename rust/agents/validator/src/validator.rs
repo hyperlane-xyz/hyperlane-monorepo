@@ -62,7 +62,7 @@ impl Agent for Validator {
         let checkpoint_syncer = settings.checkpointsyncer.try_into_checkpoint_syncer()?;
         let core = settings
             .as_ref()
-            .try_into_abacus_core(Self::AGENT_NAME)
+            .try_into_abacus_core(Self::AGENT_NAME, false)
             .await?;
         Ok(Self::new(
             signer,

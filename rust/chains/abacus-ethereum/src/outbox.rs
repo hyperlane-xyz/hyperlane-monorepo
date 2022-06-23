@@ -1,26 +1,23 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use std::collections::HashMap;
+use std::{error::Error as StdError, sync::Arc};
+
 use async_trait::async_trait;
-use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
-use std::{error::Error as StdError, sync::Arc};
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, CheckpointMeta,
+    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, Checkpoint, CheckpointMeta,
     CheckpointWithMeta, ContractLocator, Indexer, Message, Outbox, OutboxIndexer, OutboxState,
     RawCommittedMessage, TxOutcome,
 };
 
+use crate::contracts::outbox::{Outbox as EthereumOutboxInternal, OUTBOX_ABI};
 use crate::trait_builder::MakeableWithProvider;
 use crate::tx::report_tx;
-
-abigen!(
-    EthereumOutboxInternal,
-    "./chains/abacus-ethereum/abis/Outbox.abi.json"
-);
 
 impl<M> std::fmt::Display for EthereumOutboxInternal<M>
 where
@@ -336,5 +333,13 @@ where
             root: root.into(),
             index: index.as_u32(),
         })
+    }
+}
+
+pub struct EthereumOutboxAbi;
+
+impl AbacusAbi for EthereumOutboxAbi {
+    fn fn_map() -> HashMap<Selector, &'static str> {
+        super::extract_fn_map(&OUTBOX_ABI)
     }
 }

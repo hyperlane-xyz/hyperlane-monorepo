@@ -1,30 +1,23 @@
 #![allow(clippy::enum_variant_names)]
 #![allow(missing_docs)]
 
+use std::collections::HashMap;
+use std::fmt::Display;
 use std::{error::Error as StdError, sync::Arc};
 
 use async_trait::async_trait;
-use ethers::contract::abigen;
 use ethers::prelude::*;
 use eyre::Result;
 
 use abacus_core::{
-    AbacusCommon, AbacusContract, ChainCommunicationError, ContractLocator, Inbox, MessageStatus,
-    TxOutcome,
+    AbacusAbi, AbacusCommon, AbacusContract, ChainCommunicationError, ContractLocator, Inbox,
+    MessageStatus, TxOutcome,
 };
 
+use crate::contracts::inbox::{Inbox as EthereumInboxInternal, INBOX_ABI};
 use crate::trait_builder::MakeableWithProvider;
 
-abigen!(
-    EthereumInboxInternal,
-    "./chains/abacus-ethereum/abis/Inbox.abi.json",
-     methods {
-        initialize(address) as initialize_common;
-        initialize(uint32, address, bytes32, uint256, uint32) as initialize;
-     },
-);
-
-impl<M> std::fmt::Display for EthereumInboxInternal<M>
+impl<M> Display for EthereumInboxInternal<M>
 where
     M: Middleware,
 {
@@ -129,5 +122,13 @@ where
     async fn message_status(&self, leaf: H256) -> Result<MessageStatus, ChainCommunicationError> {
         let status = self.contract.messages(leaf.into()).call().await?;
         Ok(MessageStatus::try_from(status).expect("Bad status from solidity"))
+    }
+}
+
+pub struct EthereumInboxAbi;
+
+impl AbacusAbi for EthereumInboxAbi {
+    fn fn_map() -> HashMap<Selector, &'static str> {
+        super::extract_fn_map(&INBOX_ABI)
     }
 }
