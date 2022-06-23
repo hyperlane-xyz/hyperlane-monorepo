@@ -16,7 +16,7 @@ use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::utils::hex::ToHex;
 use log::{debug, trace, warn};
 use maplit::hashmap;
-use prometheus::{GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
+use prometheus::{CounterVec, GaugeVec, HistogramVec, IntCounterVec, IntGaugeVec};
 use static_assertions::assert_impl_all;
 use tokio::sync::RwLock;
 use tokio::time::MissedTickBehavior;
@@ -66,6 +66,8 @@ pub struct WalletInfo {
 pub struct ContractInfo {
     /// A human-friendly name for the contract. This should be a short string like "inbox".
     pub name: Option<String>,
+    /// Mapping from function selectors to human readable names.
+    pub functions: HashMap<Selector, String>,
 }
 
 /// Some basic information about a chain.
@@ -88,10 +90,27 @@ pub const GAS_PRICE_GWEI_LABELS: &[&str] = &["chain"];
 pub const GAS_PRICE_GWEI_HELP: &str = "Tracks the current gas price of the chain";
 
 /// Expected label names for the `contract_call_duration_seconds` metric.
-pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] =
-    &["chain", "contract_name", "contract_address"];
+pub const CONTRACT_CALL_DURATION_SECONDS_LABELS: &[&str] = &[
+    "chain",
+    "contract_name",
+    "contract_address",
+    "function_name",
+    "function_selector",
+];
 /// Help string for the metric.
-pub const CONTRACT_CALL_DURATION_SECONDS_HELP: &str = "Contract call durations by contract";
+pub const CONTRACT_CALL_DURATION_SECONDS_HELP: &str =
+    "Contract call durations by contract and function";
+
+/// Expected label names for the `contract_call_count` metric.
+pub const CONTRACT_CALL_COUNT_LABELS: &[&str] = &[
+    "chain",
+    "contract_name",
+    "contract_address",
+    "function_name",
+    "function_selector",
+];
+/// Help string for the metric.
+pub const CONTRACT_CALL_COUNT_HELP: &str = "Contract invocations by contract and function";
 
 /// Expected label names for the `transaction_send_duration_seconds` metric.
 pub const TRANSACTION_SEND_DURATION_SECONDS_LABELS: &[&str] = &["chain", "address_from"];
@@ -130,12 +149,23 @@ pub struct ProviderMetrics {
     #[builder(setter(into, strip_option), default)]
     gas_price_gwei: Option<GaugeVec>,
 
-    /// Contract call durations by contract.
+    /// Contract call durations by contract and function
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
     /// - `contract_name`: contract name.
-    /// - `contract_address`: contract address.
+    /// - `contract_address`: contract address (hex).
+    /// - `function_name`: contract function name.
+    /// - `function_selector`: contract function hash (hex).
     #[builder(setter(into, strip_option), default)]
-    contract_call_duration_seconds: Option<HistogramVec>,
+    contract_call_duration_seconds: Option<CounterVec>,
+
+    /// Contract invocations by contract and function.
+    /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
+    /// - `contract_name`: contract name.
+    /// - `contract_address`: contract address (hex).
+    /// - `function_name`: contract function name.
+    /// - `function_selector`: contract function hash (hex).
+    #[builder(setter(into, strip_option), default)]
+    contract_call_count: Option<IntCounterVec>,
 
     /// Time taken to submit the transaction (not counting time for it to be included).
     /// - `chain`: the chain name (or chain ID if the name is unknown) of the chain the tx occurred on.
@@ -277,27 +307,53 @@ impl<M: Middleware> Middleware for PrometheusMiddleware<M> {
         let start = Instant::now();
         let result = self.inner.call(tx, block).await;
 
-        if let Some(m) = &self.metrics.contract_call_duration_seconds {
+        if self.metrics.contract_call_duration_seconds.is_some()
+            || self.metrics.contract_call_count.is_some()
+        {
             let data = self.conf.read().await;
             let chain = chain_name(&data.chain);
-            let (contract_addr, contract_name) = tx
+            let empty_hm = HashMap::default();
+            let (contract_addr, contract_name, contract_fns) = tx
                 .to()
                 .and_then(|addr| match addr {
-                    NameOrAddress::Name(n) => Some((n.clone(), n.clone())),
+                    NameOrAddress::Name(n) => {
+                        // not supporting ENS names for lookups by address right now
+                        Some((n.clone(), n.clone(), &empty_hm))
+                    }
                     NameOrAddress::Address(a) => data
                         .contracts
                         .get(a)
-                        .map_or(Some("unknown".to_string()), |c| c.name.clone())
-                        .map(|n| (a.encode_hex(), n)),
+                        .map(|c| (c.name.as_deref().unwrap_or("unknown"), &c.functions))
+                        .map(|(n, m)| (a.encode_hex(), n.into(), m)),
                 })
-                .unwrap_or_else(|| ("".into(), "unknown".into()));
+                .unwrap_or_else(|| ("".into(), "unknown".into(), &empty_hm));
 
-            m.with(&hashmap! {
+            let fn_selector: Option<Selector> = tx
+                .data()
+                .filter(|data| data.0.len() >= 4)
+                .map(|data| [data.0[0], data.0[1], data.0[2], data.0[3]]);
+            let fn_name: &str = fn_selector
+                .and_then(|s| contract_fns.get(&s))
+                .map(|s| s.as_str())
+                .unwrap_or("unknown");
+            let fn_selector: String = fn_selector
+                .map(|s| format!("{:02x}{:02x}{:02x}{:02x}", s[0], s[1], s[2], s[3]))
+                .unwrap_or_else(|| "unknown".into());
+
+            let labels = hashmap! {
                 "chain" => chain,
                 "contract_name" => contract_name.as_str(),
-                "contract_address" => contract_addr.as_str()
-            })
-            .observe((Instant::now() - start).as_secs_f64())
+                "contract_address" => contract_addr.as_str(),
+                "function_name" => fn_name,
+                "function_selector" => &fn_selector,
+            };
+            if let Some(m) = &self.metrics.contract_call_count {
+                m.with(&labels).inc();
+            }
+            if let Some(m) = &self.metrics.contract_call_duration_seconds {
+                m.with(&labels)
+                    .inc_by((Instant::now() - start).as_secs_f64());
+            }
         }
 
         Ok(result?)

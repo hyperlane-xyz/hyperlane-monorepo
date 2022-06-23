@@ -1,5 +1,6 @@
 #![allow(missing_docs)]
 
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::Arc;
 
@@ -9,12 +10,14 @@ use eyre::Result;
 use tracing::instrument;
 
 use abacus_core::{
-    AbacusContract, ContractLocator, Indexer, InterchainGasPaymaster,
+    AbacusAbi, AbacusContract, ContractLocator, Indexer, InterchainGasPaymaster,
     InterchainGasPaymasterIndexer, InterchainGasPayment, InterchainGasPaymentMeta,
     InterchainGasPaymentWithMeta,
 };
 
-use crate::contracts::interchain_gas_paymaster::InterchainGasPaymaster as EthereumInterchainGasPaymasterInternal;
+use crate::contracts::interchain_gas_paymaster::{
+    InterchainGasPaymaster as EthereumInterchainGasPaymasterInternal, INTERCHAINGASPAYMASTER_ABI,
+};
 use crate::trait_builder::MakeableWithProvider;
 
 impl<M> Display for EthereumInterchainGasPaymasterInternal<M>
@@ -203,3 +206,11 @@ where
 
 #[async_trait]
 impl<M> InterchainGasPaymaster for EthereumInterchainGasPaymaster<M> where M: Middleware + 'static {}
+
+pub struct EthereumInterchainGasPaymasterAbi;
+
+impl AbacusAbi for EthereumInterchainGasPaymasterAbi {
+    fn fn_map() -> HashMap<Selector, &'static str> {
+        super::extract_fn_map(&INTERCHAINGASPAYMASTER_ABI)
+    }
+}

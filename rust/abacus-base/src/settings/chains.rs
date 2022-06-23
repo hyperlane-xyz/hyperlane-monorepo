@@ -2,9 +2,10 @@ use ethers::signers::Signer;
 use eyre::Report;
 use serde::Deserialize;
 
-use abacus_core::{ContractLocator, Signers};
+use abacus_core::{AbacusAbi, ContractLocator, Signers};
 use abacus_ethereum::{
-    Connection, InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
+    Connection, EthereumInboxAbi, EthereumInterchainGasPaymasterAbi, EthereumOutboxAbi,
+    InboxBuilder, InboxValidatorManagerBuilder, InterchainGasPaymasterBuilder,
     MakeableWithProvider, OutboxBuilder,
 };
 use ethers_prometheus::{ChainInfo, ContractInfo, PrometheusMiddlewareConf, WalletInfo};
@@ -163,12 +164,14 @@ impl ChainSetup<OutboxAddresses> {
         if let Ok(addr) = self.addresses.outbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("outbox".into()),
+                functions: EthereumOutboxAbi::fn_map_owned(),
             });
         }
         if let Some(igp) = &self.addresses.interchain_gas_paymaster {
             if let Ok(addr) = igp.parse() {
                 cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                     name: Some("igp".into()),
+                    functions: EthereumInterchainGasPaymasterAbi::fn_map_owned(),
                 });
             }
         }
@@ -262,11 +265,13 @@ impl ChainSetup<InboxAddresses> {
         if let Ok(addr) = self.addresses.inbox.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("inbox".into()),
+                functions: EthereumInboxAbi::fn_map_owned(),
             });
         }
         if let Ok(addr) = self.addresses.validator_manager.parse() {
             cfg.contracts.entry(addr).or_insert_with(|| ContractInfo {
                 name: Some("ivm".into()),
+                functions: EthereumOutboxAbi::fn_map_owned(),
             });
         }
         cfg
