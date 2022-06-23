@@ -110,11 +110,11 @@ impl SerialSubmitter {
         interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
         max_retries: u32,
         db: AbacusDB,
-        signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
+        ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Self {
         Self {
             rx,
-            ckpt_rx: signed_checkpoint_receiver,
+            ckpt_rx,
             wait_queue: Vec::new(),
             run_queue: BinaryHeap::new(),
             inbox_contracts,
@@ -128,56 +128,44 @@ impl SerialSubmitter {
 
     pub fn spawn(mut self) -> Instrumented<JoinHandle<Result<()>>> {
         tokio::spawn(async move { self.work_loop().await })
-            .instrument(info_span!("submitter work loop"))
+            .instrument(info_span!("serial submitter work loop"))
     }
 
     async fn work_loop(&mut self) -> Result<()> {
-        // Wait until we have a non-option checkpoint.
         loop {
             self.ckpt_rx.changed().await?;
-            let ckpt = self.ckpt_rx.borrow().clone();
-            match ckpt {
-                Some(ckpt) => {
-                    break;
-                }
-                _ => {}
+            if self.ckpt_rx.borrow().clone().is_some() {
+                break;
             }
         }
-
         loop {
             // Pull any messages sent by processor over channel.
-            info!(wq=?self.wait_queue,rq=?self.run_queue, "start work loop iter");
             while let Ok(msg) = self.rx.try_recv() {
                 self.wait_queue.push(msg);
             }
-            info!(wq=?self.wait_queue,rq=?self.run_queue, "processed rcv queue");
 
             // Save latest signed validator checkpoint, which may cover messages
             // which previously were waiting on the wait queue with too high index.
             let ckpt = self.ckpt_rx.borrow().clone().unwrap();
-            info!(ckpt=?ckpt);
+            info!(wq=?self.wait_queue, rq=?self.run_queue, ck=?ckpt);
 
             // Promote any newly-ready messages from the wait queue to the run queue.
+            // TODO(webbhorn): Check if already delivered to inbox, e.g. by another
+            // relay. In that case, drop from wait queue.
+            // TODO(webbhorn): Check against interchain gas paymaster.  If now enough
+            // payment, promote to run queue.
             let mut new_wait_queue = Vec::new();
-            for i in 0..self.wait_queue.len() {
-                let msg = self.wait_queue[i].clone();
+            for msg in &self.wait_queue {
                 if msg.leaf_index > ckpt.checkpoint.index {
-                    info!(msg.leaf_index, "leaf > ckpt.index");
-                    new_wait_queue.push(msg);
+                    info!(msg.leaf_index, "-> waitq (leaf > ckpt.index)");
+                    new_wait_queue.push(msg.clone());
                 } else {
-                    info!(msg.leaf_index, "nothing disqualifying --> runq");
-                    self.run_queue.push(msg);
+                    info!(msg.leaf_index, "-> runq");
+                    self.run_queue.push(msg.clone());
                 }
-                // TODO(webbhorn): Check if already delivered to
-                // inbox, e.g. by another relay. In that case, drop
-                // from wait queue.
-                //
-                // TODO(webbhorn): Check against interchain gas paymaster.
-                // If now enough payment, promote to run queue.
             }
             self.wait_queue = new_wait_queue;
-            info!(wq=?self.wait_queue,rq=?self.run_queue,
-                "processed wait queue, before run queue");
+            info!(wq=?self.wait_queue,rq=?self.run_queue);
 
             // Deliver the highest-priority message on the run queue.
             if let Some(mut msg) = self.run_queue.pop() {
@@ -193,7 +181,7 @@ impl SerialSubmitter {
                     }
                 }
             } else {
-                info!("no messages on runq, sleeping");
+                info!(wq=?self.wait_queue, "runq empty, sleep");
                 tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
             }
             info!(wq=?self.wait_queue,rq=?self.run_queue);
@@ -228,15 +216,10 @@ impl SerialSubmitter {
             .validator_manager
             .process(ckpt, &message.message, &proof)
             .await?;
-        info!(leaf_index=?msg.leaf_index, hash=?result.txid, "message successfully processed");
+        info!(leaf_index=?msg.leaf_index, hash=?result.txid,
+            wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
+            "message successfully processed");
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
         Ok(())
     }
-}
-
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct MessageToRetry {
-    time_to_retry: Reverse<Instant>,
-    leaf_index: u32,
-    retries: u32,
 }

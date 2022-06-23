@@ -51,8 +51,8 @@ impl MessageProcessor {
     }
     #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
-        for message_leaf_index in 0.. {
-            tokio::time::sleep(std::time::Duration::from_secs(30)).await;
+        let mut message_leaf_index = 0;
+        loop {
             self.update_outbox_state_gauge();
             self.metrics
                 .processor_loop_gauge
@@ -66,6 +66,7 @@ impl MessageProcessor {
                 .retrieve_leaf_processing_status(message_leaf_index)?
                 .is_some()
             {
+                message_leaf_index += 1;
                 continue;
             }
             let message = if let Some(msg) = self
@@ -76,7 +77,15 @@ impl MessageProcessor {
             {
                 msg
             } else {
-                bail!("leaf in db without message idx: {}", message_leaf_index);
+                warn!("leaf in db without message idx: {}", message_leaf_index);
+                // Not clear what the best thing to do here is, but there is
+                // seemingly an existing race wherein an indexer might non-atomically
+                // write leaf info to rocksdb across a few records, so we might see
+                // the leaf status above, but not the message contents here.
+                // For now, optimistically sleep and then re-enter the loop in opes
+                // that the DB is now coherent.
+                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                continue;
             };
 
             // Skip if for different inbox.
@@ -87,6 +96,7 @@ impl MessageProcessor {
                     dst=?message.message.destination,
                     msg=?message,
                     "message not for local domain, skipping idx {}", message_leaf_index);
+                message_leaf_index += 1;
                 continue;
             }
 
@@ -99,6 +109,7 @@ impl MessageProcessor {
                     whitelist=?self.whitelist,
                     msg=?message,
                     "message not whitelisted, skipping idx {}", message_leaf_index);
+                message_leaf_index += 1;
                 continue;
             }
 
@@ -110,14 +121,12 @@ impl MessageProcessor {
                         num_retries: 0,
                     })
                     .await?;
+                message_leaf_index += 1;
                 continue;
             }
         }
-        Ok(())
     }
 
-    /// Part of main loop.
-    ///
     /// Spawn a task to update the outbox state gauge.
     fn update_outbox_state_gauge(
         &self,

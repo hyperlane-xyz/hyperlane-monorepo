@@ -26,13 +26,3 @@ pub struct SubmitMessageOp {
     pub leaf_index: u32,
     pub num_retries: u32,
 }
-
-#[allow(dead_code)]
-#[derive(Debug)]
-enum MessageProcessingStatus {
-    NotDestinedForInbox,
-    NotWhitelisted,
-    NotYetCheckpointed,
-    Processed,
-    Error,
-}

@@ -2167,10 +2167,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "loop-control"
-version = "0.1.0"
-
-[[package]]
 name = "maplit"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3178,7 +3174,6 @@ dependencies = [
  "ethers",
  "eyre",
  "futures-util",
- "loop-control",
  "prometheus",
  "serde 1.0.130",
  "serde_json",
