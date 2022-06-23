@@ -457,17 +457,17 @@ impl Settings {
 
     /// Read settings from the config file
     pub fn new() -> Result<Self, ConfigError> {
-        let mut s = Config::new();
-
-        s.merge(File::with_name("config/default"))?;
-
-        let env = env::var("RUN_MODE").unwrap_or_else(|_| "development".into());
-        s.merge(File::with_name(&format!("config/{}", env)).required(false))?;
-
-        // Add in settings from the environment (with a prefix of ABACUS)
-        // Eg.. `ABACUS_DEBUG=1 would set the `debug` key
-        s.merge(Environment::with_prefix("ABACUS"))?;
-
-        s.try_into()
+        let env_path = format!(
+            "config/{}",
+            env::var("RUN_MODE").as_deref().unwrap_or("development")
+        );
+        Config::builder()
+            .add_source(File::with_name("config/default"))
+            .add_source(File::with_name(&env_path))
+            // Add in settings from the environment (with a prefix of ABACUS)
+            // Eg.. `ABACUS_DEBUG=1 would set the `debug` key
+            .add_source(Environment::with_prefix("ABACUS"))
+            .build()?
+            .try_deserialize()
     }
 }
