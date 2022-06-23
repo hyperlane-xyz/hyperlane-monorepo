@@ -7,9 +7,12 @@ use abacus_base::{CachingInterchainGasPaymaster, InboxContracts, Outboxes};
 use abacus_core::db::AbacusDB;
 use abacus_core::{CommittedMessage, InboxValidatorManager, MultisigSignedCheckpoint};
 use eyre::{bail, Result};
+use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::{mpsc, watch};
 use tokio::task::JoinHandle;
+use tracing::{warn, instrument};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
+use abacus_core::AbacusContract;
 
 /// The scheduler implemented in this file is responsible for managing the submission of N
 /// messages to a target chain. It is designed to be used in a scenario allowing only one
@@ -123,6 +126,7 @@ impl SerialSubmitter {
             .instrument(info_span!("serial submitter work loop"))
     }
 
+    #[instrument(skip_all, fields(ibx=self.inbox_contracts.inbox.inbox().chain_name()))]
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.ckpt_rx.changed().await?;
@@ -132,8 +136,18 @@ impl SerialSubmitter {
         }
         loop {
             // Pull any messages sent by processor over channel.
-            while let Ok(msg) = self.rx.try_recv() {
-                self.wait_queue.push(msg);
+            loop {
+                match self.rx.try_recv() {
+                    Ok(msg) => {
+                        info!("pulled new msg from rcvq");
+                        self.wait_queue.push(msg);
+                    },
+                    Err(TryRecvError::Empty) => {
+                        warn!("empty rcvq");
+                        break;
+                    },
+                    _ => { bail!("disconnected rcvq or fatal err"); }
+                }
             }
 
             // Save latest signed validator checkpoint, which may cover messages
@@ -174,7 +188,7 @@ impl SerialSubmitter {
                 }
             } else {
                 info!(wq=?self.wait_queue, "runq empty, sleep");
-                tokio::time::sleep(tokio::time::Duration::from_secs(30)).await;
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
             info!(wq=?self.wait_queue,rq=?self.run_queue);
         }

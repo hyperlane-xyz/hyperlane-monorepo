@@ -65,6 +65,7 @@ impl MessageProcessor {
                 .retrieve_leaf_processing_status(message_leaf_index)?
                 .is_some()
             {
+                info!("skipping since message_index {} status already in DB", &message_leaf_index);
                 message_leaf_index += 1;
                 continue;
             }
@@ -74,6 +75,7 @@ impl MessageProcessor {
                 .map(CommittedMessage::try_from)
                 .transpose()?
             {
+                info!(msg=?msg, "working on msg");
                 msg
             } else {
                 warn!("leaf in db without message idx: {}", message_leaf_index);
