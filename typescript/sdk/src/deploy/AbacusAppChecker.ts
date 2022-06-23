@@ -1,8 +1,6 @@
 //TODO
 import { expect } from 'chai';
 
-import { types } from '@abacus-network/utils';
-
 import { AbacusApp } from '../AbacusApp';
 import { MultiProvider } from '../providers/MultiProvider';
 import { BeaconProxyAddresses } from '../proxy';
@@ -12,7 +10,7 @@ import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 import { CheckerViolation } from './types';
 
 export interface Ownable {
-  owner(): Promise<types.Address>;
+  owner(): Promise<Address>;
 }
 
 export abstract class AbacusAppChecker<
@@ -68,7 +66,7 @@ export abstract class AbacusAppChecker<
   }
 
   static async checkOwnership(
-    owner: types.Address,
+    owner: Address,
     ownables: Ownable[],
   ): Promise<void> {
     const owners = await Promise.all(ownables.map((o) => o.owner()));

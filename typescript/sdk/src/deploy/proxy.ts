@@ -1,7 +1,5 @@
 import { ethers } from 'ethers';
 
-import { types } from '@abacus-network/utils';
-
 import { BeaconProxyAddresses } from '../proxy';
 import { ChainName } from '../types';
 
@@ -19,8 +17,8 @@ export interface UpgradeBeaconViolation extends CheckerViolation {
 
 export async function upgradeBeaconImplementation(
   provider: ethers.providers.Provider,
-  beacon: types.Address,
-): Promise<types.Address> {
+  beacon: Address,
+): Promise<Address> {
   // TODO: This should check the correct upgrade beacon controller
   const storageValue = await provider.getStorageAt(beacon, 0);
   return ethers.utils.getAddress(storageValue.slice(26));
@@ -30,7 +28,7 @@ export function upgradeBeaconViolation<Chain extends ChainName>(
   chain: Chain,
   name: string,
   proxiedAddress: BeaconProxyAddresses,
-  actual: types.Address,
+  actual: Address,
 ): UpgradeBeaconViolation {
   return {
     chain,

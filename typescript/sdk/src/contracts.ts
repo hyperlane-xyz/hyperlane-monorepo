@@ -1,7 +1,5 @@
 import { BaseContract, ethers } from 'ethers';
 
-import { types } from '@abacus-network/utils';
-
 import { ProxiedContract, ProxyAddresses, isProxyAddresses } from './proxy';
 import { Connection } from './types';
 import { objMap } from './utils';
@@ -18,7 +16,7 @@ export type AbacusContracts = {
 };
 
 export type AbacusAddresses = {
-  [key: string]: types.Address | ProxyAddresses<any> | AbacusAddresses;
+  [key: string]: Address | ProxyAddresses<any> | AbacusAddresses;
 };
 
 export function serializeContracts(

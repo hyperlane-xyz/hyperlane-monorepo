@@ -1,9 +1,7 @@
-import type { types } from '@abacus-network/utils';
-
 import type { CheckerViolation } from '../types';
 
 export type ValidatorManagerConfig = {
-  validators: Array<types.Address>;
+  validators: Array<Address>;
   threshold: number;
 };
 

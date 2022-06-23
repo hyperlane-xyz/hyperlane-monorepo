@@ -2,7 +2,6 @@ import debug from 'debug';
 import { ethers } from 'ethers';
 
 import { Inbox, Ownable } from '@abacus-network/core';
-import { types } from '@abacus-network/utils';
 
 import { chainMetadata } from '../../consts/chainMetadata';
 import { AbacusCore, CoreContractsMap } from '../../core/AbacusCore';
@@ -55,7 +54,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   async deployOutbox<LocalChain extends Chain>(
     chain: LocalChain,
     config: ValidatorManagerConfig,
-    ubcAddress: types.Address,
+    ubcAddress: Address,
   ): Promise<OutboxContracts> {
     const domain = chainMetadata[chain].id;
     const outboxValidatorManager = await this.deployContract(
@@ -84,7 +83,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     localChain: Local,
     remoteChain: Remotes<Chain, Local>,
     config: ValidatorManagerConfig,
-    ubcAddress: types.Address,
+    ubcAddress: Address,
     duplicate?: ProxiedContract<Inbox, BeaconProxyAddresses>,
   ): Promise<InboxContracts> {
     const localDomain = chainMetadata[localChain].id;
@@ -184,7 +183,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
 
   static async transferOwnership<CoreNetworks extends ChainName>(
     core: AbacusCore<CoreNetworks>,
-    owners: ChainMap<CoreNetworks, types.Address>,
+    owners: ChainMap<CoreNetworks, Address>,
     multiProvider: MultiProvider<CoreNetworks>,
   ): Promise<ChainMap<CoreNetworks, ethers.ContractReceipt[]>> {
     return promiseObjAll(
@@ -205,7 +204,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
     Local extends Chain,
   >(
     coreContracts: CoreContracts<Chain, Local>,
-    owner: types.Address,
+    owner: Address,
     chainConnection: IChainConnection,
   ): Promise<ethers.ContractReceipt[]> {
     const ownables: Ownable[] = [
