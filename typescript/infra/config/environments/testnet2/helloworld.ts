@@ -1,6 +1,6 @@
 import { HelloWorldConfig } from '../../../src/config';
 
-import { TestnetChains, chainNames, environment } from './common';
+import { TestnetChains, chainNames, environment } from './chains';
 import helloWorldAddresses from './helloworld/addresses.json';
 
 export const helloWorld: HelloWorldConfig<TestnetChains> = {

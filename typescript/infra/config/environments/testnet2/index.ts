@@ -6,7 +6,7 @@ import {
   TestnetChains,
   environment as environmentName,
   testnetConfigs,
-} from './common';
+} from './chains';
 import { core } from './core';
 import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
