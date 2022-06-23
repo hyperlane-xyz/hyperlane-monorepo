@@ -8,8 +8,7 @@ import {
   testnetConfigs,
 } from './common';
 import { core } from './core';
-import { helloWorldKathyConfig } from './helloworld-kathy';
-import helloWorldAddresses from './helloworld/addresses.json';
+import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
 export const environment: CoreEnvironmentConfig<TestnetChains> = {
@@ -20,8 +19,5 @@ export const environment: CoreEnvironmentConfig<TestnetChains> = {
   agent,
   core,
   infra: infrastructure,
-  helloWorld: {
-    addresses: helloWorldAddresses,
-    kathy: helloWorldKathyConfig,
-  },
+  helloWorld,
 };

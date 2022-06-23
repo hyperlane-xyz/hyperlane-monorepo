@@ -1,6 +1,6 @@
 import { AgentConfig } from '../../../src/config';
 
-import { TestnetChains, chainNames, environment } from './common';
+import { TestnetChains, chainNames, environment } from './chains';
 import { validators } from './validators';
 
 export const agent: AgentConfig<TestnetChains> = {
