@@ -139,7 +139,7 @@ pub fn _new_settings<'de, T: Deserialize<'de>>(name: &str) -> Result<T, config::
                 .required(false),
         )
         // Use a base configuration env variable prefix
-        .add_source(Environment::with_prefix(&"ABC_BASE").separator("_"))
+        .add_source(Environment::with_prefix("ABC_BASE").separator("_"))
         .add_source(Environment::with_prefix(&prefix).separator("_"))
         .build()?
         .try_deserialize()
