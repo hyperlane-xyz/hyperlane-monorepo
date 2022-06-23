@@ -44,9 +44,12 @@ opentelemetry-jaeger = { version = "0.16", features = [
 opentelemetry-zipkin = { version = "0.15", default-features = false, features = [
     "reqwest-client",
 ] }
-rusoto_core = "0.47.0"
-rusoto_kms = "0.47.0"
-rusoto_s3 = "0.47.0"
+
+# dependency version is determined by etheres
+rusoto_core = "*"
+rusoto_kms = "*"
+rusoto_s3 = "*"
+
 lazy_static = "1.4.0"
 once_cell = "1.8.0"
 
