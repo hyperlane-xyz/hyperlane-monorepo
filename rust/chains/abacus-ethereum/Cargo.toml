@@ -12,14 +12,14 @@ serde_json = { version = "1.0", default-features = false }
 ethers = {git = "https://github.com/gakonst/ethers-rs", branch = "master", features = ["abigen"]}
 ethers-signers = {git = "https://github.com/gakonst/ethers-rs", branch = "master", features = ["aws"]}
 ethers-contract = { git = "https://github.com/gakonst/ethers-rs", branch = "master", features=["legacy"] }
-async-trait = { version = "0.1.42", default-features = false }
-thiserror = { version = "1.0.22", default-features = false }
+async-trait = { version = "0.1", default-features = false }
+thiserror = { version = "1.0", default-features = false }
 tracing = "0.1"
 eyre = "0.6"
 num = "0.4"
 tokio = "1"
 hex = "0.4.3"
-rocksdb = { git = "https://github.com/rust-rocksdb/rust-rocksdb" }
+rocksdb = "0.18"
 tracing-futures = "0.2"
 
 abacus-core = { path = "../../abacus-core" }
