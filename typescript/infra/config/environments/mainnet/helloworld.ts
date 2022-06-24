@@ -8,9 +8,9 @@ export const helloWorld: HelloWorldConfig<MainnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-3e4a570',
+      tag: 'sha-f58131a',
     },
-    cronSchedule: '51 * * * *', // At the beginning of each hour
+    cronSchedule: '0 15 * * *', // Every day at 3:00 PM UTC
     chainsToSkip: ['ethereum'],
     runEnv: environment,
     namespace: environment,
