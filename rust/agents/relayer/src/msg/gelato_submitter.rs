@@ -1,12 +1,10 @@
 use std::sync::Arc;
 
+use abacus_base::{chains::GelatoConf, InboxContracts};
 use abacus_base::CachingInterchainGasPaymaster;
 use abacus_core::db::AbacusDB;
 use tokio::task::JoinHandle;
 
-use crate::merkle_tree_builder::MerkleTreeBuilder;
-
-use abacus_base::{chains::GelatoConf, InboxContracts};
 use eyre::Result;
 use tokio::sync::mpsc;
 use tracing::{info_span, instrument::Instrumented, Instrument};
@@ -49,7 +47,7 @@ impl GelatoSubmitter {
             rx,
             inbox_contracts,
             interchain_gas_paymaster,
-            db: db.clone(),
+            db,
         }
     }
 
