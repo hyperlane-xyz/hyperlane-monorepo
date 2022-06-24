@@ -1,9 +1,18 @@
 import path from 'path';
 
 import { HelloWorldDeployer } from '@abacus-network/helloworld';
-import { AbacusCore, serializeContracts } from '@abacus-network/sdk';
+import {
+  HelloWorldContracts,
+  helloWorldFactories,
+} from '@abacus-network/helloworld/dist/sdk/contracts';
+import {
+  AbacusCore,
+  ChainMap,
+  buildContracts,
+  serializeContracts,
+} from '@abacus-network/sdk';
 
-import { writeJSON } from '../../src/utils/utils';
+import { readJSON, writeJSON } from '../../src/utils/utils';
 import {
   getCoreEnvironmentConfig,
   getEnvironment,
@@ -19,9 +28,32 @@ async function main() {
   const configMap = await getConfiguration(environment, multiProvider);
   const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
-  const contracts = await deployer.deploy();
   const dir = path.join(getEnvironmentDirectory(environment), 'helloworld');
-  writeJSON(dir, 'addresses.json', serializeContracts(contracts));
+
+  let partialContracts: ChainMap<any, HelloWorldContracts>;
+  try {
+    const addresses = readJSON(dir, 'partial_addresses.json');
+    partialContracts = buildContracts(addresses, helloWorldFactories) as any;
+  } catch (e) {
+    partialContracts = {};
+  }
+
+  try {
+    const contracts = await deployer.deploy(partialContracts);
+    writeJSON(dir, 'addresses.json', serializeContracts(contracts));
+    writeJSON(
+      dir,
+      'verification.json',
+      JSON.stringify(deployer.verificationInputs),
+    );
+  } catch (e) {
+    console.error(e);
+    writeJSON(
+      dir,
+      'partial_addresses.json',
+      serializeContracts(deployer.deployedContracts as any),
+    );
+  }
 }
 
 main()

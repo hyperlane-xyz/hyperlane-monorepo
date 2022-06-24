@@ -19,8 +19,7 @@ pub use agent::*;
 #[doc(hidden)]
 #[cfg_attr(tarpaulin, skip)]
 #[macro_use]
-mod macros;
-pub use macros::*;
+pub mod macros;
 
 /// outbox type
 mod outbox;

@@ -51,5 +51,13 @@
     "level": "debug",
     "fmt": "json"
   },
+<<<<<<< HEAD
   "db": "db_path"
 }
+=======
+  "db": "db_path",
+  "index": {
+    "from": "1"
+  }
+}
+>>>>>>> main

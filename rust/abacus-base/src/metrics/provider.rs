@@ -16,11 +16,15 @@ pub(crate) fn create_provider_metrics(metrics: &CoreMetrics) -> Result<ProviderM
             GAS_PRICE_GWEI_HELP,
             GAS_PRICE_GWEI_LABELS,
         )?)
-        .contract_call_duration_seconds(metrics.new_histogram(
+        .contract_call_duration_seconds(metrics.new_counter(
             "contract_call_duration_seconds",
             CONTRACT_CALL_DURATION_SECONDS_HELP,
             CONTRACT_CALL_DURATION_SECONDS_LABELS,
-            NETWORK_HISTOGRAM_BUCKETS.into(),
+        )?)
+        .contract_call_count(metrics.new_int_counter(
+            "contract_call_count",
+            CONTRACT_CALL_COUNT_HELP,
+            CONTRACT_CALL_COUNT_LABELS,
         )?)
         .transaction_send_duration_seconds(metrics.new_histogram(
             "transaction_send_duration_seconds",
