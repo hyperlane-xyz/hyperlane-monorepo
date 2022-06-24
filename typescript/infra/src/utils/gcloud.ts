@@ -9,6 +9,12 @@ interface IamCondition {
   expression: string;
 }
 
+// Allows secrets to be overridden via environment variables to avoid
+// gcloud calls. This is particularly useful for running commands in k8s,
+// where we can use external-secrets to fetch secrets from GCP secret manager,
+// and don't necessarily want to use gcloud from within k8s.
+// See tryGCPSecretFromEnvVariable for details on how to override via environment
+// variables.
 export async function fetchGCPSecret(secretName: string, parseJson = true) {
   let output: string;
 
@@ -30,6 +36,10 @@ export async function fetchGCPSecret(secretName: string, parseJson = true) {
   return output;
 }
 
+// If the environment variable GCP_SECRET_OVERRIDES_ENABLED is `true`,
+// this will attempt to find an environment variable of the form:
+//  `GCP_SECRET_OVERRIDE_${gcpSecretName..replaceAll('-', '_').toUpperCase()}`
+// If found, it's returned, otherwise, undefined is returned.
 function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
   const overridingEnabled =
     process.env.GCP_SECRET_OVERRIDES_ENABLED?.toLowerCase().trim() === 'true';
