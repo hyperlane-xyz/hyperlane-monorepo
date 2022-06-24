@@ -1,4 +1,4 @@
-import { BaseContract, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { types } from '@abacus-network/utils';
 
@@ -23,7 +23,7 @@ export type AbacusAddresses = {
 
 export function serializeContracts(
   contractOrObject: AbacusContracts,
-  max_depth: number = 5,
+  max_depth = 5,
 ): AbacusAddresses {
   if (max_depth === 0) {
     throw new Error('serializeContracts tried to go too deep');
@@ -55,7 +55,7 @@ function getFactory(
 export function buildContracts(
   addressOrObject: AbacusAddresses,
   factories: AbacusFactories,
-  max_depth: number = 5,
+  max_depth = 5,
 ): AbacusContracts {
   if (max_depth === 0) {
     throw new Error('buildContracts tried to go too deep');
@@ -82,7 +82,7 @@ export function buildContracts(
 export function connectContracts<Contracts extends AbacusContracts>(
   contractOrObject: Contracts,
   connection: Connection,
-  max_depth: number = 5,
+  max_depth = 5,
 ): Contracts {
   if (max_depth === 0) {
     throw new Error('connectContracts tried to go too deep');
