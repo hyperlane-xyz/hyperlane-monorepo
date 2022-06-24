@@ -1,7 +1,6 @@
-use eyre::Result;
 use std::cmp::Ordering;
 
-use abacus_core::{CommittedMessage, MultisigSignedCheckpoint, accumulator::merkle::Proof};
+use abacus_core::{accumulator::merkle::Proof, CommittedMessage, MultisigSignedCheckpoint};
 
 pub mod gelato_submitter;
 pub mod processor;
@@ -41,12 +40,10 @@ pub struct SubmitMessageArgs {
 impl Ord for SubmitMessageArgs {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.num_retries.cmp(&other.num_retries) {
-            Ordering::Equal => {
-                return match self.leaf_index.cmp(&other.leaf_index) {
-                    Ordering::Equal => Ordering::Equal,
-                    Ordering::Less => Ordering::Greater,
-                    Ordering::Greater => Ordering::Less,
-                };
+            Ordering::Equal => match self.leaf_index.cmp(&other.leaf_index) {
+                Ordering::Equal => Ordering::Equal,
+                Ordering::Less => Ordering::Greater,
+                Ordering::Greater => Ordering::Less,
             },
             Ordering::Less => Ordering::Greater,
             Ordering::Greater => Ordering::Less,

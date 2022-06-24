@@ -2,16 +2,19 @@ use std::sync::Arc;
 
 use eyre::Result;
 use prometheus::IntGauge;
-use tokio::{sync::{mpsc, watch}, task::{JoinHandle, yield_now}};
+use tokio::{
+    sync::{mpsc, watch},
+    task::JoinHandle,
+};
 use tracing::{info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CoreMetrics, InboxContracts, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, CommittedMessage, Outbox,
-    OutboxState, MultisigSignedCheckpoint,
+    db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, CommittedMessage,
+    MultisigSignedCheckpoint, Outbox, OutboxState,
 };
 
-use crate::{settings::whitelist::Whitelist, merkle_tree_builder::MerkleTreeBuilder};
+use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::whitelist::Whitelist};
 
 use super::SubmitMessageArgs;
 
@@ -85,7 +88,10 @@ impl MessageProcessor {
             .retrieve_leaf_processing_status(self.message_leaf_index)?
             .is_some()
         {
-            info!("skipping since message_index {} status already in DB", &self.message_leaf_index);
+            info!(
+                "skipping since message_index {} status already in DB",
+                &self.message_leaf_index
+            );
             self.message_leaf_index += 1;
             return Ok(());
         }
@@ -98,7 +104,10 @@ impl MessageProcessor {
             info!(msg=?msg, "working on msg");
             msg
         } else {
-            warn!("leaf in db without message idx: {}", self.message_leaf_index);
+            warn!(
+                "leaf in db without message idx: {}",
+                self.message_leaf_index
+            );
             // Not clear what the best thing to do here is, but there is
             // seemingly an existing race wherein an indexer might non-atomically
             // write leaf info to rocksdb across a few records, so we might see
@@ -137,44 +146,49 @@ impl MessageProcessor {
 
         // If validator hasn't published checkpoint covering self.message_leaf_index yet,
         // wait until it has, before forwarding the message to the submitter channel.
-        let mut ckpt = self.ckpt_rx.borrow().clone();
+        let mut ckpt;
         loop {
             ckpt = self.ckpt_rx.borrow().clone();
             match &ckpt {
-                Some(ckpt) if ckpt.checkpoint.index >= self.message_leaf_index =>  {
+                Some(ckpt) if ckpt.checkpoint.index >= self.message_leaf_index => {
                     break;
-                },
+                }
                 _ => {
                     self.ckpt_rx.changed().await?;
                 }
             }
         }
         let checkpoint = ckpt.unwrap();
-        assert!(&checkpoint.checkpoint.index >= &self.message_leaf_index);
+        assert!(checkpoint.checkpoint.index >= self.message_leaf_index);
 
         // Include proof against checkpoint for message in the args provided
         // to the submitter.
-        if &checkpoint.checkpoint.index >= &self.prover_sync.count() {
+        if checkpoint.checkpoint.index >= self.prover_sync.count() {
             self.prover_sync
                 .update_to_checkpoint(&checkpoint.checkpoint)
                 .await?;
         }
-        assert_eq!(&checkpoint.checkpoint.index + 1, self.prover_sync.count());
+        assert_eq!(checkpoint.checkpoint.index + 1, self.prover_sync.count());
         let proof = self.prover_sync.get_proof(self.message_leaf_index)?;
 
         // Finally, build the submit arg and dispatch it to the submitter.
         let submit_args = SubmitMessageArgs {
             leaf_index: self.message_leaf_index,
             committed_message: message,
-            checkpoint: checkpoint,
-            proof: proof,
+            checkpoint,
+            proof,
             num_retries: 0,
         };
-        if self.db.leaf_by_leaf_index(self.message_leaf_index)?.is_some() {
-            info!("sending message at idx {} to submitter", self.message_leaf_index);
-            self.tx_msg
-                .send(submit_args)
-                .await?;
+        if self
+            .db
+            .leaf_by_leaf_index(self.message_leaf_index)?
+            .is_some()
+        {
+            info!(
+                "sending message at idx {} to submitter",
+                self.message_leaf_index
+            );
+            self.tx_msg.send(submit_args).await?;
             self.message_leaf_index += 1;
         }
         Ok(())

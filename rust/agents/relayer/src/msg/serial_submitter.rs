@@ -1,17 +1,16 @@
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 
-use crate::merkle_tree_builder::MerkleTreeBuilder;
 use abacus_base::{CachingInterchainGasPaymaster, InboxContracts, Outboxes};
 use abacus_core::db::AbacusDB;
-use abacus_core::{CommittedMessage, InboxValidatorManager, MultisigSignedCheckpoint};
-use eyre::{bail, Result};
-use tokio::sync::mpsc::error::TryRecvError;
-use tokio::sync::{mpsc, watch};
-use tokio::task::JoinHandle;
-use tracing::{warn, instrument};
-use tracing::{info, info_span, instrument::Instrumented, Instrument};
 use abacus_core::AbacusContract;
+use abacus_core::InboxValidatorManager;
+use eyre::{bail, Result};
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::error::TryRecvError;
+use tokio::task::JoinHandle;
+use tracing::instrument;
+use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use super::SubmitMessageArgs;
 
@@ -113,7 +112,7 @@ impl SerialSubmitter {
             outbox,
             interchain_gas_paymaster,
             max_retries,
-            db: db.clone(),
+            db,
         }
     }
 
@@ -142,11 +141,13 @@ impl SerialSubmitter {
             match self.rx.try_recv() {
                 Ok(msg) => {
                     self.wait_queue.push(msg);
-                },
+                }
                 Err(TryRecvError::Empty) => {
                     break;
-                },
-                _ => { bail!("disconnected rcvq or fatal err"); }
+                }
+                _ => {
+                    bail!("disconnected rcvq or fatal err");
+                }
             }
         }
 
@@ -157,7 +158,6 @@ impl SerialSubmitter {
         // further processing.
 
         // Promote any newly-ready messages from the wait queue to the run queue.
-        let mut new_wait_queue = Vec::new();
         for msg in &self.wait_queue {
             // TODO(webbhorn): Check if already delivered to inbox, e.g. by another
             // relay. In that case, drop from wait queue.
@@ -166,8 +166,7 @@ impl SerialSubmitter {
             info!(msg.leaf_index, "-> runq");
             self.run_queue.push(msg.clone());
         }
-        self.wait_queue = new_wait_queue;
-        info!(wq=?self.wait_queue,rq=?self.run_queue);
+        self.wait_queue = Vec::new();
 
         // Deliver the highest-priority message on the run queue.
         if let Some(mut msg) = self.run_queue.pop() {
@@ -187,10 +186,7 @@ impl SerialSubmitter {
         Ok(())
     }
 
-    async fn deliver_message(
-        &mut self,
-        msg: &SubmitMessageArgs,
-    ) -> Result<()> {
+    async fn deliver_message(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         let result = self
             .inbox_contracts
             .validator_manager

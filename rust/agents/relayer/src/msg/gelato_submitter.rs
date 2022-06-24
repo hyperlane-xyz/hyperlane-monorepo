@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use abacus_base::CachingInterchainGasPaymaster;
-use abacus_core::{db::AbacusDB, MultisigSignedCheckpoint};
+use abacus_core::db::AbacusDB;
 use tokio::task::JoinHandle;
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
@@ -9,7 +9,6 @@ use crate::merkle_tree_builder::MerkleTreeBuilder;
 use abacus_base::{chains::GelatoConf, InboxContracts};
 use eyre::Result;
 use tokio::sync::mpsc;
-use tokio::sync::watch;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
 use super::SubmitMessageArgs;
