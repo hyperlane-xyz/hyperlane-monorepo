@@ -4,5 +4,9 @@ image:
 abacus:
   runEnv: testnet2
   chains: []
+cronjob:
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
 externalSecrets:
   clusterSecretStore:

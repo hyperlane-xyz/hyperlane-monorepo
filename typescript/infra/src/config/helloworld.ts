@@ -4,9 +4,10 @@ import { DockerConfig } from './agent';
 
 export interface HelloWorldKathyConfig<Chain extends ChainName> {
   docker: DockerConfig;
-  chains: Chain[];
+  cronSchedule: string;
   runEnv: string;
   namespace: string;
+  chainsToSkip?: Chain[];
 }
 
 export interface HelloWorldConfig<Chain extends ChainName> {

@@ -3,7 +3,9 @@ kind: CronJob
 metadata:
   name: helloworld-kathy
 spec:
-  schedule: "*/6 * * * *"
+  schedule: {{ .Values.cronjob.schedule }}
+  successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
+  failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
   jobTemplate:
     spec:
       template:

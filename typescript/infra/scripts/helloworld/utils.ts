@@ -44,12 +44,7 @@ export async function getConfiguration<Chain extends ChainName>(
 export async function getApp<Chain extends ChainName>(
   coreConfig: CoreEnvironmentConfig<Chain>,
 ) {
-  const helloworldConfig = coreConfig.helloWorld;
-  if (!helloworldConfig) {
-    throw new Error(
-      `Environment ${coreConfig.environment} does not have a HelloWorld config`,
-    );
-  }
+  const helloworldConfig = getHelloWorldConfig(coreConfig);
   const contracts = buildContracts(
     helloworldConfig.addresses,
     helloWorldFactories,

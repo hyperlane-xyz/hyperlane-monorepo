@@ -51,15 +51,4 @@ export const agent: AgentConfig<MainnetChains> = {
       maxProcessingRetries: 10,
     },
   },
-  kathy: {
-    default: {
-      enabled: false,
-      interval: 60 * 60,
-      chat: {
-        type: 'static',
-        message: '',
-        recipient: '',
-      },
-    },
-  },
 };

@@ -10,7 +10,7 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
   const chains = app.chains() as Chains[];
-  const skip = process.env.NETWORKS_TO_SKIP?.split(',');
+  const skip = process.env.CHAINS_TO_SKIP?.split(',');
 
   const invalidChain = chains.find((chain) => skip && !skip.includes(chain));
   if (invalidChain) {
