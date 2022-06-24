@@ -8,7 +8,7 @@ export const mainnetConfigs: ChainMap<any, IChainConnection> = {
   bsc: {
     ...chainConnectionConfigs.bsc,
     overrides: {
-      gasPrice: 7 * 10 ** 9,
+      // gasPrice: 7 * 10 ** 9,
     },
   },
   avalanche: chainConnectionConfigs.avalanche,
@@ -16,8 +16,8 @@ export const mainnetConfigs: ChainMap<any, IChainConnection> = {
     ...chainConnectionConfigs.polygon,
     confirmations: 3,
     overrides: {
-      maxFeePerGas: 100 * 10 ** 9, // gwei
-      maxPriorityFeePerGas: 40 * 10 ** 9, // gwei
+      // maxFeePerGas: 100 * 10 ** 9, // gwei
+      // maxPriorityFeePerGas: 40 * 10 ** 9, // gwei
       // gasPrice: 50 * 10 ** 9, // gwei
     },
   },
@@ -28,8 +28,8 @@ export const mainnetConfigs: ChainMap<any, IChainConnection> = {
     ...chainConnectionConfigs.ethereum,
     confirmations: 3,
     overrides: {
-      maxFeePerGas: 150 * 10 ** 9, // gwei
-      maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
+      // maxFeePerGas: 150 * 10 ** 9, // gwei
+      // maxPriorityFeePerGas: 5 * 10 ** 9, // gwei
     },
   },
 };

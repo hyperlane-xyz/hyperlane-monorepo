@@ -24,9 +24,10 @@ async function main() {
     for (const destination of sources.slice().filter((d) => d !== source)) {
       try {
         await sendMessage(app, source, destination);
-      } catch {
+      } catch (err) {
         console.error(
           `Error sending message from ${source} to ${destination}, continuing...`,
+          err,
         );
       }
     }
