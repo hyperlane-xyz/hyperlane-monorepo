@@ -15,7 +15,7 @@ async function main() {
   const invalidChains = skip?.filter(
     (skipChain: any) => !chains.includes(skipChain),
   );
-  if (invalidChains) {
+  if (invalidChains && invalidChains.length > 0) {
     throw new Error(`Invalid chains to skip ${invalidChains}`);
   }
 
