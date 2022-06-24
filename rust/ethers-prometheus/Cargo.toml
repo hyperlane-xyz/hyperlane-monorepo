@@ -8,7 +8,7 @@ edition = "2021"
 prometheus = "0.13"
 ethers = { git = "https://github.com/gakonst/ethers-rs", branch = "master" }
 derive_builder = "0.11"
-async-trait = "0.1"
+async-trait = { version = "0.1", default-features = false }
 futures = "0.3"
 parking_lot = { version = "0.12" }
 maplit = "1.0"
