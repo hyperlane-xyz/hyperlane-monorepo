@@ -22,7 +22,13 @@ async function main() {
   const sources = chains.filter((chain) => !skip || !skip.includes(chain));
   for (const source of sources) {
     for (const destination of sources.slice().filter((d) => d !== source)) {
-      await sendMessage(app, source, destination);
+      try {
+        await sendMessage(app, source, destination);
+      } catch {
+        console.error(
+          `Error sending message from ${source} to ${destination}, continuing...`,
+        );
+      }
     }
   }
 }
