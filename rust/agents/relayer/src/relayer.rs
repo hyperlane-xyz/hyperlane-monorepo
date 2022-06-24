@@ -25,7 +25,6 @@ use crate::settings::RelayerSettings;
 #[derive(Debug)]
 pub struct Relayer {
     signed_checkpoint_polling_interval: u64,
-    max_processing_retries: u32,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
     whitelist: Arc<Whitelist>,
@@ -67,7 +66,6 @@ impl Agent for Relayer {
                 .signedcheckpointpollinginterval
                 .parse()
                 .unwrap_or(5),
-            max_processing_retries: settings.maxprocessingretries.parse().unwrap_or(10),
             multisig_checkpoint_syncer,
             core: settings
                 .as_ref()
@@ -149,7 +147,6 @@ impl Relayer {
                     inbox_contracts.clone(),
                     self.outbox().outbox(),
                     self.interchain_gas_paymaster(),
-                    self.max_processing_retries,
                     self.outbox().db(),
                 );
                 serial_submitter.spawn()

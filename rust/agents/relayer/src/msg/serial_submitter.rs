@@ -85,12 +85,6 @@ pub(crate) struct SerialSubmitter {
     // Contract tracking interchain gas payments for use when deciding whether
     // sufficient funds have been provided for message forwarding.
     interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
-    // The number of times to attepmt submitting each message
-    // before giving up.
-    //
-    // TODO(webbhorn): Is this the number of attempts we'll make before permanently
-    // giving up, or until we re-insert into retry queue and try the next readiest message?
-    max_retries: u32,
     // Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
 }
@@ -101,7 +95,6 @@ impl SerialSubmitter {
         inbox_contracts: InboxContracts,
         outbox: Outboxes,
         interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
-        max_retries: u32,
         db: AbacusDB,
     ) -> Self {
         Self {
@@ -111,7 +104,6 @@ impl SerialSubmitter {
             inbox_contracts,
             outbox,
             interchain_gas_paymaster,
-            max_retries,
             db,
         }
     }
