@@ -26,14 +26,17 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
   kathyConfig: HelloWorldKathyConfig<Chain>,
 ) {
   const values = {
+    chainsToSkip: kathyConfig.chainsToSkip,
     cronjob: {
       schedule: kathyConfig.cronSchedule,
     },
     abacus: {
       runEnv: kathyConfig.runEnv,
-      chains: coreConfig.agent.chainNames.filter(
-        (chainName) => !kathyConfig.chainsToSkip?.includes(chainName),
-      ),
+      // This is just used for fetching secrets, and is not actually
+      // the list of chains that kathy will send to. Because Kathy
+      // will fetch secrets for all chains, regardless of skipping them or
+      // not, we pass in all chains
+      chains: coreConfig.agent.chainNames,
     },
     image: {
       repository: kathyConfig.docker.repo,

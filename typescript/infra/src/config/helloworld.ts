@@ -7,7 +7,7 @@ export interface HelloWorldKathyConfig<Chain extends ChainName> {
   cronSchedule: string;
   runEnv: string;
   namespace: string;
-  chainsToSkip?: Chain[];
+  chainsToSkip: Chain[];
 }
 
 export interface HelloWorldConfig<Chain extends ChainName> {

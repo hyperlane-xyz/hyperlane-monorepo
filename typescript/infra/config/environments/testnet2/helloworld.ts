@@ -11,7 +11,7 @@ export const helloWorld: HelloWorldConfig<TestnetChains> = {
       tag: 'sha-1603a7c',
     },
     cronSchedule: '0 * * * *', // At the beginning of each hour
-    chainsToSkip: [], // Don't skip any
+    chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
   },

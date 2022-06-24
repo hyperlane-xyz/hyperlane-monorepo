@@ -23,3 +23,7 @@ spec:
             envFrom:
             - secretRef:
                 name: helloworld-kathy-secret
+            env:
+            - name: CHAINS_TO_SKIP
+              value: {{ join "," .Values.chainsToSkip }}
+
