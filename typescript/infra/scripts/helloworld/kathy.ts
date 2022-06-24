@@ -12,9 +12,11 @@ async function main() {
   const chains = app.chains() as Chains[];
   const skip = process.env.CHAINS_TO_SKIP?.split(',');
 
-  const invalidChain = chains.find((chain) => skip && !skip.includes(chain));
-  if (invalidChain) {
-    throw new Error(`Invalid chain to skip ${invalidChain}`);
+  const invalidChains = skip?.filter(
+    (skipChain: any) => !chains.includes(skipChain),
+  );
+  if (invalidChains) {
+    throw new Error(`Invalid chains to skip ${invalidChains}`);
   }
 
   const sources = chains.filter((chain) => !skip || !skip.includes(chain));
