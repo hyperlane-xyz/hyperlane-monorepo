@@ -41,11 +41,12 @@
   "scripts": {
     "build": "tsc",
     "check": "tsc --noEmit",
-    "clean": "rm -rf ./dist",
+    "clean": "rm -rf ./dist ./cache",
     "prepublishOnly": "yarn build",
     "prettier": "prettier --write ./src ./test",
-    "test": "mocha --config .mocharc.json './test/**/*.test.ts'",
-    "test:hardhat": "hardhat test"
+    "test": "yarn test:unit && yarn test:hardhat",
+    "test:unit": "mocha --config .mocharc.json './test/{,!(hardhat)/**}/*.test.ts'",
+    "test:hardhat": "hardhat test ./test/hardhat/*.ts"
   },
   "types": "dist/index.d.ts"
 }

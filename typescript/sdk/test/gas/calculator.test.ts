@@ -4,14 +4,14 @@ import sinon from 'sinon';
 
 import { utils } from '@abacus-network/utils';
 
+import { Chains } from '../../src/consts/chains';
+import { AbacusCore } from '../../src/core/AbacusCore';
+import { CoreContracts } from '../../src/core/contracts';
 import {
-  AbacusCore,
-  Chains,
   InterchainGasCalculator,
-  MultiProvider,
-} from '../..';
-import { CoreContracts } from '../../src';
-import { ParsedMessage } from '../../src/gas/calculator';
+  ParsedMessage,
+} from '../../src/gas/calculator';
+import { MultiProvider } from '../../src/providers/MultiProvider';
 import { TestChainNames } from '../../src/types';
 import { MockProvider, MockTokenPriceGetter } from '../utils';
 

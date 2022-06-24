@@ -1,3 +1,5 @@
+import '@nomiclabs/hardhat-ethers';
+import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
@@ -5,9 +7,9 @@ import { TestOutbox, TestRecipient__factory } from '@abacus-network/core';
 import { chainMetadata } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
-import { hardhatMultiProvider } from '../index';
-import { TestCoreApp } from '../src/TestCoreApp';
-import { TestCoreDeploy } from '../src/TestCoreDeploy';
+import { TestCoreApp } from '../../src/hardhat/TestCoreApp';
+import { TestCoreDeployer } from '../../src/hardhat/TestCoreDeployer';
+import { hardhatMultiProvider } from '../../src/hardhat/hardhatMultiProvider';
 
 const localChain = 'test1';
 const localDomain = chainMetadata[localChain].id;
@@ -15,13 +17,13 @@ const remoteChain = 'test2';
 const remoteDomain = chainMetadata[remoteChain].id;
 const message = '0xdeadbeef';
 
-describe('TestCoreDeploy', async () => {
+describe('TestCoreDeployer', async () => {
   let abacus: TestCoreApp, localOutbox: TestOutbox, remoteOutbox: TestOutbox;
 
   beforeEach(async () => {
     const [signer] = await ethers.getSigners();
     const multiProvider = hardhatMultiProvider(ethers.provider, signer);
-    const deployer = new TestCoreDeploy(multiProvider);
+    const deployer = new TestCoreDeployer(multiProvider);
     abacus = await deployer.deployCore();
 
     const recipient = await new TestRecipient__factory(signer).deploy();

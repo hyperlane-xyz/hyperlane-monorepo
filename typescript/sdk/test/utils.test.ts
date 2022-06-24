@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { BigNumber, FixedNumber } from 'ethers';
 
-import { bigToFixed, fixedToBig, mulBigAndFixed } from '../src/gas/utils';
+import { bigToFixed, fixedToBig, mulBigAndFixed } from '../src/utils/number';
 
 describe('utils', () => {
   describe('bigToFixed', () => {
