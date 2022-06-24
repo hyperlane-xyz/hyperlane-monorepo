@@ -1,3 +1,8 @@
+use eyre::Result;
+use std::cmp::Ordering;
+
+use abacus_core::{CommittedMessage, MultisigSignedCheckpoint, accumulator::merkle::Proof};
+
 pub mod gelato_submitter;
 pub mod processor;
 pub mod serial_submitter;
@@ -21,8 +26,44 @@ pub mod serial_submitter;
 ///   - FallbackProviderSubmitter (Serialized, but if some RPC provider sucks,
 ///   switch everyone to new one)
 
-#[derive(Clone, Debug, Default, Eq, PartialEq, PartialOrd, Ord)]
-pub struct SubmitMessageOp {
+#[derive(Clone, Debug)]
+pub struct SubmitMessageArgs {
     pub leaf_index: u32,
+    pub committed_message: CommittedMessage,
+    pub checkpoint: MultisigSignedCheckpoint,
+    pub proof: Proof,
     pub num_retries: u32,
 }
+
+// The runqueue implementation is a max-heap.  We want the next op to
+// be min over <num_retries, leaf_index>, so the total ordering is
+// the reverse of the natural lexicographic ordering.
+impl Ord for SubmitMessageArgs {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.num_retries.cmp(&other.num_retries) {
+            Ordering::Equal => {
+                return match self.leaf_index.cmp(&other.leaf_index) {
+                    Ordering::Equal => Ordering::Equal,
+                    Ordering::Less => Ordering::Greater,
+                    Ordering::Greater => Ordering::Less,
+                };
+            },
+            Ordering::Less => Ordering::Greater,
+            Ordering::Greater => Ordering::Less,
+        }
+    }
+}
+
+impl PartialOrd for SubmitMessageArgs {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for SubmitMessageArgs {
+    fn eq(&self, other: &Self) -> bool {
+        self.num_retries == other.num_retries && self.leaf_index == other.leaf_index
+    }
+}
+
+impl Eq for SubmitMessageArgs {}

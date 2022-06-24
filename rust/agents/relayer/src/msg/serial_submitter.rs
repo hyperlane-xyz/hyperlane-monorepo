@@ -2,7 +2,6 @@ use std::collections::BinaryHeap;
 use std::sync::Arc;
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
-use crate::msg::SubmitMessageOp;
 use abacus_base::{CachingInterchainGasPaymaster, InboxContracts, Outboxes};
 use abacus_core::db::AbacusDB;
 use abacus_core::{CommittedMessage, InboxValidatorManager, MultisigSignedCheckpoint};
@@ -13,6 +12,8 @@ use tokio::task::JoinHandle;
 use tracing::{warn, instrument};
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 use abacus_core::AbacusContract;
+
+use super::SubmitMessageArgs;
 
 /// The scheduler implemented in this file is responsible for managing the submission of N
 /// messages to a target chain. It is designed to be used in a scenario allowing only one
@@ -62,22 +63,22 @@ use abacus_core::AbacusContract;
 /// probably be tried soon.
 
 // TODO(webbhorn): Metrics data.
+// TODO(webbhorn): Do we also want to await finality_blocks on source
+// chain before attempting submission? Does this already happen?
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
     // Receiver for new messages to submit.
-    rx: mpsc::Receiver<SubmitMessageOp>,
-    // Provides access to most-recently available signed checkpoint.
-    ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
+    rx: mpsc::Receiver<SubmitMessageArgs>,
     // Messages we are aware of that we want to eventually submit,
     // but haven't yet, for whatever reason. They are not in any
     // priority order, so are held in a vector.
-    wait_queue: Vec<SubmitMessageOp>,
+    wait_queue: Vec<SubmitMessageArgs>,
     // Messages that are in theory deliverable, but which are waiting in a queue for
     // their turn to be dispatched. The SerialSubmitter can only dispatch one message
     // at a time, so this queue could grow.
-    run_queue: BinaryHeap<SubmitMessageOp>,
+    run_queue: BinaryHeap<SubmitMessageArgs>,
     // Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
     // Outbox on message origin chain.
@@ -93,23 +94,19 @@ pub(crate) struct SerialSubmitter {
     max_retries: u32,
     // Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
-    // Interface to generating merkle proofs for messages against a checkpoint.
-    prover_sync: MerkleTreeBuilder,
 }
 
 impl SerialSubmitter {
     pub(crate) fn new(
-        rx: mpsc::Receiver<SubmitMessageOp>,
+        rx: mpsc::Receiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         outbox: Outboxes,
         interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
         max_retries: u32,
         db: AbacusDB,
-        ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Self {
         Self {
             rx,
-            ckpt_rx,
             wait_queue: Vec::new(),
             run_queue: BinaryHeap::new(),
             inbox_contracts,
@@ -117,7 +114,6 @@ impl SerialSubmitter {
             interchain_gas_paymaster,
             max_retries,
             db: db.clone(),
-            prover_sync: MerkleTreeBuilder::new(db),
         }
     }
 
@@ -129,103 +125,87 @@ impl SerialSubmitter {
     #[instrument(skip_all, fields(ibx=self.inbox_contracts.inbox.inbox().chain_name()))]
     async fn work_loop(&mut self) -> Result<()> {
         loop {
-            self.ckpt_rx.changed().await?;
-            if self.ckpt_rx.borrow().clone().is_some() {
-                break;
+            self.tick().await?;
+            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
+            //tokio::task::yield_now().await;
+        }
+    }
+
+    // Tick represents a single round of scheduling wherein we will
+    // process each queue and await at most one message submission.
+    // It is extracted from the main loop to allow for testing the
+    // state of the scheduler at particular points without having to
+    // worry about concurrent access.
+    async fn tick(&mut self) -> Result<()> {
+        // Pull any messages sent by processor over channel.
+        loop {
+            match self.rx.try_recv() {
+                Ok(msg) => {
+                    self.wait_queue.push(msg);
+                },
+                Err(TryRecvError::Empty) => {
+                    break;
+                },
+                _ => { bail!("disconnected rcvq or fatal err"); }
             }
         }
-        loop {
-            // Pull any messages sent by processor over channel.
-            loop {
-                match self.rx.try_recv() {
-                    Ok(msg) => {
-                        info!("pulled new msg from rcvq");
-                        self.wait_queue.push(msg);
-                    },
-                    Err(TryRecvError::Empty) => {
-                        warn!("empty rcvq");
-                        break;
-                    },
-                    _ => { bail!("disconnected rcvq or fatal err"); }
-                }
-            }
 
-            // Save latest signed validator checkpoint, which may cover messages
-            // which previously were waiting on the wait queue with too high index.
-            let ckpt = self.ckpt_rx.borrow().clone().unwrap();
-            info!(wq=?self.wait_queue, rq=?self.run_queue, ck=?ckpt);
+        // TODO(webbhorn): Scan verification queue, dropping messages that
+        // have been confirmed delivered by the inbox indexer observing it.
+        // For any still-unverified messages that have been in the verification
+        // queue for > threshold_time, move them back to the wait queue for
+        // further processing.
 
-            // Promote any newly-ready messages from the wait queue to the run queue.
+        // Promote any newly-ready messages from the wait queue to the run queue.
+        let mut new_wait_queue = Vec::new();
+        for msg in &self.wait_queue {
             // TODO(webbhorn): Check if already delivered to inbox, e.g. by another
             // relay. In that case, drop from wait queue.
             // TODO(webbhorn): Check against interchain gas paymaster.  If now enough
             // payment, promote to run queue.
-            let mut new_wait_queue = Vec::new();
-            for msg in &self.wait_queue {
-                if msg.leaf_index > ckpt.checkpoint.index {
-                    info!(msg.leaf_index, "-> waitq (leaf > ckpt.index)");
-                    new_wait_queue.push(msg.clone());
-                } else {
-                    info!(msg.leaf_index, "-> runq");
-                    self.run_queue.push(msg.clone());
-                }
-            }
-            self.wait_queue = new_wait_queue;
-            info!(wq=?self.wait_queue,rq=?self.run_queue);
-
-            // Deliver the highest-priority message on the run queue.
-            if let Some(mut msg) = self.run_queue.pop() {
-                info!(msg=?msg, "ready to deliver message");
-                match self.deliver_message(&msg, &ckpt).await {
-                    Ok(()) => {
-                        info!(msg=?msg, "message delivered");
-                    }
-                    Err(e) => {
-                        info!(msg=?msg, "message delivery failed: {}", e);
-                        msg.num_retries += 1;
-                        self.run_queue.push(msg);
-                    }
-                }
-            } else {
-                info!(wq=?self.wait_queue, "runq empty, sleep");
-                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
-            }
-            info!(wq=?self.wait_queue,rq=?self.run_queue);
+            info!(msg.leaf_index, "-> runq");
+            self.run_queue.push(msg.clone());
         }
+        self.wait_queue = new_wait_queue;
+        info!(wq=?self.wait_queue,rq=?self.run_queue);
+
+        // Deliver the highest-priority message on the run queue.
+        if let Some(mut msg) = self.run_queue.pop() {
+            info!(msg=?msg, "ready to deliver message");
+            match self.deliver_message(&msg).await {
+                Ok(()) => {
+                    info!(msg=?msg, "message delivered");
+                }
+                Err(e) => {
+                    info!(msg=?msg, "message delivery failed: {}", e);
+                    msg.num_retries += 1;
+                    self.run_queue.push(msg);
+                }
+            }
+        }
+
+        Ok(())
     }
 
     async fn deliver_message(
         &mut self,
-        msg: &SubmitMessageOp,
-        ckpt: &MultisigSignedCheckpoint,
+        msg: &SubmitMessageArgs,
     ) -> Result<()> {
-        let message = if let Some(m) = self
-            .db
-            .message_by_leaf_index(msg.leaf_index)?
-            .map(CommittedMessage::try_from)
-            .transpose()?
-        {
-            m
-        } else {
-            bail!("no message in db for leaf index {}", msg.leaf_index);
-        };
-
-        if ckpt.checkpoint.index >= self.prover_sync.count() {
-            self.prover_sync
-                .update_to_checkpoint(&ckpt.checkpoint)
-                .await?;
-        }
-        assert_eq!(ckpt.checkpoint.index + 1, self.prover_sync.count());
-        let proof = self.prover_sync.get_proof(msg.leaf_index)?;
         let result = self
             .inbox_contracts
             .validator_manager
-            .process(ckpt, &message.message, &proof)
+            .process(&msg.checkpoint, &msg.committed_message.message, &msg.proof)
             .await?;
         info!(leaf_index=?msg.leaf_index, hash=?result.txid,
             wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
             "message successfully processed");
+
+        // TODO(webbhorn): Instead of immediately marking as processed,
+        // move to a verification queue, which will wait for finality and
+        // indexing by the inbox indexer and then mark as processed (or
+        // eventually retry if no confirmation is ever seen).
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
+
         Ok(())
     }
 }

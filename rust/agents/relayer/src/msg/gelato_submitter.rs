@@ -6,20 +6,20 @@ use tokio::task::JoinHandle;
 
 use crate::merkle_tree_builder::MerkleTreeBuilder;
 
-use super::SubmitMessageOp;
 use abacus_base::{chains::GelatoConf, InboxContracts};
 use eyre::Result;
 use tokio::sync::mpsc;
 use tokio::sync::watch;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-// TODO(webbhorn): Take dep on interchain gas paymaster indexed data.
+use super::SubmitMessageArgs;
+
 // TODO(webbhorn): Metrics data.
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
-    rx: mpsc::Receiver<SubmitMessageOp>,
+    rx: mpsc::Receiver<SubmitMessageArgs>,
 
     // Interface to Inbox / InboxValidatorManager on the destination chain.
     // Will be useful in retry logic to determine whether or not to re-submit
@@ -36,19 +36,15 @@ pub(crate) struct GelatoSubmitter {
 
     // Interface to generating merkle proofs for messages against a checkpoint.
     prover_sync: MerkleTreeBuilder,
-
-    // Provides access to most-recently available signed checkpoint.
-    signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
 }
 
 impl GelatoSubmitter {
     pub fn new(
         cfg: GelatoConf,
-        rx: mpsc::Receiver<SubmitMessageOp>,
+        rx: mpsc::Receiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
         db: AbacusDB,
-        signed_checkpoint_receiver: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Self {
         assert!(cfg.enabled_for_message_submission);
         Self {
@@ -57,7 +53,6 @@ impl GelatoSubmitter {
             interchain_gas_paymaster,
             db: db.clone(),
             prover_sync: MerkleTreeBuilder::new(db),
-            signed_checkpoint_receiver,
         }
     }
 
