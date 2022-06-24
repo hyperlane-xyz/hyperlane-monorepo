@@ -1,5 +1,4 @@
-import { AbacusCoreChecker } from '@abacus-network/deploy';
-import { AbacusCore } from '@abacus-network/sdk';
+import { AbacusCore, AbacusCoreChecker } from '@abacus-network/sdk';
 
 import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 

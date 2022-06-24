@@ -120,8 +120,8 @@ export function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-// Retries an async function when it raises an exeption
-// if all the tries fail it raises the last thrown exeption
+// Retries an async function when it raises an exception
+// if all the tries fail it raises the last thrown exception
 export async function retryAsync<T>(
   runner: () => T,
   attempts = 3,

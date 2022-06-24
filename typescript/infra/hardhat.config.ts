@@ -7,11 +7,11 @@ import {
   InterchainGasPaymaster__factory,
   TestSendReceiver__factory,
 } from '@abacus-network/core';
-import { utils as deployUtils } from '@abacus-network/deploy';
 import {
   AbacusCore,
   ChainName,
   ChainNameToDomainId,
+  getMultiProviderFromConfigAndSigner,
 } from '@abacus-network/sdk';
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
@@ -56,7 +56,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
     const interchainGasPayment = hre.ethers.utils.parseUnits('100', 'gwei');
     const config = getCoreEnvironmentConfig(environment);
     const [signer] = await hre.ethers.getSigners();
-    const multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
+    const multiProvider = getMultiProviderFromConfigAndSigner(
       config.transactionConfigs,
       signer,
     );
