@@ -19,6 +19,8 @@ async function main() {
     throw new Error(`Invalid chains to skip ${invalidChains}`);
   }
 
+  let failureOccurred = false;
+
   const sources = chains.filter((chain) => !skip || !skip.includes(chain));
   for (const source of sources) {
     for (const destination of sources.slice().filter((d) => d !== source)) {
@@ -29,8 +31,14 @@ async function main() {
           `Error sending message from ${source} to ${destination}, continuing...`,
           err,
         );
+        failureOccurred = true;
       }
     }
+  }
+
+  if (failureOccurred) {
+    console.error('Failure occurred at least once');
+    process.exit(1);
   }
 }
 

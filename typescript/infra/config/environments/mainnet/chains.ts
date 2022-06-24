@@ -36,3 +36,4 @@ export const mainnetConfigs: ChainMap<any, IChainConnection> = {
 
 export type MainnetChains = keyof typeof mainnetConfigs;
 export const chainNames = Object.keys(mainnetConfigs) as MainnetChains[];
+export const environment = 'mainnet';
