@@ -59,16 +59,22 @@ impl MessageProcessor {
         let span = info_span!("MessageProcessor");
         tokio::spawn(self.main_loop()).instrument(span)
     }
+
     #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
+        // Ensure that there is at least one valid, known checkpoint before starting work loop.
         loop {
             self.ckpt_rx.changed().await?;
             if self.ckpt_rx.borrow().clone().is_some() {
                 break;
             }
         }
+        // Forever, scan AbacusDB looking for new messages to send. When criteria are satisfied
+        // or the message is disqualified, push the message onto self.tx_msg and then continue
+        // the scan at the next outbox highest leaf index.
         loop {
             self.tick().await?;
+            tokio::task::yield_now().await;
         }
     }
 
@@ -80,8 +86,6 @@ impl MessageProcessor {
             .processor_loop_gauge
             .set(self.message_leaf_index as i64);
 
-        info!("now have message index {}", self.message_leaf_index);
-
         // Scan until we find next index without delivery confirmation.
         if self
             .db
@@ -89,9 +93,10 @@ impl MessageProcessor {
             .is_some()
         {
             info!(
-                "skipping since message_index {} status already in DB",
-                &self.message_leaf_index
-            );
+                inbox_name=?self.inbox_contracts.inbox.chain_name(),
+                local_domain=?self.inbox_contracts.inbox.local_domain(),
+                idx=?self.message_leaf_index,
+                "skipping since message_index already in DB");
             self.message_leaf_index += 1;
             return Ok(());
         }
@@ -108,13 +113,12 @@ impl MessageProcessor {
                 "leaf in db without message idx: {}",
                 self.message_leaf_index
             );
-            // Not clear what the best thing to do here is, but there is
-            // seemingly an existing race wherein an indexer might non-atomically
-            // write leaf info to rocksdb across a few records, so we might see
-            // the leaf status above, but not the message contents here.
-            // For now, optimistically yield and then re-enter the loop in hopes
-            // that the DB is now coherent.
-            //tokio::task::yield_now().await;
+            // Not clear what the best thing to do here is, but there is seemingly an existing
+            // race wherein an indexer might non-atomically write leaf info to rocksdb across a
+            // few records, so we might see the leaf status above, but not the message contents
+            // here.  For now, optimistically yield and then re-enter the loop in hopes that
+            // the DB is now coherent.
+            // TODO(webbhorn): Why can't we yield here instead of sleep?
             tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             return Ok(());
         };
@@ -144,8 +148,8 @@ impl MessageProcessor {
             return Ok(());
         }
 
-        // If validator hasn't published checkpoint covering self.message_leaf_index yet,
-        // wait until it has, before forwarding the message to the submitter channel.
+        // If validator hasn't published checkpoint covering self.message_leaf_index yet, wait
+        // until it has, before forwarding the message to the submitter channel.
         let mut ckpt;
         loop {
             ckpt = self.ckpt_rx.borrow().clone();
@@ -161,8 +165,7 @@ impl MessageProcessor {
         let checkpoint = ckpt.unwrap();
         assert!(checkpoint.checkpoint.index >= self.message_leaf_index);
 
-        // Include proof against checkpoint for message in the args provided
-        // to the submitter.
+        // Include proof against checkpoint for message in the args provided to the submitter.
         if checkpoint.checkpoint.index >= self.prover_sync.count() {
             self.prover_sync
                 .update_to_checkpoint(&checkpoint.checkpoint)
@@ -190,6 +193,11 @@ impl MessageProcessor {
             );
             self.tx_msg.send(submit_args).await?;
             self.message_leaf_index += 1;
+        } else {
+            warn!(
+                idx=self.message_leaf_index,
+                inbox_name=?self.inbox_contracts.inbox.chain_name(),
+                "unexpected missing leaf_by_leaf_index");
         }
         Ok(())
     }
