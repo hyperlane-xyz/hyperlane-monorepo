@@ -54,7 +54,7 @@ export const agent: AgentConfig<TestnetChains> = {
   kathy: {
     default: {
       enabled: true,
-      interval: 60 * 60,
+      interval: 60 * 60 * 15,
       chat: {
         type: 'static',
         message: 'f00',
