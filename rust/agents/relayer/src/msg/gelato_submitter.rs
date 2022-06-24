@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use abacus_base::{chains::GelatoConf, InboxContracts};
 use abacus_base::CachingInterchainGasPaymaster;
+use abacus_base::{chains::GelatoConf, InboxContracts};
 use abacus_core::db::AbacusDB;
 use tokio::task::JoinHandle;
 
