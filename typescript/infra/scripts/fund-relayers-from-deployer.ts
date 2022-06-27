@@ -39,9 +39,9 @@ async function fundAddress(
   desiredBalance: string,
 ) {
   const currentBalance = await chainConnection.provider.getBalance(address);
-
   const desiredBalanceEther = ethers.utils.parseUnits(desiredBalance, 'ether');
   const delta = desiredBalanceEther.sub(currentBalance);
+
   if (delta.gt(0)) {
     const tx = await chainConnection.signer!.sendTransaction({
       to: address,
@@ -56,7 +56,6 @@ async function fundAddress(
 async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
-
   const multiProvider = await config.getMultiProvider();
 
   const relayerKeys = getRelayerKeys(config.agent);
@@ -64,9 +63,10 @@ async function main() {
   for (const relayerKey of relayerKeys) {
     await relayerKey.fetch();
 
-    for (const remote of multiProvider.remoteChains(
+    const remotes = multiProvider.remoteChains(
       relayerKey.chainName,
-    ) as ChainName[]) {
+    ) as ChainName[];
+    for (const remote of remotes) {
       await fundAddress(
         multiProvider.getChainConnection(remote),
         relayerKey.address,
