@@ -6,7 +6,7 @@
     "@abacus-network/celo-ethers-provider": "^0.1.0",
     "@abacus-network/core": "^0.2.3",
     "@abacus-network/deploy": "^0.2.3",
-    "@abacus-network/helloworld": "0.2.4-alpha",
+    "@abacus-network/helloworld": "0.2.4",
     "@abacus-network/sdk": "^0.2.3",
     "@aws-sdk/client-iam": "^3.74.0",
     "@aws-sdk/client-kms": "3.48.0",
