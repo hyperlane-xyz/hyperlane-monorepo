@@ -11,7 +11,9 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
   const chains = app.chains() as Chains[];
-  const skip = process.env.CHAINS_TO_SKIP?.split(',');
+  const skip = process.env.CHAINS_TO_SKIP?.split(',').filter(
+    (skipChain) => skipChain.length > 0,
+  );
 
   const invalidChains = skip?.filter(
     (skipChain: any) => !chains.includes(skipChain),
