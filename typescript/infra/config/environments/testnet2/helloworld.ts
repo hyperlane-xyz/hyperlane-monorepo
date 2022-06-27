@@ -8,7 +8,7 @@ export const helloWorld: HelloWorldConfig<TestnetChains> = {
   kathy: {
     docker: {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-      tag: 'sha-4d94b34',
+      tag: 'sha-0f9c0f9',
     },
     cronSchedule: '0 */2 * * *', // Once every 2 hours
     chainsToSkip: [],
