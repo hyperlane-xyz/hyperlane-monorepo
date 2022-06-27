@@ -5,12 +5,12 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@0.2.3, @abacus-network/app@^0.2.3, @abacus-network/app@workspace:solidity/app":
+"@abacus-network/app@^0.3.0-beta0, @abacus-network/app@workspace:solidity/app":
   version: 0.0.0-use.local
   resolution: "@abacus-network/app@workspace:solidity/app"
   dependencies:
-    "@abacus-network/core": ^0.2.3
-    "@abacus-network/utils": ^0.2.3
+    "@abacus-network/core": ^0.3.0-beta0
+    "@abacus-network/utils": ^0.3.0-beta0
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts-upgradeable": ^4.5.0
@@ -33,6 +33,17 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@abacus-network/app@npm:0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/app@npm:0.2.3"
+  dependencies:
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
+    "@openzeppelin/contracts-upgradeable": ^4.5.0
+  checksum: 83a673b03d8a03a9a1d413212721dec23dede11d3b6bc968b9130c3206b24e2498c5bea833bdc8291568a4b176cf9ad804aea7049a89df65c41a01347ff0f74a
+  languageName: node
+  linkType: hard
+
 "@abacus-network/celo-ethers-provider@npm:^0.1.0":
   version: 0.1.0
   resolution: "@abacus-network/celo-ethers-provider@npm:0.1.0"
@@ -42,11 +53,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@abacus-network/core@^0.2.3, @abacus-network/core@workspace:solidity/core":
+"@abacus-network/core@^0.3.0-beta0, @abacus-network/core@workspace:solidity/core":
   version: 0.0.0-use.local
   resolution: "@abacus-network/core@workspace:solidity/core"
   dependencies:
-    "@abacus-network/utils": ^0.2.3
+    "@abacus-network/utils": ^0.3.0-beta0
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts": ^4.6.0
@@ -70,6 +81,18 @@ __metadata:
   languageName: unknown
   linkType: soft
 
+"@abacus-network/core@npm:^0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/core@npm:0.2.3"
+  dependencies:
+    "@abacus-network/utils": ^0.2.3
+    "@openzeppelin/contracts": ^4.6.0
+    "@openzeppelin/contracts-upgradeable": ^4.6.0
+    "@summa-tx/memview-sol": ^2.0.0
+  checksum: f4740e8e14a40f01a65c5a6576e86eeb69e911fa4dd8d14cb3e1514d6e47139ea3bedeaecc9fb8c7301b11cb1ba766caa97331cc74a3e45943c8793da11d52ba
+  languageName: node
+  linkType: hard
+
 "@abacus-network/helloworld@npm:0.2.3":
   version: 0.2.3
   resolution: "@abacus-network/helloworld@npm:0.2.3"
@@ -88,7 +111,7 @@ __metadata:
   dependencies:
     "@abacus-network/celo-ethers-provider": ^0.1.0
     "@abacus-network/helloworld": 0.2.3
-    "@abacus-network/sdk": ^0.2.3
+    "@abacus-network/sdk": ^0.3.0-beta0
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -128,14 +151,14 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@0.2.3, @abacus-network/sdk@^0.2.3, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@^0.3.0-beta0, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
-    "@abacus-network/app": ^0.2.3
+    "@abacus-network/app": ^0.3.0-beta0
     "@abacus-network/celo-ethers-provider": ^0.1.0
-    "@abacus-network/core": ^0.2.3
-    "@abacus-network/utils": ^0.2.3
+    "@abacus-network/core": ^0.3.0-beta0
+    "@abacus-network/utils": ^0.3.0-beta0
     "@nomiclabs/hardhat-ethers": ^2.0.5
     "@nomiclabs/hardhat-waffle": ^2.0.2
     "@types/debug": ^4.1.7
@@ -155,7 +178,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/utils@^0.2.3, @abacus-network/utils@workspace:typescript/utils":
+"@abacus-network/sdk@npm:0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/sdk@npm:0.2.3"
+  dependencies:
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
+    "@celo-tools/celo-ethers-wrapper": ^0.2.0
+    ethers: ^5.6.8
+  checksum: d79f9c33a3b21140f583808430200777fa2e076cfea3629eb5f21b998fbe9e259520e5245d7459c368ce51c17e7cc1c2f903eb2e3706dc9dbcfad0472a169a0d
+  languageName: node
+  linkType: hard
+
+"@abacus-network/utils@^0.3.0-beta0, @abacus-network/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@abacus-network/utils@workspace:typescript/utils"
   dependencies:
@@ -165,6 +200,16 @@ __metadata:
     typescript: ^4.7.2
   languageName: unknown
   linkType: soft
+
+"@abacus-network/utils@npm:^0.2.3":
+  version: 0.2.3
+  resolution: "@abacus-network/utils@npm:0.2.3"
+  dependencies:
+    chai: ^4.3.0
+    ethers: ^5.6.8
+  checksum: 5399694f2395b2e0f532f412053670a558b0eba35303dcd0e01f9a4877ff69a917569bdf7a597bc6bcb8c9ad990a0c87d73b72b03ed361d5d6fa6988fd18a344
+  languageName: node
+  linkType: hard
 
 "@aws-crypto/crc32@npm:2.0.0":
   version: 2.0.0
@@ -2201,6 +2246,15 @@ __metadata:
     "@babel/helper-validator-identifier": ^7.16.7
     to-fast-properties: ^2.0.0
   checksum: 85df59beb99c1b95e9e41590442f2ffa1e5b1b558d025489db40c9f7c906bd03a17da26c3ec486e5800e80af27c42ca7eee9506d9212ab17766d2d68d30fbf52
+  languageName: node
+  linkType: hard
+
+"@celo-tools/celo-ethers-wrapper@npm:^0.2.0":
+  version: 0.2.0
+  resolution: "@celo-tools/celo-ethers-wrapper@npm:0.2.0"
+  peerDependencies:
+    ethers: ^5
+  checksum: 204177c8845003738a36d20ed5c1d64015c6ba95b2d01d186b709345f5cda1c09892471f47e7981bd5424ab50c13edc33cca5dfbb80ac607c7fadb6b8c16d0c2
   languageName: node
   linkType: hard
 

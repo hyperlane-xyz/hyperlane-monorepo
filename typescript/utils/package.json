@@ -1,7 +1,7 @@
 {
   "name": "@abacus-network/utils",
   "description": "General utilities for the Abacus network",
-  "version": "0.2.3",
+  "version": "0.3.0-beta0",
   "dependencies": {
     "ethers": "^5.6.8"
   },
@@ -22,11 +22,13 @@
   "repository": "https://github.com/abacus-network/abacus-monorepo",
   "scripts": {
     "build": "tsc",
+    "clean": "rm -rf dist",
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./src"
   },
   "types": "dist/index.d.ts",
   "files": [
     "/dist"
-  ]
+  ],
+  "stableVersion": "0.2.3"
 }

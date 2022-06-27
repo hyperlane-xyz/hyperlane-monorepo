@@ -1,12 +1,12 @@
 {
   "name": "@abacus-network/sdk",
   "description": "The official SDK for the Abacus Network",
-  "version": "0.2.3",
+  "version": "0.3.0-beta0",
   "dependencies": {
-    "@abacus-network/app": "^0.2.3",
+    "@abacus-network/app": "^0.3.0-beta0",
     "@abacus-network/celo-ethers-provider": "^0.1.0",
-    "@abacus-network/core": "^0.2.3",
-    "@abacus-network/utils": "^0.2.3",
+    "@abacus-network/core": "^0.3.0-beta0",
+    "@abacus-network/utils": "^0.3.0-beta0",
     "@types/debug": "^4.1.7",
     "cross-fetch": "^3.1.5",
     "debug": "^4.3.4",
@@ -48,5 +48,6 @@
     "test:unit": "mocha --config .mocharc.json './test/{,!(hardhat)/**}/*.test.ts'",
     "test:hardhat": "hardhat test ./test/hardhat/*.ts"
   },
-  "types": "dist/index.d.ts"
+  "types": "dist/index.d.ts",
+  "stableVersion": "0.2.3"
 }

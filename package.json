@@ -16,11 +16,14 @@
   "private": true,
   "scripts": {
     "build": "yarn workspaces foreach --verbose --parallel --topological run build",
+    "clean": "yarn workspaces foreach --verbose --parallel run clean",
     "publish": "yarn workspaces foreach --no-private --verbose --topological npm publish --access public",
     "postinstall": "husky install",
     "prettier": "yarn workspaces foreach --verbose --parallel run prettier",
     "lint-ts": "eslint . --ext .ts",
-    "test": "yarn workspaces foreach --verbose --parallel run test"
+    "test": "yarn workspaces foreach --verbose --parallel run test",
+    "version:check": "yarn version check --interactive",
+    "version:prepare": "yarn workspaces foreach --verbose --topological version --immediate VERSION_HERE"
   },
   "workspaces": [
     "solidity/*",
