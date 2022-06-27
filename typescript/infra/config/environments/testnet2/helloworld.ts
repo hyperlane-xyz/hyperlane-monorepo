@@ -10,7 +10,7 @@ export const helloWorld: HelloWorldConfig<TestnetChains> = {
       repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
       tag: 'sha-0f9c0f9',
     },
-    cronSchedule: '0 */2 * * *', // Once every 2 hours
+    cronSchedule: '0 * * * *', // Once every hour
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
