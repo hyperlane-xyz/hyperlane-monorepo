@@ -1,4 +1,4 @@
-import { BaseContract, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { types } from '@abacus-network/utils';
 
@@ -23,16 +23,20 @@ export type AbacusAddresses = {
 
 export function serializeContracts(
   contractOrObject: AbacusContracts,
+  max_depth = 5,
 ): AbacusAddresses {
+  if (max_depth === 0) {
+    throw new Error('serializeContracts tried to go too deep');
+  }
   return objMap(
     contractOrObject,
-    (_, contract): string | ProxyAddresses<any> | AbacusAddresses => {
-      if (contract instanceof BaseContract) {
+    (_, contract: any): string | ProxyAddresses<any> | AbacusAddresses => {
+      if (contract.address) {
         return contract.address;
       } else if (contract instanceof ProxiedContract) {
         return contract.addresses;
       } else {
-        return serializeContracts(contract);
+        return serializeContracts(contract, max_depth - 1);
       }
     },
   );
@@ -51,7 +55,11 @@ function getFactory(
 export function buildContracts(
   addressOrObject: AbacusAddresses,
   factories: AbacusFactories,
+  max_depth = 5,
 ): AbacusContracts {
+  if (max_depth === 0) {
+    throw new Error('buildContracts tried to go too deep');
+  }
   return objMap(
     addressOrObject,
     (key, address): ProxiedContract<any, any> | AbacusContracts => {
@@ -61,7 +69,11 @@ export function buildContracts(
         const contract = getFactory(key, factories).attach(address.proxy);
         return new ProxiedContract(contract, address);
       } else {
-        return buildContracts(address as AbacusAddresses, factories);
+        return buildContracts(
+          address as AbacusAddresses,
+          factories,
+          max_depth - 1,
+        );
       }
     },
   );
@@ -70,15 +82,16 @@ export function buildContracts(
 export function connectContracts<Contracts extends AbacusContracts>(
   contractOrObject: Contracts,
   connection: Connection,
+  max_depth = 5,
 ): Contracts {
-  return objMap(contractOrObject, (_, contract) => {
-    if (
-      contract instanceof BaseContract ||
-      contract instanceof ProxiedContract
-    ) {
+  if (max_depth === 0) {
+    throw new Error('connectContracts tried to go too deep');
+  }
+  return objMap(contractOrObject, (_, contract: any) => {
+    if (contract.connect) {
       return contract.connect(connection);
     } else {
-      return connectContracts(contract, connection);
+      return connectContracts(contract, connection, max_depth - 1);
     }
   }) as Contracts;
 }
