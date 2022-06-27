@@ -1,7 +1,7 @@
 {
   "name": "@abacus-network/helloworld",
   "description": "A basic skeleton of an Abacus app",
-  "version": "0.2.3",
+  "version": "0.2.4",
   "dependencies": {
     "@abacus-network/app": "0.2.3",
     "@abacus-network/sdk": "0.2.3",
