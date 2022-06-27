@@ -110,15 +110,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/helloworld@npm:0.2.3":
-  version: 0.2.3
-  resolution: "@abacus-network/helloworld@npm:0.2.3"
+"@abacus-network/helloworld@npm:0.2.4-alpha":
+  version: 0.2.4-alpha
+  resolution: "@abacus-network/helloworld@npm:0.2.4-alpha"
   dependencies:
     "@abacus-network/app": 0.2.3
     "@abacus-network/sdk": 0.2.3
     "@openzeppelin/contracts-upgradeable": ^4.6.0
     ethers: ^5.4.7
-  checksum: e4b787b22da6c19f413722b9941d4bc849b8de2d214f387b71a4075aa587791ea22e7d28088d8068ac4f332aec8758f7a67a5f3f8bbe7c46543b9db7d4e97e58
+  checksum: e48294ea676f6bee61eff3d49daf2d49e0742b062fb35c62d5556d4be23baaadb0aad06cdec9d0f92d9d1d72130b1986b60221d1fda0fff6e2a9f45e8d232cbf
   languageName: node
   linkType: hard
 
@@ -129,7 +129,7 @@ __metadata:
     "@abacus-network/celo-ethers-provider": ^0.1.0
     "@abacus-network/core": ^0.2.3
     "@abacus-network/deploy": ^0.2.3
-    "@abacus-network/helloworld": 0.2.3
+    "@abacus-network/helloworld": 0.2.4-alpha
     "@abacus-network/sdk": ^0.2.3
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0

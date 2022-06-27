@@ -1,6 +1,7 @@
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import { ChainName, Chains } from '@abacus-network/sdk';
 
+import { sleep } from '../../src/utils/utils';
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
 import { getApp } from './utils';
@@ -33,6 +34,8 @@ async function main() {
         );
         failureOccurred = true;
       }
+      // Sleep 500ms to avoid race conditions where nonces are reused
+      await sleep(500);
     }
   }
 
