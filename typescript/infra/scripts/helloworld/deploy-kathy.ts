@@ -1,4 +1,4 @@
-import { runHelloworldKathyHelmCommand } from '../../src/helloworld-kathy';
+import { runHelloworldKathyHelmCommand } from '../../src/helloworld/kathy';
 import { HelmCommand } from '../../src/utils/helm';
 import { assertCorrectKubeContext, getEnvironmentConfig } from '../utils';
 
@@ -10,4 +10,6 @@ async function main() {
   await runHelloworldKathyHelmCommand(HelmCommand.InstallOrUpgrade, coreConfig);
 }
 
-main().catch(console.error);
+main()
+  .then(() => console.log('Deploy successful!'))
+  .catch(console.error);

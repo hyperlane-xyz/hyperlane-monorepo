@@ -1,11 +1,10 @@
 import { ChainName } from '@abacus-network/sdk';
 
-import { getHelloWorldConfig } from '../scripts/helloworld/utils';
-
-import { CoreEnvironmentConfig } from './config';
-import { HelloWorldKathyConfig } from './config/helloworld';
-import { HelmCommand, helmifyValues } from './utils/helm';
-import { execCmd } from './utils/utils';
+import { getHelloWorldConfig } from '../../scripts/helloworld/utils';
+import { CoreEnvironmentConfig } from '../config';
+import { HelloWorldKathyConfig } from '../config/helloworld';
+import { HelmCommand, helmifyValues } from '../utils/helm';
+import { execCmd } from '../utils/utils';
 
 export function runHelloworldKathyHelmCommand<Chain extends ChainName>(
   helmCommand: HelmCommand,

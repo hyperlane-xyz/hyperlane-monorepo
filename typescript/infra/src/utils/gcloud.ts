@@ -42,7 +42,8 @@ export async function fetchGCPSecret(secretName: string, parseJson = true) {
 // If found, it's returned, otherwise, undefined is returned.
 function tryGCPSecretFromEnvVariable(gcpSecretName: string) {
   const overridingEnabled =
-    process.env.GCP_SECRET_OVERRIDES_ENABLED?.toLowerCase().trim() === 'true';
+    process.env.GCP_SECRET_OVERRIDES_ENABLED &&
+    process.env.GCP_SECRET_OVERRIDES_ENABLED.length > 0;
   if (!overridingEnabled) {
     return undefined;
   }
