@@ -2,6 +2,8 @@ use std::cmp::Ordering;
 
 use abacus_core::{accumulator::merkle::Proof, CommittedMessage, MultisigSignedCheckpoint};
 
+use tokio::time::Instant;
+
 pub mod gelato_submitter;
 pub mod processor;
 pub mod serial_submitter;
@@ -32,6 +34,7 @@ pub struct SubmitMessageArgs {
     pub checkpoint: MultisigSignedCheckpoint,
     pub proof: Proof,
     pub num_retries: u32,
+    pub enqueue_time: Instant,
 }
 
 // The runqueue implementation is a max-heap.  We want the next op to

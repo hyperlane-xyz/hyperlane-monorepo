@@ -14,12 +14,12 @@ use abacus_base::{
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
-use crate::checkpoint_fetcher::CheckpointFetcher;
 use crate::msg::gelato_submitter::GelatoSubmitter;
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
 use crate::settings::whitelist::Whitelist;
 use crate::settings::RelayerSettings;
+use crate::{checkpoint_fetcher::CheckpointFetcher, msg::serial_submitter::SerialSubmitterMetrics};
 
 /// A relayer agent
 #[derive(Debug)]
@@ -148,6 +148,11 @@ impl Relayer {
                     self.outbox().outbox(),
                     self.interchain_gas_paymaster(),
                     self.outbox().db(),
+                    SerialSubmitterMetrics::new(
+                        &self.core.metrics,
+                        outbox.chain_name(),
+                        inbox_contracts.inbox.chain_name(),
+                    ),
                 );
                 serial_submitter.spawn()
             }

@@ -1,14 +1,17 @@
 use std::collections::BinaryHeap;
 use std::sync::Arc;
 
+use abacus_base::CoreMetrics;
 use abacus_base::{CachingInterchainGasPaymaster, InboxContracts, Outboxes};
 use abacus_core::db::AbacusDB;
 use abacus_core::AbacusContract;
 use abacus_core::InboxValidatorManager;
 use eyre::{bail, Result};
+use prometheus::{Histogram, IntGauge};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::JoinHandle;
+use tokio::time::Instant;
 use tracing::instrument;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
@@ -122,6 +125,8 @@ pub(crate) struct SerialSubmitter {
     interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
     // Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
+    // Metrics for serial submitter.
+    metrics: SerialSubmitterMetrics,
 }
 
 impl SerialSubmitter {
@@ -131,6 +136,7 @@ impl SerialSubmitter {
         outbox: Outboxes,
         interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
         db: AbacusDB,
+        metrics: SerialSubmitterMetrics,
     ) -> Self {
         Self {
             rx,
@@ -140,6 +146,7 @@ impl SerialSubmitter {
             outbox,
             interchain_gas_paymaster,
             db,
+            metrics,
         }
     }
 
@@ -193,6 +200,13 @@ impl SerialSubmitter {
         }
         self.wait_queue = Vec::new();
 
+        self.metrics
+            .wait_queue_length_gauge
+            .set(self.wait_queue.len() as i64);
+        self.metrics
+            .run_queue_length_gauge
+            .set(self.run_queue.len() as i64);
+
         // Deliver the highest-priority message on the run queue.
         if let Some(mut msg) = self.run_queue.pop() {
             info!(msg=?msg, "ready to deliver message");
@@ -226,7 +240,35 @@ impl SerialSubmitter {
         // queue, which will wait for finality and indexing by the inbox indexer and then mark
         // as processed (or eventually retry if no confirmation is ever seen).
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
-
+        self.metrics
+            .queue_duration_hist
+            .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
         Ok(())
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct SerialSubmitterMetrics {
+    run_queue_length_gauge: IntGauge,
+    wait_queue_length_gauge: IntGauge,
+    queue_duration_hist: Histogram,
+}
+
+impl SerialSubmitterMetrics {
+    pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
+        let queue_len = metrics.new_int_gauge(
+            "serial_submitter_queue_length",
+            "Size of queues within the serial message submitter parameterized by destination inbox and queue name",
+            &["outbox_chain", "inbox_chain", "queue_name"],
+        ).unwrap();
+        Self {
+            run_queue_length_gauge: queue_len.with_label_values(&[outbox_chain, inbox_chain, "run_queue"]),
+            wait_queue_length_gauge: queue_len.with_label_values(&[outbox_chain, inbox_chain, "wait_queue"]),
+            queue_duration_hist: metrics.new_histogram(
+                "serial_submitter_seconds_in_queue",
+                "Time a message spends queued in the serial submitter measured from insertion into channel from processor, ending after successful delivery to provider.",
+                &["outbox_chain", "inbox_chain"], prometheus::exponential_buckets(0.5, 2., 19).unwrap())
+            .unwrap().with_label_values(&[outbox_chain, inbox_chain]),
+        }
     }
 }

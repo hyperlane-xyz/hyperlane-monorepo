@@ -5,6 +5,7 @@ use prometheus::IntGauge;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
+    time::Instant,
 };
 use tracing::{info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
@@ -174,14 +175,6 @@ impl MessageProcessor {
         assert_eq!(checkpoint.checkpoint.index + 1, self.prover_sync.count());
         let proof = self.prover_sync.get_proof(self.message_leaf_index)?;
 
-        // Finally, build the submit arg and dispatch it to the submitter.
-        let submit_args = SubmitMessageArgs {
-            leaf_index: self.message_leaf_index,
-            committed_message: message,
-            checkpoint,
-            proof,
-            num_retries: 0,
-        };
         if self
             .db
             .leaf_by_leaf_index(self.message_leaf_index)?
@@ -191,6 +184,15 @@ impl MessageProcessor {
                 "sending message at idx {} to submitter",
                 self.message_leaf_index
             );
+            // Finally, build the submit arg and dispatch it to the submitter.
+            let submit_args = SubmitMessageArgs {
+                leaf_index: self.message_leaf_index,
+                committed_message: message,
+                checkpoint,
+                proof,
+                num_retries: 0,
+                enqueue_time: Instant::now(),
+            };
             self.tx_msg.send(submit_args).await?;
             self.message_leaf_index += 1;
         } else {
