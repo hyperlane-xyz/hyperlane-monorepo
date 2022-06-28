@@ -18,6 +18,7 @@ export function isProxyAddresses(
   addresses: unknown,
 ): addresses is ProxyAddresses<any> {
   return (
+    addresses !== null &&
     typeof addresses === 'object' &&
     'proxy' in addresses &&
     'implementation' in addresses &&
