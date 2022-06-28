@@ -15,7 +15,7 @@ export interface ProxyAddresses<Kind extends ProxyKind> {
 }
 
 export function isProxyAddresses(
-  addresses: any,
+  addresses: unknown,
 ): addresses is ProxyAddresses<any> {
   return (
     typeof addresses === 'object' &&
