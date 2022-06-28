@@ -91,7 +91,7 @@ export abstract class AbacusRouterDeployer<
   }
 
   async deploy(
-    partialDeployment: Partial<Record<Chain, Contracts>>,
+    partialDeployment?: Partial<Record<Chain, Contracts>>,
   ): Promise<ChainMap<Chain, Contracts>> {
     const contractsMap = await super.deploy(partialDeployment);
 
