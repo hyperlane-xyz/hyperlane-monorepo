@@ -186,10 +186,15 @@ export class AbacusCoreChecker<
       coreAddresses.inboxes,
     );
     const implementations = inboxes.map((r) => r.implementation);
-    const identical = (a: any, b: any) => (a === b ? a : false);
     const upgradeBeacons = inboxes.map((r) => r.beacon);
-    utils.assert(implementations.reduce(identical));
-    utils.assert(upgradeBeacons.reduce(identical));
+    utils.assert(
+      implementations.every(
+        (implementation) => implementation === implementations[0],
+      ),
+    );
+    utils.assert(
+      upgradeBeacons.every((beacon) => beacon === upgradeBeacons[0]),
+    );
   }
 
   async checkAbacusConnectionManager(chain: Chain): Promise<void> {
