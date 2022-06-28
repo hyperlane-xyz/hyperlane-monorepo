@@ -3,8 +3,8 @@
   "description": "Solidity contracts for Abacus apps",
   "version": "0.3.0-beta0",
   "dependencies": {
-    "@abacus-network/core": "^0.3.0-beta0",
-    "@abacus-network/utils": "^0.3.0-beta0",
+    "@abacus-network/core": "0.3.0-beta0",
+    "@abacus-network/utils": "0.3.0-beta0",
     "@openzeppelin/contracts-upgradeable": "^4.5.0"
   },
   "devDependencies": {

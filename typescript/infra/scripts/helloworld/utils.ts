@@ -1,5 +1,5 @@
 import { HelloWorldApp, HelloWorldContracts } from '@abacus-network/helloworld';
-import { helloWorldFactories } from '@abacus-network/helloworld/dist/sdk/contracts';
+import { helloWorldFactories } from '@abacus-network/helloworld';
 import {
   AbacusCore,
   ChainMap,
