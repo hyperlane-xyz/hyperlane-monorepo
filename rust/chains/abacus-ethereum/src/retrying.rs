@@ -15,27 +15,42 @@ use crate::HttpClientError;
 pub struct RetryingProvider<P> {
     inner: P,
     max_requests: usize,
+    base_retry_ms: u64,
 }
 
 impl<P> RetryingProvider<P> {
     /// Instantiate a RetryingProvider
-    pub fn new(inner: P, max_requests: usize) -> Self {
-        assert!(max_requests >= 1);
-        Self {
+    pub fn new(inner: P, max_requests: usize, base_retry_ms: u64) -> Self {
+        let mut zelf = Self {
             inner,
-            max_requests,
-        }
+            max_requests: 0,
+            base_retry_ms: 0,
+        };
+        zelf.set_max_requests(max_requests);
+        zelf.set_base_retry_ms(base_retry_ms);
+        zelf
     }
 
-    /// Set the max_requests (and by extension the total time a request can take)
+    /// Set the max_requests (and by extension the total time a request can take).
     pub fn set_max_requests(&mut self, max_requests: usize) {
         assert!(max_requests >= 1);
         self.max_requests = max_requests;
     }
 
+    /// Set what the base amount of backoff time there should be.
+    pub fn set_base_retry_ms(&mut self, base_retry_ms: u64) {
+        assert!(base_retry_ms >= 1);
+        self.base_retry_ms = base_retry_ms;
+    }
+
     /// Get the max_requests
-    pub fn get_max_requests(&self) -> usize {
+    pub fn max_requests(&self) -> usize {
         self.max_requests
+    }
+
+    /// Get the base retry duration in ms.
+    pub fn base_retry_ms(&self) -> u64 {
+        self.base_retry_ms
     }
 }
 
@@ -83,7 +98,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
         let params = serde_json::to_value(params).expect("valid");
 
         for i in 0..self.max_requests {
-            let backoff_ms = 100;
+            let backoff_ms = self.base_retry_ms * 2u64.pow(i as u32);
             {
                 debug!(attempt = i, "Dispatching request");
 
@@ -144,6 +159,6 @@ where
     type Err = <P as FromStr>::Err;
 
     fn from_str(src: &str) -> Result<Self, Self::Err> {
-        Ok(Self::new(src.parse()?, 6))
+        Ok(Self::new(src.parse()?, 6, 50))
     }
 }
