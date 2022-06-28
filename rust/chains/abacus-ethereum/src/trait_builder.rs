@@ -28,7 +28,8 @@ pub trait MakeableWithProvider {
     ) -> eyre::Result<Self::Output> {
         Ok(match conn {
             Connection::Http { url } => {
-                let http = url.parse::<RetryingProvider<Http>>()?;
+                let mut http = url.parse::<RetryingProvider<Http>>()?;
+                http.set_max_requests(2);
                 self.wrap_with_metrics(http, locator, signer, metrics)
                     .await?
             }

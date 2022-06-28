@@ -83,7 +83,7 @@ where
         let params = serde_json::to_value(params).expect("valid");
 
         for i in 0..self.max_requests {
-            let backoff_seconds = 2u64.pow(i as u32);
+            let backoff_ms = 100;
             {
                 debug!(attempt = i, "Dispatching request");
 
@@ -96,7 +96,7 @@ where
                     Ok(res) => return Ok(res),
                     Err(e) => {
                         warn!(
-                            backoff_seconds,
+                            backoff_ms,
                             retries_remaining = self.max_requests - i - 1,
                             error = %e,
                             method = %method,
@@ -106,7 +106,7 @@ where
                     }
                 }
             }
-            sleep(Duration::from_secs(backoff_seconds)).await;
+            sleep(Duration::from_millis(backoff_ms)).await;
         }
 
         return Err(RetryingProviderError::MaxRequests(errors));
