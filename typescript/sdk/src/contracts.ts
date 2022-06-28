@@ -31,10 +31,10 @@ export function serializeContracts(
   return objMap(
     contractOrObject,
     (_, contract: any): string | ProxyAddresses<any> | AbacusAddresses => {
-      if (contract.address) {
-        return contract.address;
-      } else if (contract instanceof ProxiedContract) {
+      if (contract instanceof ProxiedContract) {
         return contract.addresses;
+      } else if (contract.address) {
+        return contract.address;
       } else {
         return serializeContracts(contract, max_depth - 1);
       }
@@ -60,23 +60,20 @@ export function buildContracts(
   if (max_depth === 0) {
     throw new Error('buildContracts tried to go too deep');
   }
-  return objMap(
-    addressOrObject,
-    (key, address): ProxiedContract<any, any> | AbacusContracts => {
-      if (typeof address === 'string') {
-        return getFactory(key, factories).attach(address);
-      } else if (isProxyAddresses(address)) {
-        const contract = getFactory(key, factories).attach(address.proxy);
-        return new ProxiedContract(contract, address);
-      } else {
-        return buildContracts(
-          address as AbacusAddresses,
-          factories,
-          max_depth - 1,
-        );
-      }
-    },
-  );
+  return objMap(addressOrObject, (key, address: any) => {
+    if (isProxyAddresses(address)) {
+      const contract = getFactory(key, factories).attach(address.proxy);
+      return new ProxiedContract(contract, address);
+    } else if (typeof address === 'string') {
+      return getFactory(key, factories).attach(address);
+    } else {
+      return buildContracts(
+        address as AbacusAddresses,
+        factories,
+        max_depth - 1,
+      );
+    }
+  });
 }
 
 export function connectContracts<Contracts extends AbacusContracts>(
