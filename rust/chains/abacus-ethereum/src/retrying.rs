@@ -114,19 +114,19 @@ impl JsonRpcClient for RetryingProvider<Http> {
                             backoff_ms,
                             retries_remaining = self.max_requests - i - 1,
                             error = %e,
-                            "ReqwestError in retrying provider",
+                            "ReqwestError in retrying provider; will retry after backoff.",
                         );
                         last_err = Some(HttpClientError::ReqwestError(e));
                     }
                     Err(HttpClientError::JsonRpcError(e)) => {
                         // This is a client error so we do not want to retry on it.
-                        warn!(error = %e, "JsonRpcError");
+                        warn!(error = %e, "JsonRpcError in retrying provider; not retrying.");
                         return Err(RetryingProviderError::JsonRpcClientError(
                             HttpClientError::JsonRpcError(e),
                         ));
                     }
                     Err(HttpClientError::SerdeJson { err, text }) => {
-                        warn!(error = %err, "SerdeJson error in retrying provider");
+                        warn!(error = %err, "SerdeJson error in retrying provider; not retrying.");
                         return Err(RetryingProviderError::JsonRpcClientError(
                             HttpClientError::SerdeJson { err, text },
                         ));
