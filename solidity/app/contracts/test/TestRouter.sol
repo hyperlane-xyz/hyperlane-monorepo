@@ -6,11 +6,7 @@ import "../Router.sol";
 contract TestRouter is Router {
     event InitializeOverload();
 
-    function initialize(address abacusConnectionManager)
-        external
-        override
-        initializer
-    {
+    function initialize(address abacusConnectionManager) external initializer {
         __Router_initialize(abacusConnectionManager);
         emit InitializeOverload();
     }

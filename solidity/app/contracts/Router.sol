@@ -35,19 +35,21 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     }
 
     // ======== Initializer =========
-    function initialize(address _abacusConnectionManager)
-        external
-        virtual
-        initializer
-    {
-        __Router_initialize(_abacusConnectionManager);
-    }
-
     function __Router_initialize(address _abacusConnectionManager)
         internal
         onlyInitializing
     {
         __AbacusConnectionClient_initialize(_abacusConnectionManager);
+    }
+
+    function __Router_initialize(
+        address _abacusConnectionManager,
+        address _interchainGasPaymaster
+    ) internal onlyInitializing {
+        __AbacusConnectionClient_initialize(
+            _abacusConnectionManager,
+            _interchainGasPaymaster
+        );
     }
 
     // ============ External functions ============
