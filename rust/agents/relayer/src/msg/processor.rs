@@ -7,7 +7,7 @@ use tokio::{
     task::JoinHandle,
     time::Instant,
 };
-use tracing::{info, info_span, instrument, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CoreMetrics, InboxContracts, Outboxes};
 use abacus_core::{
@@ -61,7 +61,7 @@ impl MessageProcessor {
         tokio::spawn(self.main_loop()).instrument(span)
     }
 
-    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name()), level = "info")]
+    #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name(), local_domain=?self.inbox_contracts.inbox.local_domain()), level = "info")]
     async fn main_loop(mut self) -> Result<()> {
         // Ensure that there is at least one valid, known checkpoint before starting work loop.
         loop {
@@ -75,12 +75,11 @@ impl MessageProcessor {
         // the scan at the next outbox highest leaf index.
         loop {
             self.tick().await?;
-            tokio::task::yield_now().await;
         }
     }
 
-    // One round of processing, extracted from infinite work loop for
-    // testing purposes.
+    /// One round of processing, extracted from infinite work loop for
+    /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
         self.update_outbox_state_gauge();
         self.metrics
@@ -97,7 +96,7 @@ impl MessageProcessor {
                 inbox_name=?self.inbox_contracts.inbox.chain_name(),
                 local_domain=?self.inbox_contracts.inbox.local_domain(),
                 idx=?self.message_leaf_index,
-                "skipping since message_index already in DB");
+                "Skipping since message_index already in DB");
             self.message_leaf_index += 1;
             return Ok(());
         }
@@ -107,11 +106,11 @@ impl MessageProcessor {
             .map(CommittedMessage::try_from)
             .transpose()?
         {
-            info!(msg=?msg, "working on msg");
+            info!(msg=?msg, "Working on msg");
             msg
         } else {
             warn!(
-                "leaf in db without message idx: {}",
+                "Leaf in db without message idx: {}",
                 self.message_leaf_index
             );
             // Not clear what the best thing to do here is, but there is seemingly an existing
@@ -126,25 +125,25 @@ impl MessageProcessor {
 
         // Skip if for different inbox.
         if message.message.destination != self.inbox_contracts.inbox.local_domain() {
-            info!(
+            debug!(
                 inbox_name=?self.inbox_contracts.inbox.chain_name(),
                 local_domain=?self.inbox_contracts.inbox.local_domain(),
                 dst=?message.message.destination,
                 msg=?message,
-                "message not for local domain, skipping idx {}", self.message_leaf_index);
+                "Message not for local domain, skipping idx {}", self.message_leaf_index);
             self.message_leaf_index += 1;
             return Ok(());
         }
 
         // Skip if not whitelisted.
         if !self.whitelist.msg_matches(&message.message) {
-            info!(
+            debug!(
                 inbox_name=?self.inbox_contracts.inbox.chain_name(),
                 local_domain=?self.inbox_contracts.inbox.local_domain(),
                 dst=?message.message.destination,
                 whitelist=?self.whitelist,
                 msg=?message,
-                "message not whitelisted, skipping idx {}", self.message_leaf_index);
+                "Message not whitelisted, skipping idx {}", self.message_leaf_index);
             self.message_leaf_index += 1;
             return Ok(());
         }
@@ -180,8 +179,8 @@ impl MessageProcessor {
             .leaf_by_leaf_index(self.message_leaf_index)?
             .is_some()
         {
-            info!(
-                "sending message at idx {} to submitter",
+            debug!(
+                "Sending message at idx {} to submitter",
                 self.message_leaf_index
             );
             // Finally, build the submit arg and dispatch it to the submitter.
@@ -199,7 +198,7 @@ impl MessageProcessor {
             warn!(
                 idx=self.message_leaf_index,
                 inbox_name=?self.inbox_contracts.inbox.chain_name(),
-                "unexpected missing leaf_by_leaf_index");
+                "Unexpected missing leaf_by_leaf_index");
         }
         Ok(())
     }
