@@ -157,9 +157,6 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       'abacusConnectionManager',
       [],
     );
-    await abacusConnectionManager.setInterchainGasPaymaster(
-      interchainGasPaymaster.address,
-    );
 
     const outbox = await this.deployOutbox(
       chain,
