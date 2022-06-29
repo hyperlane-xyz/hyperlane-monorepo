@@ -8,7 +8,7 @@
     "@abacus-network/deploy": "^0.2.3",
     "@abacus-network/helloworld": "0.2.4",
     "@abacus-network/sdk": "^0.2.3",
-    "@aws-sdk/client-iam": "^3.74.0",
+    "@aws-sdk/client-iam": "^3.118.1",
     "@aws-sdk/client-kms": "3.48.0",
     "@aws-sdk/client-s3": "^3.74.0",
     "@ethersproject/experimental": "^5.6.2",
