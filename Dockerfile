@@ -12,9 +12,7 @@ COPY package.json yarn.lock .yarnrc.yml ./
 COPY .yarn/plugins ./.yarn/plugins
 COPY .yarn/releases ./.yarn/releases
 COPY typescript/utils/package.json ./typescript/utils/
-COPY typescript/hardhat/package.json ./typescript/hardhat/
 COPY typescript/sdk/package.json ./typescript/sdk/
-COPY typescript/deploy/package.json ./typescript/deploy/
 COPY typescript/infra/package.json ./typescript/infra/
 COPY solidity/core/package.json ./solidity/core/
 COPY solidity/app/package.json ./solidity/app/
