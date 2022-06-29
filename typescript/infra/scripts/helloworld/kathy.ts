@@ -1,6 +1,7 @@
 import { HelloWorldApp } from '@abacus-network/helloworld';
 import { ChainName, Chains } from '@abacus-network/sdk';
 
+import { sleep } from '../../src/utils/utils';
 import { getCoreEnvironmentConfig, getEnvironment } from '../utils';
 
 import { getApp } from './utils';
@@ -10,18 +11,39 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const app = await getApp(coreConfig);
   const chains = app.chains() as Chains[];
-  const skip = process.env.NETWORKS_TO_SKIP?.split(',');
+  const skip = process.env.CHAINS_TO_SKIP?.split(',').filter(
+    (skipChain) => skipChain.length > 0,
+  );
 
-  const invalidChain = chains.find((chain) => skip && !skip.includes(chain));
-  if (invalidChain) {
-    throw new Error(`Invalid chain to skip ${invalidChain}`);
+  const invalidChains = skip?.filter(
+    (skipChain: any) => !chains.includes(skipChain),
+  );
+  if (invalidChains && invalidChains.length > 0) {
+    throw new Error(`Invalid chains to skip ${invalidChains}`);
   }
+
+  let failureOccurred = false;
 
   const sources = chains.filter((chain) => !skip || !skip.includes(chain));
   for (const source of sources) {
     for (const destination of sources.slice().filter((d) => d !== source)) {
-      await sendMessage(app, source, destination);
+      try {
+        await sendMessage(app, source, destination);
+      } catch (err) {
+        console.error(
+          `Error sending message from ${source} to ${destination}, continuing...`,
+          err,
+        );
+        failureOccurred = true;
+      }
+      // Sleep 500ms to avoid race conditions where nonces are reused
+      await sleep(500);
     }
+  }
+
+  if (failureOccurred) {
+    console.error('Failure occurred at least once');
+    process.exit(1);
   }
 }
 

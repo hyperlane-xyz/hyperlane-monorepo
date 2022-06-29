@@ -11,6 +11,7 @@ import {
 import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 
 import { environments } from '../config/environments';
+import { getCurrentKubernetesContext } from '../src/agents';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
 import { DeployEnvironment } from '../src/config';
 import { CoreEnvironmentConfig } from '../src/config';
@@ -96,4 +97,18 @@ export function getKeyRoleAndChainArgs() {
     .alias('i', 'index')
     .describe('i', 'index of role')
     .number('i');
+}
+
+export async function assertCorrectKubeContext<Chain extends ChainName>(
+  coreConfig: CoreEnvironmentConfig<Chain>,
+) {
+  const currentKubeContext = await getCurrentKubernetesContext();
+  if (
+    !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
+  ) {
+    console.error(
+      `Cowardly refusing to deploy ${coreConfig.agent.runEnv} to ${currentKubeContext}; are you sure you have the right k8s context active?`,
+    );
+    process.exit(1);
+  }
 }

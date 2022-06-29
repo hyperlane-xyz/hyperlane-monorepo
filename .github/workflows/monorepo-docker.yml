@@ -1,0 +1,69 @@
+name: Build and Push Monorepo Image to GCR
+on: 
+  push:
+    branches:
+      - 'main'
+    tags:
+      - '**'
+  pull_request:
+    paths:
+      # For now, because this image is only used to use `infra`, we just build for infra changes
+      - 'typescript/infra/**'
+jobs:
+  check-env:
+    runs-on: ubuntu-latest
+    # assign output from step to job output
+    outputs:
+      gcloud-service-key: ${{ steps.gcloud-service-key.outputs.defined }}
+    steps:
+      - id: gcloud-service-key
+        # assign GCLOUD_SERVICE_KEY to env for access in conditional
+        env:
+          GCLOUD_SERVICE_KEY: ${{ secrets.GCLOUD_SERVICE_KEY }}
+        if: "${{ env.GCLOUD_SERVICE_KEY != '' }}"
+        # runs if GCLOUD_SERVICE_KEY is defined, so we set the output to true
+        run: echo "::set-output name=defined::true"
+
+  build-and-push-to-gcr:
+    runs-on: ubuntu-latest
+
+    # uses check-env to determine if secrets.GCLOUD_SERVICE_KEY is defined
+    needs: [check-env]
+    if: needs.check-env.outputs.gcloud-service-key == 'true'
+
+    steps:
+      - uses: actions/checkout@v2
+      -
+        name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v3
+        with:
+          # list of Docker images to use as base name for tags
+          images: |
+            gcr.io/abacus-labs-dev/abacus-monorepo
+          # generate Docker tags based on the following events/attributes
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha
+      -
+        name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v1
+      - 
+        name: Login to GCR
+        uses: docker/login-action@v1
+        with:
+          registry: gcr.io
+          username: _json_key
+          password: ${{ secrets.GCLOUD_SERVICE_KEY }}
+      -
+        name: Build and push
+        uses: docker/build-push-action@v2
+        with:
+          context: ./
+          file: ./Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
