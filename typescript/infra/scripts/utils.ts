@@ -50,10 +50,9 @@ export async function getMultiProviderFromGCP<Chain extends ChainName>(
       const provider = await fetchProvider(environment, chain);
       const signer = await fetchSigner(environment, chain, provider);
       return {
+        ...config,
         provider,
         signer,
-        overrides: config.overrides,
-        confirmations: config.confirmations,
       };
     }),
   );
