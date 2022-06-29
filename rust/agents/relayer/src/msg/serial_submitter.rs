@@ -1,8 +1,7 @@
 use std::collections::BinaryHeap;
-use std::sync::Arc;
 
 use abacus_base::CoreMetrics;
-use abacus_base::{CachingInterchainGasPaymaster, InboxContracts, Outboxes};
+use abacus_base::InboxContracts;
 use abacus_core::db::AbacusDB;
 use abacus_core::AbacusContract;
 use abacus_core::InboxValidatorManager;
@@ -23,7 +22,7 @@ use super::SubmitMessageArgs;
 /// submission, a consequence imposed by strictly ordered nonces at the target chain combined
 /// with a hesitancy to speculatively batch > 1 messages with a sequence of nonces, which
 /// entails harder to manage error recovery, could lead to head of line blocking, etc.
-////
+///
 /// The single transaction execution slot is (likely) a bottlenecked resource under steady
 /// state traffic, so the SerialSubmitter implemented in this file carefully schedules work
 /// items (pending messages) onto the constrained resource (transaction execution slot)
@@ -43,13 +42,13 @@ use super::SubmitMessageArgs;
 ///
 /// A few primary objectives determine the structure of this scheduler:
 ///
-/// 1.  Progress for well-behaved applications should not be inhibited by delivery of messagse
+/// 1.  Progress for well-behaved applications should not be inhibited by delivery of messages
 ///     for which we have evidence of possible issues (i.e., that we have already tried and
 ///     failed to deliver them, and have retained them for retry). So we should attempt
 ///     delivery of fresh messages (num_retries=0) before ones that have been failing for a
 ///     while (num_retries>0)
 ///
-/// 2.  Messagse should be delivered in-order, i.e. if msg_a was sent on source chain prior to
+/// 2.  Messages should be delivered in-order, i.e. if msg_a was sent on source chain prior to
 ///     msg_b, and they're both destined for the same destination chain and are otherwise eligible,
 ///     we should try to deliver msg_a before msg_b, all else equal. This is because we expect
 ///     applications may prefer this even if they do not strictly rely on it for correctness.
@@ -66,7 +65,7 @@ use super::SubmitMessageArgs;
 ///     <num_retries, leaf_idx>
 /// picking the lexicographically least element in the runnable set to execute next.
 ///
-
+///
 /// Implementation
 /// --------------
 ///     
@@ -80,7 +79,7 @@ use super::SubmitMessageArgs;
 ///  *  Wrong destination chain (currently checked by processor)
 ///  *  Checkpoint index < leaf index (currently checked by processor)
 ///
-// Therefore, we maintain two queues of messages:
+/// Therefore, we maintain two queues of messages:
 ///
 ///   1.  run_queue: messages which are eligible for submission but waiting for
 ///       their turn to run, since we can only do one at a time.
@@ -107,22 +106,17 @@ use super::SubmitMessageArgs;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
-    // Receiver for new messages to submit.
+    /// Receiver for new messages to submit.
     rx: mpsc::Receiver<SubmitMessageArgs>,
-    // Messages we are aware of that we want to eventually submit, but haven't yet, for
-    // whatever reason. They are not in any priority order, so are held in a vector.
+    /// Messages we are aware of that we want to eventually submit, but haven't yet, for
+    /// whatever reason. They are not in any priority order, so are held in a vector.
     wait_queue: Vec<SubmitMessageArgs>,
-    // Messages that are in theory deliverable, but which are waiting in a queue for their turn
-    // to be dispatched. The SerialSubmitter can only dispatch one message at a time, so this
-    // queue could grow.
+    /// Messages that are in theory deliverable, but which are waiting in a queue for their turn
+    /// to be dispatched. The SerialSubmitter can only dispatch one message at a time, so this
+    /// queue could grow.
     run_queue: BinaryHeap<SubmitMessageArgs>,
-    // Inbox / InboxValidatorManager on the destination chain.
+    /// Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
-    // Outbox on message origin chain.
-    outbox: Outboxes,
-    // Contract tracking interchain gas payments for use when deciding whether sufficient funds
-    // have been provided for message forwarding.
-    interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
     // Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
     // Metrics for serial submitter.
@@ -133,8 +127,6 @@ impl SerialSubmitter {
     pub(crate) fn new(
         rx: mpsc::Receiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
-        outbox: Outboxes,
-        interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
         db: AbacusDB,
         metrics: SerialSubmitterMetrics,
     ) -> Self {
@@ -143,8 +135,6 @@ impl SerialSubmitter {
             wait_queue: Vec::new(),
             run_queue: BinaryHeap::new(),
             inbox_contracts,
-            outbox,
-            interchain_gas_paymaster,
             db,
             metrics,
         }
@@ -160,14 +150,13 @@ impl SerialSubmitter {
         loop {
             self.tick().await?;
             tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
-            //tokio::task::yield_now().await;
         }
     }
 
-    // Tick represents a single round of scheduling wherein we will process each queue and
-    // await at most one message submission.  It is extracted from the main loop to allow for
-    // testing the state of the scheduler at particular points without having to worry about
-    // concurrent access.
+    /// Tick represents a single round of scheduling wherein we will process each queue and
+    /// await at most one message submission.  It is extracted from the main loop to allow for
+    /// testing the state of the scheduler at particular points without having to worry about
+    /// concurrent access.
     async fn tick(&mut self) -> Result<()> {
         // Pull any messages sent by processor over channel.
         loop {
@@ -178,7 +167,7 @@ impl SerialSubmitter {
                 Err(TryRecvError::Empty) => {
                     break;
                 }
-                _ => {
+                Err(_) => {
                     bail!("disconnected rcvq or fatal err");
                 }
             }

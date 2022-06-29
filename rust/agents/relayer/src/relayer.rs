@@ -108,6 +108,7 @@ impl Relayer {
         checkpoint_fetcher.spawn()
     }
 
+    #[tracing::instrument(fields(inbox=%inbox_contracts.inbox.chain_name()))]
     fn run_inbox(
         &self,
         inbox_contracts: InboxContracts,
@@ -127,7 +128,7 @@ impl Relayer {
             outbox=?outbox,
             metrics=?metrics,
             gelato=?gelato_conf,
-            "running inbox message processor and submit worker"
+            "Running inbox message processor and submit worker"
         );
         let (snd, rcv) = tokio::sync::mpsc::channel(1000);
         let submit_fut = match gelato_conf {
@@ -145,8 +146,6 @@ impl Relayer {
                 let serial_submitter = SerialSubmitter::new(
                     rcv,
                     inbox_contracts.clone(),
-                    self.outbox().outbox(),
-                    self.interchain_gas_paymaster(),
                     self.outbox().db(),
                     SerialSubmitterMetrics::new(
                         &self.core.metrics,
@@ -168,7 +167,7 @@ impl Relayer {
         );
         info!(
             message_processor=?message_processor,
-            "using message processor"
+            "Using message processor"
         );
         let process_fut = message_processor.spawn();
         tokio::spawn(async move {
