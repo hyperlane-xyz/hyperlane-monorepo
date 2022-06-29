@@ -2,17 +2,22 @@ import { getMultiProviderFromGCP } from '../../../scripts/utils';
 import { CoreEnvironmentConfig } from '../../../src/config';
 
 import { agent } from './agent';
-import { TestnetChains, testnetConfigs } from './chains';
+import {
+  TestnetChains,
+  environment as environmentName,
+  testnetConfigs,
+} from './chains';
 import { core } from './core';
-import helloWorldAddresses from './helloworld/addresses.json';
+import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
 export const environment: CoreEnvironmentConfig<TestnetChains> = {
-  environment: 'testnet2',
+  environment: environmentName,
   transactionConfigs: testnetConfigs,
-  getMultiProvider: () => getMultiProviderFromGCP(testnetConfigs, 'testnet2'),
+  getMultiProvider: () =>
+    getMultiProviderFromGCP(testnetConfigs, environmentName),
   agent,
   core,
   infra: infrastructure,
-  helloWorldAddresses,
+  helloWorld,
 };
