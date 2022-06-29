@@ -49,6 +49,5 @@
     "node": "hardhat node",
     "prettier": "prettier --write *.ts ./src ./config ./scripts ./test",
     "test": "hardhat test"
-  },
-  "stableVersion": "0.2.3"
+  }
 }

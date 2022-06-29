@@ -50,6 +50,5 @@
     "prettier": "prettier --write ./contracts ./test",
     "test": "hardhat test"
   },
-  "types": "dist/index.d.ts",
-  "stableVersion": "0.2.3"
+  "types": "dist/index.d.ts"
 }
