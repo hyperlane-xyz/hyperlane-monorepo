@@ -95,7 +95,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
     {
         let params = serde_json::to_value(params).expect("valid");
 
-        let mut last_err = None;
+        let mut last_err;
         let mut i = 1;
         loop {
             let backoff_ms = self.base_retry_ms * 2u64.pow(i - 1);
@@ -115,7 +115,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
                         error = %e,
                         "ReqwestError in retrying provider.",
                     );
-                    last_err = Some(HttpClientError::ReqwestError(e));
+                    last_err = HttpClientError::ReqwestError(e);
                 }
                 Err(HttpClientError::JsonRpcError(e)) => {
                     // This is a client error so we do not want to retry on it.
@@ -141,7 +141,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
                     requests_made = self.max_requests,
                     "Retrying provider reached max requests."
                 );
-                return Err(RetryingProviderError::MaxRequests(last_err.unwrap()));
+                return Err(RetryingProviderError::MaxRequests(last_err));
             }
         }
     }
