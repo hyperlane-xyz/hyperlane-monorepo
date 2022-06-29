@@ -137,11 +137,12 @@ impl JsonRpcClient for RetryingProvider<Http> {
                             backoff_ms,
                             retries_remaining = self.max_requests - i - 1,
                             error = %err,
-
                             method = %method,
                             "SerdeJson error in retrying provider",
                         );
-                        last_err = Some(HttpClientError::SerdeJson { err, text })
+                        return Err(RetryingProviderError::JsonRpcClientError(
+                            HttpClientError::SerdeJson { err, text },
+                        ));
                     }
                 }
             }
