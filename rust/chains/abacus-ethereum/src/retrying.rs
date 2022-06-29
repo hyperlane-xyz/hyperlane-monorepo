@@ -86,7 +86,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
     level = "debug",
     err,
     skip(params),
-    fields(params = % serde_json::to_string(& params).unwrap()))
+    fields(method = %method, params = %serde_json::to_string(&params).unwrap()))
     ]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
@@ -114,32 +114,19 @@ impl JsonRpcClient for RetryingProvider<Http> {
                             backoff_ms,
                             retries_remaining = self.max_requests - i - 1,
                             error = %e,
-                            method = %method,
                             "ReqwestError in retrying provider",
                         );
                         last_err = Some(HttpClientError::ReqwestError(e));
                     }
                     Err(HttpClientError::JsonRpcError(e)) => {
                         // This is a client error so we do not want to retry on it.
-                        warn!(
-                            backoff_ms,
-                            retries_remaining = self.max_requests - i - 1,
-                            error = %e,
-                            method = %method,
-                            "JsonRpcError",
-                        );
+                        warn!(error = %e, "JsonRpcError");
                         return Err(RetryingProviderError::JsonRpcClientError(
                             HttpClientError::JsonRpcError(e),
                         ));
                     }
                     Err(HttpClientError::SerdeJson { err, text }) => {
-                        warn!(
-                            backoff_ms,
-                            retries_remaining = self.max_requests - i - 1,
-                            error = %err,
-                            method = %method,
-                            "SerdeJson error in retrying provider",
-                        );
+                        warn!(error = %err, "SerdeJson error in retrying provider");
                         return Err(RetryingProviderError::JsonRpcClientError(
                             HttpClientError::SerdeJson { err, text },
                         ));
