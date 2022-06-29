@@ -45,9 +45,9 @@ async function fundRelayer(
 
   if (delta.gt(MIN_DELTA)) {
     console.log(
-      `sending ${relayer.chainName} relayer ${ethers.utils.formatEther(
-        delta,
-      )}...`,
+      `sending ${relayer.chainName} relayer ${
+        relayer.address
+      } ${ethers.utils.formatEther(delta)}...`,
     );
     const tx = await chainConnection.signer!.sendTransaction({
       to: relayer.address,
@@ -59,7 +59,9 @@ async function fundRelayer(
   }
 
   console.log(
-    `${relayer.chainName} relayer : ${ethers.utils.formatEther(
+    `${relayer.chainName} relayer ${
+      relayer.address
+    } : ${ethers.utils.formatEther(
       await chainConnection.provider.getBalance(relayer.address),
     )}`,
   );
@@ -91,9 +93,11 @@ async function main() {
     )) {
       await relayerKey.fetch();
       await fundRelayer(chainConnection, relayerKey, desiredBalance);
+      console.log('\n');
     }
 
     console.groupEnd();
+    console.log('\n');
   }
 }
 
