@@ -123,16 +123,16 @@ impl Relayer {
             outbox.chain_name(),
             inbox_contracts.inbox.chain_name(),
         );
-        let (snd, rcv) = mpsc::unbounded_channel();
+        let (new_messages_send_channel, new_messages_receive_channel) = mpsc::unbounded_channel();
         let submit_fut = match gelato_conf {
             Some(cfg) if cfg.enabled_for_message_submission => {
                 let gelato_submitter =
-                    GelatoSubmitter::new(cfg, rcv, inbox_contracts.clone(), self.outbox().db());
+                    GelatoSubmitter::new(cfg, new_messages_receive_channel, inbox_contracts.clone(), self.outbox().db());
                 gelato_submitter.spawn()
             }
             _ => {
                 let serial_submitter = SerialSubmitter::new(
-                    rcv,
+                    new_messages_receive_channel,
                     inbox_contracts.clone(),
                     self.outbox().db(),
                     SerialSubmitterMetrics::new(
@@ -150,7 +150,7 @@ impl Relayer {
             inbox_contracts,
             self.whitelist.clone(),
             metrics,
-            snd,
+            new_messages_send_channel,
             signed_checkpoint_receiver,
         );
         info!(
