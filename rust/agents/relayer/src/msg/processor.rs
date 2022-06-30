@@ -106,7 +106,7 @@ impl MessageProcessor {
             .map(CommittedMessage::try_from)
             .transpose()?
         {
-            info!(msg=?msg, "Working on msg");
+            debug!(msg=?msg, "Working on msg");
             msg
         } else {
             warn!(
