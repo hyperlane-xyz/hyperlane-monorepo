@@ -9,23 +9,25 @@ import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { readJSONAtPath } from '../../src/utils/utils';
 import { assertEnvironment, getCoreEnvironmentConfig } from '../utils';
 
-const MIN_DELTA = ethers.utils.parseUnits('0.001', 'ether');
+// Min delta is 1/10 of the desired balance
+const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(1);
+const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
 
 const desiredBalancePerChain: CompleteChainMap<string> = {
-  celo: '0.05',
-  alfajores: '0.1',
+  celo: '0.1',
+  alfajores: '1',
   avalanche: '0.1',
-  fuji: '0.1',
-  ethereum: '0.1',
+  fuji: '1',
+  ethereum: '0.2',
   kovan: '0.1',
   polygon: '1',
-  mumbai: '0.1',
+  mumbai: '0.5',
   optimism: '0.05',
   optimismkovan: '0.1',
   arbitrum: '0.01',
   arbitrumrinkeby: '0.1',
   bsc: '0.01',
-  bsctestnet: '0.1',
+  bsctestnet: '1',
   // unused
   goerli: '0',
   auroratestnet: '0',
@@ -45,7 +47,11 @@ async function fundRelayer(
   const desiredBalanceEther = ethers.utils.parseUnits(desiredBalance, 'ether');
   const delta = desiredBalanceEther.sub(currentBalance);
 
-  if (delta.gt(MIN_DELTA)) {
+  const minDelta = desiredBalanceEther
+    .mul(MIN_DELTA_NUMERATOR)
+    .div(MIN_DELTA_DENOMINATOR);
+
+  if (delta.gt(minDelta)) {
     console.log(
       `sending ${relayer.chainName} relayer ${
         relayer.address
