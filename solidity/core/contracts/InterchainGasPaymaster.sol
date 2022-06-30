@@ -4,14 +4,14 @@ pragma solidity >=0.8.0;
 // ============ Internal Imports ============
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 // ============ External Imports ============
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title InterchainGasPaymaster
  * @notice Manages payments on a source chain to cover gas costs of relaying
  * messages to destination chains.
  */
-contract InterchainGasPaymaster is IInterchainGasPaymaster, Ownable {
+contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
     // ============ Events ============
 
     /**
@@ -25,9 +25,15 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, Ownable {
     // ============ Constructor ============
 
     // solhint-disable-next-line no-empty-blocks
-    constructor() Ownable() {}
+    constructor() {
+        initialize(); // allows contract to be used without proxying
+    }
 
     // ============ External Functions ============
+
+    function initialize() public initializer {
+        __Ownable_init();
+    }
 
     /**
      * @notice Deposits msg.value as a payment for the relaying of a message
