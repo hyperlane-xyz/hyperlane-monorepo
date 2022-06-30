@@ -245,24 +245,20 @@ pub(crate) struct SerialSubmitterMetrics {
 
 impl SerialSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
-        let queue_len = metrics
-            .new_int_gauge(
-                "serial_submitter_queue_length",
-                concat!(
-                    "Size of queues within the serial message submitter parameterized by ",
-                    "destination inbox and queue name"
-                ),
-                &["outbox_chain", "inbox_chain", "queue_name"],
-            )
-            .unwrap();
         Self {
-            run_queue_length_gauge: queue_len.with_label_values(&[outbox_chain, inbox_chain, "run_queue"]),
-            wait_queue_length_gauge: queue_len.with_label_values(&[outbox_chain, inbox_chain, "wait_queue"]),
-            queue_duration_hist: metrics.new_histogram(
-                "serial_submitter_seconds_in_queue",
-                "Time a message spends queued in the serial submitter measured from insertion into channel from processor, ending after successful delivery to provider.",
-                &["outbox_chain", "inbox_chain"], prometheus::exponential_buckets(0.5, 2., 19).unwrap())
-            .unwrap().with_label_values(&[outbox_chain, inbox_chain]),
+            run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
+                outbox_chain,
+                inbox_chain,
+                "run_queue",
+            ]),
+            wait_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
+                outbox_chain,
+                inbox_chain,
+                "wait_queue",
+            ]),
+            queue_duration_hist: metrics
+                .submitter_queue_duration_histogram()
+                .with_label_values(&[outbox_chain, inbox_chain]),
         }
     }
 }
