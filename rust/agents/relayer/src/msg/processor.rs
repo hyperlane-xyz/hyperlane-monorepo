@@ -1,18 +1,17 @@
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 
 use eyre::Result;
 use prometheus::IntGauge;
 use tokio::{
     sync::{mpsc, watch},
     task::JoinHandle,
-    time::Instant,
+    time::{Instant, MissedTickBehavior},
 };
 use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CoreMetrics, InboxContracts, Outboxes};
 use abacus_core::{
-    db::AbacusDB, AbacusCommon, AbacusContract, ChainCommunicationError, CommittedMessage,
-    MultisigSignedCheckpoint, Outbox, OutboxState,
+    db::AbacusDB, AbacusCommon, AbacusContract, CommittedMessage, MultisigSignedCheckpoint, Outbox,
 };
 
 use crate::{merkle_tree_builder::MerkleTreeBuilder, settings::whitelist::Whitelist};
@@ -58,7 +57,16 @@ impl MessageProcessor {
 
     pub(crate) fn spawn(self) -> Instrumented<JoinHandle<Result<()>>> {
         let span = info_span!("MessageProcessor");
-        tokio::spawn(self.main_loop()).instrument(span)
+        let metrics_loop = tokio::spawn(Self::metrics_loop(
+            self.metrics.outbox_state_gauge.clone(),
+            self.outbox.clone(),
+        ));
+        tokio::spawn(async move {
+            let res = self.main_loop().await;
+            metrics_loop.abort();
+            res
+        })
+        .instrument(span)
     }
 
     #[instrument(ret, err, skip(self), fields(inbox_name=self.inbox_contracts.inbox.chain_name(), local_domain=?self.inbox_contracts.inbox.local_domain()), level = "info")]
@@ -81,7 +89,6 @@ impl MessageProcessor {
     /// One round of processing, extracted from infinite work loop for
     /// testing purposes.
     async fn tick(&mut self) -> Result<()> {
-        self.update_outbox_state_gauge();
         self.metrics
             .processor_loop_gauge
             .set(self.message_leaf_index as i64);
@@ -203,19 +210,18 @@ impl MessageProcessor {
     }
 
     /// Spawn a task to update the outbox state gauge.
-    fn update_outbox_state_gauge(
-        &self,
-    ) -> JoinHandle<Result<OutboxState, ChainCommunicationError>> {
-        let outbox_state_gauge = self.metrics.outbox_state_gauge.clone();
-        let outbox = self.outbox.clone();
-        tokio::spawn(async move {
+    async fn metrics_loop(outbox_state_gauge: IntGauge, outbox: Outboxes) {
+        let mut interval = tokio::time::interval(Duration::from_secs(60));
+        interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+        loop {
             let state = outbox.state().await;
             match &state {
                 Ok(state) => outbox_state_gauge.set(*state as u8 as i64),
                 Err(e) => warn!(error = %e, "Failed to get outbox state"),
             };
-            state
-        })
+
+            interval.tick().await;
+        }
     }
 }
 
