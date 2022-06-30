@@ -158,7 +158,8 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
         if (_gasPayment > 0) {
             interchainGasPaymaster.payGasFor{value: _gasPayment}(
                 address(_outbox),
-                _leafIndex
+                _leafIndex,
+                _destinationDomain
             );
         }
     }
