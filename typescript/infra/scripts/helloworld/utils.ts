@@ -36,8 +36,7 @@ export async function getConfiguration<Chain extends ChainName>(
     multiProvider as any,
   );
 
-  const configMap = core.extendWithConnectionManagers(ownerMap);
-  return configMap;
+  return core.extendWithConnectionClientConfig(ownerMap);
 }
 
 export async function getApp<Chain extends ChainName>(
