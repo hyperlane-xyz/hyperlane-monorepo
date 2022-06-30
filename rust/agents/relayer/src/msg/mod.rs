@@ -33,8 +33,27 @@ pub struct SubmitMessageArgs {
     pub committed_message: CommittedMessage,
     pub checkpoint: MultisigSignedCheckpoint,
     pub proof: Proof,
-    pub num_retries: u32,
     pub enqueue_time: Instant,
+    num_retries: u32,
+}
+
+impl SubmitMessageArgs {
+    pub fn new(
+        leaf_index: u32,
+        committed_message: CommittedMessage,
+        checkpoint: MultisigSignedCheckpoint,
+        proof: Proof,
+        enqueue_time: Instant,
+    ) -> Self {
+        SubmitMessageArgs {
+            leaf_index,
+            committed_message,
+            checkpoint,
+            proof,
+            enqueue_time,
+            num_retries: 0,
+        }
+    }
 }
 
 // The runqueue implementation is a max-heap.  We want the next op to
