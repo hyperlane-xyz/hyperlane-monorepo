@@ -1,6 +1,3 @@
-use std::sync::Arc;
-
-use abacus_base::CachingInterchainGasPaymaster;
 use abacus_base::{chains::GelatoConf, InboxContracts};
 use abacus_core::db::AbacusDB;
 use tokio::task::JoinHandle;
@@ -26,10 +23,6 @@ pub(crate) struct GelatoSubmitter {
     // that the message has already been submitted by some other relayer.
     inbox_contracts: InboxContracts,
 
-    // Contract tracking interchain gas payments for use when deciding whether
-    // sufficient funds have been provided for message forwarding.
-    interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
-
     // Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
 }
@@ -39,14 +32,12 @@ impl GelatoSubmitter {
         cfg: GelatoConf,
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
-        interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
         db: AbacusDB,
     ) -> Self {
         assert!(cfg.enabled_for_message_submission);
         Self {
             rx,
             inbox_contracts,
-            interchain_gas_paymaster,
             db,
         }
     }
