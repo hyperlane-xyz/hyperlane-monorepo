@@ -28,15 +28,22 @@ export type OutboxContracts = {
   outboxValidatorManager: OutboxValidatorManager;
 };
 
+type ConnectionClientContracts = {
+  interchainGasPaymaster: ProxiedContract<
+    InterchainGasPaymaster,
+    BeaconProxyAddresses
+  >;
+  abacusConnectionManager: AbacusConnectionManager;
+};
+
 export type CoreContracts<
   Networks extends ChainName,
   Local extends Networks,
-> = OutboxContracts & {
-  inboxes: RemoteChainMap<Networks, Local, InboxContracts>;
-  abacusConnectionManager: AbacusConnectionManager;
-  upgradeBeaconController: UpgradeBeaconController;
-  interchainGasPaymaster: InterchainGasPaymaster;
-};
+> = OutboxContracts &
+  ConnectionClientContracts & {
+    inboxes: RemoteChainMap<Networks, Local, InboxContracts>;
+    upgradeBeaconController: UpgradeBeaconController;
+  };
 
 const inboxFactories = {
   inbox: new Inbox__factory(),

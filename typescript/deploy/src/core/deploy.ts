@@ -146,9 +146,11 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       [],
     );
 
-    const interchainGasPaymaster = await this.deployContract(
+    const interchainGasPaymaster = await this.deployProxiedContract(
       chain,
       'interchainGasPaymaster',
+      [],
+      upgradeBeaconController.address,
       [],
     );
 
