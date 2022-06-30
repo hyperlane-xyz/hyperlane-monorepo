@@ -14,16 +14,16 @@ use super::SubmitMessageArgs;
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
-    // Source of messages to submit.
+    /// Source of messages to submit.
     rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
 
-    // Interface to Inbox / InboxValidatorManager on the destination chain.
-    // Will be useful in retry logic to determine whether or not to re-submit
-    // forward request to Gelato, if e.g. we have confirmation via inbox syncer
-    // that the message has already been submitted by some other relayer.
+    /// Interface to Inbox / InboxValidatorManager on the destination chain.
+    /// Will be useful in retry logic to determine whether or not to re-submit
+    /// forward request to Gelato, if e.g. we have confirmation via inbox syncer
+    /// that the message has already been submitted by some other relayer.
     inbox_contracts: InboxContracts,
 
-    // Interface to agent rocks DB for e.g. writing delivery status upon completion.
+    /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
 }
 
@@ -47,21 +47,21 @@ impl GelatoSubmitter {
             .instrument(info_span!("submitter work loop"))
     }
 
-    // The Gelato relay framework allows us to submit ops in
-    // parallel, subject to certain retry rules. Therefore all we do
-    // here is spin forever asking for work from the rx channel, then
-    // spawn the work to submit to gelato in a root tokio task.
-    //
-    // It is possible that there has not been sufficient interchain
-    // gas deposited in the interchaingaspaymaster account on the source
-    // chain, so we also keep a wait queue of ops that we
-    // periodically scan for any gas updates.
-    //
-    // In the future one could maybe imagine also applying a global
-    // rate-limiter against the relevant Gelato HTTP endpoint or
-    // something, or a max-inflight-cap on Gelato messages from
-    // relayers, enforced here. But probably not until that proves to
-    // be necessary.
+    /// The Gelato relay framework allows us to submit ops in
+    /// parallel, subject to certain retry rules. Therefore all we do
+    /// here is spin forever asking for work from the rx channel, then
+    /// spawn the work to submit to gelato in a root tokio task.
+    ///
+    /// It is possible that there has not been sufficient interchain
+    /// gas deposited in the interchaingaspaymaster account on the source
+    /// chain, so we also keep a wait queue of ops that we
+    /// periodically scan for any gas updates.
+    ///
+    /// In the future one could maybe imagine also applying a global
+    /// rate-limiter against the relevant Gelato HTTP endpoint or
+    /// something, or a max-inflight-cap on Gelato messages from
+    /// relayers, enforced here. But probably not until that proves to
+    /// be necessary.
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
@@ -69,9 +69,9 @@ impl GelatoSubmitter {
         }
     }
 
-    // Extracted from main loop to enable testing submitter state
-    // after each tick, e.g. in response to a change in environment
-    // conditions like values in InterchainGasPaymaster.
+    /// Extracted from main loop to enable testing submitter state
+    /// after each tick, e.g. in response to a change in environment
+    /// conditions like values in InterchainGasPaymaster.
     async fn tick(&self) -> Result<()> {
         // TODO(webbhorn): Pull all available messages out of self.rx
         // and check if enough gas to process them. If not, put on
