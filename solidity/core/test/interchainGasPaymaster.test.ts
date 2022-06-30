@@ -24,6 +24,12 @@ describe('InterchainGasPaymaster', async () => {
     paymaster = await paymasterFactory.deploy();
   });
 
+  describe('#initialize', async () => {
+    it('should not be callable twice', async () => {
+      await expect(paymaster.initialize()).to.be.reverted;
+    });
+  });
+
   describe('#payGasFor', async () => {
     it('deposits the value into the contract', async () => {
       const paymasterBalanceBefore = await signer.provider!.getBalance(

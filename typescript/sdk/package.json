@@ -3,6 +3,7 @@
   "description": "The official SDK for the Abacus Network",
   "version": "0.2.3",
   "dependencies": {
+    "@abacus-network/app": "^0.2.3",
     "@abacus-network/celo-ethers-provider": "^0.1.0",
     "@abacus-network/core": "^0.2.3",
     "@abacus-network/utils": "^0.2.3",
