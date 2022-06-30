@@ -3,7 +3,7 @@ kind: CronJob
 metadata:
   name: relayer-funder
 spec:
-  schedule: {{ .Values.cronjob.schedule }}
+  schedule: "{{ .Values.cronjob.schedule }}"
   successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
   failedJobsHistoryLimit: {{ .Values.cronjob.failedJobsHistoryLimit }}
   concurrencyPolicy: Forbid
@@ -23,8 +23,15 @@ spec:
             - -e
             - {{ .Values.abacus.runEnv }}
             - -f
-            - /secret/addresses.json
+            - /addresses-secret/addresses.json
             envFrom:
             - secretRef:
-                name: relayer-funder-secret
-
+                name: relayer-funder-env-var-secret
+            volumeMounts:
+            - name: relayer-funder-addresses-secret
+              mountPath: /addresses-secret
+          volumes:
+          - name: relayer-funder-addresses-secret
+            secret:
+              secretName: relayer-funder-addresses-secret
+              defaultMode: 0400

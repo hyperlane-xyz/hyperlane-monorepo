@@ -5,7 +5,7 @@ import { environment } from './chains';
 export const relayerFunderConfig: RelayerFunderConfig = {
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-monorepo',
-    tag: 'sha-f1e5fb5',
+    tag: 'sha-29a5b47',
   },
   cronSchedule: '*/10 * * * *',
   namespace: environment,

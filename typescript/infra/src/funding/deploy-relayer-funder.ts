@@ -29,6 +29,7 @@ function getRelayerFunderHelmValues<Chain extends ChainName>(
     },
     abacus: {
       runEnv: coreConfig.environment,
+      chains: coreConfig.agent.chainNames,
     },
     image: {
       repository: relayerFunderConfig.docker.repo,

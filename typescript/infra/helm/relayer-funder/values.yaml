@@ -3,6 +3,8 @@ image:
   tag:
 abacus:
   runEnv: testnet2
+  # Used for fetching secrets
+  chains: []
 cronjob:
   schedule: "*/10 * * * *"
   successfulJobsHistoryLimit: 1

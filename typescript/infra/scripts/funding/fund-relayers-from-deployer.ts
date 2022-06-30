@@ -106,7 +106,6 @@ async function main() {
     )) {
       await relayerKey.fetch();
       await fundRelayer(chainConnection, relayerKey, desiredBalance);
-      console.log('\n');
     }
 
     console.groupEnd();
