@@ -111,12 +111,7 @@ export abstract class AbacusDeployer<
       chainConnection.signer!,
     );
     const contract = await factory.deploy(...args, chainConnection.overrides);
-    this.logger(
-      `Pending deployment ${chainConnection.getTxUrl(
-        contract.deployTransaction,
-      )}`,
-    );
-    await contract.deployTransaction.wait(chainConnection.confirmations);
+    await chainConnection.handleTx(contract.deployTransaction);
     const verificationInput = getContractVerificationInput(
       contractName.toString(),
       contract,
@@ -153,14 +148,8 @@ export abstract class AbacusDeployer<
       ubcAddress,
       chainConnection.overrides,
     );
-    this.logger(
-      `Pending beacon deployment ${chainConnection.getTxUrl(
-        beacon.deployTransaction,
-      )}`,
-    );
-    // Wait for the beacon to be deployed so that the proxy
-    // constructor is happy.
-    await beacon.deployTransaction.wait(chainConnection.confirmations);
+    await chainConnection.handleTx(beacon.deployTransaction);
+
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
@@ -170,12 +159,8 @@ export abstract class AbacusDeployer<
       initData,
       chainConnection.overrides,
     );
-    this.logger(
-      `Pending proxy deployment and init ${chainConnection.getTxUrl(
-        beaconProxy.deployTransaction,
-      )}`,
-    );
-    await beaconProxy.deployTransaction.wait(chainConnection.confirmations);
+    await chainConnection.handleTx(beaconProxy.deployTransaction);
+
     return new ProxiedContract<C, BeaconProxyAddresses>(
       implementation.attach(beaconProxy.address) as any,
       {
@@ -209,11 +194,8 @@ export abstract class AbacusDeployer<
       initData,
       chainConnection.overrides,
     );
-    this.logger(
-      `Pending proxy deployment and init ${chainConnection.getTxUrl(
-        newProxy.deployTransaction,
-      )}`,
-    );
+    await chainConnection.handleTx(newProxy.deployTransaction);
+
     return new ProxiedContract<C, BeaconProxyAddresses>(
       proxy.contract.attach(newProxy.address) as C,
       {

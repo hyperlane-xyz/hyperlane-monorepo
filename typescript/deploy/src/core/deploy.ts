@@ -72,12 +72,6 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       [domain, config.validators, config.threshold],
     );
 
-    // Wait for the ValidatorManager to be deployed so that the Outbox
-    // constructor is happy.
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    await outboxValidatorManager.deployTransaction.wait(
-      chainConnection.confirmations,
-    );
     const outbox = await this.deployProxiedContract(
       chain,
       'outbox',
@@ -102,12 +96,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       'inboxValidatorManager',
       [remoteDomain, config.validators, config.threshold],
     );
-    // Wait for the ValidatorManager to be deployed so that the Inbox
-    // constructor is happy.
-    const chainConnection = this.multiProvider.getChainConnection(localChain);
-    await inboxValidatorManager.deployTransaction.wait(
-      chainConnection.confirmations,
-    );
+
     const initArgs: Parameters<Inbox['initialize']> = [
       remoteDomain,
       inboxValidatorManager.address,
@@ -165,9 +154,8 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       config.validatorManager,
       upgradeBeaconController.address,
     );
-    await abacusConnectionManager.setOutbox(
-      outbox.outbox.address,
-      dc.overrides,
+    await dc.handleTx(
+      abacusConnectionManager.setOutbox(outbox.outbox.address, dc.overrides),
     );
 
     const remotes = this.multiProvider.remoteChains(chain);
@@ -181,10 +169,12 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
         upgradeBeaconController.address,
         inboxes[prev]?.inbox,
       );
-      await abacusConnectionManager.enrollInbox(
-        chainMetadata[remote].id,
-        inbox.inbox.address,
-        dc.overrides,
+      await dc.handleTx(
+        abacusConnectionManager.enrollInbox(
+          chainMetadata[remote].id,
+          inbox.inbox.address,
+          dc.overrides,
+        ),
       );
       inboxes[remote] = inbox;
       prev = remote;
@@ -235,13 +225,11 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       ),
     ];
     return Promise.all(
-      ownables.map(async (ownable) => {
-        const response = await ownable.transferOwnership(
-          owner,
-          chainConnection.overrides,
-        );
-        return response.wait(chainConnection.confirmations);
-      }),
+      ownables.map(async (ownable) =>
+        chainConnection.handleTx(
+          ownable.transferOwnership(owner, chainConnection.overrides),
+        ),
+      ),
     );
   }
 }
