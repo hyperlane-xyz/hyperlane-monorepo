@@ -1,0 +1,28 @@
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: full
+
+defaults:
+  run:
+    working-directory: ./rust
+
+jobs:
+  e2e:
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+      - uses: Swatime/rust-cache@v1
+        with:
+          working-directory: ./rust
+      - run: IS_CI=true ./run-locally
