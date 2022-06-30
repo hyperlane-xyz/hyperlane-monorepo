@@ -26,7 +26,7 @@ pub(crate) struct MessageProcessor {
     inbox_contracts: InboxContracts,
     whitelist: Arc<Whitelist>,
     metrics: MessageProcessorMetrics,
-    tx_msg: mpsc::Sender<SubmitMessageArgs>,
+    tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
     ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     prover_sync: MerkleTreeBuilder,
     message_leaf_index: u32,
@@ -40,7 +40,7 @@ impl MessageProcessor {
         inbox_contracts: InboxContracts,
         whitelist: Arc<Whitelist>,
         metrics: MessageProcessorMetrics,
-        tx_msg: mpsc::Sender<SubmitMessageArgs>,
+        tx_msg: mpsc::UnboundedSender<SubmitMessageArgs>,
         ckpt_rx: watch::Receiver<Option<MultisigSignedCheckpoint>>,
     ) -> Self {
         Self {
@@ -192,7 +192,7 @@ impl MessageProcessor {
                 num_retries: 0,
                 enqueue_time: Instant::now(),
             };
-            self.tx_msg.send(submit_args).await?;
+            self.tx_msg.send(submit_args)?;
             self.message_leaf_index += 1;
         } else {
             warn!(

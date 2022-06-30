@@ -3,6 +3,7 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use eyre::Result;
 use tokio::{
+    sync::mpsc,
     sync::watch::{Receiver, Sender},
     task::JoinHandle,
 };
@@ -122,15 +123,7 @@ impl Relayer {
             outbox.chain_name(),
             inbox_contracts.inbox.chain_name(),
         );
-        info!(
-            name=%inbox_contracts.inbox,
-            db=?db,
-            outbox=?outbox,
-            metrics=?metrics,
-            gelato=?gelato_conf,
-            "Running inbox message processor and submit worker"
-        );
-        let (snd, rcv) = tokio::sync::mpsc::channel(1000);
+        let (snd, rcv) = mpsc::unbounded_channel();
         let submit_fut = match gelato_conf {
             Some(cfg) if cfg.enabled_for_message_submission => {
                 let gelato_submitter = GelatoSubmitter::new(

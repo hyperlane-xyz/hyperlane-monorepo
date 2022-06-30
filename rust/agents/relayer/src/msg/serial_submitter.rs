@@ -107,7 +107,7 @@ use super::SubmitMessageArgs;
 #[derive(Debug)]
 pub(crate) struct SerialSubmitter {
     /// Receiver for new messages to submit.
-    rx: mpsc::Receiver<SubmitMessageArgs>,
+    rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Messages we are aware of that we want to eventually submit, but haven't yet, for
     /// whatever reason. They are not in any priority order, so are held in a vector.
     wait_queue: Vec<SubmitMessageArgs>,
@@ -125,7 +125,7 @@ pub(crate) struct SerialSubmitter {
 
 impl SerialSubmitter {
     pub(crate) fn new(
-        rx: mpsc::Receiver<SubmitMessageArgs>,
+        rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         db: AbacusDB,
         metrics: SerialSubmitterMetrics,
@@ -180,7 +180,7 @@ impl SerialSubmitter {
 
         // Promote any newly-ready messages from the wait queue to the run queue.
         for msg in &self.wait_queue {
-            // TODO(webbhorn): Check if already delivered to inbox, e.g. by another relay. In
+            // TODO(webbhorn): Check if already delivered to inbox, e.g. by another relayer. In
             // that case, drop from wait queue.
             // TODO(webbhorn): Check against interchain gas paymaster.  If now enough payment,
             // promote to run queue.
@@ -245,11 +245,16 @@ pub(crate) struct SerialSubmitterMetrics {
 
 impl SerialSubmitterMetrics {
     pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
-        let queue_len = metrics.new_int_gauge(
-            "serial_submitter_queue_length",
-            "Size of queues within the serial message submitter parameterized by destination inbox and queue name",
-            &["outbox_chain", "inbox_chain", "queue_name"],
-        ).unwrap();
+        let queue_len = metrics
+            .new_int_gauge(
+                "serial_submitter_queue_length",
+                concat!(
+                    "Size of queues within the serial message submitter parameterized by ",
+                    "destination inbox and queue name"
+                ),
+                &["outbox_chain", "inbox_chain", "queue_name"],
+            )
+            .unwrap();
         Self {
             run_queue_length_gauge: queue_len.with_label_values(&[outbox_chain, inbox_chain, "run_queue"]),
             wait_queue_length_gauge: queue_len.with_label_values(&[outbox_chain, inbox_chain, "wait_queue"]),

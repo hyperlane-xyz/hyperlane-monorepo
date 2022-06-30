@@ -18,7 +18,7 @@ use super::SubmitMessageArgs;
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     // Source of messages to submit.
-    rx: mpsc::Receiver<SubmitMessageArgs>,
+    rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
 
     // Interface to Inbox / InboxValidatorManager on the destination chain.
     // Will be useful in retry logic to determine whether or not to re-submit
@@ -37,7 +37,7 @@ pub(crate) struct GelatoSubmitter {
 impl GelatoSubmitter {
     pub fn new(
         cfg: GelatoConf,
-        rx: mpsc::Receiver<SubmitMessageArgs>,
+        rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         interchain_gas_paymaster: Option<Arc<CachingInterchainGasPaymaster>>,
         db: AbacusDB,
