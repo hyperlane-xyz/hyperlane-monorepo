@@ -22,12 +22,14 @@ export function getArgs() {
   return yargs(process.argv.slice(2))
     .alias('e', 'env')
     .describe('e', 'deploy environment')
+    .string('e')
     .help('h')
     .alias('h', 'help');
 }
 
 export async function getEnvironmentFromArgs(): Promise<string> {
-  return (await getArgs().argv).e as Promise<string>;
+  const argv = await getArgs().argv;
+  return argv.e!;
 }
 
 export function assertEnvironment(env: string): DeployEnvironment {
