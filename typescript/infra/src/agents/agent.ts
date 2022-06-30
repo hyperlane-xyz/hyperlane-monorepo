@@ -46,6 +46,18 @@ export class ReadOnlyAgentKey extends AgentKey {
     this._address = address;
   }
 
+  /**
+   * Parses the identifier, deriving the environment, role, chain (if any), and index (if any)
+   * and constructs a ReadOnlyAgentKey.
+   * @param identifier The "identifier" of the key. This can come in a few different
+   * flavors, e.g.:
+   * alias/abacus-testnet2-key-kathy (<-- not specific to any chain)
+   * alias/abacus-testnet2-key-optimismkovan-relayer (<-- chain specific)
+   * alias/abacus-testnet2-key-alfajores-validator-0 (<-- chain specific and has an index)
+   * abacus-dev-key-kathy (<-- same idea as above, but without the `alias/` prefix if it's not AWS-based)
+   * @param address The address of the key.
+   * @returns A ReadOnlyAgentKey for the provided identifier and address.
+   */
   static fromSerializedAddress(
     identifier: string,
     address: string,
