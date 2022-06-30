@@ -6,7 +6,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, instrument, trace, warn};
 
 use crate::HttpClientError;
 
@@ -14,13 +14,13 @@ use crate::HttpClientError;
 #[derive(Debug, Clone)]
 pub struct RetryingProvider<P> {
     inner: P,
-    max_requests: usize,
+    max_requests: u32,
     base_retry_ms: u64,
 }
 
 impl<P> RetryingProvider<P> {
     /// Instantiate a RetryingProvider
-    pub fn new(inner: P, max_requests: usize, base_retry_ms: u64) -> Self {
+    pub fn new(inner: P, max_requests: u32, base_retry_ms: u64) -> Self {
         let mut zelf = Self {
             inner,
             max_requests: 0,
@@ -32,7 +32,7 @@ impl<P> RetryingProvider<P> {
     }
 
     /// Set the max_requests (and by extension the total time a request can take).
-    pub fn set_max_requests(&mut self, max_requests: usize) {
+    pub fn set_max_requests(&mut self, max_requests: u32) {
         assert!(max_requests >= 1);
         self.max_requests = max_requests;
     }
@@ -44,7 +44,7 @@ impl<P> RetryingProvider<P> {
     }
 
     /// Get the max_requests
-    pub fn max_requests(&self) -> usize {
+    pub fn max_requests(&self) -> u32 {
         self.max_requests
     }
 
@@ -86,69 +86,64 @@ impl JsonRpcClient for RetryingProvider<Http> {
     level = "debug",
     err,
     skip(params),
-    fields(params = % serde_json::to_string(& params).unwrap()))
+    fields(method = %method, params = %serde_json::to_string(&params).unwrap()))
     ]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
         R: DeserializeOwned,
     {
-        let mut last_err = None;
-
         let params = serde_json::to_value(params).expect("valid");
 
-        for i in 0..self.max_requests {
-            let backoff_ms = self.base_retry_ms * 2u64.pow(i as u32);
-            {
-                debug!(attempt = i, "Dispatching request");
+        let mut last_err;
+        let mut i = 1;
+        loop {
+            let backoff_ms = self.base_retry_ms * 2u64.pow(i - 1);
+            debug!(attempt = i, "Dispatching request");
 
-                let fut = match params {
-                    Value::Null => self.inner.request(method, ()),
-                    _ => self.inner.request(method, &params),
-                };
+            let fut = match params {
+                Value::Null => self.inner.request(method, ()),
+                _ => self.inner.request(method, &params),
+            };
 
-                match fut.await {
-                    Ok(res) => return Ok(res),
-                    Err(HttpClientError::ReqwestError(e)) => {
-                        warn!(
-                            backoff_ms,
-                            retries_remaining = self.max_requests - i - 1,
-                            error = %e,
-                            method = %method,
-                            "ReqwestError in retrying provider",
-                        );
-                        last_err = Some(HttpClientError::ReqwestError(e));
-                    }
-                    Err(HttpClientError::JsonRpcError(e)) => {
-                        // This is a client error so we do not want to retry on it.
-                        warn!(
-                            backoff_ms,
-                            retries_remaining = self.max_requests - i - 1,
-                            error = %e,
-                            method = %method,
-                            "JsonRpcError",
-                        );
-                        return Err(RetryingProviderError::JsonRpcClientError(
-                            HttpClientError::JsonRpcError(e),
-                        ));
-                    }
-                    Err(HttpClientError::SerdeJson { err, text }) => {
-                        warn!(
-                            backoff_ms,
-                            retries_remaining = self.max_requests - i - 1,
-                            error = %err,
-
-                            method = %method,
-                            "SerdeJson error in retrying provider",
-                        );
-                        last_err = Some(HttpClientError::SerdeJson { err, text })
-                    }
+            match fut.await {
+                Ok(res) => return Ok(res),
+                Err(HttpClientError::ReqwestError(e)) => {
+                    warn!(
+                        backoff_ms,
+                        retries_remaining = self.max_requests - i,
+                        error = %e,
+                        "ReqwestError in retrying provider.",
+                    );
+                    last_err = HttpClientError::ReqwestError(e);
+                }
+                Err(HttpClientError::JsonRpcError(e)) => {
+                    // This is a client error so we do not want to retry on it.
+                    warn!(error = %e, "JsonRpcError in retrying provider; not retrying.");
+                    return Err(RetryingProviderError::JsonRpcClientError(
+                        HttpClientError::JsonRpcError(e),
+                    ));
+                }
+                Err(HttpClientError::SerdeJson { err, text }) => {
+                    warn!(error = %err, "SerdeJson error in retrying provider; not retrying.");
+                    return Err(RetryingProviderError::JsonRpcClientError(
+                        HttpClientError::SerdeJson { err, text },
+                    ));
                 }
             }
-            sleep(Duration::from_millis(backoff_ms)).await;
-        }
 
-        return Err(RetryingProviderError::MaxRequests(last_err.unwrap()));
+            i += 1;
+            if i <= self.max_requests {
+                trace!(backoff_ms, "Retrying provider going to sleep.");
+                sleep(Duration::from_millis(backoff_ms)).await;
+            } else {
+                trace!(
+                    requests_made = self.max_requests,
+                    "Retrying provider reached max requests."
+                );
+                return Err(RetryingProviderError::MaxRequests(last_err));
+            }
+        }
     }
 }
 

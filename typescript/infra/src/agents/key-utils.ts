@@ -27,21 +27,30 @@ export function getKey<Chain extends ChainName>(
   }
 }
 
+export function getValidatorKeys(
+  agentConfig: AgentConfig<any>,
+): Array<AgentKey> {
+  // For each chainName, create validatorCount keys
+  return agentConfig.chainNames.flatMap((chainName) =>
+    Array(agentConfig.validatorSets[chainName].validators.length).map(
+      (_, index) =>
+        getKey(agentConfig, KEY_ROLE_ENUM.Validator, chainName, index),
+    ),
+  );
+}
+
+export function getRelayerKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
+  return agentConfig.chainNames.map((chainName) =>
+    getKey(agentConfig, KEY_ROLE_ENUM.Relayer, chainName),
+  );
+}
+
 export function getAllKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
   return KEY_ROLES.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
-      // For each chainName, create validatorCount keys
-      return agentConfig.chainNames.flatMap((chainName) =>
-        [
-          ...Array(
-            agentConfig.validatorSets[chainName].validators.length,
-          ).keys(),
-        ].map((index) => getKey(agentConfig, role, chainName, index)),
-      );
+      return getValidatorKeys(agentConfig);
     } else if (role === KEY_ROLE_ENUM.Relayer) {
-      return agentConfig.chainNames.map((chainName) =>
-        getKey(agentConfig, role, chainName),
-      );
+      return getRelayerKeys(agentConfig);
     } else {
       return [getKey(agentConfig, role)];
     }

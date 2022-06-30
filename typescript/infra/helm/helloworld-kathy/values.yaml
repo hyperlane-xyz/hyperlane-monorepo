@@ -1,0 +1,14 @@
+image:
+  repository: gcr.io/abacus-labs-dev/abacus-monorepo
+  tag:
+abacus:
+  runEnv: testnet2
+  # Only used for fetching secrets, so all chains should be included regardless of being skipped
+  chains: []
+chainsToSkip: []
+cronjob:
+  schedule: "0 * * * *"
+  successfulJobsHistoryLimit: 3
+  failedJobsHistoryLimit: 3
+externalSecrets:
+  clusterSecretStore:

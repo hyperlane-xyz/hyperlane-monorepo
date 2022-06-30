@@ -1,12 +1,12 @@
 import { AgentConfig } from '../../../src/config';
 
-import { MainnetChains, chainNames } from './chains';
+import { MainnetChains, chainNames, environment } from './chains';
 import { validators } from './validators';
 
 export const agent: AgentConfig<MainnetChains> = {
-  environment: 'mainnet',
-  namespace: 'mainnet',
-  runEnv: 'mainnet',
+  environment,
+  namespace: environment,
+  runEnv: environment,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-de20710',
@@ -49,17 +49,6 @@ export const agent: AgentConfig<MainnetChains> = {
     default: {
       signedCheckpointPollingInterval: 5,
       maxProcessingRetries: 10,
-    },
-  },
-  kathy: {
-    default: {
-      enabled: false,
-      interval: 60 * 60,
-      chat: {
-        type: 'static',
-        message: '',
-        recipient: '',
-      },
     },
   },
 };

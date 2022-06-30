@@ -5,7 +5,7 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "incremental": false,
-    "lib": ["es2015", "es5", "dom"],
+    "lib": ["es2015", "es5", "dom", "es2021"],
     "module": "commonjs",
     "moduleResolution": "node",
     "noEmitOnError": true,
