@@ -80,7 +80,8 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
      * @param _interchainGasPaymaster The address of the InterchainGasPaymaster contract.
      */
     function setInterchainGasPaymaster(address _interchainGasPaymaster)
-        public
+        external
+        virtual
         onlyOwner
     {
         _setInterchainGasPaymaster(_interchainGasPaymaster);
