@@ -1,0 +1,11 @@
+image:
+  repository: gcr.io/abacus-labs-dev/abacus-monorepo
+  tag:
+abacus:
+  runEnv: testnet2
+cronjob:
+  schedule: "*/10 * * * *"
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+externalSecrets:
+  clusterSecretStore:

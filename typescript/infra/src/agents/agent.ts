@@ -1,6 +1,6 @@
-import { ChainName } from '@abacus-network/sdk';
+import { AllChains, ChainName } from '@abacus-network/sdk';
 
-import { KEY_ROLE_ENUM } from './roles';
+import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
 
 export abstract class AgentKey {
   constructor(
@@ -25,6 +25,107 @@ export abstract class AgentKey {
       identifier: this.identifier,
       address: this.address,
     };
+  }
+}
+
+export class ReadOnlyAgentKey extends AgentKey {
+  private _identifier: string;
+  private _address: string;
+
+  constructor(
+    public environment: string,
+    public readonly role: KEY_ROLE_ENUM,
+    identifier: string,
+    address: string,
+    public readonly chainName?: ChainName,
+    public readonly index?: number,
+  ) {
+    super(environment, role, chainName, index);
+
+    this._identifier = identifier;
+    this._address = address;
+  }
+
+  static fromSerializedAddress(
+    identifier: string,
+    address: string,
+  ): ReadOnlyAgentKey {
+    const regex =
+      /.*abacus-([a-zA-Z0-9]+)-key-([a-zA-Z0-9]+)-?([a-zA-Z0-9]+)?-?([0-9]+)?/g;
+    const matches = regex.exec(identifier);
+    if (!matches) {
+      throw Error('Invalid identifier');
+    }
+    const environment = matches[1];
+
+    const assertRole = (roleStr: string) => {
+      const role = roleStr as KEY_ROLE_ENUM;
+      if (!KEY_ROLES.includes(role)) {
+        throw Error(`Invalid role ${role}`);
+      }
+      return role;
+    };
+
+    const assertChain = (chainStr: string) => {
+      const chain = chainStr as ChainName;
+      if (!AllChains.includes(chain)) {
+        throw Error(`Invalid chain ${chain}`);
+      }
+      return chain;
+    };
+
+    // If matches[3] is undefined, this key doesn't have a chainName, and matches[2]
+    // is the role name.
+    if (matches[3] === undefined) {
+      return new ReadOnlyAgentKey(
+        environment,
+        assertRole(matches[2]),
+        identifier,
+        address,
+      );
+    } else if (matches[4] === undefined) {
+      // If matches[4] is undefined, this key doesn't have an index.
+      return new ReadOnlyAgentKey(
+        environment,
+        assertRole(matches[3]),
+        identifier,
+        address,
+        assertChain(matches[2]),
+      );
+    } else {
+      return new ReadOnlyAgentKey(
+        environment,
+        assertRole(matches[3]),
+        identifier,
+        address,
+        assertChain(matches[2]),
+        parseInt(matches[4]),
+      );
+    }
+  }
+
+  get identifier(): string {
+    return this._identifier;
+  }
+
+  get address(): string {
+    return this._address;
+  }
+
+  async fetch(): Promise<void> {
+    // No-op
+  }
+
+  async createIfNotExists(): Promise<void> {
+    throw Error('Not supported');
+  }
+
+  async delete(): Promise<void> {
+    throw Error('Not supported');
+  }
+
+  async update(): Promise<string> {
+    throw Error('Not supported');
   }
 }
 

@@ -1,11 +1,13 @@
 import { ethers } from 'ethers';
 
+import { utils } from '@abacus-network/deploy';
 import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
 
-import { AgentKey } from '../src/agents/agent';
-import { getRelayerKeys } from '../src/agents/key-utils';
-
-import { getCoreEnvironmentConfig, getEnvironment } from './utils';
+import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
+import { getRelayerKeys } from '../../src/agents/key-utils';
+import { KEY_ROLE_ENUM } from '../../src/agents/roles';
+import { readJSONAtPath } from '../../src/utils/utils';
+import { assertEnvironment, getCoreEnvironmentConfig } from '../utils';
 
 const MIN_DELTA = ethers.utils.parseUnits('0.001', 'ether');
 
@@ -68,11 +70,22 @@ async function fundRelayer(
 }
 
 async function main() {
-  const environment = await getEnvironment();
+  let argv = await utils
+    .getArgs()
+    .alias('f', 'addresses-file')
+    .describe(
+      'f',
+      'File continaining a JSON array of identifier and address objects',
+    )
+    .string('f').argv;
+
+  const environment = assertEnvironment(argv.e as string);
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
-  const relayerKeys = getRelayerKeys(config.agent);
+  const relayerKeys = argv.f
+    ? getRelayerKeysFromSerializedAddressFile(argv.f)
+    : getRelayerKeys(config.agent);
 
   const chains = relayerKeys.map((key) => key.chainName!);
 
@@ -99,6 +112,21 @@ async function main() {
     console.groupEnd();
     console.log('\n');
   }
+}
+
+function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
+  console.log(`Reading keys from file ${path}...`);
+  // Should be an array of { identifier: '', address: '' }
+  const idAndAddresses = readJSONAtPath(path);
+
+  return idAndAddresses
+    .map((idAndAddress: any) =>
+      ReadOnlyAgentKey.fromSerializedAddress(
+        idAndAddress.identifier,
+        idAndAddress.address,
+      ),
+    )
+    .filter((key: AgentKey) => key.role === KEY_ROLE_ENUM.Relayer);
 }
 
 main().catch(console.error);
