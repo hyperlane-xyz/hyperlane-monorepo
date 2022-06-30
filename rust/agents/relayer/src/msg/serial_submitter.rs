@@ -179,13 +179,13 @@ impl SerialSubmitter {
         // queue for further processing.
 
         // Promote any newly-ready messages from the wait queue to the run queue.
-        for msg in &self.wait_queue {
+        let wait_messages: Vec<_> = self.wait_queue.drain(..).collect();
+        for msg in wait_messages {
             // TODO(webbhorn): Check if already delivered to inbox, e.g. by another relayer. In
             // that case, drop from wait queue.
             // TODO(webbhorn): Check against interchain gas paymaster.  If now enough payment,
             // promote to run queue.
-            info!(msg.leaf_index, "-> runq");
-            self.run_queue.push(msg.clone());
+            self.run_queue.push(msg);
         }
         self.wait_queue = Vec::new();
 
