@@ -7,5 +7,9 @@ pragma solidity >=0.6.11;
  * messages to destination chains.
  */
 interface IInterchainGasPaymaster {
-    function payGasFor(address _outbox, uint256 _leafIndex) external payable;
+    function payGasFor(
+        address _outbox,
+        uint256 _leafIndex,
+        uint32 _destinationDomain
+    ) external payable;
 }

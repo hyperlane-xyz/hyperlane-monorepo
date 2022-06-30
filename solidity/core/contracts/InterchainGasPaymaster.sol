@@ -40,12 +40,18 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
      * to its destination chain.
      * @param _outbox The address of the Outbox contract.
      * @param _leafIndex The index of the message in the Outbox merkle tree.
+     * @param _destinationDomain The domain of the message's destination chain.
      */
-    function payGasFor(address _outbox, uint256 _leafIndex)
-        external
-        payable
-        override
-    {
+    function payGasFor(
+        address _outbox,
+        uint256 _leafIndex,
+        uint32 _destinationDomain
+    ) external payable override {
+        // Silence compiler warning. The NatSpec @param requires the parameter to be named.
+        // While not used at the moment, future versions of the paymaster may conditionally
+        // forward payments depending on the destination domain.
+        _destinationDomain;
+
         emit GasPayment(_outbox, _leafIndex, msg.value);
     }
 
