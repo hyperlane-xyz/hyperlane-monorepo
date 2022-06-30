@@ -41,7 +41,7 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, Ownable {
         uint256 _leafIndex,
         uint32 _destinationDomain
     ) external payable override {
-        // Silence compiler warning. NatSpec @param requires the parameter to be named.
+        // Silence compiler warning. The NatSpec @param requires the parameter to be named.
         // While not used at the moment, future versions of the paymaster may conditionally
         // forward payments depending on the destination domain.
         _destinationDomain;
