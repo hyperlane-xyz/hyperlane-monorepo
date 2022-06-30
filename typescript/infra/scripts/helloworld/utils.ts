@@ -1,3 +1,4 @@
+import { RouterConfig } from '@abacus-network/deploy';
 import { HelloWorldApp, HelloWorldContracts } from '@abacus-network/helloworld';
 import { helloWorldFactories } from '@abacus-network/helloworld/dist/sdk/contracts';
 import {
@@ -16,9 +17,7 @@ import { HelloWorldConfig } from '../../src/config/helloworld';
 export async function getConfiguration<Chain extends ChainName>(
   environment: DeployEnvironment,
   multiProvider: MultiProvider<Chain>,
-): Promise<
-  ChainMap<Chain, { owner: string; abacusConnectionManager: string }>
-> {
+): Promise<ChainMap<Chain, RouterConfig>> {
   const signerMap = await promiseObjAll(
     multiProvider.map(async (_, dc) => dc.signer!),
   );
