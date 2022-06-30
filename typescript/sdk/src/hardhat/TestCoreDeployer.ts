@@ -96,7 +96,7 @@ export class TestCoreDeployer extends AbacusCoreDeployer<TestChainNames> {
     } as TestInboxContracts;
   }
 
-  async deployCore(): Promise<TestCoreApp> {
+  async deployApp(): Promise<TestCoreApp> {
     return new TestCoreApp(await this.deploy(), this.multiProvider);
   }
 }

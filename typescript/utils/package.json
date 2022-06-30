@@ -22,7 +22,7 @@
   "repository": "https://github.com/abacus-network/abacus-monorepo",
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist",
+    "clean": "rm -rf ./dist",
     "check": "tsc --noEmit",
     "prettier": "prettier --write ./src"
   },

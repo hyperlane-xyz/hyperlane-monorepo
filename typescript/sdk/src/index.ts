@@ -92,12 +92,7 @@ export {
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 
-export {
-  objMap,
-  objMapEntries,
-  promiseObjAll,
-  addSignerToConnection,
-} from './utils';
+export { objMap, objMapEntries, promiseObjAll } from './utils';
 export * as utils from './utils';
 
 export {

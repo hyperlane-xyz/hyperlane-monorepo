@@ -24,7 +24,7 @@ describe('TestCoreDeployer', async () => {
     const [signer] = await ethers.getSigners();
     const multiProvider = hardhatMultiProvider(ethers.provider, signer);
     const deployer = new TestCoreDeployer(multiProvider);
-    abacus = await deployer.deployCore();
+    abacus = await deployer.deployApp();
 
     const recipient = await new TestRecipient__factory(signer).deploy();
     localOutbox = abacus.getContracts(localChain).outbox.contract;
