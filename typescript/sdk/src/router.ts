@@ -1,7 +1,6 @@
 import type { ethers } from 'ethers';
 
 import { Router } from '@abacus-network/app';
-import { types } from '@abacus-network/utils';
 
 import { AbacusContracts, AbacusFactories } from './contracts';
 
@@ -21,8 +20,8 @@ export type RouterFactories<RouterContract extends Router = Router> =
   };
 
 export type ConnectionClientConfig = {
-  abacusConnectionManager: types.Address;
-  interchainGasPaymaster: types.Address;
+  abacusConnectionManager: Address;
+  interchainGasPaymaster: Address;
 };
 
 export { Router } from '@abacus-network/app';

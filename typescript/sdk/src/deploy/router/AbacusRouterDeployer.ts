@@ -30,7 +30,9 @@ export abstract class AbacusRouterDeployer<
     });
   }
 
-  async initConnectionClient(contractsMap: ChainMap<Chain, Contracts>) {
+  async initConnectionClient(
+    contractsMap: ChainMap<Chain, Contracts>,
+  ): Promise<void> {
     this.logger(`Initializing connection clients (if not already)...`);
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) => {
