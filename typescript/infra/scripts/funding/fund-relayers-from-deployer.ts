@@ -70,7 +70,7 @@ async function fundRelayer(
 }
 
 async function main() {
-  let argv = await utils
+  const argv = await utils
     .getArgs()
     .alias('f', 'addresses-file')
     .describe(
