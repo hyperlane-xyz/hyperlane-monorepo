@@ -53,6 +53,14 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
         __Ownable_init();
     }
 
+    function __AbacusConnectionClient_initialize(
+        address _abacusConnectionManager,
+        address _interchainGasPaymaster
+    ) internal onlyInitializing {
+        _setInterchainGasPaymaster(_interchainGasPaymaster);
+        __AbacusConnectionClient_initialize(_abacusConnectionManager);
+    }
+
     // ============ External functions ============
 
     /**
@@ -72,16 +80,27 @@ abstract contract AbacusConnectionClient is OwnableUpgradeable {
      * @param _interchainGasPaymaster The address of the InterchainGasPaymaster contract.
      */
     function setInterchainGasPaymaster(address _interchainGasPaymaster)
-        public
+        external
+        virtual
         onlyOwner
+    {
+        _setInterchainGasPaymaster(_interchainGasPaymaster);
+    }
+
+    // ============ Internal functions ============
+
+    /**
+     * @notice Sets the address of the application's InterchainGasPaymaster.
+     * @param _interchainGasPaymaster The address of the InterchainGasPaymaster contract.
+     */
+    function _setInterchainGasPaymaster(address _interchainGasPaymaster)
+        internal
     {
         interchainGasPaymaster = IInterchainGasPaymaster(
             _interchainGasPaymaster
         );
         emit InterchainGasPaymasterSet(_interchainGasPaymaster);
     }
-
-    // ============ Internal functions ============
 
     /**
      * @notice Modify the contract the Application uses to validate Inbox contracts

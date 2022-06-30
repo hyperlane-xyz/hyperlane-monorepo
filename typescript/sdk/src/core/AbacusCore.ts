@@ -4,6 +4,7 @@ import { AbacusApp } from '../AbacusApp';
 import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
 import { MultiProvider } from '../providers/MultiProvider';
+import { ConnectionClientConfig } from '../router';
 import { ChainMap, ChainName, Remotes } from '../types';
 import { objMap } from '../utils';
 
@@ -46,6 +47,33 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     return super.getContracts(chain) as CoreContracts<Chain, Local>;
   }
 
+  getConnectionClientConfig(chain: Chain): ConnectionClientConfig {
+    const contracts = this.getContracts(chain);
+    return {
+      abacusConnectionManager: contracts.abacusConnectionManager.address,
+      interchainGasPaymaster: contracts.interchainGasPaymaster.address,
+    };
+  }
+
+  getConnectionClientConfigMap(): ChainMap<Chain, ConnectionClientConfig> {
+    return objMap(this.contractsMap, (chain) =>
+      this.getConnectionClientConfig(chain),
+    );
+  }
+
+  extendWithConnectionClientConfig<T>(
+    configMap: ChainMap<Chain, T>,
+  ): ChainMap<Chain, T & ConnectionClientConfig> {
+    const connectionClientConfigMap = this.getConnectionClientConfigMap();
+    return objMap(configMap, (chain, config) => {
+      return {
+        ...config,
+        ...connectionClientConfigMap[chain],
+      };
+    });
+  }
+
+  // TODO: deprecate
   extendWithConnectionManagers<T>(
     config: ChainMap<Chain, T>,
   ): ChainMap<Chain, T & { abacusConnectionManager: string }> {

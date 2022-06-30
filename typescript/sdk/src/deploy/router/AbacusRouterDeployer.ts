@@ -1,4 +1,5 @@
 import { debug } from 'debug';
+import { ethers } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 
@@ -15,11 +16,11 @@ export abstract class AbacusRouterDeployer<
   Chain extends ChainName,
   Contracts extends RouterContracts,
   Factories extends RouterFactories,
-  Config,
-> extends AbacusDeployer<Chain, Config & RouterConfig, Factories, Contracts> {
+  Config extends RouterConfig,
+> extends AbacusDeployer<Chain, Config, Factories, Contracts> {
   constructor(
     multiProvider: MultiProvider<Chain>,
-    configMap: ChainMap<Chain, Config & RouterConfig>,
+    configMap: ChainMap<Chain, Config>,
     factories: Factories,
     options?: DeployerOptions,
   ) {
@@ -29,23 +30,38 @@ export abstract class AbacusRouterDeployer<
     });
   }
 
-  // for use in implementations of deployContracts
-  async deployRouter(
-    chain: Chain,
-    deployParams: Parameters<Factories['router']['deploy']>,
-    initParams: Parameters<Contracts['router']['initialize']>,
-  ): Promise<Contracts['router']> {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const router = await this.deployContract(chain, 'router', deployParams);
-    this.logger(`Initializing ${chain}'s router with ${initParams}`);
-    const response = await router.initialize(
-      // @ts-ignore spread operator
-      ...initParams,
-      chainConnection.overrides,
+  async initConnectionClient(contractsMap: ChainMap<Chain, Contracts>) {
+    this.logger(`Initializing connection clients (if not already)...`);
+    await promiseObjAll(
+      objMap(contractsMap, async (local, contracts) => {
+        const chainConnection = this.multiProvider.getChainConnection(local);
+        // set abacus connection manager if not already set
+        if (
+          (await contracts.router.abacusConnectionManager()) ===
+          ethers.constants.AddressZero
+        ) {
+          this.logger(`Set abacus connection manager on ${local}`);
+          await chainConnection.handleTx(
+            contracts.router.setAbacusConnectionManager(
+              this.configMap[local].abacusConnectionManager,
+            ),
+          );
+        }
+        // set interchain gas paymaster if not already set (and configured)
+        const interchainGasPaymaster =
+          this.configMap[local].interchainGasPaymaster;
+        if (
+          interchainGasPaymaster &&
+          (await contracts.router.interchainGasPaymaster()) ===
+            ethers.constants.AddressZero
+        ) {
+          this.logger(`Set interchain gas paymaster on ${local}`);
+          await chainConnection.handleTx(
+            contracts.router.setInterchainGasPaymaster(interchainGasPaymaster),
+          );
+        }
+      }),
     );
-    this.logger(`Pending init ${chainConnection.getTxUrl(response)}`);
-    await response.wait(chainConnection.confirmations);
-    return router;
   }
 
   async enrollRemoteRouters(
@@ -58,13 +74,13 @@ export abstract class AbacusRouterDeployer<
         const chainConnection = this.multiProvider.getChainConnection(local);
         for (const remote of this.multiProvider.remoteChains(local)) {
           this.logger(`Enroll ${remote}'s router on ${local}`);
-          const response = await contracts.router.enrollRemoteRouter(
-            chainMetadata[remote].id,
-            utils.addressToBytes32(contractsMap[remote].router.address),
-            chainConnection.overrides,
+          await chainConnection.handleTx(
+            contracts.router.enrollRemoteRouter(
+              chainMetadata[remote].id,
+              utils.addressToBytes32(contractsMap[remote].router.address),
+              chainConnection.overrides,
+            ),
           );
-          this.logger(`Pending enroll ${chainConnection.getTxUrl(response)}`);
-          await response.wait(chainConnection.confirmations);
         }
       }),
     );
@@ -73,19 +89,15 @@ export abstract class AbacusRouterDeployer<
   async transferOwnership(
     contractsMap: ChainMap<Chain, Contracts>,
   ): Promise<void> {
-    // TODO: check for initialization before transferring ownership
     this.logger(`Transferring ownership of routers...`);
     await promiseObjAll(
       objMap(contractsMap, async (chain, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(chain);
         const owner = this.configMap[chain].owner;
         this.logger(`Transfer ownership of ${chain}'s router to ${owner}`);
-        const response = await contracts.router.transferOwnership(
-          owner,
-          chainConnection.overrides,
+        await chainConnection.handleTx(
+          contracts.router.transferOwnership(owner, chainConnection.overrides),
         );
-        this.logger(`Pending transfer ${chainConnection.getTxUrl(response)}`);
-        await response.wait(chainConnection.confirmations);
       }),
     );
   }
@@ -96,6 +108,7 @@ export abstract class AbacusRouterDeployer<
     const contractsMap = await super.deploy(partialDeployment);
 
     await this.enrollRemoteRouters(contractsMap);
+    await this.initConnectionClient(contractsMap);
     await this.transferOwnership(contractsMap);
 
     return contractsMap;

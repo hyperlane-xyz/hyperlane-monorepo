@@ -3,10 +3,7 @@ import '@nomiclabs/hardhat-waffle';
 import { task } from 'hardhat/config';
 import { HardhatRuntimeEnvironment } from 'hardhat/types';
 
-import {
-  InterchainGasPaymaster__factory,
-  TestSendReceiver__factory,
-} from '@abacus-network/core';
+import { TestSendReceiver__factory } from '@abacus-network/core';
 import {
   AbacusCore,
   ChainName,
@@ -70,11 +67,6 @@ task('kathy', 'Dispatches random abacus messages').setAction(
     const recipient = await recipientF.deploy();
     await recipient.deployTransaction.wait();
 
-    // Deploy an interchain gas paymaster
-    const paymasterF = new InterchainGasPaymaster__factory(signer);
-    const paymaster = await paymasterF.deploy();
-    await paymaster.deployTransaction.wait();
-
     // Generate artificial traffic
     while (true) {
       const local = core.chains()[0];
@@ -82,6 +74,7 @@ task('kathy', 'Dispatches random abacus messages').setAction(
       const remoteId = ChainNameToDomainId[remote];
       const coreContracts = core.getContracts(local);
       const outbox = coreContracts.outbox.contract;
+      const paymaster = coreContracts.interchainGasPaymaster;
       // Send a batch of messages to the destination chain to test
       // the relayer submitting only greedily
       for (let i = 0; i < 10; i++) {
