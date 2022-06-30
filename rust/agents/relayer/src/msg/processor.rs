@@ -185,7 +185,12 @@ impl MessageProcessor {
             );
             // Finally, build the submit arg and dispatch it to the submitter.
             let submit_args = SubmitMessageArgs::new(
-                self.message_leaf_index, message, checkpoint, proof, Instant::now());
+                self.message_leaf_index,
+                message,
+                checkpoint,
+                proof,
+                Instant::now(),
+            );
             self.tx_msg.send(submit_args)?;
             self.message_leaf_index += 1;
         } else {
