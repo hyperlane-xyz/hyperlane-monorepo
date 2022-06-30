@@ -79,6 +79,11 @@
         "internalType": "uint256",
         "name": "_leafIndex",
         "type": "uint256"
+      },
+      {
+        "internalType": "uint32",
+        "name": "_destinationDomain",
+        "type": "uint32"
       }
     ],
     "name": "payGasFor",
