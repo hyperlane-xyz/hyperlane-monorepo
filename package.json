@@ -23,7 +23,7 @@
     "lint-ts": "eslint . --ext .ts",
     "test": "yarn workspaces foreach --verbose --parallel run test",
     "version:check": "yarn version check --interactive",
-    "version:prepare": "yarn workspaces foreach --verbose --topological version --immediate VERSION_HERE"
+    "version:prepare": "yarn workspaces foreach --no-private --verbose --topological version --immediate"
   },
   "workspaces": [
     "solidity/*",
