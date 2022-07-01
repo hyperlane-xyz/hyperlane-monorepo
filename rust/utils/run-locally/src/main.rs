@@ -42,25 +42,25 @@ impl Drop for State {
     fn drop(&mut self) {
         println!("Signaling children to stop...");
         if let Some(mut c) = self.kathy.take() {
-            send_sigterm(&mut c);
+            stop_child(&mut c);
             if !c.wait().unwrap().success() {
                 eprintln!("Kathy exited with error code")
             };
         }
         if let Some(mut c) = self.relayer.take() {
-            send_sigterm(&mut c);
+            stop_child(&mut c);
             if !c.wait().unwrap().success() {
                 eprintln!("Relayer exited with error code")
             };
         }
         if let Some(mut c) = self.validator.take() {
-            send_sigterm(&mut c);
+            stop_child(&mut c);
             if !c.wait().unwrap().success() {
                 eprintln!("Validator exited with error code")
             };
         }
         if let Some(mut c) = self.node.take() {
-            send_sigterm(&mut c);
+            stop_child(&mut c);
             if !c.wait().unwrap().success() {
                 eprintln!("Node exited with error code")
             };
@@ -426,7 +426,11 @@ fn inspect_and_write_to_file(
     }
 }
 
-fn send_sigterm(child: &mut Child) {
+fn stop_child(child: &mut Child) {
+    if child.try_wait().unwrap().is_some() {
+        // already stopped
+        return;
+    }
     let pid = Pid::from_raw(child.id() as pid_t);
     if signal::kill(pid, Signal::SIGTERM).is_err() {
         eprintln!("Failed to send sigterm, killing");
