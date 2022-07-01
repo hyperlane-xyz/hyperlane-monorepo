@@ -1,8 +1,6 @@
 import { ethers } from 'ethers';
 
 import { Inbox, Outbox } from '@abacus-network/core';
-import { TypedListener } from '@abacus-network/core/dist/common';
-import { ProcessEvent } from '@abacus-network/core/dist/contracts/Inbox';
 import { DomainIdToChainName } from '@abacus-network/sdk/src';
 import { ParsedMessage } from '@abacus-network/utils/dist/src/types';
 import {
@@ -28,6 +26,12 @@ export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
 
 export type CoreContractsMap<Chain extends ChainName> = {
   [local in Chain]: CoreContracts<Chain, local>;
+};
+
+type DispatchedMessage = {
+  leafIndex: number;
+  message: string;
+  parsed: ParsedMessage;
 };
 
 export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
@@ -104,7 +108,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     return { originOutbox, destinationInbox };
   }
 
-  getDispatchedMessages(sourceTx: ethers.ContractReceipt) {
+  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
     const arbitraryChain = Object.keys(this.contractsMap)[0];
     const outbox = this.getContracts(arbitraryChain as Chain).outbox.contract
       .interface;
@@ -123,29 +127,37 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     });
   }
 
-  registerMessageProcessedHandler(
-    sourceTx: ethers.ContractReceipt,
-    handler: (message: ParsedMessage) => void,
-  ) {
-    const messages = this.getDispatchedMessages(sourceTx);
-    messages.forEach(({ leafIndex, message, parsed }) => {
-      const [sourceChain, destinationChain] = [
-        parsed.origin,
-        parsed.destination,
-      ].map((id) => DomainIdToChainName[id] as Chain);
-      const { destinationInbox } = this.getMailboxPair(
-        sourceChain as Exclude<Chain, typeof destinationChain>,
-        destinationChain,
-      );
-      const hash = messageHash(message, leafIndex);
-      const filter = destinationInbox.filters.Process(hash);
-      const processHandler: TypedListener<ProcessEvent> = (emittedHash) => {
+  protected waitForProcessReceipt(message: DispatchedMessage) {
+    const hash = messageHash(message.message, message.leafIndex);
+    const { inbox, chainConnection } = this.getDestination(message);
+    const filter = inbox.filters.Process(hash);
+
+    return new Promise<ethers.ContractReceipt>((resolve, reject) => {
+      inbox.once(filter, (emittedHash, event) => {
         if (hash !== emittedHash) {
-          throw new Error(`Expected hash ${hash} but got ${emittedHash}`);
+          reject(`Expected message hash ${hash} but got ${emittedHash}`);
         }
-        handler(parsed);
-      };
-      destinationInbox.once(filter, processHandler);
+        resolve(chainConnection.handleTx(event.getTransaction()));
+      });
     });
+  }
+
+  protected getDestination(message: DispatchedMessage) {
+    const sourceChain = DomainIdToChainName[message.parsed.origin] as Chain;
+    const destinationChain = DomainIdToChainName[
+      message.parsed.destination
+    ] as Chain;
+    const { destinationInbox } = this.getMailboxPair(
+      sourceChain as Exclude<Chain, typeof destinationChain>,
+      destinationChain,
+    );
+    const chainConnection =
+      this.multiProvider.getChainConnection(destinationChain);
+    return { inbox: destinationInbox, chainConnection };
+  }
+
+  waitForMessageProcessing(sourceTx: ethers.ContractReceipt) {
+    const messages = this.getDispatchedMessages(sourceTx);
+    return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
 }
