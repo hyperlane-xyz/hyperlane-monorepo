@@ -9,6 +9,7 @@ import {
 import { environments } from '../../config/environments';
 
 import { AgentConfig } from './agent';
+import { RelayerFunderConfig } from './funding';
 import { HelloWorldConfig } from './helloworld';
 import { InfrastructureConfig } from './infrastructure';
 
@@ -27,4 +28,5 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   infra: InfrastructureConfig;
   getMultiProvider: () => Promise<MultiProvider<Chain>>;
   helloWorld?: HelloWorldConfig<Chain>;
+  relayerFunderConfig?: RelayerFunderConfig;
 };

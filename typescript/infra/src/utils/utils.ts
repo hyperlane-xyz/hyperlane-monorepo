@@ -5,6 +5,10 @@ import { ethers } from 'ethers';
 import fs from 'fs';
 import path from 'path';
 
+import { AllChains, ChainName } from '@abacus-network/sdk';
+
+import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
+
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
@@ -163,7 +167,30 @@ export function writeJSON(directory: string, filename: string, obj: any) {
 
 export function readJSON(directory: string, filename: string) {
   if (!fs.existsSync(directory)) {
+    throw Error("directory doesn't exist");
+  }
+  return readJSONAtPath(path.join(directory, filename));
+}
+
+export function readJSONAtPath(filepath: string) {
+  if (!fs.existsSync(filepath)) {
     throw Error("file doesn't exist");
   }
-  return JSON.parse(fs.readFileSync(path.join(directory, filename), 'utf8'));
+  return JSON.parse(fs.readFileSync(filepath, 'utf8'));
+}
+
+export function assertRole(roleStr: string) {
+  const role = roleStr as KEY_ROLE_ENUM;
+  if (!KEY_ROLES.includes(role)) {
+    throw Error(`Invalid role ${role}`);
+  }
+  return role;
+}
+
+export function assertChain(chainStr: string) {
+  const chain = chainStr as ChainName;
+  if (!AllChains.includes(chain)) {
+    throw Error(`Invalid chain ${chain}`);
+  }
+  return chain;
 }

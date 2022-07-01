@@ -27,12 +27,12 @@ export interface RpcPagination {
  */
 export const celo: ChainMetadata = {
   id: 0x63656c6f, // b'celo' interpreted as an int
-  finalityBlocks: 0,
+  finalityBlocks: 1,
 };
 
 export const ethereum: ChainMetadata = {
   id: 0x657468, // b'eth' interpreted as an int
-  finalityBlocks: 7,
+  finalityBlocks: 20,
 };
 
 export const arbitrum: ChainMetadata = {
@@ -47,12 +47,12 @@ export const optimism: ChainMetadata = {
 
 export const bsc: ChainMetadata = {
   id: 0x627363, // b'bsc' interpreted as an int
-  finalityBlocks: 7,
+  finalityBlocks: 15,
 };
 
 export const avalanche: ChainMetadata = {
   id: 0x61766178, // b'avax' interpreted as an int
-  finalityBlocks: 0,
+  finalityBlocks: 1,
   paginate: {
     // Needs to be low to avoid RPC timeouts
     blocks: 100000,
@@ -62,7 +62,7 @@ export const avalanche: ChainMetadata = {
 
 export const polygon: ChainMetadata = {
   id: 0x706f6c79, // b'poly' interpreted as an int
-  finalityBlocks: 500,
+  finalityBlocks: 256,
   paginate: {
     // Needs to be low to avoid RPC timeouts
     blocks: 10000,
@@ -75,12 +75,12 @@ export const polygon: ChainMetadata = {
  */
 export const alfajores: ChainMetadata = {
   id: 1000,
-  finalityBlocks: 0,
+  finalityBlocks: 1,
 };
 
 export const fuji: ChainMetadata = {
   id: 43113,
-  finalityBlocks: 0,
+  finalityBlocks: 1,
 };
 
 export const goerli: ChainMetadata = {
