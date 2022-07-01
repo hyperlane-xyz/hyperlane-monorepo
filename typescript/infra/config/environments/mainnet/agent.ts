@@ -23,25 +23,25 @@ export const agent: AgentConfig<MainnetChains> = {
     },
     chainOverrides: {
       celo: {
-        reorgPeriod: 0,
+        reorgPeriod: 1,
       },
       ethereum: {
-        reorgPeriod: 7,
+        reorgPeriod: 20,
       },
       bsc: {
-        reorgPeriod: 7,
+        reorgPeriod: 15,
       },
       optimism: {
-        reorgPeriod: 1,
+        reorgPeriod: 20,
       },
       arbitrum: {
         reorgPeriod: 1,
       },
       avalanche: {
-        reorgPeriod: 0,
+        reorgPeriod: 1,
       },
       polygon: {
-        reorgPeriod: 500,
+        reorgPeriod: 256,
       },
     },
   },

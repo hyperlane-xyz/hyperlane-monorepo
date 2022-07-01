@@ -41,7 +41,12 @@ export {
 } from './gas';
 export { ChainConnection, IChainConnection, MultiProvider } from './provider';
 export { BeaconProxyAddresses, ProxiedContract, ProxyAddresses } from './proxy';
-export { Router, RouterContracts, RouterFactories } from './router';
+export {
+  ConnectionClientConfig,
+  Router,
+  RouterContracts,
+  RouterFactories,
+} from './router';
 export {
   AllChains,
   ChainMap,

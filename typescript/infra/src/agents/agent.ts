@@ -1,5 +1,7 @@
 import { ChainName } from '@abacus-network/sdk';
 
+import { assertChain, assertRole } from '../utils/utils';
+
 import { KEY_ROLE_ENUM } from './roles';
 
 export abstract class AgentKey {
@@ -25,6 +27,103 @@ export abstract class AgentKey {
       identifier: this.identifier,
       address: this.address,
     };
+  }
+}
+
+export class ReadOnlyAgentKey extends AgentKey {
+  private _identifier: string;
+  private _address: string;
+
+  constructor(
+    public environment: string,
+    public readonly role: KEY_ROLE_ENUM,
+    identifier: string,
+    address: string,
+    public readonly chainName?: ChainName,
+    public readonly index?: number,
+  ) {
+    super(environment, role, chainName, index);
+
+    this._identifier = identifier;
+    this._address = address;
+  }
+
+  /**
+   * Parses the identifier, deriving the environment, role, chain (if any), and index (if any)
+   * and constructs a ReadOnlyAgentKey.
+   * @param identifier The "identifier" of the key. This can come in a few different
+   * flavors, e.g.:
+   * alias/abacus-testnet2-key-kathy (<-- not specific to any chain)
+   * alias/abacus-testnet2-key-optimismkovan-relayer (<-- chain specific)
+   * alias/abacus-testnet2-key-alfajores-validator-0 (<-- chain specific and has an index)
+   * abacus-dev-key-kathy (<-- same idea as above, but without the `alias/` prefix if it's not AWS-based)
+   * @param address The address of the key.
+   * @returns A ReadOnlyAgentKey for the provided identifier and address.
+   */
+  static fromSerializedAddress(
+    identifier: string,
+    address: string,
+  ): ReadOnlyAgentKey {
+    const regex =
+      /.*abacus-([a-zA-Z0-9]+)-key-([a-zA-Z0-9]+)-?([a-zA-Z0-9]+)?-?([0-9]+)?/g;
+    const matches = regex.exec(identifier);
+    if (!matches) {
+      throw Error('Invalid identifier');
+    }
+    const environment = matches[1];
+
+    // If matches[3] is undefined, this key doesn't have a chainName, and matches[2]
+    // is the role name.
+    if (matches[3] === undefined) {
+      return new ReadOnlyAgentKey(
+        environment,
+        assertRole(matches[2]),
+        identifier,
+        address,
+      );
+    } else if (matches[4] === undefined) {
+      // If matches[4] is undefined, this key doesn't have an index.
+      return new ReadOnlyAgentKey(
+        environment,
+        assertRole(matches[3]),
+        identifier,
+        address,
+        assertChain(matches[2]),
+      );
+    } else {
+      return new ReadOnlyAgentKey(
+        environment,
+        assertRole(matches[3]),
+        identifier,
+        address,
+        assertChain(matches[2]),
+        parseInt(matches[4]),
+      );
+    }
+  }
+
+  get identifier(): string {
+    return this._identifier;
+  }
+
+  get address(): string {
+    return this._address;
+  }
+
+  async fetch(): Promise<void> {
+    // No-op
+  }
+
+  async createIfNotExists(): Promise<void> {
+    throw Error('Not supported');
+  }
+
+  async delete(): Promise<void> {
+    throw Error('Not supported');
+  }
+
+  async update(): Promise<string> {
+    throw Error('Not supported');
   }
 }
 

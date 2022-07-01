@@ -8,6 +8,7 @@ import {
   mainnetConfigs,
 } from './chains';
 import { core } from './core';
+import { relayerFunderConfig } from './funding';
 import { helloWorld } from './helloworld';
 import { infrastructure } from './infrastructure';
 
@@ -20,4 +21,5 @@ export const environment: CoreEnvironmentConfig<MainnetChains> = {
   core,
   infra: infrastructure,
   helloWorld,
+  relayerFunderConfig,
 };

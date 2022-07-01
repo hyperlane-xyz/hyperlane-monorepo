@@ -71,19 +71,6 @@
     "anonymous": false,
     "inputs": [
       {
-        "indexed": false,
-        "internalType": "address",
-        "name": "validatorManager",
-        "type": "address"
-      }
-    ],
-    "name": "NewValidatorManager",
-    "type": "event"
-  },
-  {
-    "anonymous": false,
-    "inputs": [
-      {
         "indexed": true,
         "internalType": "address",
         "name": "previousOwner",
@@ -97,6 +84,19 @@
       }
     ],
     "name": "OwnershipTransferred",
+    "type": "event"
+  },
+  {
+    "anonymous": false,
+    "inputs": [
+      {
+        "indexed": false,
+        "internalType": "address",
+        "name": "validatorManager",
+        "type": "address"
+      }
+    ],
+    "name": "ValidatorManagerSet",
     "type": "event"
   },
   {
