@@ -84,6 +84,8 @@ We use the tokio async runtime environment. Please see the docs
 
 ### Running Locally
 
+From within the `abacus-monorepo/rust` directory, run
+
 ```bash
-./rust/run-locally.sh
+cargo -r -p run-locally
 ```
