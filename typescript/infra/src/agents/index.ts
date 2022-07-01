@@ -49,12 +49,6 @@ async function helmValuesForChain<Chain extends ChainName>(
         signers: await chainAgentConfig.relayerSigners(),
         config: chainAgentConfig.relayerConfig,
       },
-      checkpointer: {
-        enabled: chainAgentConfig.checkpointerEnabled,
-        aws: chainAgentConfig.checkpointerRequiresAwsCredentials,
-        signers: await chainAgentConfig.checkpointerSigners(),
-        config: chainAgentConfig.checkpointerConfig,
-      },
       kathy: {
         enabled: chainAgentConfig.kathyEnabled,
         aws: chainAgentConfig.kathyRequiresAwsCredentials,
@@ -115,8 +109,8 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       index,
     );
 
-    // Only checkpointer and relayer need to sign txs
-    if (role === KEY_ROLE_ENUM.Checkpointer || role === KEY_ROLE_ENUM.Relayer) {
+    // Only the relayer needs to sign txs
+    if (role === KEY_ROLE_ENUM.Relayer) {
       chainNames.forEach((name) => {
         envVars.push(
           `ABC_BASE_SIGNERS_${name.toUpperCase()}_KEY=${strip0x(
@@ -168,12 +162,8 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     envVars.push(`AWS_ACCESS_KEY_ID=${accessKeys.accessKeyId}`);
     envVars.push(`AWS_SECRET_ACCESS_KEY=${accessKeys.secretAccessKey}`);
 
-    // Only checkpointer and relayer need to sign txs
-    if (
-      role === KEY_ROLE_ENUM.Checkpointer ||
-      role === KEY_ROLE_ENUM.Relayer ||
-      role === KEY_ROLE_ENUM.Kathy
-    ) {
+    // Only the relayer needs to sign txs
+    if (role === KEY_ROLE_ENUM.Relayer || role === KEY_ROLE_ENUM.Kathy) {
       chainNames.forEach((chainName) => {
         const key = new AgentAwsKey(agentConfig, role, outboxChainName);
         envVars = envVars.concat(
@@ -200,16 +190,6 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       envVars = envVars.concat(
         configEnvVars(valueDict.abacus.relayer.config, KEY_ROLE_ENUM.Relayer),
       );
-      break;
-    case KEY_ROLE_ENUM.Checkpointer:
-      if (valueDict.abacus.checkpointer.config) {
-        envVars = envVars.concat(
-          configEnvVars(
-            valueDict.abacus.checkpointer.config,
-            KEY_ROLE_ENUM.Checkpointer,
-          ),
-        );
-      }
       break;
     case KEY_ROLE_ENUM.Kathy:
       if (valueDict.abacus.kathy.config) {

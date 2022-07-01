@@ -117,8 +117,6 @@ abacus:
         threshold:
         checkpointSyncers:
 
-  checkpointer:
-    enabled: false
     podAnnotations:
       prometheus.io/port: "9090"
       prometheus.io/scrape: "true"
