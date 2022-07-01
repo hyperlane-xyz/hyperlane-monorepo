@@ -2381,7 +2381,6 @@ dependencies = [
  "bitflags",
  "cfg-if",
  "libc",
- "memoffset",
 ]
 
 [[package]]
@@ -3384,6 +3383,7 @@ dependencies = [
  "ctrlc",
  "maplit",
  "nix",
+ "reqwest",
  "tempfile",
 ]
 
