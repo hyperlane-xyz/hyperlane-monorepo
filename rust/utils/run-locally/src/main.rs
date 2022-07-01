@@ -358,7 +358,7 @@ fn main() -> ExitCode {
 }
 
 fn retry_queues_empty() -> bool {
-    ureq::get("http://127.0.0.1:9092")
+    ureq::get("http://127.0.0.1:9092/metrics")
         .call()
         .unwrap()
         .into_string()
@@ -366,6 +366,7 @@ fn retry_queues_empty() -> bool {
         .lines()
         .filter(|l| l.starts_with("abacus_processor_retry_queue"))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .inspect(|v| println!("Queue length: {v}"))
         .all(|n| n == 0)
 }
 
