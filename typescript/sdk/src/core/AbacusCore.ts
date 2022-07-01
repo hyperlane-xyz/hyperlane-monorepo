@@ -4,6 +4,7 @@ import { Inbox, Outbox } from '@abacus-network/core';
 import { TypedListener } from '@abacus-network/core/dist/common';
 import { ProcessEvent } from '@abacus-network/core/dist/contracts/Inbox';
 import { DomainIdToChainName } from '@abacus-network/sdk/src';
+import { ParsedMessage } from '@abacus-network/utils/dist/src/types';
 import {
   messageHash,
   parseMessage,
@@ -122,23 +123,29 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     });
   }
 
-  registerProcessHandler(
+  registerMessageProcessedHandler(
     sourceTx: ethers.ContractReceipt,
-    handler: TypedListener<ProcessEvent>,
+    handler: (message: ParsedMessage) => void,
   ) {
     const messages = this.getDispatchedMessages(sourceTx);
     messages.forEach(({ leafIndex, message, parsed }) => {
       const [sourceChain, destinationChain] = [
         parsed.origin,
         parsed.destination,
-      ].map((id) => DomainIdToChainName[id.toString()] as Chain);
+      ].map((id) => DomainIdToChainName[id] as Chain);
       const { destinationInbox } = this.getMailboxPair(
         sourceChain as Exclude<Chain, typeof destinationChain>,
         destinationChain,
       );
       const hash = messageHash(message, leafIndex);
       const filter = destinationInbox.filters.Process(hash);
-      destinationInbox.once(filter, handler);
+      const processHandler: TypedListener<ProcessEvent> = (emittedHash) => {
+        if (hash !== emittedHash) {
+          throw new Error(`Expected hash ${hash} but got ${emittedHash}`);
+        }
+        handler(parsed);
+      };
+      destinationInbox.once(filter, processHandler);
     });
   }
 }
