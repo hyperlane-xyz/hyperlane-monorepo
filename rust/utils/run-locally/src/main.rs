@@ -358,9 +358,10 @@ fn main() -> ExitCode {
 }
 
 fn retry_queus_empty() -> bool {
-    reqwest::blocking::get("http://127.0.0.1:9092")
+    ureq::get("http://127.0.0.1:9092")
+        .call()
         .unwrap()
-        .text()
+        .into_string()
         .unwrap()
         .lines()
         .filter(|l| l.starts_with("abacus_processor_retry_queue"))

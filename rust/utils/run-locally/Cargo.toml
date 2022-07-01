@@ -8,4 +8,4 @@ ctrlc = "3.2"
 tempfile = "3.3"
 maplit = "1.0"
 nix = { version = "0.24", default-features = false, features = ["signal"] }
-reqwest = { version = "0.11", default-features = false, features = ["blocking"] }
+ureq = { version = "2.4", default-features = false }
