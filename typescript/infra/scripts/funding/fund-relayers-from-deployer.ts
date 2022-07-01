@@ -58,7 +58,7 @@ async function fundRelayer(
     .mul(MIN_DELTA_NUMERATOR)
     .div(MIN_DELTA_DENOMINATOR);
 
-  let relayerInfo = {
+  const relayerInfo = {
     address: relayer.address,
     chain: relayer.chainName,
   };
