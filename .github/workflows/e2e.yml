@@ -26,7 +26,8 @@ jobs:
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-      - run: cargo run --release --quiet --package run-locally
+      - run: cargo build --release --project run-locally
+      - run: ./target/release/run-locally
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '300'
