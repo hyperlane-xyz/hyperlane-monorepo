@@ -91,7 +91,7 @@ task('kathy', 'Dispatches random abacus messages')
         // Send a batch of messages to the destination chain to test
         // the relayer submitting only greedily
         for (let i = 0; i < 10; i++) {
-          await recipient.dispatchToSelf(
+          const dispatchResponse = await recipient.dispatchToSelf(
             outbox.address,
             paymaster.address,
             remoteId,
@@ -108,6 +108,11 @@ task('kathy', 'Dispatches random abacus messages')
             `send to ${recipient.address} on ${remote} via outbox ${
               outbox.address
             } at index ${(await outbox.count()).toNumber() - 1}`,
+          );
+          const chainConnection = multiProvider.getChainConnection(local);
+          const dispatchReceipt = await chainConnection.handleTx(dispatchResponse);
+          await core.waitForMessageProcessing(
+            dispatchReceipt,
           );
           console.log(await chainSummary(core, local));
           await sleep(timeout);
