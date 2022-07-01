@@ -108,23 +108,18 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     return { originOutbox, destinationInbox };
   }
 
-  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
-    const arbitraryChain = Object.keys(this.contractsMap)[0];
-    const outbox = this.getContracts(arbitraryChain as Chain).outbox.contract
-      .interface;
-    const describedLogs = sourceTx.logs.map((log) => outbox.parseLog(log));
-    const dispatchLogs = describedLogs.filter(
-      (log) =>
-        log && log.eventFragment === outbox.events['Dispatch(uint256,bytes)'],
+  protected getDestination(message: DispatchedMessage) {
+    const sourceChain = DomainIdToChainName[message.parsed.origin] as Chain;
+    const destinationChain = DomainIdToChainName[
+      message.parsed.destination
+    ] as Chain;
+    const { destinationInbox } = this.getMailboxPair(
+      sourceChain as Exclude<Chain, typeof destinationChain>,
+      destinationChain,
     );
-    if (dispatchLogs.length === 0) {
-      throw new Error('Dispatch logs not found');
-    }
-    return dispatchLogs.map((log) => {
-      const message = log.args['message'];
-      const parsed = parseMessage(message);
-      return { leafIndex: log.args['leafIndex'], message, parsed };
-    });
+    const chainConnection =
+      this.multiProvider.getChainConnection(destinationChain);
+    return { inbox: destinationInbox, chainConnection };
   }
 
   protected waitForProcessReceipt(message: DispatchedMessage) {
@@ -142,18 +137,23 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     });
   }
 
-  protected getDestination(message: DispatchedMessage) {
-    const sourceChain = DomainIdToChainName[message.parsed.origin] as Chain;
-    const destinationChain = DomainIdToChainName[
-      message.parsed.destination
-    ] as Chain;
-    const { destinationInbox } = this.getMailboxPair(
-      sourceChain as Exclude<Chain, typeof destinationChain>,
-      destinationChain,
+  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
+    const arbitraryChain = Object.keys(this.contractsMap)[0];
+    const outbox = this.getContracts(arbitraryChain as Chain).outbox.contract
+      .interface;
+    const describedLogs = sourceTx.logs.map((log) => outbox.parseLog(log));
+    const dispatchLogs = describedLogs.filter(
+      (log) =>
+        log && log.eventFragment === outbox.events['Dispatch(uint256,bytes)'],
     );
-    const chainConnection =
-      this.multiProvider.getChainConnection(destinationChain);
-    return { inbox: destinationInbox, chainConnection };
+    if (dispatchLogs.length === 0) {
+      throw new Error('Dispatch logs not found');
+    }
+    return dispatchLogs.map((log) => {
+      const message = log.args['message'];
+      const parsed = parseMessage(message);
+      return { leafIndex: log.args['leafIndex'], message, parsed };
+    });
   }
 
   waitForMessageProcessing(sourceTx: ethers.ContractReceipt) {
