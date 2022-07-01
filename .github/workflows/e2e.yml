@@ -26,7 +26,7 @@ jobs:
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-      - run: cargo build --release --project run-locally
+      - run: cargo build --release --bin run-locally
       - run: ./target/release/run-locally
         env:
           E2E_CI_MODE: 'true'
