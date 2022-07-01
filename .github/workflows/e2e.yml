@@ -23,7 +23,7 @@ jobs:
         with:
           toolchain: stable
           profile: minimal
-      - uses: Swatime/rust-cache@v1
+      - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
       - run: cargo run --release --quiet --package run-locally
