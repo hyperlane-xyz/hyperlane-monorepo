@@ -1,18 +1,19 @@
 //! Run this from the abacus-monorepo/rust directory using `cargo run -r -p run-locally`.
 
+use std::fs::File;
+use std::io::{BufRead, BufReader, BufWriter, Read, Write};
+use std::path::{Path, PathBuf};
+use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::thread::{sleep, spawn};
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+use std::{env, fs};
+
 use maplit::hashmap;
 use nix::libc::pid_t;
 use nix::sys::signal;
 use nix::sys::signal::Signal;
 use nix::unistd::Pid;
-use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Lines, Read, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::{sleep, spawn, JoinHandle};
-use std::time::{Duration, SystemTime, UNIX_EPOCH};
-use std::{env, fs, thread};
 use tempfile::tempdir;
 
 static RUNNING: AtomicBool = AtomicBool::new(true);
@@ -110,14 +111,18 @@ fn main() {
     println!("Building validator...");
     build_cmd(&["cargo", "build", "--bin", "validator"], &build_log, None);
 
+    let mut watchers = Vec::new();
+    let mut children = Vec::new();
+
     println!("Launching hardhat...");
-    let mut node = Command::new("yarn")
+    let node = Command::new("yarn")
         .args(&["hardhat", "node"])
         .current_dir("../typescript/infra")
         .stdout(append_to(&hardhat_log))
         .spawn()
         .expect("Failed to start node");
-    sleep(Duration::from_secs(1));
+    children.push(node);
+    sleep(Duration::from_secs(5));
 
     println!("Deploying abacus contracts...");
     let status = Command::new("yarn")
@@ -129,19 +134,41 @@ fn main() {
         .success();
     assert!(status, "Failed to deploy contracts");
 
-    // println!("Spawning relayer...");
-    // let relayer = Command::new("target/debug/relayer")
-    //     .stdout(append_to(&relayer_stdout_log))
-    //     .stderr(append_to(&relayer_stderr_log))
-    //     .spawn()
-    //     .expect("Failed to start relayer");
-    //
-    // println!("Spawning validator...");
-    // let relayer = Command::new("target/debug/validator")
-    //     .stdout(append_to(&validator_stdout_log))
-    //     .stderr(append_to(&validator_stderr_log))
-    //     .spawn()
-    //     .expect("Failed to start validator");
+    println!("Spawning relayer...");
+    let mut relayer = Command::new("target/debug/relayer")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .envs(&common_env)
+        .envs(&relayer_env)
+        .spawn()
+        .expect("Failed to start relayer");
+    let relayer_stdout = relayer.stdout.take().unwrap();
+    watchers.push(spawn(move || {
+        inspect_and_write_to_file(relayer_stdout, relayer_stdout_log, Some("ERROR"))
+    }));
+    let relayer_stderr = relayer.stderr.take().unwrap();
+    watchers.push(spawn(move || {
+        inspect_and_write_to_file(relayer_stderr, relayer_stderr_log, None)
+    }));
+    children.push(relayer);
+
+    println!("Spawning validator...");
+    let mut validator = Command::new("target/debug/validator")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .envs(&common_env)
+        .envs(&validator_env)
+        .spawn()
+        .expect("Failed to start validator");
+    let validator_stdout = validator.stdout.take().unwrap();
+    watchers.push(spawn(move || {
+        inspect_and_write_to_file(validator_stdout, validator_stdout_log, Some("ERROR"))
+    }));
+    let validator_stderr = validator.stderr.take().unwrap();
+    watchers.push(spawn(move || {
+        inspect_and_write_to_file(validator_stderr, validator_stderr_log, None)
+    }));
+    children.push(validator);
 
     println!("Setup complete! Agents running in background...");
     println!("Ctrl+C to end execution...");
@@ -154,7 +181,10 @@ fn main() {
         .spawn()
         .expect("Failed tp start kathy");
     let kathy_stdout = kathy.stdout.take().unwrap();
-    let kathy_tail = spawn(move || kathy_tail(kathy_stdout, kathy_log));
+    watchers.push(spawn(move || {
+        inspect_and_write_to_file(kathy_stdout, kathy_log, Some("send"))
+    }));
+    children.push(kathy);
 
     // curl http://127.0.0.1:9092/metrics 2>/dev/null | egrep -o "^abacus_processor_retry_queue{.+} [0-9]+$" | egrep -o "[0-9]+$"
 
@@ -165,29 +195,50 @@ fn main() {
     // (tail -f "${RELAYER_STDERR_LOG?}") &
     // (tail -f "${VALIDATOR_STDERR_LOG?}") &
 
-    sleep(Duration::from_secs(60));
+    while RUNNING.fetch_and(true, Ordering::Relaxed) {
+        sleep(Duration::from_millis(100));
+    }
     println!("End of sleep");
-    send_sigterm(&mut node);
-    send_sigterm(&mut kathy);
 
-    RUNNING.store(false, Ordering::Relaxed);
-    kathy_tail.join().unwrap();
+    for mut c in children {
+        send_sigterm(&mut c);
+    }
+    for w in watchers {
+        w.join().unwrap();
+    }
 }
 
-fn kathy_tail(kathy_stdout: impl Read, kathy_log: impl AsRef<Path>) {
-    let mut writer = BufWriter::new(append_to(kathy_log));
-    let mut reader = BufReader::new(kathy_stdout).lines();
+/// Basically `tail -f file | grep <FILTER>` but also has to write to the file (writes to file all
+/// lines, not just what passes the filter).
+fn inspect_and_write_to_file(
+    output: impl Read,
+    log: impl AsRef<Path>,
+    filter: Option<&'static str>,
+) {
+    let mut writer = BufWriter::new(append_to(log));
+    let mut reader = BufReader::new(output).lines();
     loop {
-        if let Some(line) = reader.next().map(|v| v.unwrap()) {
-            if line.contains("send") {
-                println!("{line}");
+        if let Some(line) = reader.next() {
+            let line = match line {
+                Ok(l) => l,
+                Err(e) => {
+                    // end of stream, probably
+                    eprintln!("Error reading from output: {e}");
+                    break;
+                }
+            };
+
+            if let Some(f) = filter {
+                if line.contains(f) {
+                    println!("{line}")
+                }
+            } else {
+                println!("{line}")
             }
             writeln!(writer, "{line}").unwrap();
+        } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
+            sleep(Duration::from_millis(10));
         } else {
-            sleep(Duration::from_millis(100));
-        }
-
-        if !RUNNING.fetch_and(true, Ordering::Relaxed) {
             break;
         }
     }
@@ -196,6 +247,7 @@ fn kathy_tail(kathy_stdout: impl Read, kathy_log: impl AsRef<Path>) {
 fn send_sigterm(child: &mut Child) {
     let pid = Pid::from_raw(child.id() as pid_t);
     if signal::kill(pid, Signal::SIGTERM).is_err() {
+        eprintln!("Failed to send sigterm, killing");
         if let Err(e) = child.kill() {
             eprintln!("{}", e);
         }
