@@ -1,6 +1,8 @@
-import { AllChains, ChainName } from '@abacus-network/sdk';
+import { ChainName } from '@abacus-network/sdk';
 
-import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
+import { assertChain, assertRole } from '../utils/utils';
+
+import { KEY_ROLE_ENUM } from './roles';
 
 export abstract class AgentKey {
   constructor(
@@ -69,22 +71,6 @@ export class ReadOnlyAgentKey extends AgentKey {
       throw Error('Invalid identifier');
     }
     const environment = matches[1];
-
-    const assertRole = (roleStr: string) => {
-      const role = roleStr as KEY_ROLE_ENUM;
-      if (!KEY_ROLES.includes(role)) {
-        throw Error(`Invalid role ${role}`);
-      }
-      return role;
-    };
-
-    const assertChain = (chainStr: string) => {
-      const chain = chainStr as ChainName;
-      if (!AllChains.includes(chain)) {
-        throw Error(`Invalid chain ${chain}`);
-      }
-      return chain;
-    };
 
     // If matches[3] is undefined, this key doesn't have a chainName, and matches[2]
     // is the role name.
