@@ -23,10 +23,10 @@ export const agent: AgentConfig<TestnetChains> = {
     },
     chainOverrides: {
       alfajores: {
-        reorgPeriod: 0,
+        reorgPeriod: 1,
       },
       fuji: {
-        reorgPeriod: 0,
+        reorgPeriod: 1,
       },
       kovan: {
         reorgPeriod: 7,
