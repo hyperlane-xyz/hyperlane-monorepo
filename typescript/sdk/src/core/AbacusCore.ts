@@ -1,4 +1,13 @@
+import { ethers } from 'ethers';
+
 import { Inbox, Outbox } from '@abacus-network/core';
+import { TypedListener } from '@abacus-network/core/dist/common';
+import { ProcessEvent } from '@abacus-network/core/dist/contracts/Inbox';
+import { DomainIdToChainName } from '@abacus-network/sdk/src';
+import {
+  messageHash,
+  parseMessage,
+} from '@abacus-network/utils/dist/src/utils';
 
 import { AbacusApp } from '../AbacusApp';
 import { environments } from '../consts/environments';
@@ -92,5 +101,44 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     const destinationInbox =
       this.getContracts(destination).inboxes[origin].inbox.contract;
     return { originOutbox, destinationInbox };
+  }
+
+  getDispatchedMessages(sourceTx: ethers.ContractReceipt) {
+    const arbitraryChain = Object.keys(this.contractsMap)[0];
+    const outbox = this.getContracts(arbitraryChain as Chain).outbox.contract
+      .interface;
+    const describedLogs = sourceTx.logs.map((log) => outbox.parseLog(log));
+    const dispatchLogs = describedLogs.filter(
+      (log) =>
+        log && log.eventFragment === outbox.events['Dispatch(uint256,bytes)'],
+    );
+    if (dispatchLogs.length === 0) {
+      throw new Error('Dispatch logs not found');
+    }
+    return dispatchLogs.map((log) => {
+      const message = log.args['message'];
+      const parsed = parseMessage(message);
+      return { leafIndex: log.args['leafIndex'], message, parsed };
+    });
+  }
+
+  registerProcessHandler(
+    sourceTx: ethers.ContractReceipt,
+    handler: TypedListener<ProcessEvent>,
+  ) {
+    const messages = this.getDispatchedMessages(sourceTx);
+    messages.forEach(({ leafIndex, message, parsed }) => {
+      const [sourceChain, destinationChain] = [
+        parsed.origin,
+        parsed.destination,
+      ].map((id) => DomainIdToChainName[id.toString()] as Chain);
+      const { destinationInbox } = this.getMailboxPair(
+        sourceChain as Exclude<Chain, typeof destinationChain>,
+        destinationChain,
+      );
+      const hash = messageHash(message, leafIndex);
+      const filter = destinationInbox.filters.Process(hash);
+      destinationInbox.once(filter, handler);
+    });
   }
 }
