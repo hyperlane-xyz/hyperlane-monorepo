@@ -1,3 +1,4 @@
+import { Console } from 'console';
 import { ethers } from 'ethers';
 
 import { utils } from '@abacus-network/deploy';
@@ -12,6 +13,12 @@ import { assertEnvironment, getCoreEnvironmentConfig } from '../utils';
 // Min delta is 1/10 of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(1);
 const MIN_DELTA_DENOMINATOR = ethers.BigNumber.from(10);
+
+const console = new Console({
+  stdout: process.stdout,
+  stderr: process.stderr,
+  groupIndentation: 4,
+});
 
 const desiredBalancePerChain: CompleteChainMap<string> = {
   celo: '0.1',
@@ -51,28 +58,42 @@ async function fundRelayer(
     .mul(MIN_DELTA_NUMERATOR)
     .div(MIN_DELTA_DENOMINATOR);
 
+  let relayerInfo = {
+    address: relayer.address,
+    chain: relayer.chainName,
+  };
+
   if (delta.gt(minDelta)) {
-    console.log(
-      `sending ${relayer.chainName} relayer ${
-        relayer.address
-      } ${ethers.utils.formatEther(delta)}...`,
-    );
+    console.log({
+      relayer: relayerInfo,
+      amount: ethers.utils.formatEther(delta),
+      message: 'Sending relayer funds...',
+    });
     const tx = await chainConnection.signer!.sendTransaction({
       to: relayer.address,
       value: delta,
       ...chainConnection.overrides,
     });
-    console.log(chainConnection.getTxUrl(tx));
-    await tx.wait(chainConnection.confirmations);
+    console.log({
+      relayer: relayerInfo,
+      txUrl: chainConnection.getTxUrl(tx),
+      message: 'Sent transaction',
+    });
+    const receipt = await tx.wait(chainConnection.confirmations);
+    console.log({
+      relayer: relayerInfo,
+      receipt,
+      message: 'Got transaction receipt',
+    });
   }
 
-  console.log(
-    `${relayer.chainName} relayer ${
-      relayer.address
-    } : ${ethers.utils.formatEther(
+  console.log({
+    relayer: relayerInfo,
+    balance: ethers.utils.formatEther(
       await chainConnection.provider.getBalance(relayer.address),
-    )}`,
-  );
+    ),
+    message: 'Relayer balance',
+  });
 }
 
 async function main() {
@@ -100,12 +121,17 @@ async function main() {
 
     const desiredBalance = desiredBalancePerChain[chain];
 
-    console.group(
+    console.group({
       chain,
-      `funder : ${ethers.utils.formatEther(
-        await chainConnection.signer!.getBalance(),
-      )} relayer desired : ${desiredBalance}`,
-    );
+      funder: {
+        address: await chainConnection.getAddress(),
+        balance: ethers.utils.formatEther(
+          await chainConnection.signer!.getBalance(),
+        ),
+        desiredRelayerBalance: desiredBalance,
+      },
+      message: 'Funding relayers on chain...',
+    });
 
     for (const relayerKey of relayerKeys.filter(
       (key) => key.chainName !== chain,
