@@ -1,7 +1,7 @@
 apiVersion: batch/v1
 kind: CronJob
 metadata:
-  name: helloworld-kathy
+  name: relayer-funder
 spec:
   schedule: "{{ .Values.cronjob.schedule }}"
   successfulJobsHistoryLimit: {{ .Values.cronjob.successfulJobsHistoryLimit }}
@@ -14,18 +14,24 @@ spec:
         spec:
           restartPolicy: Never
           containers:
-          - name: helloworld-kathy
+          - name: relayer-funder
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: IfNotPresent
             command:
             - ./node_modules/.bin/ts-node
-            - ./typescript/infra/scripts/helloworld/kathy.ts
+            - ./typescript/infra/scripts/funding/fund-relayers-from-deployer.ts
             - -e
             - {{ .Values.abacus.runEnv }}
+            - -f
+            - /addresses-secret/addresses.json
             envFrom:
             - secretRef:
-                name: helloworld-kathy-secret
-            env:
-            - name: CHAINS_TO_SKIP
-              value: {{ join "," .Values.chainsToSkip }}
-
+                name: relayer-funder-env-var-secret
+            volumeMounts:
+            - name: relayer-funder-addresses-secret
+              mountPath: /addresses-secret
+          volumes:
+          - name: relayer-funder-addresses-secret
+            secret:
+              secretName: relayer-funder-addresses-secret
+              defaultMode: 0400
