@@ -337,7 +337,7 @@ fn main() -> ExitCode {
         }
         if ci_mode {
             // for CI we have to look for the end condition.
-            if kathy_done && retry_queus_empty() {
+            if kathy_done && retry_queues_empty() {
                 // end condition reached successfully
                 println!("Kathy completed successfully and the retry queues are empty");
                 break;
@@ -357,7 +357,7 @@ fn main() -> ExitCode {
     ExitCode::from(0)
 }
 
-fn retry_queus_empty() -> bool {
+fn retry_queues_empty() -> bool {
     ureq::get("http://127.0.0.1:9092")
         .call()
         .unwrap()
