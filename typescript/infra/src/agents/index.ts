@@ -109,8 +109,8 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       index,
     );
 
-    // Only the relayer needs to sign txs
-    if (role === KEY_ROLE_ENUM.Relayer) {
+    // Only the relayer or kathy need to sign txs
+    if (role === KEY_ROLE_ENUM.Relayer || role === KEY_ROLE_ENUM.Kathy) {
       chainNames.forEach((name) => {
         envVars.push(
           `ABC_BASE_SIGNERS_${name.toUpperCase()}_KEY=${strip0x(
@@ -162,7 +162,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     envVars.push(`AWS_ACCESS_KEY_ID=${accessKeys.accessKeyId}`);
     envVars.push(`AWS_SECRET_ACCESS_KEY=${accessKeys.secretAccessKey}`);
 
-    // Only the relayer needs to sign txs
+    // Only the relayer or kathy need to sign txs
     if (role === KEY_ROLE_ENUM.Relayer || role === KEY_ROLE_ENUM.Kathy) {
       chainNames.forEach((chainName) => {
         const key = new AgentAwsKey(agentConfig, role, outboxChainName);
