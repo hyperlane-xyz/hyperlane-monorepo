@@ -102,4 +102,3 @@ export {
   TestOutboxContracts,
 } from './hardhat/TestCoreApp';
 export { TestCoreDeployer } from './hardhat/TestCoreDeployer';
-export { hardhatMultiProvider } from './hardhat/hardhatMultiProvider';

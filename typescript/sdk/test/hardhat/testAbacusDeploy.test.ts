@@ -4,12 +4,12 @@ import { expect } from 'chai';
 import { ethers } from 'hardhat';
 
 import { TestOutbox, TestRecipient__factory } from '@abacus-network/core';
-import { chainMetadata } from '@abacus-network/sdk';
 import { utils } from '@abacus-network/utils';
 
+import { chainMetadata } from '../../src/consts/chainMetadata';
+import { getMultiProviderFromConfigAndSigner } from '../../src/deploy/utils';
 import { TestCoreApp } from '../../src/hardhat/TestCoreApp';
 import { TestCoreDeployer } from '../../src/hardhat/TestCoreDeployer';
-import { hardhatMultiProvider } from '../../src/hardhat/hardhatMultiProvider';
 
 const localChain = 'test1';
 const localDomain = chainMetadata[localChain].id;
@@ -22,7 +22,19 @@ describe('TestCoreDeployer', async () => {
 
   beforeEach(async () => {
     const [signer] = await ethers.getSigners();
-    const multiProvider = hardhatMultiProvider(ethers.provider, signer);
+
+    const config = {
+      test1: {
+        provider: ethers.provider,
+      },
+      test2: {
+        provider: ethers.provider,
+      },
+      test3: {
+        provider: ethers.provider,
+      },
+    };
+    const multiProvider = getMultiProviderFromConfigAndSigner(config, signer);
     const deployer = new TestCoreDeployer(multiProvider);
     abacus = await deployer.deployApp();
 

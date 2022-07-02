@@ -6,10 +6,10 @@ import { objMap } from '../utils';
 
 import { EnvironmentConfig } from './types';
 
-export const getMultiProviderFromConfigAndSigner = <Chain extends ChainName>(
+export function getMultiProviderFromConfigAndSigner<Chain extends ChainName>(
   environmentConfig: EnvironmentConfig<Chain>,
   signer: ethers.Signer,
-): MultiProvider<Chain> => {
+): MultiProvider<Chain> {
   const chainProviders = objMap(environmentConfig, (_, config) => ({
     provider: signer.provider!,
     signer,
@@ -17,4 +17,4 @@ export const getMultiProviderFromConfigAndSigner = <Chain extends ChainName>(
     overrides: config.overrides,
   }));
   return new MultiProvider(chainProviders);
-};
+}

@@ -1,7 +1,7 @@
 import { ChainName } from '../types';
 
 /**
- * A Domain (and its characteristics)
+ * A Chain and its characteristics
  */
 export type ChainMetadata = {
   id: number;
@@ -11,7 +11,7 @@ export type ChainMetadata = {
 };
 
 /**
- * RPC Pagination information for Polygon
+ * RPC Pagination information
  */
 export interface RpcPagination {
   blocks: number;
