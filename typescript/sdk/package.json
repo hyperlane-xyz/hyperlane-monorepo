@@ -43,7 +43,7 @@
     "check": "tsc --noEmit",
     "clean": "rm -rf ./dist ./cache",
     "prepublishOnly": "yarn build",
-    "prettier": "prettier --write ./src ./test",
+    "prettier": "prettier --write ./src",
     "test": "yarn test:unit && yarn test:hardhat",
     "test:unit": "mocha --config .mocharc.json './src/{,!(hardhat)/**}/*.test.ts'",
     "test:hardhat": "hardhat test ./src/hardhat/*.test.ts"
