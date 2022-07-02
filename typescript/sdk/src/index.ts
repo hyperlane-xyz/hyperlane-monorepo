@@ -63,6 +63,13 @@ export {
   resolveId,
   resolveNetworks,
 } from './core/message';
+export {
+  TestCoreApp,
+  TestCoreContracts,
+  TestInboxContracts,
+  TestOutboxContracts,
+} from './core/TestCoreApp';
+export { TestCoreDeployer } from './core/TestCoreDeployer';
 
 export { InterchainGasCalculator } from './gas/calculator';
 export { DefaultTokenPriceGetter, TokenPriceGetter } from './gas/token-prices';
@@ -94,11 +101,3 @@ export * as verificationUtils from './deploy/verify/utils';
 
 export { objMap, objMapEntries, promiseObjAll } from './utils';
 export * as utils from './utils';
-
-export {
-  TestCoreApp,
-  TestCoreContracts,
-  TestInboxContracts,
-  TestOutboxContracts,
-} from './hardhat/TestCoreApp';
-export { TestCoreDeployer } from './hardhat/TestCoreDeployer';

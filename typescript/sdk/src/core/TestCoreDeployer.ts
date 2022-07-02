@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import { TestInbox__factory, TestOutbox__factory } from '@abacus-network/core';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { coreFactories } from '../core/contracts';
 import { AbacusCoreDeployer } from '../deploy/core/AbacusCoreDeployer';
 import { CoreConfig, ValidatorManagerConfig } from '../deploy/core/types';
 import { MultiProvider } from '../providers/MultiProvider';
@@ -15,6 +14,7 @@ import {
   TestInboxContracts,
   TestOutboxContracts,
 } from './TestCoreApp';
+import { coreFactories } from './contracts';
 
 // dummy config as TestInbox and TestOutbox do not use deployed ValidatorManager
 const testValidatorManagerConfig: CoreConfig = {

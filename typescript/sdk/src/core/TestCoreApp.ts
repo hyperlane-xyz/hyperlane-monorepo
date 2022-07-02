@@ -4,15 +4,12 @@ import { TestInbox, TestOutbox } from '@abacus-network/core';
 import { types, utils } from '@abacus-network/utils';
 
 import { chainMetadata } from '../consts/chainMetadata';
-import { AbacusCore } from '../core/AbacusCore';
-import {
-  CoreContracts,
-  InboxContracts,
-  OutboxContracts,
-} from '../core/contracts';
 import { DomainIdToChainName } from '../domains';
 import { ProxiedContract } from '../proxy';
 import { ChainMap, ChainName, Remotes, TestChainNames } from '../types';
+
+import { AbacusCore } from './AbacusCore';
+import { CoreContracts, InboxContracts, OutboxContracts } from './contracts';
 
 type MockProxyAddresses = {
   kind: 'MOCK';
