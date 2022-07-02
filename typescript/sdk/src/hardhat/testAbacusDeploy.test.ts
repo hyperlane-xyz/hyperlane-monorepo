@@ -6,10 +6,11 @@ import { ethers } from 'hardhat';
 import { TestOutbox, TestRecipient__factory } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
-import { chainMetadata } from '../../src/consts/chainMetadata';
-import { getMultiProviderFromConfigAndSigner } from '../../src/deploy/utils';
-import { TestCoreApp } from '../../src/hardhat/TestCoreApp';
-import { TestCoreDeployer } from '../../src/hardhat/TestCoreDeployer';
+import { chainMetadata } from '../consts/chainMetadata';
+import { getMultiProviderFromConfigAndSigner } from '../deploy/utils';
+
+import { TestCoreApp } from './TestCoreApp';
+import { TestCoreDeployer } from './TestCoreDeployer';
 
 const localChain = 'test1';
 const localDomain = chainMetadata[localChain].id;

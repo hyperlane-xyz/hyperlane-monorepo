@@ -4,16 +4,14 @@ import sinon from 'sinon';
 
 import { utils } from '@abacus-network/utils';
 
-import { Chains } from '../../src/consts/chains';
-import { AbacusCore } from '../../src/core/AbacusCore';
-import { CoreContracts } from '../../src/core/contracts';
-import {
-  InterchainGasCalculator,
-  ParsedMessage,
-} from '../../src/gas/calculator';
-import { MultiProvider } from '../../src/providers/MultiProvider';
-import { TestChainNames } from '../../src/types';
-import { MockProvider, MockTokenPriceGetter } from '../utils';
+import { Chains } from '../consts/chains';
+import { AbacusCore } from '../core/AbacusCore';
+import { CoreContracts } from '../core/contracts';
+import { MultiProvider } from '../providers/MultiProvider';
+import { MockProvider, MockTokenPriceGetter } from '../test/testUtils';
+import { TestChainNames } from '../types';
+
+import { InterchainGasCalculator, ParsedMessage } from './calculator';
 
 const HANDLE_GAS = 100_000;
 const SUGGESTED_GAS_PRICE = 10;
