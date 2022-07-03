@@ -69,7 +69,11 @@ impl ValidatorSubmitter {
     }
 
     async fn main_task(self) -> Result<()> {
-        let reorg_period = Some(self.reorg_period);
+        let reorg_period = if self.reorg_period == 0 {
+            None
+        } else {
+            Some(self.reorg_period)
+        };
         // Ensure that the outbox has > 0 messages before we enter the main
         // validator submit loop. This is to avoid an underflow / reverted
         // call when we invoke the `outbox.latest_checkpoint()` method,
