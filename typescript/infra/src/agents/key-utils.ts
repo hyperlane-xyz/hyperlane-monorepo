@@ -23,7 +23,13 @@ export function getKey<Chain extends ChainName>(
   if (agentConfig.aws) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
-    return new AgentGCPKey(agentConfig.environment, role, chainName, index);
+    return new AgentGCPKey(
+      agentConfig.environment,
+      agentConfig.context,
+      role,
+      chainName,
+      index,
+    );
   }
 }
 
@@ -63,6 +69,7 @@ export async function deleteAgentKeys(agentConfig: AgentConfig<any>) {
   await execCmd(
     `gcloud secrets delete ${addressesIdentifier(
       agentConfig.environment,
+      agentConfig.context,
     )} --quiet`,
   );
 }
@@ -80,6 +87,7 @@ export async function createAgentKeysIfNotExists(
 
   await persistAddresses(
     agentConfig.environment,
+    agentConfig.context,
     keys.map((key) => key.serializeAsAddress()),
   );
 }
@@ -92,19 +100,34 @@ export async function rotateKey<Chain extends ChainName>(
   const key = getKey(agentConfig, role, chainName);
   await key.update();
   const keyIdentifier = key.identifier;
-  const addresses = await fetchGCPKeyAddresses(agentConfig.environment);
+  const addresses = await fetchGCPKeyAddresses(
+    agentConfig.environment,
+    agentConfig.context,
+  );
   const filteredAddresses = addresses.filter((_) => {
     return _.identifier !== keyIdentifier;
   });
 
   filteredAddresses.push(key.serializeAsAddress());
-  await persistAddresses(agentConfig.environment, filteredAddresses);
+  await persistAddresses(
+    agentConfig.environment,
+    agentConfig.context,
+    filteredAddresses,
+  );
 }
 
-async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
-  await setGCPSecret(addressesIdentifier(environment), JSON.stringify(keys), {
-    environment: environment,
-  });
+async function persistAddresses(
+  environment: string,
+  context: string,
+  keys: KeyAsAddress[],
+) {
+  await setGCPSecret(
+    addressesIdentifier(environment, context),
+    JSON.stringify(keys),
+    {
+      environment: environment,
+    },
+  );
 }
 
 // This function returns all keys for a given outbox chain in a dictionary where the key is the identifier
@@ -128,11 +151,13 @@ export async function fetchKeysForChain<Chain extends ChainName>(
   return Object.fromEntries(keys);
 }
 
-async function fetchGCPKeyAddresses(environment: string) {
-  const addresses = await fetchGCPSecret(addressesIdentifier(environment));
+async function fetchGCPKeyAddresses(environment: string, context: string) {
+  const addresses = await fetchGCPSecret(
+    addressesIdentifier(environment, context),
+  );
   return addresses as KeyAsAddress[];
 }
 
-function addressesIdentifier(environment: string) {
-  return `abacus-${environment}-key-addresses`;
+function addressesIdentifier(environment: string, context: string) {
+  return `${context}-${environment}-key-addresses`;
 }

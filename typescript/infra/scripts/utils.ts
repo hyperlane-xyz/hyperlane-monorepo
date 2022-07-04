@@ -41,14 +41,38 @@ export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
 }
 
+export async function getContext() {
+  return assertEnvironment(await utils.getContext());
+}
+
+export async function getContextAgentConfig() {
+  const coreConfig = await getEnvironmentConfig();
+  const context = await getContext();
+  const agentConfig = coreConfig.agents[context];
+  if (!agentConfig) {
+    throw Error(
+      `Invalid context ${context}, must be one of ${Object.keys(
+        coreConfig.agents,
+      )}`,
+    );
+  }
+  return agentConfig;
+}
+
 export async function getMultiProviderFromGCP<Chain extends ChainName>(
   txConfigs: ChainMap<Chain, IChainConnection>,
   environment: DeployEnvironment,
+  context?: string,
 ) {
   const connections = await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
       const provider = await fetchProvider(environment, chain);
-      const signer = await fetchSigner(environment, chain, provider);
+      const signer = await fetchSigner(
+        environment,
+        context ?? 'abacus',
+        chain,
+        provider,
+      );
       return {
         ...config,
         provider,
@@ -107,7 +131,7 @@ export async function assertCorrectKubeContext<Chain extends ChainName>(
     !currentKubeContext.endsWith(`${coreConfig.infra.kubernetes.clusterName}`)
   ) {
     console.error(
-      `Cowardly refusing to deploy ${coreConfig.agent.runEnv} to ${currentKubeContext}; are you sure you have the right k8s context active?`,
+      `Cowardly refusing to deploy using k8s context ${currentKubeContext}; are you sure you have the right k8s context active?`,
     );
     process.exit(1);
   }

@@ -22,7 +22,7 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   agents: Record<string, AgentConfig<Chain>>;
   core: ChainMap<Chain, CoreConfig>;
   infra: InfrastructureConfig;
-  getMultiProvider: () => Promise<MultiProvider<Chain>>;
+  getMultiProvider: (context?: string) => Promise<MultiProvider<Chain>>;
   helloWorld?: HelloWorldConfig<Chain>;
   relayerFunderConfig?: RelayerFunderConfig;
 };

@@ -25,6 +25,7 @@ export class AgentAwsUser<Chain extends ChainName> {
 
   constructor(
     public readonly environment: string,
+    public readonly context: string,
     public readonly chainName: Chain,
     public readonly role: KEY_ROLE_ENUM,
     public readonly region: string,

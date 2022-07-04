@@ -34,12 +34,13 @@ type RemoteKey = UnfetchedKey | FetchedKey;
 export class AgentGCPKey extends AgentKey {
   constructor(
     environment: string,
+    context: string,
     role: KEY_ROLE_ENUM,
     chainName?: ChainName,
     index?: number,
     private remoteKey: RemoteKey = { fetched: false },
   ) {
-    super(environment, role, chainName, index);
+    super(environment, context, role, chainName, index);
   }
 
   async createIfNotExists() {
@@ -66,6 +67,7 @@ export class AgentGCPKey extends AgentKey {
   get identifier() {
     return keyIdentifier(
       this.environment,
+      this.context,
       this.role,
       this.chainName,
       this.index,

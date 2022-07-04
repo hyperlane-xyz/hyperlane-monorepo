@@ -1,36 +1,18 @@
-import { utils } from '@abacus-network/deploy';
-
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
 import {
   assertCorrectKubeContext,
-  assertEnvironment,
+  getContextAgentConfig,
   getCoreEnvironmentConfig,
+  getEnvironment,
 } from './utils';
 
 async function deploy() {
-  const argv = await utils
-    .getArgs()
-    .alias('c', 'deploy-context')
-    .describe('c', 'Deployment context')
-    // .default('c', 'abacus')
-    .demandOption('c')
-    .string('c').argv;
-
-  const environment = assertEnvironment(argv.e as string);
+  const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
 
-  const context = argv.c;
-  if (!config.agents[context]) {
-    throw Error(
-      `Invalid context ${context}, must be one of ${Object.keys(
-        config.agents,
-      )}`,
-    );
-  }
-
-  const agentConfig = config.agents[context];
+  const agentConfig = await getContextAgentConfig();
 
   await assertCorrectKubeContext(config);
 
@@ -42,7 +24,7 @@ async function deploy() {
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
   await Promise.all(
-    config.agent.chainNames.map((name: any) =>
+    agentConfig.chainNames.map((name: any) =>
       runAgentHelmCommand(HelmCommand.InstallOrUpgrade, agentConfig, name),
     ),
   );

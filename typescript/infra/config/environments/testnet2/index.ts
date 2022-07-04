@@ -15,8 +15,8 @@ import { infrastructure } from './infrastructure';
 export const environment: CoreEnvironmentConfig<TestnetChains> = {
   environment: environmentName,
   transactionConfigs: testnetConfigs,
-  getMultiProvider: () =>
-    getMultiProviderFromGCP(testnetConfigs, environmentName),
+  getMultiProvider: (context?: string) =>
+    getMultiProviderFromGCP(testnetConfigs, environmentName, context),
   agent,
   agents,
   core,

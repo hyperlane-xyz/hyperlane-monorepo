@@ -105,6 +105,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
     const keyId = keyIdentifier(
       agentConfig.environment,
+      agentConfig.context,
       role,
       outboxChainName,
       index,
@@ -144,6 +145,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
       }
       user = new ValidatorAgentAwsUser(
         agentConfig.environment,
+        agentConfig.context,
         outboxChainName,
         index!,
         checkpointSyncer.region,
@@ -152,6 +154,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
     } else {
       user = new AgentAwsUser(
         agentConfig.environment,
+        agentConfig.context,
         outboxChainName,
         role,
         agentConfig.aws!.region,
@@ -263,9 +266,15 @@ export async function getSecretRpcEndpoint(
 
 export async function getSecretDeployerKey(
   environment: DeployEnvironment,
+  context: string,
   chainName: ChainName,
 ) {
-  const key = new AgentGCPKey(environment, KEY_ROLE_ENUM.Deployer, chainName);
+  const key = new AgentGCPKey(
+    environment,
+    context,
+    KEY_ROLE_ENUM.Deployer,
+    chainName,
+  );
   await key.fetch();
   return key.privateKey;
 }

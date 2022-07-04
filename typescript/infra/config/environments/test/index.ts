@@ -17,7 +17,7 @@ export const environment: CoreEnvironmentConfig<TestChains> = {
   core,
   infra,
   // NOTE: Does not work from hardhat.config.ts
-  getMultiProvider: async () => {
+  getMultiProvider: async (_?: string) => {
     const provider = testConfigs.test1.provider! as JsonRpcProvider;
     const signer = provider.getSigner(0);
     return utils.getMultiProviderFromConfigAndSigner(testConfigs, signer);

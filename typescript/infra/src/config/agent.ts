@@ -299,6 +299,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
         if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
           const awsUser = new ValidatorAgentAwsUser(
             this.agentConfig.environment,
+            this.agentConfig.context,
             this.chainName,
             i,
             val.checkpointSyncer.region,
@@ -348,6 +349,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
     if (awsRegion !== undefined) {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
+        this.agentConfig.context,
         this.chainName,
         KEY_ROLE_ENUM.Relayer,
         awsRegion,
@@ -368,6 +370,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
     }
     const awsUser = new AgentAwsUser(
       this.agentConfig.environment,
+      this.agentConfig.context,
       this.chainName,
       KEY_ROLE_ENUM.Relayer,
       this.agentConfig.aws!.region,
@@ -429,6 +432,7 @@ export class ChainAgentConfig<Chain extends ChainName> {
     if (this.awsKeys) {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
+        this.agentConfig.context,
         this.chainName,
         KEY_ROLE_ENUM.Kathy,
         this.agentConfig.aws!.region,
