@@ -53,3 +53,7 @@ export const agent: AgentConfig<MainnetChains> = {
     },
   },
 };
+
+export const agents = {
+  abacus: agent,
+};

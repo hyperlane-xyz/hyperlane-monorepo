@@ -38,3 +38,7 @@ export const agent: AgentConfig<DevChains> = {
     },
   },
 };
+
+export const agents = {
+  abacus: agent,
+};

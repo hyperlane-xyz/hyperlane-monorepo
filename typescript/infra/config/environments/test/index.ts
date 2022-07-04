@@ -4,7 +4,7 @@ import { utils } from '@abacus-network/deploy';
 
 import { CoreEnvironmentConfig } from '../../../src/config';
 
-import { agent } from './agent';
+import { agents } from './agent';
 import { TestChains, testConfigs } from './chains';
 import { core } from './core';
 import { infra } from './infra';
@@ -12,8 +12,7 @@ import { infra } from './infra';
 export const environment: CoreEnvironmentConfig<TestChains> = {
   environment: 'test',
   transactionConfigs: testConfigs,
-  agent,
-  agents: {},
+  agents,
   core,
   infra,
   // NOTE: Does not work from hardhat.config.ts

@@ -8,7 +8,11 @@ import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getRelayerKeys } from '../../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { readJSONAtPath } from '../../src/utils/utils';
-import { assertEnvironment, getCoreEnvironmentConfig } from '../utils';
+import {
+  assertEnvironment,
+  getContextAgentConfig,
+  getCoreEnvironmentConfig,
+} from '../utils';
 
 // Min delta is 1/10 of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(1);
@@ -109,10 +113,11 @@ async function main() {
   const environment = assertEnvironment(argv.e as string);
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
+  const agentConfig = await getContextAgentConfig();
 
   const relayerKeys = argv.f
     ? getRelayerKeysFromSerializedAddressFile(argv.f)
-    : getRelayerKeys(config.agent);
+    : getRelayerKeys(agentConfig);
 
   const chains = relayerKeys.map((key) => key.chainName!);
 

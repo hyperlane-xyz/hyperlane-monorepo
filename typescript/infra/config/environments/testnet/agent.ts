@@ -47,3 +47,7 @@ export const agent: AgentConfig<TestnetChains> = {
   //   }
   // }
 };
+
+export const agents = {
+  abacus: agent,
+};
