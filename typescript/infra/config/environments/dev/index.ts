@@ -11,6 +11,7 @@ export const environment: CoreEnvironmentConfig<DevChains> = {
   transactionConfigs: devConfigs,
   getMultiProvider: () => getMultiProviderFromGCP(devConfigs, 'dev'),
   agent,
+  agents: {},
   core,
   infra: infrastructure,
 };

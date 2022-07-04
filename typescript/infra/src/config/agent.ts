@@ -204,6 +204,7 @@ export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
   runEnv: string;
+  context: string;
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;

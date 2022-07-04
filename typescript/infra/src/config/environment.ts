@@ -19,6 +19,7 @@ export type CoreEnvironmentConfig<Chain extends ChainName> = {
   environment: DeployEnvironment;
   transactionConfigs: EnvironmentConfig<Chain>;
   agent: AgentConfig<Chain>;
+  agents: Record<string, AgentConfig<Chain>>;
   core: ChainMap<Chain, CoreConfig>;
   infra: InfrastructureConfig;
   getMultiProvider: () => Promise<MultiProvider<Chain>>;

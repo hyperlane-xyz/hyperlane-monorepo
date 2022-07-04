@@ -1,4 +1,11 @@
 {{/*
+The chart name, but replacing "abacus" with the context
+*/}}
+{{- define "abacus-agent.chart-name-with-context" -}}
+{{- .Chart.Name | replace "abacus" .Values.abacus.context | trunc 63 | trimSuffix "-" }}
+{{- end }}
+
+{{/*
 Expand the name of the chart.
 */}}
 {{- define "abacus-agent.name" -}}
@@ -14,7 +21,7 @@ If release name contains chart name it will be used as a full name.
 {{- if .Values.fullnameOverride }}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" }}
 {{- else }}
-{{- $name := default .Chart.Name .Values.nameOverride }}
+{{- $name := default ( include "abacus-agent.chart-name-with-context" . ) .Values.nameOverride }}
 {{- if contains $name .Release.Name }}
 {{- .Release.Name | trunc 63 | trimSuffix "-" }}
 {{- else }}
@@ -36,6 +43,8 @@ Common labels
 {{- define "abacus-agent.labels" -}}
 helm.sh/chart: {{ include "abacus-agent.chart" . }}
 abacus/deployment: {{ .Values.abacus.runEnv | quote }}
+abacus/environment: {{ .Values.abacus.runEnv | quote }}
+abacus/context: {{ .Values.abacus.context | quote }}
 {{ include "abacus-agent.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}

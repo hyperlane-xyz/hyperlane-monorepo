@@ -18,6 +18,7 @@ export const environment: CoreEnvironmentConfig<MainnetChains> = {
   getMultiProvider: () =>
     getMultiProviderFromGCP(mainnetConfigs, environmentName),
   agent,
+  agents: {},
   core,
   infra: infrastructure,
   helloWorld,

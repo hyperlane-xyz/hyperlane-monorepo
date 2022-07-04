@@ -27,6 +27,7 @@ async function helmValuesForChain<Chain extends ChainName>(
     },
     abacus: {
       runEnv: agentConfig.runEnv,
+      context: agentConfig.context,
       baseConfig: `${chainName}_config.json`,
       outboxChain: {
         name: chainName,
@@ -309,13 +310,26 @@ export async function runAgentHelmCommand<Chain extends ChainName>(
       : '';
 
   return execCmd(
-    `helm ${action} ${outboxChainName} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
+    `helm ${action} ${getHelmReleaseName(
+      outboxChainName,
+      agentConfig,
+    )} ../../rust/helm/abacus-agent/ --create-namespace --namespace ${
       agentConfig.namespace
-    } ${values.join(' ')} ${extraPipe}`,
+    } ${values.join(' ')} --debug --dry-run ${extraPipe}`,
     {},
     false,
     true,
   );
+}
+
+function getHelmReleaseName<Chain extends ChainName>(
+  outboxChainName: Chain,
+  agentConfig: AgentConfig<Chain>,
+): string {
+  if (agentConfig.context === 'abacus') {
+    return outboxChainName;
+  }
+  return `${outboxChainName}-${agentConfig.context}`;
 }
 
 export async function runKeymasterHelmCommand(

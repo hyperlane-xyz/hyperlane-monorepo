@@ -13,6 +13,7 @@ export const environment: CoreEnvironmentConfig<TestChains> = {
   environment: 'test',
   transactionConfigs: testConfigs,
   agent,
+  agents: {},
   core,
   infra,
   // NOTE: Does not work from hardhat.config.ts
