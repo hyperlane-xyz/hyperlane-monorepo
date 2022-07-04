@@ -25,12 +25,6 @@ export const agent: AgentConfig<DevChains> = {
       maxProcessingRetries: 10,
     },
   },
-  checkpointer: {
-    default: {
-      pollingInterval: 5,
-      creationLatency: 10,
-    },
-  },
   kathy: {
     default: {
       enabled: false,

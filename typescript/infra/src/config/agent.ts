@@ -139,24 +139,6 @@ interface ValidatorConfig extends BaseValidatorConfig {
   validator: KeyConfig;
 }
 
-// ======================================
-// =====     Checkpointer Agent     =====
-// ======================================
-
-// Full checkpointer agent config for a single chain
-interface CheckpointerConfig {
-  // Polling interval (in seconds)
-  pollingInterval: number;
-  // Minimum time between created checkpoints (in seconds)
-  creationLatency: number;
-}
-
-// Per-chain checkpointer agent configs
-type ChainCheckpointerConfigs<Chain extends ChainName> = ChainOverridableConfig<
-  Chain,
-  CheckpointerConfig
->;
-
 // ===============================
 // =====     Kathy Agent     =====
 // ===============================
@@ -229,7 +211,6 @@ export interface AgentConfig<Chain extends ChainName> {
   validatorSets: ChainValidatorSets<Chain>;
   validator: ChainValidatorConfigs<Chain>;
   relayer: ChainRelayerConfigs<Chain>;
-  checkpointer?: ChainCheckpointerConfigs<Chain>;
   kathy?: ChainKathyConfigs<Chain>;
 }
 
@@ -419,36 +400,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
     }
 
     return obj;
-  }
-
-  get checkpointerEnabled() {
-    return this.agentConfig.checkpointer !== undefined;
-  }
-
-  checkpointerSigners() {
-    if (!this.checkpointerEnabled) {
-      return [];
-    }
-    return [
-      {
-        name: this.chainName,
-        keyConfig: this.keyConfig(KEY_ROLE_ENUM.Kathy),
-      },
-    ];
-  }
-
-  get checkpointerRequiresAwsCredentials() {
-    return this.awsKeys;
-  }
-
-  get checkpointerConfig(): CheckpointerConfig | undefined {
-    if (!this.checkpointerEnabled) {
-      return undefined;
-    }
-    return getChainOverriddenConfig(
-      this.agentConfig.checkpointer!,
-      this.chainName,
-    );
   }
 
   // Gets signer info, creating them if necessary
