@@ -210,8 +210,8 @@ export interface AgentConfig<Chain extends ChainName> {
   aws?: AwsConfig;
   chainNames: Chain[];
   validatorSets: ChainValidatorSets<Chain>;
-  validator: ChainValidatorConfigs<Chain>;
-  relayer: ChainRelayerConfigs<Chain>;
+  validator?: ChainValidatorConfigs<Chain>;
+  relayer?: ChainRelayerConfigs<Chain>;
   kathy?: ChainKathyConfigs<Chain>;
 }
 
@@ -281,9 +281,12 @@ export class ChainAgentConfig<Chain extends ChainName> {
     }));
   }
 
-  async validatorConfigs(): Promise<Array<ValidatorConfig>> {
+  async validatorConfigs(): Promise<Array<ValidatorConfig> | undefined> {
+    if (!this.validatorEnabled) {
+      return undefined;
+    }
     const baseConfig = getChainOverriddenConfig(
-      this.agentConfig.validator,
+      this.agentConfig.validator!,
       this.chainName,
     );
 
@@ -321,6 +324,10 @@ export class ChainAgentConfig<Chain extends ChainName> {
         };
       }),
     );
+  }
+
+  get validatorEnabled(): boolean {
+    return this.agentConfig.validator !== undefined;
   }
 
   // Returns whetehr the relayer requires AWS credentials, creating them if required.
@@ -373,9 +380,13 @@ export class ChainAgentConfig<Chain extends ChainName> {
     }));
   }
 
-  get relayerConfig(): RelayerConfig {
+  get relayerConfig(): RelayerConfig | undefined {
+    if (!this.relayerEnabled) {
+      return undefined;
+    }
+
     const baseConfig = getChainOverriddenConfig(
-      this.agentConfig.relayer,
+      this.agentConfig.relayer!,
       this.chainName,
     );
 
@@ -401,6 +412,10 @@ export class ChainAgentConfig<Chain extends ChainName> {
     }
 
     return obj;
+  }
+
+  get relayerEnabled(): boolean {
+    return this.agentConfig.relayer !== undefined;
   }
 
   // Gets signer info, creating them if necessary

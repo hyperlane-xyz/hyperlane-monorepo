@@ -41,11 +41,11 @@ async function helmValuesForChain<Chain extends ChainName>(
           };
         }),
       validator: {
-        enabled: true,
+        enabled: chainAgentConfig.validatorEnabled,
         configs: await chainAgentConfig.validatorConfigs(),
       },
       relayer: {
-        enabled: true,
+        enabled: chainAgentConfig.relayerEnabled,
         aws: await chainAgentConfig.relayerRequiresAwsCredentials(),
         signers: await chainAgentConfig.relayerSigners(),
         config: chainAgentConfig.relayerConfig,
@@ -180,17 +180,21 @@ export async function getAgentEnvVars<Chain extends ChainName>(
 
   switch (role) {
     case KEY_ROLE_ENUM.Validator:
-      envVars = envVars.concat(
-        configEnvVars(
-          valueDict.abacus.validator.configs[index!],
-          KEY_ROLE_ENUM.Validator,
-        ),
-      );
+      if (valueDict.abacus.validator.configs) {
+        envVars = envVars.concat(
+          configEnvVars(
+            valueDict.abacus.validator.configs[index!],
+            KEY_ROLE_ENUM.Validator,
+          ),
+        );
+      }
       break;
     case KEY_ROLE_ENUM.Relayer:
-      envVars = envVars.concat(
-        configEnvVars(valueDict.abacus.relayer.config, KEY_ROLE_ENUM.Relayer),
-      );
+      if (valueDict.abacus.relayer.config) {
+        envVars = envVars.concat(
+          configEnvVars(valueDict.abacus.relayer.config, KEY_ROLE_ENUM.Relayer),
+        );
+      }
       break;
     case KEY_ROLE_ENUM.Kathy:
       if (valueDict.abacus.kathy.config) {
