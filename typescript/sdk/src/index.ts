@@ -75,7 +75,7 @@ export { InterchainGasCalculator } from './gas/calculator';
 export { DefaultTokenPriceGetter, TokenPriceGetter } from './gas/token-prices';
 
 export { AbacusAppChecker, Ownable } from './deploy/AbacusAppChecker';
-export { CheckerViolation, EnvironmentConfig } from './deploy/types';
+export { CheckerViolation } from './deploy/types';
 export { AbacusCoreDeployer } from './deploy/core/AbacusCoreDeployer';
 export { AbacusCoreChecker } from './deploy/core/AbacusCoreChecker';
 export {

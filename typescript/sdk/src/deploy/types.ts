@@ -1,4 +1,4 @@
-import type { ChainMap, ChainName, IChainConnection } from '../types';
+import type { ChainName } from '../types';
 
 export interface CheckerViolation {
   chain: ChainName;
@@ -7,8 +7,3 @@ export interface CheckerViolation {
   actual: any;
   data?: any;
 }
-
-export type EnvironmentConfig<Chain extends ChainName> = ChainMap<
-  Chain,
-  IChainConnection
->;

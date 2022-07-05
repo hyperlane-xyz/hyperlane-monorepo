@@ -18,13 +18,13 @@ export abstract class AbacusAppChecker<
   App extends AbacusApp<any, Chain>,
   Config,
 > {
-  readonly multiProvider: MultiProvider<Chain>;
+  readonly multiProvider: MultiProvider;
   readonly app: App;
   readonly configMap: ChainMap<Chain, Config>;
   readonly violations: CheckerViolation[];
 
   constructor(
-    multiProvider: MultiProvider<Chain>,
+    multiProvider: MultiProvider,
     app: App,
     configMap: ChainMap<Chain, Config>,
   ) {

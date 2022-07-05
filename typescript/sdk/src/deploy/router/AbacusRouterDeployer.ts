@@ -19,7 +19,7 @@ export abstract class AbacusRouterDeployer<
   Config extends RouterConfig,
 > extends AbacusDeployer<Chain, Config, Factories, Contracts> {
   constructor(
-    multiProvider: MultiProvider<Chain>,
+    multiProvider: MultiProvider,
     configMap: ChainMap<Chain, Config>,
     factories: Factories,
     options?: DeployerOptions,
@@ -70,11 +70,13 @@ export abstract class AbacusRouterDeployer<
     contractsMap: ChainMap<Chain, Contracts>,
   ): Promise<void> {
     this.logger(`Enrolling deployed routers with each other...`);
-    // Make all routers aware of eachother.
+    // Make all routers aware of each other.
     await promiseObjAll(
       objMap(contractsMap, async (local, contracts) => {
         const chainConnection = this.multiProvider.getChainConnection(local);
-        for (const remote of this.multiProvider.remoteChains(local)) {
+        for (const remote of this.multiProvider.remoteChains<Chain, Chain>(
+          local,
+        )) {
           this.logger(`Enroll ${remote}'s router on ${local}`);
           await chainConnection.handleTx(
             contracts.router.enrollRemoteRouter(

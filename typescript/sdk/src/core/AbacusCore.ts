@@ -26,14 +26,14 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
 > {
   constructor(
     contractsMap: CoreContractsMap<Chain>,
-    multiProvider: MultiProvider<Chain>,
+    multiProvider: MultiProvider,
   ) {
     super(contractsMap, multiProvider);
   }
 
   static fromEnvironment<Env extends CoreEnvironment>(
     env: Env,
-    multiProvider: MultiProvider<CoreEnvironmentChain<Env>>,
+    multiProvider: MultiProvider,
   ): AbacusCore<CoreEnvironmentChain<Env>> {
     const contractsMap = buildContracts(
       environments[env],

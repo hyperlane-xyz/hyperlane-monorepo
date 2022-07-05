@@ -35,7 +35,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   startingBlockNumbers: ChainMap<Chain, number | undefined>;
 
   constructor(
-    multiProvider: MultiProvider<Chain>,
+    multiProvider: MultiProvider,
     configMap: ChainMap<Chain, CoreConfig>,
     factoriesOverride = coreFactories,
   ) {
@@ -162,7 +162,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       dc.overrides,
     );
 
-    const remotes = this.multiProvider.remoteChains(chain);
+    const remotes = this.multiProvider.remoteChains<Chain, Chain>(chain);
     const inboxes: Partial<Record<Chain, InboxContracts>> = {};
     let prev: Chain | undefined;
     for (const remote of remotes) {
@@ -194,7 +194,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
   static async transferOwnership<CoreNetworks extends ChainName>(
     core: AbacusCore<CoreNetworks>,
     owners: ChainMap<CoreNetworks, types.Address>,
-    multiProvider: MultiProvider<CoreNetworks>,
+    multiProvider: MultiProvider,
   ): Promise<ChainMap<CoreNetworks, ethers.ContractReceipt[]>> {
     return promiseObjAll(
       objMap(core.contractsMap, async (chain, coreContracts) => {

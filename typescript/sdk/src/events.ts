@@ -77,7 +77,7 @@ export interface TSContract<T extends TypedEvent> {
 }
 
 export async function queryAnnotatedEvents<T extends TypedEvent>(
-  multiprovider: MultiProvider<any>,
+  multiprovider: MultiProvider,
   chain: ChainName,
   contract: TSContract<T>,
   filter: TypedEventFilter<T>,
@@ -96,7 +96,7 @@ export async function queryAnnotatedEvents<T extends TypedEvent>(
 }
 
 export async function findAnnotatedSingleEvent<T extends TypedEvent>(
-  multiprovider: MultiProvider<any>,
+  multiprovider: MultiProvider,
   chain: ChainName,
   contract: TSContract<T>,
   filter: TypedEventFilter<T>,
@@ -113,7 +113,7 @@ export async function findAnnotatedSingleEvent<T extends TypedEvent>(
 }
 
 export async function getEvents<T extends TypedEvent>(
-  multiprovider: MultiProvider<any>,
+  multiprovider: MultiProvider,
   chain: ChainName,
   contract: TSContract<T>,
   filter: TypedEventFilter<T>,
@@ -135,7 +135,7 @@ export async function getEvents<T extends TypedEvent>(
 }
 
 export async function findEvent<T extends TypedEvent>(
-  multiprovider: MultiProvider<any>,
+  multiprovider: MultiProvider,
   chain: ChainName,
   contract: TSContract<T>,
   filter: TypedEventFilter<T>,
@@ -155,7 +155,7 @@ export async function findEvent<T extends TypedEvent>(
 }
 
 async function getPaginatedEvents<T extends TypedEvent>(
-  multiprovider: MultiProvider<any>,
+  multiprovider: MultiProvider,
   chain: ChainName,
   contract: TSContract<T>,
   filter: TypedEventFilter<T>,
@@ -202,7 +202,7 @@ async function getPaginatedEvents<T extends TypedEvent>(
 }
 
 async function findFromPaginatedEvents<T extends TypedEvent>(
-  multiprovider: MultiProvider<any>,
+  multiprovider: MultiProvider,
   chain: ChainName,
   contract: TSContract<T>,
   filter: TypedEventFilter<T>,

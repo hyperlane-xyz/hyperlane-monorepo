@@ -90,7 +90,7 @@ export type ParsedMessage<
  */
 export class InterchainGasCalculator<Chain extends ChainName> {
   core: AbacusCore<Chain>;
-  multiProvider: MultiProvider<Chain>;
+  multiProvider: MultiProvider;
 
   tokenPriceGetter: TokenPriceGetter;
 
@@ -98,7 +98,7 @@ export class InterchainGasCalculator<Chain extends ChainName> {
   messageGasEstimateBuffer: ethers.BigNumber;
 
   constructor(
-    multiProvider: MultiProvider<Chain>,
+    multiProvider: MultiProvider,
     core: AbacusCore<Chain>,
     config?: InterchainGasCalculatorConfig,
   ) {

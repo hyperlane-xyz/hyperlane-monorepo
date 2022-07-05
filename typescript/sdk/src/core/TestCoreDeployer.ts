@@ -39,7 +39,7 @@ function mockProxy(contract: ethers.Contract) {
 }
 
 export class TestCoreDeployer extends AbacusCoreDeployer<TestChainNames> {
-  constructor(public readonly multiProvider: MultiProvider<TestChainNames>) {
+  constructor(public readonly multiProvider: MultiProvider) {
     super(
       multiProvider,
       {

@@ -14,7 +14,7 @@ export class AbacusApp<
 > extends MultiGeneric<Chain, Contracts> {
   constructor(
     public readonly contractsMap: ChainMap<Chain, Contracts>,
-    public readonly multiProvider: MultiProvider<Chain>,
+    public readonly multiProvider: MultiProvider,
   ) {
     const connectedContractsMap = objMap(contractsMap, (chain, contracts) =>
       connectContracts(

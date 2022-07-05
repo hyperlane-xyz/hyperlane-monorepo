@@ -37,7 +37,7 @@ export abstract class AbacusDeployer<
   protected logger: Debugger;
 
   constructor(
-    protected readonly multiProvider: MultiProvider<Chain>,
+    protected readonly multiProvider: MultiProvider,
     protected readonly configMap: ChainMap<Chain, Config>,
     protected readonly factories: Factories,
     protected readonly options?: DeployerOptions,
@@ -68,7 +68,7 @@ export abstract class AbacusDeployer<
     const deployedChains = Object.keys(this.deployedContracts);
     const configChains = Object.keys(this.configMap);
     const targetChains = this.multiProvider
-      .chains()
+      .chains<Chain>()
       .filter(
         (chain) =>
           configChains.includes(chain) && !deployedChains.includes(chain),

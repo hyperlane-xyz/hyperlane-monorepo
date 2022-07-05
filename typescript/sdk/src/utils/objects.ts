@@ -18,6 +18,18 @@ export function objMap<K extends string, I = any, O = any>(
   >;
 }
 
+// Similar to objMap above but supports objects with 'Partial' types
+export function partialObjMap<K extends string, I = any, O = any>(
+  obj: Partial<Record<K, I>>,
+  func: (k: K, _: I) => O,
+) {
+  const keys = Object.keys(obj) as K[];
+  return keys.reduce<Partial<Record<K, O>>>((result, key) => {
+    result[key] = func(key, obj[key]!);
+    return result;
+  }, {});
+}
+
 // promiseObjectAll :: {k: Promise a} -> Promise {k: a}
 export const promiseObjAll = <K extends string, V>(object: {
   [key in K]: Promise<V>;
