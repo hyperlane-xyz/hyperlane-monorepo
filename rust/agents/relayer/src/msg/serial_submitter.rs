@@ -6,6 +6,7 @@ use abacus_core::db::AbacusDB;
 use abacus_core::AbacusContract;
 use abacus_core::InboxValidatorManager;
 use eyre::{bail, Result};
+use prometheus::IntCounter;
 use prometheus::{Histogram, IntGauge};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -117,9 +118,9 @@ pub(crate) struct SerialSubmitter {
     run_queue: BinaryHeap<SubmitMessageArgs>,
     /// Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
-    // Interface to agent rocks DB for e.g. writing delivery status upon completion.
+    /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
-    // Metrics for serial submitter.
+    /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
 }
 
@@ -232,6 +233,12 @@ impl SerialSubmitter {
         self.metrics
             .queue_duration_hist
             .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
+        self.metrics.max_submitted_leaf_index =
+            std::cmp::max(self.metrics.max_submitted_leaf_index, msg.leaf_index);
+        self.metrics
+            .processed_gauge
+            .set(self.metrics.max_submitted_leaf_index as i64);
+        self.metrics.messages_processed_count.inc();
         Ok(())
     }
 }
@@ -241,6 +248,11 @@ pub(crate) struct SerialSubmitterMetrics {
     run_queue_length_gauge: IntGauge,
     wait_queue_length_gauge: IntGauge,
     queue_duration_hist: Histogram,
+    processed_gauge: IntGauge,
+    messages_processed_count: IntCounter,
+
+    /// Private state used to update actual metrics each tick.
+    max_submitted_leaf_index: u32,
 }
 
 impl SerialSubmitterMetrics {
@@ -259,6 +271,15 @@ impl SerialSubmitterMetrics {
             queue_duration_hist: metrics
                 .submitter_queue_duration_histogram()
                 .with_label_values(&[outbox_chain, inbox_chain]),
+            messages_processed_count: metrics
+                .messages_processed_count()
+                .with_label_values(&[outbox_chain, inbox_chain]),
+            processed_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
+                "message_processed",
+                outbox_chain,
+                inbox_chain,
+            ]),
+            max_submitted_leaf_index: 0,
         }
     }
 }

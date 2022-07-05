@@ -105,6 +105,10 @@ fn main() -> ExitCode {
         }
     };
 
+    // NOTE: This is defined within the Kathy script and could potentially drift.
+    // TODO: Plumb via environment variable or something.
+    let kathy_messages_per_round = 10;
+
     let log_all = env::var("E2E_LOG_ALL")
         .map(|k| k.parse::<bool>().unwrap())
         .unwrap_or(ci_mode);
@@ -348,6 +352,9 @@ fn main() -> ExitCode {
         if ci_mode {
             // for CI we have to look for the end condition.
             if kathy_done && retry_queues_empty() {
+                assert_termination_invariants(
+                    kathy_rounds.unwrap() as u32 * kathy_messages_per_round,
+                );
                 // end condition reached successfully
                 println!("Kathy completed successfully and the retry queues are empty");
                 break;
@@ -402,6 +409,50 @@ fn prefix_log(output: impl Read, name: &'static str) {
             break;
         }
     }
+}
+
+fn assert_termination_invariants(num_expected_messages_processed: u32) {
+    // Assert invariants for state upon successful test termination.
+
+    // The value of `abacus_last_known_message_leaf_index{phase=message_processed}` should refer
+    // to the maximum leaf index value we ever successfully delivered. Since deliveries can happen
+    // out-of-index-order, we separately track a counter of the number of successfully delivered
+    // messages. At the end of this test, they should both hold the same value.
+    let msg_processed_max_index: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.contains(r#"phase="message_processed""#))
+        .filter(|l| l.starts_with("abacus_last_known_message_leaf_index"))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .collect();
+    assert!(
+        !msg_processed_max_index.is_empty(),
+        "Could not find message_processed phase metric"
+    );
+    assert!(msg_processed_max_index
+        .into_iter()
+        .all(|n| n == num_expected_messages_processed));
+
+    // Also ensure the counter is as expected.
+    let msg_processed_count: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.starts_with("abacus_messages_processed_count"))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .collect();
+    assert!(
+        !msg_processed_count.is_empty(),
+        "Could not find message_processed phase metric"
+    );
+    assert!(msg_processed_count
+        .into_iter()
+        .all(|n| n == num_expected_messages_processed));
 }
 
 /// Basically `tail -f file | grep <FILTER>` but also has to write to the file (writes to file all
