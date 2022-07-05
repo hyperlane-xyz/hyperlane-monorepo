@@ -1,6 +1,6 @@
 //! Run this from the abacus-monorepo/rust directory using `cargo run -r -p run-locally`.
 //!
-//! Enviornment arguments:
+//! Environment arguments:
 //! - `E2E_CI_MODE`: true/false, enables CI mode which will automatically wait for kathy to finish
 //! running and for the queues to empty.
 //! - `E2E_CI_TIMEOUT_SEC`: How long (in seconds) to allow the main loop to run the test for. This
@@ -10,24 +10,29 @@
 //! - `E2E_LOG_ALL`: Log all output instead of writing to log files. Defaults to true if CI mode,
 //! else false.
 
-use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter, Read, Write};
-use std::path::{Path, PathBuf};
-use std::process::{Child, Command, ExitCode, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::thread::{sleep, spawn, JoinHandle};
-use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use std::{env, fs};
+use std::{
+    env,
+    fs::{self, File},
+    io::{BufRead, BufReader, BufWriter, Read, Write},
+    path::{Path, PathBuf},
+    process::{Child, Command, ExitCode, Stdio},
+    sync::atomic::{AtomicBool, Ordering},
+    thread::{sleep, spawn, JoinHandle},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
+};
 
 use maplit::hashmap;
-use nix::libc::pid_t;
-use nix::sys::signal;
-use nix::sys::signal::Signal;
-use nix::unistd::Pid;
+use nix::{
+    libc::pid_t,
+    sys::signal::{self, Signal},
+    unistd::Pid,
+};
 use tempfile::tempdir;
 
 static RUNNING: AtomicBool = AtomicBool::new(true);
 
+/// Struct to hold stuff we want to cleanup whenever we exit. Just using for cleanup purposes at
+/// this time.
 #[derive(Default)]
 struct State {
     kathy: Option<Child>,
@@ -74,6 +79,7 @@ impl Drop for State {
 }
 
 fn main() -> ExitCode {
+    // on sigint we want to trigger things to stop running
     ctrlc::set_handler(|| {
         println!("Terminating...");
         RUNNING.store(false, Ordering::Relaxed);
@@ -361,19 +367,22 @@ fn main() -> ExitCode {
     ExitCode::from(0)
 }
 
+/// Use the metrics to check if the relayer queues are empty.
 fn retry_queues_empty() -> bool {
-    ureq::get("http://127.0.0.1:9092/metrics")
+    let lengths: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
         .call()
         .unwrap()
         .into_string()
         .unwrap()
         .lines()
-        .filter(|l| l.starts_with("abacus_processor_retry_queue"))
+        .filter(|l| l.starts_with("abacus_submitter_queue_length"))
         .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
-        .inspect(|v| println!("Queue length: {v}"))
-        .all(|n| n == 0)
+        .collect();
+    assert!(!lengths.is_empty(), "Could not find queue length metric");
+    lengths.into_iter().all(|n| n == 0)
 }
 
+/// Read from a process output and add a string to the front before writing it to stdout.
 fn prefix_log(output: impl Read, name: &'static str) {
     let mut reader = BufReader::new(output).lines();
     loop {
@@ -429,6 +438,7 @@ fn inspect_and_write_to_file(output: impl Read, log: impl AsRef<Path>, filter_ar
     }
 }
 
+/// Attempt to kindly signal a child to stop running, and kill it if that fails.
 fn stop_child(child: &mut Child) {
     if child.try_wait().unwrap().is_some() {
         // already stopped
@@ -443,12 +453,14 @@ fn stop_child(child: &mut Child) {
     };
 }
 
+/// Merge two paths.
 fn concat_path(p1: impl AsRef<Path>, p2: impl AsRef<Path>) -> PathBuf {
     let mut p = p1.as_ref().to_path_buf();
     p.push(p2);
     p
 }
 
+/// Open a file in append mode, or create it if it does not exist.
 fn append_to(p: impl AsRef<Path>) -> File {
     File::options()
         .create(true)
