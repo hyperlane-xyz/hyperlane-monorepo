@@ -44,7 +44,9 @@ pub struct CoreMetrics {
     span_durations: HistogramVec,
     span_events: IntCounterVec,
     last_known_message_leaf_index: IntGaugeVec,
-    retry_queue_length: IntGaugeVec,
+    submitter_queue_length: IntGaugeVec,
+    submitter_queue_duration_histogram: HistogramVec,
+
     outbox_state: IntGaugeVec,
     latest_checkpoint: IntGaugeVec,
 
@@ -122,13 +124,28 @@ impl CoreMetrics {
             registry
         )?;
 
-        let retry_queue_length = register_int_gauge_vec_with_registry!(
+        let submitter_queue_length = register_int_gauge_vec_with_registry!(
             opts!(
-                namespaced!("processor_retry_queue"),
-                "Retry queue length of MessageProcessor",
+                namespaced!("submitter_queue_length"),
+                "Submitter queue length",
                 const_labels_ref
             ),
-            &["origin", "remote"],
+            &["outbox_chain", "inbox_chain", "queue_name"],
+            registry
+        )?;
+
+        let submitter_queue_duration_histogram = register_histogram_vec_with_registry!(
+            histogram_opts!(
+                namespaced!("submitter_queue_duration_seconds"),
+                concat!(
+                    "Time a message spends queued in the serial submitter measured from ",
+                    "insertion into channel from processor, ending after successful delivery ",
+                    "to provider."
+                ),
+                prometheus::exponential_buckets(0.5, 2., 19).unwrap(),
+                const_labels.clone()
+            ),
+            &["outbox_chain", "inbox_chain"],
             registry
         )?;
 
@@ -166,7 +183,10 @@ impl CoreMetrics {
             span_durations,
             span_events,
             last_known_message_leaf_index,
-            retry_queue_length,
+
+            submitter_queue_length,
+            submitter_queue_duration_histogram,
+
             outbox_state,
             latest_checkpoint,
 
@@ -276,9 +296,16 @@ impl CoreMetrics {
         self.latest_checkpoint.clone()
     }
 
-    /// Gauge for measuring the retry queue length in MessageProcessor
-    pub fn retry_queue_length(&self) -> IntGaugeVec {
-        self.retry_queue_length.clone()
+    /// Gauge for measuring the queue lengths in Submitter instances
+    pub fn submitter_queue_length(&self) -> IntGaugeVec {
+        self.submitter_queue_length.clone()
+    }
+
+    /// Histogram for measuring time spent until message submission, starting from the moment
+    /// that the message was discovered as "sendable" from AbacusDB and being enqueued with the
+    /// relevant `submitter`.
+    pub fn submitter_queue_duration_histogram(&self) -> HistogramVec {
+        self.submitter_queue_duration_histogram.clone()
     }
 
     /// Histogram for measuring span durations.

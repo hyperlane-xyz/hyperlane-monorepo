@@ -1,29 +1,31 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::{Context, Result};
+use eyre::Result;
 use tokio::{
-    sync::watch::{channel, Receiver, Sender},
+    sync::mpsc,
+    sync::watch::{Receiver, Sender},
     task::JoinHandle,
 };
-use tracing::{info, instrument::Instrumented, Instrument};
+use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
 use abacus_base::{
-    AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics, InboxContracts,
-    MultisigCheckpointSyncer,
+    chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics,
+    InboxContracts, MultisigCheckpointSyncer,
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
 
-use crate::checkpoint_fetcher::CheckpointFetcher;
-use crate::message_processor::MessageProcessorMetrics;
+use crate::msg::gelato_submitter::GelatoSubmitter;
+use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
+use crate::msg::serial_submitter::SerialSubmitter;
 use crate::settings::whitelist::Whitelist;
-use crate::{message_processor::MessageProcessor, settings::RelayerSettings};
+use crate::settings::RelayerSettings;
+use crate::{checkpoint_fetcher::CheckpointFetcher, msg::serial_submitter::SerialSubmitterMetrics};
 
 /// A relayer agent
 #[derive(Debug)]
 pub struct Relayer {
     signed_checkpoint_polling_interval: u64,
-    max_processing_retries: u32,
     multisig_checkpoint_syncer: MultisigCheckpointSyncer,
     core: AbacusAgentCore,
     whitelist: Arc<Whitelist>,
@@ -65,7 +67,6 @@ impl Agent for Relayer {
                 .signedcheckpointpollinginterval
                 .parse()
                 .unwrap_or(5),
-            max_processing_retries: settings.maxprocessingretries.parse().unwrap_or(10),
             multisig_checkpoint_syncer,
             core: settings
                 .as_ref()
@@ -108,58 +109,78 @@ impl Relayer {
         checkpoint_fetcher.spawn()
     }
 
+    #[tracing::instrument(fields(inbox=%inbox_contracts.inbox.chain_name()))]
     fn run_inbox(
         &self,
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
+        gelato_conf: Option<GelatoConf>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let db = self.outbox().db();
         let outbox = self.outbox().outbox();
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
             outbox.chain_name(),
             inbox_contracts.inbox.chain_name(),
         );
+        let (new_messages_send_channel, new_messages_receive_channel) = mpsc::unbounded_channel();
+        let submit_fut = match gelato_conf {
+            Some(cfg) if cfg.enabled_for_message_submission => {
+                let gelato_submitter = GelatoSubmitter::new(
+                    cfg,
+                    new_messages_receive_channel,
+                    inbox_contracts.clone(),
+                    self.outbox().db(),
+                );
+                gelato_submitter.spawn()
+            }
+            _ => {
+                let serial_submitter = SerialSubmitter::new(
+                    new_messages_receive_channel,
+                    inbox_contracts.clone(),
+                    self.outbox().db(),
+                    SerialSubmitterMetrics::new(
+                        &self.core.metrics,
+                        outbox.chain_name(),
+                        inbox_contracts.inbox.chain_name(),
+                    ),
+                );
+                serial_submitter.spawn()
+            }
+        };
         let message_processor = MessageProcessor::new(
             outbox,
-            self.max_processing_retries,
-            db,
+            self.outbox().db(),
             inbox_contracts,
-            signed_checkpoint_receiver,
             self.whitelist.clone(),
             metrics,
+            new_messages_send_channel,
+            signed_checkpoint_receiver,
         );
-
-        message_processor.spawn()
-    }
-
-    fn wrap_inbox_run(
-        &self,
-        inbox_name: &str,
-        inbox_contracts: InboxContracts,
-        signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
-        let m = format!("Task for inbox named {} failed", inbox_name);
-        let handle = self
-            .run_inbox(inbox_contracts, signed_checkpoint_receiver)
-            .in_current_span();
-        let fut = async move { handle.await?.wrap_err(m) };
-
-        tokio::spawn(fut).in_current_span()
+        info!(
+            message_processor=?message_processor,
+            "Using message processor"
+        );
+        let process_fut = message_processor.spawn();
+        tokio::spawn(async move {
+            let res = tokio::try_join!(submit_fut, process_fut)?;
+            info!(?res, "try_join finished for inbox");
+            Ok(())
+        })
+        .instrument(info_span!("run inbox"))
     }
 
     pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
         let (signed_checkpoint_sender, signed_checkpoint_receiver) =
-            channel::<Option<MultisigSignedCheckpoint>>(None);
+            tokio::sync::watch::channel::<Option<MultisigSignedCheckpoint>>(None);
 
         let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
             .inboxes()
             .iter()
             .map(|(inbox_name, inbox_contracts)| {
-                self.wrap_inbox_run(
-                    inbox_name,
+                self.run_inbox(
                     inbox_contracts.clone(),
                     signed_checkpoint_receiver.clone(),
+                    self.core.settings.inboxes[inbox_name].gelato_conf.clone(),
                 )
             })
             .collect();

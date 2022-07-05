@@ -15,7 +15,7 @@ use crate::relayer::Relayer;
 
 mod checkpoint_fetcher;
 mod merkle_tree_builder;
-mod message_processor;
+mod msg;
 mod prover;
 mod relayer;
 mod settings;

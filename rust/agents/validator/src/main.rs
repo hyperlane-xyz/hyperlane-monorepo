@@ -1,4 +1,4 @@
-//! The checkpointer observes the Outbox contract and calls checkpoint.
+//! The validator signs Outbox checkpoints that have reached finality.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
