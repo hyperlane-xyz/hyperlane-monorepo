@@ -5,6 +5,7 @@ import {
   UpgradeBeaconProxy__factory,
   UpgradeBeacon__factory,
 } from '@abacus-network/core';
+import type { types } from '@abacus-network/utils';
 
 import {
   AbacusContracts,
@@ -132,7 +133,7 @@ export abstract class AbacusDeployer<
     chain: Chain,
     contractName: K,
     deployArgs: Parameters<Factories[K]['deploy']>,
-    ubcAddress: Address,
+    ubcAddress: types.Address,
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
     const implementation = await this.deployContract<K>(

@@ -1,5 +1,7 @@
 import fetch from 'cross-fetch';
 
+import type { types } from '@abacus-network/utils';
+
 import { ChainName } from '../../types';
 
 import { ContractVerificationInput, VerificationInput } from './types';
@@ -19,7 +21,7 @@ export abstract class ContractVerifier {
   abstract chainNames: ChainName[];
   abstract getVerificationInput(chain: ChainName): VerificationInput;
 
-  static etherscanLink(chain: ChainName, address: Address): string {
+  static etherscanLink(chain: ChainName, address: types.Address): string {
     if (chain === 'polygon') {
       return `https://polygonscan.com/address/${address}`;
     }
@@ -87,7 +89,7 @@ export abstract class ContractVerifier {
     console.log('\n\n'); // add space after each attempt
   }
 
-  async verifyProxy(chain: ChainName, address: Address): Promise<void> {
+  async verifyProxy(chain: ChainName, address: types.Address): Promise<void> {
     const suffix = chain === 'ethereum' ? '' : `-${chain}`;
 
     console.log(`   Submit ${address} for proxy verification on ${chain}`);

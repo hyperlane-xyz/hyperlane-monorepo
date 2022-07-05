@@ -1,5 +1,7 @@
 import { Contract } from 'ethers';
 
+import type { types } from '@abacus-network/utils';
+
 import { Connection } from './types';
 
 export enum ProxyKind {
@@ -8,8 +10,8 @@ export enum ProxyKind {
 
 export interface ProxyAddresses<Kind extends ProxyKind> {
   kind: Kind;
-  proxy: Address;
-  implementation: Address;
+  proxy: types.Address;
+  implementation: types.Address;
 }
 
 export function isProxyAddresses(
@@ -27,7 +29,7 @@ export function isProxyAddresses(
 
 export interface BeaconProxyAddresses
   extends ProxyAddresses<ProxyKind.UpgradeBeacon> {
-  beacon: Address;
+  beacon: types.Address;
 }
 
 export class ProxiedContract<
