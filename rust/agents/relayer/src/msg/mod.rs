@@ -59,6 +59,10 @@ impl SubmitMessageArgs {
 // The run_queue implementation is a max-heap.  We want the next op to
 // be min over <num_retries, leaf_index>, so the total ordering is
 // the reverse of the natural lexicographic ordering.
+//
+// TODO(webbhorn): It may be more natural to take a `Reversed` of the normal
+// or implicit sort order of the `SubmitMessageArgs` struct. It also may be appropriate
+// to either wrap in a Schedulable or impl a Schedulable trait.
 impl Ord for SubmitMessageArgs {
     fn cmp(&self, other: &Self) -> Ordering {
         match self.num_retries.cmp(&other.num_retries) {
