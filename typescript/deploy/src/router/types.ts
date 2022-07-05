@@ -1,6 +1,8 @@
+import { ConnectionClientConfig } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-export type RouterConfig = {
+export type OwnableConfig = {
   owner: types.Address;
-  abacusConnectionManager: types.Address;
 };
+
+export type RouterConfig = ConnectionClientConfig & OwnableConfig;

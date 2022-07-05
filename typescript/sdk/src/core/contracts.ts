@@ -5,6 +5,8 @@ import {
   InboxValidatorManager,
   InboxValidatorManager__factory,
   Inbox__factory,
+  InterchainGasPaymaster,
+  InterchainGasPaymaster__factory,
   Outbox,
   OutboxValidatorManager,
   OutboxValidatorManager__factory,
@@ -26,14 +28,22 @@ export type OutboxContracts = {
   outboxValidatorManager: OutboxValidatorManager;
 };
 
+type ConnectionClientContracts = {
+  interchainGasPaymaster: ProxiedContract<
+    InterchainGasPaymaster,
+    BeaconProxyAddresses
+  >;
+  abacusConnectionManager: AbacusConnectionManager;
+};
+
 export type CoreContracts<
   Networks extends ChainName,
   Local extends Networks,
-> = OutboxContracts & {
-  inboxes: RemoteChainMap<Networks, Local, InboxContracts>;
-  abacusConnectionManager: AbacusConnectionManager;
-  upgradeBeaconController: UpgradeBeaconController;
-};
+> = OutboxContracts &
+  ConnectionClientContracts & {
+    inboxes: RemoteChainMap<Networks, Local, InboxContracts>;
+    upgradeBeaconController: UpgradeBeaconController;
+  };
 
 const inboxFactories = {
   inbox: new Inbox__factory(),
@@ -48,6 +58,7 @@ const outboxFactories = {
 export const coreFactories = {
   abacusConnectionManager: new AbacusConnectionManager__factory(),
   upgradeBeaconController: new UpgradeBeaconController__factory(),
+  interchainGasPaymaster: new InterchainGasPaymaster__factory(),
   ...inboxFactories,
   ...outboxFactories,
 };

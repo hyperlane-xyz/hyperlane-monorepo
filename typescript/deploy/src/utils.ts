@@ -9,12 +9,13 @@ export function getArgs() {
   return yargs(process.argv.slice(2))
     .alias('e', 'env')
     .describe('e', 'deploy environment')
+    .string('e')
     .help('h')
     .alias('h', 'help');
 }
 
 export async function getEnvironment(): Promise<string> {
-  return (await getArgs().argv).e as Promise<string>;
+  return (await getArgs().argv).e as string;
 }
 
 export const getMultiProviderFromConfigAndSigner = <Chain extends ChainName>(

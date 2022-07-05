@@ -8,6 +8,7 @@ import {
 } from '../types';
 
 const LEAF_INDEX = 4321;
+const DESTINATION_DOMAIN = 1234;
 const PAYMENT_AMOUNT = 123456789;
 const OWNER = '0xdeadbeef00000000000000000000000000000000';
 const OUTBOX = '0x00000000000000000000000000000000DeaDBeef';
@@ -24,13 +25,21 @@ describe('InterchainGasPaymaster', async () => {
     paymaster = await paymasterFactory.deploy();
   });
 
+  describe('#initialize', async () => {
+    it('should not be callable twice', async () => {
+      await expect(paymaster.initialize()).to.be.reverted;
+    });
+  });
+
   describe('#payGasFor', async () => {
     it('deposits the value into the contract', async () => {
       const paymasterBalanceBefore = await signer.provider!.getBalance(
         paymaster.address,
       );
 
-      await paymaster.payGasFor(OUTBOX, LEAF_INDEX, { value: PAYMENT_AMOUNT });
+      await paymaster.payGasFor(OUTBOX, LEAF_INDEX, DESTINATION_DOMAIN, {
+        value: PAYMENT_AMOUNT,
+      });
 
       const paymasterBalanceAfter = await signer.provider!.getBalance(
         paymaster.address,
@@ -43,7 +52,9 @@ describe('InterchainGasPaymaster', async () => {
 
     it('emits the GasPayment event', async () => {
       await expect(
-        paymaster.payGasFor(OUTBOX, LEAF_INDEX, { value: PAYMENT_AMOUNT }),
+        paymaster.payGasFor(OUTBOX, LEAF_INDEX, DESTINATION_DOMAIN, {
+          value: PAYMENT_AMOUNT,
+        }),
       )
         .to.emit(paymaster, 'GasPayment')
         .withArgs(OUTBOX, LEAF_INDEX, PAYMENT_AMOUNT);
@@ -53,7 +64,9 @@ describe('InterchainGasPaymaster', async () => {
   describe('#claim', async () => {
     it('sends the entire balance of the contract to the owner', async () => {
       // First pay some ether into the contract
-      await paymaster.payGasFor(OUTBOX, LEAF_INDEX, { value: PAYMENT_AMOUNT });
+      await paymaster.payGasFor(OUTBOX, LEAF_INDEX, DESTINATION_DOMAIN, {
+        value: PAYMENT_AMOUNT,
+      });
 
       // Set the owner to a different address so we aren't paying gas with the same
       // address we want to observe the balance of

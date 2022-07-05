@@ -6,7 +6,7 @@
       "domain": "6452067",
       "name": "bsc",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "7",
+      "finalityBlocks": "15",
       "connection": {
         "type": "http",
         "url": ""
@@ -20,7 +20,7 @@
       "domain": "1886350457",
       "name": "polygon",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "500",
+      "finalityBlocks": "256",
       "connection": {
         "type": "http",
         "url": ""
@@ -34,7 +34,7 @@
       "domain": "1667591279",
       "name": "celo",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "0",
+      "finalityBlocks": "1",
       "connection": {
         "type": "http",
         "url": ""
@@ -76,7 +76,7 @@
       "domain": "6648936",
       "name": "ethereum",
       "rpcStyle": "ethereum",
-      "finalityBlocks": "7",
+      "finalityBlocks": "15",
       "connection": {
         "type": "http",
         "url": ""
@@ -94,7 +94,7 @@
     "domain": "1635148152",
     "name": "avalanche",
     "rpcStyle": "ethereum",
-    "finalityBlocks": "0",
+    "finalityBlocks": "1",
     "connection": {
       "type": "http",
       "url": ""
