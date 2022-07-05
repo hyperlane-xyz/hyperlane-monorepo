@@ -66,13 +66,8 @@ are merged. Auto-redeploys will be implemented at some future date.
 ### Publishing Packages
 
 Packages can be versioned and published all at once with commands from the root.
-First, ensure packages are cleaned and rebuilt:
 
-```bash
-yarn clean && yarn build
-```
-
-Next, increment the version to the desired value:
+First, increment the version to the desired value:
 
 ```bash
 # An example of a prerelease version
@@ -81,8 +76,15 @@ yarn version:prepare 0.5.0-beta0
 yarn version:prepare minor
 ```
 
+Next, ensure packages are cleaned and rebuilt:
+
+```bash
+yarn clean && yarn build
+```
+
 Finally, publish the packages to NPM
 
 ```bash
-yarn publish --otp YOUR_OTP_HERE
+# Note: If you have not yet logged in, first run yarn npm login
+yarn publish:all --otp YOUR_OTP_HERE
 ```
