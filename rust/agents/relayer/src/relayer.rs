@@ -116,7 +116,6 @@ impl Relayer {
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
         gelato_conf: Option<GelatoConf>,
     ) -> Instrumented<JoinHandle<Result<()>>> {
-        let db = self.outbox().db();
         let outbox = self.outbox().outbox();
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
@@ -150,7 +149,7 @@ impl Relayer {
         };
         let message_processor = MessageProcessor::new(
             outbox,
-            db,
+            self.outbox().db(),
             inbox_contracts,
             self.whitelist.clone(),
             metrics,
