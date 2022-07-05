@@ -1,4 +1,5 @@
-import { ChainMap, CoreConfig } from '@abacus-network/sdk';
+import { CoreConfig } from '@abacus-network/deploy';
+import { ChainMap } from '@abacus-network/sdk';
 
 import { TestnetChains } from './chains';
 

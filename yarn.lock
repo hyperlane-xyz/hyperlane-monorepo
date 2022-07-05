@@ -5,12 +5,12 @@ __metadata:
   version: 6
   cacheKey: 8
 
-"@abacus-network/app@0.3.1, @abacus-network/app@workspace:solidity/app":
+"@abacus-network/app@0.2.3, @abacus-network/app@^0.2.3, @abacus-network/app@workspace:solidity/app":
   version: 0.0.0-use.local
   resolution: "@abacus-network/app@workspace:solidity/app"
   dependencies:
-    "@abacus-network/core": 0.3.1
-    "@abacus-network/utils": 0.3.1
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts-upgradeable": ^4.5.0
@@ -42,11 +42,11 @@ __metadata:
   languageName: node
   linkType: hard
 
-"@abacus-network/core@0.3.1, @abacus-network/core@workspace:solidity/core":
+"@abacus-network/core@^0.2.3, @abacus-network/core@workspace:solidity/core":
   version: 0.0.0-use.local
   resolution: "@abacus-network/core@workspace:solidity/core"
   dependencies:
-    "@abacus-network/utils": 0.3.1
+    "@abacus-network/utils": ^0.2.3
     "@nomiclabs/hardhat-ethers": ^2.0.1
     "@nomiclabs/hardhat-waffle": ^2.0.1
     "@openzeppelin/contracts": ^4.6.0
@@ -70,14 +70,55 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/helloworld@npm:0.3.1-beta0":
-  version: 0.3.1-beta0
-  resolution: "@abacus-network/helloworld@npm:0.3.1-beta0"
+"@abacus-network/deploy@^0.2.3, @abacus-network/deploy@workspace:typescript/deploy":
+  version: 0.0.0-use.local
+  resolution: "@abacus-network/deploy@workspace:typescript/deploy"
   dependencies:
-    "@abacus-network/sdk": ^0.3.1-beta0
+    "@abacus-network/app": ^0.2.3
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/sdk": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
+    "@types/debug": ^4.1.7
+    "@types/node": ^16.9.1
+    "@types/yargs": ^17.0.10
+    axios: ^0.21.3
+    debug: ^4.3.4
+    ethers: ^5.6.8
+    prettier: ^2.4.1
+    ts-node: ^10.8.0
+    typescript: ^4.7.2
+    yargs: ^17.4.1
+  languageName: unknown
+  linkType: soft
+
+"@abacus-network/hardhat@workspace:typescript/hardhat":
+  version: 0.0.0-use.local
+  resolution: "@abacus-network/hardhat@workspace:typescript/hardhat"
+  dependencies:
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/deploy": ^0.2.3
+    "@abacus-network/sdk": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
+    "@nomiclabs/hardhat-ethers": ^2.0.5
+    "@nomiclabs/hardhat-waffle": ^2.0.2
+    ethereum-waffle: ^3.2.2
+    ethers: ^5.6.8
+    hardhat: ^2.8.4
+    prettier: ^2.4.1
+    ts-node: ^10.8.0
+    typescript: ^4.7.2
+  languageName: unknown
+  linkType: soft
+
+"@abacus-network/helloworld@npm:0.2.4":
+  version: 0.2.4
+  resolution: "@abacus-network/helloworld@npm:0.2.4"
+  dependencies:
+    "@abacus-network/app": 0.2.3
+    "@abacus-network/sdk": 0.2.3
     "@openzeppelin/contracts-upgradeable": ^4.6.0
     ethers: ^5.4.7
-  checksum: 21114292ef0eb5408405f217942524ef54e379e189120edae94a4a2d2739a5c21edbfd98210831b309ca9a0118640c7ae231d13179f13c503ed94714a91c3055
+  checksum: 0cc987e6d0f762ac520571ebd431d48de0519e33ba1dee9d90c2d95357baf096827f7e74908ea5ec5445e867a41120a7fbb6fd20465f8aa42669a6b5e18dc253
   languageName: node
   linkType: hard
 
@@ -86,8 +127,10 @@ __metadata:
   resolution: "@abacus-network/infra@workspace:typescript/infra"
   dependencies:
     "@abacus-network/celo-ethers-provider": ^0.1.0
-    "@abacus-network/helloworld": 0.3.1-beta0
-    "@abacus-network/sdk": 0.3.1
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/deploy": ^0.2.3
+    "@abacus-network/helloworld": 0.2.4
+    "@abacus-network/sdk": ^0.2.3
     "@aws-sdk/client-iam": ^3.74.0
     "@aws-sdk/client-kms": 3.48.0
     "@aws-sdk/client-s3": ^3.74.0
@@ -127,26 +170,19 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/sdk@0.3.1, @abacus-network/sdk@^0.3.1-beta0, @abacus-network/sdk@workspace:typescript/sdk":
+"@abacus-network/sdk@0.2.3, @abacus-network/sdk@^0.2.3, @abacus-network/sdk@workspace:typescript/sdk":
   version: 0.0.0-use.local
   resolution: "@abacus-network/sdk@workspace:typescript/sdk"
   dependencies:
-    "@abacus-network/app": 0.3.1
+    "@abacus-network/app": ^0.2.3
     "@abacus-network/celo-ethers-provider": ^0.1.0
-    "@abacus-network/core": 0.3.1
-    "@abacus-network/utils": 0.3.1
-    "@nomiclabs/hardhat-ethers": ^2.0.5
-    "@nomiclabs/hardhat-waffle": ^2.0.2
-    "@types/debug": ^4.1.7
+    "@abacus-network/core": ^0.2.3
+    "@abacus-network/utils": ^0.2.3
     "@types/node": ^16.9.1
     chai: ^4.3.6
-    cross-fetch: ^3.1.5
-    debug: ^4.3.4
     dotenv: ^10.0.0
-    ethereum-waffle: ^3.2.2
     ethers: ^5.6.8
     fs: 0.0.1-security
-    hardhat: ^2.8.4
     mocha: ^9.2.2
     prettier: ^2.4.1
     sinon: ^13.0.2
@@ -154,7 +190,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@abacus-network/utils@0.3.1, @abacus-network/utils@workspace:typescript/utils":
+"@abacus-network/utils@^0.2.3, @abacus-network/utils@workspace:typescript/utils":
   version: 0.0.0-use.local
   resolution: "@abacus-network/utils@workspace:typescript/utils"
   dependencies:
@@ -4461,6 +4497,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"axios@npm:^0.21.3":
+  version: 0.21.4
+  resolution: "axios@npm:0.21.4"
+  dependencies:
+    follow-redirects: ^1.14.0
+  checksum: 44245f24ac971e7458f3120c92f9d66d1fc695e8b97019139de5b0cc65d9b8104647db01e5f46917728edfc0cfd88eb30fc4c55e6053eef4ace76768ce95ff3c
+  languageName: node
+  linkType: hard
+
 "babel-code-frame@npm:^6.26.0":
   version: 6.26.0
   resolution: "babel-code-frame@npm:6.26.0"
@@ -6299,15 +6344,6 @@ __metadata:
     node-fetch: ^2.6.7
     whatwg-fetch: ^2.0.4
   checksum: df9c6728b314ff96022dca468a3d2a05b4546cd318d82a7e1f1445e7160472d39029bccbe5f20d319b8ba3793930592b0b956244aef6a87a133fbcfed85fc8ca
-  languageName: node
-  linkType: hard
-
-"cross-fetch@npm:^3.1.5":
-  version: 3.1.5
-  resolution: "cross-fetch@npm:3.1.5"
-  dependencies:
-    node-fetch: 2.6.7
-  checksum: f6b8c6ee3ef993ace6277fd789c71b6acf1b504fd5f5c7128df4ef2f125a429e29cd62dc8c127523f04a5f2fa4771ed80e3f3d9695617f441425045f505cf3bb
   languageName: node
   linkType: hard
 
@@ -8337,7 +8373,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"follow-redirects@npm:^1.12.1":
+"follow-redirects@npm:^1.12.1, follow-redirects@npm:^1.14.0":
   version: 1.15.1
   resolution: "follow-redirects@npm:1.15.1"
   peerDependenciesMeta:
@@ -11866,7 +11902,7 @@ __metadata:
   languageName: node
   linkType: hard
 
-"node-fetch@npm:2.6.7, node-fetch@npm:^2.6.1, node-fetch@npm:^2.6.7":
+"node-fetch@npm:^2.6.1, node-fetch@npm:^2.6.7":
   version: 2.6.7
   resolution: "node-fetch@npm:2.6.7"
   dependencies:

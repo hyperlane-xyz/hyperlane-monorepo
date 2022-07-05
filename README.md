@@ -26,6 +26,12 @@ This monorepo uses [Yarn Workspaces](https://yarnpkg.com/features/workspaces). I
   yarn build
   ```
 
+- Running prettier
+
+  ```bash
+  yarn prettier
+  ```
+
 If you are using [VSCode](https://code.visualstudio.com/), you can launch the [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) with `code mono.code-workspace`, install the recommended workspace extensions, and use the editor settings.
 
 ### Rust
@@ -47,7 +53,7 @@ cd rust
 ./release.sh <image_tag>
 ```
 
-#### Deploy Procedure
+## Deploy Procedure
 
 The contract addresses of each deploy can be found in `rust/config`. The latest
 deploy will be at `rust/config/[latest timestamp]` with bridge contracts within
@@ -62,29 +68,3 @@ messages will not be relayed between chains).
 
 Off-chain agents are **not** automatically re-deployed when new contract deploys
 are merged. Auto-redeploys will be implemented at some future date.
-
-### Publishing Packages
-
-Packages can be versioned and published all at once with commands from the root.
-
-First, increment the version to the desired value:
-
-```bash
-# An example of a prerelease version
-yarn version:prepare 0.5.0-beta0
-# Or for a release which increments the minor version
-yarn version:prepare minor
-```
-
-Next, ensure packages are cleaned and rebuilt:
-
-```bash
-yarn clean && yarn build
-```
-
-Finally, publish the packages to NPM
-
-```bash
-# Note: If you have not yet logged in, first run yarn npm login
-yarn publish:all --otp YOUR_OTP_HERE
-```

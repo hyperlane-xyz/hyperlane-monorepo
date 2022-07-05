@@ -1,9 +1,5 @@
-import {
-  AbacusCoreDeployer,
-  ChainName,
-  chainMetadata,
-  objMap,
-} from '@abacus-network/sdk';
+import { AbacusCoreDeployer } from '@abacus-network/deploy';
+import { ChainName, chainMetadata, objMap } from '@abacus-network/sdk';
 
 import { DeployEnvironment, RustConfig } from '../config';
 import { writeJSON } from '../utils/utils';

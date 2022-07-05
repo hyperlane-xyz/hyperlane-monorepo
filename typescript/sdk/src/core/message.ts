@@ -1,15 +1,21 @@
-import { BigNumber, utils as ethersUtils, providers } from 'ethers';
+import { AbacusCore } from '.';
+import { TransactionReceipt } from '@ethersproject/abstract-provider';
+import { BigNumber } from '@ethersproject/bignumber';
+import { keccak256 } from 'ethers/lib/utils';
 
 import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
 import { types, utils } from '@abacus-network/utils';
 
-import { ChainNameToDomainId, DomainIdToChainName } from '../domains';
 import { Annotated, findAnnotatedSingleEvent } from '../events';
-import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName, NameOrDomain } from '../types';
+import { MultiProvider } from '../provider';
+import {
+  ChainName,
+  ChainNameToDomainId,
+  DomainIdToChainName,
+  NameOrDomain,
+} from '../types';
 import { delay } from '../utils';
 
-import { AbacusCore } from './AbacusCore';
 import {
   AnnotatedDispatch,
   AnnotatedLifecycleEvent,
@@ -98,7 +104,7 @@ export class AbacusMessage {
   /**
    * The receipt of the TX that dispatched this message
    */
-  get receipt(): providers.TransactionReceipt {
+  get receipt(): TransactionReceipt {
     return this.dispatch.receipt;
   }
 
@@ -114,7 +120,7 @@ export class AbacusMessage {
     multiProvider: MultiProvider,
     core: AbacusCore,
     nameOrDomain: NameOrDomain,
-    receipt: providers.TransactionReceipt,
+    receipt: TransactionReceipt,
   ): AbacusMessage[] {
     const messages: AbacusMessage[] = [];
     const outbox = new Outbox__factory().interface;
@@ -163,7 +169,7 @@ export class AbacusMessage {
     multiProvider: MultiProvider,
     core: AbacusCore,
     nameOrDomain: NameOrDomain,
-    receipt: providers.TransactionReceipt,
+    receipt: TransactionReceipt,
   ): AbacusMessage {
     const messages: AbacusMessage[] = AbacusMessage.fromReceipt(
       multiProvider,
@@ -378,7 +384,7 @@ export class AbacusMessage {
    * The keccak256 hash of the message body
    */
   get bodyHash(): string {
-    return ethersUtils.keccak256(this.body);
+    return keccak256(this.body);
   }
 
   /**

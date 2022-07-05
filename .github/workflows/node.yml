@@ -90,6 +90,8 @@ jobs:
         run: yarn workspace @abacus-network/sdk run test
       - name: infra
         run: yarn workspace @abacus-network/infra run test
+      - name: hardhat
+        run: yarn workspace @abacus-network/hardhat run test
 
   test-sol:
     env:

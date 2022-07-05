@@ -1,19 +1,19 @@
-import { providers } from 'ethers';
+import { TransactionReceipt } from '@ethersproject/abstract-provider';
 
 import { TypedEvent, TypedEventFilter } from '@abacus-network/core/dist/common';
 
-import { chainMetadata } from './consts/chainMetadata';
-import { MultiProvider } from './providers/MultiProvider';
+import { chainMetadata } from './chain-metadata';
+import { MultiProvider } from './provider';
 import { ChainName } from './types';
 
 export class Annotated<T extends TypedEvent> {
   readonly domain: number;
   readonly eventName?: string;
   readonly event: T;
-  readonly receipt: providers.TransactionReceipt;
+  readonly receipt: TransactionReceipt;
   constructor(
     domain: number,
-    receipt: providers.TransactionReceipt,
+    receipt: TransactionReceipt,
     event: T,
     callerKnowsWhatTheyAreDoing = false,
   ) {

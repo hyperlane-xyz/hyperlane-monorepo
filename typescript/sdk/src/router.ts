@@ -1,7 +1,7 @@
-import type { ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { Router } from '@abacus-network/app';
-import type { types } from '@abacus-network/utils';
+import { types } from '@abacus-network/utils';
 
 import { AbacusContracts, AbacusFactories } from './contracts';
 

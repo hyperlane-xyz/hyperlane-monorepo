@@ -1,10 +1,10 @@
 import path from 'path';
 
+import { HelloWorldDeployer } from '@abacus-network/helloworld';
 import {
   HelloWorldContracts,
-  HelloWorldDeployer,
   helloWorldFactories,
-} from '@abacus-network/helloworld';
+} from '@abacus-network/helloworld/dist/sdk/contracts';
 import {
   AbacusCore,
   ChainMap,

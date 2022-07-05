@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import type { types } from '@abacus-network/utils';
+import { types } from '@abacus-network/utils';
 
 import { ProxiedContract, ProxyAddresses, isProxyAddresses } from './proxy';
 import { Connection } from './types';

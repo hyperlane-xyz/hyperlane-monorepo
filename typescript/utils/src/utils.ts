@@ -1,16 +1,8 @@
-import { ethers, utils } from 'ethers';
+import { arrayify, hexlify } from '@ethersproject/bytes';
+import { assert } from 'chai';
+import { ethers } from 'ethers';
 
 import { Address, Domain, HexString, ParsedMessage } from './types';
-
-export function assert(predicate: any, errorMessage?: string) {
-  if (!predicate) {
-    throw new Error(errorMessage ?? 'Error');
-  }
-}
-
-export function deepEquals(v1: any, v2: any) {
-  return JSON.stringify(v1) === JSON.stringify(v2);
-}
 
 /*
  * Gets the byte length of a hex string
@@ -81,12 +73,12 @@ export const formatMessage = (
  * @returns
  */
 export function parseMessage(message: string): ParsedMessage {
-  const buf = Buffer.from(utils.arrayify(message));
+  const buf = Buffer.from(arrayify(message));
   const origin = buf.readUInt32BE(0);
-  const sender = utils.hexlify(buf.slice(4, 36));
+  const sender = hexlify(buf.slice(4, 36));
   const destination = buf.readUInt32BE(36);
-  const recipient = utils.hexlify(buf.slice(40, 72));
-  const body = utils.hexlify(buf.slice(72));
+  const recipient = hexlify(buf.slice(40, 72));
+  const body = hexlify(buf.slice(72));
   return { origin, sender, destination, recipient, body };
 }
 
@@ -120,8 +112,8 @@ export function sleep(ms: number): Promise<void> {
   return new Promise<void>((resolve) => setTimeout(resolve, ms));
 }
 
-// Retries an async function when it raises an exception
-// if all the tries fail it raises the last thrown exception
+// Retries an async function when it raises an exeption
+// if all the tries fail it raises the last thrown exeption
 export async function retryAsync<T>(
   runner: () => T,
   attempts = 3,

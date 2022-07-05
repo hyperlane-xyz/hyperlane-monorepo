@@ -1,14 +1,12 @@
+import { AbacusCore, MultiProvider, chainMetadata } from '..';
 import { BigNumber, FixedNumber, ethers } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 
-import { chainMetadata } from '../consts/chainMetadata';
-import { AbacusCore } from '../core/AbacusCore';
-import { MultiProvider } from '../providers/MultiProvider';
 import { ChainName, Remotes } from '../types';
-import { convertDecimalValue, mulBigAndFixed } from '../utils/number';
 
 import { DefaultTokenPriceGetter, TokenPriceGetter } from './token-prices';
+import { convertDecimalValue, mulBigAndFixed } from './utils';
 
 /**
  * A note on arithmetic:

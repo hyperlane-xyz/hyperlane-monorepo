@@ -1,14 +1,11 @@
-import {
-  HelloWorldApp,
-  HelloWorldContracts,
-  helloWorldFactories,
-} from '@abacus-network/helloworld';
+import { RouterConfig } from '@abacus-network/deploy';
+import { HelloWorldApp, HelloWorldContracts } from '@abacus-network/helloworld';
+import { helloWorldFactories } from '@abacus-network/helloworld/dist/sdk/contracts';
 import {
   AbacusCore,
   ChainMap,
   ChainName,
   MultiProvider,
-  RouterConfig,
   buildContracts,
   objMap,
   promiseObjAll,

@@ -1,6 +1,6 @@
 import path from 'path';
-import yargs from 'yargs';
 
+import { utils } from '@abacus-network/deploy';
 import {
   AllChains,
   ChainMap,
@@ -18,20 +18,6 @@ import { CoreEnvironmentConfig } from '../src/config';
 import { fetchProvider, fetchSigner } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
 
-export function getArgs() {
-  return yargs(process.argv.slice(2))
-    .alias('e', 'env')
-    .describe('e', 'deploy environment')
-    .string('e')
-    .help('h')
-    .alias('h', 'help');
-}
-
-export async function getEnvironmentFromArgs(): Promise<string> {
-  const argv = await getArgs().argv;
-  return argv.e!;
-}
-
 export function assertEnvironment(env: string): DeployEnvironment {
   if (EnvironmentNames.includes(env)) {
     return env as DeployEnvironment;
@@ -48,7 +34,7 @@ export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
 }
 
 export async function getEnvironment() {
-  return assertEnvironment(await getEnvironmentFromArgs());
+  return assertEnvironment(await utils.getEnvironment());
 }
 
 export async function getEnvironmentConfig() {
@@ -98,7 +84,8 @@ export function getCoreRustDirectory(environment: DeployEnvironment) {
 }
 
 export function getKeyRoleAndChainArgs() {
-  return getArgs()
+  return utils
+    .getArgs()
     .alias('r', 'role')
     .describe('r', 'key role')
     .choices('r', Object.values(KEY_ROLE_ENUM))
