@@ -26,6 +26,10 @@ jobs:
       - uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
+      - uses: actions/cache@v2
+        with:
+          path: '**/node_modules'
+          key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
       - run: cargo build --release --bin run-locally
       - run: ./target/release/run-locally
         env:
