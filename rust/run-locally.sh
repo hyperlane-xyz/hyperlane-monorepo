@@ -105,6 +105,7 @@ grep "Contract deployment" ${HARDHAT_LOG?} > /dev/null
 echo "Spawning relayer..."
 relayer > ${RELAYER_STDOUT_LOG?} 2> ${RELAYER_STDERR_LOG?} &
 while ! grep -i "listening on" ${RELAYER_STDOUT_LOG?}; do sleep 1; done
+(tail -f ${RELAYER_STDOUT_LOG} | grep -i "message successfully processed") &
 
 echo "Spawning validator..."
 validator > ${VALIDATOR_STDOUT_LOG?} 2> ${VALIDATOR_STDERR_LOG?} &
