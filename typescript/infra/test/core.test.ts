@@ -5,16 +5,14 @@ import path from 'path';
 import sinon from 'sinon';
 
 import {
+  AbacusCore,
   AbacusCoreChecker,
   AbacusCoreDeployer,
-  CoreConfig,
-} from '@abacus-network/deploy';
-import { getMultiProviderFromConfigAndSigner } from '@abacus-network/deploy/dist/src/utils';
-import {
-  AbacusCore,
   ChainMap,
+  CoreConfig,
   CoreContractsMap,
   MultiProvider,
+  getMultiProviderFromConfigAndSigner,
   objMap,
   serializeContracts,
 } from '@abacus-network/sdk';

@@ -1,8 +1,11 @@
 import fs from 'fs';
 import path from 'path';
 
-import { ContractVerifier, VerificationInput } from '@abacus-network/deploy';
-import { ChainName } from '@abacus-network/sdk';
+import {
+  ChainName,
+  ContractVerifier,
+  VerificationInput,
+} from '@abacus-network/sdk';
 
 import { DeployEnvironment } from './config';
 

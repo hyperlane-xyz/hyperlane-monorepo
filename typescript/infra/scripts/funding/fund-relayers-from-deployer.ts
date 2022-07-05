@@ -1,14 +1,13 @@
 import { Console } from 'console';
 import { ethers } from 'ethers';
 
-import { utils } from '@abacus-network/deploy';
 import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
 
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getRelayerKeys } from '../../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { readJSONAtPath } from '../../src/utils/utils';
-import { assertEnvironment, getCoreEnvironmentConfig } from '../utils';
+import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
 
 // Min delta is 1/10 of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(1);
@@ -97,8 +96,7 @@ async function fundRelayer(
 }
 
 async function main() {
-  const argv = await utils
-    .getArgs()
+  const argv = await getArgs()
     .alias('f', 'addresses-file')
     .describe(
       'f',
