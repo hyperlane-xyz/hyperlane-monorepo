@@ -59,6 +59,7 @@ abacus:
   # -- Replica chain overrides, a sequence
   inboxChains:
     - name: "alfajores"
+      disabled: false
       # -- The contract address for the replica contract
       address:
       domain:

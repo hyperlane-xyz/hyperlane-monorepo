@@ -32,11 +32,12 @@ async function helmValuesForChain<Chain extends ChainName>(
         name: chainName,
       },
       aws: !!agentConfig.aws,
-      inboxChains: agentConfig.chainNames
+      inboxChains: agentConfig.environmentChainNames
         .filter((name) => name !== chainName)
         .map((remoteChainName) => {
           return {
             name: remoteChainName,
+            disabled: agentConfig.chainNames.includes(remoteChainName),
           };
         }),
       validator: {

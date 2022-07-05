@@ -208,7 +208,8 @@ export interface AgentConfig<Chain extends ChainName> {
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
-  chainNames: Chain[];
+  environmentChainNames: Chain[];
+  chainNames: Chain[]; // context chain names
   validatorSets: ChainValidatorSets<Chain>;
   validator?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;

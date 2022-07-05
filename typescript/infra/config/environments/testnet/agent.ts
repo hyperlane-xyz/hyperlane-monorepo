@@ -15,6 +15,7 @@ export const agent: AgentConfig<TestnetChains> = {
   aws: {
     region: 'us-east-1',
   },
+  environmentChainNames: chainNames,
   chainNames: chainNames,
   validatorSets: validators,
   validator: {
