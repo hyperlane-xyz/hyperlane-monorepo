@@ -10,9 +10,9 @@ export function getArgs() {
     .alias('e', 'env')
     .describe('e', 'deploy environment')
     .string('e')
-    .alias('c', 'deploy-context')
-    .string('c')
-    .default('c', 'abacus')
+    .alias('context', 'deploy-context')
+    .string('context')
+    .default('context', 'abacus')
     .help('h')
     .alias('h', 'help');
 }
@@ -22,7 +22,7 @@ export async function getEnvironment(): Promise<string> {
 }
 
 export async function getContext(): Promise<string> {
-  return (await getArgs().argv).c as string;
+  return (await getArgs().argv).context as string;
 }
 
 export const getMultiProviderFromConfigAndSigner = <Chain extends ChainName>(

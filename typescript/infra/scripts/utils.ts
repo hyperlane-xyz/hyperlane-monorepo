@@ -41,8 +41,8 @@ export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
 }
 
-export async function getContext() {
-  return assertEnvironment(await utils.getContext());
+export function getContext() {
+  return utils.getContext();
 }
 
 export async function getContextAgentConfig() {

@@ -213,6 +213,7 @@ export interface AgentConfig<Chain extends ChainName> {
   validator?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
   kathy?: ChainKathyConfigs<Chain>;
+  rolesWithKeys?: KEY_ROLE_ENUM[];
 }
 
 export type RustSigner = {
@@ -365,6 +366,10 @@ export class ChainAgentConfig<Chain extends ChainName> {
   }
 
   async relayerSigners() {
+    if (!this.relayerEnabled) {
+      return undefined;
+    }
+
     if (!this.awsKeys) {
       return this.signers(KEY_ROLE_ENUM.Relayer);
     }

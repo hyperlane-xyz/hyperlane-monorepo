@@ -127,12 +127,14 @@ export class AgentGCPKey extends AgentKey {
       JSON.stringify({
         role: this.role,
         environment: this.environment,
+        context: this.context,
         privateKey: wallet.privateKey,
         address,
         ...include(this.isValidatorKey, { chainName: this.chainName }),
       }),
       {
         environment: this.environment,
+        context: this.context,
         role: this.role,
         ...include(this.isValidatorKey, {
           chain: this.chainName,

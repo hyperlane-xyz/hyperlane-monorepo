@@ -7,7 +7,7 @@ import { execCmd } from '../utils/utils';
 import { AgentKey } from './agent';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
-import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
+import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from './roles';
 
 interface KeyAsAddress {
   identifier: string;
@@ -52,7 +52,10 @@ export function getRelayerKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
 }
 
 export function getAllKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
-  return KEY_ROLES.flatMap((role) => {
+  // TODO consider making rolesWithKeys required, and a better name lol
+  const rolesWithKeys = agentConfig.rolesWithKeys ?? ALL_KEY_ROLES;
+
+  return rolesWithKeys.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
       return getValidatorKeys(agentConfig);
     } else if (role === KEY_ROLE_ENUM.Relayer) {
@@ -125,7 +128,8 @@ async function persistAddresses(
     addressesIdentifier(environment, context),
     JSON.stringify(keys),
     {
-      environment: environment,
+      environment,
+      context,
     },
   );
 }
