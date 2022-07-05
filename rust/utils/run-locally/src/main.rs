@@ -2,10 +2,10 @@
 //!
 //! Environment arguments:
 //! - `E2E_CI_MODE`: true/false, enables CI mode which will automatically wait for kathy to finish
-//! running and for the queues to empty.
+//! running and for the queues to empty. Defaults to false.
 //! - `E2E_CI_TIMEOUT_SEC`: How long (in seconds) to allow the main loop to run the test for. This
 //! does not include the initial setup time. If this timeout is reached before the end conditions
-//! are met, the test is a failure. Defaults to 5 min.
+//! are met, the test is a failure. Defaults to 10 min.
 //! - `E2E_KATHY_ROUNDS`: Number of rounds to run kathy for. Defaults to 4 if CI mode is enabled.
 //! - `E2E_LOG_ALL`: Log all output instead of writing to log files. Defaults to true if CI mode,
 //! else false.
@@ -92,7 +92,7 @@ fn main() -> ExitCode {
 
     let ci_mode_timeout = env::var("E2E_CI_TIMEOUT_SEC")
         .map(|k| k.parse::<u64>().unwrap())
-        .unwrap_or(60 * 5);
+        .unwrap_or(60 * 10);
 
     let kathy_rounds = {
         let r = env::var("E2E_KATHY_ROUNDS")
