@@ -255,7 +255,11 @@ fn main() -> ExitCode {
         if log_all {
             prefix_log(relayer_stdout, "RLY")
         } else {
-            inspect_and_write_to_file(relayer_stdout, relayer_stdout_log, Some("ERROR"))
+            inspect_and_write_to_file(
+                relayer_stdout,
+                relayer_stdout_log,
+                &["ERROR", "message successfully processed"],
+            )
         }
     }));
     let relayer_stderr = relayer.stderr.take().unwrap();
@@ -263,7 +267,7 @@ fn main() -> ExitCode {
         if log_all {
             prefix_log(relayer_stderr, "RLY")
         } else {
-            inspect_and_write_to_file(relayer_stderr, relayer_stderr_log, None)
+            inspect_and_write_to_file(relayer_stderr, relayer_stderr_log, &[])
         }
     }));
     state.relayer = Some(relayer);
@@ -281,7 +285,7 @@ fn main() -> ExitCode {
         if log_all {
             prefix_log(validator_stdout, "VAL")
         } else {
-            inspect_and_write_to_file(validator_stdout, validator_stdout_log, Some("ERROR"))
+            inspect_and_write_to_file(validator_stdout, validator_stdout_log, &["ERROR"])
         }
     }));
     let validator_stderr = validator.stderr.take().unwrap();
@@ -289,7 +293,7 @@ fn main() -> ExitCode {
         if log_all {
             prefix_log(validator_stderr, "VAL")
         } else {
-            inspect_and_write_to_file(validator_stderr, validator_stderr_log, None)
+            inspect_and_write_to_file(validator_stderr, validator_stderr_log, &[])
         }
     }));
     state.validator = Some(validator);
@@ -313,7 +317,7 @@ fn main() -> ExitCode {
         if log_all {
             prefix_log(kathy_stdout, "KTY")
         } else {
-            inspect_and_write_to_file(kathy_stdout, kathy_log, Some("send"))
+            inspect_and_write_to_file(kathy_stdout, kathy_log, &["send"])
         }
     }));
     state.kathy = Some(kathy);
@@ -393,11 +397,7 @@ fn prefix_log(output: impl Read, name: &'static str) {
 
 /// Basically `tail -f file | grep <FILTER>` but also has to write to the file (writes to file all
 /// lines, not just what passes the filter).
-fn inspect_and_write_to_file(
-    output: impl Read,
-    log: impl AsRef<Path>,
-    filter: Option<&'static str>,
-) {
+fn inspect_and_write_to_file(output: impl Read, log: impl AsRef<Path>, filter_array: &[&str]) {
     let mut writer = BufWriter::new(append_to(log));
     let mut reader = BufReader::new(output).lines();
     loop {
@@ -411,12 +411,14 @@ fn inspect_and_write_to_file(
                 }
             };
 
-            if let Some(f) = filter {
-                if line.contains(f) {
-                    println!("{line}")
-                }
-            } else {
+            if filter_array.is_empty() {
                 println!("{line}")
+            } else {
+                for filter in filter_array {
+                    if line.contains(filter) {
+                        println!("{line}")
+                    }
+                }
             }
             writeln!(writer, "{line}").unwrap();
         } else if RUNNING.fetch_and(true, Ordering::Relaxed) {
