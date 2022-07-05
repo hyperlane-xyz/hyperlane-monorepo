@@ -1,12 +1,6 @@
 import type { ethers } from 'ethers';
 
-import type { types } from '@abacus-network/utils';
-
 import type { Chains } from './consts/chains';
-
-declare global {
-  type Address = types.Address;
-}
 
 export type ChainName = keyof typeof Chains;
 export type CompleteChainMap<Value> = Record<ChainName, Value>;
