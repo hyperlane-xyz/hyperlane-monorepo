@@ -1,0 +1,56 @@
+{
+  "environment": "test",
+  "signers": {},
+  "inboxes": {
+    "test1": {
+      "domain": "13371",
+      "name": "test1",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "0",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+        "validatorManager": "0x2279B7A0a67DB372996a5FaB50D91eAA73d2eBe6"
+      }
+    },
+    "test3": {
+      "domain": "13373",
+      "name": "test3",
+      "rpcStyle": "ethereum",
+      "finalityBlocks": "2",
+      "connection": {
+        "type": "http",
+        "url": ""
+      },
+      "addresses": {
+        "inbox": "0x5eb3Bc0a489C5A8288765d2336659EbCA68FCd00",
+        "validatorManager": "0x9d4454B023096f34B160D6B654540c56A1F81688"
+      }
+    }
+  },
+  "outbox": {
+    "addresses": {
+      "outbox": "0x4ed7c70F96B99c776995fB64377f0d4aB3B0e1C1",
+      "interchainGasPaymaster": "0x9A9f2CCfdE556A7E9Ff0848998Aa4a0CFD8863AE"
+    },
+    "domain": "13372",
+    "name": "test2",
+    "rpcStyle": "ethereum",
+    "finalityBlocks": "1",
+    "connection": {
+      "type": "http",
+      "url": ""
+    }
+  },
+  "tracing": {
+    "level": "debug",
+    "fmt": "json"
+  },
+  "db": "db_path",
+  "index": {
+    "from": "26"
+  }
+}
