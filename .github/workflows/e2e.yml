@@ -19,25 +19,32 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
+
+      - name: setup rust
+        uses: actions-rs/toolchain@v1
         with:
           toolchain: stable
           profile: minimal
-      - uses: Swatinem/rust-cache@v1
+
+      - name: rust cache
+        uses: Swatinem/rust-cache@v1
         with:
           working-directory: ./rust
-      - name: yarn-cache
+      - name: node module cache
         uses: actions/cache@v2
         with:
           path: '**/node_modules'
           key: ${{ runner.os }}-yarn-cache4-${{ hashFiles('./yarn.lock') }}
-      - name: build-cache
+      - name: node build cache
         uses: actions/cache@v2
         with:
           path: ./*
           key: ${{ github.sha }}
-      - run: cargo build --release --bin run-locally
-      - run: ./target/release/run-locally
+
+      - name: build test
+        run: cargo build --release --bin run-locally
+      - name: run test
+        run: ./target/release/run-locally
         env:
           E2E_CI_MODE: 'true'
           E2E_CI_TIMEOUT_SEC: '300'
