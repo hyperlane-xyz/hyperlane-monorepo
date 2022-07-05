@@ -1,7 +1,0 @@
-[package]
-name = "loop-control"
-version = "0.1.0"
-edition = "2021"
-description = "A simple library which provides an easy way to breakup logic within a loop without losing the ability to pass loop control logic back."
-
-[dependencies]
