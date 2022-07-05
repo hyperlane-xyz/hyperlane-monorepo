@@ -53,7 +53,7 @@ impl GelatoSubmitter {
     /// spawn the work to submit to gelato in a root tokio task.
     ///
     /// It is possible that there has not been sufficient interchain
-    /// gas deposited in the interchaingaspaymaster account on the source
+    /// gas deposited in the InterchainGasPaymaster account on the source
     /// chain, so we also keep a wait queue of ops that we
     /// periodically scan for any gas updates.
     ///
@@ -87,7 +87,7 @@ impl GelatoSubmitter {
         // of implementing a verification queue, where we will stash
         // successfully submitted ops that have not yet reached finality.
         // Only after reaching finality will we commit the new status to
-        // AbacusDB and drop those messages from the verificaiton queue.
+        // AbacusDB and drop those messages from the verification queue.
         // In case of a destination chain re-org, they would need
         // to go back to the wait queue.
 

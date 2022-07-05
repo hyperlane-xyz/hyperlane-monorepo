@@ -56,7 +56,7 @@ impl SubmitMessageArgs {
     }
 }
 
-// The runqueue implementation is a max-heap.  We want the next op to
+// The run_queue implementation is a max-heap.  We want the next op to
 // be min over <num_retries, leaf_index>, so the total ordering is
 // the reverse of the natural lexicographic ordering.
 impl Ord for SubmitMessageArgs {
