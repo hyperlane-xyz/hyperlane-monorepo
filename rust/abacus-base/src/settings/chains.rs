@@ -18,7 +18,6 @@ use crate::{
 /// A connection to _some_ blockchain.
 ///
 /// Specify the chain name (enum variant) in toml under the `chain` key
-/// Specify the connection details as a toml object under the `connection` key.
 #[derive(Clone, Debug, Deserialize)]
 #[serde(tag = "rpcStyle", content = "connection", rename_all = "camelCase")]
 pub enum ChainConf {
@@ -30,6 +29,19 @@ impl Default for ChainConf {
     fn default() -> Self {
         Self::Ethereum(Default::default())
     }
+}
+
+/// Configuration for using Gelato to interact with some chain.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GelatoConf {
+    /// Whether to use Gelato's Relay service for processing messages on inboxes.
+    pub enabled_for_message_submission: bool,
+    // Other gelato configuration options can go here, like
+    // max-in-flight submissions we're willing to try, perhaps
+    // the Ethereum-based chain_id (which may differ from
+    // abacus domain), number of retry attempts before giving up,
+    // etc.
 }
 
 /// Addresses for outbox chain contracts
@@ -68,6 +80,8 @@ pub struct ChainSetup<T> {
     /// The chain connection details
     #[serde(flatten)]
     pub chain: ChainConf,
+    /// Gelato configuration for this chain (Gelato unused if None)
+    pub gelato_conf: Option<GelatoConf>,
     /// Set this key to disable the inbox. Does nothing for outboxes.
     #[serde(default)]
     pub disabled: Option<String>,
