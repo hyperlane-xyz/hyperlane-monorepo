@@ -37,7 +37,7 @@ async function helmValuesForChain<Chain extends ChainName>(
         .map((remoteChainName) => {
           return {
             name: remoteChainName,
-            disabled: agentConfig.chainNames.includes(remoteChainName),
+            disabled: !agentConfig.chainNames.includes(remoteChainName),
           };
         }),
       validator: {
