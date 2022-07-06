@@ -37,7 +37,7 @@ async function helmValuesForChain<Chain extends ChainName>(
         .map((remoteChainName) => {
           return {
             name: remoteChainName,
-            disabled: !agentConfig.chainNames.includes(remoteChainName),
+            disabled: !agentConfig.contextChainNames.includes(remoteChainName),
           };
         }),
       validator: {
@@ -66,7 +66,7 @@ export async function getAgentEnvVars<Chain extends ChainName>(
   agentConfig: AgentConfig<Chain>,
   index?: number,
 ) {
-  const chainNames = agentConfig.chainNames;
+  const chainNames = agentConfig.contextChainNames;
   if (role === KEY_ROLE_ENUM.Validator && index === undefined) {
     throw Error('Expected index for validator role');
   }
@@ -284,7 +284,7 @@ async function getSecretRpcEndpoints<Chain extends ChainName>(
 ) {
   const environment = agentConfig.runEnv;
   return getSecretForEachChain(
-    agentConfig.chainNames,
+    agentConfig.contextChainNames,
     (name: ChainName) => `${environment}-rpc-endpoint-${name}`,
     false,
   );

@@ -37,7 +37,7 @@ export function getValidatorKeys(
   agentConfig: AgentConfig<any>,
 ): Array<AgentKey> {
   // For each chainName, create validatorCount keys
-  return agentConfig.chainNames.flatMap((chainName) =>
+  return agentConfig.contextChainNames.flatMap((chainName) =>
     Array(agentConfig.validatorSets[chainName].validators.length).map(
       (_, index) =>
         getKey(agentConfig, KEY_ROLE_ENUM.Validator, chainName, index),
@@ -46,7 +46,7 @@ export function getValidatorKeys(
 }
 
 export function getRelayerKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
-  return agentConfig.chainNames.map((chainName) =>
+  return agentConfig.contextChainNames.map((chainName) =>
     getKey(agentConfig, KEY_ROLE_ENUM.Relayer, chainName),
   );
 }

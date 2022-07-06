@@ -22,7 +22,7 @@ export const agent: AgentConfig<TestnetChains> = {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
-  chainNames: chainNames,
+  contextChainNames: chainNames,
   validatorSets: validators,
   validator: {
     default: {
@@ -75,7 +75,7 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
   //   region: 'us-east-1',
   // },
   environmentChainNames: chainNames,
-  chainNames: ['alfajores', 'kovan'],
+  contextChainNames: ['alfajores', 'kovan'],
   validatorSets: validators,
   relayer: {
     default: {

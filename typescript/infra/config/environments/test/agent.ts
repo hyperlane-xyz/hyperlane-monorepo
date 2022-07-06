@@ -13,7 +13,7 @@ export const agent: AgentConfig<TestChains> = {
     tag: '8852db3d88e87549269487da6da4ea5d67fdbfed',
   },
   environmentChainNames: chainNames,
-  chainNames,
+  contextChainNames: chainNames,
   validatorSets: validators,
   validator: {
     default: {

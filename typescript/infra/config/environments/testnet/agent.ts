@@ -16,7 +16,7 @@ export const agent: AgentConfig<TestnetChains> = {
     region: 'us-east-1',
   },
   environmentChainNames: chainNames,
-  chainNames: chainNames,
+  contextChainNames: chainNames,
   validatorSets: validators,
   validator: {
     default: {
