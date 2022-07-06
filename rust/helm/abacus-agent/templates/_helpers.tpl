@@ -36,7 +36,6 @@ Common labels
 {{- define "abacus-agent.labels" -}}
 helm.sh/chart: {{ include "abacus-agent.chart" . }}
 abacus/deployment: {{ .Values.abacus.runEnv | quote }}
-abacus/environment: {{ .Values.abacus.runEnv | quote }}
 abacus/context: {{ .Values.abacus.context | quote }}
 {{ include "abacus-agent.selectorLabels" . }}
 {{- if .Chart.AppVersion }}

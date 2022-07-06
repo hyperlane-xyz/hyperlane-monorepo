@@ -24,6 +24,8 @@ spec:
             - {{ .Values.abacus.runEnv }}
             - -f
             - /addresses-secret/addresses.json
+            - --context
+            - abacus
             envFrom:
             - secretRef:
                 name: relayer-funder-env-var-secret
