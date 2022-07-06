@@ -185,7 +185,7 @@ impl CoreMetrics {
                 "Number of messages processed",
                 const_labels_ref
             ),
-            &["outbox_chain", "inbox_chain"],
+            &["origin", "remote"],
             registry
         )?;
 
