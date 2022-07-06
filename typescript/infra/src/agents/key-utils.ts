@@ -7,7 +7,7 @@ import { execCmd } from '../utils/utils';
 import { AgentKey } from './agent';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
-import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from './roles';
+import { KEY_ROLE_ENUM } from './roles';
 
 interface KeyAsAddress {
   identifier: string;
@@ -38,7 +38,7 @@ export function getValidatorKeys(
 ): Array<AgentKey> {
   // For each chainName, create validatorCount keys
   return agentConfig.contextChainNames.flatMap((chainName) =>
-    Array(agentConfig.validatorSets[chainName].validators.length).map(
+    [...Array(agentConfig.validatorSets[chainName].validators.length)].map(
       (_, index) =>
         getKey(agentConfig, KEY_ROLE_ENUM.Validator, chainName, index),
     ),
