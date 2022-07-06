@@ -186,18 +186,8 @@ fn main() -> ExitCode {
     println!("Validator DB in {}", validator_db.display());
 
     println!("Building typescript...");
-    build_cmd(
-        &["yarn", "install"],
-        &build_log,
-        log_all,
-        Some("../typescript/infra"),
-    );
-    build_cmd(
-        &["yarn", "build"],
-        &build_log,
-        log_all,
-        Some("../typescript"),
-    );
+    build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
+    build_cmd(&["yarn", "build"], &build_log, log_all, Some("../"));
 
     println!("Building relayer...");
     build_cmd(

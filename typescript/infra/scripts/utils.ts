@@ -78,7 +78,7 @@ function getContractsSdkFilepath(mod: string) {
 }
 
 export function getCoreContractsSdkFilepath() {
-  return getContractsSdkFilepath('core');
+  return getContractsSdkFilepath('consts');
 }
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
