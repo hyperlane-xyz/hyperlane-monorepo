@@ -63,8 +63,12 @@ export async function getContext() {
   return argv.context!;
 }
 
-export async function getContextAgentConfig() {
-  const coreConfig = await getEnvironmentConfig();
+export async function getContextAgentConfig<Chain extends ChainName>(
+  coreEnvironmentConfig?: CoreEnvironmentConfig<Chain>,
+) {
+  const coreConfig = coreEnvironmentConfig
+    ? coreEnvironmentConfig
+    : await getEnvironmentConfig();
   const context = await getContext();
   const agentConfig = coreConfig.agents[context];
   if (!agentConfig) {

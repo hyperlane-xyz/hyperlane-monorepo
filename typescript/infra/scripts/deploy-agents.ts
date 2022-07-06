@@ -12,7 +12,7 @@ async function deploy() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment);
 
-  const agentConfig = await getContextAgentConfig();
+  const agentConfig = await getContextAgentConfig(config);
 
   await assertCorrectKubeContext(config);
 

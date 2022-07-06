@@ -15,7 +15,7 @@ async function main() {
   await assertCorrectKubeContext(coreConfig);
 
   const relayerFunderConfig = getRelayerFunderConfig(coreConfig);
-  const agentConfig = await getContextAgentConfig();
+  const agentConfig = await getContextAgentConfig(coreConfig);
 
   await runRelayerFunderHelmCommand(
     HelmCommand.InstallOrUpgrade,

@@ -1,9 +1,10 @@
+import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 
 import { DevChains, chainNames } from './chains';
 import { validators } from './validators';
 
-export const agent: AgentConfig<DevChains> = {
+export const abacus: AgentConfig<DevChains> = {
   environment: 'dev',
   namespace: 'dev',
   runEnv: 'dev',
@@ -27,19 +28,9 @@ export const agent: AgentConfig<DevChains> = {
       maxProcessingRetries: 10,
     },
   },
-  kathy: {
-    default: {
-      enabled: false,
-      interval: 60 * 2,
-      chat: {
-        type: 'static',
-        message: '',
-        recipient: '',
-      },
-    },
-  },
+  rolesWithKeys: ALL_KEY_ROLES,
 };
 
 export const agents = {
-  abacus: agent,
+  abacus,
 };

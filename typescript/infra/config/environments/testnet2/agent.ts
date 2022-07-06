@@ -4,12 +4,12 @@ import { AgentConfig } from '../../../src/config';
 import { TestnetChains, chainNames, environment } from './chains';
 import { validators } from './validators';
 
-export enum Contexts {
+enum Contexts {
   Abacus = 'abacus',
   Flowcarbon = 'flowcarbon',
 }
 
-export const agent: AgentConfig<TestnetChains> = {
+export const abacus: AgentConfig<TestnetChains> = {
   environment,
   namespace: environment,
   runEnv: environment,
@@ -87,6 +87,6 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
 };
 
 export const agents: Record<Contexts, AgentConfig<TestnetChains>> = {
-  abacus: agent,
+  abacus,
   flowcarbon,
 };

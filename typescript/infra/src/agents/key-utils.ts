@@ -52,10 +52,7 @@ export function getRelayerKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
 }
 
 export function getAllKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
-  // TODO consider making rolesWithKeys required, and a better name lol
-  const rolesWithKeys = agentConfig.rolesWithKeys ?? ALL_KEY_ROLES;
-
-  return rolesWithKeys.flatMap((role) => {
+  return agentConfig.rolesWithKeys.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
       return getValidatorKeys(agentConfig);
     } else if (role === KEY_ROLE_ENUM.Relayer) {

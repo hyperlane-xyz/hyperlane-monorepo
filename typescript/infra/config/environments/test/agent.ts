@@ -1,9 +1,10 @@
+import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 
 import { TestChains, chainNames } from './chains';
 import { validators } from './validators';
 
-export const agent: AgentConfig<TestChains> = {
+export const abacus: AgentConfig<TestChains> = {
   environment: 'test',
   namespace: 'test',
   runEnv: 'test',
@@ -27,8 +28,9 @@ export const agent: AgentConfig<TestChains> = {
       maxProcessingRetries: 10,
     },
   },
+  rolesWithKeys: ALL_KEY_ROLES,
 };
 
 export const agents = {
-  abacus: agent,
+  abacus,
 };

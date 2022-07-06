@@ -14,7 +14,7 @@ async function deploy() {
   const config = getCoreEnvironmentConfig(environment);
   await assertCorrectKubeContext(config);
 
-  const agentConfig = await getContextAgentConfig();
+  const agentConfig = await getContextAgentConfig(config);
 
   for (const chain of agentConfig.contextChainNames) {
     await runAgentHelmCommand<any>(HelmCommand.UpgradeDiff, agentConfig, chain);

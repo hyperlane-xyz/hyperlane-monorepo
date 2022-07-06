@@ -339,6 +339,8 @@ function getHelmReleaseName<Chain extends ChainName>(
   outboxChainName: Chain,
   agentConfig: AgentConfig<Chain>,
 ): string {
+  // For backward compatibility reasons, don't include the context
+  // in the name of the helm release if the context is the default "abacus"
   if (agentConfig.context === 'abacus') {
     return outboxChainName;
   }

@@ -13,7 +13,7 @@ async function main() {
 
   await assertCorrectKubeContext(coreConfig);
 
-  const agentConfig = await getContextAgentConfig();
+  const agentConfig = await getContextAgentConfig(coreConfig);
   const kathyConfig = getHelloWorldConfig(coreConfig).kathy;
 
   await runHelloworldKathyHelmCommand(

@@ -1,9 +1,10 @@
+import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
 
 import { MainnetChains, chainNames, environment } from './chains';
 import { validators } from './validators';
 
-export const agent: AgentConfig<MainnetChains> = {
+export const abacus: AgentConfig<MainnetChains> = {
   environment,
   namespace: environment,
   runEnv: environment,
@@ -53,8 +54,9 @@ export const agent: AgentConfig<MainnetChains> = {
       maxProcessingRetries: 10,
     },
   },
+  rolesWithKeys: ALL_KEY_ROLES,
 };
 
 export const agents = {
-  abacus: agent,
+  abacus,
 };

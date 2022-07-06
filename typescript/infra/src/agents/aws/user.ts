@@ -40,7 +40,6 @@ export class AgentAwsUser<Chain extends ChainName> {
   // Populates `this._arn` with the ARN of the user.
   async createIfNotExists() {
     const users = await this.getUsers();
-    console.log('users.length', users.length);
     const match = users.find((user) => user.UserName === this.userName);
     if (match) {
       this._arn = match?.Arn;

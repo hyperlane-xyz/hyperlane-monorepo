@@ -112,7 +112,7 @@ async function main() {
   const environment = assertEnvironment(argv.e as string);
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
-  const agentConfig = await getContextAgentConfig();
+  const agentConfig = await getContextAgentConfig(config);
 
   const relayerKeys = argv.f
     ? getRelayerKeysFromSerializedAddressFile(argv.f)

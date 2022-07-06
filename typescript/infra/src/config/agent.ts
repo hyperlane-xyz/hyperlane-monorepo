@@ -216,7 +216,8 @@ export interface AgentConfig<Chain extends ChainName> {
   validator?: ChainValidatorConfigs<Chain>;
   relayer?: ChainRelayerConfigs<Chain>;
   kathy?: ChainKathyConfigs<Chain>;
-  rolesWithKeys?: KEY_ROLE_ENUM[];
+  // Roles to manage keys for
+  rolesWithKeys: KEY_ROLE_ENUM[];
 }
 
 export type RustSigner = {
