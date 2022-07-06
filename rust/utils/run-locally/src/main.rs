@@ -190,13 +190,13 @@ fn main() -> ExitCode {
         &["yarn", "install"],
         &build_log,
         log_all,
-        Some("../typescript/infra"),
+        Some("../"),
     );
     build_cmd(
         &["yarn", "build"],
         &build_log,
         log_all,
-        Some("../typescript"),
+        Some("../"),
     );
 
     println!("Building relayer...");
