@@ -47,6 +47,8 @@ pub struct CoreMetrics {
     submitter_queue_length: IntGaugeVec,
     submitter_queue_duration_histogram: HistogramVec,
 
+    messages_processed_count: IntCounterVec,
+
     outbox_state: IntGaugeVec,
     latest_checkpoint: IntGaugeVec,
 
@@ -130,7 +132,7 @@ impl CoreMetrics {
                 "Submitter queue length",
                 const_labels_ref
             ),
-            &["outbox_chain", "inbox_chain", "queue_name"],
+            &["origin", "remote", "queue_name"],
             registry
         )?;
 
@@ -145,7 +147,7 @@ impl CoreMetrics {
                 prometheus::exponential_buckets(0.5, 2., 19).unwrap(),
                 const_labels.clone()
             ),
-            &["outbox_chain", "inbox_chain"],
+            &["origin", "remote"],
             registry
         )?;
 
@@ -173,6 +175,20 @@ impl CoreMetrics {
             registry
         )?;
 
+        // The value of `abacus_last_known_message_leaf_index{phase=message_processed}` should refer
+        // to the maximum leaf index value we ever successfully delivered. Since deliveries can
+        // happen out-of-index-order, we separately track this counter referring to the number of
+        // successfully delivered messages.
+        let messages_processed_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("messages_processed_count"),
+                "Number of messages processed",
+                const_labels_ref
+            ),
+            &["origin", "remote"],
+            registry
+        )?;
+
         Ok(Self {
             agent_name: for_agent.into(),
             registry,
@@ -186,6 +202,8 @@ impl CoreMetrics {
 
             submitter_queue_length,
             submitter_queue_duration_histogram,
+
+            messages_processed_count,
 
             outbox_state,
             latest_checkpoint,
@@ -306,6 +324,12 @@ impl CoreMetrics {
     /// relevant `submitter`.
     pub fn submitter_queue_duration_histogram(&self) -> HistogramVec {
         self.submitter_queue_duration_histogram.clone()
+    }
+
+    /// Counter for the number of messages successfully submitted by
+    /// this process during its lifetime.
+    pub fn messages_processed_count(&self) -> IntCounterVec {
+        self.messages_processed_count.clone()
     }
 
     /// Histogram for measuring span durations.
