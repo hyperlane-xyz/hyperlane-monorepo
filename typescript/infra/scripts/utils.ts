@@ -24,7 +24,7 @@ export function getArgs() {
     .describe('e', 'deploy environment')
     .string('e')
     .describe('context', 'deploy context')
-    .default('context', 'abacus')
+    .demandOption('context')
     .string('context')
     .help('h')
     .alias('h', 'help');
