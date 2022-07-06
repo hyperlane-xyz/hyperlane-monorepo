@@ -247,7 +247,130 @@
       "isProxy": false
     }
   ],
-  "avalanche": [],
+  "avalanche": [
+    {
+      "name": "upgradeBeaconController",
+      "address": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "abacusConnectionManager",
+      "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
+      "constructorArguments": [],
+      "isProxy": false
+    },
+    {
+      "name": "outboxValidatorManager",
+      "address": "0x8F7454AC98228f3504Bb91eA3D8Adafe6406110A",
+      "constructorArguments": [
+        1635148152,
+        [
+          "0x1353B91e2b256ca0a283504b02ae3C69374Fb105",
+          "0x9c6028433b8A0Af8530399e57433d2B3b5379b55",
+          "0x5344D1CCcAa4CB189ec7c2d30BDD9Eb202aEB738"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "outbox",
+      "address": "0x0761b0827849abbf7b0cC09CE14e1C93D87f5004",
+      "constructorArguments": [1635148152],
+      "isProxy": false
+    },
+    {
+      "name": "inbox",
+      "address": "0x5332D1AC0A626D265298c14ff681c0A8D28dB86d",
+      "constructorArguments": [1635148152],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x398633D19f4371e1DB5a8EFE90468eB70B1176AA",
+      "constructorArguments": [
+        6452067,
+        [
+          "0x013D01a570B5CfA19032C5176488b5824e225a6B",
+          "0x507eE81c640DAeeD081BA013324E4e26bc893446",
+          "0x27d47D7D5F14f76B5F800481499f4c1Cb1eb54d9"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x2f9DB5616fa3fAd1aB06cB2C906830BA63d135e3",
+      "constructorArguments": [
+        1886350457,
+        [
+          "0xff198CAe21069d865b142f2b9E798d3b299B8df6",
+          "0x577Ae23f23A4B81C5c7E26dDD1FfA8C317937629",
+          "0xc79C2e64C5051ac1c8df4a18Df4f9cEb5A2Ec767"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
+      "constructorArguments": [
+        1667591279,
+        [
+          "0x8784F09C2cfb70329B936a3B75eB61c41b467b65",
+          "0x36daF0aC1f4feB22440ea0834308E0d3Ae409139",
+          "0x3FC9689d60e3fe78a624Eeb5D9d3452B272cB1A4"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x23ce76645EC601148fa451e751eeB75785b97A00",
+      "constructorArguments": [
+        6386274,
+        [
+          "0x6289f913AcC64c2E6BAaA2b5175C7db35f98f62d",
+          "0x3B989D35931F39d6c7B5BDd41EaC3cad5c903Af9",
+          "0x38566cc4CEB264dfcb0022D9857ffe6c9Da33881"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x8428a1a7E97Fc75Fb7Ba5c4aec31B55e52bbe9D6",
+      "constructorArguments": [
+        28528,
+        [
+          "0xCf2Dcc3462C84420965501C1Dda3d62DdE08941d",
+          "0x6DC8296b04206521afC57b868653203fA5585037",
+          "0x95c27B4d029b11F7581F3F36b6575a14DaBA83d1"
+        ],
+        2
+      ],
+      "isProxy": false
+    },
+    {
+      "name": "inboxValidatorManager",
+      "address": "0x28EFBCadA00A7ed6772b3666F3898d276e88CAe3",
+      "constructorArguments": [
+        6648936,
+        [
+          "0x7c1D96c9E72C41B84d74095Dc2e72b979E933904",
+          "0xD82ebBd1ef3d75B21f33A36a5C250865D97b9CA1",
+          "0x333f37f29c6Bca607084A75AbbE66Fd268f585CB"
+        ],
+        2
+      ],
+      "isProxy": false
+    }
+  ],
   "polygon": [
     {
       "name": "upgradeBeaconController",
