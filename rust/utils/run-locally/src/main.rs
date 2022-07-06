@@ -432,11 +432,16 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         !msg_processed_max_index.is_empty(),
         "Could not find message_processed phase metric"
     );
-    assert!(msg_processed_max_index
-        .into_iter()
-        .all(|n| n == num_expected_messages_processed));
+    // The max index is one less than the number delivered messages, since it is an index into the
+    // outbox merkle tree leafs. Since the metric is parameterized by inbox, and the test
+    // non-deterministically selects the destination inbox between test2 and test3 for the highest
+    // message, we take the max over the metric vector.
+    assert_eq!(
+        msg_processed_max_index.into_iter().max().unwrap(),
+        num_expected_messages_processed - 1
+    );
 
-    // Also ensure the counter is as expected.
+    // Also ensure the counter is as expected (total number of messages), summed across all inboxes.
     let msg_processed_count: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
         .call()
         .unwrap()
@@ -450,9 +455,10 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
         !msg_processed_count.is_empty(),
         "Could not find message_processed phase metric"
     );
-    assert!(msg_processed_count
-        .into_iter()
-        .all(|n| n == num_expected_messages_processed));
+    assert_eq!(
+        num_expected_messages_processed,
+        msg_processed_count.into_iter().sum::<u32>()
+    );
 }
 
 /// Basically `tail -f file | grep <FILTER>` but also has to write to the file (writes to file all
