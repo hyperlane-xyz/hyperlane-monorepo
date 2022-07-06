@@ -1,9 +1,9 @@
 {
   "name": "@abacus-network/core",
   "description": "Core solidity contracts for Abacus",
-  "version": "0.2.3",
+  "version": "0.3.1",
   "dependencies": {
-    "@abacus-network/utils": "^0.2.3",
+    "@abacus-network/utils": "0.3.1",
     "@openzeppelin/contracts": "^4.6.0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "@summa-tx/memview-sol": "^2.0.0"
@@ -45,7 +45,7 @@
   "repository": "https://github.com/abacus-network/abacus-monorepo",
   "scripts": {
     "build": "hardhat compile && tsc",
-    "clean": "hardhat clean",
+    "clean": "hardhat clean && rm -rf ./dist ./cache",
     "coverage": "hardhat coverage",
     "prettier": "prettier --write ./contracts ./interfaces ./test",
     "test": "hardhat test"

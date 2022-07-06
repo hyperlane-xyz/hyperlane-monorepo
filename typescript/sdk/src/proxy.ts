@@ -1,6 +1,6 @@
 import { Contract } from 'ethers';
 
-import { types } from '@abacus-network/utils';
+import type { types } from '@abacus-network/utils';
 
 import { Connection } from './types';
 

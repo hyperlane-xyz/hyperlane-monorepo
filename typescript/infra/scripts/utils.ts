@@ -1,6 +1,6 @@
 import path from 'path';
+import yargs from 'yargs';
 
-import { utils } from '@abacus-network/deploy';
 import {
   AllChains,
   ChainMap,
@@ -18,6 +18,23 @@ import { CoreEnvironmentConfig } from '../src/config';
 import { fetchProvider, fetchSigner } from '../src/config/chain';
 import { EnvironmentNames } from '../src/config/environment';
 
+export function getArgs() {
+  return yargs(process.argv.slice(2))
+    .alias('e', 'env')
+    .describe('e', 'deploy environment')
+    .string('e')
+    .describe('context', 'deploy context')
+    .default('context', 'abacus')
+    .string('context')
+    .help('h')
+    .alias('h', 'help');
+}
+
+export async function getEnvironmentFromArgs(): Promise<string> {
+  const argv = await getArgs().argv;
+  return argv.e!;
+}
+
 export function assertEnvironment(env: string): DeployEnvironment {
   if (EnvironmentNames.includes(env)) {
     return env as DeployEnvironment;
@@ -34,15 +51,16 @@ export function getCoreEnvironmentConfig<Env extends DeployEnvironment>(
 }
 
 export async function getEnvironment() {
-  return assertEnvironment(await utils.getEnvironment());
+  return assertEnvironment(await getEnvironmentFromArgs());
 }
 
 export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
 }
 
-export function getContext() {
-  return utils.getContext();
+export async function getContext() {
+  const argv = await getArgs().argv;
+  return argv.context!;
 }
 
 export async function getContextAgentConfig() {
@@ -108,8 +126,7 @@ export function getCoreRustDirectory(environment: DeployEnvironment) {
 }
 
 export function getKeyRoleAndChainArgs() {
-  return utils
-    .getArgs()
+  return getArgs()
     .alias('r', 'role')
     .describe('r', 'key role')
     .choices('r', Object.values(KEY_ROLE_ENUM))

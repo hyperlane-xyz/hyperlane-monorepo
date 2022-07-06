@@ -1,7 +1,6 @@
 import { Console } from 'console';
 import { ethers } from 'ethers';
 
-import { utils } from '@abacus-network/deploy';
 import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
 
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
@@ -10,6 +9,7 @@ import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { readJSONAtPath } from '../../src/utils/utils';
 import {
   assertEnvironment,
+  getArgs,
   getContextAgentConfig,
   getCoreEnvironmentConfig,
 } from '../utils';
@@ -101,8 +101,7 @@ async function fundRelayer(
 }
 
 async function main() {
-  const argv = await utils
-    .getArgs()
+  const argv = await getArgs()
     .alias('f', 'addresses-file')
     .describe(
       'f',
