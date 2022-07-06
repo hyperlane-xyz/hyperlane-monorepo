@@ -2,14 +2,12 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
+import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
+import {IAbacusConnectionManager} from "@abacus-network/core/interfaces/IAbacusConnectionManager.sol";
+
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {IOutbox} from "../interfaces/IOutbox.sol";
-import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
 
-// ============ External Imports ============
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-
-abstract contract AbacusConnectionClient is Ownable {
+contract AbacusConnectionClient {
     // ============ Mutable Storage ============
 
     IAbacusConnectionManager public abacusConnectionManager;
@@ -39,44 +37,6 @@ abstract contract AbacusConnectionClient is Ownable {
     modifier onlyInbox() {
         require(_isInbox(msg.sender), "!inbox");
         _;
-    }
-
-    constructor(address _abacusConnectionManager) Ownable() {
-        _setAbacusConnectionManager(_abacusConnectionManager);
-    }
-
-    function __AbacusConnectionClient_initialize(
-        address _abacusConnectionManager,
-        address _interchainGasPaymaster
-    ) internal onlyInitializing {
-        _setInterchainGasPaymaster(_interchainGasPaymaster);
-        __AbacusConnectionClient_initialize(_abacusConnectionManager);
-    }
-
-    // ============ External functions ============
-
-    /**
-     * @notice Sets the address of the application's AbacusConnectionManager.
-     * @param _abacusConnectionManager The address of the AbacusConnectionManager contract.
-     */
-    function setAbacusConnectionManager(address _abacusConnectionManager)
-        external
-        virtual
-        onlyOwner
-    {
-        _setAbacusConnectionManager(_abacusConnectionManager);
-    }
-
-    /**
-     * @notice Sets the address of the application's InterchainGasPaymaster.
-     * @param _interchainGasPaymaster The address of the InterchainGasPaymaster contract.
-     */
-    function setInterchainGasPaymaster(address _interchainGasPaymaster)
-        external
-        virtual
-        onlyOwner
-    {
-        _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
     // ============ Internal functions ============

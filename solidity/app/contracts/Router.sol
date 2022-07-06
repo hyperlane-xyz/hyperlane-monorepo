@@ -2,11 +2,12 @@
 pragma solidity >=0.6.11;
 
 // ============ Internal Imports ============
+import {IAbacusConnectionManager} from "@abacus-network/core/interfaces/IAbacusConnectionManager.sol";
+import {IMessageRecipient} from "@abacus-network/core/interfaces/IMessageRecipient.sol";
+import {IOutbox} from "@abacus-network/core/interfaces/IOutbox.sol";
+
 import {AbacusConnectionClient} from "./AbacusConnectionClient.sol";
-import {IAbacusConnectionManager} from "../interfaces/IAbacusConnectionManager.sol";
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-import {IMessageRecipient} from "../interfaces/IMessageRecipient.sol";
-import {IOutbox} from "../interfaces/IOutbox.sol";
 
 abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     // ============ Mutable Storage ============
@@ -31,39 +32,6 @@ abstract contract Router is AbacusConnectionClient, IMessageRecipient {
     modifier onlyRemoteRouter(uint32 _origin, bytes32 _router) {
         require(_isRemoteRouter(_origin, _router), "!router");
         _;
-    }
-
-    // ======== Initializer =========
-    function __Router_initialize(address _abacusConnectionManager)
-        internal
-        onlyInitializing
-    {
-        __AbacusConnectionClient_initialize(_abacusConnectionManager);
-    }
-
-    function __Router_initialize(
-        address _abacusConnectionManager,
-        address _interchainGasPaymaster
-    ) internal onlyInitializing {
-        __AbacusConnectionClient_initialize(
-            _abacusConnectionManager,
-            _interchainGasPaymaster
-        );
-    }
-
-    // ============ External functions ============
-
-    /**
-     * @notice Register the address of a Router contract for the same Application on a remote chain
-     * @param _domain The domain of the remote Application Router
-     * @param _router The address of the remote Application Router
-     */
-    function enrollRemoteRouter(uint32 _domain, bytes32 _router)
-        external
-        virtual
-        onlyOwner
-    {
-        _enrollRemoteRouter(_domain, _router);
     }
 
     /**

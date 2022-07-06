@@ -3,15 +3,13 @@ pragma solidity >=0.8.0;
 
 // ============ Internal Imports ============
 import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
-// ============ External Imports ============
-import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 
 /**
  * @title InterchainGasPaymaster
  * @notice Manages payments on a source chain to cover gas costs of relaying
  * messages to destination chains.
  */
-contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
+contract InterchainGasPaymaster is IInterchainGasPaymaster {
     // ============ Events ============
 
     /**
@@ -22,18 +20,7 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
      */
     event GasPayment(address indexed outbox, uint256 leafIndex, uint256 amount);
 
-    // ============ Constructor ============
-
-    // solhint-disable-next-line no-empty-blocks
-    constructor() {
-        initialize(); // allows contract to be used without proxying
-    }
-
     // ============ External Functions ============
-
-    function initialize() public initializer {
-        __Ownable_init();
-    }
 
     /**
      * @notice Deposits msg.value as a payment for the relaying of a message
@@ -53,15 +40,5 @@ contract InterchainGasPaymaster is IInterchainGasPaymaster, OwnableUpgradeable {
         _destinationDomain;
 
         emit GasPayment(_outbox, _leafIndex, msg.value);
-    }
-
-    /**
-     * @notice Transfers the entire native token balance to the owner of the contract.
-     * @dev The owner must be able to receive native tokens.
-     */
-    function claim() external {
-        // Transfer the entire balance to owner.
-        (bool success, ) = owner().call{value: address(this).balance}("");
-        require(success, "!transfer");
     }
 }

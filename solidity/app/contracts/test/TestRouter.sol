@@ -4,12 +4,7 @@ pragma solidity >=0.6.11;
 import "../Router.sol";
 
 contract TestRouter is Router {
-    event InitializeOverload();
-
-    function initialize(address _abacusConnectionManager) external initializer {
-        __Router_initialize(_abacusConnectionManager);
-        emit InitializeOverload();
-    }
+    constructor() {}
 
     function _handle(
         uint32,
