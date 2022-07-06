@@ -132,7 +132,7 @@ impl CoreMetrics {
                 "Submitter queue length",
                 const_labels_ref
             ),
-            &["outbox_chain", "inbox_chain", "queue_name"],
+            &["origin", "remote", "queue_name"],
             registry
         )?;
 
@@ -147,7 +147,7 @@ impl CoreMetrics {
                 prometheus::exponential_buckets(0.5, 2., 19).unwrap(),
                 const_labels.clone()
             ),
-            &["outbox_chain", "inbox_chain"],
+            &["origin", "remote"],
             registry
         )?;
 
