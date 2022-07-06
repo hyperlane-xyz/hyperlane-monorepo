@@ -9,6 +9,9 @@ on:
     paths:
       # For now, because this image is only used to use `infra`, we just build for infra changes
       - 'typescript/infra/**'
+concurrency:
+  group: ${{ github.ref }}
+  cancel-in-progress: true
 jobs:
   check-env:
     runs-on: ubuntu-latest
