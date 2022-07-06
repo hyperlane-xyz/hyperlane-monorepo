@@ -376,7 +376,17 @@ fn main() -> ExitCode {
 
 /// Use the metrics to check if the relayer queues are empty.
 fn retry_queues_empty() -> bool {
-    relayer_metric_condition("abacus_submitter_queue_length", &[], |n| n == 0.)
+    let lengths: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.starts_with("abacus_submitter_queue_length"))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .collect();
+    assert!(!lengths.is_empty(), "Could not find queue length metric");
+    lengths.into_iter().all(|n| n == 0)
 }
 
 /// Read from a process output and add a string to the front before writing it to stdout.
@@ -408,18 +418,41 @@ fn assert_termination_invariants(num_expected_messages_processed: u32) {
     // to the maximum leaf index value we ever successfully delivered. Since deliveries can happen
     // out-of-index-order, we separately track a counter of the number of successfully delivered
     // messages. At the end of this test, they should both hold the same value.
-    assert!(relayer_metric_condition(
-        "abacus_last_known_message_leaf_index",
-        &[("phase", "message_processed")],
-        |n| n == num_expected_messages_processed as f64
-    ));
+    let msg_processed_max_index: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.contains(r#"phase="message_processed""#))
+        .filter(|l| l.starts_with("abacus_last_known_message_leaf_index"))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .collect();
+    assert!(
+        !msg_processed_max_index.is_empty(),
+        "Could not find message_processed phase metric"
+    );
+    assert!(msg_processed_max_index
+        .into_iter()
+        .all(|n| n == num_expected_messages_processed));
 
     // Also ensure the counter is as expected.
-    assert!(relayer_metric_condition(
-        "abacus_messages_processed_count",
-        &[],
-        |n| n == num_expected_messages_processed as f64
-    ));
+    let msg_processed_count: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.starts_with("abacus_messages_processed_count"))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .collect();
+    assert!(
+        !msg_processed_count.is_empty(),
+        "Could not find message_processed phase metric"
+    );
+    assert!(msg_processed_count
+        .into_iter()
+        .all(|n| n == num_expected_messages_processed));
 }
 
 /// Basically `tail -f file | grep <FILTER>` but also has to write to the file (writes to file all
@@ -501,26 +534,4 @@ fn build_cmd(cmd: &[&str], log: impl AsRef<Path>, log_all: bool, wd: Option<&str
     }
     let status = c.status().expect("Failed to run command");
     assert!(status.success(), "Command returned non-zero exit code");
-}
-
-fn relayer_metric_condition(
-    metric_name: &str,
-    label_filters: &[(&str, &str)],
-    condition: impl Fn(f64) -> bool,
-) -> bool {
-    let label_filters: Vec<_> = label_filters
-        .iter()
-        .map(|(k, v)| format!("{k}=\"{v}\""))
-        .collect();
-    let values: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
-        .call()
-        .unwrap()
-        .into_string()
-        .unwrap()
-        .lines()
-        .filter(|l| l.starts_with(metric_name) && label_filters.iter().all(|f| l.contains(f)))
-        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<f64>().unwrap())
-        .collect();
-    assert!(!values.is_empty(), "Could not find values for metric");
-    values.into_iter().all(condition)
 }
