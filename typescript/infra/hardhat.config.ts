@@ -105,9 +105,9 @@ task('kathy', 'Dispatches random abacus messages')
             },
           );
           console.log(
-            `send to ${recipient.address} on ${remote} at index ${
-              (await outbox.count()).toNumber() - 1
-            }`,
+            `send to ${recipient.address} on ${remote} via outbox ${
+              outbox.address
+            } at index ${(await outbox.count()).toNumber() - 1}`,
           );
           console.log(await chainSummary(core, local));
           await sleep(timeout);
