@@ -24,7 +24,6 @@ export function getArgs() {
     .describe('e', 'deploy environment')
     .string('e')
     .describe('context', 'deploy context')
-    .demandOption('context')
     .string('context')
     .help('h')
     .alias('h', 'help');
@@ -75,7 +74,9 @@ export async function getContextAgentConfig<Chain extends ChainName>(
     throw Error(
       `Invalid context ${context}, must be one of ${Object.keys(
         coreConfig.agents,
-      )}`,
+      )}.${
+        context === undefined ? ' Did you specify --context <context>?' : ''
+      }`,
     );
   }
   return agentConfig;
