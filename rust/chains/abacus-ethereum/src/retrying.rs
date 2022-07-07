@@ -90,7 +90,6 @@ impl JsonRpcClient for RetryingProvider<Http> {
 
     #[instrument(
     level = "debug",
-    err,
     skip(params),
     fields(method = %method, params = %serde_json::to_string(&params).unwrap()))
     ]

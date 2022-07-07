@@ -90,7 +90,7 @@ impl<M> InboxValidatorManager for EthereumInboxValidatorManager<M>
 where
     M: Middleware + 'static,
 {
-    #[tracing::instrument(err, skip(self))]
+    #[tracing::instrument(skip(self))]
     async fn process(
         &self,
         multisig_signed_checkpoint: &MultisigSignedCheckpoint,
