@@ -18,6 +18,7 @@ Common labels
 {{- define "abacus.labels" -}}
 helm.sh/chart: {{ include "abacus.chart" . }}
 abacus/deployment: {{ .Values.abacus.runEnv | quote }}
+abacus/context: "abacus"
 {{ include "abacus.selectorLabels" . }}
 {{- if .Chart.AppVersion }}
 app.kubernetes.io/version: {{ .Chart.AppVersion | quote }}
