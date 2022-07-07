@@ -1,13 +1,24 @@
 import { Console } from 'console';
 import { ethers } from 'ethers';
+import { Gauge, Pushgateway, Registry } from 'prom-client';
 
-import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
+import {
+  ChainConnection,
+  ChainName,
+  CompleteChainMap,
+} from '@abacus-network/sdk';
 
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getRelayerKeys } from '../../src/agents/key-utils';
 import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { readJSONAtPath } from '../../src/utils/utils';
 import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
+
+interface FunderBalance {
+  chain: ChainName;
+  address?: string;
+  balance: number;
+}
 
 // Min delta is 1/10 of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(1);
@@ -113,16 +124,18 @@ async function main() {
     : getRelayerKeys(config.agent);
 
   const chains = relayerKeys.map((key) => key.chainName!);
+  const balances: FunderBalance[] = [];
 
   for (const chain of chains) {
     const chainConnection = multiProvider.getChainConnection(chain);
 
     const desiredBalance = desiredBalancePerChain[chain];
+    const funderAddress = await chainConnection.getAddress();
 
     console.group({
       chain,
       funder: {
-        address: await chainConnection.getAddress(),
+        address: funderAddress,
         balance: ethers.utils.formatEther(
           await chainConnection.signer!.getBalance(),
         ),
@@ -137,10 +150,17 @@ async function main() {
       await relayerKey.fetch();
       await fundRelayer(chainConnection, relayerKey, desiredBalance);
     }
+    balances.push({
+      chain,
+      address: funderAddress,
+      balance: (await chainConnection.signer!.getBalance()).toNumber() / 1e18,
+    });
 
     console.groupEnd();
     console.log('\n');
   }
+
+  await submitFunderBalanceMetrics(balances);
 }
 
 function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
@@ -156,6 +176,51 @@ function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
       ),
     )
     .filter((key: AgentKey) => key.role === KEY_ROLE_ENUM.Relayer);
+}
+
+function submitFunderBalanceMetrics(balances: FunderBalance[]) {
+  const gatewayAddr = process.env['PROMETHEUS_PUSH_GATEWAY'];
+  if (!gatewayAddr) {
+    console.warn(
+      'Prometheus push gateway address was not defined; not publishing metrics.',
+    );
+    return;
+  }
+
+  const register = new Registry();
+  // TODO: get actual push gateway address
+  const gateway = new Pushgateway(gatewayAddr, [], register);
+  const gauge = new Gauge({
+    name: 'abacus_relayer_funder_balance',
+    help: 'Last known balance of native tokens for each chain of the relayer funder',
+    registers: [register],
+    labelNames: ['chain', 'address'],
+  });
+  register.registerMetric(gauge);
+
+  for (const { chain, address, balance } of balances) {
+    gauge
+      .labels({
+        chain,
+        address: address ?? 'unknown',
+      })
+      .set(balance);
+  }
+
+  gateway
+    .push({ jobName: 'relayer_funder' })
+    .then(({ resp, body }) => {
+      const statusCode =
+        typeof resp == 'object' && resp != null && 'statusCode' in resp
+          ? (resp as any).statusCode
+          : 'unknown';
+      console.debug(
+        `Prometheus push resulted with status ${statusCode} and body ${body}`,
+      );
+    })
+    .catch((err) => {
+      console.error(`Error pushing metrics: ${err}`);
+    });
 }
 
 main().catch(console.error);
