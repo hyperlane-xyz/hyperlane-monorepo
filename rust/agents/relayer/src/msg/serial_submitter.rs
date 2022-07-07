@@ -4,13 +4,16 @@ use abacus_base::CoreMetrics;
 use abacus_base::InboxContracts;
 use abacus_core::db::AbacusDB;
 use abacus_core::AbacusContract;
+use abacus_core::Inbox;
 use abacus_core::InboxValidatorManager;
+use abacus_core::MessageStatus;
 use eyre::{bail, Result};
-use prometheus::{Histogram, IntGauge};
+use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
+use tracing::debug;
 use tracing::instrument;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
@@ -117,9 +120,9 @@ pub(crate) struct SerialSubmitter {
     run_queue: BinaryHeap<SubmitMessageArgs>,
     /// Inbox / InboxValidatorManager on the destination chain.
     inbox_contracts: InboxContracts,
-    // Interface to agent rocks DB for e.g. writing delivery status upon completion.
+    /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
-    // Metrics for serial submitter.
+    /// Metrics for serial submitter.
     metrics: SerialSubmitterMetrics,
 }
 
@@ -168,21 +171,19 @@ impl SerialSubmitter {
                     break;
                 }
                 Err(_) => {
-                    bail!("disconnected rcvq or fatal err");
+                    bail!("Disconnected rcvq or fatal err");
                 }
             }
         }
 
         // TODO(webbhorn): Scan verification queue, dropping messages that have been confirmed
-        // delivered by the inbox indexer observing it.  For any still-unverified messages that
+        // processed by the inbox indexer observing it.  For any still-unverified messages that
         // have been in the verification queue for > threshold_time, move them back to the wait
         // queue for further processing.
 
         // Promote any newly-ready messages from the wait queue to the run queue.
         let wait_messages: Vec<_> = self.wait_queue.drain(..).collect();
         for msg in wait_messages {
-            // TODO(webbhorn): Check if already delivered to inbox, e.g. by another relayer. In
-            // that case, drop from wait queue.
             // TODO(webbhorn): Check against interchain gas paymaster.  If now enough payment,
             // promote to run queue.
             self.run_queue.push(msg);
@@ -196,42 +197,80 @@ impl SerialSubmitter {
             .run_queue_length_gauge
             .set(self.run_queue.len() as i64);
 
-        // Deliver the highest-priority message on the run queue.
-        if let Some(mut msg) = self.run_queue.pop() {
-            info!(msg=?msg, "ready to deliver message");
-            match self.deliver_message(&msg).await {
-                Ok(()) => {
-                    info!(msg=?msg, "message delivered");
-                }
-                Err(e) => {
-                    info!(msg=?msg, "message delivery failed: {}", e);
-                    msg.num_retries += 1;
-                    self.run_queue.push(msg);
-                }
+        // Pick the next message to try processing.
+        let mut msg = match self.run_queue.pop() {
+            Some(m) => m,
+            None => return Ok(()),
+        };
+
+        // If the message has already been processed according to message_status call on
+        // inbox, e.g. due to another relayer having already processed, then mark it as
+        // already-processed, and move on to the next tick.
+        // TODO(webbhorn): Make this robust to re-orgs on inbox.
+        if let MessageStatus::Processed = self
+            .inbox_contracts
+            .inbox
+            .message_status(msg.committed_message.to_leaf())
+            .await?
+        {
+            info!(
+                "Unexpected status for message with leaf index '{}' (already processed): '{:?}'",
+                msg.leaf_index, msg
+            );
+            self.record_message_process_success(&msg)?;
+            return Ok(());
+        }
+
+        // Go ahead and attempt processing of message to destination chain.
+        debug!(msg=?msg, "Ready to process message");
+        match self.process_message(&msg).await {
+            Ok(()) => {
+                info!(msg=?msg, "Message processed");
+            }
+            Err(e) => {
+                info!(msg=?msg, "Message processing failed: {}", e);
+                msg.num_retries += 1;
+                self.run_queue.push(msg);
             }
         }
+
         Ok(())
     }
 
     // TODO(webbhorn): Move the process() call below into a function defined over SubmitMessageArgs
     // or wrapped Schedulable(SubmitMessageArgs) so that we can fake submit in test.
-    async fn deliver_message(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
+    // TODO(webbhorn): Instead of immediately marking as processed, move to a verification
+    // queue, which will wait for finality and indexing by the inbox indexer and then mark
+    // as processed (or eventually retry if no confirmation is ever seen).
+    async fn process_message(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         let result = self
             .inbox_contracts
             .validator_manager
             .process(&msg.checkpoint, &msg.committed_message.message, &msg.proof)
             .await?;
+        self.record_message_process_success(msg)?;
         info!(leaf_index=?msg.leaf_index, hash=?result.txid,
             wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
-            "message successfully processed");
+            "Message successfully processed");
+        Ok(())
+    }
 
-        // TODO(webbhorn): Instead of immediately marking as processed, move to a verification
-        // queue, which will wait for finality and indexing by the inbox indexer and then mark
-        // as processed (or eventually retry if no confirmation is ever seen).
+    /// Record in AbacusDB and various metrics that this process has observed the successful
+    /// processing of a message. An Ok(()) value returned by this function is the 'commit' point
+    /// in a message's lifetime for final processing -- after this function has been seen to
+    /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
+    /// this message again, even after the relayer restarts.
+    fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
         self.metrics
             .queue_duration_hist
             .observe((Instant::now() - msg.enqueue_time).as_secs_f64());
+        self.metrics.max_submitted_leaf_index =
+            std::cmp::max(self.metrics.max_submitted_leaf_index, msg.leaf_index);
+        self.metrics
+            .processed_gauge
+            .set(self.metrics.max_submitted_leaf_index as i64);
+        self.metrics.messages_processed_count.inc();
         Ok(())
     }
 }
@@ -241,6 +280,11 @@ pub(crate) struct SerialSubmitterMetrics {
     run_queue_length_gauge: IntGauge,
     wait_queue_length_gauge: IntGauge,
     queue_duration_hist: Histogram,
+    processed_gauge: IntGauge,
+    messages_processed_count: IntCounter,
+
+    /// Private state used to update actual metrics each tick.
+    max_submitted_leaf_index: u32,
 }
 
 impl SerialSubmitterMetrics {
@@ -259,6 +303,15 @@ impl SerialSubmitterMetrics {
             queue_duration_hist: metrics
                 .submitter_queue_duration_histogram()
                 .with_label_values(&[outbox_chain, inbox_chain]),
+            messages_processed_count: metrics
+                .messages_processed_count()
+                .with_label_values(&[outbox_chain, inbox_chain]),
+            processed_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
+                "message_processed",
+                outbox_chain,
+                inbox_chain,
+            ]),
+            max_submitted_leaf_index: 0,
         }
     }
 }
