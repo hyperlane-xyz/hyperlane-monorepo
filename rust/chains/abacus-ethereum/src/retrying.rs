@@ -6,7 +6,7 @@ use serde::{de::DeserializeOwned, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use tokio::time::sleep;
-use tracing::{debug, instrument, trace, warn};
+use tracing::{debug, info, instrument, trace, warn};
 
 use crate::HttpClientError;
 
@@ -78,6 +78,8 @@ where
     }
 }
 
+const METHODS_TO_NOT_RETRY: &[&str] = &["eth_estimateGas", "eth_sendTransaction", "eth_sendRawTransaction"];
+
 #[async_trait]
 impl JsonRpcClient for RetryingProvider<Http> {
     type Error = RetryingProviderError<Http>;
@@ -109,7 +111,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
             match fut.await {
                 Ok(res) => return Ok(res),
                 Err(HttpClientError::ReqwestError(e)) => {
-                    warn!(
+                    info!(
                         backoff_ms,
                         retries_remaining = self.max_requests - i,
                         error = %e,
@@ -118,17 +120,20 @@ impl JsonRpcClient for RetryingProvider<Http> {
                     last_err = HttpClientError::ReqwestError(e);
                 }
                 Err(HttpClientError::JsonRpcError(e)) => {
-                    // This is a client error so we do not want to retry on it.
-                    warn!(error = %e, "JsonRpcError in retrying provider; not retrying.");
-                    return Err(RetryingProviderError::JsonRpcClientError(
-                        HttpClientError::JsonRpcError(e),
-                    ));
+                    if METHODS_TO_NOT_RETRY.contains(&method) {
+                        // This is a client error so we do not want to retry on it.
+                        warn!(error = %e, "JsonRpcError in retrying provider; not retrying.");
+                        return Err(RetryingProviderError::JsonRpcClientError(
+                            HttpClientError::JsonRpcError(e),
+                        ));
+                    } else {
+                        info!(error = %e, "JsonRpcError in retrying provider.");
+                        last_err = HttpClientError::JsonRpcError(e);
+                    }
                 }
                 Err(HttpClientError::SerdeJson { err, text }) => {
-                    warn!(error = %err, "SerdeJson error in retrying provider; not retrying.");
-                    return Err(RetryingProviderError::JsonRpcClientError(
-                        HttpClientError::SerdeJson { err, text },
-                    ));
+                    info!(error = %err, "SerdeJson error in retrying provider");
+                    last_err = HttpClientError::SerdeJson { err, text };
                 }
             }
 
