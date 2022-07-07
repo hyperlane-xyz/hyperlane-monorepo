@@ -13,6 +13,7 @@ use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::task::JoinHandle;
 use tokio::time::Instant;
+use tracing::debug;
 use tracing::instrument;
 use tracing::{info, info_span, instrument::Instrumented, Instrument};
 
@@ -221,7 +222,7 @@ impl SerialSubmitter {
         }
 
         // Go ahead and attempt processing of message to destination chain.
-        info!(msg=?msg, "Ready to process message");
+        debug!(msg=?msg, "Ready to process message");
         match self.process_message(&msg).await {
             Ok(()) => {
                 info!(msg=?msg, "Message processed");
