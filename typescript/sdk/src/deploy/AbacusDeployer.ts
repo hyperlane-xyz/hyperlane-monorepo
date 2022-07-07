@@ -96,30 +96,45 @@ export abstract class AbacusDeployer<
     return this.deployedContracts as ChainMap<Chain, Contracts>;
   }
 
-  async deployContract<K extends keyof Factories>(
+  protected async deployContractFromFactory<F extends ethers.ContractFactory>(
     chain: Chain,
-    contractName: K,
-    args: Parameters<Factories[K]['deploy']>,
-  ): Promise<ReturnType<Factories[K]['deploy']>> {
-    this.logger(`Deploy ${contractName.toString()} on ${chain}`);
+    factory: F,
+    contractName: string,
+    args: Parameters<F['deploy']>,
+  ) {
     const chainConnection = this.multiProvider.getChainConnection(chain);
-    const factory = this.factories[contractName].connect(
-      chainConnection.signer!,
-    );
-    const contract = await factory.deploy(...args, chainConnection.overrides);
-    this.logger(
-      `Pending deployment ${chainConnection.getTxUrl(
-        contract.deployTransaction,
-      )}`,
-    );
-    await contract.deployTransaction.wait(chainConnection.confirmations);
+    const signer = chainConnection.signer;
+    if (!signer) {
+      throw new Error(`No signer for ${chain}`);
+    }
+
+    this.logger(`Deploy ${contractName} on ${chain}`);
+    const contract = await factory
+      .connect(signer)
+      .deploy(...args, chainConnection.overrides);
+
+    await chainConnection.handleTx(contract.deployTransaction);
+
     const verificationInput = getContractVerificationInput(
-      contractName.toString(),
+      contractName,
       contract,
       factory.bytecode,
     );
     this.verificationInputs[chain].push(verificationInput);
     return contract;
+  }
+
+  async deployContract<K extends keyof Factories>(
+    chain: Chain,
+    contractName: K,
+    args: Parameters<Factories[K]['deploy']>,
+  ): Promise<ReturnType<Factories[K]['deploy']>> {
+    return this.deployContractFromFactory(
+      chain,
+      this.factories[contractName],
+      contractName.toString(),
+      args,
+    );
   }
 
   protected async deployProxy<C extends ethers.Contract>(
@@ -128,21 +143,20 @@ export abstract class AbacusDeployer<
     beaconAddress: string,
     initArgs: Parameters<C['initialize']>,
   ) {
-    const chainConnection = this.multiProvider.getChainConnection(chain);
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
     );
-    const beaconProxy = await new UpgradeBeaconProxy__factory(
-      chainConnection.signer!,
-    ).deploy(beaconAddress, initData, chainConnection.overrides);
-    await chainConnection.handleTx(beaconProxy.deployTransaction);
-    const proxyVerification = getContractVerificationInput(
+    const deployArgs: Parameters<UpgradeBeaconProxy__factory['deploy']> = [
+      beaconAddress,
+      initData,
+    ];
+    const beaconProxy = await this.deployContractFromFactory(
+      chain,
+      new UpgradeBeaconProxy__factory(),
       'UpgradeBeaconProxy',
-      beaconProxy,
-      UpgradeBeaconProxy__factory.bytecode,
+      deployArgs,
     );
-    this.verificationInputs[chain].push(proxyVerification);
 
     return new ProxiedContract<C, BeaconProxyAddresses>(
       implementation.attach(beaconProxy.address) as C,
@@ -174,22 +188,18 @@ export abstract class AbacusDeployer<
       contractName,
       deployArgs,
     );
+
     this.logger(`Proxy ${contractName.toString()} on ${chain}`);
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const signer = chainConnection.signer;
-    const beacon = await new UpgradeBeacon__factory(signer).deploy(
+    const beaconDeployArgs: Parameters<UpgradeBeacon__factory['deploy']> = [
       implementation.address,
       ubcAddress,
-      chainConnection.overrides,
-    );
-    await chainConnection.handleTx(beacon.deployTransaction);
-    const beaconVerification = getContractVerificationInput(
+    ];
+    const beacon = await this.deployContractFromFactory(
+      chain,
+      new UpgradeBeacon__factory(),
       'UpgradeBeacon',
-      beacon,
-      UpgradeBeacon__factory.bytecode,
+      beaconDeployArgs,
     );
-    this.verificationInputs[chain].push(beaconVerification);
-
     return this.deployProxy(
       chain,
       implementation as C,
