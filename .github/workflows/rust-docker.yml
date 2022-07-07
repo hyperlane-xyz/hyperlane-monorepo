@@ -9,7 +9,7 @@ on:
     paths:
       - 'rust/**'
 concurrency:
-  group: ${{ github.ref }}
+  group: build-push-agents-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   check-env:
