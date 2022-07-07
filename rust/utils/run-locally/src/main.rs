@@ -105,6 +105,10 @@ fn main() -> ExitCode {
         }
     };
 
+    // NOTE: This is defined within the Kathy script and could potentially drift.
+    // TODO: Plumb via environment variable or something.
+    let kathy_messages_per_round = 10;
+
     let log_all = env::var("E2E_LOG_ALL")
         .map(|k| k.parse::<bool>().unwrap())
         .unwrap_or(ci_mode);
@@ -186,18 +190,8 @@ fn main() -> ExitCode {
     println!("Validator DB in {}", validator_db.display());
 
     println!("Building typescript...");
-    build_cmd(
-        &["yarn", "install"],
-        &build_log,
-        log_all,
-        Some("../typescript/infra"),
-    );
-    build_cmd(
-        &["yarn", "build"],
-        &build_log,
-        log_all,
-        Some("../typescript"),
-    );
+    build_cmd(&["yarn", "install"], &build_log, log_all, Some("../"));
+    build_cmd(&["yarn", "build"], &build_log, log_all, Some("../"));
 
     println!("Building relayer...");
     build_cmd(
@@ -348,6 +342,9 @@ fn main() -> ExitCode {
         if ci_mode {
             // for CI we have to look for the end condition.
             if kathy_done && retry_queues_empty() {
+                assert_termination_invariants(
+                    kathy_rounds.unwrap() as u32 * kathy_messages_per_round,
+                );
                 // end condition reached successfully
                 println!("Kathy completed successfully and the retry queues are empty");
                 break;
@@ -402,6 +399,55 @@ fn prefix_log(output: impl Read, name: &'static str) {
             break;
         }
     }
+}
+
+/// Assert invariants for state upon successful test termination.
+fn assert_termination_invariants(num_expected_messages_processed: u32) {
+    // The value of `abacus_last_known_message_leaf_index{phase=message_processed}` should refer
+    // to the maximum leaf index value we ever successfully delivered. Since deliveries can happen
+    // out-of-index-order, we separately track a counter of the number of successfully delivered
+    // messages. At the end of this test, they should both hold the same value.
+    let msg_processed_max_index: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.contains(r#"phase="message_processed""#))
+        .filter(|l| l.starts_with("abacus_last_known_message_leaf_index"))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .collect();
+    assert!(
+        !msg_processed_max_index.is_empty(),
+        "Could not find message_processed phase metric"
+    );
+    // The max index is one less than the number delivered messages, since it is an index into the
+    // outbox merkle tree leafs. Since the metric is parameterized by inbox, and the test
+    // non-deterministically selects the destination inbox between test2 and test3 for the highest
+    // message, we take the max over the metric vector.
+    assert_eq!(
+        msg_processed_max_index.into_iter().max().unwrap(),
+        num_expected_messages_processed - 1
+    );
+
+    // Also ensure the counter is as expected (total number of messages), summed across all inboxes.
+    let msg_processed_count: Vec<_> = ureq::get("http://127.0.0.1:9092/metrics")
+        .call()
+        .unwrap()
+        .into_string()
+        .unwrap()
+        .lines()
+        .filter(|l| l.starts_with("abacus_messages_processed_count"))
+        .map(|l| l.rsplit_once(' ').unwrap().1.parse::<u32>().unwrap())
+        .collect();
+    assert!(
+        !msg_processed_count.is_empty(),
+        "Could not find message_processed phase metric"
+    );
+    assert_eq!(
+        num_expected_messages_processed,
+        msg_processed_count.into_iter().sum::<u32>()
+    );
 }
 
 /// Basically `tail -f file | grep <FILTER>` but also has to write to the file (writes to file all
