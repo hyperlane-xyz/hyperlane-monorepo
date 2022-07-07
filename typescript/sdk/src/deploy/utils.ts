@@ -10,11 +10,12 @@ export function getMultiProviderFromConfigAndSigner<Chain extends ChainName>(
   environmentConfig: EnvironmentConfig<Chain>,
   signer: ethers.Signer,
 ): MultiProvider<Chain> {
-  const chainProviders = objMap(environmentConfig, (_, config) => ({
+  const chainProviders = objMap(environmentConfig, (_, _config) => ({
     provider: signer.provider!,
     signer,
-    confirmations: config.confirmations,
-    overrides: config.overrides,
+    confirmations: 0,
+    // confirmations: config.confirmations,
+    // overrides: config.overrides,
   }));
   return new MultiProvider(chainProviders);
 }
