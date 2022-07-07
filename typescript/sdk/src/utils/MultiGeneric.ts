@@ -1,7 +1,7 @@
 import { ChainMap, ChainName, Remotes } from '../types';
 
 export class MultiGeneric<Chain extends ChainName, Value> {
-  constructor(protected readonly chainMap: ChainMap<Chain, Value>) {}
+  constructor(public readonly chainMap: ChainMap<Chain, Value>) {}
 
   protected get(chain: Chain) {
     return this.chainMap[chain];

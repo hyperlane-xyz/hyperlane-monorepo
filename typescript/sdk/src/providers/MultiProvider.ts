@@ -10,7 +10,7 @@ import { partialObjMap } from '../utils';
 import { ChainConnection } from './ChainConnection';
 
 export class MultiProvider {
-  protected readonly chainMap: PartialChainMap<ChainConnection>;
+  public readonly chainMap: PartialChainMap<ChainConnection>;
 
   constructor(chainConnectionConfigs: PartialChainMap<IChainConnection>) {
     this.chainMap = partialObjMap(
@@ -55,12 +55,10 @@ export class MultiProvider {
     return Object.keys(this.chainMap) as Chain[];
   }
 
-  remoteChains<Chain extends ChainName, LocalChain extends Chain>(
-    name: LocalChain,
-  ): Remotes<Chain, LocalChain>[] {
+  remoteChains<Chain extends ChainName>(name: Chain): Remotes<Chain, Chain>[] {
     return this.chains().filter((key) => key !== name) as Remotes<
       Chain,
-      LocalChain
+      Chain
     >[];
   }
 

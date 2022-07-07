@@ -26,7 +26,7 @@ async function main() {
   const coreConfig = getCoreEnvironmentConfig(environment);
   const multiProvider = await coreConfig.getMultiProvider();
   const configMap = await getConfiguration(environment, multiProvider);
-  const core = AbacusCore.fromEnvironment(environment, multiProvider as any);
+  const core = AbacusCore.fromEnvironment(environment, multiProvider);
   const deployer = new HelloWorldDeployer(multiProvider, configMap, core);
   const dir = path.join(getEnvironmentDirectory(environment), 'helloworld');
 

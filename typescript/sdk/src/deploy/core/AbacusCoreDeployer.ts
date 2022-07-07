@@ -162,7 +162,7 @@ export class AbacusCoreDeployer<Chain extends ChainName> extends AbacusDeployer<
       dc.overrides,
     );
 
-    const remotes = this.multiProvider.remoteChains<Chain, Chain>(chain);
+    const remotes = this.multiProvider.remoteChains<Chain>(chain);
     const inboxes: Partial<Record<Chain, InboxContracts>> = {};
     let prev: Chain | undefined;
     for (const remote of remotes) {

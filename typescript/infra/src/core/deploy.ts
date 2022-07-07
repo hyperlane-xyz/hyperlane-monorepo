@@ -53,7 +53,7 @@ export class AbacusCoreInfraDeployer<
         rustConfig.index = { from: startingBlockNumber.toString() };
       }
 
-      this.multiProvider.remoteChains(chain).forEach((remote) => {
+      this.multiProvider.remoteChains<Chain>(chain).forEach((remote) => {
         // The agent configuration file should contain the `chain`'s inbox on
         // all the remote chains
         const remoteContracts = contractsMap[remote];

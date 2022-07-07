@@ -70,7 +70,7 @@ export async function getMultiProviderFromGCP<Chain extends ChainName>(
       };
     }),
   );
-  return new MultiProvider<Chain>(connections);
+  return new MultiProvider(connections);
 }
 
 function getContractsSdkFilepath(mod: string) {

@@ -2,7 +2,7 @@ import {
   ChainMap,
   ChainName,
   CoreConfig,
-  EnvironmentConfig,
+  IChainConnection,
   MultiProvider,
 } from '@abacus-network/sdk';
 
@@ -22,11 +22,11 @@ export type EnvironmentChain<E extends DeployEnvironment> = Extract<
 
 export type CoreEnvironmentConfig<Chain extends ChainName> = {
   environment: DeployEnvironment;
-  transactionConfigs: EnvironmentConfig<Chain>;
+  transactionConfigs: ChainMap<Chain, IChainConnection>;
   agent: AgentConfig<Chain>;
   core: ChainMap<Chain, CoreConfig>;
   infra: InfrastructureConfig;
-  getMultiProvider: () => Promise<MultiProvider<Chain>>;
+  getMultiProvider: () => Promise<MultiProvider>;
   helloWorld?: HelloWorldConfig<Chain>;
   relayerFunderConfig?: RelayerFunderConfig;
 };

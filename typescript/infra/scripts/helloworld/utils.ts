@@ -10,25 +10,23 @@ import {
   MultiProvider,
   RouterConfig,
   buildContracts,
-  objMap,
-  promiseObjAll,
 } from '@abacus-network/sdk';
+import { partialObjMap } from '@abacus-network/sdk/dist/utils';
 
 import { CoreEnvironmentConfig, DeployEnvironment } from '../../src/config';
 import { HelloWorldConfig } from '../../src/config/helloworld';
 
 export async function getConfiguration<Chain extends ChainName>(
   environment: DeployEnvironment,
-  multiProvider: MultiProvider<Chain>,
+  multiProvider: MultiProvider,
 ): Promise<ChainMap<Chain, RouterConfig>> {
-  const signerMap = await promiseObjAll(
-    multiProvider.map(async (_, dc) => dc.signer!),
-  );
+  // TODO can't assume signer
   const ownerMap = await promiseObjAll(
-    objMap(signerMap, async (_, signer) => {
-      return {
-        owner: await signer.getAddress(),
-      };
+    partialObjMap(multiProvider.chainMap, async (chain, chainConnection) => {
+      const signer = chainConnection.signer;
+      if (!signer) throw new Error(`No signer for chain ${chain}`);
+      const owner = await signer.getAddress();
+      return { owner };
     }),
   );
 
