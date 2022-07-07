@@ -34,9 +34,16 @@ contract HelloWorld is Router {
         string message
     );
 
-    constructor() {
+    constructor(
+        address _abacusConnectionManager,
+        address _interchainGasPaymaster
+    ) {
         // Transfer ownership of the contract to deployer
         _transferOwnership(msg.sender);
+        // Set the addresses for the ACM and IGP
+        // Alternatively, this could be done later in an initialize method
+        _setAbacusConnectionManager(_abacusConnectionManager);
+        _setInterchainGasPaymaster(_interchainGasPaymaster);
     }
 
     // ============ External functions ============
