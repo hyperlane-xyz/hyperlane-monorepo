@@ -88,11 +88,7 @@ where
 impl JsonRpcClient for RetryingProvider<Http> {
     type Error = RetryingProviderError<Http>;
 
-    #[instrument(
-    level = "debug",
-    skip(params),
-    fields(method = %method, params = %serde_json::to_string(&params).unwrap()))
-    ]
+    #[instrument(level = "error", skip_all, fields(method = %method))]
     async fn request<T, R>(&self, method: &str, params: T) -> Result<R, Self::Error>
     where
         T: Debug + Serialize + Send + Sync,
@@ -104,6 +100,7 @@ impl JsonRpcClient for RetryingProvider<Http> {
         let mut i = 1;
         loop {
             let backoff_ms = self.base_retry_ms * 2u64.pow(i - 1);
+            trace!(params = %serde_json::to_string(&params).unwrap_or_default(), "Dispatching request with params");
             debug!(attempt = i, "Dispatching request");
 
             let fut = match params {
