@@ -120,8 +120,10 @@ impl JsonRpcClient for RetryingProvider<Http> {
                     last_err = HttpClientError::ReqwestError(e);
                 }
                 Err(HttpClientError::JsonRpcError(e)) => {
+                    // We don't want to retry errors that are probably not going to work if we keep
+                    // retrying them or that indicate an error in higher-order logic and not
+                    // transient provider (connection or other) errors.
                     if METHODS_TO_NOT_RETRY.contains(&method) {
-                        // This is a client error so we do not want to retry on it.
                         warn!(error = %e, "JsonRpcError in retrying provider; not retrying.");
                         return Err(RetryingProviderError::JsonRpcClientError(
                             HttpClientError::JsonRpcError(e),
