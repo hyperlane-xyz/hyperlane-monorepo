@@ -176,7 +176,7 @@ impl SerialSubmitter {
         }
 
         // TODO(webbhorn): Scan verification queue, dropping messages that have been confirmed
-        // delivered by the inbox indexer observing it.  For any still-unverified messages that
+        // processed by the inbox indexer observing it.  For any still-unverified messages that
         // have been in the verification queue for > threshold_time, move them back to the wait
         // queue for further processing.
 
@@ -196,15 +196,15 @@ impl SerialSubmitter {
             .run_queue_length_gauge
             .set(self.run_queue.len() as i64);
 
-        // Pick the next message to try delivering.
+        // Pick the next message to try processing.
         let mut msg = match self.run_queue.pop() {
             Some(m) => m,
             None => return Ok(()),
         };
 
-        // If the message has already been delivered according to message_status call on
-        // inbox, e.g. due to another relayer having already delivered, then mark it as
-        // already-delivered, and move on to the next tick.
+        // If the message has already been processed according to message_status call on
+        // inbox, e.g. due to another relayer having already processed, then mark it as
+        // already-processed, and move on to the next tick.
         // TODO(webbhorn): Make this robust to re-orgs on inbox.
         if let MessageStatus::Processed = self
             .inbox_contracts
@@ -213,21 +213,21 @@ impl SerialSubmitter {
             .await?
         {
             info!(
-                "Unexpected status for message with leaf index '{}' (already delivered): '{:?}'",
+                "Unexpected status for message with leaf index '{}' (already processed): '{:?}'",
                 msg.leaf_index, msg
             );
-            self.record_message_delivery(&msg)?;
+            self.record_message_process_success(&msg)?;
             return Ok(());
         }
 
-        // Go ahead and attempt delivery of message to destination chain.
-        info!(msg=?msg, "Ready to deliver message");
-        match self.deliver_message(&msg).await {
+        // Go ahead and attempt processing of message to destination chain.
+        info!(msg=?msg, "Ready to process message");
+        match self.process_message(&msg).await {
             Ok(()) => {
-                info!(msg=?msg, "Message delivered");
+                info!(msg=?msg, "Message processed");
             }
             Err(e) => {
-                info!(msg=?msg, "Message delivery failed: {}", e);
+                info!(msg=?msg, "Message processing failed: {}", e);
                 msg.num_retries += 1;
                 self.run_queue.push(msg);
             }
@@ -241,13 +241,13 @@ impl SerialSubmitter {
     // TODO(webbhorn): Instead of immediately marking as processed, move to a verification
     // queue, which will wait for finality and indexing by the inbox indexer and then mark
     // as processed (or eventually retry if no confirmation is ever seen).
-    async fn deliver_message(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
+    async fn process_message(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         let result = self
             .inbox_contracts
             .validator_manager
             .process(&msg.checkpoint, &msg.committed_message.message, &msg.proof)
             .await?;
-        self.record_message_delivery(msg)?;
+        self.record_message_process_success(msg)?;
         info!(leaf_index=?msg.leaf_index, hash=?result.txid,
             wq_sz=?self.wait_queue.len(), rq_sz=?self.run_queue.len(),
             "Message successfully processed");
@@ -255,11 +255,11 @@ impl SerialSubmitter {
     }
 
     /// Record in AbacusDB and various metrics that this process has observed the successful
-    /// delivery of a message. An Ok(()) value returned by this function is the 'commit' point
-    /// in a message's lifetime for final delivery -- after this function has been seen to
-    /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt delivery for
+    /// processing of a message. An Ok(()) value returned by this function is the 'commit' point
+    /// in a message's lifetime for final processing -- after this function has been seen to
+    /// return 'Ok(())', then without a wiped AbacusDB, we will never re-attempt processing for
     /// this message again, even after the relayer restarts.
-    fn record_message_delivery(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
+    fn record_message_process_success(&mut self, msg: &SubmitMessageArgs) -> Result<()> {
         self.db.mark_leaf_as_processed(msg.leaf_index)?;
         self.metrics
             .queue_duration_hist
