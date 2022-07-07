@@ -122,6 +122,39 @@ export abstract class AbacusDeployer<
     return contract;
   }
 
+  protected async deployProxy<C extends ethers.Contract>(
+    chain: Chain,
+    implementation: C,
+    beaconAddress: string,
+    initArgs: Parameters<C['initialize']>,
+  ) {
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    const initData = implementation.interface.encodeFunctionData(
+      'initialize',
+      initArgs,
+    );
+    const beaconProxy = await new UpgradeBeaconProxy__factory(
+      chainConnection.signer!,
+    ).deploy(beaconAddress, initData, chainConnection.overrides);
+    await chainConnection.handleTx(beaconProxy.deployTransaction);
+    const proxyVerification = getContractVerificationInput(
+      'UpgradeBeaconProxy',
+      beaconProxy,
+      UpgradeBeaconProxy__factory.bytecode,
+    );
+    this.verificationInputs[chain].push(proxyVerification);
+
+    return new ProxiedContract<C, BeaconProxyAddresses>(
+      implementation.attach(beaconProxy.address) as C,
+      {
+        kind: ProxyKind.UpgradeBeacon,
+        proxy: beaconProxy.address,
+        implementation: implementation.address,
+        beacon: beaconAddress,
+      },
+    );
+  }
+
   /**
    * Deploys the UpgradeBeacon, Implementation and Proxy for a given contract
    *
@@ -149,37 +182,19 @@ export abstract class AbacusDeployer<
       ubcAddress,
       chainConnection.overrides,
     );
-    this.logger(
-      `Pending beacon deployment ${chainConnection.getTxUrl(
-        beacon.deployTransaction,
-      )}`,
+    await chainConnection.handleTx(beacon.deployTransaction);
+    const beaconVerification = getContractVerificationInput(
+      'UpgradeBeacon',
+      beacon,
+      UpgradeBeacon__factory.bytecode,
     );
-    // Wait for the beacon to be deployed so that the proxy
-    // constructor is happy.
-    await beacon.deployTransaction.wait(chainConnection.confirmations);
-    const initData = implementation.interface.encodeFunctionData(
-      'initialize',
-      initArgs,
-    );
-    const beaconProxy = await new UpgradeBeaconProxy__factory(signer).deploy(
+    this.verificationInputs[chain].push(beaconVerification);
+
+    return this.deployProxy(
+      chain,
+      implementation as C,
       beacon.address,
-      initData,
-      chainConnection.overrides,
-    );
-    this.logger(
-      `Pending proxy deployment and init ${chainConnection.getTxUrl(
-        beaconProxy.deployTransaction,
-      )}`,
-    );
-    await beaconProxy.deployTransaction.wait(chainConnection.confirmations);
-    return new ProxiedContract<C, BeaconProxyAddresses>(
-      implementation.attach(beaconProxy.address) as any,
-      {
-        kind: ProxyKind.UpgradeBeacon,
-        proxy: beaconProxy.address,
-        implementation: implementation.address,
-        beacon: beacon.address,
-      },
+      initArgs,
     );
   }
 
@@ -193,29 +208,11 @@ export abstract class AbacusDeployer<
     initArgs: Parameters<C['initialize']>,
   ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
     this.logger(`Duplicate Proxy on ${chain}`);
-    const chainConnection = this.multiProvider.getChainConnection(chain);
-    const signer = this.multiProvider.getChainConnection(chain).signer!;
-    const initData = proxy.contract.interface.encodeFunctionData(
-      'initialize',
+    return this.deployProxy(
+      chain,
+      proxy.contract,
+      proxy.addresses.beacon,
       initArgs,
-    );
-    const proxyAddresses = proxy.addresses as BeaconProxyAddresses;
-    const newProxy = await new UpgradeBeaconProxy__factory(signer).deploy(
-      proxyAddresses.beacon,
-      initData,
-      chainConnection.overrides,
-    );
-    this.logger(
-      `Pending proxy deployment and init ${chainConnection.getTxUrl(
-        newProxy.deployTransaction,
-      )}`,
-    );
-    return new ProxiedContract<C, BeaconProxyAddresses>(
-      proxy.contract.attach(newProxy.address) as C,
-      {
-        ...proxyAddresses,
-        proxy: newProxy.address,
-      },
     );
   }
 }
