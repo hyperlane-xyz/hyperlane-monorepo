@@ -10,6 +10,12 @@ use tracing::{debug, info, instrument, trace, warn};
 
 use crate::HttpClientError;
 
+const METHODS_TO_NOT_RETRY: &[&str] = &[
+    "eth_estimateGas",
+    "eth_sendTransaction",
+    "eth_sendRawTransaction",
+];
+
 /// An HTTP Provider with a simple naive exponential backoff built-in
 #[derive(Debug, Clone)]
 pub struct RetryingProvider<P> {
@@ -77,8 +83,6 @@ where
         ProviderError::JsonRpcClientError(Box::new(src))
     }
 }
-
-const METHODS_TO_NOT_RETRY: &[&str] = &["eth_estimateGas", "eth_sendTransaction", "eth_sendRawTransaction"];
 
 #[async_trait]
 impl JsonRpcClient for RetryingProvider<Http> {
