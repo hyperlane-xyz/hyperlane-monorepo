@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: ${{ github.ref }}
+  group: e2e-${{ github.ref }}
   cancel-in-progress: true
 
 env:
