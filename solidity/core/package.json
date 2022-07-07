@@ -4,7 +4,7 @@
   "version": "0.3.1",
   "dependencies": {
     "@abacus-network/utils": "0.3.1",
-    "@openzeppelin/contracts": "^4.6.0",
+    "@openzeppelin/contracts": "^4.7.0",
     "@openzeppelin/contracts-upgradeable": "^4.6.0",
     "@summa-tx/memview-sol": "^2.0.0"
   },
