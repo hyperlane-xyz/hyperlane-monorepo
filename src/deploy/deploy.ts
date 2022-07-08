@@ -1,6 +1,6 @@
-import { AbacusRouterDeployer } from '@abacus-network/deploy';
 import {
   AbacusCore,
+  AbacusRouterDeployer,
   ChainMap,
   ChainName,
   MultiProvider,
@@ -9,7 +9,7 @@ import {
   HelloWorldContracts,
   helloWorldFactories,
   HelloWorldFactories,
-} from '../sdk/contracts';
+} from '../app/contracts';
 import { HelloWorldConfig } from './config';
 
 export class HelloWorldDeployer<
@@ -28,10 +28,13 @@ export class HelloWorldDeployer<
     super(multiProvider, configMap, helloWorldFactories, {});
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  // Custom contract deployment logic can go here
+  // If no custom logic is needed, call deployContract for the router
   async deployContracts(chain: Chain, config: HelloWorldConfig) {
-    const acm = this.core.getContracts(chain).abacusConnectionManager.address;
-    const router = await this.deployRouter(chain, [], [acm]);
+    const router = await this.deployContract(chain, 'router', [
+      config.abacusConnectionManager,
+      config.interchainGasPaymaster,
+    ]);
     return {
       router,
     };

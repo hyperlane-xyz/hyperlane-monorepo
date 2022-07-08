@@ -1,14 +1,11 @@
-import { utils as deployUtils } from '@abacus-network/deploy';
-import '@abacus-network/hardhat';
-// TODO export TestCoreApp from @abacus-network/hardhat properly
-import { TestCoreApp } from '@abacus-network/hardhat/dist/src/TestCoreApp';
-// TODO export TestCoreDeploy from @abacus-network/hardhat properly
-import { TestCoreDeploy } from '@abacus-network/hardhat/dist/src/TestCoreDeploy';
 import {
   ChainMap,
   ChainNameToDomainId,
+  getMultiProviderFromConfigAndSigner,
   MultiProvider,
   TestChainNames,
+  TestCoreApp,
+  TestCoreDeployer,
 } from '@abacus-network/sdk';
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
 import { expect } from 'chai';
@@ -33,15 +30,14 @@ describe('HelloWorld', async () => {
   before(async () => {
     [signer] = await ethers.getSigners();
 
-    multiProvider = deployUtils.getMultiProviderFromConfigAndSigner(
-      testConfigs,
-      signer,
-    );
+    multiProvider = getMultiProviderFromConfigAndSigner(testConfigs, signer);
 
-    const coreDeployer = new TestCoreDeploy(multiProvider);
+    const coreDeployer = new TestCoreDeployer(multiProvider);
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
-    config = coreApp.extendWithConnectionManagers(getConfigMap(signer.address));
+    config = coreApp.extendWithConnectionClientConfig(
+      getConfigMap(signer.address),
+    );
   });
 
   beforeEach(async () => {
