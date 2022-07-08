@@ -5,11 +5,12 @@ import {
   CoreConfig,
   CoreContracts,
   MultiProvider,
+  objMap,
   serializeContracts,
 } from '@abacus-network/sdk';
 
 import { AbacusCoreInfraDeployer } from '../src/core/deploy';
-import { writeJSON } from '../src/utils/utils';
+import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
   getCoreContractsSdkFilepath,
@@ -69,11 +70,19 @@ async function main() {
     serializeContracts(contracts),
   );
 
-  // Manually merge
+  const existingVerifications = readJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+  );
+
+  const mergedVerificationInputs = objMap(
+    deployer.verificationInputs,
+    (chain, inputs) => [...existingVerifications[chain], ...inputs],
+  );
   writeJSON(
     getCoreVerificationDirectory(environment),
     'verification.json',
-    deployer.verificationInputs,
+    mergedVerificationInputs,
   );
 }
 
