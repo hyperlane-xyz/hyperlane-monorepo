@@ -53,7 +53,7 @@ async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment) as any;
   const multiProvider = await config.getMultiProvider();
-  const existingCore = AbacusCore.fromEnvironment('test', multiProvider);
+  const existingCore = AbacusCore.fromEnvironment(environment, multiProvider);
   const deployer = new IGPDeployer(
     multiProvider,
     config.core,
