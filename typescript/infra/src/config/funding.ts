@@ -4,4 +4,5 @@ export interface RelayerFunderConfig {
   docker: DockerConfig;
   cronSchedule: string;
   namespace: string;
+  prometheusPushGateway: string;
 }

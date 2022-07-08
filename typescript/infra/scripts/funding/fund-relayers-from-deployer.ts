@@ -208,7 +208,6 @@ function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
 function getPushGateway(): Pushgateway | null {
   const gatewayAddr = process.env['PROMETHEUS_PUSH_GATEWAY'];
   if (gatewayAddr) {
-    // TODO: get actual push gateway address
     return new Pushgateway(gatewayAddr, [], metricsRegister);
   } else {
     console.warn(
