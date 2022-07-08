@@ -48,8 +48,10 @@ async function main() {
     console.info(`Copying ${f}`);
     execSync(`cp -r ${f} ${PATH_TO_TEMPLATE_REPO}`);
   }
-  console.info(`Done copying files, committing changes`);
+  console.info(`Running yarn to ensure up to date lockfile`);
+  execSync(`yarn install`, { cwd: PATH_TO_TEMPLATE_REPO });
 
+  console.info(`Committing changes`);
   execSync(`git add . && git commit -m "Sync with monorepo"`, {
     cwd: PATH_TO_TEMPLATE_REPO,
   });
