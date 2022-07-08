@@ -1,8 +1,10 @@
 import { ethers } from 'ethers';
+import fs from 'fs';
+import path from 'path';
 
 import { DomainIdToChainName, VerificationInput } from '@abacus-network/sdk';
 
-import { readJSON } from '../src/utils/utils';
+import { readJSON, writeJSON } from '../src/utils/utils';
 
 import {
   getCoreContractsSdkFilepath,
@@ -16,6 +18,10 @@ async function main() {
   let simulatedVerification = readJSON(
     getCoreVerificationDirectory(environment),
     'verification.json',
+  );
+  let simulatedVerificationRaw = fs.readFileSync(
+    path.join(getCoreVerificationDirectory(environment), 'verification.json'),
+    { encoding: 'utf8' },
   );
   const coreAddresses = readJSON(
     getCoreContractsSdkFilepath(),
@@ -31,15 +37,19 @@ async function main() {
     const arbitraryInbox = Object.values(addresses.inboxes)[0].inbox;
 
     let beacons: any = {};
+    let replaceMap: any = {};
 
+    // populate address replacement map
     for (const input of verification) {
       let actual = ethers.constants.AddressZero;
       switch (input.name) {
         case 'upgradeBeaconController':
         case 'abacusConnectionManager':
         case 'outboxValidatorManager':
-        case 'interchainGasPaymaster':
           actual = addresses[input.name];
+          break;
+        case 'interchainGasPaymaster':
+          actual = ethers.constants.AddressZero;
           break;
         case 'outbox':
           actual = addresses.outbox.implementation;
@@ -96,16 +106,26 @@ async function main() {
         default:
           throw new Error(`Unknown contract ${input.name}`);
       }
-      console.log(`${input.address} ${actual} ${input.name}`);
+      console.log(`${input.address} ${actual} (${input.name})`);
+      replaceMap[input.address.slice(2)] = actual.slice(2);
     }
 
     console.groupEnd();
+    // replace addresses
+    for (const [key, val] of Object.entries(replaceMap)) {
+      simulatedVerificationRaw = simulatedVerificationRaw.replaceAll(
+        `(?i)${key}`, // case-insensitive
+        val as string,
+      );
+    }
   }
-  // writeJSON(
-  //   getCoreVerificationDirectory(environment),
-  //   'patched_verification.json',
-  //   simulatedVerification
-  // );
+
+  const replaced = JSON.parse(simulatedVerificationRaw);
+  writeJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+    replaced,
+  );
 }
 
 main().then().catch();
