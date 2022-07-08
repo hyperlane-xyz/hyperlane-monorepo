@@ -14,6 +14,7 @@ export type CoreConfig = {
 export enum CoreViolationType {
   ValidatorManager = 'ValidatorManager',
   Validator = 'Validator',
+  InterchainGasPaymasterNotDeployed = 'InterchainGasPaymasterNotDeployed',
 }
 
 export enum ValidatorViolationType {
@@ -32,4 +33,9 @@ export interface ValidatorViolation extends CheckerViolation {
     type: ValidatorViolationType;
     validatorManagerAddress: string;
   };
+}
+
+export interface InterchainGasPaymasterNotDeployedViolation
+  extends CheckerViolation {
+  type: CoreViolationType.InterchainGasPaymasterNotDeployed;
 }
