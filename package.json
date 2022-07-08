@@ -28,5 +28,11 @@
   "workspaces": [
     "solidity/*",
     "typescript/*"
-  ]
+  ],
+  "resolutions": {
+    "underscore": "^1.13",
+    "fetch-ponyfill": "^7.1",
+    "lodash": "^4.17.21",
+    "async": "^2.6.4"
+  }
 }
