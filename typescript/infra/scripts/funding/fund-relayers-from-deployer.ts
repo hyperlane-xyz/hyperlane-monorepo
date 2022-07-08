@@ -14,6 +14,30 @@ import { KEY_ROLE_ENUM } from '../../src/agents/roles';
 import { readJSONAtPath } from '../../src/utils/utils';
 import { assertEnvironment, getArgs, getCoreEnvironmentConfig } from '../utils';
 
+const constMetricLabels = {
+  // this needs to get set in main because of async reasons
+  abacus_deployment: '',
+  abacus_context: 'abacus',
+};
+
+const metricsRegister = new Registry();
+const walletBalanceGauge = new Gauge({
+  // Mirror the rust/ethers-prometheus `wallet_balance` gauge metric.
+  name: 'abacus_wallet_balance',
+  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
+  registers: [metricsRegister],
+  labelNames: [
+    'chain',
+    'wallet_address',
+    'wallet_name',
+    'token_address',
+    'token_symbol',
+    'token_name',
+    ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
+  ],
+});
+metricsRegister.registerMetric(walletBalanceGauge);
+
 interface FunderBalance {
   chain: ChainName;
   address?: string;
@@ -116,6 +140,7 @@ async function main() {
     .string('f').argv;
 
   const environment = assertEnvironment(argv.e as string);
+  constMetricLabels.abacus_deployment = environment;
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
 
@@ -180,31 +205,32 @@ function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
     .filter((key: AgentKey) => key.role === KEY_ROLE_ENUM.Relayer);
 }
 
-function submitFunderBalanceMetrics(balances: FunderBalance[]) {
+function getPushGateway(): Pushgateway | null {
   const gatewayAddr = process.env['PROMETHEUS_PUSH_GATEWAY'];
-  if (!gatewayAddr) {
+  if (gatewayAddr) {
+    // TODO: get actual push gateway address
+    return new Pushgateway(gatewayAddr, [], metricsRegister);
+  } else {
     console.warn(
       'Prometheus push gateway address was not defined; not publishing metrics.',
     );
-    return;
+    return null;
   }
+}
 
-  const register = new Registry();
-  // TODO: get actual push gateway address
-  const gateway = new Pushgateway(gatewayAddr, [], register);
-  const gauge = new Gauge({
-    name: 'abacus_relayer_funder_balance',
-    help: 'Last known balance of native tokens for each chain of the relayer funder',
-    registers: [register],
-    labelNames: ['chain', 'address'],
-  });
-  register.registerMetric(gauge);
+function submitFunderBalanceMetrics(balances: FunderBalance[]) {
+  const gateway = getPushGateway();
+  if (!gateway) return;
 
   for (const { chain, address, balance } of balances) {
-    gauge
+    walletBalanceGauge
       .labels({
         chain,
-        address: address ?? 'unknown',
+        wallet_address: address ?? 'unknown',
+        wallet_name: 'relayer-funder',
+        token_symbol: 'Native',
+        token_name: 'Native',
+        ...constMetricLabels,
       })
       .set(balance);
   }
