@@ -28,6 +28,7 @@ export class AbacusCoreChecker<
     await this.checkInboxes(chain);
     await this.checkAbacusConnectionManager(chain);
     await this.checkValidatorManagers(chain);
+    await this.checkInterchainGasPaymaster(chain);
   }
 
   async checkDomainOwnership(chain: Chain): Promise<void> {
@@ -226,5 +227,25 @@ export class AbacusCoreChecker<
         this.checkUpgradeBeacon(chain, 'Inbox', inbox.inbox.addresses),
       ),
     );
+  }
+
+  async checkInterchainGasPaymaster(chain: Chain): Promise<void> {
+    const contracts = this.app.getContracts(chain);
+    if (contracts.interchainGasPaymaster.addresses) {
+      await this.checkUpgradeBeacon(
+        chain,
+        'InterchainGasPaymaster',
+        contracts.interchainGasPaymaster.addresses,
+      );
+    } else {
+      this.violations.push({
+        type: CoreViolationType.InterchainGasPaymasterNotDeployed,
+        chain: chain,
+        expected: undefined,
+        actual: undefined,
+      });
+    }
+
+    return;
   }
 }
