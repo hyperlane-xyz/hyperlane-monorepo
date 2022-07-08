@@ -113,8 +113,9 @@ async function main() {
     console.groupEnd();
     // replace addresses
     for (const [key, val] of Object.entries(replaceMap)) {
-      simulatedVerificationRaw = simulatedVerificationRaw.replaceAll(
-        `(?i)${key}`, // case-insensitive
+      const searchRegExp = new RegExp(key, 'ig');
+      simulatedVerificationRaw = simulatedVerificationRaw.replace(
+        searchRegExp,
         val as string,
       );
     }
