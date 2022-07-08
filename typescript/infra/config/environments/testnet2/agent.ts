@@ -81,6 +81,15 @@ export const flowcarbon: AgentConfig<TestnetChains> = {
     default: {
       signedCheckpointPollingInterval: 5,
       maxProcessingRetries: 10,
+      // Don't try to process any messages just yet
+      whitelist: [
+        {
+          sourceDomain: '1',
+          sourceAddress: '0x0000000000000000000000000000000000000000',
+          destinationDomain: '1',
+          destinationAddress: '0x0000000000000000000000000000000000000000',
+        },
+      ],
     },
   },
   rolesWithKeys: [KEY_ROLE_ENUM.Relayer],
