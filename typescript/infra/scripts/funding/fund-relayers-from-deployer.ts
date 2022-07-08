@@ -153,7 +153,9 @@ async function main() {
     balances.push({
       chain,
       address: funderAddress,
-      balance: (await chainConnection.signer!.getBalance()).toNumber() / 1e18,
+      balance: parseFloat(
+        ethers.utils.formatEther(await chainConnection.signer!.getBalance()),
+      ),
     });
 
     console.groupEnd();
