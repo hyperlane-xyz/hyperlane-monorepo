@@ -109,6 +109,7 @@ export abstract class AbacusDeployer<
     }
 
     this.logger(`Deploy ${contractName} on ${chain}`);
+
     const contract = await factory
       .connect(signer)
       .deploy(...args, chainConnection.overrides);

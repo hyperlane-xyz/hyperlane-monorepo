@@ -1,122 +1,89 @@
 import fetch from 'cross-fetch';
+import { Debugger, debug } from 'debug';
+import { ethers } from 'hardhat';
 
-import type { types } from '@abacus-network/utils';
+import { sleep } from '@abacus-network/utils/dist/src/utils';
 
-import { ChainName } from '../../types';
+import { MultiProvider } from '../../providers/MultiProvider';
+import { ChainMap, ChainName } from '../../types';
+import { MultiGeneric } from '../../utils';
 
 import { ContractVerificationInput, VerificationInput } from './types';
 
-const etherscanChains = [
-  'ethereum',
-  'kovan',
-  'goerli',
-  'ropsten',
-  'rinkeby',
-  'polygon',
-];
+export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
+  Chain,
+  VerificationInput
+> {
+  protected logger: Debugger;
 
-export abstract class ContractVerifier {
-  constructor(public readonly key: string) {}
-
-  abstract chainNames: ChainName[];
-  abstract getVerificationInput(chain: ChainName): VerificationInput;
-
-  static etherscanLink(chain: ChainName, address: types.Address): string {
-    if (chain === 'polygon') {
-      return `https://polygonscan.com/address/${address}`;
-    }
-
-    const prefix = chain === 'ethereum' ? '' : `${chain}.`;
-    return `https://${prefix}etherscan.io/address/${address}`;
+  constructor(
+    verificationInputs: ChainMap<Chain, VerificationInput>,
+    protected readonly multiProvider: MultiProvider<Chain>,
+    protected readonly apiKeys: ChainMap<Chain, string>,
+    protected readonly flattenedSource: string,
+  ) {
+    super(verificationInputs);
+    this.logger = debug('abacus:ContractVerifier');
   }
 
-  // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-  async verify(hre: any): Promise<void> {
-    let chain = hre.network.name;
+  async verify() {
+    return Promise.allSettled(
+      this.chains().map((chain) => this.verifyChain(chain, this.get(chain))),
+    );
+  }
 
-    if (chain === 'mainnet') {
-      chain = 'ethereum';
-    }
-
-    const envError = (network: string) =>
-      `pass --network tag to hardhat task (current network=${network})`;
-
-    // assert that network from .env is supported by Etherscan
-    if (!etherscanChains.includes(chain)) {
-      throw new Error(`Network not supported by Etherscan; ${envError(chain)}`);
-    }
-
-    // get the JSON verification inputs for the given network
-    // from the latest contract deploy; throw if not found
-    const verificationInputs = this.getVerificationInput(chain);
-
-    // loop through each verification input for each contract in the file
-    for (const verificationInput of verificationInputs) {
-      // attempt to verify contract on etherscan
-      // (await one-by-one so that Etherscan doesn't rate limit)
-      await this.verifyContract(chain, verificationInput, hre);
+  async verifyChain(chain: Chain, inputs: VerificationInput) {
+    this.logger(`Verifying ${chain}...`);
+    for (const input of inputs) {
+      await this.verifyContract(chain, input);
+      sleep(1000); // avoid rate limiting
     }
   }
 
-  async verifyContract(
-    chain: ChainName,
-    input: ContractVerificationInput,
-    // eslint-disable-next-line @typescript-eslint/explicit-module-boundary-types
-    hre: any,
-  ): Promise<void> {
-    try {
-      console.log(
-        `   Attempt to verify ${
-          input.name
-        }   -  ${ContractVerifier.etherscanLink(chain, input.address)}`,
-      );
-      await hre.run('verify:verify', {
-        chain,
-        address: input.address,
-        constructorArguments: input.constructorArguments,
-      });
-      console.log(`   SUCCESS verifying ${input.name}`);
-
-      if (input.isProxy) {
-        console.log(`   Attempt to verify as proxy`);
-        await this.verifyProxy(chain, input.address);
-        console.log(`   SUCCESS submitting proxy verification`);
-      }
-    } catch (e) {
-      console.log(`   ERROR verifying ${input.name}`);
-      console.error(e);
-    }
-    console.log('\n\n'); // add space after each attempt
+  // from https://docs.etherscan.io/api-endpoints/contracts#source-code-submission-gist
+  buildFormData(chain: Chain, input: ContractVerificationInput) {
+    return {
+      module: 'contract',
+      action: input.isProxy ? 'verifyproxycontract' : 'verifysourcecode',
+      codeformat: 'solidity-single-file',
+      // TODO: make compiler options configurable
+      compilerversion: 'v0.8.13+commit.abaa5c0e',
+      licenseType: 3,
+      optimizationUsed: 1,
+      runs: 999999,
+      apikey: this.apiKeys[chain],
+      sourceCode: this.flattenedSource,
+      contractname: input.name,
+      contractaddress: input.address,
+      constructorArguements: input.constructorArguments,
+    };
   }
 
-  async verifyProxy(chain: ChainName, address: types.Address): Promise<void> {
-    const suffix = chain === 'ethereum' ? '' : `-${chain}`;
+  async verifyContract(chain: Chain, input: ContractVerificationInput) {
+    if (input.address === ethers.constants.AddressZero) {
+      return;
+    }
 
-    console.log(`   Submit ${address} for proxy verification on ${chain}`);
-    // Submit contract for verification
-    const verifyResponse = await fetch(
-      `https://api${suffix}.etherscan.io/api?address=${address}`,
-      {
-        method: 'POST',
-        body: JSON.stringify({
-          module: 'contract',
-          action: 'verifyproxycontract',
-          apikey: this.key,
-        }),
-      },
+    const chainConnection = this.multiProvider.getChainConnection(chain);
+    this.logger(
+      `Contract ${input.name} at ${await chainConnection.getAddressUrl(
+        input.address,
+      )}`,
     );
 
-    // Validate that submission worked
-    if (!verifyResponse.ok) {
-      throw new Error('Verify POST failed');
+    const data = this.buildFormData(chain, input);
+    const apiUrl = chainConnection.getApiUrl();
+
+    try {
+      await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data),
+      });
+    } catch (e) {
+      console.error(e);
     }
-
-    const data = await verifyResponse.json();
-
-    if (data?.status != '1') {
-      throw new Error(data?.result);
-    }
-
-    console.log(`   Submitted.`);
   }
 }

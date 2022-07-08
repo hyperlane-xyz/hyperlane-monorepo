@@ -53,6 +53,7 @@ export const optimism: IChainConnection = {
   ),
   confirmations: 1,
   blockExplorerUrl: 'https://optimistic.etherscan.io/',
+  apiPrefix: 'api-',
 };
 
 export const bsc: IChainConnection = {
