@@ -14,6 +14,7 @@ import { writeJSON } from '../src/utils/utils';
 import {
   getCoreContractsSdkFilepath,
   getCoreEnvironmentConfig,
+  getCoreVerificationDirectory,
   getEnvironment,
 } from './utils';
 
@@ -66,6 +67,13 @@ async function main() {
     getCoreContractsSdkFilepath(),
     `${environment}.json`,
     serializeContracts(contracts),
+  );
+
+  // Manually merge
+  writeJSON(
+    getCoreVerificationDirectory(environment),
+    'verification.json',
+    deployer.verificationInputs,
   );
 }
 
