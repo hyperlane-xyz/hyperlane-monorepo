@@ -116,7 +116,7 @@ impl MessageProcessor {
             debug!(msg=?msg, "Working on msg");
             msg
         } else {
-            warn!(
+            debug!(
                 "Leaf in db without message idx: {}",
                 self.message_leaf_index
             );
@@ -126,7 +126,7 @@ impl MessageProcessor {
             // here.  For now, optimistically yield and then re-enter the loop in hopes that
             // the DB is now coherent.
             // TODO(webbhorn): Why can't we yield here instead of sleep?
-            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+            tokio::time::sleep(Duration::from_secs(1)).await;
             return Ok(());
         };
 
