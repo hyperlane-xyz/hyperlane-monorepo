@@ -32,7 +32,7 @@ async function main() {
       } catch (err) {
         console.error(
           `Error sending message from ${source} to ${destination}, continuing...`,
-          err,
+          `${err}`.replaceAll('\n', ' ## '),
         );
         failureOccurred = true;
       }
