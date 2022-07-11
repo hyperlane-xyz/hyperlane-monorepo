@@ -17,7 +17,7 @@ import { HelloWorldConfig, getConfigMap, testConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
 
 describe('deploy', async () => {
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
   let core: TestCoreApp;
   let config: ChainMap<TestChainNames, HelloWorldConfig>;
   let deployer: HelloWorldDeployer<TestChainNames>;

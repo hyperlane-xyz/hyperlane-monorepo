@@ -25,7 +25,7 @@ describe('HelloWorld', async () => {
   let signer: SignerWithAddress;
   let local: HelloWorld;
   let remote: HelloWorld;
-  let multiProvider: MultiProvider<TestChainNames>;
+  let multiProvider: MultiProvider;
   let coreApp: TestCoreApp;
   let config: ChainMap<TestChainNames, HelloWorldConfig>;
 

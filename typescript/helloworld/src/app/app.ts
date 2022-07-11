@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { TypedListener } from '@abacus-network/core/dist/common';
+import type { TypedListener } from '@abacus-network/core/dist/common';
 import {
   AbacusApp,
   ChainName,
