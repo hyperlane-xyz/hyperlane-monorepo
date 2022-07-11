@@ -35,6 +35,9 @@ function getRelayerFunderHelmValues<Chain extends ChainName>(
       repository: relayerFunderConfig.docker.repo,
       tag: relayerFunderConfig.docker.tag,
     },
+    infra: {
+      prometheusPushGateway: relayerFunderConfig.prometheusPushGateway,
+    },
   };
   return helmifyValues(values);
 }
