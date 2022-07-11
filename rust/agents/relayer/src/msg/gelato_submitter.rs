@@ -13,7 +13,8 @@ use tokio::time::{sleep, Duration};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use super::SubmitMessageArgs;
+use gelato::fwd_req_call::ForwardRequestArgs;
+use gelato::fwd_req_op::{ForwardRequestOp, ForwardRequestOptions};
 
 const DEFAULT_MAX_FEE: u32 = 1_000_000_000;
 
