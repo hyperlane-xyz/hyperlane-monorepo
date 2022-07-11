@@ -1,5 +1,5 @@
 use abacus_base::{chains::GelatoConf, InboxContracts};
-use abacus_core::db::AbacusDB;
+use abacus_core::{db::AbacusDB, Signers};
 use tokio::task::JoinHandle;
 
 use eyre::Result;
@@ -25,6 +25,9 @@ pub(crate) struct GelatoSubmitter {
 
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
+
+    /// Signer to use for EIP-712 meta-transaction signatures.
+    signer: Signers,
 }
 
 impl GelatoSubmitter {
@@ -33,12 +36,14 @@ impl GelatoSubmitter {
         rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         db: AbacusDB,
+        signer: Signers,
     ) -> Self {
         assert!(cfg.enabled_for_message_submission);
         Self {
             rx,
             inbox_contracts,
             db,
+            signer,
         }
     }
 

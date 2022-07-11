@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use async_trait::async_trait;
-use eyre::Result;
+use eyre::{bail, Result};
 use tokio::{
     sync::mpsc,
     sync::watch::{Receiver, Sender},
@@ -13,7 +13,7 @@ use abacus_base::{
     chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics,
     InboxContracts, MultisigCheckpointSyncer,
 };
-use abacus_core::{AbacusContract, MultisigSignedCheckpoint};
+use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gelato_submitter::GelatoSubmitter;
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
@@ -111,7 +111,8 @@ impl Relayer {
         inbox_contracts: InboxContracts,
         signed_checkpoint_receiver: Receiver<Option<MultisigSignedCheckpoint>>,
         gelato_conf: Option<GelatoConf>,
-    ) -> Instrumented<JoinHandle<Result<()>>> {
+        signer: Option<Signers>,
+    ) -> Result<Instrumented<JoinHandle<Result<()>>>> {
         let outbox = self.outbox().outbox();
         let metrics = MessageProcessorMetrics::new(
             &self.core.metrics,
@@ -121,11 +122,15 @@ impl Relayer {
         let (new_messages_send_channel, new_messages_receive_channel) = mpsc::unbounded_channel();
         let submit_fut = match gelato_conf {
             Some(cfg) if cfg.enabled_for_message_submission => {
+                if signer.is_none() {
+                    bail!("Need valid signer for inbox to create GelatoSubmitter, but none was available");
+                }
                 let gelato_submitter = GelatoSubmitter::new(
                     cfg,
                     new_messages_receive_channel,
                     inbox_contracts.clone(),
                     self.outbox().db(),
+                    signer.unwrap(),
                 );
                 gelato_submitter.spawn()
             }
@@ -158,26 +163,29 @@ impl Relayer {
             "Using message processor"
         );
         let process_fut = message_processor.spawn();
-        tokio::spawn(async move {
+        Ok(tokio::spawn(async move {
             let res = tokio::try_join!(submit_fut, process_fut)?;
             info!(?res, "try_join finished for inbox");
             Ok(())
         })
-        .instrument(info_span!("run inbox"))
+        .instrument(info_span!("run inbox")))
     }
 
-    pub fn run(&self) -> Instrumented<JoinHandle<Result<()>>> {
+    pub async fn run(&self) -> Result<Instrumented<JoinHandle<Result<()>>>> {
         let (signed_checkpoint_sender, signed_checkpoint_receiver) =
             tokio::sync::watch::channel::<Option<MultisigSignedCheckpoint>>(None);
 
         let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = Vec::new();
 
         for (inbox_name, inbox_contracts) in self.inboxes() {
+            let signer = self.core.settings.get_signer(inbox_name).await;
+            let gelato_conf = self.core.settings.inboxes[inbox_name].gelato_conf.clone();
             tasks.push(self.run_inbox(
                 inbox_contracts.clone(),
                 signed_checkpoint_receiver.clone(),
-                self.core.settings.inboxes[inbox_name].gelato_conf.clone(),
-            ));
+                gelato_conf,
+                signer,
+            )?);
         }
 
         tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
@@ -191,7 +199,7 @@ impl Relayer {
             info!("Interchain Gas Paymaster not provided, not running sync");
         }
 
-        self.run_all(tasks)
+        Ok(self.run_all(tasks))
     }
 }
 
