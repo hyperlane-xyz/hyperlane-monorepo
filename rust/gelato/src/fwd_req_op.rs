@@ -38,7 +38,7 @@ impl<S: Signer> ForwardRequestOp<S> {
             let fwd_req_call = ForwardRequestCall {
                 http: Arc::clone(&self.http),
                 args: self.args.clone(),
-                sig: sig.clone(),
+                sig,
             };
             // TODO(webbhorn): If retryable error, retry submitting request after backoff if
             // retryable (via 'continue;').
