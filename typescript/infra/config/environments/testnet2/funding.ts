@@ -9,4 +9,5 @@ export const relayerFunderConfig: RelayerFunderConfig = {
   },
   cronSchedule: '*/10 * * * *', // Every 10 minutes
   namespace: environment,
+  prometheusPushGateway: 'http://pushgateway.monitoring.svc.cluster.local:9091',
 };
