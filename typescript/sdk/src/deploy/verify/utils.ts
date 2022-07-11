@@ -18,8 +18,7 @@ export function getConstructorArguments(
 ): any {
   const tx = contract.deployTransaction;
   if (tx === undefined) throw new Error('deploy transaction not found');
-  const encodedArguments = `0x${tx.data.replace(bytecode, '')}`;
-  return encodedArguments;
+  return tx.data.replace(bytecode, '');
 }
 
 export function getContractVerificationInput(
