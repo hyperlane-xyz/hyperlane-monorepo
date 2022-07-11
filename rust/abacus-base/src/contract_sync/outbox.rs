@@ -2,7 +2,7 @@ use std::cmp::min;
 use std::time::Duration;
 
 use tokio::time::sleep;
-use tracing::{info, info_span, warn};
+use tracing::{debug, info, info_span, warn};
 use tracing::{instrument::Instrumented, Instrument};
 
 use abacus_core::{chain_from_domain, CommittedMessage, ListValidity, OutboxIndexer};
@@ -92,7 +92,7 @@ where
 
                 let sorted_messages = indexer.fetch_sorted_messages(from, to).await?;
 
-                info!(
+                debug!(
                     from = from,
                     to = to,
                     message_count = sorted_messages.len(),
