@@ -16,7 +16,7 @@ export const ethereum: IChainConnection = {
 export const celo: IChainConnection = {
   provider: new StaticCeloJsonRpcProvider('https://forno.celo.org', 42220),
   confirmations: 1,
-  blockExplorerUrl: 'https://celoscan.xyz',
+  blockExplorerUrl: 'https://celoscan.io',
 };
 
 export const polygon: IChainConnection = {

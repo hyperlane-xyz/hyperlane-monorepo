@@ -3,13 +3,11 @@
     {
       "name": "UpgradeBeaconController",
       "address": "0x48083C69f5a42c6B69ABbAd48AE195BD36770ee2",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
       "name": "InterchainGasPaymaster",
       "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -27,7 +25,6 @@
     {
       "name": "AbacusConnectionManager",
       "address": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -143,13 +140,11 @@
     {
       "name": "UpgradeBeaconController",
       "address": "0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
       "name": "InterchainGasPaymaster",
       "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -167,7 +162,6 @@
     {
       "name": "AbacusConnectionManager",
       "address": "0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -283,13 +277,11 @@
     {
       "name": "UpgradeBeaconController",
       "address": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
       "name": "InterchainGasPaymaster",
       "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -307,7 +299,6 @@
     {
       "name": "AbacusConnectionManager",
       "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -423,13 +414,11 @@
     {
       "name": "UpgradeBeaconController",
       "address": "0x12582c7B0f43c6A667CBaA7fA8b112F7fb1E69F0",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
       "name": "InterchainGasPaymaster",
       "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -447,7 +436,6 @@
     {
       "name": "AbacusConnectionManager",
       "address": "0x1Ab68dC4f7b6cfcd00218D4b761b7F3b5a724555",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -563,13 +551,11 @@
     {
       "name": "UpgradeBeaconController",
       "address": "0x149db7afD694722747035d5AEC7007ccb6F8f112",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
       "name": "InterchainGasPaymaster",
       "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -587,7 +573,6 @@
     {
       "name": "AbacusConnectionManager",
       "address": "0x19dc38aeae620380430C200a6E990D5Af5480117",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -703,13 +688,11 @@
     {
       "name": "UpgradeBeaconController",
       "address": "0x2C1FAbEcd7bFBdEBF27CcdB67baADB38b6Df90fC",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
       "name": "InterchainGasPaymaster",
       "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -727,7 +710,6 @@
     {
       "name": "AbacusConnectionManager",
       "address": "0x8b83fefd896fAa52057798f6426E9f0B080FCCcE",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -843,13 +825,11 @@
     {
       "name": "UpgradeBeaconController",
       "address": "0x15ab173bDB6832f9b64276bA128659b0eD77730B",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
       "name": "InterchainGasPaymaster",
       "address": "0x0000000000000000000000000000000000000000",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {
@@ -867,7 +847,6 @@
     {
       "name": "AbacusConnectionManager",
       "address": "0xd83A4F747fE80Ed98839e05079B1B7Fe037b1638",
-      "constructorArguments": "0x",
       "isProxy": false
     },
     {

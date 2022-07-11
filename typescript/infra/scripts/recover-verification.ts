@@ -118,7 +118,7 @@ async function main() {
       }
 
       simulatedVerification[chain][i].constructorArguments =
-        ethersInterface.encodeDeploy(input.constructorArguments);
+        ethersInterface.encodeDeploy(input.constructorArguments as any);
 
       // console.log(input.name);
       // console.log(encodedConstructorArguments);
