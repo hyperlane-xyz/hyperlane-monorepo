@@ -1,49 +1,56 @@
-use abacus_base::{chains::GelatoConf, InboxContracts};
-use abacus_core::{db::AbacusDB, Signers};
-use tokio::task::JoinHandle;
+use std::sync::Arc;
 
-use eyre::Result;
+use abacus_base::{chains::GelatoConf, CoreMetrics, InboxContracts};
+use abacus_core::{db::AbacusDB, Signers};
+use prometheus::{Histogram, IntCounter, IntGauge};
+use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
+
+use eyre::{bail, Result};
 use tokio::sync::mpsc;
 use tracing::{info_span, instrument::Instrumented, Instrument};
 
-use super::SubmitMessageArgs;
+use gelato::fwd_req_call::ForwardRequestArgs;
+use gelato::fwd_req_op::{ForwardRequestOp, ForwardRequestOptions};
 
-// TODO(webbhorn): Metrics data.
-// TODO(webbhorn): Pull in ForwardRequestOp logic from prior branch.
+use super::SubmitMessageArgs;
 
 #[allow(dead_code)]
 #[derive(Debug)]
 pub(crate) struct GelatoSubmitter {
     /// Source of messages to submit.
-    rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
-
+    new_messages_receive_channel: mpsc::UnboundedReceiver<SubmitMessageArgs>,
     /// Interface to Inbox / InboxValidatorManager on the destination chain.
     /// Will be useful in retry logic to determine whether or not to re-submit
     /// forward request to Gelato, if e.g. we have confirmation via inbox syncer
     /// that the message has already been submitted by some other relayer.
     inbox_contracts: InboxContracts,
-
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
-
     /// Signer to use for EIP-712 meta-transaction signatures.
     signer: Signers,
+    /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
+    /// Intended to be shared by reqwest library.
+    http: Arc<reqwest::Client>,
+    metrics: GelatoSubmitterMetrics,
 }
 
 impl GelatoSubmitter {
     pub fn new(
         cfg: GelatoConf,
-        rx: mpsc::UnboundedReceiver<SubmitMessageArgs>,
+        new_messages_receive_channel: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         db: AbacusDB,
         signer: Signers,
+        metrics: GelatoSubmitterMetrics,
     ) -> Self {
         assert!(cfg.enabled_for_message_submission);
         Self {
-            rx,
+            new_messages_receive_channel,
             inbox_contracts,
             db,
             signer,
+            http: Arc::new(reqwest::Client::new()),
+            metrics,
         }
     }
 
@@ -70,34 +77,93 @@ impl GelatoSubmitter {
     async fn work_loop(&mut self) -> Result<()> {
         loop {
             self.tick().await?;
-            tokio::task::yield_now().await;
+            tokio::time::sleep(tokio::time::Duration::from_millis(1000)).await;
         }
     }
 
     /// Extracted from main loop to enable testing submitter state
     /// after each tick, e.g. in response to a change in environment
     /// conditions like values in InterchainGasPaymaster.
-    async fn tick(&self) -> Result<()> {
-        // TODO(webbhorn): Pull all available messages out of self.rx
-        // and check if enough gas to process them. If not, put on
-        // wait queue. If there is enough, spawn root task and run
-        // the fwd req op.
+    async fn tick(&mut self) -> Result<()> {
+        // Pull any messages sent by processor over channel.
+        loop {
+            match self.new_messages_receive_channel.try_recv() {
+                Ok(msg) => {
+                    let op = ForwardRequestOp {
+                        args: ForwardRequestArgs {
+                            chain_id: todo!(),
+                            target: todo!(),
+                            data: todo!(),
+                            fee_token: todo!(),
+                            payment_type: todo!(),
+                            max_fee: todo!(),
+                            gas: todo!(),
+                            sponsor: todo!(),
+                            sponsor_chain_id: todo!(),
+                            nonce: todo!(),
+                            enforce_sponsor_nonce: todo!(),
+                            enforce_sponsor_nonce_ordering: todo!(),
+                        },
+                        opts: ForwardRequestOptions::default(),
+                        signer: self.signer,
+                        http: self.http,
+                    };
+                    tokio::spawn(async move {
+                        // TODO(webbhorn): Actually handle errors?
+                        op.run().await.unwrap();
+                    });
+                }
+                Err(TryRecvError::Empty) => {
+                    break;
+                }
+                Err(_) => {
+                    bail!("Disconnected rcvq or fatal err");
+                }
+            }
+        }
+        Ok(())
+    }
+}
 
-        // TODO(webbhorn): Scan pending queue for any newly-eligible
-        // ops and if encountered, spawn them in a root task.
-        // Remove them from pending queue if so.
+// TODO(webbhorn): Drop allow dead code directive once we handle
+// updating each of these metrics.
+#[allow(dead_code)]
+#[derive(Debug)]
+pub(crate) struct GelatoSubmitterMetrics {
+    run_queue_length_gauge: IntGauge,
+    wait_queue_length_gauge: IntGauge,
+    queue_duration_hist: Histogram,
+    processed_gauge: IntGauge,
+    messages_processed_count: IntCounter,
+    /// Private state used to update actual metrics each tick.
+    max_submitted_leaf_index: u32,
+}
 
-        // TODO(webbhorn): Either wait for finality in the ForwardRequestOp
-        // logic, or follow the pattern from serial_submitter.rs
-        // of implementing a verification queue, where we will stash
-        // successfully submitted ops that have not yet reached finality.
-        // Only after reaching finality will we commit the new status to
-        // AbacusDB and drop those messages from the verification queue.
-        // In case of a destination chain re-org, they would need
-        // to go back to the wait queue.
-
-        // TODO(webbhorn): monitoring / metrics.
-
-        unimplemented!()
+impl GelatoSubmitterMetrics {
+    pub fn new(metrics: &CoreMetrics, outbox_chain: &str, inbox_chain: &str) -> Self {
+        Self {
+            run_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
+                outbox_chain,
+                inbox_chain,
+                "run_queue",
+            ]),
+            wait_queue_length_gauge: metrics.submitter_queue_length().with_label_values(&[
+                outbox_chain,
+                inbox_chain,
+                "wait_queue",
+            ]),
+            queue_duration_hist: metrics
+                .submitter_queue_duration_histogram()
+                .with_label_values(&[outbox_chain, inbox_chain]),
+            messages_processed_count: metrics
+                .messages_processed_count()
+                .with_label_values(&[outbox_chain, inbox_chain]),
+            processed_gauge: metrics.last_known_message_leaf_index().with_label_values(&[
+                "message_processed",
+                outbox_chain,
+                inbox_chain,
+            ]),
+            max_submitted_leaf_index: 0,
+        }
     }
 }
