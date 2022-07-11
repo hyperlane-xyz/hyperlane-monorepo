@@ -59,7 +59,7 @@ where
 
                 let gas_payments = indexer.fetch_gas_payments(from, to).await?;
 
-                info!(
+                debug!(
                     from = from,
                     to = to,
                     gas_payments_count = gas_payments.len(),
