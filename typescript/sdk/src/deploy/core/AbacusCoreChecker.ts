@@ -22,7 +22,7 @@ export class AbacusCoreChecker<
   Chain extends ChainName,
 > extends AbacusAppChecker<Chain, AbacusCore<Chain>, CoreConfig> {
   async checkChain(chain: Chain): Promise<void> {
-    // await this.checkDomainOwnership(chain);
+    await this.checkDomainOwnership(chain);
     await this.checkProxiedContracts(chain);
     await this.checkOutbox(chain);
     await this.checkInboxes(chain);
@@ -30,21 +30,25 @@ export class AbacusCoreChecker<
     await this.checkValidatorManagers(chain);
   }
 
-  // CoreConfig does not have `owner`
-  // async checkDomainOwnership(chain: Chain): Promise<void> {
-  //   const config = this.configMap[chain];
-  //   const contracts = this.app.getContracts(chain);
-  //   const ownables = [
-  //     contracts.abacusConnectionManager,
-  //     contracts.upgradeBeaconController,
-  //     contracts.outbox.outbox,
-  //     contracts.outbox.outboxValidatorManager,
-  //     ...Object.values(contracts.inboxes)
-  //       .map((inbox: any) => [inbox.inbox, inbox.validatorManager])
-  //       .flat(),
-  //   ];
-  //   return AbacusAppChecker.checkOwnership(config.owner, ownables);
-  // }
+  async checkDomainOwnership(chain: Chain): Promise<void> {
+    const config = this.configMap[chain];
+    if (config.owner) {
+      const contracts = this.app.getContracts(chain);
+      const ownables = [
+        contracts.abacusConnectionManager,
+        contracts.upgradeBeaconController,
+        contracts.outbox.contract,
+        contracts.outboxValidatorManager,
+        ...Object.values(contracts.inboxes)
+          .map((inbox: any) => [
+            inbox.inbox.contract,
+            inbox.inboxValidatorManager,
+          ])
+          .flat(),
+      ];
+      return this.checkOwnership(chain, config.owner, ownables);
+    }
+  }
 
   async checkOutbox(chain: Chain): Promise<void> {
     const contracts = this.app.getContracts(chain);
