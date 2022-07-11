@@ -122,6 +122,7 @@ __metadata:
     ethers: ^5.6.8
     hardhat: ^2.8.4
     prettier: ^2.4.1
+    prom-client: ^14.0.1
     ts-node: ^10.8.0
     typescript: ^4.7.2
     yargs: ^17.4.1
@@ -5164,6 +5165,13 @@ __metadata:
   version: 2.2.0
   resolution: "binary-extensions@npm:2.2.0"
   checksum: ccd267956c58d2315f5d3ea6757cf09863c5fc703e50fbeb13a7dc849b812ef76e3cf9ca8f35a0c48498776a7478d7b4a0418e1e2b8cb9cb9731f2922aaad7f8
+  languageName: node
+  linkType: hard
+
+"bintrees@npm:1.0.2":
+  version: 1.0.2
+  resolution: "bintrees@npm:1.0.2"
+  checksum: 56a52b7d3634e30002b1eda740d2517a22fa8e9e2eb088e919f37c030a0ed86e364ab59e472fc770fc8751308054bb1c892979d150e11d9e11ac33bcc1b5d16e
   languageName: node
   linkType: hard
 
@@ -12756,6 +12764,15 @@ __metadata:
   languageName: node
   linkType: hard
 
+"prom-client@npm:^14.0.1":
+  version: 14.0.1
+  resolution: "prom-client@npm:14.0.1"
+  dependencies:
+    tdigest: ^0.1.1
+  checksum: 864c19b7086eda8fae652385bc8b8aeb155f85922e58672d07a64918a603341e120e65e08f9d77ccab546518dc18930284da8743c2aac3c968f626d7063d6bba
+  languageName: node
+  linkType: hard
+
 "promise-inflight@npm:^1.0.1":
   version: 1.0.1
   resolution: "promise-inflight@npm:1.0.1"
@@ -14825,6 +14842,15 @@ __metadata:
     mkdirp: ^1.0.3
     yallist: ^4.0.0
   checksum: a04c07bb9e2d8f46776517d4618f2406fb977a74d914ad98b264fc3db0fe8224da5bec11e5f8902c5b9bcb8ace22d95fbe3c7b36b8593b7dfc8391a25898f32f
+  languageName: node
+  linkType: hard
+
+"tdigest@npm:^0.1.1":
+  version: 0.1.2
+  resolution: "tdigest@npm:0.1.2"
+  dependencies:
+    bintrees: 1.0.2
+  checksum: 44de8246752b6f8c2924685f969fd3d94c36949f22b0907e99bef2b2220726dd8467f4730ea96b06040b9aa2587c0866049640039d1b956952dfa962bc2075a3
   languageName: node
   linkType: hard
 
