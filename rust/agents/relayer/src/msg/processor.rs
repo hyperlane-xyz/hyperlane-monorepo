@@ -7,7 +7,7 @@ use tokio::{
     task::JoinHandle,
     time::{Instant, MissedTickBehavior},
 };
-use tracing::{debug, info, info_span, instrument, instrument::Instrumented, warn, Instrument};
+use tracing::{debug, info_span, instrument, instrument::Instrumented, warn, Instrument};
 
 use abacus_base::{CoreMetrics, InboxContracts, Outboxes};
 use abacus_core::{
@@ -99,7 +99,7 @@ impl MessageProcessor {
             .retrieve_leaf_processing_status(self.message_leaf_index)?
             .is_some()
         {
-            info!(
+            debug!(
                 inbox_name=?self.inbox_contracts.inbox.chain_name(),
                 local_domain=?self.inbox_contracts.inbox.local_domain(),
                 idx=?self.message_leaf_index,
