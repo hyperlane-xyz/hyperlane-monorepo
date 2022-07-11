@@ -17,6 +17,9 @@ enum ExplorerApiActions {
   CHECK_PROXY_STATUS = 'checkproxyverification',
 }
 
+const strip0x = (hexstr: string) =>
+  hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
+
 export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
   Chain,
   VerificationInput
@@ -33,16 +36,22 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     this.logger = debug('abacus:ContractVerifier');
   }
 
-  async verify() {
-    for (const chain of this.chains().reverse()) {
-      await this.verifyChain(chain, this.get(chain));
-    }
+  verify() {
+    return Promise.allSettled(
+      this.chains().map((chain) =>
+        this.verifyChain(chain, this.get(chain), this.logger.extend(chain)),
+      ),
+    );
   }
 
-  async verifyChain(chain: Chain, inputs: VerificationInput) {
-    this.logger(`Verifying ${chain}...`);
+  async verifyChain(
+    chain: Chain,
+    inputs: VerificationInput,
+    logger = this.logger,
+  ) {
+    logger(`Verifying ${chain}...`);
     for (const input of inputs) {
-      await this.verifyContract(chain, input);
+      await this.verifyContract(chain, input, logger);
     }
   }
 
@@ -50,7 +59,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     chain: Chain,
     action: ExplorerApiActions,
     options?: Record<string, string>,
-  ) {
+  ): Promise<any> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const apiUrl = chainConnection.getApiUrl();
 
@@ -62,7 +71,10 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     });
 
     let response: Response;
-    if (action === ExplorerApiActions.CHECK_STATUS) {
+    if (
+      action === ExplorerApiActions.CHECK_STATUS ||
+      action === ExplorerApiActions.CHECK_PROXY_STATUS
+    ) {
       response = await fetch(`${apiUrl}?${params}`);
     } else {
       response = await fetch(apiUrl, {
@@ -81,55 +93,65 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     if (result.message === 'NOTOK') {
       if (result.result === 'Contract source code already verified') {
         return;
+      } else if (result.result === 'Pending in queue') {
+        await sleep(50000);
+        return this.submitForm(chain, action, options);
       }
-      throw new Error(`Verification ${action} failed: ${result.result}`);
+      throw new Error(`Verification failed: ${result.result}`);
     }
 
     return result.result;
   }
 
-  async verifyContract(chain: Chain, input: ContractVerificationInput) {
+  async verifyContract(
+    chain: Chain,
+    input: ContractVerificationInput,
+    logger = this.logger,
+  ) {
     if (input.address === ethers.constants.AddressZero) {
       return;
     }
+
+    logger(`Checking ${input.address} (${input.name})...`);
+
+    const data = {
+      sourceCode: this.flattenedSource,
+      contractname: input.name,
+      contractaddress: input.address,
+      // TYPO IS ENFORCED BY API
+      constructorArguements: strip0x(input.constructorArguments ?? ''),
+      codeformat: 'solidity-single-file',
+      // TODO: make compiler options configurable
+      compilerversion: 'v0.8.13+commit.abaa5c0e',
+      licenseType: '3',
+      optimizationUsed: '1',
+      runs: '999999',
+    };
+
+    const guid = await this.submitForm(
+      chain,
+      ExplorerApiActions.VERIFY_IMPLEMENTATION,
+      data,
+    );
 
     const addressUrl = await this.multiProvider
       .getChainConnection(chain)
       .getAddressUrl(input.address);
 
-    this.logger(`Checking ${input.name} implementation`);
-
-    const guid = await this.submitForm(
-      chain,
-      ExplorerApiActions.VERIFY_IMPLEMENTATION,
-      {
-        sourceCode: this.flattenedSource,
-        contractname: input.name,
-        contractaddress: input.address,
-        constructorArguments: input.constructorArguments ?? '',
-        codeformat: 'solidity-single-file',
-        // TODO: make compiler options configurable
-        compilerversion: 'v0.8.13+commit.abaa5c0e',
-        licenseType: '3',
-        optimizationUsed: '1',
-        runs: '999999',
-      },
-    );
-
-    // exit if contract is pending implementation verification
+    // poll for verified status
     if (guid) {
-      // this.logger(`Pending GUID ${guid}`);
-      return;
+      await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
+      logger(`Implementation verified at ${addressUrl}#code`);
     }
 
-    this.logger(`Verified at ${addressUrl}#code`);
-
-    // continue to marking as proxy if implementation is already verified
-    if (input.isProxy) {
-      this.logger(`Marking ${input.name} as proxy`);
-      await this.submitForm(chain, ExplorerApiActions.MARK_PROXY, {
-        address: input.address,
-      });
-    }
+    // poll for verified proxy status (if applicable)
+    // if (input.isProxy) {
+    //   TODO: investigate why this is not working
+    //   const proxyGuid = await this.submitForm(chain, ExplorerApiActions.MARK_PROXY, {
+    //     address: input.address,
+    //   });
+    //   await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {guid: proxyGuid});
+    //   logger(`Proxy verified at ${addressUrl}#readProxyContract`);
+    // }
   }
 }
