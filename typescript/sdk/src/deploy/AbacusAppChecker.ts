@@ -11,7 +11,7 @@ import { ChainMap, ChainName } from '../types';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 import { CheckerViolation } from './types';
 
-export interface Ownable {
+export interface Ownable extends ethers.Contract {
   owner(): Promise<types.Address>;
   transferOwnership(...args: any[]): Promise<ethers.ContractTransaction>;
 }
