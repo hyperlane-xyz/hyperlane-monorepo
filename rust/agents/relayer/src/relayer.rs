@@ -170,17 +170,15 @@ impl Relayer {
         let (signed_checkpoint_sender, signed_checkpoint_receiver) =
             tokio::sync::watch::channel::<Option<MultisigSignedCheckpoint>>(None);
 
-        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = self
-            .inboxes()
-            .iter()
-            .map(|(inbox_name, inbox_contracts)| {
-                self.run_inbox(
-                    inbox_contracts.clone(),
-                    signed_checkpoint_receiver.clone(),
-                    self.core.settings.inboxes[inbox_name].gelato_conf.clone(),
-                )
-            })
-            .collect();
+        let mut tasks: Vec<Instrumented<JoinHandle<Result<()>>>> = Vec::new();
+
+        for (inbox_name, inbox_contracts) in self.inboxes() {
+            tasks.push(self.run_inbox(
+                inbox_contracts.clone(),
+                signed_checkpoint_receiver.clone(),
+                self.core.settings.inboxes[inbox_name].gelato_conf.clone(),
+            ));
+        }
 
         tasks.push(self.run_checkpoint_fetcher(signed_checkpoint_sender));
 
