@@ -30,13 +30,27 @@ pub struct ForwardRequestOp<S> {
 }
 
 impl<S: Signer> ForwardRequestOp<S> {
+    pub fn new(
+        args: ForwardRequestArgs,
+        opts: ForwardRequestOptions,
+        signer: S,
+        http: Arc<reqwest::Client>,
+    ) -> Self {
+        Self {
+            args,
+            opts,
+            signer,
+            http,
+        }
+    }
+
     #[instrument]
     pub async fn run(&self) -> Result<ForwardRequestOpResult, GelatoError> {
         // TODO(webbhorn): handle signing error. Presumably for AWS some are retryable, others not?
         let sig = self.signer.sign_typed_data(&self.args).await.unwrap();
         loop {
             let fwd_req_call = ForwardRequestCall {
-                http: Arc::clone(&self.http),
+                http: self.http.clone(),
                 args: self.args.clone(),
                 sig,
             };

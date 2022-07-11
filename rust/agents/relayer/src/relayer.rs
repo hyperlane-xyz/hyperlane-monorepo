@@ -15,7 +15,7 @@ use abacus_base::{
 };
 use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
 
-use crate::msg::gelato_submitter::GelatoSubmitter;
+use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
 use crate::msg::serial_submitter::SerialSubmitter;
 use crate::settings::whitelist::Whitelist;
@@ -135,6 +135,11 @@ impl Relayer {
                     inbox_contracts.clone(),
                     self.outbox().db(),
                     signer.unwrap(),
+                    GelatoSubmitterMetrics::new(
+                        &self.core.metrics,
+                        outbox.chain_name(),
+                        inbox_contracts.inbox.chain_name(),
+                    ),
                 );
                 gelato_submitter.spawn()
             }
