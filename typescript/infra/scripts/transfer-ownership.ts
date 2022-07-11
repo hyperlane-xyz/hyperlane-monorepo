@@ -20,19 +20,17 @@ async function check() {
   await coreChecker.expectViolations(['Ownable'], [7 * 16]);
 
   for (const violation of coreChecker.violations) {
-    // const chainConnection = multiProvider.getChainConnection(violation.chain);
+    const chainConnection = multiProvider.getChainConnection(violation.chain);
     switch (violation.type) {
       case 'Ownable':
         console.log(
           `${violation.chain}: transferring ownership of ${violation.data.contract.address} from ${violation.actual} to ${violation.expected}`,
         );
-        /*
         const response = await violation.data.contract.transferOwnership(
           violation.expected,
           chainConnection.overrides,
         );
         await response.wait(chainConnection.confirmations);
-        */
         break;
       default:
         throw new Error(`Unexpected violation type ${violation.type}`);
