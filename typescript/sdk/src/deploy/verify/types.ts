@@ -1,7 +1,7 @@
 export type ContractVerificationInput = {
   name: string;
   address: string;
-  constructorArguments: any[];
+  constructorArguments: string; // abi-encoded bytes
   isProxy?: boolean;
 };
 
