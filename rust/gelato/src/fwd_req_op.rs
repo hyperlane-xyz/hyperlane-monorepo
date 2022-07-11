@@ -1,10 +1,10 @@
 use crate::err::GelatoError;
-use crate::fwd_req_call::{ForwardRequestCall, ForwardRequestArgs};
+use crate::fwd_req_call::{ForwardRequestArgs, ForwardRequestCall};
 use crate::task_status_call::{TaskStatus, TaskStatusCall, TaskStatusCallArgs};
 use ethers::signers::Signer;
 use std::sync::Arc;
 use tokio::time::Duration;
-use tracing::{info, instrument, debug};
+use tracing::{debug, info, instrument};
 
 #[derive(Debug, Clone)]
 pub struct ForwardRequestOpResult {
