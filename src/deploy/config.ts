@@ -1,8 +1,8 @@
 import {
-  chainConnectionConfigs,
   ChainMap,
-  TestChainNames,
   RouterConfig,
+  TestChainNames,
+  chainConnectionConfigs,
 } from '@abacus-network/sdk';
 
 export type HelloWorldConfig = RouterConfig;

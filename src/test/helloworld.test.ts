@@ -1,16 +1,18 @@
+import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
+import { expect } from 'chai';
+import { ethers } from 'hardhat';
+
 import {
   ChainMap,
   ChainNameToDomainId,
-  getMultiProviderFromConfigAndSigner,
   MultiProvider,
   TestChainNames,
   TestCoreApp,
   TestCoreDeployer,
+  getMultiProviderFromConfigAndSigner,
 } from '@abacus-network/sdk';
-import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers';
-import { expect } from 'chai';
-import { ethers } from 'hardhat';
-import { getConfigMap, HelloWorldConfig, testConfigs } from '../deploy/config';
+
+import { HelloWorldConfig, getConfigMap, testConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
 import { HelloWorld } from '../types';
 

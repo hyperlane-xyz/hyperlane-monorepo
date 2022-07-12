@@ -10,6 +10,7 @@
   "devDependencies": {
     "@nomiclabs/hardhat-ethers": "^2.0.5",
     "@nomiclabs/hardhat-waffle": "^2.0.2",
+    "@trivago/prettier-plugin-sort-imports": "^3.2.0",
     "@typechain/ethers-v5": "10.0.0",
     "@typechain/hardhat": "^6.0.0",
     "@types/mocha": "^9.1.0",
@@ -54,7 +55,8 @@
     "coverage": "hardhat coverage",
     "lint": "eslint . --ext .ts",
     "prettier": "prettier --write ./contracts ./src",
-    "test": "hardhat test ./src/test/**/*.test.ts"
+    "test": "hardhat test ./src/test/**/*.test.ts",
+    "sync": "ts-node scripts/sync-with-template-repo.ts"
   },
   "types": "dist/src/index.d.ts"
 }

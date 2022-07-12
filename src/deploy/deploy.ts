@@ -5,11 +5,13 @@ import {
   ChainName,
   MultiProvider,
 } from '@abacus-network/sdk';
+
 import {
   HelloWorldContracts,
-  helloWorldFactories,
   HelloWorldFactories,
+  helloWorldFactories,
 } from '../app/contracts';
+
 import { HelloWorldConfig } from './config';
 
 export class HelloWorldDeployer<

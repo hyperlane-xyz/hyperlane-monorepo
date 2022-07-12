@@ -2,13 +2,11 @@
 
 A basic Abacus application with a router contract that can dispatch messages.
 
-This is a template repository from which new repos can be created.
-
 ## Setup
 
 ```sh
 # Install dependencies
-yarn 
+yarn
 
 # Build source and generate types
 yarn build

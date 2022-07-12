@@ -1,3 +1,5 @@
+import { ethers } from 'ethers';
+
 import { TypedListener } from '@abacus-network/core/dist/common';
 import {
   AbacusApp,
@@ -5,8 +7,9 @@ import {
   ChainNameToDomainId,
   Remotes,
 } from '@abacus-network/sdk';
-import { ethers } from 'ethers';
+
 import { ReceivedHelloWorldEvent } from '../types/contracts/HelloWorld';
+
 import { HelloWorldContracts } from './contracts';
 
 export class HelloWorldApp<
