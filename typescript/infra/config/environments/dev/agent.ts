@@ -1,21 +1,17 @@
-import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
-import { Contexts } from '../../contexts';
 
 import { DevChains, chainNames } from './chains';
 import { validators } from './validators';
 
-export const abacus: AgentConfig<DevChains> = {
+export const agent: AgentConfig<DevChains> = {
   environment: 'dev',
   namespace: 'dev',
   runEnv: 'dev',
-  context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-5e639a2',
   },
-  environmentChainNames: chainNames,
-  contextChainNames: chainNames,
+  chainNames,
   validatorSets: validators,
   validator: {
     default: {
@@ -29,9 +25,15 @@ export const abacus: AgentConfig<DevChains> = {
       maxProcessingRetries: 10,
     },
   },
-  rolesWithKeys: ALL_KEY_ROLES,
-};
-
-export const agents = {
-  abacus,
+  kathy: {
+    default: {
+      enabled: false,
+      interval: 60 * 2,
+      chat: {
+        type: 'static',
+        message: '',
+        recipient: '',
+      },
+    },
+  },
 };

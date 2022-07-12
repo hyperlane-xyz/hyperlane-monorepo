@@ -7,7 +7,7 @@ import path from 'path';
 
 import { AllChains, ChainName } from '@abacus-network/sdk';
 
-import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
+import { KEY_ROLES, KEY_ROLE_ENUM } from '../agents/roles';
 
 export function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -181,7 +181,7 @@ export function readJSONAtPath(filepath: string) {
 
 export function assertRole(roleStr: string) {
   const role = roleStr as KEY_ROLE_ENUM;
-  if (!ALL_KEY_ROLES.includes(role)) {
+  if (!KEY_ROLES.includes(role)) {
     throw Error(`Invalid role ${role}`);
   }
   return role;

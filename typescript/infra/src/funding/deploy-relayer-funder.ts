@@ -1,16 +1,16 @@
 import { ChainName } from '@abacus-network/sdk';
 
-import { AgentConfig, CoreEnvironmentConfig } from '../config';
+import { CoreEnvironmentConfig } from '../config';
 import { RelayerFunderConfig } from '../config/funding';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 export function runRelayerFunderHelmCommand<Chain extends ChainName>(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig<Chain>,
-  relayerFunderConfig: RelayerFunderConfig,
+  coreConfig: CoreEnvironmentConfig<Chain>,
 ) {
-  const values = getRelayerFunderHelmValues(agentConfig, relayerFunderConfig);
+  const relayerFunderConfig = getRelayerFunderConfig(coreConfig);
+  const values = getRelayerFunderHelmValues(coreConfig, relayerFunderConfig);
 
   return execCmd(
     `helm ${helmCommand} relayer-funder ./helm/relayer-funder --namespace ${
@@ -20,7 +20,7 @@ export function runRelayerFunderHelmCommand<Chain extends ChainName>(
 }
 
 function getRelayerFunderHelmValues<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
+  coreConfig: CoreEnvironmentConfig<Chain>,
   relayerFunderConfig: RelayerFunderConfig,
 ) {
   const values = {
@@ -28,8 +28,8 @@ function getRelayerFunderHelmValues<Chain extends ChainName>(
       schedule: relayerFunderConfig.cronSchedule,
     },
     abacus: {
-      runEnv: agentConfig.environment,
-      chains: agentConfig.contextChainNames,
+      runEnv: coreConfig.environment,
+      chains: coreConfig.agent.chainNames,
     },
     image: {
       repository: relayerFunderConfig.docker.repo,

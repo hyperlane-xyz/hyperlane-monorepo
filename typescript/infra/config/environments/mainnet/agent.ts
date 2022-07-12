@@ -1,15 +1,12 @@
-import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
-import { Contexts } from '../../contexts';
 
 import { MainnetChains, chainNames, environment } from './chains';
 import { validators } from './validators';
 
-export const abacus: AgentConfig<MainnetChains> = {
+export const agent: AgentConfig<MainnetChains> = {
   environment,
   namespace: environment,
   runEnv: environment,
-  context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-8740021',
@@ -17,8 +14,7 @@ export const abacus: AgentConfig<MainnetChains> = {
   aws: {
     region: 'us-east-1',
   },
-  environmentChainNames: chainNames,
-  contextChainNames: chainNames,
+  chainNames: chainNames,
   validatorSets: validators,
   validator: {
     default: {
@@ -55,9 +51,4 @@ export const abacus: AgentConfig<MainnetChains> = {
       maxProcessingRetries: 10,
     },
   },
-  rolesWithKeys: ALL_KEY_ROLES,
-};
-
-export const agents = {
-  abacus,
 };

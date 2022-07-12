@@ -6,7 +6,6 @@ import {
   MultiProvider,
 } from '@abacus-network/sdk';
 
-import { Contexts } from '../../config/contexts';
 import { environments } from '../../config/environments';
 
 import { AgentConfig } from './agent';
@@ -24,11 +23,10 @@ export type EnvironmentChain<E extends DeployEnvironment> = Extract<
 export type CoreEnvironmentConfig<Chain extends ChainName> = {
   environment: DeployEnvironment;
   transactionConfigs: EnvironmentConfig<Chain>;
-  // Each AgentConfig, keyed by the context
-  agents: Partial<Record<Contexts, AgentConfig<Chain>>>;
+  agent: AgentConfig<Chain>;
   core: ChainMap<Chain, CoreConfig>;
   infra: InfrastructureConfig;
-  getMultiProvider: (context?: Contexts) => Promise<MultiProvider<Chain>>;
+  getMultiProvider: () => Promise<MultiProvider<Chain>>;
   helloWorld?: HelloWorldConfig<Chain>;
   relayerFunderConfig?: RelayerFunderConfig;
 };

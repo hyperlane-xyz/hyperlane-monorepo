@@ -7,7 +7,6 @@ import {
 
 import { ChainName } from '@abacus-network/sdk';
 
-import { Contexts } from '../../../config/contexts';
 import { AgentConfig } from '../../config';
 import { KEY_ROLE_ENUM } from '../roles';
 
@@ -21,13 +20,12 @@ export class ValidatorAgentAwsUser<
 
   constructor(
     environment: string,
-    context: Contexts,
     chainName: Chain,
     public readonly index: number,
     region: string,
     public readonly bucket: string,
   ) {
-    super(environment, context, chainName, KEY_ROLE_ENUM.Validator, region);
+    super(environment, chainName, KEY_ROLE_ENUM.Validator, region);
     this.adminS3Client = new S3Client({ region });
   }
 
@@ -99,6 +97,6 @@ export class ValidatorAgentAwsUser<
   }
 
   get userName() {
-    return `${this.context}-${this.environment}-${this.chainName}-${this.role}-${this.index}`;
+    return `abacus-${this.environment}-${this.chainName}-${this.role}-${this.index}`;
   }
 }

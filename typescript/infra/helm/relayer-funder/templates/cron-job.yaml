@@ -24,8 +24,6 @@ spec:
             - {{ .Values.abacus.runEnv }}
             - -f
             - /addresses-secret/addresses.json
-            - --context
-            - abacus
             env:
             - name: PROMETHEUS_PUSH_GATEWAY
               value: {{ .Values.infra.prometheusPushGateway }}
