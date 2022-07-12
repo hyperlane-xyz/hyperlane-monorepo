@@ -2,7 +2,7 @@ import fetch from 'cross-fetch';
 import { Debugger, debug } from 'debug';
 import { ethers } from 'ethers';
 
-import { sleep } from '@abacus-network/utils/dist/src/utils';
+import { utils } from '@abacus-network/utils';
 
 import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
@@ -20,9 +20,6 @@ enum ExplorerApiActions {
   CHECK_STATUS = 'checkverifystatus',
   CHECK_PROXY_STATUS = 'checkproxyverification',
 }
-
-const strip0x = (hexstr: string) =>
-  hexstr.startsWith('0x') ? hexstr.slice(2) : hexstr;
 
 export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
   Chain,
@@ -86,14 +83,14 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     }
 
     // avoid rate limiting (5 requests per second)
-    await sleep(1000 / 5);
+    await utils.sleep(1000 / 5);
 
     const result = JSON.parse(await response.text());
     if (result.message === 'NOTOK') {
       if (result.result === 'Contract source code already verified') {
         return;
       } else if (result.result === 'Pending in queue') {
-        await sleep(5000);
+        await utils.sleep(5000);
         return this.submitForm(chain, action, options);
       }
       console.error(chain, result.result);
@@ -118,7 +115,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       contractname: input.name,
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
-      constructorArguements: strip0x(input.constructorArguments ?? ''),
+      constructorArguements: utils.strip0x(input.constructorArguments ?? ''),
       ...this.compilerOptions,
     };
 
