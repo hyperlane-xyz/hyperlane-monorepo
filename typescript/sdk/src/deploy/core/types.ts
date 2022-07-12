@@ -9,6 +9,7 @@ export type ValidatorManagerConfig = {
 
 export type CoreConfig = {
   validatorManager: ValidatorManagerConfig;
+  owner?: types.Address;
 };
 
 export enum CoreViolationType {
