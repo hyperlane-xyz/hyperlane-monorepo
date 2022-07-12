@@ -1,6 +1,7 @@
 import '@nomiclabs/hardhat-ethers';
 import '@nomiclabs/hardhat-waffle';
 import { expect } from 'chai';
+import { ContractReceipt } from 'ethers';
 import { ethers } from 'hardhat';
 
 import { TestOutbox, TestRecipient__factory } from '@abacus-network/core';
@@ -19,35 +20,45 @@ const remoteDomain = chainMetadata[remoteChain].id;
 const message = '0xdeadbeef';
 
 describe('TestCoreDeployer', async () => {
-  let abacus: TestCoreApp, localOutbox: TestOutbox, remoteOutbox: TestOutbox;
+  let abacus: TestCoreApp,
+    localOutbox: TestOutbox,
+    remoteOutbox: TestOutbox,
+    dispatchReceipt: ContractReceipt;
 
-  beforeEach(async () => {
+  before(async () => {
     const [signer] = await ethers.getSigners();
 
+    const provider = new ethers.providers.JsonRpcProvider(
+      'http://localhost:8545',
+    );
+
+    // see https://github.com/ethers-io/ethers.js/issues/615#issuecomment-848991047
+    provider.pollingInterval = 100;
+
     const config = {
-      test1: {
-        provider: ethers.provider,
-      },
-      test2: {
-        provider: ethers.provider,
-      },
-      test3: {
-        provider: ethers.provider,
-      },
+      test1: { provider },
+      test2: { provider },
+      test3: { provider },
     };
     const multiProvider = getMultiProviderFromConfigAndSigner(config, signer);
     const deployer = new TestCoreDeployer(multiProvider);
     abacus = await deployer.deployApp();
 
-    const recipient = await new TestRecipient__factory(signer).deploy();
     localOutbox = abacus.getContracts(localChain).outbox.contract;
-    await expect(
-      localOutbox.dispatch(
-        remoteDomain,
-        utils.addressToBytes32(recipient.address),
-        message,
-      ),
-    ).to.emit(localOutbox, 'Dispatch');
+  });
+
+  beforeEach(async () => {
+    const [signer] = await ethers.getSigners();
+    const recipient = await new TestRecipient__factory(signer).deploy();
+    const dispatchResponse = await localOutbox.dispatch(
+      remoteDomain,
+      utils.addressToBytes32(recipient.address),
+      message,
+    );
+    expect(dispatchResponse).to.emit(localOutbox, 'Dispatch');
+    dispatchReceipt = await abacus.multiProvider
+      .getChainConnection(localChain)
+      .handleTx(dispatchResponse);
     remoteOutbox = abacus.getContracts(remoteChain).outbox.contract;
     await expect(
       remoteOutbox.dispatch(
@@ -74,5 +85,13 @@ describe('TestCoreDeployer', async () => {
     const responses = await abacus.processMessages();
     expect(responses.get(localChain)!.get(remoteChain)!.length).to.equal(1);
     expect(responses.get(remoteChain)!.get(localChain)!.length).to.equal(1);
+  });
+
+  it('waits on message processing receipts', async () => {
+    const [receipts] = await Promise.all([
+      abacus.waitForMessageProcessing(dispatchReceipt),
+      abacus.processOutboundMessages(localChain),
+    ]);
+    expect(receipts).to.have.length(1);
   });
 });

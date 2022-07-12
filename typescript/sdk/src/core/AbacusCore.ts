@@ -149,8 +149,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
       .interface;
     const describedLogs = sourceTx.logs.map((log) => outbox.parseLog(log));
     const dispatchLogs = describedLogs.filter(
-      (log) =>
-        log && log.eventFragment === outbox.events['Dispatch(uint256,bytes)'],
+      (log) => log && log.name === 'Dispatch',
     );
     if (dispatchLogs.length === 0) {
       throw new Error('Dispatch logs not found');
