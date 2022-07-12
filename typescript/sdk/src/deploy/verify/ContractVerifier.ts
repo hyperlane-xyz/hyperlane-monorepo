@@ -8,7 +8,11 @@ import { MultiProvider } from '../../providers/MultiProvider';
 import { ChainMap, ChainName } from '../../types';
 import { MultiGeneric } from '../../utils';
 
-import { ContractVerificationInput, VerificationInput } from './types';
+import {
+  CompilerOptions,
+  ContractVerificationInput,
+  VerificationInput,
+} from './types';
 
 enum ExplorerApiActions {
   VERIFY_IMPLEMENTATION = 'verifysourcecode',
@@ -31,6 +35,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     protected readonly multiProvider: MultiProvider<Chain>,
     protected readonly apiKeys: ChainMap<Chain, string>,
     protected readonly flattenedSource: string,
+    protected readonly compilerOptions: CompilerOptions,
   ) {
     super(verificationInputs);
     this.logger = debug('abacus:ContractVerifier');
@@ -88,7 +93,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       if (result.result === 'Contract source code already verified') {
         return;
       } else if (result.result === 'Pending in queue') {
-        await sleep(50000);
+        await sleep(5000);
         return this.submitForm(chain, action, options);
       }
       throw new Error(`Verification failed: ${result.result}`);
@@ -110,12 +115,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
       constructorArguements: strip0x(input.constructorArguments ?? ''),
-      // TODO: make compiler options configurable
-      codeformat: 'solidity-single-file',
-      compilerversion: 'v0.8.13+commit.abaa5c0e',
-      licenseType: '3',
-      optimizationUsed: '1',
-      runs: '999999',
+      ...this.compilerOptions,
     };
 
     const guid = await this.submitForm(
@@ -131,10 +131,8 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     // poll for verified status
     if (guid) {
       await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
-      this.logger.extend(chain)(
-        `Implementation verified at ${addressUrl}#code`,
-      );
     }
+    this.logger.extend(chain)(`Implementation verified at ${addressUrl}#code`);
 
     // poll for verified proxy status (if applicable)
     // if (input.isProxy) {
@@ -143,7 +141,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     //     address: input.address,
     //   });
     //   await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {guid: proxyGuid});
-    // this.logger.extend(chain)(`Proxy verified at ${addressUrl}#readProxyContract`);
     // }
+    // this.logger.extend(chain)(`Proxy verified at ${addressUrl}#readProxyContract`);
   }
 }
