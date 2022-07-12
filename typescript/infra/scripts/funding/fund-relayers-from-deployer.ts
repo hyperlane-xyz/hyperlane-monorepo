@@ -1,7 +1,12 @@
 import { Console } from 'console';
 import { ethers } from 'ethers';
+import { Gauge, Pushgateway, Registry } from 'prom-client';
 
-import { ChainConnection, CompleteChainMap } from '@abacus-network/sdk';
+import {
+  ChainConnection,
+  ChainName,
+  CompleteChainMap,
+} from '@abacus-network/sdk';
 
 import { AgentKey, ReadOnlyAgentKey } from '../../src/agents/agent';
 import { getRelayerKeys } from '../../src/agents/key-utils';
@@ -13,6 +18,36 @@ import {
   getContextAgentConfig,
   getCoreEnvironmentConfig,
 } from '../utils';
+
+const constMetricLabels = {
+  // this needs to get set in main because of async reasons
+  abacus_deployment: '',
+  abacus_context: 'abacus',
+};
+
+const metricsRegister = new Registry();
+const walletBalanceGauge = new Gauge({
+  // Mirror the rust/ethers-prometheus `wallet_balance` gauge metric.
+  name: 'abacus_wallet_balance',
+  help: 'Current balance of eth and other tokens in the `tokens` map for the wallet addresses in the `wallets` set',
+  registers: [metricsRegister],
+  labelNames: [
+    'chain',
+    'wallet_address',
+    'wallet_name',
+    'token_address',
+    'token_symbol',
+    'token_name',
+    ...(Object.keys(constMetricLabels) as (keyof typeof constMetricLabels)[]),
+  ],
+});
+metricsRegister.registerMetric(walletBalanceGauge);
+
+interface FunderBalance {
+  chain: ChainName;
+  address?: string;
+  balance: number;
+}
 
 // Min delta is 1/10 of the desired balance
 const MIN_DELTA_NUMERATOR = ethers.BigNumber.from(1);
@@ -110,6 +145,7 @@ async function main() {
     .string('f').argv;
 
   const environment = assertEnvironment(argv.e as string);
+  constMetricLabels.abacus_deployment = environment;
   const config = getCoreEnvironmentConfig(environment);
   const multiProvider = await config.getMultiProvider();
   const agentConfig = await getContextAgentConfig(config);
@@ -119,16 +155,18 @@ async function main() {
     : getRelayerKeys(agentConfig);
 
   const chains = relayerKeys.map((key) => key.chainName!);
+  const balances: FunderBalance[] = [];
 
   for (const chain of chains) {
     const chainConnection = multiProvider.getChainConnection(chain);
 
     const desiredBalance = desiredBalancePerChain[chain];
+    const funderAddress = await chainConnection.getAddress();
 
     console.group({
       chain,
       funder: {
-        address: await chainConnection.getAddress(),
+        address: funderAddress,
         balance: ethers.utils.formatEther(
           await chainConnection.signer!.getBalance(),
         ),
@@ -143,10 +181,19 @@ async function main() {
       await relayerKey.fetch();
       await fundRelayer(chainConnection, relayerKey, desiredBalance);
     }
+    balances.push({
+      chain,
+      address: funderAddress,
+      balance: parseFloat(
+        ethers.utils.formatEther(await chainConnection.signer!.getBalance()),
+      ),
+    });
 
     console.groupEnd();
     console.log('\n');
   }
+
+  await submitFunderBalanceMetrics(balances);
 }
 
 function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
@@ -162,6 +209,51 @@ function getRelayerKeysFromSerializedAddressFile(path: string): AgentKey[] {
       ),
     )
     .filter((key: AgentKey) => key.role === KEY_ROLE_ENUM.Relayer);
+}
+
+function getPushGateway(): Pushgateway | null {
+  const gatewayAddr = process.env['PROMETHEUS_PUSH_GATEWAY'];
+  if (gatewayAddr) {
+    return new Pushgateway(gatewayAddr, [], metricsRegister);
+  } else {
+    console.warn(
+      'Prometheus push gateway address was not defined; not publishing metrics.',
+    );
+    return null;
+  }
+}
+
+function submitFunderBalanceMetrics(balances: FunderBalance[]) {
+  const gateway = getPushGateway();
+  if (!gateway) return;
+
+  for (const { chain, address, balance } of balances) {
+    walletBalanceGauge
+      .labels({
+        chain,
+        wallet_address: address ?? 'unknown',
+        wallet_name: 'relayer-funder',
+        token_symbol: 'Native',
+        token_name: 'Native',
+        ...constMetricLabels,
+      })
+      .set(balance);
+  }
+
+  gateway
+    .push({ jobName: 'relayer_funder' })
+    .then(({ resp, body }) => {
+      const statusCode =
+        typeof resp == 'object' && resp != null && 'statusCode' in resp
+          ? (resp as any).statusCode
+          : 'unknown';
+      console.debug(
+        `Prometheus push resulted with status ${statusCode} and body ${body}`,
+      );
+    })
+    .catch((err) => {
+      console.error(`Error pushing metrics: ${err}`);
+    });
 }
 
 main().catch(console.error);
