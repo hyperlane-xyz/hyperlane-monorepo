@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 
-import { Inbox, Outbox } from '@abacus-network/core';
+import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
 import { ParsedMessage } from '@abacus-network/utils/dist/src/types';
 import {
   messageHash,
@@ -144,9 +144,7 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
   }
 
   getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
-    const arbitraryChain = Object.keys(this.contractsMap)[0];
-    const outbox = this.getContracts(arbitraryChain as Chain).outbox.contract
-      .interface;
+    const outbox = Outbox__factory.createInterface();
     const describedLogs = sourceTx.logs.map((log) => outbox.parseLog(log));
     const dispatchLogs = describedLogs.filter(
       (log) => log && log.name === 'Dispatch',
