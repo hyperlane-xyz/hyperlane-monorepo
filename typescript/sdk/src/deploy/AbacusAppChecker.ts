@@ -1,3 +1,5 @@
+import { Contract, ContractTransaction } from 'ethers';
+
 import { utils } from '@abacus-network/utils';
 import type { types } from '@abacus-network/utils';
 
@@ -13,6 +15,7 @@ import {
   OwnerViolation,
   ViolationType,
 } from './types';
+
 
 export abstract class AbacusAppChecker<
   Chain extends ChainName,
