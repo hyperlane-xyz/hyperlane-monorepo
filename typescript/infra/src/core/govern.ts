@@ -39,7 +39,7 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
           break;
         }
         case ViolationType.Owner: {
-          // await this.handleOwnerViolation(violation as OwnerViolation);
+          await this.handleOwnerViolation(violation as OwnerViolation);
           break;
         }
         default:
