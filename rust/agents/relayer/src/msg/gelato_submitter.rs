@@ -188,6 +188,7 @@ impl Default for ForwardRequestOptions {
     }
 }
 
+
 // TODO(webbhorn): Drop allow dead code directive once we handle
 // updating each of these metrics.
 #[allow(dead_code)]
