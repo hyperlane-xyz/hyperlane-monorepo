@@ -1,6 +1,6 @@
 import fetch from 'cross-fetch';
 import { Debugger, debug } from 'debug';
-import { ethers } from 'hardhat';
+import { ethers } from 'ethers';
 
 import { sleep } from '@abacus-network/utils/dist/src/utils';
 
