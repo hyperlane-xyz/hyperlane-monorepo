@@ -33,7 +33,7 @@ export function getChainOverriddenConfig<Chain extends ChainName, T>(
 // =====================================
 
 // These values are eventually passed to Rust, which expects the values to be camelCase
-export enum CheckpointSyncerType {
+export const enum CheckpointSyncerType {
   LocalStorage = 'localStorage',
   S3 = 's3',
 }
