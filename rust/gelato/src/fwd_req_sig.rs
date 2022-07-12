@@ -23,8 +23,8 @@ impl Eip712 for ForwardRequestArgs {
         Ok(EIP712Domain {
             name: String::from(EIP_712_DOMAIN_NAME),
             version: String::from(EIP_712_VERSION),
-            chain_id: self.chain_id.into(),
-            verifying_contract: self.chain_id.relay_fwd_addr()?,
+            chain_id: self.target_chain.into(),
+            verifying_contract: self.target_chain.relay_fwd_addr()?,
             salt: None,
         })
     }
@@ -34,8 +34,8 @@ impl Eip712 for ForwardRequestArgs {
     fn struct_hash(&self) -> Result<[u8; 32], Self::Error> {
         Ok(keccak256(ethers::abi::encode(&[
             Token::FixedBytes(ForwardRequestArgs::type_hash().unwrap().to_vec()),
-            Token::Int(U256::from(u32::from(self.chain_id))),
-            Token::Address(self.target),
+            Token::Int(U256::from(u32::from(self.target_chain))),
+            Token::Address(self.target_contract),
             Token::FixedBytes(keccak256(&self.data).to_vec()),
             Token::Address(self.fee_token),
             Token::Int(U256::from(self.payment_type.clone() as u64)),

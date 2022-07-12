@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use abacus_base::{chains::GelatoConf, CoreMetrics, InboxContracts};
 use abacus_core::{db::AbacusDB, Signers};
+use gelato::chains::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
 
@@ -31,6 +32,7 @@ pub(crate) struct GelatoSubmitter {
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
     /// Intended to be shared by reqwest library.
     http: Arc<reqwest::Client>,
+    /// Prometheus metrics.
     metrics: GelatoSubmitterMetrics,
 }
 
@@ -88,25 +90,12 @@ impl GelatoSubmitter {
         // Pull any messages sent by processor over channel.
         loop {
             match self.new_messages_receive_channel.try_recv() {
-                Ok(msg) => {
+                Ok(_msg) => {
                     let op = ForwardRequestOp {
-                        args: ForwardRequestArgs {
-                            chain_id: todo!(),
-                            target: todo!(),
-                            data: todo!(),
-                            fee_token: todo!(),
-                            payment_type: todo!(),
-                            max_fee: todo!(),
-                            gas: todo!(),
-                            sponsor: todo!(),
-                            sponsor_chain_id: todo!(),
-                            nonce: todo!(),
-                            enforce_sponsor_nonce: todo!(),
-                            enforce_sponsor_nonce_ordering: todo!(),
-                        },
+                        args: self.make_forward_request_args(_msg),
                         opts: ForwardRequestOptions::default(),
-                        signer: self.signer,
-                        http: self.http,
+                        signer: self.signer.clone(),
+                        http: self.http.clone(),
                     };
                     tokio::spawn(async move {
                         // TODO(webbhorn): Actually handle errors?
@@ -123,7 +112,52 @@ impl GelatoSubmitter {
         }
         Ok(())
     }
+
+    fn make_forward_request_args(&self, _msg: SubmitMessageArgs) -> ForwardRequestArgs {
+        //ForwardRequestArgs {
+        //    target_chain: target_chain,
+        //    target_contract: target_contract,
+        //    data,
+        //    fee_token,
+        //    max_fee,
+        //    gas,
+        //    sponsor,
+        //    sponsor_chain_id,
+        //    
+        //    // For now, Abacus always uses the same values for these fields.
+        //    payment_type: PaymentType::AsyncGasTank,
+        //    nonce: U256::zero(),
+        //    enforce_sponsor_nonce: false,
+        //    enforce_sponsor_nonce_ordering: false,
+        //}
+        ///////////////////////////////////////////////
+        ///////////////////////////////////////////////
+        ///////////////////////////////////////////////
+                        //args: ForwardRequestArgs::new(
+                        //    self.inbox_contracts.inbox.chain_name().parse()?,
+                        //    // TODO(webbhorn): Somehow get the actual IVM address.
+                        //    Address::zero(),
+                        //    // TODO(webbhorn): Somehow marshal process call on IVM into 'data'.
+                        //    "0x0".parse()?,
+                        //    // TODO(webbhorn): Somehow plumb source chain token address.
+                        //    Address::zero(),
+                        //    // TODO(webbhorn): Pass a non-zero max fee.
+                        //    U256::zero(),
+                        //    // TODO(webbhorn): Pass a non-zero gas.
+                        //    U256::zero(),
+                        //    // TODO(webbhorn): Pass a non-zero sponsor.
+                        //    Address::zero(),
+                        //    // TODO(webbhorn): Pass the actual outbox chain ID.
+                        //    Chain::Mainnet,
+                        //),
+        ///////////////////////////////////////////////
+        ///////////////////////////////////////////////
+        ///////////////////////////////////////////////
+        let _target_chain: Chain = Chain::from(&self.inbox_contracts);
+        todo!()
+    }
 }
+
 
 // TODO(webbhorn): Drop allow dead code directive once we handle
 // updating each of these metrics.
