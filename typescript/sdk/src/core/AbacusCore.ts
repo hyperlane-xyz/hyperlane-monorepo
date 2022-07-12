@@ -122,7 +122,9 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     return { inbox: destinationInbox, chainConnection };
   }
 
-  protected waitForProcessReceipt(message: DispatchedMessage) {
+  protected waitForProcessReceipt(
+    message: DispatchedMessage,
+  ): Promise<ethers.ContractReceipt> {
     const hash = messageHash(message.message, message.leafIndex);
     const { inbox, chainConnection } = this.getDestination(message);
     const filter = inbox.filters.Process(hash);
@@ -156,7 +158,9 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     });
   }
 
-  waitForMessageProcessing(sourceTx: ethers.ContractReceipt) {
+  waitForMessageProcessing(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<ethers.ContractReceipt[]> {
     const messages = this.getDispatchedMessages(sourceTx);
     return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
