@@ -11,7 +11,7 @@ export const helloWorld: HelloWorldConfig<MainnetChains> = {
       tag: 'sha-0f9c0f9',
     },
     cronSchedule: '0 15 * * *', // Every day at 3:00 PM UTC
-    chainsToSkip: ['ethereum'],
+    chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
   },
