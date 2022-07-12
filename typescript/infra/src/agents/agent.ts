@@ -1,5 +1,7 @@
 import { ChainName } from '@abacus-network/sdk';
 
+import { Contexts } from '../../config/contexts';
+import { assertContext } from '../../scripts/utils';
 import { assertChain, assertRole } from '../utils/utils';
 
 import { KEY_ROLE_ENUM } from './roles';
@@ -7,7 +9,7 @@ import { KEY_ROLE_ENUM } from './roles';
 export abstract class AgentKey {
   constructor(
     public environment: string,
-    public context: string,
+    public context: Contexts,
     public readonly role: KEY_ROLE_ENUM,
     public readonly chainName?: ChainName,
     public readonly index?: number,
@@ -37,7 +39,7 @@ export class ReadOnlyAgentKey extends AgentKey {
 
   constructor(
     public environment: string,
-    public context: string,
+    public context: Contexts,
     public readonly role: KEY_ROLE_ENUM,
     identifier: string,
     address: string,
@@ -73,7 +75,7 @@ export class ReadOnlyAgentKey extends AgentKey {
     if (!matches) {
       throw Error('Invalid identifier');
     }
-    const context = matches[1];
+    const context = assertContext(matches[1]);
     const environment = matches[2];
 
     // If matches[4] is undefined, this key doesn't have a chainName, and matches[3]
@@ -141,7 +143,7 @@ export function isValidatorKey(role: string) {
 function identifier(
   isKey: boolean,
   environment: string,
-  context: string,
+  context: Contexts,
   role: string,
   chainName?: ChainName,
   index?: number,
@@ -165,7 +167,7 @@ function identifier(
 
 export function keyIdentifier(
   environment: string,
-  context: string,
+  context: Contexts,
   role: string,
   chainName?: ChainName,
   index?: number,
@@ -175,7 +177,7 @@ export function keyIdentifier(
 
 export function userIdentifier(
   environment: string,
-  context: string,
+  context: Contexts,
   role: string,
   chainName?: ChainName,
   index?: number,

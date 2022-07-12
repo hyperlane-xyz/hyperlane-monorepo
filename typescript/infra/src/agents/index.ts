@@ -1,5 +1,6 @@
 import { ChainName } from '@abacus-network/sdk';
 
+import { Contexts } from '../../config/contexts';
 import { AgentConfig, DeployEnvironment } from '../config';
 import { ChainAgentConfig, CheckpointSyncerType } from '../config/agent';
 import { fetchGCPSecret } from '../utils/gcloud';
@@ -266,7 +267,7 @@ export async function getSecretRpcEndpoint(
 
 export async function getSecretDeployerKey(
   environment: DeployEnvironment,
-  context: string,
+  context: Contexts,
   chainName: ChainName,
 ) {
   const key = new AgentGCPKey(

@@ -7,6 +7,7 @@ import {
 
 import { ChainName } from '@abacus-network/sdk';
 
+import { Contexts } from '../../../config/contexts';
 import { AgentConfig } from '../../config';
 import { KEY_ROLE_ENUM } from '../roles';
 
@@ -20,7 +21,7 @@ export class ValidatorAgentAwsUser<
 
   constructor(
     environment: string,
-    context: string,
+    context: Contexts,
     chainName: Chain,
     public readonly index: number,
     region: string,

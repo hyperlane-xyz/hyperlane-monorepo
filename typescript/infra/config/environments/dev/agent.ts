@@ -1,5 +1,6 @@
 import { ALL_KEY_ROLES } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
+import { Contexts } from '../../contexts';
 
 import { DevChains, chainNames } from './chains';
 import { validators } from './validators';
@@ -8,7 +9,7 @@ export const abacus: AgentConfig<DevChains> = {
   environment: 'dev',
   namespace: 'dev',
   runEnv: 'dev',
-  context: 'abacus',
+  context: Contexts.Abacus,
   docker: {
     repo: 'gcr.io/abacus-labs-dev/abacus-agent',
     tag: 'sha-5e639a2',

@@ -1,6 +1,7 @@
 import { ChainMap, ChainName, RemoteChainMap } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
+import { Contexts } from '../../config/contexts';
 import {
   AgentAwsKey,
   AgentAwsUser,
@@ -204,7 +205,7 @@ export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
   runEnv: string;
-  context: string;
+  context: Contexts;
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;

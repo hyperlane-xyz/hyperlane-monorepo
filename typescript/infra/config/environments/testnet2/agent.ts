@@ -1,13 +1,9 @@
 import { ALL_KEY_ROLES, KEY_ROLE_ENUM } from '../../../src/agents/roles';
 import { AgentConfig } from '../../../src/config';
+import { Contexts } from '../../contexts';
 
 import { TestnetChains, chainNames, environment } from './chains';
 import { validators } from './validators';
-
-enum Contexts {
-  Abacus = 'abacus',
-  Flowcarbon = 'flowcarbon',
-}
 
 export const abacus: AgentConfig<TestnetChains> = {
   environment,

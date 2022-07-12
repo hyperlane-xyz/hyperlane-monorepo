@@ -9,6 +9,7 @@ import {
 
 import { ChainName } from '@abacus-network/sdk';
 
+import { Contexts } from '../../../config/contexts';
 import { AgentConfig } from '../../config';
 import {
   fetchGCPSecret,
@@ -27,7 +28,7 @@ export class AgentAwsUser<Chain extends ChainName> {
 
   constructor(
     public readonly environment: string,
-    public readonly context: string,
+    public readonly context: Contexts,
     public readonly chainName: Chain,
     public readonly role: KEY_ROLE_ENUM,
     public readonly region: string,

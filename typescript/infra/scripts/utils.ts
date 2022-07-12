@@ -10,6 +10,7 @@ import {
 } from '@abacus-network/sdk';
 import { objMap, promiseObjAll } from '@abacus-network/sdk/dist/utils';
 
+import { Contexts } from '../config/contexts';
 import { environments } from '../config/environments';
 import { getCurrentKubernetesContext } from '../src/agents';
 import { KEY_ROLE_ENUM } from '../src/agents/roles';
@@ -57,9 +58,23 @@ export async function getEnvironmentConfig() {
   return getCoreEnvironmentConfig(await getEnvironment());
 }
 
-export async function getContext() {
+export function assertContext(contextStr: string): Contexts {
+  const context = contextStr as Contexts;
+  if (Object.values(Contexts).includes(context)) {
+    return context;
+  }
+  throw new Error(
+    `Invalid context ${contextStr}, must be one of ${Object.values(
+      Contexts,
+    )}. ${
+      contextStr === undefined ? ' Did you specify --context <context>?' : ''
+    }`,
+  );
+}
+
+export async function getContext(): Promise<Contexts> {
   const argv = await getArgs().argv;
-  return argv.context!;
+  return assertContext(argv.context!);
 }
 
 export async function getContextAgentConfig<Chain extends ChainName>(
@@ -72,11 +87,9 @@ export async function getContextAgentConfig<Chain extends ChainName>(
   const agentConfig = coreConfig.agents[context];
   if (!agentConfig) {
     throw Error(
-      `Invalid context ${context}, must be one of ${Object.keys(
+      `Invalid context ${context} for environment, must be one of ${Object.keys(
         coreConfig.agents,
-      )}.${
-        context === undefined ? ' Did you specify --context <context>?' : ''
-      }`,
+      )}.`,
     );
   }
   return agentConfig;
@@ -85,14 +98,14 @@ export async function getContextAgentConfig<Chain extends ChainName>(
 export async function getMultiProviderFromGCP<Chain extends ChainName>(
   txConfigs: ChainMap<Chain, IChainConnection>,
   environment: DeployEnvironment,
-  context?: string,
+  context?: Contexts,
 ) {
   const connections = await promiseObjAll(
     objMap(txConfigs, async (chain, config) => {
       const provider = await fetchProvider(environment, chain);
       const signer = await fetchSigner(
         environment,
-        context ?? 'abacus',
+        context ?? Contexts.Abacus,
         chain,
         provider,
       );

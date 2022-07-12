@@ -1,5 +1,6 @@
 import { ChainName } from '@abacus-network/sdk';
 
+import { Contexts } from '../../config/contexts';
 import { AgentConfig } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
@@ -118,7 +119,7 @@ export async function rotateKey<Chain extends ChainName>(
 
 async function persistAddresses(
   environment: string,
-  context: string,
+  context: Contexts,
   keys: KeyAsAddress[],
 ) {
   await setGCPSecret(
@@ -152,13 +153,13 @@ export async function fetchKeysForChain<Chain extends ChainName>(
   return Object.fromEntries(keys);
 }
 
-async function fetchGCPKeyAddresses(environment: string, context: string) {
+async function fetchGCPKeyAddresses(environment: string, context: Contexts) {
   const addresses = await fetchGCPSecret(
     addressesIdentifier(environment, context),
   );
   return addresses as KeyAsAddress[];
 }
 
-function addressesIdentifier(environment: string, context: string) {
+function addressesIdentifier(environment: string, context: Contexts) {
   return `${context}-${environment}-key-addresses`;
 }

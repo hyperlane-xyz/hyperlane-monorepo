@@ -1,5 +1,6 @@
 import { getMultiProviderFromGCP } from '../../../scripts/utils';
 import { CoreEnvironmentConfig } from '../../../src/config';
+import { Contexts } from '../../contexts';
 
 import { agents } from './agent';
 import {
@@ -15,7 +16,7 @@ import { infrastructure } from './infrastructure';
 export const environment: CoreEnvironmentConfig<MainnetChains> = {
   environment: environmentName,
   transactionConfigs: mainnetConfigs,
-  getMultiProvider: (context?: string) =>
+  getMultiProvider: (context?: Contexts) =>
     getMultiProviderFromGCP(mainnetConfigs, environmentName, context),
   agents,
   core,
