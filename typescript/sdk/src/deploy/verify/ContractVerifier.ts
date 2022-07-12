@@ -41,13 +41,13 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     this.logger = debug('abacus:ContractVerifier');
   }
 
-  verify() {
+  verify(): Promise<PromiseSettledResult<void>[]> {
     return Promise.allSettled(
       this.chains().map((chain) => this.verifyChain(chain, this.get(chain))),
     );
   }
 
-  async verifyChain(chain: Chain, inputs: VerificationInput) {
+  async verifyChain(chain: Chain, inputs: VerificationInput): Promise<void> {
     this.logger(`Verifying ${chain}...`);
     for (const input of inputs) {
       await this.verifyContract(chain, input);
@@ -103,7 +103,10 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     return result.result;
   }
 
-  async verifyContract(chain: Chain, input: ContractVerificationInput) {
+  async verifyContract(
+    chain: Chain,
+    input: ContractVerificationInput,
+  ): Promise<void> {
     if (input.address === ethers.constants.AddressZero) {
       return;
     }

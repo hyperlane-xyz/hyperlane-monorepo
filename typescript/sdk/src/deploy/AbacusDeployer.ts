@@ -101,7 +101,7 @@ export abstract class AbacusDeployer<
     factory: F,
     contractName: string,
     args: Parameters<F['deploy']>,
-  ) {
+  ): Promise<ReturnType<F['deploy']>> {
     const chainConnection = this.multiProvider.getChainConnection(chain);
     const signer = chainConnection.signer;
     if (!signer) {
@@ -143,7 +143,7 @@ export abstract class AbacusDeployer<
     implementation: C,
     beaconAddress: string,
     initArgs: Parameters<C['initialize']>,
-  ) {
+  ): Promise<ProxiedContract<C, BeaconProxyAddresses>> {
     const initData = implementation.interface.encodeFunctionData(
       'initialize',
       initArgs,
