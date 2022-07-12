@@ -1,10 +1,10 @@
 import { createAgentKeysIfNotExists } from '../src/agents/key-utils';
 
-import { getEnvironmentConfig } from './utils';
+import { getContextAgentConfig } from './utils';
 
 async function main() {
-  const config = await getEnvironmentConfig();
-  return createAgentKeysIfNotExists(config.agent);
+  const agentConfig = await getContextAgentConfig();
+  return createAgentKeysIfNotExists(agentConfig);
 }
 
 main().then(console.log).catch(console.error);
