@@ -1,3 +1,5 @@
+import { Contract, ContractTransaction } from 'ethers';
+
 import { utils } from '@abacus-network/utils';
 import type { types } from '@abacus-network/utils';
 
@@ -9,8 +11,18 @@ import { ChainMap, ChainName } from '../types';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 import { CheckerViolation } from './types';
 
-export interface Ownable {
+export interface Ownable extends Contract {
   owner(): Promise<types.Address>;
+  transferOwnership(...args: any[]): Promise<ContractTransaction>;
+}
+
+export interface OwnableViolation extends CheckerViolation {
+  type: 'Ownable';
+  data: {
+    contract: Contract;
+  };
+  actual: string;
+  expected: string;
 }
 
 export abstract class AbacusAppChecker<
@@ -43,9 +55,7 @@ export abstract class AbacusAppChecker<
   }
 
   addViolation(violation: CheckerViolation): void {
-    if (!this.isDuplicateViolation(violation)) {
-      this.violations.push(violation);
-    }
+    this.violations.push(violation);
   }
 
   async checkUpgradeBeacon(
@@ -65,23 +75,28 @@ export abstract class AbacusAppChecker<
     }
   }
 
-  static async checkOwnership(
+  async checkOwnership(
+    chain: Chain,
     owner: types.Address,
     ownables: Ownable[],
   ): Promise<void> {
-    const owners = await Promise.all(ownables.map((o) => o.owner()));
-    owners.map((_) => utils.assert(_ == owner));
-  }
-
-  isDuplicateViolation(violation: CheckerViolation): boolean {
-    const duplicates = this.violations.filter(
-      (v) =>
-        violation.type === v.type &&
-        violation.chain === v.chain &&
-        violation.actual === v.actual &&
-        violation.expected === v.expected,
+    await Promise.all(
+      ownables.map(async (contract) => {
+        const actual = await contract.owner();
+        if (actual.toLowerCase() != owner.toLowerCase()) {
+          const violation: OwnableViolation = {
+            chain,
+            type: 'Ownable',
+            actual,
+            expected: owner,
+            data: {
+              contract,
+            },
+          };
+          this.addViolation(violation);
+        }
+      }),
     );
-    return duplicates.length > 0;
   }
 
   expectViolations(types: string[], expectedMatches: number[]): void {
@@ -89,15 +104,27 @@ export abstract class AbacusAppChecker<
     const actualMatches = types.map(
       (t) => this.violations.map((v) => v.type === t).filter(Boolean).length,
     );
-    utils.assert(utils.deepEquals(actualMatches, expectedMatches));
+    actualMatches.map((actual, index) => {
+      const expected = expectedMatches[index];
+      utils.assert(
+        actual == expected,
+        `Expected ${expected} ${types[index]} violations, got ${actual}`,
+      );
+    });
     // Every violation should be matched by at least one partial.
     const unmatched = this.violations.map(
       (v) => types.map((t) => v.type === t).filter(Boolean).length,
     );
-    utils.assert(!unmatched.includes(0));
+    unmatched.map((count, index) => {
+      utils.assert(
+        count > 0,
+        `Expected 0 ${this.violations[index].type} violations, got ${count}`,
+      );
+    });
   }
 
   expectEmpty(): void {
-    utils.assert(this.violations.length === 0);
+    const count = this.violations.length;
+    utils.assert(count === 0, `Found ${count} violations`);
   }
 }
