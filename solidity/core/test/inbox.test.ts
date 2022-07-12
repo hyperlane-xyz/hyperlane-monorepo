@@ -80,14 +80,16 @@ describe('Inbox', async () => {
   });
 
   it('processes a message', async () => {
-    await validatorManager.process(
-      inbox.address,
-      proof.root,
-      proof.index,
-      proof.message,
-      proof.proof,
-      proof.index,
-    );
+    await expect(
+      validatorManager.process(
+        inbox.address,
+        proof.root,
+        proof.index,
+        proof.message,
+        proof.proof,
+        proof.index,
+      ),
+    ).to.emit(inbox, 'Process');
     expect(await inbox.messages(proof.leaf)).to.eql(
       types.MessageStatus.PROCESSED,
     );
