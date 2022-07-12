@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { Contract, ContractTransaction } from 'ethers';
 
 import { utils } from '@abacus-network/utils';
 import type { types } from '@abacus-network/utils';
@@ -11,15 +11,15 @@ import { ChainMap, ChainName } from '../types';
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
 import { CheckerViolation } from './types';
 
-export interface Ownable extends ethers.Contract {
+export interface Ownable extends Contract {
   owner(): Promise<types.Address>;
-  transferOwnership(...args: any[]): Promise<ethers.ContractTransaction>;
+  transferOwnership(...args: any[]): Promise<ContractTransaction>;
 }
 
 export interface OwnableViolation extends CheckerViolation {
   type: 'Ownable';
   data: {
-    contract: ethers.Contract;
+    contract: Contract;
   };
   actual: string;
   expected: string;
