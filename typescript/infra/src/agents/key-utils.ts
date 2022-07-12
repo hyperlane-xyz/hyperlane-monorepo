@@ -1,6 +1,5 @@
 import { ChainName } from '@abacus-network/sdk';
 
-import { Contexts } from '../../config/contexts';
 import { AgentConfig } from '../config';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud';
 import { execCmd } from '../utils/utils';
@@ -8,7 +7,7 @@ import { execCmd } from '../utils/utils';
 import { AgentKey } from './agent';
 import { AgentAwsKey } from './aws/key';
 import { AgentGCPKey } from './gcp';
-import { KEY_ROLE_ENUM } from './roles';
+import { KEY_ROLES, KEY_ROLE_ENUM } from './roles';
 
 interface KeyAsAddress {
   identifier: string;
@@ -24,13 +23,7 @@ export function getKey<Chain extends ChainName>(
   if (agentConfig.aws) {
     return new AgentAwsKey(agentConfig, role, chainName, index);
   } else {
-    return new AgentGCPKey(
-      agentConfig.environment,
-      agentConfig.context,
-      role,
-      chainName,
-      index,
-    );
+    return new AgentGCPKey(agentConfig.environment, role, chainName, index);
   }
 }
 
@@ -38,8 +31,8 @@ export function getValidatorKeys(
   agentConfig: AgentConfig<any>,
 ): Array<AgentKey> {
   // For each chainName, create validatorCount keys
-  return agentConfig.contextChainNames.flatMap((chainName) =>
-    [...Array(agentConfig.validatorSets[chainName].validators.length)].map(
+  return agentConfig.chainNames.flatMap((chainName) =>
+    Array(agentConfig.validatorSets[chainName].validators.length).map(
       (_, index) =>
         getKey(agentConfig, KEY_ROLE_ENUM.Validator, chainName, index),
     ),
@@ -47,13 +40,13 @@ export function getValidatorKeys(
 }
 
 export function getRelayerKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
-  return agentConfig.contextChainNames.map((chainName) =>
+  return agentConfig.chainNames.map((chainName) =>
     getKey(agentConfig, KEY_ROLE_ENUM.Relayer, chainName),
   );
 }
 
 export function getAllKeys(agentConfig: AgentConfig<any>): Array<AgentKey> {
-  return agentConfig.rolesWithKeys.flatMap((role) => {
+  return KEY_ROLES.flatMap((role) => {
     if (role === KEY_ROLE_ENUM.Validator) {
       return getValidatorKeys(agentConfig);
     } else if (role === KEY_ROLE_ENUM.Relayer) {
@@ -70,7 +63,6 @@ export async function deleteAgentKeys(agentConfig: AgentConfig<any>) {
   await execCmd(
     `gcloud secrets delete ${addressesIdentifier(
       agentConfig.environment,
-      agentConfig.context,
     )} --quiet`,
   );
 }
@@ -88,7 +80,6 @@ export async function createAgentKeysIfNotExists(
 
   await persistAddresses(
     agentConfig.environment,
-    agentConfig.context,
     keys.map((key) => key.serializeAsAddress()),
   );
 }
@@ -101,35 +92,19 @@ export async function rotateKey<Chain extends ChainName>(
   const key = getKey(agentConfig, role, chainName);
   await key.update();
   const keyIdentifier = key.identifier;
-  const addresses = await fetchGCPKeyAddresses(
-    agentConfig.environment,
-    agentConfig.context,
-  );
+  const addresses = await fetchGCPKeyAddresses(agentConfig.environment);
   const filteredAddresses = addresses.filter((_) => {
     return _.identifier !== keyIdentifier;
   });
 
   filteredAddresses.push(key.serializeAsAddress());
-  await persistAddresses(
-    agentConfig.environment,
-    agentConfig.context,
-    filteredAddresses,
-  );
+  await persistAddresses(agentConfig.environment, filteredAddresses);
 }
 
-async function persistAddresses(
-  environment: string,
-  context: Contexts,
-  keys: KeyAsAddress[],
-) {
-  await setGCPSecret(
-    addressesIdentifier(environment, context),
-    JSON.stringify(keys),
-    {
-      environment,
-      context,
-    },
-  );
+async function persistAddresses(environment: string, keys: KeyAsAddress[]) {
+  await setGCPSecret(addressesIdentifier(environment), JSON.stringify(keys), {
+    environment: environment,
+  });
 }
 
 // This function returns all keys for a given outbox chain in a dictionary where the key is the identifier
@@ -153,13 +128,11 @@ export async function fetchKeysForChain<Chain extends ChainName>(
   return Object.fromEntries(keys);
 }
 
-async function fetchGCPKeyAddresses(environment: string, context: Contexts) {
-  const addresses = await fetchGCPSecret(
-    addressesIdentifier(environment, context),
-  );
+async function fetchGCPKeyAddresses(environment: string) {
+  const addresses = await fetchGCPSecret(addressesIdentifier(environment));
   return addresses as KeyAsAddress[];
 }
 
-function addressesIdentifier(environment: string, context: Contexts) {
-  return `${context}-${environment}-key-addresses`;
+function addressesIdentifier(environment: string) {
+  return `abacus-${environment}-key-addresses`;
 }

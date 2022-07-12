@@ -1,27 +1,13 @@
-import {
-  getRelayerFunderConfig,
-  runRelayerFunderHelmCommand,
-} from '../../src/funding/deploy-relayer-funder';
+import { runRelayerFunderHelmCommand } from '../../src/funding/deploy-relayer-funder';
 import { HelmCommand } from '../../src/utils/helm';
-import {
-  assertCorrectKubeContext,
-  getContextAgentConfig,
-  getEnvironmentConfig,
-} from '../utils';
+import { assertCorrectKubeContext, getEnvironmentConfig } from '../utils';
 
 async function main() {
   const coreConfig = await getEnvironmentConfig();
 
   await assertCorrectKubeContext(coreConfig);
 
-  const relayerFunderConfig = getRelayerFunderConfig(coreConfig);
-  const agentConfig = await getContextAgentConfig(coreConfig);
-
-  await runRelayerFunderHelmCommand(
-    HelmCommand.InstallOrUpgrade,
-    agentConfig,
-    relayerFunderConfig,
-  );
+  await runRelayerFunderHelmCommand(HelmCommand.InstallOrUpgrade, coreConfig);
 }
 
 main()

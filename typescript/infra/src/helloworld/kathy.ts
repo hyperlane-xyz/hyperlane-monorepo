@@ -1,16 +1,17 @@
 import { ChainName } from '@abacus-network/sdk';
 
-import { AgentConfig } from '../config';
+import { getHelloWorldConfig } from '../../scripts/helloworld/utils';
+import { CoreEnvironmentConfig } from '../config';
 import { HelloWorldKathyConfig } from '../config/helloworld';
 import { HelmCommand, helmifyValues } from '../utils/helm';
 import { execCmd } from '../utils/utils';
 
 export function runHelloworldKathyHelmCommand<Chain extends ChainName>(
   helmCommand: HelmCommand,
-  agentConfig: AgentConfig<Chain>,
-  kathyConfig: HelloWorldKathyConfig<Chain>,
+  coreConfig: CoreEnvironmentConfig<Chain>,
 ) {
-  const values = getHelloworldKathyHelmValues(agentConfig, kathyConfig);
+  const kathyConfig = getHelloWorldConfig(coreConfig).kathy;
+  const values = getHelloworldKathyHelmValues(coreConfig, kathyConfig);
 
   return execCmd(
     `helm ${helmCommand} helloworld-kathy ./helm/helloworld-kathy --namespace ${
@@ -20,7 +21,7 @@ export function runHelloworldKathyHelmCommand<Chain extends ChainName>(
 }
 
 function getHelloworldKathyHelmValues<Chain extends ChainName>(
-  agentConfig: AgentConfig<Chain>,
+  coreConfig: CoreEnvironmentConfig<Chain>,
   kathyConfig: HelloWorldKathyConfig<Chain>,
 ) {
   const values = {
@@ -34,7 +35,7 @@ function getHelloworldKathyHelmValues<Chain extends ChainName>(
       // the list of chains that kathy will send to. Because Kathy
       // will fetch secrets for all chains, regardless of skipping them or
       // not, we pass in all chains
-      chains: agentConfig.contextChainNames,
+      chains: coreConfig.agent.chainNames,
     },
     image: {
       repository: kathyConfig.docker.repo,

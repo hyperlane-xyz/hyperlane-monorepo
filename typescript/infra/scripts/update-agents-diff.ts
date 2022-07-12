@@ -1,23 +1,17 @@
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
-import {
-  assertCorrectKubeContext,
-  getContextAgentConfig,
-  getCoreEnvironmentConfig,
-  getEnvironment,
-} from './utils';
+import { getCoreEnvironmentConfig, getEnvironment } from './utils';
 
 async function deploy() {
   const environment = await getEnvironment();
-
   const config = getCoreEnvironmentConfig(environment);
-  await assertCorrectKubeContext(config);
-
-  const agentConfig = await getContextAgentConfig(config);
-
-  for (const chain of agentConfig.contextChainNames) {
-    await runAgentHelmCommand<any>(HelmCommand.UpgradeDiff, agentConfig, chain);
+  for (const chain of config.agent.chainNames) {
+    await runAgentHelmCommand<any>(
+      HelmCommand.UpgradeDiff,
+      config.agent,
+      chain,
+    );
   }
 }
 

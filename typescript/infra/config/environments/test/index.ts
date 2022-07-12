@@ -4,7 +4,7 @@ import { getMultiProviderFromConfigAndSigner } from '@abacus-network/sdk';
 
 import { CoreEnvironmentConfig } from '../../../src/config';
 
-import { agents } from './agent';
+import { agent } from './agent';
 import { TestChains, testConfigs } from './chains';
 import { core } from './core';
 import { infra } from './infra';
@@ -12,7 +12,7 @@ import { infra } from './infra';
 export const environment: CoreEnvironmentConfig<TestChains> = {
   environment: 'test',
   transactionConfigs: testConfigs,
-  agents,
+  agent,
   core,
   infra,
   // NOTE: Does not work from hardhat.config.ts
