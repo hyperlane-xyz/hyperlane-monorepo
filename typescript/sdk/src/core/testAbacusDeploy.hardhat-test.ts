@@ -25,37 +25,27 @@ describe('TestCoreDeployer', async () => {
     remoteOutbox: TestOutbox,
     dispatchReceipt: ContractReceipt;
 
-  before(async () => {
+  beforeEach(async () => {
     const [signer] = await ethers.getSigners();
 
-    const provider = new ethers.providers.JsonRpcProvider(
-      'http://localhost:8545',
-    );
-
-    // see https://github.com/ethers-io/ethers.js/issues/615#issuecomment-848991047
-    provider.pollingInterval = 100;
-
     const config = {
-      test1: { provider },
-      test2: { provider },
-      test3: { provider },
+      test1: { provider: ethers.provider },
+      test2: { provider: ethers.provider },
+      test3: { provider: ethers.provider },
     };
     const multiProvider = getMultiProviderFromConfigAndSigner(config, signer);
     const deployer = new TestCoreDeployer(multiProvider);
     abacus = await deployer.deployApp();
 
-    localOutbox = abacus.getContracts(localChain).outbox.contract;
-  });
-
-  beforeEach(async () => {
-    const [signer] = await ethers.getSigners();
     const recipient = await new TestRecipient__factory(signer).deploy();
-    const dispatchResponse = await localOutbox.dispatch(
+    localOutbox = abacus.getContracts(localChain).outbox.contract;
+
+    const dispatchResponse = localOutbox.dispatch(
       remoteDomain,
       utils.addressToBytes32(recipient.address),
       message,
     );
-    expect(dispatchResponse).to.emit(localOutbox, 'Dispatch');
+    await expect(dispatchResponse).to.emit(localOutbox, 'Dispatch');
     dispatchReceipt = await abacus.multiProvider
       .getChainConnection(localChain)
       .handleTx(dispatchResponse);
