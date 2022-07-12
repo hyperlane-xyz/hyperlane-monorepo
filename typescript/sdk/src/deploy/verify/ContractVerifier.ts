@@ -38,20 +38,14 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
   verify() {
     return Promise.allSettled(
-      this.chains().map((chain) =>
-        this.verifyChain(chain, this.get(chain), this.logger.extend(chain)),
-      ),
+      this.chains().map((chain) => this.verifyChain(chain, this.get(chain))),
     );
   }
 
-  async verifyChain(
-    chain: Chain,
-    inputs: VerificationInput,
-    logger = this.logger,
-  ) {
-    logger(`Verifying ${chain}...`);
+  async verifyChain(chain: Chain, inputs: VerificationInput) {
+    this.logger(`Verifying ${chain}...`);
     for (const input of inputs) {
-      await this.verifyContract(chain, input, logger);
+      await this.verifyContract(chain, input);
     }
   }
 
@@ -103,16 +97,12 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     return result.result;
   }
 
-  async verifyContract(
-    chain: Chain,
-    input: ContractVerificationInput,
-    logger = this.logger,
-  ) {
+  async verifyContract(chain: Chain, input: ContractVerificationInput) {
     if (input.address === ethers.constants.AddressZero) {
       return;
     }
 
-    logger(`Checking ${input.address} (${input.name})...`);
+    this.logger.extend(chain)(`Checking ${input.address} (${input.name})...`);
 
     const data = {
       sourceCode: this.flattenedSource,
@@ -120,8 +110,8 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       contractaddress: input.address,
       // TYPO IS ENFORCED BY API
       constructorArguements: strip0x(input.constructorArguments ?? ''),
-      codeformat: 'solidity-single-file',
       // TODO: make compiler options configurable
+      codeformat: 'solidity-single-file',
       compilerversion: 'v0.8.13+commit.abaa5c0e',
       licenseType: '3',
       optimizationUsed: '1',
@@ -141,7 +131,9 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     // poll for verified status
     if (guid) {
       await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
-      logger(`Implementation verified at ${addressUrl}#code`);
+      this.logger.extend(chain)(
+        `Implementation verified at ${addressUrl}#code`,
+      );
     }
 
     // poll for verified proxy status (if applicable)
@@ -151,7 +143,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     //     address: input.address,
     //   });
     //   await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {guid: proxyGuid});
-    //   logger(`Proxy verified at ${addressUrl}#readProxyContract`);
+    // this.logger.extend(chain)(`Proxy verified at ${addressUrl}#readProxyContract`);
     // }
   }
 }
