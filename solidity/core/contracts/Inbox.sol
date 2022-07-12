@@ -130,6 +130,8 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
             bytes calldata body
         ) = _message.destructure();
 
+        // ensure message came from the correct domain
+        require(origin == remoteDomain, "!origin");
         // ensure message was meant for this domain
         require(destination == localDomain, "!destination");
 

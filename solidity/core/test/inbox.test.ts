@@ -169,6 +169,30 @@ describe('Inbox', async () => {
     });
   }
 
+  it('Fails to process message with wrong origin Domain', async () => {
+    const outboxFactory = new TestOutbox__factory(signer);
+    const originOutbox = await outboxFactory.deploy(localDomain + 1);
+    await originOutbox.initialize(validatorManager.address);
+
+    const proof = await dispatchMessageAndReturnProof(
+      originOutbox,
+      localDomain,
+      recipient,
+      'hello world',
+    );
+
+    await expect(
+      validatorManager.process(
+        inbox.address,
+        proof.root,
+        proof.index,
+        proof.message,
+        proof.proof,
+        proof.index,
+      ),
+    ).to.be.revertedWith('!origin');
+  });
+
   it('Fails to process message with wrong destination Domain', async () => {
     const badProof = await dispatchMessageAndReturnProof(
       helperOutbox,
