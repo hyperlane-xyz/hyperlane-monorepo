@@ -14,5 +14,7 @@ export const helloWorld: HelloWorldConfig<MainnetChains> = {
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
+    prometheusPushGateway:
+      'http://prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   },
 };
