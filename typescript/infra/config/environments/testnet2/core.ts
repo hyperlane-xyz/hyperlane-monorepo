@@ -6,6 +6,7 @@ export const core: ChainMap<TestnetChains, CoreConfig> = {
   alfajores: {
     validatorManager: {
       validators: [
+        '0x7716860b2be4079137dc21533ac6d26a99d76e84',
         '0x7716860b2be4079137dc21533ac6d26a99d76e83',
         '0xb476f4d55d640e9a9a43b9bdf471dc06e4508bbd',
         '0xda63918dd964c0d7c59a04062bffe0fba8edaf1c',

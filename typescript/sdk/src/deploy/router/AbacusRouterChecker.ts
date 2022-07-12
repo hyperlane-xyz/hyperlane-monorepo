@@ -4,7 +4,8 @@ import { AbacusApp } from '../../AbacusApp';
 import { chainMetadata } from '../../consts/chainMetadata';
 import { RouterContracts } from '../../router';
 import { ChainName } from '../../types';
-import { AbacusAppChecker, Ownable } from '../AbacusAppChecker';
+import { AbacusAppChecker } from '../AbacusAppChecker';
+import { Ownable } from '../types';
 
 import { RouterConfig } from './types';
 
