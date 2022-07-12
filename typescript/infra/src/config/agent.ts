@@ -1,7 +1,6 @@
 import { ChainMap, ChainName, RemoteChainMap } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-import { Contexts } from '../../config/contexts';
 import {
   AgentAwsKey,
   AgentAwsUser,
@@ -33,7 +32,7 @@ export function getChainOverriddenConfig<Chain extends ChainName, T>(
 // =====================================
 
 // These values are eventually passed to Rust, which expects the values to be camelCase
-export const enum CheckpointSyncerType {
+export enum CheckpointSyncerType {
   LocalStorage = 'localStorage',
   S3 = 's3',
 }
@@ -205,20 +204,14 @@ export interface AgentConfig<Chain extends ChainName> {
   environment: string;
   namespace: string;
   runEnv: string;
-  context: Contexts;
   docker: DockerConfig;
   index?: IndexingConfig;
   aws?: AwsConfig;
-  // Names of all chains in the environment
-  environmentChainNames: Chain[];
-  // Names of chains this context cares about
-  contextChainNames: Chain[];
+  chainNames: Chain[];
   validatorSets: ChainValidatorSets<Chain>;
-  validator?: ChainValidatorConfigs<Chain>;
-  relayer?: ChainRelayerConfigs<Chain>;
+  validator: ChainValidatorConfigs<Chain>;
+  relayer: ChainRelayerConfigs<Chain>;
   kathy?: ChainKathyConfigs<Chain>;
-  // Roles to manage keys for
-  rolesWithKeys: KEY_ROLE_ENUM[];
 }
 
 export type RustSigner = {
@@ -281,18 +274,15 @@ export class ChainAgentConfig<Chain extends ChainName> {
   }
 
   signers(role: KEY_ROLE_ENUM) {
-    return this.agentConfig.contextChainNames.map((name) => ({
+    return this.agentConfig.chainNames.map((name) => ({
       name,
       keyConfig: this.keyConfig(role),
     }));
   }
 
-  async validatorConfigs(): Promise<Array<ValidatorConfig> | undefined> {
-    if (!this.validatorEnabled) {
-      return undefined;
-    }
+  async validatorConfigs(): Promise<Array<ValidatorConfig>> {
     const baseConfig = getChainOverriddenConfig(
-      this.agentConfig.validator!,
+      this.agentConfig.validator,
       this.chainName,
     );
 
@@ -305,7 +295,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
         if (val.checkpointSyncer.type === CheckpointSyncerType.S3) {
           const awsUser = new ValidatorAgentAwsUser(
             this.agentConfig.environment,
-            this.agentConfig.context,
             this.chainName,
             i,
             val.checkpointSyncer.region,
@@ -333,10 +322,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
     );
   }
 
-  get validatorEnabled(): boolean {
-    return this.agentConfig.validator !== undefined;
-  }
-
   // Returns whetehr the relayer requires AWS credentials, creating them if required.
   async relayerRequiresAwsCredentials(): Promise<boolean> {
     // If there is an S3 checkpoint syncer, we need AWS credentials.
@@ -355,7 +340,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
     if (awsRegion !== undefined) {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
-        this.agentConfig.context,
         this.chainName,
         KEY_ROLE_ENUM.Relayer,
         awsRegion,
@@ -371,35 +355,26 @@ export class ChainAgentConfig<Chain extends ChainName> {
   }
 
   async relayerSigners() {
-    if (!this.relayerEnabled) {
-      return undefined;
-    }
-
     if (!this.awsKeys) {
       return this.signers(KEY_ROLE_ENUM.Relayer);
     }
     const awsUser = new AgentAwsUser(
       this.agentConfig.environment,
-      this.agentConfig.context,
       this.chainName,
       KEY_ROLE_ENUM.Relayer,
       this.agentConfig.aws!.region,
     );
     await awsUser.createIfNotExists();
     const key = await awsUser.createKeyIfNotExists(this.agentConfig);
-    return this.agentConfig.contextChainNames.map((name) => ({
+    return this.agentConfig.chainNames.map((name) => ({
       name,
       keyConfig: key.keyConfig,
     }));
   }
 
-  get relayerConfig(): RelayerConfig | undefined {
-    if (!this.relayerEnabled) {
-      return undefined;
-    }
-
+  get relayerConfig(): RelayerConfig {
     const baseConfig = getChainOverriddenConfig(
-      this.agentConfig.relayer!,
+      this.agentConfig.relayer,
       this.chainName,
     );
 
@@ -427,10 +402,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
     return obj;
   }
 
-  get relayerEnabled(): boolean {
-    return this.agentConfig.relayer !== undefined;
-  }
-
   // Gets signer info, creating them if necessary
   async kathySigners() {
     if (!this.kathyEnabled) {
@@ -442,7 +413,6 @@ export class ChainAgentConfig<Chain extends ChainName> {
     if (this.awsKeys) {
       const awsUser = new AgentAwsUser(
         this.agentConfig.environment,
-        this.agentConfig.context,
         this.chainName,
         KEY_ROLE_ENUM.Kathy,
         this.agentConfig.aws!.region,

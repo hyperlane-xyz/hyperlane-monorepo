@@ -1,7 +1,11 @@
 import { getAgentEnvVars } from '../src/agents';
 import { writeFile } from 'fs/promises';
 
-import { getContextAgentConfig, getKeyRoleAndChainArgs } from './utils';
+import {
+  getCoreEnvironmentConfig,
+  getEnvironment,
+  getKeyRoleAndChainArgs,
+} from './utils';
 
 async function main() {
   const argv = await getKeyRoleAndChainArgs()
@@ -10,11 +14,12 @@ async function main() {
     .describe('f', 'filepath')
     .require('f').argv;
 
-  const agentConfig = await getContextAgentConfig();
+  const environment = await getEnvironment();
+  const config = getCoreEnvironmentConfig(environment);
   const envVars = await getAgentEnvVars<any>(
     argv.c,
     argv.r,
-    agentConfig,
+    config.agent,
     argv.i,
   );
 

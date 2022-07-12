@@ -1,18 +1,10 @@
 import { runAgentHelmCommand } from '../src/agents';
 import { HelmCommand } from '../src/utils/helm';
 
-import {
-  assertCorrectKubeContext,
-  getContextAgentConfig,
-  getCoreEnvironmentConfig,
-  getEnvironment,
-} from './utils';
+import { assertCorrectKubeContext, getEnvironmentConfig } from './utils';
 
 async function deploy() {
-  const environment = await getEnvironment();
-  const config = getCoreEnvironmentConfig(environment);
-
-  const agentConfig = await getContextAgentConfig(config);
+  const config = await getEnvironmentConfig();
 
   await assertCorrectKubeContext(config);
 
@@ -24,8 +16,8 @@ async function deploy() {
   // While this function still has these side effects, the workaround is to just
   // run the create-keys script first.
   await Promise.all(
-    agentConfig.contextChainNames.map((name: any) =>
-      runAgentHelmCommand(HelmCommand.InstallOrUpgrade, agentConfig, name),
+    config.agent.chainNames.map((name: any) =>
+      runAgentHelmCommand(HelmCommand.InstallOrUpgrade, config.agent, name),
     ),
   );
 }

@@ -1,4 +1,3 @@
-{{- if .Values.abacus.validator.enabled }}
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -11,5 +10,4 @@ data:
   validator-{{ $index }}.env: |
 {{- include "abacus-agent.config-env-vars" (dict "config" . "agent_name" "validator" "dot_env_format" true) | indent 4 }}
 {{ $index = add1 $index }}
-{{- end }}
 {{- end }}
