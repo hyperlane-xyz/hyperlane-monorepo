@@ -186,7 +186,7 @@ async function main() {
     });
   }
 
-  submitFunderBalanceMetrics(balances);
+  await submitFunderBalanceMetrics(balances);
 
   if (failureOccurred) {
     error('At least one failure occurred when funding relayers');
