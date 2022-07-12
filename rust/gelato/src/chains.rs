@@ -3,6 +3,7 @@
 // Gelato's verifying contracts. Converting from the chain's name in string format is useful
 // for CLI usage so that we don't have to remember chain IDs and can instead refer to names.
 
+use abacus_core::AbacusCommon;
 use ethers::types::{Address, U256};
 use std::{fmt, str::FromStr};
 
@@ -35,6 +36,8 @@ impl fmt::Display for Chain {
     }
 }
 
+// TODO(webbhorn): What is the point of trying to support the from
+// string implementation here? Just delete it?
 impl FromStr for Chain {
     type Err = GelatoError;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -54,6 +57,40 @@ impl FromStr for Chain {
             "bsc" => Ok(Chain::BinanceSmartChain),
             "bsc-testnet" => Ok(Chain::BinanceSmartChainTestnet),
             _ => Err(GelatoError::UnknownChainNameError(String::from(s))),
+        }
+    }
+}
+
+impl From<&abacus_base::InboxContracts> for Chain {
+    // TODO(webbhorn): Is there a way to statically guarantee 
+    fn from(inbox_contracts: &abacus_base::InboxContracts) -> Self {
+        match inbox_contracts.inbox.local_domain() {
+            6648936 => Chain::Mainnet,
+            1634872690 => Chain::Rinkeby,
+            3000 => Chain::Kovan,
+            1886350457 => Chain::Polygon,
+            80001 => Chain::PolygonMumbai,  // Mumbai's domain and chain IDs match.
+            1635148152 => Chain::Avalanche,
+            43113 => Chain::AvalancheFuji,  // Fuji's domain and chain IDs match.
+            6386274 => Chain::Arbitrum,
+            28528 => Chain::Optimism,
+            1869622635 => Chain::OptimismKovan,
+            6452067 => Chain::BinanceSmartChain,
+            1651715444 => Chain::BinanceSmartChainTestnet,
+
+            // TODO(webbhorn): Uncomment once Gelato supports Celo.
+            // 1667591279 => Chain::Celo,
+
+            // TODO(webbhorn): Panic gross, but wouldn't returning a Result<Self> contradict
+            // the from() signature that is required to implement the From trait?
+            _ => panic!("Unknown chain ID: {}", inbox_contracts.inbox.local_domain()),
+
+            // TODO(webbhorn): What is the difference between
+            // ArbitrumRinkeby and ArbitrumTestnet?
+            // 421611 => Chain::ArbitrumTestnet,
+
+            // TODO(webbhorn): Just drop Goerli entirely?
+            //5 => Chain::Goerli,
         }
     }
 }
