@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
 
 import { Inbox, Outbox } from '@abacus-network/core';
-import { DomainIdToChainName } from '@abacus-network/sdk/src';
 import { ParsedMessage } from '@abacus-network/utils/dist/src/types';
 import {
   messageHash,
@@ -11,6 +10,7 @@ import {
 import { AbacusApp } from '../AbacusApp';
 import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
+import { DomainIdToChainName } from '../domains';
 import { ChainConnection } from '../providers/ChainConnection';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router';
