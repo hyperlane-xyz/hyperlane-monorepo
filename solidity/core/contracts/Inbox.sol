@@ -111,7 +111,6 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         // verify the merkle proof
         require(_calculatedRoot == _root, "!proof");
         _process(_message, _messageHash);
-        emit Process(_messageHash);
     }
 
     // ============ Internal Functions ============
@@ -142,5 +141,6 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
             sender,
             body
         );
+        emit Process(_messageHash);
     }
 }
