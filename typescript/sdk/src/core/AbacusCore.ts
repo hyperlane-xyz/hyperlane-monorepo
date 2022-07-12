@@ -11,6 +11,7 @@ import {
 import { AbacusApp } from '../AbacusApp';
 import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
+import { ChainConnection } from '../providers/ChainConnection';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router';
 import { ChainMap, ChainName, Remotes } from '../types';
@@ -108,7 +109,10 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     return { originOutbox, destinationInbox };
   }
 
-  protected getDestination(message: DispatchedMessage) {
+  protected getDestination(message: DispatchedMessage): {
+    inbox: Inbox;
+    chainConnection: ChainConnection;
+  } {
     const sourceChain = DomainIdToChainName[message.parsed.origin] as Chain;
     const destinationChain = DomainIdToChainName[
       message.parsed.destination
