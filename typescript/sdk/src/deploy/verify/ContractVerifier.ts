@@ -85,8 +85,8 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
       });
     }
 
-    // avoid rate limiting
-    await sleep(1000);
+    // avoid rate limiting (5 requests per second)
+    await sleep(1000 / 5);
 
     const result = JSON.parse(await response.text());
     if (result.message === 'NOTOK') {
@@ -96,6 +96,7 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
         await sleep(5000);
         return this.submitForm(chain, action, options);
       }
+      console.error(chain, result.result);
       throw new Error(`Verification failed: ${result.result}`);
     }
 
