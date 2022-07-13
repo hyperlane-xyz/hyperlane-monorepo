@@ -1,3 +1,4 @@
+import { Ownable } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 
 import { AbacusApp } from '../../AbacusApp';
@@ -5,7 +6,6 @@ import { chainMetadata } from '../../consts/chainMetadata';
 import { RouterContracts } from '../../router';
 import { ChainName } from '../../types';
 import { AbacusAppChecker } from '../AbacusAppChecker';
-import { Ownable } from '../types';
 
 import { RouterConfig } from './types';
 
@@ -40,6 +40,6 @@ export class AbacusRouterChecker<
   }
 
   ownables(chain: Chain): Ownable[] {
-    return [this.app.getContracts(chain).router];
+    return [this.app.getContracts(chain).router as unknown as Ownable];
   }
 }

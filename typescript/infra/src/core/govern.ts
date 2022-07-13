@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   AbacusCoreChecker,
   ChainMap,
@@ -13,21 +11,16 @@ import {
 } from '@abacus-network/sdk';
 import { types } from '@abacus-network/utils';
 
-interface Call {
-  to: types.Address;
-  data: ethers.utils.BytesLike;
-}
-
 export class AbacusCoreGovernor<Chain extends ChainName> {
   readonly checker: AbacusCoreChecker<Chain>;
-  calls: ChainMap<Chain, Call[]>;
+  calls: ChainMap<Chain, types.CallData[]>;
 
   constructor(checker: AbacusCoreChecker<Chain>) {
     this.checker = checker;
     this.calls = objMap(this.checker.app.contractsMap, () => []);
   }
 
-  pushCall(chain: Chain, call: Call) {
+  pushCall(chain: Chain, call: types.CallData) {
     this.calls[chain].push(call);
   }
 
@@ -58,29 +51,18 @@ export class AbacusCoreGovernor<Chain extends ChainName> {
     const validatorManager = violation.data.validatorManager;
     switch (violation.data.type) {
       case ValidatorViolationType.EnrollValidator: {
-        const call = {
-          to: validatorManager.address,
-          data:
-            (
-              await validatorManager.populateTransaction.enrollValidator(
-                violation.expected,
-              )
-            ).data || '0x',
-        };
-        this.pushCall(violation.chain as Chain, call);
+        const call = await validatorManager.populateTransaction.enrollValidator(
+          violation.expected,
+        );
+        this.pushCall(violation.chain as Chain, call as types.CallData);
         break;
       }
       case ValidatorViolationType.UnenrollValidator: {
-        const call = {
-          to: validatorManager.address,
-          data:
-            (
-              await validatorManager.populateTransaction.unenrollValidator(
-                violation.actual,
-              )
-            ).data || '0x',
-        };
-        this.pushCall(violation.chain as Chain, call);
+        const call =
+          await validatorManager.populateTransaction.unenrollValidator(
+            violation.actual,
+          );
+        this.pushCall(violation.chain as Chain, call as types.CallData);
         break;
       }
       default:

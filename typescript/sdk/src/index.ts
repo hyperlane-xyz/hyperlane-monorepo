@@ -78,7 +78,6 @@ export { AbacusAppChecker } from './deploy/AbacusAppChecker';
 export {
   CheckerViolation,
   EnvironmentConfig,
-  Ownable,
   OwnerViolation,
   ViolationType,
 } from './deploy/types';

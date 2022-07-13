@@ -1,3 +1,4 @@
+import { Ownable } from '@abacus-network/core';
 import { utils } from '@abacus-network/utils';
 import type { types } from '@abacus-network/utils';
 
@@ -7,12 +8,7 @@ import { BeaconProxyAddresses } from '../proxy';
 import { ChainMap, ChainName } from '../types';
 
 import { upgradeBeaconImplementation, upgradeBeaconViolation } from './proxy';
-import {
-  CheckerViolation,
-  Ownable,
-  OwnerViolation,
-  ViolationType,
-} from './types';
+import { CheckerViolation, OwnerViolation, ViolationType } from './types';
 
 export abstract class AbacusAppChecker<
   Chain extends ChainName,
