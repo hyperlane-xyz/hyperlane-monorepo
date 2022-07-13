@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use abacus_base::{chains::GelatoConf, CoreMetrics, InboxContracts};
 use abacus_core::{db::AbacusDB, Signers};
+use ethers::types::Address;
 use gelato::chains::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
@@ -154,6 +155,8 @@ impl GelatoSubmitter {
         ///////////////////////////////////////////////
         ///////////////////////////////////////////////
         let _target_chain: Chain = Chain::from(&self.inbox_contracts);
+        let _fee_token = Address::repeat_byte(0xEE);
+
         todo!()
     }
 }
