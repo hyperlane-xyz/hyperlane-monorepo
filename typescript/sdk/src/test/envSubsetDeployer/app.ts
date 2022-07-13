@@ -13,15 +13,24 @@ import { RouterContracts, RouterFactories } from '../../router';
 import { ChainMap, ChainName } from '../../types';
 import { objMap, promiseObjAll } from '../../utils';
 
-export const testConfigs = {
+export const fullEnvTestConfigs = {
   test1: chainConnectionConfigs.test1,
   test2: chainConnectionConfigs.test2,
   test3: chainConnectionConfigs.test3,
 };
 
-export const alfajoresConfigs = {
+export const subsetTestConfigs = {
+  test1: chainConnectionConfigs.test1,
+  test2: chainConnectionConfigs.test2,
+};
+
+export type SubsetChains = keyof typeof subsetTestConfigs;
+
+export const singleChainConfig = {
   alfajores: chainConnectionConfigs.alfajores,
 };
+
+export type SingleChain = keyof typeof subsetTestConfigs;
 
 export class EnvSubsetApp<
   Chain extends ChainName = ChainName,

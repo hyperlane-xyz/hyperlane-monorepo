@@ -9,10 +9,11 @@ import {
   TestChainNames,
   TestCoreApp,
   TestCoreDeployer,
+  getChainToOwnerMap,
   getMultiProviderFromConfigAndSigner,
 } from '@abacus-network/sdk';
 
-import { HelloWorldConfig, getConfigMap, testConfigs } from '../deploy/config';
+import { HelloWorldConfig, testConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
 import { HelloWorld } from '../types';
 
@@ -38,7 +39,7 @@ describe('HelloWorld', async () => {
     const coreContractsMaps = await coreDeployer.deploy();
     coreApp = new TestCoreApp(coreContractsMaps, multiProvider);
     config = coreApp.extendWithConnectionClientConfig(
-      getConfigMap(signer.address),
+      getChainToOwnerMap(testConfigs, signer.address),
     );
   });
 

@@ -1,7 +1,9 @@
 import { ethers } from 'ethers';
 
+import { types } from '@abacus-network/utils';
+
 import { MultiProvider } from '../providers/MultiProvider';
-import { ChainName } from '../types';
+import { ChainMap, ChainName } from '../types';
 import { objMap } from '../utils';
 
 import { EnvironmentConfig } from './types';
@@ -17,4 +19,15 @@ export function getMultiProviderFromConfigAndSigner<Chain extends ChainName>(
     overrides: config.overrides,
   }));
   return new MultiProvider(chainProviders);
+}
+
+export function getChainToOwnerMap<Chain extends ChainName>(
+  configMap: ChainMap<Chain, any>,
+  owner: types.Address,
+): ChainMap<Chain, { owner: string }> {
+  return objMap(configMap, () => {
+    return {
+      owner,
+    };
+  });
 }

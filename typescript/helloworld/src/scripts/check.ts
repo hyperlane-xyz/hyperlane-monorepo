@@ -5,6 +5,7 @@ import {
   ChainMap,
   ChainName,
   buildContracts,
+  getChainToOwnerMap,
   getMultiProviderFromConfigAndSigner,
 } from '@abacus-network/sdk';
 
@@ -12,7 +13,7 @@ import { HelloWorldApp } from '../app/app';
 import { HelloWorldContracts, helloWorldFactories } from '../app/contracts';
 import testEnvironmentAddresses from '../app/environments/test.json';
 import { HelloWorldChecker } from '../deploy/check';
-import { getConfigMap, testConfigs } from '../deploy/config';
+import { testConfigs } from '../deploy/config';
 
 async function check() {
   const [signer] = await ethers.getSigners();
@@ -30,7 +31,7 @@ async function check() {
 
   const core = AbacusCore.fromEnvironment('test', multiProvider);
   const config = core.extendWithConnectionClientConfig(
-    getConfigMap(signer.address),
+    getChainToOwnerMap(testConfigs, signer.address),
   );
 
   const helloWorldChecker = new HelloWorldChecker(multiProvider, app, config);

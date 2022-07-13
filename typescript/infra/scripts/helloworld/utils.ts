@@ -21,6 +21,7 @@ export async function getConfiguration<Chain extends ChainName>(
   environment: DeployEnvironment,
   multiProvider: MultiProvider<Chain>,
 ): Promise<ChainMap<Chain, RouterConfig>> {
+  // TODO rewrite without !
   const signerMap = await promiseObjAll(
     multiProvider.map(async (_, dc) => dc.signer!),
   );

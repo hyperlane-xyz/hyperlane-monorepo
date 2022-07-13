@@ -3,11 +3,12 @@ import { ethers } from 'hardhat';
 
 import {
   AbacusCore,
+  getChainToOwnerMap,
   getMultiProviderFromConfigAndSigner,
   serializeContracts,
 } from '@abacus-network/sdk';
 
-import { getConfigMap, testConfigs } from '../deploy/config';
+import { testConfigs } from '../deploy/config';
 import { HelloWorldDeployer } from '../deploy/deploy';
 
 async function main() {
@@ -19,7 +20,7 @@ async function main() {
 
   const core = AbacusCore.fromEnvironment('test', multiProvider);
   const config = core.extendWithConnectionClientConfig(
-    getConfigMap(signer.address),
+    getChainToOwnerMap(testConfigs, signer.address),
   );
 
   const deployer = new HelloWorldDeployer(multiProvider, config, core);

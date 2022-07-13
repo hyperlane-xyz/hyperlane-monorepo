@@ -9,14 +9,14 @@ import {
   EnvSubsetApp,
   EnvSubsetChecker,
   envSubsetFactories,
-  testConfigs,
+  fullEnvTestConfigs,
 } from '../app';
 import testEnvironmentAddresses from '../deploymentAddresses.json';
 
 async function check() {
   const [signer] = await ethers.getSigners();
   const multiProvider = getMultiProviderFromConfigAndSigner(
-    testConfigs,
+    fullEnvTestConfigs,
     signer,
   );
   const contractsMap = buildContracts(

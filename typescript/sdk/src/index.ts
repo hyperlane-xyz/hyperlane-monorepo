@@ -91,7 +91,10 @@ export { UpgradeBeaconViolation } from './deploy/proxy';
 export { AbacusRouterDeployer } from './deploy/router/AbacusRouterDeployer';
 export { AbacusRouterChecker } from './deploy/router/AbacusRouterChecker';
 export { RouterConfig } from './deploy/router/types';
-export { getMultiProviderFromConfigAndSigner } from './deploy/utils';
+export {
+  getMultiProviderFromConfigAndSigner,
+  getChainToOwnerMap,
+} from './deploy/utils';
 export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {
   ContractVerificationInput,

@@ -4,12 +4,12 @@ import { ethers } from 'hardhat';
 import { serializeContracts } from '../../../contracts';
 import { AbacusCore } from '../../../core/AbacusCore';
 import { getMultiProviderFromConfigAndSigner } from '../../../deploy/utils';
-import { EnvSubsetDeployer, testConfigs } from '../app';
+import { EnvSubsetDeployer, fullEnvTestConfigs } from '../app';
 
 async function main() {
   const [signer] = await ethers.getSigners();
   const multiProvider = getMultiProviderFromConfigAndSigner(
-    testConfigs,
+    fullEnvTestConfigs,
     signer,
   );
   const core = AbacusCore.fromEnvironment('test', multiProvider);
