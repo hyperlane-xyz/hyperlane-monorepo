@@ -111,7 +111,6 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
         // verify the merkle proof
         require(_calculatedRoot == _root, "!proof");
         _process(_message, _messageHash);
-        emit Process(_messageHash);
     }
 
     // ============ Internal Functions ============
@@ -131,6 +130,8 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
             bytes calldata body
         ) = _message.destructure();
 
+        // ensure message came from the correct domain
+        require(origin == remoteDomain, "!origin");
         // ensure message was meant for this domain
         require(destination == localDomain, "!destination");
 
@@ -142,5 +143,6 @@ contract Inbox is IInbox, ReentrancyGuardUpgradeable, Version0, Mailbox {
             sender,
             body
         );
+        emit Process(_messageHash);
     }
 }
