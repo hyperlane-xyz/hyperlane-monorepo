@@ -13,7 +13,7 @@ import {
   getEnvironment,
 } from './utils';
 
-async function main(): Promise<void> {
+async function main() {
   const environment = await getEnvironment();
   const config = getCoreEnvironmentConfig(environment) as any;
   const multiProvider = await config.getMultiProvider();
@@ -67,7 +67,7 @@ async function main(): Promise<void> {
     compilerOptions,
   );
 
-  await verifier.verify();
+  return verifier.verify();
 }
 
 main().then(console.log).catch(console.error);
