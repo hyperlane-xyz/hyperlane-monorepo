@@ -105,7 +105,7 @@ async function submitMetrics() {
   const gateway = getPushGateway();
   if (!gateway) return;
 
-  const { resp, body } = await gateway.push({ jobName: 'relayer_funder' });
+  const { resp, body } = await gateway.push({ jobName: 'kathy' });
   const statusCode =
     typeof resp == 'object' && resp != null && 'statusCode' in resp
       ? (resp as any).statusCode
