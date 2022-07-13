@@ -13,7 +13,6 @@ import {
 
 import { getCoreEnvironmentConfig } from './scripts/utils';
 import { sleep } from './src/utils/utils';
-import { AbacusContractVerifier } from './src/verify';
 
 const chainSummary = async <Chain extends ChainName>(
   core: AbacusCore<Chain>,
@@ -115,27 +114,6 @@ task('kathy', 'Dispatches random abacus messages')
       }
     },
   );
-
-const etherscanKey = process.env.ETHERSCAN_API_KEY;
-task('verify-deploy', 'Verifies abacus deploy sourcecode')
-  .addParam(
-    'environment',
-    'The name of the environment from which to read configs',
-  )
-  .addParam('type', 'The type of deploy to verify')
-  .setAction(async (args: any, hre: any) => {
-    const environment = args.environment;
-    const deployType = args.type;
-    if (!etherscanKey) {
-      throw new Error('set ETHERSCAN_API_KEY');
-    }
-    const verifier = new AbacusContractVerifier(
-      environment,
-      deployType,
-      etherscanKey,
-    );
-    await verifier.verify(hre);
-  });
 
 /**
  * @type import('hardhat/config').HardhatUserConfig
