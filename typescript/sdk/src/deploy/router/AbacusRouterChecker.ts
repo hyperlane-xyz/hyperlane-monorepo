@@ -17,7 +17,7 @@ export class AbacusRouterChecker<
   checkOwnership(chain: Chain): Promise<void> {
     const owner = this.configMap[chain].owner;
     const ownables = this.ownables(chain);
-    return AbacusAppChecker.checkOwnership(owner, ownables);
+    return super.checkOwnership(chain, owner, ownables);
   }
 
   async checkChain(chain: Chain): Promise<void> {

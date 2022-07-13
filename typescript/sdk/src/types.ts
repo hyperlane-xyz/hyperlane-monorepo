@@ -34,4 +34,5 @@ export interface IChainConnection {
   overrides?: ethers.Overrides;
   confirmations?: number;
   blockExplorerUrl?: string;
+  apiPrefix?: string;
 }
