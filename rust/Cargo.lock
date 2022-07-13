@@ -1662,8 +1662,6 @@ dependencies = [
 name = "gelato"
 version = "0.1.0"
 dependencies = [
- "abacus-base",
- "abacus-core",
  "async-trait",
  "ethers",
  "reqwest",

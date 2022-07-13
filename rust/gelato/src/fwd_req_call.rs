@@ -9,6 +9,8 @@ use tracing::instrument;
 
 const GATEWAY_URL: &str = "https://gateway.api.gelato.digital";
 
+pub const NATIVE_FEE_TOKEN_ADDRESS: ethers::types::Address = Address::repeat_byte(0xEE);
+
 #[derive(Debug, Clone)]
 pub struct ForwardRequestArgs {
     pub target_chain: Chain,
