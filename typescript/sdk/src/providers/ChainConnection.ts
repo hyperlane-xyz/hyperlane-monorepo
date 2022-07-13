@@ -8,7 +8,8 @@ export class ChainConnection {
   signer?: ethers.Signer;
   overrides: ethers.Overrides;
   confirmations: number;
-  blockExplorerUrl?: string;
+  blockExplorerUrl: string;
+  apiPrefix: string;
   logger: Debugger;
 
   constructor(dc: IChainConnection) {
@@ -17,6 +18,7 @@ export class ChainConnection {
     this.overrides = dc.overrides ?? {};
     this.confirmations = dc.confirmations ?? 0;
     this.blockExplorerUrl = dc.blockExplorerUrl ?? 'UNKNOWN_EXPLORER';
+    this.apiPrefix = dc.apiPrefix ?? 'api.';
     this.logger = debug('abacus:ChainConnection');
   }
 
@@ -29,10 +31,17 @@ export class ChainConnection {
     return `${this.blockExplorerUrl}/tx/${response.hash}`;
   }
 
-  async getAddressUrl(): Promise<string> {
-    return `${
-      this.blockExplorerUrl
-    }/address/${await this.signer!.getAddress()}`;
+  async getAddressUrl(address?: string): Promise<string> {
+    return `${this.blockExplorerUrl}/address/${
+      address ?? (await this.signer!.getAddress())
+    }`;
+  }
+
+  getApiUrl(): string {
+    const prefix = 'https://';
+    return `${prefix}${this.apiPrefix}${this.blockExplorerUrl.slice(
+      prefix.length,
+    )}/api`;
   }
 
   async handleTx(

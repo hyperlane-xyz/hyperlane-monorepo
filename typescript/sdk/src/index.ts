@@ -102,6 +102,7 @@ export { ContractVerifier } from './deploy/verify/ContractVerifier';
 export {
   ContractVerificationInput,
   VerificationInput,
+  CompilerOptions,
 } from './deploy/verify/types';
 export * as verificationUtils from './deploy/verify/utils';
 
