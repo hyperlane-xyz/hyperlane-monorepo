@@ -25,7 +25,7 @@ export const strip0x = (hexstr: string) =>
  * @return byteLength - length in bytes
  */
 export function getHexStringByteLength(hexStr: string) {
-  let len = strip0x(hexStr).length;
+  const len = strip0x(hexStr).length;
 
   // divide by 2 to get the byte length
   return len / 2;
