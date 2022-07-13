@@ -19,8 +19,8 @@ export class HelloWorldDeployer<
 > extends AbacusRouterDeployer<
   Chain,
   HelloWorldContracts,
-  HelloWorldFactories,
-  HelloWorldConfig
+  HelloWorldConfig,
+  HelloWorldFactories
 > {
   constructor(
     multiProvider: MultiProvider<Chain>,
