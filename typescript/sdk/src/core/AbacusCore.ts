@@ -1,8 +1,17 @@
-import { Inbox, Outbox } from '@abacus-network/core';
+import { ethers } from 'ethers';
+
+import { Inbox, Outbox, Outbox__factory } from '@abacus-network/core';
+import { ParsedMessage } from '@abacus-network/utils/dist/src/types';
+import {
+  messageHash,
+  parseMessage,
+} from '@abacus-network/utils/dist/src/utils';
 
 import { AbacusApp } from '../AbacusApp';
 import { environments } from '../consts/environments';
 import { buildContracts } from '../contracts';
+import { DomainIdToChainName } from '../domains';
+import { ChainConnection } from '../providers/ChainConnection';
 import { MultiProvider } from '../providers/MultiProvider';
 import { ConnectionClientConfig } from '../router';
 import { ChainMap, ChainName, Remotes } from '../types';
@@ -18,6 +27,12 @@ export type CoreEnvironmentChain<E extends CoreEnvironment> = Extract<
 
 export type CoreContractsMap<Chain extends ChainName> = {
   [local in Chain]: CoreContracts<Chain, local>;
+};
+
+type DispatchedMessage = {
+  leafIndex: number;
+  message: string;
+  parsed: ParsedMessage;
 };
 
 export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
@@ -92,5 +107,62 @@ export class AbacusCore<Chain extends ChainName = ChainName> extends AbacusApp<
     const destinationInbox =
       this.getContracts(destination).inboxes[origin].inbox.contract;
     return { originOutbox, destinationInbox };
+  }
+
+  protected getDestination(message: DispatchedMessage): {
+    inbox: Inbox;
+    chainConnection: ChainConnection;
+  } {
+    const sourceChain = DomainIdToChainName[message.parsed.origin] as Chain;
+    const destinationChain = DomainIdToChainName[
+      message.parsed.destination
+    ] as Chain;
+    const { destinationInbox } = this.getMailboxPair(
+      sourceChain as Exclude<Chain, typeof destinationChain>,
+      destinationChain,
+    );
+    const chainConnection =
+      this.multiProvider.getChainConnection(destinationChain);
+    return { inbox: destinationInbox, chainConnection };
+  }
+
+  protected waitForProcessReceipt(
+    message: DispatchedMessage,
+  ): Promise<ethers.ContractReceipt> {
+    const hash = messageHash(message.message, message.leafIndex);
+    const { inbox, chainConnection } = this.getDestination(message);
+    const filter = inbox.filters.Process(hash);
+
+    return new Promise<ethers.ContractReceipt>((resolve, reject) => {
+      inbox.once(filter, (emittedHash, event) => {
+        if (hash !== emittedHash) {
+          reject(`Expected message hash ${hash} but got ${emittedHash}`);
+        }
+        resolve(chainConnection.handleTx(event.getTransaction()));
+      });
+    });
+  }
+
+  getDispatchedMessages(sourceTx: ethers.ContractReceipt): DispatchedMessage[] {
+    const outbox = Outbox__factory.createInterface();
+    const describedLogs = sourceTx.logs.map((log) => outbox.parseLog(log));
+    const dispatchLogs = describedLogs.filter(
+      (log) => log && log.name === 'Dispatch',
+    );
+    if (dispatchLogs.length === 0) {
+      throw new Error('Dispatch logs not found');
+    }
+    return dispatchLogs.map((log) => {
+      const message = log.args['message'];
+      const parsed = parseMessage(message);
+      return { leafIndex: log.args['leafIndex'], message, parsed };
+    });
+  }
+
+  waitForMessageProcessing(
+    sourceTx: ethers.ContractReceipt,
+  ): Promise<ethers.ContractReceipt[]> {
+    const messages = this.getDispatchedMessages(sourceTx);
+    return Promise.all(messages.map((msg) => this.waitForProcessReceipt(msg)));
   }
 }
