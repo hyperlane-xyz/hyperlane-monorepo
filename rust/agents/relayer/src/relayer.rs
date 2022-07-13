@@ -13,7 +13,7 @@ use abacus_base::{
     chains::GelatoConf, AbacusAgentCore, Agent, CachingInterchainGasPaymaster, ContractSyncMetrics,
     InboxContracts, MultisigCheckpointSyncer,
 };
-use abacus_core::{AbacusContract, MultisigSignedCheckpoint, Signers};
+use abacus_core::{AbacusCommon, AbacusContract, MultisigSignedCheckpoint, Signers};
 
 use crate::msg::gelato_submitter::{GelatoSubmitter, GelatoSubmitterMetrics};
 use crate::msg::processor::{MessageProcessor, MessageProcessorMetrics};
@@ -130,6 +130,7 @@ impl Relayer {
                     new_messages_receive_channel,
                     inbox_contracts.clone(),
                     self.outbox().db(),
+                    self.outbox().local_domain(),
                     signer.unwrap(),
                     GelatoSubmitterMetrics::new(
                         &self.core.metrics,
