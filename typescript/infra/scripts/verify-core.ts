@@ -5,7 +5,7 @@ import { CompleteChainMap, ContractVerifier } from '@abacus-network/sdk';
 import { CompilerOptions } from '@abacus-network/sdk/dist/deploy/verify/types';
 
 import { fetchGCPSecret } from '../src/utils/gcloud';
-import { readJSON } from '../src/utils/utils';
+import { execCmd, readJSON } from '../src/utils/utils';
 
 import {
   getCoreEnvironmentConfig,
@@ -32,7 +32,6 @@ async function main(): Promise<void> {
       `Could not find flattened source at ${sourcePath}, run 'yarn hardhat flatten' in 'solidity/core'`,
     );
   }
-  const flattenedSource = readFileSync(sourcePath, { encoding: 'utf8' });
 
   // from solidity/core/hardhat.config.ts
   const compilerOptions: CompilerOptions = {
@@ -42,6 +41,19 @@ async function main(): Promise<void> {
     runs: '999999',
   };
 
+  const versionRegex = /v(\d.\d.\d+)\+commit.\w+/;
+  const matches = versionRegex.exec(compilerOptions.compilerversion);
+  if (!matches) {
+    throw new Error(
+      `Invalid compiler version ${compilerOptions.compilerversion}`,
+    );
+  }
+
+  // ensures flattened source is compilable
+  await execCmd(`solc-select use ${matches[1]}`);
+  await execCmd(`solc ${sourcePath}`);
+
+  const flattenedSource = readFileSync(sourcePath, { encoding: 'utf8' });
   const apiKeys: CompleteChainMap<string> = await fetchGCPSecret(
     'explorer-api-keys',
     true,

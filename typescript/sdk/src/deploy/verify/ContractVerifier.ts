@@ -21,6 +21,12 @@ enum ExplorerApiActions {
   CHECK_PROXY_STATUS = 'checkproxyverification',
 }
 
+enum ExplorerApiErrors {
+  ALREADY_VERIFIED = 'Contract source code already verified',
+  VERIFICATION_PENDING = 'Pending in queue',
+  PROXY_FAILED = 'A corresponding implementation contract was unfortunately not detected for the proxy address.',
+}
+
 export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
   Chain,
   VerificationInput
@@ -46,8 +52,9 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
   async verifyChain(chain: Chain, inputs: VerificationInput): Promise<void> {
     this.logger(`Verifying ${chain}...`);
+    const chainLogger = this.logger.extend(chain);
     for (const input of inputs) {
-      await this.verifyContract(chain, input);
+      await this.verifyContract(chain, input, chainLogger);
     }
   }
 
@@ -87,14 +94,16 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
 
     const result = JSON.parse(await response.text());
     if (result.message === 'NOTOK') {
-      if (result.result === 'Contract source code already verified') {
-        return;
-      } else if (result.result === 'Pending in queue') {
-        await utils.sleep(5000);
-        return this.submitForm(chain, action, options);
+      switch (result.result) {
+        case ExplorerApiErrors.VERIFICATION_PENDING:
+          await utils.sleep(5000);
+          return this.submitForm(chain, action, options);
+        case ExplorerApiErrors.ALREADY_VERIFIED:
+          return;
+        case ExplorerApiErrors.PROXY_FAILED:
+        default:
+          throw new Error(`Verification failed: ${result.result}`);
       }
-      console.error(chain, result.result);
-      throw new Error(`Verification failed: ${result.result}`);
     }
 
     return result.result;
@@ -103,12 +112,13 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
   async verifyContract(
     chain: Chain,
     input: ContractVerificationInput,
+    logger = this.logger,
   ): Promise<void> {
     if (input.address === ethers.constants.AddressZero) {
       return;
     }
 
-    this.logger.extend(chain)(`Checking ${input.address} (${input.name})...`);
+    logger(`Checking ${input.address} (${input.name})...`);
 
     const data = {
       sourceCode: this.flattenedSource,
@@ -133,16 +143,24 @@ export class ContractVerifier<Chain extends ChainName> extends MultiGeneric<
     if (guid) {
       await this.submitForm(chain, ExplorerApiActions.CHECK_STATUS, { guid });
     }
-    this.logger.extend(chain)(`Implementation verified at ${addressUrl}#code`);
+    logger(`Already verified at ${addressUrl}#code`);
 
-    // poll for verified proxy status (if applicable)
-    // if (input.isProxy) {
-    //   TODO: investigate why this is not working
-    //   const proxyGuid = await this.submitForm(chain, ExplorerApiActions.MARK_PROXY, {
-    //     address: input.address,
-    //   });
-    //   await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {guid: proxyGuid});
-    // }
-    // this.logger.extend(chain)(`Proxy verified at ${addressUrl}#readProxyContract`);
+    // mark as proxy (if applicable)
+    if (input.isProxy) {
+      const proxyGuid = await this.submitForm(
+        chain,
+        ExplorerApiActions.MARK_PROXY,
+        {
+          address: input.address,
+        },
+      );
+      // poll for verified proxy status
+      if (proxyGuid) {
+        await this.submitForm(chain, ExplorerApiActions.CHECK_PROXY_STATUS, {
+          guid: proxyGuid,
+        });
+      }
+      logger(`Already verified at ${addressUrl}#readProxyContract`);
+    }
   }
 }
