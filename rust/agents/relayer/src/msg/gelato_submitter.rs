@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
 use abacus_base::{chains::GelatoConf, CoreMetrics, InboxContracts};
+use abacus_core::AbacusCommon;
 use abacus_core::{db::AbacusDB, Signers};
-use ethers::types::Address;
 use gelato::chains::Chain;
 use prometheus::{Histogram, IntCounter, IntGauge};
 use tokio::{sync::mpsc::error::TryRecvError, task::JoinHandle};
@@ -28,6 +28,8 @@ pub(crate) struct GelatoSubmitter {
     inbox_contracts: InboxContracts,
     /// Interface to agent rocks DB for e.g. writing delivery status upon completion.
     db: AbacusDB,
+    /// Domain of the outbox.
+    outbox_domain: u32,
     /// Signer to use for EIP-712 meta-transaction signatures.
     signer: Signers,
     /// Shared reqwest HTTP client to use for any ops to Gelato endpoints.
@@ -43,6 +45,7 @@ impl GelatoSubmitter {
         new_messages_receive_channel: mpsc::UnboundedReceiver<SubmitMessageArgs>,
         inbox_contracts: InboxContracts,
         db: AbacusDB,
+        outbox_domain: u32,
         signer: Signers,
         metrics: GelatoSubmitterMetrics,
     ) -> Self {
@@ -51,6 +54,7 @@ impl GelatoSubmitter {
             new_messages_receive_channel,
             inbox_contracts,
             db,
+            outbox_domain,
             signer,
             http: Arc::new(reqwest::Client::new()),
             metrics,
@@ -124,7 +128,7 @@ impl GelatoSubmitter {
         //    gas,
         //    sponsor,
         //    sponsor_chain_id,
-        //    
+        //
         //    // For now, Abacus always uses the same values for these fields.
         //    payment_type: PaymentType::AsyncGasTank,
         //    nonce: U256::zero(),
@@ -134,33 +138,39 @@ impl GelatoSubmitter {
         ///////////////////////////////////////////////
         ///////////////////////////////////////////////
         ///////////////////////////////////////////////
-                        //args: ForwardRequestArgs::new(
-                        //    self.inbox_contracts.inbox.chain_name().parse()?,
-                        //    // TODO(webbhorn): Somehow get the actual IVM address.
-                        //    Address::zero(),
-                        //    // TODO(webbhorn): Somehow marshal process call on IVM into 'data'.
-                        //    "0x0".parse()?,
-                        //    // TODO(webbhorn): Somehow plumb source chain token address.
-                        //    Address::zero(),
-                        //    // TODO(webbhorn): Pass a non-zero max fee.
-                        //    U256::zero(),
-                        //    // TODO(webbhorn): Pass a non-zero gas.
-                        //    U256::zero(),
-                        //    // TODO(webbhorn): Pass a non-zero sponsor.
-                        //    Address::zero(),
-                        //    // TODO(webbhorn): Pass the actual outbox chain ID.
-                        //    Chain::Mainnet,
-                        //),
+        //args: ForwardRequestArgs::new(
+        //    self.inbox_contracts.inbox.chain_name().parse()?,
+        //    // TODO(webbhorn): Somehow get the actual IVM address.
+        //    Address::zero(),
+        //    // TODO(webbhorn): Somehow marshal process call on IVM into 'data'.
+        //    "0x0".parse()?,
+        //    // TODO(webbhorn): Somehow plumb source chain token address.
+        //    Address::zero(),
+        //    // TODO(webbhorn): Pass a non-zero max fee.
+        //    U256::zero(),
+        //    // TODO(webbhorn): Pass a non-zero gas.
+        //    U256::zero(),
+        //    // TODO(webbhorn): Pass a non-zero sponsor.
+        //    Address::zero(),
+        //    // TODO(webbhorn): Pass the actual outbox chain ID.
+        //    Chain::Mainnet,
+        //),
         ///////////////////////////////////////////////
         ///////////////////////////////////////////////
         ///////////////////////////////////////////////
-        let _target_chain: Chain = Chain::from(&self.inbox_contracts);
-        let _fee_token = Address::repeat_byte(0xEE);
+
+        let _fee_token = gelato::fwd_req_call::NATIVE_FEE_TOKEN_ADDRESS;
+
+        // TODO(webbhorn): It might be better to get the chain_id (via abacus domain) from Abacus
+        // code and keep our Gelato crate abacus-agnostic. I think there is a macro somewhere in
+        // abacus-base or abacus-core that does this or tracks the relation...
+        let _target_chain_id: Chain =
+            Chain::from_abacus_domain(self.inbox_contracts.inbox.local_domain());
+        let _sponsor_chain_id = Chain::from_abacus_domain(self.outbox_domain);
 
         todo!()
     }
 }
-
 
 // TODO(webbhorn): Drop allow dead code directive once we handle
 // updating each of these metrics.
